@@ -17,12 +17,25 @@ create table if not exists public.cases (
   jurisdiction_city text,
   case_type text not null,
   description text,
+  posture text not null default 'claimant' check (posture in ('claimant', 'defendant')),
   status text not null default 'draft' check (
     status in ('draft','open','under_review','needs_evidence','export_ready','closed','archived')
   ),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.cases
+  add column if not exists posture text not null default 'claimant';
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'cases_posture_check'
+  ) then
+    alter table public.cases
+      add constraint cases_posture_check check (posture in ('claimant', 'defendant'));
+  end if;
+end $$;
 
 create index if not exists cases_user_id_updated_at_idx
   on public.cases (user_id, updated_at desc);
@@ -70,6 +83,32 @@ create index if not exists exhibit_plans_case_id_position_idx
   on public.exhibit_plans (case_id, position);
 create index if not exists exhibit_plans_user_id_idx
   on public.exhibit_plans (user_id);
+
+create table if not exists public.defense_advice (
+  id uuid primary key default gen_random_uuid(),
+  case_id uuid not null references public.cases(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  jurisdiction text,
+  charges text,
+  summary text,
+  pro_se_overview text,
+  possible_defenses jsonb not null default '[]'::jsonb,
+  procedural_posture jsonb not null default '[]'::jsonb,
+  evidence_to_gather jsonb not null default '[]'::jsonb,
+  when_to_hire_lawyer jsonb not null default '[]'::jsonb,
+  risk_factors jsonb not null default '[]'::jsonb,
+  questions_for_attorney jsonb not null default '[]'::jsonb,
+  resource_topics jsonb not null default '[]'::jsonb,
+  disclaimer text,
+  model_used text,
+  is_demo boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists defense_advice_case_id_created_at_idx
+  on public.defense_advice (case_id, created_at desc);
+create index if not exists defense_advice_user_id_idx
+  on public.defense_advice (user_id);
 
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
@@ -120,6 +159,7 @@ alter table public.cases enable row level security;
 alter table public.exhibits enable row level security;
 alter table public.ai_reviews enable row level security;
 alter table public.exhibit_plans enable row level security;
+alter table public.defense_advice enable row level security;
 alter table public.profiles enable row level security;
 
 -- cases policies
@@ -192,6 +232,17 @@ drop policy if exists "exhibit_plans_delete_own" on public.exhibit_plans;
 create policy "exhibit_plans_delete_own"
   on public.exhibit_plans for delete
   using (auth.uid() = user_id);
+
+-- defense_advice policies
+drop policy if exists "defense_advice_select_own" on public.defense_advice;
+create policy "defense_advice_select_own"
+  on public.defense_advice for select
+  using (auth.uid() = user_id);
+
+drop policy if exists "defense_advice_insert_own" on public.defense_advice;
+create policy "defense_advice_insert_own"
+  on public.defense_advice for insert
+  with check (auth.uid() = user_id);
 
 -- profiles policies
 drop policy if exists "profiles_select_own" on public.profiles;

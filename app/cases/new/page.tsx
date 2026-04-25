@@ -18,6 +18,41 @@ export default function NewCasePage() {
 
       <form action={createCaseAction} className="card p-6 space-y-5">
         <div>
+          <label className="label">Your posture in this matter</label>
+          <div className="grid gap-2 md:grid-cols-2">
+            <label className="flex items-start gap-3 rounded-lg border border-ink-200 bg-white p-3.5 cursor-pointer hover:bg-ink-50/40 has-[:checked]:border-ink-900 has-[:checked]:bg-ink-50">
+              <input
+                type="radio"
+                name="posture"
+                value="claimant"
+                defaultChecked
+                className="mt-1"
+              />
+              <span>
+                <span className="font-medium text-ink-950 block text-sm">
+                  Claimant / plaintiff
+                </span>
+                <span className="text-xs text-ink-500 block mt-0.5">
+                  You are bringing the matter — building a case to take to an attorney or
+                  pursue.
+                </span>
+              </span>
+            </label>
+            <label className="flex items-start gap-3 rounded-lg border border-ink-200 bg-white p-3.5 cursor-pointer hover:bg-ink-50/40 has-[:checked]:border-ink-900 has-[:checked]:bg-ink-50">
+              <input type="radio" name="posture" value="defendant" className="mt-1" />
+              <span>
+                <span className="font-medium text-ink-950 block text-sm">
+                  Defendant / respondent
+                </span>
+                <span className="text-xs text-ink-500 block mt-0.5">
+                  Someone is taking you to court — preparing a defense, possibly pro se.
+                </span>
+              </span>
+            </label>
+          </div>
+        </div>
+
+        <div>
           <label className="label" htmlFor="title">
             Case title
           </label>

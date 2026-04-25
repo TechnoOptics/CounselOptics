@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import {
   getCase,
+  getLatestDefenseAdvice,
   getLatestReview,
   getProfile,
   listExhibitPlans,
@@ -15,12 +16,15 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     return new NextResponse('Case not found', { status: 404 });
   }
 
-  const [exhibits, review, plans, profile, user] = await Promise.all([
+  const [exhibits, review, plans, profile, user, defenseAdvice] = await Promise.all([
     listExhibits(caseRecord.id),
     getLatestReview(caseRecord.id),
     listExhibitPlans(caseRecord.id),
     getProfile(),
     getCurrentUser(),
+    caseRecord.posture === 'defendant'
+      ? getLatestDefenseAdvice(caseRecord.id)
+      : Promise.resolve(null),
   ]);
 
   const clientName =
@@ -36,6 +40,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     plans,
     profile,
     clientName,
+    defenseAdvice,
   });
   const ab = pdf.buffer.slice(pdf.byteOffset, pdf.byteOffset + pdf.byteLength) as ArrayBuffer;
 

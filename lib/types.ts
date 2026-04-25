@@ -1,5 +1,7 @@
 export type SubjectType = 'person' | 'business' | 'matter';
 
+export type Posture = 'claimant' | 'defendant';
+
 export type CaseStatus =
   | 'draft'
   | 'open'
@@ -39,6 +41,7 @@ export type Case = {
   jurisdiction: Jurisdiction;
   caseType: CaseType;
   description: string;
+  posture: Posture;
   status: CaseStatus;
   createdAt: string;
   updatedAt: string;
@@ -95,6 +98,26 @@ export type Profile = {
   avatarUrl?: string | null;
   isAdmin: boolean;
   updatedAt: string;
+};
+
+export type DefenseAdvice = {
+  id: string;
+  caseId: string;
+  jurisdiction: string;
+  charges: string;
+  summary: string;
+  proSeOverview: string;
+  possibleDefenses: string[];
+  proceduralPosture: string[];
+  evidenceToGather: string[];
+  whenToHireLawyer: string[];
+  riskFactors: string[];
+  questionsForAttorney: string[];
+  resourceTopics: string[];
+  disclaimer: string;
+  modelUsed: string;
+  isDemo: boolean;
+  createdAt: string;
 };
 
 export type AIReview = {

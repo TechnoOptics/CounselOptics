@@ -8,13 +8,19 @@ import {
   getCase,
   listExhibits,
   replaceExhibitPlans,
+  saveDefenseAdvice,
   saveReview,
   upsertProfile,
   usingSupabase,
 } from './storage';
-import { planExhibits, runReview } from './ai';
+import { planExhibits, runDefenseAdvice, runReview } from './ai';
 import { getCurrentUser } from './supabase/server';
-import { CASE_TYPES, type CaseType, type SubjectType } from './types';
+import {
+  CASE_TYPES,
+  type CaseType,
+  type Posture,
+  type SubjectType,
+} from './types';
 
 async function assertAuthIfSupabase() {
   if (!usingSupabase()) return;
@@ -37,6 +43,8 @@ export async function createCaseAction(formData: FormData) {
     ? (caseTypeRaw as CaseType)
     : 'Other';
   const description = String(formData.get('description') ?? '').trim();
+  const postureRaw = String(formData.get('posture') ?? 'claimant');
+  const posture: Posture = postureRaw === 'defendant' ? 'defendant' : 'claimant';
 
   if (!title || !subjectName || !country) {
     throw new Error('Title, subject name, and country are required.');
@@ -56,6 +64,7 @@ export async function createCaseAction(formData: FormData) {
     },
     caseType,
     description,
+    posture,
   });
 
   revalidatePath('/cases');
@@ -100,6 +109,16 @@ export async function planExhibitsAction(caseId: string) {
   const exhibits = await listExhibits(caseId);
   const items = await planExhibits(caseRecord, exhibits);
   await replaceExhibitPlans(caseId, items);
+  revalidatePath(`/cases/${caseId}`);
+}
+
+export async function runDefenseAdviceAction(caseId: string) {
+  await assertAuthIfSupabase();
+  const caseRecord = await getCase(caseId);
+  if (!caseRecord) throw new Error('Case not found.');
+  const exhibits = await listExhibits(caseId);
+  const advice = await runDefenseAdvice(caseRecord, exhibits);
+  await saveDefenseAdvice(advice);
   revalidatePath(`/cases/${caseId}`);
 }
 

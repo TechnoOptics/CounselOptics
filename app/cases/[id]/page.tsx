@@ -2,15 +2,18 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import {
   getCase,
+  getLatestDefenseAdvice,
   getLatestReview,
   listExhibitPlans,
   listExhibits,
 } from '@/lib/storage';
 import { STATUS_LABEL, type CaseStatus } from '@/lib/types';
+import { getResourcesFor } from '@/lib/legal-resources';
 import { Disclaimer } from '@/components/Disclaimer';
 import { UploadForm } from './upload-form';
 import { ReviewPanel } from './review-panel';
 import { ExhibitPlanSection } from './exhibit-plan';
+import { DefensePanel } from './defense-panel';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,11 +21,13 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
   const c = await getCase(params.id);
   if (!c) notFound();
 
-  const [exhibits, review, plans] = await Promise.all([
+  const [exhibits, review, plans, defenseAdvice] = await Promise.all([
     listExhibits(c.id),
     getLatestReview(c.id),
     listExhibitPlans(c.id),
+    c.posture === 'defendant' ? getLatestDefenseAdvice(c.id) : Promise.resolve(null),
   ]);
+  const resources = getResourcesFor(c.jurisdiction.state);
   const jurisdiction = [c.jurisdiction.city, c.jurisdiction.state, c.jurisdiction.country]
     .filter(Boolean)
     .join(', ');
@@ -52,7 +57,18 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
       <div className="card p-7">
         <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
           <div className="min-w-0 flex-1">
-            <p className="eyebrow mb-2">{c.caseType}</p>
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <p className="eyebrow">{c.caseType}</p>
+              <span
+                className={`badge ${
+                  c.posture === 'defendant'
+                    ? 'bg-rose-50 text-rose-800 border border-rose-200'
+                    : 'bg-ink-100 text-ink-700'
+                }`}
+              >
+                {c.posture === 'defendant' ? 'Defendant · pro se' : 'Claimant'}
+              </span>
+            </div>
             <h1 className="text-3xl font-semibold tracking-tight text-ink-950 leading-tight">
               {c.title}
             </h1>
@@ -159,6 +175,15 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
       </section>
 
       <ExhibitPlanSection caseId={c.id} plans={plans} exhibits={exhibits} />
+
+      {c.posture === 'defendant' && (
+        <DefensePanel
+          caseId={c.id}
+          advice={defenseAdvice}
+          resources={resources}
+          jurisdictionLabel={jurisdiction}
+        />
+      )}
 
       <ReviewPanel caseId={c.id} review={review} />
 

@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import crypto from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import type { AIReview, Case, Exhibit } from './types';
+import type { AIReview, Case, DefenseAdvice, Exhibit } from './types';
 
 const MODEL = 'claude-sonnet-4-6';
 
@@ -333,6 +333,219 @@ Use the submit_exhibit_plan tool to return an ordered exhibit plan.`;
     }))
     .filter((i) => i.title.length > 0)
     .slice(0, 26);
+}
+
+// ---------------------------------------------------------------------------
+// Defense advice — for someone who has been sued/charged and is preparing
+// pro se. Truth-and-transparency framing, jurisdiction-aware, no fabricated
+// citations.
+// ---------------------------------------------------------------------------
+
+const DEFENSE_SYSTEM = `You are CounselOptics, helping a self-represented person ("pro se") who is being sued or charged. You are NOT their lawyer and you do NOT have a license to practice in any jurisdiction. Your only job is to:
+
+1. Help the user understand, in plain English, what they have been accused of.
+2. Identify possible legal defenses (procedural and substantive) commonly available in the stated jurisdiction.
+3. Explain the procedural posture and typical deadlines they need to be aware of (e.g., when an Answer is due, statute of limitations issues, motion practice).
+4. Identify concrete evidence the user should gather to support their defense.
+5. Identify red-flag situations where they should absolutely retain counsel and not proceed pro se.
+6. Supply realistic risk factors so they understand exposure.
+7. List topics they should look up (these will be linked to a curated, vetted resources list — you do NOT generate URLs).
+
+CORE PRINCIPLES — Truth and transparency:
+- You will not fabricate case names, statute section numbers, or quotes. If you are uncertain about a specific cite, describe the doctrine in plain language and tell the user to verify with current state law and a licensed attorney.
+- You will hedge: "may", "could", "appears to". Never declare a defense will succeed.
+- You will assume the user is a non-lawyer. Explain procedural terms (e.g., "An 'Answer' is your written response to the complaint.").
+- You will be direct about uncertainty.
+
+CRITICAL CRIMINAL CARVE-OUT:
+If the matter could result in jail time (criminal allegation, contempt of court, immigration removal proceedings, etc.), make sure the very FIRST item in whenToHireLawyer is something to the effect of: "If you are facing criminal charges or any possibility of incarceration, you have a constitutional right to a public defender at no cost. Request one immediately at your first court appearance — do not proceed pro se on a criminal matter."
+
+Never tell the user they will win, never tell them to lie, never advise destroying evidence, never advise contacting witnesses inappropriately, never advise contacting represented parties directly. If the user appears to be asking how to break the law, refuse and recommend a licensed attorney.
+
+For resourceTopics: each item is a SHORT topic phrase (e.g., "Statute of limitations in Minnesota for breach of contract", "How to file an Answer in Minnesota district court", "Eviction defense procedure in Hennepin County"). The app will pair these with vetted self-help resources — do NOT include URLs in your output.`;
+
+const DEFENSE_TOOL = {
+  name: 'submit_defense_advice',
+  description: 'Submit structured defense planning information for a pro se litigant.',
+  input_schema: {
+    type: 'object' as const,
+    required: [
+      'charges',
+      'summary',
+      'proSeOverview',
+      'possibleDefenses',
+      'proceduralPosture',
+      'evidenceToGather',
+      'whenToHireLawyer',
+      'riskFactors',
+      'questionsForAttorney',
+      'resourceTopics',
+    ],
+    properties: {
+      charges: {
+        type: 'string',
+        description: 'Plain-English statement of what the user is being accused of or sued for.',
+      },
+      summary: {
+        type: 'string',
+        description: 'Plain-English overall summary of the matter and the user\'s posture.',
+      },
+      proSeOverview: {
+        type: 'string',
+        description:
+          'A paragraph explaining what to expect representing themselves: deadlines, courtroom etiquette, the difference between an Answer and a Motion, where to find court forms.',
+      },
+      possibleDefenses: {
+        type: 'array',
+        items: { type: 'string' },
+        description:
+          'Possible defenses with hedged language, including procedural ones (statute of limitations, lack of personal jurisdiction, improper service, failure to state a claim, etc.) and substantive ones specific to the case type.',
+      },
+      proceduralPosture: {
+        type: 'array',
+        items: { type: 'string' },
+        description:
+          'Each item should describe a procedural step or deadline the user should be aware of (e.g., "An Answer is typically due within 21 days of service in Minnesota state district court — verify your specific deadline on the summons").',
+      },
+      evidenceToGather: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Concrete, specific evidence to gather to support the defense.',
+      },
+      whenToHireLawyer: {
+        type: 'array',
+        items: { type: 'string' },
+        description:
+          'Red-flag situations or thresholds that mean retaining counsel is more important than self-help. If the matter is criminal or carries jail time, the FIRST item must reference the right to a public defender.',
+      },
+      riskFactors: {
+        type: 'array',
+        items: { type: 'string' },
+        description:
+          'Honest risk factors / exposure (e.g., "If a default judgment is entered, the claimant may execute against bank accounts and wages").',
+      },
+      questionsForAttorney: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Questions to take to a free consultation or legal aid intake.',
+      },
+      resourceTopics: {
+        type: 'array',
+        items: { type: 'string' },
+        description:
+          'Short topic phrases (no URLs) that the app will pair with vetted self-help resources.',
+      },
+    },
+  },
+};
+
+const DEFENSE_DISCLAIMER = `This is informational organization for someone preparing pro se — not legal advice, not a substitute for a licensed attorney, and not a guarantee of outcome. CounselOptics does not represent you. Procedural deadlines vary by court and jurisdiction; verify every deadline against your summons, the local rules, and state statute. If you are facing any possibility of incarceration, request a public defender at your first court appearance.`;
+
+export async function runDefenseAdvice(
+  caseRecord: Case,
+  exhibits: Exhibit[],
+): Promise<DefenseAdvice> {
+  const jurisdiction = [
+    caseRecord.jurisdiction.city,
+    caseRecord.jurisdiction.state,
+    caseRecord.jurisdiction.country,
+  ]
+    .filter(Boolean)
+    .join(', ');
+
+  const apiKey = resolveApiKey();
+  if (!apiKey) {
+    return demoDefenseAdvice(caseRecord, jurisdiction);
+  }
+
+  const exhibitsBlock =
+    exhibits.length === 0
+      ? '(none uploaded yet)'
+      : exhibits
+          .map(
+            (e) =>
+              `- ${e.label}: ${e.fileName}${e.description ? ` — ${e.description}` : ''}`,
+          )
+          .join('\n');
+
+  const userContent = `The user is the DEFENDANT / RESPONDENT. They are preparing pro se.
+
+Jurisdiction: ${jurisdiction || '(not specified)'}
+Case type: ${caseRecord.caseType}
+Title: ${caseRecord.title}
+
+What they say happened (their account):
+${caseRecord.description || '(no description provided)'}
+
+Evidence in their possession:
+${exhibitsBlock}
+
+Use the submit_defense_advice tool to return structured defense planning. Remember: pro se assumption, plain language, hedged claims, NO fabricated citations, and the criminal carve-out if applicable.`;
+
+  const client = new Anthropic({ apiKey });
+  const result = await client.messages.create({
+    model: MODEL,
+    max_tokens: 4000,
+    system: [{ type: 'text', text: DEFENSE_SYSTEM, cache_control: { type: 'ephemeral' } }],
+    tools: [DEFENSE_TOOL],
+    tool_choice: { type: 'tool', name: 'submit_defense_advice' },
+    messages: [{ role: 'user', content: userContent }],
+  });
+
+  const toolUse = result.content.find(
+    (b): b is Extract<(typeof result.content)[number], { type: 'tool_use' }> =>
+      b.type === 'tool_use' && b.name === 'submit_defense_advice',
+  );
+  const data = (toolUse?.input ?? {}) as Record<string, unknown>;
+
+  return {
+    id: crypto.randomUUID(),
+    caseId: caseRecord.id,
+    jurisdiction,
+    charges: stringField(data.charges),
+    summary: stringField(data.summary),
+    proSeOverview: stringField(data.proSeOverview),
+    possibleDefenses: arrayField(data.possibleDefenses),
+    proceduralPosture: arrayField(data.proceduralPosture),
+    evidenceToGather: arrayField(data.evidenceToGather),
+    whenToHireLawyer: arrayField(data.whenToHireLawyer),
+    riskFactors: arrayField(data.riskFactors),
+    questionsForAttorney: arrayField(data.questionsForAttorney),
+    resourceTopics: arrayField(data.resourceTopics),
+    disclaimer: DEFENSE_DISCLAIMER,
+    modelUsed: MODEL,
+    isDemo: false,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+function demoDefenseAdvice(caseRecord: Case, jurisdiction: string): DefenseAdvice {
+  return {
+    id: crypto.randomUUID(),
+    caseId: caseRecord.id,
+    jurisdiction,
+    charges: `Demo response — ANTHROPIC_API_KEY not set. The user is positioned as a defendant in a ${caseRecord.caseType.toLowerCase()} matter.`,
+    summary: 'Demo defense advice. Set ANTHROPIC_API_KEY to enable Claude-backed analysis.',
+    proSeOverview:
+      'Demo response. With a real key set, this section will explain pro se procedure for your jurisdiction.',
+    possibleDefenses: ['Demo defense item — connect ANTHROPIC_API_KEY for real analysis.'],
+    proceduralPosture: ['Demo procedural step.'],
+    evidenceToGather: ['Demo evidence item.'],
+    whenToHireLawyer: [
+      'If you are facing criminal charges or any possibility of incarceration, request a public defender at your first court appearance — you have a constitutional right to one at no cost.',
+      'If the dispute involves significant money, real estate, or your livelihood, retain counsel.',
+    ],
+    riskFactors: ['Demo risk item — set ANTHROPIC_API_KEY to enable real risk assessment.'],
+    questionsForAttorney: [
+      'What are my realistic options given the facts?',
+      'What deadlines must I meet to preserve my rights?',
+    ],
+    resourceTopics: ['How to find legal aid', 'How to file an Answer pro se'],
+    disclaimer: DEFENSE_DISCLAIMER,
+    modelUsed: 'demo',
+    isDemo: true,
+    createdAt: new Date().toISOString(),
+  };
 }
 
 function demoExhibitPlan(

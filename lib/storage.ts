@@ -6,9 +6,11 @@ import type {
   Case,
   CaseStatus,
   CaseType,
+  DefenseAdvice,
   Exhibit,
   ExhibitPlanItem,
   Jurisdiction,
+  Posture,
   Profile,
   SubjectType,
 } from './types';
@@ -26,6 +28,7 @@ type DB = {
   exhibits: Exhibit[];
   aiReviews: AIReview[];
   exhibitPlans: ExhibitPlanItem[];
+  defenseAdvice: DefenseAdvice[];
 };
 
 // ---------------------------------------------------------------------------
@@ -51,6 +54,7 @@ type CaseRow = {
   jurisdiction_city: string | null;
   case_type: string;
   description: string | null;
+  posture: Posture | null;
   status: CaseStatus;
   created_at: string;
   updated_at: string;
@@ -130,9 +134,53 @@ function caseFromRow(r: CaseRow): Case {
     },
     caseType: r.case_type as CaseType,
     description: r.description ?? '',
+    posture: (r.posture as Posture) ?? 'claimant',
     status: r.status,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
+  };
+}
+
+type DefenseAdviceRow = {
+  id: string;
+  case_id: string;
+  user_id: string;
+  jurisdiction: string | null;
+  charges: string | null;
+  summary: string | null;
+  pro_se_overview: string | null;
+  possible_defenses: string[];
+  procedural_posture: string[];
+  evidence_to_gather: string[];
+  when_to_hire_lawyer: string[];
+  risk_factors: string[];
+  questions_for_attorney: string[];
+  resource_topics: string[];
+  disclaimer: string | null;
+  model_used: string | null;
+  is_demo: boolean;
+  created_at: string;
+};
+
+function defenseAdviceFromRow(r: DefenseAdviceRow): DefenseAdvice {
+  return {
+    id: r.id,
+    caseId: r.case_id,
+    jurisdiction: r.jurisdiction ?? '',
+    charges: r.charges ?? '',
+    summary: r.summary ?? '',
+    proSeOverview: r.pro_se_overview ?? '',
+    possibleDefenses: r.possible_defenses ?? [],
+    proceduralPosture: r.procedural_posture ?? [],
+    evidenceToGather: r.evidence_to_gather ?? [],
+    whenToHireLawyer: r.when_to_hire_lawyer ?? [],
+    riskFactors: r.risk_factors ?? [],
+    questionsForAttorney: r.questions_for_attorney ?? [],
+    resourceTopics: r.resource_topics ?? [],
+    disclaimer: r.disclaimer ?? '',
+    modelUsed: r.model_used ?? '',
+    isDemo: r.is_demo,
+    createdAt: r.created_at,
   };
 }
 
@@ -216,15 +264,23 @@ async function readLocalDB(): Promise<DB> {
   try {
     const raw = await fs.readFile(DB_FILE, 'utf8');
     const parsed = JSON.parse(raw) as Partial<DB>;
+    const cases = (parsed.cases ?? []).map((c) => ({ ...c, posture: c.posture ?? 'claimant' }));
     return {
-      cases: parsed.cases ?? [],
+      cases,
       exhibits: parsed.exhibits ?? [],
       aiReviews: parsed.aiReviews ?? [],
       exhibitPlans: parsed.exhibitPlans ?? [],
+      defenseAdvice: parsed.defenseAdvice ?? [],
     };
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-      return { cases: [], exhibits: [], aiReviews: [], exhibitPlans: [] };
+      return {
+        cases: [],
+        exhibits: [],
+        aiReviews: [],
+        exhibitPlans: [],
+        defenseAdvice: [],
+      };
     }
     throw err;
   }
@@ -293,7 +349,9 @@ export async function createCase(input: {
   jurisdiction: Jurisdiction;
   caseType: CaseType;
   description: string;
+  posture?: Posture;
 }): Promise<Case> {
+  const posture: Posture = input.posture ?? 'claimant';
   if (usingSupabase()) {
     const user = await getCurrentUser();
     if (!user) throw new Error('Not signed in.');
@@ -310,6 +368,7 @@ export async function createCase(input: {
         jurisdiction_city: input.jurisdiction.city ?? null,
         case_type: input.caseType,
         description: input.description,
+        posture,
         status: 'draft',
       })
       .select('*')
@@ -327,6 +386,7 @@ export async function createCase(input: {
     jurisdiction: input.jurisdiction,
     caseType: input.caseType,
     description: input.description,
+    posture,
     status: 'draft',
     createdAt: now,
     updatedAt: now,
@@ -668,6 +728,64 @@ export async function replaceExhibitPlans(
   db.exhibitPlans.push(...created);
   await writeLocalDB(db);
   return created;
+}
+
+// ---------------------------------------------------------------------------
+// Defense advice (for cases where posture = 'defendant')
+// ---------------------------------------------------------------------------
+
+export async function getLatestDefenseAdvice(caseId: string): Promise<DefenseAdvice | null> {
+  if (usingSupabase()) {
+    const user = await getCurrentUser();
+    if (!user) return null;
+    const supabase = createServerSupabase();
+    const { data, error } = await supabase
+      .from('defense_advice')
+      .select('*')
+      .eq('case_id', caseId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+    return data ? defenseAdviceFromRow(data as DefenseAdviceRow) : null;
+  }
+  const db = await readLocalDB();
+  const list = db.defenseAdvice
+    .filter((d) => d.caseId === caseId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return list[0] ?? null;
+}
+
+export async function saveDefenseAdvice(advice: DefenseAdvice): Promise<void> {
+  if (usingSupabase()) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error('Not signed in.');
+    const supabase = createServerSupabase();
+    const { error } = await supabase.from('defense_advice').insert({
+      id: advice.id,
+      case_id: advice.caseId,
+      user_id: user.id,
+      jurisdiction: advice.jurisdiction,
+      charges: advice.charges,
+      summary: advice.summary,
+      pro_se_overview: advice.proSeOverview,
+      possible_defenses: advice.possibleDefenses,
+      procedural_posture: advice.proceduralPosture,
+      evidence_to_gather: advice.evidenceToGather,
+      when_to_hire_lawyer: advice.whenToHireLawyer,
+      risk_factors: advice.riskFactors,
+      questions_for_attorney: advice.questionsForAttorney,
+      resource_topics: advice.resourceTopics,
+      disclaimer: advice.disclaimer,
+      model_used: advice.modelUsed,
+      is_demo: advice.isDemo,
+    });
+    if (error) throw error;
+    return;
+  }
+  const db = await readLocalDB();
+  db.defenseAdvice.push(advice);
+  await writeLocalDB(db);
 }
 
 // ---------------------------------------------------------------------------
