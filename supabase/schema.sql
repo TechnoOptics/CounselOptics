@@ -195,6 +195,20 @@ create index if not exists ai_reviews_case_id_created_at_idx
 create index if not exists ai_reviews_user_id_idx
   on public.ai_reviews (user_id);
 
+create table if not exists public.close_surveys (
+  id uuid primary key default gen_random_uuid(),
+  case_id uuid not null references public.cases(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  helpful_rating int check (helpful_rating between 1 and 5),
+  outcome text check (outcome in ('resolved', 'settled', 'dropped', 'ongoing_other_tool', 'other')),
+  what_worked text,
+  what_could_improve text,
+  may_contact boolean not null default false,
+  created_at timestamptz not null default now()
+);
+create index if not exists close_surveys_user_id_idx on public.close_surveys (user_id);
+create index if not exists close_surveys_case_id_idx on public.close_surveys (case_id);
+
 ------------------------------------------------------------
 -- 2. Row-Level Security
 ------------------------------------------------------------
@@ -207,6 +221,7 @@ alter table public.defense_advice enable row level security;
 alter table public.case_collaborators enable row level security;
 alter table public.subscriptions enable row level security;
 alter table public.profiles enable row level security;
+alter table public.close_surveys enable row level security;
 
 drop policy if exists "subscriptions_select_own" on public.subscriptions;
 create policy "subscriptions_select_own"
@@ -214,6 +229,15 @@ create policy "subscriptions_select_own"
   using (auth.uid() = user_id);
 -- Inserts/updates happen via the service role from the Stripe webhook; no
 -- end-user write policy.
+
+drop policy if exists "close_surveys_select_own" on public.close_surveys;
+create policy "close_surveys_select_own"
+  on public.close_surveys for select
+  using (auth.uid() = user_id);
+drop policy if exists "close_surveys_insert_own" on public.close_surveys;
+create policy "close_surveys_insert_own"
+  on public.close_surveys for insert
+  with check (auth.uid() = user_id);
 
 -- Helper functions (SECURITY DEFINER) used in RLS to break recursion between
 -- cases and case_collaborators policies. Without these, each policy's

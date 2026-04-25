@@ -409,6 +409,40 @@ export async function createCase(input: {
   return c;
 }
 
+export type CloseSurveyOutcome =
+  | 'resolved'
+  | 'settled'
+  | 'dropped'
+  | 'ongoing_other_tool'
+  | 'other';
+
+export async function recordCloseSurvey(input: {
+  caseId: string;
+  helpfulRating: number | null;
+  outcome: CloseSurveyOutcome | null;
+  whatWorked: string | null;
+  whatCouldImprove: string | null;
+  mayContact: boolean;
+}): Promise<void> {
+  if (!usingSupabase()) return;
+  const user = await getCurrentUser();
+  if (!user) return;
+  const supabase = createServerSupabase();
+  const { error } = await supabase.from('close_surveys').insert({
+    case_id: input.caseId,
+    user_id: user.id,
+    helpful_rating: input.helpfulRating,
+    outcome: input.outcome,
+    what_worked: input.whatWorked,
+    what_could_improve: input.whatCouldImprove,
+    may_contact: input.mayContact,
+  });
+  // Don't block close on missing table or RLS issues, log only.
+  if (error) {
+    console.warn('[close_survey] insert failed (non-fatal):', error.message);
+  }
+}
+
 export async function updateCaseStatus(caseId: string, status: CaseStatus): Promise<void> {
   if (usingSupabase()) {
     const user = await getCurrentUser();

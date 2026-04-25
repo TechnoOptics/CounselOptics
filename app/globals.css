@@ -134,7 +134,9 @@ body > * {
   .animate-glow,
   .stagger > *,
   .shimmer,
-  .gold-pan {
+  .gold-pan,
+  .hero-orb--a,
+  .hero-orb--b {
     animation: none !important;
   }
   .stagger > * {
@@ -283,6 +285,55 @@ body > * {
   .brand-mark {
     background-image: linear-gradient(135deg, #0f2d24 0%, #173b30 100%);
   }
+
+  /* Hero background - lighter forest base, multiple warm gold + cream radial
+     spotlights, faint dot grid that fades away from the centre. Designed for
+     the marketing hero so the surface feels luminous, not heavy. */
+  .hero-bg {
+    position: relative;
+    isolation: isolate;
+    background:
+      radial-gradient(ellipse 700px 400px at 88% 14%, rgba(245, 237, 214, 0.32), transparent 55%),
+      radial-gradient(ellipse 900px 520px at 72% 28%, rgba(201, 168, 90, 0.38), transparent 60%),
+      radial-gradient(ellipse 620px 380px at 12% 82%, rgba(201, 168, 90, 0.22), transparent 65%),
+      radial-gradient(ellipse 480px 320px at 50% 110%, rgba(245, 237, 214, 0.10), transparent 60%),
+      linear-gradient(135deg, #1f4839 0%, #2a5a47 38%, #19372d 100%);
+  }
+  .hero-bg::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background-image: radial-gradient(rgba(245, 237, 214, 0.06) 1px, transparent 1px);
+    background-size: 28px 28px;
+    -webkit-mask-image: radial-gradient(ellipse 720px 400px at 50% 40%, black 30%, transparent 78%);
+    mask-image: radial-gradient(ellipse 720px 400px at 50% 40%, black 30%, transparent 78%);
+    pointer-events: none;
+  }
+  /* Soft glassy gold orbs that drift across the hero. */
+  .hero-orb {
+    position: absolute;
+    border-radius: 9999px;
+    filter: blur(40px);
+    pointer-events: none;
+    opacity: 0.55;
+  }
+  .hero-orb--gold {
+    background: radial-gradient(circle, rgba(201, 168, 90, 0.55) 0%, rgba(201, 168, 90, 0) 70%);
+  }
+  .hero-orb--cream {
+    background: radial-gradient(circle, rgba(245, 237, 214, 0.45) 0%, rgba(245, 237, 214, 0) 70%);
+  }
+  @keyframes co-orb-drift-a {
+    0%, 100% { transform: translate3d(0, 0, 0); }
+    50% { transform: translate3d(30px, -20px, 0); }
+  }
+  @keyframes co-orb-drift-b {
+    0%, 100% { transform: translate3d(0, 0, 0); }
+    50% { transform: translate3d(-24px, 18px, 0); }
+  }
+  .hero-orb--a { animation: co-orb-drift-a 12s ease-in-out infinite; }
+  .hero-orb--b { animation: co-orb-drift-b 14s ease-in-out infinite; }
   .brand-gold {
     color: #c9a85a;
   }

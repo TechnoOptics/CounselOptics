@@ -9,6 +9,7 @@ import {
   inviteCollaborator,
   listExhibits,
   markTourCompleted,
+  recordCloseSurvey,
   recordConsent,
   removeCollaborator,
   replaceExhibitPlans,
@@ -17,6 +18,7 @@ import {
   updateCaseStatus,
   upsertProfile,
   usingSupabase,
+  type CloseSurveyOutcome,
 } from './storage';
 import { planExhibits, runDefenseAdvice, runReview } from './ai';
 import { getCurrentUser } from './supabase/server';
@@ -208,6 +210,48 @@ export async function setCaseStatusAction(caseId: string, status: CaseStatus) {
   ];
   if (!valid.includes(status)) throw new Error('Invalid status.');
   await updateCaseStatus(caseId, status);
+  revalidatePath(`/cases/${caseId}`);
+  revalidatePath('/cases');
+}
+
+export async function closeCaseWithSurveyAction(
+  caseId: string,
+  survey: {
+    helpfulRating: number | null;
+    outcome: string | null;
+    whatWorked: string;
+    whatCouldImprove: string;
+    mayContact: boolean;
+  },
+) {
+  await assertAuthIfSupabase();
+  const validOutcomes: CloseSurveyOutcome[] = [
+    'resolved',
+    'settled',
+    'dropped',
+    'ongoing_other_tool',
+    'other',
+  ];
+  const outcome: CloseSurveyOutcome | null =
+    survey.outcome && validOutcomes.includes(survey.outcome as CloseSurveyOutcome)
+      ? (survey.outcome as CloseSurveyOutcome)
+      : null;
+  const rating =
+    typeof survey.helpfulRating === 'number' &&
+    survey.helpfulRating >= 1 &&
+    survey.helpfulRating <= 5
+      ? survey.helpfulRating
+      : null;
+
+  await recordCloseSurvey({
+    caseId,
+    helpfulRating: rating,
+    outcome,
+    whatWorked: survey.whatWorked.trim() || null,
+    whatCouldImprove: survey.whatCouldImprove.trim() || null,
+    mayContact: Boolean(survey.mayContact),
+  });
+  await updateCaseStatus(caseId, 'closed');
   revalidatePath(`/cases/${caseId}`);
   revalidatePath('/cases');
 }

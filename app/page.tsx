@@ -15,38 +15,48 @@ export default async function HomePage() {
 
   return (
     <div className="space-y-14">
-      {/* Hero - dark forest with gold accents */}
-      <section className="relative overflow-hidden rounded-3xl brand-mark text-white px-8 py-14 md:px-12 md:py-20 animate-fade-up">
-        {/* Animated gold gradient veil */}
+      {/* Hero - lighter forest with warm gold + cream spotlights */}
+      <section className="relative overflow-hidden rounded-3xl hero-bg text-white px-8 py-14 md:px-12 md:py-20 animate-fade-up">
+        {/* Drifting gold + cream orbs */}
+        <div aria-hidden className="hero-orb hero-orb--gold hero-orb--a"
+          style={{ width: 320, height: 320, right: '-60px', top: '-80px' }} />
+        <div aria-hidden className="hero-orb hero-orb--cream hero-orb--b"
+          style={{ width: 240, height: 240, right: '20%', bottom: '-80px' }} />
+        <div aria-hidden className="hero-orb hero-orb--gold hero-orb--b"
+          style={{ width: 180, height: 180, left: '-40px', top: '40%', opacity: 0.35 }} />
+
+        {/* Subtle horizon line */}
         <div
           aria-hidden
-          className="absolute inset-0 pointer-events-none gold-pan opacity-60"
+          className="absolute inset-x-12 top-1/2 h-px pointer-events-none"
           style={{
             background:
-              'radial-gradient(900px 400px at 80% 20%, rgba(201, 168, 90, 0.18), transparent 65%), radial-gradient(700px 300px at 10% 90%, rgba(201, 168, 90, 0.10), transparent 70%)',
+              'linear-gradient(90deg, transparent 0%, rgba(201, 168, 90, 0.35) 50%, transparent 100%)',
           }}
         />
-        {/* Decorative floating brand mark */}
+
+        {/* Faint, much smaller brand mark anchored to far corner */}
         <div
           aria-hidden
-          className="absolute -right-12 -top-6 text-gold-500/15 pointer-events-none select-none animate-float"
+          className="absolute -right-6 bottom-4 text-cream-100/8 pointer-events-none select-none animate-float hidden md:block"
+          style={{ opacity: 0.18 }}
         >
-          <BrandMark size={420} />
+          <BrandMark size={260} />
         </div>
 
         <div className="relative max-w-2xl">
-          <p className="text-gold-400 text-[11px] tracking-[0.3em] uppercase font-semibold mb-5 inline-flex items-center gap-2">
-            <span className="inline-block h-px w-6 bg-gold-400" />
+          <p className="text-gold-300 text-[11px] tracking-[0.3em] uppercase font-semibold mb-5 inline-flex items-center gap-2">
+            <span className="inline-block h-px w-6 bg-gold-300" />
             AI Powered · Legal Focused · Case Ready
           </p>
-          <h1 className="text-4xl md:text-6xl font-semibold tracking-tight leading-[1.02] mb-6">
+          <h1 className="text-4xl md:text-6xl font-semibold tracking-tight leading-[1.02] mb-6 drop-shadow-[0_2px_18px_rgba(15,45,36,0.35)]">
             Build the case.
             <br />
             <span className="bg-gold-shine bg-clip-text text-transparent gold-pan">
               We bring the structure.
             </span>
           </h1>
-          <p className="text-cream-200/80 text-[15px] md:text-base leading-relaxed mb-8 max-w-xl">
+          <p className="text-cream-100/85 text-[15px] md:text-base leading-relaxed mb-8 max-w-xl">
             Advottic turns scattered evidence into an organized case packet: exhibits, timelines,
             jurisdiction-aware issue spotting, defense planning, and a PDF ready for your
             attorney. Built for individuals, businesses, and pro se litigants who need the work
@@ -61,7 +71,7 @@ export default async function HomePage() {
             </Link>
             <Link
               href="/cases"
-              className="btn bg-white/10 text-white border border-white/20 hover:bg-white/15 backdrop-blur"
+              className="btn bg-white/15 text-white border border-white/25 hover:bg-white/25 backdrop-blur"
             >
               View cases{cases.length ? ` (${cases.length})` : ''}
             </Link>
