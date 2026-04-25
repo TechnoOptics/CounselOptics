@@ -36,6 +36,13 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
     usingSupabase() ? getCurrentUser() : Promise.resolve(null),
   ]);
   const resources = getResourcesFor(c.jurisdiction.state);
+
+  const isOwner = !usingSupabase() || Boolean(currentUser && c.ownerId === currentUser.id);
+  const myCollab = currentUser
+    ? collaborators.find((cc) => cc.userId === currentUser.id)
+    : null;
+  const canUpload =
+    isOwner || (myCollab?.role === 'editor' || myCollab?.role === 'attorney');
   const jurisdiction = [c.jurisdiction.city, c.jurisdiction.state, c.jurisdiction.country]
     .filter(Boolean)
     .join(', ');
@@ -118,9 +125,16 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
           </div>
         </div>
 
-        <div className="card p-6">
-          <UploadForm caseId={c.id} />
-        </div>
+        {canUpload ? (
+          <div className="card p-6">
+            <UploadForm caseId={c.id} />
+          </div>
+        ) : (
+          <div className="card p-6 text-sm text-ink-600">
+            You have view-only access on this case. Ask the case owner to upgrade your role to{' '}
+            <strong>Editor</strong> or <strong>Attorney</strong> if you need to add exhibits.
+          </div>
+        )}
 
         {exhibits.length > 0 && (
           <ul className="card divide-y divide-ink-100">
@@ -192,7 +206,7 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
         <CollaboratorsPanel
           caseId={c.id}
           collaborators={collaborators}
-          isOwner={Boolean(currentUser && c.ownerId === currentUser.id)}
+          isOwner={isOwner}
         />
       )}
 

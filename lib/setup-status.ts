@@ -13,4 +13,4 @@ export function storageUnavailable(): boolean {
 }
 
 export const STORAGE_SETUP_MESSAGE =
-  'CounselOptics needs Supabase to be configured on this deployment to read and write case data. The local-file fallback only works on a writable filesystem (your laptop, not serverless).';
+  'Advottic needs Supabase to be configured on this deployment to read and write case data. The local-file fallback only works on a writable filesystem (your laptop, not serverless).';

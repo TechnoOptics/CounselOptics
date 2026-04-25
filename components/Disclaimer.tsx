@@ -2,7 +2,7 @@ export function Disclaimer({ variant = 'inline' }: { variant?: 'inline' | 'banne
   if (variant === 'banner') {
     return (
       <div className="border-b border-amber-200/70 bg-amber-50/80 text-amber-900 text-[11px] tracking-wide px-4 py-1.5 text-center">
-        CounselOptics provides legal information and case organization — not legal advice. Consult a licensed attorney before taking action.
+        Advottic provides legal information and case organization — not legal advice. Consult a licensed attorney before taking action.
       </div>
     );
   }
@@ -11,7 +11,7 @@ export function Disclaimer({ variant = 'inline' }: { variant?: 'inline' | 'banne
       <p className="font-semibold mb-1 tracking-tight">Not legal advice</p>
       <p className="leading-relaxed">
         This analysis is for informational purposes only and does not constitute legal advice.
-        CounselOptics is not a law firm and does not create an attorney-client relationship. You
+        Advottic is not a law firm and does not create an attorney-client relationship. You
         should consult a licensed attorney in your jurisdiction before taking legal action.
       </p>
     </div>

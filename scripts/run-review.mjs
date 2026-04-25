@@ -6,9 +6,9 @@ const ENV_FILE = '.env.local';
 const DB_PATH = 'data/db.json';
 const MODEL = 'claude-sonnet-4-6';
 const DISCLAIMER =
-  'This analysis is for informational purposes only and does not constitute legal advice. CounselOptics is not a law firm and does not create an attorney-client relationship. You should consult a licensed attorney in your jurisdiction before taking legal action.';
+  'This analysis is for informational purposes only and does not constitute legal advice. Advottic is not a law firm and does not create an attorney-client relationship. You should consult a licensed attorney in your jurisdiction before taking legal action.';
 
-const SYSTEM = `You are CounselOptics, a legal information assistant. You do not provide final legal advice and you are not a lawyer. Your job is to:
+const SYSTEM = `You are Advottic, a legal information assistant. You do not provide final legal advice and you are not a lawyer. Your job is to:
 1. Organize the facts of the case.
 2. Identify possible legal issues grounded in the selected jurisdiction.
 3. Recommend concrete evidence the user should gather to strengthen the matter.

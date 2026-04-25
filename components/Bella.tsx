@@ -175,14 +175,14 @@ export function Bella() {
               {messages.length === 0 && (
                 <div className="space-y-3">
                   <p className="text-sm text-ink-700 leading-relaxed">
-                    Hi, I&apos;m Bella. Ask me about your case, how to use CounselOptics, or
+                    Hi, I&apos;m Bella. Ask me about your case, how to use Advottic, or
                     plain-language legal concepts.
                   </p>
                   <div className="flex flex-col gap-2">
                     {[
                       'How do I use the exhibit plan feature?',
                       'What is a statute of limitations in plain English?',
-                      caseId ? 'Summarize this case for me.' : 'What can CounselOptics help me with?',
+                      caseId ? 'Summarize this case for me.' : 'What can Advottic help me with?',
                     ].map((s) => (
                       <button
                         key={s}

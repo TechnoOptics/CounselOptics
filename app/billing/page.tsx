@@ -57,8 +57,9 @@ export default async function BillingPage({
         <p className="eyebrow mb-2">Billing</p>
         <h1 className="text-3xl font-semibold tracking-tight text-forest-900">Subscription</h1>
         <p className="text-sm text-ink-600 mt-1">
-          One simple plan: <strong>$100 / month</strong>. Full access to case files, AI review,
-          defense planning, exhibit plans, PDF exports, and Bella.
+          One simple plan: <strong>$100 / month</strong>, with a <strong>7-day free trial</strong>{' '}
+          for first-time subscribers. Full access to case files, AI review, defense planning,
+          exhibit plans, PDF exports, and Bella. Cancel any time.
         </p>
       </div>
 
@@ -122,7 +123,7 @@ export default async function BillingPage({
       </div>
 
       <div className="text-xs text-ink-500 leading-relaxed">
-        Payments are processed by Stripe. CounselOptics never sees your card data. You can manage
+        Payments are processed by Stripe. Advottic never sees your card data. You can manage
         or cancel your subscription at any time from this page once Stripe is connected.
       </div>
     </div>

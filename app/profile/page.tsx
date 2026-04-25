@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { getProfile } from '@/lib/storage';
 import { updateProfileAction } from '@/lib/actions';
+import { AccountActions } from './account-actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -120,6 +121,8 @@ export default async function ProfilePage() {
         Avatar is pulled from your Google / Microsoft account. Change it at the provider to
         update it here.
       </div>
+
+      <AccountActions />
     </div>
   );
 }

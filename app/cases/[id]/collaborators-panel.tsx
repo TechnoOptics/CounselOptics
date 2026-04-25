@@ -94,16 +94,19 @@ export function CollaboratorsPanel({
               <label className="label" htmlFor="role">
                 Role
               </label>
-              <select id="role" name="role" defaultValue="attorney" className="input">
-                <option value="attorney">Attorney</option>
-                <option value="editor">Editor</option>
-                <option value="viewer">Viewer</option>
+              <select id="role" name="role" defaultValue="editor" className="input">
+                <option value="editor">Editor — can add exhibits</option>
+                <option value="attorney">Attorney — can add exhibits</option>
+                <option value="viewer">Viewer — read-only</option>
               </select>
             </div>
           </div>
-          <p className="text-xs text-ink-500">
-            If they already have a CounselOptics account, they get access immediately. Otherwise
-            their invite is held until they sign up with that email.
+          <p className="text-xs text-ink-500 leading-relaxed">
+            <strong>Editor</strong> and <strong>Attorney</strong> can read the case and{' '}
+            <em>add exhibits</em>, but cannot edit the case metadata or invite others.
+            <strong> Viewer</strong> is read-only. If the invitee already has a Advottic
+            account, they get access immediately. Otherwise their invite is held until they sign
+            up with that email.
           </p>
           <div className="flex justify-end">
             <button type="submit" disabled={pending} className="btn-primary">

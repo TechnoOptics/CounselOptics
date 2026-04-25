@@ -50,6 +50,7 @@ export async function POST(req: NextRequest) {
     req.headers.get('origin') ||
     `https://${req.headers.get('host')}`;
 
+  const hasUsedTrial = Boolean(existing?.stripeSubscriptionId);
   const session = await stripe.checkout.sessions.create({
     mode: 'subscription',
     customer: customerId,
@@ -61,6 +62,9 @@ export async function POST(req: NextRequest) {
     metadata: { supabase_user_id: user.id },
     subscription_data: {
       metadata: { supabase_user_id: user.id },
+      // 7-day free trial for first-time subscribers; skip for users who've
+      // already had a Stripe subscription (returning subscribers).
+      ...(hasUsedTrial ? {} : { trial_period_days: 7 }),
     },
   });
 

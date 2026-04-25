@@ -1,4 +1,4 @@
-# CounselOptics — Supabase + OAuth Setup
+# Advottic — Supabase + OAuth Setup
 
 This guide walks you through enabling account sign-in (Google + Microsoft) and moving case
 files + exhibits + AI reviews into a real database. Expect **15–45 minutes** total, depending
@@ -67,7 +67,7 @@ Supabase calls Microsoft OAuth the "Azure" provider.
    and note the **Authorized redirect URL**.
 2. Go to https://entra.microsoft.com (Microsoft Entra / Azure AD) →
    **App registrations → New registration**:
-   - Name: `CounselOptics` (or anything)
+   - Name: `Advottic` (or anything)
    - Supported account types: **Personal Microsoft accounts + work/school** (the "multi-tenant
      + personal" option)
    - Redirect URI: **Web** → the Supabase callback URL from above

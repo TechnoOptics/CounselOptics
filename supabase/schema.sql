@@ -1,4 +1,4 @@
--- CounselOptics Supabase schema.
+-- Advottic Supabase schema.
 -- Paste this into the Supabase SQL Editor (Dashboard → SQL Editor → "New query")
 -- and run once against your project. Safe to re-run thanks to IF NOT EXISTS guards.
 
@@ -257,15 +257,34 @@ create policy "exhibits_select_own_or_collaborator"
     )
   );
 
+-- Owner OR a collaborator with role editor/attorney can add exhibits to a case.
+-- The exhibit row's user_id is whoever uploaded it (could be the collaborator),
+-- so RLS validates against case ownership / collaboration, not user_id.
 drop policy if exists "exhibits_insert_own" on public.exhibits;
-create policy "exhibits_insert_own"
+drop policy if exists "exhibits_insert_owner_or_editor" on public.exhibits;
+create policy "exhibits_insert_owner_or_editor"
   on public.exhibits for insert
-  with check (auth.uid() = user_id);
+  with check (
+    auth.uid() = user_id
+    and (
+      exists (select 1 from public.cases c where c.id = case_id and c.user_id = auth.uid())
+      or exists (
+        select 1 from public.case_collaborators cc
+        where cc.case_id = exhibits.case_id
+          and cc.user_id = auth.uid()
+          and cc.role in ('editor', 'attorney')
+      )
+    )
+  );
 
 drop policy if exists "exhibits_delete_own" on public.exhibits;
-create policy "exhibits_delete_own"
+drop policy if exists "exhibits_delete_uploader_or_owner" on public.exhibits;
+create policy "exhibits_delete_uploader_or_owner"
   on public.exhibits for delete
-  using (auth.uid() = user_id);
+  using (
+    auth.uid() = user_id
+    or exists (select 1 from public.cases c where c.id = case_id and c.user_id = auth.uid())
+  );
 
 -- ai_reviews policies
 drop policy if exists "ai_reviews_select_own" on public.ai_reviews;
@@ -435,28 +454,65 @@ insert into storage.buckets (id, name, public)
   values ('exhibits', 'exhibits', false)
   on conflict (id) do nothing;
 
--- Storage policies: users can only touch files under a prefix that begins
--- with their own user id, e.g. "exhibits/<user_id>/<case_id>/<file>".
+-- Storage policies: paths are "<uploader_user_id>/<case_id>/<file>".
+-- Read: uploader OR case owner OR collaborator on that case.
+-- Insert: uploader (auth.uid()) AND (owner of case OR editor/attorney collaborator).
+-- Delete: uploader OR case owner.
 drop policy if exists "exhibits_storage_select_own" on storage.objects;
-create policy "exhibits_storage_select_own"
+drop policy if exists "exhibits_storage_select" on storage.objects;
+create policy "exhibits_storage_select"
   on storage.objects for select
   using (
     bucket_id = 'exhibits'
-    and (storage.foldername(name))[1] = auth.uid()::text
+    and (
+      (storage.foldername(name))[1] = auth.uid()::text
+      or exists (
+        select 1 from public.cases c
+        where c.id::text = (storage.foldername(name))[2]
+          and c.user_id = auth.uid()
+      )
+      or exists (
+        select 1 from public.case_collaborators cc
+        where cc.case_id::text = (storage.foldername(name))[2]
+          and cc.user_id = auth.uid()
+      )
+    )
   );
 
 drop policy if exists "exhibits_storage_insert_own" on storage.objects;
-create policy "exhibits_storage_insert_own"
+drop policy if exists "exhibits_storage_insert" on storage.objects;
+create policy "exhibits_storage_insert"
   on storage.objects for insert
   with check (
     bucket_id = 'exhibits'
     and (storage.foldername(name))[1] = auth.uid()::text
+    and (
+      exists (
+        select 1 from public.cases c
+        where c.id::text = (storage.foldername(name))[2]
+          and c.user_id = auth.uid()
+      )
+      or exists (
+        select 1 from public.case_collaborators cc
+        where cc.case_id::text = (storage.foldername(name))[2]
+          and cc.user_id = auth.uid()
+          and cc.role in ('editor', 'attorney')
+      )
+    )
   );
 
 drop policy if exists "exhibits_storage_delete_own" on storage.objects;
-create policy "exhibits_storage_delete_own"
+drop policy if exists "exhibits_storage_delete" on storage.objects;
+create policy "exhibits_storage_delete"
   on storage.objects for delete
   using (
     bucket_id = 'exhibits'
-    and (storage.foldername(name))[1] = auth.uid()::text
+    and (
+      (storage.foldername(name))[1] = auth.uid()::text
+      or exists (
+        select 1 from public.cases c
+        where c.id::text = (storage.foldername(name))[2]
+          and c.user_id = auth.uid()
+      )
+    )
   );

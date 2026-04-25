@@ -38,7 +38,7 @@ export default async function SignInPage({
           Sign in or create an account
         </h1>
         <p className="text-sm text-ink-600 leading-relaxed mb-6">
-          Continue with Google or Microsoft. We'll create your CounselOptics account on first
+          Continue with Google or Microsoft. We'll create your Advottic account on first
           sign-in — no separate signup form. Your case files, exhibits, and reviews stay tied to
           your account.
         </p>
@@ -52,7 +52,7 @@ export default async function SignInPage({
         <SignInButtons next={next} />
 
         <p className="text-xs text-ink-500 mt-6 leading-relaxed">
-          By continuing you acknowledge that CounselOptics provides legal information and case
+          By continuing you acknowledge that Advottic provides legal information and case
           organization, not legal advice.
         </p>
       </div>

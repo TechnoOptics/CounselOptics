@@ -5,6 +5,7 @@ import './globals.css';
 import { Disclaimer } from '@/components/Disclaimer';
 import { UserMenu } from '@/components/UserMenu';
 import { Bella } from '@/components/Bella';
+import { CookieBanner } from '@/components/CookieBanner';
 
 const sans = Inter({
   subsets: ['latin'],
@@ -13,7 +14,7 @@ const sans = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'CounselOptics',
+  title: 'Advottic',
   description:
     'Organize evidence, build exhibit packets, and surface jurisdiction-aware legal issues for your attorney.',
 };
@@ -31,7 +32,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </span>
               <span className="flex items-baseline gap-2">
                 <span className="font-semibold tracking-tight text-[15px] text-forest-900">
-                  CounselOptics
+                  Advottic
                 </span>
                 <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-[0.18em] text-forest-700">
                   <span className="live-dot inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
@@ -55,12 +56,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <div className="mx-auto max-w-6xl px-6 py-10">{children}</div>
         </main>
         <Bella />
+        <CookieBanner />
         <footer className="border-t border-ink-200 bg-white">
           <div className="mx-auto max-w-6xl px-6 py-5 text-xs text-ink-500 flex flex-wrap items-center justify-between gap-2">
             <span className="font-mono tracking-tight">
-              CounselOptics · Legal information & case organization
+              Advottic · Legal information & case organization
             </span>
-            <span>Not legal advice.</span>
+            <nav className="flex items-center gap-4">
+              <Link href="/privacy" className="hover:text-forest-900">
+                Privacy
+              </Link>
+              <Link href="/terms" className="hover:text-forest-900">
+                Terms
+              </Link>
+              <span>Not legal advice.</span>
+            </nav>
           </div>
         </footer>
       </body>

@@ -1,4 +1,4 @@
-# CounselOptics
+# Advottic
 
 Secure, subscription-based legal case-building platform. The current build covers the
 **case-builder + AI review + PDF export** slices end-to-end on local storage.
@@ -70,5 +70,5 @@ node scripts/run-review.mjs <caseId>        # one case
 
 ## Disclaimer
 
-CounselOptics provides legal information and case organization tools. It does not provide legal
+Advottic provides legal information and case organization tools. It does not provide legal
 advice, does not represent users, and does not create an attorney-client relationship.
