@@ -106,8 +106,8 @@ export default async function WelcomePage() {
             <div className="grid gap-2 md:grid-cols-3">
               {[
                 {
-                  v: 'pro_se',
-                  title: 'Pro se',
+                  v: 'self_represented',
+                  title: 'Self-represented',
                   desc: 'Representing myself - no attorney yet.',
                 },
                 {

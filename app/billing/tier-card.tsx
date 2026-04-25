@@ -25,8 +25,6 @@ function bulletsForTier(tier: Tier): Bullet[] {
     },
     { label: 'PDF case packet export', included: f.pdfExport },
     { label: 'AI case review (Sonnet 4.6)', included: f.aiReview },
-    { label: 'Pro se defense planning', included: f.defenseAdvice },
-    { label: 'Exhibit plan generator (A - Z)', included: f.exhibitPlan },
     { label: 'Bella, on-demand legal assistant', included: f.bella },
     { label: 'Invite collaborators (attorney sharing)', included: f.collaborators },
     { label: '7-day free trial', included: true },

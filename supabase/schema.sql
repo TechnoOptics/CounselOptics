@@ -28,6 +28,9 @@ create table if not exists public.cases (
 alter table public.cases
   add column if not exists posture text not null default 'claimant';
 
+alter table public.cases
+  add column if not exists subject_profile jsonb not null default '{}'::jsonb;
+
 -- Allow expanded subject types on existing installs.
 do $$
 begin
@@ -76,48 +79,10 @@ create index if not exists exhibits_case_id_uploaded_at_idx
 create index if not exists exhibits_user_id_idx
   on public.exhibits (user_id);
 
-create table if not exists public.exhibit_plans (
-  id uuid primary key default gen_random_uuid(),
-  case_id uuid not null references public.cases(id) on delete cascade,
-  user_id uuid not null references auth.users(id) on delete cascade,
-  label text not null,           -- "Exhibit A"
-  title text not null,           -- "Pet ownership proof"
-  description text,              -- what this exhibit should show
-  position int not null,         -- ordinal
-  filled_by_exhibit_id uuid references public.exhibits(id) on delete set null,
-  created_at timestamptz not null default now()
-);
-
-create index if not exists exhibit_plans_case_id_position_idx
-  on public.exhibit_plans (case_id, position);
-create index if not exists exhibit_plans_user_id_idx
-  on public.exhibit_plans (user_id);
-
-create table if not exists public.defense_advice (
-  id uuid primary key default gen_random_uuid(),
-  case_id uuid not null references public.cases(id) on delete cascade,
-  user_id uuid not null references auth.users(id) on delete cascade,
-  jurisdiction text,
-  charges text,
-  summary text,
-  pro_se_overview text,
-  possible_defenses jsonb not null default '[]'::jsonb,
-  procedural_posture jsonb not null default '[]'::jsonb,
-  evidence_to_gather jsonb not null default '[]'::jsonb,
-  when_to_hire_lawyer jsonb not null default '[]'::jsonb,
-  risk_factors jsonb not null default '[]'::jsonb,
-  questions_for_attorney jsonb not null default '[]'::jsonb,
-  resource_topics jsonb not null default '[]'::jsonb,
-  disclaimer text,
-  model_used text,
-  is_demo boolean not null default false,
-  created_at timestamptz not null default now()
-);
-
-create index if not exists defense_advice_case_id_created_at_idx
-  on public.defense_advice (case_id, created_at desc);
-create index if not exists defense_advice_user_id_idx
-  on public.defense_advice (user_id);
+-- exhibit_plans and defense_advice tables removed in favor of focused
+-- AI review only. Old data is dropped if present.
+drop table if exists public.exhibit_plans cascade;
+drop table if exists public.defense_advice cascade;
 
 create table if not exists public.case_collaborators (
   id uuid primary key default gen_random_uuid(),
@@ -166,6 +131,18 @@ create table if not exists public.profiles (
 
 alter table public.profiles
   add column if not exists is_admin boolean not null default false;
+
+alter table public.profiles
+  add column if not exists representation text;
+alter table public.profiles
+  add column if not exists consented_at timestamptz;
+alter table public.profiles
+  add column if not exists tour_completed_at timestamptz;
+
+-- "pro se" terminology was retired; remap any legacy values.
+update public.profiles
+  set representation = 'self_represented'
+  where representation = 'pro_se';
 
 create table if not exists public.ai_reviews (
   id uuid primary key default gen_random_uuid(),
@@ -216,8 +193,6 @@ create index if not exists close_surveys_case_id_idx on public.close_surveys (ca
 alter table public.cases enable row level security;
 alter table public.exhibits enable row level security;
 alter table public.ai_reviews enable row level security;
-alter table public.exhibit_plans enable row level security;
-alter table public.defense_advice enable row level security;
 alter table public.case_collaborators enable row level security;
 alter table public.subscriptions enable row level security;
 alter table public.profiles enable row level security;
@@ -346,40 +321,7 @@ create policy "ai_reviews_insert_own"
   on public.ai_reviews for insert
   with check (auth.uid() = user_id);
 
--- exhibit_plans policies
-drop policy if exists "exhibit_plans_select_own" on public.exhibit_plans;
-drop policy if exists "exhibit_plans_select_own_or_collaborator" on public.exhibit_plans;
-create policy "exhibit_plans_select_own_or_collaborator"
-  on public.exhibit_plans for select
-  using (public.is_case_member(case_id));
-
-drop policy if exists "exhibit_plans_insert_own" on public.exhibit_plans;
-create policy "exhibit_plans_insert_own"
-  on public.exhibit_plans for insert
-  with check (auth.uid() = user_id);
-
-drop policy if exists "exhibit_plans_update_own" on public.exhibit_plans;
-create policy "exhibit_plans_update_own"
-  on public.exhibit_plans for update
-  using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);
-
-drop policy if exists "exhibit_plans_delete_own" on public.exhibit_plans;
-create policy "exhibit_plans_delete_own"
-  on public.exhibit_plans for delete
-  using (auth.uid() = user_id);
-
--- defense_advice policies
-drop policy if exists "defense_advice_select_own" on public.defense_advice;
-drop policy if exists "defense_advice_select_own_or_collaborator" on public.defense_advice;
-create policy "defense_advice_select_own_or_collaborator"
-  on public.defense_advice for select
-  using (public.is_case_member(case_id));
-
-drop policy if exists "defense_advice_insert_own" on public.defense_advice;
-create policy "defense_advice_insert_own"
-  on public.defense_advice for insert
-  with check (auth.uid() = user_id);
+-- exhibit_plans + defense_advice policies removed alongside the tables.
 
 -- case_collaborators policies - only the case owner manages.
 drop policy if exists "case_collaborators_select" on public.case_collaborators;

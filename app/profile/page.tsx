@@ -75,32 +75,45 @@ export default async function ProfilePage() {
           </p>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <div>
-            <label className="label" htmlFor="role">
-              Role
-            </label>
-            <input
-              id="role"
-              name="role"
-              defaultValue={profile?.role ?? ''}
-              placeholder="Attorney, Client, Case manager…"
-              className="input"
-            />
+        <details className="rounded-xl border border-ink-200 bg-cream-50/40">
+          <summary className="cursor-pointer list-none px-5 py-3.5 text-sm font-semibold text-forest-900">
+            Add a title or organization{' '}
+            <span className="text-ink-400 font-normal">(optional)</span>
+            <p className="text-xs text-ink-500 font-normal mt-0.5">
+              Most users skip this. Fill it in only if you want a job title or company name on
+              your case packet exports.
+            </p>
+          </summary>
+          <div className="px-5 pb-5 grid gap-4 md:grid-cols-2">
+            <div>
+              <label className="label" htmlFor="role">
+                Title (if any)
+              </label>
+              <input
+                id="role"
+                name="role"
+                defaultValue={profile?.role ?? ''}
+                placeholder="e.g., Attorney, Paralegal, Owner - or leave blank"
+                className="input"
+              />
+              <p className="text-xs text-ink-500 mt-1.5">
+                If you don&apos;t have a professional title, just leave this blank.
+              </p>
+            </div>
+            <div>
+              <label className="label" htmlFor="organization">
+                Organization (if any)
+              </label>
+              <input
+                id="organization"
+                name="organization"
+                defaultValue={profile?.organization ?? ''}
+                placeholder="Firm, company, or leave blank"
+                className="input"
+              />
+            </div>
           </div>
-          <div>
-            <label className="label" htmlFor="organization">
-              Organization
-            </label>
-            <input
-              id="organization"
-              name="organization"
-              defaultValue={profile?.organization ?? ''}
-              placeholder="Firm or company"
-              className="input"
-            />
-          </div>
-        </div>
+        </details>
 
         <div className="flex justify-end">
           <button type="submit" className="btn-primary">
@@ -110,8 +123,8 @@ export default async function ProfilePage() {
       </form>
 
       <div className="text-xs text-ink-500">
-        Avatar is pulled from your Google / Microsoft account. Change it at the provider to
-        update it here.
+        You can upload your own avatar above. If you don&apos;t, the system pulls one from your
+        Google / Microsoft account or shows your initials.
       </div>
 
       <AccountActions />

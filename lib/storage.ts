@@ -8,13 +8,12 @@ import type {
   CaseType,
   Collaborator,
   CollaboratorRole,
-  DefenseAdvice,
   Exhibit,
-  ExhibitPlanItem,
   Jurisdiction,
   Posture,
   Profile,
   RepresentationStatus,
+  SubjectProfile,
   Subscription,
   SubscriptionStatus,
   SubjectType,
@@ -33,8 +32,6 @@ type DB = {
   cases: Case[];
   exhibits: Exhibit[];
   aiReviews: AIReview[];
-  exhibitPlans: ExhibitPlanItem[];
-  defenseAdvice: DefenseAdvice[];
 };
 
 // ---------------------------------------------------------------------------
@@ -55,6 +52,7 @@ type CaseRow = {
   title: string;
   subject_name: string;
   subject_type: SubjectType;
+  subject_profile: SubjectProfile | null;
   jurisdiction_country: string;
   jurisdiction_state: string | null;
   jurisdiction_city: string | null;
@@ -80,18 +78,6 @@ type ExhibitRow = {
   source: string | null;
   category: string | null;
   uploaded_at: string;
-};
-
-type ExhibitPlanRow = {
-  id: string;
-  case_id: string;
-  user_id: string;
-  label: string;
-  title: string;
-  description: string | null;
-  position: number;
-  filled_by_exhibit_id: string | null;
-  created_at: string;
 };
 
 type ProfileRow = {
@@ -137,6 +123,9 @@ function caseFromRow(r: CaseRow): Case {
     title: r.title,
     subjectName: r.subject_name,
     subjectType: r.subject_type,
+    subjectProfile: (r.subject_profile && typeof r.subject_profile === 'object'
+      ? r.subject_profile
+      : {}) as SubjectProfile,
     jurisdiction: {
       country: r.jurisdiction_country,
       state: r.jurisdiction_state ?? undefined,
@@ -148,49 +137,6 @@ function caseFromRow(r: CaseRow): Case {
     status: r.status,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
-  };
-}
-
-type DefenseAdviceRow = {
-  id: string;
-  case_id: string;
-  user_id: string;
-  jurisdiction: string | null;
-  charges: string | null;
-  summary: string | null;
-  pro_se_overview: string | null;
-  possible_defenses: string[];
-  procedural_posture: string[];
-  evidence_to_gather: string[];
-  when_to_hire_lawyer: string[];
-  risk_factors: string[];
-  questions_for_attorney: string[];
-  resource_topics: string[];
-  disclaimer: string | null;
-  model_used: string | null;
-  is_demo: boolean;
-  created_at: string;
-};
-
-function defenseAdviceFromRow(r: DefenseAdviceRow): DefenseAdvice {
-  return {
-    id: r.id,
-    caseId: r.case_id,
-    jurisdiction: r.jurisdiction ?? '',
-    charges: r.charges ?? '',
-    summary: r.summary ?? '',
-    proSeOverview: r.pro_se_overview ?? '',
-    possibleDefenses: r.possible_defenses ?? [],
-    proceduralPosture: r.procedural_posture ?? [],
-    evidenceToGather: r.evidence_to_gather ?? [],
-    whenToHireLawyer: r.when_to_hire_lawyer ?? [],
-    riskFactors: r.risk_factors ?? [],
-    questionsForAttorney: r.questions_for_attorney ?? [],
-    resourceTopics: r.resource_topics ?? [],
-    disclaimer: r.disclaimer ?? '',
-    modelUsed: r.model_used ?? '',
-    isDemo: r.is_demo,
-    createdAt: r.created_at,
   };
 }
 
@@ -208,19 +154,6 @@ function exhibitFromRow(r: ExhibitRow): Exhibit {
     source: r.source ?? null,
     category: r.category ?? null,
     uploadedAt: r.uploaded_at,
-  };
-}
-
-function planItemFromRow(r: ExhibitPlanRow): ExhibitPlanItem {
-  return {
-    id: r.id,
-    caseId: r.case_id,
-    label: r.label,
-    title: r.title,
-    description: r.description ?? '',
-    position: r.position,
-    filledByExhibitId: r.filled_by_exhibit_id ?? null,
-    createdAt: r.created_at,
   };
 }
 
@@ -282,8 +215,6 @@ async function readLocalDB(): Promise<DB> {
       cases,
       exhibits: parsed.exhibits ?? [],
       aiReviews: parsed.aiReviews ?? [],
-      exhibitPlans: parsed.exhibitPlans ?? [],
-      defenseAdvice: parsed.defenseAdvice ?? [],
     };
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
@@ -291,8 +222,6 @@ async function readLocalDB(): Promise<DB> {
         cases: [],
         exhibits: [],
         aiReviews: [],
-        exhibitPlans: [],
-        defenseAdvice: [],
       };
     }
     throw err;
@@ -359,12 +288,14 @@ export async function createCase(input: {
   title: string;
   subjectName: string;
   subjectType: SubjectType;
+  subjectProfile?: SubjectProfile;
   jurisdiction: Jurisdiction;
   caseType: CaseType;
   description: string;
   posture?: Posture;
 }): Promise<Case> {
   const posture: Posture = input.posture ?? 'claimant';
+  const subjectProfile: SubjectProfile = input.subjectProfile ?? {};
   if (usingSupabase()) {
     const user = await getCurrentUser();
     if (!user) throw new Error('Not signed in.');
@@ -376,6 +307,7 @@ export async function createCase(input: {
         title: input.title,
         subject_name: input.subjectName,
         subject_type: input.subjectType,
+        subject_profile: subjectProfile,
         jurisdiction_country: input.jurisdiction.country,
         jurisdiction_state: input.jurisdiction.state ?? null,
         jurisdiction_city: input.jurisdiction.city ?? null,
@@ -396,6 +328,7 @@ export async function createCase(input: {
     title: input.title,
     subjectName: input.subjectName,
     subjectType: input.subjectType,
+    subjectProfile,
     jurisdiction: input.jurisdiction,
     caseType: input.caseType,
     description: input.description,
@@ -506,7 +439,6 @@ export async function addExhibit(input: {
   incidentDate?: string | null;
   source?: string | null;
   category?: string | null;
-  planItemId?: string | null;
 }): Promise<Exhibit> {
   if (usingSupabase()) {
     const user = await getCurrentUser();
@@ -565,13 +497,6 @@ export async function addExhibit(input: {
       throw error;
     }
 
-    if (input.planItemId) {
-      await supabase
-        .from('exhibit_plans')
-        .update({ filled_by_exhibit_id: id })
-        .eq('id', input.planItemId);
-    }
-
     await supabase
       .from('cases')
       .update({ updated_at: new Date().toISOString() })
@@ -611,10 +536,6 @@ export async function addExhibit(input: {
   };
   db.exhibits.push(exhibit);
   caseRecord.updatedAt = exhibit.uploadedAt;
-  if (input.planItemId) {
-    const plan = db.exhibitPlans.find((p) => p.id === input.planItemId);
-    if (plan) plan.filledByExhibitId = id;
-  }
   await writeLocalDB(db);
   return exhibit;
 }
@@ -724,135 +645,6 @@ export async function getExhibitFileBuffer(exhibit: Exhibit): Promise<Buffer | n
   } catch {
     return null;
   }
-}
-
-// ---------------------------------------------------------------------------
-// Exhibit plans (A–Z suggested exhibit slots)
-// ---------------------------------------------------------------------------
-
-export async function listExhibitPlans(caseId: string): Promise<ExhibitPlanItem[]> {
-  if (usingSupabase()) {
-    const user = await getCurrentUser();
-    if (!user) return [];
-    const supabase = createServerSupabase();
-    const { data, error } = await supabase
-      .from('exhibit_plans')
-      .select('*')
-      .eq('case_id', caseId)
-      .order('position', { ascending: true });
-    if (error) throw error;
-    return (data as ExhibitPlanRow[]).map(planItemFromRow);
-  }
-  const db = await readLocalDB();
-  return db.exhibitPlans
-    .filter((p) => p.caseId === caseId)
-    .sort((a, b) => a.position - b.position);
-}
-
-export async function replaceExhibitPlans(
-  caseId: string,
-  items: { title: string; description: string }[],
-): Promise<ExhibitPlanItem[]> {
-  const now = new Date().toISOString();
-
-  if (usingSupabase()) {
-    const user = await getCurrentUser();
-    if (!user) throw new Error('Not signed in.');
-    const supabase = createServerSupabase();
-
-    await supabase.from('exhibit_plans').delete().eq('case_id', caseId);
-
-    const rows = items.map((item, i) => ({
-      case_id: caseId,
-      user_id: user.id,
-      label: `Exhibit ${labelFor(i)}`,
-      title: item.title,
-      description: item.description,
-      position: i + 1,
-    }));
-    if (rows.length === 0) return [];
-    const { data, error } = await supabase
-      .from('exhibit_plans')
-      .insert(rows)
-      .select('*')
-      .order('position', { ascending: true });
-    if (error) throw error;
-    return (data as ExhibitPlanRow[]).map(planItemFromRow);
-  }
-
-  const db = await readLocalDB();
-  db.exhibitPlans = db.exhibitPlans.filter((p) => p.caseId !== caseId);
-  const created: ExhibitPlanItem[] = items.map((item, i) => ({
-    id: crypto.randomUUID(),
-    caseId,
-    label: `Exhibit ${labelFor(i)}`,
-    title: item.title,
-    description: item.description,
-    position: i + 1,
-    filledByExhibitId: null,
-    createdAt: now,
-  }));
-  db.exhibitPlans.push(...created);
-  await writeLocalDB(db);
-  return created;
-}
-
-// ---------------------------------------------------------------------------
-// Defense advice (for cases where posture = 'defendant')
-// ---------------------------------------------------------------------------
-
-export async function getLatestDefenseAdvice(caseId: string): Promise<DefenseAdvice | null> {
-  if (usingSupabase()) {
-    const user = await getCurrentUser();
-    if (!user) return null;
-    const supabase = createServerSupabase();
-    const { data, error } = await supabase
-      .from('defense_advice')
-      .select('*')
-      .eq('case_id', caseId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (error) throw error;
-    return data ? defenseAdviceFromRow(data as DefenseAdviceRow) : null;
-  }
-  const db = await readLocalDB();
-  const list = db.defenseAdvice
-    .filter((d) => d.caseId === caseId)
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  return list[0] ?? null;
-}
-
-export async function saveDefenseAdvice(advice: DefenseAdvice): Promise<void> {
-  if (usingSupabase()) {
-    const user = await getCurrentUser();
-    if (!user) throw new Error('Not signed in.');
-    const supabase = createServerSupabase();
-    const { error } = await supabase.from('defense_advice').insert({
-      id: advice.id,
-      case_id: advice.caseId,
-      user_id: user.id,
-      jurisdiction: advice.jurisdiction,
-      charges: advice.charges,
-      summary: advice.summary,
-      pro_se_overview: advice.proSeOverview,
-      possible_defenses: advice.possibleDefenses,
-      procedural_posture: advice.proceduralPosture,
-      evidence_to_gather: advice.evidenceToGather,
-      when_to_hire_lawyer: advice.whenToHireLawyer,
-      risk_factors: advice.riskFactors,
-      questions_for_attorney: advice.questionsForAttorney,
-      resource_topics: advice.resourceTopics,
-      disclaimer: advice.disclaimer,
-      model_used: advice.modelUsed,
-      is_demo: advice.isDemo,
-    });
-    if (error) throw error;
-    return;
-  }
-  const db = await readLocalDB();
-  db.defenseAdvice.push(advice);
-  await writeLocalDB(db);
 }
 
 // ---------------------------------------------------------------------------

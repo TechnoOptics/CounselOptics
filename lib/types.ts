@@ -46,12 +46,34 @@ export type Jurisdiction = {
   city?: string;
 };
 
+export type SubjectProfile = {
+  // Common
+  legalName?: string;
+  alsoKnownAs?: string;
+  relationship?: string; // how they relate to the user (e.g., "former landlord")
+  address?: string;
+  email?: string;
+  phone?: string;
+  website?: string;
+  notes?: string;
+  // Person-specific
+  dateOfBirthApprox?: string; // free text, e.g. "1985" or "early 40s"
+  // Business-specific
+  registrationNumber?: string; // EIN, business reg number
+  businessType?: string; // LLC, corp, sole proprietor, etc.
+  primaryContactName?: string;
+  // Government / entity
+  agencyOrDepartment?: string;
+  jurisdictionLevel?: string; // federal / state / county / city
+};
+
 export type Case = {
   id: string;
   ownerId?: string;
   title: string;
   subjectName: string;
   subjectType: SubjectType;
+  subjectProfile?: SubjectProfile;
   jurisdiction: Jurisdiction;
   caseType: CaseType;
   description: string;
@@ -91,17 +113,6 @@ export type Exhibit = {
   source?: string | null;
   category?: string | null;
   uploadedAt: string;
-};
-
-export type ExhibitPlanItem = {
-  id: string;
-  caseId: string;
-  label: string;
-  title: string;
-  description: string;
-  position: number;
-  filledByExhibitId?: string | null;
-  createdAt: string;
 };
 
 export type CollaboratorRole = 'viewer' | 'editor' | 'attorney';
@@ -146,10 +157,10 @@ export type Subscription = {
   updatedAt: string;
 };
 
-export type RepresentationStatus = 'pro_se' | 'represented' | 'counsel';
+export type RepresentationStatus = 'self_represented' | 'represented' | 'counsel';
 
 export const REPRESENTATION_LABEL: Record<RepresentationStatus, string> = {
-  pro_se: 'Pro se (representing myself)',
+  self_represented: 'Self-represented (no attorney)',
   represented: 'Represented (I have an attorney)',
   counsel: "Counsel (I'm an attorney)",
 };
@@ -178,8 +189,6 @@ export const TIER_LABEL: Record<Tier, string> = {
 export type TierFeatures = {
   caseLimit: number | null; // null = unlimited
   aiReview: boolean;
-  defenseAdvice: boolean;
-  exhibitPlan: boolean;
   pdfExport: boolean;
   bella: boolean;
   collaborators: boolean;
@@ -190,8 +199,6 @@ export const TIER_FEATURES: Record<Tier, TierFeatures> = {
   basic: {
     caseLimit: 1,
     aiReview: false,
-    defenseAdvice: false,
-    exhibitPlan: false,
     pdfExport: true,
     bella: false,
     collaborators: false,
@@ -200,8 +207,6 @@ export const TIER_FEATURES: Record<Tier, TierFeatures> = {
   standard: {
     caseLimit: 5,
     aiReview: true,
-    defenseAdvice: true,
-    exhibitPlan: true,
     pdfExport: true,
     bella: true,
     collaborators: false,
@@ -210,33 +215,11 @@ export const TIER_FEATURES: Record<Tier, TierFeatures> = {
   pro: {
     caseLimit: null,
     aiReview: true,
-    defenseAdvice: true,
-    exhibitPlan: true,
     pdfExport: true,
     bella: true,
     collaborators: true,
     monthlyPriceUsd: 350,
   },
-};
-
-export type DefenseAdvice = {
-  id: string;
-  caseId: string;
-  jurisdiction: string;
-  charges: string;
-  summary: string;
-  proSeOverview: string;
-  possibleDefenses: string[];
-  proceduralPosture: string[];
-  evidenceToGather: string[];
-  whenToHireLawyer: string[];
-  riskFactors: string[];
-  questionsForAttorney: string[];
-  resourceTopics: string[];
-  disclaimer: string;
-  modelUsed: string;
-  isDemo: boolean;
-  createdAt: string;
 };
 
 export type AIReview = {

@@ -12,15 +12,13 @@ import {
   recordCloseSurvey,
   recordConsent,
   removeCollaborator,
-  replaceExhibitPlans,
-  saveDefenseAdvice,
   saveReview,
   updateCaseStatus,
   upsertProfile,
   usingSupabase,
   type CloseSurveyOutcome,
 } from './storage';
-import { planExhibits, runDefenseAdvice, runReview } from './ai';
+import { runReview } from './ai';
 import { getCurrentUser } from './supabase/server';
 import {
   CASE_TYPES,
@@ -29,6 +27,7 @@ import {
   type CollaboratorRole,
   type Posture,
   type RepresentationStatus,
+  type SubjectProfile,
   type SubjectType,
 } from './types';
 
@@ -63,10 +62,34 @@ export async function createCaseAction(formData: FormData) {
   const validSubjectTypes: SubjectType[] = ['person', 'business', 'matter', 'state', 'entity'];
   const subject: SubjectType = validSubjectTypes.includes(subjectType) ? subjectType : 'person';
 
+  const get = (k: string) => String(formData.get(k) ?? '').trim();
+  const profile: SubjectProfile = {};
+  const map: [string, keyof SubjectProfile][] = [
+    ['subj_legalName', 'legalName'],
+    ['subj_alsoKnownAs', 'alsoKnownAs'],
+    ['subj_relationship', 'relationship'],
+    ['subj_address', 'address'],
+    ['subj_email', 'email'],
+    ['subj_phone', 'phone'],
+    ['subj_website', 'website'],
+    ['subj_notes', 'notes'],
+    ['subj_dateOfBirthApprox', 'dateOfBirthApprox'],
+    ['subj_registrationNumber', 'registrationNumber'],
+    ['subj_businessType', 'businessType'],
+    ['subj_primaryContactName', 'primaryContactName'],
+    ['subj_agencyOrDepartment', 'agencyOrDepartment'],
+    ['subj_jurisdictionLevel', 'jurisdictionLevel'],
+  ];
+  for (const [formKey, profileKey] of map) {
+    const v = get(formKey);
+    if (v) profile[profileKey] = v;
+  }
+
   const created = await createCase({
     title,
     subjectName,
     subjectType: subject,
+    subjectProfile: profile,
     jurisdiction: {
       country,
       state: state || undefined,
@@ -88,7 +111,6 @@ export async function uploadExhibitAction(caseId: string, formData: FormData) {
   const incidentDateRaw = String(formData.get('incidentDate') ?? '').trim();
   const source = String(formData.get('source') ?? '').trim();
   const category = String(formData.get('category') ?? '').trim();
-  const planItemId = String(formData.get('planItemId') ?? '').trim();
 
   if (!(file instanceof File) || file.size === 0) {
     throw new Error('Please choose a file to upload.');
@@ -106,30 +128,9 @@ export async function uploadExhibitAction(caseId: string, formData: FormData) {
     incidentDate: incidentDateRaw || null,
     source: source || null,
     category: category || null,
-    planItemId: planItemId || null,
   });
   revalidatePath(`/cases/${caseId}`);
   revalidatePath('/cases');
-}
-
-export async function planExhibitsAction(caseId: string) {
-  await assertAuthIfSupabase();
-  const caseRecord = await getCase(caseId);
-  if (!caseRecord) throw new Error('Case not found.');
-  const exhibits = await listExhibits(caseId);
-  const items = await planExhibits(caseRecord, exhibits);
-  await replaceExhibitPlans(caseId, items);
-  revalidatePath(`/cases/${caseId}`);
-}
-
-export async function runDefenseAdviceAction(caseId: string) {
-  await assertAuthIfSupabase();
-  const caseRecord = await getCase(caseId);
-  if (!caseRecord) throw new Error('Case not found.');
-  const exhibits = await listExhibits(caseId);
-  const advice = await runDefenseAdvice(caseRecord, exhibits);
-  await saveDefenseAdvice(advice);
-  revalidatePath(`/cases/${caseId}`);
 }
 
 export async function inviteCollaboratorAction(caseId: string, formData: FormData) {
@@ -157,7 +158,7 @@ export async function removeCollaboratorAction(caseId: string, collaboratorId: s
 export async function recordConsentAction(formData: FormData) {
   if (!usingSupabase()) throw new Error('Supabase required.');
   const repRaw = String(formData.get('representation') ?? '');
-  const valid: RepresentationStatus[] = ['pro_se', 'represented', 'counsel'];
+  const valid: RepresentationStatus[] = ['self_represented', 'represented', 'counsel'];
   if (!valid.includes(repRaw as RepresentationStatus)) {
     throw new Error('Choose how you are representing yourself.');
   }

@@ -59,8 +59,8 @@ export default async function HomePage() {
           <p className="text-cream-100/85 text-[15px] md:text-base leading-relaxed mb-8 max-w-xl">
             Advottic turns scattered evidence into an organized case packet: exhibits, timelines,
             jurisdiction-aware issue spotting, defense planning, and a PDF ready for your
-            attorney. Built for individuals, businesses, and pro se litigants who need the work
-            done right.
+            attorney. Built for individuals, businesses, and self-represented litigants who need
+            the work done right.
           </p>
           <div className="flex flex-wrap gap-3">
             <Link
@@ -95,7 +95,7 @@ export default async function HomePage() {
           <FeatureCard
             number="03"
             title="Review"
-            body="Claude-backed issue spotting grounded in your jurisdiction - with concrete evidence to gather, records to subpoena, and pro se defense planning where applicable."
+            body="Claude-backed issue spotting grounded in your jurisdiction - with concrete evidence to gather and records you may want to subpoena."
           />
         </div>
       </section>

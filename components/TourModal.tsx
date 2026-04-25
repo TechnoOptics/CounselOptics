@@ -6,7 +6,11 @@ import { markTourCompletedAction } from '@/lib/actions';
 const STEPS = [
   {
     title: 'Cases organize everything',
-    body: 'Each case file holds the parties, jurisdiction, posture, exhibits, AI review, and defense plan. Click "New case" in the header to start one.',
+    body: 'Each case file holds the parties, jurisdiction, posture, exhibits, and AI review. Click "New case" in the header to start one.',
+  },
+  {
+    title: 'Subject profile',
+    body: 'When you create a case you can capture details about the person, business, agency, or entity at the center of it - address, contact info, identifying details, all kept on the case.',
   },
   {
     title: 'Exhibits with metadata',
@@ -14,11 +18,7 @@ const STEPS = [
   },
   {
     title: 'AI review (Standard / Pro)',
-    body: 'Run a Claude-backed review for jurisdiction-aware issue spotting, evidence to gather, and subpoena targets.',
-  },
-  {
-    title: 'Defense planning (defendants)',
-    body: "If you're a defendant, the defense panel surfaces possible defenses, deadlines, evidence to gather, and pro se prep.",
+    body: 'Run a Claude-backed review for jurisdiction-aware issue spotting, evidence to gather, and possible subpoena targets.',
   },
   {
     title: 'Collaborators (Pro)',

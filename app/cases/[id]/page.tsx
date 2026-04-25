@@ -2,22 +2,17 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import {
   getCase,
-  getLatestDefenseAdvice,
   getLatestReview,
   listCollaborators,
-  listExhibitPlans,
   listExhibits,
   usingSupabase,
 } from '@/lib/storage';
 import { getCurrentUser } from '@/lib/supabase/server';
 import { storageUnavailable } from '@/lib/setup-status';
-import { STATUS_LABEL, SUBJECT_TYPE_LABEL, type CaseStatus } from '@/lib/types';
-import { getResourcesFor } from '@/lib/legal-resources';
+import { STATUS_LABEL, SUBJECT_TYPE_LABEL, type CaseStatus, type SubjectProfile, type SubjectType } from '@/lib/types';
 import { Disclaimer } from '@/components/Disclaimer';
 import { UploadForm } from './upload-form';
 import { ReviewPanel } from './review-panel';
-import { ExhibitPlanSection } from './exhibit-plan';
-import { DefensePanel } from './defense-panel';
 import { CollaboratorsPanel } from './collaborators-panel';
 import { CloseCaseControl } from './close-case-control';
 import { Tabs } from '@/components/Tabs';
@@ -29,15 +24,12 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
   const c = await getCase(params.id);
   if (!c) notFound();
 
-  const [exhibits, review, plans, defenseAdvice, collaborators, currentUser] = await Promise.all([
+  const [exhibits, review, collaborators, currentUser] = await Promise.all([
     listExhibits(c.id),
     getLatestReview(c.id),
-    listExhibitPlans(c.id),
-    c.posture === 'defendant' ? getLatestDefenseAdvice(c.id) : Promise.resolve(null),
     usingSupabase() ? listCollaborators(c.id) : Promise.resolve([]),
     usingSupabase() ? getCurrentUser() : Promise.resolve(null),
   ]);
-  const resources = getResourcesFor(c.jurisdiction.state);
 
   const isOwner = !usingSupabase() || Boolean(currentUser && c.ownerId === currentUser.id);
   const myCollab = currentUser
@@ -83,7 +75,7 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
                     : 'bg-ink-100 text-ink-700'
                 }`}
               >
-                {c.posture === 'defendant' ? 'Defendant · pro se' : 'Claimant'}
+                {c.posture === 'defendant' ? 'Defendant' : 'Claimant'}
               </span>
             </div>
             <h1 className="text-3xl font-semibold tracking-tight text-ink-950 leading-tight">
@@ -203,28 +195,22 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
             ),
           },
           {
-            id: 'plan',
-            label: 'Plan',
-            badge: plans.length || undefined,
-            content: <ExhibitPlanSection caseId={c.id} plans={plans} exhibits={exhibits} />,
+            id: 'subject',
+            label: 'Subject',
+            badge: subjectProfileFieldCount(c.subjectProfile) || undefined,
+            content: (
+              <SubjectProfileView
+                subjectName={c.subjectName}
+                subjectType={c.subjectType}
+                profile={c.subjectProfile ?? {}}
+              />
+            ),
           },
           {
             id: 'review',
             label: 'AI review',
             badge: review ? '✓' : undefined,
-            content: (
-              <div className="space-y-8">
-                <ReviewPanel caseId={c.id} review={review} />
-                {c.posture === 'defendant' && (
-                  <DefensePanel
-                    caseId={c.id}
-                    advice={defenseAdvice}
-                    resources={resources}
-                    jurisdictionLabel={jurisdiction}
-                  />
-                )}
-              </div>
-            ),
+            content: <ReviewPanel caseId={c.id} review={review} />,
           },
           ...(usingSupabase()
             ? [
@@ -267,6 +253,81 @@ function Field({ label, value }: { label: string; value: string }) {
         {value || <span className="text-ink-400">-</span>}
       </dd>
     </div>
+  );
+}
+
+function subjectProfileFieldCount(profile: SubjectProfile | undefined): number {
+  if (!profile) return 0;
+  return Object.values(profile).filter((v) => typeof v === 'string' && v.trim().length > 0).length;
+}
+
+const SUBJECT_PROFILE_FIELDS: {
+  key: keyof SubjectProfile;
+  label: string;
+  showFor: SubjectType[] | 'all';
+}[] = [
+  { key: 'legalName', label: 'Legal name', showFor: 'all' },
+  { key: 'alsoKnownAs', label: 'Also known as', showFor: 'all' },
+  { key: 'relationship', label: 'Relationship to you', showFor: 'all' },
+  { key: 'dateOfBirthApprox', label: 'Date of birth (approx)', showFor: ['person'] },
+  { key: 'businessType', label: 'Business type', showFor: ['business'] },
+  { key: 'registrationNumber', label: 'Registration / EIN', showFor: ['business'] },
+  { key: 'primaryContactName', label: 'Primary contact', showFor: ['business', 'entity'] },
+  { key: 'agencyOrDepartment', label: 'Agency / department', showFor: ['state', 'entity'] },
+  { key: 'jurisdictionLevel', label: 'Jurisdiction level', showFor: ['state', 'entity'] },
+  { key: 'address', label: 'Address', showFor: 'all' },
+  { key: 'phone', label: 'Phone', showFor: 'all' },
+  { key: 'email', label: 'Email', showFor: 'all' },
+  { key: 'website', label: 'Website', showFor: ['business', 'entity', 'state'] },
+  { key: 'notes', label: 'Notes', showFor: 'all' },
+];
+
+function SubjectProfileView({
+  subjectName,
+  subjectType,
+  profile,
+}: {
+  subjectName: string;
+  subjectType: SubjectType;
+  profile: SubjectProfile;
+}) {
+  const visible = SUBJECT_PROFILE_FIELDS.filter(
+    (f) => f.showFor === 'all' || f.showFor.includes(subjectType),
+  );
+  const filled = visible.filter((f) => {
+    const v = profile[f.key];
+    return typeof v === 'string' && v.trim().length > 0;
+  });
+
+  return (
+    <section className="space-y-4">
+      <header>
+        <h2 className="text-xl font-semibold tracking-tight text-ink-950">
+          {subjectName}
+        </h2>
+        <p className="text-sm text-ink-500 mt-0.5">
+          {SUBJECT_TYPE_LABEL[subjectType]} - subject of this case file
+        </p>
+      </header>
+      {filled.length === 0 ? (
+        <div className="card p-6 text-sm text-ink-600 leading-relaxed">
+          No subject details captured yet. You can add address, contact info, and identifying
+          details when creating a case to keep everything in one place. Editing existing subjects
+          is coming soon.
+        </div>
+      ) : (
+        <dl className="card p-6 grid sm:grid-cols-2 gap-x-8 gap-y-4 text-sm">
+          {filled.map((f) => (
+            <div key={String(f.key)}>
+              <dt className="eyebrow mb-1">{f.label}</dt>
+              <dd className="text-[14px] text-ink-800 whitespace-pre-wrap break-words">
+                {profile[f.key]}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      )}
+    </section>
   );
 }
 

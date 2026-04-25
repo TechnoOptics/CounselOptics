@@ -21,8 +21,6 @@ export async function GET() {
     casesResp,
     exhibitsResp,
     reviewsResp,
-    plansResp,
-    defenseResp,
     collabsAsInviterResp,
     collabsAsRecipientResp,
   ] = await Promise.all([
@@ -31,8 +29,6 @@ export async function GET() {
     supabase.from('cases').select('*').eq('user_id', user.id),
     supabase.from('exhibits').select('*').eq('user_id', user.id),
     supabase.from('ai_reviews').select('*').eq('user_id', user.id),
-    supabase.from('exhibit_plans').select('*').eq('user_id', user.id),
-    supabase.from('defense_advice').select('*').eq('user_id', user.id),
     supabase.from('case_collaborators').select('*').eq('invited_by', user.id),
     supabase.from('case_collaborators').select('*').eq('user_id', user.id),
   ]);
@@ -51,8 +47,6 @@ export async function GET() {
     cases: casesResp.data ?? [],
     exhibits: exhibitsResp.data ?? [],
     aiReviews: reviewsResp.data ?? [],
-    exhibitPlans: plansResp.data ?? [],
-    defenseAdvice: defenseResp.data ?? [],
     collaboratorsInvitedByYou: collabsAsInviterResp.data ?? [],
     collaboratorAccessGrantedToYou: collabsAsRecipientResp.data ?? [],
     notes: [
