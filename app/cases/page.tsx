@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
 export default async function CasesPage({
   searchParams,
 }: {
-  searchParams?: { welcome?: string };
+  searchParams?: { welcome?: string; filter?: string };
 }) {
   if (storageUnavailable()) return <SetupNeeded />;
 
@@ -33,6 +33,7 @@ export default async function CasesPage({
   }
   const showWelcomeBack = searchParams?.welcome === '1';
   const showTour = showWelcomeBack && profile?.consentedAt && !profile?.tourCompletedAt;
+  const filter = searchParams?.filter === 'shared' ? 'shared' : 'all';
 
   const currentUser = isSupabaseConfigured() ? await getCurrentUser() : null;
   const myId = currentUser?.id ?? null;
@@ -41,6 +42,39 @@ export default async function CasesPage({
   const owned = ownedAll.filter((c) => !isClosed(c.status));
   const closed = ownedAll.filter((c) => isClosed(c.status));
   const sharedWithMe = myId ? cases.filter((c) => c.ownerId !== myId) : [];
+
+  // Shared-only view: render just the "Shared with me" section.
+  if (filter === 'shared') {
+    return (
+      <div className="space-y-8 animate-fade-up">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="eyebrow mb-2">Collaboration</p>
+            <h1 className="text-3xl font-semibold tracking-tight text-forest-900">
+              Shared with me
+            </h1>
+            <p className="text-sm text-ink-500 mt-1">
+              {sharedWithMe.length === 0
+                ? 'No cases have been shared with you yet.'
+                : `${sharedWithMe.length} case${sharedWithMe.length === 1 ? '' : 's'} shared with you`}
+            </p>
+          </div>
+          <Link href="/cases" className="btn-secondary">
+            All cases
+          </Link>
+        </div>
+
+        {sharedWithMe.length === 0 ? (
+          <div className="card p-10 text-center text-sm text-ink-600 leading-relaxed max-w-xl mx-auto">
+            When someone invites you as a collaborator on their case, it will appear here. Ask
+            the case owner for an invite at your account email.
+          </div>
+        ) : (
+          <CaseGrid cases={sharedWithMe} sharedHint />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 animate-fade-up">
@@ -82,9 +116,17 @@ export default async function CasesPage({
       {/* Shared with me */}
       {sharedWithMe.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold tracking-wider uppercase text-forest-700">
-            Shared with me
-          </h2>
+          <div className="flex items-end justify-between gap-3">
+            <h2 className="text-sm font-semibold tracking-wider uppercase text-forest-700">
+              Shared with me
+            </h2>
+            <Link
+              href="/cases?filter=shared"
+              className="text-xs text-ink-500 hover:text-forest-900 underline"
+            >
+              View all
+            </Link>
+          </div>
           <CaseGrid cases={sharedWithMe} sharedHint />
         </section>
       )}

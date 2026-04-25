@@ -27,8 +27,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-screen flex flex-col font-sans">
         <Disclaimer variant="banner" />
         <header className="sticky top-0 z-20">
-          {/* Top row: logo + search + avatar */}
-          <div className="border-b border-forest-700/40 bg-forest-950/95 backdrop-blur-md">
+          {/* Top row: logo + search + avatar. Lifted on z so the avatar menu
+              can drop down OVER the secondary subheader. */}
+          <div className="relative z-30 border-b border-forest-700/40 bg-forest-950/95 backdrop-blur-md">
             <div className="mx-auto max-w-6xl px-6 py-3 flex items-center justify-between">
               <Link href="/" className="flex items-center gap-2.5 group">
                 <span className="text-gold-500 group-hover:text-gold-400 transition-colors">
@@ -51,17 +52,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </div>
             </div>
           </div>
-          {/* Secondary row: lighter forest, nav links */}
-          <div className="border-b border-forest-700/30 bg-forest-900/65 backdrop-blur">
-            <div className="mx-auto max-w-6xl px-6 py-1.5 flex items-center gap-1 text-sm">
-              <Link href="/cases" className="nav-link">
-                Cases
-              </Link>
+          {/* Secondary row: lighter forest, nav links. Sits below z so it
+              doesn't trap dropdowns from the top row. */}
+          <div className="relative z-10 border-b border-forest-700/30 bg-forest-900/65 backdrop-blur">
+            <div className="mx-auto max-w-6xl px-6 py-1.5 flex items-center gap-1 text-sm overflow-x-auto">
               <Link href="/cases/new" className="nav-link">
                 New case
               </Link>
-              <Link href="/billing" className="nav-link">
-                Billing
+              <Link href="/cases" className="nav-link">
+                Cases
+              </Link>
+              <Link href="/cases?filter=shared" className="nav-link">
+                Shared with me
+              </Link>
+              <Link href="/find-counsel" className="nav-link">
+                Find counsel near me
               </Link>
             </div>
           </div>

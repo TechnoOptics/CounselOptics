@@ -20,8 +20,10 @@ type SettingHit = {
 };
 
 const SETTINGS: SettingHit[] = [
-  { href: '/cases', title: 'All cases', hint: 'View, filter, and reopen cases', keywords: 'cases list dashboard files' },
   { href: '/cases/new', title: 'New case', hint: 'Start a new matter', keywords: 'new case create matter start' },
+  { href: '/cases', title: 'All cases', hint: 'View, filter, and reopen cases', keywords: 'cases list dashboard files' },
+  { href: '/cases?filter=shared', title: 'Shared with me', hint: 'Cases collaborators invited you to', keywords: 'shared collaborator invited attorney' },
+  { href: '/find-counsel', title: 'Find counsel near me', hint: 'Browse nearby law firms', keywords: 'find counsel lawyer law firm near attorney legal aid map' },
   { href: '/billing', title: 'Billing & subscription', hint: 'Tier, invoices, cancel', keywords: 'billing pay subscribe stripe upgrade plan tier price' },
   { href: '/profile', title: 'Profile', hint: 'Name, avatar, account', keywords: 'profile account settings name avatar email' },
   { href: '/welcome', title: 'Welcome & consent', hint: 'Re-read terms; restart tour', keywords: 'tour welcome consent agreement representation' },
