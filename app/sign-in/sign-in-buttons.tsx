@@ -4,13 +4,17 @@ import { useState } from 'react';
 import { createBrowserSupabase } from '@/lib/supabase/client';
 
 type Provider = 'google' | 'azure';
+type Mode = Provider | 'email';
 
 export function SignInButtons({ next }: { next: string }) {
-  const [pending, setPending] = useState<Provider | null>(null);
+  const [pending, setPending] = useState<Mode | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [emailSent, setEmailSent] = useState<string | null>(null);
+  const [email, setEmail] = useState('');
 
-  async function signIn(provider: Provider) {
+  async function signInWithProvider(provider: Provider) {
     setError(null);
+    setEmailSent(null);
     setPending(provider);
     try {
       const supabase = createBrowserSupabase();
@@ -30,11 +34,33 @@ export function SignInButtons({ next }: { next: string }) {
     }
   }
 
+  async function signInWithEmail(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    setEmailSent(null);
+    setPending('email');
+    try {
+      const supabase = createBrowserSupabase();
+      const origin = window.location.origin;
+      const redirectTo = `${origin}/auth/callback?next=${encodeURIComponent(next)}`;
+      const { error: authError } = await supabase.auth.signInWithOtp({
+        email: email.trim(),
+        options: { emailRedirectTo: redirectTo, shouldCreateUser: true },
+      });
+      if (authError) throw authError;
+      setEmailSent(email.trim());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Sign-in failed.');
+    } finally {
+      setPending(null);
+    }
+  }
+
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-3">
       <button
         type="button"
-        onClick={() => signIn('google')}
+        onClick={() => signInWithProvider('google')}
         disabled={pending !== null}
         className="btn-secondary w-full"
       >
@@ -43,15 +69,43 @@ export function SignInButtons({ next }: { next: string }) {
       </button>
       <button
         type="button"
-        onClick={() => signIn('azure')}
+        onClick={() => signInWithProvider('azure')}
         disabled={pending !== null}
         className="btn-secondary w-full"
       >
         {pending === 'azure' ? <Spinner /> : <MicrosoftIcon />}
         Continue with Microsoft
       </button>
+
+      <div className="flex items-center gap-3 py-1">
+        <span className="h-px flex-1 bg-ink-200" />
+        <span className="text-[11px] uppercase tracking-wider text-ink-400">or</span>
+        <span className="h-px flex-1 bg-ink-200" />
+      </div>
+
+      <form onSubmit={signInWithEmail} className="space-y-2">
+        <input
+          type="email"
+          required
+          placeholder="you@example.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          disabled={pending !== null}
+          className="input"
+        />
+        <button type="submit" disabled={pending !== null} className="btn-primary w-full">
+          {pending === 'email' ? <Spinner /> : <MailIcon />}
+          Send magic link
+        </button>
+      </form>
+
+      {emailSent && (
+        <p className="rounded-lg border border-forest-200 bg-cream-50 px-3 py-2 text-xs text-forest-900">
+          Check {emailSent} for a sign-in link from Supabase.
+        </p>
+      )}
       {error && (
-        <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800 mt-2">
+        <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
           {error}
         </p>
       )}
@@ -77,6 +131,20 @@ function GoogleIcon() {
       <path
         fill="#34A853"
         d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
+      />
+    </svg>
+  );
+}
+
+function MailIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M3 7l9 6 9-6M5 19h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </svg>
   );
