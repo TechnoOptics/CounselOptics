@@ -25,6 +25,8 @@ export default async function ProfilePage() {
   if (!user) redirect('/sign-in?next=/profile');
 
   const profile = await getProfile().catch(() => null);
+  // Consent gate: unconsented users go to /welcome before they can view anything else.
+  if (profile && !profile.consentedAt) redirect('/welcome');
 
   const fallbackName =
     (user.user_metadata?.full_name as string | undefined) ??

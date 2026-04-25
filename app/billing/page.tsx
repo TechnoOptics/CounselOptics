@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
-import { getCurrentSubscription } from '@/lib/storage';
+import { getCurrentSubscription, getProfile } from '@/lib/storage';
 import { isStripeConfigured } from '@/lib/stripe';
 import { TIER_FEATURES, TIER_LABEL, type Tier } from '@/lib/types';
 import { TierCard } from './tier-card';
@@ -49,6 +49,10 @@ export default async function BillingPage({
 
   const user = await getCurrentUser();
   if (!user) redirect('/sign-in?next=/billing');
+
+  // Consent gate
+  const profile = await getProfile().catch(() => null);
+  if (profile && !profile.consentedAt) redirect('/welcome');
 
   const sub = await getCurrentSubscription();
   const stripeReady = isStripeConfigured();

@@ -136,7 +136,8 @@ body > * {
   .shimmer,
   .gold-pan,
   .hero-orb--a,
-  .hero-orb--b {
+  .hero-orb--b,
+  .marquee-track {
     animation: none !important;
   }
   .stagger > * {
@@ -334,6 +335,25 @@ body > * {
   }
   .hero-orb--a { animation: co-orb-drift-a 12s ease-in-out infinite; }
   .hero-orb--b { animation: co-orb-drift-b 14s ease-in-out infinite; }
+
+  /* Edge-to-edge horizontal marquee for the testimonials carousel.
+     Track translates by 50% because the React layer duplicates the items;
+     that way the loop is seamless. Hover pauses for accessibility / readability. */
+  @keyframes co-marquee {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+  .marquee-track {
+    width: max-content;
+    animation: co-marquee 60s linear infinite;
+  }
+  .marquee-track:hover {
+    animation-play-state: paused;
+  }
+  .marquee-mask {
+    -webkit-mask-image: linear-gradient(90deg, transparent 0, black 6%, black 94%, transparent 100%);
+    mask-image: linear-gradient(90deg, transparent 0, black 6%, black 94%, transparent 100%);
+  }
   .brand-gold {
     color: #d5bb7e;
   }

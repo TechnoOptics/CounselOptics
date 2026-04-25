@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { listCases } from '@/lib/storage';
 import { storageUnavailable } from '@/lib/setup-status';
 import { BrandMark } from '@/components/BrandMark';
+import { TestimonialMarquee } from '@/components/TestimonialMarquee';
 
 export default async function HomePage() {
   let cases: Awaited<ReturnType<typeof listCases>> = [];
@@ -99,6 +100,9 @@ export default async function HomePage() {
           />
         </div>
       </section>
+
+      {/* Testimonial marquee */}
+      <TestimonialMarquee />
 
       {/* Tagline footer band */}
       <section className="relative py-10 border-t border-gold-200">

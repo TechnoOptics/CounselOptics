@@ -32,7 +32,17 @@ export default async function WelcomePage() {
     '';
 
   return (
-    <div className="max-w-3xl mx-auto space-y-8 animate-fade-up">
+    <>
+      {/* Lock-screen treatment: a fixed full-viewport overlay greys + blurs
+          everything behind so the unconsented user can only act on this card.
+          z-40 sits above the layout's sticky header (z-20) but below the
+          cookie banner (z-60) and Bella floater (z-30/40). */}
+      <div
+        aria-hidden
+        className="fixed inset-0 z-40 bg-forest-950/72 backdrop-blur-md pointer-events-none"
+      />
+      <div className="relative z-40 -mx-6 -my-10 px-4 py-8 sm:py-12 min-h-[calc(100vh-3rem)] flex items-start justify-center overflow-y-auto">
+    <div className="max-w-3xl w-full mx-auto space-y-8 animate-fade-up">
       {/* Hero */}
       <section className="brand-mark text-cream-100 rounded-3xl px-8 py-10 md:px-10 md:py-12 relative overflow-hidden">
         <div
@@ -227,6 +237,8 @@ export default async function WelcomePage() {
         </form>
       </section>
     </div>
+      </div>
+    </>
   );
 }
 

@@ -80,23 +80,83 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Bella />
         <CookieBanner />
         <footer className="border-t border-ink-200 bg-white">
-          <div className="mx-auto max-w-6xl px-6 py-5 text-xs text-ink-500 flex flex-wrap items-center justify-between gap-2">
-            <span className="font-mono tracking-tight">
-              Advottic · Legal information & case organization
-            </span>
-            <nav className="flex items-center gap-4">
-              <Link href="/privacy" className="hover:text-forest-900">
-                Privacy
-              </Link>
-              <Link href="/terms" className="hover:text-forest-900">
-                Terms
-              </Link>
-              <span>Not legal advice.</span>
-            </nav>
+          <div className="mx-auto max-w-6xl px-6 py-8 text-xs text-ink-500">
+            <div className="grid gap-8 md:grid-cols-4">
+              <div className="space-y-2">
+                <p className="font-semibold text-forest-900 tracking-[0.05em] uppercase text-[11px]">
+                  Advottic
+                </p>
+                <p className="leading-relaxed">
+                  Legal information &amp; case organization. Not a law firm. Not legal advice.
+                </p>
+                <p className="leading-relaxed">
+                  Need a human?{' '}
+                  <a
+                    className="underline hover:text-forest-900"
+                    href="https://wa.me/19253001600"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    WhatsApp +1 (925) 300-1600
+                  </a>
+                </p>
+              </div>
+              <FooterCol title="Product">
+                <Link href="/cases" className="hover:text-forest-900 block">Cases</Link>
+                <Link href="/cases/new" className="hover:text-forest-900 block">New case</Link>
+                <Link href="/find-counsel" className="hover:text-forest-900 block">Find counsel</Link>
+                <Link href="/billing" className="hover:text-forest-900 block">Billing</Link>
+              </FooterCol>
+              <FooterCol title="Legal">
+                <Link href="/terms" className="hover:text-forest-900 block">Terms of use</Link>
+                <Link href="/privacy" className="hover:text-forest-900 block">Privacy policy</Link>
+                <Link href="/cookies" className="hover:text-forest-900 block">Cookie policy</Link>
+                <Link href="/dmca" className="hover:text-forest-900 block">DMCA / IP policy</Link>
+                <Link href="/security" className="hover:text-forest-900 block">Security</Link>
+                <Link href="/accessibility" className="hover:text-forest-900 block">Accessibility</Link>
+              </FooterCol>
+              <FooterCol title="Contact">
+                <a
+                  className="hover:text-forest-900 block"
+                  href="mailto:contact@technooptics.com"
+                >
+                  contact@technooptics.com
+                </a>
+                <span className="block">Operated from Minnesota, USA.</span>
+                <span className="block">Disputes resolved by binding individual arbitration; class-action and jury waivers in Section 4 of the Terms.</span>
+              </FooterCol>
+            </div>
+            <div className="mt-8 pt-5 border-t border-ink-100 flex flex-wrap items-center justify-between gap-2">
+              <p className="font-mono tracking-tight">
+                © {new Date().getFullYear()} Techno Optics LLC. All rights reserved.
+              </p>
+              <p className="text-ink-400">
+                Powered by{' '}
+                <span className="font-semibold text-forest-900">Techno Optics LLC</span>
+              </p>
+            </div>
+            <p className="mt-4 text-[10.5px] leading-relaxed text-ink-400 max-w-3xl">
+              Advottic is a service of Techno Optics LLC. Legal Eye and Bella generate
+              informational content using AI; outputs may be incomplete, outdated, or wrong and
+              are not legal advice. Always consult a licensed attorney in your jurisdiction
+              before acting. If you face possible incarceration, request a public defender at
+              your first court appearance.
+            </p>
           </div>
         </footer>
       </body>
     </html>
+  );
+}
+
+function FooterCol({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-2">
+      <p className="font-semibold text-forest-900 tracking-[0.05em] uppercase text-[11px]">
+        {title}
+      </p>
+      <div className="space-y-1.5">{children}</div>
+    </div>
   );
 }
 
