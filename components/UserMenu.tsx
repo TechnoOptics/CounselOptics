@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { getProfile } from '@/lib/storage';
+import { UserMenuClient } from './UserMenuClient';
 
 export async function UserMenu() {
   if (!isSupabaseConfigured()) {
@@ -32,70 +33,24 @@ export async function UserMenu() {
     'Account';
   const avatarUrl =
     profile?.avatarUrl || (user.user_metadata?.avatar_url as string | undefined) || null;
-
   const initials = computeInitials(displayName);
-  const isAdmin = Boolean(profile?.isAdmin);
 
   return (
-    <div className="flex items-center gap-1">
-      {isAdmin && (
-        <Link
-          href="/admin"
-          className="btn-ghost text-ink-700 hover:text-ink-950"
-          title="Admin dashboard"
-        >
-          Admin
-        </Link>
-      )}
-      <Link
-        href="/profile"
-        className="flex items-center gap-2.5 pl-2 pr-1 py-1 rounded-full hover:bg-ink-100 transition-colors"
-        aria-label="Open profile"
-        title={displayName}
-      >
-        <span className="hidden md:inline text-sm text-ink-700 max-w-[160px] truncate">
-          {displayName}
-        </span>
-        <Avatar avatarUrl={avatarUrl} initials={initials} />
-      </Link>
-    </div>
-  );
-}
-
-function Avatar({
-  avatarUrl,
-  initials,
-}: {
-  avatarUrl: string | null;
-  initials: string;
-}) {
-  if (avatarUrl) {
-    return (
-      <span className="relative inline-block h-8 w-8 overflow-hidden rounded-full border border-ink-200 bg-ink-100">
-        {/* Using <img> to avoid next/image host configuration for arbitrary OAuth avatar URLs. */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={avatarUrl}
-          alt=""
-          className="h-full w-full object-cover"
-          referrerPolicy="no-referrer"
-        />
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-ink-950 text-white text-[12px] font-semibold tracking-tight">
-      {initials}
-    </span>
+    <UserMenuClient
+      email={user.email ?? ''}
+      displayName={displayName}
+      avatarUrl={avatarUrl}
+      initials={initials}
+      isAdmin={Boolean(profile?.isAdmin)}
+      organization={profile?.organization ?? null}
+    />
   );
 }
 
 function computeInitials(name: string): string {
   const clean = name.trim();
   if (!clean) return 'CO';
-  if (clean.includes('@')) {
-    return clean.slice(0, 2).toUpperCase();
-  }
+  if (clean.includes('@')) return clean.slice(0, 2).toUpperCase();
   const parts = clean.split(/\s+/).filter(Boolean);
   const letters = (parts[0]?.[0] ?? '') + (parts[parts.length - 1]?.[0] ?? '');
   return letters.slice(0, 2).toUpperCase() || clean.slice(0, 2).toUpperCase();

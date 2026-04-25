@@ -14,6 +14,8 @@ import type {
   Jurisdiction,
   Posture,
   Profile,
+  Subscription,
+  SubscriptionStatus,
   SubjectType,
 } from './types';
 import { createServerSupabase, getCurrentUser, isSupabaseConfigured } from './supabase/server';
@@ -1037,6 +1039,95 @@ export async function removeCollaborator(collaboratorId: string): Promise<void> 
   const supabase = createServerSupabase();
   const { error } = await supabase.from('case_collaborators').delete().eq('id', collaboratorId);
   if (error) throw error;
+}
+
+// ---------------------------------------------------------------------------
+// Subscriptions (Supabase + Stripe)
+// ---------------------------------------------------------------------------
+
+type SubscriptionRow = {
+  id: string;
+  user_id: string;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  status: SubscriptionStatus;
+  price_id: string | null;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+function subscriptionFromRow(r: SubscriptionRow): Subscription {
+  return {
+    id: r.id,
+    userId: r.user_id,
+    stripeCustomerId: r.stripe_customer_id,
+    stripeSubscriptionId: r.stripe_subscription_id,
+    status: r.status,
+    priceId: r.price_id,
+    currentPeriodEnd: r.current_period_end,
+    cancelAtPeriodEnd: r.cancel_at_period_end,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
+
+export async function getCurrentSubscription(): Promise<Subscription | null> {
+  if (!usingSupabase()) return null;
+  const user = await getCurrentUser();
+  if (!user) return null;
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from('subscriptions')
+    .select('*')
+    .eq('user_id', user.id)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? subscriptionFromRow(data as SubscriptionRow) : null;
+}
+
+/** Service-role helper: upsert a subscription row from a Stripe webhook. */
+export async function upsertSubscriptionFromStripe(input: {
+  userId: string;
+  stripeCustomerId?: string | null;
+  stripeSubscriptionId?: string | null;
+  status: SubscriptionStatus;
+  priceId?: string | null;
+  currentPeriodEnd?: string | null;
+  cancelAtPeriodEnd?: boolean;
+}): Promise<void> {
+  const admin = createAdminSupabase();
+  if (!admin) throw new Error('SUPABASE_SERVICE_ROLE_KEY is required to record subscription state.');
+  const { error } = await admin
+    .from('subscriptions')
+    .upsert(
+      {
+        user_id: input.userId,
+        stripe_customer_id: input.stripeCustomerId ?? null,
+        stripe_subscription_id: input.stripeSubscriptionId ?? null,
+        status: input.status,
+        price_id: input.priceId ?? null,
+        current_period_end: input.currentPeriodEnd ?? null,
+        cancel_at_period_end: input.cancelAtPeriodEnd ?? false,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'user_id' },
+    );
+  if (error) throw error;
+}
+
+/** Service-role helper: look up user_id given a Stripe customer ID. */
+export async function userIdForStripeCustomer(customerId: string): Promise<string | null> {
+  const admin = createAdminSupabase();
+  if (!admin) return null;
+  const { data, error } = await admin
+    .from('subscriptions')
+    .select('user_id')
+    .eq('stripe_customer_id', customerId)
+    .maybeSingle();
+  if (error || !data) return null;
+  return (data as { user_id: string }).user_id;
 }
 
 export async function upsertProfile(input: {

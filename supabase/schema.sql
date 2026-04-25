@@ -137,6 +137,23 @@ create index if not exists case_collaborators_user_id_idx
 create index if not exists case_collaborators_email_idx
   on public.case_collaborators (lower(email));
 
+create table if not exists public.subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null unique references auth.users(id) on delete cascade,
+  stripe_customer_id text unique,
+  stripe_subscription_id text unique,
+  status text not null default 'inactive' check (
+    status in ('inactive','trialing','active','past_due','canceled','incomplete','unpaid')
+  ),
+  price_id text,
+  current_period_end timestamptz,
+  cancel_at_period_end boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists subscriptions_status_idx on public.subscriptions (status);
+
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   display_name text,
@@ -188,7 +205,15 @@ alter table public.ai_reviews enable row level security;
 alter table public.exhibit_plans enable row level security;
 alter table public.defense_advice enable row level security;
 alter table public.case_collaborators enable row level security;
+alter table public.subscriptions enable row level security;
 alter table public.profiles enable row level security;
+
+drop policy if exists "subscriptions_select_own" on public.subscriptions;
+create policy "subscriptions_select_own"
+  on public.subscriptions for select
+  using (auth.uid() = user_id);
+-- Inserts/updates happen via the service role from the Stripe webhook; no
+-- end-user write policy.
 
 -- cases policies
 drop policy if exists "cases_select_own" on public.cases;

@@ -123,6 +123,28 @@ export type Collaborator = {
   acceptedAt?: string | null;
 };
 
+export type SubscriptionStatus =
+  | 'inactive'
+  | 'trialing'
+  | 'active'
+  | 'past_due'
+  | 'canceled'
+  | 'incomplete'
+  | 'unpaid';
+
+export type Subscription = {
+  id: string;
+  userId: string;
+  stripeCustomerId?: string | null;
+  stripeSubscriptionId?: string | null;
+  status: SubscriptionStatus;
+  priceId?: string | null;
+  currentPeriodEnd?: string | null;
+  cancelAtPeriodEnd: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type Profile = {
   id: string;
   displayName?: string | null;
