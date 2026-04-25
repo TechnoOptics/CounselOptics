@@ -63,48 +63,84 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
         </a>
       </div>
 
-      {/* Case header */}
-      <div className="card p-7">
-        <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2 mb-2">
-              <p className="eyebrow">{c.caseType}</p>
-              <span
-                className={`badge ${
-                  c.posture === 'defendant'
-                    ? 'bg-rose-50 text-rose-800 border border-rose-200'
-                    : 'bg-ink-100 text-ink-700'
-                }`}
-              >
-                {c.posture === 'defendant' ? 'Defendant' : 'Claimant'}
-              </span>
+      {/* Case header - dark forest hero with KPI strip */}
+      <div className="relative overflow-hidden rounded-3xl text-cream-100 ring-1 ring-forest-700/40 shadow-card-hover hero-bg">
+        {/* Drifting decorative orbs */}
+        <div aria-hidden className="hero-orb hero-orb--gold hero-orb--a"
+          style={{ width: 260, height: 260, right: '-60px', top: '-80px' }} />
+        <div aria-hidden className="hero-orb hero-orb--cream hero-orb--b"
+          style={{ width: 200, height: 200, right: '15%', bottom: '-100px', opacity: 0.4 }} />
+
+        <div className="relative px-6 sm:px-8 lg:px-10 pt-8 pb-2">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2 mb-3">
+                <span className="text-[10px] tracking-[0.28em] uppercase font-semibold text-gold-300">
+                  {c.caseType}
+                </span>
+                <span
+                  className={`badge text-[10px] tracking-wide ${
+                    c.posture === 'defendant'
+                      ? 'bg-rose-500/15 text-rose-200 border border-rose-400/30'
+                      : 'bg-cream-100/15 text-cream-100 border border-cream-100/25'
+                  }`}
+                >
+                  {c.posture === 'defendant' ? 'Defendant' : 'Claimant'}
+                </span>
+              </div>
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-semibold tracking-tight leading-[1.1] drop-shadow-[0_2px_18px_rgba(15,45,36,0.45)]">
+                <span className="bg-gold-shine bg-clip-text text-transparent gold-pan">
+                  {c.title}
+                </span>
+              </h1>
+              <p className="text-sm text-cream-100/85 mt-3">
+                <span className="text-cream-100/55">{SUBJECT_TYPE_LABEL[c.subjectType]}: </span>
+                <span className="font-medium text-cream-100">{c.subjectName}</span>
+                {jurisdiction && (
+                  <>
+                    <span className="text-cream-100/40 mx-2">·</span>
+                    <span className="text-cream-100/85">{jurisdiction}</span>
+                  </>
+                )}
+              </p>
             </div>
-            <h1 className="text-3xl font-semibold tracking-tight text-ink-950 leading-tight">
-              {c.title}
-            </h1>
-            <p className="text-sm text-ink-600 mt-2">
-              <span className="text-ink-500">{SUBJECT_TYPE_LABEL[c.subjectType]}: </span>
-              <span className="font-medium text-ink-900">{c.subjectName}</span>
-            </p>
+            <DarkStatusPill status={c.status} />
           </div>
-          <StatusPill status={c.status} />
-        </div>
 
-        <dl className="grid sm:grid-cols-2 gap-x-8 gap-y-4 text-sm pt-5 divider">
-          <Field label="Jurisdiction" value={jurisdiction} />
-          <Field label="Case type" value={c.caseType} />
-          <Field label="Created" value={new Date(c.createdAt).toLocaleString()} />
-          <Field label="Last updated" value={new Date(c.updatedAt).toLocaleString()} />
-        </dl>
-
-        {c.description && (
-          <div className="pt-5 mt-5 divider">
-            <p className="eyebrow mb-2">Description</p>
-            <p className="text-[15px] leading-relaxed text-ink-800 whitespace-pre-wrap">
+          {c.description && (
+            <p className="text-cream-100/85 text-[15px] leading-relaxed mt-5 max-w-3xl whitespace-pre-wrap">
               {c.description}
             </p>
-          </div>
-        )}
+          )}
+        </div>
+
+        {/* KPI strip baked into the header */}
+        <div className="relative mt-6 grid grid-cols-2 sm:grid-cols-4 border-t border-cream-100/10 bg-forest-950/30 backdrop-blur-sm">
+          <Kpi
+            label="Exhibits"
+            value={String(exhibits.length)}
+            sub={exhibits.length === 0 ? 'add evidence' : exhibits.length === 1 ? 'on file' : 'on file'}
+            tone="emerald"
+          />
+          <Kpi
+            label="Hearing"
+            value={hearingShort(c.hearingAt) ?? '—'}
+            sub={c.hearingAt ? hearingDateShort(c.hearingAt) : 'not scheduled'}
+            tone={hearingTone(c.hearingAt)}
+          />
+          <Kpi
+            label="Legal Eye"
+            value={review ? '✓' : '—'}
+            sub={review ? 'review on file' : 'not run'}
+            tone={review ? 'emerald' : 'neutral'}
+          />
+          <Kpi
+            label="Sharing"
+            value={String(collaborators.length)}
+            sub={collaborators.length === 0 ? 'just you' : 'collaborators'}
+            tone="cream"
+          />
+        </div>
       </div>
 
       <Tabs
@@ -260,17 +296,6 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
   );
 }
 
-function Field({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <dt className="eyebrow mb-1">{label}</dt>
-      <dd className="text-[14px] text-ink-800">
-        {value || <span className="text-ink-400">-</span>}
-      </dd>
-    </div>
-  );
-}
-
 function subjectProfileFieldCount(profile: SubjectProfile | undefined): number {
   if (!profile) return 0;
   return Object.values(profile).filter((v) => typeof v === 'string' && v.trim().length > 0).length;
@@ -284,6 +309,96 @@ function hearingBadge(hearingAt: string | null | undefined): string | undefined 
   if (days < 0) return 'past';
   if (days === 0) return 'today';
   return `${days}d`;
+}
+
+// ----- Hero KPI helpers -----
+
+function hearingShort(hearingAt: string | null | undefined): string | null {
+  if (!hearingAt) return null;
+  const t = Date.parse(hearingAt);
+  if (Number.isNaN(t)) return null;
+  const diff = t - Date.now();
+  const days = Math.round(diff / (1000 * 60 * 60 * 24));
+  if (days < 0) return 'past';
+  if (days === 0) return 'today';
+  if (days === 1) return '1d';
+  if (days < 14) return `${days}d`;
+  if (days < 60) return `${Math.round(days / 7)}w`;
+  return `${Math.round(days / 30)}mo`;
+}
+
+function hearingDateShort(hearingAt: string): string {
+  const d = new Date(hearingAt);
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function hearingTone(
+  hearingAt: string | null | undefined,
+): 'emerald' | 'amber' | 'rose' | 'neutral' | 'cream' {
+  if (!hearingAt) return 'neutral';
+  const t = Date.parse(hearingAt);
+  if (Number.isNaN(t)) return 'neutral';
+  const days = Math.round((t - Date.now()) / (1000 * 60 * 60 * 24));
+  if (days < 0) return 'neutral';
+  if (days <= 3) return 'rose';
+  if (days <= 14) return 'amber';
+  return 'emerald';
+}
+
+function Kpi({
+  label,
+  value,
+  sub,
+  tone,
+}: {
+  label: string;
+  value: string;
+  sub: string;
+  tone: 'emerald' | 'amber' | 'rose' | 'neutral' | 'cream';
+}) {
+  const accent =
+    tone === 'emerald'
+      ? 'text-emerald-300'
+      : tone === 'amber'
+        ? 'text-amber-300'
+        : tone === 'rose'
+          ? 'text-rose-300'
+          : tone === 'cream'
+            ? 'text-cream-200'
+            : 'text-cream-100/60';
+  return (
+    <div className="px-4 sm:px-6 py-4 border-r border-cream-100/10 last:border-r-0 sm:[&:nth-child(2n)]:border-r sm:[&:nth-child(4n)]:border-r-0">
+      <p className="text-[10px] uppercase tracking-[0.22em] font-semibold text-cream-100/55">
+        {label}
+      </p>
+      <p className={`mt-1.5 text-2xl font-semibold tabular-nums tracking-tight ${accent}`}>
+        {value}
+      </p>
+      <p className="text-[11px] text-cream-100/55 mt-0.5">{sub}</p>
+    </div>
+  );
+}
+
+const STATUS_TONE: Record<CaseStatus, { bg: string; ring: string; text: string }> = {
+  draft: { bg: 'bg-cream-100/15', ring: 'ring-cream-100/25', text: 'text-cream-100' },
+  open: { bg: 'bg-sky-500/15', ring: 'ring-sky-300/40', text: 'text-sky-200' },
+  under_review: { bg: 'bg-amber-500/15', ring: 'ring-amber-300/40', text: 'text-amber-200' },
+  needs_evidence: { bg: 'bg-rose-500/15', ring: 'ring-rose-300/40', text: 'text-rose-200' },
+  export_ready: { bg: 'bg-emerald-500/15', ring: 'ring-emerald-300/40', text: 'text-emerald-200' },
+  closed: { bg: 'bg-cream-100/10', ring: 'ring-cream-100/20', text: 'text-cream-100/70' },
+  archived: { bg: 'bg-cream-100/10', ring: 'ring-cream-100/20', text: 'text-cream-100/60' },
+};
+
+function DarkStatusPill({ status }: { status: CaseStatus }) {
+  const tone = STATUS_TONE[status];
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-medium ring-1 ${tone.bg} ${tone.ring} ${tone.text}`}
+    >
+      <span className="inline-block h-1.5 w-1.5 rounded-full bg-current opacity-80" />
+      {STATUS_LABEL[status]}
+    </span>
+  );
 }
 
 const SUBJECT_PROFILE_FIELDS: {
@@ -391,16 +506,3 @@ function DownloadIcon() {
   );
 }
 
-const STATUS_STYLES: Record<CaseStatus, string> = {
-  draft: 'bg-ink-100 text-ink-700',
-  open: 'bg-sky-50 text-sky-800 border border-sky-200',
-  under_review: 'bg-amber-50 text-amber-900 border border-amber-200',
-  needs_evidence: 'bg-rose-50 text-rose-800 border border-rose-200',
-  export_ready: 'bg-emerald-50 text-emerald-800 border border-emerald-200',
-  closed: 'bg-ink-100 text-ink-600',
-  archived: 'bg-ink-100 text-ink-500',
-};
-
-function StatusPill({ status }: { status: CaseStatus }) {
-  return <span className={`badge ${STATUS_STYLES[status]}`}>{STATUS_LABEL[status]}</span>;
-}

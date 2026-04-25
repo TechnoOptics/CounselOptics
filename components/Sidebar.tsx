@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useRef, useState } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 
 type NavItem = {
@@ -82,56 +83,127 @@ export function Sidebar() {
           );
         })}
       </nav>
-      <p className="mt-4 px-2 text-[10.5px] uppercase tracking-[0.18em] font-semibold text-ink-400">
-        Need a human?
-      </p>
-      <a
-        href="https://wa.me/19253001600"
-        target="_blank"
-        rel="noreferrer"
-        className="mt-1.5 flex items-center gap-2 px-2 text-xs text-ink-500 hover:text-forest-900 transition-colors"
-      >
-        <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" />
-        WhatsApp +1 (925) 300-1600
-      </a>
     </aside>
   );
 }
 
 /**
- * Compact horizontal nav shown below the header on small screens (foldables
- * folded, phones). Same items as the desktop sidebar.
+ * Hamburger button + slide-down dropdown for small screens. Replaces the old
+ * horizontal-scroll mobile nav. The dropdown closes on item click, escape,
+ * route change, or click-outside.
  */
 export function MobileNav() {
   const isActive = useActive();
+  const [open, setOpen] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const pathname = usePathname();
+
+  // Close on route change.
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
+  // Close on click-outside + Escape.
+  useEffect(() => {
+    if (!open) return;
+    function onDoc(e: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  // Find the active item to label the closed button.
+  const activeItem = ITEMS.find(isActive) ?? null;
+
   return (
-    <nav
-      aria-label="Primary"
-      className="md:hidden border-b border-forest-700/30 bg-forest-900/65 backdrop-blur"
+    <div
+      ref={wrapperRef}
+      className="md:hidden border-b border-forest-700/30 bg-forest-900/65 backdrop-blur relative"
     >
-      <div className="mx-auto max-w-6xl px-4 py-1.5 flex items-center gap-1 text-sm overflow-x-auto">
-        {ITEMS.map((item) => {
-          const active = isActive(item);
-          return (
-            <Link
-              key={item.href + item.label}
-              href={item.href}
-              aria-current={active ? 'page' : undefined}
-              className={`inline-flex items-center gap-1.5 whitespace-nowrap px-3 py-1.5 rounded-md text-[13px] transition-colors ${
-                active
-                  ? 'bg-forest-700/60 text-cream-100 ring-1 ring-gold-400/40'
-                  : 'text-cream-100/85 hover:text-cream-100 hover:bg-forest-800'
-              }`}
-            >
-              <span className={active ? 'text-gold-400' : 'text-cream-100/60'}>
-                {item.icon()}
-              </span>
-              {item.label}
-            </Link>
-          );
-        })}
+      <div className="mx-auto max-w-6xl px-4 py-1.5 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setOpen((s) => !s)}
+          aria-expanded={open}
+          aria-haspopup="menu"
+          aria-label="Toggle navigation"
+          className="inline-flex items-center gap-2 rounded-md bg-forest-800/70 hover:bg-forest-800 text-cream-100 px-3 py-2 ring-1 ring-forest-700/40 transition-colors"
+        >
+          {open ? <CloseIcon /> : <BurgerIcon />}
+          <span className="text-[13px] font-medium">
+            {activeItem ? activeItem.label : 'Menu'}
+          </span>
+        </button>
+        {activeItem && (
+          <span aria-hidden className="text-cream-100/40 text-xs">
+            {ITEMS.length} options
+          </span>
+        )}
       </div>
-    </nav>
+
+      {open && (
+        <nav
+          role="menu"
+          aria-label="Primary"
+          className="absolute left-0 right-0 top-full z-30 px-3 pb-3 animate-fade-up"
+        >
+          <ul className="rounded-xl bg-forest-900 ring-1 ring-forest-700/40 shadow-card-hover overflow-hidden divide-y divide-forest-700/30">
+            {ITEMS.map((item) => {
+              const active = isActive(item);
+              return (
+                <li key={item.href + item.label}>
+                  <Link
+                    href={item.href}
+                    role="menuitem"
+                    aria-current={active ? 'page' : undefined}
+                    onClick={() => setOpen(false)}
+                    className={`flex items-center gap-3 px-4 py-3 text-sm transition-colors ${
+                      active
+                        ? 'bg-forest-800 text-cream-100'
+                        : 'text-cream-100/85 hover:text-cream-100 hover:bg-forest-800/70'
+                    }`}
+                  >
+                    <span className={active ? 'text-gold-400' : 'text-cream-100/60'}>
+                      {item.icon()}
+                    </span>
+                    <span className="flex-1">{item.label}</span>
+                    {active && (
+                      <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-gold-400" />
+                    )}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
+      )}
+    </div>
+  );
+}
+
+function BurgerIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
   );
 }
 

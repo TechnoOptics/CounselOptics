@@ -111,17 +111,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <p className="leading-relaxed">
                   Legal information &amp; case organization. Not a law firm. Not legal advice.
                 </p>
-                <p className="leading-relaxed">
-                  Need a human?{' '}
-                  <a
-                    className="underline hover:text-forest-900"
-                    href="https://wa.me/19253001600"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    WhatsApp +1 (925) 300-1600
-                  </a>
-                </p>
               </div>
               <FooterCol title="Product">
                 <Link href="/cases" className="hover:text-forest-900 block">Cases</Link>
