@@ -180,9 +180,9 @@ export function Bella() {
                   </p>
                   <div className="flex flex-col gap-2">
                     {[
-                      'How do I use the exhibit plan feature?',
+                      caseId ? 'Summarize this case for me.' : 'How do I create a new case?',
                       'What is a statute of limitations in plain English?',
-                      caseId ? 'Summarize this case for me.' : 'What can Advottic help me with?',
+                      'I have a billing question — who can I talk to?',
                     ].map((s) => (
                       <button
                         key={s}
@@ -264,10 +264,70 @@ function Bubble({ role, content }: { role: Message['role']; content: string }) {
   return (
     <div className="flex justify-start">
       <div className="max-w-[88%] rounded-2xl rounded-tl-md px-3.5 py-2.5 bg-white border border-ink-200 text-sm text-ink-900 leading-relaxed whitespace-pre-wrap">
-        {content || ' '}
+        {content ? <RenderRich text={content} /> : ' '}
       </div>
     </div>
   );
+}
+
+/**
+ * Tiny markdown-ish renderer: handles [text](url) links, bare URLs, and
+ * **bold**. Anything else falls through as plain text. Newlines are preserved
+ * by the parent's `whitespace-pre-wrap`. Kept inline + dependency-free so we
+ * don't pull a full markdown lib into the chat bundle.
+ */
+function RenderRich({ text }: { text: string }) {
+  // Split on linkable + bold patterns. Order matters: parse [text](url) first
+  // so bare URLs don't double-match.
+  const tokenRe = /(\[[^\]]+\]\([^)]+\)|https?:\/\/[^\s)]+|\*\*[^*]+\*\*)/g;
+  const parts: (string | JSX.Element)[] = [];
+  let last = 0;
+  let i = 0;
+  for (const m of text.matchAll(tokenRe)) {
+    const start = m.index ?? 0;
+    if (start > last) parts.push(text.slice(last, start));
+    const tok = m[0];
+    if (tok.startsWith('[')) {
+      const md = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(tok);
+      if (md) {
+        parts.push(
+          <a
+            key={`l${i++}`}
+            href={md[2]}
+            target="_blank"
+            rel="noreferrer"
+            className="text-forest-900 underline underline-offset-2 hover:text-forest-700"
+          >
+            {md[1]}
+          </a>,
+        );
+      } else {
+        parts.push(tok);
+      }
+    } else if (tok.startsWith('**')) {
+      parts.push(
+        <strong key={`b${i++}`} className="font-semibold">
+          {tok.slice(2, -2)}
+        </strong>,
+      );
+    } else {
+      // bare URL
+      parts.push(
+        <a
+          key={`u${i++}`}
+          href={tok}
+          target="_blank"
+          rel="noreferrer"
+          className="text-forest-900 underline underline-offset-2 hover:text-forest-700 break-all"
+        >
+          {tok}
+        </a>,
+      );
+    }
+    last = start + tok.length;
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  return <>{parts}</>;
 }
 
 function Dot({ delay }: { delay: number }) {
