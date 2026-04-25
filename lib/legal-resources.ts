@@ -1,6 +1,6 @@
 /**
  * Curated catalog of legal self-help resources. URLs in this file should be
- * stable, well-known landing pages. Do NOT auto-generate URLs from an LLM —
+ * stable, well-known landing pages. Do NOT auto-generate URLs from an LLM -
  * pick from this list. If a state isn't covered, fall back to NATIONAL.
  *
  * Verify entries periodically; an outdated URL is worse than no URL.
@@ -30,7 +30,7 @@ export const NATIONAL_RESOURCES: LegalResource[] = [
     category: 'Legal aid',
   },
   {
-    title: 'American Bar Association — Free Legal Help',
+    title: 'American Bar Association - Free Legal Help',
     url: 'https://www.americanbar.org/groups/legal_services/flh-home/',
     description:
       'ABA directory of state-by-state pro bono, lawyer referral, and self-help programs.',
@@ -51,7 +51,7 @@ export const NATIONAL_RESOURCES: LegalResource[] = [
     category: 'Find a lawyer',
   },
   {
-    title: 'U.S. Courts — Find Your Court',
+    title: 'U.S. Courts - Find Your Court',
     url: 'https://www.uscourts.gov/court-locator',
     description:
       'Locate federal district and bankruptcy courts; useful when responding to a federal case.',
@@ -91,7 +91,7 @@ const STATE: Record<string, LegalResource[]> = {
       category: 'Self-help',
     },
     {
-      title: 'Texas Bar — Find a Lawyer Referral',
+      title: 'Texas Bar - Find a Lawyer Referral',
       url: 'https://www.texasbar.com/AM/Template.cfm?Section=Find_a_Lawyer',
       description: 'Statewide lawyer referral program; reduced consultation fees.',
       category: 'Find a lawyer',
@@ -217,7 +217,7 @@ const STATE: Record<string, LegalResource[]> = {
   ],
   CO: [
     {
-      title: 'Colorado Judicial Branch — Self-Help',
+      title: 'Colorado Judicial Branch - Self-Help',
       url: 'https://www.coloradojudicial.gov/self-help',
       description: 'Forms and how-to guides by case type for Colorado state courts.',
       category: 'Self-help',
@@ -233,7 +233,7 @@ const STATE: Record<string, LegalResource[]> = {
   ],
   NC: [
     {
-      title: 'NC Courts — Help Topics',
+      title: 'NC Courts - Help Topics',
       url: 'https://www.nccourts.gov/help-topics',
       description: 'North Carolina court system self-help by case type.',
       category: 'Self-help',

@@ -14,14 +14,78 @@ const STATUS_STYLES: Record<CaseStatus, string> = {
   archived: 'bg-ink-100 text-ink-500',
 };
 
-export default async function AdminCasesPage() {
+export default async function AdminCasesPage({
+  searchParams,
+}: {
+  searchParams?: { groupBy?: string };
+}) {
   const cases = await adminListCases();
+  const groupBy = searchParams?.groupBy === 'caseType' ? 'caseType' : 'flat';
+
+  // Group by case type if requested
+  const groups = new Map<string, typeof cases>();
+  if (groupBy === 'caseType') {
+    for (const c of cases) {
+      const k = c.caseType || 'Uncategorized';
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k)!.push(c);
+    }
+  }
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-ink-500">
-        {cases.length} case{cases.length === 1 ? '' : 's'} across all users
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-ink-500">
+          {cases.length} case{cases.length === 1 ? '' : 's'} across all users
+        </p>
+        <div className="flex items-center gap-1 text-xs">
+          <span className="text-ink-500">Group by:</span>
+          <Link
+            href="/admin/cases"
+            className={`px-2.5 py-1 rounded ${
+              groupBy === 'flat' ? 'bg-forest-900 text-cream-200' : 'text-ink-700 hover:bg-ink-100'
+            }`}
+          >
+            Updated date
+          </Link>
+          <Link
+            href="/admin/cases?groupBy=caseType"
+            className={`px-2.5 py-1 rounded ${
+              groupBy === 'caseType' ? 'bg-forest-900 text-cream-200' : 'text-ink-700 hover:bg-ink-100'
+            }`}
+          >
+            Case type
+          </Link>
+        </div>
+      </div>
+      {groupBy === 'caseType' && (
+        <div className="space-y-6">
+          {Array.from(groups.entries())
+            .sort((a, b) => b[1].length - a[1].length)
+            .map(([type, items]) => (
+              <div key={type}>
+                <h3 className="font-semibold text-forest-900 mb-2 flex items-baseline gap-2">
+                  {type}
+                  <span className="text-xs text-ink-500 font-normal">
+                    {items.length} case{items.length === 1 ? '' : 's'}
+                  </span>
+                </h3>
+                <CasesTable rows={items} />
+              </div>
+            ))}
+        </div>
+      )}
+      {groupBy === 'flat' && <CasesTable rows={cases} />}
+    </div>
+  );
+}
+
+function CasesTable({
+  rows,
+}: {
+  rows: Awaited<ReturnType<typeof adminListCases>>;
+}) {
+  return (
       <div className="card overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-ink-50 border-b border-ink-200">
@@ -34,7 +98,7 @@ export default async function AdminCasesPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-ink-100">
-            {cases.map((c) => (
+            {rows.map((c) => (
               <tr key={c.id} className="hover:bg-ink-50/40">
                 <Td>
                   <Link
@@ -64,7 +128,7 @@ export default async function AdminCasesPage() {
                 <Td>{new Date(c.updatedAt).toLocaleString()}</Td>
               </tr>
             ))}
-            {cases.length === 0 && (
+            {rows.length === 0 && (
               <tr>
                 <td colSpan={5} className="p-8 text-center text-sm text-ink-500">
                   No cases yet.
@@ -74,11 +138,6 @@ export default async function AdminCasesPage() {
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-ink-500">
-        Admin views bypass row-level security via the service role key. Acting on a case still
-        requires opening it as that user, which RLS prevents.
-      </p>
-    </div>
   );
 }
 

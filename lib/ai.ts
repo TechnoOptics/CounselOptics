@@ -25,7 +25,7 @@ function resolveApiKey(): string | undefined {
       if (value) return value;
     }
   } catch {
-    // .env.local missing or unreadable — fall through
+    // .env.local missing or unreadable - fall through
   }
   return undefined;
 }
@@ -43,7 +43,7 @@ ALWAYS use cautious, hedged language: "may constitute", "could potentially", "ap
 
 For evidenceToStrengthen: be specific and actionable. Examples: "Date-stamped photos of the pet in the claimant's home (pre-incident)", "Veterinary records showing ownership and microchip registration", "Text messages or social media posts between the parties referencing the animal". Avoid vague items like "more evidence" or "additional documents".
 
-For subpoenaTargets: list specific types of third parties or record custodians, each paired with what their records would likely show. Examples: "Abel Muchai's cell carrier — call/text metadata around the date the cat was last seen", "Microchip registries (AAHA, HomeAgain, 24PetWatch) — registration history and re-registration attempts", "Local veterinary clinics in Shakopee / Scott County — intake or ownership-transfer records for a cat matching the description", "Animal shelters and rescues in Scott County — surrender logs and adoption records", "Ring / Nest / home security systems of the claimant and consenting neighbors — video footage of the animal in the claimant's custody or leaving with the respondent". Only include a target if the records plausibly exist and would be relevant; do not include fabricated or speculative custodians.
+For subpoenaTargets: list specific types of third parties or record custodians, each paired with what their records would likely show. Examples: "Abel Muchai's cell carrier - call/text metadata around the date the cat was last seen", "Microchip registries (AAHA, HomeAgain, 24PetWatch) - registration history and re-registration attempts", "Local veterinary clinics in Shakopee / Scott County - intake or ownership-transfer records for a cat matching the description", "Animal shelters and rescues in Scott County - surrender logs and adoption records", "Ring / Nest / home security systems of the claimant and consenting neighbors - video footage of the animal in the claimant's custody or leaving with the respondent". Only include a target if the records plausibly exist and would be relevant; do not include fabricated or speculative custodians.
 
 If facts are missing or unclear, say so explicitly in the missingInformation field rather than guessing.`;
 
@@ -105,12 +105,12 @@ const TOOL_SCHEMA = {
         type: 'array',
         items: { type: 'string' },
         description:
-          'Legal doctrines or concepts likely applicable in the stated jurisdiction, described in plain terms (e.g., "civil conversion — unauthorized exercise of control over another\'s personal property"). Do not include statute section numbers unless you are confident they are accurate; default to describing the doctrine and noting that the attorney should confirm the current statute.',
+          'Legal doctrines or concepts likely applicable in the stated jurisdiction, described in plain terms (e.g., "civil conversion - unauthorized exercise of control over another\'s personal property"). Do not include statute section numbers unless you are confident they are accurate; default to describing the doctrine and noting that the attorney should confirm the current statute.',
       },
       evidenceMapping: {
         type: 'array',
         items: { type: 'string' },
-        description: 'Map each issue to supporting exhibits, e.g., "Issue X — supported by Exhibit B".',
+        description: 'Map each issue to supporting exhibits, e.g., "Issue X - supported by Exhibit B".',
       },
       evidenceToStrengthen: {
         type: 'array',
@@ -151,7 +151,7 @@ export async function runReview(caseRecord: Case, exhibits: Exhibit[]): Promise<
       : exhibits
           .map(
             (e) =>
-              `- ${e.label}: ${e.fileName}${e.description ? ` — ${e.description}` : ''} (${e.fileType})`,
+              `- ${e.label}: ${e.fileName}${e.description ? ` - ${e.description}` : ''} (${e.fileType})`,
           )
           .join('\n');
 
@@ -225,7 +225,7 @@ function arrayField(v: unknown): string[] {
 }
 
 // ---------------------------------------------------------------------------
-// Exhibit plan — generates an ordered list of suggested exhibit slots (A, B, C…)
+// Exhibit plan - generates an ordered list of suggested exhibit slots (A, B, C…)
 // based on the case context. Up to 26.
 // ---------------------------------------------------------------------------
 
@@ -284,7 +284,7 @@ export async function planExhibits(
       : exhibits
           .map(
             (e) =>
-              `- ${e.label}: ${e.fileName}${e.description ? ` — ${e.description}` : ''}`,
+              `- ${e.label}: ${e.fileName}${e.description ? ` - ${e.description}` : ''}`,
           )
           .join('\n');
 
@@ -336,7 +336,7 @@ Use the submit_exhibit_plan tool to return an ordered exhibit plan.`;
 }
 
 // ---------------------------------------------------------------------------
-// Defense advice — for someone who has been sued/charged and is preparing
+// Defense advice - for someone who has been sued/charged and is preparing
 // pro se. Truth-and-transparency framing, jurisdiction-aware, no fabricated
 // citations.
 // ---------------------------------------------------------------------------
@@ -349,20 +349,20 @@ const DEFENSE_SYSTEM = `You are Advottic, helping a self-represented person ("pr
 4. Identify concrete evidence the user should gather to support their defense.
 5. Identify red-flag situations where they should absolutely retain counsel and not proceed pro se.
 6. Supply realistic risk factors so they understand exposure.
-7. List topics they should look up (these will be linked to a curated, vetted resources list — you do NOT generate URLs).
+7. List topics they should look up (these will be linked to a curated, vetted resources list - you do NOT generate URLs).
 
-CORE PRINCIPLES — Truth and transparency:
+CORE PRINCIPLES - Truth and transparency:
 - You will not fabricate case names, statute section numbers, or quotes. If you are uncertain about a specific cite, describe the doctrine in plain language and tell the user to verify with current state law and a licensed attorney.
 - You will hedge: "may", "could", "appears to". Never declare a defense will succeed.
 - You will assume the user is a non-lawyer. Explain procedural terms (e.g., "An 'Answer' is your written response to the complaint.").
 - You will be direct about uncertainty.
 
 CRITICAL CRIMINAL CARVE-OUT:
-If the matter could result in jail time (criminal allegation, contempt of court, immigration removal proceedings, etc.), make sure the very FIRST item in whenToHireLawyer is something to the effect of: "If you are facing criminal charges or any possibility of incarceration, you have a constitutional right to a public defender at no cost. Request one immediately at your first court appearance — do not proceed pro se on a criminal matter."
+If the matter could result in jail time (criminal allegation, contempt of court, immigration removal proceedings, etc.), make sure the very FIRST item in whenToHireLawyer is something to the effect of: "If you are facing criminal charges or any possibility of incarceration, you have a constitutional right to a public defender at no cost. Request one immediately at your first court appearance - do not proceed pro se on a criminal matter."
 
 Never tell the user they will win, never tell them to lie, never advise destroying evidence, never advise contacting witnesses inappropriately, never advise contacting represented parties directly. If the user appears to be asking how to break the law, refuse and recommend a licensed attorney.
 
-For resourceTopics: each item is a SHORT topic phrase (e.g., "Statute of limitations in Minnesota for breach of contract", "How to file an Answer in Minnesota district court", "Eviction defense procedure in Hennepin County"). The app will pair these with vetted self-help resources — do NOT include URLs in your output.`;
+For resourceTopics: each item is a SHORT topic phrase (e.g., "Statute of limitations in Minnesota for breach of contract", "How to file an Answer in Minnesota district court", "Eviction defense procedure in Hennepin County"). The app will pair these with vetted self-help resources - do NOT include URLs in your output.`;
 
 const DEFENSE_TOOL = {
   name: 'submit_defense_advice',
@@ -405,7 +405,7 @@ const DEFENSE_TOOL = {
         type: 'array',
         items: { type: 'string' },
         description:
-          'Each item should describe a procedural step or deadline the user should be aware of (e.g., "An Answer is typically due within 21 days of service in Minnesota state district court — verify your specific deadline on the summons").',
+          'Each item should describe a procedural step or deadline the user should be aware of (e.g., "An Answer is typically due within 21 days of service in Minnesota state district court - verify your specific deadline on the summons").',
       },
       evidenceToGather: {
         type: 'array',
@@ -439,7 +439,7 @@ const DEFENSE_TOOL = {
   },
 };
 
-const DEFENSE_DISCLAIMER = `This is informational organization for someone preparing pro se — not legal advice, not a substitute for a licensed attorney, and not a guarantee of outcome. Advottic does not represent you. Procedural deadlines vary by court and jurisdiction; verify every deadline against your summons, the local rules, and state statute. If you are facing any possibility of incarceration, request a public defender at your first court appearance.`;
+const DEFENSE_DISCLAIMER = `This is informational organization for someone preparing pro se - not legal advice, not a substitute for a licensed attorney, and not a guarantee of outcome. Advottic does not represent you. Procedural deadlines vary by court and jurisdiction; verify every deadline against your summons, the local rules, and state statute. If you are facing any possibility of incarceration, request a public defender at your first court appearance.`;
 
 export async function runDefenseAdvice(
   caseRecord: Case,
@@ -464,7 +464,7 @@ export async function runDefenseAdvice(
       : exhibits
           .map(
             (e) =>
-              `- ${e.label}: ${e.fileName}${e.description ? ` — ${e.description}` : ''}`,
+              `- ${e.label}: ${e.fileName}${e.description ? ` - ${e.description}` : ''}`,
           )
           .join('\n');
 
@@ -524,18 +524,18 @@ function demoDefenseAdvice(caseRecord: Case, jurisdiction: string): DefenseAdvic
     id: crypto.randomUUID(),
     caseId: caseRecord.id,
     jurisdiction,
-    charges: `Demo response — ANTHROPIC_API_KEY not set. The user is positioned as a defendant in a ${caseRecord.caseType.toLowerCase()} matter.`,
+    charges: `Demo response - ANTHROPIC_API_KEY not set. The user is positioned as a defendant in a ${caseRecord.caseType.toLowerCase()} matter.`,
     summary: 'Demo defense advice. Set ANTHROPIC_API_KEY to enable Claude-backed analysis.',
     proSeOverview:
       'Demo response. With a real key set, this section will explain pro se procedure for your jurisdiction.',
-    possibleDefenses: ['Demo defense item — connect ANTHROPIC_API_KEY for real analysis.'],
+    possibleDefenses: ['Demo defense item - connect ANTHROPIC_API_KEY for real analysis.'],
     proceduralPosture: ['Demo procedural step.'],
     evidenceToGather: ['Demo evidence item.'],
     whenToHireLawyer: [
-      'If you are facing criminal charges or any possibility of incarceration, request a public defender at your first court appearance — you have a constitutional right to one at no cost.',
+      'If you are facing criminal charges or any possibility of incarceration, request a public defender at your first court appearance - you have a constitutional right to one at no cost.',
       'If the dispute involves significant money, real estate, or your livelihood, retain counsel.',
     ],
-    riskFactors: ['Demo risk item — set ANTHROPIC_API_KEY to enable real risk assessment.'],
+    riskFactors: ['Demo risk item - set ANTHROPIC_API_KEY to enable real risk assessment.'],
     questionsForAttorney: [
       'What are my realistic options given the facts?',
       'What deadlines must I meet to preserve my rights?',
@@ -559,11 +559,11 @@ function demoExhibitPlan(
     },
     {
       title: 'Date-stamped photographs',
-      description: 'Demo item — set ANTHROPIC_API_KEY to enable Claude-backed exhibit planning.',
+      description: 'Demo item - set ANTHROPIC_API_KEY to enable Claude-backed exhibit planning.',
     },
     {
       title: 'Written communications',
-      description: 'Demo item — messages, emails, or letters between the parties.',
+      description: 'Demo item - messages, emails, or letters between the parties.',
     },
   ];
 }
@@ -573,10 +573,10 @@ function demoReview(caseRecord: Case, exhibits: Exhibit[], jurisdiction: string)
     id: crypto.randomUUID(),
     caseId: caseRecord.id,
     jurisdiction,
-    summary: `Demo review for "${caseRecord.title}" — a ${caseRecord.caseType.toLowerCase()} matter involving ${caseRecord.subjectName} in ${jurisdiction || 'an unspecified jurisdiction'}. ${exhibits.length} exhibit(s) attached. Set ANTHROPIC_API_KEY to enable real Claude-backed analysis.`,
+    summary: `Demo review for "${caseRecord.title}" - a ${caseRecord.caseType.toLowerCase()} matter involving ${caseRecord.subjectName} in ${jurisdiction || 'an unspecified jurisdiction'}. ${exhibits.length} exhibit(s) attached. Set ANTHROPIC_API_KEY to enable real Claude-backed analysis.`,
     timeline: [
-      'Demo timeline event 1 — date and event would appear here.',
-      'Demo timeline event 2 — connect ANTHROPIC_API_KEY for a real reconstructed timeline.',
+      'Demo timeline event 1 - date and event would appear here.',
+      'Demo timeline event 2 - connect ANTHROPIC_API_KEY for a real reconstructed timeline.',
     ],
     keyFacts: [
       `Subject: ${caseRecord.subjectName} (${caseRecord.subjectType})`,
@@ -585,12 +585,12 @@ function demoReview(caseRecord: Case, exhibits: Exhibit[], jurisdiction: string)
       `Exhibits attached: ${exhibits.length}`,
     ],
     possibleIssues: [
-      'Demo issue — set ANTHROPIC_API_KEY to enable real legal issue spotting.',
+      'Demo issue - set ANTHROPIC_API_KEY to enable real legal issue spotting.',
     ],
     classification:
       'No analysis run yet. This is a demo response. Set ANTHROPIC_API_KEY in .env.local to enable Claude-backed classification.',
     evidenceMapping: exhibits.length
-      ? exhibits.map((e) => `${e.label} (${e.fileName}) — relevance to be determined`)
+      ? exhibits.map((e) => `${e.label} (${e.fileName}) - relevance to be determined`)
       : ['No exhibits uploaded yet.'],
     missingInformation: [
       'Set ANTHROPIC_API_KEY environment variable to enable a real review.',

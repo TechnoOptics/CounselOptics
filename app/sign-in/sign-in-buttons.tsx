@@ -31,7 +31,7 @@ export function SignInButtons({ next }: { next: string }) {
     } catch (err) {
       const raw = err instanceof Error ? err.message : 'Sign-in failed.';
       const friendly = /provider is not enabled|unsupported provider/i.test(raw)
-        ? `${provider === 'azure' ? 'Microsoft' : 'Google'} sign-in isn't connected to this account yet. Use the email magic link below — or ask your admin to enable the ${provider === 'azure' ? 'Azure' : 'Google'} provider in Supabase.`
+        ? `${provider === 'azure' ? 'Microsoft' : 'Google'} sign-in isn't connected to this account yet. Use the email magic link below - or ask your admin to enable the ${provider === 'azure' ? 'Azure' : 'Google'} provider in Supabase.`
         : raw;
       setError(friendly);
       setPending(null);

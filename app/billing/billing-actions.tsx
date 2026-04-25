@@ -2,34 +2,18 @@
 
 import { useState } from 'react';
 
-export function BillingActions({
+export function ManageButton({
   stripeReady,
-  isActive,
   hasCustomer,
 }: {
   stripeReady: boolean;
-  isActive: boolean;
   hasCustomer: boolean;
 }) {
-  const [pending, setPending] = useState<'checkout' | 'portal' | null>(null);
+  const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function startCheckout() {
-    setPending('checkout');
-    setError(null);
-    try {
-      const res = await fetch('/api/stripe/checkout', { method: 'POST' });
-      const data = await res.json();
-      if (!res.ok || !data.url) throw new Error(data.error || 'Could not start checkout.');
-      window.location.assign(data.url);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not start checkout.');
-      setPending(null);
-    }
-  }
-
   async function openPortal() {
-    setPending('portal');
+    setPending(true);
     setError(null);
     try {
       const res = await fetch('/api/stripe/portal', { method: 'POST' });
@@ -38,35 +22,22 @@ export function BillingActions({
       window.location.assign(data.url);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not open billing portal.');
-      setPending(null);
+      setPending(false);
     }
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap gap-2">
-        {!isActive ? (
-          <button
-            type="button"
-            onClick={startCheckout}
-            disabled={!stripeReady || pending !== null}
-            className="btn-primary"
-          >
-            {pending === 'checkout' ? 'Opening Stripe…' : 'Subscribe — $100 / month'}
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={openPortal}
-            disabled={!stripeReady || !hasCustomer || pending !== null}
-            className="btn-secondary"
-          >
-            {pending === 'portal' ? 'Opening portal…' : 'Manage subscription'}
-          </button>
-        )}
-      </div>
+    <div className="flex flex-col items-end gap-2">
+      <button
+        type="button"
+        onClick={openPortal}
+        disabled={!stripeReady || !hasCustomer || pending}
+        className="btn-secondary"
+      >
+        {pending ? 'Opening portal...' : 'Manage subscription'}
+      </button>
       {error && (
-        <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+        <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
           {error}
         </p>
       )}

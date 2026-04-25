@@ -85,7 +85,7 @@ export function DefensePanel({
         <div className="card overflow-hidden">
           {advice.isDemo && (
             <div className="border-b border-amber-200 bg-amber-50/70 px-5 py-2.5 text-xs text-amber-900">
-              Demo response — set <code className="font-mono">ANTHROPIC_API_KEY</code> in{' '}
+              Demo response - set <code className="font-mono">ANTHROPIC_API_KEY</code> in{' '}
               <code className="font-mono">.env.local</code> to enable real Claude-backed
               analysis.
             </div>
@@ -120,7 +120,7 @@ function CriminalCarveOut() {
       <p className="font-semibold mb-1">If you are facing criminal charges or jail time</p>
       <p className="leading-relaxed">
         You have a constitutional right to a public defender at no cost. Request one at your
-        first court appearance. Do not try to handle a criminal matter pro se using this tool —
+        first court appearance. Do not try to handle a criminal matter pro se using this tool -
         it is for organizational support only.
       </p>
     </div>

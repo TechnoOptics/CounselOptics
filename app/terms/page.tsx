@@ -1,4 +1,4 @@
-export const metadata = { title: 'Terms of Use — Advottic' };
+export const metadata = { title: 'Terms of Use - Advottic' };
 
 export default function TermsPage() {
   return (
@@ -23,7 +23,7 @@ export default function TermsPage() {
           informational only. They may be incomplete, outdated, or wrong. Always consult a
           licensed attorney in your jurisdiction before acting. If you are facing criminal
           charges or any possibility of incarceration, request a public defender at your first
-          court appearance — you have a constitutional right to one at no cost.
+          court appearance - you have a constitutional right to one at no cost.
         </p>
       </Section>
 

@@ -6,7 +6,7 @@ Secure, subscription-based legal case-building platform. The current build cover
 ## What's in this build
 
 - Next.js 14 App Router + TypeScript + Tailwind
-- Supabase Auth (Google + Microsoft OAuth), Supabase Postgres, Supabase Storage — enabled once
+- Supabase Auth (Google + Microsoft OAuth), Supabase Postgres, Supabase Storage - enabled once
   you follow [SETUP.md](SETUP.md). Until then, the app runs in local JSON mode.
 - Server actions for case creation, evidence upload, and AI review
 - AI case review backed by Anthropic Claude (Sonnet 4.6) with prompt caching and tool-use
@@ -44,7 +44,7 @@ panel returns a clearly-marked demo response so the app keeps working offline.
 
 **Gotcha:** some shells (notably the Claude Code wrapper) pre-set `ANTHROPIC_API_KEY=` to an
 empty string. Next.js's dotenv loader will not overwrite an env var that's already set, even if
-it's empty — so `.env.local` gets silently ignored and you stay in demo mode. This app works
+it's empty - so `.env.local` gets silently ignored and you stay in demo mode. This app works
 around it by reading `.env.local` directly when `process.env.ANTHROPIC_API_KEY` is empty, but if
 you hit the issue elsewhere, unset the variable before starting:
 

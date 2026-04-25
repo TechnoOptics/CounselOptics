@@ -8,6 +8,8 @@ import {
   getCase,
   inviteCollaborator,
   listExhibits,
+  markTourCompleted,
+  recordConsent,
   removeCollaborator,
   replaceExhibitPlans,
   saveDefenseAdvice,
@@ -22,6 +24,7 @@ import {
   type CaseType,
   type CollaboratorRole,
   type Posture,
+  type RepresentationStatus,
   type SubjectType,
 } from './types';
 
@@ -144,6 +147,30 @@ export async function removeCollaboratorAction(caseId: string, collaboratorId: s
   await assertAuthIfSupabase();
   await removeCollaborator(collaboratorId);
   revalidatePath(`/cases/${caseId}`);
+}
+
+export async function recordConsentAction(formData: FormData) {
+  if (!usingSupabase()) throw new Error('Supabase required.');
+  const repRaw = String(formData.get('representation') ?? '');
+  const valid: RepresentationStatus[] = ['pro_se', 'represented', 'counsel'];
+  if (!valid.includes(repRaw as RepresentationStatus)) {
+    throw new Error('Choose how you are representing yourself.');
+  }
+  const consentBox = formData.get('consent');
+  if (!consentBox) {
+    throw new Error('You must accept the terms to continue.');
+  }
+  const displayName = String(formData.get('displayName') ?? '').trim();
+  await recordConsent({
+    representation: repRaw as RepresentationStatus,
+    displayName: displayName || undefined,
+  });
+  redirect('/cases?welcome=1');
+}
+
+export async function markTourCompletedAction() {
+  await markTourCompleted();
+  revalidatePath('/cases');
 }
 
 export async function updateProfileAction(formData: FormData) {

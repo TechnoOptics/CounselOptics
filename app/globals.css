@@ -19,7 +19,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Atmospheric body — subtle grid + warm gold veil + cool forest accent */
+/* Atmospheric body - subtle grid + warm gold veil + cool forest accent */
 body::before {
   content: '';
   position: fixed;
@@ -99,7 +99,7 @@ body > * {
     @apply border-t border-ink-100;
   }
 
-  /* Tab styling — forest dark active state with cream-tinted hover */
+  /* Tab styling - forest dark active state with cream-tinted hover */
   .tab {
     @apply relative px-5 py-3.5 text-sm font-medium whitespace-nowrap text-ink-500 transition-colors hover:text-forest-900 hover:bg-cream-50;
   }
@@ -110,7 +110,7 @@ body > * {
     @apply absolute inset-x-4 bottom-0 h-0.5 bg-forest-900 rounded-t;
   }
 
-  /* Brand mark — deep forest tile with gold figure */
+  /* Brand mark - deep forest tile with gold figure */
   .brand-mark {
     background-image: linear-gradient(135deg, #0f2d24 0%, #173b30 100%);
   }

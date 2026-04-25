@@ -32,7 +32,7 @@ export function CookieBanner() {
     <div className="fixed bottom-0 inset-x-0 z-30 bg-forest-900/95 backdrop-blur-md text-cream-200 border-t border-forest-700/40 shadow-card-hover">
       <div className="mx-auto max-w-6xl px-6 py-3.5 flex flex-wrap items-center gap-4 justify-between">
         <p className="text-xs leading-relaxed flex-1 min-w-[260px]">
-          Advottic uses essential cookies only — to keep you signed in. No advertising or
+          Advottic uses essential cookies only - to keep you signed in. No advertising or
           third-party tracking. Read our{' '}
           <Link href="/privacy" className="underline">
             Privacy Policy

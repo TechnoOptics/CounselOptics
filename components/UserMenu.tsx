@@ -8,7 +8,7 @@ export async function UserMenu() {
     return (
       <span
         className="text-xs text-ink-400 hidden sm:inline"
-        title="Running in local mode — configure Supabase to enable auth."
+        title="Running in local mode - configure Supabase to enable auth."
       >
         Local mode
       </span>

@@ -95,9 +95,9 @@ export function CollaboratorsPanel({
                 Role
               </label>
               <select id="role" name="role" defaultValue="editor" className="input">
-                <option value="editor">Editor — can add exhibits</option>
-                <option value="attorney">Attorney — can add exhibits</option>
-                <option value="viewer">Viewer — read-only</option>
+                <option value="editor">Editor - can add exhibits</option>
+                <option value="attorney">Attorney - can add exhibits</option>
+                <option value="viewer">Viewer - read-only</option>
               </select>
             </div>
           </div>

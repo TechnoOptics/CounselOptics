@@ -1,21 +1,47 @@
 import Link from 'next/link';
-import { listCases } from '@/lib/storage';
+import { redirect } from 'next/navigation';
+import { listCases, getProfile } from '@/lib/storage';
 import { STATUS_LABEL, SUBJECT_TYPE_LABEL, type CaseStatus } from '@/lib/types';
 import { storageUnavailable, STORAGE_SETUP_MESSAGE } from '@/lib/setup-status';
+import { isSupabaseConfigured } from '@/lib/supabase/server';
+import { TourModal } from '@/components/TourModal';
 
 export const dynamic = 'force-dynamic';
 
-export default async function CasesPage() {
+export default async function CasesPage({
+  searchParams,
+}: {
+  searchParams?: { welcome?: string };
+}) {
   if (storageUnavailable()) return <SetupNeeded />;
+
+  let profile = null;
+  if (isSupabaseConfigured()) {
+    profile = await getProfile().catch(() => null);
+    // Consent gate: unconsented users get sent to /welcome before they see anything.
+    if (profile && !profile.consentedAt) {
+      redirect('/welcome');
+    }
+  }
+
   let cases;
   try {
     cases = await listCases();
   } catch (err) {
     return <SetupNeeded message={err instanceof Error ? err.message : undefined} />;
   }
+  const showWelcomeBack = searchParams?.welcome === '1';
+  const showTour = showWelcomeBack && profile?.consentedAt && !profile?.tourCompletedAt;
 
   return (
     <div className="space-y-8">
+      <TourModal visible={Boolean(showTour)} />
+      {showWelcomeBack && (
+        <div className="rounded-lg border border-gold-200 bg-cream-50 px-4 py-3 text-sm text-forest-900">
+          <strong>Welcome to Advottic</strong>
+          {profile?.displayName ? `, ${firstName(profile.displayName)}` : ''}. Click <strong>New case</strong> to start your first matter, or use the avatar menu to set up billing.
+        </div>
+      )}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="eyebrow mb-2">Your files</p>
@@ -106,6 +132,12 @@ const STATUS_STYLES: Record<CaseStatus, string> = {
 
 function StatusPill({ status }: { status: CaseStatus }) {
   return <span className={`badge ${STATUS_STYLES[status]}`}>{STATUS_LABEL[status]}</span>;
+}
+
+function firstName(full: string): string {
+  const trimmed = full.trim();
+  if (!trimmed || trimmed.includes('@')) return trimmed.split('@')[0];
+  return trimmed.split(/\s+/)[0];
 }
 
 function SetupNeeded({ message }: { message?: string } = {}) {

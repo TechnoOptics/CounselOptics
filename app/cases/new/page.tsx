@@ -33,7 +33,7 @@ export default function NewCasePage() {
                   Claimant / plaintiff
                 </span>
                 <span className="text-xs text-ink-500 block mt-0.5">
-                  You are bringing the matter — building a case to take to an attorney or
+                  You are bringing the matter - building a case to take to an attorney or
                   pursue.
                 </span>
               </span>
@@ -45,7 +45,7 @@ export default function NewCasePage() {
                   Defendant / respondent
                 </span>
                 <span className="text-xs text-ink-500 block mt-0.5">
-                  Someone is taking you to court — preparing a defense, possibly pro se.
+                  Someone is taking you to court - preparing a defense, possibly pro se.
                 </span>
               </span>
             </label>

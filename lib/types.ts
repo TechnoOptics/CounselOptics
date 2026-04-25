@@ -139,10 +139,19 @@ export type Subscription = {
   stripeSubscriptionId?: string | null;
   status: SubscriptionStatus;
   priceId?: string | null;
+  tier?: Tier | null;
   currentPeriodEnd?: string | null;
   cancelAtPeriodEnd: boolean;
   createdAt: string;
   updatedAt: string;
+};
+
+export type RepresentationStatus = 'pro_se' | 'represented' | 'counsel';
+
+export const REPRESENTATION_LABEL: Record<RepresentationStatus, string> = {
+  pro_se: 'Pro se (representing myself)',
+  represented: 'Represented (I have an attorney)',
+  counsel: "Counsel (I'm an attorney)",
 };
 
 export type Profile = {
@@ -152,7 +161,62 @@ export type Profile = {
   organization?: string | null;
   avatarUrl?: string | null;
   isAdmin: boolean;
+  representation?: RepresentationStatus | null;
+  consentedAt?: string | null;
+  tourCompletedAt?: string | null;
   updatedAt: string;
+};
+
+export type Tier = 'basic' | 'standard' | 'pro';
+
+export const TIER_LABEL: Record<Tier, string> = {
+  basic: 'Basic',
+  standard: 'Standard',
+  pro: 'Pro',
+};
+
+export type TierFeatures = {
+  caseLimit: number | null; // null = unlimited
+  aiReview: boolean;
+  defenseAdvice: boolean;
+  exhibitPlan: boolean;
+  pdfExport: boolean;
+  bella: boolean;
+  collaborators: boolean;
+  monthlyPriceUsd: number;
+};
+
+export const TIER_FEATURES: Record<Tier, TierFeatures> = {
+  basic: {
+    caseLimit: 1,
+    aiReview: false,
+    defenseAdvice: false,
+    exhibitPlan: false,
+    pdfExport: true,
+    bella: false,
+    collaborators: false,
+    monthlyPriceUsd: 100,
+  },
+  standard: {
+    caseLimit: 5,
+    aiReview: true,
+    defenseAdvice: true,
+    exhibitPlan: true,
+    pdfExport: true,
+    bella: true,
+    collaborators: false,
+    monthlyPriceUsd: 200,
+  },
+  pro: {
+    caseLimit: null,
+    aiReview: true,
+    defenseAdvice: true,
+    exhibitPlan: true,
+    pdfExport: true,
+    bella: true,
+    collaborators: true,
+    monthlyPriceUsd: 350,
+  },
 };
 
 export type DefenseAdvice = {

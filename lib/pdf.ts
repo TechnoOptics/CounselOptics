@@ -253,7 +253,7 @@ function drawCaseInformation(doc: Doc, c: Case) {
     [subjectLabel(c.subjectType), c.subjectName],
     ['Case type', c.caseType],
     ['Status', prettyStatus(c.status)],
-    ['Jurisdiction', joinJurisdiction(c) || '—'],
+    ['Jurisdiction', joinJurisdiction(c) || '-'],
     ['Created', fmtDateTime(c.createdAt)],
     ['Last updated', fmtDateTime(c.updatedAt)],
   ]);
@@ -276,11 +276,11 @@ function drawReview(doc: Doc, review: AIReview) {
   }
 
   subsection(doc, 'Summary');
-  body(doc, review.summary || '—');
+  body(doc, review.summary || '-');
   gap(doc, 10);
 
   subsection(doc, 'Classification');
-  body(doc, review.classification || '—');
+  body(doc, review.classification || '-');
   gap(doc, 10);
 
   list(doc, 'Timeline', review.timeline);
@@ -320,15 +320,15 @@ function drawDefenseAdvice(doc: Doc, advice: DefenseAdvice) {
   }
 
   subsection(doc, 'What you are facing');
-  body(doc, advice.charges || '—');
+  body(doc, advice.charges || '-');
   gap(doc, 8);
 
   subsection(doc, 'Summary');
-  body(doc, advice.summary || '—');
+  body(doc, advice.summary || '-');
   gap(doc, 8);
 
   subsection(doc, 'Pro se overview');
-  body(doc, advice.proSeOverview || '—');
+  body(doc, advice.proSeOverview || '-');
   gap(doc, 8);
 
   list(doc, 'Possible defenses', advice.possibleDefenses);
@@ -373,7 +373,7 @@ function drawExhibitPlan(doc: Doc, plans: ExhibitPlanItem[], exhibits: Exhibit[]
     const statusColor = filled ? COLOR.emerald : COLOR.muted;
 
     doc.font('Helvetica-Bold').fontSize(12).fillColor(COLOR.ink);
-    doc.text(`${p.label} — ${p.title}`, MARGIN, doc.y, { width: CONTENT_WIDTH });
+    doc.text(`${p.label} - ${p.title}`, MARGIN, doc.y, { width: CONTENT_WIDTH });
     doc.font('Helvetica').fontSize(10).fillColor(statusColor);
     doc.text(statusText, MARGIN, doc.y + 2, { width: CONTENT_WIDTH });
     if (p.description) {
@@ -492,7 +492,7 @@ function drawAttachmentPlaceholder(doc: Doc, e: Exhibit) {
     .fontSize(10)
     .fillColor(COLOR.muted)
     .text(
-      `${e.fileName} — ${e.fileType} — ${formatBytes(e.fileSize)}`,
+      `${e.fileName} - ${e.fileType} - ${formatBytes(e.fileSize)}`,
       MARGIN + 16,
       boxY + 38,
       { width: CONTENT_WIDTH - 32 },

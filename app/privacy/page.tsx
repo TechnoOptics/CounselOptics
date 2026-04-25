@@ -1,6 +1,6 @@
 import Link from 'next/link';
 
-export const metadata = { title: 'Privacy Policy — Advottic' };
+export const metadata = { title: 'Privacy Policy - Advottic' };
 
 export default function PrivacyPage() {
   return (
@@ -37,7 +37,7 @@ export default function PrivacyPage() {
           </li>
           <li>
             <strong>Billing</strong>: if you subscribe, a Stripe customer ID and subscription
-            status. We never see or store your card details — Stripe handles those directly.
+            status. We never see or store your card details - Stripe handles those directly.
           </li>
           <li>
             <strong>Operational logs</strong>: IP addresses on AI requests for rate limiting and
@@ -70,18 +70,18 @@ export default function PrivacyPage() {
         <p>We share the minimum data needed with these third parties to run the service:</p>
         <ul className="list-disc list-outside pl-6 space-y-1">
           <li>
-            <strong>Vercel</strong> — hosting + edge network.
+            <strong>Vercel</strong> - hosting + edge network.
           </li>
           <li>
-            <strong>Supabase</strong> — authentication, database (Postgres), file storage.
+            <strong>Supabase</strong> - authentication, database (Postgres), file storage.
           </li>
           <li>
-            <strong>Anthropic</strong> — AI processing for case review, defense planning, and
+            <strong>Anthropic</strong> - AI processing for case review, defense planning, and
             Bella. Inputs are sent over TLS and not used to train Anthropic models per Anthropic&apos;s
             commercial terms.
           </li>
           <li>
-            <strong>Stripe</strong> — subscription billing for paid plans.
+            <strong>Stripe</strong> - subscription billing for paid plans.
           </li>
         </ul>
       </Section>
@@ -137,7 +137,7 @@ export default function PrivacyPage() {
 
       <Section title="Cookies">
         <p>
-          We use essential cookies only — to keep you signed in. We do not use advertising or
+          We use essential cookies only - to keep you signed in. We do not use advertising or
           third-party tracking cookies.
         </p>
       </Section>

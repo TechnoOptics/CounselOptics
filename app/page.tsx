@@ -15,7 +15,7 @@ export default async function HomePage() {
 
   return (
     <div className="space-y-14">
-      {/* Hero — dark forest with gold accents */}
+      {/* Hero - dark forest with gold accents */}
       <section className="relative overflow-hidden rounded-3xl brand-mark text-white px-8 py-14 md:px-12 md:py-16">
         {/* Decorative gold pillar background */}
         <div
@@ -37,7 +37,7 @@ export default async function HomePage() {
             </span>
           </h1>
           <p className="text-cream-200/80 text-[15px] leading-relaxed mb-8">
-            Advottic turns scattered evidence into an organized case packet — exhibits, timelines,
+            Advottic turns scattered evidence into an organized case packet - exhibits, timelines,
             jurisdiction-aware issue spotting, defense planning, and a PDF ready for your
             attorney. Built for individuals, businesses, and pro se litigants who need the work
             done right.
@@ -75,7 +75,7 @@ export default async function HomePage() {
           <FeatureCard
             number="03"
             title="Review"
-            body="Claude-backed issue spotting grounded in your jurisdiction — with concrete evidence to gather, records to subpoena, and pro se defense planning where applicable."
+            body="Claude-backed issue spotting grounded in your jurisdiction - with concrete evidence to gather, records to subpoena, and pro se defense planning where applicable."
           />
         </div>
       </section>
@@ -86,7 +86,7 @@ export default async function HomePage() {
           <div>
             <p className="eyebrow mb-2">Subscription</p>
             <h2 className="text-2xl font-semibold tracking-tight text-forest-900">
-              $100/month — with a 7-day free trial.
+              $100/month - with a 7-day free trial.
             </h2>
             <p className="text-sm text-ink-600 mt-1 max-w-xl">
               Full access to case files, exhibit plans, AI review, defense planning, PDF export,

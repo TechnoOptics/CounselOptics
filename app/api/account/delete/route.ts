@@ -9,7 +9,7 @@ export const runtime = 'nodejs';
  * Permanently deletes the current user. Cascades remove all owned cases,
  * exhibits, reviews, plans, defense advice, profile, and subscription rows
  * via foreign-key ON DELETE CASCADE. Files in storage are NOT cascaded by
- * Postgres — we delete them explicitly via the storage admin API.
+ * Postgres - we delete them explicitly via the storage admin API.
  *
  * Stripe customers are detached (not deleted) so billing history remains
  * available for legal/tax compliance, in line with the privacy policy.
@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: 'Sign in required.' }, { status: 401 });
 
-  // Confirmation gate — require the user to type CONFIRM in the request body.
+  // Confirmation gate - require the user to type CONFIRM in the request body.
   let body: { confirm?: string };
   try {
     body = await req.json();
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
       .from('exhibits')
       .list(user.id, { limit: 1000 });
     if (files && files.length > 0) {
-      // List subfolders (case_id-named) and recurse one level — pragmatic for our layout.
+      // List subfolders (case_id-named) and recurse one level - pragmatic for our layout.
       for (const entry of files) {
         const sub = `${user.id}/${entry.name}`;
         const { data: inner } = await admin.storage.from('exhibits').list(sub, { limit: 1000 });

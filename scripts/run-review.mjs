@@ -89,7 +89,7 @@ async function reviewCase(client, caseRecord, exhibits) {
       : exhibits
           .map(
             (e) =>
-              `- ${e.label}: ${e.fileName}${e.description ? ` — ${e.description}` : ''} (${e.fileType})`,
+              `- ${e.label}: ${e.fileName}${e.description ? ` - ${e.description}` : ''} (${e.fileType})`,
           )
           .join('\n');
 

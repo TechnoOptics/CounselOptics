@@ -1,7 +1,7 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
-const PROTECTED_PREFIXES = ['/cases', '/profile', '/admin'];
+const PROTECTED_PREFIXES = ['/cases', '/profile', '/admin', '/billing', '/welcome'];
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -9,7 +9,7 @@ export async function updateSession(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !anon) {
-    // Supabase not configured — let the app render its setup state.
+    // Supabase not configured - let the app render its setup state.
     return response;
   }
 

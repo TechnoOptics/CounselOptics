@@ -11,7 +11,7 @@ const config: Config = {
         sans: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
       colors: {
-        // Advottic brand — deep forest green base, warm gold accent.
+        // Advottic brand - deep forest green base, warm gold accent.
         forest: {
           DEFAULT: '#0F2D24',
           950: '#0a1f19',
@@ -47,7 +47,7 @@ const config: Config = {
           100: '#fbf7e9',
           50: '#fefcf3',
         },
-        // Neutrals — kept as ink-* for backwards compatibility with existing class names.
+        // Neutrals - kept as ink-* for backwards compatibility with existing class names.
         // Soft warm-white instead of clinical zinc.
         ink: {
           50: '#fafafa',

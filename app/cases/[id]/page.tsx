@@ -112,6 +112,15 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
         )}
       </div>
 
+      {/* Collaborators - Pro feature, moved to top so it's the first action under case header */}
+      {usingSupabase() && (
+        <CollaboratorsPanel
+          caseId={c.id}
+          collaborators={collaborators}
+          isOwner={isOwner}
+        />
+      )}
+
       {/* Exhibits */}
       <section className="space-y-4">
         <div className="flex items-end justify-between">
@@ -202,14 +211,6 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
 
       <ReviewPanel caseId={c.id} review={review} />
 
-      {usingSupabase() && (
-        <CollaboratorsPanel
-          caseId={c.id}
-          collaborators={collaborators}
-          isOwner={isOwner}
-        />
-      )}
-
       <Disclaimer />
     </div>
   );
@@ -220,7 +221,7 @@ function Field({ label, value }: { label: string; value: string }) {
     <div>
       <dt className="eyebrow mb-1">{label}</dt>
       <dd className="text-[14px] text-ink-800">
-        {value || <span className="text-ink-400">—</span>}
+        {value || <span className="text-ink-400">-</span>}
       </dd>
     </div>
   );

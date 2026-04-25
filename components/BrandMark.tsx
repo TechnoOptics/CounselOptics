@@ -1,5 +1,5 @@
 /**
- * The Advottic mark — a classical pillar (legal) with circuit nodes (technology).
+ * The Advottic mark - a classical pillar (legal) with circuit nodes (technology).
  * Render in gold or any current color via stroke/fill currentColor.
  */
 export function BrandMark({
@@ -18,7 +18,7 @@ export function BrandMark({
       aria-hidden
       className={className}
     >
-      {/* Capital — three stacked horizontal bars */}
+      {/* Capital - three stacked horizontal bars */}
       <rect x="14" y="6" width="36" height="3.6" rx="0.8" fill="currentColor" />
       <rect x="11" y="11" width="42" height="3.6" rx="0.8" fill="currentColor" />
       <rect x="14" y="16" width="36" height="3.6" rx="0.8" fill="currentColor" />
@@ -40,7 +40,7 @@ export function BrandMark({
       {/* Base */}
       <rect x="11" y="54" width="42" height="3.6" rx="0.8" fill="currentColor" />
 
-      {/* Bottom base trim — two angled corners suggested via small triangles */}
+      {/* Bottom base trim - two angled corners suggested via small triangles */}
       <path d="M9 57.6 L11 54 L11 57.6 Z" fill="currentColor" />
       <path d="M55 57.6 L53 54 L53 57.6 Z" fill="currentColor" />
     </svg>

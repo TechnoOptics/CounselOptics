@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     return redirectWithError(
       request,
       next,
-      "Sign-in didn't complete — the OAuth provider returned no code. If you tried Google or Microsoft, that provider isn't enabled yet in Supabase. Use the email magic link below.",
+      "Sign-in didn't complete - the OAuth provider returned no code. If you tried Google or Microsoft, that provider isn't enabled yet in Supabase. Use the email magic link below.",
     );
   }
 

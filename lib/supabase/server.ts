@@ -55,7 +55,7 @@ export async function getCurrentUser() {
   return user;
 }
 
-/** Like getCurrentUser, but throws if no user — for server actions and protected routes. */
+/** Like getCurrentUser, but throws if no user - for server actions and protected routes. */
 export async function requireUser() {
   const user = await getCurrentUser();
   if (!user) {

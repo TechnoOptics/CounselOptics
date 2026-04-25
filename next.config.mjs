@@ -2,7 +2,7 @@ const SECURITY_HEADERS = [
   // Browsers will only connect over HTTPS for the next ~6 months once they've
   // seen this header. Safe because Vercel always serves TLS.
   { key: 'Strict-Transport-Security', value: 'max-age=15552000; includeSubDomains' },
-  // Disallow framing — defense against clickjacking.
+  // Disallow framing - defense against clickjacking.
   { key: 'X-Frame-Options', value: 'DENY' },
   // Disable MIME sniffing.
   { key: 'X-Content-Type-Options', value: 'nosniff' },

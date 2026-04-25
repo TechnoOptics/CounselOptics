@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import type Stripe from 'stripe';
-import { getStripe, getWebhookSecret } from '@/lib/stripe';
+import { getStripe, getWebhookSecret, tierFromPriceId } from '@/lib/stripe';
 import {
   upsertSubscriptionFromStripe,
   userIdForStripeCustomer,
@@ -74,6 +74,7 @@ export async function POST(req: NextRequest) {
             stripeSubscriptionId: subscriptionId ?? null,
             status,
             priceId,
+            tier: tierFromPriceId(priceId),
             currentPeriodEnd,
             cancelAtPeriodEnd,
           });
@@ -90,12 +91,14 @@ export async function POST(req: NextRequest) {
           (sub.metadata?.supabase_user_id as string | undefined) ??
           (await userIdForStripeCustomer(customerId));
         if (userId) {
+          const priceId = sub.items.data[0]?.price.id ?? null;
           await upsertSubscriptionFromStripe({
             userId,
             stripeCustomerId: customerId,
             stripeSubscriptionId: sub.id,
             status: sub.status as SubscriptionStatus,
-            priceId: sub.items.data[0]?.price.id ?? null,
+            priceId,
+            tier: tierFromPriceId(priceId),
             currentPeriodEnd: periodEndFromSub(sub),
             cancelAtPeriodEnd: sub.cancel_at_period_end,
           });

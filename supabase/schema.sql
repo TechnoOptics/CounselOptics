@@ -357,7 +357,7 @@ create policy "defense_advice_insert_own"
   on public.defense_advice for insert
   with check (auth.uid() = user_id);
 
--- case_collaborators policies — only the case owner manages.
+-- case_collaborators policies - only the case owner manages.
 drop policy if exists "case_collaborators_select" on public.case_collaborators;
 create policy "case_collaborators_select"
   on public.case_collaborators for select

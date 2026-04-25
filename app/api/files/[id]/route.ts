@@ -24,7 +24,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     return NextResponse.redirect(signedUrl, { status: 302 });
   }
 
-  // Local mode — serve from disk
+  // Local mode - serve from disk
   const safeName = path.basename(exhibit.storedFileName);
   const filePath = path.join(UPLOADS_DIR, safeName);
   if (path.dirname(filePath) !== UPLOADS_DIR) {

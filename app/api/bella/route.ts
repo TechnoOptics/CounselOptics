@@ -35,7 +35,7 @@ function rateLimit(ip: string): boolean {
 export async function POST(req: NextRequest) {
   const ip = ipFrom(req);
   if (!rateLimit(ip)) {
-    return NextResponse.json({ error: 'Slow down — too many messages.' }, { status: 429 });
+    return NextResponse.json({ error: 'Slow down - too many messages.' }, { status: 429 });
   }
 
   // If Supabase is configured, require a signed-in user. (Local dev mode falls
@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
         if (exhibits.length) {
           lines.push(`Exhibits (${exhibits.length}):`);
           for (const e of exhibits.slice(0, 10)) {
-            lines.push(`- ${e.label}: ${e.fileName}${e.description ? ' — ' + e.description : ''}`);
+            lines.push(`- ${e.label}: ${e.fileName}${e.description ? ' - ' + e.description : ''}`);
           }
         }
         if (review) {

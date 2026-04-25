@@ -14,9 +14,11 @@ import type {
   Jurisdiction,
   Posture,
   Profile,
+  RepresentationStatus,
   Subscription,
   SubscriptionStatus,
   SubjectType,
+  Tier,
 } from './types';
 import { createServerSupabase, getCurrentUser, isSupabaseConfigured } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
@@ -99,6 +101,9 @@ type ProfileRow = {
   organization: string | null;
   avatar_url: string | null;
   is_admin: boolean | null;
+  representation: RepresentationStatus | null;
+  consented_at: string | null;
+  tour_completed_at: string | null;
   updated_at: string;
 };
 
@@ -227,6 +232,9 @@ function profileFromRow(r: ProfileRow): Profile {
     organization: r.organization ?? null,
     avatarUrl: r.avatar_url ?? null,
     isAdmin: Boolean(r.is_admin),
+    representation: r.representation ?? null,
+    consentedAt: r.consented_at ?? null,
+    tourCompletedAt: r.tour_completed_at ?? null,
     updatedAt: r.updated_at,
   };
 }
@@ -315,7 +323,7 @@ function sanitizeExt(ext: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Public API — dispatches on usingSupabase()
+// Public API - dispatches on usingSupabase()
 // ---------------------------------------------------------------------------
 
 export async function listCases(): Promise<Case[]> {
@@ -624,7 +632,7 @@ export async function saveReview(review: AIReview): Promise<void> {
 
 /**
  * Retrieves a signed URL to read an exhibit (Supabase mode) or returns null
- * (local mode — the file route reads from disk directly).
+ * (local mode - the file route reads from disk directly).
  */
 export async function getExhibitSignedUrl(
   storagePath: string,
@@ -812,7 +820,7 @@ export async function getProfile(): Promise<Profile | null> {
 }
 
 // ---------------------------------------------------------------------------
-// Admin views — use the service role key to bypass RLS. Never call from a
+// Admin views - use the service role key to bypass RLS. Never call from a
 // page without first verifying the requester is an admin.
 // ---------------------------------------------------------------------------
 
@@ -825,7 +833,11 @@ export type AdminUserRow = {
   role: string | null;
   organization: string | null;
   isAdmin: boolean;
+  representation: RepresentationStatus | null;
+  consentedAt: string | null;
   caseCount: number;
+  subscriptionStatus: SubscriptionStatus | null;
+  subscriptionTier: Tier | null;
 };
 
 export type AdminCaseRow = Case & {
@@ -838,18 +850,22 @@ export async function adminListUsers(): Promise<AdminUserRow[]> {
   const admin = createAdminSupabase();
   if (!admin) return [];
 
-  const { data: users, error: usersErr } = await admin.auth.admin.listUsers();
+  // Pull all auth users (paginate up to 1000 — fine for our scale; expand if needed).
+  const { data: users, error: usersErr } = await admin.auth.admin.listUsers({ perPage: 1000 });
   if (usersErr) throw usersErr;
 
   const ids = users.users.map((u) => u.id);
+  const sentinelIds = ids.length ? ids : ['00000000-0000-0000-0000-000000000000'];
 
-  const [profilesResp, casesResp] = await Promise.all([
-    admin.from('profiles').select('*').in('id', ids.length ? ids : ['00000000-0000-0000-0000-000000000000']),
+  const [profilesResp, casesResp, subsResp] = await Promise.all([
+    admin.from('profiles').select('*').in('id', sentinelIds),
     admin.from('cases').select('user_id'),
+    admin.from('subscriptions').select('user_id, status, tier').in('user_id', sentinelIds),
   ]);
 
   if (profilesResp.error) throw profilesResp.error;
   if (casesResp.error) throw casesResp.error;
+  if (subsResp.error) throw subsResp.error;
 
   const profiles = new Map<string, ProfileRow>();
   for (const p of (profilesResp.data ?? []) as ProfileRow[]) profiles.set(p.id, p);
@@ -859,8 +875,18 @@ export async function adminListUsers(): Promise<AdminUserRow[]> {
     caseCounts.set(c.user_id, (caseCounts.get(c.user_id) ?? 0) + 1);
   }
 
+  const subs = new Map<string, { status: SubscriptionStatus; tier: Tier | null }>();
+  for (const s of (subsResp.data ?? []) as {
+    user_id: string;
+    status: SubscriptionStatus;
+    tier: Tier | null;
+  }[]) {
+    subs.set(s.user_id, { status: s.status, tier: s.tier });
+  }
+
   return users.users.map((u) => {
     const p = profiles.get(u.id);
+    const s = subs.get(u.id);
     return {
       id: u.id,
       email: u.email ?? '',
@@ -870,7 +896,11 @@ export async function adminListUsers(): Promise<AdminUserRow[]> {
       role: p?.role ?? null,
       organization: p?.organization ?? null,
       isAdmin: Boolean(p?.is_admin),
+      representation: p?.representation ?? null,
+      consentedAt: p?.consented_at ?? null,
       caseCount: caseCounts.get(u.id) ?? 0,
+      subscriptionStatus: s?.status ?? null,
+      subscriptionTier: s?.tier ?? null,
     };
   });
 }
@@ -943,7 +973,7 @@ export async function adminGetCounts(): Promise<{
 }
 
 // ---------------------------------------------------------------------------
-// Collaborators (Supabase-only — local mode has no concept of multiple users)
+// Collaborators (Supabase-only - local mode has no concept of multiple users)
 // ---------------------------------------------------------------------------
 
 type CollaboratorRow = {
@@ -1052,6 +1082,7 @@ type SubscriptionRow = {
   stripe_subscription_id: string | null;
   status: SubscriptionStatus;
   price_id: string | null;
+  tier: Tier | null;
   current_period_end: string | null;
   cancel_at_period_end: boolean;
   created_at: string;
@@ -1066,6 +1097,7 @@ function subscriptionFromRow(r: SubscriptionRow): Subscription {
     stripeSubscriptionId: r.stripe_subscription_id,
     status: r.status,
     priceId: r.price_id,
+    tier: r.tier,
     currentPeriodEnd: r.current_period_end,
     cancelAtPeriodEnd: r.cancel_at_period_end,
     createdAt: r.created_at,
@@ -1094,6 +1126,7 @@ export async function upsertSubscriptionFromStripe(input: {
   stripeSubscriptionId?: string | null;
   status: SubscriptionStatus;
   priceId?: string | null;
+  tier?: Tier | null;
   currentPeriodEnd?: string | null;
   cancelAtPeriodEnd?: boolean;
 }): Promise<void> {
@@ -1108,6 +1141,7 @@ export async function upsertSubscriptionFromStripe(input: {
         stripe_subscription_id: input.stripeSubscriptionId ?? null,
         status: input.status,
         price_id: input.priceId ?? null,
+        tier: input.tier ?? null,
         current_period_end: input.currentPeriodEnd ?? null,
         cancel_at_period_end: input.cancelAtPeriodEnd ?? false,
         updated_at: new Date().toISOString(),
@@ -1135,23 +1169,62 @@ export async function upsertProfile(input: {
   role?: string | null;
   organization?: string | null;
   avatarUrl?: string | null;
+  representation?: RepresentationStatus | null;
 }): Promise<Profile> {
   if (!usingSupabase()) throw new Error('Profiles require Supabase to be configured.');
   const user = await getCurrentUser();
   if (!user) throw new Error('Not signed in.');
   const supabase = createServerSupabase();
+  const update: Record<string, unknown> = {
+    id: user.id,
+    updated_at: new Date().toISOString(),
+  };
+  if (input.displayName !== undefined) update.display_name = input.displayName;
+  if (input.role !== undefined) update.role = input.role;
+  if (input.organization !== undefined) update.organization = input.organization;
+  if (input.avatarUrl !== undefined) update.avatar_url = input.avatarUrl;
+  if (input.representation !== undefined) update.representation = input.representation;
+
   const { data, error } = await supabase
     .from('profiles')
-    .upsert({
-      id: user.id,
-      display_name: input.displayName ?? null,
-      role: input.role ?? null,
-      organization: input.organization ?? null,
-      avatar_url: input.avatarUrl ?? null,
-      updated_at: new Date().toISOString(),
-    })
+    .upsert(update)
     .select('*')
     .single();
   if (error) throw error;
   return profileFromRow(data as ProfileRow);
+}
+
+export async function recordConsent(input: {
+  representation: RepresentationStatus;
+  displayName?: string | null;
+}): Promise<void> {
+  if (!usingSupabase()) throw new Error('Supabase required.');
+  const user = await getCurrentUser();
+  if (!user) throw new Error('Not signed in.');
+  const supabase = createServerSupabase();
+  const update: Record<string, unknown> = {
+    id: user.id,
+    representation: input.representation,
+    consented_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+  if (input.displayName !== undefined && input.displayName !== null) {
+    update.display_name = input.displayName;
+  }
+  const { error } = await supabase.from('profiles').upsert(update);
+  if (error) throw error;
+}
+
+export async function markTourCompleted(): Promise<void> {
+  if (!usingSupabase()) return;
+  const user = await getCurrentUser();
+  if (!user) return;
+  const supabase = createServerSupabase();
+  await supabase
+    .from('profiles')
+    .upsert({
+      id: user.id,
+      tour_completed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
 }

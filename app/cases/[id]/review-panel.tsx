@@ -78,7 +78,7 @@ export function ReviewPanel({
         <div className="card overflow-hidden">
           {review.isDemo && (
             <div className="border-b border-amber-200 bg-amber-50/70 px-5 py-2.5 text-xs text-amber-900">
-              Demo response — set <code className="font-mono">ANTHROPIC_API_KEY</code> in{' '}
+              Demo response - set <code className="font-mono">ANTHROPIC_API_KEY</code> in{' '}
               <code className="font-mono">.env.local</code> to enable real Claude-backed analysis.
             </div>
           )}
@@ -284,7 +284,7 @@ function AccentList({
 
 function shortLabel(c: string): string {
   const cleaned = c.replace(/\s+/g, ' ').trim();
-  const first = cleaned.split(/[—:;.]/, 1)[0].trim();
+  const first = cleaned.split(/[-:;.]/, 1)[0].trim();
   return first.length > 56 ? first.slice(0, 53) + '…' : first;
 }
 

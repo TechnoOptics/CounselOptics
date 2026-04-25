@@ -25,30 +25,36 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={sans.variable}>
       <body className="min-h-screen flex flex-col font-sans">
         <Disclaimer variant="banner" />
-        <header className="sticky top-0 z-20 border-b border-forest-100 bg-white/85 backdrop-blur-md">
+        <header className="sticky top-0 z-20 border-b border-forest-700/40 bg-forest-950/95 backdrop-blur-md">
           <div className="mx-auto max-w-6xl px-6 py-3 flex items-center justify-between">
             <Link href="/" className="flex items-center gap-2.5 group">
-              <span className="brand-mark inline-flex h-9 w-9 items-center justify-center rounded-lg shadow-brand-glow text-gold-500 group-hover:text-gold-400 transition-colors">
-                <BrandMark size={22} />
+              <span className="text-gold-500 group-hover:text-gold-400 transition-colors">
+                <BrandMark size={28} />
               </span>
               <span className="flex items-baseline gap-2">
-                <span className="font-semibold tracking-[0.08em] text-[15px] text-forest-900 uppercase">
+                <span className="font-semibold tracking-[0.08em] text-[15px] text-cream-100 uppercase">
                   Advottic
                 </span>
-                <span className="hidden md:inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-[0.18em] text-gold-700">
-                  <span className="live-dot inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                <span className="hidden md:inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-[0.18em] text-gold-400">
+                  <span className="live-dot inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" />
                   AI · LEGAL · CASE-READY
                 </span>
               </span>
             </Link>
             <nav className="flex items-center gap-1 text-sm">
-              <Link href="/cases" className="btn-ghost">
+              <Link
+                href="/cases"
+                className="px-3 py-2 rounded-md text-cream-100/85 hover:bg-forest-800 hover:text-cream-100 transition-colors"
+              >
                 Cases
               </Link>
-              <Link href="/cases/new" className="btn-primary">
+              <Link
+                href="/cases/new"
+                className="btn bg-gold-500 text-forest-950 hover:bg-gold-400 shadow-gold-glow font-semibold ml-1"
+              >
                 New case
               </Link>
-              <div className="hidden sm:block h-5 w-px bg-ink-200 mx-2" />
+              <div className="hidden sm:block h-5 w-px bg-cream-100/15 mx-2" />
               <UserMenu />
             </nav>
           </div>

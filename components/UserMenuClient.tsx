@@ -41,10 +41,10 @@ export function UserMenuClient(props: UserMenuProps) {
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="flex items-center gap-2.5 pl-2 pr-1 py-1 rounded-full hover:bg-cream-50 transition-colors"
+        className="flex items-center gap-2.5 pl-2 pr-1 py-1 rounded-full hover:bg-forest-800 transition-colors"
         title={props.email}
       >
-        <span className="hidden md:inline text-sm text-forest-900 max-w-[160px] truncate">
+        <span className="hidden md:inline text-sm text-cream-100 max-w-[160px] truncate">
           {props.displayName}
         </span>
         {props.avatarUrl ? (
@@ -52,11 +52,11 @@ export function UserMenuClient(props: UserMenuProps) {
           <img
             src={props.avatarUrl}
             alt=""
-            className="h-8 w-8 rounded-full object-cover border border-forest-200"
+            className="h-8 w-8 rounded-full object-cover border border-gold-500/40"
             referrerPolicy="no-referrer"
           />
         ) : (
-          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-forest-900 text-cream-200 text-[12px] font-semibold tracking-tight">
+          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gold-500 text-forest-950 text-[12px] font-semibold tracking-tight">
             {props.initials}
           </span>
         )}
