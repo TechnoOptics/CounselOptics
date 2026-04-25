@@ -1,0 +1,61 @@
+{
+  "name": "Advottic - Strategic advocacy. Trusted results.",
+  "short_name": "Advottic",
+  "description": "Organize evidence, surface jurisdiction-aware issues with Legal Eye, prepare for hearings, and ship a packet your attorney can read in five minutes.",
+  "start_url": "/cases",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0f2d24",
+  "theme_color": "#0f2d24",
+  "categories": ["productivity", "business", "legal"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/apple-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "New case",
+      "short_name": "New case",
+      "description": "Start a new case file",
+      "url": "/cases/new",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "All cases",
+      "short_name": "Cases",
+      "description": "Open your case dashboard",
+      "url": "/cases",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Find counsel",
+      "short_name": "Counsel",
+      "description": "Find legal counsel near you",
+      "url": "/find-counsel",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ]
+}

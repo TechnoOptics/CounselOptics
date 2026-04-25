@@ -11,6 +11,7 @@ import { CookieBanner } from '@/components/CookieBanner';
 import { SearchPalette, SearchTrigger } from '@/components/SearchPalette';
 import { ConsentModal } from '@/components/ConsentModal';
 import { Sidebar, MobileNav } from '@/components/Sidebar';
+import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { getProfile } from '@/lib/storage';
 
@@ -36,6 +37,23 @@ export const metadata: Metadata = {
   title: 'Advottic',
   description:
     'Organize evidence, surface jurisdiction-aware issues with Legal Eye, prepare for hearings, and ship a packet your attorney can read in five minutes.',
+  manifest: '/manifest.webmanifest',
+  applicationName: 'Advottic',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Advottic',
+  },
+  formatDetection: { telephone: false },
+};
+
+export const viewport = {
+  themeColor: '#0f2d24',
+  // viewport-fit=cover lets the layout render under iOS notches / home
+  // indicator; we use env(safe-area-inset-*) in CSS to add padding back.
+  viewportFit: 'cover' as const,
+  width: 'device-width',
+  initialScale: 1,
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
@@ -83,14 +101,17 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 aria-label="Advottic home"
                 className="inline-flex items-center gap-3 group"
               >
-                {/* Gold pillar mark - PNG with transparent background, no white tile */}
+                {/* Branded tile: gold pillar mark on a forest gradient with
+                    rounded corners. Same artwork the iOS / Android home
+                    screen icon uses, so the brand reads identically across
+                    surfaces. */}
                 <Image
-                  src="/advottic-mark.png"
+                  src="/advottic-tile.png"
                   alt=""
                   width={512}
                   height={512}
                   priority
-                  className="h-9 w-auto block group-hover:opacity-90 transition-opacity"
+                  className="h-10 w-10 block rounded-xl ring-1 ring-cream-100/15 shadow-sm group-hover:shadow-card-hover transition-shadow"
                 />
                 {/* ADVOTTIC wordmark in licensed Conquera (Saira Condensed fallback) */}
                 <span
@@ -132,6 +153,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <Bella />
         {consent.needed && <ConsentModal fallbackName={consent.fallbackName} />}
         <CookieBanner />
+        <ServiceWorkerRegister />
         <footer className="border-t border-ink-200 bg-white">
           <div className="mx-auto max-w-6xl px-6 py-8 text-xs text-ink-500">
             <div className="grid gap-8 md:grid-cols-4">

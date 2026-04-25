@@ -6,6 +6,25 @@
    wordmark in the header. Weight range 100-900 means any tailwind
    font-* class still uses Conquera; if more weights are licensed later,
    add new @font-face declarations with specific weights. */
+/* PWA / native shell support: respect iOS notch + home indicator and
+   Android navigation bar. Layout uses viewport-fit=cover so the page
+   bleeds under the safe areas; we add equivalent padding back here so
+   nothing sits under the notch / bottom indicator. The .safe-pad-* classes
+   are available wherever a section needs to honor a single edge. */
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+body {
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+}
+.safe-pad-top { padding-top: var(--safe-top); }
+.safe-pad-bottom { padding-bottom: var(--safe-bottom); }
+.safe-mb-bottom { margin-bottom: var(--safe-bottom); }
+
 @font-face {
   font-family: 'Conquera';
   src:
