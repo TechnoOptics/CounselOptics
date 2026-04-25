@@ -1,12 +1,12 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { Disclaimer } from '@/components/Disclaimer';
 import { UserMenu } from '@/components/UserMenu';
 import { Bella } from '@/components/Bella';
 import { CookieBanner } from '@/components/CookieBanner';
-import { BrandMark } from '@/components/BrandMark';
 import { SearchPalette, SearchTrigger } from '@/components/SearchPalette';
 
 const sans = Inter({
@@ -31,18 +31,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               can drop down OVER the secondary subheader. */}
           <div className="relative z-30 border-b border-forest-700/40 bg-forest-950/95 backdrop-blur-md">
             <div className="mx-auto max-w-6xl px-6 py-3 flex items-center justify-between">
-              <Link href="/" className="flex items-center gap-2.5 group">
-                <span className="text-gold-500 group-hover:text-gold-400 transition-colors">
-                  <BrandMark size={28} />
+              <Link href="/" aria-label="Advottic home" className="inline-flex items-center gap-3 group">
+                <span className="inline-flex items-center bg-white rounded-md px-2.5 py-1 shadow-sm ring-1 ring-cream-100/30 transition-shadow group-hover:shadow-card-hover">
+                  <Image
+                    src="/advottic-logo.png"
+                    alt="Advottic"
+                    width={457}
+                    height={265}
+                    priority
+                    className="h-9 w-auto block"
+                  />
                 </span>
-                <span className="flex items-baseline gap-2">
-                  <span className="font-semibold tracking-[0.08em] text-[15px] text-cream-100 uppercase">
-                    Advottic
-                  </span>
-                  <span className="hidden md:inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-[0.18em] text-gold-400">
-                    <span className="live-dot inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                    AI · LEGAL · CASE-READY
-                  </span>
+                <span className="hidden md:inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-[0.18em] text-gold-400">
+                  <span className="live-dot inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                  AI · LEGAL · CASE-READY
                 </span>
               </Link>
               <div className="flex items-center gap-1">
