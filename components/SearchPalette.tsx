@@ -263,10 +263,11 @@ export function SearchTrigger({ className = '' }: { className?: string }) {
       type="button"
       onClick={open}
       aria-label="Open search"
-      className={`inline-flex items-center gap-2 rounded-md px-2.5 py-1.5 text-cream-100/85 hover:text-cream-100 hover:bg-forest-800 transition-colors ${className}`}
+      className={`inline-flex items-center gap-2 bg-white text-forest-900 hover:bg-cream-50 rounded-md px-2.5 py-1.5 shadow-sm ring-1 ring-cream-100/30 transition-shadow hover:shadow-card-hover ${className}`}
     >
       <SearchIcon />
-      <span className="hidden sm:inline text-xs font-mono tracking-wide text-cream-100/60">
+      <span className="hidden sm:inline text-[11px] text-ink-500">Search</span>
+      <span className="hidden md:inline text-[10px] font-mono tracking-wide text-ink-400 border border-ink-200 rounded px-1 ml-0.5">
         ⌘K
       </span>
     </button>

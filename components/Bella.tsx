@@ -14,6 +14,28 @@ export function Bella() {
   const [streaming, setStreaming] = useState(false);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const pathname = usePathname();
+  // Bella is deliberately silent for the first 30 seconds. We only arm the
+  // floating button after the user has shown some activity, so first-page
+  // landing visitors aren't bombarded with a chat prompt before they've had
+  // a chance to read anything.
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let armedAlready = false;
+    function startCountdown() {
+      if (armedAlready) return;
+      armedAlready = true;
+      timer = setTimeout(() => setArmed(true), 30_000);
+    }
+    const events: (keyof WindowEventMap)[] = ['click', 'keydown', 'scroll', 'touchstart', 'pointerdown'];
+    events.forEach((ev) =>
+      window.addEventListener(ev, startCountdown, { passive: true, once: true }),
+    );
+    return () => {
+      if (timer) clearTimeout(timer);
+      events.forEach((ev) => window.removeEventListener(ev, startCountdown));
+    };
+  }, []);
 
   // Restore conversation
   useEffect(() => {
@@ -117,13 +139,17 @@ export function Bella() {
     sessionStorage.removeItem(STORAGE_KEY);
   }
 
+  // Once the chat is open we keep rendering it even if `armed` flips state -
+  // arming gates only the launcher.
+  const showLauncher = armed && !open;
+
   return (
     <>
-      {!open && (
+      {showLauncher && (
         <button
           onClick={() => setOpen(true)}
           aria-label="Open Bella, the legal assistant"
-          className="fixed bottom-6 right-6 z-30 inline-flex items-center gap-2 brand-mark text-cream-200 px-4 py-3 rounded-full shadow-brand-glow hover:scale-[1.02] transition-transform"
+          className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-30 inline-flex items-center gap-2 brand-mark text-cream-200 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-full shadow-brand-glow hover:scale-[1.02] transition-transform animate-fade-in"
         >
           <SparkleIcon />
           <span className="text-sm font-medium tracking-tight">Ask Bella</span>

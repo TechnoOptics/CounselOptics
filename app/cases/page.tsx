@@ -183,7 +183,7 @@ function KpiRow({
   const soon = upcoming.filter((t) => (t - Date.now()) / 86_400_000 <= 7).length;
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 stagger">
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 stagger">
       <KpiTile
         label="Active cases"
         value={owned.length}

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
+import { Suspense } from 'react';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { Disclaimer } from '@/components/Disclaimer';
@@ -9,6 +10,7 @@ import { Bella } from '@/components/Bella';
 import { CookieBanner } from '@/components/CookieBanner';
 import { SearchPalette, SearchTrigger } from '@/components/SearchPalette';
 import { ConsentModal } from '@/components/ConsentModal';
+import { Sidebar, MobileNav } from '@/components/Sidebar';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { getProfile } from '@/lib/storage';
 
@@ -81,28 +83,20 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               </div>
             </div>
           </div>
-          {/* Secondary row: lighter forest, nav links. Sits below z so it
-              doesn't trap dropdowns from the top row. */}
-          <div className="relative z-10 border-b border-forest-700/30 bg-forest-900/65 backdrop-blur">
-            <div className="mx-auto max-w-6xl px-6 py-1.5 flex items-center gap-1 text-sm overflow-x-auto">
-              <Link href="/cases/new" className="nav-link">
-                New case
-              </Link>
-              <Link href="/cases" className="nav-link">
-                Cases
-              </Link>
-              <Link href="/cases?filter=shared" className="nav-link">
-                Shared with me
-              </Link>
-              <Link href="/find-counsel" className="nav-link">
-                Find counsel near me
-              </Link>
-            </div>
-          </div>
+          {/* Mobile-only: horizontal nav row that mirrors the desktop sidebar.
+              Hidden on md+ where the sidebar takes over. */}
+          <Suspense fallback={null}>
+            <MobileNav />
+          </Suspense>
         </header>
         <SearchPalette />
         <main className="flex-1">
-          <div className="mx-auto max-w-6xl px-6 py-10">{children}</div>
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 py-6 sm:py-10 flex gap-6 lg:gap-8 items-start">
+            <Suspense fallback={null}>
+              <Sidebar />
+            </Suspense>
+            <div className="flex-1 min-w-0">{children}</div>
+          </div>
         </main>
         <Bella />
         {consent.needed && <ConsentModal fallbackName={consent.fallbackName} />}
