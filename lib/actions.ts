@@ -6,12 +6,15 @@ import {
   addExhibit,
   createCase,
   getCase,
+  getExhibitById,
+  getExhibitFileBuffer,
   inviteCollaborator,
   listExhibits,
   markTourCompleted,
   recordCloseSurvey,
   recordConsent,
   removeCollaborator,
+  saveExhibitScan,
   saveReview,
   updateCaseHearing,
   updateCaseStatus,
@@ -19,7 +22,7 @@ import {
   usingSupabase,
   type CloseSurveyOutcome,
 } from './storage';
-import { runReview } from './ai';
+import { runReview, scanDocument, transcribeMedia } from './ai';
 import { getCurrentUser } from './supabase/server';
 import {
   CASE_TYPES,
@@ -133,7 +136,7 @@ export async function uploadExhibitAction(caseId: string, formData: FormData) {
     throw new Error('File is larger than the 50MB limit.');
   }
 
-  await addExhibit({
+  const exhibit = await addExhibit({
     caseId,
     file,
     description,
@@ -141,8 +144,64 @@ export async function uploadExhibitAction(caseId: string, formData: FormData) {
     source: source || null,
     category: category || null,
   });
+
+  // Auto-scan images and PDFs synchronously - it takes 3-8s and gives the
+  // user immediate feedback. Audio/video are bigger and Whisper can be slow,
+  // so we leave those to the manual Transcribe button on the exhibit row.
+  const ct = (file.type || '').toLowerCase();
+  const looksScannable =
+    ct.startsWith('image/') || ct === 'application/pdf';
+  if (looksScannable) {
+    try {
+      const buf = Buffer.from(await file.arrayBuffer());
+      const scan = await scanDocument({
+        fileBuffer: buf,
+        mediaType: ct,
+        fileName: file.name,
+      });
+      await saveExhibitScan(exhibit.id, scan);
+    } catch (err) {
+      // Never block the upload on scan failure - user can re-trigger from UI.
+      console.warn('[scan] auto-scan failed:', err instanceof Error ? err.message : err);
+    }
+  }
+
   revalidatePath(`/cases/${caseId}`);
   revalidatePath('/cases');
+}
+
+export async function rescanExhibitAction(exhibitId: string) {
+  await assertAuthIfSupabase();
+  const exhibit = await getExhibitById(exhibitId);
+  if (!exhibit) throw new Error('Exhibit not found.');
+  const buf = await getExhibitFileBuffer(exhibit);
+  if (!buf) throw new Error('Could not read the underlying file.');
+  const scan = await scanDocument({
+    fileBuffer: buf,
+    mediaType: exhibit.fileType || 'application/octet-stream',
+    fileName: exhibit.fileName,
+  });
+  await saveExhibitScan(exhibitId, scan);
+  revalidatePath(`/cases/${exhibit.caseId}`);
+}
+
+export async function transcribeExhibitAction(exhibitId: string) {
+  await assertAuthIfSupabase();
+  const exhibit = await getExhibitById(exhibitId);
+  if (!exhibit) throw new Error('Exhibit not found.');
+  const ct = (exhibit.fileType || '').toLowerCase();
+  if (!ct.startsWith('audio/') && !ct.startsWith('video/')) {
+    throw new Error('Only audio or video files can be transcribed.');
+  }
+  const buf = await getExhibitFileBuffer(exhibit);
+  if (!buf) throw new Error('Could not read the underlying file.');
+  const scan = await transcribeMedia({
+    fileBuffer: buf,
+    mediaType: ct,
+    fileName: exhibit.fileName,
+  });
+  await saveExhibitScan(exhibitId, scan);
+  revalidatePath(`/cases/${exhibit.caseId}`);
 }
 
 export async function inviteCollaboratorAction(caseId: string, formData: FormData) {

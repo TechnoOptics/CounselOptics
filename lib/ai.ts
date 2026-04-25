@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import crypto from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import type { AIReview, Case, Exhibit } from './types';
+import type { AIReview, Case, Exhibit, ScanData } from './types';
 
 const MODEL = 'claude-sonnet-4-6';
 
@@ -264,5 +264,285 @@ function demoReview(caseRecord: Case, exhibits: Exhibit[], jurisdiction: string)
     modelUsed: 'demo',
     isDemo: true,
     createdAt: new Date().toISOString(),
+  };
+}
+
+// ===========================================================================
+// Document auto-scan (Claude vision) + audio/video transcription (Whisper)
+// ===========================================================================
+
+const SCAN_SYSTEM = `You are Advottic's document scanner. The user uploads a piece of evidence (commonly a ticket, citation, court summons, complaint, motion, eviction notice, demand letter, contract, or receipt) as an image or PDF, and you extract structured metadata so the case file is searchable.
+
+Rules:
+- Be terse and accurate. If a field is not visible in the document, omit it - never guess.
+- Identifiers: only include the case/ticket/citation/file numbers actually printed on the document. Use snake_case keys: case_number, ticket_number, citation_number, court_file_number, license_plate, badge_number, etc.
+- Parties: list named persons or organizations on the document (officer issuing, defendant, court, court clerk, plaintiff, landlord, tenant, etc.). One string per party.
+- Dates: each date with a short human label and ISO date when possible (e.g., {label:"Issue date", value:"2026-04-15"}). If only month/year is shown, use YYYY-MM.
+- Statute references: only verbatim citations from the document (e.g., "MN Stat. § 169.14"). Don't expand acronyms.
+- Amounts: monetary values printed on the document, including the symbol or "USD" suffix when known.
+- Summary: one to two sentences in plain English. No legal advice.
+- suggestedCategory must be one of: Photo, Document, Communication, Audio, Video, Receipt, Contract, Report, Medical record, Screenshot, Witness statement, Other.
+
+Use the submit_scan tool to return the result.`;
+
+const SCAN_TOOL = {
+  name: 'submit_scan',
+  description: 'Submit the structured scan of a single uploaded document.',
+  input_schema: {
+    type: 'object' as const,
+    required: ['docType', 'identifiers', 'parties', 'dates', 'summary', 'suggestedCategory'],
+    properties: {
+      docType: {
+        type: 'string',
+        description:
+          'Snake-case classification, e.g. parking_ticket, traffic_citation, court_summons, complaint, motion, eviction_notice, demand_letter, contract, receipt, photo, screenshot, voice_note, video, other.',
+      },
+      identifiers: {
+        type: 'object',
+        description:
+          'Map of snake_case identifier keys to their string values (case_number, ticket_number, etc.). Empty object if none visible.',
+        additionalProperties: { type: 'string' },
+      },
+      parties: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Named persons or organizations on the document.',
+      },
+      dates: {
+        type: 'array',
+        items: {
+          type: 'object',
+          required: ['label', 'value'],
+          properties: {
+            label: { type: 'string' },
+            value: { type: 'string', description: 'ISO date or YYYY-MM if exact day unknown.' },
+          },
+        },
+      },
+      jurisdiction: {
+        type: 'string',
+        description: 'Court / jurisdiction printed on the document, e.g. "Scott County, MN".',
+      },
+      amounts: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Monetary amounts printed on the document.',
+      },
+      statuteRefs: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Verbatim statute / code citations printed on the document.',
+      },
+      summary: {
+        type: 'string',
+        description: '1-2 plain-English sentences describing what this document is about.',
+      },
+      suggestedCategory: {
+        type: 'string',
+        enum: [
+          'Photo',
+          'Document',
+          'Communication',
+          'Audio',
+          'Video',
+          'Receipt',
+          'Contract',
+          'Report',
+          'Medical record',
+          'Screenshot',
+          'Witness statement',
+          'Other',
+        ],
+      },
+    },
+  },
+};
+
+/**
+ * Send an image or PDF to Claude vision and extract structured metadata.
+ * Returns a complete ScanData record (with model + scannedAt populated).
+ */
+export async function scanDocument(input: {
+  fileBuffer: Buffer;
+  mediaType: string; // e.g. "image/png", "application/pdf"
+  fileName: string;
+}): Promise<ScanData> {
+  const apiKey = resolveApiKey();
+  if (!apiKey) {
+    return {
+      docType: 'other',
+      identifiers: {},
+      parties: [],
+      dates: [],
+      summary: 'Demo response - ANTHROPIC_API_KEY not set; document was not actually scanned.',
+      scannedAt: new Date().toISOString(),
+      modelUsed: 'demo',
+      isDemo: true,
+    };
+  }
+
+  const isImage = input.mediaType.startsWith('image/');
+  const isPdf = input.mediaType === 'application/pdf';
+  if (!isImage && !isPdf) {
+    return {
+      docType: 'other',
+      identifiers: {},
+      parties: [],
+      dates: [],
+      summary: `File type ${input.mediaType} cannot be auto-scanned. Only images and PDFs are supported.`,
+      scannedAt: new Date().toISOString(),
+      modelUsed: 'unsupported',
+    };
+  }
+
+  const client = new Anthropic({ apiKey });
+  const dataB64 = input.fileBuffer.toString('base64');
+
+  // Build the file content block. SDK types narrow image vs PDF separately,
+  // so we construct each path explicitly.
+  const filePart: Anthropic.Messages.ContentBlockParam = isImage
+    ? {
+        type: 'image',
+        source: {
+          type: 'base64',
+          media_type: input.mediaType as
+            | 'image/png'
+            | 'image/jpeg'
+            | 'image/webp'
+            | 'image/gif',
+          data: dataB64,
+        },
+      }
+    : {
+        type: 'document',
+        source: { type: 'base64', media_type: 'application/pdf', data: dataB64 },
+      };
+
+  const result = await client.messages.create({
+    model: MODEL,
+    max_tokens: 2000,
+    system: [{ type: 'text', text: SCAN_SYSTEM, cache_control: { type: 'ephemeral' } }],
+    tools: [SCAN_TOOL],
+    tool_choice: { type: 'tool', name: 'submit_scan' },
+    messages: [
+      {
+        role: 'user',
+        content: [
+          filePart,
+          {
+            type: 'text',
+            text: `File name: ${input.fileName}\n\nUse the submit_scan tool to return structured metadata about this document.`,
+          },
+        ],
+      },
+    ],
+  });
+
+  const toolUse = result.content.find(
+    (b): b is Extract<(typeof result.content)[number], { type: 'tool_use' }> =>
+      b.type === 'tool_use' && b.name === 'submit_scan',
+  );
+  const data = (toolUse?.input ?? {}) as Record<string, unknown>;
+
+  return {
+    docType: stringField(data.docType) || 'other',
+    identifiers: (data.identifiers && typeof data.identifiers === 'object'
+      ? (data.identifiers as Record<string, string>)
+      : {}) as Record<string, string>,
+    parties: arrayField(data.parties),
+    dates: Array.isArray(data.dates)
+      ? (data.dates as { label?: string; value?: string }[])
+          .map((d) => ({ label: stringField(d?.label), value: stringField(d?.value) }))
+          .filter((d) => d.label || d.value)
+      : [],
+    jurisdiction: stringField(data.jurisdiction) || null,
+    amounts: arrayField(data.amounts),
+    statuteRefs: arrayField(data.statuteRefs),
+    summary: stringField(data.summary) || '(no summary returned)',
+    suggestedCategory: stringField(data.suggestedCategory) as ScanData['suggestedCategory'],
+    scannedAt: new Date().toISOString(),
+    modelUsed: MODEL,
+  };
+}
+
+/**
+ * Whisper transcription. Accepts audio (mp3, m4a, wav, webm, ogg) AND video
+ * (mp4, mov, mpeg) - Whisper will read the audio track from video. Returns
+ * a ScanData record where transcript is populated and docType is set to
+ * voice_note or video accordingly. Falls back to a demo placeholder if
+ * OPENAI_API_KEY is not configured.
+ */
+export async function transcribeMedia(input: {
+  fileBuffer: Buffer;
+  mediaType: string;
+  fileName: string;
+}): Promise<ScanData> {
+  const apiKey = process.env.OPENAI_API_KEY?.trim();
+  const isVideo = input.mediaType.startsWith('video/');
+  const docType = isVideo ? 'video' : 'voice_note';
+
+  if (!apiKey) {
+    return {
+      docType,
+      identifiers: {},
+      parties: [],
+      dates: [],
+      summary:
+        'Transcription requires OPENAI_API_KEY in the server environment. Once it is set, click Transcribe to extract the spoken content.',
+      transcript: '',
+      scannedAt: new Date().toISOString(),
+      modelUsed: 'unsupported',
+      isDemo: true,
+    };
+  }
+
+  // Whisper has a 25 MB limit. We don't slice or chunk - if larger, surface a
+  // friendly error in the summary field so the UI can show it.
+  const MAX = 25 * 1024 * 1024;
+  if (input.fileBuffer.byteLength > MAX) {
+    return {
+      docType,
+      identifiers: {},
+      parties: [],
+      dates: [],
+      summary: `File is ${(input.fileBuffer.byteLength / 1024 / 1024).toFixed(1)} MB. Whisper's API caps at 25 MB - export a smaller / shorter clip and re-upload.`,
+      transcript: '',
+      scannedAt: new Date().toISOString(),
+      modelUsed: 'whisper-1',
+    };
+  }
+
+  const form = new FormData();
+  const blob = new Blob([new Uint8Array(input.fileBuffer)], { type: input.mediaType });
+  form.append('file', blob, input.fileName);
+  form.append('model', 'whisper-1');
+  form.append('response_format', 'json');
+
+  const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}` },
+    body: form,
+  });
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    throw new Error(`Whisper transcription failed (${res.status}): ${errText.slice(0, 300)}`);
+  }
+  const json = (await res.json()) as { text?: string };
+  const transcript = json.text ?? '';
+
+  return {
+    docType,
+    identifiers: {},
+    parties: [],
+    dates: [],
+    summary: transcript
+      ? transcript.length <= 240
+        ? transcript
+        : transcript.slice(0, 240).trimEnd() + '…'
+      : '(no speech detected)',
+    transcript,
+    suggestedCategory: isVideo ? 'Video' : 'Audio',
+    scannedAt: new Date().toISOString(),
+    modelUsed: 'whisper-1',
   };
 }

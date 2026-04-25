@@ -103,6 +103,30 @@ export const EXHIBIT_CATEGORIES = [
 
 export type ExhibitCategory = (typeof EXHIBIT_CATEGORIES)[number];
 
+export type ScanData = {
+  /** Document classification: parking_ticket, traffic_citation, court_summons,
+   *  complaint, motion, eviction_notice, demand_letter, contract, receipt,
+   *  voice_note, video, other. */
+  docType: string;
+  identifiers: Record<string, string>;
+  parties: string[];
+  dates: { label: string; value: string }[];
+  jurisdiction?: string | null;
+  /** Money amount(s) referenced, e.g., "$185.00 fine". */
+  amounts?: string[];
+  /** Legal-statute citations referenced. */
+  statuteRefs?: string[];
+  /** One-paragraph plain-English summary. */
+  summary: string;
+  /** Full transcript for audio/video. */
+  transcript?: string;
+  /** Suggested category (one of EXHIBIT_CATEGORIES). */
+  suggestedCategory?: ExhibitCategory;
+  scannedAt: string;
+  modelUsed: string;
+  isDemo?: boolean;
+};
+
 export type Exhibit = {
   id: string;
   caseId: string;
@@ -115,6 +139,7 @@ export type Exhibit = {
   incidentDate?: string | null;
   source?: string | null;
   category?: string | null;
+  scanData?: ScanData | null;
   uploadedAt: string;
 };
 

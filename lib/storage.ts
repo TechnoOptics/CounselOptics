@@ -13,6 +13,7 @@ import type {
   Posture,
   Profile,
   RepresentationStatus,
+  ScanData,
   SubjectProfile,
   Subscription,
   SubscriptionStatus,
@@ -80,6 +81,7 @@ type ExhibitRow = {
   incident_date: string | null;
   source: string | null;
   category: string | null;
+  scan_data: ScanData | null;
   uploaded_at: string;
 };
 
@@ -159,8 +161,26 @@ function exhibitFromRow(r: ExhibitRow): Exhibit {
     incidentDate: r.incident_date ?? null,
     source: r.source ?? null,
     category: r.category ?? null,
+    scanData: r.scan_data ?? null,
     uploadedAt: r.uploaded_at,
   };
+}
+
+export async function saveExhibitScan(exhibitId: string, scan: ScanData): Promise<void> {
+  if (usingSupabase()) {
+    const supabase = createServerSupabase();
+    const { error } = await supabase
+      .from('exhibits')
+      .update({ scan_data: scan })
+      .eq('id', exhibitId);
+    if (error) throw error;
+    return;
+  }
+  const db = await readLocalDB();
+  const e = db.exhibits.find((x) => x.id === exhibitId);
+  if (!e) return;
+  e.scanData = scan;
+  await writeLocalDB(db);
 }
 
 function profileFromRow(r: ProfileRow): Profile {

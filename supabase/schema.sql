@@ -82,6 +82,14 @@ alter table public.exhibits
   add column if not exists source text,
   add column if not exists category text;
 
+-- Auto-scan output (Claude vision for image/PDF, Whisper for audio/video).
+-- Shape: { docType, identifiers, parties, dates, jurisdiction, summary,
+-- transcript, scannedAt, modelUsed }. Nullable until scanned.
+alter table public.exhibits
+  add column if not exists scan_data jsonb;
+create index if not exists exhibits_scan_doctype_idx
+  on public.exhibits ((scan_data->>'docType'));
+
 create index if not exists exhibits_case_id_uploaded_at_idx
   on public.exhibits (case_id, uploaded_at);
 create index if not exists exhibits_user_id_idx

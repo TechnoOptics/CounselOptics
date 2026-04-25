@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Suspense } from 'react';
 import { Inter, Saira_Condensed } from 'next/font/google';
 import './globals.css';
@@ -10,7 +11,6 @@ import { CookieBanner } from '@/components/CookieBanner';
 import { SearchPalette, SearchTrigger } from '@/components/SearchPalette';
 import { ConsentModal } from '@/components/ConsentModal';
 import { Sidebar, MobileNav } from '@/components/Sidebar';
-import { BrandMark } from '@/components/BrandMark';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { getProfile } from '@/lib/storage';
 
@@ -81,24 +81,24 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 aria-label="Advottic home"
                 className="inline-flex items-center gap-3 group"
               >
-                {/* Gold pillar mark */}
-                <span className="text-gold-400 group-hover:text-gold-300 transition-colors">
-                  <BrandMark size={32} />
-                </span>
-                {/* ADVOTTIC wordmark in Conquera (or Saira Condensed fallback) */}
+                {/* Gold pillar mark - PNG with transparent background, no white tile */}
+                <Image
+                  src="/advottic-mark.png"
+                  alt=""
+                  width={512}
+                  height={512}
+                  priority
+                  className="h-9 w-auto block group-hover:opacity-90 transition-opacity"
+                />
+                {/* ADVOTTIC wordmark in licensed Conquera (Saira Condensed fallback) */}
                 <span
                   className="text-cream-100 text-[24px] sm:text-[28px] leading-none tracking-[0.04em]"
-                  // Licensed Conquera Medium → Saira Condensed (Google fallback) → sans-serif
                   style={{
                     fontFamily: "'Conquera', var(--font-wordmark), sans-serif",
                     fontWeight: 500,
                   }}
                 >
                   ADVOTTIC
-                </span>
-                <span className="hidden md:inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-[0.18em] text-gold-400 ml-1">
-                  <span className="live-dot inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                  LEGAL EYE · LEGAL · CASE-READY
                 </span>
               </Link>
               <div className="flex items-center gap-1">

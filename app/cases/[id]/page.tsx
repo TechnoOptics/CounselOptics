@@ -16,6 +16,7 @@ import { ReviewPanel } from './review-panel';
 import { CollaboratorsPanel } from './collaborators-panel';
 import { CloseCaseControl } from './close-case-control';
 import { HearingPanel } from './hearing-panel';
+import { ExhibitScan } from './exhibit-scan';
 import { Tabs } from '@/components/Tabs';
 
 export const dynamic = 'force-dynamic';
@@ -180,50 +181,53 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
                 {exhibits.length > 0 && (
                   <ul className="card divide-y divide-ink-100">
                     {exhibits.map((e) => (
-                      <li key={e.id} className="p-5 flex flex-wrap items-start gap-4">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2.5 mb-1">
-                            <span className="badge bg-ink-950 text-white font-mono tracking-wide">
-                              {e.label}
-                            </span>
-                            <span className="text-sm font-medium text-ink-950 truncate">
-                              {e.fileName}
-                            </span>
-                          </div>
-                          {e.description && (
-                            <p className="text-sm text-ink-700 mb-1.5 leading-relaxed">
-                              {e.description}
+                      <li key={e.id} className="p-5">
+                        <div className="flex flex-wrap items-start gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2.5 mb-1">
+                              <span className="badge bg-ink-950 text-white font-mono tracking-wide">
+                                {e.label}
+                              </span>
+                              <span className="text-sm font-medium text-ink-950 truncate">
+                                {e.fileName}
+                              </span>
+                            </div>
+                            {e.description && (
+                              <p className="text-sm text-ink-700 mb-1.5 leading-relaxed">
+                                {e.description}
+                              </p>
+                            )}
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-500">
+                              {e.category && (
+                                <span className="badge bg-ink-100 text-ink-700">{e.category}</span>
+                              )}
+                              {e.incidentDate && (
+                                <span>
+                                  <span className="text-ink-400">Incident:</span>{' '}
+                                  {new Date(e.incidentDate).toLocaleDateString()}
+                                </span>
+                              )}
+                              {e.source && (
+                                <span>
+                                  <span className="text-ink-400">Source:</span> {e.source}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-ink-500 mt-1">
+                              {e.fileType} · {formatBytes(e.fileSize)} · uploaded{' '}
+                              {new Date(e.uploadedAt).toLocaleString()}
                             </p>
-                          )}
-                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-500">
-                            {e.category && (
-                              <span className="badge bg-ink-100 text-ink-700">{e.category}</span>
-                            )}
-                            {e.incidentDate && (
-                              <span>
-                                <span className="text-ink-400">Incident:</span>{' '}
-                                {new Date(e.incidentDate).toLocaleDateString()}
-                              </span>
-                            )}
-                            {e.source && (
-                              <span>
-                                <span className="text-ink-400">Source:</span> {e.source}
-                              </span>
-                            )}
                           </div>
-                          <p className="text-xs text-ink-500 mt-1">
-                            {e.fileType} · {formatBytes(e.fileSize)} · uploaded{' '}
-                            {new Date(e.uploadedAt).toLocaleString()}
-                          </p>
+                          <a
+                            href={`/api/files/${e.id}`}
+                            className="btn-secondary"
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            View
+                          </a>
                         </div>
-                        <a
-                          href={`/api/files/${e.id}`}
-                          className="btn-secondary"
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          View
-                        </a>
+                        <ExhibitScan exhibit={e} />
                       </li>
                     ))}
                   </ul>
