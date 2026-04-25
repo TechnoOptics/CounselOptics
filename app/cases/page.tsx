@@ -5,6 +5,7 @@ import { STATUS_LABEL, SUBJECT_TYPE_LABEL, type Case, type CaseStatus } from '@/
 import { storageUnavailable, STORAGE_SETUP_MESSAGE } from '@/lib/setup-status';
 import { isSupabaseConfigured, getCurrentUser } from '@/lib/supabase/server';
 import { TourModal } from '@/components/TourModal';
+import { BrandMark } from '@/components/BrandMark';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,10 +40,10 @@ export default async function CasesPage({
   const sharedWithMe = myId ? cases.filter((c) => c.ownerId !== myId) : [];
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 animate-fade-up">
       <TourModal visible={Boolean(showTour)} />
       {showWelcomeBack && (
-        <div className="rounded-lg border border-gold-200 bg-cream-50 px-4 py-3 text-sm text-forest-900">
+        <div className="rounded-lg border border-gold-200 bg-cream-50 px-4 py-3 text-sm text-forest-900 animate-fade-in">
           <strong>Welcome to Advottic</strong>
           {profile?.displayName ? `, ${firstName(profile.displayName)}` : ''}. Click <strong>New case</strong> to start your first matter, or use the avatar menu to set up billing.
         </div>
@@ -69,12 +70,7 @@ export default async function CasesPage({
           Your cases
         </h2>
         {owned.length === 0 ? (
-          <div className="card p-10 text-center">
-            <p className="text-ink-600 mb-4">No cases of your own yet. Start by creating one.</p>
-            <Link href="/cases/new" className="btn-primary">
-              Create case
-            </Link>
-          </div>
+          <EmptyCasesCard />
         ) : (
           <CaseGrid cases={owned} />
         )}
@@ -93,9 +89,31 @@ export default async function CasesPage({
   );
 }
 
+function EmptyCasesCard() {
+  return (
+    <div className="card relative overflow-hidden p-10 text-center">
+      <div
+        aria-hidden
+        className="absolute -right-6 -bottom-8 text-gold-500/10 pointer-events-none select-none animate-float"
+      >
+        <BrandMark size={220} />
+      </div>
+      <div className="relative">
+        <p className="eyebrow justify-center mb-3">Empty file room</p>
+        <p className="text-ink-600 mb-5 max-w-md mx-auto">
+          No cases of your own yet. Start one and we&apos;ll structure the rest as you go.
+        </p>
+        <Link href="/cases/new" className="btn-primary animate-glow">
+          Create your first case
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 function CaseGrid({ cases, sharedHint = false }: { cases: Case[]; sharedHint?: boolean }) {
   return (
-    <div className="grid gap-4 md:grid-cols-2">
+    <div className="grid gap-4 md:grid-cols-2 stagger">
       {cases.map((c) => {
         const loc = [c.jurisdiction.city, c.jurisdiction.state, c.jurisdiction.country]
           .filter(Boolean)

@@ -42,10 +42,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </span>
             </Link>
             <nav className="flex items-center gap-1 text-sm">
-              <Link
-                href="/cases"
-                className="px-3 py-2 rounded-md text-cream-100/85 hover:bg-forest-800 hover:text-cream-100 transition-colors"
-              >
+              <Link href="/cases" className="nav-link">
                 Cases
               </Link>
               <Link

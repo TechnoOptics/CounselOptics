@@ -57,7 +57,7 @@ export default async function BillingPage({
   const currentTier: Tier | null = sub?.tier ?? null;
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8">
+    <div className="max-w-5xl mx-auto space-y-8 animate-fade-up">
       <div>
         <p className="eyebrow mb-2">Billing</p>
         <h1 className="text-3xl font-semibold tracking-tight text-forest-900">
@@ -129,7 +129,7 @@ export default async function BillingPage({
       )}
 
       {/* Three tier cards */}
-      <div className="grid gap-4 md:grid-cols-3 items-stretch">
+      <div className="grid gap-4 md:grid-cols-3 items-stretch stagger">
         {TIER_ORDER.map((t) => (
           <TierCard
             key={t}

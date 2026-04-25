@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { SignInButtons } from './sign-in-buttons';
+import { BrandMark } from '@/components/BrandMark';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,8 +32,15 @@ export default async function SignInPage({
   if (user) redirect(next);
 
   return (
-    <div className="max-w-md mx-auto">
-      <div className="card p-8">
+    <div className="max-w-md mx-auto animate-fade-up">
+      <div className="card p-8 relative overflow-hidden">
+        <div
+          aria-hidden
+          className="absolute -right-8 -top-8 text-gold-500/10 pointer-events-none animate-float"
+        >
+          <BrandMark size={180} />
+        </div>
+        <div className="relative">
         <p className="eyebrow mb-3">Welcome</p>
         <h1 className="text-2xl font-semibold tracking-tight text-ink-950 mb-2">
           Sign in or create an account
@@ -55,6 +63,7 @@ export default async function SignInPage({
           By continuing you acknowledge that Advottic provides legal information and case
           organization, not legal advice.
         </p>
+        </div>
       </div>
     </div>
   );

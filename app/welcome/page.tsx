@@ -32,23 +32,32 @@ export default async function WelcomePage() {
     '';
 
   return (
-    <div className="max-w-3xl mx-auto space-y-8">
+    <div className="max-w-3xl mx-auto space-y-8 animate-fade-up">
       {/* Hero */}
       <section className="brand-mark text-cream-100 rounded-3xl px-8 py-10 md:px-10 md:py-12 relative overflow-hidden">
         <div
           aria-hidden
-          className="absolute -right-12 -top-6 text-gold-500/12 pointer-events-none"
+          className="absolute inset-0 pointer-events-none gold-pan opacity-50"
+          style={{
+            background:
+              'radial-gradient(700px 320px at 85% 15%, rgba(201, 168, 90, 0.20), transparent 65%), radial-gradient(500px 240px at 5% 95%, rgba(201, 168, 90, 0.10), transparent 70%)',
+          }}
+        />
+        <div
+          aria-hidden
+          className="absolute -right-12 -top-6 text-gold-500/12 pointer-events-none animate-float"
         >
           <BrandMark size={320} />
         </div>
         <div className="relative">
-          <p className="text-gold-400 text-[11px] tracking-[0.3em] uppercase font-semibold mb-3">
+          <p className="text-gold-400 text-[11px] tracking-[0.3em] uppercase font-semibold mb-3 inline-flex items-center gap-2">
+            <span className="inline-block h-px w-6 bg-gold-400" />
             Welcome
           </p>
           <h1 className="text-3xl md:text-4xl font-semibold tracking-tight leading-[1.1] mb-3">
             Hi{fallbackName ? `, ${firstName(fallbackName)}` : ''} -
             <br />
-            <span className="bg-gold-shine bg-clip-text text-transparent">
+            <span className="bg-gold-shine bg-clip-text text-transparent gold-pan">
               let&apos;s set you up.
             </span>
           </h1>
@@ -60,7 +69,7 @@ export default async function WelcomePage() {
       </section>
 
       {/* How it works */}
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid gap-4 md:grid-cols-3 stagger">
         <Step
           n="01"
           title="Build a case"
@@ -223,7 +232,7 @@ export default async function WelcomePage() {
 
 function Step({ n, title, body }: { n: string; title: string; body: string }) {
   return (
-    <div className="card p-6">
+    <div className="card p-6 hover:border-gold-500/50 transition-colors">
       <p className="font-mono text-xs text-gold-700 mb-3">{n}</p>
       <h3 className="font-semibold tracking-tight text-forest-900 mb-1.5 text-[15px]">{title}</h3>
       <p className="text-sm text-ink-600 leading-relaxed">{body}</p>

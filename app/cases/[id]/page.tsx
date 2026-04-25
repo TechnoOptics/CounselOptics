@@ -48,7 +48,7 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
     .join(', ');
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 animate-fade-up">
       <div className="flex items-center justify-between">
         <Link
           href="/cases"

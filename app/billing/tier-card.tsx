@@ -72,14 +72,14 @@ export function TierCard({
 
   return (
     <div
-      className={`relative rounded-2xl border p-6 flex flex-col ${
+      className={`relative rounded-2xl border p-6 flex flex-col transition-all duration-300 hover:-translate-y-0.5 ${
         isHighlighted
-          ? 'border-gold-500 shadow-card-hover bg-cream-50/40'
-          : 'border-ink-200 bg-white shadow-card'
+          ? 'border-gold-500 shadow-card-hover bg-cream-50/40 animate-glow'
+          : 'border-ink-200 bg-white shadow-card hover:border-gold-500/50 hover:shadow-card-hover'
       }`}
     >
       {isHighlighted && (
-        <span className="absolute -top-2.5 left-6 badge bg-gold-500 text-forest-950 font-semibold tracking-wide">
+        <span className="absolute -top-2.5 left-6 badge bg-gold-500 text-forest-950 font-semibold tracking-wide shadow-sm">
           Most popular
         </span>
       )}

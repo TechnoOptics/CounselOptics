@@ -46,7 +46,8 @@ body > * {
   background: linear-gradient(90deg, transparent 0%, #DFDAC0 20%, #DFDAC0 80%, transparent 100%);
 }
 
-/* Pulsing dot for live/active status */
+/* ------------------------------ Motion ------------------------------ */
+
 @keyframes co-pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.55; transform: scale(0.9); }
@@ -55,21 +56,125 @@ body > * {
   animation: co-pulse 1.8s ease-in-out infinite;
 }
 
+@keyframes co-fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes co-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes co-float {
+  0%, 100% { transform: translateY(0) rotate(0); }
+  50% { transform: translateY(-8px) rotate(0.4deg); }
+}
+@keyframes co-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes co-gold-pan {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+@keyframes co-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(201, 168, 90, 0.0); }
+  50% { box-shadow: 0 0 24px 0 rgba(201, 168, 90, 0.35); }
+}
+
+.animate-fade-up {
+  animation: co-fade-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.animate-fade-in {
+  animation: co-fade-in 0.5s ease-out both;
+}
+.animate-float {
+  animation: co-float 6s ease-in-out infinite;
+}
+.animate-glow {
+  animation: co-glow 3s ease-in-out infinite;
+}
+/* Skeleton/placeholder shimmer */
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.04) 0%,
+    rgba(0, 0, 0, 0.08) 50%,
+    rgba(0, 0, 0, 0.04) 100%
+  );
+  background-size: 200% 100%;
+  animation: co-shimmer 1.6s linear infinite;
+}
+/* Stagger: opt-in by adding `stagger` to a parent. Children fade-up in series. */
+.stagger > * {
+  opacity: 0;
+  animation: co-fade-up 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.stagger > *:nth-child(1) { animation-delay: 0.04s; }
+.stagger > *:nth-child(2) { animation-delay: 0.10s; }
+.stagger > *:nth-child(3) { animation-delay: 0.16s; }
+.stagger > *:nth-child(4) { animation-delay: 0.22s; }
+.stagger > *:nth-child(5) { animation-delay: 0.28s; }
+.stagger > *:nth-child(6) { animation-delay: 0.34s; }
+.stagger > *:nth-child(7) { animation-delay: 0.40s; }
+.stagger > *:nth-child(8) { animation-delay: 0.46s; }
+.stagger > *:nth-child(n + 9) { animation-delay: 0.52s; }
+
+/* Slow gold pan for animated gradient backgrounds */
+.gold-pan {
+  background-size: 200% 200%;
+  animation: co-gold-pan 8s ease-in-out infinite;
+}
+
+/* Reduced motion respect */
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-up,
+  .animate-fade-in,
+  .animate-float,
+  .animate-glow,
+  .stagger > *,
+  .shimmer,
+  .gold-pan {
+    animation: none !important;
+  }
+  .stagger > * {
+    opacity: 1;
+  }
+}
+
 @layer components {
   .btn {
-    @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium tracking-tight transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-forest-700 disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply relative inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium tracking-tight transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-gold-500/60 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] overflow-hidden;
   }
   .btn-primary {
-    @apply btn bg-forest-900 text-cream-200 shadow-brand-glow hover:bg-forest-800 active:bg-forest-950;
+    @apply btn bg-forest-900 text-cream-200 shadow-brand-glow hover:bg-forest-800 hover:shadow-card-hover active:bg-forest-950;
   }
   .btn-secondary {
-    @apply btn bg-white text-forest-900 border border-forest-200 hover:border-gold-500 hover:bg-cream-50;
+    @apply btn bg-white text-forest-900 border border-forest-200 hover:border-gold-500 hover:bg-cream-50 hover:shadow-card;
   }
   .btn-ghost {
     @apply btn bg-transparent text-forest-900 hover:bg-cream-50 hover:text-forest-700;
   }
   .btn-accent {
     @apply btn bg-gold-shine text-forest-900 hover:opacity-90 shadow-sm;
+  }
+  /* A subtle diagonal sheen that sweeps across primary buttons on hover. */
+  .btn-primary::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      120deg,
+      transparent 30%,
+      rgba(201, 168, 90, 0.18) 50%,
+      transparent 70%
+    );
+    transform: translateX(-120%);
+    transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    pointer-events: none;
+  }
+  .btn-primary:hover::before {
+    transform: translateX(120%);
   }
   .input {
     @apply w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm placeholder:text-ink-400 focus:outline-none focus:ring-2 focus:ring-forest-700/15 focus:border-forest-700 transition-colors;
@@ -78,10 +183,33 @@ body > * {
     @apply block text-sm font-medium text-forest-900 mb-1.5;
   }
   .card {
-    @apply rounded-xl border border-ink-200 bg-white shadow-card;
+    @apply rounded-xl border border-ink-200 bg-white shadow-card transition-all duration-300;
   }
   .card-hover {
-    @apply card transition-all hover:border-forest-300 hover:shadow-card-hover;
+    @apply card relative overflow-hidden;
+  }
+  .card-hover:hover {
+    transform: translateY(-2px);
+    border-color: rgba(201, 168, 90, 0.55);
+    box-shadow:
+      0 14px 36px -10px rgba(15, 45, 36, 0.14),
+      0 0 0 1px rgba(201, 168, 90, 0.18);
+  }
+  .card-hover::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(
+      400px 200px at 100% 0%,
+      rgba(201, 168, 90, 0.10),
+      transparent 60%
+    );
+    opacity: 0;
+    transition: opacity 0.4s ease;
+    pointer-events: none;
+  }
+  .card-hover:hover::after {
+    opacity: 1;
   }
   .badge {
     @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
@@ -93,21 +221,62 @@ body > * {
     @apply badge bg-cream-200 text-forest-900;
   }
   .eyebrow {
-    @apply text-[11px] uppercase tracking-[0.16em] font-semibold text-gold-700;
+    @apply inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] font-semibold text-gold-700;
+  }
+  .eyebrow::before {
+    content: '';
+    display: inline-block;
+    width: 14px;
+    height: 1.5px;
+    background: currentColor;
+    border-radius: 2px;
+    flex: none;
   }
   .divider {
     @apply border-t border-ink-100;
   }
+  /* Hairline rule with a soft gold midpoint - elegant section break */
+  .gold-rule {
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(201, 168, 90, 0.35) 50%,
+      transparent 100%
+    );
+  }
 
   /* Tab styling - forest dark active state with cream-tinted hover */
   .tab {
-    @apply relative px-5 py-3.5 text-sm font-medium whitespace-nowrap text-ink-500 transition-colors hover:text-forest-900 hover:bg-cream-50;
+    @apply relative px-5 py-3.5 text-sm font-medium whitespace-nowrap text-ink-500 transition-colors duration-200 hover:text-forest-900 hover:bg-cream-50/60;
   }
   .tab-active {
     @apply text-forest-900;
   }
   .tab-underline {
     @apply absolute inset-x-4 bottom-0 h-0.5 bg-forest-900 rounded-t;
+    animation: co-fade-in 0.25s ease-out both;
+  }
+
+  /* Header nav link with subtle gold underline on hover */
+  .nav-link {
+    @apply relative px-3 py-2 rounded-md text-cream-100/85 transition-colors hover:text-cream-100 hover:bg-forest-800;
+  }
+  .nav-link::after {
+    content: '';
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    bottom: 4px;
+    height: 1.5px;
+    background: theme('colors.gold.500');
+    border-radius: 2px;
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .nav-link:hover::after {
+    transform: scaleX(1);
   }
 
   /* Brand mark - deep forest tile with gold figure */
