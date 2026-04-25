@@ -1,9 +1,9 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { listCases, getProfile } from '@/lib/storage';
-import { STATUS_LABEL, SUBJECT_TYPE_LABEL, type CaseStatus } from '@/lib/types';
+import { STATUS_LABEL, SUBJECT_TYPE_LABEL, type Case, type CaseStatus } from '@/lib/types';
 import { storageUnavailable, STORAGE_SETUP_MESSAGE } from '@/lib/setup-status';
-import { isSupabaseConfigured } from '@/lib/supabase/server';
+import { isSupabaseConfigured, getCurrentUser } from '@/lib/supabase/server';
 import { TourModal } from '@/components/TourModal';
 
 export const dynamic = 'force-dynamic';
@@ -33,6 +33,11 @@ export default async function CasesPage({
   const showWelcomeBack = searchParams?.welcome === '1';
   const showTour = showWelcomeBack && profile?.consentedAt && !profile?.tourCompletedAt;
 
+  const currentUser = isSupabaseConfigured() ? await getCurrentUser() : null;
+  const myId = currentUser?.id ?? null;
+  const owned = myId ? cases.filter((c) => c.ownerId === myId) : cases;
+  const sharedWithMe = myId ? cases.filter((c) => c.ownerId !== myId) : [];
+
   return (
     <div className="space-y-8">
       <TourModal visible={Boolean(showTour)} />
@@ -45,11 +50,11 @@ export default async function CasesPage({
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="eyebrow mb-2">Your files</p>
-          <h1 className="text-3xl font-semibold tracking-tight text-ink-950">Cases</h1>
+          <h1 className="text-3xl font-semibold tracking-tight text-forest-900">Cases</h1>
           <p className="text-sm text-ink-500 mt-1">
             {cases.length === 0
               ? 'No cases yet. Create your first case file to get started.'
-              : `${cases.length} case${cases.length === 1 ? '' : 's'}`}
+              : `${owned.length} owned${sharedWithMe.length ? ` · ${sharedWithMe.length} shared with you` : ''}`}
           </p>
         </div>
         <Link href="/cases/new" className="btn-primary">
@@ -58,47 +63,76 @@ export default async function CasesPage({
         </Link>
       </div>
 
-      {cases.length === 0 ? (
-        <div className="card p-12 text-center">
-          <p className="text-ink-600 mb-5">Start by creating a case file.</p>
-          <Link href="/cases/new" className="btn-primary">
-            Create case
-          </Link>
-        </div>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2">
-          {cases.map((c) => {
-            const loc = [c.jurisdiction.city, c.jurisdiction.state, c.jurisdiction.country]
-              .filter(Boolean)
-              .join(', ');
-            return (
-              <Link key={c.id} href={`/cases/${c.id}`} className="card-hover p-5 block">
-                <div className="flex items-start justify-between gap-3 mb-3">
-                  <h2 className="font-semibold text-ink-950 leading-tight tracking-tight">
-                    {c.title}
-                  </h2>
-                  <StatusPill status={c.status} />
-                </div>
-                <p className="text-sm text-ink-700 mb-4">
-                  <span className="text-ink-500">{SUBJECT_TYPE_LABEL[c.subjectType]}: </span>
-                  {c.subjectName}
-                </p>
-                <div className="text-xs text-ink-500 flex flex-wrap items-center gap-x-2.5 gap-y-1">
-                  <span className="inline-flex items-center">{c.caseType}</span>
-                  {loc && (
-                    <>
-                      <Dot />
-                      <span>{loc}</span>
-                    </>
-                  )}
-                  <Dot />
-                  <span>Updated {new Date(c.updatedAt).toLocaleDateString()}</span>
-                </div>
-              </Link>
-            );
-          })}
-        </div>
+      {/* Your cases */}
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold tracking-wider uppercase text-forest-700">
+          Your cases
+        </h2>
+        {owned.length === 0 ? (
+          <div className="card p-10 text-center">
+            <p className="text-ink-600 mb-4">No cases of your own yet. Start by creating one.</p>
+            <Link href="/cases/new" className="btn-primary">
+              Create case
+            </Link>
+          </div>
+        ) : (
+          <CaseGrid cases={owned} />
+        )}
+      </section>
+
+      {/* Shared with me */}
+      {sharedWithMe.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold tracking-wider uppercase text-forest-700">
+            Shared with me
+          </h2>
+          <CaseGrid cases={sharedWithMe} sharedHint />
+        </section>
       )}
+    </div>
+  );
+}
+
+function CaseGrid({ cases, sharedHint = false }: { cases: Case[]; sharedHint?: boolean }) {
+  return (
+    <div className="grid gap-4 md:grid-cols-2">
+      {cases.map((c) => {
+        const loc = [c.jurisdiction.city, c.jurisdiction.state, c.jurisdiction.country]
+          .filter(Boolean)
+          .join(', ');
+        return (
+          <Link key={c.id} href={`/cases/${c.id}`} className="card-hover p-5 block">
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <h2 className="font-semibold text-ink-950 leading-tight tracking-tight">
+                {c.title}
+              </h2>
+              <div className="flex flex-col items-end gap-1">
+                <StatusPill status={c.status} />
+                {sharedHint && (
+                  <span className="badge bg-cream-50 text-forest-900 border border-gold-300 text-[10px]">
+                    Shared
+                  </span>
+                )}
+              </div>
+            </div>
+            <p className="text-sm text-ink-700 mb-4">
+              <span className="text-ink-500">{SUBJECT_TYPE_LABEL[c.subjectType]}: </span>
+              {c.subjectName}
+            </p>
+            <div className="text-xs text-ink-500 flex flex-wrap items-center gap-x-2.5 gap-y-1">
+              <span className="inline-flex items-center">{c.caseType}</span>
+              {loc && (
+                <>
+                  <Dot />
+                  <span>{loc}</span>
+                </>
+              )}
+              <Dot />
+              <span>Updated {new Date(c.updatedAt).toLocaleDateString()}</span>
+            </div>
+          </Link>
+        );
+      })}
     </div>
   );
 }

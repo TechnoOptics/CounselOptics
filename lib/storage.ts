@@ -1016,7 +1016,7 @@ export async function inviteCollaborator(input: {
   caseId: string;
   email: string;
   role: CollaboratorRole;
-}): Promise<Collaborator> {
+}): Promise<{ collaborator: Collaborator; emailed: boolean }> {
   if (!usingSupabase()) {
     throw new Error('Collaborators require Supabase to be configured.');
   }
@@ -1027,7 +1027,7 @@ export async function inviteCollaborator(input: {
   // Confirm caller owns the case
   const { data: caseRow, error: caseErr } = await supabase
     .from('cases')
-    .select('id')
+    .select('id, title')
     .eq('id', input.caseId)
     .eq('user_id', user.id)
     .maybeSingle();
@@ -1038,19 +1038,20 @@ export async function inviteCollaborator(input: {
   const admin = createAdminSupabase();
   let existingUserId: string | null = null;
   if (admin) {
-    const { data: usersResp } = await admin.auth.admin.listUsers();
+    const { data: usersResp } = await admin.auth.admin.listUsers({ perPage: 1000 });
     const match = usersResp.users.find(
       (u) => (u.email ?? '').toLowerCase() === input.email.toLowerCase(),
     );
     if (match) existingUserId = match.id;
   }
 
+  const email = input.email.toLowerCase();
   const { data, error } = await supabase
     .from('case_collaborators')
     .upsert(
       {
         case_id: input.caseId,
-        email: input.email.toLowerCase(),
+        email,
         role: input.role,
         user_id: existingUserId,
         invited_by: user.id,
@@ -1061,7 +1062,47 @@ export async function inviteCollaborator(input: {
     .select('*')
     .single();
   if (error) throw error;
-  return collaboratorFromRow(data as CollaboratorRow);
+
+  // Email the invitee a sign-up / sign-in link. If they're already a Supabase
+  // user, send a magic link; otherwise send Supabase's "invite" email which
+  // creates the account on first click.
+  let emailed = false;
+  if (admin) {
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://counsel-optics.vercel.app';
+    const redirectTo = `${siteUrl}/auth/callback?next=${encodeURIComponent('/cases?welcome=1')}`;
+    try {
+      if (existingUserId) {
+        // Existing account: send a magic link they can click to sign in straight to the app.
+        await admin.auth.admin.generateLink({
+          type: 'magiclink',
+          email,
+          options: { redirectTo },
+        });
+        // generateLink returns the URL but doesn't email it; send a fresh sign-in OTP instead.
+        await admin.auth.signInWithOtp({
+          email,
+          options: { emailRedirectTo: redirectTo, shouldCreateUser: false },
+        });
+      } else {
+        await admin.auth.admin.inviteUserByEmail(email, {
+          redirectTo,
+          data: {
+            invited_to_case: input.caseId,
+            invited_to_case_title: caseRow.title,
+            invited_by: user.email ?? user.id,
+          },
+        });
+      }
+      emailed = true;
+    } catch {
+      // Email send failed (rate limit, bad config, etc). Don't fail the
+      // invite itself; the row is in place and the collaborator can sign
+      // up on their own with the matching email later.
+      emailed = false;
+    }
+  }
+
+  return { collaborator: collaboratorFromRow(data as CollaboratorRow), emailed };
 }
 
 export async function removeCollaborator(collaboratorId: string): Promise<void> {

@@ -22,14 +22,22 @@ export function CollaboratorsPanel({
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
 
   function invite(formData: FormData) {
     setError(null);
+    setInfo(null);
+    const email = String(formData.get('email') ?? '').trim();
     startTransition(async () => {
       try {
-        await inviteCollaboratorAction(caseId, formData);
+        const result = await inviteCollaboratorAction(caseId, formData);
         setShowForm(false);
+        setInfo(
+          result?.emailed
+            ? `Invite sent to ${email}. They'll get an email with a sign-in link.`
+            : `${email} added to the case. Email delivery is unconfigured, so let them know directly.`,
+        );
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Invite failed.');
       }
@@ -71,6 +79,11 @@ export function CollaboratorsPanel({
       {error && (
         <p className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
           {error}
+        </p>
+      )}
+      {info && (
+        <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+          {info}
         </p>
       )}
 

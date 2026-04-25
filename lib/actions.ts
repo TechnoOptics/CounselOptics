@@ -139,8 +139,9 @@ export async function inviteCollaboratorAction(caseId: string, formData: FormDat
   const role: CollaboratorRole = validRoles.includes(roleRaw as CollaboratorRole)
     ? (roleRaw as CollaboratorRole)
     : 'viewer';
-  await inviteCollaborator({ caseId, email, role });
+  const result = await inviteCollaborator({ caseId, email, role });
   revalidatePath(`/cases/${caseId}`);
+  return { emailed: result.emailed };
 }
 
 export async function removeCollaboratorAction(caseId: string, collaboratorId: string) {
