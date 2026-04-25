@@ -384,14 +384,21 @@ create trigger cases_set_updated_at
   for each row execute function public.set_updated_at();
 
 -- Auto-create a profiles row whenever a new user signs up via Supabase Auth.
+-- Pre-approved operator emails (KNOWN_ADMIN_EMAILS below) are auto-flagged
+-- is_admin so we don't have to chase a manual UPDATE on every new staffer.
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
 security definer
 set search_path = public
 as $$
+declare
+  is_known_admin boolean := lower(new.email) in (
+    'contact@technooptics.com',
+    'contact@advottic.com'
+  );
 begin
-  insert into public.profiles (id, display_name, avatar_url)
+  insert into public.profiles (id, display_name, avatar_url, is_admin)
   values (
     new.id,
     coalesce(
@@ -399,9 +406,11 @@ begin
       new.raw_user_meta_data->>'name',
       new.email
     ),
-    new.raw_user_meta_data->>'avatar_url'
+    new.raw_user_meta_data->>'avatar_url',
+    is_known_admin
   )
-  on conflict (id) do nothing;
+  on conflict (id) do update
+    set is_admin = excluded.is_admin or public.profiles.is_admin;
 
   -- Convert any pending invites that match this user's email into accepted collaborator rows.
   update public.case_collaborators
@@ -411,6 +420,15 @@ begin
   return new;
 end;
 $$;
+
+-- Idempotent retroactive admin flag for known admin emails (in case they signed
+-- up before the trigger was updated).
+update public.profiles p
+set is_admin = true
+from auth.users u
+where u.id = p.id
+  and lower(u.email) in ('contact@advottic.com', 'contact@technooptics.com')
+  and p.is_admin is distinct from true;
 
 drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
