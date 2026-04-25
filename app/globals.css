@@ -2,6 +2,23 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Conquera wordmark font. Drop the licensed file at public/fonts/conquera.woff2
+   (or .woff or .ttf) and the browser will activate it. Until then the
+   wordmark falls through to the Saira Condensed CSS variable from
+   next/font in layout.tsx. The font-display:block keeps the wordmark
+   text invisible briefly rather than flashing the fallback when a
+   licensed file is in place. */
+@font-face {
+  font-family: 'Conquera';
+  src:
+    url('/fonts/conquera.woff2') format('woff2'),
+    url('/fonts/conquera.woff') format('woff'),
+    url('/fonts/conquera.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   color-scheme: light;
   --brand-dark: #0f2d24;

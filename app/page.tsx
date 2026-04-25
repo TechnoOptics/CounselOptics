@@ -62,10 +62,12 @@ function Hero({ existingCases }: { existingCases: number }) {
               <ArrowRight />
             </Link>
             <Link
-              href="/cases"
+              href={existingCases > 0 ? '/cases' : '/example'}
               className="btn bg-white text-forest-900 border border-ink-200 hover:border-gold-500 hover:bg-cream-50 px-5 py-2.5"
             >
-              {existingCases > 0 ? `View ${existingCases} case${existingCases === 1 ? '' : 's'}` : 'See an example'}
+              {existingCases > 0
+                ? `View ${existingCases} case${existingCases === 1 ? '' : 's'}`
+                : 'See an example'}
             </Link>
           </div>
           <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-ink-500">
@@ -416,9 +418,9 @@ function Outcomes() {
           sub="With category, source, incident date"
         />
         <Outcome
-          big="0"
-          label="Legal advice given"
-          sub="Information only - your attorney is in charge"
+          big="100%"
+          label="Your data, exportable any time"
+          sub="JSON export from Profile, never used to train AI models"
         />
       </div>
     </section>

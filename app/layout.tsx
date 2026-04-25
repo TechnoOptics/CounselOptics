@@ -1,8 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import Image from 'next/image';
 import { Suspense } from 'react';
-import { Inter } from 'next/font/google';
+import { Inter, Saira_Condensed } from 'next/font/google';
 import './globals.css';
 import { Disclaimer } from '@/components/Disclaimer';
 import { UserMenu } from '@/components/UserMenu';
@@ -11,6 +10,7 @@ import { CookieBanner } from '@/components/CookieBanner';
 import { SearchPalette, SearchTrigger } from '@/components/SearchPalette';
 import { ConsentModal } from '@/components/ConsentModal';
 import { Sidebar, MobileNav } from '@/components/Sidebar';
+import { BrandMark } from '@/components/BrandMark';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { getProfile } from '@/lib/storage';
 
@@ -20,6 +20,18 @@ const sans = Inter({
   variable: '--font-sans',
 });
 
+// Wordmark fallback (Saira Condensed) loads via Google Fonts. The "real"
+// Conquera font is registered via @font-face in globals.css and points at
+// /fonts/conquera.woff2 — once that file is dropped into public/fonts the
+// browser will pick it up automatically, otherwise it falls through to the
+// CSS variable below. See globals.css for the @font-face declaration.
+const wordmark = Saira_Condensed({
+  subsets: ['latin'],
+  weight: ['700', '800'],
+  display: 'swap',
+  variable: '--font-wordmark',
+});
+
 export const metadata: Metadata = {
   title: 'Advottic',
   description:
@@ -27,13 +39,17 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  // Decide whether to mount the consent popup. Server-side so the modal HTML
-  // is gone for users who've already consented and stays gone after refresh.
+  // Decide whether to mount the consent popup AND whether the user is signed
+  // in (so we can gate the search trigger + sidebar/mobile-nav on auth).
+  // Server-side so the navigation HTML literally isn't shipped to logged-out
+  // visitors, and stays gone after refresh.
   let consent: { needed: false } | { needed: true; fallbackName: string } = { needed: false };
+  let signedIn = false;
   if (isSupabaseConfigured()) {
     try {
       const user = await getCurrentUser();
       if (user) {
+        signedIn = true;
         const profile = await getProfile().catch(() => null);
         if (!profile?.consentedAt) {
           consent = {
@@ -52,7 +68,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   }
 
   return (
-    <html lang="en" className={sans.variable}>
+    <html lang="en" className={`${sans.variable} ${wordmark.variable}`}>
       <body className="min-h-screen flex flex-col font-sans">
         <Disclaimer variant="banner" />
         <header className="sticky top-0 z-20">
@@ -60,41 +76,51 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               can drop down OVER the secondary subheader. */}
           <div className="relative z-30 border-b border-forest-700/40 bg-forest-950/95 backdrop-blur-md">
             <div className="mx-auto max-w-6xl px-6 py-3 flex items-center justify-between">
-              <Link href="/" aria-label="Advottic home" className="inline-flex items-center gap-3 group">
-                <span className="inline-flex items-center bg-white rounded-md px-2.5 py-1 shadow-sm ring-1 ring-cream-100/30 transition-shadow group-hover:shadow-card-hover">
-                  <Image
-                    src="/advottic-logo.png"
-                    alt="Advottic"
-                    width={457}
-                    height={265}
-                    priority
-                    className="h-9 w-auto block"
-                  />
+              <Link
+                href="/"
+                aria-label="Advottic home"
+                className="inline-flex items-center gap-3 group"
+              >
+                {/* Gold pillar mark */}
+                <span className="text-gold-400 group-hover:text-gold-300 transition-colors">
+                  <BrandMark size={32} />
                 </span>
-                <span className="hidden md:inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-[0.18em] text-gold-400">
+                {/* ADVOTTIC wordmark in Conquera (or Saira Condensed fallback) */}
+                <span
+                  className="text-cream-100 text-[22px] sm:text-[24px] leading-none tracking-[0.06em] font-extrabold"
+                  // Conquera (licensed) → Saira Condensed (Google fallback)
+                  style={{ fontFamily: "'Conquera', var(--font-wordmark), sans-serif" }}
+                >
+                  ADVOTTIC
+                </span>
+                <span className="hidden md:inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-[0.18em] text-gold-400 ml-1">
                   <span className="live-dot inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" />
                   LEGAL EYE · LEGAL · CASE-READY
                 </span>
               </Link>
               <div className="flex items-center gap-1">
-                <SearchTrigger />
-                <div className="hidden sm:block h-5 w-px bg-cream-100/15 mx-2" />
+                {signedIn && <SearchTrigger />}
+                {signedIn && <div className="hidden sm:block h-5 w-px bg-cream-100/15 mx-2" />}
                 <UserMenu />
               </div>
             </div>
           </div>
-          {/* Mobile-only: horizontal nav row that mirrors the desktop sidebar.
-              Hidden on md+ where the sidebar takes over. */}
-          <Suspense fallback={null}>
-            <MobileNav />
-          </Suspense>
+          {/* Mobile-only: hamburger-led nav. Only shown to signed-in users
+              since marketing visitors don't have anywhere to navigate to yet. */}
+          {signedIn && (
+            <Suspense fallback={null}>
+              <MobileNav />
+            </Suspense>
+          )}
         </header>
-        <SearchPalette />
+        {signedIn && <SearchPalette />}
         <main className="flex-1">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 py-6 sm:py-10 flex gap-6 lg:gap-8 items-start">
-            <Suspense fallback={null}>
-              <Sidebar />
-            </Suspense>
+            {signedIn && (
+              <Suspense fallback={null}>
+                <Sidebar />
+              </Suspense>
+            )}
             <div className="flex-1 min-w-0">{children}</div>
           </div>
         </main>
