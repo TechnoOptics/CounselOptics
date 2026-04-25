@@ -4,6 +4,7 @@ import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { getProfile } from '@/lib/storage';
 import { updateProfileAction } from '@/lib/actions';
 import { AccountActions } from './account-actions';
+import { AvatarUpload } from './avatar-upload';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,26 +45,17 @@ export default async function ProfilePage() {
         </p>
       </div>
 
-      <div className="card p-6 flex items-center gap-5">
-        {avatarUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={avatarUrl}
-            alt=""
-            className="h-16 w-16 rounded-full object-cover border border-ink-200"
-            referrerPolicy="no-referrer"
-          />
-        ) : (
-          <div className="h-16 w-16 rounded-full bg-ink-950 text-white flex items-center justify-center text-xl font-semibold">
-            {computeInitials(profile?.displayName || fallbackName || user.email || 'CO')}
+      <div className="card p-6 space-y-5">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <p className="eyebrow mb-1">Account</p>
+            <p className="font-semibold text-ink-950 truncate">
+              {profile?.displayName || fallbackName || user.email}
+            </p>
+            <p className="text-sm text-ink-500 truncate">{user.email}</p>
           </div>
-        )}
-        <div className="min-w-0">
-          <p className="font-semibold text-ink-950 truncate">
-            {profile?.displayName || fallbackName || user.email}
-          </p>
-          <p className="text-sm text-ink-500 truncate">{user.email}</p>
         </div>
+        <AvatarUpload userId={user.id} currentUrl={avatarUrl} />
       </div>
 
       <form action={updateProfileAction} className="card p-6 space-y-5">

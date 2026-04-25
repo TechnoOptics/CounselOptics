@@ -56,7 +56,7 @@ export function UserMenuClient(props: UserMenuProps) {
             referrerPolicy="no-referrer"
           />
         ) : (
-          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gold-500 text-forest-950 text-[12px] font-semibold tracking-tight">
+          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white text-forest-900 text-[12px] font-semibold tracking-tight border border-forest-700/30 shadow-sm">
             {props.initials}
           </span>
         )}

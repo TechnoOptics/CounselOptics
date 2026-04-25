@@ -50,7 +50,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </Link>
               <Link
                 href="/cases/new"
-                className="btn bg-gold-500 text-forest-950 hover:bg-gold-400 shadow-gold-glow font-semibold ml-1"
+                className="btn bg-white text-forest-950 hover:bg-cream-100 font-semibold ml-1 shadow-sm"
               >
                 New case
               </Link>
