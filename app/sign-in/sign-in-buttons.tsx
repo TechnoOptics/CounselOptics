@@ -18,7 +18,7 @@ export function SignInButtons({ next }: { next: string }) {
     setPending(provider);
     try {
       const supabase = createBrowserSupabase();
-      const origin = window.location.origin;
+      const origin = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
       const redirectTo = `${origin}/auth/callback?next=${encodeURIComponent(next)}`;
       const { error: authError } = await supabase.auth.signInWithOAuth({
         provider,
@@ -41,7 +41,7 @@ export function SignInButtons({ next }: { next: string }) {
     setPending('email');
     try {
       const supabase = createBrowserSupabase();
-      const origin = window.location.origin;
+      const origin = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
       const redirectTo = `${origin}/auth/callback?next=${encodeURIComponent(next)}`;
       const { error: authError } = await supabase.auth.signInWithOtp({
         email: email.trim(),
