@@ -14,6 +14,7 @@ import {
   replaceExhibitPlans,
   saveDefenseAdvice,
   saveReview,
+  updateCaseStatus,
   upsertProfile,
   usingSupabase,
 } from './storage';
@@ -21,6 +22,7 @@ import { planExhibits, runDefenseAdvice, runReview } from './ai';
 import { getCurrentUser } from './supabase/server';
 import {
   CASE_TYPES,
+  type CaseStatus,
   type CaseType,
   type CollaboratorRole,
   type Posture,
@@ -191,6 +193,23 @@ export async function updateProfileAction(formData: FormData) {
   });
   revalidatePath('/profile');
   revalidatePath('/');
+}
+
+export async function setCaseStatusAction(caseId: string, status: CaseStatus) {
+  await assertAuthIfSupabase();
+  const valid: CaseStatus[] = [
+    'draft',
+    'open',
+    'under_review',
+    'needs_evidence',
+    'export_ready',
+    'closed',
+    'archived',
+  ];
+  if (!valid.includes(status)) throw new Error('Invalid status.');
+  await updateCaseStatus(caseId, status);
+  revalidatePath(`/cases/${caseId}`);
+  revalidatePath('/cases');
 }
 
 export async function runReviewAction(caseId: string) {

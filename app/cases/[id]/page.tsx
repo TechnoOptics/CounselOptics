@@ -19,6 +19,7 @@ import { ReviewPanel } from './review-panel';
 import { ExhibitPlanSection } from './exhibit-plan';
 import { DefensePanel } from './defense-panel';
 import { CollaboratorsPanel } from './collaborators-panel';
+import { CloseCaseControl } from './close-case-control';
 
 export const dynamic = 'force-dynamic';
 
@@ -210,6 +211,8 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
       )}
 
       <ReviewPanel caseId={c.id} review={review} />
+
+      <CloseCaseControl caseId={c.id} status={c.status} isOwner={isOwner} />
 
       <Disclaimer />
     </div>

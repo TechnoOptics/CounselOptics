@@ -36,7 +36,10 @@ export default async function CasesPage({
 
   const currentUser = isSupabaseConfigured() ? await getCurrentUser() : null;
   const myId = currentUser?.id ?? null;
-  const owned = myId ? cases.filter((c) => c.ownerId === myId) : cases;
+  const isClosed = (s: Case['status']) => s === 'closed' || s === 'archived';
+  const ownedAll = myId ? cases.filter((c) => c.ownerId === myId) : cases;
+  const owned = ownedAll.filter((c) => !isClosed(c.status));
+  const closed = ownedAll.filter((c) => isClosed(c.status));
   const sharedWithMe = myId ? cases.filter((c) => c.ownerId !== myId) : [];
 
   return (
@@ -55,7 +58,7 @@ export default async function CasesPage({
           <p className="text-sm text-ink-500 mt-1">
             {cases.length === 0
               ? 'No cases yet. Create your first case file to get started.'
-              : `${owned.length} owned${sharedWithMe.length ? ` · ${sharedWithMe.length} shared with you` : ''}`}
+              : `${owned.length} active${closed.length ? ` · ${closed.length} closed` : ''}${sharedWithMe.length ? ` · ${sharedWithMe.length} shared with you` : ''}`}
           </p>
         </div>
         <Link href="/cases/new" className="btn-primary">
@@ -85,6 +88,29 @@ export default async function CasesPage({
           <CaseGrid cases={sharedWithMe} sharedHint />
         </section>
       )}
+
+      {/* Closed cases */}
+      {closed.length > 0 && (
+        <section className="space-y-3">
+          <details className="group">
+            <summary className="cursor-pointer list-none flex items-center justify-between gap-3 select-none">
+              <h2 className="text-sm font-semibold tracking-wider uppercase text-ink-500 group-hover:text-forest-700 transition-colors">
+                Closed cases
+                <span className="ml-2 badge bg-ink-100 text-ink-600 normal-case tracking-normal font-normal">
+                  {closed.length}
+                </span>
+              </h2>
+              <span className="text-xs text-ink-400 group-hover:text-ink-700 transition-colors">
+                <span className="hidden group-open:inline">Hide</span>
+                <span className="group-open:hidden">Show</span>
+              </span>
+            </summary>
+            <div className="mt-4 opacity-90">
+              <CaseGrid cases={closed} closedHint />
+            </div>
+          </details>
+        </section>
+      )}
     </div>
   );
 }
@@ -111,7 +137,15 @@ function EmptyCasesCard() {
   );
 }
 
-function CaseGrid({ cases, sharedHint = false }: { cases: Case[]; sharedHint?: boolean }) {
+function CaseGrid({
+  cases,
+  sharedHint = false,
+  closedHint = false,
+}: {
+  cases: Case[];
+  sharedHint?: boolean;
+  closedHint?: boolean;
+}) {
   return (
     <div className="grid gap-4 md:grid-cols-2 stagger">
       {cases.map((c) => {
@@ -119,7 +153,11 @@ function CaseGrid({ cases, sharedHint = false }: { cases: Case[]; sharedHint?: b
           .filter(Boolean)
           .join(', ');
         return (
-          <Link key={c.id} href={`/cases/${c.id}`} className="card-hover p-5 block">
+          <Link
+            key={c.id}
+            href={`/cases/${c.id}`}
+            className={`card-hover p-5 block ${closedHint ? 'opacity-80 hover:opacity-100' : ''}`}
+          >
             <div className="flex items-start justify-between gap-3 mb-3">
               <h2 className="font-semibold text-ink-950 leading-tight tracking-tight">
                 {c.title}
@@ -130,6 +168,9 @@ function CaseGrid({ cases, sharedHint = false }: { cases: Case[]; sharedHint?: b
                   <span className="badge bg-cream-50 text-forest-900 border border-gold-300 text-[10px]">
                     Shared
                   </span>
+                )}
+                {closedHint && (
+                  <span className="badge bg-ink-100 text-ink-600 text-[10px]">Closed</span>
                 )}
               </div>
             </div>

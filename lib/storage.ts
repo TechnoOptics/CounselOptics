@@ -409,6 +409,26 @@ export async function createCase(input: {
   return c;
 }
 
+export async function updateCaseStatus(caseId: string, status: CaseStatus): Promise<void> {
+  if (usingSupabase()) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error('Not signed in.');
+    const supabase = createServerSupabase();
+    const { error } = await supabase
+      .from('cases')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', caseId);
+    if (error) throw error;
+    return;
+  }
+  const db = await readLocalDB();
+  const c = db.cases.find((x) => x.id === caseId);
+  if (!c) throw new Error('Case not found.');
+  c.status = status;
+  c.updatedAt = new Date().toISOString();
+  await writeLocalDB(db);
+}
+
 export async function listExhibits(caseId: string): Promise<Exhibit[]> {
   if (usingSupabase()) {
     const user = await getCurrentUser();
