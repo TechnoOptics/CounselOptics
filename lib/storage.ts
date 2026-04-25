@@ -13,6 +13,7 @@ import type {
   SubjectType,
 } from './types';
 import { createServerSupabase, getCurrentUser, isSupabaseConfigured } from './supabase/server';
+import { createAdminSupabase } from './supabase/admin';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
@@ -89,6 +90,7 @@ type ProfileRow = {
   role: string | null;
   organization: string | null;
   avatar_url: string | null;
+  is_admin: boolean | null;
   updated_at: string;
 };
 
@@ -171,6 +173,7 @@ function profileFromRow(r: ProfileRow): Profile {
     role: r.role ?? null,
     organization: r.organization ?? null,
     avatarUrl: r.avatar_url ?? null,
+    isAdmin: Boolean(r.is_admin),
     updatedAt: r.updated_at,
   };
 }
@@ -683,6 +686,137 @@ export async function getProfile(): Promise<Profile | null> {
     .maybeSingle();
   if (error) throw error;
   return data ? profileFromRow(data as ProfileRow) : null;
+}
+
+// ---------------------------------------------------------------------------
+// Admin views — use the service role key to bypass RLS. Never call from a
+// page without first verifying the requester is an admin.
+// ---------------------------------------------------------------------------
+
+export type AdminUserRow = {
+  id: string;
+  email: string;
+  createdAt: string;
+  lastSignInAt: string | null;
+  displayName: string | null;
+  role: string | null;
+  organization: string | null;
+  isAdmin: boolean;
+  caseCount: number;
+};
+
+export type AdminCaseRow = Case & {
+  ownerId: string;
+  ownerEmail: string;
+  ownerDisplayName: string | null;
+};
+
+export async function adminListUsers(): Promise<AdminUserRow[]> {
+  const admin = createAdminSupabase();
+  if (!admin) return [];
+
+  const { data: users, error: usersErr } = await admin.auth.admin.listUsers();
+  if (usersErr) throw usersErr;
+
+  const ids = users.users.map((u) => u.id);
+
+  const [profilesResp, casesResp] = await Promise.all([
+    admin.from('profiles').select('*').in('id', ids.length ? ids : ['00000000-0000-0000-0000-000000000000']),
+    admin.from('cases').select('user_id'),
+  ]);
+
+  if (profilesResp.error) throw profilesResp.error;
+  if (casesResp.error) throw casesResp.error;
+
+  const profiles = new Map<string, ProfileRow>();
+  for (const p of (profilesResp.data ?? []) as ProfileRow[]) profiles.set(p.id, p);
+
+  const caseCounts = new Map<string, number>();
+  for (const c of (casesResp.data ?? []) as { user_id: string }[]) {
+    caseCounts.set(c.user_id, (caseCounts.get(c.user_id) ?? 0) + 1);
+  }
+
+  return users.users.map((u) => {
+    const p = profiles.get(u.id);
+    return {
+      id: u.id,
+      email: u.email ?? '',
+      createdAt: u.created_at,
+      lastSignInAt: u.last_sign_in_at ?? null,
+      displayName: p?.display_name ?? null,
+      role: p?.role ?? null,
+      organization: p?.organization ?? null,
+      isAdmin: Boolean(p?.is_admin),
+      caseCount: caseCounts.get(u.id) ?? 0,
+    };
+  });
+}
+
+export async function adminListCases(): Promise<AdminCaseRow[]> {
+  const admin = createAdminSupabase();
+  if (!admin) return [];
+
+  const { data: cases, error } = await admin
+    .from('cases')
+    .select('*')
+    .order('updated_at', { ascending: false });
+  if (error) throw error;
+
+  const owners = Array.from(new Set((cases as CaseRow[]).map((c) => c.user_id)));
+  const [usersResp, profilesResp] = await Promise.all([
+    admin.auth.admin.listUsers(),
+    admin
+      .from('profiles')
+      .select('id, display_name')
+      .in('id', owners.length ? owners : ['00000000-0000-0000-0000-000000000000']),
+  ]);
+  if (usersResp.error) throw usersResp.error;
+  if (profilesResp.error) throw profilesResp.error;
+
+  const emails = new Map<string, string>();
+  for (const u of usersResp.data.users) emails.set(u.id, u.email ?? '');
+
+  const names = new Map<string, string | null>();
+  for (const p of (profilesResp.data ?? []) as { id: string; display_name: string | null }[]) {
+    names.set(p.id, p.display_name);
+  }
+
+  return (cases as CaseRow[]).map((row) => ({
+    ...caseFromRow(row),
+    ownerId: row.user_id,
+    ownerEmail: emails.get(row.user_id) ?? '',
+    ownerDisplayName: names.get(row.user_id) ?? null,
+  }));
+}
+
+export async function adminGetCounts(): Promise<{
+  users: number;
+  cases: number;
+  exhibits: number;
+  reviews: number;
+  plans: number;
+}> {
+  const admin = createAdminSupabase();
+  if (!admin) {
+    return { users: 0, cases: 0, exhibits: 0, reviews: 0, plans: 0 };
+  }
+  const [users, cases, exhibits, reviews, plans] = await Promise.all([
+    admin.auth.admin.listUsers().then((r) => r.data.users.length),
+    admin.from('cases').select('id', { count: 'exact', head: true }).then((r) => r.count ?? 0),
+    admin
+      .from('exhibits')
+      .select('id', { count: 'exact', head: true })
+      .then((r) => r.count ?? 0),
+    admin
+      .from('ai_reviews')
+      .select('id', { count: 'exact', head: true })
+      .then((r) => r.count ?? 0),
+    admin
+      .from('exhibit_plans')
+      .select('id', { count: 'exact', head: true })
+      .then((r) => r.count ?? 0),
+  ]);
+  return { users, cases, exhibits, reviews, plans };
 }
 
 export async function upsertProfile(input: {

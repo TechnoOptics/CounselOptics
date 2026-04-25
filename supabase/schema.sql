@@ -77,8 +77,12 @@ create table if not exists public.profiles (
   role text,                      -- e.g., "Attorney", "Client", "Case manager"
   organization text,
   avatar_url text,
+  is_admin boolean not null default false,
   updated_at timestamptz not null default now()
 );
+
+alter table public.profiles
+  add column if not exists is_admin boolean not null default false;
 
 create table if not exists public.ai_reviews (
   id uuid primary key default gen_random_uuid(),
@@ -224,6 +228,34 @@ drop trigger if exists cases_set_updated_at on public.cases;
 create trigger cases_set_updated_at
   before update on public.cases
   for each row execute function public.set_updated_at();
+
+-- Auto-create a profiles row whenever a new user signs up via Supabase Auth.
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.profiles (id, display_name, avatar_url)
+  values (
+    new.id,
+    coalesce(
+      new.raw_user_meta_data->>'full_name',
+      new.raw_user_meta_data->>'name',
+      new.email
+    ),
+    new.raw_user_meta_data->>'avatar_url'
+  )
+  on conflict (id) do nothing;
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function public.handle_new_user();
 
 ------------------------------------------------------------
 -- 4. Storage bucket for exhibits

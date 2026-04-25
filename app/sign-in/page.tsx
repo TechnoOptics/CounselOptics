@@ -35,10 +35,12 @@ export default async function SignInPage({
       <div className="card p-8">
         <p className="eyebrow mb-3">Welcome</p>
         <h1 className="text-2xl font-semibold tracking-tight text-ink-950 mb-2">
-          Sign in to CounselOptics
+          Sign in or create an account
         </h1>
         <p className="text-sm text-ink-600 leading-relaxed mb-6">
-          Your case files, exhibits, and reviews stay tied to your account.
+          Continue with Google or Microsoft. We'll create your CounselOptics account on first
+          sign-in — no separate signup form. Your case files, exhibits, and reviews stay tied to
+          your account.
         </p>
 
         {searchParams?.error && (

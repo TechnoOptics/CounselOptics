@@ -89,7 +89,35 @@ Supabase calls Microsoft OAuth the "Azure" provider.
 4. Create a new case, upload an exhibit, run a review. Everything should persist to Supabase.
    Confirm by opening **Table Editor → cases / exhibits / ai_reviews** in the dashboard.
 
-## Step 7 — (Optional) Migrate your local data
+## Step 7 — Bootstrap the first admin
+
+The admin dashboard at `/admin` is gated behind `profiles.is_admin = true`.
+
+1. Sign in to your app once with the account you want to be admin (this creates the
+   `profiles` row via the `on_auth_user_created` trigger).
+2. In Supabase, open **SQL Editor → New query** and run:
+
+   ```sql
+   update public.profiles set is_admin = true where id = (
+     select id from auth.users where email = 'YOUR_EMAIL@example.com'
+   );
+   ```
+
+3. Add the **service role key** to your env (and to Vercel for the deployed app):
+
+   ```
+   SUPABASE_SERVICE_ROLE_KEY=eyJ...service_role_key...
+   ```
+
+   Find it in **Project Settings → API → "service_role" key**. **Server-side only.** Never set
+   it as `NEXT_PUBLIC_*` and never paste it into a client component.
+
+4. Reload the app — the header now shows an "Admin" link, and `/admin` shows users + cases
+   counts and tables.
+
+To revoke admin access for someone: flip the same column to `false`.
+
+## Step 8 — (Optional) Migrate your local data
 
 If you had cases in `./data/db.json` from local mode and want to bring them over, you can
 hand-recreate them, or run the ad-hoc Node script in `scripts/run-review.mjs` style. A one-shot

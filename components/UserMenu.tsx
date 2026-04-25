@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import Image from 'next/image';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { getProfile } from '@/lib/storage';
 
@@ -35,19 +34,31 @@ export async function UserMenu() {
     profile?.avatarUrl || (user.user_metadata?.avatar_url as string | undefined) || null;
 
   const initials = computeInitials(displayName);
+  const isAdmin = Boolean(profile?.isAdmin);
 
   return (
-    <Link
-      href="/profile"
-      className="flex items-center gap-2.5 pl-2 pr-1 py-1 rounded-full hover:bg-ink-100 transition-colors"
-      aria-label="Open profile"
-      title={displayName}
-    >
-      <span className="hidden md:inline text-sm text-ink-700 max-w-[160px] truncate">
-        {displayName}
-      </span>
-      <Avatar avatarUrl={avatarUrl} initials={initials} />
-    </Link>
+    <div className="flex items-center gap-1">
+      {isAdmin && (
+        <Link
+          href="/admin"
+          className="btn-ghost text-ink-700 hover:text-ink-950"
+          title="Admin dashboard"
+        >
+          Admin
+        </Link>
+      )}
+      <Link
+        href="/profile"
+        className="flex items-center gap-2.5 pl-2 pr-1 py-1 rounded-full hover:bg-ink-100 transition-colors"
+        aria-label="Open profile"
+        title={displayName}
+      >
+        <span className="hidden md:inline text-sm text-ink-700 max-w-[160px] truncate">
+          {displayName}
+        </span>
+        <Avatar avatarUrl={avatarUrl} initials={initials} />
+      </Link>
+    </div>
   );
 }
 

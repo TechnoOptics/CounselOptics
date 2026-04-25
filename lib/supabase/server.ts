@@ -63,3 +63,21 @@ export async function requireUser() {
   }
   return user;
 }
+
+/**
+ * Returns true when the current authenticated user has profiles.is_admin = true.
+ * Returns false in any other case (no user, no Supabase, or query failure).
+ */
+export async function isCurrentUserAdmin(): Promise<boolean> {
+  if (!isSupabaseConfigured()) return false;
+  const user = await getCurrentUser();
+  if (!user) return false;
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('is_admin')
+    .eq('id', user.id)
+    .maybeSingle();
+  if (error || !data) return false;
+  return Boolean((data as { is_admin: boolean | null }).is_admin);
+}

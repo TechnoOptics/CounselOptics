@@ -93,6 +93,7 @@ export type Profile = {
   role?: string | null;
   organization?: string | null;
   avatarUrl?: string | null;
+  isAdmin: boolean;
   updatedAt: string;
 };
 
