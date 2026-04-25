@@ -40,7 +40,7 @@ export default async function WelcomePage() {
           className="absolute inset-0 pointer-events-none gold-pan opacity-50"
           style={{
             background:
-              'radial-gradient(700px 320px at 85% 15%, rgba(201, 168, 90, 0.20), transparent 65%), radial-gradient(500px 240px at 5% 95%, rgba(201, 168, 90, 0.10), transparent 70%)',
+              'radial-gradient(700px 320px at 85% 15%, rgba(213, 187, 126, 0.22), transparent 65%), radial-gradient(500px 240px at 5% 95%, rgba(213, 187, 126, 0.12), transparent 70%)',
           }}
         />
         <div

@@ -31,7 +31,7 @@ export default async function HomePage() {
           className="absolute inset-x-12 top-1/2 h-px pointer-events-none"
           style={{
             background:
-              'linear-gradient(90deg, transparent 0%, rgba(201, 168, 90, 0.35) 50%, transparent 100%)',
+              'linear-gradient(90deg, transparent 0%, rgba(213, 187, 126, 0.38) 50%, transparent 100%)',
           }}
         />
 

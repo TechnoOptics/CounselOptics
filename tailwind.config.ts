@@ -27,18 +27,20 @@ const config: Config = {
           50: '#f1f5f3',
         },
         gold: {
-          DEFAULT: '#C9A85A',
-          950: '#5b4a1e',
-          900: '#74602a',
-          800: '#8d7635',
-          700: '#a68c40',
-          600: '#bfa14d',
-          500: '#C9A85A',
-          400: '#d6bc7a',
-          300: '#e2cf9a',
-          200: '#ede1bd',
-          100: '#f5edd6',
-          50: '#fbf7e9',
+          // Softer champagne-leaning gold; less saturated than the previous
+          // burnished tone (#C9A85A) so it reads as warm rather than yellow.
+          DEFAULT: '#D5BB7E',
+          950: '#3E3520',
+          900: '#5C4F30',
+          800: '#7E6B41',
+          700: '#A38A55',
+          600: '#C2A66A',
+          500: '#D5BB7E',
+          400: '#DEC68A',
+          300: '#E5CE93',
+          200: '#EFE0B7',
+          100: '#F5EDD6',
+          50: '#FBF8EE',
         },
         // Cream kept as a neutral warm-off-white tint for subtle backgrounds.
         cream: {
@@ -68,12 +70,12 @@ const config: Config = {
         'card-hover':
           '0 6px 18px -4px rgb(15 45 36 / 0.10), 0 2px 4px -1px rgb(15 45 36 / 0.05)',
         'brand-glow': '0 8px 24px -4px rgb(15 45 36 / 0.30)',
-        'gold-glow': '0 0 0 3px rgb(201 168 90 / 0.25)',
+        'gold-glow': '0 0 0 3px rgb(213 187 126 / 0.30)',
       },
       backgroundImage: {
         'forest-gradient': 'linear-gradient(135deg, #0F2D24 0%, #173b30 50%, #23362F 100%)',
-        'gold-shine': 'linear-gradient(135deg, #C9A85A 0%, #d6bc7a 50%, #C9A85A 100%)',
-        'gold-veil': 'linear-gradient(180deg, rgba(201,168,90,0) 0%, rgba(201,168,90,0.10) 100%)',
+        'gold-shine': 'linear-gradient(135deg, #D5BB7E 0%, #E5CE93 50%, #D5BB7E 100%)',
+        'gold-veil': 'linear-gradient(180deg, rgba(213,187,126,0) 0%, rgba(213,187,126,0.10) 100%)',
       },
     },
   },
