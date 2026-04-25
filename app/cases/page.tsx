@@ -1,11 +1,18 @@
 import Link from 'next/link';
 import { listCases } from '@/lib/storage';
 import { STATUS_LABEL, type CaseStatus } from '@/lib/types';
+import { storageUnavailable, STORAGE_SETUP_MESSAGE } from '@/lib/setup-status';
 
 export const dynamic = 'force-dynamic';
 
 export default async function CasesPage() {
-  const cases = await listCases();
+  if (storageUnavailable()) return <SetupNeeded />;
+  let cases;
+  try {
+    cases = await listCases();
+  } catch (err) {
+    return <SetupNeeded message={err instanceof Error ? err.message : undefined} />;
+  }
 
   return (
     <div className="space-y-8">
@@ -106,4 +113,39 @@ const STATUS_STYLES: Record<CaseStatus, string> = {
 
 function StatusPill({ status }: { status: CaseStatus }) {
   return <span className={`badge ${STATUS_STYLES[status]}`}>{STATUS_LABEL[status]}</span>;
+}
+
+function SetupNeeded({ message }: { message?: string } = {}) {
+  return (
+    <div className="max-w-2xl mx-auto card p-8 space-y-3">
+      <p className="eyebrow">Setup required</p>
+      <h1 className="text-2xl font-semibold tracking-tight text-forest-900">
+        Connect Supabase to start using cases
+      </h1>
+      <p className="text-sm text-ink-600 leading-relaxed">
+        {STORAGE_SETUP_MESSAGE}
+      </p>
+      {message && (
+        <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
+          Storage error: {message}
+        </p>
+      )}
+      <ol className="text-sm text-ink-700 space-y-2 list-decimal list-inside">
+        <li>Create a Supabase project (free tier) at supabase.com.</li>
+        <li>
+          In Supabase SQL Editor, run the contents of <code className="font-mono">supabase/schema.sql</code> from the repo.
+        </li>
+        <li>
+          Add three environment variables in your Vercel project (Settings → Environment Variables):{' '}
+          <code className="font-mono">NEXT_PUBLIC_SUPABASE_URL</code>,{' '}
+          <code className="font-mono">NEXT_PUBLIC_SUPABASE_ANON_KEY</code>, and{' '}
+          <code className="font-mono">SUPABASE_SERVICE_ROLE_KEY</code> (server-side only).
+        </li>
+        <li>Redeploy.</li>
+      </ol>
+      <p className="text-xs text-ink-500">
+        Detailed steps in <code className="font-mono">SETUP.md</code> in the repository.
+      </p>
+    </div>
+  );
 }

@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import {
   getCase,
   getLatestDefenseAdvice,
@@ -7,6 +7,7 @@ import {
   listExhibitPlans,
   listExhibits,
 } from '@/lib/storage';
+import { storageUnavailable } from '@/lib/setup-status';
 import { STATUS_LABEL, type CaseStatus } from '@/lib/types';
 import { getResourcesFor } from '@/lib/legal-resources';
 import { Disclaimer } from '@/components/Disclaimer';
@@ -18,6 +19,7 @@ import { DefensePanel } from './defense-panel';
 export const dynamic = 'force-dynamic';
 
 export default async function CaseDetailPage({ params }: { params: { id: string } }) {
+  if (storageUnavailable()) redirect('/cases');
   const c = await getCase(params.id);
   if (!c) notFound();
 

@@ -1,8 +1,16 @@
 import Link from 'next/link';
 import { listCases } from '@/lib/storage';
+import { storageUnavailable } from '@/lib/setup-status';
 
 export default async function HomePage() {
-  const cases = await listCases();
+  let cases: Awaited<ReturnType<typeof listCases>> = [];
+  if (!storageUnavailable()) {
+    try {
+      cases = await listCases();
+    } catch {
+      cases = [];
+    }
+  }
 
   return (
     <div className="space-y-14">
