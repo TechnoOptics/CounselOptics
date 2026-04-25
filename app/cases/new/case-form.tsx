@@ -292,6 +292,56 @@ export function NewCaseForm() {
         />
       </div>
 
+      {/* Hearing date - optional, can be edited later from the case detail. */}
+      <div className="rounded-xl border border-ink-200 bg-cream-50/40 p-5">
+        <p className="text-sm font-semibold text-forest-900">
+          Upcoming hearing{' '}
+          <span className="text-ink-400 font-normal">(optional)</span>
+        </p>
+        <p className="text-xs text-ink-500 mt-0.5 leading-relaxed">
+          If you have a court date or deadline, set it here. Advottic will surface a countdown
+          and a pre-hearing checklist on the case page.
+        </p>
+        <div className="grid gap-4 md:grid-cols-2 mt-4">
+          <div>
+            <label className="label" htmlFor="hearingAt">
+              Date &amp; time
+            </label>
+            <input
+              id="hearingAt"
+              name="hearingAt"
+              type="datetime-local"
+              className="input"
+            />
+          </div>
+          <div>
+            <label className="label" htmlFor="hearingLocation">
+              Location
+            </label>
+            <input
+              id="hearingLocation"
+              name="hearingLocation"
+              placeholder="Court name, courtroom, address"
+              maxLength={400}
+              className="input"
+            />
+          </div>
+          <div className="md:col-span-2">
+            <label className="label" htmlFor="hearingNotes">
+              Notes (judge, case number, deadlines)
+            </label>
+            <textarea
+              id="hearingNotes"
+              name="hearingNotes"
+              rows={2}
+              maxLength={2000}
+              className="input resize-y"
+              placeholder="e.g., Hon. J. Smith - case 27-CV-26-1234 - bring filed Answer + 3 copies"
+            />
+          </div>
+        </div>
+      </div>
+
       <div className="flex items-center justify-end gap-3 pt-2">
         <Link href="/cases" className="btn-secondary">
           Cancel

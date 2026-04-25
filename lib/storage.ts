@@ -60,6 +60,9 @@ type CaseRow = {
   description: string | null;
   posture: Posture | null;
   status: CaseStatus;
+  hearing_at: string | null;
+  hearing_location: string | null;
+  hearing_notes: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -135,6 +138,9 @@ function caseFromRow(r: CaseRow): Case {
     description: r.description ?? '',
     posture: (r.posture as Posture) ?? 'claimant',
     status: r.status,
+    hearingAt: r.hearing_at ?? null,
+    hearingLocation: r.hearing_location ?? null,
+    hearingNotes: r.hearing_notes ?? null,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -293,6 +299,9 @@ export async function createCase(input: {
   caseType: CaseType;
   description: string;
   posture?: Posture;
+  hearingAt?: string | null;
+  hearingLocation?: string | null;
+  hearingNotes?: string | null;
 }): Promise<Case> {
   const posture: Posture = input.posture ?? 'claimant';
   const subjectProfile: SubjectProfile = input.subjectProfile ?? {};
@@ -315,6 +324,9 @@ export async function createCase(input: {
         description: input.description,
         posture,
         status: 'draft',
+        hearing_at: input.hearingAt ?? null,
+        hearing_location: input.hearingLocation ?? null,
+        hearing_notes: input.hearingNotes ?? null,
       })
       .select('*')
       .single();
@@ -334,12 +346,47 @@ export async function createCase(input: {
     description: input.description,
     posture,
     status: 'draft',
+    hearingAt: input.hearingAt ?? null,
+    hearingLocation: input.hearingLocation ?? null,
+    hearingNotes: input.hearingNotes ?? null,
     createdAt: now,
     updatedAt: now,
   };
   db.cases.push(c);
   await writeLocalDB(db);
   return c;
+}
+
+export async function updateCaseHearing(input: {
+  caseId: string;
+  hearingAt: string | null;
+  hearingLocation: string | null;
+  hearingNotes: string | null;
+}): Promise<void> {
+  if (usingSupabase()) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error('Not signed in.');
+    const supabase = createServerSupabase();
+    const { error } = await supabase
+      .from('cases')
+      .update({
+        hearing_at: input.hearingAt,
+        hearing_location: input.hearingLocation,
+        hearing_notes: input.hearingNotes,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', input.caseId);
+    if (error) throw error;
+    return;
+  }
+  const db = await readLocalDB();
+  const c = db.cases.find((x) => x.id === input.caseId);
+  if (!c) throw new Error('Case not found.');
+  c.hearingAt = input.hearingAt;
+  c.hearingLocation = input.hearingLocation;
+  c.hearingNotes = input.hearingNotes;
+  c.updatedAt = new Date().toISOString();
+  await writeLocalDB(db);
 }
 
 export type CloseSurveyOutcome =
@@ -793,13 +840,12 @@ export async function adminGetCounts(): Promise<{
   cases: number;
   exhibits: number;
   reviews: number;
-  plans: number;
 }> {
   const admin = createAdminSupabase();
   if (!admin) {
-    return { users: 0, cases: 0, exhibits: 0, reviews: 0, plans: 0 };
+    return { users: 0, cases: 0, exhibits: 0, reviews: 0 };
   }
-  const [users, cases, exhibits, reviews, plans] = await Promise.all([
+  const [users, cases, exhibits, reviews] = await Promise.all([
     admin.auth.admin.listUsers().then((r) => r.data.users.length),
     admin.from('cases').select('id', { count: 'exact', head: true }).then((r) => r.count ?? 0),
     admin
@@ -810,12 +856,8 @@ export async function adminGetCounts(): Promise<{
       .from('ai_reviews')
       .select('id', { count: 'exact', head: true })
       .then((r) => r.count ?? 0),
-    admin
-      .from('exhibit_plans')
-      .select('id', { count: 'exact', head: true })
-      .then((r) => r.count ?? 0),
   ]);
-  return { users, cases, exhibits, reviews, plans };
+  return { users, cases, exhibits, reviews };
 }
 
 // ---------------------------------------------------------------------------

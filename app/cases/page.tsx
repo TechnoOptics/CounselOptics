@@ -87,7 +87,7 @@ export default async function CasesPage({
       )}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="eyebrow mb-2">Your files</p>
+          <p className="eyebrow mb-2">Dashboard</p>
           <h1 className="text-3xl font-semibold tracking-tight text-forest-900">Cases</h1>
           <p className="text-sm text-ink-500 mt-1">
             {cases.length === 0
@@ -100,6 +100,9 @@ export default async function CasesPage({
           New case
         </Link>
       </div>
+
+      {/* KPI tiles - mockup-inspired dark cards with bright accent numbers */}
+      {cases.length > 0 && <KpiRow owned={owned} closed={closed} sharedWithMe={sharedWithMe} />}
 
       {/* Your cases */}
       <section className="space-y-3">
@@ -155,6 +158,115 @@ export default async function CasesPage({
       )}
     </div>
   );
+}
+
+function KpiRow({
+  owned,
+  closed,
+  sharedWithMe,
+}: {
+  owned: Case[];
+  closed: Case[];
+  sharedWithMe: Case[];
+}) {
+  // Find the soonest upcoming hearing across owned + shared
+  const upcoming = [...owned, ...sharedWithMe]
+    .map((c) => c.hearingAt)
+    .filter((x): x is string => Boolean(x))
+    .map((s) => Date.parse(s))
+    .filter((n) => !Number.isNaN(n) && n >= Date.now())
+    .sort((a, b) => a - b);
+  const nextHearing = upcoming[0] ?? null;
+  const nextLabel = nextHearing ? hearingRelative(nextHearing) : 'None scheduled';
+  const nextSub = nextHearing
+    ? new Date(nextHearing).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    : 'add one in a case';
+
+  // Count critical-soon hearings (<= 7 days)
+  const soon = upcoming.filter((t) => (t - Date.now()) / 86_400_000 <= 7).length;
+
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 stagger">
+      <KpiTile
+        label="Active cases"
+        value={owned.length}
+        sub={closed.length ? `${closed.length} closed in archive` : 'all open'}
+        accent="emerald"
+      />
+      <KpiTile
+        label="Next hearing"
+        value={nextLabel}
+        sub={nextSub}
+        accent={soon > 0 ? 'amber' : 'emerald'}
+        small
+      />
+      <KpiTile
+        label="Hearings within 7 days"
+        value={soon}
+        sub={soon === 0 ? 'nothing imminent' : 'see Hearing tab on each case'}
+        accent={soon > 0 ? 'rose' : 'emerald'}
+      />
+      <KpiTile
+        label="Shared with me"
+        value={sharedWithMe.length}
+        sub={sharedWithMe.length === 0 ? 'no shared cases' : 'attorney / collaborators'}
+        accent="cream"
+      />
+    </div>
+  );
+}
+
+function KpiTile({
+  label,
+  value,
+  sub,
+  accent,
+  small = false,
+}: {
+  label: string;
+  value: string | number;
+  sub: string;
+  accent: 'emerald' | 'amber' | 'rose' | 'cream';
+  small?: boolean;
+}) {
+  const accentClass =
+    accent === 'emerald'
+      ? 'text-emerald-300'
+      : accent === 'amber'
+        ? 'text-amber-300'
+        : accent === 'rose'
+          ? 'text-rose-300'
+          : 'text-cream-200';
+  return (
+    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-forest-800 via-forest-900 to-forest-950 text-cream-100 p-5 ring-1 ring-forest-700/40 shadow-card">
+      <p className="text-[10px] uppercase tracking-[0.22em] font-semibold text-cream-100/65">
+        {label}
+      </p>
+      <p
+        className={`mt-3 font-semibold tracking-tight tabular-nums ${
+          small ? 'text-2xl md:text-[26px]' : 'text-4xl'
+        } ${accentClass}`}
+      >
+        {value}
+      </p>
+      <p className="text-xs text-cream-100/60 mt-1.5">{sub}</p>
+      {/* subtle gold accent bar */}
+      <span className="absolute left-5 right-5 bottom-0 h-px bg-gradient-to-r from-transparent via-gold-400/40 to-transparent" />
+    </div>
+  );
+}
+
+function hearingRelative(t: number): string {
+  const diffMs = t - Date.now();
+  const days = Math.round(diffMs / (1000 * 60 * 60 * 24));
+  if (days === 0) {
+    const hours = Math.max(1, Math.round(diffMs / (1000 * 60 * 60)));
+    return `In ${hours}h`;
+  }
+  if (days === 1) return 'Tomorrow';
+  if (days < 14) return `${days}d`;
+  if (days < 60) return `${Math.round(days / 7)}w`;
+  return `${Math.round(days / 30)}mo`;
 }
 
 function EmptyCasesCard() {

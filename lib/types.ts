@@ -79,6 +79,9 @@ export type Case = {
   description: string;
   posture: Posture;
   status: CaseStatus;
+  hearingAt?: string | null; // ISO timestamp
+  hearingLocation?: string | null;
+  hearingNotes?: string | null;
   createdAt: string;
   updatedAt: string;
 };

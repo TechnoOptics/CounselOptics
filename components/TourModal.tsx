@@ -6,7 +6,7 @@ import { markTourCompletedAction } from '@/lib/actions';
 const STEPS = [
   {
     title: 'Cases organize everything',
-    body: 'Each case file holds the parties, jurisdiction, posture, exhibits, and AI review. Click "New case" in the header to start one.',
+    body: 'Each case file holds the parties, jurisdiction, posture, exhibits, and Legal Eye review. Click "New case" in the header to start one.',
   },
   {
     title: 'Subject profile',
@@ -17,7 +17,7 @@ const STEPS = [
     body: 'Upload evidence on the case detail page. Each upload becomes an auto-numbered exhibit with category, source, and incident date captured.',
   },
   {
-    title: 'AI review (Standard / Pro)',
+    title: 'Legal Eye (Standard / Pro)',
     body: 'Run a Claude-backed review for jurisdiction-aware issue spotting, evidence to gather, and possible subpoena targets.',
   },
   {

@@ -29,7 +29,7 @@ export default function PrivacyPage() {
           </li>
           <li>
             <strong>Case content you create</strong>: case files, descriptions, exhibits (file
-            uploads with metadata you provide), AI-generated reviews, and exhibit plans.
+            uploads with metadata you provide), and Legal Eye reviews.
           </li>
           <li>
             <strong>Collaborators</strong>: emails you enter to invite collaborators to your
@@ -40,7 +40,7 @@ export default function PrivacyPage() {
             status. We never see or store your card details - Stripe handles those directly.
           </li>
           <li>
-            <strong>Operational logs</strong>: IP addresses on AI requests for rate limiting and
+            <strong>Operational logs</strong>: IP addresses on Legal Eye / Bella requests for rate limiting and
             standard server logs from our hosting provider.
           </li>
         </ul>
@@ -50,7 +50,7 @@ export default function PrivacyPage() {
         <ul className="list-disc list-outside pl-6 space-y-1">
           <li>
             <strong>Contract</strong>: providing the service you signed up for (case organization,
-            AI review, exports).
+            Legal Eye review, exports).
           </li>
           <li>
             <strong>Legitimate interests</strong>: securing the platform, preventing abuse,
@@ -76,9 +76,9 @@ export default function PrivacyPage() {
             <strong>Supabase</strong> - authentication, database (Postgres), file storage.
           </li>
           <li>
-            <strong>Anthropic</strong> - AI processing for case review, defense planning, and
-            Bella. Inputs are sent over TLS and not used to train Anthropic models per Anthropic&apos;s
-            commercial terms.
+            <strong>Anthropic</strong> - the AI provider that powers Legal Eye and Bella. Inputs
+            are sent over TLS and not used to train Anthropic models per Anthropic&apos;s commercial
+            terms.
           </li>
           <li>
             <strong>Stripe</strong> - subscription billing for paid plans.

@@ -10,8 +10,7 @@ export default async function AdminDashboardPage() {
       <Stat label="Users" value={counts.users} />
       <Stat label="Cases" value={counts.cases} />
       <Stat label="Exhibits" value={counts.exhibits} />
-      <Stat label="AI reviews" value={counts.reviews} />
-      <Stat label="Exhibit plans" value={counts.plans} />
+      <Stat label="Legal Eye reviews" value={counts.reviews} />
     </div>
   );
 }

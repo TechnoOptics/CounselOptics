@@ -15,6 +15,7 @@ import { UploadForm } from './upload-form';
 import { ReviewPanel } from './review-panel';
 import { CollaboratorsPanel } from './collaborators-panel';
 import { CloseCaseControl } from './close-case-control';
+import { HearingPanel } from './hearing-panel';
 import { Tabs } from '@/components/Tabs';
 
 export const dynamic = 'force-dynamic';
@@ -195,6 +196,20 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
             ),
           },
           {
+            id: 'hearing',
+            label: 'Hearing',
+            badge: hearingBadge(c.hearingAt),
+            content: (
+              <HearingPanel
+                caseRecord={c}
+                exhibits={exhibits}
+                review={review}
+                isOwner={isOwner}
+                collaboratorCount={collaborators.length}
+              />
+            ),
+          },
+          {
             id: 'subject',
             label: 'Subject',
             badge: subjectProfileFieldCount(c.subjectProfile) || undefined,
@@ -208,7 +223,7 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
           },
           {
             id: 'review',
-            label: 'AI review',
+            label: 'Legal Eye',
             badge: review ? '✓' : undefined,
             content: <ReviewPanel caseId={c.id} review={review} />,
           },
@@ -259,6 +274,16 @@ function Field({ label, value }: { label: string; value: string }) {
 function subjectProfileFieldCount(profile: SubjectProfile | undefined): number {
   if (!profile) return 0;
   return Object.values(profile).filter((v) => typeof v === 'string' && v.trim().length > 0).length;
+}
+
+function hearingBadge(hearingAt: string | null | undefined): string | undefined {
+  if (!hearingAt) return undefined;
+  const t = Date.parse(hearingAt);
+  if (Number.isNaN(t)) return undefined;
+  const days = Math.round((t - Date.now()) / (1000 * 60 * 60 * 24));
+  if (days < 0) return 'past';
+  if (days === 0) return 'today';
+  return `${days}d`;
 }
 
 const SUBJECT_PROFILE_FIELDS: {

@@ -83,7 +83,7 @@ export default async function WelcomePage() {
         <Step
           n="03"
           title="Get clarity"
-          body="Run an AI review to see possible legal issues, evidence gaps, and subpoena targets - grounded in your jurisdiction. Export a PDF for your attorney."
+          body="Run a Legal Eye review to see possible legal issues, evidence gaps, and subpoena targets - grounded in your jurisdiction. Export a PDF for your attorney."
         />
       </section>
 
@@ -148,9 +148,9 @@ export default async function WelcomePage() {
             <ol className="list-decimal list-outside pl-5 space-y-2 text-[13.5px]">
               <li>
                 <strong>Not legal advice.</strong> Advottic provides legal information, case
-                organization, and AI-assisted issue spotting. It is{' '}
+                organization, and Legal Eye (AI-assisted) issue spotting. It is{' '}
                 <em>not a law firm</em>, does not provide legal advice, and does not create an
-                attorney-client relationship. AI outputs may be incomplete, outdated, or wrong.
+                attorney-client relationship. Legal Eye outputs may be incomplete, outdated, or wrong.
                 Consult a licensed attorney before acting. If you face possible incarceration,
                 request a public defender at your first court appearance - that is a free
                 constitutional right.
@@ -160,7 +160,7 @@ export default async function WelcomePage() {
                 and at rest (AES-256 via our database and storage providers). Access is restricted
                 to authorized personnel and logged. Advottic personnel may access account data
                 only for support, abuse prevention, security investigations, and as required by
-                law. AI features send your case content to our model provider for processing
+                law. Legal Eye features send your case content to our AI model provider for processing
                 under that provider&apos;s commercial terms (no training on your data). You can
                 export or delete your data at any time from the Profile page.
               </li>

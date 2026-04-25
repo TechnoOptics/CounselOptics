@@ -13,6 +13,7 @@ import {
   recordConsent,
   removeCollaborator,
   saveReview,
+  updateCaseHearing,
   updateCaseStatus,
   upsertProfile,
   usingSupabase,
@@ -85,6 +86,14 @@ export async function createCaseAction(formData: FormData) {
     if (v) profile[profileKey] = v;
   }
 
+  // Hearing fields are optional at creation time. Empty datetime-local input
+  // ('') becomes null. Browsers send local time without a TZ suffix; we trust
+  // the user's local TZ and convert via Date.parse.
+  const hearingRaw = String(formData.get('hearingAt') ?? '').trim();
+  const hearingAt = hearingRaw ? new Date(hearingRaw).toISOString() : null;
+  const hearingLocation = String(formData.get('hearingLocation') ?? '').trim() || null;
+  const hearingNotes = String(formData.get('hearingNotes') ?? '').trim() || null;
+
   const created = await createCase({
     title,
     subjectName,
@@ -98,6 +107,9 @@ export async function createCaseAction(formData: FormData) {
     caseType,
     description,
     posture,
+    hearingAt,
+    hearingLocation,
+    hearingNotes,
   });
 
   revalidatePath('/cases');
@@ -196,6 +208,22 @@ export async function updateProfileAction(formData: FormData) {
   });
   revalidatePath('/profile');
   revalidatePath('/');
+}
+
+export async function updateHearingAction(
+  caseId: string,
+  input: { hearingAt: string | null; hearingLocation: string; hearingNotes: string },
+) {
+  await assertAuthIfSupabase();
+  const at = input.hearingAt ? new Date(input.hearingAt).toISOString() : null;
+  await updateCaseHearing({
+    caseId,
+    hearingAt: at,
+    hearingLocation: input.hearingLocation.trim() || null,
+    hearingNotes: input.hearingNotes.trim() || null,
+  });
+  revalidatePath(`/cases/${caseId}`);
+  revalidatePath('/cases');
 }
 
 export async function setCaseStatusAction(caseId: string, status: CaseStatus) {

@@ -18,7 +18,7 @@ const sans = Inter({
 export const metadata: Metadata = {
   title: 'Advottic',
   description:
-    'Organize evidence, build exhibit packets, and surface jurisdiction-aware legal issues for your attorney.',
+    'Organize evidence, surface jurisdiction-aware issues with Legal Eye, prepare for hearings, and ship a packet your attorney can read in five minutes.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -44,7 +44,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 </span>
                 <span className="hidden md:inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-[0.18em] text-gold-400">
                   <span className="live-dot inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                  AI · LEGAL · CASE-READY
+                  LEGAL EYE · LEGAL · CASE-READY
                 </span>
               </Link>
               <div className="flex items-center gap-1">

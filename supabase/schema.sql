@@ -31,6 +31,14 @@ alter table public.cases
 alter table public.cases
   add column if not exists subject_profile jsonb not null default '{}'::jsonb;
 
+alter table public.cases
+  add column if not exists hearing_at timestamptz;
+alter table public.cases
+  add column if not exists hearing_location text;
+alter table public.cases
+  add column if not exists hearing_notes text;
+create index if not exists cases_hearing_at_idx on public.cases (hearing_at);
+
 -- Allow expanded subject types on existing installs.
 do $$
 begin

@@ -39,7 +39,7 @@ export function ReviewPanel({
     <section className="space-y-5">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight text-ink-950">Case review</h2>
+          <h2 className="text-xl font-semibold tracking-tight text-ink-950">Legal Eye review</h2>
           <p className="text-sm text-ink-500 mt-0.5">
             {review ? (
               <>
@@ -47,7 +47,7 @@ export function ReviewPanel({
                 <span className="font-mono text-[11px] text-ink-400">{review.modelUsed}</span>
               </>
             ) : (
-              'AI-assisted issue spotting based on the case description and exhibits.'
+              'Legal Eye reads the case description and exhibits, then surfaces issues, evidence gaps, and possible subpoena targets.'
             )}
           </p>
         </div>

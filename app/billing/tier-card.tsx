@@ -5,7 +5,7 @@ import { TIER_FEATURES, TIER_LABEL, type Tier } from '@/lib/types';
 
 const TIER_TAGLINE: Record<Tier, string> = {
   basic: 'Get organized.',
-  standard: 'Add the AI agent.',
+  standard: 'Add Legal Eye.',
   pro: 'Go unlimited with collaboration.',
 };
 
@@ -24,7 +24,7 @@ function bulletsForTier(tier: Tier): Bullet[] {
       included: true,
     },
     { label: 'PDF case packet export', included: f.pdfExport },
-    { label: 'AI case review (Sonnet 4.6)', included: f.aiReview },
+    { label: 'Legal Eye case review (Sonnet 4.6)', included: f.aiReview },
     { label: 'Bella, on-demand legal assistant', included: f.bella },
     { label: 'Invite collaborators (attorney sharing)', included: f.collaborators },
     { label: '7-day free trial', included: true },

@@ -420,7 +420,7 @@ function drawDisclaimer(doc: Doc) {
     .fontSize(11)
     .fillColor(COLOR.ink)
     .text(
-      'Advottic provides legal information, case organization tools, document summaries, and AI-assisted issue spotting. Advottic does not provide legal advice, does not represent users, and does not create an attorney-client relationship.',
+      'Advottic provides legal information, case organization tools, document summaries, and Legal Eye (AI-assisted) issue spotting. Advottic does not provide legal advice, does not represent users, and does not create an attorney-client relationship.',
       MARGIN,
       doc.y,
       { width: CONTENT_WIDTH, align: 'left' },

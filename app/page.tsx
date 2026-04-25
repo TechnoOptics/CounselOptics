@@ -47,7 +47,7 @@ export default async function HomePage() {
         <div className="relative max-w-2xl">
           <p className="text-gold-300 text-[11px] tracking-[0.3em] uppercase font-semibold mb-5 inline-flex items-center gap-2">
             <span className="inline-block h-px w-6 bg-gold-300" />
-            AI Powered · Legal Focused · Case Ready
+            Legal Eye · Strategy · Case Ready
           </p>
           <h1 className="text-4xl md:text-6xl font-semibold tracking-tight leading-[1.02] mb-6 drop-shadow-[0_2px_18px_rgba(15,45,36,0.35)]">
             Build the case.
@@ -109,7 +109,7 @@ export default async function HomePage() {
               $100/month - with a 7-day free trial.
             </h2>
             <p className="text-sm text-ink-600 mt-1 max-w-xl">
-              Full access to case files, exhibit plans, AI review, defense planning, PDF export,
+              Full access to case files, Legal Eye review, PDF export,
               and Bella, your on-demand legal information assistant. Cancel any time.
             </p>
           </div>

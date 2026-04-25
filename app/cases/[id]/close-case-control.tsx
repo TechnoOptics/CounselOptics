@@ -98,7 +98,7 @@ export function CloseCaseControl({
               </li>
             </ul>
             <p className="text-ink-600">
-              Exhibits and the AI review packet stay attached - nothing is deleted.
+              Exhibits and the Legal Eye review packet stay attached - nothing is deleted.
             </p>
           </div>
           <div className="flex flex-wrap gap-2 pt-2">
@@ -211,7 +211,7 @@ export function CloseCaseControl({
               rows={3}
               maxLength={1000}
               className="input"
-              placeholder="Exhibit organization, AI review, defense planning..."
+              placeholder="Exhibit organization, Legal Eye review, hearing prep..."
             />
           </div>
           <div>
@@ -299,7 +299,7 @@ export function CloseCaseControl({
           </h2>
           <p className="text-sm text-ink-600 mt-1 max-w-xl leading-relaxed">
             We&apos;ll ask a 30-second optional survey, then move this case to your{' '}
-            <strong>Closed cases</strong> section. Nothing is deleted - exhibits, the AI
+            <strong>Closed cases</strong> section. Nothing is deleted - exhibits, the Legal Eye
             review, and PDF export stay accessible. Reopen any time.
           </p>
         </div>
