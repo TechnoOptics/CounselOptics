@@ -129,9 +129,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <FooterCol title="Contact">
                 <a
                   className="hover:text-forest-900 block"
-                  href="mailto:contact@technooptics.com"
+                  href="mailto:contact@advottic.com"
                 >
-                  contact@technooptics.com
+                  contact@advottic.com
                 </a>
                 <span className="block">Operated from Minnesota, USA.</span>
                 <span className="block">Disputes resolved by binding individual arbitration; class-action and jury waivers in Section 4 of the Terms.</span>

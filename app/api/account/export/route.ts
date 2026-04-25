@@ -52,7 +52,7 @@ export async function GET() {
     notes: [
       'This export contains all of your personal data held by Advottic.',
       'File contents (uploaded exhibits) are not embedded - see /api/files/<exhibit_id> while signed in.',
-      'For questions or to request other formats, email contact@technooptics.com.',
+      'For questions or to request other formats, email contact@advottic.com.',
     ],
   };
 

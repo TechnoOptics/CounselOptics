@@ -58,8 +58,8 @@ export default function CookiePolicyPage() {
 
       <p className="text-xs text-ink-500">
         Questions:{' '}
-        <a className="underline" href="mailto:contact@technooptics.com">
-          contact@technooptics.com
+        <a className="underline" href="mailto:contact@advottic.com">
+          contact@advottic.com
         </a>
         . Read also our{' '}
         <Link href="/privacy" className="underline">Privacy Policy</Link> and{' '}

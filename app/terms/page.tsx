@@ -121,8 +121,8 @@ export default function TermsPage() {
       <Section title="Contact">
         <p>
           Questions? Email{' '}
-          <a className="underline" href="mailto:contact@technooptics.com">
-            contact@technooptics.com
+          <a className="underline" href="mailto:contact@advottic.com">
+            contact@advottic.com
           </a>
           .
         </p>

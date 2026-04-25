@@ -72,7 +72,7 @@ export default function SecurityPage() {
       <Section title="Reporting a vulnerability">
         <p>
           Email{' '}
-          <a className="underline" href="mailto:contact@technooptics.com">contact@technooptics.com</a>{' '}
+          <a className="underline" href="mailto:contact@advottic.com">contact@advottic.com</a>{' '}
           with subject line <code className="font-mono">[security]</code>. We aim to acknowledge
           within 2 business days. Please don&apos;t publicly disclose before we&apos;ve had a
           chance to investigate and fix.

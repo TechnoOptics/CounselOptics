@@ -46,7 +46,7 @@ export default function AccessibilityPage() {
       <Section title="Need an accommodation?">
         <p>
           Email{' '}
-          <a className="underline" href="mailto:contact@technooptics.com">contact@technooptics.com</a>{' '}
+          <a className="underline" href="mailto:contact@advottic.com">contact@advottic.com</a>{' '}
           or message us via WhatsApp at{' '}
           <a
             className="underline"

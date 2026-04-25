@@ -14,8 +14,8 @@ export default function PrivacyPage() {
       <Section title="Who we are">
         <p>
           Advottic ("we", "us") is operated by Techno Optics LLC. Contact:{' '}
-          <a href="mailto:contact@technooptics.com" className="underline">
-            contact@technooptics.com
+          <a href="mailto:contact@advottic.com" className="underline">
+            contact@advottic.com
           </a>
           .
         </p>
@@ -152,8 +152,8 @@ export default function PrivacyPage() {
       <Section title="Contact">
         <p>
           Email{' '}
-          <a href="mailto:contact@technooptics.com" className="underline">
-            contact@technooptics.com
+          <a href="mailto:contact@advottic.com" className="underline">
+            contact@advottic.com
           </a>{' '}
           for any privacy-related question or to exercise a right above.
         </p>

@@ -50,8 +50,8 @@ export default function DmcaPage() {
         </ul>
         <p>
           Send to:{' '}
-          <a className="underline" href="mailto:contact@technooptics.com">
-            contact@technooptics.com
+          <a className="underline" href="mailto:contact@advottic.com">
+            contact@advottic.com
           </a>{' '}
           with the subject line <code className="font-mono">[DMCA Notice]</code>. We will
           remove or disable access to material we determine is infringing and will notify the
