@@ -4,49 +4,94 @@
 
 :root {
   color-scheme: light;
+  --brand-dark: #23362f;
+  --brand-mid: #3b6656;
+  --brand-cream: #dfdac0;
 }
 
 html,
 body {
-  background-color: #fafafa;
+  background-color: #ffffff;
   color: #18181b;
-  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11', 'ss01';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Subtle moving accent veil on body for a more atmospheric feel */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(1200px 600px at 90% -10%, rgba(223, 218, 192, 0.30), transparent 60%),
+    radial-gradient(900px 500px at -10% 100%, rgba(59, 102, 86, 0.06), transparent 60%);
+  z-index: 0;
+}
+
+body > * {
+  position: relative;
+  z-index: 1;
+}
+
 @layer components {
   .btn {
-    @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ink-900 disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium tracking-tight transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-forest-700 disabled:opacity-50 disabled:cursor-not-allowed;
   }
   .btn-primary {
-    @apply btn bg-ink-900 text-white hover:bg-ink-800 active:bg-ink-950 shadow-sm;
+    @apply btn bg-forest-900 text-white shadow-brand-glow hover:bg-forest-700 active:bg-forest-950;
   }
   .btn-secondary {
-    @apply btn bg-white text-ink-900 border border-ink-200 hover:bg-ink-50 hover:border-ink-300;
+    @apply btn bg-white text-forest-900 border border-forest-200 hover:border-forest-700 hover:bg-forest-50;
   }
   .btn-ghost {
-    @apply btn bg-transparent text-ink-700 hover:bg-ink-100 hover:text-ink-900;
+    @apply btn bg-transparent text-forest-900 hover:bg-cream-50 hover:text-forest-700;
+  }
+  .btn-accent {
+    @apply btn bg-cream-200 text-forest-900 hover:bg-cream-100 active:bg-cream-200 shadow-sm;
   }
   .input {
-    @apply w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm placeholder:text-ink-400 focus:outline-none focus:ring-2 focus:ring-ink-900/10 focus:border-ink-400 transition-colors;
+    @apply w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm placeholder:text-ink-400 focus:outline-none focus:ring-2 focus:ring-forest-700/15 focus:border-forest-700 transition-colors;
   }
   .label {
-    @apply block text-sm font-medium text-ink-800 mb-1.5;
+    @apply block text-sm font-medium text-forest-900 mb-1.5;
   }
   .card {
     @apply rounded-xl border border-ink-200 bg-white shadow-card;
   }
   .card-hover {
-    @apply card transition-all hover:border-ink-300 hover:shadow-card-hover;
+    @apply card transition-all hover:border-forest-300 hover:shadow-card-hover;
   }
   .badge {
     @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
   }
+  .badge-brand {
+    @apply badge bg-forest-900 text-white;
+  }
+  .badge-accent {
+    @apply badge bg-cream-200 text-forest-900;
+  }
   .eyebrow {
-    @apply text-[11px] uppercase tracking-[0.14em] font-semibold text-ink-500;
+    @apply text-[11px] uppercase tracking-[0.16em] font-semibold text-forest-700;
   }
   .divider {
     @apply border-t border-ink-100;
+  }
+
+  /* Tab styling — forest dark active state with cream-tinted hover */
+  .tab {
+    @apply relative px-5 py-3.5 text-sm font-medium whitespace-nowrap text-ink-500 transition-colors hover:text-forest-900 hover:bg-cream-50;
+  }
+  .tab-active {
+    @apply text-forest-900;
+  }
+  .tab-underline {
+    @apply absolute inset-x-4 bottom-0 h-0.5 bg-forest-900 rounded-t;
+  }
+
+  /* Brand mark gradient */
+  .brand-mark {
+    background-image: linear-gradient(135deg, #23362f 0%, #3b6656 100%);
   }
 }

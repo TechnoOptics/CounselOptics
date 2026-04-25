@@ -116,19 +116,10 @@ function Tabs({ current, onChange }: { current: TabKey; onChange: (t: TabKey) =>
             role="tab"
             aria-selected={active}
             onClick={() => onChange(t.key)}
-            className={`relative px-5 py-3.5 text-sm font-medium whitespace-nowrap transition-colors ${
-              active
-                ? 'text-ink-950'
-                : 'text-ink-500 hover:text-ink-800 hover:bg-ink-50/60'
-            }`}
+            className={`tab ${active ? 'tab-active' : ''}`}
           >
             {t.label}
-            {active && (
-              <span
-                aria-hidden
-                className="absolute inset-x-4 bottom-0 h-0.5 bg-ink-950 rounded-t"
-              />
-            )}
+            {active && <span aria-hidden className="tab-underline" />}
           </button>
         );
       })}

@@ -22,13 +22,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={sans.variable}>
       <body className="min-h-screen flex flex-col font-sans">
         <Disclaimer variant="banner" />
-        <header className="sticky top-0 z-20 border-b border-ink-200/80 bg-white/80 backdrop-blur-md">
+        <header className="sticky top-0 z-20 border-b border-forest-100 bg-white/85 backdrop-blur-md">
           <div className="mx-auto max-w-6xl px-6 py-3 flex items-center justify-between">
             <Link href="/" className="flex items-center gap-2.5 group">
-              <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-ink-950 text-white text-[13px] font-semibold tracking-tight">
+              <span className="brand-mark inline-flex h-8 w-8 items-center justify-center rounded-lg text-cream-200 text-[13px] font-semibold tracking-tight shadow-brand-glow">
                 CO
               </span>
-              <span className="font-semibold tracking-tight text-[15px]">CounselOptics</span>
+              <span className="font-semibold tracking-tight text-[15px] text-forest-900">
+                CounselOptics
+              </span>
             </Link>
             <nav className="flex items-center gap-1 text-sm">
               <Link href="/cases" className="btn-ghost">

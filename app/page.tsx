@@ -8,10 +8,10 @@ export default async function HomePage() {
     <div className="space-y-14">
       <section className="max-w-3xl">
         <p className="eyebrow mb-4">Case organization for individuals & businesses</p>
-        <h1 className="text-4xl md:text-5xl font-semibold tracking-tight text-ink-950 leading-[1.08] mb-5">
+        <h1 className="text-4xl md:text-5xl font-semibold tracking-tight text-forest-900 leading-[1.08] mb-5">
           Organized evidence.
           <br />
-          <span className="text-ink-500">Clear case context.</span>
+          <span className="text-forest-700">Clear case context.</span>
         </h1>
         <p className="text-ink-600 text-[15px] leading-relaxed max-w-2xl mb-7">
           Collect documents, images, voice notes, and records into structured case files. Upload
