@@ -4,17 +4,21 @@ import {
   getCase,
   getLatestDefenseAdvice,
   getLatestReview,
+  listCollaborators,
   listExhibitPlans,
   listExhibits,
+  usingSupabase,
 } from '@/lib/storage';
+import { getCurrentUser } from '@/lib/supabase/server';
 import { storageUnavailable } from '@/lib/setup-status';
-import { STATUS_LABEL, type CaseStatus } from '@/lib/types';
+import { STATUS_LABEL, SUBJECT_TYPE_LABEL, type CaseStatus } from '@/lib/types';
 import { getResourcesFor } from '@/lib/legal-resources';
 import { Disclaimer } from '@/components/Disclaimer';
 import { UploadForm } from './upload-form';
 import { ReviewPanel } from './review-panel';
 import { ExhibitPlanSection } from './exhibit-plan';
 import { DefensePanel } from './defense-panel';
+import { CollaboratorsPanel } from './collaborators-panel';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,11 +27,13 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
   const c = await getCase(params.id);
   if (!c) notFound();
 
-  const [exhibits, review, plans, defenseAdvice] = await Promise.all([
+  const [exhibits, review, plans, defenseAdvice, collaborators, currentUser] = await Promise.all([
     listExhibits(c.id),
     getLatestReview(c.id),
     listExhibitPlans(c.id),
     c.posture === 'defendant' ? getLatestDefenseAdvice(c.id) : Promise.resolve(null),
+    usingSupabase() ? listCollaborators(c.id) : Promise.resolve([]),
+    usingSupabase() ? getCurrentUser() : Promise.resolve(null),
   ]);
   const resources = getResourcesFor(c.jurisdiction.state);
   const jurisdiction = [c.jurisdiction.city, c.jurisdiction.state, c.jurisdiction.country]
@@ -75,14 +81,7 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
               {c.title}
             </h1>
             <p className="text-sm text-ink-600 mt-2">
-              <span className="text-ink-500">
-                {c.subjectType === 'person'
-                  ? 'Person'
-                  : c.subjectType === 'business'
-                    ? 'Business'
-                    : 'Matter'}
-                :{' '}
-              </span>
+              <span className="text-ink-500">{SUBJECT_TYPE_LABEL[c.subjectType]}: </span>
               <span className="font-medium text-ink-900">{c.subjectName}</span>
             </p>
           </div>
@@ -188,6 +187,14 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
       )}
 
       <ReviewPanel caseId={c.id} review={review} />
+
+      {usingSupabase() && (
+        <CollaboratorsPanel
+          caseId={c.id}
+          collaborators={collaborators}
+          isOwner={Boolean(currentUser && c.ownerId === currentUser.id)}
+        />
+      )}
 
       <Disclaimer />
     </div>

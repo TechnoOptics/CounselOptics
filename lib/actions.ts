@@ -6,7 +6,9 @@ import {
   addExhibit,
   createCase,
   getCase,
+  inviteCollaborator,
   listExhibits,
+  removeCollaborator,
   replaceExhibitPlans,
   saveDefenseAdvice,
   saveReview,
@@ -18,6 +20,7 @@ import { getCurrentUser } from './supabase/server';
 import {
   CASE_TYPES,
   type CaseType,
+  type CollaboratorRole,
   type Posture,
   type SubjectType,
 } from './types';
@@ -50,7 +53,7 @@ export async function createCaseAction(formData: FormData) {
     throw new Error('Title, subject name, and country are required.');
   }
 
-  const validSubjectTypes: SubjectType[] = ['person', 'business', 'matter'];
+  const validSubjectTypes: SubjectType[] = ['person', 'business', 'matter', 'state', 'entity'];
   const subject: SubjectType = validSubjectTypes.includes(subjectType) ? subjectType : 'person';
 
   const created = await createCase({
@@ -119,6 +122,27 @@ export async function runDefenseAdviceAction(caseId: string) {
   const exhibits = await listExhibits(caseId);
   const advice = await runDefenseAdvice(caseRecord, exhibits);
   await saveDefenseAdvice(advice);
+  revalidatePath(`/cases/${caseId}`);
+}
+
+export async function inviteCollaboratorAction(caseId: string, formData: FormData) {
+  await assertAuthIfSupabase();
+  const email = String(formData.get('email') ?? '').trim().toLowerCase();
+  const roleRaw = String(formData.get('role') ?? 'viewer');
+  if (!email || !email.includes('@')) {
+    throw new Error('Enter a valid email address.');
+  }
+  const validRoles: CollaboratorRole[] = ['viewer', 'editor', 'attorney'];
+  const role: CollaboratorRole = validRoles.includes(roleRaw as CollaboratorRole)
+    ? (roleRaw as CollaboratorRole)
+    : 'viewer';
+  await inviteCollaborator({ caseId, email, role });
+  revalidatePath(`/cases/${caseId}`);
+}
+
+export async function removeCollaboratorAction(caseId: string, collaboratorId: string) {
+  await assertAuthIfSupabase();
+  await removeCollaborator(collaboratorId);
   revalidatePath(`/cases/${caseId}`);
 }
 

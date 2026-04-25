@@ -6,6 +6,8 @@ import type {
   Case,
   CaseStatus,
   CaseType,
+  Collaborator,
+  CollaboratorRole,
   DefenseAdvice,
   Exhibit,
   ExhibitPlanItem,
@@ -124,6 +126,7 @@ type AIReviewRow = {
 function caseFromRow(r: CaseRow): Case {
   return {
     id: r.id,
+    ownerId: r.user_id,
     title: r.title,
     subjectName: r.subject_name,
     subjectType: r.subject_type,
@@ -935,6 +938,105 @@ export async function adminGetCounts(): Promise<{
       .then((r) => r.count ?? 0),
   ]);
   return { users, cases, exhibits, reviews, plans };
+}
+
+// ---------------------------------------------------------------------------
+// Collaborators (Supabase-only — local mode has no concept of multiple users)
+// ---------------------------------------------------------------------------
+
+type CollaboratorRow = {
+  id: string;
+  case_id: string;
+  user_id: string | null;
+  email: string;
+  role: CollaboratorRole;
+  invited_by: string | null;
+  invited_at: string;
+  accepted_at: string | null;
+};
+
+function collaboratorFromRow(r: CollaboratorRow): Collaborator {
+  return {
+    id: r.id,
+    caseId: r.case_id,
+    userId: r.user_id,
+    email: r.email,
+    role: r.role,
+    invitedBy: r.invited_by,
+    invitedAt: r.invited_at,
+    acceptedAt: r.accepted_at,
+  };
+}
+
+export async function listCollaborators(caseId: string): Promise<Collaborator[]> {
+  if (!usingSupabase()) return [];
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from('case_collaborators')
+    .select('*')
+    .eq('case_id', caseId)
+    .order('invited_at', { ascending: true });
+  if (error) throw error;
+  return (data as CollaboratorRow[]).map(collaboratorFromRow);
+}
+
+export async function inviteCollaborator(input: {
+  caseId: string;
+  email: string;
+  role: CollaboratorRole;
+}): Promise<Collaborator> {
+  if (!usingSupabase()) {
+    throw new Error('Collaborators require Supabase to be configured.');
+  }
+  const user = await getCurrentUser();
+  if (!user) throw new Error('Not signed in.');
+  const supabase = createServerSupabase();
+
+  // Confirm caller owns the case
+  const { data: caseRow, error: caseErr } = await supabase
+    .from('cases')
+    .select('id')
+    .eq('id', input.caseId)
+    .eq('user_id', user.id)
+    .maybeSingle();
+  if (caseErr) throw caseErr;
+  if (!caseRow) throw new Error('Only the case owner can invite collaborators.');
+
+  // Look up existing user (via service role to read auth.users)
+  const admin = createAdminSupabase();
+  let existingUserId: string | null = null;
+  if (admin) {
+    const { data: usersResp } = await admin.auth.admin.listUsers();
+    const match = usersResp.users.find(
+      (u) => (u.email ?? '').toLowerCase() === input.email.toLowerCase(),
+    );
+    if (match) existingUserId = match.id;
+  }
+
+  const { data, error } = await supabase
+    .from('case_collaborators')
+    .upsert(
+      {
+        case_id: input.caseId,
+        email: input.email.toLowerCase(),
+        role: input.role,
+        user_id: existingUserId,
+        invited_by: user.id,
+        accepted_at: existingUserId ? new Date().toISOString() : null,
+      },
+      { onConflict: 'case_id,email' },
+    )
+    .select('*')
+    .single();
+  if (error) throw error;
+  return collaboratorFromRow(data as CollaboratorRow);
+}
+
+export async function removeCollaborator(collaboratorId: string): Promise<void> {
+  if (!usingSupabase()) throw new Error('Collaborators require Supabase to be configured.');
+  const supabase = createServerSupabase();
+  const { error } = await supabase.from('case_collaborators').delete().eq('id', collaboratorId);
+  if (error) throw error;
 }
 
 export async function upsertProfile(input: {

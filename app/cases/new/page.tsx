@@ -86,6 +86,8 @@ export default function NewCasePage() {
               <option value="person">Person</option>
               <option value="business">Business</option>
               <option value="matter">Matter</option>
+              <option value="state">State / government</option>
+              <option value="entity">Entity / organization</option>
             </select>
           </div>
         </div>

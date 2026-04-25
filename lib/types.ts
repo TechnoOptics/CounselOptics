@@ -1,4 +1,17 @@
-export type SubjectType = 'person' | 'business' | 'matter';
+export type SubjectType =
+  | 'person'
+  | 'business'
+  | 'matter'
+  | 'state'
+  | 'entity';
+
+export const SUBJECT_TYPE_LABEL: Record<SubjectType, string> = {
+  person: 'Person',
+  business: 'Business',
+  matter: 'Matter',
+  state: 'State / government',
+  entity: 'Entity / organization',
+};
 
 export type Posture = 'claimant' | 'defendant';
 
@@ -35,6 +48,7 @@ export type Jurisdiction = {
 
 export type Case = {
   id: string;
+  ownerId?: string;
   title: string;
   subjectName: string;
   subjectType: SubjectType;
@@ -88,6 +102,25 @@ export type ExhibitPlanItem = {
   position: number;
   filledByExhibitId?: string | null;
   createdAt: string;
+};
+
+export type CollaboratorRole = 'viewer' | 'editor' | 'attorney';
+
+export const COLLABORATOR_ROLE_LABEL: Record<CollaboratorRole, string> = {
+  viewer: 'Viewer',
+  editor: 'Editor',
+  attorney: 'Attorney',
+};
+
+export type Collaborator = {
+  id: string;
+  caseId: string;
+  userId?: string | null;
+  email: string;
+  role: CollaboratorRole;
+  invitedBy?: string | null;
+  invitedAt: string;
+  acceptedAt?: string | null;
 };
 
 export type Profile = {

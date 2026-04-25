@@ -11,7 +11,7 @@ create table if not exists public.cases (
   user_id uuid not null references auth.users(id) on delete cascade,
   title text not null,
   subject_name text not null,
-  subject_type text not null check (subject_type in ('person', 'business', 'matter')),
+  subject_type text not null check (subject_type in ('person', 'business', 'matter', 'state', 'entity')),
   jurisdiction_country text not null,
   jurisdiction_state text,
   jurisdiction_city text,
@@ -27,6 +27,15 @@ create table if not exists public.cases (
 
 alter table public.cases
   add column if not exists posture text not null default 'claimant';
+
+-- Allow expanded subject types on existing installs.
+do $$
+begin
+  alter table public.cases drop constraint if exists cases_subject_type_check;
+  alter table public.cases
+    add constraint cases_subject_type_check
+    check (subject_type in ('person', 'business', 'matter', 'state', 'entity'));
+end $$;
 do $$
 begin
   if not exists (
@@ -110,6 +119,24 @@ create index if not exists defense_advice_case_id_created_at_idx
 create index if not exists defense_advice_user_id_idx
   on public.defense_advice (user_id);
 
+create table if not exists public.case_collaborators (
+  id uuid primary key default gen_random_uuid(),
+  case_id uuid not null references public.cases(id) on delete cascade,
+  user_id uuid references auth.users(id) on delete cascade,
+  email text not null,
+  role text not null default 'viewer' check (role in ('viewer', 'editor', 'attorney')),
+  invited_by uuid references auth.users(id) on delete set null,
+  invited_at timestamptz not null default now(),
+  accepted_at timestamptz
+);
+
+create unique index if not exists case_collaborators_case_email_idx
+  on public.case_collaborators (case_id, lower(email));
+create index if not exists case_collaborators_user_id_idx
+  on public.case_collaborators (user_id);
+create index if not exists case_collaborators_email_idx
+  on public.case_collaborators (lower(email));
+
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   display_name text,
@@ -160,13 +187,21 @@ alter table public.exhibits enable row level security;
 alter table public.ai_reviews enable row level security;
 alter table public.exhibit_plans enable row level security;
 alter table public.defense_advice enable row level security;
+alter table public.case_collaborators enable row level security;
 alter table public.profiles enable row level security;
 
 -- cases policies
 drop policy if exists "cases_select_own" on public.cases;
-create policy "cases_select_own"
+drop policy if exists "cases_select_own_or_collaborator" on public.cases;
+create policy "cases_select_own_or_collaborator"
   on public.cases for select
-  using (auth.uid() = user_id);
+  using (
+    auth.uid() = user_id
+    or exists (
+      select 1 from public.case_collaborators cc
+      where cc.case_id = cases.id and cc.user_id = auth.uid()
+    )
+  );
 
 drop policy if exists "cases_insert_own" on public.cases;
 create policy "cases_insert_own"
@@ -186,9 +221,16 @@ create policy "cases_delete_own"
 
 -- exhibits policies
 drop policy if exists "exhibits_select_own" on public.exhibits;
-create policy "exhibits_select_own"
+drop policy if exists "exhibits_select_own_or_collaborator" on public.exhibits;
+create policy "exhibits_select_own_or_collaborator"
   on public.exhibits for select
-  using (auth.uid() = user_id);
+  using (
+    auth.uid() = user_id
+    or exists (
+      select 1 from public.case_collaborators cc
+      where cc.case_id = exhibits.case_id and cc.user_id = auth.uid()
+    )
+  );
 
 drop policy if exists "exhibits_insert_own" on public.exhibits;
 create policy "exhibits_insert_own"
@@ -202,9 +244,16 @@ create policy "exhibits_delete_own"
 
 -- ai_reviews policies
 drop policy if exists "ai_reviews_select_own" on public.ai_reviews;
-create policy "ai_reviews_select_own"
+drop policy if exists "ai_reviews_select_own_or_collaborator" on public.ai_reviews;
+create policy "ai_reviews_select_own_or_collaborator"
   on public.ai_reviews for select
-  using (auth.uid() = user_id);
+  using (
+    auth.uid() = user_id
+    or exists (
+      select 1 from public.case_collaborators cc
+      where cc.case_id = ai_reviews.case_id and cc.user_id = auth.uid()
+    )
+  );
 
 drop policy if exists "ai_reviews_insert_own" on public.ai_reviews;
 create policy "ai_reviews_insert_own"
@@ -213,9 +262,16 @@ create policy "ai_reviews_insert_own"
 
 -- exhibit_plans policies
 drop policy if exists "exhibit_plans_select_own" on public.exhibit_plans;
-create policy "exhibit_plans_select_own"
+drop policy if exists "exhibit_plans_select_own_or_collaborator" on public.exhibit_plans;
+create policy "exhibit_plans_select_own_or_collaborator"
   on public.exhibit_plans for select
-  using (auth.uid() = user_id);
+  using (
+    auth.uid() = user_id
+    or exists (
+      select 1 from public.case_collaborators cc
+      where cc.case_id = exhibit_plans.case_id and cc.user_id = auth.uid()
+    )
+  );
 
 drop policy if exists "exhibit_plans_insert_own" on public.exhibit_plans;
 create policy "exhibit_plans_insert_own"
@@ -235,14 +291,45 @@ create policy "exhibit_plans_delete_own"
 
 -- defense_advice policies
 drop policy if exists "defense_advice_select_own" on public.defense_advice;
-create policy "defense_advice_select_own"
+drop policy if exists "defense_advice_select_own_or_collaborator" on public.defense_advice;
+create policy "defense_advice_select_own_or_collaborator"
   on public.defense_advice for select
-  using (auth.uid() = user_id);
+  using (
+    auth.uid() = user_id
+    or exists (
+      select 1 from public.case_collaborators cc
+      where cc.case_id = defense_advice.case_id and cc.user_id = auth.uid()
+    )
+  );
 
 drop policy if exists "defense_advice_insert_own" on public.defense_advice;
 create policy "defense_advice_insert_own"
   on public.defense_advice for insert
   with check (auth.uid() = user_id);
+
+-- case_collaborators policies — only the case owner manages.
+drop policy if exists "case_collaborators_select" on public.case_collaborators;
+create policy "case_collaborators_select"
+  on public.case_collaborators for select
+  using (
+    exists (select 1 from public.cases c where c.id = case_id and c.user_id = auth.uid())
+    or user_id = auth.uid()
+  );
+
+drop policy if exists "case_collaborators_insert" on public.case_collaborators;
+create policy "case_collaborators_insert"
+  on public.case_collaborators for insert
+  with check (
+    exists (select 1 from public.cases c where c.id = case_id and c.user_id = auth.uid())
+    and invited_by = auth.uid()
+  );
+
+drop policy if exists "case_collaborators_delete" on public.case_collaborators;
+create policy "case_collaborators_delete"
+  on public.case_collaborators for delete
+  using (
+    exists (select 1 from public.cases c where c.id = case_id and c.user_id = auth.uid())
+  );
 
 -- profiles policies
 drop policy if exists "profiles_select_own" on public.profiles;
@@ -299,6 +386,12 @@ begin
     new.raw_user_meta_data->>'avatar_url'
   )
   on conflict (id) do nothing;
+
+  -- Convert any pending invites that match this user's email into accepted collaborator rows.
+  update public.case_collaborators
+  set user_id = new.id, accepted_at = now()
+  where lower(email) = lower(new.email) and user_id is null;
+
   return new;
 end;
 $$;

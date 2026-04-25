@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { adminListCases } from '@/lib/storage';
-import { STATUS_LABEL, type CaseStatus } from '@/lib/types';
+import { STATUS_LABEL, SUBJECT_TYPE_LABEL, type CaseStatus } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,12 +44,7 @@ export default async function AdminCasesPage() {
                     {c.title}
                   </Link>
                   <div className="text-xs text-ink-500">
-                    {c.subjectType === 'person'
-                      ? 'Person'
-                      : c.subjectType === 'business'
-                        ? 'Business'
-                        : 'Matter'}
-                    : {c.subjectName}
+                    {SUBJECT_TYPE_LABEL[c.subjectType]}: {c.subjectName}
                   </div>
                 </Td>
                 <Td>

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { listCases } from '@/lib/storage';
-import { STATUS_LABEL, type CaseStatus } from '@/lib/types';
+import { STATUS_LABEL, SUBJECT_TYPE_LABEL, type CaseStatus } from '@/lib/types';
 import { storageUnavailable, STORAGE_SETUP_MESSAGE } from '@/lib/setup-status';
 
 export const dynamic = 'force-dynamic';
@@ -54,14 +54,7 @@ export default async function CasesPage() {
                   <StatusPill status={c.status} />
                 </div>
                 <p className="text-sm text-ink-700 mb-4">
-                  <span className="text-ink-500">
-                    {c.subjectType === 'person'
-                      ? 'Person'
-                      : c.subjectType === 'business'
-                        ? 'Business'
-                        : 'Matter'}
-                    :{' '}
-                  </span>
+                  <span className="text-ink-500">{SUBJECT_TYPE_LABEL[c.subjectType]}: </span>
                   {c.subjectName}
                 </p>
                 <div className="text-xs text-ink-500 flex flex-wrap items-center gap-x-2.5 gap-y-1">

@@ -18,21 +18,40 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Subtle moving accent veil on body for a more atmospheric feel */
+/* Atmospheric body — subtle grid pattern + radial accent veils */
 body::before {
   content: '';
   position: fixed;
   inset: 0;
   pointer-events: none;
-  background:
+  background-image:
     radial-gradient(1200px 600px at 90% -10%, rgba(223, 218, 192, 0.30), transparent 60%),
-    radial-gradient(900px 500px at -10% 100%, rgba(59, 102, 86, 0.06), transparent 60%);
+    radial-gradient(900px 500px at -10% 100%, rgba(59, 102, 86, 0.06), transparent 60%),
+    linear-gradient(rgba(35, 54, 47, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(35, 54, 47, 0.025) 1px, transparent 1px);
+  background-size: auto, auto, 32px 32px, 32px 32px;
   z-index: 0;
+  mask-image: linear-gradient(180deg, black 0%, black 30%, rgba(0, 0, 0, 0.6) 100%);
 }
 
 body > * {
   position: relative;
   z-index: 1;
+}
+
+/* Hairline cream rule beneath the sticky header */
+.tech-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, #DFDAC0 20%, #DFDAC0 80%, transparent 100%);
+}
+
+/* Pulsing dot for live/active status */
+@keyframes co-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.55; transform: scale(0.9); }
+}
+.live-dot {
+  animation: co-pulse 1.8s ease-in-out infinite;
 }
 
 @layer components {
