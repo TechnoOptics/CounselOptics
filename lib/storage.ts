@@ -914,7 +914,7 @@ export async function inviteCollaborator(input: {
   // creates the account on first click.
   let emailed = false;
   if (admin) {
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://counsel-optics.vercel.app';
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://advottic.com';
     const redirectTo = `${siteUrl}/auth/callback?next=${encodeURIComponent('/cases?welcome=1')}`;
     try {
       if (existingUserId) {
