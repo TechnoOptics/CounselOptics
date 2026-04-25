@@ -147,10 +147,21 @@ alter table public.profiles
 alter table public.profiles
   add column if not exists tour_completed_at timestamptz;
 
--- "pro se" terminology was retired; remap any legacy values.
+-- "pro se" terminology was retired; remap any legacy values then enforce
+-- the new allowed set with a CHECK constraint. Drop first so re-runs are safe.
+alter table public.profiles
+  drop constraint if exists profiles_representation_check;
+
 update public.profiles
   set representation = 'self_represented'
   where representation = 'pro_se';
+
+alter table public.profiles
+  add constraint profiles_representation_check
+  check (
+    representation is null
+    or representation in ('self_represented', 'represented', 'counsel')
+  );
 
 create table if not exists public.ai_reviews (
   id uuid primary key default gen_random_uuid(),

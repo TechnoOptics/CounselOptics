@@ -8,6 +8,9 @@ import { UserMenu } from '@/components/UserMenu';
 import { Bella } from '@/components/Bella';
 import { CookieBanner } from '@/components/CookieBanner';
 import { SearchPalette, SearchTrigger } from '@/components/SearchPalette';
+import { ConsentModal } from '@/components/ConsentModal';
+import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
+import { getProfile } from '@/lib/storage';
 
 const sans = Inter({
   subsets: ['latin'],
@@ -21,7 +24,31 @@ export const metadata: Metadata = {
     'Organize evidence, surface jurisdiction-aware issues with Legal Eye, prepare for hearings, and ship a packet your attorney can read in five minutes.',
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Decide whether to mount the consent popup. Server-side so the modal HTML
+  // is gone for users who've already consented and stays gone after refresh.
+  let consent: { needed: false } | { needed: true; fallbackName: string } = { needed: false };
+  if (isSupabaseConfigured()) {
+    try {
+      const user = await getCurrentUser();
+      if (user) {
+        const profile = await getProfile().catch(() => null);
+        if (!profile?.consentedAt) {
+          consent = {
+            needed: true,
+            fallbackName:
+              (user.user_metadata?.full_name as string | undefined) ??
+              (user.user_metadata?.name as string | undefined) ??
+              user.email ??
+              '',
+          };
+        }
+      }
+    } catch {
+      // never block render on a profile-lookup failure
+    }
+  }
+
   return (
     <html lang="en" className={sans.variable}>
       <body className="min-h-screen flex flex-col font-sans">
@@ -78,6 +105,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <div className="mx-auto max-w-6xl px-6 py-10">{children}</div>
         </main>
         <Bella />
+        {consent.needed && <ConsentModal fallbackName={consent.fallbackName} />}
         <CookieBanner />
         <footer className="border-t border-ink-200 bg-white">
           <div className="mx-auto max-w-6xl px-6 py-8 text-xs text-ink-500">

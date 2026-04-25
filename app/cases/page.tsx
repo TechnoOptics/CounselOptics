@@ -16,13 +16,10 @@ export default async function CasesPage({
 }) {
   if (storageUnavailable()) return <SetupNeeded />;
 
+  // Consent is now handled by a layout-level popup modal; no redirect here.
   let profile = null;
   if (isSupabaseConfigured()) {
     profile = await getProfile().catch(() => null);
-    // Consent gate: unconsented users get sent to /welcome before they see anything.
-    if (profile && !profile.consentedAt) {
-      redirect('/welcome');
-    }
   }
 
   let cases;

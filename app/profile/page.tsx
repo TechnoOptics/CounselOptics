@@ -5,6 +5,7 @@ import { getProfile } from '@/lib/storage';
 import { updateProfileAction } from '@/lib/actions';
 import { AccountActions } from './account-actions';
 import { AvatarUpload } from './avatar-upload';
+import { REPRESENTATION_LABEL, type RepresentationStatus } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,8 +26,7 @@ export default async function ProfilePage() {
   if (!user) redirect('/sign-in?next=/profile');
 
   const profile = await getProfile().catch(() => null);
-  // Consent gate: unconsented users go to /welcome before they can view anything else.
-  if (profile && !profile.consentedAt) redirect('/welcome');
+  // Consent is now handled by the layout's popup modal; do not redirect.
 
   const fallbackName =
     (user.user_metadata?.full_name as string | undefined) ??
@@ -58,6 +58,68 @@ export default async function ProfilePage() {
           </div>
         </div>
         <AvatarUpload userId={user.id} currentUrl={avatarUrl} />
+      </div>
+
+      {/* Consent status card */}
+      <div className="card p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="eyebrow mb-1">Terms &amp; consent</p>
+            {profile?.consentedAt ? (
+              <>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-lg font-semibold tracking-tight text-forest-900">
+                    Approved
+                  </h2>
+                  <span className="badge bg-emerald-50 text-emerald-800 border border-emerald-200 inline-flex items-center gap-1">
+                    <CheckIcon /> Active
+                  </span>
+                </div>
+                <p className="text-sm text-ink-600 mt-1">
+                  Accepted{' '}
+                  <strong>
+                    {new Date(profile.consentedAt).toLocaleString(undefined, {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                      hour: 'numeric',
+                      minute: '2-digit',
+                    })}
+                  </strong>
+                  {profile.representation
+                    ? `. Representation: ${REPRESENTATION_LABEL[profile.representation as RepresentationStatus] ?? profile.representation}.`
+                    : '.'}
+                </p>
+                <p className="text-xs text-ink-500 mt-2">
+                  This covers the binding-arbitration, class-action waiver, jury-trial
+                  waiver, limitation of liability, and acceptable-use terms accepted at
+                  sign-up. Read the current versions:{' '}
+                  <Link href="/terms" className="underline text-forest-900 hover:text-forest-700">
+                    Terms
+                  </Link>
+                  ,{' '}
+                  <Link href="/privacy" className="underline text-forest-900 hover:text-forest-700">
+                    Privacy
+                  </Link>
+                  ,{' '}
+                  <Link href="/cookies" className="underline text-forest-900 hover:text-forest-700">
+                    Cookies
+                  </Link>
+                  .
+                </p>
+              </>
+            ) : (
+              <>
+                <h2 className="text-lg font-semibold tracking-tight text-rose-800">
+                  Not yet approved
+                </h2>
+                <p className="text-sm text-ink-600 mt-1">
+                  The consent prompt will appear the next time you load any page.
+                </p>
+              </>
+            )}
+          </div>
+        </div>
       </div>
 
       <form action={updateProfileAction} className="card p-6 space-y-5">
@@ -131,6 +193,20 @@ export default async function ProfilePage() {
 
       <AccountActions />
     </div>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M5 13l4 4 10-10"
+        stroke="currentColor"
+        strokeWidth="3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 

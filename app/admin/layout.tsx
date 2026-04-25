@@ -2,7 +2,6 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { isCurrentUserAdmin, isSupabaseConfigured } from '@/lib/supabase/server';
 import { isServiceRoleConfigured } from '@/lib/supabase/admin';
-import { getProfile } from '@/lib/storage';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,10 +17,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     );
   }
 
-  // Consent gate first - even admins must accept terms before they can use anything.
-  const profile = await getProfile().catch(() => null);
-  if (profile && !profile.consentedAt) redirect('/welcome');
-
+  // Consent is handled by the layout's popup modal; no redirect here.
   const admin = await isCurrentUserAdmin();
   if (!admin) {
     redirect('/cases');

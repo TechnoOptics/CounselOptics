@@ -183,7 +183,11 @@ export async function recordConsentAction(formData: FormData) {
     representation: repRaw as RepresentationStatus,
     displayName: displayName || undefined,
   });
-  redirect('/cases?welcome=1');
+  // No redirect - the popup modal in the layout dismisses itself and triggers
+  // a router.refresh() so the layout re-fetches the (now-consented) profile.
+  // /cases is revalidated so its tour-modal trigger picks up the fresh state.
+  revalidatePath('/cases');
+  revalidatePath('/');
 }
 
 export async function markTourCompletedAction() {

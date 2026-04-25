@@ -50,9 +50,7 @@ export default async function BillingPage({
   const user = await getCurrentUser();
   if (!user) redirect('/sign-in?next=/billing');
 
-  // Consent gate
-  const profile = await getProfile().catch(() => null);
-  if (profile && !profile.consentedAt) redirect('/welcome');
+  // Consent is handled by the layout's popup modal; no redirect needed here.
 
   const sub = await getCurrentSubscription();
   const stripeReady = isStripeConfigured();
