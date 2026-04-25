@@ -1,0 +1,261 @@
+-- CounselOptics Supabase schema.
+-- Paste this into the Supabase SQL Editor (Dashboard → SQL Editor → "New query")
+-- and run once against your project. Safe to re-run thanks to IF NOT EXISTS guards.
+
+------------------------------------------------------------
+-- 1. Tables
+------------------------------------------------------------
+
+create table if not exists public.cases (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  title text not null,
+  subject_name text not null,
+  subject_type text not null check (subject_type in ('person', 'business', 'matter')),
+  jurisdiction_country text not null,
+  jurisdiction_state text,
+  jurisdiction_city text,
+  case_type text not null,
+  description text,
+  status text not null default 'draft' check (
+    status in ('draft','open','under_review','needs_evidence','export_ready','closed','archived')
+  ),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists cases_user_id_updated_at_idx
+  on public.cases (user_id, updated_at desc);
+
+create table if not exists public.exhibits (
+  id uuid primary key default gen_random_uuid(),
+  case_id uuid not null references public.cases(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  label text not null,
+  file_name text not null,
+  storage_path text not null,  -- path inside the "exhibits" storage bucket
+  file_type text not null,
+  file_size bigint not null,
+  description text,
+  incident_date date,
+  source text,
+  category text,
+  uploaded_at timestamptz not null default now()
+);
+
+-- If exhibits already existed from an earlier version, add the new metadata columns.
+alter table public.exhibits
+  add column if not exists incident_date date,
+  add column if not exists source text,
+  add column if not exists category text;
+
+create index if not exists exhibits_case_id_uploaded_at_idx
+  on public.exhibits (case_id, uploaded_at);
+create index if not exists exhibits_user_id_idx
+  on public.exhibits (user_id);
+
+create table if not exists public.exhibit_plans (
+  id uuid primary key default gen_random_uuid(),
+  case_id uuid not null references public.cases(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  label text not null,           -- "Exhibit A"
+  title text not null,           -- "Pet ownership proof"
+  description text,              -- what this exhibit should show
+  position int not null,         -- ordinal
+  filled_by_exhibit_id uuid references public.exhibits(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists exhibit_plans_case_id_position_idx
+  on public.exhibit_plans (case_id, position);
+create index if not exists exhibit_plans_user_id_idx
+  on public.exhibit_plans (user_id);
+
+create table if not exists public.profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  display_name text,
+  role text,                      -- e.g., "Attorney", "Client", "Case manager"
+  organization text,
+  avatar_url text,
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.ai_reviews (
+  id uuid primary key default gen_random_uuid(),
+  case_id uuid not null references public.cases(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  jurisdiction text,
+  summary text,
+  timeline jsonb not null default '[]'::jsonb,
+  key_facts jsonb not null default '[]'::jsonb,
+  possible_issues jsonb not null default '[]'::jsonb,
+  classification text,
+  applicable_legal_references jsonb not null default '[]'::jsonb,
+  evidence_mapping jsonb not null default '[]'::jsonb,
+  evidence_to_strengthen jsonb not null default '[]'::jsonb,
+  subpoena_targets jsonb not null default '[]'::jsonb,
+  missing_information jsonb not null default '[]'::jsonb,
+  suggested_next_steps jsonb not null default '[]'::jsonb,
+  questions_for_attorney jsonb not null default '[]'::jsonb,
+  disclaimer text,
+  model_used text,
+  is_demo boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists ai_reviews_case_id_created_at_idx
+  on public.ai_reviews (case_id, created_at desc);
+create index if not exists ai_reviews_user_id_idx
+  on public.ai_reviews (user_id);
+
+------------------------------------------------------------
+-- 2. Row-Level Security
+------------------------------------------------------------
+
+alter table public.cases enable row level security;
+alter table public.exhibits enable row level security;
+alter table public.ai_reviews enable row level security;
+alter table public.exhibit_plans enable row level security;
+alter table public.profiles enable row level security;
+
+-- cases policies
+drop policy if exists "cases_select_own" on public.cases;
+create policy "cases_select_own"
+  on public.cases for select
+  using (auth.uid() = user_id);
+
+drop policy if exists "cases_insert_own" on public.cases;
+create policy "cases_insert_own"
+  on public.cases for insert
+  with check (auth.uid() = user_id);
+
+drop policy if exists "cases_update_own" on public.cases;
+create policy "cases_update_own"
+  on public.cases for update
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+drop policy if exists "cases_delete_own" on public.cases;
+create policy "cases_delete_own"
+  on public.cases for delete
+  using (auth.uid() = user_id);
+
+-- exhibits policies
+drop policy if exists "exhibits_select_own" on public.exhibits;
+create policy "exhibits_select_own"
+  on public.exhibits for select
+  using (auth.uid() = user_id);
+
+drop policy if exists "exhibits_insert_own" on public.exhibits;
+create policy "exhibits_insert_own"
+  on public.exhibits for insert
+  with check (auth.uid() = user_id);
+
+drop policy if exists "exhibits_delete_own" on public.exhibits;
+create policy "exhibits_delete_own"
+  on public.exhibits for delete
+  using (auth.uid() = user_id);
+
+-- ai_reviews policies
+drop policy if exists "ai_reviews_select_own" on public.ai_reviews;
+create policy "ai_reviews_select_own"
+  on public.ai_reviews for select
+  using (auth.uid() = user_id);
+
+drop policy if exists "ai_reviews_insert_own" on public.ai_reviews;
+create policy "ai_reviews_insert_own"
+  on public.ai_reviews for insert
+  with check (auth.uid() = user_id);
+
+-- exhibit_plans policies
+drop policy if exists "exhibit_plans_select_own" on public.exhibit_plans;
+create policy "exhibit_plans_select_own"
+  on public.exhibit_plans for select
+  using (auth.uid() = user_id);
+
+drop policy if exists "exhibit_plans_insert_own" on public.exhibit_plans;
+create policy "exhibit_plans_insert_own"
+  on public.exhibit_plans for insert
+  with check (auth.uid() = user_id);
+
+drop policy if exists "exhibit_plans_update_own" on public.exhibit_plans;
+create policy "exhibit_plans_update_own"
+  on public.exhibit_plans for update
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+drop policy if exists "exhibit_plans_delete_own" on public.exhibit_plans;
+create policy "exhibit_plans_delete_own"
+  on public.exhibit_plans for delete
+  using (auth.uid() = user_id);
+
+-- profiles policies
+drop policy if exists "profiles_select_own" on public.profiles;
+create policy "profiles_select_own"
+  on public.profiles for select
+  using (auth.uid() = id);
+
+drop policy if exists "profiles_upsert_own" on public.profiles;
+create policy "profiles_upsert_own"
+  on public.profiles for insert
+  with check (auth.uid() = id);
+
+drop policy if exists "profiles_update_own" on public.profiles;
+create policy "profiles_update_own"
+  on public.profiles for update
+  using (auth.uid() = id)
+  with check (auth.uid() = id);
+
+------------------------------------------------------------
+-- 3. updated_at trigger
+------------------------------------------------------------
+
+create or replace function public.set_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at := now();
+  return new;
+end;
+$$;
+
+drop trigger if exists cases_set_updated_at on public.cases;
+create trigger cases_set_updated_at
+  before update on public.cases
+  for each row execute function public.set_updated_at();
+
+------------------------------------------------------------
+-- 4. Storage bucket for exhibits
+------------------------------------------------------------
+-- NOTE: the `storage` schema exists in every Supabase project.
+
+insert into storage.buckets (id, name, public)
+  values ('exhibits', 'exhibits', false)
+  on conflict (id) do nothing;
+
+-- Storage policies: users can only touch files under a prefix that begins
+-- with their own user id, e.g. "exhibits/<user_id>/<case_id>/<file>".
+drop policy if exists "exhibits_storage_select_own" on storage.objects;
+create policy "exhibits_storage_select_own"
+  on storage.objects for select
+  using (
+    bucket_id = 'exhibits'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+drop policy if exists "exhibits_storage_insert_own" on storage.objects;
+create policy "exhibits_storage_insert_own"
+  on storage.objects for insert
+  with check (
+    bucket_id = 'exhibits'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+drop policy if exists "exhibits_storage_delete_own" on storage.objects;
+create policy "exhibits_storage_delete_own"
+  on storage.objects for delete
+  using (
+    bucket_id = 'exhibits'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
