@@ -74,8 +74,18 @@ const config: Config = {
       },
       backgroundImage: {
         'forest-gradient': 'linear-gradient(135deg, #0F2D24 0%, #173b30 50%, #23362F 100%)',
-        'gold-shine': 'linear-gradient(135deg, #D5BB7E 0%, #E5CE93 50%, #D5BB7E 100%)',
-        'gold-veil': 'linear-gradient(180deg, rgba(213,187,126,0) 0%, rgba(213,187,126,0.10) 100%)',
+        // Metallic gold to match the brand pillar mark: deep bronze base,
+        // rich warm gold mids, and two cream-gold highlight bands so the
+        // gold-pan animation sweeps a real shimmer across text/surfaces.
+        'gold-shine':
+          'linear-gradient(135deg, #8a661f 0%, #c79532 12%, #f2d896 28%, #d4a14a 44%, #b08229 58%, #d4a14a 72%, #f2d896 88%, #c79532 100%)',
+        // Vertical solid-fill version for buttons / CTAs - top highlight,
+        // rich body, deep base, warm bottom edge. Same palette, fewer
+        // stops, no diagonal so big surfaces still read as "gold."
+        'gold-metal':
+          'linear-gradient(180deg, #f2d896 0%, #d4a14a 32%, #b08229 65%, #c79532 100%)',
+        'gold-veil':
+          'linear-gradient(180deg, rgba(213,187,126,0) 0%, rgba(213,187,126,0.10) 100%)',
       },
     },
   },

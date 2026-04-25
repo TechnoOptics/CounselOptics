@@ -77,7 +77,7 @@ export function TierCard({
       }`}
     >
       {isHighlighted && (
-        <span className="absolute -top-2.5 left-6 badge bg-gold-500 text-forest-950 font-semibold tracking-wide shadow-sm">
+        <span className="absolute -top-2.5 left-6 badge bg-gold-metal text-forest-950 font-semibold tracking-wide shadow-sm">
           Most popular
         </span>
       )}
@@ -121,7 +121,7 @@ export function TierCard({
           disabled={!stripeReady || pending}
           className={
             isHighlighted
-              ? 'btn bg-gold-500 text-forest-950 hover:bg-gold-400 shadow-gold-glow font-semibold w-full'
+              ? 'btn bg-gold-metal text-forest-950 hover:brightness-110 shadow-gold-glow font-semibold w-full'
               : 'btn-primary w-full'
           }
         >

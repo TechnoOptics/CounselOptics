@@ -471,7 +471,7 @@ function CtaBand() {
         <div className="mt-6 flex flex-wrap justify-center gap-3">
           <Link
             href="/sign-in?next=/cases/new"
-            className="btn bg-gold-500 text-forest-950 hover:bg-gold-400 shadow-gold-glow font-semibold px-5 py-2.5 animate-glow"
+            className="btn bg-gold-metal text-forest-950 hover:brightness-110 shadow-gold-glow font-semibold px-5 py-2.5 animate-glow"
           >
             Sign up &amp; build my own
           </Link>
