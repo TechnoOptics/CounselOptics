@@ -4,9 +4,10 @@
 
 :root {
   color-scheme: light;
-  --brand-dark: #23362f;
-  --brand-mid: #3b6656;
-  --brand-cream: #dfdac0;
+  --brand-dark: #0f2d24;
+  --brand-mid: #23362f;
+  --brand-gold: #c9a85a;
+  --brand-gold-soft: #f5edd6;
 }
 
 html,
@@ -18,17 +19,17 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Atmospheric body — subtle grid pattern + radial accent veils */
+/* Atmospheric body — subtle grid + warm gold veil + cool forest accent */
 body::before {
   content: '';
   position: fixed;
   inset: 0;
   pointer-events: none;
   background-image:
-    radial-gradient(1200px 600px at 90% -10%, rgba(223, 218, 192, 0.30), transparent 60%),
-    radial-gradient(900px 500px at -10% 100%, rgba(59, 102, 86, 0.06), transparent 60%),
-    linear-gradient(rgba(35, 54, 47, 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(35, 54, 47, 0.025) 1px, transparent 1px);
+    radial-gradient(1200px 600px at 90% -10%, rgba(201, 168, 90, 0.16), transparent 60%),
+    radial-gradient(900px 500px at -10% 100%, rgba(15, 45, 36, 0.06), transparent 60%),
+    linear-gradient(rgba(15, 45, 36, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 45, 36, 0.03) 1px, transparent 1px);
   background-size: auto, auto, 32px 32px, 32px 32px;
   z-index: 0;
   mask-image: linear-gradient(180deg, black 0%, black 30%, rgba(0, 0, 0, 0.6) 100%);
@@ -59,16 +60,16 @@ body > * {
     @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium tracking-tight transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-forest-700 disabled:opacity-50 disabled:cursor-not-allowed;
   }
   .btn-primary {
-    @apply btn bg-forest-900 text-white shadow-brand-glow hover:bg-forest-700 active:bg-forest-950;
+    @apply btn bg-forest-900 text-cream-200 shadow-brand-glow hover:bg-forest-800 active:bg-forest-950;
   }
   .btn-secondary {
-    @apply btn bg-white text-forest-900 border border-forest-200 hover:border-forest-700 hover:bg-forest-50;
+    @apply btn bg-white text-forest-900 border border-forest-200 hover:border-gold-500 hover:bg-cream-50;
   }
   .btn-ghost {
     @apply btn bg-transparent text-forest-900 hover:bg-cream-50 hover:text-forest-700;
   }
   .btn-accent {
-    @apply btn bg-cream-200 text-forest-900 hover:bg-cream-100 active:bg-cream-200 shadow-sm;
+    @apply btn bg-gold-shine text-forest-900 hover:opacity-90 shadow-sm;
   }
   .input {
     @apply w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm placeholder:text-ink-400 focus:outline-none focus:ring-2 focus:ring-forest-700/15 focus:border-forest-700 transition-colors;
@@ -92,7 +93,7 @@ body > * {
     @apply badge bg-cream-200 text-forest-900;
   }
   .eyebrow {
-    @apply text-[11px] uppercase tracking-[0.16em] font-semibold text-forest-700;
+    @apply text-[11px] uppercase tracking-[0.16em] font-semibold text-gold-700;
   }
   .divider {
     @apply border-t border-ink-100;
@@ -109,8 +110,23 @@ body > * {
     @apply absolute inset-x-4 bottom-0 h-0.5 bg-forest-900 rounded-t;
   }
 
-  /* Brand mark gradient */
+  /* Brand mark — deep forest tile with gold figure */
   .brand-mark {
-    background-image: linear-gradient(135deg, #23362f 0%, #3b6656 100%);
+    background-image: linear-gradient(135deg, #0f2d24 0%, #173b30 100%);
+  }
+  .brand-gold {
+    color: #c9a85a;
+  }
+
+  /* Wordmark "A" decorative inverted-triangle marker */
+  .a-mark {
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 9px solid #c9a85a;
+    display: inline-block;
+    transform: translateY(-1px);
+    margin-right: 1px;
   }
 }

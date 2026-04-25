@@ -6,6 +6,7 @@ import { Disclaimer } from '@/components/Disclaimer';
 import { UserMenu } from '@/components/UserMenu';
 import { Bella } from '@/components/Bella';
 import { CookieBanner } from '@/components/CookieBanner';
+import { BrandMark } from '@/components/BrandMark';
 
 const sans = Inter({
   subsets: ['latin'],
@@ -27,16 +28,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <header className="sticky top-0 z-20 border-b border-forest-100 bg-white/85 backdrop-blur-md">
           <div className="mx-auto max-w-6xl px-6 py-3 flex items-center justify-between">
             <Link href="/" className="flex items-center gap-2.5 group">
-              <span className="brand-mark inline-flex h-9 w-9 items-center justify-center rounded-lg text-cream-200 shadow-brand-glow">
-                <ScalesIcon />
+              <span className="brand-mark inline-flex h-9 w-9 items-center justify-center rounded-lg shadow-brand-glow text-gold-500 group-hover:text-gold-400 transition-colors">
+                <BrandMark size={22} />
               </span>
               <span className="flex items-baseline gap-2">
-                <span className="font-semibold tracking-tight text-[15px] text-forest-900">
+                <span className="font-semibold tracking-[0.08em] text-[15px] text-forest-900 uppercase">
                   Advottic
                 </span>
-                <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-[0.18em] text-forest-700">
+                <span className="hidden md:inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-[0.18em] text-gold-700">
                   <span className="live-dot inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                  v1
+                  AI · LEGAL · CASE-READY
                 </span>
               </span>
             </Link>
@@ -78,19 +79,3 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   );
 }
 
-function ScalesIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-      {/* Center pillar */}
-      <path d="M12 4v16M9 20h6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-      {/* Crossbar */}
-      <path d="M5 7h14" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-      {/* Left scale */}
-      <path d="M5 7l-2.5 5.2c.4 1.4 1.6 2.3 2.5 2.3s2.1-.9 2.5-2.3L5 7z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
-      {/* Right scale */}
-      <path d="M19 7l-2.5 5.2c.4 1.4 1.6 2.3 2.5 2.3s2.1-.9 2.5-2.3L19 7z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
-      {/* Top knob */}
-      <circle cx="12" cy="4" r="1.2" fill="currentColor" />
-    </svg>
-  );
-}

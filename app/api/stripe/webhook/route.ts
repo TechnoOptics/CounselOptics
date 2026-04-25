@@ -10,6 +10,17 @@ import type { SubscriptionStatus } from '@/lib/types';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
+/** `current_period_end` lives on Subscription in older Stripe API versions and on
+ * SubscriptionItem in newer ones. Read from whichever has it. */
+function periodEndFromSub(sub: Stripe.Subscription): string | null {
+  const onSub = (sub as unknown as { current_period_end?: number }).current_period_end;
+  if (typeof onSub === 'number') return new Date(onSub * 1000).toISOString();
+  const onItem = (sub.items?.data?.[0] as unknown as { current_period_end?: number } | undefined)
+    ?.current_period_end;
+  if (typeof onItem === 'number') return new Date(onItem * 1000).toISOString();
+  return null;
+}
+
 export async function POST(req: NextRequest) {
   const stripe = getStripe();
   const secret = getWebhookSecret();
@@ -54,12 +65,7 @@ export async function POST(req: NextRequest) {
             const sub = await stripe.subscriptions.retrieve(subscriptionId);
             priceId = sub.items.data[0]?.price.id ?? null;
             status = (sub.status as SubscriptionStatus) ?? 'active';
-            const item = sub.items.data[0] as
-              | (Stripe.SubscriptionItem & { current_period_end?: number })
-              | undefined;
-            const periodEnd = item?.current_period_end;
-            currentPeriodEnd =
-              typeof periodEnd === 'number' ? new Date(periodEnd * 1000).toISOString() : null;
+            currentPeriodEnd = periodEndFromSub(sub);
             cancelAtPeriodEnd = sub.cancel_at_period_end;
           }
           await upsertSubscriptionFromStripe({
@@ -84,18 +90,13 @@ export async function POST(req: NextRequest) {
           (sub.metadata?.supabase_user_id as string | undefined) ??
           (await userIdForStripeCustomer(customerId));
         if (userId) {
-          const item = sub.items.data[0] as
-            | (Stripe.SubscriptionItem & { current_period_end?: number })
-            | undefined;
-          const periodEnd = item?.current_period_end;
           await upsertSubscriptionFromStripe({
             userId,
             stripeCustomerId: customerId,
             stripeSubscriptionId: sub.id,
             status: sub.status as SubscriptionStatus,
             priceId: sub.items.data[0]?.price.id ?? null,
-            currentPeriodEnd:
-              typeof periodEnd === 'number' ? new Date(periodEnd * 1000).toISOString() : null,
+            currentPeriodEnd: periodEndFromSub(sub),
             cancelAtPeriodEnd: sub.cancel_at_period_end,
           });
         }
