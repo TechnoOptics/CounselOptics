@@ -90,7 +90,7 @@ function CaseHero() {
               </h2>
               <p className="text-sm text-cream-100/85 mt-3">
                 <span className="text-cream-100/55">Business: </span>
-                <span className="font-medium text-cream-100">Rivertown Holdings, LLC</span>
+                <span className="font-medium text-cream-100">Advottic Holdings</span>
                 <span className="text-cream-100/40 mx-2">·</span>
                 <span className="text-cream-100/85">Shakopee, MN, USA</span>
               </p>

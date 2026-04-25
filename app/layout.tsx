@@ -87,9 +87,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 </span>
                 {/* ADVOTTIC wordmark in Conquera (or Saira Condensed fallback) */}
                 <span
-                  className="text-cream-100 text-[22px] sm:text-[24px] leading-none tracking-[0.06em] font-extrabold"
-                  // Conquera (licensed) → Saira Condensed (Google fallback)
-                  style={{ fontFamily: "'Conquera', var(--font-wordmark), sans-serif" }}
+                  className="text-cream-100 text-[24px] sm:text-[28px] leading-none tracking-[0.04em]"
+                  // Licensed Conquera Medium → Saira Condensed (Google fallback) → sans-serif
+                  style={{
+                    fontFamily: "'Conquera', var(--font-wordmark), sans-serif",
+                    fontWeight: 500,
+                  }}
                 >
                   ADVOTTIC
                 </span>
