@@ -13,3 +13,27 @@ data
 .vscode
 .idea
 *.tsbuildinfo
+
+# Native build artifacts (Capacitor)
+android/build/
+android/app/build/
+android/.gradle/
+android/.idea/
+android/local.properties
+android/key.properties
+android/app/release/
+android/captures/
+ios/build/
+ios/App/Pods/
+ios/App/Podfile.lock
+ios/DerivedData/
+ios/.symlinks/
+
+# Native signing material - never commit
+*.keystore
+*.jks
+*.p12
+*.p8
+*.mobileprovision
+ios/App/App/GoogleService-Info.plist
+android/app/google-services.json

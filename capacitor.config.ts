@@ -1,3 +1,5 @@
+import type { CapacitorConfig } from '@capacitor/cli';
+
 /**
  * Capacitor configuration for the Advottic native shells (iOS + Android).
  *
@@ -10,33 +12,14 @@
  * biometrics, file picker).
  *
  * Build prerequisites are documented in docs/MOBILE.md.
- *
- * The CapacitorConfig type lives in @capacitor/cli, which is intentionally
- * not a runtime dependency of this Next.js app - it's only needed when
- * actually building the native shells. The structural type below mirrors
- * the parts of CapacitorConfig we use; once you `npm install -D
- * @capacitor/cli`, you can replace this `Config` alias with a `import
- * type { CapacitorConfig } from '@capacitor/cli'`.
  */
-type Config = {
-  appId: string;
-  appName: string;
-  webDir: string;
-  bundledWebRuntime?: boolean;
-  server?: { url?: string; cleartext?: boolean; androidScheme?: string };
-  ios?: Record<string, unknown>;
-  android?: Record<string, unknown>;
-  plugins?: Record<string, unknown>;
-};
-
-const config: Config = {
+const config: CapacitorConfig = {
   appId: 'com.advottic.app',
   appName: 'Advottic',
   // webDir is required by the CLI but unused at runtime when server.url
   // is set. Keep it pointing at .next/build artifacts so `npx cap sync`
   // doesn't complain.
   webDir: '.next',
-  bundledWebRuntime: false,
   server: {
     url: 'https://advottic.com',
     cleartext: false,

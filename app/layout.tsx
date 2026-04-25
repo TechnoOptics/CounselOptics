@@ -99,30 +99,19 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <Link
                 href="/"
                 aria-label="Advottic home"
-                className="inline-flex items-center gap-3 group"
+                className="inline-flex items-center group"
               >
-                {/* Branded tile: gold pillar mark on a forest gradient with
-                    rounded corners. Same artwork the iOS / Android home
-                    screen icon uses, so the brand reads identically across
-                    surfaces. */}
+                {/* Full landscape lockup: gold pillar mark + gold triangle
+                    accent + ADVOTTIC wordmark in white, baked into a single
+                    transparent PNG. Designed for dark backgrounds. */}
                 <Image
-                  src="/advottic-tile.png"
-                  alt=""
-                  width={512}
-                  height={512}
+                  src="/advottic-wordmark.png"
+                  alt="Advottic"
+                  width={14494}
+                  height={1699}
                   priority
-                  className="h-10 w-10 block rounded-xl ring-1 ring-cream-100/15 shadow-sm group-hover:shadow-card-hover transition-shadow"
+                  className="h-9 sm:h-10 w-auto block group-hover:opacity-90 transition-opacity"
                 />
-                {/* ADVOTTIC wordmark in licensed Conquera (Saira Condensed fallback) */}
-                <span
-                  className="text-cream-100 text-[24px] sm:text-[28px] leading-none tracking-[0.04em]"
-                  style={{
-                    fontFamily: "'Conquera', var(--font-wordmark), sans-serif",
-                    fontWeight: 500,
-                  }}
-                >
-                  ADVOTTIC
-                </span>
               </Link>
               <div className="flex items-center gap-1">
                 {signedIn && <SearchTrigger />}
