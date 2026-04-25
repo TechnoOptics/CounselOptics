@@ -215,18 +215,64 @@ create policy "subscriptions_select_own"
 -- Inserts/updates happen via the service role from the Stripe webhook; no
 -- end-user write policy.
 
+-- Helper functions (SECURITY DEFINER) used in RLS to break recursion between
+-- cases and case_collaborators policies. Without these, each policy's
+-- subquery against the other table would loop ("infinite recursion detected").
+create or replace function public.is_case_member(_case_id uuid)
+returns boolean
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select
+    exists (select 1 from public.cases where id = _case_id and user_id = auth.uid())
+    or exists (
+      select 1 from public.case_collaborators
+      where case_id = _case_id and user_id = auth.uid()
+    );
+$$;
+
+create or replace function public.can_add_to_case(_case_id uuid)
+returns boolean
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select
+    exists (select 1 from public.cases where id = _case_id and user_id = auth.uid())
+    or exists (
+      select 1 from public.case_collaborators
+      where case_id = _case_id
+        and user_id = auth.uid()
+        and role in ('editor', 'attorney')
+    );
+$$;
+
+create or replace function public.is_case_owner(_case_id uuid)
+returns boolean
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select exists (select 1 from public.cases where id = _case_id and user_id = auth.uid());
+$$;
+
+revoke execute on function public.is_case_member(uuid) from public;
+revoke execute on function public.can_add_to_case(uuid) from public;
+revoke execute on function public.is_case_owner(uuid) from public;
+grant execute on function public.is_case_member(uuid) to authenticated;
+grant execute on function public.can_add_to_case(uuid) to authenticated;
+grant execute on function public.is_case_owner(uuid) to authenticated;
+
 -- cases policies
 drop policy if exists "cases_select_own" on public.cases;
 drop policy if exists "cases_select_own_or_collaborator" on public.cases;
 create policy "cases_select_own_or_collaborator"
   on public.cases for select
-  using (
-    auth.uid() = user_id
-    or exists (
-      select 1 from public.case_collaborators cc
-      where cc.case_id = cases.id and cc.user_id = auth.uid()
-    )
-  );
+  using (public.is_case_member(id));
 
 drop policy if exists "cases_insert_own" on public.cases;
 create policy "cases_insert_own"
@@ -249,55 +295,27 @@ drop policy if exists "exhibits_select_own" on public.exhibits;
 drop policy if exists "exhibits_select_own_or_collaborator" on public.exhibits;
 create policy "exhibits_select_own_or_collaborator"
   on public.exhibits for select
-  using (
-    auth.uid() = user_id
-    or exists (
-      select 1 from public.case_collaborators cc
-      where cc.case_id = exhibits.case_id and cc.user_id = auth.uid()
-    )
-  );
+  using (public.is_case_member(case_id));
 
--- Owner OR a collaborator with role editor/attorney can add exhibits to a case.
--- The exhibit row's user_id is whoever uploaded it (could be the collaborator),
--- so RLS validates against case ownership / collaboration, not user_id.
+-- Owner OR collaborator (editor/attorney) can add exhibits to a case.
 drop policy if exists "exhibits_insert_own" on public.exhibits;
 drop policy if exists "exhibits_insert_owner_or_editor" on public.exhibits;
 create policy "exhibits_insert_owner_or_editor"
   on public.exhibits for insert
-  with check (
-    auth.uid() = user_id
-    and (
-      exists (select 1 from public.cases c where c.id = case_id and c.user_id = auth.uid())
-      or exists (
-        select 1 from public.case_collaborators cc
-        where cc.case_id = exhibits.case_id
-          and cc.user_id = auth.uid()
-          and cc.role in ('editor', 'attorney')
-      )
-    )
-  );
+  with check (auth.uid() = user_id and public.can_add_to_case(case_id));
 
 drop policy if exists "exhibits_delete_own" on public.exhibits;
 drop policy if exists "exhibits_delete_uploader_or_owner" on public.exhibits;
 create policy "exhibits_delete_uploader_or_owner"
   on public.exhibits for delete
-  using (
-    auth.uid() = user_id
-    or exists (select 1 from public.cases c where c.id = case_id and c.user_id = auth.uid())
-  );
+  using (auth.uid() = user_id or public.is_case_owner(case_id));
 
 -- ai_reviews policies
 drop policy if exists "ai_reviews_select_own" on public.ai_reviews;
 drop policy if exists "ai_reviews_select_own_or_collaborator" on public.ai_reviews;
 create policy "ai_reviews_select_own_or_collaborator"
   on public.ai_reviews for select
-  using (
-    auth.uid() = user_id
-    or exists (
-      select 1 from public.case_collaborators cc
-      where cc.case_id = ai_reviews.case_id and cc.user_id = auth.uid()
-    )
-  );
+  using (public.is_case_member(case_id));
 
 drop policy if exists "ai_reviews_insert_own" on public.ai_reviews;
 create policy "ai_reviews_insert_own"
@@ -309,13 +327,7 @@ drop policy if exists "exhibit_plans_select_own" on public.exhibit_plans;
 drop policy if exists "exhibit_plans_select_own_or_collaborator" on public.exhibit_plans;
 create policy "exhibit_plans_select_own_or_collaborator"
   on public.exhibit_plans for select
-  using (
-    auth.uid() = user_id
-    or exists (
-      select 1 from public.case_collaborators cc
-      where cc.case_id = exhibit_plans.case_id and cc.user_id = auth.uid()
-    )
-  );
+  using (public.is_case_member(case_id));
 
 drop policy if exists "exhibit_plans_insert_own" on public.exhibit_plans;
 create policy "exhibit_plans_insert_own"
@@ -338,13 +350,7 @@ drop policy if exists "defense_advice_select_own" on public.defense_advice;
 drop policy if exists "defense_advice_select_own_or_collaborator" on public.defense_advice;
 create policy "defense_advice_select_own_or_collaborator"
   on public.defense_advice for select
-  using (
-    auth.uid() = user_id
-    or exists (
-      select 1 from public.case_collaborators cc
-      where cc.case_id = defense_advice.case_id and cc.user_id = auth.uid()
-    )
-  );
+  using (public.is_case_member(case_id));
 
 drop policy if exists "defense_advice_insert_own" on public.defense_advice;
 create policy "defense_advice_insert_own"
@@ -355,25 +361,17 @@ create policy "defense_advice_insert_own"
 drop policy if exists "case_collaborators_select" on public.case_collaborators;
 create policy "case_collaborators_select"
   on public.case_collaborators for select
-  using (
-    exists (select 1 from public.cases c where c.id = case_id and c.user_id = auth.uid())
-    or user_id = auth.uid()
-  );
+  using (public.is_case_owner(case_id) or user_id = auth.uid());
 
 drop policy if exists "case_collaborators_insert" on public.case_collaborators;
 create policy "case_collaborators_insert"
   on public.case_collaborators for insert
-  with check (
-    exists (select 1 from public.cases c where c.id = case_id and c.user_id = auth.uid())
-    and invited_by = auth.uid()
-  );
+  with check (public.is_case_owner(case_id) and invited_by = auth.uid());
 
 drop policy if exists "case_collaborators_delete" on public.case_collaborators;
 create policy "case_collaborators_delete"
   on public.case_collaborators for delete
-  using (
-    exists (select 1 from public.cases c where c.id = case_id and c.user_id = auth.uid())
-  );
+  using (public.is_case_owner(case_id));
 
 -- profiles policies
 drop policy if exists "profiles_select_own" on public.profiles;
@@ -466,16 +464,7 @@ create policy "exhibits_storage_select"
     bucket_id = 'exhibits'
     and (
       (storage.foldername(name))[1] = auth.uid()::text
-      or exists (
-        select 1 from public.cases c
-        where c.id::text = (storage.foldername(name))[2]
-          and c.user_id = auth.uid()
-      )
-      or exists (
-        select 1 from public.case_collaborators cc
-        where cc.case_id::text = (storage.foldername(name))[2]
-          and cc.user_id = auth.uid()
-      )
+      or public.is_case_member(((storage.foldername(name))[2])::uuid)
     )
   );
 
@@ -486,19 +475,7 @@ create policy "exhibits_storage_insert"
   with check (
     bucket_id = 'exhibits'
     and (storage.foldername(name))[1] = auth.uid()::text
-    and (
-      exists (
-        select 1 from public.cases c
-        where c.id::text = (storage.foldername(name))[2]
-          and c.user_id = auth.uid()
-      )
-      or exists (
-        select 1 from public.case_collaborators cc
-        where cc.case_id::text = (storage.foldername(name))[2]
-          and cc.user_id = auth.uid()
-          and cc.role in ('editor', 'attorney')
-      )
-    )
+    and public.can_add_to_case(((storage.foldername(name))[2])::uuid)
   );
 
 drop policy if exists "exhibits_storage_delete_own" on storage.objects;
@@ -509,10 +486,6 @@ create policy "exhibits_storage_delete"
     bucket_id = 'exhibits'
     and (
       (storage.foldername(name))[1] = auth.uid()::text
-      or exists (
-        select 1 from public.cases c
-        where c.id::text = (storage.foldername(name))[2]
-          and c.user_id = auth.uid()
-      )
+      or public.is_case_owner(((storage.foldername(name))[2])::uuid)
     )
   );
