@@ -73,9 +73,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <Disclaimer variant="banner" />
         <header className="sticky top-0 z-20">
           {/* Top row: logo + search + avatar. Lifted on z so the avatar menu
-              can drop down OVER the secondary subheader. */}
+              can drop down OVER the secondary subheader. Width + horizontal
+              padding match the main content wrapper so the logo lines up
+              vertically with the page hero copy. */}
           <div className="relative z-30 border-b border-forest-700/40 bg-forest-950/95 backdrop-blur-md">
-            <div className="mx-auto max-w-6xl px-6 py-3 flex items-center justify-between">
+            <div className="mx-auto max-w-7xl px-4 sm:px-6 py-3 flex items-center justify-between">
               <Link
                 href="/"
                 aria-label="Advottic home"

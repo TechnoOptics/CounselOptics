@@ -18,8 +18,12 @@ export async function UserMenu() {
   const user = await getCurrentUser();
   if (!user) {
     return (
-      <Link href="/sign-in" className="btn-ghost">
+      <Link
+        href="/sign-in"
+        className="inline-flex items-center gap-1.5 rounded-md bg-cream-200 hover:bg-cream-100 text-forest-900 font-semibold text-sm px-4 py-1.5 shadow-sm ring-1 ring-cream-100/30 transition-colors"
+      >
         Sign in
+        <ArrowIcon />
       </Link>
     );
   }
@@ -44,6 +48,20 @@ export async function UserMenu() {
       isAdmin={Boolean(profile?.isAdmin)}
       organization={profile?.organization ?? null}
     />
+  );
+}
+
+function ArrowIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M5 12h14m0 0l-5-5m5 5l-5 5"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 
