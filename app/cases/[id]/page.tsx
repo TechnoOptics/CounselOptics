@@ -20,6 +20,11 @@ import { ExhibitScan } from './exhibit-scan';
 import { Tabs } from '@/components/Tabs';
 import { BellaPrompt } from '@/components/BellaPrompt';
 import { DeleteCaseButton } from './delete-case-button';
+import { PresenceIndicator } from '@/components/PresenceIndicator';
+import { ViewTracker } from './view-tracker';
+import { listCaseAuditEvents } from '@/lib/activity';
+import { ActivityList } from './activity-list';
+import { getProfile } from '@/lib/storage';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,12 +33,16 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
   const c = await getCase(params.id);
   if (!c) notFound();
 
-  const [exhibits, review, collaborators, currentUser] = await Promise.all([
+  const [exhibits, review, collaborators, currentUser, activity] = await Promise.all([
     listExhibits(c.id),
     getLatestReview(c.id),
     usingSupabase() ? listCollaborators(c.id) : Promise.resolve([]),
     usingSupabase() ? getCurrentUser() : Promise.resolve(null),
+    usingSupabase() ? listCaseAuditEvents(c.id, 50) : Promise.resolve([]),
   ]);
+
+  // Profile of the current viewer for the presence chip avatar/initials.
+  const myProfile = currentUser ? await getProfile().catch(() => null) : null;
 
   const isOwner = !usingSupabase() || Boolean(currentUser && c.ownerId === currentUser.id);
   const myCollab = currentUser
@@ -74,7 +83,32 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
         <div aria-hidden className="hero-orb hero-orb--cream hero-orb--b"
           style={{ width: 200, height: 200, right: '15%', bottom: '-100px', opacity: 0.4 }} />
 
-        <div className="relative px-6 sm:px-8 lg:px-10 pt-8 pb-2">
+        {/* Live-presence indicator: tiny avatar chips with green
+            glowing pulse for everyone currently viewing the case. */}
+        {currentUser && (
+          <div className="relative px-6 sm:px-8 lg:px-10 pt-5 -mb-2">
+            <PresenceIndicator
+              caseId={c.id}
+              me={{
+                userId: currentUser.id,
+                displayName:
+                  myProfile?.displayName ||
+                  (currentUser.user_metadata?.full_name as string | undefined) ||
+                  currentUser.email ||
+                  'You',
+                avatarUrl:
+                  myProfile?.avatarUrl ||
+                  (currentUser.user_metadata?.avatar_url as string | undefined) ||
+                  null,
+              }}
+            />
+          </div>
+        )}
+        {/* Fire-and-forget view tracking. Lives outside the markup tree
+            so it can't block render. */}
+        {currentUser && <ViewTracker caseId={c.id} />}
+
+        <div className="relative px-6 sm:px-8 lg:px-10 pt-6 pb-2">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2 mb-3">
@@ -293,6 +327,26 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
                       collaborators={collaborators}
                       isOwner={isOwner}
                     />
+                  ),
+                },
+                {
+                  id: 'activity',
+                  label: 'Activity',
+                  badge: activity.length || undefined,
+                  content: (
+                    <section className="space-y-4">
+                      <header>
+                        <h2 className="text-xl font-semibold tracking-tight text-ink-950 dark:text-cream-100">
+                          Case activity
+                        </h2>
+                        <p className="text-sm text-ink-500 dark:text-cream-100/55 mt-0.5">
+                          Every view, upload, and edit is logged here. The case owner is
+                          emailed for material changes (we batch related events within a few
+                          minutes so you do not get spammed).
+                        </p>
+                      </header>
+                      <ActivityList events={activity} />
+                    </section>
                   ),
                 },
               ]

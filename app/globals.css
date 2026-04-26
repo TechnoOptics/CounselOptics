@@ -221,6 +221,22 @@ body > * {
   pointer-events: none;
 }
 
+/* Live-presence indicator - green pulsing dot on viewer chips. The
+   chip itself doesn't move; only the pulse ring expands and fades so
+   the effect is "alive" rather than busy. */
+@keyframes co-presence-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.65); }
+  70% { box-shadow: 0 0 0 6px rgba(52, 211, 153, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0); }
+}
+.presence-pulse {
+  animation: co-presence-pulse 1.8s ease-out infinite;
+}
+.presence-chip:hover .presence-pulse {
+  /* keep pulsing on hover, just slow it slightly so the tooltip can be read */
+  animation-duration: 2.4s;
+}
+
 /* Smart-assist wizard card transitions. Forward = swipes in from the
    right; back = slides in from the left. Both fade as well so the
    change reads as smooth, not jumpy. */
@@ -401,7 +417,8 @@ body > * {
   .loading-mark::before,
   .header-glow-line::after,
   .animate-card-forward,
-  .animate-card-back {
+  .animate-card-back,
+  .presence-pulse {
     animation: none !important;
   }
   .stagger > * {

@@ -27,6 +27,7 @@ import {
 } from './storage';
 import { runReview, scanDocument, transcribeMedia } from './ai';
 import { getCurrentUser, isCurrentUserAdmin } from './supabase/server';
+import { logCaseEvent } from './activity';
 import {
   CASE_TYPES,
   type CaseStatus,
@@ -145,6 +146,9 @@ export async function createCaseAction(
     return { ok: false, error: message };
   }
 
+  // Best-effort activity log + owner notification.
+  await logCaseEvent({ caseId: createdId, eventType: 'case_created' });
+
   // Redirect outside the try/catch so the NEXT_REDIRECT control-flow
   // exception isn't swallowed.
   revalidatePath('/cases');
@@ -198,6 +202,16 @@ export async function uploadExhibitAction(caseId: string, formData: FormData) {
     }
   }
 
+  await logCaseEvent({
+    caseId,
+    eventType: 'exhibit_uploaded',
+    metadata: {
+      label: exhibit.label,
+      fileName: exhibit.fileName,
+      category: exhibit.category ?? null,
+    },
+  });
+
   revalidatePath(`/cases/${caseId}`);
   revalidatePath('/cases');
 }
@@ -248,6 +262,11 @@ export async function inviteCollaboratorAction(caseId: string, formData: FormDat
     ? (roleRaw as CollaboratorRole)
     : 'viewer';
   const result = await inviteCollaborator({ caseId, email, role });
+  await logCaseEvent({
+    caseId,
+    eventType: 'collaborator_invited',
+    metadata: { email, role },
+  });
   revalidatePath(`/cases/${caseId}`);
   return { emailed: result.emailed };
 }
@@ -255,6 +274,11 @@ export async function inviteCollaboratorAction(caseId: string, formData: FormDat
 export async function removeCollaboratorAction(caseId: string, collaboratorId: string) {
   await assertAuthIfSupabase();
   await removeCollaborator(collaboratorId);
+  await logCaseEvent({
+    caseId,
+    eventType: 'collaborator_removed',
+    metadata: { collaboratorId },
+  });
   revalidatePath(`/cases/${caseId}`);
 }
 
@@ -327,6 +351,11 @@ export async function updateHearingAction(
     hearingLocation: input.hearingLocation.trim() || null,
     hearingNotes: input.hearingNotes.trim() || null,
   });
+  await logCaseEvent({
+    caseId,
+    eventType: 'hearing_updated',
+    metadata: { hearingAt: at },
+  });
   revalidatePath(`/cases/${caseId}`);
   revalidatePath('/cases');
 }
@@ -375,7 +404,14 @@ export async function setCaseStatusAction(caseId: string, status: CaseStatus) {
     'archived',
   ];
   if (!valid.includes(status)) throw new Error('Invalid status.');
+  // Read the previous status so the event metadata captures the transition.
+  const prev = await getCase(caseId);
   await updateCaseStatus(caseId, status);
+  await logCaseEvent({
+    caseId,
+    eventType: 'case_status_changed',
+    metadata: { from: prev?.status ?? null, to: status },
+  });
   revalidatePath(`/cases/${caseId}`);
   revalidatePath('/cases');
 }
@@ -431,6 +467,7 @@ export async function runReviewAction(caseId: string) {
   const exhibits = await listExhibits(caseId);
   const review = await runReview(caseRecord, exhibits);
   await saveReview(review);
+  await logCaseEvent({ caseId, eventType: 'review_run' });
   revalidatePath(`/cases/${caseId}`);
   revalidatePath('/cases');
 }
@@ -509,6 +546,21 @@ export async function setLanguageAction(language: string): Promise<PrefResult> {
       ok: false,
       error: err instanceof Error ? err.message : 'Could not save language.',
     };
+  }
+}
+
+/**
+ * Fire-and-forget view tracking. The case detail server component
+ * calls this on render. The cooldown logic in lib/activity.ts means
+ * the owner is emailed at most once every 4 hours per (case, viewer).
+ */
+export async function trackCaseViewAction(caseId: string): Promise<void> {
+  try {
+    await assertAuthIfSupabase();
+    if (!caseId) return;
+    await logCaseEvent({ caseId, eventType: 'case_viewed' });
+  } catch (err) {
+    console.error('[trackCaseViewAction] failed', err);
   }
 }
 
