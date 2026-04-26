@@ -466,6 +466,51 @@ export async function updateCaseStatus(caseId: string, status: CaseStatus): Prom
   await writeLocalDB(db);
 }
 
+/**
+ * Permanently delete a case and all its exhibits, AI reviews, collaborators,
+ * and storage objects. Cascades happen at the FK level for child tables;
+ * we only need to walk the storage bucket ourselves to clean up files.
+ * RLS (cases_delete_own) ensures only the owner can execute this. Throws
+ * if the caller is not the owner or if the row doesn't exist.
+ */
+export async function deleteCase(caseId: string): Promise<void> {
+  if (usingSupabase()) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error('Not signed in.');
+    const supabase = createServerSupabase();
+
+    // Best-effort: remove the case's storage folder before the row goes
+    // away. We use the admin client (service role) so it can list and
+    // delete objects regardless of bucket-level policy.
+    const admin = createAdminSupabase();
+    if (admin) {
+      const folder = `${user.id}/${caseId}`;
+      try {
+        const { data: files } = await admin.storage
+          .from('exhibits')
+          .list(folder, { limit: 1000 });
+        if (files && files.length > 0) {
+          const paths = files.map((f) => `${folder}/${f.name}`);
+          await admin.storage.from('exhibits').remove(paths);
+        }
+      } catch {
+        // Don't block deletion if storage cleanup fails - the row delete
+        // is the load-bearing part. Orphaned files can be reaped later.
+      }
+    }
+
+    const { error } = await supabase.from('cases').delete().eq('id', caseId);
+    if (error) throw error;
+    return;
+  }
+  const db = await readLocalDB();
+  const before = db.cases.length;
+  db.cases = db.cases.filter((c) => c.id !== caseId);
+  if (db.cases.length === before) throw new Error('Case not found.');
+  db.exhibits = db.exhibits.filter((e) => e.caseId !== caseId);
+  await writeLocalDB(db);
+}
+
 export async function listExhibits(caseId: string): Promise<Exhibit[]> {
   if (usingSupabase()) {
     const user = await getCurrentUser();

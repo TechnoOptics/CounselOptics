@@ -18,16 +18,17 @@ export const metadata: Metadata = {
 export default function ExamplePage() {
   return (
     <div className="space-y-12 sm:space-y-16 animate-fade-up">
-      {/* Header band */}
-      <header className="rounded-3xl bg-gradient-to-br from-amber-50 via-cream-50 to-cream-100 ring-1 ring-amber-200 px-6 sm:px-10 py-6 sm:py-8">
-        <p className="inline-flex items-center gap-2 text-[10px] tracking-[0.28em] uppercase font-semibold text-amber-700">
-          <span className="inline-block h-px w-6 bg-amber-700" />
+      {/* Header band - warning palette (amber). Dark mode keeps the
+          warm warning vibe but on a dark amber wash so text stays readable. */}
+      <header className="rounded-3xl bg-gradient-to-br from-amber-50 via-cream-50 to-cream-100 ring-1 ring-amber-200 dark:bg-none dark:bg-amber-950/40 dark:ring-amber-700/40 px-6 sm:px-10 py-6 sm:py-8">
+        <p className="inline-flex items-center gap-2 text-[10px] tracking-[0.28em] uppercase font-semibold text-amber-700 dark:text-amber-300">
+          <span className="inline-block h-px w-6 bg-amber-700 dark:bg-amber-300" />
           Example mode · read-only
         </p>
-        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-forest-900 mt-3">
+        <h1 className="font-display text-2xl sm:text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-amber-50 mt-3">
           A look inside an Advottic case file
         </h1>
-        <p className="text-sm sm:text-base text-ink-700 mt-2 max-w-2xl leading-relaxed">
+        <p className="text-sm sm:text-base text-ink-700 dark:text-amber-100/85 mt-2 max-w-2xl leading-relaxed">
           This is a fictional matter we built to walk you through what your own case will look
           like once you sign in: a hero header, hearing countdown, exhibit list, Legal Eye
           review, and Bella the assistant. Nothing here is connected to a real account.

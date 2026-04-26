@@ -7,6 +7,7 @@ import {
   adminSetUserAdmin,
   adminSetUserBlocked,
   createCase,
+  deleteCase,
   getCase,
   getExhibitById,
   getExhibitFileBuffer,
@@ -318,6 +319,38 @@ export async function updateHearingAction(
   });
   revalidatePath(`/cases/${caseId}`);
   revalidatePath('/cases');
+}
+
+/**
+ * Permanently delete a case. The action redirects to /cases on success
+ * and returns a structured error on failure so the calling client can
+ * surface it inline instead of crashing the page.
+ */
+export async function deleteCaseAction(
+  _prevState: { ok: boolean; error?: string } | null,
+  formData: FormData,
+): Promise<{ ok: boolean; error?: string }> {
+  const caseId = String(formData.get('caseId') ?? '').trim();
+  const confirm = String(formData.get('confirm') ?? '').trim();
+  try {
+    await assertAuthIfSupabase();
+    if (!caseId) return { ok: false, error: 'Missing case id.' };
+    if (confirm.toLowerCase() !== 'delete') {
+      return {
+        ok: false,
+        error: 'Type "delete" to confirm. This action cannot be undone.',
+      };
+    }
+    await deleteCase(caseId);
+  } catch (err) {
+    console.error('[deleteCaseAction] failed', err);
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Could not delete case.',
+    };
+  }
+  revalidatePath('/cases');
+  redirect('/cases');
 }
 
 export async function setCaseStatusAction(caseId: string, status: CaseStatus) {

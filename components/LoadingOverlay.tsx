@@ -15,7 +15,7 @@ export function LoadingOverlay({ show, label }: { show: boolean; label?: string 
     <div
       role="status"
       aria-live="polite"
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-forest-950/55 backdrop-blur-sm animate-fade-in pointer-events-auto"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-white/92 dark:bg-forest-950/85 backdrop-blur-sm animate-fade-in pointer-events-auto"
     >
       <div className="relative flex flex-col items-center gap-5">
         <span className="loading-mark inline-flex items-center justify-center">
@@ -29,7 +29,7 @@ export function LoadingOverlay({ show, label }: { show: boolean; label?: string 
           />
         </span>
         {label && (
-          <p className="text-[11px] uppercase tracking-[0.3em] font-semibold text-cream-100/85">
+          <p className="text-[11px] uppercase tracking-[0.3em] font-semibold text-forest-900 dark:text-cream-100/85">
             {label}
           </p>
         )}

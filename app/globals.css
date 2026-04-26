@@ -92,6 +92,10 @@ body::before {
       linear-gradient(rgba(245, 237, 214, 0.025) 1px, transparent 1px),
       linear-gradient(90deg, rgba(245, 237, 214, 0.025) 1px, transparent 1px);
   }
+  /* Text classes that are typically used directly on the page body
+     (which goes dark above) need a cream fallback so they stay
+     readable. Components that need to keep dark text on a light surface
+     should opt in with explicit `dark:` variants. */
   .text-forest-900 { color: #f5edd6; }
   .text-forest-800,
   .text-forest-700 { color: rgba(245, 237, 214, 0.85); }
@@ -107,16 +111,21 @@ body::before {
   .hover\:text-forest-700:hover { color: rgba(245, 237, 214, 0.92); }
   .hover\:text-ink-900:hover { color: #fbf7e9; }
   .hover\:text-ink-700:hover { color: rgba(245, 237, 214, 0.92); }
-  /* Backgrounds that bake forest-900 as a "dark surface" stay dark - those
-     are intentional. But pure-white surfaces get a forest tint so embedded
-     forest-900 text doesn't disappear on them. */
+  /* Solid light surfaces get repainted dark forest in dark mode so the
+     text overrides above stay readable on them. Note: gradient stops
+     (`from-cream-50`, `via-cream-50` etc.) compile to different CSS
+     selectors than `.bg-cream-50`, so they are NOT affected by these
+     rules - those gradients keep rendering with their original light
+     stops, and any text inside needs an explicit `dark:` variant. */
   .bg-white { background-color: #1a3d31; }
   .bg-cream-50 { background-color: #173b30; }
   .bg-cream-50\/40 { background-color: rgba(23, 59, 48, 0.4); }
+  .bg-cream-50\/50 { background-color: rgba(23, 59, 48, 0.5); }
   .bg-cream-100 { background-color: #1f4839; }
   .bg-cream-200 { background-color: #2a5a47; }
   .bg-ink-50 { background-color: #102a23; }
   .bg-ink-50\/40 { background-color: rgba(16, 42, 35, 0.4); }
+  .bg-ink-50\/50 { background-color: rgba(16, 42, 35, 0.5); }
   /* Border + ring inversions so light-mode hairlines do not vanish */
   .border-ink-100 { border-color: rgba(245, 237, 214, 0.08); }
   .border-ink-200 { border-color: rgba(245, 237, 214, 0.12); }

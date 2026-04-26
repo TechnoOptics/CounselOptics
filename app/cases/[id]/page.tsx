@@ -19,6 +19,7 @@ import { HearingPanel } from './hearing-panel';
 import { ExhibitScan } from './exhibit-scan';
 import { Tabs } from '@/components/Tabs';
 import { BellaPrompt } from '@/components/BellaPrompt';
+import { DeleteCaseButton } from './delete-case-button';
 
 export const dynamic = 'force-dynamic';
 
@@ -302,6 +303,26 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
             content: (
               <div className="space-y-6">
                 <CloseCaseControl caseId={c.id} status={c.status} isOwner={isOwner} />
+
+                {isOwner && (
+                  <section className="card border-rose-200 dark:border-rose-900/40 p-5 sm:p-6">
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <p className="text-[10px] uppercase tracking-[0.22em] font-semibold text-rose-700 dark:text-rose-200">
+                          Danger zone
+                        </p>
+                        <h3 className="font-display text-lg font-medium tracking-[-0.01em] text-ink-950 dark:text-cream-100 mt-1">
+                          Delete this case
+                        </h3>
+                        <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1.5 max-w-md leading-relaxed">
+                          Removes the case, every exhibit, every Legal Eye review, and any
+                          collaborator access. This is permanent - the case cannot be recovered.
+                        </p>
+                      </div>
+                      <DeleteCaseButton caseId={c.id} caseTitle={c.title} />
+                    </div>
+                  </section>
+                )}
               </div>
             ),
           },
