@@ -192,6 +192,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <Link href="/cases/new" className="hover:text-forest-900 dark:hover:text-cream-100 block">New case</Link>
                 <Link href="/find-counsel" className="hover:text-forest-900 dark:hover:text-cream-100 block">Find counsel</Link>
                 <Link href="/review-my-document" className="hover:text-forest-900 dark:hover:text-cream-100 block">Review my document</Link>
+                <Link href="/feedback" className="hover:text-forest-900 dark:hover:text-cream-100 block">Send feedback</Link>
+                <Link href="/welcome" className="hover:text-forest-900 dark:hover:text-cream-100 block">Share Advottic</Link>
                 <Link href="/billing" className="hover:text-forest-900 dark:hover:text-cream-100 block">Billing</Link>
               </FooterCol>
               <FooterCol title="Legal">

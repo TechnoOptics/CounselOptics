@@ -812,6 +812,140 @@ export type AdminCaseRow = Case & {
   ownerDisplayName: string | null;
 };
 
+// ---------------------------------------------------------------------------
+// Feedback - bug reports / suggestions submitted by users from /feedback.
+// Admins triage everything from /admin/feedback.
+// ---------------------------------------------------------------------------
+
+export type FeedbackCategory = 'bug' | 'suggestion' | 'praise' | 'other';
+export type FeedbackStatus = 'new' | 'triaged' | 'resolved' | 'wontfix';
+
+export type FeedbackRow = {
+  id: string;
+  userId: string | null;
+  userEmail: string | null;
+  userDisplayName: string | null;
+  category: FeedbackCategory;
+  subject: string;
+  body: string;
+  urlAtSubmit: string | null;
+  userAgent: string | null;
+  status: FeedbackStatus;
+  adminNotes: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type FeedbackDbRow = {
+  id: string;
+  user_id: string | null;
+  user_email: string | null;
+  user_display_name: string | null;
+  category: FeedbackCategory;
+  subject: string;
+  body: string;
+  url_at_submit: string | null;
+  user_agent: string | null;
+  status: FeedbackStatus;
+  admin_notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+function feedbackFromRow(r: FeedbackDbRow): FeedbackRow {
+  return {
+    id: r.id,
+    userId: r.user_id,
+    userEmail: r.user_email,
+    userDisplayName: r.user_display_name,
+    category: r.category,
+    subject: r.subject,
+    body: r.body,
+    urlAtSubmit: r.url_at_submit,
+    userAgent: r.user_agent,
+    status: r.status,
+    adminNotes: r.admin_notes,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
+
+export async function createFeedback(input: {
+  category: FeedbackCategory;
+  subject: string;
+  body: string;
+  urlAtSubmit?: string | null;
+  userAgent?: string | null;
+}): Promise<FeedbackRow> {
+  if (!usingSupabase()) throw new Error('Feedback requires Supabase to be configured.');
+  const user = await getCurrentUser();
+  if (!user) throw new Error('Not signed in.');
+  const displayName =
+    (user.user_metadata?.full_name as string | undefined) ??
+    (user.user_metadata?.name as string | undefined) ??
+    null;
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from('feedback')
+    .insert({
+      user_id: user.id,
+      user_email: user.email ?? null,
+      user_display_name: displayName,
+      category: input.category,
+      subject: input.subject,
+      body: input.body,
+      url_at_submit: input.urlAtSubmit ?? null,
+      user_agent: input.userAgent ?? null,
+    })
+    .select('*')
+    .single();
+  if (error) throw error;
+  return feedbackFromRow(data as FeedbackDbRow);
+}
+
+export async function listMyFeedback(): Promise<FeedbackRow[]> {
+  if (!usingSupabase()) return [];
+  const user = await getCurrentUser();
+  if (!user) return [];
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from('feedback')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data as FeedbackDbRow[]).map(feedbackFromRow);
+}
+
+export async function adminListFeedback(input?: {
+  status?: FeedbackStatus | 'all';
+}): Promise<FeedbackRow[]> {
+  const admin = createAdminSupabase();
+  if (!admin) return [];
+  let q = admin.from('feedback').select('*').order('created_at', { ascending: false });
+  if (input?.status && input.status !== 'all') {
+    q = q.eq('status', input.status);
+  }
+  const { data, error } = await q;
+  if (error) throw error;
+  return (data as FeedbackDbRow[]).map(feedbackFromRow);
+}
+
+export async function adminUpdateFeedback(input: {
+  id: string;
+  status?: FeedbackStatus;
+  adminNotes?: string | null;
+}): Promise<void> {
+  const admin = createAdminSupabase();
+  if (!admin) throw new Error('Service role key required.');
+  const update: Record<string, unknown> = {};
+  if (input.status) update.status = input.status;
+  if (input.adminNotes !== undefined) update.admin_notes = input.adminNotes;
+  if (Object.keys(update).length === 0) return;
+  const { error } = await admin.from('feedback').update(update).eq('id', input.id);
+  if (error) throw error;
+}
+
 export async function adminListUsers(): Promise<AdminUserRow[]> {
   const admin = createAdminSupabase();
   if (!admin) return [];

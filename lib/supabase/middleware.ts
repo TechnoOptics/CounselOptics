@@ -1,7 +1,11 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
-const PROTECTED_PREFIXES = ['/cases', '/profile', '/admin', '/billing', '/welcome'];
+// /welcome was historically auth-protected as a post-sign-in landing page;
+// the new /welcome is a public install + sign-in page used as the share-app
+// destination, so it must NOT require auth. Authenticated visitors get
+// redirected to /cases inside the page itself.
+const PROTECTED_PREFIXES = ['/cases', '/profile', '/admin', '/billing', '/feedback'];
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });

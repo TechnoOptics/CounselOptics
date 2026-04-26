@@ -8,6 +8,7 @@ import { AvatarUpload } from './avatar-upload';
 import { ThemePicker } from '@/components/ThemePicker';
 import { LanguagePicker } from '@/components/LanguagePicker';
 import { InstallAppButton } from '@/components/InstallAppButton';
+import { ShareAppButton } from '@/components/ShareAppButton';
 import { REPRESENTATION_LABEL, type RepresentationStatus } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -216,6 +217,15 @@ export default async function ProfilePage() {
             Add Advottic to your home screen for one-tap access. Uses the Advottic icon.
           </p>
           <InstallAppButton />
+        </div>
+
+        <div>
+          <p className="label">Share Advottic</p>
+          <p className="text-xs text-ink-500 dark:text-cream-100/55 mb-2">
+            Send a friend the install link. Distinct from inviting a collaborator on a case;
+            this just gets them set up on the app.
+          </p>
+          <ShareAppButton variant="secondary" />
         </div>
       </section>
 

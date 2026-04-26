@@ -6,7 +6,9 @@ import {
   addExhibit,
   adminSetUserAdmin,
   adminSetUserBlocked,
+  adminUpdateFeedback,
   createCase,
+  createFeedback,
   deleteCase,
   getCase,
   getExhibitById,
@@ -24,6 +26,8 @@ import {
   upsertProfile,
   usingSupabase,
   type CloseSurveyOutcome,
+  type FeedbackCategory,
+  type FeedbackStatus,
 } from './storage';
 import { runReview, scanDocument, transcribeMedia } from './ai';
 import { getCurrentUser, isCurrentUserAdmin } from './supabase/server';
@@ -578,6 +582,98 @@ export async function trackCaseViewAction(caseId: string): Promise<void> {
     await logCaseEvent({ caseId, eventType: 'case_viewed' });
   } catch (err) {
     console.error('[trackCaseViewAction] failed', err);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Feedback - bug reports / suggestions submitted from /feedback. Admins
+// triage from /admin/feedback.
+// ---------------------------------------------------------------------------
+
+export type SubmitFeedbackResult = { ok: boolean; error?: string; id?: string };
+
+export async function submitFeedbackAction(
+  _prevState: SubmitFeedbackResult | null,
+  formData: FormData,
+): Promise<SubmitFeedbackResult> {
+  try {
+    await assertAuthIfSupabase();
+    const validCategories: FeedbackCategory[] = ['bug', 'suggestion', 'praise', 'other'];
+    const categoryRaw = String(formData.get('category') ?? 'suggestion');
+    const category: FeedbackCategory = validCategories.includes(
+      categoryRaw as FeedbackCategory,
+    )
+      ? (categoryRaw as FeedbackCategory)
+      : 'suggestion';
+    const subject = String(formData.get('subject') ?? '').trim();
+    const body = String(formData.get('body') ?? '').trim();
+    const urlAtSubmit = String(formData.get('urlAtSubmit') ?? '').trim() || null;
+    const userAgent = String(formData.get('userAgent') ?? '').trim() || null;
+    if (!subject) {
+      return { ok: false, error: 'A short subject is required.' };
+    }
+    if (body.length < 10) {
+      return {
+        ok: false,
+        error: 'Tell us a little more so we can help (at least 10 characters).',
+      };
+    }
+    const created = await createFeedback({
+      category,
+      subject: subject.slice(0, 200),
+      body: body.slice(0, 4000),
+      urlAtSubmit: urlAtSubmit ? urlAtSubmit.slice(0, 500) : null,
+      userAgent: userAgent ? userAgent.slice(0, 500) : null,
+    });
+    revalidatePath('/feedback');
+    revalidatePath('/admin/feedback');
+    return { ok: true, id: created.id };
+  } catch (err) {
+    console.error('[submitFeedbackAction] failed', err);
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Could not submit feedback.',
+    };
+  }
+}
+
+export async function setFeedbackStatusAction(
+  id: string,
+  status: FeedbackStatus,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await assertAdmin();
+    const valid: FeedbackStatus[] = ['new', 'triaged', 'resolved', 'wontfix'];
+    if (!valid.includes(status)) {
+      return { ok: false, error: 'Invalid status.' };
+    }
+    await adminUpdateFeedback({ id, status });
+    revalidatePath('/admin/feedback');
+    return { ok: true };
+  } catch (err) {
+    console.error('[setFeedbackStatusAction] failed', err);
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Could not update feedback.',
+    };
+  }
+}
+
+export async function updateFeedbackNotesAction(
+  id: string,
+  adminNotes: string,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await assertAdmin();
+    await adminUpdateFeedback({ id, adminNotes: adminNotes.trim().slice(0, 4000) || null });
+    revalidatePath('/admin/feedback');
+    return { ok: true };
+  } catch (err) {
+    console.error('[updateFeedbackNotesAction] failed', err);
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Could not save notes.',
+    };
   }
 }
 

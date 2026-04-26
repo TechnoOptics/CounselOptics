@@ -87,6 +87,9 @@ export function UserMenuClient(props: UserMenuProps) {
             <MenuLink href="/cases" onClick={() => setOpen(false)}>
               My cases
             </MenuLink>
+            <MenuLink href="/feedback" onClick={() => setOpen(false)}>
+              Send feedback
+            </MenuLink>
             {props.isAdmin && (
               <MenuLink href="/admin" onClick={() => setOpen(false)}>
                 Admin dashboard
