@@ -105,31 +105,41 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               can drop down OVER the secondary subheader. Width + horizontal
               padding match the main content wrapper so the logo lines up
               vertically with the page hero copy. */}
-          <div className="relative z-30 border-b border-forest-700/40 bg-forest-950/95 backdrop-blur-md">
+          <div className="relative z-30 bg-forest-950/95 backdrop-blur-md pt-[env(safe-area-inset-top)]">
             <div className="mx-auto max-w-7xl px-4 sm:px-6 py-3 flex items-center justify-between">
+              {/* Animated gold shimmer beneath the header. CSS-only,
+                  12s loop, calm vibe. Sits just above the next sub-row
+                  (search palette / mobile nav) so the line reads as the
+                  header's bottom edge. */}
               <Link
                 href="/"
                 aria-label="Advottic home"
-                className="inline-flex items-center group"
+                className="inline-flex items-center min-w-0 group"
               >
                 {/* Full landscape lockup: gold pillar mark + gold triangle
                     accent + ADVOTTIC wordmark in white, baked into a single
-                    transparent PNG. Designed for dark backgrounds. */}
+                    transparent PNG. Designed for dark backgrounds. The
+                    wide aspect (~8.3:1) means height drives width hard,
+                    so we keep mobile small to preserve room for the
+                    Sign in CTA on the right. */}
                 <Image
                   src="/advottic-wordmark.png"
                   alt="Advottic"
                   width={14494}
                   height={1699}
                   priority
-                  className="h-9 sm:h-10 w-auto block group-hover:opacity-90 transition-opacity"
+                  className="h-6 sm:h-8 lg:h-9 w-auto max-w-[55vw] block group-hover:opacity-90 transition-opacity"
                 />
               </Link>
               <div className="flex items-center gap-1">
-                {signedIn && <SearchTrigger />}
+                {/* On mobile the search lives in the secondary header (next
+                    to the hamburger) to keep the top row uncluttered. */}
+                {signedIn && <SearchTrigger className="hidden sm:inline-flex" />}
                 {signedIn && <div className="hidden sm:block h-5 w-px bg-cream-100/15 mx-2" />}
                 <UserMenu />
               </div>
             </div>
+            <div className="header-glow-line" aria-hidden />
           </div>
           {/* Mobile-only: hamburger-led nav. Only shown to signed-in users
               since marketing visitors don't have anywhere to navigate to yet. */}
@@ -150,15 +160,15 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <div className="flex-1 min-w-0">{children}</div>
           </div>
         </main>
-        <Bella />
+        <Bella signedIn={signedIn} />
         {consent.needed && <ConsentModal fallbackName={consent.fallbackName} />}
         <CookieBanner />
         <ServiceWorkerRegister />
-        <footer className="border-t border-ink-200 bg-white">
-          <div className="mx-auto max-w-6xl px-6 py-8 text-xs text-ink-500">
-            <div className="grid gap-8 md:grid-cols-4">
-              <div className="space-y-2">
-                <p className="font-semibold text-forest-900 tracking-[0.05em] uppercase text-[11px]">
+        <footer className="border-t border-ink-200 bg-white dark:bg-forest-950 dark:border-forest-700/40">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-8 text-[11px] text-ink-500 dark:text-cream-100/55">
+            <div className="grid gap-6 sm:gap-8 grid-cols-2 md:grid-cols-4">
+              <div className="space-y-1.5 col-span-2 md:col-span-1">
+                <p className="font-semibold text-forest-900 dark:text-cream-100 tracking-[0.05em] uppercase text-[10px]">
                   Advottic
                 </p>
                 <p className="leading-relaxed">
@@ -166,40 +176,40 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 </p>
               </div>
               <FooterCol title="Product">
-                <Link href="/cases" className="hover:text-forest-900 block">Cases</Link>
-                <Link href="/cases/new" className="hover:text-forest-900 block">New case</Link>
-                <Link href="/find-counsel" className="hover:text-forest-900 block">Find counsel</Link>
-                <Link href="/billing" className="hover:text-forest-900 block">Billing</Link>
+                <Link href="/cases" className="hover:text-forest-900 dark:hover:text-cream-100 block">Cases</Link>
+                <Link href="/cases/new" className="hover:text-forest-900 dark:hover:text-cream-100 block">New case</Link>
+                <Link href="/find-counsel" className="hover:text-forest-900 dark:hover:text-cream-100 block">Find counsel</Link>
+                <Link href="/review-my-document" className="hover:text-forest-900 dark:hover:text-cream-100 block">Review my document</Link>
+                <Link href="/billing" className="hover:text-forest-900 dark:hover:text-cream-100 block">Billing</Link>
               </FooterCol>
               <FooterCol title="Legal">
-                <Link href="/terms" className="hover:text-forest-900 block">Terms of use</Link>
-                <Link href="/privacy" className="hover:text-forest-900 block">Privacy policy</Link>
-                <Link href="/cookies" className="hover:text-forest-900 block">Cookie policy</Link>
-                <Link href="/dmca" className="hover:text-forest-900 block">DMCA / IP policy</Link>
-                <Link href="/security" className="hover:text-forest-900 block">Security</Link>
-                <Link href="/accessibility" className="hover:text-forest-900 block">Accessibility</Link>
+                <Link href="/terms" className="hover:text-forest-900 dark:hover:text-cream-100 block">Terms</Link>
+                <Link href="/privacy" className="hover:text-forest-900 dark:hover:text-cream-100 block">Privacy</Link>
+                <Link href="/cookies" className="hover:text-forest-900 dark:hover:text-cream-100 block">Cookies</Link>
+                <Link href="/dmca" className="hover:text-forest-900 dark:hover:text-cream-100 block">DMCA</Link>
+                <Link href="/security" className="hover:text-forest-900 dark:hover:text-cream-100 block">Security</Link>
+                <Link href="/accessibility" className="hover:text-forest-900 dark:hover:text-cream-100 block">Accessibility</Link>
               </FooterCol>
               <FooterCol title="Contact">
                 <a
-                  className="hover:text-forest-900 block"
+                  className="hover:text-forest-900 dark:hover:text-cream-100 block break-all"
                   href="mailto:contact@advottic.com"
                 >
                   contact@advottic.com
                 </a>
                 <span className="block">Operated from Minnesota, USA.</span>
-                <span className="block">Disputes resolved by binding individual arbitration; class-action and jury waivers in Section 4 of the Terms.</span>
               </FooterCol>
             </div>
-            <div className="mt-8 pt-5 border-t border-ink-100 flex flex-wrap items-center justify-between gap-2">
+            <div className="mt-6 sm:mt-8 pt-4 sm:pt-5 border-t border-ink-100 dark:border-forest-700/40 flex flex-wrap items-center justify-between gap-2">
               <p className="font-mono tracking-tight">
-                © {new Date().getFullYear()} Techno Optics LLC. All rights reserved.
+                © {new Date().getFullYear()} Advottic LLC. All rights reserved.
               </p>
-              <p className="text-ink-400">
+              <p className="text-ink-400 dark:text-cream-100/45">
                 Powered by{' '}
-                <span className="font-semibold text-forest-900">Techno Optics LLC</span>
+                <span className="font-semibold text-forest-900 dark:text-cream-100">Techno Optics LLC</span>
               </p>
             </div>
-            <p className="mt-4 text-[10.5px] leading-relaxed text-ink-400 max-w-3xl">
+            <p className="mt-3 text-[10px] leading-relaxed text-ink-400 dark:text-cream-100/45 max-w-3xl">
               Advottic is a service of Techno Optics LLC. Legal Eye and Bella generate
               informational content using AI; outputs may be incomplete, outdated, or wrong and
               are not legal advice. Always consult a licensed attorney in your jurisdiction
@@ -213,13 +223,43 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   );
 }
 
+/**
+ * Footer column. On mobile each section collapses behind a + chevron so
+ * the footer doesn't take a full screen on phones; on md+ the same content
+ * renders as a static column. Two separate trees keep the markup honest
+ * and avoid CSS gymnastics around <details> being closed-by-default.
+ */
+/**
+ * Footer column. On mobile, each section collapses behind a + chevron
+ * so the footer doesn't dominate phone screens; on md+ it renders as
+ * a static column. Both layers live in the same grid cell so the
+ * grid-cols-N count stays correct on every breakpoint.
+ */
 function FooterCol({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="space-y-2">
-      <p className="font-semibold text-forest-900 tracking-[0.05em] uppercase text-[11px]">
-        {title}
-      </p>
-      <div className="space-y-1.5">{children}</div>
+    <div className="col-span-2 md:col-span-1">
+      {/* Mobile: collapsible accordion */}
+      <details className="group md:hidden border-b border-ink-100 dark:border-forest-700/40 pb-3">
+        <summary className="flex items-center justify-between cursor-pointer list-none [&::-webkit-details-marker]:hidden py-1">
+          <span className="font-semibold text-forest-900 dark:text-cream-100 tracking-[0.05em] uppercase text-[10px]">
+            {title}
+          </span>
+          <span
+            aria-hidden
+            className="text-ink-400 dark:text-cream-100/55 text-[14px] font-mono leading-none transition-transform group-open:rotate-45"
+          >
+            +
+          </span>
+        </summary>
+        <div className="space-y-1 mt-2">{children}</div>
+      </details>
+      {/* Desktop: static column */}
+      <div className="hidden md:block space-y-1.5">
+        <p className="font-semibold text-forest-900 dark:text-cream-100 tracking-[0.05em] uppercase text-[10px]">
+          {title}
+        </p>
+        <div className="space-y-1">{children}</div>
+      </div>
     </div>
   );
 }

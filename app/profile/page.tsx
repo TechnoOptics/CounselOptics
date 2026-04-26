@@ -13,7 +13,7 @@ export default async function ProfilePage() {
   if (!isSupabaseConfigured()) {
     return (
       <div className="max-w-xl mx-auto card p-8 space-y-3">
-        <h1 className="text-2xl font-semibold tracking-tight">Profile</h1>
+        <h1 className="font-display text-3xl font-medium tracking-[-0.01em]">Profile</h1>
         <p className="text-sm text-ink-600 leading-relaxed">
           Profile editing requires Supabase. Configure it via{' '}
           <code className="font-mono">SETUP.md</code> to unlock this page.
@@ -41,7 +41,7 @@ export default async function ProfilePage() {
         <Link href="/cases" className="text-sm text-ink-500 hover:text-ink-900">
           &larr; Back to cases
         </Link>
-        <h1 className="text-3xl font-semibold tracking-tight text-ink-950 mt-2">Profile</h1>
+        <h1 className="font-display text-[40px] sm:text-[48px] font-medium tracking-[-0.02em] leading-[1.05] text-ink-950 mt-2">Profile</h1>
         <p className="text-sm text-ink-500 mt-1">
           These details appear on exported case packets and in your account header.
         </p>

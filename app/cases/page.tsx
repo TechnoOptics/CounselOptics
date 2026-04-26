@@ -102,7 +102,7 @@ export default async function CasesPage({
       {cases.length > 0 && <KpiRow owned={owned} closed={closed} sharedWithMe={sharedWithMe} />}
 
       {/* Your cases */}
-      <section className="space-y-3">
+      <section id="your-cases" className="space-y-3 scroll-mt-28">
         <h2 className="text-sm font-semibold tracking-wider uppercase text-forest-700">
           Your cases
         </h2>
@@ -115,7 +115,7 @@ export default async function CasesPage({
 
       {/* Shared with me */}
       {sharedWithMe.length > 0 && (
-        <section className="space-y-3">
+        <section id="shared-cases" className="space-y-3 scroll-mt-28">
           <div className="flex items-end justify-between gap-3">
             <h2 className="text-sm font-semibold tracking-wider uppercase text-forest-700">
               Shared with me
@@ -166,21 +166,21 @@ function KpiRow({
   closed: Case[];
   sharedWithMe: Case[];
 }) {
-  // Find the soonest upcoming hearing across owned + shared
+  // Build a sorted list of upcoming hearings tagged with their case id so
+  // the "Next hearing" tile can deep-link straight to that case's hearing tab.
   const upcoming = [...owned, ...sharedWithMe]
-    .map((c) => c.hearingAt)
-    .filter((x): x is string => Boolean(x))
-    .map((s) => Date.parse(s))
-    .filter((n) => !Number.isNaN(n) && n >= Date.now())
-    .sort((a, b) => a - b);
-  const nextHearing = upcoming[0] ?? null;
-  const nextLabel = nextHearing ? hearingRelative(nextHearing) : 'None scheduled';
-  const nextSub = nextHearing
-    ? new Date(nextHearing).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    .filter((c): c is Case & { hearingAt: string } => Boolean(c.hearingAt))
+    .map((c) => ({ id: c.id, t: Date.parse(c.hearingAt as string) }))
+    .filter((x) => !Number.isNaN(x.t) && x.t >= Date.now())
+    .sort((a, b) => a.t - b.t);
+  const next = upcoming[0] ?? null;
+  const nextLabel = next ? hearingRelative(next.t) : 'None scheduled';
+  const nextSub = next
+    ? new Date(next.t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
     : 'add one in a case';
 
   // Count critical-soon hearings (<= 7 days)
-  const soon = upcoming.filter((t) => (t - Date.now()) / 86_400_000 <= 7).length;
+  const soon = upcoming.filter((x) => (x.t - Date.now()) / 86_400_000 <= 7).length;
 
   return (
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 stagger">
@@ -189,6 +189,7 @@ function KpiRow({
         value={owned.length}
         sub={closed.length ? `${closed.length} closed in archive` : 'all open'}
         accent="emerald"
+        href={owned.length > 0 ? '/cases#your-cases' : undefined}
       />
       <KpiTile
         label="Next hearing"
@@ -196,18 +197,21 @@ function KpiRow({
         sub={nextSub}
         accent={soon > 0 ? 'amber' : 'emerald'}
         small
+        href={next ? `/cases/${next.id}#hearing` : undefined}
       />
       <KpiTile
         label="Hearings within 7 days"
         value={soon}
         sub={soon === 0 ? 'nothing imminent' : 'see Hearing tab on each case'}
         accent={soon > 0 ? 'rose' : 'emerald'}
+        href={soon > 0 ? '/cases#your-cases' : undefined}
       />
       <KpiTile
         label="Shared with me"
         value={sharedWithMe.length}
         sub={sharedWithMe.length === 0 ? 'no shared cases' : 'attorney / collaborators'}
         accent="cream"
+        href={sharedWithMe.length > 0 ? '/cases?filter=shared' : undefined}
       />
     </div>
   );
@@ -219,12 +223,14 @@ function KpiTile({
   sub,
   accent,
   small = false,
+  href,
 }: {
   label: string;
   value: string | number;
   sub: string;
   accent: 'emerald' | 'amber' | 'rose' | 'cream';
   small?: boolean;
+  href?: string;
 }) {
   const accentClass =
     accent === 'emerald'
@@ -234,10 +240,16 @@ function KpiTile({
         : accent === 'rose'
           ? 'text-rose-300'
           : 'text-cream-200';
-  return (
-    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-forest-800 via-forest-900 to-forest-950 text-cream-100 p-5 ring-1 ring-forest-700/40 shadow-card">
-      <p className="text-[10px] uppercase tracking-[0.22em] font-semibold text-cream-100/65">
-        {label}
+
+  const body = (
+    <>
+      <p className="text-[10px] uppercase tracking-[0.22em] font-semibold text-cream-100/65 flex items-center justify-between">
+        <span>{label}</span>
+        {href && (
+          <span aria-hidden className="text-cream-100/45 group-hover:text-gold-300 transition-colors">
+            <ArrowUpRightIcon />
+          </span>
+        )}
       </p>
       <p
         className={`mt-3 font-semibold tracking-tight tabular-nums ${
@@ -249,7 +261,36 @@ function KpiTile({
       <p className="text-xs text-cream-100/60 mt-1.5">{sub}</p>
       {/* subtle gold accent bar */}
       <span className="absolute left-5 right-5 bottom-0 h-px bg-gradient-to-r from-transparent via-gold-400/40 to-transparent" />
-    </div>
+    </>
+  );
+
+  const baseClass =
+    'group relative overflow-hidden rounded-2xl bg-gradient-to-br from-forest-800 via-forest-900 to-forest-950 text-cream-100 p-5 ring-1 ring-forest-700/40 shadow-card transition-all duration-200';
+
+  if (href) {
+    return (
+      <Link
+        href={href}
+        className={`${baseClass} hover:-translate-y-0.5 hover:ring-gold-400/40 hover:shadow-card-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-400/60`}
+      >
+        {body}
+      </Link>
+    );
+  }
+  return <div className={baseClass}>{body}</div>;
+}
+
+function ArrowUpRightIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M7 17L17 7M9 7h8v8"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 

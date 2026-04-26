@@ -4,6 +4,8 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import {
   addExhibit,
+  adminSetUserAdmin,
+  adminSetUserBlocked,
   createCase,
   getCase,
   getExhibitById,
@@ -23,7 +25,7 @@ import {
   type CloseSurveyOutcome,
 } from './storage';
 import { runReview, scanDocument, transcribeMedia } from './ai';
-import { getCurrentUser } from './supabase/server';
+import { getCurrentUser, isCurrentUserAdmin } from './supabase/server';
 import {
   CASE_TYPES,
   type CaseStatus,
@@ -43,80 +45,109 @@ async function assertAuthIfSupabase() {
   }
 }
 
-export async function createCaseAction(formData: FormData) {
-  await assertAuthIfSupabase();
-  const title = String(formData.get('title') ?? '').trim();
-  const subjectName = String(formData.get('subjectName') ?? '').trim();
-  const subjectType = String(formData.get('subjectType') ?? 'person') as SubjectType;
-  const country = String(formData.get('country') ?? '').trim();
-  const state = String(formData.get('state') ?? '').trim();
-  const city = String(formData.get('city') ?? '').trim();
-  const caseTypeRaw = String(formData.get('caseType') ?? 'Other');
-  const caseType: CaseType = (CASE_TYPES as readonly string[]).includes(caseTypeRaw)
-    ? (caseTypeRaw as CaseType)
-    : 'Other';
-  const description = String(formData.get('description') ?? '').trim();
-  const postureRaw = String(formData.get('posture') ?? 'claimant');
-  const posture: Posture = postureRaw === 'defendant' ? 'defendant' : 'claimant';
+export type CreateCaseResult = { ok: boolean; error?: string };
 
-  if (!title || !subjectName || !country) {
-    throw new Error('Title, subject name, and country are required.');
+export async function createCaseAction(
+  _prevState: CreateCaseResult | null,
+  formData: FormData,
+): Promise<CreateCaseResult> {
+  let createdId: string;
+  try {
+    await assertAuthIfSupabase();
+    const title = String(formData.get('title') ?? '').trim();
+    const subjectName = String(formData.get('subjectName') ?? '').trim();
+    const subjectType = String(formData.get('subjectType') ?? 'person') as SubjectType;
+    const country = String(formData.get('country') ?? '').trim();
+    const state = String(formData.get('state') ?? '').trim();
+    const city = String(formData.get('city') ?? '').trim();
+    const caseTypeRaw = String(formData.get('caseType') ?? 'Other');
+    const caseType: CaseType = (CASE_TYPES as readonly string[]).includes(caseTypeRaw)
+      ? (caseTypeRaw as CaseType)
+      : 'Other';
+    const description = String(formData.get('description') ?? '').trim();
+    const postureRaw = String(formData.get('posture') ?? 'claimant');
+    const posture: Posture = postureRaw === 'defendant' ? 'defendant' : 'claimant';
+
+    if (!title || !subjectName || !country) {
+      return { ok: false, error: 'Title, subject name, and country are required.' };
+    }
+
+    const validSubjectTypes: SubjectType[] = ['person', 'business', 'matter', 'state', 'entity'];
+    const subject: SubjectType = validSubjectTypes.includes(subjectType) ? subjectType : 'person';
+
+    const get = (k: string) => String(formData.get(k) ?? '').trim();
+    const profile: SubjectProfile = {};
+    const map: [string, keyof SubjectProfile][] = [
+      ['subj_legalName', 'legalName'],
+      ['subj_alsoKnownAs', 'alsoKnownAs'],
+      ['subj_relationship', 'relationship'],
+      ['subj_address', 'address'],
+      ['subj_email', 'email'],
+      ['subj_phone', 'phone'],
+      ['subj_website', 'website'],
+      ['subj_notes', 'notes'],
+      ['subj_dateOfBirthApprox', 'dateOfBirthApprox'],
+      ['subj_registrationNumber', 'registrationNumber'],
+      ['subj_businessType', 'businessType'],
+      ['subj_primaryContactName', 'primaryContactName'],
+      ['subj_agencyOrDepartment', 'agencyOrDepartment'],
+      ['subj_jurisdictionLevel', 'jurisdictionLevel'],
+    ];
+    for (const [formKey, profileKey] of map) {
+      const v = get(formKey);
+      if (v) profile[profileKey] = v;
+    }
+
+    // Hearing fields are optional at creation time. Empty datetime-local input
+    // ('') becomes null. Browsers send local time without a TZ suffix; we trust
+    // the user's local TZ and convert via Date.parse. A bad value here would
+    // throw "Invalid time value" - guarded so we surface a friendly message
+    // instead of a server-side exception.
+    const hearingRaw = String(formData.get('hearingAt') ?? '').trim();
+    let hearingAt: string | null = null;
+    if (hearingRaw) {
+      const parsed = new Date(hearingRaw);
+      if (Number.isNaN(parsed.getTime())) {
+        return { ok: false, error: 'Hearing date is not a valid date and time.' };
+      }
+      hearingAt = parsed.toISOString();
+    }
+    const hearingLocation = String(formData.get('hearingLocation') ?? '').trim() || null;
+    const hearingNotes = String(formData.get('hearingNotes') ?? '').trim() || null;
+
+    const created = await createCase({
+      title,
+      subjectName,
+      subjectType: subject,
+      subjectProfile: profile,
+      jurisdiction: {
+        country,
+        state: state || undefined,
+        city: city || undefined,
+      },
+      caseType,
+      description,
+      posture,
+      hearingAt,
+      hearingLocation,
+      hearingNotes,
+    });
+    createdId = created.id;
+  } catch (err) {
+    // Log the unredacted error so it shows up in Vercel runtime logs
+    // (the user only sees the friendly message returned below).
+    console.error('[createCaseAction] failed', err);
+    const message =
+      err instanceof Error
+        ? err.message || 'Could not create case.'
+        : 'Could not create case.';
+    return { ok: false, error: message };
   }
 
-  const validSubjectTypes: SubjectType[] = ['person', 'business', 'matter', 'state', 'entity'];
-  const subject: SubjectType = validSubjectTypes.includes(subjectType) ? subjectType : 'person';
-
-  const get = (k: string) => String(formData.get(k) ?? '').trim();
-  const profile: SubjectProfile = {};
-  const map: [string, keyof SubjectProfile][] = [
-    ['subj_legalName', 'legalName'],
-    ['subj_alsoKnownAs', 'alsoKnownAs'],
-    ['subj_relationship', 'relationship'],
-    ['subj_address', 'address'],
-    ['subj_email', 'email'],
-    ['subj_phone', 'phone'],
-    ['subj_website', 'website'],
-    ['subj_notes', 'notes'],
-    ['subj_dateOfBirthApprox', 'dateOfBirthApprox'],
-    ['subj_registrationNumber', 'registrationNumber'],
-    ['subj_businessType', 'businessType'],
-    ['subj_primaryContactName', 'primaryContactName'],
-    ['subj_agencyOrDepartment', 'agencyOrDepartment'],
-    ['subj_jurisdictionLevel', 'jurisdictionLevel'],
-  ];
-  for (const [formKey, profileKey] of map) {
-    const v = get(formKey);
-    if (v) profile[profileKey] = v;
-  }
-
-  // Hearing fields are optional at creation time. Empty datetime-local input
-  // ('') becomes null. Browsers send local time without a TZ suffix; we trust
-  // the user's local TZ and convert via Date.parse.
-  const hearingRaw = String(formData.get('hearingAt') ?? '').trim();
-  const hearingAt = hearingRaw ? new Date(hearingRaw).toISOString() : null;
-  const hearingLocation = String(formData.get('hearingLocation') ?? '').trim() || null;
-  const hearingNotes = String(formData.get('hearingNotes') ?? '').trim() || null;
-
-  const created = await createCase({
-    title,
-    subjectName,
-    subjectType: subject,
-    subjectProfile: profile,
-    jurisdiction: {
-      country,
-      state: state || undefined,
-      city: city || undefined,
-    },
-    caseType,
-    description,
-    posture,
-    hearingAt,
-    hearingLocation,
-    hearingNotes,
-  });
-
+  // Redirect outside the try/catch so the NEXT_REDIRECT control-flow
+  // exception isn't swallowed.
   revalidatePath('/cases');
-  redirect(`/cases/${created.id}`);
+  redirect(`/cases/${createdId}`);
 }
 
 export async function uploadExhibitAction(caseId: string, formData: FormData) {
@@ -359,4 +390,52 @@ export async function runReviewAction(caseId: string) {
   await saveReview(review);
   revalidatePath(`/cases/${caseId}`);
   revalidatePath('/cases');
+}
+
+// ---------------------------------------------------------------------------
+// Admin actions - guarded by isCurrentUserAdmin so even a direct POST from
+// a non-admin gets rejected. Server-side enforcement; never trust the UI.
+// ---------------------------------------------------------------------------
+
+export type AdminToggleResult = { ok: boolean; error?: string };
+
+async function assertAdmin(): Promise<void> {
+  const ok = await isCurrentUserAdmin();
+  if (!ok) throw new Error('Admin access required.');
+}
+
+export async function setUserAdminAction(
+  userId: string,
+  isAdmin: boolean,
+): Promise<AdminToggleResult> {
+  try {
+    await assertAdmin();
+    await adminSetUserAdmin({ userId, isAdmin });
+    revalidatePath('/admin/users');
+    return { ok: true };
+  } catch (err) {
+    console.error('[setUserAdminAction] failed', err);
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Could not update admin status.',
+    };
+  }
+}
+
+export async function setUserBlockedAction(
+  userId: string,
+  isBlocked: boolean,
+): Promise<AdminToggleResult> {
+  try {
+    await assertAdmin();
+    await adminSetUserBlocked({ userId, isBlocked });
+    revalidatePath('/admin/users');
+    return { ok: true };
+  } catch (err) {
+    console.error('[setUserBlockedAction] failed', err);
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Could not update account status.',
+    };
+  }
 }

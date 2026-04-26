@@ -4,10 +4,10 @@ export const metadata = { title: 'Cookie Policy - Advottic' };
 
 export default function CookiePolicyPage() {
   return (
-    <div className="max-w-3xl mx-auto space-y-6 text-sm text-ink-700 leading-relaxed">
+    <div className="max-w-3xl mx-auto space-y-6 text-sm text-ink-700 dark:text-cream-100/80 leading-relaxed">
       <header>
         <p className="eyebrow mb-2">Legal</p>
-        <h1 className="text-3xl font-semibold tracking-tight text-forest-900">Cookie Policy</h1>
+        <h1 className="font-display text-[40px] sm:text-[48px] font-medium tracking-[-0.02em] leading-[1.05] text-forest-900 dark:text-cream-100">Cookie Policy</h1>
         <p className="text-xs text-ink-500 mt-2">Last updated: 2026-04-25</p>
       </header>
 
@@ -72,7 +72,7 @@ export default function CookiePolicyPage() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section>
-      <h2 className="text-lg font-semibold tracking-tight text-forest-900 mb-2">{title}</h2>
+      <h2 className="text-lg font-semibold tracking-tight text-forest-900 dark:text-cream-100 mb-2">{title}</h2>
       <div className="space-y-2">{children}</div>
     </section>
   );

@@ -1,6 +1,7 @@
 import type { Config } from 'tailwindcss';
 
 const config: Config = {
+  darkMode: 'media',
   content: [
     './app/**/*.{js,ts,jsx,tsx,mdx}',
     './components/**/*.{js,ts,jsx,tsx,mdx}',
@@ -17,6 +18,17 @@ const config: Config = {
           'Times New Roman',
           'serif',
         ],
+      },
+      // 5-stop display scale so callsites can use a single named token
+      // instead of arbitrary text-[44px] values that drift over time.
+      // display-xl = landing hero, display-lg = page hero, display-md =
+      // section heads, display-sm = card titles, display-xs = subsection.
+      fontSize: {
+        'display-xs': ['1.625rem', { lineHeight: '1.15', letterSpacing: '-0.01em' }],
+        'display-sm': ['2rem', { lineHeight: '1.1', letterSpacing: '-0.01em' }],
+        'display-md': ['2.5rem', { lineHeight: '1.05', letterSpacing: '-0.02em' }],
+        'display-lg': ['3rem', { lineHeight: '1.05', letterSpacing: '-0.02em' }],
+        'display-xl': ['4.5rem', { lineHeight: '0.98', letterSpacing: '-0.02em' }],
       },
       colors: {
         // Advottic brand - deep forest green base, warm gold accent.

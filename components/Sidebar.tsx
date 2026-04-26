@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
+import { SearchTrigger } from './SearchPalette';
 
 type NavItem = {
   label: string;
@@ -144,11 +145,9 @@ export function MobileNav() {
             {activeItem ? activeItem.label : 'Menu'}
           </span>
         </button>
-        {activeItem && (
-          <span aria-hidden className="text-cream-100/40 text-xs">
-            {ITEMS.length} options
-          </span>
-        )}
+        {/* Search lives in this lower row on mobile so the top header
+            stays uncluttered between the wordmark and the avatar. */}
+        <SearchTrigger className="ml-auto" />
       </div>
 
       {open && (

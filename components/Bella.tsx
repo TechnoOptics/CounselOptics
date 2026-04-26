@@ -7,7 +7,7 @@ type Message = { role: 'user' | 'assistant'; content: string };
 
 const STORAGE_KEY = 'bella-conversation';
 
-export function Bella() {
+export function Bella({ signedIn = true }: { signedIn?: boolean }) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -45,6 +45,21 @@ export function Bella() {
     } catch {
       /* ignore */
     }
+  }, []);
+
+  // Inline Bella launchers (e.g. BellaPrompt on case detail tabs) fire
+  // `advottic:bella-open` with an optional prompt. We force the launcher
+  // armed so users don't have to wait the 30s gate, open the dock, and
+  // pre-fill the input box for them.
+  useEffect(() => {
+    function handler(ev: Event) {
+      const detail = (ev as CustomEvent<{ prompt?: string }>).detail;
+      setArmed(true);
+      setOpen(true);
+      if (detail?.prompt) setInput(detail.prompt);
+    }
+    window.addEventListener('advottic:bella-open', handler as EventListener);
+    return () => window.removeEventListener('advottic:bella-open', handler as EventListener);
   }, []);
 
   // Persist
@@ -164,7 +179,7 @@ export function Bella() {
           <div
             role="dialog"
             aria-label="Bella legal assistant"
-            className="pointer-events-auto w-full sm:w-[420px] h-[80vh] sm:h-[640px] flex flex-col bg-white shadow-card-hover border border-forest-200 rounded-t-2xl sm:rounded-2xl overflow-hidden"
+            className="pointer-events-auto w-full sm:w-[420px] h-[80vh] sm:h-[640px] flex flex-col bg-white dark:bg-forest-900 shadow-card-hover border border-forest-200 dark:border-forest-700/60 rounded-t-2xl sm:rounded-2xl overflow-hidden"
           >
             <div className="brand-mark px-5 py-4 text-cream-200 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
@@ -175,7 +190,7 @@ export function Bella() {
                   <p className="font-semibold tracking-tight text-[15px]">Bella</p>
                   <p className="text-[10px] uppercase tracking-[0.18em] text-cream-200/70 flex items-center gap-1.5">
                     <span className="live-dot inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                    Online · Sonnet 4.6
+                    Online · Sonnet 4.6 · No training
                   </p>
                 </div>
               </div>
@@ -199,25 +214,33 @@ export function Bella() {
               </div>
             </div>
 
-            <div ref={scrollerRef} className="flex-1 overflow-y-auto p-5 bg-ink-50/40 space-y-4">
+            <div ref={scrollerRef} className="flex-1 overflow-y-auto p-5 bg-ink-50/40 dark:bg-forest-950/60 space-y-4">
               {messages.length === 0 && (
                 <div className="space-y-3">
-                  <p className="text-sm text-ink-700 leading-relaxed">
-                    Hi, I&apos;m Bella. Ask me about your case, how to use Advottic, or
-                    plain-language legal concepts.
+                  <p className="text-sm text-ink-700 dark:text-cream-100/85 leading-relaxed">
+                    {signedIn
+                      ? "Hi, I'm Bella. Ask me about your case, how to use Advottic, or plain-language legal concepts."
+                      : "Hi, I'm Bella, your guide to Advottic. I can explain what the app does, who it's for, and answer general legal questions. To run a review or build a packet, you'll need to sign in."}
                   </p>
                   <div className="flex flex-col gap-2">
-                    {[
-                      caseId ? 'Summarize this case for me.' : 'How do I create a new case?',
-                      'What is a statute of limitations in plain English?',
-                      'I have a billing question — who can I talk to?',
-                    ].map((s) => (
+                    {(signedIn
+                      ? [
+                          caseId ? 'Summarize this case for me.' : 'How do I create a new case?',
+                          'What is a statute of limitations in plain English?',
+                          'I have a billing question, who can I talk to?',
+                        ]
+                      : [
+                          'What does Advottic do?',
+                          "What's included in each tier?",
+                          'What is a statute of limitations in plain English?',
+                        ]
+                    ).map((s) => (
                       <button
                         key={s}
                         onClick={() => {
                           setInput(s);
                         }}
-                        className="text-left rounded-lg border border-forest-200 bg-white px-3 py-2 text-xs text-forest-900 hover:bg-cream-50 hover:border-forest-700"
+                        className="text-left rounded-lg border border-forest-200 bg-white px-3 py-2 text-xs text-forest-900 hover:bg-cream-50 hover:border-forest-700 dark:bg-forest-800/60 dark:border-forest-600 dark:text-cream-100 dark:hover:bg-forest-700 dark:hover:border-gold-500"
                       >
                         {s}
                       </button>
@@ -242,7 +265,7 @@ export function Bella() {
                 e.preventDefault();
                 send();
               }}
-              className="border-t border-ink-200 p-3 bg-white"
+              className="border-t border-ink-200 dark:border-forest-700/60 p-3 bg-white dark:bg-forest-900"
             >
               <div className="flex items-end gap-2">
                 <textarea
@@ -291,7 +314,7 @@ function Bubble({ role, content }: { role: Message['role']; content: string }) {
   }
   return (
     <div className="flex justify-start">
-      <div className="max-w-[88%] rounded-2xl rounded-tl-md px-3.5 py-2.5 bg-white border border-ink-200 text-sm text-ink-900 leading-relaxed whitespace-pre-wrap">
+      <div className="max-w-[88%] rounded-2xl rounded-tl-md px-3.5 py-2.5 bg-white dark:bg-forest-800/70 border border-ink-200 dark:border-forest-700/60 text-sm text-ink-900 dark:text-cream-100 leading-relaxed whitespace-pre-wrap">
         {content ? <RenderRich text={content} /> : ' '}
       </div>
     </div>

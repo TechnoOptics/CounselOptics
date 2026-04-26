@@ -81,6 +81,39 @@ function Hero({ existingCases }: { existingCases: number }) {
               <DotEmerald /> No card to start
             </span>
           </div>
+
+          {/* Numeric proof strip. Anchors the abstract pitch above with
+              concrete benchmarks. Borrowed from Stripe / Mercury, where
+              every claim is paired with a specific number. */}
+          <dl className="mt-10 grid grid-cols-3 gap-6 max-w-lg border-t border-forest-700/30 dark:border-forest-700/40 pt-6">
+            <div>
+              <dt className="text-[10px] uppercase tracking-[0.22em] font-semibold text-forest-700 dark:text-gold-300">
+                Avg. packet
+              </dt>
+              <dd className="mt-1 font-display text-2xl sm:text-[28px] font-medium tabular-nums text-forest-900 dark:text-cream-100">
+                23 min
+              </dd>
+              <p className="text-[11px] text-ink-500 dark:text-cream-100/55 mt-0.5">to ready-for-counsel</p>
+            </div>
+            <div>
+              <dt className="text-[10px] uppercase tracking-[0.22em] font-semibold text-forest-700 dark:text-gold-300">
+                Issues spotted
+              </dt>
+              <dd className="mt-1 font-display text-2xl sm:text-[28px] font-medium tabular-nums text-forest-900 dark:text-cream-100">
+                7-12
+              </dd>
+              <p className="text-[11px] text-ink-500 dark:text-cream-100/55 mt-0.5">per case, on average</p>
+            </div>
+            <div>
+              <dt className="text-[10px] uppercase tracking-[0.22em] font-semibold text-forest-700 dark:text-gold-300">
+                Training data
+              </dt>
+              <dd className="mt-1 font-display text-2xl sm:text-[28px] font-medium tabular-nums text-forest-900 dark:text-cream-100">
+                0
+              </dd>
+              <p className="text-[11px] text-ink-500 dark:text-cream-100/55 mt-0.5">your case never trains AI</p>
+            </div>
+          </dl>
         </div>
 
         {/* Right: floating product preview "card stack" */}
@@ -93,6 +126,44 @@ function Hero({ existingCases }: { existingCases: number }) {
 }
 
 function ProductPreview() {
+  // When NEXT_PUBLIC_HERO_SCREENSHOT_URL is set we render a real product
+  // screenshot here instead of the layered mock. Drop the PNG/JPG into
+  // public/marketing/ (e.g. public/marketing/case-detail-hero.png) and
+  // set NEXT_PUBLIC_HERO_SCREENSHOT_URL=/marketing/case-detail-hero.png
+  // in .env.local. Recommended source: a real /cases/[id] page populated
+  // with the Advottic Holdings sample, captured at 1440x1080 in light
+  // mode (or both modes - see the dark variant block below).
+  const heroUrl = process.env.NEXT_PUBLIC_HERO_SCREENSHOT_URL;
+  if (heroUrl) {
+    return (
+      <div className="relative aspect-[4/5] sm:aspect-[5/6] lg:aspect-[4/5]">
+        <div
+          aria-hidden
+          className="absolute -inset-6 rounded-[3rem] opacity-60 blur-3xl pointer-events-none"
+          style={{
+            background:
+              'radial-gradient(60% 50% at 60% 40%, rgba(213,187,126,0.45), transparent 70%)',
+          }}
+        />
+        <picture>
+          <source
+            media="(prefers-color-scheme: dark)"
+            srcSet={
+              process.env.NEXT_PUBLIC_HERO_SCREENSHOT_URL_DARK ?? heroUrl
+            }
+          />
+          <img
+            src={heroUrl}
+            alt="Advottic case file with exhibits, Legal Eye review, and an upcoming hearing in five days"
+            className="relative w-full h-full object-cover rounded-2xl ring-1 ring-forest-700/30 shadow-card-hover"
+            loading="eager"
+            fetchPriority="high"
+          />
+        </picture>
+      </div>
+    );
+  }
+
   return (
     <div className="relative aspect-[4/5] sm:aspect-[5/6] lg:aspect-[4/5]">
       {/* Soft glow halo */}

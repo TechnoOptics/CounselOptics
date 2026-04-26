@@ -200,6 +200,7 @@ export type Profile = {
   organization?: string | null;
   avatarUrl?: string | null;
   isAdmin: boolean;
+  isBlocked?: boolean;
   representation?: RepresentationStatus | null;
   consentedAt?: string | null;
   tourCompletedAt?: string | null;

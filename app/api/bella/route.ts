@@ -38,12 +38,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Slow down - too many messages.' }, { status: 429 });
   }
 
-  // If Supabase is configured, require a signed-in user. (Local dev mode falls
-  // through and lets anyone use Bella.)
+  // Bella is available to logged-out visitors as a brand ambassador, but in
+  // a strictly capped "public" mode: she can answer questions about what
+  // the app does, pricing, and general legal information, but never reads
+  // case content (no caseId), never runs any subscription-only feature on
+  // the user's behalf, and is rate-limited the same way an authed user is.
+  let isPublic = false;
   if (isSupabaseConfigured()) {
     const user = await getCurrentUser();
     if (!user) {
-      return NextResponse.json({ error: 'Sign in to chat with Bella.' }, { status: 401 });
+      isPublic = true;
     }
   }
 
@@ -69,7 +73,9 @@ export async function POST(req: NextRequest) {
     .filter((m) => m.content.length > 0);
 
   let caseContext: string | null = null;
-  if (payload.caseId) {
+  // Public-mode visitors don't get case context lookups - they can't have
+  // any case attached to them.
+  if (payload.caseId && !isPublic) {
     try {
       const c = await getCase(payload.caseId);
       if (c) {
@@ -107,7 +113,7 @@ export async function POST(req: NextRequest) {
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        for await (const chunk of streamBella({ messages: sanitized, caseContext })) {
+        for await (const chunk of streamBella({ messages: sanitized, caseContext, isPublic })) {
           controller.enqueue(encoder.encode(chunk));
         }
         controller.close();

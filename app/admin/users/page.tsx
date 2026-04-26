@@ -1,17 +1,29 @@
 import { adminListUsers } from '@/lib/storage';
+import { getCurrentUser } from '@/lib/supabase/server';
 import { TIER_LABEL, REPRESENTATION_LABEL } from '@/lib/types';
+import { UserToggles } from './user-toggles';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export default async function AdminUsersPage() {
-  const users = await adminListUsers();
+  const [users, me] = await Promise.all([adminListUsers(), getCurrentUser()]);
+  const adminCount = users.filter((u) => u.isAdmin).length;
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-ink-500">
-        {users.length} user{users.length === 1 ? '' : 's'}
-      </p>
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <p className="text-sm text-ink-500">
+          {users.length} user{users.length === 1 ? '' : 's'} · {adminCount} admin
+          {adminCount === 1 ? '' : 's'}
+        </p>
+        {adminCount < 2 && (
+          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-1.5">
+            At least 2 admins are required. Promote another user before
+            demoting yourself.
+          </p>
+        )}
+      </div>
       <div className="card overflow-x-auto">
         <table className="w-full text-sm min-w-[820px]">
           <thead className="bg-ink-50 border-b border-ink-200">
@@ -23,7 +35,7 @@ export default async function AdminUsersPage() {
               <Th>Cases</Th>
               <Th>Last sign-in</Th>
               <Th>Joined</Th>
-              <Th>Admin</Th>
+              <Th>Access</Th>
             </tr>
           </thead>
           <tbody className="divide-y divide-ink-100">
@@ -102,10 +114,16 @@ export default async function AdminUsersPage() {
                 </Td>
                 <Td>{new Date(u.createdAt).toLocaleDateString()}</Td>
                 <Td>
-                  {u.isAdmin ? (
-                    <span className="badge bg-ink-950 text-white">Admin</span>
-                  ) : (
-                    <span className="text-ink-400">-</span>
+                  <UserToggles
+                    userId={u.id}
+                    initialIsAdmin={u.isAdmin}
+                    initialIsBlocked={u.isBlocked}
+                    isSelf={me?.id === u.id}
+                  />
+                  {u.isBlocked && (
+                    <p className="text-[10.5px] text-rose-700 mt-1.5 font-medium uppercase tracking-wider">
+                      Blocked
+                    </p>
                   )}
                 </Td>
               </tr>
@@ -121,8 +139,9 @@ export default async function AdminUsersPage() {
         </table>
       </div>
       <p className="text-xs text-ink-500">
-        To grant admin access: <code className="font-mono">profiles.is_admin = true</code> via
-        Supabase SQL editor.
+        Toggle admin to grant or revoke admin access. Toggle "Active" off to block a user from
+        signing in. Blocked users see a friendly message pointing them at{' '}
+        <a className="underline" href="mailto:contact@advottic.com">contact@advottic.com</a>.
       </p>
     </div>
   );

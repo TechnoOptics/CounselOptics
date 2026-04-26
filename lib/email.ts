@@ -1,0 +1,112 @@
+/**
+ * Tiny Resend wrapper for transactional email. We hit the REST API
+ * directly with fetch instead of pulling in the resend SDK, since
+ * the surface we need is small and we want to avoid a 200KB dependency.
+ *
+ * Required env: RESEND_API_KEY. Optional: RESEND_FROM (defaults to
+ * "Advottic <invites@advottic.com>"). Returns false on any send failure
+ * so callers can fall back to Supabase's built-in email path or simply
+ * surface "we'll resend manually" copy to the user.
+ */
+
+const DEFAULT_FROM = 'Advottic <invites@advottic.com>';
+
+export type EmailResult =
+  | { ok: true; id: string }
+  | { ok: false; error: string };
+
+export async function sendEmail(input: {
+  to: string;
+  subject: string;
+  html: string;
+  text?: string;
+  replyTo?: string;
+}): Promise<EmailResult> {
+  const apiKey = process.env.RESEND_API_KEY?.trim();
+  if (!apiKey) return { ok: false, error: 'RESEND_API_KEY not configured.' };
+
+  const from = process.env.RESEND_FROM?.trim() || DEFAULT_FROM;
+
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from,
+        to: [input.to],
+        subject: input.subject,
+        html: input.html,
+        text: input.text,
+        reply_to: input.replyTo,
+      }),
+    });
+    const body = (await res.json().catch(() => ({}))) as {
+      id?: string;
+      message?: string;
+    };
+    if (!res.ok || !body.id) {
+      return { ok: false, error: body.message || `HTTP ${res.status}` };
+    }
+    return { ok: true, id: body.id };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'unknown email error',
+    };
+  }
+}
+
+/** Brand-styled invite email with a single CTA link. */
+export function buildInviteEmailHtml(input: {
+  inviterName: string;
+  caseTitle: string;
+  link: string;
+  isNewUser: boolean;
+}): string {
+  const cta = input.isNewUser ? 'Accept invite & sign up' : 'Open the case';
+  const intro = input.isNewUser
+    ? `${escapeHtml(input.inviterName)} invited you to collaborate on a case file in Advottic. Click below to create your account and view it.`
+    : `${escapeHtml(input.inviterName)} added you as a collaborator on a case file in Advottic. Click below to sign in and open it.`;
+  return `<!doctype html>
+<html><body style="margin:0;padding:0;background:#f5edd6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif;color:#0f2d24;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5edd6;padding:32px 16px;">
+    <tr><td align="center">
+      <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 8px 24px -4px rgba(15,45,36,0.10);">
+        <tr><td style="background:linear-gradient(135deg,#0f2d24 0%,#173b30 60%,#23362f 100%);padding:24px 32px;">
+          <p style="margin:0;color:#d5bb7e;font-size:11px;letter-spacing:0.28em;text-transform:uppercase;font-weight:600;">Advottic</p>
+          <p style="margin:6px 0 0;color:#fbf7e9;font-size:18px;font-weight:600;">You've been invited to a case</p>
+        </td></tr>
+        <tr><td style="padding:28px 32px 8px;">
+          <h1 style="margin:0 0 12px;color:#0f2d24;font-size:22px;line-height:1.2;font-weight:600;letter-spacing:-0.01em;">${escapeHtml(input.caseTitle)}</h1>
+          <p style="margin:0 0 20px;color:#3f3f46;font-size:14.5px;line-height:1.55;">${intro}</p>
+          <p style="margin:0 0 24px;">
+            <a href="${escapeAttribute(input.link)}" style="display:inline-block;background:#0f2d24;color:#fbf7e9;text-decoration:none;padding:12px 22px;border-radius:10px;font-weight:600;font-size:14px;letter-spacing:-0.005em;">${cta}</a>
+          </p>
+          <p style="margin:0 0 8px;color:#71717a;font-size:12px;line-height:1.55;">Or paste this link into your browser:</p>
+          <p style="margin:0 0 24px;word-break:break-all;color:#52525b;font-size:11.5px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;">${escapeHtml(input.link)}</p>
+          <p style="margin:0;color:#a1a1aa;font-size:11.5px;line-height:1.55;">Advottic provides legal information and case organization, not legal advice. If you weren't expecting this invite, you can ignore the email.</p>
+        </td></tr>
+        <tr><td style="padding:0 32px 28px;">
+          <hr style="border:none;border-top:1px solid #e4e4e7;margin:0 0 12px;" />
+          <p style="margin:0;color:#a1a1aa;font-size:11px;letter-spacing:0.04em;">© ${new Date().getFullYear()} Advottic LLC. All rights reserved.</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+function escapeAttribute(s: string): string {
+  return escapeHtml(s);
+}

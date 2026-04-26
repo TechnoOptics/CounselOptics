@@ -18,6 +18,7 @@ import { CloseCaseControl } from './close-case-control';
 import { HearingPanel } from './hearing-panel';
 import { ExhibitScan } from './exhibit-scan';
 import { Tabs } from '@/components/Tabs';
+import { BellaPrompt } from '@/components/BellaPrompt';
 
 export const dynamic = 'force-dynamic';
 
@@ -176,6 +177,18 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
                     role to <strong>Editor</strong> or <strong>Attorney</strong> if you need to
                     add exhibits.
                   </div>
+                )}
+
+                {exhibits.length > 0 && (
+                  <BellaPrompt
+                    title="Ask Bella to make sense of these exhibits"
+                    subtitle="She has full visibility into your case description and exhibit list. Plain English, hedged language, no legal advice."
+                    prompts={[
+                      'Summarize what these exhibits prove.',
+                      'Which exhibits look weakest and why?',
+                      'What evidence am I missing?',
+                    ]}
+                  />
                 )}
 
                 {exhibits.length > 0 && (

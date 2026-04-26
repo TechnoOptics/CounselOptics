@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { runReviewAction } from '@/lib/actions';
 import type { AIReview } from '@/lib/types';
+import { BellaPrompt } from '@/components/BellaPrompt';
 
 type TabKey = 'overview' | 'facts' | 'evidence' | 'actions';
 
@@ -39,15 +40,17 @@ export function ReviewPanel({
     <section className="space-y-5">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight text-ink-950">Legal Eye review</h2>
+          <h2 className="text-xl font-semibold tracking-tight text-ink-950 dark:text-cream-100">Legal Eye review</h2>
           <p className="text-sm text-ink-500 mt-0.5">
             {review ? (
               <>
                 Last reviewed {formatRelative(review.createdAt)} ·{' '}
                 <span className="font-mono text-[11px] text-ink-400">{review.modelUsed}</span>
+                {' · '}
+                <span className="text-emerald-700 dark:text-emerald-400">No training</span>
               </>
             ) : (
-              'Legal Eye reads the case description and exhibits, then surfaces issues, evidence gaps, and possible subpoena targets.'
+              'Legal Eye reads the case description and exhibits, then surfaces issues, evidence gaps, and possible subpoena targets. Your case content is never used to train external models.'
             )}
           </p>
         </div>
@@ -120,6 +123,18 @@ export function ReviewPanel({
             <p className="text-[11px] leading-relaxed text-ink-500">{review.disclaimer}</p>
           </div>
         </div>
+      )}
+
+      {review && (
+        <BellaPrompt
+          title="Talk to Bella about this review"
+          subtitle="Ask follow-up questions in plain English. She has the case and exhibits as context."
+          prompts={[
+            'Explain the strongest issue Legal Eye flagged.',
+            'Which next step should I do first?',
+            'What do these legal terms mean in plain English?',
+          ]}
+        />
       )}
     </section>
   );

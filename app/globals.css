@@ -37,7 +37,7 @@ body {
 }
 
 :root {
-  color-scheme: light;
+  color-scheme: light dark;
   --brand-dark: #0f2d24;
   --brand-mid: #23362f;
   --brand-gold: #d5bb7e;
@@ -69,6 +69,61 @@ body::before {
   mask-image: linear-gradient(180deg, black 0%, black 30%, rgba(0, 0, 0, 0.6) 100%);
 }
 
+/* ------------------------------ Dark mode ------------------------------
+   Inverts the warm-cream palette to a deep forest base with gold accents
+   that hold their identity. Triggered by system preference; component-
+   level Tailwind `dark:` variants layer on top of these defaults.
+
+   Strategy: rather than touch every text-forest-900 / text-ink-* call
+   site, we override the actual color values for those classes inside
+   dark mode. Cards already get a forest-900 background + cream text via
+   the .card dark variant, so this just keeps embedded headings/body
+   readable. Components that still want pure-dark text on light surfaces
+   in dark mode can use a `dark:` override to opt out. */
+@media (prefers-color-scheme: dark) {
+  html, body {
+    background-color: #0a1f19;
+    color: #f5edd6;
+  }
+  body::before {
+    background-image:
+      radial-gradient(1200px 600px at 90% -10%, rgba(213, 187, 126, 0.10), transparent 60%),
+      radial-gradient(900px 500px at -10% 100%, rgba(213, 187, 126, 0.04), transparent 60%),
+      linear-gradient(rgba(245, 237, 214, 0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(245, 237, 214, 0.025) 1px, transparent 1px);
+  }
+  .text-forest-900 { color: #f5edd6; }
+  .text-forest-800,
+  .text-forest-700 { color: rgba(245, 237, 214, 0.85); }
+  .text-ink-950 { color: #fbf7e9; }
+  .text-ink-900 { color: #f5edd6; }
+  .text-ink-800 { color: rgba(245, 237, 214, 0.92); }
+  .text-ink-700 { color: rgba(245, 237, 214, 0.85); }
+  .text-ink-600 { color: rgba(245, 237, 214, 0.72); }
+  .text-ink-500 { color: rgba(245, 237, 214, 0.55); }
+  .text-ink-400 { color: rgba(245, 237, 214, 0.4); }
+  /* Hover/active variants for nav and link styles */
+  .hover\:text-forest-900:hover { color: #fbf7e9; }
+  .hover\:text-forest-700:hover { color: rgba(245, 237, 214, 0.92); }
+  .hover\:text-ink-900:hover { color: #fbf7e9; }
+  .hover\:text-ink-700:hover { color: rgba(245, 237, 214, 0.92); }
+  /* Backgrounds that bake forest-900 as a "dark surface" stay dark - those
+     are intentional. But pure-white surfaces get a forest tint so embedded
+     forest-900 text doesn't disappear on them. */
+  .bg-white { background-color: #1a3d31; }
+  .bg-cream-50 { background-color: #173b30; }
+  .bg-cream-50\/40 { background-color: rgba(23, 59, 48, 0.4); }
+  .bg-cream-100 { background-color: #1f4839; }
+  .bg-cream-200 { background-color: #2a5a47; }
+  .bg-ink-50 { background-color: #102a23; }
+  .bg-ink-50\/40 { background-color: rgba(16, 42, 35, 0.4); }
+  /* Border + ring inversions so light-mode hairlines do not vanish */
+  .border-ink-100 { border-color: rgba(245, 237, 214, 0.08); }
+  .border-ink-200 { border-color: rgba(245, 237, 214, 0.12); }
+  .border-forest-200 { border-color: rgba(213, 187, 126, 0.25); }
+  .ring-ink-200 { --tw-ring-color: rgba(245, 237, 214, 0.12); }
+}
+
 body > * {
   position: relative;
   z-index: 1;
@@ -78,6 +133,48 @@ body > * {
 .tech-divider {
   height: 1px;
   background: linear-gradient(90deg, transparent 0%, #DFDAC0 20%, #DFDAC0 80%, transparent 100%);
+}
+
+/* Gold shimmer line that drifts under the header. The base hairline
+   stays subtle (forest-700/40 to match the header border), and a
+   bright gold band slowly sweeps left to right on top of it.
+   12 second loop keeps it calm and "alive" rather than busy. */
+@keyframes co-header-shimmer {
+  0% { transform: translateX(-40%); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translateX(140%); opacity: 0; }
+}
+.header-glow-line {
+  position: relative;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(213, 187, 126, 0.18) 30%,
+    rgba(213, 187, 126, 0.28) 50%,
+    rgba(213, 187, 126, 0.18) 70%,
+    transparent 100%
+  );
+  overflow: hidden;
+}
+.header-glow-line::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 30%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(245, 237, 214, 0.55) 30%,
+    rgba(213, 187, 126, 0.95) 50%,
+    rgba(245, 237, 214, 0.55) 70%,
+    transparent 100%
+  );
+  filter: blur(0.5px) drop-shadow(0 0 6px rgba(213, 187, 126, 0.65));
+  animation: co-header-shimmer 12s linear infinite;
 }
 
 /* ------------------------------ Motion ------------------------------ */
@@ -109,6 +206,65 @@ body > * {
   );
   background-size: 200% 100%;
   animation: co-ai-sweep 2.4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* Loading veil mark: the Advottic gold pillar lives in the centre of a
+   slowly-breathing aurora. Two layered animations: the icon scales +
+   pulses its drop-shadow, and a separate radial halo behind it shifts
+   between two gold tones to give the gradient transition feel. */
+@keyframes co-loading-pulse {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 14px rgba(213, 187, 126, 0.45));
+  }
+  50% {
+    transform: scale(1.06);
+    filter: drop-shadow(0 0 30px rgba(245, 237, 214, 0.72));
+  }
+}
+@keyframes co-loading-aurora {
+  0% {
+    opacity: 0.55;
+    transform: scale(0.92);
+    background: radial-gradient(
+      circle,
+      rgba(213, 187, 126, 0.55) 0%,
+      rgba(213, 187, 126, 0) 65%
+    );
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.12);
+    background: radial-gradient(
+      circle,
+      rgba(245, 237, 214, 0.65) 0%,
+      rgba(213, 187, 126, 0.25) 45%,
+      rgba(213, 187, 126, 0) 75%
+    );
+  }
+  100% {
+    opacity: 0.55;
+    transform: scale(0.92);
+    background: radial-gradient(
+      circle,
+      rgba(213, 187, 126, 0.55) 0%,
+      rgba(213, 187, 126, 0) 65%
+    );
+  }
+}
+.loading-mark {
+  position: relative;
+  animation: co-loading-pulse 1.8s ease-in-out infinite;
+}
+.loading-mark::before {
+  content: '';
+  position: absolute;
+  inset: -42px;
+  border-radius: 9999px;
+  filter: blur(22px);
+  z-index: -1;
+  animation: co-loading-aurora 2.6s ease-in-out infinite;
   pointer-events: none;
 }
 
@@ -214,7 +370,10 @@ body > * {
   .marquee-track,
   .route-fade,
   .ai-sweep,
-  .aurora {
+  .aurora,
+  .loading-mark,
+  .loading-mark::before,
+  .header-glow-line::after {
     animation: none !important;
   }
   .stagger > * {
@@ -227,7 +386,7 @@ body > * {
     @apply relative inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium tracking-tight transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-gold-500/60 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] overflow-hidden;
   }
   .btn-primary {
-    @apply btn bg-forest-900 text-cream-200 shadow-brand-glow hover:bg-forest-800 hover:-translate-y-px hover:shadow-card-hover active:translate-y-0 active:bg-forest-950;
+    @apply btn bg-forest-900 text-cream-200 shadow-brand-glow hover:bg-forest-800 hover:-translate-y-px hover:shadow-card-hover active:translate-y-0 active:bg-forest-950 dark:bg-gold-metal dark:text-forest-950 dark:hover:brightness-110;
   }
   /* Subtle inner highlight along the top edge of primaries - reads like
      a polished metal button instead of a flat dark rectangle. */
@@ -245,10 +404,10 @@ body > * {
     pointer-events: none;
   }
   .btn-secondary {
-    @apply btn bg-white text-forest-900 border border-forest-200 hover:border-gold-500 hover:bg-cream-50 hover:shadow-card;
+    @apply btn bg-white text-forest-900 border border-forest-200 hover:border-gold-500 hover:bg-cream-50 hover:shadow-card dark:bg-forest-800/60 dark:text-cream-100 dark:border-forest-600 dark:hover:bg-forest-700 dark:hover:border-gold-500;
   }
   .btn-ghost {
-    @apply btn bg-transparent text-forest-900 hover:bg-cream-50 hover:text-forest-700;
+    @apply btn bg-transparent text-forest-900 hover:bg-cream-50 hover:text-forest-700 dark:text-cream-100 dark:hover:bg-forest-800/60 dark:hover:text-cream-100;
   }
   .btn-accent {
     @apply btn bg-gold-shine text-forest-900 hover:opacity-90 shadow-sm;
@@ -272,13 +431,13 @@ body > * {
     transform: translateX(120%);
   }
   .input {
-    @apply w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm placeholder:text-ink-400 focus:outline-none focus:ring-2 focus:ring-forest-700/15 focus:border-forest-700 transition-colors;
+    @apply w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm placeholder:text-ink-400 focus:outline-none focus:ring-2 focus:ring-forest-700/15 focus:border-forest-700 transition-colors dark:bg-forest-900/60 dark:border-forest-600 dark:text-cream-100 dark:placeholder:text-cream-100/40 dark:focus:ring-gold-500/20 dark:focus:border-gold-500;
   }
   .label {
-    @apply block text-sm font-medium text-forest-900 mb-1.5;
+    @apply block text-sm font-medium text-forest-900 mb-1.5 dark:text-cream-100;
   }
   .card {
-    @apply rounded-xl border border-ink-200 bg-white shadow-card transition-all duration-300;
+    @apply rounded-xl border border-ink-200 bg-white shadow-card transition-all duration-300 dark:bg-forest-900/70 dark:border-forest-700/60 dark:text-cream-100;
   }
   .card-hover {
     @apply card relative overflow-hidden;
@@ -323,6 +482,19 @@ body > * {
         rgba(245, 237, 214, 0.55) 100%
       ) border-box;
     border: 1px solid transparent;
+  }
+  @media (prefers-color-scheme: dark) {
+    .card-luminous {
+      background:
+        linear-gradient(#0f2d24, #0f2d24) padding-box,
+        linear-gradient(
+          135deg,
+          rgba(213, 187, 126, 0.65) 0%,
+          rgba(245, 237, 214, 0.18) 35%,
+          rgba(213, 187, 126, 0.55) 65%,
+          rgba(245, 237, 214, 0.45) 100%
+        ) border-box;
+    }
   }
   .card-luminous::before {
     content: '';
@@ -376,7 +548,7 @@ body > * {
     flex: none;
   }
   .divider {
-    @apply border-t border-ink-100;
+    @apply border-t border-ink-100 dark:border-forest-700/60;
   }
   /* Hairline rule with a soft gold midpoint - elegant section break */
   .gold-rule {

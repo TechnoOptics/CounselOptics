@@ -1,7 +1,7 @@
 export function Disclaimer({ variant = 'inline' }: { variant?: 'inline' | 'banner' }) {
   if (variant === 'banner') {
     return (
-      <div className="border-b border-amber-200/70 bg-amber-50/80 text-amber-900 text-[11px] tracking-wide px-4 py-1.5 text-center">
+      <div className="border-b border-amber-200/70 bg-amber-50/80 text-amber-900 text-[11px] tracking-wide px-4 pt-[max(0.375rem,env(safe-area-inset-top))] pb-1.5 text-center">
         Advottic provides legal information and case organization - not legal advice. Consult a licensed attorney before taking action.
       </div>
     );

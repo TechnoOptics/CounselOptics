@@ -2,8 +2,10 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { createCaseAction } from '@/lib/actions';
+import { useFormState, useFormStatus } from 'react-dom';
+import { createCaseAction, type CreateCaseResult } from '@/lib/actions';
 import { CASE_TYPES, type SubjectType } from '@/lib/types';
+import { FormLoadingOverlay } from '@/components/LoadingOverlay';
 
 const SUBJECT_TYPE_OPTIONS: { value: SubjectType; label: string }[] = [
   { value: 'person', label: 'Person' },
@@ -113,13 +115,26 @@ const SUBJECT_FIELDS: FieldDef[] = [
 export function NewCaseForm() {
   const [subjectType, setSubjectType] = useState<SubjectType>('person');
   const [showSubjectDetails, setShowSubjectDetails] = useState(false);
+  const [state, formAction] = useFormState<CreateCaseResult | null, FormData>(
+    createCaseAction,
+    null,
+  );
 
   const visibleFields = SUBJECT_FIELDS.filter(
     (f) => f.showFor === 'all' || f.showFor.includes(subjectType),
   );
 
   return (
-    <form action={createCaseAction} className="card p-6 space-y-5">
+    <form action={formAction} className="card p-6 space-y-5">
+      {state?.error && (
+        <div
+          role="alert"
+          className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-200"
+        >
+          <p className="font-semibold mb-0.5">Could not create case</p>
+          <p>{state.error}</p>
+        </div>
+      )}
       <div>
         <label className="label">Your posture in this matter</label>
         <div className="grid gap-2 md:grid-cols-2">
@@ -346,10 +361,18 @@ export function NewCaseForm() {
         <Link href="/cases" className="btn-secondary">
           Cancel
         </Link>
-        <button type="submit" className="btn-primary">
-          Create case
-        </button>
+        <SubmitButton />
       </div>
+      <FormLoadingOverlay label="Creating your case file" />
     </form>
+  );
+}
+
+function SubmitButton() {
+  const { pending } = useFormStatus();
+  return (
+    <button type="submit" className="btn-primary" disabled={pending}>
+      {pending ? 'Creating...' : 'Create case'}
+    </button>
   );
 }

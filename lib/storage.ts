@@ -22,6 +22,7 @@ import type {
 } from './types';
 import { createServerSupabase, getCurrentUser, isSupabaseConfigured } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
+import { sendEmail, buildInviteEmailHtml } from './email';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
@@ -92,6 +93,7 @@ type ProfileRow = {
   organization: string | null;
   avatar_url: string | null;
   is_admin: boolean | null;
+  is_blocked: boolean | null;
   representation: RepresentationStatus | null;
   consented_at: string | null;
   tour_completed_at: string | null;
@@ -191,6 +193,7 @@ function profileFromRow(r: ProfileRow): Profile {
     organization: r.organization ?? null,
     avatarUrl: r.avatar_url ?? null,
     isAdmin: Boolean(r.is_admin),
+    isBlocked: Boolean(r.is_blocked),
     representation: r.representation ?? null,
     consentedAt: r.consented_at ?? null,
     tourCompletedAt: r.tour_completed_at ?? null,
@@ -746,6 +749,7 @@ export type AdminUserRow = {
   role: string | null;
   organization: string | null;
   isAdmin: boolean;
+  isBlocked: boolean;
   representation: RepresentationStatus | null;
   consentedAt: string | null;
   caseCount: number;
@@ -809,6 +813,7 @@ export async function adminListUsers(): Promise<AdminUserRow[]> {
       role: p?.role ?? null,
       organization: p?.organization ?? null,
       isAdmin: Boolean(p?.is_admin),
+      isBlocked: Boolean(p?.is_blocked),
       representation: p?.representation ?? null,
       consentedAt: p?.consented_at ?? null,
       caseCount: caseCounts.get(u.id) ?? 0,
@@ -816,6 +821,80 @@ export async function adminListUsers(): Promise<AdminUserRow[]> {
       subscriptionTier: s?.tier ?? null,
     };
   });
+}
+
+/**
+ * Flip the admin flag for a user. Enforces a 2-admin minimum so the org
+ * can never end up with no admins (or a single admin that locks themselves
+ * out by toggling). Throws on policy violation.
+ */
+export async function adminSetUserAdmin(input: {
+  userId: string;
+  isAdmin: boolean;
+}): Promise<void> {
+  const admin = createAdminSupabase();
+  if (!admin) throw new Error('Service role key required.');
+  if (!input.isAdmin) {
+    // Demoting: confirm there will still be at least 2 admins after.
+    const { count, error } = await admin
+      .from('profiles')
+      .select('id', { count: 'exact', head: true })
+      .eq('is_admin', true);
+    if (error) throw error;
+    if ((count ?? 0) <= 2) {
+      throw new Error(
+        'There must always be at least 2 admins. Promote another user to admin before demoting this one.',
+      );
+    }
+  }
+  await ensureProfileExists(admin, input.userId);
+  const { error } = await admin
+    .from('profiles')
+    .update({ is_admin: input.isAdmin, updated_at: new Date().toISOString() })
+    .eq('id', input.userId);
+  if (error) throw error;
+}
+
+/**
+ * Activate or deactivate (block) a user account. Blocked users get bounced
+ * back to the sign-in page on their next request to /auth/callback. We
+ * also force-sign-out any active sessions so the change takes effect
+ * immediately.
+ */
+export async function adminSetUserBlocked(input: {
+  userId: string;
+  isBlocked: boolean;
+}): Promise<void> {
+  const admin = createAdminSupabase();
+  if (!admin) throw new Error('Service role key required.');
+  await ensureProfileExists(admin, input.userId);
+  const { error } = await admin
+    .from('profiles')
+    .update({ is_blocked: input.isBlocked, updated_at: new Date().toISOString() })
+    .eq('id', input.userId);
+  if (error) throw error;
+  if (input.isBlocked) {
+    // Force-revoke active sessions for the user so they can't keep poking
+    // around with a cookie that's still valid in the browser.
+    try {
+      await admin.auth.admin.signOut(input.userId, 'global');
+    } catch {
+      // signOut by user_id requires a recent supabase-js; if it errors,
+      // the next /auth/callback hit will catch it.
+    }
+  }
+}
+
+/** Make sure a profile row exists for the user before we patch flags. */
+async function ensureProfileExists(
+  admin: ReturnType<typeof createAdminSupabase>,
+  userId: string,
+): Promise<void> {
+  if (!admin) return;
+  await admin.from('profiles').upsert(
+    { id: userId, updated_at: new Date().toISOString() },
+    { onConflict: 'id', ignoreDuplicates: false },
+  );
 }
 
 export async function adminListCases(): Promise<AdminCaseRow[]> {
@@ -971,41 +1050,87 @@ export async function inviteCollaborator(input: {
     .single();
   if (error) throw error;
 
-  // Email the invitee a sign-up / sign-in link. If they're already a Supabase
-  // user, send a magic link; otherwise send Supabase's "invite" email which
-  // creates the account on first click.
+  // Email the invitee a sign-up / sign-in link. We generate the auth link
+  // server-side (via the admin API) and deliver it through Resend, because
+  // Supabase's built-in email service is heavily rate-limited (~3-4/hour
+  // on the free tier) and frequently doesn't deliver to real inboxes.
+  // If RESEND_API_KEY isn't configured, we fall back to Supabase's built-in
+  // email path so the invite still has a chance of going out.
   let emailed = false;
   if (admin) {
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://advottic.com';
     const redirectTo = `${siteUrl}/auth/callback?next=${encodeURIComponent('/cases?welcome=1')}`;
+    const inviterName =
+      (user.user_metadata?.full_name as string | undefined) ?? user.email ?? 'A colleague';
+
     try {
+      let actionLink: string | null = null;
       if (existingUserId) {
-        // Existing account: send a magic link they can click to sign in straight to the app.
-        await admin.auth.admin.generateLink({
+        const linkRes = await admin.auth.admin.generateLink({
           type: 'magiclink',
           email,
           options: { redirectTo },
         });
-        // generateLink returns the URL but doesn't email it; send a fresh sign-in OTP instead.
-        await admin.auth.signInWithOtp({
-          email,
-          options: { emailRedirectTo: redirectTo, shouldCreateUser: false },
-        });
+        actionLink = linkRes.data.properties?.action_link ?? null;
       } else {
-        await admin.auth.admin.inviteUserByEmail(email, {
-          redirectTo,
-          data: {
-            invited_to_case: input.caseId,
-            invited_to_case_title: caseRow.title,
-            invited_by: user.email ?? user.id,
+        const linkRes = await admin.auth.admin.generateLink({
+          type: 'invite',
+          email,
+          options: {
+            redirectTo,
+            data: {
+              invited_to_case: input.caseId,
+              invited_to_case_title: caseRow.title,
+              invited_by: user.email ?? user.id,
+            },
           },
         });
+        actionLink = linkRes.data.properties?.action_link ?? null;
       }
-      emailed = true;
-    } catch {
+
+      const resendKey = process.env.RESEND_API_KEY?.trim();
+      if (actionLink && resendKey) {
+        const subject = existingUserId
+          ? `${inviterName} added you to "${caseRow.title}" on Advottic`
+          : `${inviterName} invited you to "${caseRow.title}" on Advottic`;
+        const html = buildInviteEmailHtml({
+          inviterName,
+          caseTitle: caseRow.title,
+          link: actionLink,
+          isNewUser: !existingUserId,
+        });
+        const result = await sendEmail({
+          to: email,
+          subject,
+          html,
+          replyTo: user.email ?? undefined,
+        });
+        emailed = result.ok;
+      } else {
+        // No Resend configured (or generateLink failed) - fall back to
+        // Supabase's built-in delivery so the invite still has a chance.
+        if (existingUserId) {
+          await admin.auth.signInWithOtp({
+            email,
+            options: { emailRedirectTo: redirectTo, shouldCreateUser: false },
+          });
+        } else {
+          await admin.auth.admin.inviteUserByEmail(email, {
+            redirectTo,
+            data: {
+              invited_to_case: input.caseId,
+              invited_to_case_title: caseRow.title,
+              invited_by: user.email ?? user.id,
+            },
+          });
+        }
+        emailed = true;
+      }
+    } catch (err) {
       // Email send failed (rate limit, bad config, etc). Don't fail the
       // invite itself; the row is in place and the collaborator can sign
       // up on their own with the matching email later.
+      console.error('[inviteCollaborator] email failed', err);
       emailed = false;
     }
   }

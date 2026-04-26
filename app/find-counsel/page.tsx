@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Disclaimer } from '@/components/Disclaimer';
 import { FindCounselClient } from './find-counsel-client';
+import { CalEmbed } from '@/components/CalEmbed';
 
 export const metadata: Metadata = {
   title: 'Find counsel near me - Advottic',
@@ -13,7 +14,7 @@ export default function FindCounselPage() {
     <div className="space-y-6 animate-fade-up">
       <header>
         <p className="eyebrow mb-2">Counsel finder</p>
-        <h1 className="text-3xl font-semibold tracking-tight text-forest-900">
+        <h1 className="font-display text-[40px] sm:text-[48px] font-medium tracking-[-0.02em] leading-[1.05] text-forest-900 dark:text-cream-100">
           Find counsel near you
         </h1>
         <p className="text-sm text-ink-600 mt-2 max-w-2xl leading-relaxed">
@@ -23,6 +24,8 @@ export default function FindCounselPage() {
       </header>
 
       <FindCounselClient />
+
+      <CalEmbed />
 
       <Disclaimer />
     </div>

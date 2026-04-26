@@ -32,6 +32,29 @@ export async function GET(request: NextRequest) {
     if (error) {
       return redirectWithError(request, next, error.message);
     }
+
+    // Block-list check: if profiles.is_blocked is true for this user, sign
+    // them right back out and surface a friendly message. We do this here
+    // (after exchange) so the session cookie that was just set is cleared
+    // and the user can't poke around with a half-valid session.
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (user) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('is_blocked')
+        .eq('id', user.id)
+        .maybeSingle();
+      if ((profile as { is_blocked: boolean | null } | null)?.is_blocked) {
+        await supabase.auth.signOut();
+        return redirectWithError(
+          request,
+          '/sign-in',
+          "Your account is blocked or inactive. If you believe this is a mistake, reach out to contact@advottic.com.",
+        );
+      }
+    }
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Sign-in failed.';
     return redirectWithError(request, next, msg);

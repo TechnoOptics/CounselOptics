@@ -20,7 +20,7 @@ export async function UserMenu() {
     return (
       <Link
         href="/sign-in"
-        className="inline-flex items-center gap-1.5 rounded-md bg-cream-200 hover:bg-cream-100 text-forest-900 font-semibold text-sm px-4 py-1.5 shadow-sm ring-1 ring-cream-100/30 transition-colors"
+        className="inline-flex items-center gap-1 rounded-md bg-cream-200 hover:bg-cream-100 text-forest-900 font-semibold text-[12px] sm:text-sm px-2.5 sm:px-4 py-1 sm:py-1.5 shadow-sm ring-1 ring-cream-100/30 transition-colors whitespace-nowrap"
       >
         Sign in
         <ArrowIcon />

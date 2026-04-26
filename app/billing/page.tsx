@@ -39,7 +39,7 @@ export default async function BillingPage({
   if (!isSupabaseConfigured()) {
     return (
       <div className="max-w-xl mx-auto card p-8 space-y-3">
-        <h1 className="text-2xl font-semibold tracking-tight text-forest-900">Billing</h1>
+        <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">Billing</h1>
         <p className="text-sm text-ink-600">
           Auth is not configured yet. Follow <code>SETUP.md</code>.
         </p>
@@ -62,7 +62,7 @@ export default async function BillingPage({
     <div className="max-w-5xl mx-auto space-y-8 animate-fade-up">
       <div>
         <p className="eyebrow mb-2">Billing</p>
-        <h1 className="text-3xl font-semibold tracking-tight text-forest-900">
+        <h1 className="font-display text-[40px] sm:text-[48px] font-medium tracking-[-0.02em] leading-[1.05] text-forest-900 dark:text-cream-100">
           Choose your tier
         </h1>
         <p className="text-sm text-ink-600 mt-1 max-w-2xl">

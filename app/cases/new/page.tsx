@@ -9,9 +9,9 @@ export default function NewCasePage() {
         <Link href="/cases" className="text-sm text-ink-500 hover:text-ink-700">
           &larr; Back to cases
         </Link>
-        <h1 className="text-2xl font-semibold tracking-tight mt-2">New case file</h1>
+        <h1 className="font-display text-3xl sm:text-4xl font-medium tracking-[-0.01em] mt-2">New case file</h1>
         <p className="text-sm text-ink-600">
-          Capture the basics now &mdash; you can upload evidence and add notes after creating.
+          Capture the basics now, you can upload evidence and add notes after creating.
         </p>
       </div>
 
