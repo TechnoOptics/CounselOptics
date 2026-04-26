@@ -20,6 +20,8 @@ const ITEMS: NavItem[] = [
   { label: 'Cases', href: '/cases', prefix: '/cases', icon: CasesIcon },
   { label: 'Shared with me', href: '/cases?filter=shared', filter: 'shared', icon: ShareIcon },
   { label: 'Find counsel', href: '/find-counsel', prefix: '/find-counsel', icon: ScalesIcon },
+  { label: 'File exhibits', href: '/file-exhibits', prefix: '/file-exhibits', icon: FileIcon },
+  { label: 'Public defender', href: '/public-defender', prefix: '/public-defender', icon: GavelIcon },
   { label: 'Billing', href: '/billing', prefix: '/billing', icon: CardIcon },
 ];
 
@@ -259,6 +261,34 @@ function CardIcon() {
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
       <rect x="3" y="6" width="18" height="13" rx="2" stroke="currentColor" strokeWidth="2" />
       <path d="M3 10h18" stroke="currentColor" strokeWidth="2" />
+    </svg>
+  );
+}
+
+function FileIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+      <path d="M14 3v6h6" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function GavelIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M14 4l6 6m-3-3l-7 7m-2-2l-3 3a2 2 0 1 0 2.8 2.8l3-3M4 20h12"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }

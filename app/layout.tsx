@@ -12,6 +12,7 @@ import { ConsentModal } from '@/components/ConsentModal';
 import { Sidebar, MobileNav } from '@/components/Sidebar';
 import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
 import { ThemeBoot } from '@/components/ThemeBoot';
+import { CrashReporter } from '@/components/CrashReporter';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { getProfile } from '@/lib/storage';
 
@@ -176,6 +177,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         {consent.needed && <ConsentModal fallbackName={consent.fallbackName} />}
         <CookieBanner />
         <ServiceWorkerRegister />
+        <CrashReporter />
         <footer className="border-t border-ink-200 bg-white dark:bg-forest-950 dark:border-forest-700/40">
           <div className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-8 text-[11px] text-ink-500 dark:text-cream-100/55">
             <div className="grid gap-6 sm:gap-8 grid-cols-2 md:grid-cols-4">
@@ -191,6 +193,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <Link href="/cases" className="hover:text-forest-900 dark:hover:text-cream-100 block">Cases</Link>
                 <Link href="/cases/new" className="hover:text-forest-900 dark:hover:text-cream-100 block">New case</Link>
                 <Link href="/find-counsel" className="hover:text-forest-900 dark:hover:text-cream-100 block">Find counsel</Link>
+                <Link href="/public-defender" className="hover:text-forest-900 dark:hover:text-cream-100 block">Public defender</Link>
+                <Link href="/file-exhibits" className="hover:text-forest-900 dark:hover:text-cream-100 block">File exhibits</Link>
                 <Link href="/review-my-document" className="hover:text-forest-900 dark:hover:text-cream-100 block">Review my document</Link>
                 <Link href="/feedback" className="hover:text-forest-900 dark:hover:text-cream-100 block">Send feedback</Link>
                 <Link href="/welcome" className="hover:text-forest-900 dark:hover:text-cream-100 block">Share Advottic</Link>
@@ -225,10 +229,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             </div>
             <p className="mt-3 text-[10px] leading-relaxed text-ink-400 dark:text-cream-100/45 max-w-3xl">
               Advottic is a service of Techno Optics LLC. Legal Eye and Bella generate
-              informational content using AI; outputs may be incomplete, outdated, or wrong and
-              are not legal advice. Always consult a licensed attorney in your jurisdiction
-              before acting. If you face possible incarceration, request a public defender at
-              your first court appearance.
+              informational content automatically; outputs may be incomplete, outdated, or
+              wrong and are not legal advice. Always consult a licensed attorney in your
+              jurisdiction before acting. If you face possible incarceration, ask the court
+              for a public defender at your first court appearance.
             </p>
           </div>
         </footer>

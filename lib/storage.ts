@@ -1516,3 +1516,138 @@ export async function markTourCompleted(): Promise<void> {
       updated_at: new Date().toISOString(),
     });
 }
+
+// ---------------------------------------------------------------------------
+// System health + crash reports
+// ---------------------------------------------------------------------------
+
+export type ProbeName = 'auth' | 'database' | 'email' | 'stripe' | 'bella';
+export type ProbeStatus = 'pass' | 'fail' | 'skipped';
+
+export type SystemHealthRow = {
+  id: string;
+  ranAt: string;
+  source: 'cron' | 'manual';
+  probes: Record<ProbeName, ProbeStatus>;
+  failures: { probe: ProbeName; error: string }[];
+  durationMs: number | null;
+};
+
+export type CrashReport = {
+  id: string;
+  reportedAt: string;
+  userId: string | null;
+  url: string | null;
+  userAgent: string | null;
+  message: string;
+  stack: string | null;
+  componentStack: string | null;
+  release: string | null;
+  acknowledgedAt: string | null;
+  acknowledgedBy: string | null;
+};
+
+export async function recordHealthCheck(input: {
+  source: 'cron' | 'manual';
+  probes: Record<ProbeName, ProbeStatus>;
+  failures: { probe: ProbeName; error: string }[];
+  durationMs: number;
+}): Promise<void> {
+  const admin = createAdminSupabase();
+  if (!admin) return;
+  await admin.from('system_health').insert({
+    source: input.source,
+    probes: input.probes,
+    failures: input.failures,
+    duration_ms: input.durationMs,
+  });
+}
+
+export async function adminListHealthChecks(limit = 48): Promise<SystemHealthRow[]> {
+  const admin = createAdminSupabase();
+  if (!admin) return [];
+  const { data, error } = await admin
+    .from('system_health')
+    .select('*')
+    .order('ran_at', { ascending: false })
+    .limit(limit);
+  if (error || !data) return [];
+  return (data as Array<Record<string, unknown>>).map((r) => ({
+    id: String(r.id),
+    ranAt: String(r.ran_at),
+    source: (r.source as 'cron' | 'manual') ?? 'cron',
+    probes: (r.probes as Record<ProbeName, ProbeStatus>) ?? ({} as Record<ProbeName, ProbeStatus>),
+    failures: (r.failures as { probe: ProbeName; error: string }[]) ?? [],
+    durationMs: typeof r.duration_ms === 'number' ? r.duration_ms : null,
+  }));
+}
+
+export async function recordCrashReport(input: {
+  userId: string | null;
+  url: string | null;
+  userAgent: string | null;
+  message: string;
+  stack: string | null;
+  componentStack: string | null;
+  release: string | null;
+}): Promise<void> {
+  const admin = createAdminSupabase();
+  if (!admin) return;
+  // Cap stack/message length so a runaway exception payload cannot
+  // bloat a single row beyond what Postgres comfortably handles.
+  const cap = (s: string | null, n: number) =>
+    s == null ? null : s.length > n ? s.slice(0, n) : s;
+  await admin.from('crash_reports').insert({
+    user_id: input.userId,
+    url: cap(input.url, 1000),
+    user_agent: cap(input.userAgent, 500),
+    message: cap(input.message, 2000) ?? '(no message)',
+    stack: cap(input.stack, 8000),
+    component_stack: cap(input.componentStack, 4000),
+    release: cap(input.release, 80),
+  });
+}
+
+export async function adminListCrashReports(input?: {
+  includeAcknowledged?: boolean;
+  limit?: number;
+}): Promise<CrashReport[]> {
+  const admin = createAdminSupabase();
+  if (!admin) return [];
+  let query = admin
+    .from('crash_reports')
+    .select('*')
+    .order('reported_at', { ascending: false })
+    .limit(input?.limit ?? 100);
+  if (!input?.includeAcknowledged) {
+    query = query.is('acknowledged_at', null);
+  }
+  const { data, error } = await query;
+  if (error || !data) return [];
+  return (data as Array<Record<string, unknown>>).map((r) => ({
+    id: String(r.id),
+    reportedAt: String(r.reported_at),
+    userId: r.user_id ? String(r.user_id) : null,
+    url: r.url ? String(r.url) : null,
+    userAgent: r.user_agent ? String(r.user_agent) : null,
+    message: String(r.message),
+    stack: r.stack ? String(r.stack) : null,
+    componentStack: r.component_stack ? String(r.component_stack) : null,
+    release: r.release ? String(r.release) : null,
+    acknowledgedAt: r.acknowledged_at ? String(r.acknowledged_at) : null,
+    acknowledgedBy: r.acknowledged_by ? String(r.acknowledged_by) : null,
+  }));
+}
+
+export async function adminAcknowledgeCrash(crashId: string): Promise<void> {
+  const admin = createAdminSupabase();
+  if (!admin) return;
+  const user = await getCurrentUser();
+  await admin
+    .from('crash_reports')
+    .update({
+      acknowledged_at: new Date().toISOString(),
+      acknowledged_by: user?.id ?? null,
+    })
+    .eq('id', crashId);
+}
