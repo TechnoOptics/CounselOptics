@@ -1,7 +1,21 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+
+// Marker the server emits when Bella's navigate_to tool fires. We strip
+// it from the rendered text and call router.push so the user actually
+// goes there. Must match NAV_MARKER_OPEN/CLOSE in lib/bella.ts.
+const NAV_RE = /<<ADV-NAV:([^>]+)>>/g;
+function stripNavMarkers(s: string): { clean: string; paths: string[] } {
+  const paths: string[] = [];
+  const clean = s.replace(NAV_RE, (_m, p1: string) => {
+    const path = String(p1 || '').trim();
+    if (path && path.startsWith('/')) paths.push(path);
+    return '';
+  });
+  return { clean, paths };
+}
 
 type Message = { role: 'user' | 'assistant'; content: string };
 
@@ -14,6 +28,10 @@ export function Bella({ signedIn = true }: { signedIn?: boolean }) {
   const [streaming, setStreaming] = useState(false);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const pathname = usePathname();
+  const router = useRouter();
+  // Track which nav markers we've already acted on so a re-render of
+  // the streamed snapshot doesn't trigger a navigation loop.
+  const navFiredRef = useRef<Set<string>>(new Set());
   // Bella is deliberately silent for the first 30 seconds. We only arm the
   // floating button after the user has shown some activity, so first-page
   // landing visitors aren't bombarded with a chat prompt before they've had
@@ -124,10 +142,19 @@ export function Bella({ signedIn = true }: { signedIn?: boolean }) {
         const { value, done } = await reader.read();
         if (done) break;
         acc += decoder.decode(value, { stream: true });
-        const snapshot = acc;
+        // Strip ADV-NAV markers from the displayed text. The first time
+        // we see one, fire router.push so the user actually goes there.
+        const { clean, paths } = stripNavMarkers(acc);
+        for (const p of paths) {
+          if (navFiredRef.current.has(p)) continue;
+          navFiredRef.current.add(p);
+          // Defer the navigation a tick so the message that announced
+          // it is on screen before the route swap.
+          setTimeout(() => router.push(p), 350);
+        }
         setMessages((m) =>
           m.map((msg, i) =>
-            i === placeholderIndex ? { role: 'assistant', content: snapshot } : msg,
+            i === placeholderIndex ? { role: 'assistant', content: clean } : msg,
           ),
         );
       }
@@ -151,6 +178,7 @@ export function Bella({ signedIn = true }: { signedIn?: boolean }) {
 
   function reset() {
     setMessages([]);
+    navFiredRef.current = new Set();
     sessionStorage.removeItem(STORAGE_KEY);
   }
 
