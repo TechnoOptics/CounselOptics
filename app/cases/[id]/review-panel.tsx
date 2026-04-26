@@ -106,7 +106,7 @@ export function ReviewPanel({
           {review.isDemo && (
             <div className="border-b border-amber-200 bg-amber-50/70 px-5 py-2.5 text-xs text-amber-900">
               Demo response - set <code className="font-mono">ANTHROPIC_API_KEY</code> in{' '}
-              <code className="font-mono">.env.local</code> to enable real Claude-backed analysis.
+              <code className="font-mono">.env.local</code> to enable the full analysis.
             </div>
           )}
 

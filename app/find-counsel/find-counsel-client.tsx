@@ -127,10 +127,19 @@ export function FindCounselClient() {
               </button>
             )}
             {mode === 'denied' && (
-              <p className="text-xs text-amber-800 mt-2">
-                Location was blocked. Use the manual option, or re-enable location in your
-                browser settings.
-              </p>
+              <div className="mt-3 space-y-2">
+                <p className="text-xs text-amber-800 leading-relaxed">
+                  Location was blocked. You can ask again - if your browser remembers the block,
+                  you may need to allow it from the lock icon in the address bar first.
+                </p>
+                <button
+                  type="button"
+                  onClick={requestLocation}
+                  className="btn-secondary text-xs px-3 py-1.5"
+                >
+                  Try again
+                </button>
+              </div>
             )}
             {mode === 'error' && errMsg && (
               <p className="text-xs text-rose-700 mt-2">{errMsg}</p>

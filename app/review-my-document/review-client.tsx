@@ -118,7 +118,7 @@ export function ReviewDocumentClient() {
               <SparkleIcon />
             </span>
             <p className="text-[10px] uppercase tracking-[0.22em] font-semibold text-gold-700 dark:text-gold-300">
-              Bella · Sonnet 4.6 · No training
+              Bella · Powerful and informed assistant
             </p>
           </div>
           <div

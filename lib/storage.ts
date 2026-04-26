@@ -199,7 +199,7 @@ function profileFromRow(r: ProfileRow): Profile {
     representation: r.representation ?? null,
     consentedAt: r.consented_at ?? null,
     tourCompletedAt: r.tour_completed_at ?? null,
-    theme: r.theme ?? 'system',
+    theme: r.theme ?? 'light',
     language: r.language ?? null,
     updatedAt: r.updated_at,
   };

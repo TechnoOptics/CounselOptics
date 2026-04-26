@@ -76,9 +76,9 @@ export default function PrivacyPage() {
             <strong>Supabase</strong> - authentication, database (Postgres), file storage.
           </li>
           <li>
-            <strong>Anthropic</strong> - the AI provider that powers Legal Eye and Bella. Inputs
-            are sent over TLS and not used to train Anthropic models per Anthropic&apos;s commercial
-            terms.
+            <strong>Anthropic</strong> - natural-language processing partner used by Legal Eye
+            and Bella. Inputs travel over TLS and, under the partner&apos;s commercial terms,
+            are not used to improve any outside service.
           </li>
           <li>
             <strong>Stripe</strong> - subscription billing for paid plans.

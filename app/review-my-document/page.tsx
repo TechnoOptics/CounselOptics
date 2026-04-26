@@ -31,8 +31,8 @@ export default function ReviewMyDocumentPage() {
       <section className="grid gap-3 sm:grid-cols-3 text-center">
         <Trust label="No account" body="Free to try without signing in." />
         <Trust
-          label="No training"
-          body="Your text is never used to train any AI model."
+          label="Yours alone"
+          body="Your text is never used to improve any outside service."
         />
         <Trust
           label="Not legal advice"
@@ -46,8 +46,8 @@ export default function ReviewMyDocumentPage() {
           Build a case file an attorney can read in five minutes.
         </h2>
         <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 max-w-xl mx-auto">
-          A real Advottic case file holds your exhibits, runs an AI-assisted review, tracks
-          your hearing, and exports a clean PDF packet for counsel.
+          A real Advottic case file holds your exhibits, runs a thorough review, tracks your
+          hearing, and exports a clean PDF packet for counsel.
         </p>
         <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
           <Link

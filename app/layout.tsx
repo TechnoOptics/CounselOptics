@@ -4,7 +4,6 @@ import Image from 'next/image';
 import { Suspense } from 'react';
 import { Inter, Saira_Condensed, Fraunces } from 'next/font/google';
 import './globals.css';
-import { Disclaimer } from '@/components/Disclaimer';
 import { UserMenu } from '@/components/UserMenu';
 import { Bella } from '@/components/Bella';
 import { CookieBanner } from '@/components/CookieBanner';
@@ -75,7 +74,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // visitors, and stays gone after refresh.
   let consent: { needed: false } | { needed: true; fallbackName: string } = { needed: false };
   let signedIn = false;
-  let serverTheme: 'light' | 'dark' | 'system' = 'system';
+  let serverTheme: 'light' | 'dark' | 'system' = 'light';
   let serverLanguage: string | null = null;
   if (isSupabaseConfigured()) {
     try {
@@ -111,7 +110,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <ThemeBoot serverTheme={serverTheme} />
       </head>
       <body className="min-h-screen flex flex-col font-sans">
-        <Disclaimer variant="banner" />
+        {/* Disclaimer is captured during signup terms; we no longer
+            show a global "not legal advice" band above the header. */}
         <header className="sticky top-0 z-20">
           {/* Top row: logo + search + avatar. Lifted on z so the avatar menu
               can drop down OVER the secondary subheader. Width + horizontal

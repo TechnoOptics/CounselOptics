@@ -4,7 +4,7 @@ import Image from 'next/image';
 import { useEffect, useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 
-const MIN_VISIBLE_MS = 1000;
+const MIN_VISIBLE_MS = 3000;
 
 /**
  * Full-screen loading veil. The Advottic gold mark sits dead-center of

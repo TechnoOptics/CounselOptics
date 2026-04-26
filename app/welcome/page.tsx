@@ -106,8 +106,9 @@ export default async function WelcomePage() {
             <strong>One-page packet export</strong> as a clean PDF you can email to counsel.
           </Bullet>
           <Bullet>
-            <strong>Bella, your assistant</strong> - ask plain-English questions any time; she
-            has full visibility into your case content but never trains an AI model on it.
+            <strong>Bella, your assistant</strong> - a powerful and informed helper who can
+            answer questions in plain English, find what you have already saved, and never
+            shares your case with anyone but you.
           </Bullet>
         </ul>
         <div className="flex flex-wrap items-center gap-2 pt-1">
@@ -127,7 +128,7 @@ export default async function WelcomePage() {
       <section className="text-center text-xs text-ink-500 dark:text-cream-100/55 max-w-xl mx-auto">
         Advottic provides legal information and case organization, not legal advice. Always
         consult a licensed attorney in your jurisdiction before acting. Your case content is
-        encrypted in transit and at rest, and is never used to train AI models.{' '}
+        encrypted in transit and at rest, and stays yours.{' '}
         <Link
           href="/security"
           className="underline hover:text-forest-900 dark:hover:text-cream-100"

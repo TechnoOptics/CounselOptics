@@ -227,7 +227,7 @@ export function Bella({ signedIn = true }: { signedIn?: boolean }) {
                   <p className="font-semibold tracking-tight text-[15px]">Bella</p>
                   <p className="text-[10px] uppercase tracking-[0.18em] text-cream-200/70 flex items-center gap-1.5">
                     <span className="live-dot inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                    Online · Sonnet 4.6 · No training
+                    Here · Listening · Yours
                   </p>
                 </div>
               </div>

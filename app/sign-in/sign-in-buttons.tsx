@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { createBrowserSupabase } from '@/lib/supabase/client';
+import { LoadingOverlay } from '@/components/LoadingOverlay';
 
 type Provider = 'google' | 'azure';
 type Mode = Provider | 'email';
@@ -24,7 +25,18 @@ export function SignInButtons({ next }: { next: string }) {
         provider,
         options: {
           redirectTo,
-          scopes: provider === 'azure' ? 'email openid profile' : undefined,
+          // Microsoft (Azure) needs an explicit `User.Read` scope alongside
+          // openid/profile/email to reliably return the user's email -
+          // some tenants (especially personal accounts) skip email
+          // otherwise, which makes Supabase fail to create the session.
+          scopes:
+            provider === 'azure'
+              ? 'openid profile email User.Read offline_access'
+              : undefined,
+          queryParams:
+            provider === 'azure'
+              ? { prompt: 'select_account' }
+              : undefined,
         },
       });
       if (authError) throw authError;
@@ -113,6 +125,14 @@ export function SignInButtons({ next }: { next: string }) {
           {error}
         </p>
       )}
+
+      {/* While the OAuth redirect is in flight, the page would otherwise
+          stay interactive for a heartbeat - which feels broken. Show the
+          full-screen loading veil for a calming "thinking" moment. */}
+      <LoadingOverlay
+        show={pending !== null && pending !== 'email'}
+        label="Bringing you in"
+      />
     </div>
   );
 }

@@ -18,7 +18,7 @@ const STEPS = [
   },
   {
     title: 'Legal Eye (Standard / Pro)',
-    body: 'Run a Claude-backed review for jurisdiction-aware issue spotting, evidence to gather, and possible subpoena targets.',
+    body: 'A thorough review that highlights possible issues, evidence gaps, and questions worth asking your attorney.',
   },
   {
     title: 'Collaborators (Pro)',

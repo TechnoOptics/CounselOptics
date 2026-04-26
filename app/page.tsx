@@ -22,8 +22,6 @@ export default async function HomePage() {
       <Personas />
       <Outcomes />
       <TestimonialMarquee />
-      <SmartFeaturesGrid />
-      <PricingCta />
       <Faq />
       <FinalCta />
     </div>
@@ -42,19 +40,20 @@ function Hero({ existingCases }: { existingCases: number }) {
         <div className="lg:col-span-7">
           <p className="inline-flex items-center gap-2 text-[11px] tracking-[0.3em] uppercase font-semibold text-gold-700 dark:text-gold-300">
             <span className="inline-block h-px w-8 bg-gold-500 dark:bg-gold-400" />
-            Strategic advocacy · trusted results
+            A quiet place to build your story
           </p>
           <h1 className="mt-5 font-display text-[44px] sm:text-[60px] lg:text-[80px] font-medium tracking-[-0.025em] leading-[0.95] text-forest-900 dark:text-cream-100">
-            Your case,
+            Big things rarely happen
             <br />
             <span className="bg-gold-shine bg-clip-text text-transparent gold-pan italic">
-              ready to be heard.
+              all at once.
             </span>
           </h1>
           <p className="mt-6 text-[17px] sm:text-lg leading-relaxed text-ink-700 dark:text-cream-100/80 max-w-xl">
-            Capture every piece of evidence, surface the issues that matter, and walk into
-            counsel with a packet they can read in five minutes. Built for the moment that
-            matters most.
+            Most cases are built quietly, one note and one document at a time. Advottic gives
+            you a calm place to gather everything as it happens, so when the moment finally
+            comes to tell your story, you walk in ready - with the words, the dates, and the
+            paper to back you up.
           </p>
           <div className="mt-9 flex flex-wrap items-center gap-3">
             <Link
@@ -91,30 +90,30 @@ function Hero({ existingCases }: { existingCases: number }) {
           <dl className="mt-10 grid grid-cols-3 gap-6 max-w-lg border-t border-forest-700/30 dark:border-forest-700/40 pt-6">
             <div>
               <dt className="text-[10px] uppercase tracking-[0.22em] font-semibold text-forest-700 dark:text-gold-300">
-                Avg. packet
+                On your time
               </dt>
               <dd className="mt-1 font-display text-2xl sm:text-[28px] font-medium tabular-nums text-forest-900 dark:text-cream-100">
-                23 min
+                Daily
               </dd>
-              <p className="text-[11px] text-ink-500 dark:text-cream-100/55 mt-0.5">to ready-for-counsel</p>
+              <p className="text-[11px] text-ink-500 dark:text-cream-100/55 mt-0.5">a few minutes is plenty</p>
             </div>
             <div>
               <dt className="text-[10px] uppercase tracking-[0.22em] font-semibold text-forest-700 dark:text-gold-300">
-                Issues spotted
+                Exhibits per case
               </dt>
               <dd className="mt-1 font-display text-2xl sm:text-[28px] font-medium tabular-nums text-forest-900 dark:text-cream-100">
-                7-12
+                A → Z+
               </dd>
-              <p className="text-[11px] text-ink-500 dark:text-cream-100/55 mt-0.5">per case, on average</p>
+              <p className="text-[11px] text-ink-500 dark:text-cream-100/55 mt-0.5">auto-numbered as you go</p>
             </div>
             <div>
               <dt className="text-[10px] uppercase tracking-[0.22em] font-semibold text-forest-700 dark:text-gold-300">
-                Training data
+                Your data
               </dt>
               <dd className="mt-1 font-display text-2xl sm:text-[28px] font-medium tabular-nums text-forest-900 dark:text-cream-100">
-                0
+                Yours
               </dd>
-              <p className="text-[11px] text-ink-500 dark:text-cream-100/55 mt-0.5">your case never trains AI</p>
+              <p className="text-[11px] text-ink-500 dark:text-cream-100/55 mt-0.5">encrypted and exportable</p>
             </div>
           </dl>
         </div>
@@ -311,35 +310,35 @@ function FlowTimeline() {
   const steps = [
     {
       n: '01',
-      title: 'Capture',
-      eyebrow: 'Subject + jurisdiction',
-      body: 'One case file per matter. Tell us who or what is at the center, where the matter sits, and your posture - claimant or defendant. Done in under a minute.',
+      title: 'Start when you can',
+      eyebrow: 'A quiet first step',
+      body: 'Open a case file the day something feels off. Tell us who is involved and where the matter sits. It takes about a minute, and you can keep coming back.',
       bullets: [
-        'Person · Business · Government · Entity · Matter',
-        'Country / state / city jurisdiction',
-        'Posture, status, and case type tagging',
+        'A person, a business, an agency, or a matter',
+        'Country, state, and city if you know them',
+        "Whether you're bringing the case or responding to one",
       ],
     },
     {
       n: '02',
-      title: 'Attach',
-      eyebrow: 'Every piece of evidence',
-      body: 'Photos, PDFs, audio, video, screenshots, communications. Each upload is auto-numbered as an exhibit with category, source, and incident date captured.',
+      title: 'Add things as they happen',
+      eyebrow: 'A few minutes at a time',
+      body: 'Photos, PDFs, voice memos, screenshots, the email thread. Each item becomes an exhibit, neatly labeled and dated, so nothing slips through the cracks while life keeps moving.',
       bullets: [
-        'Auto-labeled Exhibit A → Z and beyond',
+        'Auto-labeled Exhibit A through Z and beyond',
         'Up to 50 MB per file, every common format',
-        'Searchable + filterable, never lost',
+        'Searchable and easy to find later',
       ],
     },
     {
       n: '03',
-      title: 'Strategize',
-      eyebrow: 'Legal Eye + Bella',
-      body: 'Run a Claude-backed Legal Eye review for jurisdiction-aware issue spotting, evidence gaps, and possible subpoena targets. Ask Bella anything. Export a packet your attorney can read in five minutes.',
+      title: 'Ready when you are',
+      eyebrow: 'Walk in prepared',
+      body: 'Legal Eye reads what you have and gently points out gaps, questions to ask, and things to watch for. When the day comes, export a clean packet your attorney can read in five minutes.',
       bullets: [
-        'Hedged legal info, never legal advice',
-        'Public-defender carve-out for criminal matters',
-        'PDF case packet with cover, exhibits, and review',
+        'Plain-English notes, never legal advice',
+        'Reminders if your case mentions criminal matters - you have the right to a public defender',
+        'Polished PDF with cover, exhibits, and review',
       ],
     },
   ];
@@ -348,12 +347,12 @@ function FlowTimeline() {
     <section>
       <header className="text-center max-w-2xl mx-auto mb-12">
         <p className="eyebrow justify-center mb-3">How it works</p>
-        <h2 className="font-display text-3xl sm:text-[40px] font-medium tracking-[-0.02em] leading-[1.05] text-forest-900">
-          Three steps. The dignity stays with you.
+        <h2 className="font-display text-3xl sm:text-[40px] font-medium tracking-[-0.02em] leading-[1.05] text-forest-900 dark:text-cream-100">
+          A small step today is a strong story tomorrow.
         </h2>
-        <p className="text-sm sm:text-base text-ink-600 mt-3 leading-relaxed">
-          Most legal-tech buries you in features. Advottic gives you a path: capture, attach,
-          strategize. The system stays out of your way until it&apos;s useful.
+        <p className="text-sm sm:text-base text-ink-600 dark:text-cream-100/70 mt-3 leading-relaxed">
+          You don&apos;t need a lawyer to start. You don&apos;t need a perfect plan. You just
+          need a quiet place to keep the truth tidy until the day you need it.
         </p>
       </header>
 
@@ -421,23 +420,23 @@ function Check() {
 function Personas() {
   const personas = [
     {
-      title: 'Self-represented',
-      body: 'Walk into court with a binder, a plan, and the language to use. The system holds the structure so you can focus on the truth.',
+      title: 'Standing on your own',
+      body: 'You may not have a lawyer yet. That is okay. Advottic holds the structure so you can focus on what really happened, in your own words, on your own time.',
       tag: 'Most common',
     },
     {
-      title: 'Defendant prep',
-      body: 'Reading a complaint cold is brutal. Capture the facts, surface possible defenses, and never miss your Answer deadline.',
+      title: 'Receiving the news',
+      body: 'A complaint, a letter, a process server. Take a breath. Capture what you have, write down what you remember, and give yourself a clear next step.',
       tag: '',
     },
     {
-      title: 'Counsel intake',
-      body: 'Your client uploads every exhibit and types up the timeline before your first call. You get back hours of intake.',
+      title: 'Working with counsel',
+      body: 'You and your attorney can both see the file, add to it, and stay aligned. Your hours of intake become a clean handoff.',
       tag: 'Attorney POV',
     },
     {
-      title: 'Small business',
-      body: 'Vendor disputes, employment matters, contract breaches - keep the paper trail organized so your lawyer hits the ground running.',
+      title: 'Looking after a small business',
+      body: 'Vendor disputes, employment questions, contract issues. Keep the paper trail tidy now so your eventual lawyer hits the ground running.',
       tag: '',
     },
   ];
@@ -446,8 +445,8 @@ function Personas() {
     <section>
       <header className="text-center max-w-2xl mx-auto mb-10">
         <p className="eyebrow justify-center mb-3">Built for the moments that matter</p>
-        <h2 className="font-display text-3xl sm:text-4xl font-medium tracking-[-0.02em] leading-[1.05] text-forest-900">
-          Designed for whoever&apos;s actually in the chair.
+        <h2 className="font-display text-3xl sm:text-4xl font-medium tracking-[-0.02em] leading-[1.05] text-forest-900 dark:text-cream-100">
+          Made for whoever is sitting in the chair.
         </h2>
       </header>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 stagger">
@@ -483,18 +482,18 @@ function Outcomes() {
       <div className="relative grid gap-6 sm:gap-10 sm:grid-cols-3">
         <Outcome
           big="5 min"
-          label="To brief your attorney from a single packet"
-          sub="Cover · case info · exhibits · Legal Eye review"
+          label="The time it takes to brief your attorney"
+          sub="Cover, case info, exhibits, and a clear summary"
         />
         <Outcome
-          big="A→Z+"
-          label="Auto-numbered exhibits per case"
-          sub="With category, source, incident date"
+          big="A → Z+"
+          label="Exhibits, neatly labeled as you add them"
+          sub="With category, source, and the date it happened"
         />
         <Outcome
           big="100%"
-          label="Your data, exportable any time"
-          sub="JSON export from Profile, never used to train AI models"
+          label="Your file, exportable any time you want"
+          sub="A polished PDF or a complete archive, on your terms"
         />
       </div>
     </section>
@@ -548,31 +547,31 @@ function Faq() {
   const items = [
     {
       q: 'Is Advottic legal advice?',
-      a: 'No. Advottic is information, structure, and organization. We are not a law firm and do not create an attorney-client relationship. Legal Eye outputs may be incomplete, outdated, or wrong. Always consult a licensed attorney before acting.',
+      a: 'No, and we will never pretend it is. Advottic helps you keep your story tidy and your evidence organized. We are not a law firm and we do not create an attorney-client relationship. For decisions that matter, please talk to a licensed attorney.',
     },
     {
       q: 'I am facing criminal charges. Can Advottic help?',
-      a: 'You can use Advottic to organize evidence and your account of events, but if there is any possibility of incarceration you should request a public defender at your first court appearance. That is a free constitutional right and a public defender is more useful than any tool.',
+      a: 'Please reach out to a public defender right away if there is any chance of incarceration - that help is free and your constitutional right. Advottic can hold the timeline and the documents in the meantime, but a real attorney is what you need first.',
     },
     {
-      q: 'Where is my data?',
-      a: 'Your case data lives in Supabase Postgres (encrypted at rest, AES-256), your file uploads in Supabase Storage (private bucket, RLS-scoped). Legal Eye and Bella send your case content to Anthropic for processing under their commercial terms (no training on your inputs).',
+      q: 'Where is my information kept?',
+      a: 'Your case lives in a private, encrypted database, and your uploads sit in a private file vault. Only your account can open them. You can export everything you have written or uploaded at any time.',
     },
     {
       q: 'Can my attorney see my case?',
-      a: 'Yes - on the Pro tier, invite them by email. They get read access plus the ability to add exhibits, but cannot edit case metadata or invite others.',
+      a: 'Yes, on the Pro plan you can invite them by email. They can read the file and add to it, and you stay in charge of who has access. Remove them whenever you like.',
     },
     {
       q: 'What happens when I close a case?',
-      a: 'It moves to your "Closed cases" section, stays searchable, and the PDF export remains accessible. We never delete your data unless you ask us to.',
+      a: 'It moves into your closed cases, stays searchable, and your packet export stays accessible. We do not delete anything unless you ask us to.',
     },
   ];
   return (
     <section>
       <header className="text-center max-w-2xl mx-auto mb-10">
         <p className="eyebrow justify-center mb-3">Frequently asked</p>
-        <h2 className="font-display text-3xl sm:text-4xl font-medium tracking-[-0.02em] leading-[1.05] text-forest-900">
-          Honest answers, up front.
+        <h2 className="font-display text-3xl sm:text-4xl font-medium tracking-[-0.02em] leading-[1.05] text-forest-900 dark:text-cream-100">
+          Honest answers, kindly given.
         </h2>
       </header>
       <div className="max-w-3xl mx-auto divide-y divide-ink-100 border-y border-ink-100">
@@ -602,19 +601,19 @@ function Faq() {
 function TrustBadges() {
   const items: { eyebrow: string; line: string; sub: string }[] = [
     {
-      eyebrow: 'Encryption',
-      line: 'AES-256 at rest · TLS 1.2+ in transit',
-      sub: 'Your case content is encrypted on disk and on the wire, end to end.',
+      eyebrow: 'Private by default',
+      line: 'Your story is yours alone',
+      sub: 'Everything you write or upload is encrypted and locked to your account. We do not read it, sell it, or share it.',
     },
     {
-      eyebrow: 'No AI training',
-      line: 'Zero retention on your inputs',
-      sub: 'Bella and Legal Eye run under Anthropic commercial terms. We never train on your content.',
+      eyebrow: 'Yours to take with you',
+      line: 'Export anything, anytime',
+      sub: 'Download your full case file as a PDF or a JSON archive whenever you need it - no questions, no friction.',
     },
     {
-      eyebrow: 'Audit log',
-      line: 'Every view, edit, and share is logged',
-      sub: 'See who touched the case and when, on every case detail page.',
+      eyebrow: 'You stay in control',
+      line: 'A clear log of every change',
+      sub: 'See who looked at the case, who added what, and when. Nothing happens behind your back.',
     },
   ];
   return (
@@ -662,28 +661,29 @@ function BellaShowcase() {
               Meet Bella
             </p>
             <h2 className="mt-4 font-display text-3xl sm:text-[44px] font-medium tracking-[-0.02em] leading-[1.05]">
-              An assistant who actually{' '}
+              A powerful and informed assistant{' '}
               <span className="bg-gold-shine bg-clip-text text-transparent gold-pan italic">
-                does things.
+                in your corner.
               </span>
             </h2>
             <p className="mt-4 text-cream-100/85 leading-relaxed max-w-xl">
-              Bella is not a chatbot that explains the app to you. She runs the app for you. Ask
-              her to find that case from January, or open the new-case wizard, or summarize your
-              latest Legal Eye review - she navigates and pulls the data herself.
+              Bella is the calm, well-read friend who has been through this before. Tell her
+              what you remember, ask her to find that case from January, or have her open the
+              new-case wizard for you. She listens, she helps, and she always asks before doing
+              anything on your behalf.
             </p>
             <ul className="mt-6 space-y-2 text-sm text-cream-100/85">
               <BellaBullet>
-                <strong>Search your cases</strong> by title, subject, or jurisdiction.
+                <strong>Finds your cases</strong> by title, subject, or where it happened.
               </BellaBullet>
               <BellaBullet>
-                <strong>Open the new-case wizard</strong> with one ask.
+                <strong>Walks you through new ones</strong> when you ask her to.
               </BellaBullet>
               <BellaBullet>
-                <strong>Pull case details</strong> - exhibits, hearing date, latest review.
+                <strong>Pulls up the details you need</strong> so you don&apos;t have to dig.
               </BellaBullet>
               <BellaBullet>
-                <strong>Always asks before navigating</strong> if you have unsaved input.
+                <strong>Always asks first</strong> before opening or changing anything.
               </BellaBullet>
             </ul>
           </div>
@@ -700,7 +700,7 @@ function BellaShowcase() {
                   </p>
                   <p className="text-[10px] uppercase tracking-[0.2em] text-cream-100/60 mt-0.5 flex items-center gap-1.5">
                     <span className="live-dot h-1.5 w-1.5 rounded-full bg-emerald-400 inline-block" />
-                    Online · Sonnet 4.6 · No training
+                    Here · Listening · Yours
                   </p>
                 </div>
               </div>
@@ -797,7 +797,7 @@ function SmartFeaturesGrid() {
           span={2}
           eyebrow="Legal Eye review"
           title="Jurisdiction-aware issue spotting in seconds."
-          body="Claude Sonnet reads your case + exhibits, surfaces possible issues, evidence gaps, and next-step questions for your attorney. Always hedged, never legal advice."
+          body="A thorough review reads your case and exhibits, surfaces possible issues, evidence gaps, and next-step questions for your attorney. Always hedged, never legal advice."
           accent="gold"
         />
         <BentoCard
@@ -893,36 +893,36 @@ function FinalCta() {
         />
         <div className="relative max-w-3xl mx-auto">
           <p className="text-[10px] uppercase tracking-[0.32em] font-semibold text-gold-300 mb-5">
-            Today, not tomorrow
+            Whenever you are ready
           </p>
           <h2 className="font-display text-4xl sm:text-6xl lg:text-[80px] font-medium tracking-[-0.025em] leading-[0.98]">
-            Walk in prepared.
+            One small step today,
             <br />
             <span className="bg-gold-shine bg-clip-text text-transparent gold-pan italic">
-              Walk out with options.
+              a stronger story tomorrow.
             </span>
           </h2>
           <p className="mt-6 text-cream-100/85 text-base sm:text-lg leading-relaxed max-w-xl mx-auto">
-            Start a case file today. Your seven-day trial begins when you subscribe - the
-            organizing tools are free until then.
+            Start a case file today. Add to it as life unfolds. When the time comes to tell
+            your story, you will be glad you did.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Link
               href="/cases/new"
               className="btn bg-gold-metal text-forest-950 hover:brightness-110 shadow-gold-glow font-semibold px-6 py-3 animate-glow text-base"
             >
-              Start your case file
+              Begin your case file
               <ArrowRight />
             </Link>
             <Link
               href="/example"
               className="btn bg-white/15 text-white border border-white/25 hover:bg-white/25 backdrop-blur px-6 py-3 text-base"
             >
-              Tour an example
+              See what one looks like
             </Link>
           </div>
           <p className="mt-6 text-[11px] uppercase tracking-[0.22em] text-cream-100/55">
-            7-day trial · cancel any time · no card to start
+            7-day free trial · cancel anytime · no card needed to start
           </p>
         </div>
       </div>

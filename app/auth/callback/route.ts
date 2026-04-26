@@ -12,6 +12,10 @@ export async function GET(request: NextRequest) {
   const next = nextParam && nextParam.startsWith('/') ? nextParam : '/cases';
 
   if (oauthError) {
+    console.error('[auth/callback] provider returned error', {
+      oauthError,
+      oauthErrorDesc,
+    });
     const friendly =
       oauthErrorDesc?.replace(/\+/g, ' ') ||
       `Sign-in failed (${oauthError}). The provider may not be enabled in Supabase.`;
@@ -19,6 +23,7 @@ export async function GET(request: NextRequest) {
   }
 
   if (!code) {
+    console.error('[auth/callback] missing code param', { url: url.toString() });
     return redirectWithError(
       request,
       next,
@@ -30,32 +35,43 @@ export async function GET(request: NextRequest) {
     const supabase = createServerSupabase();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (error) {
+      console.error('[auth/callback] exchangeCodeForSession failed', {
+        message: error.message,
+        status: error.status,
+      });
       return redirectWithError(request, next, error.message);
     }
 
     // Block-list check: if profiles.is_blocked is true for this user, sign
     // them right back out and surface a friendly message. We do this here
     // (after exchange) so the session cookie that was just set is cleared
-    // and the user can't poke around with a half-valid session.
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (user) {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('is_blocked')
-        .eq('id', user.id)
-        .maybeSingle();
-      if ((profile as { is_blocked: boolean | null } | null)?.is_blocked) {
-        await supabase.auth.signOut();
-        return redirectWithError(
-          request,
-          '/sign-in',
-          "Your account is blocked or inactive. If you believe this is a mistake, reach out to contact@advottic.com.",
-        );
+    // and the user can't poke around with a half-valid session. Wrapped in
+    // try/catch so a transient profiles-table read error never strands an
+    // otherwise valid session at the sign-in page.
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('is_blocked')
+          .eq('id', user.id)
+          .maybeSingle();
+        if ((profile as { is_blocked: boolean | null } | null)?.is_blocked) {
+          await supabase.auth.signOut();
+          return redirectWithError(
+            request,
+            '/sign-in',
+            "Your account is blocked or inactive. If you believe this is a mistake, reach out to contact@advottic.com.",
+          );
+        }
       }
+    } catch (blockErr) {
+      console.error('[auth/callback] block-list check failed (continuing)', blockErr);
     }
   } catch (err) {
+    console.error('[auth/callback] unexpected exception', err);
     const msg = err instanceof Error ? err.message : 'Sign-in failed.';
     return redirectWithError(request, next, msg);
   }

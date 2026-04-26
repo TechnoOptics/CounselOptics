@@ -240,6 +240,30 @@ body > * {
   pointer-events: none;
 }
 
+/* Cookie banner: collapsed pill at the bottom that glows gently with a
+   gold ring so it gets noticed without screaming. Slow 3s breathe so
+   it's calm, not flashy. */
+@keyframes co-cookie-glow {
+  0%, 100% {
+    box-shadow:
+      0 0 0 0 rgba(213, 187, 126, 0),
+      0 12px 28px -10px rgba(15, 45, 36, 0.45),
+      0 0 0 1px rgba(213, 187, 126, 0.45);
+  }
+  50% {
+    box-shadow:
+      0 0 24px 2px rgba(213, 187, 126, 0.40),
+      0 12px 28px -10px rgba(15, 45, 36, 0.45),
+      0 0 0 1px rgba(245, 237, 214, 0.7);
+  }
+}
+.cookie-pill {
+  animation: co-cookie-glow 3s ease-in-out infinite;
+}
+.cookie-pill:hover {
+  animation-duration: 5s;
+}
+
 /* Live-presence indicator - green pulsing dot on viewer chips. The
    chip itself doesn't move; only the pulse ring expands and fades so
    the effect is "alive" rather than busy. */
@@ -437,7 +461,8 @@ body > * {
   .header-glow-line::after,
   .animate-card-forward,
   .animate-card-back,
-  .presence-pulse {
+  .presence-pulse,
+  .cookie-pill {
     animation: none !important;
   }
   .stagger > * {

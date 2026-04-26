@@ -6,11 +6,20 @@ import { useEffect, useState } from 'react';
 const STORAGE_KEY = 'co-cookie-ack';
 type Choice = 'accepted' | 'declined' | 'configured';
 
+/**
+ * Compact, friendly cookie banner. Lives at the bottom of the viewport
+ * as a small pill with a soft gold glow that gently asks for attention
+ * without taking the screen. Click to expand into full preferences.
+ *
+ * Until the user makes a choice the pill stays. Once the choice is
+ * persisted in localStorage the component renders nothing.
+ */
 export function CookieBanner() {
   const [show, setShow] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [phase, setPhase] = useState<'overview' | 'configure'>('overview');
-  const [analytics, setAnalytics] = useState(false); // Reserved for future use - currently no third-party analytics ship.
-  const [marketing, setMarketing] = useState(false); // Reserved for future use - currently no marketing cookies.
+  const [analytics, setAnalytics] = useState(false);
+  const [marketing, setMarketing] = useState(false);
 
   useEffect(() => {
     try {
@@ -38,124 +47,132 @@ export function CookieBanner() {
 
   if (!show) return null;
 
+  // Collapsed: small glowing pill at the bottom that taps to expand.
+  if (!expanded) {
+    return (
+      <button
+        type="button"
+        onClick={() => setExpanded(true)}
+        aria-label="Cookie preferences"
+        className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:bottom-6 sm:w-auto z-[55] cookie-pill inline-flex items-center justify-center gap-3 rounded-full bg-forest-950/95 dark:bg-forest-900 text-cream-100 px-4 py-3 ring-1 ring-gold-400/40 shadow-card-hover backdrop-blur"
+      >
+        <span aria-hidden className="inline-block h-2 w-2 rounded-full bg-gold-400" />
+        <span className="text-[12px] font-medium tracking-tight">
+          We use only the cookies that keep you signed in.
+        </span>
+        <span className="hidden sm:inline text-[11px] uppercase tracking-[0.18em] text-gold-300 ml-1">
+          Settings →
+        </span>
+      </button>
+    );
+  }
+
+  // Expanded: small dialog anchored to the bottom on mobile, bottom-right on desktop.
   return (
     <div
       role="dialog"
-      aria-modal="true"
+      aria-modal="false"
       aria-label="Cookie and privacy preferences"
-      className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center px-4 py-6"
+      className="fixed inset-0 z-[55] flex items-end sm:items-center justify-center sm:justify-end p-3 sm:p-6"
     >
-      {/* Blocking, glow-tinted backdrop. Click does NOT dismiss - choice required. */}
-      <div className="absolute inset-0 bg-forest-950/72 backdrop-blur-sm animate-fade-in" />
+      <button
+        type="button"
+        aria-label="Close cookie preferences"
+        onClick={() => setExpanded(false)}
+        className="absolute inset-0 bg-forest-950/40 backdrop-blur-[2px] animate-fade-in"
+      />
       <div
-        className="relative w-full max-w-2xl rounded-2xl border border-gold-300/40 bg-white shadow-card-hover overflow-hidden animate-fade-up"
-        style={{ boxShadow: '0 0 0 1px rgba(213,187,126,0.4), 0 22px 60px -12px rgba(15,45,36,0.45), 0 0 80px rgba(213,187,126,0.18)' }}
+        className="relative w-full sm:max-w-md rounded-2xl border border-gold-300/40 bg-white dark:bg-forest-900 shadow-card-hover overflow-hidden animate-fade-up"
+        style={{
+          boxShadow:
+            '0 0 0 1px rgba(213,187,126,0.4), 0 18px 50px -12px rgba(15,45,36,0.45), 0 0 60px rgba(213,187,126,0.18)',
+        }}
       >
-        {/* Brand strip */}
-        <div className="brand-mark text-cream-200 px-6 py-4">
-          <p className="text-[10px] tracking-[0.28em] uppercase font-semibold text-gold-300">
-            Cookies &amp; privacy
-          </p>
-          <h2 className="text-lg font-semibold tracking-tight text-cream-100 mt-1">
-            Your cookie preferences
-          </h2>
+        <div className="brand-mark text-cream-200 px-5 py-3.5 flex items-center justify-between">
+          <div>
+            <p className="text-[10px] tracking-[0.28em] uppercase font-semibold text-gold-300">
+              Cookies &amp; privacy
+            </p>
+            <h2 className="text-[15px] font-semibold tracking-tight text-cream-100 mt-0.5">
+              Your preferences
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={() => setExpanded(false)}
+            aria-label="Close"
+            className="text-cream-100/70 hover:text-cream-100 p-1"
+          >
+            <CloseIcon />
+          </button>
         </div>
 
         {phase === 'overview' && (
-          <div className="px-6 py-5 space-y-4">
-            <p className="text-sm text-ink-700 leading-relaxed">
-              Advottic uses <strong>essential cookies only</strong> - to keep you signed in and
-              keep the service secure. We do not run advertising trackers and we do not sell your
-              data.
+          <div className="px-5 py-4 space-y-3.5">
+            <p className="text-[13.5px] text-ink-700 dark:text-cream-100/80 leading-relaxed">
+              We only use cookies that keep you signed in and the service running. No advertising
+              trackers, ever. We never sell your data.
             </p>
-            <ul className="text-xs text-ink-600 space-y-1.5 list-disc list-outside pl-5">
-              <li>
-                <strong>Strictly necessary</strong>: session, CSRF, auth - required to use the
-                app. These cannot be turned off.
-              </li>
-              <li>
-                <strong>Functional</strong>: remembers UI preferences (last-active tab, search
-                history). Local storage only.
-              </li>
-              <li>
-                <strong>Analytics &amp; marketing</strong>: <em>none currently in use</em>.
-                Configure if you want to pre-decline future ones.
-              </li>
-            </ul>
-            <p className="text-xs text-ink-500 leading-relaxed">
-              Read our{' '}
-              <Link href="/cookies" className="underline text-forest-900 hover:text-forest-700">
-                Cookie Policy
-              </Link>
-              ,{' '}
-              <Link href="/privacy" className="underline text-forest-900 hover:text-forest-700">
-                Privacy Policy
-              </Link>
-              , and{' '}
-              <Link href="/terms" className="underline text-forest-900 hover:text-forest-700">
-                Terms
-              </Link>
-              .
+            <p className="text-[11.5px] text-ink-500 dark:text-cream-100/55 leading-relaxed">
+              <Link href="/cookies" className="underline">Cookie Policy</Link>
+              {' · '}
+              <Link href="/privacy" className="underline">Privacy</Link>
+              {' · '}
+              <Link href="/terms" className="underline">Terms</Link>
             </p>
             <div className="flex flex-wrap items-center gap-2 pt-1">
               <button
                 type="button"
                 onClick={() => persist('accepted')}
-                className="btn bg-forest-900 text-cream-200 hover:bg-forest-800 font-semibold"
+                className="btn-primary text-[13px] px-3.5 py-2"
               >
                 Accept essentials
               </button>
               <button
                 type="button"
                 onClick={() => setPhase('configure')}
-                className="btn-secondary"
+                className="btn-secondary text-[13px] px-3.5 py-2"
               >
-                Configure preferences
+                Configure
               </button>
               <button
                 type="button"
                 onClick={() => persist('declined')}
-                className="text-xs text-ink-500 hover:text-ink-900 underline ml-auto"
+                className="text-[11.5px] text-ink-500 dark:text-cream-100/55 hover:text-forest-900 dark:hover:text-cream-100 underline ml-auto"
               >
                 Decline non-essentials
               </button>
             </div>
-            <p className="text-[11px] text-ink-400 leading-relaxed">
-              Note: even &quot;Decline non-essentials&quot; keeps the strictly-necessary auth
-              cookie active - without it, sign-in cannot work.
-            </p>
           </div>
         )}
 
         {phase === 'configure' && (
-          <div className="px-6 py-5 space-y-4">
-            <p className="text-sm text-ink-700 leading-relaxed">
-              Toggle which categories of cookies you allow. Strictly-necessary cookies are
-              always on; analytics and marketing are off by default and we don&apos;t currently
-              use any.
+          <div className="px-5 py-4 space-y-3.5">
+            <p className="text-[13px] text-ink-700 dark:text-cream-100/80 leading-relaxed">
+              Strictly-necessary cookies are always on; nothing else is currently in use.
             </p>
             <ul className="space-y-2">
-              <Toggle
+              <PrefToggle
                 title="Strictly necessary"
-                desc="Session, auth, CSRF. Required for sign-in. Always on."
+                desc="Session, auth, CSRF. Required to sign in."
                 checked
                 disabled
               />
-              <Toggle
+              <PrefToggle
                 title="Functional"
-                desc="UI preferences in local storage. No external transmission."
+                desc="UI preferences in local storage."
                 checked
                 disabled
               />
-              <Toggle
+              <PrefToggle
                 title="Analytics"
-                desc="Usage measurement. Not in use today; toggle reserved for future opt-in."
+                desc="Not in use today; reserved for future opt-in."
                 checked={analytics}
                 onChange={setAnalytics}
               />
-              <Toggle
+              <PrefToggle
                 title="Marketing"
-                desc="Targeting / advertising. Not in use today; toggle reserved for future opt-in."
+                desc="Not in use today; reserved for future opt-in."
                 checked={marketing}
                 onChange={setMarketing}
               />
@@ -164,14 +181,14 @@ export function CookieBanner() {
               <button
                 type="button"
                 onClick={() => setPhase('overview')}
-                className="btn-ghost"
+                className="btn-ghost text-[12.5px]"
               >
                 Back
               </button>
               <button
                 type="button"
                 onClick={() => persist('configured')}
-                className="btn-primary ml-auto"
+                className="btn-primary text-[12.5px] ml-auto"
               >
                 Save preferences
               </button>
@@ -183,7 +200,7 @@ export function CookieBanner() {
   );
 }
 
-function Toggle({
+function PrefToggle({
   title,
   desc,
   checked,
@@ -197,10 +214,12 @@ function Toggle({
   onChange?: (v: boolean) => void;
 }) {
   return (
-    <li className="flex items-start justify-between gap-3 rounded-lg border border-ink-200 px-3 py-2.5">
+    <li className="flex items-start justify-between gap-3 rounded-lg border border-ink-200 dark:border-forest-700/50 px-3 py-2">
       <div className="min-w-0">
-        <p className="text-sm font-medium text-ink-950">{title}</p>
-        <p className="text-xs text-ink-500 leading-relaxed mt-0.5">{desc}</p>
+        <p className="text-[12.5px] font-medium text-ink-950 dark:text-cream-100">{title}</p>
+        <p className="text-[11px] text-ink-500 dark:text-cream-100/55 leading-relaxed mt-0.5">
+          {desc}
+        </p>
       </div>
       <label className={`relative inline-flex h-5 w-9 flex-none ${disabled ? 'opacity-60' : ''}`}>
         <input
@@ -212,7 +231,7 @@ function Toggle({
         />
         <span
           aria-hidden
-          className="absolute inset-0 rounded-full bg-ink-300 peer-checked:bg-forest-900 transition-colors"
+          className="absolute inset-0 rounded-full bg-ink-300 dark:bg-forest-700 peer-checked:bg-forest-900 dark:peer-checked:bg-gold-metal transition-colors"
         />
         <span
           aria-hidden
@@ -220,5 +239,18 @@ function Toggle({
         />
       </label>
     </li>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M6 6l12 12M18 6L6 18"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
   );
 }

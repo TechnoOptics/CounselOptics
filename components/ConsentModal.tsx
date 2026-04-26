@@ -162,20 +162,20 @@ export function ConsentModal({
             </p>
             <ol className="list-decimal list-outside pl-5 space-y-2 text-[13px]">
               <li>
-                <strong>Not legal advice.</strong> Advottic provides legal information, case
-                organization, and Legal Eye (AI-assisted) issue spotting. It is{' '}
+                <strong>Not legal advice.</strong> Advottic provides general legal information,
+                case organization, and an informed assistant for issue spotting. It is{' '}
                 <em>not a law firm</em>, does not provide legal advice, and does not create an
-                attorney-client relationship. Legal Eye outputs may be incomplete, outdated, or
+                attorney-client relationship. Suggestions may be incomplete, outdated, or
                 wrong. Consult a licensed attorney before acting. If you face possible
                 incarceration, request a public defender at your first court appearance - a
                 free constitutional right.
               </li>
               <li>
                 <strong>Security &amp; privacy.</strong> Encrypted in transit (TLS) and at rest
-                (AES-256). Access is restricted to authorized personnel. Legal Eye features
-                send your case content to our AI provider for processing under their
-                commercial terms (no training on your data). Export or delete your data any
-                time from Profile.
+                (AES-256). Access is restricted to authorized personnel. Assistant and review
+                features send your case content to a trusted processing partner under
+                strict commercial terms; your content is not used to improve outside services.
+                Export or delete your data any time from Profile.
               </li>
               <li>
                 <strong>Limitation of liability.</strong> To the fullest extent permitted by

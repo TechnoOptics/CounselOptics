@@ -15,7 +15,7 @@
  */
 export function ThemeBoot({ serverTheme }: { serverTheme?: 'light' | 'dark' | 'system' }) {
   // Stringify so we can inject the resolved server value at SSR time.
-  const initial = serverTheme ?? 'system';
+  const initial = serverTheme ?? 'light';
   const code = `
 (function(){
   try{

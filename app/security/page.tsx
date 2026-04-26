@@ -36,8 +36,8 @@ export default function SecurityPage() {
         />
         <Promise
           icon={<KeyIcon />}
-          title="No AI training on your data"
-          body="Bella and Legal Eye process your case under Anthropic's zero-retention commercial terms. Your content is never used to train models."
+          title="Your story stays yours"
+          body="Bella and Legal Eye process your case under strict zero-retention commercial terms. Your content is never used to improve outside services."
         />
         <Promise
           icon={<ShieldIcon />}
@@ -151,16 +151,16 @@ export default function SecurityPage() {
           </Link>{' '}
           for the full list.
         </SubSection>
-        <SubSection title="AI handling">
-          Bella (chat assistant) and Legal Eye (case review) call Anthropic's API under
-          commercial terms that explicitly prohibit training on your inputs. Prompts and
-          responses are not retained by Anthropic for training. We do not train any models
-          on your case content, ever.
+        <SubSection title="Assistant features">
+          Bella (your conversational assistant) and Legal Eye (case review) call a
+          natural-language processing partner under commercial terms that prohibit using your
+          inputs to improve their or any other service. Your case content is never used to
+          improve a product outside your account.
         </SubSection>
         <SubSection title="Where it lives">
-          Application: Vercel (United States, primary region: Washington, D.C.). Database +
-          storage: Supabase (United States). AI processing: Anthropic (United States).
-          Billing: Stripe (United States).
+          Application: Vercel (United States, primary region: Washington, D.C.). Database and
+          storage: Supabase (United States). Natural-language processing: Anthropic (United
+          States). Billing: Stripe (United States).
         </SubSection>
         <SubSection title="Retention">
           Active cases are retained for the life of your account. On account deletion, we
@@ -204,7 +204,7 @@ export default function SecurityPage() {
               />
               <SubProcRow
                 name="Anthropic"
-                purpose="AI processing for Bella + Legal Eye"
+                purpose="Natural-language processing for Bella + Legal Eye"
                 region="USA"
                 compliance="SOC 2 Type II; zero-retention commercial terms"
               />
@@ -250,10 +250,10 @@ export default function SecurityPage() {
       {/* FAQ */}
       <Section eyebrow="Common questions" title="You have questions. We have answers.">
         <div className="space-y-2">
-          <Faq q="Do you train AI on my case content?">
-            No. Anthropic's commercial terms explicitly forbid training on customer inputs,
-            and we don't train anything ourselves. Your case content reaches Bella and Legal
-            Eye, gets a response, and the prompt + response are not retained for training.
+          <Faq q="Is my case content used to improve any outside service?">
+            No. Our processing partner&apos;s commercial terms forbid using your inputs to
+            improve their service or any other product. Your content reaches Bella or Legal
+            Eye, returns an answer, and is not retained beyond delivering that answer.
           </Faq>
           <Faq q="Can my attorney see my case without an Advottic account?">
             Yes — invite them as a collaborator. They'll receive a magic-link invite, see only
