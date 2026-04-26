@@ -130,6 +130,25 @@ html.dark body::before {
 .dark .bg-ink-50 { background-color: #102a23; }
 .dark .bg-ink-50\/40 { background-color: rgba(16, 42, 35, 0.4); }
 .dark .bg-ink-50\/50 { background-color: rgba(16, 42, 35, 0.5); }
+/* Light tints we'd missed: forest-50/100 are very pale green that look
+   white on screen, ink-100 is a near-white neutral. Both are commonly
+   paired with text-forest-900 / text-ink-* which the rules above flip
+   to cream in dark mode -> without these overrides, the result is
+   white-on-cream and unreadable (e.g. SearchPalette active row, admin
+   status pills, exhibit category badges). */
+.dark .bg-forest-50 { background-color: #173b30; }
+.dark .bg-forest-100 { background-color: #1f4839; }
+.dark .bg-ink-100 { background-color: #1a3d31; }
+/* Hover variants for the same backgrounds. Tailwind compiles
+   `hover:bg-cream-50` to `.hover\:bg-cream-50:hover`, which the global
+   overrides above don't catch (they target the unprefixed class). */
+.dark .hover\:bg-white:hover { background-color: #1a3d31; }
+.dark .hover\:bg-cream-50:hover { background-color: #173b30; }
+.dark .hover\:bg-cream-100:hover { background-color: #1f4839; }
+.dark .hover\:bg-forest-50:hover { background-color: #173b30; }
+.dark .hover\:bg-forest-100:hover { background-color: #1f4839; }
+.dark .hover\:bg-ink-50:hover { background-color: #102a23; }
+.dark .hover\:bg-ink-100:hover { background-color: #1a3d31; }
 /* Border + ring inversions so light-mode hairlines do not vanish */
 .dark .border-ink-100 { border-color: rgba(245, 237, 214, 0.08); }
 .dark .border-ink-200 { border-color: rgba(245, 237, 214, 0.12); }

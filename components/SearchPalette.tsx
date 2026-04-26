@@ -303,7 +303,9 @@ function Row({
         onClick={onClick}
         onMouseEnter={onMouseEnter}
         className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ${
-          active ? 'bg-forest-50 text-forest-900' : 'text-ink-800 hover:bg-cream-50'
+          active
+            ? 'bg-forest-50 text-forest-900 ring-1 ring-forest-900/15 dark:ring-gold-500/30'
+            : 'text-ink-800 hover:bg-cream-50'
         }`}
       >
         {children}
