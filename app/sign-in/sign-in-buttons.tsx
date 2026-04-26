@@ -19,7 +19,14 @@ export function SignInButtons({ next }: { next: string }) {
     setPending(provider);
     try {
       const supabase = createBrowserSupabase();
-      const origin = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
+      // Use the user's current origin, NOT NEXT_PUBLIC_SITE_URL - if the
+      // user is on advottic.com (apex) but SITE_URL points at
+      // www.advottic.com, the PKCE verifier cookie gets written to
+      // apex while the OAuth callback comes back on www, and the
+      // server-side exchange fails with "PKCE code verifier not
+      // found in storage." Anchoring on window.location.origin keeps
+      // the cookie and the callback on the same host.
+      const origin = window.location.origin;
       const redirectTo = `${origin}/auth/callback?next=${encodeURIComponent(next)}`;
       const { error: authError } = await supabase.auth.signInWithOAuth({
         provider,
@@ -57,7 +64,14 @@ export function SignInButtons({ next }: { next: string }) {
     setPending('email');
     try {
       const supabase = createBrowserSupabase();
-      const origin = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
+      // Use the user's current origin, NOT NEXT_PUBLIC_SITE_URL - if the
+      // user is on advottic.com (apex) but SITE_URL points at
+      // www.advottic.com, the PKCE verifier cookie gets written to
+      // apex while the OAuth callback comes back on www, and the
+      // server-side exchange fails with "PKCE code verifier not
+      // found in storage." Anchoring on window.location.origin keeps
+      // the cookie and the callback on the same host.
+      const origin = window.location.origin;
       const redirectTo = `${origin}/auth/callback?next=${encodeURIComponent(next)}`;
       const { error: authError } = await supabase.auth.signInWithOtp({
         email: email.trim(),
