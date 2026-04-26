@@ -158,13 +158,22 @@ export function Bella({ signedIn = true }: { signedIn?: boolean }) {
   // arming gates only the launcher.
   const showLauncher = armed && !open;
 
+  // The smart-assist new-case wizard takes over the screen on mobile,
+  // so the floating "Ask Bella" pill competes for attention. Hide the
+  // launcher on /cases/new at the mobile breakpoint until the user
+  // either submits or backs out. Bella is still reachable on the case
+  // detail page that the wizard redirects to on completion.
+  const isOnNewCase = pathname === '/cases/new';
+
   return (
     <>
       {showLauncher && (
         <button
           onClick={() => setOpen(true)}
           aria-label="Open Bella, the legal assistant"
-          className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-30 inline-flex items-center gap-2 brand-mark text-cream-200 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-full shadow-brand-glow hover:scale-[1.02] transition-transform animate-fade-in aurora ring-1 ring-gold-400/30"
+          className={`fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-30 ${
+            isOnNewCase ? 'hidden sm:inline-flex' : 'inline-flex'
+          } items-center gap-2 brand-mark text-cream-200 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-full shadow-brand-glow hover:scale-[1.02] transition-transform animate-fade-in aurora ring-1 ring-gold-400/30`}
         >
           <span className="text-gold-300">
             <SparkleIcon />

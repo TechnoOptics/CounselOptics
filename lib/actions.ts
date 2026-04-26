@@ -149,6 +149,23 @@ export async function createCaseAction(
   // Best-effort activity log + owner notification.
   await logCaseEvent({ caseId: createdId, eventType: 'case_created' });
 
+  // Auto-run Legal Eye on the freshly-created case so the user lands
+  // on a case page that already has an issue-spotting review attached.
+  // No exhibits exist yet, so the review is description-only - still
+  // useful, and the user can re-run after uploading evidence. Wrapped
+  // in try/catch so AI failures (rate limit, missing key) never block
+  // the redirect.
+  try {
+    const fresh = await getCase(createdId);
+    if (fresh) {
+      const review = await runReview(fresh, []);
+      await saveReview(review);
+      await logCaseEvent({ caseId: createdId, eventType: 'review_run' });
+    }
+  } catch (err) {
+    console.error('[createCaseAction] auto-review failed', err);
+  }
+
   // Redirect outside the try/catch so the NEXT_REDIRECT control-flow
   // exception isn't swallowed.
   revalidatePath('/cases');
