@@ -799,6 +799,7 @@ export type AdminUserRow = {
   organization: string | null;
   isAdmin: boolean;
   isBlocked: boolean;
+  isPermanentAdmin: boolean;
   representation: RepresentationStatus | null;
   consentedAt: string | null;
   caseCount: number;
@@ -997,6 +998,7 @@ export async function adminListUsers(): Promise<AdminUserRow[]> {
       organization: p?.organization ?? null,
       isAdmin: Boolean(p?.is_admin),
       isBlocked: Boolean(p?.is_blocked),
+      isPermanentAdmin: PERMANENT_ADMIN_EMAILS.has((u.email ?? '').toLowerCase()),
       representation: p?.representation ?? null,
       consentedAt: p?.consented_at ?? null,
       caseCount: caseCounts.get(u.id) ?? 0,
@@ -1011,6 +1013,20 @@ export async function adminListUsers(): Promise<AdminUserRow[]> {
  * can never end up with no admins (or a single admin that locks themselves
  * out by toggling). Throws on policy violation.
  */
+// Two operator accounts that always remain admins and unblockable. These
+// are the people who keep the lights on for the org. Any UI / API attempt
+// to demote, block, or otherwise demote them is refused server-side.
+const PERMANENT_ADMIN_EMAILS = new Set(['contact@technooptics.com', 'contact@advottic.com']);
+
+async function isPermanentAdmin(
+  admin: NonNullable<ReturnType<typeof createAdminSupabase>>,
+  userId: string,
+): Promise<boolean> {
+  const { data } = await admin.auth.admin.getUserById(userId);
+  const email = (data?.user?.email ?? '').toLowerCase();
+  return PERMANENT_ADMIN_EMAILS.has(email);
+}
+
 export async function adminSetUserAdmin(input: {
   userId: string;
   isAdmin: boolean;
@@ -1018,7 +1034,13 @@ export async function adminSetUserAdmin(input: {
   const admin = createAdminSupabase();
   if (!admin) throw new Error('Service role key required.');
   if (!input.isAdmin) {
-    // Demoting: confirm there will still be at least 2 admins after.
+    // Demoting: refuse outright if this is one of the permanent admins.
+    if (await isPermanentAdmin(admin, input.userId)) {
+      throw new Error(
+        'This is a permanent operator account and cannot have admin removed.',
+      );
+    }
+    // Otherwise confirm there will still be at least 2 admins after.
     const { count, error } = await admin
       .from('profiles')
       .select('id', { count: 'exact', head: true })
@@ -1050,6 +1072,11 @@ export async function adminSetUserBlocked(input: {
 }): Promise<void> {
   const admin = createAdminSupabase();
   if (!admin) throw new Error('Service role key required.');
+  if (input.isBlocked && (await isPermanentAdmin(admin, input.userId))) {
+    throw new Error(
+      'This is a permanent operator account and cannot be deactivated.',
+    );
+  }
   await ensureProfileExists(admin, input.userId);
   const { error } = await admin
     .from('profiles')

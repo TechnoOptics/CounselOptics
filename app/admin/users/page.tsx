@@ -24,7 +24,13 @@ export default async function AdminUsersPage() {
           </p>
         )}
       </div>
-      <div className="card overflow-x-auto">
+      <p className="md:hidden text-[11px] text-ink-500 dark:text-cream-100/55 -mt-2">
+        Swipe horizontally to see all columns →
+      </p>
+      <div
+        className="card overflow-x-auto overflow-y-hidden"
+        style={{ WebkitOverflowScrolling: 'touch' }}
+      >
         <table className="w-full text-sm min-w-[820px]">
           <thead className="bg-ink-50 border-b border-ink-200">
             <tr className="text-left">
@@ -119,9 +125,15 @@ export default async function AdminUsersPage() {
                     initialIsAdmin={u.isAdmin}
                     initialIsBlocked={u.isBlocked}
                     isSelf={me?.id === u.id}
+                    isPermanentAdmin={u.isPermanentAdmin}
                   />
+                  {u.isPermanentAdmin && (
+                    <p className="text-[10.5px] text-gold-700 dark:text-gold-300 mt-1.5 font-medium uppercase tracking-wider">
+                      Permanent admin
+                    </p>
+                  )}
                   {u.isBlocked && (
-                    <p className="text-[10.5px] text-rose-700 mt-1.5 font-medium uppercase tracking-wider">
+                    <p className="text-[10.5px] text-rose-700 dark:text-rose-300 mt-1.5 font-medium uppercase tracking-wider">
                       Blocked
                     </p>
                   )}

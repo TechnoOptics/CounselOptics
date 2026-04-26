@@ -86,8 +86,11 @@ function CasesTable({
   rows: Awaited<ReturnType<typeof adminListCases>>;
 }) {
   return (
-      <div className="card overflow-hidden">
-        <table className="w-full text-sm">
+      <div
+        className="card overflow-x-auto"
+        style={{ WebkitOverflowScrolling: 'touch' }}
+      >
+        <table className="w-full text-sm min-w-[720px]">
           <thead className="bg-ink-50 border-b border-ink-200">
             <tr className="text-left">
               <Th>Case</Th>

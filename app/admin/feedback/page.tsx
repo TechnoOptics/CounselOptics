@@ -10,11 +10,13 @@ export default async function AdminFeedbackPage({
   searchParams?: { status?: string };
 }) {
   const allowedFilters = ['all', 'new', 'triaged', 'resolved', 'wontfix'] as const;
+  // Default to 'all' so admins always see every submission as soon as it
+  // lands. Filtering by status is opt-in via the chips.
   const statusParam = (allowedFilters as readonly string[]).includes(
     searchParams?.status ?? '',
   )
     ? (searchParams?.status as (typeof allowedFilters)[number])
-    : 'new';
+    : 'all';
 
   const feedback = await adminListFeedback({ status: statusParam });
 

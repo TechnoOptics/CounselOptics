@@ -16,10 +16,13 @@ export default async function HomePage() {
   return (
     <div className="space-y-20 sm:space-y-28">
       <Hero existingCases={cases.length} />
+      <TrustBadges />
       <FlowTimeline />
+      <BellaShowcase />
       <Personas />
       <Outcomes />
       <TestimonialMarquee />
+      <SmartFeaturesGrid />
       <PricingCta />
       <Faq />
       <FinalCta />
@@ -34,43 +37,43 @@ export default async function HomePage() {
 function Hero({ existingCases }: { existingCases: number }) {
   return (
     <section className="relative -mt-2 animate-fade-up">
-      <div className="grid gap-10 lg:grid-cols-12 lg:gap-12 items-center">
+      <div className="grid gap-10 lg:grid-cols-12 lg:gap-14 items-center">
         {/* Left: editorial copy block */}
         <div className="lg:col-span-7">
-          <p className="inline-flex items-center gap-2 text-[11px] tracking-[0.3em] uppercase font-semibold text-gold-700">
-            <span className="inline-block h-px w-8 bg-gold-500" />
+          <p className="inline-flex items-center gap-2 text-[11px] tracking-[0.3em] uppercase font-semibold text-gold-700 dark:text-gold-300">
+            <span className="inline-block h-px w-8 bg-gold-500 dark:bg-gold-400" />
             Strategic advocacy · trusted results
           </p>
-          <h1 className="mt-5 font-display text-[44px] sm:text-[56px] lg:text-[72px] font-medium tracking-[-0.02em] leading-[0.98] text-forest-900">
+          <h1 className="mt-5 font-display text-[44px] sm:text-[60px] lg:text-[80px] font-medium tracking-[-0.025em] leading-[0.95] text-forest-900 dark:text-cream-100">
             Your case,
             <br />
             <span className="bg-gold-shine bg-clip-text text-transparent gold-pan italic">
               ready to be heard.
             </span>
           </h1>
-          <p className="mt-6 text-[16px] sm:text-lg leading-relaxed text-ink-700 max-w-xl">
-            Advottic turns the chaos of a real-life legal matter into a clean, structured case
-            file. Capture every piece of evidence, surface the issues that matter, and walk in
-            with a packet your attorney can read in five minutes.
+          <p className="mt-6 text-[17px] sm:text-lg leading-relaxed text-ink-700 dark:text-cream-100/80 max-w-xl">
+            Capture every piece of evidence, surface the issues that matter, and walk into
+            counsel with a packet they can read in five minutes. Built for the moment that
+            matters most.
           </p>
-          <div className="mt-8 flex flex-wrap items-center gap-3">
+          <div className="mt-9 flex flex-wrap items-center gap-3">
             <Link
               href="/cases/new"
-              className="btn bg-forest-900 text-cream-100 hover:bg-forest-800 shadow-brand-glow font-semibold px-5 py-2.5"
+              className="btn bg-gold-metal text-forest-950 hover:brightness-110 shadow-gold-glow font-semibold px-5 py-2.5"
             >
               Start your case file
               <ArrowRight />
             </Link>
             <Link
               href={existingCases > 0 ? '/cases' : '/example'}
-              className="btn bg-white text-forest-900 border border-ink-200 hover:border-gold-500 hover:bg-cream-50 px-5 py-2.5"
+              className="btn-ghost text-forest-900 dark:text-cream-100 hover:text-gold-700 dark:hover:text-gold-300 underline-offset-4 hover:underline px-3 py-2.5 font-semibold"
             >
               {existingCases > 0
-                ? `View ${existingCases} case${existingCases === 1 ? '' : 's'}`
-                : 'See an example'}
+                ? `View ${existingCases} case${existingCases === 1 ? '' : 's'} →`
+                : 'See an example case →'}
             </Link>
           </div>
-          <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-ink-500">
+          <div className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-ink-500 dark:text-cream-100/55">
             <span className="inline-flex items-center gap-1.5">
               <DotEmerald /> 7-day free trial
             </span>
@@ -593,41 +596,334 @@ function Faq() {
 }
 
 // =====================================================================
-// Final CTA band
+// Trust badges - thin row right under hero. Three concrete reassurances.
+// =====================================================================
+
+function TrustBadges() {
+  const items: { eyebrow: string; line: string; sub: string }[] = [
+    {
+      eyebrow: 'Encryption',
+      line: 'AES-256 at rest · TLS 1.2+ in transit',
+      sub: 'Your case content is encrypted on disk and on the wire, end to end.',
+    },
+    {
+      eyebrow: 'No AI training',
+      line: 'Zero retention on your inputs',
+      sub: 'Bella and Legal Eye run under Anthropic commercial terms. We never train on your content.',
+    },
+    {
+      eyebrow: 'Audit log',
+      line: 'Every view, edit, and share is logged',
+      sub: 'See who touched the case and when, on every case detail page.',
+    },
+  ];
+  return (
+    <section
+      aria-label="Trust signals"
+      className="-mt-6 sm:-mt-10 grid gap-3 sm:grid-cols-3"
+    >
+      {items.map((it) => (
+        <div
+          key={it.eyebrow}
+          className="card p-5 hover:shadow-card-hover transition-shadow"
+        >
+          <p className="text-[10px] uppercase tracking-[0.22em] font-semibold text-gold-700 dark:text-gold-300">
+            {it.eyebrow}
+          </p>
+          <p className="font-display text-base font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100 mt-1.5">
+            {it.line}
+          </p>
+          <p className="text-xs text-ink-600 dark:text-cream-100/70 mt-1 leading-relaxed">
+            {it.sub}
+          </p>
+        </div>
+      ))}
+    </section>
+  );
+}
+
+// =====================================================================
+// Bella showcase - dark band, sample chat exchange, gold sparkle.
+// =====================================================================
+
+function BellaShowcase() {
+  return (
+    <section className="relative">
+      <div className="rounded-3xl hero-bg text-cream-100 px-6 sm:px-10 py-10 sm:py-14 relative overflow-hidden">
+        <div
+          aria-hidden
+          className="hero-orb hero-orb--gold hero-orb--a"
+          style={{ width: 320, height: 320, right: '-80px', top: '-60px' }}
+        />
+        <div className="grid gap-10 lg:grid-cols-12 lg:gap-14 items-center relative">
+          <div className="lg:col-span-6">
+            <p className="inline-flex items-center gap-2 text-[10px] tracking-[0.28em] uppercase font-semibold text-gold-300">
+              <span className="inline-block h-px w-8 bg-gold-400" />
+              Meet Bella
+            </p>
+            <h2 className="mt-4 font-display text-3xl sm:text-[44px] font-medium tracking-[-0.02em] leading-[1.05]">
+              An assistant who actually{' '}
+              <span className="bg-gold-shine bg-clip-text text-transparent gold-pan italic">
+                does things.
+              </span>
+            </h2>
+            <p className="mt-4 text-cream-100/85 leading-relaxed max-w-xl">
+              Bella is not a chatbot that explains the app to you. She runs the app for you. Ask
+              her to find that case from January, or open the new-case wizard, or summarize your
+              latest Legal Eye review - she navigates and pulls the data herself.
+            </p>
+            <ul className="mt-6 space-y-2 text-sm text-cream-100/85">
+              <BellaBullet>
+                <strong>Search your cases</strong> by title, subject, or jurisdiction.
+              </BellaBullet>
+              <BellaBullet>
+                <strong>Open the new-case wizard</strong> with one ask.
+              </BellaBullet>
+              <BellaBullet>
+                <strong>Pull case details</strong> - exhibits, hearing date, latest review.
+              </BellaBullet>
+              <BellaBullet>
+                <strong>Always asks before navigating</strong> if you have unsaved input.
+              </BellaBullet>
+            </ul>
+          </div>
+
+          <div className="lg:col-span-6">
+            <div className="rounded-2xl bg-forest-950/80 ring-1 ring-gold-400/30 shadow-card-hover overflow-hidden backdrop-blur">
+              <div className="flex items-center gap-2.5 px-5 py-3 border-b border-cream-100/10">
+                <span className="aurora inline-flex h-7 w-7 items-center justify-center rounded-full bg-forest-950 ring-1 ring-gold-400/40 text-gold-300">
+                  <BellaSparkle />
+                </span>
+                <div>
+                  <p className="text-[12px] font-semibold text-cream-100 leading-tight">
+                    Bella
+                  </p>
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-cream-100/60 mt-0.5 flex items-center gap-1.5">
+                    <span className="live-dot h-1.5 w-1.5 rounded-full bg-emerald-400 inline-block" />
+                    Online · Sonnet 4.6 · No training
+                  </p>
+                </div>
+              </div>
+              <div className="px-5 py-5 space-y-3 text-[13.5px] leading-relaxed">
+                <ChatBubble role="user">where is my apartment lease case from january?</ChatBubble>
+                <ChatBubble role="bella">
+                  Found it. <strong className="text-gold-300">Apartment lease — security deposit refund</strong>{' '}
+                  (Shakopee, MN), under review with 7 exhibits and a hearing in 9 days. Want me
+                  to open it?
+                </ChatBubble>
+                <ChatBubble role="user">yes please</ChatBubble>
+                <ChatBubble role="bella">
+                  Opening it now. <span className="text-gold-300">↗ /cases/3fd84ed6...</span>
+                </ChatBubble>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ChatBubble({
+  role,
+  children,
+}: {
+  role: 'user' | 'bella';
+  children: React.ReactNode;
+}) {
+  if (role === 'user') {
+    return (
+      <div className="flex justify-end">
+        <div className="max-w-[85%] rounded-2xl rounded-tr-md px-3.5 py-2 bg-cream-200 text-forest-900 font-medium">
+          {children}
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="flex justify-start">
+      <div className="max-w-[88%] rounded-2xl rounded-tl-md px-3.5 py-2 bg-forest-800/70 text-cream-100 ring-1 ring-gold-400/20">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function BellaBullet({ children }: { children: React.ReactNode }) {
+  return (
+    <li className="flex items-start gap-2.5">
+      <span className="flex-none mt-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-gold-metal text-forest-950">
+        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" aria-hidden>
+          <path
+            d="M5 13l4 4 10-10"
+            stroke="currentColor"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </span>
+      <span>{children}</span>
+    </li>
+  );
+}
+
+function BellaSparkle() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+// =====================================================================
+// Smart features - bento-style grid showcasing the headline features.
+// =====================================================================
+
+function SmartFeaturesGrid() {
+  return (
+    <section>
+      <header className="text-center max-w-2xl mx-auto mb-10">
+        <p className="eyebrow justify-center mb-3">Inside the app</p>
+        <h2 className="font-display text-3xl sm:text-[40px] font-medium tracking-[-0.02em] leading-[1.05] text-forest-900 dark:text-cream-100">
+          Built for the work that actually moves a case forward.
+        </h2>
+      </header>
+      <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-4">
+        <BentoCard
+          span={2}
+          eyebrow="Legal Eye review"
+          title="Jurisdiction-aware issue spotting in seconds."
+          body="Claude Sonnet reads your case + exhibits, surfaces possible issues, evidence gaps, and next-step questions for your attorney. Always hedged, never legal advice."
+          accent="gold"
+        />
+        <BentoCard
+          eyebrow="Smart-assist wizard"
+          title="One question at a time."
+          body="A card-by-card flow that captures only what matters. Skip what's optional. Auto-runs Legal Eye on submit."
+        />
+        <BentoCard
+          eyebrow="Document review"
+          title="Paste any contract — get plain English back."
+          body="Lease, demand letter, retainer, court order. No account needed for the review."
+        />
+        <BentoCard
+          eyebrow="Hearing countdown"
+          title="A pre-hearing checklist that wakes up when you do."
+          body="Set the date once. We surface a countdown card and a prioritized to-do list keyed to your case state."
+        />
+        <BentoCard
+          eyebrow="Live presence + audit"
+          title="See who's in your case, right now."
+          body="Avatar chips with a green pulse for everyone viewing the case. Every view, edit, and share is logged on the Activity tab."
+          accent="emerald"
+        />
+        <BentoCard
+          eyebrow="PDF packet"
+          title="A clean export your attorney can read in five minutes."
+          body="Cover, case info, exhibits, and the latest Legal Eye review — one polished file."
+        />
+        <BentoCard
+          eyebrow="Find counsel"
+          title="Maps + reviews in your jurisdiction."
+          body="Browse nearby firms straight from Google Maps with practice-area filters."
+        />
+      </div>
+    </section>
+  );
+}
+
+function BentoCard({
+  eyebrow,
+  title,
+  body,
+  span = 1,
+  accent = 'default',
+}: {
+  eyebrow: string;
+  title: string;
+  body: string;
+  span?: 1 | 2;
+  accent?: 'default' | 'gold' | 'emerald';
+}) {
+  const isWide = span === 2;
+  const accentClasses =
+    accent === 'gold'
+      ? 'card-luminous'
+      : accent === 'emerald'
+        ? 'card border-emerald-400/40 dark:border-emerald-500/30'
+        : 'card-hover';
+  return (
+    <article
+      className={`${accentClasses} p-6 ${isWide ? 'sm:col-span-2 lg:col-span-2 lg:row-span-1' : ''}`}
+    >
+      <p className="text-[10px] uppercase tracking-[0.22em] font-semibold text-gold-700 dark:text-gold-300">
+        {eyebrow}
+      </p>
+      <h3 className="font-display text-lg sm:text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100 mt-2 leading-snug">
+        {title}
+      </h3>
+      <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 leading-relaxed">
+        {body}
+      </p>
+    </article>
+  );
+}
+
+// =====================================================================
+// Final CTA band - dramatic, gold-accented, two CTAs.
 // =====================================================================
 
 function FinalCta() {
   return (
     <section className="relative">
-      <div className="rounded-3xl hero-bg text-cream-100 px-6 sm:px-10 py-10 sm:py-14 text-center relative overflow-hidden">
-        <div aria-hidden className="hero-orb hero-orb--cream hero-orb--a" style={{ width: 360, height: 360, left: '50%', top: '-40%', transform: 'translateX(-50%)' }} />
-        <div className="relative max-w-2xl mx-auto">
-          <h2 className="font-display text-3xl sm:text-5xl font-medium tracking-[-0.02em] leading-[1.02]">
+      <div className="rounded-3xl hero-bg text-cream-100 px-6 sm:px-10 py-12 sm:py-20 text-center relative overflow-hidden">
+        <div
+          aria-hidden
+          className="hero-orb hero-orb--cream hero-orb--a"
+          style={{ width: 360, height: 360, left: '50%', top: '-40%', transform: 'translateX(-50%)' }}
+        />
+        <div
+          aria-hidden
+          className="hero-orb hero-orb--gold hero-orb--b"
+          style={{ width: 240, height: 240, left: '8%', bottom: '-20%' }}
+        />
+        <div className="relative max-w-3xl mx-auto">
+          <p className="text-[10px] uppercase tracking-[0.32em] font-semibold text-gold-300 mb-5">
+            Today, not tomorrow
+          </p>
+          <h2 className="font-display text-4xl sm:text-6xl lg:text-[80px] font-medium tracking-[-0.025em] leading-[0.98]">
             Walk in prepared.
             <br />
             <span className="bg-gold-shine bg-clip-text text-transparent gold-pan italic">
               Walk out with options.
             </span>
           </h2>
-          <p className="mt-4 text-cream-100/85 text-sm sm:text-base leading-relaxed">
+          <p className="mt-6 text-cream-100/85 text-base sm:text-lg leading-relaxed max-w-xl mx-auto">
             Start a case file today. Your seven-day trial begins when you subscribe - the
             organizing tools are free until then.
           </p>
-          <div className="mt-6 flex flex-wrap justify-center gap-3">
+          <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Link
               href="/cases/new"
-              className="btn bg-gold-metal text-forest-950 hover:brightness-110 shadow-gold-glow font-semibold px-5 py-2.5 animate-glow"
+              className="btn bg-gold-metal text-forest-950 hover:brightness-110 shadow-gold-glow font-semibold px-6 py-3 animate-glow text-base"
             >
               Start your case file
               <ArrowRight />
             </Link>
             <Link
-              href="/find-counsel"
-              className="btn bg-white/15 text-white border border-white/25 hover:bg-white/25 backdrop-blur px-5 py-2.5"
+              href="/example"
+              className="btn bg-white/15 text-white border border-white/25 hover:bg-white/25 backdrop-blur px-6 py-3 text-base"
             >
-              Find counsel near me
+              Tour an example
             </Link>
           </div>
+          <p className="mt-6 text-[11px] uppercase tracking-[0.22em] text-cream-100/55">
+            7-day trial · cancel any time · no card to start
+          </p>
         </div>
       </div>
     </section>

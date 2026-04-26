@@ -18,11 +18,13 @@ export function UserToggles({
   initialIsAdmin,
   initialIsBlocked,
   isSelf,
+  isPermanentAdmin = false,
 }: {
   userId: string;
   initialIsAdmin: boolean;
   initialIsBlocked: boolean;
   isSelf: boolean;
+  isPermanentAdmin?: boolean;
 }) {
   const [isAdmin, setIsAdmin] = useState(initialIsAdmin);
   const [isBlocked, setIsBlocked] = useState(initialIsBlocked);
@@ -31,6 +33,10 @@ export function UserToggles({
 
   function handleAdmin(next: boolean) {
     if (pending) return;
+    if (isPermanentAdmin && !next) {
+      setError('This is a permanent operator account.');
+      return;
+    }
     const prev = isAdmin;
     setIsAdmin(next);
     setError(null);
@@ -47,6 +53,10 @@ export function UserToggles({
     if (pending) return;
     if (isSelf && next) {
       setError("You can't block your own account.");
+      return;
+    }
+    if (isPermanentAdmin && next) {
+      setError('Permanent operator accounts cannot be deactivated.');
       return;
     }
     const prev = isBlocked;
@@ -68,17 +78,29 @@ export function UserToggles({
           label="Admin"
           checked={isAdmin}
           onChange={handleAdmin}
-          disabled={pending || (isSelf && isAdmin)}
+          disabled={pending || (isSelf && isAdmin) || isPermanentAdmin}
           tone="forest"
-          title={isSelf && isAdmin ? "Demote another admin first" : undefined}
+          title={
+            isPermanentAdmin
+              ? 'Permanent operator account'
+              : isSelf && isAdmin
+                ? 'Demote another admin first'
+                : undefined
+          }
         />
         <Toggle
           label="Active"
           checked={!isBlocked}
           onChange={(next) => handleBlocked(!next)}
-          disabled={pending || isSelf}
+          disabled={pending || isSelf || isPermanentAdmin}
           tone="emerald"
-          title={isSelf ? "You can't deactivate your own account" : undefined}
+          title={
+            isPermanentAdmin
+              ? 'Permanent operator account'
+              : isSelf
+                ? "You can't deactivate your own account"
+                : undefined
+          }
         />
       </div>
       {error && (
