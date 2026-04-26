@@ -22,6 +22,11 @@ const nextConfig = {
       bodySizeLimit: '50mb',
     },
     serverComponentsExternalPackages: ['pdfkit'],
+    // Required in Next 14 for instrumentation.ts to load - without
+    // this flag, the onRequestError hook is silently ignored, which
+    // is why crash_reports stayed empty after the 500 we tried to
+    // capture. (Default-on in Next 15.)
+    instrumentationHook: true,
   },
   async headers() {
     return [
