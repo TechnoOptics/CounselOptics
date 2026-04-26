@@ -1,4 +1,4 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 // /welcome was historically auth-protected as a post-sign-in landing page;
@@ -7,6 +7,17 @@ import { NextResponse, type NextRequest } from 'next/server';
 // redirected to /cases inside the page itself.
 const PROTECTED_PREFIXES = ['/cases', '/profile', '/admin', '/billing', '/feedback'];
 
+/**
+ * Edge auth-refresh middleware.
+ *
+ * Uses the @supabase/ssr `getAll`/`setAll` adapter pattern (required since
+ * 0.5). The earlier `get`/`set`/`remove` shape recreated the NextResponse
+ * inside every `set` call, which silently dropped earlier chunks when
+ * Supabase split a large auth cookie - the visible symptom was OAuth
+ * sign-in (especially Microsoft, where sessions are big enough to chunk)
+ * appearing successful but landing the user back on /sign-in because the
+ * chunked session never made it to the browser intact.
+ */
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
 
@@ -24,26 +35,20 @@ export async function updateSession(request: NextRequest) {
   try {
     const supabase = createServerClient(url, anon, {
       cookies: {
-        get(name: string) {
-          return request.cookies.get(name)?.value;
+        getAll() {
+          return request.cookies.getAll();
         },
-        set(name: string, value: string, options: CookieOptions) {
-          try {
-            request.cookies.set({ name, value, ...options });
-            response = NextResponse.next({ request });
-            response.cookies.set({ name, value, ...options });
-          } catch {
-            /* swallow - cookie set is best-effort in middleware */
-          }
-        },
-        remove(name: string, options: CookieOptions) {
-          try {
-            request.cookies.set({ name, value: '', ...options });
-            response = NextResponse.next({ request });
-            response.cookies.set({ name, value: '', ...options });
-          } catch {
-            /* swallow - cookie remove is best-effort in middleware */
-          }
+        setAll(cookiesToSet) {
+          // Mirror cookies onto the request so further server-side reads in
+          // this middleware see the fresh values.
+          cookiesToSet.forEach(({ name, value }) => {
+            request.cookies.set(name, value);
+          });
+          // Recreate the response ONCE, then attach every cookie in one go.
+          response = NextResponse.next({ request });
+          cookiesToSet.forEach(({ name, value, options }) => {
+            response.cookies.set(name, value, options);
+          });
         },
       },
     });

@@ -1,4 +1,4 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
 export function getSupabaseUrl(): string | undefined {
@@ -24,21 +24,18 @@ export function createServerSupabase() {
   const cookieStore = cookies();
   return createServerClient(url, anon, {
     cookies: {
-      get(name: string) {
-        return cookieStore.get(name)?.value;
+      getAll() {
+        return cookieStore.getAll();
       },
-      set(name: string, value: string, options: CookieOptions) {
+      setAll(cookiesToSet) {
         try {
-          cookieStore.set({ name, value, ...options });
+          cookiesToSet.forEach(({ name, value, options }) => {
+            cookieStore.set({ name, value, ...options });
+          });
         } catch {
-          // Set from a Server Component; Next.js will hand cookies back via middleware.
-        }
-      },
-      remove(name: string, options: CookieOptions) {
-        try {
-          cookieStore.set({ name, value: '', ...options });
-        } catch {
-          // Same as above.
+          // setAll runs during a Server Component render where cookies are
+          // read-only; the middleware's session-refresh writes the cookies
+          // for us, so swallowing here is safe.
         }
       },
     },

@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { createServerClient } from '@supabase/ssr';
 import { getSupabaseUrl, getSupabaseAnonKey } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
@@ -7,15 +7,15 @@ export const dynamic = 'force-dynamic';
 /**
  * OAuth + magic-link callback.
  *
- * Cookies set by `exchangeCodeForSession` are written DIRECTLY onto the
- * outgoing redirect `NextResponse` via the `set`/`remove` adapter below.
- * The naive pattern that just calls `cookies()` from `next/headers` and
- * relies on Next.js to propagate the mutation onto a separately-constructed
- * `NextResponse.redirect(...)` is unreliable in Edge route handlers - we
- * saw Microsoft sign-ins succeed at the provider but land back on the
- * signed-out page because the session cookie never made it onto the 302.
- * Binding the supabase cookie adapter to the response object guarantees
- * the auth cookies ride along with the redirect.
+ * Uses the @supabase/ssr `getAll`/`setAll` cookie adapter (the shape
+ * required since 0.5). The older per-cookie `set` callback recreated
+ * the outgoing NextResponse on each call, which silently dropped earlier
+ * chunks when supabase split a large auth cookie - the visible symptom
+ * was Microsoft sign-in succeeding at the provider but landing back on
+ * /sign-in because the chunked session never made it to the browser.
+ *
+ * `setAll` receives the full batch in one call, so we attach every
+ * cookie to the same redirect response and ship it.
  */
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
@@ -53,19 +53,20 @@ export async function GET(request: NextRequest) {
   }
 
   // Pre-build the success response so the supabase cookie adapter can
-  // attach the freshly-issued auth cookies directly onto it.
+  // attach the freshly-issued auth cookies (potentially chunked into
+  // several Set-Cookie headers) directly onto the exact redirect we'll
+  // ship back to the browser.
   const successResponse = NextResponse.redirect(new URL(next, url.origin));
 
   const supabase = createServerClient(supabaseUrl, anonKey, {
     cookies: {
-      get(name: string) {
-        return request.cookies.get(name)?.value;
+      getAll() {
+        return request.cookies.getAll();
       },
-      set(name: string, value: string, options: CookieOptions) {
-        successResponse.cookies.set({ name, value, ...options });
-      },
-      remove(name: string, options: CookieOptions) {
-        successResponse.cookies.set({ name, value: '', ...options });
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value, options }) => {
+          successResponse.cookies.set(name, value, options);
+        });
       },
     },
   });
