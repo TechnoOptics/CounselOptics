@@ -1,13 +1,13 @@
 /**
  * Next.js instrumentation hook. Captures every uncaught server-side
- * exception during a request and writes it to public.crash_reports
- * via the service-role admin client, with the request URL + the
- * Next.js error digest so we can correlate against the "Application
- * error: Digest: <hash>" page the user sees.
+ * exception during a request and posts it to /api/crash so it ends
+ * up in public.crash_reports.
  *
- * Vercel does not expose runtime logs over the REST API on lower
- * tiers, so this is our path to seeing the actual stack server-side.
- * Read the rows from /admin/health or query crash_reports directly.
+ * Edge-safe: this file is bundled for BOTH the nodejs and edge
+ * runtimes, so it must not transitively import anything that uses
+ * node: protocol modules. We POST to /api/crash via global fetch,
+ * which works in both runtimes - the route handler itself runs on
+ * nodejs and writes to Supabase.
  */
 
 export async function onRequestError(
@@ -15,33 +15,32 @@ export async function onRequestError(
   request: { path?: string; method?: string; headers?: Record<string, string> },
   context: { routerKind?: string; routePath?: string; routeType?: string },
 ) {
-  // Lazy-import so build-time bundling does not pull supabase server
-  // helpers into the edge graph.
+  const error = err as { message?: string; stack?: string; digest?: string };
+  const path = request.path ?? context.routePath ?? null;
+  // Always log so the dashboard "Logs" tab shows it.
+  // eslint-disable-next-line no-console
+  console.error('[onRequestError]', {
+    digest: error.digest,
+    message: error.message,
+    path,
+    routerKind: context.routerKind,
+    routeType: context.routeType,
+    stack: error.stack?.slice(0, 2000),
+  });
   try {
-    const { recordCrashReport } = await import('./lib/storage');
-    const error = err as { message?: string; stack?: string; digest?: string };
-    const release =
-      process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 12) ?? null;
-    const ua = request.headers?.['user-agent'] ?? null;
-    const path = request.path ?? context.routePath ?? null;
-    await recordCrashReport({
-      userId: null,
-      url: path,
-      userAgent: ua,
-      message: `[server] ${error.message ?? 'unknown'} (digest=${error.digest ?? 'none'})`,
-      stack: error.stack ?? null,
-      componentStack: null,
-      release,
-    });
-    // Always also surface in Vercel runtime logs (visible in dashboard
-    // even when the API endpoint is gated).
-    console.error('[onRequestError]', {
-      digest: error.digest,
-      message: error.message,
-      path,
-      routerKind: context.routerKind,
-      routeType: context.routeType,
-    });
+    const origin = process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : process.env.NEXT_PUBLIC_SITE_URL || 'https://www.advottic.com';
+    await fetch(`${origin}/api/crash`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: `[server] ${error.message ?? 'unknown'} (digest=${error.digest ?? 'none'})`,
+        stack: error.stack ?? null,
+        url: path,
+      }),
+      cache: 'no-store',
+    }).catch(() => {});
   } catch {
     // never let the error reporter throw inside the error path
   }
