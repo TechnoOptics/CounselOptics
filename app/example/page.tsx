@@ -83,7 +83,7 @@ function CaseHero() {
                   Claimant
                 </span>
               </div>
-              <h2 className="text-2xl sm:text-3xl md:text-4xl font-semibold tracking-tight leading-[1.1] drop-shadow-[0_2px_18px_rgba(15,45,36,0.45)]">
+              <h2 className="font-display text-2xl sm:text-3xl md:text-[40px] font-medium tracking-[-0.015em] leading-[1.05] drop-shadow-[0_2px_18px_rgba(15,45,36,0.45)]">
                 <span className="bg-gold-shine bg-clip-text text-transparent gold-pan">
                   Apartment lease &mdash; security deposit refund
                 </span>

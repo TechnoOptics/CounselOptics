@@ -64,13 +64,37 @@ export function ReviewPanel({
       )}
 
       {!review && !pending && (
-        <div className="card p-10 text-center">
-          <p className="text-ink-600 mb-5">
-            No review yet. Generate a structured legal issue-spotting summary for this case.
+        <div className="card-ai p-8 sm:p-10 text-center relative">
+          <div
+            aria-hidden
+            className="absolute -top-3 left-1/2 -translate-x-1/2 inline-flex items-center gap-1.5 rounded-full bg-forest-950 ring-1 ring-gold-400/40 px-3 py-1 text-[10px] font-mono uppercase tracking-[0.18em] text-gold-300 aurora"
+          >
+            <SparkleIcon />
+            AI · Legal Eye
+          </div>
+          <p className="text-cream-100/85 leading-relaxed max-w-md mx-auto mt-2 mb-5">
+            Generate a structured, jurisdiction-aware issue-spotting summary
+            grounded in your case description and exhibits.
           </p>
-          <button onClick={trigger} className="btn-primary">
-            Run review
+          <button
+            onClick={trigger}
+            className="btn bg-gold-metal text-forest-950 hover:brightness-110 shadow-gold-glow font-semibold px-5 py-2.5"
+          >
+            <SparkleIcon />
+            Run Legal Eye review
           </button>
+        </div>
+      )}
+
+      {pending && (
+        <div className="card-ai p-8 text-center relative overflow-hidden">
+          <div className="absolute inset-0 ai-sweep" aria-hidden />
+          <p className="relative text-cream-100 font-medium">
+            Reading the case &amp; exhibits…
+          </p>
+          <p className="relative text-cream-100/65 text-sm mt-1">
+            Legal Eye is composing the review.
+          </p>
         </div>
       )}
 
@@ -313,6 +337,22 @@ function Spinner() {
         stroke="currentColor"
         strokeWidth="3"
         strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function SparkleIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z"
+        fill="currentColor"
+      />
+      <path
+        d="M19 15l.7 1.9L21.6 18l-1.9.6L19 21l-.7-2.4L16.4 18l1.9-.7L19 15z"
+        fill="currentColor"
+        opacity="0.8"
       />
     </svg>
   );

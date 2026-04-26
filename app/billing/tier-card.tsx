@@ -83,7 +83,7 @@ export function TierCard({
       )}
       <div className="mb-5">
         <p className="eyebrow mb-1">{TIER_LABEL[tier]}</p>
-        <h3 className="text-2xl font-semibold tracking-tight text-forest-900">
+        <h3 className="font-display text-[26px] font-medium tracking-[-0.01em] leading-[1.1] text-forest-900">
           {TIER_TAGLINE[tier]}
         </h3>
         <p className="mt-3 flex items-baseline gap-1.5">

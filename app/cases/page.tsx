@@ -85,7 +85,7 @@ export default async function CasesPage({
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="eyebrow mb-2">Dashboard</p>
-          <h1 className="text-3xl font-semibold tracking-tight text-forest-900">Cases</h1>
+          <h1 className="font-display text-4xl font-medium tracking-[-0.015em] leading-[1.05] text-forest-900">Cases</h1>
           <p className="text-sm text-ink-500 mt-1">
             {cases.length === 0
               ? 'No cases yet. Create your first case file to get started.'
@@ -310,7 +310,7 @@ function CaseGrid({
             className={`card-hover p-5 block ${closedHint ? 'opacity-80 hover:opacity-100' : ''}`}
           >
             <div className="flex items-start justify-between gap-3 mb-3">
-              <h2 className="font-semibold text-ink-950 leading-tight tracking-tight">
+              <h2 className="font-display text-[19px] font-medium text-ink-950 leading-tight tracking-[-0.005em]">
                 {c.title}
               </h2>
               <div className="flex flex-col items-end gap-1">

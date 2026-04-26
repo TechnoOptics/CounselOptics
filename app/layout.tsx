@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Suspense } from 'react';
-import { Inter, Saira_Condensed } from 'next/font/google';
+import { Inter, Saira_Condensed, Fraunces } from 'next/font/google';
 import './globals.css';
 import { Disclaimer } from '@/components/Disclaimer';
 import { UserMenu } from '@/components/UserMenu';
@@ -31,6 +31,17 @@ const wordmark = Saira_Condensed({
   weight: ['700', '800'],
   display: 'swap',
   variable: '--font-wordmark',
+});
+
+// Editorial display face for marquee headlines (landing hero, big section
+// titles, case-detail title). Fraunces is a variable serif with strong
+// optical sizing - it carries weight at large sizes the way magazine
+// covers do, and pairs with Inter's neutral body without fighting it.
+const display = Fraunces({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  display: 'swap',
+  variable: '--font-display',
 });
 
 export const metadata: Metadata = {
@@ -86,7 +97,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   }
 
   return (
-    <html lang="en" className={`${sans.variable} ${wordmark.variable}`}>
+    <html lang="en" className={`${sans.variable} ${wordmark.variable} ${display.variable}`}>
       <body className="min-h-screen flex flex-col font-sans">
         <Disclaimer variant="banner" />
         <header className="sticky top-0 z-20">

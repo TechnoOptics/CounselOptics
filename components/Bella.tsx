@@ -149,11 +149,13 @@ export function Bella() {
         <button
           onClick={() => setOpen(true)}
           aria-label="Open Bella, the legal assistant"
-          className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-30 inline-flex items-center gap-2 brand-mark text-cream-200 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-full shadow-brand-glow hover:scale-[1.02] transition-transform animate-fade-in"
+          className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-30 inline-flex items-center gap-2 brand-mark text-cream-200 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-full shadow-brand-glow hover:scale-[1.02] transition-transform animate-fade-in aurora ring-1 ring-gold-400/30"
         >
-          <SparkleIcon />
+          <span className="text-gold-300">
+            <SparkleIcon />
+          </span>
           <span className="text-sm font-medium tracking-tight">Ask Bella</span>
-          <span className="live-dot inline-block h-1.5 w-1.5 rounded-full bg-cream-200 ml-0.5" />
+          <span className="live-dot inline-block h-1.5 w-1.5 rounded-full bg-emerald-400 ml-0.5" />
         </button>
       )}
 

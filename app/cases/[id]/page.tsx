@@ -89,7 +89,7 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
                   {c.posture === 'defendant' ? 'Defendant' : 'Claimant'}
                 </span>
               </div>
-              <h1 className="text-2xl sm:text-3xl md:text-4xl font-semibold tracking-tight leading-[1.1] drop-shadow-[0_2px_18px_rgba(15,45,36,0.45)]">
+              <h1 className="font-display text-2xl sm:text-3xl md:text-[40px] font-medium tracking-[-0.015em] leading-[1.05] drop-shadow-[0_2px_18px_rgba(15,45,36,0.45)]">
                 <span className="bg-gold-shine bg-clip-text text-transparent gold-pan">
                   {c.title}
                 </span>

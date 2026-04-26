@@ -33,16 +33,16 @@ export default async function SignInPage({
 
   return (
     <div className="max-w-md mx-auto animate-fade-up">
-      <div className="card p-8 relative overflow-hidden">
+      <div className="card-luminous p-8 relative">
         <div
           aria-hidden
-          className="absolute -right-8 -top-8 text-gold-500/10 pointer-events-none animate-float"
+          className="absolute -right-8 -top-8 text-gold-500/12 pointer-events-none animate-float"
         >
           <BrandMark size={180} />
         </div>
         <div className="relative">
         <p className="eyebrow mb-3">Welcome</p>
-        <h1 className="text-2xl font-semibold tracking-tight text-ink-950 mb-2">
+        <h1 className="font-display text-3xl font-medium tracking-[-0.015em] text-ink-950 leading-[1.05] mb-2">
           Sign in or create an account
         </h1>
         <p className="text-sm text-ink-600 leading-relaxed mb-6">

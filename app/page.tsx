@@ -41,10 +41,10 @@ function Hero({ existingCases }: { existingCases: number }) {
             <span className="inline-block h-px w-8 bg-gold-500" />
             Strategic advocacy · trusted results
           </p>
-          <h1 className="mt-5 text-[40px] sm:text-5xl lg:text-[64px] font-semibold tracking-tight leading-[1.02] text-forest-900">
+          <h1 className="mt-5 font-display text-[44px] sm:text-[56px] lg:text-[72px] font-medium tracking-[-0.02em] leading-[0.98] text-forest-900">
             Your case,
             <br />
-            <span className="bg-gold-shine bg-clip-text text-transparent gold-pan">
+            <span className="bg-gold-shine bg-clip-text text-transparent gold-pan italic">
               ready to be heard.
             </span>
           </h1>
@@ -274,7 +274,7 @@ function FlowTimeline() {
     <section>
       <header className="text-center max-w-2xl mx-auto mb-12">
         <p className="eyebrow justify-center mb-3">How it works</p>
-        <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-forest-900">
+        <h2 className="font-display text-3xl sm:text-[40px] font-medium tracking-[-0.02em] leading-[1.05] text-forest-900">
           Three steps. The dignity stays with you.
         </h2>
         <p className="text-sm sm:text-base text-ink-600 mt-3 leading-relaxed">
@@ -372,7 +372,7 @@ function Personas() {
     <section>
       <header className="text-center max-w-2xl mx-auto mb-10">
         <p className="eyebrow justify-center mb-3">Built for the moments that matter</p>
-        <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight text-forest-900">
+        <h2 className="font-display text-3xl sm:text-4xl font-medium tracking-[-0.02em] leading-[1.05] text-forest-900">
           Designed for whoever&apos;s actually in the chair.
         </h2>
       </header>
@@ -380,7 +380,7 @@ function Personas() {
         {personas.map((p) => (
           <article
             key={p.title}
-            className="card p-6 hover:border-gold-500/50 transition-colors relative overflow-hidden"
+            className="card-hover p-6 relative overflow-hidden"
           >
             {p.tag && (
               <span className="absolute top-3 right-3 text-[9px] tracking-[0.18em] uppercase font-semibold text-gold-700 bg-cream-50 border border-gold-200 rounded-full px-2 py-0.5">
@@ -449,7 +449,7 @@ function PricingCta() {
       <div className="card p-7 sm:p-10 grid gap-6 sm:grid-cols-[1fr_auto] items-end">
         <div>
           <p className="eyebrow mb-2">Subscription</p>
-          <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight text-forest-900">
+          <h2 className="font-display text-3xl sm:text-[40px] font-medium tracking-[-0.02em] leading-[1.05] text-forest-900">
             Three tiers, monthly billing, 7-day free trial.
           </h2>
           <p className="text-sm text-ink-600 mt-2 max-w-xl">
@@ -497,7 +497,7 @@ function Faq() {
     <section>
       <header className="text-center max-w-2xl mx-auto mb-10">
         <p className="eyebrow justify-center mb-3">Frequently asked</p>
-        <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight text-forest-900">
+        <h2 className="font-display text-3xl sm:text-4xl font-medium tracking-[-0.02em] leading-[1.05] text-forest-900">
           Honest answers, up front.
         </h2>
       </header>
@@ -531,10 +531,10 @@ function FinalCta() {
       <div className="rounded-3xl hero-bg text-cream-100 px-6 sm:px-10 py-10 sm:py-14 text-center relative overflow-hidden">
         <div aria-hidden className="hero-orb hero-orb--cream hero-orb--a" style={{ width: 360, height: 360, left: '50%', top: '-40%', transform: 'translateX(-50%)' }} />
         <div className="relative max-w-2xl mx-auto">
-          <h2 className="text-2xl sm:text-4xl font-semibold tracking-tight">
+          <h2 className="font-display text-3xl sm:text-5xl font-medium tracking-[-0.02em] leading-[1.02]">
             Walk in prepared.
             <br />
-            <span className="bg-gold-shine bg-clip-text text-transparent gold-pan">
+            <span className="bg-gold-shine bg-clip-text text-transparent gold-pan italic">
               Walk out with options.
             </span>
           </h2>
