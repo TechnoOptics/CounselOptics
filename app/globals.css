@@ -155,6 +155,69 @@ html.dark body::before {
 .dark .border-forest-200 { border-color: rgba(213, 187, 126, 0.25); }
 .dark .ring-ink-200 { --tw-ring-color: rgba(245, 237, 214, 0.12); }
 
+/* ---------------------------- Contrast safety -----------------------------
+   Hard guarantee that text and its directly-painted container background are
+   never both light or both dark, so words and graphics stay legible no
+   matter which surface they end up on. Two tiers:
+
+   1) Light-on-light: cream / white text directly inside a white-ish box ->
+      force forest-900 (dark green) text. Catches "drop a `text-cream-100`
+      copy into a card and forget the card already gave you a white surface".
+
+   2) Dark-on-dark: forest / dark-ink text directly inside a forest-900 or
+      forest-950 box -> force cream-50 text. Catches the inverse mistake.
+
+   We deliberately scope to DIRECT children (`>`) so a perfectly-fine pattern
+   like "white card -> dark inner band -> light text" still works. The rule
+   only fires when the text element's parent IS the offending background.
+   This is a safety net, not the primary styling system.
+
+   `.bg-white` already gets repainted to forest-900 in dark mode by the rules
+   above, so the dark-on-dark guards naturally cover dark-mode cards too. */
+.bg-white > .text-cream-50,
+.bg-white > .text-cream-100,
+.bg-white > .text-cream-200,
+.bg-cream-50 > .text-cream-50,
+.bg-cream-50 > .text-cream-100,
+.bg-cream-100 > .text-cream-50,
+.bg-cream-100 > .text-cream-100,
+.bg-cream-200 > .text-cream-50,
+.bg-cream-200 > .text-cream-100 {
+  color: #0f2d24; /* forest-900 - the project's "dark green" */
+}
+
+.bg-forest-900 > .text-forest-900,
+.bg-forest-900 > .text-forest-800,
+.bg-forest-900 > .text-forest-700,
+.bg-forest-900 > .text-ink-700,
+.bg-forest-900 > .text-ink-800,
+.bg-forest-900 > .text-ink-900,
+.bg-forest-900 > .text-ink-950,
+.bg-forest-950 > .text-forest-900,
+.bg-forest-950 > .text-forest-800,
+.bg-forest-950 > .text-forest-700,
+.bg-forest-950 > .text-ink-700,
+.bg-forest-950 > .text-ink-800,
+.bg-forest-950 > .text-ink-900,
+.bg-forest-950 > .text-ink-950 {
+  color: #fbf7e9; /* cream-50 */
+}
+
+/* Tile-on-tile contrast: a card directly inside a same-shade band needs
+   a hairline ring so it doesn't disappear into the surrounding surface.
+   We scope this to the `card` class because that's the project-wide
+   tile primitive; gradient hero bands don't trip it. */
+.bg-forest-900 > .card,
+.bg-forest-950 > .card {
+  --tw-ring-color: rgba(213, 187, 126, 0.35); /* gold-300 hairline */
+  box-shadow: 0 0 0 1px var(--tw-ring-color), 0 8px 24px -4px rgba(15,45,36,0.20);
+}
+.bg-cream-50 > .card,
+.bg-cream-100 > .card {
+  --tw-ring-color: rgba(15, 45, 36, 0.10); /* forest-900 hairline */
+  box-shadow: 0 0 0 1px var(--tw-ring-color), 0 8px 24px -4px rgba(15,45,36,0.08);
+}
+
 body > * {
   position: relative;
   z-index: 1;
