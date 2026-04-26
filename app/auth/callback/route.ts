@@ -1,8 +1,22 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { createServerSupabase } from '@/lib/supabase/server';
+import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { getSupabaseUrl, getSupabaseAnonKey } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * OAuth + magic-link callback.
+ *
+ * Cookies set by `exchangeCodeForSession` are written DIRECTLY onto the
+ * outgoing redirect `NextResponse` via the `set`/`remove` adapter below.
+ * The naive pattern that just calls `cookies()` from `next/headers` and
+ * relies on Next.js to propagate the mutation onto a separately-constructed
+ * `NextResponse.redirect(...)` is unreliable in Edge route handlers - we
+ * saw Microsoft sign-ins succeed at the provider but land back on the
+ * signed-out page because the session cookie never made it onto the 302.
+ * Binding the supabase cookie adapter to the response object guarantees
+ * the auth cookies ride along with the redirect.
+ */
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const code = url.searchParams.get('code');
@@ -19,71 +33,90 @@ export async function GET(request: NextRequest) {
     const friendly =
       oauthErrorDesc?.replace(/\+/g, ' ') ||
       `Sign-in failed (${oauthError}). The provider may not be enabled in Supabase.`;
-    return redirectWithError(request, next, friendly);
+    return redirectWithError(url, next, friendly);
   }
 
   if (!code) {
     console.error('[auth/callback] missing code param', { url: url.toString() });
     return redirectWithError(
-      request,
+      url,
       next,
       "Sign-in didn't complete - the OAuth provider returned no code. If you tried Google or Microsoft, that provider isn't enabled yet in Supabase. Use the email magic link below.",
     );
   }
 
+  const supabaseUrl = getSupabaseUrl();
+  const anonKey = getSupabaseAnonKey();
+  if (!supabaseUrl || !anonKey) {
+    console.error('[auth/callback] supabase not configured');
+    return redirectWithError(url, next, 'Sign-in is not configured on the server.');
+  }
+
+  // Pre-build the success response so the supabase cookie adapter can
+  // attach the freshly-issued auth cookies directly onto it.
+  const successResponse = NextResponse.redirect(new URL(next, url.origin));
+
+  const supabase = createServerClient(supabaseUrl, anonKey, {
+    cookies: {
+      get(name: string) {
+        return request.cookies.get(name)?.value;
+      },
+      set(name: string, value: string, options: CookieOptions) {
+        successResponse.cookies.set({ name, value, ...options });
+      },
+      remove(name: string, options: CookieOptions) {
+        successResponse.cookies.set({ name, value: '', ...options });
+      },
+    },
+  });
+
   try {
-    const supabase = createServerSupabase();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (error) {
       console.error('[auth/callback] exchangeCodeForSession failed', {
         message: error.message,
         status: error.status,
       });
-      return redirectWithError(request, next, error.message);
-    }
-
-    // Block-list check: if profiles.is_blocked is true for this user, sign
-    // them right back out and surface a friendly message. We do this here
-    // (after exchange) so the session cookie that was just set is cleared
-    // and the user can't poke around with a half-valid session. Wrapped in
-    // try/catch so a transient profiles-table read error never strands an
-    // otherwise valid session at the sign-in page.
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('is_blocked')
-          .eq('id', user.id)
-          .maybeSingle();
-        if ((profile as { is_blocked: boolean | null } | null)?.is_blocked) {
-          await supabase.auth.signOut();
-          return redirectWithError(
-            request,
-            '/sign-in',
-            "Your account is blocked or inactive. If you believe this is a mistake, reach out to contact@advottic.com.",
-          );
-        }
-      }
-    } catch (blockErr) {
-      console.error('[auth/callback] block-list check failed (continuing)', blockErr);
+      return redirectWithError(url, next, error.message);
     }
   } catch (err) {
-    console.error('[auth/callback] unexpected exception', err);
+    console.error('[auth/callback] exchangeCodeForSession threw', err);
     const msg = err instanceof Error ? err.message : 'Sign-in failed.';
-    return redirectWithError(request, next, msg);
+    return redirectWithError(url, next, msg);
   }
 
-  const dest = new URL(next, url.origin);
-  return NextResponse.redirect(dest);
+  // Block-list check: if profiles.is_blocked is true for this user, sign
+  // them right back out and surface a friendly message. Wrapped in
+  // try/catch so a transient profiles-table read error never strands an
+  // otherwise valid session at the sign-in page.
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (user) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('is_blocked')
+        .eq('id', user.id)
+        .maybeSingle();
+      if ((profile as { is_blocked: boolean | null } | null)?.is_blocked) {
+        await supabase.auth.signOut();
+        return redirectWithError(
+          url,
+          '/sign-in',
+          "Your account is blocked or inactive. If you believe this is a mistake, reach out to contact@advottic.com.",
+        );
+      }
+    }
+  } catch (blockErr) {
+    console.error('[auth/callback] block-list check failed (continuing)', blockErr);
+  }
+
+  return successResponse;
 }
 
-function redirectWithError(request: NextRequest, next: string, message: string) {
-  const dest = new URL(request.url);
-  dest.pathname = '/sign-in';
-  dest.search = '';
+function redirectWithError(requestUrl: URL, next: string, message: string) {
+  const dest = new URL('/sign-in', requestUrl.origin);
   dest.searchParams.set('error', encodeURIComponent(message));
   dest.searchParams.set('next', next);
   return NextResponse.redirect(dest);
