@@ -2,8 +2,9 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { recordConsentAction } from '@/lib/actions';
+import { SUPPORTED_LANGUAGES } from '@/lib/types';
 
 /**
  * Layout-level consent popup. Renders only when the server says
@@ -20,6 +21,17 @@ export function ConsentModal({
   const [hidden, setHidden] = useState(false);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [language, setLanguage] = useState<string>('en');
+
+  // Best-effort default to the browser's preferred language if it matches
+  // one we support. Otherwise stay on English.
+  useEffect(() => {
+    if (typeof navigator === 'undefined') return;
+    const browserLang = (navigator.language || 'en').slice(0, 2).toLowerCase();
+    if (SUPPORTED_LANGUAGES.some((l) => l.code === browserLang)) {
+      setLanguage(browserLang);
+    }
+  }, []);
 
   if (hidden) return null;
 
@@ -80,6 +92,29 @@ export function ConsentModal({
 
         <form action={onSubmit} className="px-6 py-5 space-y-5 max-h-[70vh] overflow-y-auto">
           <input type="hidden" name="displayName" value={fallbackName} />
+          <input type="hidden" name="language" value={language} />
+
+          <div>
+            <label className="label" htmlFor="language">
+              Preferred language
+            </label>
+            <select
+              id="language"
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+              className="input max-w-xs"
+            >
+              {SUPPORTED_LANGUAGES.map((lang) => (
+                <option key={lang.code} value={lang.code}>
+                  {lang.label}
+                </option>
+              ))}
+            </select>
+            <p className="text-[11px] text-ink-500 mt-1.5">
+              Saved to your profile so the app honors it across devices. You can change this
+              anytime in Profile settings.
+            </p>
+          </div>
 
           <fieldset>
             <legend className="label mb-2">How are you representing yourself?</legend>

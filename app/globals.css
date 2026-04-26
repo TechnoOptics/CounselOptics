@@ -71,8 +71,10 @@ body::before {
 
 /* ------------------------------ Dark mode ------------------------------
    Inverts the warm-cream palette to a deep forest base with gold accents
-   that hold their identity. Triggered by system preference; component-
-   level Tailwind `dark:` variants layer on top of these defaults.
+   that hold their identity. Driven by the `.dark` class on <html>, which
+   ThemeBoot sets based on profile preference (Light/Dark/System) +
+   localStorage cache + OS preference fallback. Component-level Tailwind
+   `dark:` variants layer on top of these defaults.
 
    Strategy: rather than touch every text-forest-900 / text-ink-* call
    site, we override the actual color values for those classes inside
@@ -80,58 +82,59 @@ body::before {
    the .card dark variant, so this just keeps embedded headings/body
    readable. Components that still want pure-dark text on light surfaces
    in dark mode can use a `dark:` override to opt out. */
-@media (prefers-color-scheme: dark) {
-  html, body {
-    background-color: #0a1f19;
-    color: #f5edd6;
-  }
-  body::before {
-    background-image:
-      radial-gradient(1200px 600px at 90% -10%, rgba(213, 187, 126, 0.10), transparent 60%),
-      radial-gradient(900px 500px at -10% 100%, rgba(213, 187, 126, 0.04), transparent 60%),
-      linear-gradient(rgba(245, 237, 214, 0.025) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(245, 237, 214, 0.025) 1px, transparent 1px);
-  }
-  /* Text classes that are typically used directly on the page body
-     (which goes dark above) need a cream fallback so they stay
-     readable. Components that need to keep dark text on a light surface
-     should opt in with explicit `dark:` variants. */
-  .text-forest-900 { color: #f5edd6; }
-  .text-forest-800,
-  .text-forest-700 { color: rgba(245, 237, 214, 0.85); }
-  .text-ink-950 { color: #fbf7e9; }
-  .text-ink-900 { color: #f5edd6; }
-  .text-ink-800 { color: rgba(245, 237, 214, 0.92); }
-  .text-ink-700 { color: rgba(245, 237, 214, 0.85); }
-  .text-ink-600 { color: rgba(245, 237, 214, 0.72); }
-  .text-ink-500 { color: rgba(245, 237, 214, 0.55); }
-  .text-ink-400 { color: rgba(245, 237, 214, 0.4); }
-  /* Hover/active variants for nav and link styles */
-  .hover\:text-forest-900:hover { color: #fbf7e9; }
-  .hover\:text-forest-700:hover { color: rgba(245, 237, 214, 0.92); }
-  .hover\:text-ink-900:hover { color: #fbf7e9; }
-  .hover\:text-ink-700:hover { color: rgba(245, 237, 214, 0.92); }
-  /* Solid light surfaces get repainted dark forest in dark mode so the
-     text overrides above stay readable on them. Note: gradient stops
-     (`from-cream-50`, `via-cream-50` etc.) compile to different CSS
-     selectors than `.bg-cream-50`, so they are NOT affected by these
-     rules - those gradients keep rendering with their original light
-     stops, and any text inside needs an explicit `dark:` variant. */
-  .bg-white { background-color: #1a3d31; }
-  .bg-cream-50 { background-color: #173b30; }
-  .bg-cream-50\/40 { background-color: rgba(23, 59, 48, 0.4); }
-  .bg-cream-50\/50 { background-color: rgba(23, 59, 48, 0.5); }
-  .bg-cream-100 { background-color: #1f4839; }
-  .bg-cream-200 { background-color: #2a5a47; }
-  .bg-ink-50 { background-color: #102a23; }
-  .bg-ink-50\/40 { background-color: rgba(16, 42, 35, 0.4); }
-  .bg-ink-50\/50 { background-color: rgba(16, 42, 35, 0.5); }
-  /* Border + ring inversions so light-mode hairlines do not vanish */
-  .border-ink-100 { border-color: rgba(245, 237, 214, 0.08); }
-  .border-ink-200 { border-color: rgba(245, 237, 214, 0.12); }
-  .border-forest-200 { border-color: rgba(213, 187, 126, 0.25); }
-  .ring-ink-200 { --tw-ring-color: rgba(245, 237, 214, 0.12); }
+/* IMPORTANT: rules are flat (`.dark .foo`) rather than nested
+   (`.dark { .foo { } }`) because Tailwind's @apply directive can't
+   traverse nested CSS, and several components in @layer components
+   below `@apply bg-white`. Keep these flat. */
+html.dark, html.dark body {
+  background-color: #0a1f19;
+  color: #f5edd6;
 }
+html.dark body::before {
+  background-image:
+    radial-gradient(1200px 600px at 90% -10%, rgba(213, 187, 126, 0.10), transparent 60%),
+    radial-gradient(900px 500px at -10% 100%, rgba(213, 187, 126, 0.04), transparent 60%),
+    linear-gradient(rgba(245, 237, 214, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(245, 237, 214, 0.025) 1px, transparent 1px);
+}
+/* Text classes that are typically used directly on the page body
+   (which goes dark above) need a cream fallback so they stay readable.
+   Components that need to keep dark text on a light surface should opt
+   in with explicit `dark:` variants. */
+.dark .text-forest-900 { color: #f5edd6; }
+.dark .text-forest-800,
+.dark .text-forest-700 { color: rgba(245, 237, 214, 0.85); }
+.dark .text-ink-950 { color: #fbf7e9; }
+.dark .text-ink-900 { color: #f5edd6; }
+.dark .text-ink-800 { color: rgba(245, 237, 214, 0.92); }
+.dark .text-ink-700 { color: rgba(245, 237, 214, 0.85); }
+.dark .text-ink-600 { color: rgba(245, 237, 214, 0.72); }
+.dark .text-ink-500 { color: rgba(245, 237, 214, 0.55); }
+.dark .text-ink-400 { color: rgba(245, 237, 214, 0.4); }
+.dark .hover\:text-forest-900:hover { color: #fbf7e9; }
+.dark .hover\:text-forest-700:hover { color: rgba(245, 237, 214, 0.92); }
+.dark .hover\:text-ink-900:hover { color: #fbf7e9; }
+.dark .hover\:text-ink-700:hover { color: rgba(245, 237, 214, 0.92); }
+/* Solid light surfaces get repainted dark forest in dark mode so the
+   text overrides above stay readable on them. Note: gradient stops
+   (`from-cream-50`, `via-cream-50` etc.) compile to different CSS
+   selectors than `.bg-cream-50`, so they are NOT affected by these
+   rules - those gradients keep rendering with their original light
+   stops, and any text inside needs an explicit `dark:` variant. */
+.dark .bg-white { background-color: #1a3d31; }
+.dark .bg-cream-50 { background-color: #173b30; }
+.dark .bg-cream-50\/40 { background-color: rgba(23, 59, 48, 0.4); }
+.dark .bg-cream-50\/50 { background-color: rgba(23, 59, 48, 0.5); }
+.dark .bg-cream-100 { background-color: #1f4839; }
+.dark .bg-cream-200 { background-color: #2a5a47; }
+.dark .bg-ink-50 { background-color: #102a23; }
+.dark .bg-ink-50\/40 { background-color: rgba(16, 42, 35, 0.4); }
+.dark .bg-ink-50\/50 { background-color: rgba(16, 42, 35, 0.5); }
+/* Border + ring inversions so light-mode hairlines do not vanish */
+.dark .border-ink-100 { border-color: rgba(245, 237, 214, 0.08); }
+.dark .border-ink-200 { border-color: rgba(245, 237, 214, 0.12); }
+.dark .border-forest-200 { border-color: rgba(213, 187, 126, 0.25); }
+.dark .ring-ink-200 { --tw-ring-color: rgba(245, 237, 214, 0.12); }
 
 body > * {
   position: relative;
@@ -217,6 +220,20 @@ body > * {
   animation: co-ai-sweep 2.4s ease-in-out infinite;
   pointer-events: none;
 }
+
+/* Smart-assist wizard card transitions. Forward = swipes in from the
+   right; back = slides in from the left. Both fade as well so the
+   change reads as smooth, not jumpy. */
+@keyframes co-card-forward {
+  0% { opacity: 0; transform: translateX(28px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+@keyframes co-card-back {
+  0% { opacity: 0; transform: translateX(-28px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+.animate-card-forward { animation: co-card-forward 0.32s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-card-back { animation: co-card-back 0.32s cubic-bezier(0.16, 1, 0.3, 1) both; }
 
 /* Loading veil mark: the Advottic gold pillar lives in the centre of a
    slowly-breathing aurora. Two layered animations: the icon scales +
@@ -382,7 +399,9 @@ body > * {
   .aurora,
   .loading-mark,
   .loading-mark::before,
-  .header-glow-line::after {
+  .header-glow-line::after,
+  .animate-card-forward,
+  .animate-card-back {
     animation: none !important;
   }
   .stagger > * {

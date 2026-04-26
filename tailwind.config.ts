@@ -1,7 +1,10 @@
 import type { Config } from 'tailwindcss';
 
 const config: Config = {
-  darkMode: 'media',
+  // 'class' so a user-controlled toggle works. The actual `dark` class
+  // is set on <html> by ThemeBoot in app/layout based on profile pref +
+  // localStorage cache + OS preference fallback.
+  darkMode: 'class',
   content: [
     './app/**/*.{js,ts,jsx,tsx,mdx}',
     './components/**/*.{js,ts,jsx,tsx,mdx}',

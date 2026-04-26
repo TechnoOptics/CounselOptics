@@ -270,10 +270,20 @@ export async function recordConsentAction(formData: FormData) {
     throw new Error('You must accept the terms to continue.');
   }
   const displayName = String(formData.get('displayName') ?? '').trim();
+  const language = String(formData.get('language') ?? '').trim().slice(0, 8);
   await recordConsent({
     representation: repRaw as RepresentationStatus,
     displayName: displayName || undefined,
   });
+  // Language is captured at first sign-in via the consent modal so the
+  // account already has a locale on file once translations roll out.
+  if (language) {
+    try {
+      await upsertProfile({ language });
+    } catch {
+      // language save is non-blocking; consent already recorded
+    }
+  }
   // No redirect - the popup modal in the layout dismisses itself and triggers
   // a router.refresh() so the layout re-fetches the (now-consented) profile.
   // /cases is revalidated so its tour-modal trigger picks up the fresh state.
@@ -451,6 +461,53 @@ export async function setUserAdminAction(
     return {
       ok: false,
       error: err instanceof Error ? err.message : 'Could not update admin status.',
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// User preferences (theme + language). Light wrappers around upsertProfile
+// so client components can persist via a single round-trip.
+// ---------------------------------------------------------------------------
+
+export type PrefResult = { ok: boolean; error?: string };
+
+export async function setThemeAction(
+  theme: 'light' | 'dark' | 'system',
+): Promise<PrefResult> {
+  try {
+    if (!['light', 'dark', 'system'].includes(theme)) {
+      return { ok: false, error: 'Invalid theme.' };
+    }
+    if (!usingSupabase()) return { ok: true }; // local mode: noop, client cache only
+    const user = await getCurrentUser();
+    if (!user) return { ok: true }; // unauthed: client cache only
+    await upsertProfile({ theme });
+    revalidatePath('/profile');
+    return { ok: true };
+  } catch (err) {
+    console.error('[setThemeAction] failed', err);
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Could not save theme.',
+    };
+  }
+}
+
+export async function setLanguageAction(language: string): Promise<PrefResult> {
+  try {
+    const trimmed = language.trim().slice(0, 8);
+    if (!usingSupabase()) return { ok: true };
+    const user = await getCurrentUser();
+    if (!user) return { ok: true };
+    await upsertProfile({ language: trimmed || null });
+    revalidatePath('/profile');
+    return { ok: true };
+  } catch (err) {
+    console.error('[setLanguageAction] failed', err);
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Could not save language.',
     };
   }
 }

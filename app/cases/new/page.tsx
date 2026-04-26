@@ -1,21 +1,24 @@
 import Link from 'next/link';
 import { Disclaimer } from '@/components/Disclaimer';
-import { NewCaseForm } from './case-form';
+import { SmartAssistForm } from './smart-assist';
 
 export default function NewCasePage() {
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="max-w-2xl mx-auto space-y-6 animate-fade-up">
       <div>
-        <Link href="/cases" className="text-sm text-ink-500 hover:text-ink-700">
+        <Link href="/cases" className="text-sm text-ink-500 hover:text-ink-700 dark:hover:text-cream-100">
           &larr; Back to cases
         </Link>
-        <h1 className="font-display text-3xl sm:text-4xl font-medium tracking-[-0.01em] mt-2">New case file</h1>
-        <p className="text-sm text-ink-600">
-          Capture the basics now, you can upload evidence and add notes after creating.
+        <p className="eyebrow mt-3 mb-2">Smart assist</p>
+        <h1 className="font-display text-3xl sm:text-4xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
+          Let's set up your case file.
+        </h1>
+        <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1.5 leading-relaxed">
+          One question at a time. Skip anything optional. You can change everything later.
         </p>
       </div>
 
-      <NewCaseForm />
+      <SmartAssistForm />
 
       <Disclaimer />
     </div>

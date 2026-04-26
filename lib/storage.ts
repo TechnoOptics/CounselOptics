@@ -97,6 +97,8 @@ type ProfileRow = {
   representation: RepresentationStatus | null;
   consented_at: string | null;
   tour_completed_at: string | null;
+  theme: 'light' | 'dark' | 'system' | null;
+  language: string | null;
   updated_at: string;
 };
 
@@ -197,6 +199,8 @@ function profileFromRow(r: ProfileRow): Profile {
     representation: r.representation ?? null,
     consentedAt: r.consented_at ?? null,
     tourCompletedAt: r.tour_completed_at ?? null,
+    theme: r.theme ?? 'system',
+    language: r.language ?? null,
     updatedAt: r.updated_at,
   };
 }
@@ -1289,6 +1293,8 @@ export async function upsertProfile(input: {
   organization?: string | null;
   avatarUrl?: string | null;
   representation?: RepresentationStatus | null;
+  theme?: 'light' | 'dark' | 'system';
+  language?: string | null;
 }): Promise<Profile> {
   if (!usingSupabase()) throw new Error('Profiles require Supabase to be configured.');
   const user = await getCurrentUser();
@@ -1303,6 +1309,8 @@ export async function upsertProfile(input: {
   if (input.organization !== undefined) update.organization = input.organization;
   if (input.avatarUrl !== undefined) update.avatar_url = input.avatarUrl;
   if (input.representation !== undefined) update.representation = input.representation;
+  if (input.theme !== undefined) update.theme = input.theme;
+  if (input.language !== undefined) update.language = input.language;
 
   const { data, error } = await supabase
     .from('profiles')

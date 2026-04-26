@@ -5,6 +5,9 @@ import { getProfile } from '@/lib/storage';
 import { updateProfileAction } from '@/lib/actions';
 import { AccountActions } from './account-actions';
 import { AvatarUpload } from './avatar-upload';
+import { ThemePicker } from '@/components/ThemePicker';
+import { LanguagePicker } from '@/components/LanguagePicker';
+import { InstallAppButton } from '@/components/InstallAppButton';
 import { REPRESENTATION_LABEL, type RepresentationStatus } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -190,6 +193,31 @@ export default async function ProfilePage() {
         You can upload your own avatar above. If you don&apos;t, the system pulls one from your
         Google / Microsoft account or shows your initials.
       </div>
+
+      {/* Preferences card. Theme + language are stored on the profile so
+          they carry across devices. Install button uses the PWA prompt. */}
+      <section className="card p-6 space-y-6">
+        <div>
+          <p className="eyebrow mb-2">Settings</p>
+          <h2 className="font-display text-xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
+            Preferences
+          </h2>
+          <p className="text-sm text-ink-500 dark:text-cream-100/55 mt-0.5">
+            Theme, language, and one-tap install. Saved to your profile.
+          </p>
+        </div>
+
+        <ThemePicker initial={profile?.theme ?? 'system'} />
+        <LanguagePicker initial={profile?.language ?? 'en'} />
+
+        <div>
+          <p className="label">Install Advottic</p>
+          <p className="text-xs text-ink-500 dark:text-cream-100/55 mb-2">
+            Add Advottic to your home screen for one-tap access. Uses the Advottic icon.
+          </p>
+          <InstallAppButton />
+        </div>
+      </section>
 
       <AccountActions />
     </div>

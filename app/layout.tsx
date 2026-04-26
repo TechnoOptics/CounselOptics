@@ -12,6 +12,7 @@ import { SearchPalette, SearchTrigger } from '@/components/SearchPalette';
 import { ConsentModal } from '@/components/ConsentModal';
 import { Sidebar, MobileNav } from '@/components/Sidebar';
 import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
+import { ThemeBoot } from '@/components/ThemeBoot';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { getProfile } from '@/lib/storage';
 
@@ -74,12 +75,16 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // visitors, and stays gone after refresh.
   let consent: { needed: false } | { needed: true; fallbackName: string } = { needed: false };
   let signedIn = false;
+  let serverTheme: 'light' | 'dark' | 'system' = 'system';
+  let serverLanguage: string | null = null;
   if (isSupabaseConfigured()) {
     try {
       const user = await getCurrentUser();
       if (user) {
         signedIn = true;
         const profile = await getProfile().catch(() => null);
+        if (profile?.theme) serverTheme = profile.theme;
+        if (profile?.language) serverLanguage = profile.language;
         if (!profile?.consentedAt) {
           consent = {
             needed: true,
@@ -97,7 +102,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   }
 
   return (
-    <html lang="en" className={`${sans.variable} ${wordmark.variable} ${display.variable}`}>
+    <html
+      lang={serverLanguage ?? 'en'}
+      className={`${sans.variable} ${wordmark.variable} ${display.variable}`}
+      suppressHydrationWarning
+    >
+      <head>
+        <ThemeBoot serverTheme={serverTheme} />
+      </head>
       <body className="min-h-screen flex flex-col font-sans">
         <Disclaimer variant="banner" />
         <header className="sticky top-0 z-20">

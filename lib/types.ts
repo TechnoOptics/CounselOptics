@@ -193,6 +193,18 @@ export const REPRESENTATION_LABEL: Record<RepresentationStatus, string> = {
   counsel: "Counsel (I'm an attorney)",
 };
 
+export type ThemePref = 'light' | 'dark' | 'system';
+export const SUPPORTED_LANGUAGES = [
+  { code: 'en', label: 'English' },
+  { code: 'es', label: 'Español' },
+  { code: 'fr', label: 'Français' },
+  { code: 'pt', label: 'Português' },
+  { code: 'sw', label: 'Kiswahili' },
+  { code: 'zh', label: '中文' },
+  { code: 'ar', label: 'العربية' },
+] as const;
+export type LanguageCode = (typeof SUPPORTED_LANGUAGES)[number]['code'];
+
 export type Profile = {
   id: string;
   displayName?: string | null;
@@ -204,6 +216,8 @@ export type Profile = {
   representation?: RepresentationStatus | null;
   consentedAt?: string | null;
   tourCompletedAt?: string | null;
+  theme?: ThemePref;
+  language?: string | null;
   updatedAt: string;
 };
 
