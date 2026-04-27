@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useFormState, useFormStatus } from 'react-dom';
 import { deleteCaseAction } from '@/lib/actions';
+import { FormLoadingOverlay } from '@/components/LoadingOverlay';
 
 /**
  * Inline danger-zone control for the case settings tab. Opens a modal,
@@ -102,6 +103,12 @@ export function DeleteCaseButton({
               </button>
               <SubmitButton disabled={!canSubmit} />
             </div>
+            {/* Same glowing-icon veil the new-case wizard uses, so the
+                3 seconds between "Delete permanently" and the redirect
+                feel intentional instead of a frozen UI. Must live INSIDE
+                the form because useFormStatus only reports pending for
+                its enclosing form. */}
+            <FormLoadingOverlay label="Deleting your case file" />
           </form>
         </div>
       )}
