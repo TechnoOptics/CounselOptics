@@ -31,6 +31,7 @@ const ENTRIES: Entry[] = [
   { path: '/', changeFrequency: 'weekly', priority: 1.0 },
   { path: '/about', changeFrequency: 'monthly', priority: 0.95 },
   { path: '/welcome', changeFrequency: 'monthly', priority: 0.85 },
+  { path: '/invite', changeFrequency: 'monthly', priority: 0.9 },
   { path: '/example', changeFrequency: 'monthly', priority: 0.8 },
   { path: '/find-counsel', changeFrequency: 'weekly', priority: 0.85 },
   { path: '/file-exhibits', changeFrequency: 'monthly', priority: 0.8 },
