@@ -7,16 +7,22 @@ const STORAGE_KEY = 'co-cookie-ack';
 type Choice = 'accepted' | 'declined' | 'configured';
 
 /**
- * Compact, friendly cookie banner. Lives at the bottom of the viewport
- * as a small pill with a soft gold glow that gently asks for attention
- * without taking the screen. Click to expand into full preferences.
+ * GDPR-style cookie banner. On first visit we open the full
+ * preferences dialog with a strong backdrop dim so it's the obvious
+ * thing on screen - users should not have to hunt for a tiny pill
+ * to give consent. They can still minimize it to a pill (close
+ * button) if they want to defer. After a choice is persisted the
+ * component renders nothing.
  *
- * Until the user makes a choice the pill stays. Once the choice is
- * persisted in localStorage the component renders nothing.
+ * Z-index sits at 50 so the legal-terms ConsentModal (z-55) wins
+ * when a brand-new signed-in user sees both at once.
  */
 export function CookieBanner() {
   const [show, setShow] = useState(false);
-  const [expanded, setExpanded] = useState(false);
+  // Default to expanded so the dialog opens itself on first paint
+  // with the focus animation + backdrop dim. The mount effect below
+  // confirms there's no stored choice before showing anything.
+  const [expanded, setExpanded] = useState(true);
   const [phase, setPhase] = useState<'overview' | 'configure'>('overview');
   const [analytics, setAnalytics] = useState(false);
   const [marketing, setMarketing] = useState(false);
@@ -67,25 +73,28 @@ export function CookieBanner() {
     );
   }
 
-  // Expanded: small dialog anchored to the bottom on mobile, bottom-right on desktop.
+  // Expanded: centered modal on every breakpoint with a strong
+  // backdrop dim so the rest of the screen reads as out-of-focus.
+  // The user picks a choice or minimizes to the pill - tapping the
+  // backdrop minimizes (does not auto-accept anything).
   return (
     <div
       role="dialog"
-      aria-modal="false"
+      aria-modal="true"
       aria-label="Cookie and privacy preferences"
-      className="fixed inset-0 z-[55] flex items-end sm:items-center justify-center sm:justify-end p-3 sm:p-6"
+      className="fixed inset-0 z-[50] flex items-end sm:items-center justify-center p-3 sm:p-6"
     >
       <button
         type="button"
-        aria-label="Close cookie preferences"
+        aria-label="Minimize cookie preferences"
         onClick={() => setExpanded(false)}
-        className="absolute inset-0 bg-forest-950/40 backdrop-blur-[2px] animate-fade-in"
+        className="absolute inset-0 bg-forest-950/70 backdrop-blur-md animate-fade-in"
       />
       <div
-        className="relative w-full sm:max-w-md rounded-2xl border border-gold-300/40 bg-white dark:bg-forest-900 shadow-card-hover overflow-hidden animate-fade-up"
+        className="relative w-full sm:max-w-md rounded-2xl border border-gold-300/40 bg-white dark:bg-forest-900 shadow-card-hover overflow-hidden animate-cookie-focus"
         style={{
           boxShadow:
-            '0 0 0 1px rgba(213,187,126,0.4), 0 18px 50px -12px rgba(15,45,36,0.45), 0 0 60px rgba(213,187,126,0.18)',
+            '0 0 0 1px rgba(213,187,126,0.55), 0 28px 80px -10px rgba(15,45,36,0.65), 0 0 90px rgba(213,187,126,0.32)',
         }}
       >
         <div className="brand-mark text-cream-200 px-5 py-3.5 flex items-center justify-between">
