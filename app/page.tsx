@@ -3,6 +3,7 @@ import { listCases } from '@/lib/storage';
 import { storageUnavailable } from '@/lib/setup-status';
 import { TestimonialMarquee } from '@/components/TestimonialMarquee';
 import { BellaAvatar } from '@/components/BellaAvatar';
+import { AboutTeaser } from '@/components/AboutTeaser';
 
 export default async function HomePage() {
   let cases: Awaited<ReturnType<typeof listCases>> = [];
@@ -23,6 +24,7 @@ export default async function HomePage() {
       <Personas />
       <Outcomes />
       <TestimonialMarquee />
+      <AboutTeaser />
       <Faq />
       <FinalCta />
     </div>

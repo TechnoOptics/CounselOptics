@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { redirect } from 'next/navigation';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { InstallAppButton } from '@/components/InstallAppButton';
+import { AboutTeaser } from '@/components/AboutTeaser';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
@@ -81,6 +82,11 @@ export default async function WelcomePage() {
           </Link>
         </div>
       </section>
+
+      {/* Roles + canonical-page teaser - sets expectations early so
+          the "What you get" section below reads as preparation, not
+          legal advice. */}
+      <AboutTeaser />
 
       {/* What you get */}
       <section className="card-ai p-6 sm:p-8 space-y-4">
