@@ -7,6 +7,17 @@ import { LoadingOverlay } from '@/components/LoadingOverlay';
 type Provider = 'google' | 'azure' | 'apple';
 type Mode = Provider | 'email';
 
+/**
+ * Sign-in surface. Apple is gated behind NEXT_PUBLIC_APPLE_ENABLED so
+ * the button only renders when the .p8 secret is actually wired up
+ * in Supabase - otherwise users see "Unsupported provider: missing
+ * OAuth secret" at the callback. Set the env var to "1" in Vercel
+ * once the Apple Developer credentials are pasted into the Supabase
+ * Apple provider config.
+ */
+const APPLE_ENABLED =
+  (process.env.NEXT_PUBLIC_APPLE_ENABLED ?? '').trim() === '1';
+
 export function SignInButtons({ next }: { next: string }) {
   const [pending, setPending] = useState<Mode | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -119,16 +130,21 @@ export function SignInButtons({ next }: { next: string }) {
           glyph + label, "Sign in with Apple" wording. Required by
           App Store Review Guideline 4.8 because Google + Microsoft
           are also offered. Required by Apple's HIG that this button
-          stand alone (don't squash it into the secondary palette). */}
-      <button
-        type="button"
-        onClick={() => signInWithProvider('apple')}
-        disabled={pending !== null}
-        className="btn w-full bg-black text-white hover:bg-zinc-900 border border-black font-medium"
-      >
-        {pending === 'apple' ? <Spinner /> : <AppleIcon />}
-        Sign in with Apple
-      </button>
+          stand alone (don't squash it into the secondary palette).
+          Only rendered when NEXT_PUBLIC_APPLE_ENABLED=1 - otherwise
+          clicking it would land on Supabase's "missing OAuth secret"
+          error because the .p8 secret hasn't been wired up yet. */}
+      {APPLE_ENABLED && (
+        <button
+          type="button"
+          onClick={() => signInWithProvider('apple')}
+          disabled={pending !== null}
+          className="btn w-full bg-black text-white hover:bg-zinc-900 border border-black font-medium"
+        >
+          {pending === 'apple' ? <Spinner /> : <AppleIcon />}
+          Sign in with Apple
+        </button>
+      )}
 
       <div className="flex items-center gap-3 py-1">
         <span className="h-px flex-1 bg-ink-200" />
