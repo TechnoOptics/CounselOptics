@@ -66,10 +66,14 @@ export async function POST(req: NextRequest) {
     });
   }
 
+  // Pin to the request origin so the post-payment return doesn't bounce
+  // the user to a different host than they started on (apex vs www) -
+  // a host swap drops the session cookie and looks like a logout.
   const origin =
-    process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
     req.headers.get('origin') ||
-    `https://${req.headers.get('host')}`;
+    `https://${req.headers.get('host')}` ||
+    process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
+    'https://www.advottic.com';
 
   const session = await stripe.checkout.sessions.create({
     mode: 'payment',

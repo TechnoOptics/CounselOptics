@@ -1,7 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getStripe, getPriceForTier, isStripeConfigured } from '@/lib/stripe';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
-import { getCurrentSubscription, upsertSubscriptionFromStripe } from '@/lib/storage';
+import {
+  getCurrentSubscription,
+  getProfile,
+  upsertSubscriptionFromStripe,
+} from '@/lib/storage';
 import type { Tier } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -43,13 +47,32 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Get or create a Stripe customer; persist the customer id on the subscription row.
+  // Get or create a Stripe customer; persist the customer id on the
+  // subscription row. We pass everything we already know about the
+  // user (email, display name, locale) on creation so the Stripe
+  // customer record is recognizable in the dashboard rather than a
+  // bare cus_xxx with no name. Metadata is kept generous - it shows
+  // up next to the customer in Stripe and is invaluable for support.
   const existing = await getCurrentSubscription();
+  const profile = await getProfile().catch(() => null);
+  const displayName =
+    (user.user_metadata?.full_name as string | undefined) ??
+    (user.user_metadata?.name as string | undefined) ??
+    profile?.displayName ??
+    null;
   let customerId = existing?.stripeCustomerId ?? null;
   if (!customerId) {
     const customer = await stripe.customers.create({
       email: user.email ?? undefined,
-      metadata: { supabase_user_id: user.id },
+      name: displayName ?? undefined,
+      preferred_locales: profile?.language ? [profile.language] : undefined,
+      metadata: {
+        supabase_user_id: user.id,
+        provider: (user.app_metadata?.provider as string | undefined) ?? 'unknown',
+        signup_at: user.created_at ?? '',
+        representation: profile?.representation ?? '',
+        organization: profile?.organization ?? '',
+      },
     });
     customerId = customer.id;
     await upsertSubscriptionFromStripe({
@@ -58,12 +81,29 @@ export async function POST(req: NextRequest) {
       status: existing?.status ?? 'inactive',
       priceId: existing?.priceId ?? null,
     });
+  } else if (displayName) {
+    // Customer exists but might be missing a name (created in an
+    // earlier deploy before this enrichment). Update best-effort.
+    try {
+      await stripe.customers.update(customerId, {
+        name: displayName,
+        email: user.email ?? undefined,
+      });
+    } catch {
+      /* swallow; not critical */
+    }
   }
 
+  // Pin the success/cancel URLs to the host the user is ACTUALLY on,
+  // not NEXT_PUBLIC_SITE_URL. If they started on advottic.com (apex)
+  // and we sent them back to www.advottic.com, the session cookies
+  // they had on apex would not be visible on www, and they would land
+  // on /billing as a signed-out user. Mirror the OAuth-redirect fix.
   const origin =
-    process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
     req.headers.get('origin') ||
-    `https://${req.headers.get('host')}`;
+    `https://${req.headers.get('host')}` ||
+    process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
+    'https://www.advottic.com';
 
   const hasUsedTrial = Boolean(existing?.stripeSubscriptionId);
   const session = await stripe.checkout.sessions.create({

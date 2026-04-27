@@ -8,7 +8,47 @@ import {
   adjustTokens,
   type TokenLedgerReason,
 } from '@/lib/storage';
-import type { SubscriptionStatus } from '@/lib/types';
+import { sendEmail } from '@/lib/email';
+import type { SubscriptionStatus, Tier } from '@/lib/types';
+
+/**
+ * Best-effort admin notification: pings contact@advottic.com (or
+ * whatever ADMIN_NOTIFY_TO points at) when a real revenue event lands.
+ * Failures are swallowed - this should never block a webhook 2xx.
+ */
+async function notifyAdminOfRevenue(input: {
+  kind: 'subscription_created' | 'subscription_canceled' | 'topup_purchased';
+  email: string | null;
+  tierOrSize: string;
+  amountCents: number | null;
+  customerId: string | null;
+  subscriptionId?: string | null;
+  sessionId?: string | null;
+}) {
+  const to = process.env.ADMIN_NOTIFY_TO?.trim() || 'contact@advottic.com';
+  const dollars = input.amountCents != null ? `$${(input.amountCents / 100).toFixed(2)}` : '?';
+  const labelByKind: Record<typeof input.kind, string> = {
+    subscription_created: '🎉 New subscription',
+    subscription_canceled: '😟 Subscription canceled',
+    topup_purchased: '💰 Token top-up purchased',
+  };
+  const subject = `[Advottic] ${labelByKind[input.kind]} - ${input.tierOrSize} (${dollars})`;
+  const html = `<!doctype html><html><body style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Inter,sans-serif;padding:18px;color:#0f2d24;">
+<h2 style="margin:0 0 8px;font-size:17px;">${labelByKind[input.kind]}</h2>
+<p style="margin:0 0 14px;font-size:14px;color:#3f3f46;">Customer ${input.email ?? '(unknown email)'} · ${input.tierOrSize} · ${dollars}.</p>
+<table style="font-size:12px;color:#52525b;border-collapse:collapse;">
+  ${input.customerId ? `<tr><td style="padding:2px 8px 2px 0;">Stripe customer:</td><td style="font-family:monospace;">${input.customerId}</td></tr>` : ''}
+  ${input.subscriptionId ? `<tr><td style="padding:2px 8px 2px 0;">Subscription:</td><td style="font-family:monospace;">${input.subscriptionId}</td></tr>` : ''}
+  ${input.sessionId ? `<tr><td style="padding:2px 8px 2px 0;">Checkout session:</td><td style="font-family:monospace;">${input.sessionId}</td></tr>` : ''}
+</table>
+<p style="margin:14px 0 0;font-size:11px;color:#a1a1aa;">Auto-generated. View in Stripe: <a href="https://dashboard.stripe.com">dashboard.stripe.com</a></p>
+</body></html>`;
+  try {
+    await sendEmail({ to, subject, html });
+  } catch {
+    // never block the webhook on a notification failure
+  }
+}
 
 /**
  * Map a Stripe price ID → token top-up size. Reads the env vars set
@@ -102,6 +142,14 @@ export async function POST(req: NextRequest) {
                 price_id: priceId,
               },
             });
+            await notifyAdminOfRevenue({
+              kind: 'topup_purchased',
+              email: session.customer_details?.email ?? session.customer_email ?? null,
+              tierOrSize: `${(topup.amount / 1000).toLocaleString()}k tokens`,
+              amountCents: session.amount_total ?? null,
+              customerId: customerId ?? null,
+              sessionId: session.id,
+            });
           }
           break;
         }
@@ -132,6 +180,25 @@ export async function POST(req: NextRequest) {
           if (tierFromPriceId(priceId) === 'pro' && currentPeriodEnd) {
             await grantProMonthlyTokens({ userId, periodEnd: currentPeriodEnd });
           }
+          // Notify admin of the new subscription. Use the price's
+          // unit amount when we have it, otherwise the session total
+          // (which is 0 during a free trial - we still want the email
+          // for visibility, with the trial flag in the subject).
+          const tierLabel: Record<Tier, string> = {
+            basic: 'Basic ($25/mo)',
+            standard: 'Standard ($50/mo)',
+            pro: 'Pro ($100/mo)',
+          };
+          const tier = tierFromPriceId(priceId) as Tier | null;
+          await notifyAdminOfRevenue({
+            kind: 'subscription_created',
+            email: session.customer_details?.email ?? session.customer_email ?? null,
+            tierOrSize: tier ? `${tierLabel[tier]}${status === 'trialing' ? ' · trial' : ''}` : 'unknown tier',
+            amountCents: session.amount_total ?? null,
+            customerId: customerId ?? null,
+            subscriptionId: subscriptionId ?? null,
+            sessionId: session.id,
+          });
         }
         break;
       }
