@@ -13,6 +13,7 @@ import { Sidebar, MobileNav } from '@/components/Sidebar';
 import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
 import { ThemeBoot } from '@/components/ThemeBoot';
 import { CrashReporter } from '@/components/CrashReporter';
+import { FreshnessGuard } from '@/components/FreshnessGuard';
 import { TrialBanner } from '@/components/TrialBanner';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import {
@@ -215,6 +216,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         )}
         <ServiceWorkerRegister />
         <CrashReporter />
+        <FreshnessGuard
+          initialSha={(process.env.VERCEL_GIT_COMMIT_SHA ?? 'dev').slice(0, 12)}
+        />
         <footer className="border-t border-ink-200 bg-white dark:bg-forest-950 dark:border-forest-700/40">
           <div className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-8 text-[11px] text-ink-500 dark:text-cream-100/55">
             <div className="grid gap-6 sm:gap-8 grid-cols-2 md:grid-cols-4">
