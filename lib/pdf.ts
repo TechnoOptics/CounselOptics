@@ -34,6 +34,14 @@ export async function generateCasePdf(input: {
   review: AIReview | null;
   profile?: Profile | null;
   clientName?: string | null;
+  /**
+   * When true, every page is overlaid with a large diagonal
+   * "FREE TRIAL · NOT FOR FILING" watermark. The point is to make
+   * trial-period exports unmistakably not-final-deliverables, so a
+   * user has to subscribe before they can hand the packet to an
+   * attorney or filing clerk without embarrassment.
+   */
+  trial?: boolean;
 }): Promise<Buffer> {
   // Load image buffers up front so the stream can write them synchronously
   // later. Only grab files we can actually render; skip oversized / unreadable.
@@ -66,11 +74,14 @@ export async function generateCasePdf(input: {
 
       writePdf(doc, input, exhibitImages);
 
-      // Page numbers (skip cover)
+      // Page numbers (skip cover) and watermark every page including
+      // cover during trial. The watermark layer is drawn LAST so it
+      // sits on top of any embedded exhibit images.
       const range = doc.bufferedPageRange();
-      for (let i = 1; i < range.count; i++) {
+      for (let i = 0; i < range.count; i++) {
         doc.switchToPage(range.start + i);
-        drawFooter(doc, i, range.count - 1, input.caseRecord.title);
+        if (i > 0) drawFooter(doc, i, range.count - 1, input.caseRecord.title);
+        if (input.trial) drawTrialWatermark(doc);
       }
 
       doc.end();
@@ -570,6 +581,38 @@ function tag(doc: Doc, text: string, color: string) {
   doc.fillColor(color).text(text, MARGIN + 8, y + 4, { characterSpacing: 1.2 });
   doc.restore();
   doc.y = y + 16 + 8;
+}
+
+/**
+ * Diagonal "FREE TRIAL" watermark drawn across the page. Visible
+ * enough to make the export unusable as a polished deliverable
+ * (printing, filing, sharing with counsel without it being obvious),
+ * but transparent enough that the underlying content stays readable
+ * for the user to review.
+ */
+function drawTrialWatermark(doc: Doc) {
+  doc.save();
+  doc.fillOpacity(0.16);
+  doc.fillColor('#7f1d1d'); // deep red so it reads against any background
+  doc.font('Helvetica-Bold').fontSize(72);
+  // Tile two big diagonal lines across the page so even partial
+  // crops still show the watermark.
+  const text = 'FREE TRIAL  ·  NOT FOR FILING';
+  // Center pivot, rotate -32deg so the text sweeps corner to corner.
+  doc.rotate(-32, { origin: [PAGE_WIDTH / 2, PAGE_HEIGHT / 2] });
+  doc.text(text, -100, PAGE_HEIGHT * 0.28, {
+    width: PAGE_WIDTH + 200,
+    align: 'center',
+  });
+  doc.text(text, -100, PAGE_HEIGHT * 0.52, {
+    width: PAGE_WIDTH + 200,
+    align: 'center',
+  });
+  doc.text(text, -100, PAGE_HEIGHT * 0.76, {
+    width: PAGE_WIDTH + 200,
+    align: 'center',
+  });
+  doc.restore();
 }
 
 function drawFooter(doc: Doc, pageIndex: number, total: number, caseTitle: string) {

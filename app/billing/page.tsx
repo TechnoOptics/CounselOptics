@@ -77,11 +77,16 @@ export default async function BillingPage({
       <div>
         <p className="eyebrow mb-2">Billing</p>
         <h1 className="font-display text-[40px] sm:text-[48px] font-medium tracking-[-0.02em] leading-[1.05] text-forest-900 dark:text-cream-100">
-          Choose your tier
+          {status === 'active'
+            ? `You're on ${currentTier ? TIER_LABEL[currentTier] : 'an Advottic'} plan`
+            : status === 'trialing'
+              ? `${currentTier ? TIER_LABEL[currentTier] : 'Your'} trial is in progress`
+              : 'Choose your tier'}
         </h1>
         <p className="text-sm text-ink-600 mt-1 max-w-2xl">
-          Three tiers, monthly billing, 7-day free trial for first-time subscribers. Cancel any
-          time. Upgrade or downgrade from the customer portal.
+          {status === 'active'
+            ? 'Manage your billing, top up tokens, or switch tiers from the customer portal.'
+            : 'Three tiers, monthly billing, 7-day free trial for first-time subscribers. Cancel any time.'}
         </p>
       </div>
 

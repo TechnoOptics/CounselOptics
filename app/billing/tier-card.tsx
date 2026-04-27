@@ -122,7 +122,16 @@ export function TierCard({
           className={
             isHighlighted
               ? 'btn bg-gold-metal text-forest-950 hover:brightness-110 shadow-gold-glow font-semibold w-full'
-              : 'btn-primary w-full'
+              : 'btn bg-forest-900 hover:bg-forest-800 dark:bg-gold-metal dark:hover:brightness-110 shadow-brand-glow font-semibold w-full text-cream-50 dark:text-forest-950'
+          }
+          // Hard-coded inline color as a final guarantee against any CSS
+          // precedence quirks. Matches the Tailwind classes above; if a
+          // future global rule tries to overwrite the button text color,
+          // this inline rule still wins.
+          style={
+            isHighlighted
+              ? undefined
+              : { color: 'var(--btn-primary-fg, #fbf7e9)' }
           }
         >
           {pending

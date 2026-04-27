@@ -1,12 +1,14 @@
 import { NextResponse } from 'next/server';
 import {
   getCase,
+  getEffectiveTrialState,
   getLatestReview,
   getProfile,
   listExhibits,
 } from '@/lib/storage';
 import { getCurrentUser } from '@/lib/supabase/server';
 import { generateCasePdf } from '@/lib/pdf';
+import { isFullAccessTrial } from '@/lib/tier';
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const caseRecord = await getCase(params.id);
@@ -14,11 +16,12 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     return new NextResponse('Case not found', { status: 404 });
   }
 
-  const [exhibits, review, profile, user] = await Promise.all([
+  const [exhibits, review, profile, user, trialState] = await Promise.all([
     listExhibits(caseRecord.id),
     getLatestReview(caseRecord.id),
     getProfile(),
     getCurrentUser(),
+    getEffectiveTrialState().catch(() => null),
   ]);
 
   const clientName =
@@ -26,6 +29,11 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     (user?.user_metadata?.full_name as string | undefined) ||
     user?.email ||
     null;
+  // Watermark trial-period exports so they can't be passed off as a
+  // finished packet without subscribing. isFullAccessTrial covers
+  // both the email-anchored 7-day free trial AND the 7-day Stripe
+  // trial. Active subscribers get a clean export.
+  const isTrial = trialState ? isFullAccessTrial(trialState) : false;
 
   const pdf = await generateCasePdf({
     caseRecord,
@@ -33,6 +41,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     review,
     profile,
     clientName,
+    trial: isTrial,
   });
   const ab = pdf.buffer.slice(pdf.byteOffset, pdf.byteOffset + pdf.byteLength) as ArrayBuffer;
 

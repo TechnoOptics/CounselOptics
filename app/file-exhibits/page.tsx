@@ -4,7 +4,8 @@ import { redirect } from 'next/navigation';
 import { JURISDICTIONS } from '@/lib/jurisdictions';
 import { FileExhibitsPicker } from './picker';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
-import { getCurrentSubscription } from '@/lib/storage';
+import { getCurrentSubscription, getEffectiveTrialState } from '@/lib/storage';
+import { isFullAccessTrial } from '@/lib/tier';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,7 +17,10 @@ export const metadata: Metadata = {
 
 export default async function FileExhibitsPage() {
   // Pro-only resource. Signed-out visitors get sent to sign-in;
-  // non-Pro subscribers get sent to /billing to upgrade.
+  // non-Pro subscribers get sent to /billing to upgrade. Anyone in
+  // an active trial window (7-day free trial OR Stripe trialing on
+  // any tier) gets full access while the window is open - they can
+  // sample every feature before committing to a tier.
   if (isSupabaseConfigured()) {
     const user = await getCurrentUser();
     if (!user) redirect('/sign-in?next=/file-exhibits');
@@ -24,7 +28,9 @@ export default async function FileExhibitsPage() {
     const tier = sub?.tier ?? null;
     const status = sub?.status ?? 'inactive';
     const isProActive = tier === 'pro' && (status === 'active' || status === 'trialing');
-    if (!isProActive) redirect('/billing?gate=file-exhibits');
+    const trialState = await getEffectiveTrialState().catch(() => null);
+    const trialUnlocked = trialState ? isFullAccessTrial(trialState) : false;
+    if (!isProActive && !trialUnlocked) redirect('/billing?gate=file-exhibits');
   }
 
   const federal = JURISDICTIONS.find((j) => j.code === 'FED')!;

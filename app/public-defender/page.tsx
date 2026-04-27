@@ -4,7 +4,8 @@ import { redirect } from 'next/navigation';
 import { PUBLIC_DEFENDERS } from '@/lib/public-defenders';
 import { PublicDefenderPicker } from './picker';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
-import { getCurrentSubscription } from '@/lib/storage';
+import { getCurrentSubscription, getEffectiveTrialState } from '@/lib/storage';
+import { isFullAccessTrial } from '@/lib/tier';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,6 +16,8 @@ export const metadata: Metadata = {
 };
 
 export default async function PublicDefenderPage() {
+  // Pro-only resource normally; trial users get full access for the
+  // 7-day window so the directory is reachable before they commit.
   if (isSupabaseConfigured()) {
     const user = await getCurrentUser();
     if (!user) redirect('/sign-in?next=/public-defender');
@@ -22,7 +25,9 @@ export default async function PublicDefenderPage() {
     const tier = sub?.tier ?? null;
     const status = sub?.status ?? 'inactive';
     const isProActive = tier === 'pro' && (status === 'active' || status === 'trialing');
-    if (!isProActive) redirect('/billing?gate=public-defender');
+    const trialState = await getEffectiveTrialState().catch(() => null);
+    const trialUnlocked = trialState ? isFullAccessTrial(trialState) : false;
+    if (!isProActive && !trialUnlocked) redirect('/billing?gate=public-defender');
   }
 
   return (
