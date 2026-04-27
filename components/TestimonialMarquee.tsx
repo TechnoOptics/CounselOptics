@@ -88,10 +88,20 @@ export function TestimonialMarquee() {
   const [, force] = useState(0);
 
   // Auto-scroll loop. Runs on every paint while not paused, advancing
-  // scrollLeft by ~0.5 px per frame at 60fps = ~30 px/s.
+  // scrollLeft by ~0.5 px per frame at 60fps = ~30 px/s. Skipped
+  // entirely when the user prefers reduced motion - they can still
+  // swipe / scroll the strip by hand.
   useEffect(() => {
     const el = trackRef.current;
     if (!el) return;
+    if (
+      typeof window !== 'undefined' &&
+      window.matchMedia &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    ) {
+      pausedRef.current = true;
+      return;
+    }
 
     let raf = 0;
     let lastT = 0;
@@ -106,9 +116,6 @@ export function TestimonialMarquee() {
       if (lastT === 0) lastT = t;
       const dt = t - lastT;
       lastT = t;
-      // 30 px/s. The half-track-loop trick: once we cross half the
-      // scroll width, jump back by half so the user never sees the
-      // wrap (the content is duplicated).
       node.scrollLeft += (dt / 1000) * 30;
       const half = node.scrollWidth / 2;
       if (node.scrollLeft >= half) node.scrollLeft -= half;

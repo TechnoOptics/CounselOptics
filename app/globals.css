@@ -558,6 +558,7 @@ body > * {
   .animate-fade-in,
   .animate-float,
   .animate-glow,
+  .animate-pulse,
   .stagger > *,
   .shimmer,
   .gold-pan,
@@ -573,6 +574,8 @@ body > * {
   .animate-card-forward,
   .animate-card-back,
   .presence-pulse,
+  .live-dot,
+  .trial-banner-glow,
   .cookie-pill {
     animation: none !important;
   }

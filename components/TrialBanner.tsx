@@ -35,7 +35,14 @@ export function TrialBanner({
 
   useEffect(() => {
     if (dismissedThisSession || mode === 'expired') return;
+    // Reduced-motion users get a static, always-visible reminder
+    // instead of the pulse-on / pulse-off cycle. Still dismissable.
+    const reduceMotion =
+      typeof window !== 'undefined' &&
+      window.matchMedia &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     setVisible(true);
+    if (reduceMotion) return;
     const hide = setTimeout(() => setVisible(false), 10_000);
     const cycle = setInterval(() => {
       setVisible((v) => !v);

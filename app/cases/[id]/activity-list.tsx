@@ -48,10 +48,10 @@ export function ActivityList({ events }: { events: AuditEvent[] }) {
           className="rounded-xl bg-gradient-to-br from-forest-800 via-forest-900 to-forest-950 ring-1 ring-forest-700/40 px-4 py-3 flex items-start gap-3"
         >
           <span
-            className={`flex-none mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-full ring-1 text-[10px] font-mono uppercase tracking-wider ${EVENT_TONE[e.eventType]}`}
+            className={`flex-none mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-full ring-1 ${EVENT_TONE[e.eventType]}`}
             aria-hidden
           >
-            {iconFor(e.eventType)}
+            <EventIcon type={e.eventType} />
           </span>
           <div className="min-w-0 flex-1">
             <p className="text-sm text-cream-100">
@@ -127,30 +127,93 @@ function summary(e: AuditEvent): React.ReactNode {
   }
 }
 
-function iconFor(t: CaseEventType): string {
-  switch (t) {
+function EventIcon({ type }: { type: CaseEventType }) {
+  // 14×14 stroked SVGs - one consistent style across the timeline so
+  // the eye can scan event categories without context-switching
+  // between emoji, ASCII, and Unicode glyphs.
+  const stroke = 'currentColor';
+  const props = {
+    width: 14,
+    height: 14,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke,
+    strokeWidth: 2,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+    'aria-hidden': true,
+  };
+  switch (type) {
     case 'case_created':
-      return '+';
+      return (
+        <svg {...props}>
+          <path d="M12 5v14M5 12h14" />
+        </svg>
+      );
     case 'case_viewed':
-      return '👁';
+      return (
+        <svg {...props}>
+          <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" />
+          <circle cx="12" cy="12" r="3" />
+        </svg>
+      );
     case 'exhibit_uploaded':
-      return '↑';
+      return (
+        <svg {...props}>
+          <path d="M12 19V5M5 12l7-7 7 7" />
+        </svg>
+      );
     case 'exhibit_deleted':
-      return '×';
+      return (
+        <svg {...props}>
+          <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M6 6l1 14a2 2 0 002 2h6a2 2 0 002-2l1-14" />
+        </svg>
+      );
     case 'review_run':
-      return '★';
+      return (
+        <svg {...props}>
+          <path d="M12 2l2.6 6.4L21 9.3l-4.8 4.5L17.5 21 12 17.5 6.5 21l1.3-7.2L3 9.3l6.4-.9L12 2z" />
+        </svg>
+      );
     case 'hearing_updated':
-      return '⏱';
+      return (
+        <svg {...props}>
+          <rect x="3" y="5" width="18" height="16" rx="2" />
+          <path d="M3 10h18M8 3v4M16 3v4" />
+        </svg>
+      );
     case 'collaborator_invited':
-      return '➜';
+      return (
+        <svg {...props}>
+          <circle cx="9" cy="8" r="3.5" />
+          <path d="M3 21c0-3.5 3-6 6-6s6 2.5 6 6M19 8v6M16 11h6" />
+        </svg>
+      );
     case 'collaborator_removed':
-      return '−';
+      return (
+        <svg {...props}>
+          <circle cx="9" cy="8" r="3.5" />
+          <path d="M3 21c0-3.5 3-6 6-6s6 2.5 6 6M16 11h6" />
+        </svg>
+      );
     case 'case_status_changed':
-      return '⇄';
+      return (
+        <svg {...props}>
+          <path d="M3 7h13l-3-3M21 17H8l3 3" />
+        </svg>
+      );
     case 'case_deleted':
-      return '⌫';
+      return (
+        <svg {...props}>
+          <path d="M21 12H7M11 7l-4 5 4 5" />
+        </svg>
+      );
     case 'witness_statement_updated':
-      return '✎';
+      return (
+        <svg {...props}>
+          <path d="M16 3l5 5-11 11H5v-5L16 3z" />
+        </svg>
+      );
   }
 }
 

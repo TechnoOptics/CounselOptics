@@ -3,10 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useFormState, useFormStatus } from 'react-dom';
-import { createCaseAction, type CreateCaseResult } from '@/lib/actions';
+import { createCaseAction, suggestCaseTypeAction, type CreateCaseResult } from '@/lib/actions';
 import { CASE_TYPES, type SubjectType } from '@/lib/types';
 import { FormLoadingOverlay } from '@/components/LoadingOverlay';
 import { SafetyAdvisory } from '@/components/SafetyAdvisory';
+import { VoiceDictateButton } from '@/components/VoiceDictateButton';
 
 /**
  * Card-based "smart assist" new case flow. Each step is one card; the
@@ -21,6 +22,11 @@ import { SafetyAdvisory } from '@/components/SafetyAdvisory';
  */
 
 type SubjectField = { name: string; placeholder?: string };
+type Updater = (
+  patch:
+    | Partial<WizardState>
+    | ((prev: WizardState) => Partial<WizardState>),
+) => void;
 type Step = {
   id: string;
   title: string;
@@ -28,10 +34,7 @@ type Step = {
   optional?: boolean;
   // Predicate: returns the value(s) we'd serialize and a `valid` flag.
   // For optional fields, valid is always true.
-  render: (
-    state: WizardState,
-    update: (patch: Partial<WizardState>) => void,
-  ) => React.ReactNode;
+  render: (state: WizardState, update: Updater) => React.ReactNode;
   isValid: (state: WizardState) => boolean;
   // Some steps are conditional (e.g. subject-detail steps depend on
   // subjectType). Steps return false from `visible` when they should
@@ -48,6 +51,7 @@ type WizardState = {
   state: string;
   city: string;
   caseType: string;
+  caseTypeSuggestion: string | null;
   description: string;
   // Subject profile fields (subj_*)
   subj_legalName: string;
@@ -79,6 +83,7 @@ const initial: WizardState = {
   state: '',
   city: '',
   caseType: 'Other',
+  caseTypeSuggestion: null,
   description: '',
   subj_legalName: '',
   subj_alsoKnownAs: '',
@@ -208,20 +213,49 @@ const STEPS: Step[] = [
     title: 'What kind of matter is this?',
     description: 'Pick the closest fit. You can change it later.',
     isValid: () => true,
-    render: (s, u) => (
-      <select
-        autoFocus
-        value={s.caseType}
-        onChange={(e) => u({ caseType: e.target.value })}
-        className="input"
-      >
-        {CASE_TYPES.map((t) => (
-          <option key={t} value={t}>
-            {t}
-          </option>
-        ))}
-      </select>
-    ),
+    render: (s, u) => {
+      const suggestion = s.caseTypeSuggestion;
+      const isApplied = suggestion && s.caseType === suggestion;
+      return (
+        <div className="space-y-2">
+          {suggestion && (
+            <div
+              className={`flex flex-wrap items-center gap-2 rounded-lg px-3 py-2 text-sm ring-1 ${
+                isApplied
+                  ? 'bg-emerald-50 dark:bg-emerald-950/35 ring-emerald-300 dark:ring-emerald-500/40 text-emerald-900 dark:text-emerald-100'
+                  : 'bg-gold-50 dark:bg-gold-950/35 ring-gold-300 dark:ring-gold-500/40 text-gold-900 dark:text-gold-100'
+              }`}
+            >
+              <span className="text-[11px] uppercase tracking-[0.18em] font-semibold flex-none">
+                {isApplied ? 'Applied' : 'Bella suggests'}
+              </span>
+              <span className="font-semibold">{suggestion}</span>
+              {!isApplied && (
+                <button
+                  type="button"
+                  onClick={() => u({ caseType: suggestion })}
+                  className="ml-auto rounded-md bg-gold-metal text-forest-950 px-2.5 py-1 text-[11.5px] font-semibold hover:brightness-110"
+                >
+                  Use this
+                </button>
+              )}
+            </div>
+          )}
+          <select
+            autoFocus
+            value={s.caseType}
+            onChange={(e) => u({ caseType: e.target.value })}
+            className="input"
+          >
+            {CASE_TYPES.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+        </div>
+      );
+    },
   },
   {
     id: 'description',
@@ -230,14 +264,29 @@ const STEPS: Step[] = [
     optional: true,
     isValid: () => true,
     render: (s, u) => (
-      <textarea
-        autoFocus
-        value={s.description}
-        onChange={(e) => u({ description: e.target.value })}
-        rows={6}
-        placeholder="What happened, when, where, and who is involved?"
-        className="input resize-y"
-      />
+      <div className="space-y-2">
+        <textarea
+          autoFocus
+          value={s.description}
+          onChange={(e) => u({ description: e.target.value })}
+          rows={6}
+          placeholder="What happened, when, where, and who is involved?"
+          className="input resize-y"
+        />
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-[11px] text-ink-500 dark:text-cream-100/55">
+            Tip: tap dictate to speak instead of typing - never leaves your device.
+          </p>
+          <VoiceDictateButton
+            onTranscript={(seg) =>
+              u((prev) => ({
+                description:
+                  (prev.description ? prev.description + ' ' : '') + seg.trim(),
+              }))
+            }
+          />
+        </div>
+      </div>
     ),
   },
   {
@@ -345,6 +394,7 @@ export function SmartAssistForm() {
   const [stepIndex, setStepIndex] = useState(0);
   const [direction, setDirection] = useState<'forward' | 'back'>('forward');
   const formRef = useRef<HTMLFormElement | null>(null);
+  const cardRef = useRef<HTMLDivElement | null>(null);
   const [actionState, formAction] = useFormState<CreateCaseResult | null, FormData>(
     createCaseAction,
     null,
@@ -356,9 +406,61 @@ export function SmartAssistForm() {
   const isLast = stepIndex === steps.length - 1;
   const canContinue = step.isValid(state);
 
-  function update(patch: Partial<WizardState>) {
-    setState((prev) => ({ ...prev, ...patch }));
-  }
+  // Auto-focus the first interactive control on each step. autoFocus
+  // alone is unreliable on dynamic mounts (especially mobile Safari),
+  // so we explicitly focus after the swipe animation has settled.
+  useEffect(() => {
+    const card = cardRef.current;
+    if (!card) return;
+    const timer = setTimeout(() => {
+      const target = card.querySelector<HTMLElement>(
+        'input:not([type=hidden]):not([type=radio]), textarea, select, button[data-wizard-focus]',
+      );
+      target?.focus({ preventScroll: true });
+    }, 280);
+    return () => clearTimeout(timer);
+  }, [stepIndex]);
+
+  // Debounced case-type classifier. When the user has typed enough
+  // description, ask Bella to pick the closest CASE_TYPES bucket so
+  // we can pre-select the dropdown when they reach the case-type
+  // step. Cheap (Haiku, ~80 tokens out) and best-effort - silent
+  // failure is fine; the user can always pick manually.
+  useEffect(() => {
+    const desc = state.description.trim();
+    if (desc.length < 30) return;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const guess = await suggestCaseTypeAction(desc);
+        if (cancelled || !guess) return;
+        setState((prev) => {
+          if (prev.description.trim() !== desc) return prev;
+          if (prev.caseTypeSuggestion === guess) return prev;
+          return {
+            ...prev,
+            caseTypeSuggestion: guess,
+            // Auto-apply when the user hasn't manually changed
+            // the type yet (still on default 'Other').
+            caseType: prev.caseType === 'Other' ? guess : prev.caseType,
+          };
+        });
+      } catch {
+        /* swallow - graceful degradation */
+      }
+    }, 1200);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [state.description]);
+
+  const update: Updater = (patch) => {
+    setState((prev) => ({
+      ...prev,
+      ...(typeof patch === 'function' ? patch(prev) : patch),
+    }));
+  };
 
   function next() {
     if (!canContinue && !step.optional) return;
@@ -400,7 +502,7 @@ export function SmartAssistForm() {
       </p>
 
       {/* Card */}
-      <div className="relative">
+      <div className="relative" ref={cardRef}>
         <Card key={step.id} direction={direction}>
           <h2 className="font-display text-2xl sm:text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
             {step.title}
@@ -499,9 +601,13 @@ export function SmartAssistForm() {
           and the overlay positions itself with `fixed inset-0`), so we
           do not need any layout class on the form itself. */}
       <form ref={formRef} action={formAction}>
-        {Object.entries(state).map(([k, v]) => (
-          <input key={k} type="hidden" name={k} value={v} />
-        ))}
+        {Object.entries(state)
+          // caseTypeSuggestion is wizard-internal hint state; the
+          // server action only cares about the user's final caseType.
+          .filter(([k]) => k !== 'caseTypeSuggestion')
+          .map(([k, v]) => (
+            <input key={k} type="hidden" name={k} value={v ?? ''} />
+          ))}
         {/* Duplicate-detection bypass. Default empty; the
             "Create anyway" button on the duplicate warning sets this
             to "1" before resubmitting. */}

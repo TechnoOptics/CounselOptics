@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+import { hasSafetyCue } from '@/lib/safety';
+import { SafetyAdvisory } from '@/components/SafetyAdvisory';
 
 // Marker the server emits when Bella's navigate_to tool fires. We strip
 // it from the rendered text and call router.push so the user actually
@@ -284,6 +286,22 @@ export function Bella({ signedIn = true }: { signedIn?: boolean }) {
                     ))}
                   </div>
                 </div>
+              )}
+              {/* In-chat safety advisory - if any user message in the
+                  thread contains danger / injury / self-harm cues, we
+                  pin a tap-to-call 911 banner above the conversation
+                  so the visual nudge reaches them even when they're
+                  scrolling Bella's reply. Bella's system prompt also
+                  routes them, but the button is the stronger nudge. */}
+              {messages.some(
+                (m) => m.role === 'user' && hasSafetyCue(m.content),
+              ) && (
+                <SafetyAdvisory
+                  text={messages
+                    .filter((m) => m.role === 'user')
+                    .map((m) => m.content)
+                    .join('\n')}
+                />
               )}
               {messages.map((m, i) => (
                 <Bubble key={i} role={m.role} content={m.content} />
