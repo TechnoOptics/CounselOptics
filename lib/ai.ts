@@ -2,9 +2,11 @@ import Anthropic from '@anthropic-ai/sdk';
 import crypto from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { CASE_TYPES, type CaseType } from './types';
 import type { AIReview, Case, Exhibit, ScanData } from './types';
 
 const MODEL = 'claude-sonnet-4-6';
+const FAST_MODEL = 'claude-haiku-4-5-20251001';
 
 function resolveApiKey(): string | undefined {
   const fromEnv = process.env.ANTHROPIC_API_KEY?.trim();
@@ -130,6 +132,47 @@ const TOOL_SCHEMA = {
     },
   },
 };
+
+/**
+ * Cheap, fast classifier that picks the closest CASE_TYPES bucket
+ * for a free-form case description. Returns null when the
+ * description is too short or the model can't make a confident
+ * pick. Used by the smart-assist wizard to pre-select the
+ * case-type dropdown so the user doesn't have to scan the menu.
+ */
+export async function classifyCaseType(description: string): Promise<CaseType | null> {
+  const text = description?.trim() ?? '';
+  if (text.length < 30) return null;
+
+  const apiKey = resolveApiKey();
+  if (!apiKey) return null;
+
+  const allowed = CASE_TYPES.join(', ');
+  const client = new Anthropic({ apiKey });
+  try {
+    const result = await client.messages.create({
+      model: FAST_MODEL,
+      max_tokens: 80,
+      system:
+        'You classify a one-paragraph legal-matter description into exactly one bucket from a fixed list. Respond with the bucket name only - no explanation, no quotes, no punctuation. If the description does not clearly fit any bucket, respond with "Other".',
+      messages: [
+        {
+          role: 'user',
+          content: `Buckets (pick exactly one): ${allowed}\n\nDescription:\n${text.slice(0, 1500)}`,
+        },
+      ],
+    });
+    const block = result.content.find((b) => b.type === 'text');
+    if (!block || block.type !== 'text') return null;
+    const guess = block.text.trim().replace(/[."\s]+$/g, '');
+    const match = (CASE_TYPES as readonly string[]).find(
+      (t) => t.toLowerCase() === guess.toLowerCase(),
+    );
+    return (match as CaseType | undefined) ?? null;
+  } catch {
+    return null;
+  }
+}
 
 export async function runReview(caseRecord: Case, exhibits: Exhibit[]): Promise<AIReview> {
   const jurisdiction = [

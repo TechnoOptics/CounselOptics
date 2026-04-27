@@ -32,7 +32,7 @@ import {
   type FeedbackCategory,
   type FeedbackStatus,
 } from './storage';
-import { runReview, scanDocument, transcribeMedia } from './ai';
+import { classifyCaseType, runReview, scanDocument, transcribeMedia } from './ai';
 import { createServerSupabase, getCurrentUser, isCurrentUserAdmin } from './supabase/server';
 import { logCaseEvent } from './activity';
 import {
@@ -260,6 +260,17 @@ export async function createCaseAction(
   // exception isn't swallowed.
   revalidatePath('/cases');
   redirect(`/cases/${createdId}`);
+}
+
+/**
+ * Classify a free-form case description into a CASE_TYPES bucket.
+ * Best-effort - returns null on too-short text or any error so the
+ * smart-assist wizard can degrade silently. No DB writes; the user
+ * still picks the final value before submit.
+ */
+export async function suggestCaseTypeAction(description: string): Promise<string | null> {
+  if (typeof description !== 'string') return null;
+  return await classifyCaseType(description);
 }
 
 export async function uploadExhibitAction(caseId: string, formData: FormData) {
