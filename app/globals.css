@@ -257,10 +257,11 @@ body > * {
   background: linear-gradient(90deg, transparent 0%, #DFDAC0 20%, #DFDAC0 80%, transparent 100%);
 }
 
-/* Gold shimmer line that drifts under the header. The base hairline
-   stays subtle (forest-700/40 to match the header border), and a
-   bright gold band slowly sweeps left to right on top of it.
-   12 second loop keeps it calm and "alive" rather than busy. */
+/* Gold shimmer line that drifts under the header. The base is a 2px
+   gold band with a soft glow that bleeds downward into the page,
+   making the header read as a real edge - not a hairline that the
+   user has to squint to see. A brighter shimmer band sweeps left to
+   right on top of it. 12 second loop keeps it calm rather than busy. */
 @keyframes co-header-shimmer {
   0% { transform: translateX(-40%); opacity: 0; }
   10% { opacity: 1; }
@@ -269,15 +270,24 @@ body > * {
 }
 .header-glow-line {
   position: relative;
-  height: 1px;
+  height: 2px;
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(213, 187, 126, 0.18) 30%,
-    rgba(213, 187, 126, 0.28) 50%,
-    rgba(213, 187, 126, 0.18) 70%,
+    rgba(213, 187, 126, 0.55) 25%,
+    rgba(245, 237, 214, 0.85) 50%,
+    rgba(213, 187, 126, 0.55) 75%,
     transparent 100%
   );
+  /* Stacked downward halo that fades into the page below the header,
+     so the eye reads it as a luminous edge rather than a flat line.
+     box-shadow naturally extends beyond the element regardless of
+     overflow on the line itself, so the shimmer ::after can still
+     be clipped horizontally without losing the vertical glow. */
+  box-shadow:
+    0 1px 4px rgba(213, 187, 126, 0.55),
+    0 4px 14px rgba(213, 187, 126, 0.32),
+    0 10px 32px rgba(213, 187, 126, 0.18);
   overflow: hidden;
 }
 .header-glow-line::after {
@@ -290,12 +300,12 @@ body > * {
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(245, 237, 214, 0.55) 30%,
-    rgba(213, 187, 126, 0.95) 50%,
-    rgba(245, 237, 214, 0.55) 70%,
+    rgba(245, 237, 214, 0.85) 30%,
+    rgba(213, 187, 126, 1) 50%,
+    rgba(245, 237, 214, 0.85) 70%,
     transparent 100%
   );
-  filter: blur(0.5px) drop-shadow(0 0 6px rgba(213, 187, 126, 0.65));
+  filter: blur(0.5px) drop-shadow(0 0 8px rgba(213, 187, 126, 0.85));
   animation: co-header-shimmer 12s linear infinite;
 }
 

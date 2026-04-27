@@ -2,29 +2,37 @@
 
 import Image from 'next/image';
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useFormStatus } from 'react-dom';
 
 const MIN_VISIBLE_MS = 3000;
 
 /**
  * Full-screen loading veil. The Advottic gold mark sits dead-center of
- * the viewport regardless of screen size (uses `fixed inset-0` which
- * pins to the viewport, not to body padding or safe-area insets), with
- * a soft aurora pulse. Renders nothing when `show` is false. Z-index
- * sits above the Bella launcher (z-30) and the consent modal (z-40)
- * but below toasts. The icon stays vertically and horizontally
- * centered via the inner flex column - true center on every breakpoint.
+ * the viewport regardless of screen size.
+ *
+ * Implementation note: we render through createPortal directly to
+ * document.body. Without the portal, the overlay would mount inside
+ * whichever React tree placed it - which on Next App Router routes
+ * is inside `app/template.tsx`'s `route-fade` wrapper. That wrapper
+ * applies a CSS transform during the page-fade animation, and any
+ * non-`none` `transform` creates a containing block for descendant
+ * `position: fixed` elements. Result: `fixed inset-0` would pin to
+ * the route wrapper (the main content area) instead of the viewport,
+ * and the icon would land off-center inside that subtree. Portaling
+ * to body sidesteps the containing-block trap entirely.
  */
 export function LoadingOverlay({ show, label }: { show: boolean; label?: string }) {
+  // Portals only work after hydration on the client.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   if (!show) return null;
-  return (
+
+  const node = (
     <div
       role="status"
       aria-live="polite"
-      // `fixed inset-0` covers the viewport. `flex items-center
-      // justify-center` centers the inner column. `min-h-screen w-screen`
-      // is belt + suspenders for older mobile browsers that mishandle
-      // `inset-0` when the URL bar resizes the visual viewport.
       className="fixed inset-0 z-[60] min-h-screen w-screen flex items-center justify-center bg-white/92 dark:bg-forest-950/85 backdrop-blur-sm animate-fade-in pointer-events-auto"
     >
       <div className="relative flex flex-col items-center justify-center gap-5">
@@ -46,6 +54,11 @@ export function LoadingOverlay({ show, label }: { show: boolean; label?: string 
       </div>
     </div>
   );
+
+  // Pre-hydration: render in place. Post-hydration: portal to body
+  // so transform ancestors do not pull the overlay off-viewport.
+  if (!mounted || typeof document === 'undefined') return node;
+  return createPortal(node, document.body);
 }
 
 /**
