@@ -566,8 +566,15 @@ body > * {
     @apply relative inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium tracking-tight transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-gold-500/60 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] overflow-hidden;
   }
   .btn-primary {
-    @apply btn bg-forest-900 text-cream-200 shadow-brand-glow hover:bg-forest-800 hover:-translate-y-px hover:shadow-card-hover active:translate-y-0 active:bg-forest-950 dark:bg-gold-metal dark:text-forest-950 dark:hover:brightness-110;
+    @apply btn bg-forest-900 text-cream-50 shadow-brand-glow hover:bg-forest-800 hover:-translate-y-px hover:shadow-card-hover active:translate-y-0 active:bg-forest-950 dark:bg-gold-metal dark:text-forest-950 dark:hover:brightness-110;
   }
+  /* Defensive override: no matter what dark-mode text-color rule runs
+     above, the primary button must stay high-contrast in both light
+     mode (cream-50 on dark-forest) and dark mode (forest-950 on
+     gold). Catches the recurring "subscribe button looks green on
+     green" complaint when other contrast inversions slip in. */
+  .btn-primary { color: #fbf7e9; }
+  .dark .btn-primary { color: #0a1f19; }
   /* Subtle inner highlight along the top edge of primaries - reads like
      a polished metal button instead of a flat dark rectangle. */
   .btn-primary::after {

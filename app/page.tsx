@@ -35,7 +35,7 @@ export default async function HomePage() {
 function Hero({ existingCases }: { existingCases: number }) {
   return (
     <section className="relative -mt-2 animate-fade-up">
-      <div className="grid gap-5 sm:gap-10 lg:grid-cols-12 lg:gap-14 items-center">
+      <div className="grid gap-4 sm:gap-10 lg:grid-cols-12 lg:gap-14 items-center">
         {/* Left: editorial copy block */}
         <div className="lg:col-span-7">
           <p className="inline-flex items-center gap-2 text-[11px] tracking-[0.3em] uppercase font-semibold text-gold-700 dark:text-gold-300">
@@ -87,7 +87,7 @@ function Hero({ existingCases }: { existingCases: number }) {
           {/* Numeric proof strip. Anchors the abstract pitch above with
               concrete benchmarks. Borrowed from Stripe / Mercury, where
               every claim is paired with a specific number. */}
-          <dl className="mt-10 grid grid-cols-3 gap-6 max-w-lg border-t border-forest-700/30 dark:border-forest-700/40 pt-6">
+          <dl className="mt-6 sm:mt-10 grid grid-cols-3 gap-6 max-w-lg border-t border-forest-700/30 dark:border-forest-700/40 pt-4 sm:pt-6">
             <div>
               <dt className="text-[10px] uppercase tracking-[0.22em] font-semibold text-forest-700 dark:text-gold-300">
                 On your time
@@ -690,10 +690,13 @@ function BellaShowcase() {
 
           <div className="lg:col-span-6">
             <div className="rounded-2xl bg-forest-950/80 ring-1 ring-gold-400/30 shadow-card-hover overflow-hidden backdrop-blur">
-              <div className="flex items-center gap-2.5 px-5 py-3 border-b border-cream-100/10">
-                <span className="aurora inline-flex h-7 w-7 items-center justify-center rounded-full bg-forest-950 ring-1 ring-gold-400/40 text-gold-300">
-                  <BellaSparkle />
-                </span>
+              <div className="flex items-center gap-3 px-5 py-3 border-b border-cream-100/10">
+                {/* Bella avatar. Prefers a real portrait at
+                    /bella-portrait.jpg (drop a 256x256+ JPG/PNG of a
+                    professional woman into public/ and it appears
+                    automatically). Falls back to a forest-gold disc
+                    with a "B" monogram so the slot never looks empty. */}
+                <BellaAvatar />
                 <div>
                   <p className="text-[12px] font-semibold text-cream-100 leading-tight">
                     Bella
@@ -765,6 +768,48 @@ function BellaBullet({ children }: { children: React.ReactNode }) {
       </span>
       <span>{children}</span>
     </li>
+  );
+}
+
+/**
+ * Bella avatar slot. Uses a static <img> with onError fallback so we
+ * can ship without a portrait file checked in: drop a JPG/PNG at
+ * `public/bella-portrait.jpg` (any size >= 96px square works; the
+ * native sizes 128/256 give the cleanest result on Retina) and the
+ * portrait shows up immediately. Until then the gold-gradient "B"
+ * disc renders so the chat header never looks empty.
+ */
+function BellaAvatar() {
+  return (
+    <span className="relative flex h-10 w-10 items-center justify-center rounded-full overflow-hidden ring-2 ring-gold-400/50 bg-gradient-to-br from-forest-700 via-forest-800 to-forest-950">
+      {/* Real portrait — the user drops bella-portrait.jpg into /public.
+          On a 404, browsers show the alt; we hide the broken img via
+          CSS so only the underlying gradient + "B" remain. */}
+      <img
+        src="/bella-portrait.jpg"
+        alt=""
+        aria-hidden
+        loading="lazy"
+        className="absolute inset-0 h-full w-full object-cover"
+        onError={(e) => {
+          const el = e.currentTarget;
+          el.style.display = 'none';
+        }}
+      />
+      <span
+        className="relative z-[1] font-display text-[18px] font-medium tracking-tight"
+        style={{
+          background:
+            'linear-gradient(135deg, #f3e1ad 0%, #d5bb7e 50%, #b89853 100%)',
+          backgroundClip: 'text',
+          WebkitBackgroundClip: 'text',
+          color: 'transparent',
+          textShadow: '0 1px 0 rgba(0,0,0,0.25)',
+        }}
+      >
+        B
+      </span>
+    </span>
   );
 }
 

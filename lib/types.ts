@@ -266,7 +266,7 @@ export const TIER_FEATURES: Record<Tier, TierFeatures> = {
     pdfExport: true,
     bella: true,
     collaborators: true,
-    monthlyPriceUsd: 200,
+    monthlyPriceUsd: 100,
   },
 };
 
