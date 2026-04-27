@@ -1,7 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { detectSafety, type SafetyCategory } from '@/lib/safety';
+import {
+  detectRegion,
+  EMERGENCY,
+  SUICIDE,
+  DOMESTIC_VIOLENCE,
+  SEXUAL_VIOLENCE,
+  CHILD_SAFETY,
+  type Region,
+} from '@/lib/hotlines';
 
 /**
  * Inline alert that appears beneath any free-form text field where the
@@ -26,6 +35,13 @@ import { detectSafety, type SafetyCategory } from '@/lib/safety';
  */
 export function SafetyAdvisory({ text }: { text: string }) {
   const [dismissed, setDismissed] = useState(false);
+  const [region, setRegion] = useState<Region>('US');
+  // Detect region client-side from navigator.language. SSR renders
+  // the US default; the effect re-renders with the right region the
+  // first paint after hydration.
+  useEffect(() => {
+    setRegion(detectRegion());
+  }, []);
   const hits = detectSafety(text);
   if (hits.length === 0 || dismissed) return null;
 
@@ -35,6 +51,12 @@ export function SafetyAdvisory({ text }: { text: string }) {
   const showDV = cats.has('in_danger');
   const showChild = cats.has('child_safety');
   const showSexual = cats.has('sexual_violence');
+
+  const emergency = EMERGENCY[region];
+  const suicide = showSelfHarm ? SUICIDE[region] : null;
+  const dv = showDV ? DOMESTIC_VIOLENCE[region] : null;
+  const sv = showSexual ? SEXUAL_VIOLENCE[region] : null;
+  const child = showChild ? CHILD_SAFETY[region] : null;
 
   return (
     <aside
@@ -72,43 +94,15 @@ export function SafetyAdvisory({ text }: { text: string }) {
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <a
-              href="tel:911"
+              href={`tel:${emergency.tel}`}
               className="inline-flex items-center gap-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white px-3.5 py-2 text-sm font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-rose-300"
             >
-              <PhoneIcon /> Call 911
+              <PhoneIcon /> {emergency.label}
             </a>
-            {showSelfHarm && (
-              <a
-                href="tel:988"
-                className="inline-flex items-center gap-2 rounded-lg bg-white text-rose-900 ring-1 ring-rose-300 hover:bg-rose-100 px-3.5 py-2 text-sm font-semibold dark:bg-forest-900 dark:text-rose-100 dark:ring-rose-500/40 dark:hover:bg-forest-800"
-              >
-                <PhoneIcon /> 988 Suicide &amp; Crisis Lifeline
-              </a>
-            )}
-            {showDV && (
-              <a
-                href="tel:18007997233"
-                className="inline-flex items-center gap-2 rounded-lg bg-white text-rose-900 ring-1 ring-rose-300 hover:bg-rose-100 px-3.5 py-2 text-sm font-semibold dark:bg-forest-900 dark:text-rose-100 dark:ring-rose-500/40 dark:hover:bg-forest-800"
-              >
-                <PhoneIcon /> Domestic Violence Hotline (1-800-799-7233)
-              </a>
-            )}
-            {showSexual && (
-              <a
-                href="tel:18006564673"
-                className="inline-flex items-center gap-2 rounded-lg bg-white text-rose-900 ring-1 ring-rose-300 hover:bg-rose-100 px-3.5 py-2 text-sm font-semibold dark:bg-forest-900 dark:text-rose-100 dark:ring-rose-500/40 dark:hover:bg-forest-800"
-              >
-                <PhoneIcon /> RAINN Sexual Assault Hotline (1-800-656-4673)
-              </a>
-            )}
-            {showChild && (
-              <a
-                href="tel:18004224453"
-                className="inline-flex items-center gap-2 rounded-lg bg-white text-rose-900 ring-1 ring-rose-300 hover:bg-rose-100 px-3.5 py-2 text-sm font-semibold dark:bg-forest-900 dark:text-rose-100 dark:ring-rose-500/40 dark:hover:bg-forest-800"
-              >
-                <PhoneIcon /> Childhelp Hotline (1-800-422-4453)
-              </a>
-            )}
+            {suicide && <HotlineLink tel={suicide.tel} label={suicide.label} />}
+            {dv && <HotlineLink tel={dv.tel} label={dv.label} />}
+            {sv && <HotlineLink tel={sv.tel} label={sv.label} />}
+            {child && <HotlineLink tel={child.tel} label={child.label} />}
           </div>
 
           {showInjury && (
@@ -161,6 +155,17 @@ export function SafetyAdvisory({ text }: { text: string }) {
         </div>
       </div>
     </aside>
+  );
+}
+
+function HotlineLink({ tel, label }: { tel: string; label: string }) {
+  return (
+    <a
+      href={`tel:${tel}`}
+      className="inline-flex items-center gap-2 rounded-lg bg-white text-rose-900 ring-1 ring-rose-300 hover:bg-rose-100 px-3.5 py-2 text-sm font-semibold dark:bg-forest-900 dark:text-rose-100 dark:ring-rose-500/40 dark:hover:bg-forest-800"
+    >
+      <PhoneIcon /> {label}
+    </a>
   );
 }
 

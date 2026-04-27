@@ -220,15 +220,30 @@ export function HearingPanel({
               </p>
             )}
           </div>
-          {isOwner && (
-            <button
-              type="button"
-              onClick={() => setPhase('edit')}
-              className="btn bg-white/15 text-white border border-white/20 hover:bg-white/25 backdrop-blur"
+          <div className="flex items-center gap-2 flex-none">
+            <a
+              href={`/cases/${caseRecord.id}/hearing.ics`}
+              download
+              className="btn bg-white/15 text-white border border-white/20 hover:bg-white/25 backdrop-blur inline-flex items-center gap-1.5"
+              title="Download .ics file - opens in Apple / Google / Outlook Calendar"
             >
-              Edit
-            </button>
-          )}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <rect x="3" y="5" width="18" height="16" rx="2" />
+                <path d="M3 10h18M8 3v4M16 3v4" />
+                <path d="M12 13v5M9 16h6" />
+              </svg>
+              Add to calendar
+            </a>
+            {isOwner && (
+              <button
+                type="button"
+                onClick={() => setPhase('edit')}
+                className="btn bg-white/15 text-white border border-white/20 hover:bg-white/25 backdrop-blur"
+              >
+                Edit
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -409,6 +424,11 @@ function buildChecklist({
     });
   }
 
+  // Case-type specific document / evidence prep. These are common
+  // patterns for each bucket - plain language, not legal advice.
+  const typeItems = caseTypeChecklist(caseRecord.caseType, bumpFor);
+  for (const it of typeItems) items.push(it);
+
   if (exhibits.length === 0) {
     items.push({
       id: 'first-exhibit',
@@ -509,4 +529,149 @@ function buildChecklist({
     low: 3,
   };
   return items.sort((a, b) => order[a.priority] - order[b.priority]);
+}
+
+/**
+ * Case-type-specific document and evidence prep prompts. These are
+ * common patterns for each bucket - plain language reminders of
+ * documents people often forget to gather, not legal advice. Each
+ * item the user already covered should fall away naturally as they
+ * upload exhibits.
+ */
+function caseTypeChecklist(
+  caseType: string,
+  bumpFor: (b: 'high' | 'medium' | 'low') => ChecklistItem['priority'],
+): ChecklistItem[] {
+  switch (caseType) {
+    case 'Landlord/tenant issue':
+      return [
+        {
+          id: 'lt-lease',
+          priority: bumpFor('high'),
+          title: 'Bring the signed lease + every amendment',
+          body:
+            'Plus rent receipts or bank-statement entries showing payment history, and any written notices you sent or received (move-out, repair requests, late-rent letters).',
+        },
+        {
+          id: 'lt-photos',
+          priority: bumpFor('medium'),
+          title: 'Photos of the unit condition',
+          body:
+            'Date-stamped move-in and move-out photos, plus shots of any defect (water damage, mold, broken fixtures) with timestamps.',
+        },
+      ];
+    case 'Employment issue':
+      return [
+        {
+          id: 'emp-docs',
+          priority: bumpFor('high'),
+          title: 'Pull your offer letter, contract, and handbook',
+          body:
+            'Add performance reviews, write-ups, and the termination or separation letter if you have one. Save copies to Advottic before they expire from work email.',
+        },
+        {
+          id: 'emp-eeoc',
+          priority: bumpFor('medium'),
+          title: 'EEOC / state agency timing',
+          body:
+            'Discrimination claims usually require an agency charge first, with deadlines as short as 180 days from the incident. If you have not filed yet, check whether you still can.',
+        },
+      ];
+    case 'Contract dispute':
+      return [
+        {
+          id: 'contract-original',
+          priority: bumpFor('high'),
+          title: 'Upload the signed contract + every amendment',
+          body:
+            'Including any addenda, change orders, and email exchanges that modified terms. The other side will lean on whatever version helps them - have all of them.',
+        },
+        {
+          id: 'contract-perf',
+          priority: bumpFor('medium'),
+          title: 'Document each side\'s performance',
+          body:
+            'Invoices, receipts, delivery confirmations, and the email thread where one side flagged the other for breaching. Build a timeline.',
+        },
+      ];
+    case 'Family matter':
+      return [
+        {
+          id: 'fm-orders',
+          priority: bumpFor('high'),
+          title: 'Existing orders + financial disclosures',
+          body:
+            'Marriage certificate (if applicable), prior custody / support orders, and the most recent financial-disclosure form. Most family hearings open with the judge asking for these.',
+        },
+      ];
+    case 'Harassment/threats':
+      return [
+        {
+          id: 'harass-log',
+          priority: bumpFor('high'),
+          title: 'Chronology log of every incident',
+          body:
+            'Date, time, location, what happened, who witnessed it. Number them. Attach screenshots, voicemails, photos of any injuries or property damage, and any police-report or restraining-order numbers.',
+        },
+        {
+          id: 'harass-protective',
+          priority: bumpFor('medium'),
+          title: 'Protective-order paperwork',
+          body:
+            'If you applied for a temporary restraining order or order of protection, bring the application, the temporary order, and proof of service on the other party.',
+        },
+      ];
+    case 'Property damage':
+      return [
+        {
+          id: 'pd-photos',
+          priority: bumpFor('high'),
+          title: 'Before / after photos and repair estimates',
+          body:
+            'Two or more written estimates carry more weight than one. Add insurance correspondence and any police or incident report number.',
+        },
+      ];
+    case 'Fraud/scam':
+      return [
+        {
+          id: 'fraud-statements',
+          priority: bumpFor('high'),
+          title: 'Bank / card statements showing every transaction',
+          body:
+            'Highlight the disputed entries. Save communications with the other party (email, SMS, app messages) and any FTC / IC3 / police report numbers.',
+        },
+      ];
+    case 'Business dispute':
+      return [
+        {
+          id: 'biz-formation',
+          priority: bumpFor('medium'),
+          title: 'Formation docs + the contract in dispute',
+          body:
+            'Operating agreement / bylaws / articles, plus the contract and any amendments at issue. Add financial records relevant to the disputed amounts.',
+        },
+      ];
+    case 'Civil dispute':
+      return [
+        {
+          id: 'civil-incident',
+          priority: bumpFor('high'),
+          title: 'Incident timeline + witness contacts',
+          body:
+            'Photos taken on the day, any police or incident report number, and contact info for every witness who saw what happened.',
+        },
+      ];
+    case 'Criminal allegation':
+      return [
+        {
+          id: 'crim-discovery',
+          priority: bumpFor('high'),
+          title: 'Get the discovery packet from your attorney',
+          body:
+            'Police report, witness statements, body-cam / dash-cam if any. If you do not have counsel yet, ask the court for a public defender and request discovery as soon as you do.',
+        },
+      ];
+    default:
+      return [];
+  }
 }
