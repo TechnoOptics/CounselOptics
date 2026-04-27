@@ -6,6 +6,7 @@ import { useFormState, useFormStatus } from 'react-dom';
 import { createCaseAction, type CreateCaseResult } from '@/lib/actions';
 import { CASE_TYPES, type SubjectType } from '@/lib/types';
 import { FormLoadingOverlay } from '@/components/LoadingOverlay';
+import { SafetyAdvisory } from '@/components/SafetyAdvisory';
 
 const SUBJECT_TYPE_OPTIONS: { value: SubjectType; label: string }[] = [
   { value: 'person', label: 'Person' },
@@ -115,6 +116,7 @@ const SUBJECT_FIELDS: FieldDef[] = [
 export function NewCaseForm() {
   const [subjectType, setSubjectType] = useState<SubjectType>('person');
   const [showSubjectDetails, setShowSubjectDetails] = useState(false);
+  const [description, setDescription] = useState('');
   const [state, formAction] = useFormState<CreateCaseResult | null, FormData>(
     createCaseAction,
     null,
@@ -304,7 +306,10 @@ export function NewCaseForm() {
           rows={5}
           placeholder="Brief summary of what happened and why you're opening this file."
           className="input resize-y"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
         />
+        <SafetyAdvisory text={description} />
       </div>
 
       {/* Hearing date - optional, can be edited later from the case detail. */}

@@ -6,6 +6,7 @@ import { useFormState, useFormStatus } from 'react-dom';
 import { createCaseAction, type CreateCaseResult } from '@/lib/actions';
 import { CASE_TYPES, type SubjectType } from '@/lib/types';
 import { FormLoadingOverlay } from '@/components/LoadingOverlay';
+import { SafetyAdvisory } from '@/components/SafetyAdvisory';
 
 /**
  * Card-based "smart assist" new case flow. Each step is one card; the
@@ -410,6 +411,12 @@ export function SmartAssistForm() {
           <div className="mt-5">{step.render(state, update)}</div>
         </Card>
       </div>
+
+      {/* Safety advisory: surfaces whenever the user's narrative
+          contains urgency cues (threats, injury, self-harm, child
+          safety, sexual violence). Sits at wizard level so it persists
+          across steps, not just the description step. */}
+      <SafetyAdvisory text={`${state.title}\n${state.description}\n${state.subj_notes}`} />
 
       {actionState?.error && actionState.duplicateOf ? (
         <div
