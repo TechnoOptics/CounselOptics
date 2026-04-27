@@ -46,9 +46,9 @@ export default async function SignInPage({
           Sign in or create an account
         </h1>
         <p className="text-sm text-ink-600 leading-relaxed mb-6">
-          Continue with Google or Microsoft. We'll create your Advottic account on first
-          sign-in - no separate signup form. Your case files, exhibits, and reviews stay tied to
-          your account.
+          Continue with Google, Microsoft, or Apple. We&apos;ll create your Advottic account
+          on first sign-in - no separate signup form. Your case files, exhibits, and reviews
+          stay tied to your account.
         </p>
 
         {searchParams?.error && (

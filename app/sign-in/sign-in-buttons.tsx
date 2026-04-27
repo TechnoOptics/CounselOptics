@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { createBrowserSupabase } from '@/lib/supabase/client';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
 
-type Provider = 'google' | 'azure';
+type Provider = 'google' | 'azure' | 'apple';
 type Mode = Provider | 'email';
 
 export function SignInButtons({ next }: { next: string }) {
@@ -36,10 +36,15 @@ export function SignInButtons({ next }: { next: string }) {
           // openid/profile/email to reliably return the user's email -
           // some tenants (especially personal accounts) skip email
           // otherwise, which makes Supabase fail to create the session.
+          // Apple needs `name email` so we get the display name on first
+          // sign-in (Apple only sends it once, ever, on the very first
+          // authorization) - Supabase persists it on the auth.users row.
           scopes:
             provider === 'azure'
               ? 'openid profile email User.Read offline_access'
-              : undefined,
+              : provider === 'apple'
+                ? 'name email'
+                : undefined,
           queryParams:
             provider === 'azure'
               ? { prompt: 'select_account' }
@@ -49,8 +54,12 @@ export function SignInButtons({ next }: { next: string }) {
       if (authError) throw authError;
     } catch (err) {
       const raw = err instanceof Error ? err.message : 'Sign-in failed.';
+      const providerLabel =
+        provider === 'azure' ? 'Microsoft' : provider === 'apple' ? 'Apple' : 'Google';
+      const supabaseProviderName =
+        provider === 'azure' ? 'Azure' : provider === 'apple' ? 'Apple' : 'Google';
       const friendly = /provider is not enabled|unsupported provider/i.test(raw)
-        ? `${provider === 'azure' ? 'Microsoft' : 'Google'} sign-in isn't connected to this account yet. Use the email magic link below - or ask your admin to enable the ${provider === 'azure' ? 'Azure' : 'Google'} provider in Supabase.`
+        ? `${providerLabel} sign-in isn't connected to this account yet. Use the email magic link below - or ask your admin to enable the ${supabaseProviderName} provider in Supabase.`
         : raw;
       setError(friendly);
       setPending(null);
@@ -105,6 +114,20 @@ export function SignInButtons({ next }: { next: string }) {
       >
         {pending === 'azure' ? <Spinner /> : <MicrosoftIcon />}
         Continue with Microsoft
+      </button>
+      {/* Apple-styled button per Apple's HIG: black surface, white
+          glyph + label, "Sign in with Apple" wording. Required by
+          App Store Review Guideline 4.8 because Google + Microsoft
+          are also offered. Required by Apple's HIG that this button
+          stand alone (don't squash it into the secondary palette). */}
+      <button
+        type="button"
+        onClick={() => signInWithProvider('apple')}
+        disabled={pending !== null}
+        className="btn w-full bg-black text-white hover:bg-zinc-900 border border-black font-medium"
+      >
+        {pending === 'apple' ? <Spinner /> : <AppleIcon />}
+        Sign in with Apple
       </button>
 
       <div className="flex items-center gap-3 py-1">
@@ -183,6 +206,19 @@ function MailIcon() {
         strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function AppleIcon() {
+  // Glyph from Apple's published "Sign in with Apple" guidance, in
+  // pure white at the same visual weight as the other provider icons.
+  return (
+    <svg width="14" height="16" viewBox="0 0 14 16" aria-hidden>
+      <path
+        fill="currentColor"
+        d="M11.66 8.51c-.02-2.05 1.67-3.03 1.75-3.08-.96-1.4-2.45-1.59-2.97-1.61-1.27-.13-2.47.74-3.11.74-.65 0-1.64-.72-2.7-.7-1.39.02-2.67.81-3.38 2.04-1.44 2.5-.37 6.21 1.04 8.24.69.99 1.5 2.1 2.57 2.06 1.03-.04 1.42-.66 2.66-.66 1.24 0 1.59.66 2.69.64 1.11-.02 1.81-1.01 2.5-2 .79-1.16 1.11-2.28 1.13-2.34-.02-.01-2.16-.83-2.18-3.33zM9.55 2.57c.57-.69.95-1.65.85-2.6-.82.03-1.81.55-2.4 1.23-.53.61-.99 1.59-.87 2.52.91.07 1.85-.46 2.42-1.15z"
       />
     </svg>
   );

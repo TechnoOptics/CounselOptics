@@ -149,6 +149,44 @@ export default function PrivacyPage() {
         </p>
       </Section>
 
+      <Section title="Mobile apps (iOS &amp; Android)">
+        <p>
+          The Advottic native apps wrap the same web service inside a native
+          shell. The data we collect from a mobile session is identical to the
+          web session: account email, your case content, the documents you
+          upload, your billing identifiers, and basic device user-agent for
+          troubleshooting. Mobile-specific notes:
+        </p>
+        <ul className="list-disc list-inside space-y-1.5 mt-2">
+          <li>
+            <strong>Sign in with Apple.</strong> If you sign in via Apple, Apple
+            may share a private relay email address rather than your real one;
+            we send all account email to whichever address Apple gives us, and
+            you can manage that relay from your Apple ID settings.
+          </li>
+          <li>
+            <strong>Camera / files.</strong> We request permission only when
+            you explicitly attach an exhibit. We do not pre-scan your camera
+            roll, contacts, or location.
+          </li>
+          <li>
+            <strong>Push notifications.</strong> Disabled by default. If you
+            opt in, we use them only for case-activity alerts (a hearing
+            reminder, a new collaborator comment) and never for marketing.
+          </li>
+          <li>
+            <strong>Tracking.</strong> The mobile apps do not track you across
+            other apps or websites and do not include third-party advertising
+            SDKs. Apple&rsquo;s App Tracking Transparency prompt will not be
+            shown because we do not request the IDFA.
+          </li>
+          <li>
+            <strong>Children.</strong> The mobile apps are not directed at
+            anyone under 18. See the Children section above.
+          </li>
+        </ul>
+      </Section>
+
       <Section title="Contact">
         <p>
           Email{' '}

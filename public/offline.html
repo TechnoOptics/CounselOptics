@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<!--
+  Capacitor offline fallback. The native iOS / Android shell wraps
+  https://www.advottic.com inside a WebView. When the user opens the
+  app with no internet the WebView would otherwise show a blank
+  white screen or a generic "could not load page" toast - that's
+  exactly the kind of dead end Apple reviewers fail apps for.
+
+  This file is bundled into the iOS app at ios/App/App/public/offline.html
+  by `npx cap sync ios`, and the native shell is configured (in
+  AppDelegate.swift, see docs/MOBILE.md) to load it whenever the
+  webview navigation fails. It uses inline styles so it can render
+  with zero network: the image is an inline SVG, fonts are
+  system-stack, the palette is hard-coded to match the app.
+-->
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>You're offline · Advottic</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      min-height: 100vh;
+      min-height: 100dvh;
+      background:
+        radial-gradient(circle at 80% 18%, rgba(213, 187, 126, 0.30), rgba(213, 187, 126, 0) 55%),
+        radial-gradient(circle at 12% 86%, rgba(15, 32, 26, 0.55), rgba(15, 32, 26, 0) 60%),
+        linear-gradient(135deg, #1f4839 0%, #173b30 45%, #0f2d24 100%);
+      color: #f5edd6;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      overscroll-behavior: none;
+    }
+    .wrap {
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: max(2rem, env(safe-area-inset-top)) 1.5rem max(2rem, env(safe-area-inset-bottom));
+      text-align: center;
+    }
+    .card { max-width: 420px; }
+    .mark {
+      width: 84px;
+      height: 84px;
+      margin: 0 auto 1.5rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background:
+        radial-gradient(circle at 75% 22%, rgba(213, 187, 126, 0.45), rgba(213, 187, 126, 0) 55%),
+        linear-gradient(135deg, #1f4839 0%, #0f2d24 100%);
+      border-radius: 22%;
+      box-shadow:
+        inset 0 2px 0 rgba(245, 237, 214, 0.18),
+        inset 0 -6px 18px rgba(0, 0, 0, 0.30),
+        0 12px 40px rgba(0, 0, 0, 0.30);
+      font-family: 'Times New Roman', Times, serif;
+      font-size: 56px;
+      font-weight: 600;
+      color: transparent;
+      background-clip: text;
+      -webkit-background-clip: text;
+    }
+    .mark span {
+      background-image: linear-gradient(135deg, #f3e1ad 0%, #d5bb7e 50%, #b89853 100%);
+      background-clip: text;
+      -webkit-background-clip: text;
+      color: transparent;
+    }
+    .eyebrow {
+      font-size: 11px;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      font-weight: 600;
+      color: #d5bb7e;
+      margin-bottom: 0.75rem;
+    }
+    h1 {
+      font-size: 28px;
+      font-weight: 500;
+      letter-spacing: -0.01em;
+      line-height: 1.05;
+      margin-bottom: 1rem;
+      color: #fbf7e9;
+    }
+    p {
+      font-size: 15px;
+      line-height: 1.55;
+      color: rgba(245, 237, 214, 0.78);
+      margin-bottom: 1.75rem;
+    }
+    button {
+      appearance: none;
+      border: 1px solid rgba(213, 187, 126, 0.6);
+      background: linear-gradient(135deg, #d5bb7e, #b89853);
+      color: #0f2d24;
+      font-weight: 600;
+      font-size: 14px;
+      padding: 0.75rem 1.5rem;
+      border-radius: 10px;
+      cursor: pointer;
+      box-shadow: 0 8px 24px rgba(213, 187, 126, 0.25);
+    }
+    button:active { transform: translateY(1px); }
+    .hint {
+      margin-top: 1.25rem;
+      font-size: 11.5px;
+      color: rgba(245, 237, 214, 0.50);
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="mark"><span>A</span></div>
+      <p class="eyebrow">No connection</p>
+      <h1>You&rsquo;re offline.</h1>
+      <p>
+        Advottic needs an internet connection to load your case files. Reconnect
+        to Wi&#8209;Fi or cellular and tap below to try again.
+      </p>
+      <button type="button" onclick="location.href = location.origin || 'https://www.advottic.com';">
+        Try again
+      </button>
+      <p class="hint">Tip: turning airplane mode off and on again often helps.</p>
+    </div>
+  </div>
+</body>
+</html>
