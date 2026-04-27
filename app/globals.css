@@ -51,6 +51,34 @@ body {
   font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11', 'ss01';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  /* Mobile rubber-banding fix. iOS Safari + Android Chrome both let
+     you drag the whole page past its top/bottom, exposing a blank
+     stripe under the URL bar or above the home indicator. That
+     drag also triggers pull-to-refresh, which is jarring inside an
+     app. `overscroll-behavior: none` shuts both off without
+     breaking scroll inside the content. */
+  overscroll-behavior: none;
+
+  /* Edge-case: a stray oversized child (long word, wide image,
+     gradient overshoot) can push the document wider than the
+     viewport on mobile and silently introduce a horizontal scroll.
+     Clip locks the document to its width without breaking
+     `position: sticky` or `inset` like `hidden` would. */
+  overflow-x: clip;
+}
+
+/* Make 100% height behave on mobile by sizing to the dynamic viewport
+   so the app stays fully contained even when the URL bar collapses
+   or expands. Falls back to vh on browsers that don't yet support
+   dvh (older Safari < 15.4). */
+html {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+body {
+  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 /* Atmospheric body - subtle grid + warm gold veil + cool forest accent */
