@@ -387,6 +387,19 @@ body > * {
     co-cookie-breathe 4s ease-in-out 0.45s infinite;
 }
 
+/* Bella's chat dock visibly rises from the bottom-right when opened
+   so the user reads it as anchored from the launcher pill, not as
+   appearing from the center of the screen. Slightly different
+   easing on mobile where the dock spans full width. */
+@keyframes co-bella-rise {
+  0% { opacity: 0; transform: translateY(24px) scale(0.98); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-bella-rise {
+  animation: co-bella-rise 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform-origin: bottom right;
+}
+
 /* Soft gold halo around the trial banner so it reads as friendly
    reminder, not error. Slow 4s breathe matches the cookie pill. */
 @keyframes co-trial-glow {
@@ -612,6 +625,7 @@ body > * {
   .live-dot,
   .trial-banner-glow,
   .animate-cookie-focus,
+  .animate-bella-rise,
   .cookie-pill {
     animation: none !important;
   }

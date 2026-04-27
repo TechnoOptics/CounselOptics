@@ -207,26 +207,22 @@ export function Bella({ signedIn = true }: { signedIn?: boolean }) {
             isOnNewCase ? 'hidden sm:inline-flex' : 'inline-flex'
           } items-center gap-2 brand-mark text-cream-200 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-full shadow-brand-glow hover:scale-[1.02] transition-transform animate-fade-in aurora ring-1 ring-gold-400/30`}
         >
-          <span className="text-gold-300">
-            <SparkleIcon />
-          </span>
+          <BellaB size={20} />
           <span className="text-sm font-medium tracking-tight">Ask Bella</span>
           <span className="live-dot inline-block h-1.5 w-1.5 rounded-full bg-emerald-400 ml-0.5" />
         </button>
       )}
 
       {open && (
-        <div className="fixed inset-0 z-40 flex items-end sm:items-center justify-end p-0 sm:p-6 pointer-events-none">
+        <div className="fixed inset-0 z-40 flex items-end justify-end p-0 sm:p-6 pointer-events-none">
           <div
             role="dialog"
             aria-label="Bella legal assistant"
-            className="pointer-events-auto w-full sm:w-[420px] h-[80vh] sm:h-[640px] flex flex-col bg-white dark:bg-forest-900 shadow-card-hover border border-forest-200 dark:border-forest-700/60 rounded-t-2xl sm:rounded-2xl overflow-hidden"
+            className="pointer-events-auto w-full sm:w-[420px] h-[80vh] sm:h-[640px] flex flex-col bg-white dark:bg-forest-900 shadow-card-hover border border-forest-200 dark:border-forest-700/60 rounded-t-2xl sm:rounded-2xl overflow-hidden animate-bella-rise"
           >
             <div className="brand-mark px-5 py-4 text-cream-200 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-cream-200/15">
-                  <SparkleIcon />
-                </span>
+                <BellaB size={28} />
                 <div>
                   <p className="font-semibold tracking-tight text-[15px]">Bella</p>
                   <p className="text-[10px] uppercase tracking-[0.18em] text-cream-200/70 flex items-center gap-1.5">
@@ -459,6 +455,54 @@ function Dot({ delay }: { delay: number }) {
       style={{ animationDelay: `${delay}ms` }}
       className="live-dot inline-block h-1.5 w-1.5 rounded-full bg-forest-700"
     />
+  );
+}
+
+/**
+ * Bella's profile mark - a serif capital B in gold-leaf gradient on
+ * a forest medallion. Reads as a coin / monogram so the assistant
+ * has an actual face on every surface (launcher pill, chat header).
+ * Size is the inner B's font size in px; the outer disc is sized
+ * proportionally with a small breathing margin.
+ */
+function BellaB({ size = 20 }: { size?: number }) {
+  const disc = Math.round(size * 1.55);
+  return (
+    <span
+      className="inline-flex items-center justify-center rounded-full flex-none"
+      aria-hidden
+      style={{
+        width: disc,
+        height: disc,
+        background:
+          'radial-gradient(circle at 30% 25%, rgba(245,237,214,0.16), transparent 55%), linear-gradient(180deg, #1f4839 0%, #173b30 45%, #0f2d24 100%)',
+        boxShadow:
+          'inset 0 1px 0 rgba(245, 237, 214, 0.20), inset 0 -2px 4px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.25)',
+        // Soft gold ring: looks like a coin edge.
+        border: '1px solid rgba(213, 187, 126, 0.55)',
+      }}
+    >
+      <span
+        style={{
+          fontFamily: 'Georgia, "Times New Roman", serif',
+          fontWeight: 700,
+          fontSize: size,
+          letterSpacing: '-0.02em',
+          lineHeight: 1,
+          background:
+            'linear-gradient(135deg, #f3e1ad 0%, #d5bb7e 50%, #b89853 100%)',
+          backgroundClip: 'text',
+          WebkitBackgroundClip: 'text',
+          color: 'transparent',
+          textShadow: '0 1px 0 rgba(0,0,0,0.30)',
+          // Optical kerning: the B looks slightly off-center inside a
+          // disc due to its open right side, so nudge a hair left.
+          transform: 'translateX(-0.5px)',
+        }}
+      >
+        B
+      </span>
+    </span>
   );
 }
 
