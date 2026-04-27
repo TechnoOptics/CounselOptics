@@ -24,6 +24,7 @@ import { PresenceIndicator } from '@/components/PresenceIndicator';
 import { ViewTracker } from './view-tracker';
 import { listCaseAuditEvents } from '@/lib/activity';
 import { ActivityList } from './activity-list';
+import { CaseSearch, type SearchItem } from './case-search';
 import { getProfile } from '@/lib/storage';
 
 export const dynamic = 'force-dynamic';
@@ -57,6 +58,41 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
   const jurisdiction = [c.jurisdiction.city, c.jurisdiction.state, c.jurisdiction.country]
     .filter(Boolean)
     .join(', ');
+
+  // Flatten everything searchable on this case into a single list
+  // for the per-case command-palette search input.
+  const searchItems: SearchItem[] = [
+    ...exhibits.map((e) => ({
+      type: 'exhibit' as const,
+      title: `${e.label} - ${e.fileName}`,
+      snippet: [e.description, e.category, e.source].filter(Boolean).join(' · '),
+      href: `/api/files/${e.id}`,
+    })),
+    ...activity.map((a) => ({
+      type: 'activity' as const,
+      title: a.eventType.replace(/_/g, ' '),
+      snippet: [a.actorDisplayName, a.actorEmail, JSON.stringify(a.metadata)]
+        .filter(Boolean)
+        .join(' · '),
+    })),
+    ...collaborators.map((cc) => ({
+      type: 'collaborator' as const,
+      title: cc.email || cc.userId || 'Collaborator',
+      snippet: cc.role,
+    })),
+    ...(c.description
+      ? [{ type: 'note' as const, title: 'Case description', snippet: c.description }]
+      : []),
+    ...(c.hearingNotes
+      ? [
+          {
+            type: 'note' as const,
+            title: 'Hearing notes',
+            snippet: c.hearingNotes,
+          },
+        ]
+      : []),
+  ];
 
   return (
     <div className="space-y-8 animate-fade-up">
@@ -183,6 +219,8 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
           />
         </div>
       </div>
+
+      <CaseSearch items={searchItems} />
 
       <Tabs
         storageKey={`case-tabs:${c.id}`}
