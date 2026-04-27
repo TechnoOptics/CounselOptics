@@ -44,15 +44,21 @@ export function ConsentModal({
     startTransition(async () => {
       try {
         await recordConsentAction(formData);
-        // Server action no longer redirects — just hide and refresh layout.
+        // Land first-time users on /cases (their dashboard) rather than
+        // wherever the consent popup happened to fire. Common entry path
+        // is "Start your case file" CTA -> /cases/new -> sign-in -> back
+        // to /cases/new with the consent modal on top; without this
+        // bounce they'd be staring at the new-case wizard before they
+        // even know there's a dashboard. /cases gracefully handles the
+        // empty-state with a "Create your first case" card.
         setHidden(true);
-        router.refresh();
+        router.push('/cases?welcome=1');
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Could not save consent.';
         // Next.js redirect throws a synthetic "NEXT_REDIRECT" error - treat as success.
         if (/NEXT_REDIRECT|NEXT_NOT_FOUND/.test(msg)) {
           setHidden(true);
-          router.refresh();
+          router.push('/cases?welcome=1');
           return;
         }
         setError(msg);
@@ -118,7 +124,7 @@ export function ConsentModal({
 
           <fieldset>
             <legend className="label mb-2">How are you representing yourself?</legend>
-            <div className="grid gap-2 md:grid-cols-3">
+            <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-4">
               {[
                 {
                   v: 'self_represented',
@@ -134,6 +140,11 @@ export function ConsentModal({
                   v: 'counsel',
                   title: "I'm counsel",
                   desc: 'I am an attorney working on a client matter.',
+                },
+                {
+                  v: 'user',
+                  title: 'Just exploring',
+                  desc: 'Not sure yet - I want to look around first.',
                 },
               ].map((o) => (
                 <label

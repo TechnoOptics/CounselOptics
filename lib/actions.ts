@@ -370,7 +370,7 @@ export async function removeCollaboratorAction(caseId: string, collaboratorId: s
 export async function recordConsentAction(formData: FormData) {
   if (!usingSupabase()) throw new Error('Supabase required.');
   const repRaw = String(formData.get('representation') ?? '');
-  const valid: RepresentationStatus[] = ['self_represented', 'represented', 'counsel'];
+  const valid: RepresentationStatus[] = ['self_represented', 'represented', 'counsel', 'user'];
   if (!valid.includes(repRaw as RepresentationStatus)) {
     throw new Error('Choose how you are representing yourself.');
   }

@@ -185,12 +185,17 @@ export type Subscription = {
   updatedAt: string;
 };
 
-export type RepresentationStatus = 'self_represented' | 'represented' | 'counsel';
+export type RepresentationStatus =
+  | 'self_represented'
+  | 'represented'
+  | 'counsel'
+  | 'user';
 
 export const REPRESENTATION_LABEL: Record<RepresentationStatus, string> = {
   self_represented: 'Self-represented (no attorney)',
   represented: 'Represented (I have an attorney)',
   counsel: "Counsel (I'm an attorney)",
+  user: 'Just exploring (decide later)',
 };
 
 export type ThemePref = 'light' | 'dark' | 'system';

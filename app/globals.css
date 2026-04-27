@@ -663,18 +663,22 @@ body > * {
       ) border-box;
     border: 1px solid transparent;
   }
-  @media (prefers-color-scheme: dark) {
-    .card-luminous {
-      background:
-        linear-gradient(#0f2d24, #0f2d24) padding-box,
-        linear-gradient(
-          135deg,
-          rgba(213, 187, 126, 0.65) 0%,
-          rgba(245, 237, 214, 0.18) 35%,
-          rgba(213, 187, 126, 0.55) 65%,
-          rgba(245, 237, 214, 0.45) 100%
-        ) border-box;
-    }
+  /* Dark surface follows the app's `html.dark` class, NOT
+     `prefers-color-scheme`. Earlier we tied this to OS dark mode but
+     when a user kept the OS dark + the app on light, the card flipped
+     forest-green while body text stayed dark - the sign-in heading
+     became unreadable on the dark surface. Aligning to the app theme
+     keeps every text color override on .dark in step. */
+  .dark .card-luminous {
+    background:
+      linear-gradient(#0f2d24, #0f2d24) padding-box,
+      linear-gradient(
+        135deg,
+        rgba(213, 187, 126, 0.65) 0%,
+        rgba(245, 237, 214, 0.18) 35%,
+        rgba(213, 187, 126, 0.55) 65%,
+        rgba(245, 237, 214, 0.45) 100%
+      ) border-box;
   }
   .card-luminous::before {
     content: '';

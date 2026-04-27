@@ -72,5 +72,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: deleteErr.message }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true });
+  // Sign the user out on the same response by clearing every supabase
+  // auth cookie. The auth.users row is gone, but their browser still
+  // holds the chunked sb-…-auth-token cookies; if we do not clear
+  // them on this response, the next page load presents a phantom
+  // session to middleware until it eventually fails on a server-side
+  // refresh. Iterate request cookies + write empty values with maxAge
+  // 0 so the browser drops them immediately.
+  const response = NextResponse.json({ ok: true });
+  for (const c of req.cookies.getAll()) {
+    if (c.name.startsWith('sb-')) {
+      response.cookies.set(c.name, '', { maxAge: 0, path: '/' });
+    }
+  }
+  return response;
 }
