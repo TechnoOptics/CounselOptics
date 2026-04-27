@@ -157,7 +157,7 @@ function ProductPreview() {
           />
           <img
             src={heroUrl}
-            alt="Advottic case file with exhibits, Legal Eye review, and an upcoming hearing in five days"
+            alt="Advottic case file with exhibits, Advottic Review review, and an upcoming hearing in five days"
             className="relative w-full h-full object-cover rounded-2xl ring-1 ring-forest-700/30 shadow-card-hover"
             loading="eager"
             fetchPriority="high"
@@ -188,7 +188,7 @@ function ProductPreview() {
         <div className="mt-4 grid grid-cols-3 text-[10px] gap-2 border-t border-cream-100/10 pt-3">
           <Tile label="Exhibits" value="12" tone="emerald" />
           <Tile label="Hearing" value="5d" tone="amber" />
-          <Tile label="Legal Eye" value="✓" tone="emerald" />
+          <Tile label="Advottic Review" value="✓" tone="emerald" />
         </div>
       </div>
 
@@ -335,7 +335,7 @@ function FlowTimeline() {
       n: '03',
       title: 'Ready when you are',
       eyebrow: 'Walk in prepared',
-      body: 'Legal Eye reads what you have and gently points out gaps, questions to ask, and things to watch for. When the day comes, export a clean packet your attorney can read in five minutes.',
+      body: 'Advottic Review reads what you have and gently points out gaps, questions to ask, and things to watch for. When the day comes, export a clean packet your attorney can read in five minutes.',
       bullets: [
         'Plain-English notes, never legal advice',
         'Reminders if your case mentions criminal matters - you have the right to a public defender',
@@ -527,7 +527,7 @@ function PricingCta() {
             Three tiers, monthly billing, 7-day free trial.
           </h2>
           <p className="text-sm text-ink-600 mt-2 max-w-xl">
-            Basic for one matter, Standard adds Legal Eye and Bella, Pro is unlimited cases with
+            Basic for one matter, Standard adds Advottic Review and Bella, Pro is unlimited cases with
             collaborator sharing for your attorney. Cancel any time from the customer portal.
           </p>
         </div>
@@ -799,7 +799,7 @@ function SmartFeaturesGrid() {
       <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-4">
         <BentoCard
           span={2}
-          eyebrow="Legal Eye review"
+          eyebrow="Advottic Review review"
           title="Jurisdiction-aware issue spotting in seconds."
           body="A thorough review reads your case and exhibits, surfaces possible issues, evidence gaps, and next-step questions for your attorney. Always hedged, never legal advice."
           accent="gold"
@@ -807,7 +807,7 @@ function SmartFeaturesGrid() {
         <BentoCard
           eyebrow="Smart-assist wizard"
           title="One question at a time."
-          body="A card-by-card flow that captures only what matters. Skip what's optional. Auto-runs Legal Eye on submit."
+          body="A card-by-card flow that captures only what matters. Skip what's optional. Auto-runs Advottic Review on submit."
         />
         <BentoCard
           eyebrow="Document review"
@@ -828,7 +828,7 @@ function SmartFeaturesGrid() {
         <BentoCard
           eyebrow="PDF packet"
           title="A clean export your attorney can read in five minutes."
-          body="Cover, case info, exhibits, and the latest Legal Eye review — one polished file."
+          body="Cover, case info, exhibits, and the latest Advottic Review review — one polished file."
         />
         <BentoCard
           eyebrow="Find counsel"

@@ -1627,7 +1627,7 @@ export async function getEffectiveTrialState(): Promise<EffectiveTrialState> {
 
 /**
  * Number of tokens included with the Pro monthly subscription. Reset on
- * each successful renewal via the Stripe webhook. Bella + Legal Eye
+ * each successful renewal via the Stripe webhook. Bella + Advottic Review
  * deduct from the same pool. Match the value documented on /billing.
  */
 export const PRO_MONTHLY_TOKEN_GRANT = 1_500_000;
@@ -1743,7 +1743,7 @@ export async function listTokenLedger(input?: { limit?: number }): Promise<Token
 }
 
 /**
- * Quick check used by Bella + Legal Eye before making the API call.
+ * Quick check used by Bella + Advottic Review before making the API call.
  * Returns null if the user is not Pro (no metering applies). Returns
  * the current balance if they are Pro - callers should refuse the
  * request when balance <= 0.

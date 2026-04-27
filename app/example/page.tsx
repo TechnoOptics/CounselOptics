@@ -5,7 +5,7 @@ import { ExampleBella } from './example-bella';
 export const metadata: Metadata = {
   title: 'A look inside Advottic - Example case',
   description:
-    'A read-only walkthrough of an Advottic case file: subject profile, exhibits, hearing countdown, Legal Eye review, and Bella the assistant. No sign-in required.',
+    'A read-only walkthrough of an Advottic case file: subject profile, exhibits, hearing countdown, Advottic Review review, and Bella the assistant. No sign-in required.',
 };
 
 // =====================================================================
@@ -30,7 +30,7 @@ export default function ExamplePage() {
         </h1>
         <p className="text-sm sm:text-base text-ink-700 dark:text-amber-100/85 mt-2 max-w-2xl leading-relaxed">
           This is a fictional matter we built to walk you through what your own case will look
-          like once you sign in: a hero header, hearing countdown, exhibit list, Legal Eye
+          like once you sign in: a hero header, hearing countdown, exhibit list, Advottic Review
           review, and Bella the assistant. Nothing here is connected to a real account.
         </p>
         <div className="mt-5 flex flex-wrap gap-3">
@@ -110,7 +110,7 @@ function CaseHero() {
         <div className="relative mt-6 grid grid-cols-2 sm:grid-cols-4 border-t border-cream-100/10 bg-forest-950/30 backdrop-blur-sm">
           <Kpi label="Exhibits" value="7" sub="on file" tone="emerald" />
           <Kpi label="Hearing" value="9d" sub="May 4" tone="amber" />
-          <Kpi label="Legal Eye" value="✓" sub="review on file" tone="emerald" />
+          <Kpi label="Advottic Review" value="✓" sub="review on file" tone="emerald" />
           <Kpi label="Sharing" value="1" sub="attorney" tone="cream" />
         </div>
       </div>
@@ -153,7 +153,7 @@ function Kpi({
 }
 
 // ---------------------------------------------------------------------
-// Tabs section: Exhibits / Hearing / Legal Eye preview
+// Tabs section: Exhibits / Hearing / Advottic Review preview
 // ---------------------------------------------------------------------
 
 function Tabs() {
@@ -234,7 +234,7 @@ function Tabs() {
               },
               {
                 t: 'Print PDF case packet × 3',
-                b: 'Cover, case info, exhibits index, Legal Eye review.',
+                b: 'Cover, case info, exhibits index, Advottic Review review.',
                 tone: 'amber',
                 done: false,
               },
@@ -284,7 +284,7 @@ function Tabs() {
 
       <div>
         <h3 className="text-xl font-semibold tracking-tight text-forest-900">
-          Legal Eye review (excerpt)
+          Advottic Review review (excerpt)
         </h3>
         <p className="text-sm text-ink-500 mt-0.5">
           Jurisdiction-aware issue spotting and concrete evidence to gather.

@@ -17,7 +17,7 @@ const TESTIMONIALS: Testimonial[] = [
   },
   {
     quote:
-      "The Legal Eye review surfaced a procedural defense I didn't know existed. My attorney told me later it shaved months off the timeline.",
+      "The Advottic Review review surfaced a procedural defense I didn't know existed. My attorney told me later it shaved months off the timeline.",
     name: 'David K.',
     context: 'Small-business owner, contract dispute',
   },
@@ -59,7 +59,7 @@ const TESTIMONIALS: Testimonial[] = [
   },
   {
     quote:
-      'The list of subpoena targets Legal Eye gave me - records I never would have thought to ask for - was the difference between a he-said/she-said case and a paper-trail case.',
+      'The list of subpoena targets Advottic Review gave me - records I never would have thought to ask for - was the difference between a he-said/she-said case and a paper-trail case.',
     name: 'Anonymous',
     context: 'Civil claimant, fraud',
   },

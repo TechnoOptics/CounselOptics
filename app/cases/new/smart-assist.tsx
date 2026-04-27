@@ -108,7 +108,7 @@ const STEPS: Step[] = [
   {
     id: 'posture',
     title: 'What is your role in this matter?',
-    description: 'This shapes how Bella and Legal Eye frame everything they suggest.',
+    description: 'This shapes how Bella and Advottic Review frame everything they suggest.',
     isValid: () => true,
     render: (s, u) => (
       <div className="grid gap-3 md:grid-cols-2">
@@ -180,7 +180,7 @@ const STEPS: Step[] = [
   {
     id: 'jurisdiction',
     title: 'Where does the case sit?',
-    description: 'Country is required. State and city help Legal Eye reach for the right rules.',
+    description: 'Country is required. State and city help Advottic Review reach for the right rules.',
     isValid: (s) => s.country.trim().length > 0,
     render: (s, u) => (
       <div className="grid gap-3">
@@ -370,7 +370,7 @@ const STEPS: Step[] = [
   {
     id: 'review',
     title: 'Ready to create the case?',
-    description: 'Quick check, then we bring you to the case page where you can upload exhibits and run Legal Eye.',
+    description: 'Quick check, then we bring you to the case page where you can upload exhibits and run Advottic Review.',
     isValid: () => true,
     render: (s) => (
       <div className="space-y-2 text-sm">

@@ -248,7 +248,7 @@ provided.
    >   (or: Sign in with Apple works for any Apple ID)
    >
    > Suggested test flow: sign in → create a case (Smart Assist
-   > wizard) → upload an exhibit → run Legal Eye → check /billing.
+   > wizard) → upload an exhibit → run Advottic Review → check /billing.
    >
    > Subscriptions: Pro tier is a multiplatform subscription
    > offered on the web at https://www.advottic.com/billing. Per

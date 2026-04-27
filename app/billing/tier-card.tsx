@@ -5,7 +5,7 @@ import { TIER_FEATURES, TIER_LABEL, type Tier } from '@/lib/types';
 
 const TIER_TAGLINE: Record<Tier, string> = {
   basic: 'Get organized.',
-  standard: 'Add Legal Eye.',
+  standard: 'Add Advottic Review.',
   pro: 'Go unlimited with collaboration.',
 };
 
@@ -24,7 +24,7 @@ function bulletsForTier(tier: Tier): Bullet[] {
       included: true,
     },
     { label: 'PDF case packet export', included: f.pdfExport },
-    { label: 'Legal Eye case review', included: f.aiReview },
+    { label: 'Advottic Review case review', included: f.aiReview },
     { label: 'Bella, your on-demand assistant', included: f.bella },
     { label: 'Invite collaborators (attorney sharing)', included: f.collaborators },
     { label: '7-day free trial', included: true },

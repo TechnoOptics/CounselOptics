@@ -1,7 +1,7 @@
 {
   "name": "Advottic - Strategic advocacy. Trusted results.",
   "short_name": "Advottic",
-  "description": "Organize evidence, surface jurisdiction-aware issues with Legal Eye, prepare for hearings, and ship a packet your attorney can read in five minutes.",
+  "description": "Organize evidence, surface jurisdiction-aware issues with Advottic Review, prepare for hearings, and ship a packet your attorney can read in five minutes.",
   "start_url": "/cases",
   "scope": "/",
   "display": "standalone",

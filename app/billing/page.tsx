@@ -111,7 +111,7 @@ export default async function BillingPage({
           {searchParams.gate === 'trial-ended' ? (
             <>
               <strong>Your trial has ended.</strong> Subscribe below to keep creating cases
-              and using Bella + Legal Eye. You can still view your existing cases and look up
+              and using Bella + Advottic Review. You can still view your existing cases and look up
               counsel without a subscription.
             </>
           ) : (
@@ -224,7 +224,7 @@ const REASON_LABEL: Record<TokenLedgerReason, string> = {
   topup_medium: 'Top-up · 600k',
   topup_large: 'Top-up · 1.5M',
   bella: 'Bella conversation',
-  legal_eye: 'Legal Eye review',
+  legal_eye: 'Advottic Review review',
   admin_adjust: 'Admin adjustment',
 };
 
@@ -268,7 +268,7 @@ function TokenGauge({ balance }: { balance: number }) {
         )}
       </div>
       <p className="text-[12px] text-ink-500 dark:text-cream-100/55 leading-relaxed">
-        Tokens are spent each time Bella replies or Legal Eye runs a review. Heavy users can
+        Tokens are spent each time Bella replies or Advottic Review runs a review. Heavy users can
         top up below at any time - top-ups don&apos;t expire.
       </p>
     </div>

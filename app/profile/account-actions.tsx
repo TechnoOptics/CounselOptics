@@ -58,7 +58,7 @@ export function AccountActions() {
       {showDelete && (
         <div className="rounded-lg border border-rose-200 bg-rose-50/60 p-4 space-y-3">
           <p className="text-sm text-rose-900 leading-relaxed">
-            <strong>This is permanent.</strong> All your cases, exhibits, Legal Eye reviews,
+            <strong>This is permanent.</strong> All your cases, exhibits, Advottic Review reviews,
             profile, and uploaded files will be deleted. Stripe billing history is retained as
             required by law.
           </p>

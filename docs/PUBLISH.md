@@ -165,7 +165,7 @@ Use this verbatim. Both stores accept the same descriptions; keep word counts wi
 
 ### Subtitle / short description (30 chars Apple / 80 chars Google)
 - Apple: `Strategic advocacy. Trusted.`
-- Google: `Build the case. Walk into court ready. Legal Eye spots issues, Bella explains.`
+- Google: `Build the case. Walk into court ready. Advottic Review spots issues, Bella explains.`
 
 ### Full description (4000 chars max)
 
@@ -180,7 +180,7 @@ Use this verbatim. Both stores accept the same descriptions; keep word counts wi
 > AUTO-SCAN
 > Upload a parking ticket, traffic citation, court summons, or eviction notice and Advottic's document scanner pulls out case numbers, ticket numbers, parties, dates, statute references, and amounts due automatically. Audio and video uploads can be transcribed.
 >
-> LEGAL EYE
+> ADVOTTIC REVIEW
 > Run a Claude-backed review of the matter. It surfaces possible legal issues grounded in your jurisdiction, evidence gaps, and concrete subpoena targets - all in plain English with hedged language. Never legal advice.
 >
 > HEARING PREP
@@ -190,7 +190,7 @@ Use this verbatim. Both stores accept the same descriptions; keep word counts wi
 > Invite your attorney by email - they get read access plus the ability to add exhibits, but cannot edit case metadata or invite others. (Pro plan)
 >
 > EXPORT
-> One PDF case packet with a cover, case info, exhibits index, and Legal Eye review - ready to email or print.
+> One PDF case packet with a cover, case info, exhibits index, and Advottic Review review - ready to email or print.
 >
 > ASK BELLA
 > An on-demand virtual assistant explains legal doctrines in plain English, walks you through the app, and never crosses the line into legal advice. For criminal matters, Bella will always remind you that you have a constitutional right to a public defender.
@@ -199,7 +199,7 @@ Use this verbatim. Both stores accept the same descriptions; keep word counts wi
 > Advottic is not a law firm and does not create an attorney-client relationship. Information only. For legal advice, consult a licensed attorney in your jurisdiction.
 >
 > PRICING
-> 7-day free trial. Basic $100/month, Standard $200/month (adds Legal Eye + Bella), Pro $350/month (adds collaborator sharing). Cancel any time.
+> 7-day free trial. Basic $100/month, Standard $200/month (adds Advottic Review + Bella), Pro $350/month (adds collaborator sharing). Cancel any time.
 
 ### Keywords (Apple, 100 chars total)
 `legal,case,attorney,evidence,hearing,exhibit,pro se,court,citation,ticket,defendant,advocacy`
@@ -246,10 +246,10 @@ Both stores require screenshots. **Take them on a real device after installing y
 
 1. **Hero / sign-in** — open landing page, scroll to "Your case, ready to be heard." Capture the full hero with the gold-shine title.
 2. **Cases dashboard** — sign in, capture the KPI tiles + "Your cases" section with at least 2 example cases.
-3. **Case detail header** — open one case, capture the dark forest hero with the gold-shine title + KPI strip (Exhibits / Hearing / Legal Eye / Sharing).
+3. **Case detail header** — open one case, capture the dark forest hero with the gold-shine title + KPI strip (Exhibits / Hearing / Advottic Review / Sharing).
 4. **Hearing tab** — capture the countdown card + prioritized checklist with mixed urgency (some items completed).
 5. **Exhibits tab with auto-scan** — capture an exhibit row showing the auto-detected ticket type, identifiers, parties, and dates accordion expanded.
-6. **Legal Eye review** — capture the AI review tab with summary + possible issues + evidence-to-strengthen lists visible.
+6. **Advottic Review review** — capture the AI review tab with summary + possible issues + evidence-to-strengthen lists visible.
 7. **Bella in action** — open Bella, capture a conversation with at least 2 exchanges showing markdown rendering.
 8. **Find counsel** — capture the find-counsel page with the embedded Google Maps result + practice-area filter.
 

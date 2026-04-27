@@ -51,7 +51,7 @@ const EVENT_LABEL: Record<CaseEventType, string> = {
   case_deleted: 'deleted the case',
   exhibit_uploaded: 'uploaded an exhibit',
   exhibit_deleted: 'deleted an exhibit',
-  review_run: 'ran a Legal Eye review',
+  review_run: 'ran a Advottic Review review',
   hearing_updated: 'updated the hearing',
   collaborator_invited: 'invited a collaborator',
   collaborator_removed: 'removed a collaborator',
@@ -312,7 +312,7 @@ function describeEvent(type: CaseEventType, m: Record<string, unknown>): string 
         ? `Status moved from <strong>${escapeHtml(String(m.from))}</strong> to <strong>${escapeHtml(String(m.to))}</strong>.`
         : '';
     case 'review_run':
-      return 'A new Legal Eye review is now attached to the case.';
+      return 'A new Advottic Review review is now attached to the case.';
     case 'hearing_updated':
       return m.hearingAt
         ? `New hearing date: <strong>${escapeHtml(String(m.hearingAt))}</strong>.`

@@ -19,7 +19,7 @@ export default function TermsPage() {
 
       <Section title="Not legal advice">
         <p>
-          Legal Eye reviews and Bella&apos;s answers are informational only. They may be incomplete, outdated, or wrong. Always consult a
+          Advottic Review reviews and Bella&apos;s answers are informational only. They may be incomplete, outdated, or wrong. Always consult a
           licensed attorney in your jurisdiction before acting. If you are facing criminal
           charges or any possibility of incarceration, request a public defender at your first
           court appearance - you have a constitutional right to one at no cost.
@@ -84,7 +84,7 @@ export default function TermsPage() {
             Advottic the limited license needed to operate the service for you.
           </li>
           <li>
-            Advottic retains all rights to its software, brand, and Legal Eye prompt design.
+            Advottic retains all rights to its software, brand, and Advottic Review prompt design.
           </li>
         </ul>
       </Section>
@@ -92,7 +92,7 @@ export default function TermsPage() {
       <Section title="Disclaimers">
         <p>
           The service is provided &ldquo;as is&rdquo; without warranties of any kind. We do not
-          guarantee uptime, accuracy of Legal Eye outputs, or any specific legal outcome.
+          guarantee uptime, accuracy of Advottic Review outputs, or any specific legal outcome.
         </p>
       </Section>
 

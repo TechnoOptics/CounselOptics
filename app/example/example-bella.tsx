@@ -23,7 +23,7 @@ const SCRIPT: Message[] = [
   {
     role: 'assistant',
     content:
-      "I won't predict outcomes, but here's what the file shows that **could be** helpful at conciliation: the lease (Exhibit A), a signed move-in inspection (B), a move-out video (C), and a certified-mail forwarding letter (D). The 21-day window appears to have closed. Your **Legal Eye review** flagged a few things worth strengthening - photos of the unit at move-out and proof of the deposit transfer (E covers the latter). The judge will look at evidence and the statute, not a tool's prediction - keep collecting the gaps Legal Eye named and bring printed copies to the hearing.",
+      "I won't predict outcomes, but here's what the file shows that **could be** helpful at conciliation: the lease (Exhibit A), a signed move-in inspection (B), a move-out video (C), and a certified-mail forwarding letter (D). The 21-day window appears to have closed. Your **Advottic Review review** flagged a few things worth strengthening - photos of the unit at move-out and proof of the deposit transfer (E covers the latter). The judge will look at evidence and the statute, not a tool's prediction - keep collecting the gaps Advottic Review named and bring printed copies to the hearing.",
   },
 ];
 

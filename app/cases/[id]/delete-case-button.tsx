@@ -60,7 +60,7 @@ export function DeleteCaseButton({
                 </h2>
                 <p className="text-[13px] text-ink-700 dark:text-cream-100/80 mt-1 leading-relaxed">
                   This permanently removes <strong className="text-ink-950 dark:text-cream-100">{caseTitle}</strong>,
-                  every exhibit, every Legal Eye review, and any collaborator access.
+                  every exhibit, every Advottic Review review, and any collaborator access.
                   <strong className="block mt-1.5 text-rose-700 dark:text-rose-200">Once deleted, the case cannot be recovered.</strong>
                 </p>
               </div>

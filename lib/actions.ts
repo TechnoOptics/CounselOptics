@@ -239,7 +239,7 @@ export async function createCaseAction(
   // Best-effort activity log + owner notification.
   await logCaseEvent({ caseId: createdId, eventType: 'case_created' });
 
-  // Auto-run Legal Eye on the freshly-created case so the user lands
+  // Auto-run Advottic Review on the freshly-created case so the user lands
   // on a case page that already has an issue-spotting review attached.
   // No exhibits exist yet, so the review is description-only - still
   // useful, and the user can re-run after uploading evidence. Wrapped

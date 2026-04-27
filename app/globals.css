@@ -311,7 +311,7 @@ body > * {
   animation: co-route-fade 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-/* AI-active shimmer used on Legal Eye / Bella surfaces while a request
+/* AI-active shimmer used on Advottic Review / Bella surfaces while a request
    is in flight. Sweeps a soft gold band across the parent. */
 @keyframes co-ai-sweep {
   0%   { background-position: -200% 0; }
@@ -465,7 +465,7 @@ body > * {
 }
 
 /* Soft-pulse halo for "AI is alive / standing by" surfaces (Bella avatar,
-   Legal Eye sparkle etc.). Lighter than animate-glow. */
+   Advottic Review sparkle etc.). Lighter than animate-glow. */
 @keyframes co-aurora {
   0%, 100% { box-shadow: 0 0 0 0 rgba(213, 187, 126, 0.0), 0 0 0 0 rgba(245, 237, 214, 0.0); }
   50% { box-shadow: 0 0 0 4px rgba(213, 187, 126, 0.18), 0 0 14px 2px rgba(245, 237, 214, 0.20); }
@@ -727,7 +727,7 @@ body > * {
 
   /* "AI" surface: dark forest with a subtle gold-on-deep-green gradient
      and a pulsing aurora that says "alive / standing by." Wrap Bella's
-     dialog header, Legal Eye review-not-yet-run state, etc. */
+     dialog header, Advottic Review review-not-yet-run state, etc. */
   .card-ai {
     @apply rounded-xl text-cream-100 shadow-card relative overflow-hidden;
     background:

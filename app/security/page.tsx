@@ -37,7 +37,7 @@ export default function SecurityPage() {
         <Promise
           icon={<KeyIcon />}
           title="Your story stays yours"
-          body="Bella and Legal Eye process your case under strict zero-retention commercial terms. Your content is never used to improve outside services."
+          body="Bella and Advottic Review process your case under strict zero-retention commercial terms. Your content is never used to improve outside services."
         />
         <Promise
           icon={<ShieldIcon />}
@@ -152,7 +152,7 @@ export default function SecurityPage() {
           for the full list.
         </SubSection>
         <SubSection title="Assistant features">
-          Bella (your conversational assistant) and Legal Eye (case review) call a
+          Bella (your conversational assistant) and Advottic Review (case review) call a
           natural-language processing partner under commercial terms that prohibit using your
           inputs to improve their or any other service. Your case content is never used to
           improve a product outside your account.
@@ -204,7 +204,7 @@ export default function SecurityPage() {
               />
               <SubProcRow
                 name="Anthropic"
-                purpose="Natural-language processing for Bella + Legal Eye"
+                purpose="Natural-language processing for Bella + Advottic Review"
                 region="USA"
                 compliance="SOC 2 Type II; zero-retention commercial terms"
               />

@@ -74,7 +74,7 @@ export function TrialBanner({
               Your free trial has ended
             </p>
             <p className="text-[11.5px] text-cream-100/75 leading-snug">
-              You can still view your cases and look up counsel. Subscribe to keep using Bella, Legal Eye, and create new cases.
+              You can still view your cases and look up counsel. Subscribe to keep using Bella, Advottic Review, and create new cases.
             </p>
           </div>
           <Link
@@ -112,7 +112,7 @@ export function TrialBanner({
           </p>
           <p className="text-[11.5px] text-cream-100/70 leading-snug">
             {mode === 'free_trial'
-              ? 'Subscribe before it ends to keep Bella, Legal Eye, and case creation.'
+              ? 'Subscribe before it ends to keep Bella, Advottic Review, and case creation.'
               : 'Subscribe before the trial ends to keep your access.'}
           </p>
         </div>

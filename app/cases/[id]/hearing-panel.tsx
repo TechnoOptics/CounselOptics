@@ -260,7 +260,7 @@ export function HearingPanel({
         </div>
         {checklist.length === 0 ? (
           <p className="text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
-            ✓ Looks like you&apos;re ready. Add a Legal Eye review and any new exhibits as they
+            ✓ Looks like you&apos;re ready. Add a Advottic Review review and any new exhibits as they
             come in.
           </p>
         ) : (
@@ -451,7 +451,7 @@ function buildChecklist({
     items.push({
       id: 'run-legal-eye',
       priority: bumpFor('high'),
-      title: 'Run Legal Eye review',
+      title: 'Run Advottic Review review',
       body: 'Surfaces possible issues, evidence gaps, and subpoena targets grounded in your jurisdiction. Lets you walk in knowing what to expect.',
       cta: { href: `/cases/${caseRecord.id}#tabpanel-review`, label: 'Run review' },
     });
@@ -463,7 +463,7 @@ function buildChecklist({
       items.push({
         id: 'refresh-legal-eye',
         priority: bumpFor('low'),
-        title: 'Refresh Legal Eye review',
+        title: 'Refresh Advottic Review review',
         body: `Your last review is ${reviewAge} days old. Re-run if you have added exhibits or facts since.`,
         cta: { href: `/cases/${caseRecord.id}#tabpanel-review`, label: 'Re-run review' },
       });
@@ -474,9 +474,9 @@ function buildChecklist({
     items.push({
       id: 'follow-evidence-gaps',
       priority: bumpFor('medium'),
-      title: 'Close out evidence gaps Legal Eye flagged',
+      title: 'Close out evidence gaps Advottic Review flagged',
       body:
-        'Open the Legal Eye review and walk through "Evidence to strengthen the case" - upload exhibits that fill those gaps before the hearing.',
+        'Open the Advottic Review review and walk through "Evidence to strengthen the case" - upload exhibits that fill those gaps before the hearing.',
       cta: { href: `/cases/${caseRecord.id}#tabpanel-review`, label: 'Open review' },
     });
   }
@@ -496,7 +496,7 @@ function buildChecklist({
     priority: bumpFor('medium'),
     title: 'Export the case packet PDF',
     body:
-      'A single PDF with the cover, case info, exhibits index, and Legal Eye review - ready to email or print.',
+      'A single PDF with the cover, case info, exhibits index, and Advottic Review review - ready to email or print.',
     cta: { href: `/cases/${caseRecord.id}/export`, label: 'Export PDF' },
   });
 
