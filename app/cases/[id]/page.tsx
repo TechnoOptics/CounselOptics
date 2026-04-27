@@ -13,6 +13,7 @@ import { STATUS_LABEL, SUBJECT_TYPE_LABEL, type CaseStatus, type SubjectProfile,
 import { UploadForm } from './upload-form';
 import { ReviewPanel } from './review-panel';
 import { CollaboratorsPanel } from './collaborators-panel';
+import { WitnessStatementEditor } from './witness-statement-editor';
 import { CloseCaseControl } from './close-case-control';
 import { HearingPanel } from './hearing-panel';
 import { ExhibitScan } from './exhibit-scan';
@@ -48,7 +49,11 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
     ? collaborators.find((cc) => cc.userId === currentUser.id)
     : null;
   const canUpload =
-    isOwner || (myCollab?.role === 'editor' || myCollab?.role === 'attorney');
+    isOwner ||
+    myCollab?.role === 'editor' ||
+    myCollab?.role === 'attorney' ||
+    myCollab?.role === 'witness';
+  const isWitness = myCollab?.role === 'witness';
   const jurisdiction = [c.jurisdiction.city, c.jurisdiction.state, c.jurisdiction.country]
     .filter(Boolean)
     .join(', ');
@@ -182,6 +187,26 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
       <Tabs
         storageKey={`case-tabs:${c.id}`}
         tabs={[
+          // Witness-only tab: their personal statement editor.
+          // Comes first so a witness lands on it by default when
+          // they open the case for the first time. Hidden to anyone
+          // who isn't the named witness on this case.
+          ...(isWitness && myCollab
+            ? [
+                {
+                  id: 'witness-statement',
+                  label: 'My statement',
+                  content: (
+                    <WitnessStatementEditor
+                      caseId={c.id}
+                      collaboratorId={myCollab.id}
+                      initialStatement={myCollab.witnessStatement ?? ''}
+                      initialUpdatedAt={myCollab.witnessStatementUpdatedAt ?? null}
+                    />
+                  ),
+                },
+              ]
+            : []),
           {
             id: 'exhibits',
             label: 'Exhibits',

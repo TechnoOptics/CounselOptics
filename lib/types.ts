@@ -143,12 +143,13 @@ export type Exhibit = {
   uploadedAt: string;
 };
 
-export type CollaboratorRole = 'viewer' | 'editor' | 'attorney';
+export type CollaboratorRole = 'viewer' | 'editor' | 'attorney' | 'witness';
 
 export const COLLABORATOR_ROLE_LABEL: Record<CollaboratorRole, string> = {
   viewer: 'Viewer',
   editor: 'Editor',
   attorney: 'Attorney',
+  witness: 'Witness',
 };
 
 export type Collaborator = {
@@ -160,6 +161,10 @@ export type Collaborator = {
   invitedBy?: string | null;
   invitedAt: string;
   acceptedAt?: string | null;
+  /** Witness-only: their account of what happened, in their own words. */
+  witnessStatement?: string | null;
+  /** Last edit time for the witness_statement, if any. */
+  witnessStatementUpdatedAt?: string | null;
 };
 
 export type SubscriptionStatus =

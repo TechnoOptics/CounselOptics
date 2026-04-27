@@ -11,6 +11,7 @@ const EVENT_LABEL: Record<CaseEventType, string> = {
   hearing_updated: 'updated the hearing',
   collaborator_invited: 'invited a collaborator',
   collaborator_removed: 'removed a collaborator',
+  witness_statement_updated: 'updated their witness statement',
 };
 
 const EVENT_TONE: Record<CaseEventType, string> = {
@@ -24,6 +25,7 @@ const EVENT_TONE: Record<CaseEventType, string> = {
   hearing_updated: 'bg-amber-500/15 text-amber-300 ring-amber-500/30',
   collaborator_invited: 'bg-emerald-500/15 text-emerald-300 ring-emerald-500/30',
   collaborator_removed: 'bg-rose-500/15 text-rose-300 ring-rose-500/30',
+  witness_statement_updated: 'bg-gold-500/15 text-gold-300 ring-gold-500/30',
 };
 
 /**
@@ -147,6 +149,8 @@ function iconFor(t: CaseEventType): string {
       return '⇄';
     case 'case_deleted':
       return '⌫';
+    case 'witness_statement_updated':
+      return '✎';
   }
 }
 

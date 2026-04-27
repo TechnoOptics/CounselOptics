@@ -111,15 +111,18 @@ export function CollaboratorsPanel({
                 <option value="editor">Editor - can add exhibits</option>
                 <option value="attorney">Attorney - can add exhibits</option>
                 <option value="viewer">Viewer - read-only</option>
+                <option value="witness">Witness - statement + reminders</option>
               </select>
             </div>
           </div>
           <p className="text-xs text-ink-500 leading-relaxed">
             <strong>Editor</strong> and <strong>Attorney</strong> can read the case and{' '}
             <em>add exhibits</em>, but cannot edit the case metadata or invite others.
-            <strong> Viewer</strong> is read-only. If the invitee already has a Advottic
-            account, they get access immediately. Otherwise their invite is held until they sign
-            up with that email.
+            <strong> Viewer</strong> is read-only.{' '}
+            <strong>Witness</strong> can read the case, write their own account of what
+            happened, upload supporting exhibits, and gets reminder emails before any hearing.
+            If the invitee already has an Advottic account, they get access immediately.
+            Otherwise their invite is held until they sign up with that email.
           </p>
           <div className="flex justify-end">
             <button type="submit" disabled={pending} className="btn-primary">

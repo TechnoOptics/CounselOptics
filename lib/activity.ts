@@ -23,7 +23,8 @@ export type CaseEventType =
   | 'review_run'
   | 'hearing_updated'
   | 'collaborator_invited'
-  | 'collaborator_removed';
+  | 'collaborator_removed'
+  | 'witness_statement_updated';
 
 const COOLDOWN_MS: Partial<Record<CaseEventType, number>> = {
   // Views are super noisy - only email at most once per 4 hours per
@@ -38,6 +39,7 @@ const COOLDOWN_MS: Partial<Record<CaseEventType, number>> = {
   case_status_changed: 5 * 60 * 1000,
   collaborator_invited: 0, // always notify
   collaborator_removed: 0,
+  witness_statement_updated: 5 * 60 * 1000,
   case_created: 0,
   case_deleted: 0,
 };
@@ -53,7 +55,94 @@ const EVENT_LABEL: Record<CaseEventType, string> = {
   hearing_updated: 'updated the hearing',
   collaborator_invited: 'invited a collaborator',
   collaborator_removed: 'removed a collaborator',
+  witness_statement_updated: 'updated their witness statement',
 };
+
+/**
+ * Best-effort hearing reminder: email every collaborator on a case
+ * (witnesses included) when the hearing date is set or changes.
+ * Uses the service-role client so we don't need elevated session
+ * context. Failures are logged + swallowed so a Resend hiccup never
+ * blocks the underlying hearing save.
+ */
+export async function notifyCollaboratorsOfHearing(input: {
+  caseId: string;
+  hearingAt: string;
+  hearingLocation: string | null;
+}): Promise<void> {
+  const admin = createAdminSupabase();
+  if (!admin) return;
+  const { data: caseRow } = await admin
+    .from('cases')
+    .select('title, subject_name')
+    .eq('id', input.caseId)
+    .maybeSingle();
+  const title =
+    (caseRow as { title?: string } | null)?.title ?? 'your Advottic case';
+  const { data: collabs } = await admin
+    .from('case_collaborators')
+    .select('email, role')
+    .eq('case_id', input.caseId);
+  const recipients = (collabs ?? []) as { email: string; role: string }[];
+  if (recipients.length === 0) return;
+
+  const when = new Date(input.hearingAt).toLocaleString(undefined, {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+  const where = input.hearingLocation
+    ? `<p style="margin:0 0 14px;font-size:14px;color:#3f3f46;"><strong>Where:</strong> ${input.hearingLocation
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')}</p>`
+    : '';
+
+  await Promise.all(
+    recipients.map((r) => {
+      const roleLabel =
+        r.role === 'witness'
+          ? "You've been listed as a witness"
+          : 'You have collaborator access';
+      const subject = `[Advottic] Hearing scheduled for ${title}`;
+      const html = `<!doctype html><html><body style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Inter,sans-serif;padding:18px;color:#0f2d24;background:#f5edd6;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5edd6;">
+<tr><td align="center">
+<table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;background:#fff;border-radius:14px;padding:0;overflow:hidden;box-shadow:0 8px 24px -4px rgba(15,45,36,0.10);">
+<tr><td style="background:linear-gradient(135deg,#0f2d24,#173b30);padding:18px 24px;">
+  <p style="margin:0;color:#d5bb7e;font-size:11px;letter-spacing:0.28em;text-transform:uppercase;font-weight:600;">Advottic · Hearing reminder</p>
+  <h1 style="margin:6px 0 0;color:#fbf7e9;font-size:18px;font-weight:600;">${title.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</h1>
+</td></tr>
+<tr><td style="padding:20px 24px;">
+  <p style="margin:0 0 10px;font-size:14px;color:#52525b;">${roleLabel} on this case.</p>
+  <p style="margin:0 0 14px;font-size:15px;color:#0f2d24;"><strong>When:</strong> ${when}</p>
+  ${where}
+  <p style="margin:0 0 14px;font-size:13.5px;line-height:1.55;color:#3f3f46;">
+    Open the case file in Advottic to review the timeline, exhibits, and your role before the hearing.
+  </p>
+  <p style="margin:0 0 18px;">
+    <a href="https://www.advottic.com/cases/${input.caseId}" style="display:inline-block;background:#0f2d24;color:#fbf7e9;text-decoration:none;padding:11px 20px;border-radius:9px;font-weight:600;font-size:13.5px;">Open case file</a>
+  </p>
+  <p style="margin:0;font-size:11px;color:#a1a1aa;line-height:1.55;">Advottic provides legal information and case organization, not legal advice. If you weren&rsquo;t expecting this, you can ignore the email.</p>
+</td></tr>
+</table>
+</td></tr>
+</table>
+</body></html>`;
+      return sendEmail({
+        to: r.email,
+        subject,
+        html,
+        replyTo: 'contact@advottic.com',
+      }).catch((err) => {
+        console.error('[notifyCollaboratorsOfHearing]', err);
+        return null;
+      });
+    }),
+  );
+}
 
 /**
  * Record an audit event and, if appropriate, email the case owner.

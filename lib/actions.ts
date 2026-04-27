@@ -25,6 +25,7 @@ import {
   saveReview,
   updateCaseHearing,
   updateCaseStatus,
+  updateWitnessStatement,
   upsertProfile,
   usingSupabase,
   type CloseSurveyOutcome,
@@ -363,7 +364,7 @@ export async function inviteCollaboratorAction(caseId: string, formData: FormDat
   if (!email || !email.includes('@')) {
     throw new Error('Enter a valid email address.');
   }
-  const validRoles: CollaboratorRole[] = ['viewer', 'editor', 'attorney'];
+  const validRoles: CollaboratorRole[] = ['viewer', 'editor', 'attorney', 'witness'];
   const role: CollaboratorRole = validRoles.includes(roleRaw as CollaboratorRole)
     ? (roleRaw as CollaboratorRole)
     : 'viewer';
@@ -375,6 +376,35 @@ export async function inviteCollaboratorAction(caseId: string, formData: FormDat
   });
   revalidatePath(`/cases/${caseId}`);
   return { emailed: result.emailed };
+}
+
+/**
+ * Witness self-edit: a witness invited to a case writes (or updates)
+ * their own account of what happened. Validated server-side; the
+ * storage helper enforces "you can only edit your own statement".
+ */
+export async function updateWitnessStatementAction(
+  caseId: string,
+  collaboratorId: string,
+  formData: FormData,
+): Promise<{ ok: boolean; error?: string }> {
+  await assertAuthIfSupabase();
+  const statement = String(formData.get('statement') ?? '');
+  try {
+    await updateWitnessStatement({ collaboratorId, statement });
+    await logCaseEvent({
+      caseId,
+      eventType: 'witness_statement_updated',
+      metadata: { collaboratorId, length: statement.trim().length },
+    });
+    revalidatePath(`/cases/${caseId}`);
+    return { ok: true };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Could not save your statement.',
+    };
+  }
 }
 
 export async function removeCollaboratorAction(caseId: string, collaboratorId: string) {
@@ -462,6 +492,22 @@ export async function updateHearingAction(
     eventType: 'hearing_updated',
     metadata: { hearingAt: at },
   });
+  // Hearing-reminder email to every collaborator on the case (witness,
+  // editor, attorney, viewer). Best-effort: failures must not block
+  // the hearing save itself. Skipped when the hearing is being
+  // cleared (at === null) since there's nothing to remind about.
+  if (at) {
+    try {
+      const { notifyCollaboratorsOfHearing } = await import('./activity');
+      await notifyCollaboratorsOfHearing({
+        caseId,
+        hearingAt: at,
+        hearingLocation: input.hearingLocation.trim() || null,
+      });
+    } catch {
+      /* ignore - logged inside the helper */
+    }
+  }
   revalidatePath(`/cases/${caseId}`);
   revalidatePath('/cases');
 }

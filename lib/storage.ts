@@ -1182,6 +1182,8 @@ type CollaboratorRow = {
   invited_by: string | null;
   invited_at: string;
   accepted_at: string | null;
+  witness_statement: string | null;
+  witness_statement_updated_at: string | null;
 };
 
 function collaboratorFromRow(r: CollaboratorRow): Collaborator {
@@ -1194,7 +1196,54 @@ function collaboratorFromRow(r: CollaboratorRow): Collaborator {
     invitedBy: r.invited_by,
     invitedAt: r.invited_at,
     acceptedAt: r.accepted_at,
+    witnessStatement: r.witness_statement ?? null,
+    witnessStatementUpdatedAt: r.witness_statement_updated_at ?? null,
   };
+}
+
+/**
+ * Witness self-edit: a witness invited to a case writes their own
+ * account of what happened. Verifies the caller is the witness in
+ * question (RLS already enforces this on row-level SELECT, but we
+ * also gate on UPDATE here to be explicit).
+ */
+export async function updateWitnessStatement(input: {
+  collaboratorId: string;
+  statement: string;
+}): Promise<void> {
+  if (!usingSupabase()) {
+    throw new Error('Witness statements require Supabase to be configured.');
+  }
+  const user = await getCurrentUser();
+  if (!user) throw new Error('Not signed in.');
+  const supabase = createServerSupabase();
+  // Pull the row to confirm the current user is the witness on it.
+  const { data: row } = await supabase
+    .from('case_collaborators')
+    .select('user_id, role, email')
+    .eq('id', input.collaboratorId)
+    .maybeSingle();
+  const r = row as { user_id?: string | null; role?: CollaboratorRole; email?: string } | null;
+  if (!r) throw new Error('Witness invite not found.');
+  if (r.role !== 'witness') {
+    throw new Error('That collaborator is not a witness.');
+  }
+  // Either the linked user_id matches, OR the caller's email matches
+  // the row's email (covers the case where the witness clicked the
+  // accept link, signed up, but user_id-link sync hasn't happened yet).
+  const isOwn =
+    r.user_id === user.id ||
+    (user.email && r.email && user.email.trim().toLowerCase() === r.email.trim().toLowerCase());
+  if (!isOwn) throw new Error('You can only edit your own witness statement.');
+  const trimmed = input.statement.trim().slice(0, 50_000);
+  const { error } = await supabase
+    .from('case_collaborators')
+    .update({
+      witness_statement: trimmed || null,
+      witness_statement_updated_at: trimmed ? new Date().toISOString() : null,
+    })
+    .eq('id', input.collaboratorId);
+  if (error) throw error;
 }
 
 export async function listCollaborators(caseId: string): Promise<Collaborator[]> {
