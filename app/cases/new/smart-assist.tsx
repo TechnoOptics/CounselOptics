@@ -450,13 +450,19 @@ export function SmartAssistForm() {
         </div>
       </div>
 
-      {/* Hidden form holding every value the server action expects. */}
-      <form ref={formRef} action={formAction} className="hidden">
+      {/* Form holding every value the server action expects, plus the
+          loading veil. The overlay MUST be inside the <form> because
+          useFormStatus only reads pending state from its enclosing
+          form - rendered outside, the overlay would never light up.
+          The form has no visible children (all inputs are type=hidden
+          and the overlay positions itself with `fixed inset-0`), so we
+          do not need any layout class on the form itself. */}
+      <form ref={formRef} action={formAction}>
         {Object.entries(state).map(([k, v]) => (
           <input key={k} type="hidden" name={k} value={v} />
         ))}
+        <FormLoadingOverlay label="Creating your case file" />
       </form>
-      <FormLoadingOverlay label="Creating your case file" />
     </div>
   );
 }

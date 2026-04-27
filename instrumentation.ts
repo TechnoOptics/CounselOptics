@@ -10,6 +10,11 @@
  * nodejs and writes to Supabase.
  */
 
+// Next.js 14 with experimental.instrumentationHook=true requires a
+// `register` export even when we only care about onRequestError. Keep
+// it as a no-op so the dev + build server can boot.
+export function register() {}
+
 export async function onRequestError(
   err: unknown,
   request: { path?: string; method?: string; headers?: Record<string, string> },

@@ -245,7 +245,7 @@ export const TIER_FEATURES: Record<Tier, TierFeatures> = {
     pdfExport: true,
     bella: false,
     collaborators: false,
-    monthlyPriceUsd: 100,
+    monthlyPriceUsd: 25,
   },
   standard: {
     caseLimit: 5,
@@ -253,7 +253,7 @@ export const TIER_FEATURES: Record<Tier, TierFeatures> = {
     pdfExport: true,
     bella: true,
     collaborators: false,
-    monthlyPriceUsd: 200,
+    monthlyPriceUsd: 50,
   },
   pro: {
     caseLimit: null,
@@ -261,7 +261,7 @@ export const TIER_FEATURES: Record<Tier, TierFeatures> = {
     pdfExport: true,
     bella: true,
     collaborators: true,
-    monthlyPriceUsd: 350,
+    monthlyPriceUsd: 200,
   },
 };
 
