@@ -10,7 +10,6 @@ import {
 import { getCurrentUser } from '@/lib/supabase/server';
 import { storageUnavailable } from '@/lib/setup-status';
 import { STATUS_LABEL, SUBJECT_TYPE_LABEL, type CaseStatus, type SubjectProfile, type SubjectType } from '@/lib/types';
-import { Disclaimer } from '@/components/Disclaimer';
 import { UploadForm } from './upload-form';
 import { ReviewPanel } from './review-panel';
 import { CollaboratorsPanel } from './collaborators-panel';
@@ -382,8 +381,6 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
           },
         ]}
       />
-
-      <Disclaimer />
     </div>
   );
 }

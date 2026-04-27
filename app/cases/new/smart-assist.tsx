@@ -411,12 +411,46 @@ export function SmartAssistForm() {
         </Card>
       </div>
 
-      {actionState?.error && (
-        <div role="alert" className="rounded-lg border border-rose-200 dark:border-rose-900/40 bg-rose-50 dark:bg-rose-950/30 px-4 py-3 text-sm text-rose-800 dark:text-rose-200">
+      {actionState?.error && actionState.duplicateOf ? (
+        <div
+          role="alert"
+          className="rounded-lg border border-amber-300 dark:border-amber-700/40 bg-amber-50 dark:bg-amber-950/30 px-4 py-3 text-sm text-amber-900 dark:text-amber-100 space-y-2"
+        >
+          <p className="font-semibold">A similar case already exists</p>
+          <p>{actionState.error}</p>
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <Link
+              href={`/cases/${actionState.duplicateOf}`}
+              className="btn-secondary text-[12.5px] px-3 py-1.5"
+            >
+              Open existing case
+            </Link>
+            <button
+              type="button"
+              onClick={() => {
+                if (formRef.current) {
+                  const force = formRef.current.querySelector(
+                    'input[name="force"]',
+                  ) as HTMLInputElement | null;
+                  if (force) force.value = '1';
+                  formRef.current.requestSubmit();
+                }
+              }}
+              className="btn-ghost text-[12.5px]"
+            >
+              Create anyway
+            </button>
+          </div>
+        </div>
+      ) : actionState?.error ? (
+        <div
+          role="alert"
+          className="rounded-lg border border-rose-200 dark:border-rose-900/40 bg-rose-50 dark:bg-rose-950/30 px-4 py-3 text-sm text-rose-800 dark:text-rose-200"
+        >
           <p className="font-semibold mb-0.5">Could not create case</p>
           <p>{actionState.error}</p>
         </div>
-      )}
+      ) : null}
 
       <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
         <div className="flex items-center gap-2">
@@ -461,6 +495,10 @@ export function SmartAssistForm() {
         {Object.entries(state).map(([k, v]) => (
           <input key={k} type="hidden" name={k} value={v} />
         ))}
+        {/* Duplicate-detection bypass. Default empty; the
+            "Create anyway" button on the duplicate warning sets this
+            to "1" before resubmitting. */}
+        <input type="hidden" name="force" defaultValue="" />
         <FormLoadingOverlay label="Creating your case file" />
       </form>
     </div>

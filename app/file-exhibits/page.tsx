@@ -1,7 +1,12 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { JURISDICTIONS } from '@/lib/jurisdictions';
 import { FileExhibitsPicker } from './picker';
+import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
+import { getCurrentSubscription } from '@/lib/storage';
+
+export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: 'File exhibits with the court - Advottic',
@@ -9,7 +14,19 @@ export const metadata: Metadata = {
     "A starting point for filing exhibits in U.S. federal court and every state court. Pick your jurisdiction to see the e-filing portal, accepted formats, fee waivers, and what to expect from service of process.",
 };
 
-export default function FileExhibitsPage() {
+export default async function FileExhibitsPage() {
+  // Pro-only resource. Signed-out visitors get sent to sign-in;
+  // non-Pro subscribers get sent to /billing to upgrade.
+  if (isSupabaseConfigured()) {
+    const user = await getCurrentUser();
+    if (!user) redirect('/sign-in?next=/file-exhibits');
+    const sub = await getCurrentSubscription();
+    const tier = sub?.tier ?? null;
+    const status = sub?.status ?? 'inactive';
+    const isProActive = tier === 'pro' && (status === 'active' || status === 'trialing');
+    if (!isProActive) redirect('/billing?gate=file-exhibits');
+  }
+
   const federal = JURISDICTIONS.find((j) => j.code === 'FED')!;
   const states = JURISDICTIONS.filter((j) => j.code !== 'FED');
 

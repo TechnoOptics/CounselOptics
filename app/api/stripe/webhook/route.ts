@@ -4,8 +4,32 @@ import { getStripe, getWebhookSecret, tierFromPriceId } from '@/lib/stripe';
 import {
   upsertSubscriptionFromStripe,
   userIdForStripeCustomer,
+  grantProMonthlyTokens,
+  adjustTokens,
+  type TokenLedgerReason,
 } from '@/lib/storage';
 import type { SubscriptionStatus } from '@/lib/types';
+
+/**
+ * Map a Stripe price ID → token top-up size. Reads the env vars set
+ * by ops; returns null if the price isn't a recognized top-up.
+ */
+function topupForPriceId(priceId: string | null): {
+  amount: number;
+  reason: TokenLedgerReason;
+} | null {
+  if (!priceId) return null;
+  if (priceId === process.env.STRIPE_PRICE_TOPUP_SMALL?.trim()) {
+    return { amount: 200_000, reason: 'topup_small' };
+  }
+  if (priceId === process.env.STRIPE_PRICE_TOPUP_MEDIUM?.trim()) {
+    return { amount: 600_000, reason: 'topup_medium' };
+  }
+  if (priceId === process.env.STRIPE_PRICE_TOPUP_LARGE?.trim()) {
+    return { amount: 1_500_000, reason: 'topup_large' };
+  }
+  return null;
+}
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -56,6 +80,32 @@ export async function POST(req: NextRequest) {
             ? session.subscription
             : session.subscription?.id;
 
+        // Token top-up flow: a one-time payment (mode='payment') with no
+        // subscription. We pull the price ID from line items and credit
+        // the user's token balance. Top-ups also pass `topup_size` in
+        // metadata as a belt-and-suspenders signal in case the price map
+        // gets out of sync with env vars.
+        if (userId && session.mode === 'payment') {
+          const lineItems = await stripe.checkout.sessions.listLineItems(
+            session.id,
+            { limit: 1 },
+          );
+          const priceId = lineItems.data[0]?.price?.id ?? null;
+          const topup = topupForPriceId(priceId);
+          if (topup) {
+            await adjustTokens({
+              userId,
+              delta: topup.amount,
+              reason: topup.reason,
+              metadata: {
+                stripe_session_id: session.id,
+                price_id: priceId,
+              },
+            });
+          }
+          break;
+        }
+
         if (userId && customerId) {
           let priceId: string | null = null;
           let status: SubscriptionStatus = 'active';
@@ -78,6 +128,10 @@ export async function POST(req: NextRequest) {
             currentPeriodEnd,
             cancelAtPeriodEnd,
           });
+          // Pro initial purchase: grant the first month of tokens.
+          if (tierFromPriceId(priceId) === 'pro' && currentPeriodEnd) {
+            await grantProMonthlyTokens({ userId, periodEnd: currentPeriodEnd });
+          }
         }
         break;
       }
@@ -92,6 +146,7 @@ export async function POST(req: NextRequest) {
           (await userIdForStripeCustomer(customerId));
         if (userId) {
           const priceId = sub.items.data[0]?.price.id ?? null;
+          const periodEnd = periodEndFromSub(sub);
           await upsertSubscriptionFromStripe({
             userId,
             stripeCustomerId: customerId,
@@ -99,9 +154,33 @@ export async function POST(req: NextRequest) {
             status: sub.status as SubscriptionStatus,
             priceId,
             tier: tierFromPriceId(priceId),
-            currentPeriodEnd: periodEndFromSub(sub),
+            currentPeriodEnd: periodEnd,
             cancelAtPeriodEnd: sub.cancel_at_period_end,
           });
+        }
+        break;
+      }
+      // Renewals come in as invoice.payment_succeeded with billing_reason
+      // = 'subscription_cycle'. Use this to re-grant Pro tokens once
+      // per billing period; the grant helper is idempotent per period.
+      case 'invoice.payment_succeeded': {
+        const invoice = event.data.object as Stripe.Invoice;
+        const reason = (invoice as { billing_reason?: string }).billing_reason;
+        if (reason !== 'subscription_cycle' && reason !== 'subscription_create') break;
+        const subscriptionId = (invoice as { subscription?: string }).subscription;
+        if (!subscriptionId) break;
+        const sub = await stripe.subscriptions.retrieve(subscriptionId);
+        const priceId = sub.items.data[0]?.price.id ?? null;
+        if (tierFromPriceId(priceId) !== 'pro') break;
+        const customerId =
+          typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
+        const userId =
+          (sub.metadata?.supabase_user_id as string | undefined) ??
+          (await userIdForStripeCustomer(customerId));
+        if (!userId) break;
+        const periodEnd = periodEndFromSub(sub);
+        if (periodEnd) {
+          await grantProMonthlyTokens({ userId, periodEnd });
         }
         break;
       }

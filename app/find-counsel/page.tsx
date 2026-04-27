@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import { Disclaimer } from '@/components/Disclaimer';
 import { FindCounselClient } from './find-counsel-client';
 
 export const metadata: Metadata = {
@@ -23,8 +22,6 @@ export default function FindCounselPage() {
       </header>
 
       <FindCounselClient />
-
-      <Disclaimer />
     </div>
   );
 }

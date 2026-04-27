@@ -1435,6 +1435,224 @@ export async function upsertSubscriptionFromStripe(input: {
   if (error) throw error;
 }
 
+// ---------------------------------------------------------------------------
+// Token quota (Pro tier metered usage)
+// ---------------------------------------------------------------------------
+
+/**
+ * Number of tokens included with the Pro monthly subscription. Reset on
+ * each successful renewal via the Stripe webhook. Bella + Legal Eye
+ * deduct from the same pool. Match the value documented on /billing.
+ */
+export const PRO_MONTHLY_TOKEN_GRANT = 1_500_000;
+
+/** Reasons we record on the token_ledger - keep this list in sync with UI labels. */
+export type TokenLedgerReason =
+  | 'pro_monthly_grant'
+  | 'topup_small'
+  | 'topup_medium'
+  | 'topup_large'
+  | 'bella'
+  | 'legal_eye'
+  | 'admin_adjust';
+
+export type TokenBalance = {
+  balance: number;
+  /** ISO timestamp of when the next monthly grant fires, or null. */
+  quotaPeriodEnd: string | null;
+};
+
+/** Read the signed-in user's current token balance + monthly cycle. */
+export async function getTokenBalance(): Promise<TokenBalance> {
+  if (!usingSupabase()) return { balance: 0, quotaPeriodEnd: null };
+  const user = await getCurrentUser();
+  if (!user) return { balance: 0, quotaPeriodEnd: null };
+  const supabase = createServerSupabase();
+  const { data } = await supabase
+    .from('profiles')
+    .select('token_balance, token_quota_period_end')
+    .eq('id', user.id)
+    .maybeSingle();
+  return {
+    balance: (data as { token_balance?: number } | null)?.token_balance ?? 0,
+    quotaPeriodEnd:
+      (data as { token_quota_period_end?: string } | null)?.token_quota_period_end ?? null,
+  };
+}
+
+/**
+ * Service-role: credit or debit tokens for a given user, recording a
+ * row on the token_ledger for audit. Pass a NEGATIVE delta to debit.
+ * Returns the new balance. Floors the balance at 0 so we never go
+ * negative even if a debit is too big.
+ */
+export async function adjustTokens(input: {
+  userId: string;
+  delta: number;
+  reason: TokenLedgerReason;
+  metadata?: Record<string, unknown>;
+}): Promise<number> {
+  const admin = createAdminSupabase();
+  if (!admin) return 0;
+  // Read current balance, compute new (clamped at 0), write back, then
+  // log. Two round-trips, not transactional; webhook + request paths
+  // are low-volume and the worst case under contention is a small
+  // off-by-N which the next adjust will correct on next request.
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('token_balance')
+    .eq('id', input.userId)
+    .maybeSingle();
+  const current = (profile as { token_balance?: number } | null)?.token_balance ?? 0;
+  const proposed = current + input.delta;
+  const next = proposed < 0 ? 0 : proposed;
+  await admin
+    .from('profiles')
+    .update({ token_balance: next, updated_at: new Date().toISOString() })
+    .eq('id', input.userId);
+  await admin.from('token_ledger').insert({
+    user_id: input.userId,
+    delta: input.delta,
+    reason: input.reason,
+    balance_after: next,
+    metadata: input.metadata ?? {},
+  });
+  return next;
+}
+
+/**
+ * Service-role: list the most recent ledger rows for a user.
+ * Used by the /billing page to show usage history.
+ */
+export type TokenLedgerRow = {
+  id: string;
+  occurredAt: string;
+  delta: number;
+  reason: TokenLedgerReason;
+  balanceAfter: number | null;
+  metadata: Record<string, unknown>;
+};
+
+export async function listTokenLedger(input?: { limit?: number }): Promise<TokenLedgerRow[]> {
+  if (!usingSupabase()) return [];
+  const user = await getCurrentUser();
+  if (!user) return [];
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from('token_ledger')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('occurred_at', { ascending: false })
+    .limit(input?.limit ?? 25);
+  if (error || !data) return [];
+  return (data as Array<Record<string, unknown>>).map((r) => ({
+    id: String(r.id),
+    occurredAt: String(r.occurred_at),
+    delta: Number(r.delta),
+    reason: r.reason as TokenLedgerReason,
+    balanceAfter:
+      typeof r.balance_after === 'number' ? r.balance_after : null,
+    metadata: (r.metadata as Record<string, unknown>) ?? {},
+  }));
+}
+
+/**
+ * Quick check used by Bella + Legal Eye before making the API call.
+ * Returns null if the user is not Pro (no metering applies). Returns
+ * the current balance if they are Pro - callers should refuse the
+ * request when balance <= 0.
+ */
+export async function getProTokenGate(): Promise<{ tier: Tier | null; balance: number } | null> {
+  if (!usingSupabase()) return null;
+  const user = await getCurrentUser();
+  if (!user) return null;
+  const supabase = createServerSupabase();
+  const { data: sub } = await supabase
+    .from('subscriptions')
+    .select('tier, status')
+    .eq('user_id', user.id)
+    .maybeSingle();
+  const tier = (sub as { tier?: Tier; status?: SubscriptionStatus } | null)?.tier ?? null;
+  // Only Pro is metered. Basic + Standard remain flat.
+  if (tier !== 'pro') return null;
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('token_balance')
+    .eq('id', user.id)
+    .maybeSingle();
+  return {
+    tier,
+    balance: (profile as { token_balance?: number } | null)?.token_balance ?? 0,
+  };
+}
+
+/**
+ * Service-role: deduct tokens consumed by a request, but only when
+ * the caller is on the Pro tier. No-op for everyone else (and for
+ * anonymous one-shot doc reviews where there is no signed-in user).
+ */
+export async function consumeTokensForCurrentUser(input: {
+  amount: number;
+  reason: 'bella' | 'legal_eye';
+  metadata?: Record<string, unknown>;
+}): Promise<void> {
+  if (!usingSupabase() || input.amount <= 0) return;
+  const user = await getCurrentUser();
+  if (!user) return;
+  const gate = await getProTokenGate();
+  if (!gate) return; // not metered (Basic/Standard)
+  await adjustTokens({
+    userId: user.id,
+    delta: -Math.round(input.amount),
+    reason: input.reason,
+    metadata: input.metadata,
+  });
+}
+
+/**
+ * Service-role: idempotently grant the Pro monthly token quota.
+ * Stripe sends invoice.payment_succeeded on each renewal; we use the
+ * Stripe period end as the lock so a webhook retry within the same
+ * period does not double-grant.
+ */
+export async function grantProMonthlyTokens(input: {
+  userId: string;
+  periodEnd: string; // ISO; the new period_end Stripe just sent us
+}): Promise<{ granted: boolean; balance: number }> {
+  const admin = createAdminSupabase();
+  if (!admin) return { granted: false, balance: 0 };
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('token_balance, token_quota_period_end')
+    .eq('id', input.userId)
+    .maybeSingle();
+  const existing = (profile as {
+    token_balance?: number;
+    token_quota_period_end?: string;
+  } | null) ?? { token_balance: 0 };
+  // Already granted for this exact period - skip.
+  if (existing.token_quota_period_end === input.periodEnd) {
+    return { granted: false, balance: existing.token_balance ?? 0 };
+  }
+  const newBalance = (existing.token_balance ?? 0) + PRO_MONTHLY_TOKEN_GRANT;
+  await admin
+    .from('profiles')
+    .update({
+      token_balance: newBalance,
+      token_quota_period_end: input.periodEnd,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', input.userId);
+  await admin.from('token_ledger').insert({
+    user_id: input.userId,
+    delta: PRO_MONTHLY_TOKEN_GRANT,
+    reason: 'pro_monthly_grant',
+    balance_after: newBalance,
+    metadata: { period_end: input.periodEnd },
+  });
+  return { granted: true, balance: newBalance };
+}
+
 /** Service-role helper: look up user_id given a Stripe customer ID. */
 export async function userIdForStripeCustomer(customerId: string): Promise<string | null> {
   const admin = createAdminSupabase();

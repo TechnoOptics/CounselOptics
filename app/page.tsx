@@ -35,7 +35,7 @@ export default async function HomePage() {
 function Hero({ existingCases }: { existingCases: number }) {
   return (
     <section className="relative -mt-2 animate-fade-up">
-      <div className="grid gap-10 lg:grid-cols-12 lg:gap-14 items-center">
+      <div className="grid gap-5 sm:gap-10 lg:grid-cols-12 lg:gap-14 items-center">
         {/* Left: editorial copy block */}
         <div className="lg:col-span-7">
           <p className="inline-flex items-center gap-2 text-[11px] tracking-[0.3em] uppercase font-semibold text-gold-700 dark:text-gold-300">

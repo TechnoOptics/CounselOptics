@@ -1,7 +1,12 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { PUBLIC_DEFENDERS } from '@/lib/public-defenders';
 import { PublicDefenderPicker } from './picker';
+import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
+import { getCurrentSubscription } from '@/lib/storage';
+
+export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: 'Find a public defender - Advottic',
@@ -9,7 +14,17 @@ export const metadata: Metadata = {
     'A starting point for getting a public defender if you are facing criminal charges, plus civil legal-aid resources for non-criminal matters. State-by-state directory.',
 };
 
-export default function PublicDefenderPage() {
+export default async function PublicDefenderPage() {
+  if (isSupabaseConfigured()) {
+    const user = await getCurrentUser();
+    if (!user) redirect('/sign-in?next=/public-defender');
+    const sub = await getCurrentSubscription();
+    const tier = sub?.tier ?? null;
+    const status = sub?.status ?? 'inactive';
+    const isProActive = tier === 'pro' && (status === 'active' || status === 'trialing');
+    if (!isProActive) redirect('/billing?gate=public-defender');
+  }
+
   return (
     <div className="max-w-4xl mx-auto space-y-10 animate-fade-up">
       <header className="text-center">

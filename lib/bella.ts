@@ -407,6 +407,24 @@ export async function* streamBella(input: {
   const client = new Anthropic({ apiKey });
 
   const mode: BellaMode = input.mode ?? (input.isPublic ? 'public' : 'authed');
+
+  // Pro tier is metered. Refuse the request when the user has burned
+  // through their monthly grant + any top-ups so they don't end up
+  // with a runaway bill. Basic, Standard, public, and doc-review modes
+  // bypass the gate entirely.
+  if (mode === 'authed') {
+    try {
+      const { getProTokenGate } = await import('./storage');
+      const gate = await getProTokenGate();
+      if (gate && gate.balance <= 0) {
+        yield "You've used up your Pro tokens for this billing period. Top up from your /billing page and I'll be right back.";
+        return;
+      }
+    } catch {
+      // never block a request because the gate read failed
+    }
+  }
+
   const systemText =
     mode === 'doc-review'
       ? BELLA_SYSTEM_DOC_REVIEW
@@ -436,6 +454,9 @@ export async function* streamBella(input: {
     .slice(-12)
     .map((m) => ({ role: m.role, content: m.content }));
 
+  // Sum input + output across every turn so we can deduct Pro
+  // tokens once at the end (Bella often loops via tool_use).
+  let totalTokens = 0;
   for (let turn = 0; turn < MAX_AGENT_TURNS; turn++) {
     const stream = await client.messages.stream({
       model: MODEL,
@@ -455,6 +476,8 @@ export async function* streamBella(input: {
     }
 
     const finalMsg = await stream.finalMessage();
+    totalTokens +=
+      (finalMsg.usage?.input_tokens ?? 0) + (finalMsg.usage?.output_tokens ?? 0);
 
     // If the model stopped to use a tool, run it and loop.
     if (finalMsg.stop_reason === 'tool_use') {
@@ -489,8 +512,32 @@ export async function* streamBella(input: {
     }
 
     // end_turn / stop_sequence / max_tokens - reply is complete.
+    if (mode === 'authed' && totalTokens > 0) {
+      try {
+        const { consumeTokensForCurrentUser } = await import('./storage');
+        await consumeTokensForCurrentUser({
+          amount: totalTokens,
+          reason: 'bella',
+          metadata: { turns: turn + 1 },
+        });
+      } catch {
+        // never break a successful response on a metering failure
+      }
+    }
     return;
   }
   // Hit the agent-turn cap; gentle close.
+  if (mode === 'authed' && totalTokens > 0) {
+    try {
+      const { consumeTokensForCurrentUser } = await import('./storage');
+      await consumeTokensForCurrentUser({
+        amount: totalTokens,
+        reason: 'bella',
+        metadata: { turns: MAX_AGENT_TURNS, capped: true },
+      });
+    } catch {
+      // never break the close on a metering failure
+    }
+  }
   yield '\n\n_(I was looping a lot - paused to avoid spinning. Ask me again if I missed your question.)_';
 }

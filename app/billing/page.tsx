@@ -1,11 +1,19 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
-import { getCurrentSubscription, getProfile } from '@/lib/storage';
+import {
+  getCurrentSubscription,
+  getProfile,
+  getTokenBalance,
+  listTokenLedger,
+  PRO_MONTHLY_TOKEN_GRANT,
+  type TokenLedgerReason,
+} from '@/lib/storage';
 import { isStripeConfigured } from '@/lib/stripe';
 import { TIER_FEATURES, TIER_LABEL, type Tier } from '@/lib/types';
 import { TierCard } from './tier-card';
 import { ManageButton } from './billing-actions';
+import { TopUpButtons } from './topup-buttons';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,7 +42,7 @@ const TIER_ORDER: Tier[] = ['basic', 'standard', 'pro'];
 export default async function BillingPage({
   searchParams,
 }: {
-  searchParams?: { success?: string; canceled?: string };
+  searchParams?: { success?: string; canceled?: string; topup?: string; gate?: string };
 }) {
   if (!isSupabaseConfigured()) {
     return (
@@ -58,6 +66,12 @@ export default async function BillingPage({
   const isActive = status === 'active' || status === 'trialing';
   const currentTier: Tier | null = sub?.tier ?? null;
 
+  // Pro tier: pull token balance + recent ledger so we can render the
+  // gauge + history below the plan cards.
+  const isPro = currentTier === 'pro' && isActive;
+  const tokens = isPro ? await getTokenBalance() : null;
+  const ledger = isPro ? await listTokenLedger({ limit: 10 }) : [];
+
   return (
     <div className="max-w-5xl mx-auto space-y-8 animate-fade-up">
       <div>
@@ -80,6 +94,29 @@ export default async function BillingPage({
       {searchParams?.canceled === '1' && (
         <p className="rounded-lg border border-ink-200 bg-ink-50 px-4 py-3 text-sm text-ink-700">
           Checkout canceled. You can subscribe whenever you're ready.
+        </p>
+      )}
+      {searchParams?.topup === 'success' && (
+        <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+          Top-up confirmed. Your tokens will appear on the gauge below within a few seconds.
+        </p>
+      )}
+      {searchParams?.topup === 'canceled' && (
+        <p className="rounded-lg border border-ink-200 bg-ink-50 px-4 py-3 text-sm text-ink-700">
+          Top-up canceled. No charge has been made.
+        </p>
+      )}
+      {searchParams?.gate && (
+        <p className="rounded-lg border border-gold-300/50 bg-cream-50 px-4 py-3 text-sm text-forest-900">
+          The{' '}
+          <strong>
+            {searchParams.gate === 'file-exhibits'
+              ? 'Court e-filing directory'
+              : searchParams.gate === 'public-defender'
+                ? 'Public defender directory'
+                : 'page you tried to open'}
+          </strong>{' '}
+          is part of the Pro plan. Upgrade below to unlock it.
         </p>
       )}
 
@@ -143,6 +180,20 @@ export default async function BillingPage({
         ))}
       </div>
 
+      {/* Pro-only token gauge + top-up + ledger. Renders only when the
+          user is on an active Pro subscription, since lower tiers do
+          not meter and visitors of higher tiers should never see the
+          empty version of this card. */}
+      {isPro && tokens && (
+        <section className="space-y-5">
+          <TokenGauge balance={tokens.balance} />
+          <TopUpButtons />
+          {ledger.length > 0 && (
+            <TokenLedgerCard rows={ledger} />
+          )}
+        </section>
+      )}
+
       <div className="text-xs text-ink-500 leading-relaxed">
         Payments are processed by Stripe. Advottic never sees your card data.{' '}
         <Link className="underline" href="/privacy">
@@ -153,6 +204,109 @@ export default async function BillingPage({
           Terms
         </Link>
       </div>
+    </div>
+  );
+}
+
+const REASON_LABEL: Record<TokenLedgerReason, string> = {
+  pro_monthly_grant: 'Monthly Pro grant',
+  topup_small: 'Top-up · 200k',
+  topup_medium: 'Top-up · 600k',
+  topup_large: 'Top-up · 1.5M',
+  bella: 'Bella conversation',
+  legal_eye: 'Legal Eye review',
+  admin_adjust: 'Admin adjustment',
+};
+
+function TokenGauge({ balance }: { balance: number }) {
+  const monthly = PRO_MONTHLY_TOKEN_GRANT;
+  // Cap the visual fill at the monthly grant. Top-ups can push the
+  // balance above 100% which we render as a gold "extra" sliver.
+  const monthlyPct = Math.min(100, (Math.min(balance, monthly) / monthly) * 100);
+  const extra = Math.max(0, balance - monthly);
+  return (
+    <div className="card p-6 sm:p-7 space-y-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <div>
+          <p className="eyebrow">Pro tokens</p>
+          <h2 className="font-display text-2xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100 mt-1">
+            {balance.toLocaleString()} <span className="text-base text-ink-500 dark:text-cream-100/55 font-sans font-normal">tokens left this period</span>
+          </h2>
+        </div>
+        <p className="text-[12px] text-ink-500 dark:text-cream-100/55">
+          Monthly grant: {monthly.toLocaleString()}
+        </p>
+      </div>
+      <div
+        role="progressbar"
+        aria-valuenow={Math.round(monthlyPct)}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label="Pro monthly token usage"
+        className="relative h-3 w-full rounded-full bg-ink-100 dark:bg-forest-800/60 overflow-hidden"
+      >
+        <span
+          className="absolute inset-y-0 left-0 bg-gradient-to-r from-forest-700 via-forest-800 to-forest-900"
+          style={{ width: `${monthlyPct}%` }}
+        />
+        {extra > 0 && (
+          <span
+            aria-hidden
+            className="absolute inset-y-0 right-0 bg-gradient-to-l from-gold-400 to-gold-500"
+            style={{ width: `${Math.min(100, (extra / monthly) * 50)}%` }}
+          />
+        )}
+      </div>
+      <p className="text-[12px] text-ink-500 dark:text-cream-100/55 leading-relaxed">
+        Tokens are spent each time Bella replies or Legal Eye runs a review. Heavy users can
+        top up below at any time - top-ups don&apos;t expire.
+      </p>
+    </div>
+  );
+}
+
+function TokenLedgerCard({
+  rows,
+}: {
+  rows: { id: string; occurredAt: string; delta: number; reason: TokenLedgerReason; balanceAfter: number | null }[];
+}) {
+  return (
+    <div className="card p-5 sm:p-6">
+      <p className="eyebrow mb-3">Recent activity</p>
+      <ul className="divide-y divide-ink-100 dark:divide-forest-700/40">
+        {rows.map((r) => (
+          <li key={r.id} className="flex items-baseline justify-between py-2 gap-3">
+            <div className="min-w-0">
+              <p className="text-sm text-ink-900 dark:text-cream-100">
+                {REASON_LABEL[r.reason] ?? r.reason}
+              </p>
+              <p className="text-[11px] text-ink-500 dark:text-cream-100/55">
+                {new Date(r.occurredAt).toLocaleString(undefined, {
+                  month: 'short',
+                  day: 'numeric',
+                  hour: 'numeric',
+                  minute: '2-digit',
+                })}
+              </p>
+            </div>
+            <div className="text-right tabular-nums">
+              <p
+                className={`text-sm font-medium ${
+                  r.delta >= 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-ink-700 dark:text-cream-100/85'
+                }`}
+              >
+                {r.delta >= 0 ? '+' : ''}
+                {r.delta.toLocaleString()}
+              </p>
+              {r.balanceAfter !== null && (
+                <p className="text-[11px] text-ink-500 dark:text-cream-100/55">
+                  bal. {r.balanceAfter.toLocaleString()}
+                </p>
+              )}
+            </div>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

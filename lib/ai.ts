@@ -145,6 +145,23 @@ export async function runReview(caseRecord: Case, exhibits: Exhibit[]): Promise<
     return demoReview(caseRecord, exhibits, jurisdiction);
   }
 
+  // Pro tier gate. If the user has burned through their tokens, fall
+  // back to the demo template instead of failing - that way they still
+  // see SOMETHING on the case page and the UI nudges them to top up.
+  try {
+    const { getProTokenGate } = await import('./storage');
+    const gate = await getProTokenGate();
+    if (gate && gate.balance <= 0) {
+      const r = demoReview(caseRecord, exhibits, jurisdiction);
+      r.summary =
+        'Your Pro token balance is empty. Top up from /billing to run a fresh review on this case. Showing the example template below in the meantime.\n\n' +
+        r.summary;
+      return r;
+    }
+  } catch {
+    // never block a review because the gate read failed
+  }
+
   const exhibitsBlock =
     exhibits.length === 0
       ? '(none uploaded yet)'
@@ -184,6 +201,23 @@ Use the submit_review tool to return your structured analysis.`;
     tool_choice: { type: 'tool', name: 'submit_review' },
     messages: [{ role: 'user', content: userContent }],
   });
+
+  // Pro tier: deduct input + output tokens from the user's quota.
+  // No-op for Basic/Standard/anonymous (handled inside the helper).
+  try {
+    const totalTokens =
+      (result.usage?.input_tokens ?? 0) + (result.usage?.output_tokens ?? 0);
+    if (totalTokens > 0) {
+      const { consumeTokensForCurrentUser } = await import('./storage');
+      await consumeTokensForCurrentUser({
+        amount: totalTokens,
+        reason: 'legal_eye',
+        metadata: { caseId: caseRecord.id },
+      });
+    }
+  } catch {
+    // never break a successful review on a metering failure
+  }
 
   const toolUse = result.content.find(
     (b): b is Extract<(typeof result.content)[number], { type: 'tool_use' }> =>

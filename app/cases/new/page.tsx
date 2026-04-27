@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import { Disclaimer } from '@/components/Disclaimer';
 import { SmartAssistForm } from './smart-assist';
 
 export default function NewCasePage() {
@@ -19,8 +18,6 @@ export default function NewCasePage() {
       </div>
 
       <SmartAssistForm />
-
-      <Disclaimer />
     </div>
   );
 }

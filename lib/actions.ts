@@ -30,7 +30,7 @@ import {
   type FeedbackStatus,
 } from './storage';
 import { runReview, scanDocument, transcribeMedia } from './ai';
-import { getCurrentUser, isCurrentUserAdmin } from './supabase/server';
+import { createServerSupabase, getCurrentUser, isCurrentUserAdmin } from './supabase/server';
 import { logCaseEvent } from './activity';
 import {
   CASE_TYPES,
@@ -51,7 +51,47 @@ async function assertAuthIfSupabase() {
   }
 }
 
-export type CreateCaseResult = { ok: boolean; error?: string };
+export type CreateCaseResult = {
+  ok: boolean;
+  error?: string;
+  /** Set when the action refuses because a same-title/same-subject case exists. */
+  duplicateOf?: string;
+};
+
+/**
+ * Returns the existing case (id + title) that matches the title or
+ * subject_name proposed by the wizard. Owner-scoped via RLS through
+ * the standard server client. Trim + case-insensitive comparisons.
+ */
+async function findDuplicateCase(input: {
+  title: string;
+  subjectName: string;
+}): Promise<{ id: string; title: string } | null> {
+  if (!usingSupabase()) return null;
+  const user = await getCurrentUser();
+  if (!user) return null;
+  const supabase = createServerSupabase();
+  const t = input.title.trim();
+  const s = input.subjectName.trim();
+  if (!t || !s) return null;
+  // Use ILIKE to match case-insensitively; passing the trimmed strings
+  // verbatim is safe because Supabase parameterizes them.
+  const { data } = await supabase
+    .from('cases')
+    .select('id, title')
+    .eq('user_id', user.id)
+    .or(`title.ilike.${t},subject_name.ilike.${s}`)
+    .limit(1)
+    .maybeSingle();
+  if (!data) return null;
+  const row = data as { id: string; title: string };
+  return { id: row.id, title: row.title };
+}
+
+/** Render the first 8 characters of a UUID for human-readable case IDs. */
+function shortenId(id: string): string {
+  return id.replace(/-/g, '').slice(0, 8).toUpperCase();
+}
 
 export async function createCaseAction(
   _prevState: CreateCaseResult | null,
@@ -120,6 +160,30 @@ export async function createCaseAction(
     }
     const hearingLocation = String(formData.get('hearingLocation') ?? '').trim() || null;
     const hearingNotes = String(formData.get('hearingNotes') ?? '').trim() || null;
+
+    // Duplicate guard: people occasionally re-submit the wizard or
+    // genuinely forget they already opened a matter. If a case with
+    // the same title (case-insensitive trim) OR the same subject_name
+    // already exists for this user, surface the existing case ID and
+    // suggest they update it instead of creating a clone. Pass
+    // `?force=1` on the form to bypass the check.
+    const force = String(formData.get('force') ?? '') === '1';
+    if (!force) {
+      const existing = await findDuplicateCase({
+        title,
+        subjectName,
+      }).catch(() => null);
+      if (existing) {
+        return {
+          ok: false,
+          error:
+            `You already have a case for "${existing.title}" (case ${shortenId(existing.id)}). ` +
+            `Open it from your case list and update it there instead of creating a duplicate. ` +
+            `If you really need a separate file, click "Create anyway" below.`,
+          duplicateOf: existing.id,
+        };
+      }
+    }
 
     const created = await createCase({
       title,

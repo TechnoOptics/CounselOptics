@@ -37,3 +37,7 @@ ios/.symlinks/
 *.mobileprovision
 ios/App/App/GoogleService-Info.plist
 android/app/google-services.json
+
+# Local API tooling artifacts
+.deploy-check.json
+.deploy-trigger.json
