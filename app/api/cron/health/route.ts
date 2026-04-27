@@ -1,6 +1,12 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createAdminSupabase, isServiceRoleConfigured } from '@/lib/supabase/admin';
-import { recordHealthCheck, type ProbeName, type ProbeStatus } from '@/lib/storage';
+import {
+  recordHealthCheck,
+  lastHealthEmailSentAt,
+  markHealthEmailSent,
+  type ProbeName,
+  type ProbeStatus,
+} from '@/lib/storage';
 import { sendEmail } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
@@ -117,25 +123,40 @@ export async function GET(request: NextRequest) {
   }
 
   const durationMs = Date.now() - startedAt;
-  await recordHealthCheck({ source: 'cron', probes, failures, durationMs });
+  const recordedRowId = await recordHealthCheck({
+    source: 'cron',
+    probes,
+    failures,
+    durationMs,
+  });
 
-  // Email digest only when there's at least one failure. The cron runs
-  // hourly, so emailing every clean run would be noise.
+  // Email digest only when:
+  //   1) at least one probe failed, AND
+  //   2) we haven't sent a digest in the last 24 hours.
+  // The cron records every hourly probe (so /admin/health stays
+  // fresh), but the inbox only fires once per day max.
   if (failures.length > 0) {
-    const to = process.env.HEALTH_DIGEST_TO?.trim() || 'contact@advottic.com';
-    const lines = failures
-      .map((f) => `- ${f.probe.toUpperCase()}: ${f.error}`)
-      .join('<br />');
-    const subject = `[Advottic] Health check found ${failures.length} failing probe${failures.length === 1 ? '' : 's'}`;
-    const html = `<!doctype html><html><body style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Inter,sans-serif;padding:16px;color:#0f2d24;">
+    const lastEmailedAt = await lastHealthEmailSentAt();
+    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+    if (lastEmailedAt === null || Date.parse(lastEmailedAt) < oneDayAgo) {
+      const to = process.env.HEALTH_DIGEST_TO?.trim() || 'contact@advottic.com';
+      const lines = failures
+        .map((f) => `- ${f.probe.toUpperCase()}: ${f.error}`)
+        .join('<br />');
+      const subject = `[Advottic] Health check: ${failures.length} probe${failures.length === 1 ? '' : 's'} failing`;
+      const html = `<!doctype html><html><body style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Inter,sans-serif;padding:16px;color:#0f2d24;">
 <h2 style="margin:0 0 8px;font-size:16px;">Health check report</h2>
 <p style="margin:0 0 12px;font-size:13px;color:#3f3f46;">Ran at ${new Date().toISOString()} - ${durationMs} ms.</p>
 <p style="margin:0 0 12px;font-size:13px;"><strong>Failures:</strong><br />${lines}</p>
 <p style="margin:0 0 12px;font-size:12px;color:#52525b;">Probes summary: ${JSON.stringify(probes)}</p>
-<p style="margin:0;font-size:11px;color:#a1a1aa;">Auto-generated. Open /admin/health for the full history.</p>
+<p style="margin:0;font-size:11px;color:#a1a1aa;">Auto-generated. Throttled to once per 24h - probes still run hourly. Open /admin/health for the full history.</p>
 </body></html>`;
-    // Best-effort - we don't want a bad SMTP path to make the cron 500.
-    sendEmail({ to, subject, html }).catch(() => {});
+      const r = await sendEmail({ to, subject, html }).catch(() => null);
+      if (r && r.ok && recordedRowId) {
+        // Mark this row so the next 24-hour throttle window is anchored here.
+        await markHealthEmailSent(recordedRowId).catch(() => {});
+      }
+    }
   }
 
   return NextResponse.json({

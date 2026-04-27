@@ -1907,15 +1907,51 @@ export async function recordHealthCheck(input: {
   probes: Record<ProbeName, ProbeStatus>;
   failures: { probe: ProbeName; error: string }[];
   durationMs: number;
-}): Promise<void> {
+}): Promise<string | null> {
+  const admin = createAdminSupabase();
+  if (!admin) return null;
+  const { data } = await admin
+    .from('system_health')
+    .insert({
+      source: input.source,
+      probes: input.probes,
+      failures: input.failures,
+      duration_ms: input.durationMs,
+    })
+    .select('id')
+    .single();
+  return (data as { id?: string } | null)?.id ?? null;
+}
+
+/**
+ * Returns the ISO timestamp of the most recent health-check row that
+ * triggered a digest email. Used by the cron to throttle alerts to
+ * once per 24 hours regardless of how long a failure persists.
+ */
+export async function lastHealthEmailSentAt(): Promise<string | null> {
+  const admin = createAdminSupabase();
+  if (!admin) return null;
+  const { data } = await admin
+    .from('system_health')
+    .select('email_sent_at')
+    .not('email_sent_at', 'is', null)
+    .order('email_sent_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return (data as { email_sent_at?: string } | null)?.email_sent_at ?? null;
+}
+
+/**
+ * Marks a health-check row as having had its digest email sent.
+ * Anchors the next 24-hour throttle window.
+ */
+export async function markHealthEmailSent(rowId: string): Promise<void> {
   const admin = createAdminSupabase();
   if (!admin) return;
-  await admin.from('system_health').insert({
-    source: input.source,
-    probes: input.probes,
-    failures: input.failures,
-    duration_ms: input.durationMs,
-  });
+  await admin
+    .from('system_health')
+    .update({ email_sent_at: new Date().toISOString() })
+    .eq('id', rowId);
 }
 
 export async function adminListHealthChecks(limit = 48): Promise<SystemHealthRow[]> {
