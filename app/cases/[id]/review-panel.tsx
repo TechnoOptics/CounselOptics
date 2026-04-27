@@ -141,28 +141,75 @@ export function ReviewPanel({
 }
 
 function Tabs({ current, onChange }: { current: TabKey; onChange: (t: TabKey) => void }) {
+  // Two responsive shapes: native <select> on phones (every section
+  // visible from the closed state, no hidden horizontal scroll) and
+  // the original underline tablist at sm+. Mirrors the case-page
+  // Tabs treatment so the whole app reads as one mobile-aware UI.
+  const activeLabel = TABS.find((t) => t.key === current)?.label ?? '';
   return (
-    <div
-      role="tablist"
-      aria-label="Case review sections"
-      className="flex items-stretch border-b border-ink-200 bg-white overflow-x-auto"
-    >
-      {TABS.map((t) => {
-        const active = t.key === current;
-        return (
-          <button
-            key={t.key}
-            role="tab"
-            aria-selected={active}
-            onClick={() => onChange(t.key)}
-            className={`tab ${active ? 'tab-active' : ''}`}
+    <>
+      {/* MOBILE: dropdown selector, visible below sm. */}
+      <div className="sm:hidden p-3 bg-white dark:bg-forest-900 border-b border-ink-200 dark:border-forest-700/40">
+        <label htmlFor="review-tabs-mobile" className="sr-only">
+          Choose review section
+        </label>
+        <div className="relative">
+          <select
+            id="review-tabs-mobile"
+            value={current}
+            onChange={(e) => onChange(e.target.value as TabKey)}
+            aria-label="Case review sections"
+            className="appearance-none w-full rounded-xl border border-ink-200 dark:border-forest-700/50 bg-white dark:bg-forest-900 px-4 py-2.5 pr-10 text-sm font-medium text-forest-900 dark:text-cream-100 focus:outline-none focus:ring-2 focus:ring-gold-400/60"
           >
-            {t.label}
-            {active && <span aria-hidden className="tab-underline" />}
-          </button>
-        );
-      })}
-    </div>
+            {TABS.map((t) => (
+              <option key={t.key} value={t.key}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-ink-500 dark:text-cream-100/55"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M6 9l6 6 6-6"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </span>
+        </div>
+        <p className="mt-2 text-[11px] uppercase tracking-[0.22em] font-semibold text-gold-700 dark:text-gold-300">
+          {activeLabel}
+        </p>
+      </div>
+
+      {/* DESKTOP / TABLET: underline tablist. */}
+      <div
+        role="tablist"
+        aria-label="Case review sections"
+        className="hidden sm:flex items-stretch border-b border-ink-200 bg-white overflow-x-auto"
+      >
+        {TABS.map((t) => {
+          const active = t.key === current;
+          return (
+            <button
+              key={t.key}
+              role="tab"
+              aria-selected={active}
+              onClick={() => onChange(t.key)}
+              className={`tab ${active ? 'tab-active' : ''}`}
+            >
+              {t.label}
+              {active && <span aria-hidden className="tab-underline" />}
+            </button>
+          );
+        })}
+      </div>
+    </>
   );
 }
 
