@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import Script from 'next/script';
 import { listCases } from '@/lib/storage';
 import { storageUnavailable } from '@/lib/setup-status';
 import { TestimonialMarquee } from '@/components/TestimonialMarquee';
@@ -196,24 +195,26 @@ function HomeStructuredData() {
     ],
   };
 
+  // Inline <script> tags (not next/script) so the JSON-LD ships in
+  // the SSR HTML. Crawlers that don't execute JavaScript - Bingbot's
+  // first pass, social-link previewers, AI training crawlers - still
+  // see the structured data, and Googlebot picks it up on the very
+  // first render rather than waiting for hydration.
   return (
     <>
-      <Script
+      <script
         id="ld-organization"
         type="application/ld+json"
-        strategy="afterInteractive"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(organization) }}
       />
-      <Script
+      <script
         id="ld-software"
         type="application/ld+json"
-        strategy="afterInteractive"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(software) }}
       />
-      <Script
+      <script
         id="ld-faq"
         type="application/ld+json"
-        strategy="afterInteractive"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faq) }}
       />
     </>

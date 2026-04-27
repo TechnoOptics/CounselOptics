@@ -104,7 +104,26 @@ export const metadata: Metadata = {
     },
   },
   category: 'Productivity',
+  // Site-verification tags - rendered ONLY when the corresponding
+  // env var is set. Once the operator pastes the value from each
+  // tool into Vercel, the next deploy auto-verifies the property
+  // without any further code change. Paste the raw token (no
+  // prefix), e.g. "ABCD1234...". See docs/MARKETING_LAUNCH.md.
+  verification: buildVerification(),
 };
+
+function buildVerification() {
+  const v: NonNullable<Metadata['verification']> = {};
+  const google = process.env.GOOGLE_SITE_VERIFICATION?.trim();
+  if (google) v.google = google;
+  const other: Record<string, string> = {};
+  const bing = process.env.BING_SITE_VERIFICATION?.trim();
+  if (bing) other['msvalidate.01'] = bing;
+  const fb = process.env.FACEBOOK_DOMAIN_VERIFICATION?.trim();
+  if (fb) other['facebook-domain-verification'] = fb;
+  if (Object.keys(other).length > 0) v.other = other;
+  return v;
+}
 
 export const viewport = {
   themeColor: '#0f2d24',
