@@ -10,9 +10,25 @@ import { isFullAccessTrial } from '@/lib/tier';
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  title: 'Find a public defender - Advottic',
+  title: 'Find a public defender',
   description:
     'A starting point for getting a public defender if you are facing criminal charges, plus civil legal-aid resources for non-criminal matters. State-by-state directory.',
+  alternates: { canonical: '/public-defender' },
+  openGraph: {
+    title: 'Find a public defender · Advottic',
+    description:
+      'State-by-state directory of public defender offices and civil legal-aid organizations. If you cannot afford a lawyer, you have options.',
+    url: '/public-defender',
+    type: 'website',
+  },
+  keywords: [
+    'find a public defender',
+    'free criminal defense',
+    'civil legal aid near me',
+    'public defender contact',
+    'cant afford a lawyer',
+    'free legal help',
+  ],
 };
 
 export default async function PublicDefenderPage() {

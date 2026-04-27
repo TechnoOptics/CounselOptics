@@ -1,6 +1,11 @@
 import Link from 'next/link';
 
-export const metadata = { title: 'Cookie Policy - Advottic' };
+export const metadata = {
+  title: 'Cookie Policy',
+  description:
+    'Which cookies Advottic uses, what each one does, how long it lives, and how to control them. Plain English.',
+  alternates: { canonical: '/cookies' },
+};
 
 export default function CookiePolicyPage() {
   return (

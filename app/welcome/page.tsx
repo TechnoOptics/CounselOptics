@@ -8,9 +8,17 @@ import { AboutTeaser } from '@/components/AboutTeaser';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
-  title: 'Welcome to Advottic',
+  title: 'Welcome',
   description:
-    'A friend shared Advottic with you. Sign in or install the app on your home screen to get your case file in order before meeting an attorney.',
+    'A friend shared Advottic with you. Install on your home screen and sign in to organize your case file before meeting an attorney.',
+  alternates: { canonical: '/welcome' },
+  openGraph: {
+    title: 'Welcome to Advottic',
+    description:
+      'Walk into court prepared. Organize evidence, surface gaps, and ship a clean packet to your attorney.',
+    url: '/welcome',
+    type: 'website',
+  },
 };
 
 export default async function WelcomePage() {

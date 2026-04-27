@@ -3,9 +3,25 @@ import Link from 'next/link';
 import { ReviewDocumentClient } from './review-client';
 
 export const metadata: Metadata = {
-  title: 'Free document review - Advottic',
+  title: 'Free document review · Plain-English explanation',
   description:
     'Paste a contract, lease, demand letter, or court order. Bella, our AI assistant, will explain it in plain English and flag what to watch for. No account, no card, no training on your data.',
+  alternates: { canonical: '/review-my-document' },
+  openGraph: {
+    title: 'Free document review · Advottic',
+    description:
+      'Paste a contract, lease, or court order and get a plain-English explanation. No account, no card, no training on your data.',
+    url: '/review-my-document',
+    type: 'website',
+  },
+  keywords: [
+    'review my contract',
+    'plain english contract',
+    'understand my lease',
+    'demand letter explained',
+    'court summons explained',
+    'free legal document review',
+  ],
 };
 
 export default function ReviewMyDocumentPage() {

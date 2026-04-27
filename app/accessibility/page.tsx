@@ -1,6 +1,11 @@
 import Link from 'next/link';
 
-export const metadata = { title: 'Accessibility - Advottic' };
+export const metadata = {
+  title: 'Accessibility',
+  description:
+    'How Advottic supports keyboard navigation, screen readers, reduced-motion preferences, and assistive technology across the case-management product.',
+  alternates: { canonical: '/accessibility' },
+};
 
 export default function AccessibilityPage() {
   return (

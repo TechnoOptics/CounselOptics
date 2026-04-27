@@ -10,9 +10,26 @@ import { isFullAccessTrial } from '@/lib/tier';
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  title: 'File exhibits with the court - Advottic',
+  title: 'File exhibits with the court',
   description:
-    "A starting point for filing exhibits in U.S. federal court and every state court. Pick your jurisdiction to see the e-filing portal, accepted formats, fee waivers, and what to expect from service of process.",
+    'A starting point for filing exhibits in U.S. federal court and every state court. Pick your jurisdiction to see the e-filing portal, accepted formats, fee waivers, and service-of-process basics.',
+  alternates: { canonical: '/file-exhibits' },
+  openGraph: {
+    title: 'File exhibits with the court · Advottic',
+    description:
+      'State-by-state e-filing portal directory: federal PACER, every state e-filing system, accepted formats, and fee-waiver information.',
+    url: '/file-exhibits',
+    type: 'website',
+  },
+  keywords: [
+    'how to file exhibits',
+    'court e-filing',
+    'efile court documents',
+    'state court filing portal',
+    'PACER',
+    'fee waiver',
+    'self represented filing',
+  ],
 };
 
 export default async function FileExhibitsPage() {

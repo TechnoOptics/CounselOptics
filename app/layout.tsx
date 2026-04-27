@@ -51,8 +51,19 @@ const display = Fraunces({
   variable: '--font-display',
 });
 
+// Resolve the canonical site URL for metadataBase, OG images, and
+// canonical link tags. NEXT_PUBLIC_SITE_URL is set in Vercel; falls
+// back to the Vercel preview URL or localhost so dev still works.
+const SITE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+
 export const metadata: Metadata = {
-  title: 'Advottic',
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: 'Advottic - Walk into court prepared',
+    template: '%s · Advottic',
+  },
   description:
     'Organize evidence, surface jurisdiction-aware issues with Advottic Review, prepare for hearings, and ship a packet your attorney can read in five minutes.',
   manifest: '/manifest.webmanifest',
@@ -63,6 +74,36 @@ export const metadata: Metadata = {
     title: 'Advottic',
   },
   formatDetection: { telephone: false },
+  alternates: {
+    canonical: '/',
+  },
+  openGraph: {
+    type: 'website',
+    siteName: 'Advottic',
+    title: 'Advottic - Walk into court prepared',
+    description:
+      'Organize evidence, surface jurisdiction-aware issues, prepare for hearings, and ship a clean packet your attorney can read in five minutes.',
+    url: SITE_URL,
+    locale: 'en_US',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Advottic - Walk into court prepared',
+    description:
+      'Organize evidence, surface jurisdiction-aware issues, prepare for hearings, and ship a clean packet your attorney can read in five minutes.',
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+      'max-video-preview': -1,
+    },
+  },
+  category: 'Productivity',
 };
 
 export const viewport = {

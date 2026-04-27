@@ -1,6 +1,11 @@
 import Link from 'next/link';
 
-export const metadata = { title: 'DMCA / IP policy - Advottic' };
+export const metadata = {
+  title: 'DMCA & IP Policy',
+  description:
+    'How to report copyright or intellectual-property infringement on Advottic, who to contact, and the takedown process.',
+  alternates: { canonical: '/dmca' },
+};
 
 export default function DmcaPage() {
   return (

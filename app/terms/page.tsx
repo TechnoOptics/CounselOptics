@@ -1,4 +1,9 @@
-export const metadata = { title: 'Terms of Use - Advottic' };
+export const metadata = {
+  title: 'Terms of Use',
+  description:
+    'The terms governing use of Advottic, including the limits of our service (we are not a law firm), arbitration, and acceptable use.',
+  alternates: { canonical: '/terms' },
+};
 
 export default function TermsPage() {
   return (

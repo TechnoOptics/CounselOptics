@@ -3,9 +3,23 @@ import type { Metadata } from 'next';
 import { ExampleBella } from './example-bella';
 
 export const metadata: Metadata = {
-  title: 'A look inside Advottic - Example case',
+  title: 'A look inside Advottic · Example case',
   description:
-    'A read-only walkthrough of an Advottic case file: subject profile, exhibits, hearing countdown, Advottic Review review, and Bella the assistant. No sign-in required.',
+    'A read-only walkthrough of an Advottic case file: subject profile, exhibits, hearing countdown, Advottic Review, and Bella the assistant. No sign-in required.',
+  alternates: { canonical: '/example' },
+  openGraph: {
+    title: 'A look inside Advottic · Example case',
+    description:
+      'See exactly what a real Advottic case file looks like. Subject, exhibits, hearing countdown, packet PDF, and Bella the assistant - read-only, no account.',
+    url: '/example',
+    type: 'website',
+  },
+  keywords: [
+    'advottic example',
+    'sample case file',
+    'case organization tool demo',
+    'pro se case prep',
+  ],
 };
 
 // =====================================================================

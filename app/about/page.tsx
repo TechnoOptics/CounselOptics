@@ -1,9 +1,17 @@
 import Link from 'next/link';
 
 export const metadata = {
-  title: 'What Advottic is, and isn’t - Advottic',
+  title: 'What Advottic is, and isn’t',
   description:
-    'Plain-English honesty about what Advottic does, what it does not do, and when you should reach for a licensed attorney instead.',
+    'Plain-English honesty about what Advottic does (organize evidence, prepare for hearings, ship a clean packet) and what it does not do (give legal advice, predict outcomes, replace a licensed attorney).',
+  alternates: { canonical: '/about' },
+  openGraph: {
+    title: 'What Advottic is, and isn’t',
+    description:
+      'Advottic prepares. An attorney advises. You decide. The honest scope of what we do, and when to call a lawyer instead.',
+    url: '/about',
+    type: 'article',
+  },
 };
 
 /**

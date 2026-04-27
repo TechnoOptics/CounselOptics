@@ -2,9 +2,25 @@ import type { Metadata } from 'next';
 import { FindCounselClient } from './find-counsel-client';
 
 export const metadata: Metadata = {
-  title: 'Find counsel near me - Advottic',
+  title: 'Find counsel near you',
   description:
     'Browse nearby law firms via Google Maps. Use your location or a zip code to scan reviews and contact details for lawyers and legal aid in your area.',
+  alternates: { canonical: '/find-counsel' },
+  openGraph: {
+    title: 'Find counsel near you · Advottic',
+    description:
+      'Find nearby attorneys, law firms, and civil legal-aid offices. Free directory, no account required.',
+    url: '/find-counsel',
+    type: 'website',
+  },
+  keywords: [
+    'find a lawyer near me',
+    'find counsel',
+    'attorneys near me',
+    'lawyer referral',
+    'civil legal aid',
+    'law firm directory',
+  ],
 };
 
 export default function FindCounselPage() {

@@ -1,9 +1,42 @@
 import Link from 'next/link';
+import type { Metadata } from 'next';
+import Script from 'next/script';
 import { listCases } from '@/lib/storage';
 import { storageUnavailable } from '@/lib/setup-status';
 import { TestimonialMarquee } from '@/components/TestimonialMarquee';
 import { BellaAvatar } from '@/components/BellaAvatar';
 import { AboutTeaser } from '@/components/AboutTeaser';
+
+const SITE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://www.advottic.com';
+
+export const metadata: Metadata = {
+  title: {
+    absolute: 'Advottic - Walk into court prepared',
+  },
+  description:
+    'Advottic helps you organize evidence, surface jurisdiction-aware issues, prepare for hearings, and ship a clean packet your attorney can read in five minutes. 7-day free trial, no card required.',
+  alternates: { canonical: '/' },
+  openGraph: {
+    title: 'Advottic - Walk into court prepared',
+    description:
+      'Organize evidence, surface jurisdiction-aware issues, prepare for hearings, and ship a clean packet your attorney can read in five minutes.',
+    url: '/',
+    type: 'website',
+  },
+  keywords: [
+    'organize legal case',
+    'pro se case prep',
+    'self represented court',
+    'case file organizer',
+    'exhibit binder',
+    'prepare for court hearing',
+    'small claims preparation',
+    'evidence management for litigants',
+    'attorney intake prep',
+    'legal case organization software',
+  ],
+};
 
 export default async function HomePage() {
   let cases: Awaited<ReturnType<typeof listCases>> = [];
@@ -27,7 +60,163 @@ export default async function HomePage() {
       <AboutTeaser />
       <Faq />
       <FinalCta />
+      <HomeStructuredData />
     </div>
+  );
+}
+
+/**
+ * Schema.org JSON-LD blocks for the home page. Three documents:
+ *
+ *   - Organization: who Advottic is. Lets Google show a knowledge
+ *     panel on branded searches.
+ *   - SoftwareApplication: what Advottic is, with pricing tiers and
+ *     the application category. Eligible for the rich-result
+ *     "Software" treatment in SERPs.
+ *   - FAQPage: the FAQ section below. Lets Google surface FAQ
+ *     accordions directly in the search result.
+ *
+ * Lives at the very bottom of the page so the script tag appears
+ * AFTER the FAQ DOM nodes - some validators want the JSON-LD to
+ * follow its referenced content for the cleanest E-E-A-T signal.
+ * Strategy="afterInteractive" keeps it out of the critical path.
+ */
+function HomeStructuredData() {
+  const organization = {
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    name: 'Advottic',
+    legalName: 'Advottic LLC',
+    url: SITE_URL,
+    logo: `${SITE_URL}/icon-512.png`,
+    sameAs: [
+      'https://github.com/TechnoOptics',
+    ],
+    contactPoint: [
+      {
+        '@type': 'ContactPoint',
+        email: 'contact@advottic.com',
+        contactType: 'customer support',
+        availableLanguage: ['en'],
+      },
+      {
+        '@type': 'ContactPoint',
+        telephone: '+1-925-300-1600',
+        contactType: 'customer support',
+        availableLanguage: ['en'],
+      },
+    ],
+    description:
+      'Advottic helps people organize evidence, surface jurisdiction-aware issues, prepare for hearings, and ship a clean packet to their attorney. We are not a law firm and do not provide legal advice.',
+  };
+
+  const software = {
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
+    name: 'Advottic',
+    operatingSystem: 'Web, iOS, Android',
+    applicationCategory: 'BusinessApplication',
+    applicationSubCategory: 'Legal Case Management',
+    description:
+      'Case-organization, evidence-management, and pre-hearing prep tool for self-represented litigants and people preparing to meet with an attorney. Includes Bella, an on-demand assistant, and Advottic Review, an AI-assisted issue-spotting and gap analysis.',
+    url: SITE_URL,
+    offers: [
+      {
+        '@type': 'Offer',
+        name: 'Basic',
+        price: '25',
+        priceCurrency: 'USD',
+        priceValidUntil: '2027-01-01',
+        category: 'subscription',
+      },
+      {
+        '@type': 'Offer',
+        name: 'Standard',
+        price: '50',
+        priceCurrency: 'USD',
+        priceValidUntil: '2027-01-01',
+        category: 'subscription',
+      },
+      {
+        '@type': 'Offer',
+        name: 'Pro',
+        price: '100',
+        priceCurrency: 'USD',
+        priceValidUntil: '2027-01-01',
+        category: 'subscription',
+      },
+    ],
+    publisher: { '@type': 'Organization', name: 'Advottic LLC' },
+  };
+
+  const faq = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: [
+      {
+        '@type': 'Question',
+        name: 'Is Advottic legal advice?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'No. Advottic helps you organize evidence and prepare a case file. We are not a law firm and do not create an attorney-client relationship. For decisions that matter, talk to a licensed attorney.',
+        },
+      },
+      {
+        '@type': 'Question',
+        name: 'I am facing criminal charges. Can Advottic help?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'If there is any chance of incarceration, request a public defender right away - that help is free and your constitutional right. Advottic can hold the timeline and the documents in the meantime.',
+        },
+      },
+      {
+        '@type': 'Question',
+        name: 'Where is my information kept?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'Your case lives in a private, encrypted database; uploads sit in a private file vault. Only your account can open them. You can export everything you have written or uploaded at any time.',
+        },
+      },
+      {
+        '@type': 'Question',
+        name: 'Can my attorney see my case?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'Yes. On the Pro plan you can invite them by email. They get read access plus the ability to add exhibits, but cannot edit case metadata. Remove them at any time.',
+        },
+      },
+      {
+        '@type': 'Question',
+        name: 'Is there a free trial?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'Yes - 7 days, all features unlocked, no card required to start. Trial-period exports are watermarked "FREE TRIAL" so they are obvious draft outputs, not final deliverables.',
+        },
+      },
+    ],
+  };
+
+  return (
+    <>
+      <Script
+        id="ld-organization"
+        type="application/ld+json"
+        strategy="afterInteractive"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(organization) }}
+      />
+      <Script
+        id="ld-software"
+        type="application/ld+json"
+        strategy="afterInteractive"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(software) }}
+      />
+      <Script
+        id="ld-faq"
+        type="application/ld+json"
+        strategy="afterInteractive"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faq) }}
+      />
+    </>
   );
 }
 

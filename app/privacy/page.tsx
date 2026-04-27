@@ -1,6 +1,11 @@
 import Link from 'next/link';
 
-export const metadata = { title: 'Privacy Policy - Advottic' };
+export const metadata = {
+  title: 'Privacy Policy',
+  description:
+    'What data Advottic collects, how we use it, who we share it with (almost nobody), how long we keep it, and how you control it.',
+  alternates: { canonical: '/privacy' },
+};
 
 export default function PrivacyPage() {
   return (

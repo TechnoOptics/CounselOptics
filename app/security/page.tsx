@@ -1,9 +1,17 @@
 import Link from 'next/link';
 
 export const metadata = {
-  title: 'Trust & Security - Advottic',
+  title: 'Trust & Security',
   description:
     'How Advottic protects your case data: encryption, authentication, access controls, sub-processors, and AI handling. Built for legal-grade trust.',
+  alternates: { canonical: '/security' },
+  openGraph: {
+    title: 'Trust & Security · Advottic',
+    description:
+      'TLS 1.2+ in transit, AES-256 at rest, RLS-scoped per-row access, and zero-retention AI processing terms.',
+    url: '/security',
+    type: 'article',
+  },
 };
 
 export default function SecurityPage() {
