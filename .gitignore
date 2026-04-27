@@ -23,6 +23,12 @@ android/local.properties
 android/key.properties
 android/app/release/
 android/captures/
+# Capacitor sync target - the entire compiled Next.js server bundle
+# lands here on `npx cap sync`. Bundle inlines env values from
+# .env.local at build time, so it MUST never be committed. Belt-
+# and-suspenders even though the directory is build output.
+android/app/src/main/assets/public/
+ios/App/App/public/
 ios/build/
 ios/App/Pods/
 ios/App/Podfile.lock
