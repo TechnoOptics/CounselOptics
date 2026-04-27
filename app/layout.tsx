@@ -54,7 +54,7 @@ const display = Fraunces({
 export const metadata: Metadata = {
   title: 'Advottic',
   description:
-    'Organize evidence, surface jurisdiction-aware issues with Legal Eye, prepare for hearings, and ship a packet your attorney can read in five minutes.',
+    'Organize evidence, surface jurisdiction-aware issues with Advottic Review, prepare for hearings, and ship a packet your attorney can read in five minutes.',
   manifest: '/manifest.webmanifest',
   applicationName: 'Advottic',
   appleWebApp: {
@@ -227,8 +227,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   Advottic
                 </p>
                 <p className="leading-relaxed">
-                  Legal information &amp; case organization. Not a law firm. Not legal advice.
+                  Case organization &amp; preparation. Not a law firm.
                 </p>
+                <Link
+                  href="/about"
+                  className="inline-block mt-1 text-[11px] underline underline-offset-2 hover:text-forest-900 dark:hover:text-cream-100"
+                >
+                  What Advottic is, and isn&rsquo;t &rarr;
+                </Link>
               </div>
               <FooterCol title="Product">
                 <Link href="/cases" className="hover:text-forest-900 dark:hover:text-cream-100 block">Cases</Link>
@@ -237,6 +243,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <Link href="/public-defender" className="hover:text-forest-900 dark:hover:text-cream-100 block">Public defender</Link>
                 <Link href="/file-exhibits" className="hover:text-forest-900 dark:hover:text-cream-100 block">File exhibits</Link>
                 <Link href="/review-my-document" className="hover:text-forest-900 dark:hover:text-cream-100 block">Review my document</Link>
+                <Link href="/about" className="hover:text-forest-900 dark:hover:text-cream-100 block">About Advottic</Link>
                 <Link href="/feedback" className="hover:text-forest-900 dark:hover:text-cream-100 block">Send feedback</Link>
                 <Link href="/welcome" className="hover:text-forest-900 dark:hover:text-cream-100 block">Share Advottic</Link>
                 <Link href="/billing" className="hover:text-forest-900 dark:hover:text-cream-100 block">Billing</Link>
@@ -269,7 +276,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               </p>
             </div>
             <p className="mt-3 text-[10px] leading-relaxed text-ink-400 dark:text-cream-100/45 max-w-3xl">
-              Advottic is a service of Techno Optics LLC. Legal Eye and Bella generate
+              Advottic is a service of Techno Optics LLC. Advottic Review and Bella generate
               informational content automatically; outputs may be incomplete, outdated, or
               wrong and are not legal advice. Always consult a licensed attorney in your
               jurisdiction before acting. If you face possible incarceration, ask the court

@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { hasSafetyCue } from '@/lib/safety';
+import { hasDecisionCue } from '@/lib/decision-cues';
 import { SafetyAdvisory } from '@/components/SafetyAdvisory';
+import { CallALawyerCallout } from '@/components/CallALawyerCallout';
 
 // Marker the server emits when Bella's navigate_to tool fires. We strip
 // it from the rendered text and call router.push so the user actually
@@ -297,6 +299,21 @@ export function Bella({ signedIn = true }: { signedIn?: boolean }) {
                 (m) => m.role === 'user' && hasSafetyCue(m.content),
               ) && (
                 <SafetyAdvisory
+                  text={messages
+                    .filter((m) => m.role === 'user')
+                    .map((m) => m.content)
+                    .join('\n')}
+                />
+              )}
+              {/* Decision-moment nudge in chat. Triggers on the same
+                  keyword cues as the case page (settlement, plea,
+                  SOL, opposing counsel, criminal-jail, sign-release)
+                  appearing in any user message. Quieter than the
+                  safety banner, color-coded amber rather than rose. */}
+              {messages.some(
+                (m) => m.role === 'user' && hasDecisionCue(m.content),
+              ) && (
+                <CallALawyerCallout
                   text={messages
                     .filter((m) => m.role === 'user')
                     .map((m) => m.content)

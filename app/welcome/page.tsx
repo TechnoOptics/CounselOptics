@@ -96,7 +96,7 @@ export default async function WelcomePage() {
             screenshots - auto-numbered as exhibits with category, source, and incident date.
           </Bullet>
           <Bullet>
-            <strong>Legal Eye review</strong> - jurisdiction-aware issue spotting, evidence
+            <strong>Advottic Review review</strong> - jurisdiction-aware issue spotting, evidence
             gaps, and possible subpoena targets. Hedged language, never legal advice.
           </Bullet>
           <Bullet>
@@ -126,9 +126,14 @@ export default async function WelcomePage() {
 
       {/* Trust */}
       <section className="text-center text-xs text-ink-500 dark:text-cream-100/55 max-w-xl mx-auto">
-        Advottic provides legal information and case organization, not legal advice. Always
-        consult a licensed attorney in your jurisdiction before acting. Your case content is
-        encrypted in transit and at rest, and stays yours.{' '}
+        Advottic prepares. A licensed attorney advises. You decide.{' '}
+        <Link
+          href="/about"
+          className="underline hover:text-forest-900 dark:hover:text-cream-100"
+        >
+          What Advottic is, and isn&rsquo;t
+        </Link>{' '}
+        &middot;{' '}
         <Link
           href="/security"
           className="underline hover:text-forest-900 dark:hover:text-cream-100"

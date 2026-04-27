@@ -25,6 +25,8 @@ import { ViewTracker } from './view-tracker';
 import { listCaseAuditEvents } from '@/lib/activity';
 import { ActivityList } from './activity-list';
 import { CaseSearch, type SearchItem } from './case-search';
+import { CallALawyerCallout } from '@/components/CallALawyerCallout';
+import { hasDecisionCue } from '@/lib/decision-cues';
 import { getProfile } from '@/lib/storage';
 
 export const dynamic = 'force-dynamic';
@@ -93,6 +95,25 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
         ]
       : []),
   ];
+
+  // Decide whether the "this is a moment for counsel" callout
+  // should fire on the case page. Keyword cues from the case
+  // description / hearing notes drive one variant; an imminent
+  // hearing without a review drives another. Either is enough.
+  const decisionText = [c.description ?? '', c.hearingNotes ?? '']
+    .filter(Boolean)
+    .join('\n');
+  const showCueCallout = hasDecisionCue(decisionText);
+  const hearingMs = c.hearingAt ? Date.parse(c.hearingAt) : NaN;
+  const daysToHearing = Number.isFinite(hearingMs)
+    ? (hearingMs - Date.now()) / (24 * 60 * 60 * 1000)
+    : NaN;
+  const showImminentCallout =
+    Number.isFinite(daysToHearing) &&
+    daysToHearing > 0 &&
+    daysToHearing <= 14 &&
+    !review &&
+    !isWitness;
 
   return (
     <div className="space-y-8 animate-fade-up">
@@ -206,7 +227,7 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
             tone={hearingTone(c.hearingAt)}
           />
           <Kpi
-            label="Legal Eye"
+            label="Advottic Review"
             value={review ? '✓' : '—'}
             sub={review ? 'review on file' : 'not run'}
             tone={review ? 'emerald' : 'neutral'}
@@ -221,6 +242,24 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
       </div>
 
       <CaseSearch items={searchItems} />
+
+      {/* Contextual "this is a moment to call a lawyer" callouts.
+          Two independent triggers fire here: keyword cues in the
+          description / hearing notes (settlement / plea / SOL
+          risk / opposing counsel / criminal), and an imminent
+          hearing date with no Advottic Review yet. Either is
+          enough to surface the soft nudge - both can show
+          stacked. Witnesses don't see these (not their case). */}
+      {showCueCallout && <CallALawyerCallout text={decisionText} />}
+      {showImminentCallout && (
+        <CallALawyerCallout
+          reason={{
+            title: `Hearing in ${Math.max(1, Math.ceil(daysToHearing))} day${Math.ceil(daysToHearing) === 1 ? '' : 's'} - no review yet`,
+            body: 'You are within two weeks of your hearing. If you have not had a licensed attorney look at the file, even a 30-minute consult before the date is one of the highest-leverage things you can do.',
+          }}
+          ctaLabel="Find counsel near you"
+        />
+      )}
 
       <Tabs
         storageKey={`case-tabs:${c.id}`}
@@ -373,7 +412,7 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
           },
           {
             id: 'review',
-            label: 'Legal Eye',
+            label: 'Advottic Review',
             badge: review ? '✓' : undefined,
             content: <ReviewPanel caseId={c.id} review={review} />,
           },
@@ -431,7 +470,7 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
                           Delete this case
                         </h3>
                         <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1.5 max-w-md leading-relaxed">
-                          Removes the case, every exhibit, every Legal Eye review, and any
+                          Removes the case, every exhibit, every Advottic Review review, and any
                           collaborator access. This is permanent - the case cannot be recovered.
                         </p>
                       </div>

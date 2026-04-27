@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { runReviewAction } from '@/lib/actions';
 import type { AIReview } from '@/lib/types';
 import { BellaPrompt } from '@/components/BellaPrompt';
+import { CallALawyerCallout } from '@/components/CallALawyerCallout';
 
 type TabKey = 'overview' | 'facts' | 'evidence' | 'actions';
 
@@ -40,7 +41,7 @@ export function ReviewPanel({
     <section className="space-y-5">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight text-ink-950 dark:text-cream-100">Legal Eye review</h2>
+          <h2 className="text-xl font-semibold tracking-tight text-ink-950 dark:text-cream-100">Advottic Review review</h2>
           <p className="text-sm text-ink-500 mt-0.5">
             {review ? (
               <>
@@ -50,7 +51,7 @@ export function ReviewPanel({
                 <span className="text-emerald-700 dark:text-emerald-400">No training</span>
               </>
             ) : (
-              'Legal Eye reads the case description and exhibits, then surfaces issues, evidence gaps, and possible subpoena targets. Your case content is never used to train external models.'
+              'Advottic Review reads the case description and exhibits, then surfaces issues, evidence gaps, and possible subpoena targets. Your case content is never used to train external models.'
             )}
           </p>
         </div>
@@ -73,7 +74,7 @@ export function ReviewPanel({
             className="absolute -top-3 left-1/2 -translate-x-1/2 inline-flex items-center gap-1.5 rounded-full bg-forest-950 ring-1 ring-gold-400/40 px-3 py-1 text-[10px] font-mono uppercase tracking-[0.18em] text-gold-300 aurora"
           >
             <SparkleIcon />
-            AI · Legal Eye
+            AI · Advottic Review
           </div>
           <p className="text-cream-100/85 leading-relaxed max-w-md mx-auto mt-2 mb-5">
             Generate a structured, jurisdiction-aware issue-spotting summary
@@ -84,7 +85,7 @@ export function ReviewPanel({
             className="btn bg-gold-metal text-forest-950 hover:brightness-110 shadow-gold-glow font-semibold px-5 py-2.5"
           >
             <SparkleIcon />
-            Run Legal Eye review
+            Run Advottic Review review
           </button>
         </div>
       )}
@@ -96,7 +97,7 @@ export function ReviewPanel({
             Reading the case &amp; exhibits…
           </p>
           <p className="relative text-cream-100/65 text-sm mt-1">
-            Legal Eye is composing the review.
+            Advottic Review is composing the review.
           </p>
         </div>
       )}
@@ -125,12 +126,28 @@ export function ReviewPanel({
         </div>
       )}
 
+      {/* Once the review is done, plant a quiet "this is a good
+          moment to loop in counsel" callout. The review just gave
+          the user a real-looking output - the right next breath is
+          to remind them this is a preparation tool, and a real
+          attorney is who acts on it. */}
+      {review && (
+        <CallALawyerCallout
+          reason={{
+            title: 'A good time to bring in a licensed attorney',
+            body:
+              "Advottic Review surfaces issues and gaps - it does not decide them. Bring this packet to an attorney for advice on which issue to lead with, what to file, and whether the proposed next steps fit your jurisdiction.",
+          }}
+          ctaLabel="Find counsel near you"
+        />
+      )}
+
       {review && (
         <BellaPrompt
           title="Talk to Bella about this review"
           subtitle="Ask follow-up questions in plain English. She has the case and exhibits as context."
           prompts={[
-            'Explain the strongest issue Legal Eye flagged.',
+            'Explain the strongest issue Advottic Review flagged.',
             'Which next step should I do first?',
             'What do these legal terms mean in plain English?',
           ]}
