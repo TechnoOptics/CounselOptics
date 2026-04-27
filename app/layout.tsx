@@ -15,7 +15,11 @@ import { ThemeBoot } from '@/components/ThemeBoot';
 import { CrashReporter } from '@/components/CrashReporter';
 import { TrialBanner } from '@/components/TrialBanner';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
-import { getCurrentSubscription, getProfile } from '@/lib/storage';
+import {
+  ensureSignupHistory,
+  getEffectiveTrialState,
+  getProfile,
+} from '@/lib/storage';
 
 const sans = Inter({
   subsets: ['latin'],
@@ -79,8 +83,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   let serverTheme: 'light' | 'dark' | 'system' = 'light';
   let serverLanguage: string | null = null;
   let trial: {
-    status: 'trialing' | 'past_due' | 'inactive' | 'canceled' | 'unpaid';
+    mode: 'active_subscription' | 'stripe_trialing' | 'free_trial' | 'expired' | 'none';
     trialEndsAt: string | null;
+    daysRemaining: number;
     tier: string | null;
   } | null = null;
   if (isSupabaseConfigured()) {
@@ -101,16 +106,22 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               '',
           };
         }
-        // Trial / lapsed-subscription banner state. Only show for the
-        // statuses where it's actionable; an active paid subscriber
-        // doesn't need this nudge at all.
-        const sub = await getCurrentSubscription().catch(() => null);
-        const status = sub?.status;
-        if (status === 'trialing' || status === 'past_due' || status === 'canceled' || status === 'unpaid') {
+        // Best-effort: record this email in signup_history so the free
+        // trial clock anchors on the FIRST time we ever saw the address,
+        // not on this auth.users row's created_at. Fire-and-forget; a
+        // failure here must never block layout render.
+        ensureSignupHistory().catch(() => {});
+
+        // Compute the effective trial / subscription state. The banner
+        // appears for stripe_trialing, free_trial, and expired modes;
+        // active subscribers skip it.
+        const state = await getEffectiveTrialState().catch(() => null);
+        if (state && state.mode !== 'active_subscription' && state.mode !== 'none') {
           trial = {
-            status,
-            trialEndsAt: sub?.currentPeriodEnd ?? null,
-            tier: sub?.tier ?? null,
+            mode: state.mode,
+            trialEndsAt: state.trialEndsAt,
+            daysRemaining: state.daysRemaining,
+            tier: state.tier,
           };
         }
       }
@@ -194,10 +205,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <Bella signedIn={signedIn} />
         {consent.needed && <ConsentModal fallbackName={consent.fallbackName} />}
         <CookieBanner />
-        {trial && (
+        {trial && (trial.mode === 'stripe_trialing' || trial.mode === 'free_trial' || trial.mode === 'expired') && (
           <TrialBanner
-            status={trial.status}
+            mode={trial.mode}
             trialEndsAt={trial.trialEndsAt}
+            daysRemaining={trial.daysRemaining}
             tier={trial.tier}
           />
         )}

@@ -1,22 +1,19 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { SmartAssistForm } from './smart-assist';
-import { getCurrentSubscription } from '@/lib/storage';
+import { getEffectiveTrialState } from '@/lib/storage';
 import { isSupabaseConfigured } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
 export default async function NewCasePage() {
-  // Post-trial paywall: lapsed subscribers get bounced to /billing
-  // before they can fill out the wizard. Active and trialing users
-  // see the form normally.
+  // Post-trial paywall: free trial ended without a subscription. Bounce
+  // to /billing before they fill out the wizard. Active subscribers,
+  // Stripe-trialing users, and free-trial users (first 7 days from
+  // signup_history.first_signup_at) all see the form normally.
   if (isSupabaseConfigured()) {
-    const sub = await getCurrentSubscription().catch(() => null);
-    if (
-      sub?.status === 'canceled' ||
-      sub?.status === 'past_due' ||
-      sub?.status === 'unpaid'
-    ) {
+    const state = await getEffectiveTrialState().catch(() => null);
+    if (state?.mode === 'expired') {
       redirect('/billing?gate=trial-ended');
     }
   }

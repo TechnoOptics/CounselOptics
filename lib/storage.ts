@@ -1436,6 +1436,143 @@ export async function upsertSubscriptionFromStripe(input: {
 }
 
 // ---------------------------------------------------------------------------
+// Email-anchored 7-day free trial (defeats delete-and-resign-up reset)
+// ---------------------------------------------------------------------------
+
+/** Length of the free trial that starts at signup. Stripe's trial is a
+ *  separate, parallel clock — this is the "no Stripe customer at all" track. */
+export const FREE_TRIAL_DAYS = 7;
+
+/**
+ * Idempotent upsert into signup_history for the current user. The
+ * first time a given email is ever seen, we INSERT with first_signup_at
+ * = now. Subsequent calls (same email, even after a delete + new
+ * auth.users row) only bump last_signup_at + signup_count, so the
+ * trial clock keeps ticking from the original first encounter and a
+ * delete/re-create cannot reset it.
+ */
+export async function ensureSignupHistory(): Promise<void> {
+  if (!usingSupabase()) return;
+  const user = await getCurrentUser();
+  if (!user?.email) return;
+  const admin = createAdminSupabase();
+  if (!admin) return;
+  const email = user.email.trim().toLowerCase();
+  // Read-modify-write rather than upsert because we want to bump
+  // signup_count on existing rows but NEVER touch first_signup_at.
+  const { data: existing } = await admin
+    .from('signup_history')
+    .select('email, signup_count')
+    .eq('email', email)
+    .maybeSingle();
+  if (existing) {
+    await admin
+      .from('signup_history')
+      .update({
+        last_signup_at: new Date().toISOString(),
+        signup_count:
+          ((existing as { signup_count?: number } | null)?.signup_count ?? 1) + 1,
+      })
+      .eq('email', email);
+  } else {
+    await admin.from('signup_history').insert({
+      email,
+      first_signup_at: new Date().toISOString(),
+      last_signup_at: new Date().toISOString(),
+      signup_count: 1,
+    });
+  }
+}
+
+/**
+ * Returns the effective trial / subscription state for the current
+ * user, combining Stripe (subscription row) and the email-anchored
+ * free trial (signup_history). Used by both the TrialBanner and the
+ * paywall on case creation.
+ *
+ *   active_subscription  - paying, full access
+ *   stripe_trialing      - 7-day Stripe trial after they hit Subscribe
+ *   free_trial           - first 7 days from email's first_signup_at
+ *   expired              - free trial up + no active sub
+ *   none                 - no email / not signed in / Supabase down
+ */
+export type EffectiveTrialState = {
+  mode:
+    | 'active_subscription'
+    | 'stripe_trialing'
+    | 'free_trial'
+    | 'expired'
+    | 'none';
+  /** ISO timestamp of when access flips, or null if not applicable. */
+  trialEndsAt: string | null;
+  /** Days remaining before the gate falls (0 if already expired). */
+  daysRemaining: number;
+  /** Subscription tier, if any. */
+  tier: Tier | null;
+};
+
+export async function getEffectiveTrialState(): Promise<EffectiveTrialState> {
+  if (!usingSupabase()) {
+    return { mode: 'none', trialEndsAt: null, daysRemaining: 0, tier: null };
+  }
+  const user = await getCurrentUser();
+  if (!user) {
+    return { mode: 'none', trialEndsAt: null, daysRemaining: 0, tier: null };
+  }
+  // Active Stripe subscription (paid or trial) trumps the free trial.
+  const sub = await getCurrentSubscription().catch(() => null);
+  if (sub?.status === 'active') {
+    return {
+      mode: 'active_subscription',
+      trialEndsAt: sub.currentPeriodEnd ?? null,
+      daysRemaining: 0,
+      tier: sub.tier ?? null,
+    };
+  }
+  if (sub?.status === 'trialing') {
+    const ends = sub.currentPeriodEnd ?? null;
+    const days = ends ? Math.max(0, Math.ceil((Date.parse(ends) - Date.now()) / 86_400_000)) : 0;
+    return {
+      mode: 'stripe_trialing',
+      trialEndsAt: ends,
+      daysRemaining: days,
+      tier: sub.tier ?? null,
+    };
+  }
+  // No active Stripe subscription. Compute the free trial window from
+  // signup_history.first_signup_at (which the layout populates on
+  // every authed render via ensureSignupHistory).
+  if (!user.email) {
+    return { mode: 'none', trialEndsAt: null, daysRemaining: 0, tier: null };
+  }
+  const admin = createAdminSupabase();
+  if (!admin) {
+    return { mode: 'none', trialEndsAt: null, daysRemaining: 0, tier: null };
+  }
+  const email = user.email.trim().toLowerCase();
+  const { data: row } = await admin
+    .from('signup_history')
+    .select('first_signup_at')
+    .eq('email', email)
+    .maybeSingle();
+  const firstSignupAt =
+    (row as { first_signup_at?: string } | null)?.first_signup_at ??
+    user.created_at ??
+    null;
+  if (!firstSignupAt) {
+    return { mode: 'none', trialEndsAt: null, daysRemaining: 0, tier: null };
+  }
+  const ends = new Date(
+    Date.parse(firstSignupAt) + FREE_TRIAL_DAYS * 86_400_000,
+  ).toISOString();
+  const days = Math.max(0, Math.ceil((Date.parse(ends) - Date.now()) / 86_400_000));
+  if (days <= 0) {
+    return { mode: 'expired', trialEndsAt: ends, daysRemaining: 0, tier: null };
+  }
+  return { mode: 'free_trial', trialEndsAt: ends, daysRemaining: days, tier: null };
+}
+
+// ---------------------------------------------------------------------------
 // Token quota (Pro tier metered usage)
 // ---------------------------------------------------------------------------
 

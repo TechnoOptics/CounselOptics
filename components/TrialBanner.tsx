@@ -3,39 +3,43 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
+type Mode = 'stripe_trialing' | 'free_trial' | 'expired';
+
 /**
- * Soft-glowing reminder strip that surfaces while a user is on their
- * 7-day Stripe trial. It fades in on mount, lingers for ~10 seconds,
- * then fades out and reappears every ~6 minutes — frequent enough to
- * remind, not so frequent it nags. Manual dismiss puts it away for
- * the rest of the session.
+ * Soft-glowing reminder strip surfacing the user's trial / lapsed
+ * status. Pulses on for ~10s, hides for 6min, repeats — frequent
+ * enough to remind, not so frequent it nags. Manual dismiss kills
+ * it for the rest of the session.
  *
- * Mounted once in the root layout; visible for any signed-in user
- * whose subscription status is `trialing`. After the trial flips to
- * `past_due` / `canceled` (or expires without a card on file), a
- * different "trial ended" banner takes over.
+ * Three modes:
+ *   - stripe_trialing : 7-day Stripe trial after they hit Subscribe
+ *   - free_trial      : first 7 days from email's first_signup_at
+ *                       (anchored in signup_history so a delete +
+ *                       re-signup with the same email cannot reset)
+ *   - expired         : free trial up + no active subscription
+ *                       (rose-ringed, no auto-hide)
  */
 export function TrialBanner({
-  status,
+  mode,
   trialEndsAt,
+  daysRemaining,
   tier,
 }: {
-  status: 'trialing' | 'past_due' | 'inactive' | 'canceled' | 'unpaid';
+  mode: Mode;
   trialEndsAt: string | null;
+  daysRemaining: number;
   tier: string | null;
 }) {
   const [visible, setVisible] = useState(false);
   const [dismissedThisSession, setDismissedThisSession] = useState(false);
 
-  // Pulse cycle: show 10s, hide 6min, repeat. Manual dismiss kills it.
   useEffect(() => {
-    if (dismissedThisSession) return;
+    if (dismissedThisSession || mode === 'expired') return;
     setVisible(true);
     const hide = setTimeout(() => setVisible(false), 10_000);
     const cycle = setInterval(() => {
       setVisible((v) => !v);
       if (!visible) {
-        // schedule auto-hide 10s after the show
         setTimeout(() => setVisible(false), 10_000);
       }
     }, 360_000);
@@ -44,19 +48,12 @@ export function TrialBanner({
       clearInterval(cycle);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dismissedThisSession]);
+  }, [dismissedThisSession, mode]);
 
   if (dismissedThisSession) return null;
 
-  const daysLeft = trialEndsAt
-    ? Math.max(0, Math.ceil((Date.parse(trialEndsAt) - Date.now()) / 86_400_000))
-    : null;
+  const isExpired = mode === 'expired';
 
-  const isTrial = status === 'trialing';
-  const isExpired =
-    status === 'past_due' || status === 'canceled' || status === 'unpaid';
-
-  // Trial ended (no active subscription) — different copy + always visible.
   if (isExpired) {
     return (
       <div className="fixed left-3 right-3 sm:left-auto sm:right-6 bottom-3 sm:bottom-6 sm:max-w-md z-[55]">
@@ -67,10 +64,10 @@ export function TrialBanner({
           <span aria-hidden className="h-2 w-2 rounded-full bg-rose-400 animate-pulse flex-none" />
           <div className="min-w-0 flex-1">
             <p className="text-[12.5px] font-semibold leading-tight">
-              Your trial has ended
+              Your free trial has ended
             </p>
             <p className="text-[11.5px] text-cream-100/75 leading-snug">
-              You can still view your cases and find counsel. Subscribe to keep using Bella, Legal Eye, and create new cases.
+              You can still view your cases and look up counsel. Subscribe to keep using Bella, Legal Eye, and create new cases.
             </p>
           </div>
           <Link
@@ -84,8 +81,7 @@ export function TrialBanner({
     );
   }
 
-  if (!isTrial) return null;
-
+  // Trialing (Stripe or free) — pulsing reminder.
   return (
     <div
       className={`fixed left-3 right-3 sm:left-auto sm:right-6 bottom-3 sm:bottom-6 sm:max-w-md z-[55] transition-all duration-500 ease-out ${
@@ -102,15 +98,15 @@ export function TrialBanner({
         <span aria-hidden className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse flex-none" />
         <div className="min-w-0 flex-1">
           <p className="text-[12.5px] font-semibold leading-tight">
-            {daysLeft !== null
-              ? daysLeft <= 1
-                ? 'Last day of your free trial'
-                : `${daysLeft} day${daysLeft === 1 ? '' : 's'} left on your free trial`
-              : "You're on a 7-day free trial"}
+            {daysRemaining <= 1
+              ? 'Last day of your free trial'
+              : `${daysRemaining} days left on your free trial`}
             {tier ? ` · ${tier[0].toUpperCase()}${tier.slice(1)}` : ''}
           </p>
           <p className="text-[11.5px] text-cream-100/70 leading-snug">
-            Subscribe before it ends to keep Bella, Legal Eye, and case creation.
+            {mode === 'free_trial'
+              ? 'Subscribe before it ends to keep Bella, Legal Eye, and case creation.'
+              : 'Subscribe before the trial ends to keep your access.'}
           </p>
         </div>
         <Link

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { listCases } from '@/lib/storage';
 import { storageUnavailable } from '@/lib/setup-status';
 import { TestimonialMarquee } from '@/components/TestimonialMarquee';
+import { BellaAvatar } from '@/components/BellaAvatar';
 
 export default async function HomePage() {
   let cases: Awaited<ReturnType<typeof listCases>> = [];
@@ -768,48 +769,6 @@ function BellaBullet({ children }: { children: React.ReactNode }) {
       </span>
       <span>{children}</span>
     </li>
-  );
-}
-
-/**
- * Bella avatar slot. Uses a static <img> with onError fallback so we
- * can ship without a portrait file checked in: drop a JPG/PNG at
- * `public/bella-portrait.jpg` (any size >= 96px square works; the
- * native sizes 128/256 give the cleanest result on Retina) and the
- * portrait shows up immediately. Until then the gold-gradient "B"
- * disc renders so the chat header never looks empty.
- */
-function BellaAvatar() {
-  return (
-    <span className="relative flex h-10 w-10 items-center justify-center rounded-full overflow-hidden ring-2 ring-gold-400/50 bg-gradient-to-br from-forest-700 via-forest-800 to-forest-950">
-      {/* Real portrait — the user drops bella-portrait.jpg into /public.
-          On a 404, browsers show the alt; we hide the broken img via
-          CSS so only the underlying gradient + "B" remain. */}
-      <img
-        src="/bella-portrait.jpg"
-        alt=""
-        aria-hidden
-        loading="lazy"
-        className="absolute inset-0 h-full w-full object-cover"
-        onError={(e) => {
-          const el = e.currentTarget;
-          el.style.display = 'none';
-        }}
-      />
-      <span
-        className="relative z-[1] font-display text-[18px] font-medium tracking-tight"
-        style={{
-          background:
-            'linear-gradient(135deg, #f3e1ad 0%, #d5bb7e 50%, #b89853 100%)',
-          backgroundClip: 'text',
-          WebkitBackgroundClip: 'text',
-          color: 'transparent',
-          textShadow: '0 1px 0 rgba(0,0,0,0.25)',
-        }}
-      >
-        B
-      </span>
-    </span>
   );
 }
 

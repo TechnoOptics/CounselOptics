@@ -12,6 +12,7 @@ import {
   deleteCase,
   getCase,
   getCurrentSubscription,
+  getEffectiveTrialState,
   getExhibitById,
   getExhibitFileBuffer,
   inviteCollaborator,
@@ -119,22 +120,23 @@ export async function createCaseAction(
       return { ok: false, error: 'Title, subject name, and country are required.' };
     }
 
-    // Post-trial paywall. If the user's last subscription has lapsed
-    // (canceled / past_due / unpaid) we keep them in read-only mode -
-    // they can still see existing cases and find counsel, but they
-    // cannot create a fresh one until they subscribe.
+    // Post-trial paywall. The effective state combines Stripe (active /
+    // trialing trumps everything) with the email-anchored 7-day free
+    // trial (signup_history). When the mode is `expired`, the user
+    // had their 7 days and didn't subscribe - they keep read access
+    // to existing cases + find-counsel, but new case creation is
+    // blocked until they subscribe.
     try {
-      const sub = await getCurrentSubscription();
-      const lapsed = sub?.status === 'canceled' || sub?.status === 'past_due' || sub?.status === 'unpaid';
-      if (lapsed) {
+      const state = await getEffectiveTrialState();
+      if (state.mode === 'expired') {
         return {
           ok: false,
           error:
-            'Your trial or subscription has ended. Open /billing to subscribe, then create your case.',
+            'Your free trial has ended. Open /billing to subscribe, then create your case.',
         };
       }
     } catch {
-      // never block creation on a subscription-lookup failure
+      // never block creation on a state-lookup failure
     }
 
     const validSubjectTypes: SubjectType[] = ['person', 'business', 'matter', 'state', 'entity'];
