@@ -1,3 +1,7 @@
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+
 type Testimonial = {
   quote: string;
   name: string;
@@ -37,7 +41,7 @@ const TESTIMONIALS: Testimonial[] = [
   },
   {
     quote:
-      "Going through this alone was the scariest part. Having a tool that didn't talk down to me, but also didn't pretend to be my lawyer, made the dark days workable.",
+      "Going through this alone was the scariest part. Having a tool that didn't talk down to me, but also didn't pretend to be my lawyer, made the difficult days workable.",
     name: 'M. Hassan',
     context: 'Harassment / restraining order',
   },
@@ -61,46 +65,135 @@ const TESTIMONIALS: Testimonial[] = [
   },
 ];
 
+/**
+ * Auto-scrolling testimonial strip that **pauses on user interaction**
+ * and **resumes after 4 seconds of inactivity**. Implementation:
+ *
+ * - The strip is a horizontally-scrollable div with `overflow-x: auto`
+ *   so the user can scroll/swipe by hand at any time.
+ * - A requestAnimationFrame loop nudges scrollLeft forward by ~30 px/s.
+ *   Scrolling, hovering, focusing, or touching the strip flips a
+ *   `paused` flag that suspends the loop.
+ * - When scrollLeft passes the halfway mark we wrap back to 0
+ *   seamlessly (the testimonial array is duplicated so the visible
+ *   content stays unbroken across the wrap).
+ * - 4-second inactivity timer resumes the loop after the user is
+ *   done interacting.
+ */
 export function TestimonialMarquee() {
-  // Duplicate the list so the CSS marquee can loop seamlessly without a gap.
   const items = [...TESTIMONIALS, ...TESTIMONIALS];
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  const pausedRef = useRef(false);
+  const resumeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [, force] = useState(0);
+
+  // Auto-scroll loop. Runs on every paint while not paused, advancing
+  // scrollLeft by ~0.5 px per frame at 60fps = ~30 px/s.
+  useEffect(() => {
+    const el = trackRef.current;
+    if (!el) return;
+
+    let raf = 0;
+    let lastT = 0;
+    function step(t: number) {
+      raf = requestAnimationFrame(step);
+      const node = trackRef.current;
+      if (!node) return;
+      if (pausedRef.current) {
+        lastT = t;
+        return;
+      }
+      if (lastT === 0) lastT = t;
+      const dt = t - lastT;
+      lastT = t;
+      // 30 px/s. The half-track-loop trick: once we cross half the
+      // scroll width, jump back by half so the user never sees the
+      // wrap (the content is duplicated).
+      node.scrollLeft += (dt / 1000) * 30;
+      const half = node.scrollWidth / 2;
+      if (node.scrollLeft >= half) node.scrollLeft -= half;
+    }
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  function pause() {
+    pausedRef.current = true;
+    if (resumeTimer.current) clearTimeout(resumeTimer.current);
+    force((n) => n + 1); // re-render so the visual pause indicator updates
+  }
+  function scheduleResume() {
+    if (resumeTimer.current) clearTimeout(resumeTimer.current);
+    // 4 seconds of inactivity before the carousel takes over again -
+    // long enough that a user reading a card isn't yanked away.
+    resumeTimer.current = setTimeout(() => {
+      pausedRef.current = false;
+      force((n) => n + 1);
+    }, 4000);
+  }
+
   return (
     <section className="relative" aria-label="What people say about Advottic">
       <div className="text-center mb-6">
         <p className="eyebrow justify-center mb-2">Voices</p>
-        <h2 className="text-2xl md:text-3xl font-semibold tracking-tight text-forest-900">
-          Real users in dark moments. Better days afterwards.
+        <h2 className="text-2xl md:text-3xl font-semibold tracking-tight text-forest-900 dark:text-cream-100">
+          Real users in difficult times. Better days afterwards.
         </h2>
         <p className="text-sm text-ink-500 mt-2 max-w-2xl mx-auto">
           A few of the things people have told us about how Advottic helped them advocate for
           themselves, learn the system, or just stop feeling alone in the file.
         </p>
+        <p className="text-[10.5px] uppercase tracking-[0.22em] text-ink-400 mt-3">
+          {pausedRef.current ? 'Paused · scroll or wait 4s' : 'Auto-scrolling · hover to pause'}
+        </p>
       </div>
 
-      <div className="marquee-mask overflow-hidden">
-        <div className="marquee-track flex gap-4 py-4">
-          {items.map((t, i) => (
-            <article
-              key={i}
-              className="flex-none w-[320px] md:w-[360px] rounded-2xl border border-ink-200 bg-white p-5 shadow-card"
-            >
-              <p className="text-sm text-ink-800 leading-relaxed">
-                <span className="text-gold-500 text-xl leading-none mr-1 align-[-2px]">&ldquo;</span>
-                {t.quote}
-                <span className="text-gold-500 text-xl leading-none ml-1 align-[-2px]">&rdquo;</span>
-              </p>
-              <div className="mt-4 pt-3 border-t border-ink-100 flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-forest-900 truncate">{t.name}</p>
-                  <p className="text-xs text-ink-500 truncate">{t.context}</p>
-                </div>
-                <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-gold-700">
-                  Advottic
-                </span>
+      <div
+        ref={trackRef}
+        onMouseEnter={pause}
+        onMouseLeave={scheduleResume}
+        onFocus={pause}
+        onBlur={scheduleResume}
+        onTouchStart={pause}
+        onTouchEnd={scheduleResume}
+        onScroll={() => {
+          // any scroll input is treated as a pause; we'll resume
+          // after the inactivity timer.
+          if (!pausedRef.current) {
+            pausedRef.current = true;
+            force((n) => n + 1);
+          }
+          scheduleResume();
+        }}
+        className="marquee-mask flex gap-4 py-4 overflow-x-auto overflow-y-hidden no-scrollbar cursor-grab active:cursor-grabbing"
+        style={{ scrollSnapType: 'x proximity' }}
+      >
+        {items.map((t, i) => (
+          <article
+            key={i}
+            className="flex-none w-[320px] md:w-[360px] rounded-2xl border border-ink-200 bg-white dark:bg-forest-900 dark:border-forest-700/40 p-5 shadow-card"
+            style={{ scrollSnapAlign: 'start' }}
+          >
+            <p className="text-sm text-ink-800 dark:text-cream-100/85 leading-relaxed">
+              <span className="text-gold-500 text-xl leading-none mr-1 align-[-2px]">&ldquo;</span>
+              {t.quote}
+              <span className="text-gold-500 text-xl leading-none ml-1 align-[-2px]">&rdquo;</span>
+            </p>
+            <div className="mt-4 pt-3 border-t border-ink-100 dark:border-forest-700/40 flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-forest-900 dark:text-cream-100 truncate">
+                  {t.name}
+                </p>
+                <p className="text-xs text-ink-500 dark:text-cream-100/55 truncate">
+                  {t.context}
+                </p>
               </div>
-            </article>
-          ))}
-        </div>
+              <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-gold-700 dark:text-gold-300">
+                Advottic
+              </span>
+            </div>
+          </article>
+        ))}
       </div>
 
       <p className="text-[11px] text-ink-400 mt-3 text-center max-w-2xl mx-auto">
