@@ -11,6 +11,7 @@ import {
   createFeedback,
   deleteCase,
   getCase,
+  getCurrentSubscription,
   getExhibitById,
   getExhibitFileBuffer,
   inviteCollaborator,
@@ -116,6 +117,24 @@ export async function createCaseAction(
 
     if (!title || !subjectName || !country) {
       return { ok: false, error: 'Title, subject name, and country are required.' };
+    }
+
+    // Post-trial paywall. If the user's last subscription has lapsed
+    // (canceled / past_due / unpaid) we keep them in read-only mode -
+    // they can still see existing cases and find counsel, but they
+    // cannot create a fresh one until they subscribe.
+    try {
+      const sub = await getCurrentSubscription();
+      const lapsed = sub?.status === 'canceled' || sub?.status === 'past_due' || sub?.status === 'unpaid';
+      if (lapsed) {
+        return {
+          ok: false,
+          error:
+            'Your trial or subscription has ended. Open /billing to subscribe, then create your case.',
+        };
+      }
+    } catch {
+      // never block creation on a subscription-lookup failure
     }
 
     const validSubjectTypes: SubjectType[] = ['person', 'business', 'matter', 'state', 'entity'];

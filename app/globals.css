@@ -351,6 +351,26 @@ body > * {
 .cookie-pill {
   animation: co-cookie-glow 3s ease-in-out infinite;
 }
+
+/* Soft gold halo around the trial banner so it reads as friendly
+   reminder, not error. Slow 4s breathe matches the cookie pill. */
+@keyframes co-trial-glow {
+  0%, 100% {
+    box-shadow:
+      0 8px 28px -6px rgba(15, 45, 36, 0.45),
+      0 0 0 1px rgba(213, 187, 126, 0.30),
+      0 0 30px rgba(213, 187, 126, 0.18);
+  }
+  50% {
+    box-shadow:
+      0 8px 28px -6px rgba(15, 45, 36, 0.50),
+      0 0 0 1px rgba(213, 187, 126, 0.55),
+      0 0 50px rgba(213, 187, 126, 0.32);
+  }
+}
+.trial-banner-glow {
+  animation: co-trial-glow 4s ease-in-out infinite;
+}
 .cookie-pill:hover {
   animation-duration: 5s;
 }

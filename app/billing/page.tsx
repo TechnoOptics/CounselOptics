@@ -108,15 +108,25 @@ export default async function BillingPage({
       )}
       {searchParams?.gate && (
         <p className="rounded-lg border border-gold-300/50 bg-cream-50 px-4 py-3 text-sm text-forest-900">
-          The{' '}
-          <strong>
-            {searchParams.gate === 'file-exhibits'
-              ? 'Court e-filing directory'
-              : searchParams.gate === 'public-defender'
-                ? 'Public defender directory'
-                : 'page you tried to open'}
-          </strong>{' '}
-          is part of the Pro plan. Upgrade below to unlock it.
+          {searchParams.gate === 'trial-ended' ? (
+            <>
+              <strong>Your trial has ended.</strong> Subscribe below to keep creating cases
+              and using Bella + Legal Eye. You can still view your existing cases and look up
+              counsel without a subscription.
+            </>
+          ) : (
+            <>
+              The{' '}
+              <strong>
+                {searchParams.gate === 'file-exhibits'
+                  ? 'Court e-filing directory'
+                  : searchParams.gate === 'public-defender'
+                    ? 'Public defender directory'
+                    : 'page you tried to open'}
+              </strong>{' '}
+              is part of the Pro plan. Upgrade below to unlock it.
+            </>
+          )}
         </p>
       )}
 

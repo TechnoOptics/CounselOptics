@@ -13,8 +13,9 @@ import { Sidebar, MobileNav } from '@/components/Sidebar';
 import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
 import { ThemeBoot } from '@/components/ThemeBoot';
 import { CrashReporter } from '@/components/CrashReporter';
+import { TrialBanner } from '@/components/TrialBanner';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
-import { getProfile } from '@/lib/storage';
+import { getCurrentSubscription, getProfile } from '@/lib/storage';
 
 const sans = Inter({
   subsets: ['latin'],
@@ -77,6 +78,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   let signedIn = false;
   let serverTheme: 'light' | 'dark' | 'system' = 'light';
   let serverLanguage: string | null = null;
+  let trial: {
+    status: 'trialing' | 'past_due' | 'inactive' | 'canceled' | 'unpaid';
+    trialEndsAt: string | null;
+    tier: string | null;
+  } | null = null;
   if (isSupabaseConfigured()) {
     try {
       const user = await getCurrentUser();
@@ -93,6 +99,18 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               (user.user_metadata?.name as string | undefined) ??
               user.email ??
               '',
+          };
+        }
+        // Trial / lapsed-subscription banner state. Only show for the
+        // statuses where it's actionable; an active paid subscriber
+        // doesn't need this nudge at all.
+        const sub = await getCurrentSubscription().catch(() => null);
+        const status = sub?.status;
+        if (status === 'trialing' || status === 'past_due' || status === 'canceled' || status === 'unpaid') {
+          trial = {
+            status,
+            trialEndsAt: sub?.currentPeriodEnd ?? null,
+            tier: sub?.tier ?? null,
           };
         }
       }
@@ -176,6 +194,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <Bella signedIn={signedIn} />
         {consent.needed && <ConsentModal fallbackName={consent.fallbackName} />}
         <CookieBanner />
+        {trial && (
+          <TrialBanner
+            status={trial.status}
+            trialEndsAt={trial.trialEndsAt}
+            tier={trial.tier}
+          />
+        )}
         <ServiceWorkerRegister />
         <CrashReporter />
         <footer className="border-t border-ink-200 bg-white dark:bg-forest-950 dark:border-forest-700/40">
