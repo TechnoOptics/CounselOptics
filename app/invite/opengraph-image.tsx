@@ -76,7 +76,7 @@ export default async function Image() {
             }}
           >
             Founder of Advottic. I&rsquo;d love your help testing what we&rsquo;ve built
-            &mdash; and your honest feedback.
+            - and your honest feedback.
           </div>
         </div>
 

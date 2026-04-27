@@ -264,7 +264,7 @@ export default function SecurityPage() {
             Eye, returns an answer, and is not retained beyond delivering that answer.
           </Faq>
           <Faq q="Can my attorney see my case without an Advottic account?">
-            Yes — invite them as a collaborator. They'll receive a magic-link invite, see only
+            Yes - invite them as a collaborator. They'll receive a magic-link invite, see only
             the case you shared, and can be removed any time from the Sharing tab. We do not
             require the attorney to subscribe.
           </Faq>
@@ -274,7 +274,7 @@ export default function SecurityPage() {
             from primary storage within 30 days and from backups within 35 days.
           </Faq>
           <Faq q="Are you SOC 2 / HIPAA / ISO 27001 certified?">
-            We're not yet directly certified — we run on infrastructure (Vercel, Supabase,
+            We're not yet directly certified - we run on infrastructure (Vercel, Supabase,
             Anthropic, Stripe) that is. Direct certification of Advottic is on the roadmap as
             we move beyond early-stage operation.
           </Faq>

@@ -3,7 +3,7 @@
  * user text (case description, hearing notes, witness statement,
  * Bella user messages).
  *
- * Distinct from lib/safety.ts — that one is for *physical danger*.
+ * Distinct from lib/safety.ts - that one is for *physical danger*.
  * This one is for *legal-decision moments*: settlement language,
  * plea offers, statute-of-limitations risk, the other side
  * lawyering up. The advice is always the same: take a beat, talk

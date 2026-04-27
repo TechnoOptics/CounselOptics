@@ -7,7 +7,7 @@ type Mode = 'stripe_trialing' | 'free_trial' | 'expired';
 
 /**
  * Soft-glowing reminder strip surfacing the user's trial / lapsed
- * status. Pulses on for ~10s, hides for 6min, repeats — frequent
+ * status. Pulses on for ~10s, hides for 6min, repeats - frequent
  * enough to remind, not so frequent it nags. Manual dismiss kills
  * it for the rest of the session.
  *
@@ -88,7 +88,7 @@ export function TrialBanner({
     );
   }
 
-  // Trialing (Stripe or free) — pulsing reminder.
+  // Trialing (Stripe or free) - pulsing reminder.
   return (
     <div
       className={`fixed left-3 right-3 sm:left-auto sm:right-6 bottom-3 sm:bottom-6 sm:max-w-md z-[55] transition-all duration-500 ease-out ${

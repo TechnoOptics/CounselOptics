@@ -222,13 +222,13 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
           />
           <Kpi
             label="Hearing"
-            value={hearingShort(c.hearingAt) ?? '—'}
+            value={hearingShort(c.hearingAt) ?? '-'}
             sub={c.hearingAt ? hearingDateShort(c.hearingAt) : 'not scheduled'}
             tone={hearingTone(c.hearingAt)}
           />
           <Kpi
             label="Advottic Review"
-            value={review ? '✓' : '—'}
+            value={review ? '✓' : '-'}
             sub={review ? 'review on file' : 'not run'}
             tone={review ? 'emerald' : 'neutral'}
           />

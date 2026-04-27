@@ -30,7 +30,7 @@ const sans = Inter({
 
 // Wordmark fallback (Saira Condensed) loads via Google Fonts. The "real"
 // Conquera font is registered via @font-face in globals.css and points at
-// /fonts/conquera.woff2 — once that file is dropped into public/fonts the
+// /fonts/conquera.woff2 - once that file is dropped into public/fonts the
 // browser will pick it up automatically, otherwise it falls through to the
 // CSS variable below. See globals.css for the @font-face declaration.
 const wordmark = Saira_Condensed({

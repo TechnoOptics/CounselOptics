@@ -41,7 +41,7 @@ export default function InvitePage() {
           </span>
         </h1>
         <p className="text-base sm:text-lg text-ink-600 dark:text-cream-100/75 max-w-xl mx-auto leading-relaxed">
-          Founder of Advottic. I&rsquo;d love your help testing what we&rsquo;ve built &mdash;
+          Founder of Advottic. I&rsquo;d love your help testing what we&rsquo;ve built -
           and your honest feedback.
         </p>
       </header>
@@ -49,8 +49,8 @@ export default function InvitePage() {
       {/* Letter */}
       <section className="card p-6 sm:p-8 space-y-5 leading-relaxed text-[15px] sm:text-base text-ink-800 dark:text-cream-100/85">
         <p>
-          Most people who end up in court &mdash; small claims, family matters, harassment,
-          a contract that went sideways &mdash; arrive feeling overwhelmed. I&rsquo;ve watched
+          Most people who end up in court - small claims, family matters, harassment,
+          a contract that went sideways - arrive feeling overwhelmed. I&rsquo;ve watched
           people I love walk into hearings holding crumpled receipts in a plastic bag,
           carrying a story in their head that no one else can follow, and leave the
           courtroom wondering what just happened.
@@ -58,7 +58,7 @@ export default function InvitePage() {
         <p>
           That&rsquo;s the gap I built Advottic to close. Not a law firm. Not legal advice.
           A clean, structured way to <em>describe what happened</em>, organize your evidence,
-          and walk into your hearing &mdash; or your attorney&rsquo;s office &mdash; with a
+          and walk into your hearing - or your attorney&rsquo;s office - with a
           packet anyone can read in five minutes. Because preparation is power, and people
           deserve to feel powerful in moments that matter to them.
         </p>
@@ -89,7 +89,7 @@ export default function InvitePage() {
           Five minutes is plenty.
         </h2>
         <p className="text-sm sm:text-base text-ink-600 dark:text-cream-100/70 leading-relaxed max-w-2xl">
-          Pick any one of these. You don&rsquo;t need a real case &mdash; a made-up scenario
+          Pick any one of these. You don&rsquo;t need a real case - a made-up scenario
           works just as well for telling me whether the app holds together.
         </p>
         <ul className="grid gap-3 sm:grid-cols-2 mt-4">
@@ -188,7 +188,7 @@ export default function InvitePage() {
         </h2>
         <p className="text-sm sm:text-base text-ink-600 dark:text-cream-100/70 mt-3 max-w-xl mx-auto leading-relaxed">
           What worked. What didn&rsquo;t. What confused you. What made you smile. Send a
-          line, send a paragraph, send a screenshot &mdash; whatever&rsquo;s easiest for
+          line, send a paragraph, send a screenshot - whatever&rsquo;s easiest for
           you. I read every message.
         </p>
         <div className="mt-6 flex flex-wrap items-center justify-center gap-3">

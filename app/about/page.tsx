@@ -38,7 +38,7 @@ export default function AboutPage() {
         </h1>
         <p className="text-base sm:text-lg text-ink-600 dark:text-cream-100/70 mt-4 leading-relaxed">
           We get this question a lot, and you deserve a straight answer. So here it is, in
-          one page, in plain English &mdash; what we do, where a licensed attorney comes
+          one page, in plain English - what we do, where a licensed attorney comes
           in, and how we stay out of your way at the moments that matter.
         </p>
       </header>
@@ -84,11 +84,11 @@ export default function AboutPage() {
           />
           <DoesTile
             title="Generate a clean PDF packet"
-            body="A cover, case info, numbered exhibits index, and Advottic Review summary &mdash; ready to email to an attorney."
+            body="A cover, case info, numbered exhibits index, and Advottic Review summary - ready to email to an attorney."
           />
           <DoesTile
             title="Surface free or low-cost help"
-            body="State-by-state directory of court e-filing portals, public defenders, and civil legal-aid organizations &mdash; one tap away."
+            body="State-by-state directory of court e-filing portals, public defenders, and civil legal-aid organizations - one tap away."
           />
         </ul>
       </Section>
@@ -173,7 +173,7 @@ export default function AboutPage() {
           />
           <CallTile
             title="Family, immigration, or housing emergency"
-            body="Custody, deportation, or imminent eviction need a specialist. Most areas have free clinics &mdash; we link them."
+            body="Custody, deportation, or imminent eviction need a specialist. Most areas have free clinics - we link them."
             cta={{ href: '/find-counsel', label: 'Find counsel' }}
           />
           <CallTile
@@ -210,7 +210,7 @@ export default function AboutPage() {
         </h3>
         <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-3 max-w-xl mx-auto leading-relaxed">
           Whether the next step is your attorney&rsquo;s office, a free legal-aid clinic, a
-          courthouse self-help desk, or a hearing where you speak for yourself &mdash;
+          courthouse self-help desk, or a hearing where you speak for yourself -
           Advottic gets you there organized, not overwhelmed.
         </p>
         <div className="mt-5 flex flex-wrap items-center justify-center gap-3">

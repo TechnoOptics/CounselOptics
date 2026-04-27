@@ -119,7 +119,7 @@ export function ShareAppButton({
                   Text
                 </a>
                 <a
-                  href={`mailto:?subject=${encodeURIComponent(DEFAULT_TITLE)}&body=${encodeURIComponent(`${DEFAULT_TEXT}\n\n${url}\n\n— sent from Advottic`)}`}
+                  href={`mailto:?subject=${encodeURIComponent(DEFAULT_TITLE)}&body=${encodeURIComponent(`${DEFAULT_TEXT}\n\n${url}\n\n- sent from Advottic`)}`}
                   className="btn-secondary"
                 >
                   <MailIcon />

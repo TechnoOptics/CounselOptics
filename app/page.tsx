@@ -903,7 +903,7 @@ function BellaShowcase() {
               <div className="px-5 py-5 space-y-3 text-[13.5px] leading-relaxed">
                 <ChatBubble role="user">where is my apartment lease case from january?</ChatBubble>
                 <ChatBubble role="bella">
-                  Found it. <strong className="text-gold-300">Apartment lease — security deposit refund</strong>{' '}
+                  Found it. <strong className="text-gold-300">Apartment lease - security deposit refund</strong>{' '}
                   (Shakopee, MN), under review with 7 exhibits and a hearing in 9 days. Want me
                   to open it?
                 </ChatBubble>
@@ -1003,7 +1003,7 @@ function SmartFeaturesGrid() {
         />
         <BentoCard
           eyebrow="Document review"
-          title="Paste any contract — get plain English back."
+          title="Paste any contract - get plain English back."
           body="Lease, demand letter, retainer, court order. No account needed for the review."
         />
         <BentoCard
@@ -1020,7 +1020,7 @@ function SmartFeaturesGrid() {
         <BentoCard
           eyebrow="PDF packet"
           title="A clean export your attorney can read in five minutes."
-          body="Cover, case info, exhibits, and the latest Advottic Review review — one polished file."
+          body="Cover, case info, exhibits, and the latest Advottic Review review - one polished file."
         />
         <BentoCard
           eyebrow="Find counsel"

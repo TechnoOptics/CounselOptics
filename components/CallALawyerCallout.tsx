@@ -12,12 +12,12 @@ import {
  * Contextual "this is the moment to call a lawyer" callout. Three
  * ways to drive it:
  *
- *   1. `text` prop — content to scan for decision cues. If any
+ *   1. `text` prop - content to scan for decision cues. If any
  *      cue fires, the callout renders with cue-specific copy.
- *   2. `reason` prop — caller has already decided this is the
+ *   2. `reason` prop - caller has already decided this is the
  *      moment (e.g. hearing < 14 days out with no review). Skips
  *      the keyword scan and renders with the supplied reason.
- *   3. Both — `reason` takes precedence on the headline, cues
+ *   3. Both - `reason` takes precedence on the headline, cues
  *      drive any extra category-specific guidance.
  *
  * Designed to *empower*, not nag: dismissable per session, links
@@ -129,7 +129,7 @@ export function CallALawyerCallout({
           )}
 
           <p className="mt-2.5 text-[11px] text-amber-900/55 dark:text-amber-100/55">
-            Heads-up only &mdash; if this does not apply, hide this notice and keep going.
+            Heads-up only - if this does not apply, hide this notice and keep going.
           </p>
         </div>
       </div>

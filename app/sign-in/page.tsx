@@ -60,7 +60,7 @@ export default async function SignInPage({
         <SignInButtons next={next} />
 
         <p className="text-xs text-ink-500 mt-6 leading-relaxed">
-          By continuing you acknowledge that Advottic helps you organize your case &mdash;
+          By continuing you acknowledge that Advottic helps you organize your case -
           we are not a law firm and Advottic is not legal advice.{' '}
           <Link
             href="/about"

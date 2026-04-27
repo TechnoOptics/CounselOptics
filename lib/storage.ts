@@ -951,7 +951,7 @@ export async function adminListUsers(): Promise<AdminUserRow[]> {
   const admin = createAdminSupabase();
   if (!admin) return [];
 
-  // Pull all auth users (paginate up to 1000 — fine for our scale; expand if needed).
+  // Pull all auth users (paginate up to 1000 - fine for our scale; expand if needed).
   const { data: users, error: usersErr } = await admin.auth.admin.listUsers({ perPage: 1000 });
   if (usersErr) throw usersErr;
 
@@ -1489,7 +1489,7 @@ export async function upsertSubscriptionFromStripe(input: {
 // ---------------------------------------------------------------------------
 
 /** Length of the free trial that starts at signup. Stripe's trial is a
- *  separate, parallel clock — this is the "no Stripe customer at all" track. */
+ *  separate, parallel clock - this is the "no Stripe customer at all" track. */
 export const FREE_TRIAL_DAYS = 7;
 
 /**
