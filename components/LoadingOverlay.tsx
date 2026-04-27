@@ -63,32 +63,44 @@ export function LoadingOverlay({ show, label }: { show: boolean; label?: string 
 
 /**
  * Wired version: drops in inside any <form action={...}> and toggles the
- * overlay automatically while the form action is pending. Enforces a
- * 1-second minimum visible duration so the veil reads as a deliberate
- * transition rather than a flicker, and so the destination page has a
- * moment to start its own first paint before the veil clears.
+ * overlay automatically while the form action is pending.
+ *
+ * Critical detail: the overlay is rendered SYNCHRONOUSLY from the
+ * `pending` flag, NOT via a useEffect-driven `show` state. Reason:
+ * a server action that redirects on success can complete in well
+ * under one paint cycle (~16 ms) on a fast connection, and a
+ * useEffect-based mount needs an extra render to flip its state.
+ * If the redirect resolves before that flip lands, the page
+ * navigates away before the overlay ever paints and the user sees
+ * the click do nothing for ~300 ms (which reads as "broken").
+ *
+ * We still hold the overlay for MIN_VISIBLE_MS *after* pending goes
+ * false so it doesn't flicker on actions that resolve in-place
+ * (validation errors, useFormState rejections that don't redirect).
+ * That hold runs in an effect because it only matters when the
+ * action stays on the same page.
  */
 export function FormLoadingOverlay({ label }: { label?: string }) {
   const { pending } = useFormStatus();
-  const [show, setShow] = useState(false);
-  const startedAtRef = useRef<number>(0);
+  const [holdUntil, setHoldUntil] = useState(0);
 
   useEffect(() => {
     if (pending) {
-      setShow(true);
-      startedAtRef.current = Date.now();
+      setHoldUntil(Date.now() + MIN_VISIBLE_MS);
       return;
     }
-    if (!show) return;
-    const elapsed = Date.now() - startedAtRef.current;
-    const remaining = Math.max(0, MIN_VISIBLE_MS - elapsed);
-    if (remaining === 0) {
-      setShow(false);
-      return;
+    if (Date.now() < holdUntil) {
+      const t = setTimeout(
+        () => setHoldUntil(0),
+        Math.max(0, holdUntil - Date.now()),
+      );
+      return () => clearTimeout(t);
     }
-    const t = setTimeout(() => setShow(false), remaining);
-    return () => clearTimeout(t);
-  }, [pending, show]);
+  }, [pending, holdUntil]);
 
+  // Render synchronously from `pending`. Never wait for a useEffect
+  // round-trip. The `holdUntil` keeps it visible after the action
+  // resolves on the same page (no redirect) so it does not flicker.
+  const show = pending || (holdUntil > 0 && Date.now() < holdUntil);
   return <LoadingOverlay show={show} label={label} />;
 }

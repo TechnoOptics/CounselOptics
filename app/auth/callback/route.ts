@@ -30,6 +30,46 @@ export async function GET(request: NextRequest) {
       oauthError,
       oauthErrorDesc,
     });
+    // Common case: an already-used or expired magic link. Supabase
+    // returns "access_denied" / "otp_expired" with a description like
+    // "Email link is invalid or has expired." If the user actually
+    // does have a valid session already (very common - they clicked
+    // the link a second time after signing in successfully on the
+    // first click), just send them through.
+    const errorCode = url.searchParams.get('error_code') ?? '';
+    const looksLikeUsedMagicLink =
+      /otp_expired|access_denied|invalid|expired|token/i.test(
+        `${errorCode} ${oauthError} ${oauthErrorDesc}`,
+      );
+    if (looksLikeUsedMagicLink) {
+      const supabaseUrl = getSupabaseUrl();
+      const anonKey = getSupabaseAnonKey();
+      if (supabaseUrl && anonKey) {
+        const probe = createServerClient(supabaseUrl, anonKey, {
+          cookies: {
+            getAll() {
+              return request.cookies.getAll();
+            },
+            setAll() {
+              /* probe-only; no cookies to write */
+            },
+          },
+        });
+        const {
+          data: { user },
+        } = await probe.auth.getUser();
+        if (user) {
+          // Already signed in. The expired-link click is harmless;
+          // just send them where they were going.
+          return NextResponse.redirect(new URL(next, url.origin));
+        }
+      }
+      return redirectWithError(
+        url,
+        next,
+        "That sign-in link has already been used or has expired. Each link works once and lasts an hour. Enter your email below for a fresh one - or use Google / Microsoft.",
+      );
+    }
     const friendly =
       oauthErrorDesc?.replace(/\+/g, ' ') ||
       `Sign-in failed (${oauthError}). The provider may not be enabled in Supabase.`;
@@ -41,7 +81,7 @@ export async function GET(request: NextRequest) {
     return redirectWithError(
       url,
       next,
-      "Sign-in didn't complete - the OAuth provider returned no code. If you tried Google or Microsoft, that provider isn't enabled yet in Supabase. Use the email magic link below.",
+      "Sign-in didn't complete - the link may have already been used or expired (each magic link works once and lasts an hour). Try requesting a fresh one below.",
     );
   }
 

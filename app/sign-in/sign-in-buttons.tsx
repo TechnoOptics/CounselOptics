@@ -100,7 +100,23 @@ export function SignInButtons({ next }: { next: string }) {
       if (authError) throw authError;
       setEmailSent(email.trim());
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Sign-in failed.');
+      const raw = err instanceof Error ? err.message : 'Sign-in failed.';
+      // Supabase's per-email throttle returns
+      //   "For security purposes, you can only request this after N seconds."
+      // Parse the seconds and show a friendly countdown so a tester does not
+      // think the form is broken when they click twice in quick succession.
+      const m = /after\s+(\d+)\s+seconds?/i.exec(raw);
+      if (m) {
+        setError(
+          `Just a moment - a magic link is already on its way to ${email.trim()}. Check your inbox (and spam). You can request another in ${m[1]} seconds.`,
+        );
+      } else if (/over_email_send_rate_limit|email rate limit/i.test(raw)) {
+        setError(
+          "We're sending sign-in emails as fast as we can. Try again in a minute, or use Google / Microsoft above.",
+        );
+      } else {
+        setError(raw);
+      }
     } finally {
       setPending(null);
     }

@@ -257,9 +257,11 @@ export async function createCaseAction(
   }
 
   // Redirect outside the try/catch so the NEXT_REDIRECT control-flow
-  // exception isn't swallowed.
+  // exception isn't swallowed. Land on the case list (not the detail
+  // page) so the user sees the new case appear in their dashboard
+  // and orient before they dive in. They can click it from there.
   revalidatePath('/cases');
-  redirect(`/cases/${createdId}`);
+  redirect('/cases');
 }
 
 /**
