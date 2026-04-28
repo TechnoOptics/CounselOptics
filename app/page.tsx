@@ -139,7 +139,7 @@ function HomeStructuredData() {
       {
         '@type': 'Offer',
         name: 'Pro',
-        price: '39',
+        price: '50',
         priceCurrency: 'USD',
         priceValidUntil: '2027-01-01',
         category: 'subscription',

@@ -6,7 +6,7 @@ The in-app subscription prices changed:
 |---|---|---|
 | Basic | $25/mo | **$9/mo** |
 | Standard | $50/mo | **$19/mo** |
-| Pro | $100/mo | **$39/mo** |
+| Pro | $100/mo | **$50/mo** |
 
 Top-ups also rebalanced:
 
@@ -32,7 +32,7 @@ Advottic products. For each tier:
 
 1. Open the product (Basic / Standard / Pro).
 2. Under **Pricing → Add another price**, set:
-   - **Price**: `9.00`, `19.00`, or `39.00` USD
+   - **Price**: `9.00`, `19.00`, or `50.00` USD
    - **Billing period**: Monthly
    - **Type**: Recurring
 3. Save. Copy the new Price ID (starts with `price_`).
@@ -88,7 +88,7 @@ archiving the price does not retro-cancel anyone.
 ## 4. Verify (2 min)
 
 1. Open https://www.advottic.com/billing in an incognito window.
-2. Confirm the tier cards show **$9 / $19 / $39**.
+2. Confirm the tier cards show **$9 / $19 / $50**.
 3. Click **Start Basic**. Stripe Checkout should open with a $9
    price (or $0 with a 7-day free trial banner).
 4. Cancel out of checkout (browser back).

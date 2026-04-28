@@ -187,7 +187,7 @@ export async function POST(req: NextRequest) {
           const tierLabel: Record<Tier, string> = {
             basic: 'Basic ($9/mo)',
             standard: 'Standard ($19/mo)',
-            pro: 'Pro ($39/mo)',
+            pro: 'Pro ($50/mo)',
           };
           const tier = tierFromPriceId(priceId) as Tier | null;
           await notifyAdminOfRevenue({

@@ -4,8 +4,7 @@ import { redirect } from 'next/navigation';
 import { PUBLIC_DEFENDERS } from '@/lib/public-defenders';
 import { PublicDefenderPicker } from './picker';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
-import { getCurrentSubscription, getEffectiveTrialState } from '@/lib/storage';
-import { isFullAccessTrial } from '@/lib/tier';
+import { getCurrentSubscription } from '@/lib/storage';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,8 +31,12 @@ export const metadata: Metadata = {
 };
 
 export default async function PublicDefenderPage() {
-  // Pro-only resource normally; trial users get full access for the
-  // 7-day window so the directory is reachable before they commit.
+  // Strict Pro-only resource. Trial users on lower tiers do NOT
+  // get access; this is one of the two pages reserved as a real
+  // Pro perk so the tier has teeth. A Stripe trial against the Pro
+  // price still counts as Pro (status=trialing on a Pro sub),
+  // since they have committed to Pro - they just have not been
+  // billed yet.
   if (isSupabaseConfigured()) {
     const user = await getCurrentUser();
     if (!user) redirect('/sign-in?next=/public-defender');
@@ -41,9 +44,7 @@ export default async function PublicDefenderPage() {
     const tier = sub?.tier ?? null;
     const status = sub?.status ?? 'inactive';
     const isProActive = tier === 'pro' && (status === 'active' || status === 'trialing');
-    const trialState = await getEffectiveTrialState().catch(() => null);
-    const trialUnlocked = trialState ? isFullAccessTrial(trialState) : false;
-    if (!isProActive && !trialUnlocked) redirect('/billing?gate=public-defender');
+    if (!isProActive) redirect('/billing?gate=public-defender');
   }
 
   return (
