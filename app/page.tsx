@@ -123,7 +123,7 @@ function HomeStructuredData() {
       {
         '@type': 'Offer',
         name: 'Basic',
-        price: '25',
+        price: '9',
         priceCurrency: 'USD',
         priceValidUntil: '2027-01-01',
         category: 'subscription',
@@ -131,7 +131,7 @@ function HomeStructuredData() {
       {
         '@type': 'Offer',
         name: 'Standard',
-        price: '50',
+        price: '19',
         priceCurrency: 'USD',
         priceValidUntil: '2027-01-01',
         category: 'subscription',
@@ -139,7 +139,7 @@ function HomeStructuredData() {
       {
         '@type': 'Offer',
         name: 'Pro',
-        price: '100',
+        price: '39',
         priceCurrency: 'USD',
         priceValidUntil: '2027-01-01',
         category: 'subscription',

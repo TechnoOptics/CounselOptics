@@ -5,9 +5,9 @@ import { useState } from 'react';
 type Size = 'small' | 'medium' | 'large';
 
 const OFFERS: Array<{ size: Size; usd: number; tokens: number; label: string }> = [
-  { size: 'small', usd: 10, tokens: 200_000, label: 'Quick top-up' },
-  { size: 'medium', usd: 25, tokens: 600_000, label: 'Best for steady users' },
-  { size: 'large', usd: 50, tokens: 1_500_000, label: 'Power user pack' },
+  { size: 'small', usd: 5, tokens: 200_000, label: 'Quick top-up' },
+  { size: 'medium', usd: 12, tokens: 600_000, label: 'Best for steady users' },
+  { size: 'large', usd: 25, tokens: 1_500_000, label: 'Power user pack' },
 ];
 
 /**

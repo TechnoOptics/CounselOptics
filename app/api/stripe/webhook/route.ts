@@ -185,9 +185,9 @@ export async function POST(req: NextRequest) {
           // (which is 0 during a free trial - we still want the email
           // for visibility, with the trial flag in the subject).
           const tierLabel: Record<Tier, string> = {
-            basic: 'Basic ($25/mo)',
-            standard: 'Standard ($50/mo)',
-            pro: 'Pro ($100/mo)',
+            basic: 'Basic ($9/mo)',
+            standard: 'Standard ($19/mo)',
+            pro: 'Pro ($39/mo)',
           };
           const tier = tierFromPriceId(priceId) as Tier | null;
           await notifyAdminOfRevenue({

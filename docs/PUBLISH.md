@@ -199,7 +199,7 @@ Use this verbatim. Both stores accept the same descriptions; keep word counts wi
 > Advottic is not a law firm and does not create an attorney-client relationship. Information only. For legal advice, consult a licensed attorney in your jurisdiction.
 >
 > PRICING
-> 7-day free trial. Basic $100/month, Standard $200/month (adds Advottic Review + Bella), Pro $350/month (adds collaborator sharing). Cancel any time.
+> 7-day free trial. Basic $9/month, Standard $19/month (adds Advottic Review + Bella), Pro $39/month (adds collaborator sharing). Cancel any time.
 
 ### Keywords (Apple, 100 chars total)
 `legal,case,attorney,evidence,hearing,exhibit,pro se,court,citation,ticket,defendant,advocacy`
