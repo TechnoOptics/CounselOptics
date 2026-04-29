@@ -924,6 +924,254 @@ function escapeHtml(s: string): string {
     .replace(/'/g, '&#39;');
 }
 
+// =====================================================================
+// Advottic HQ - admin-side counsel operations
+// =====================================================================
+
+/**
+ * Verifies the caller is an admin and returns an admin Supabase
+ * client + the caller's user. Used by every HQ action below.
+ */
+async function requireHqAdmin(): Promise<
+  | { ok: true; admin: ReturnType<typeof createAdminSupabase>; userId: string }
+  | { ok: false; error: string }
+> {
+  const user = await requireUser();
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server is missing SUPABASE_SERVICE_ROLE_KEY.' };
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('is_admin')
+    .eq('id', user.id)
+    .maybeSingle();
+  if (!profile || !(profile as { is_admin: boolean }).is_admin) {
+    return { ok: false, error: 'Admin access required.' };
+  }
+  return { ok: true, admin, userId: user.id };
+}
+
+/**
+ * Admins can flip a pending request into the 'scheduled' state and
+ * record a proposed call time + note. The applicant gets an email
+ * with the proposed slot. Approval still happens via
+ * approveCounselAccessRequestAction once the call has been held.
+ */
+export async function scheduleCounselRequestAction(
+  requestId: string,
+  scheduledAtIso: string,
+  note: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const ctx = await requireHqAdmin();
+  if (!ctx.ok) return { ok: false, error: ctx.error };
+  const { admin } = ctx;
+  if (!admin) return { ok: false, error: 'Admin client unavailable.' };
+
+  const when = new Date(scheduledAtIso);
+  if (Number.isNaN(when.getTime())) {
+    return { ok: false, error: 'Invalid scheduled time.' };
+  }
+  if (when.getTime() < Date.now() - 60 * 60 * 1000) {
+    return { ok: false, error: 'Scheduled time is in the past.' };
+  }
+
+  const { data: req } = await admin
+    .from('firm_access_requests')
+    .select('id, organization_name, contact_name, contact_email, status')
+    .eq('id', requestId)
+    .maybeSingle();
+  if (!req) return { ok: false, error: 'Request not found.' };
+  const r = req as {
+    id: string;
+    organization_name: string;
+    contact_name: string;
+    contact_email: string;
+    status: string;
+  };
+  if (r.status !== 'pending' && r.status !== 'scheduled') {
+    return { ok: false, error: `Cannot schedule a request that is already ${r.status}.` };
+  }
+
+  const { error } = await admin
+    .from('firm_access_requests')
+    .update({
+      status: 'scheduled',
+      scheduled_call_at: when.toISOString(),
+      scheduled_call_note: note.trim() || null,
+    })
+    .eq('id', requestId);
+  if (error) return { ok: false, error: error.message };
+
+  const prettyTime = when.toLocaleString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZoneName: 'short',
+  });
+  await sendEmail({
+    to: r.contact_email,
+    subject: `Advottic Counsel - call scheduled for ${r.organization_name}`,
+    html: `
+      <p>Hi ${escapeHtml(r.contact_name)},</p>
+      <p>Thanks for applying for an Advottic Counsel workspace for <strong>${escapeHtml(r.organization_name)}</strong>. Before we activate the workspace, we'd like to spend a few minutes understanding how your team plans to use it.</p>
+      <p><strong>Proposed time:</strong> ${escapeHtml(prettyTime)}</p>
+      ${note.trim() ? `<p>${escapeHtml(note.trim())}</p>` : ''}
+      <p>If that doesn't work, just reply to this email with a few options that do.</p>
+      <p>- The Advottic team</p>
+    `,
+    text: `Hi ${r.contact_name},\n\nThanks for applying for an Advottic Counsel workspace for ${r.organization_name}. Before we activate the workspace, we'd like to spend a few minutes understanding how your team plans to use it.\n\nProposed time: ${prettyTime}\n${note.trim() ? '\n' + note.trim() + '\n' : ''}\nIf that doesn't work, reply with a few options that do.\n\n- The Advottic team`,
+  }).catch(() => {});
+
+  revalidatePath('/admin/counsel-requests');
+  return { ok: true };
+}
+
+/**
+ * Direct outbound invite: HQ knows of a firm we want on the platform
+ * and dispatches a setup link without an application step. Mints a
+ * standalone grant (request_id null, kind='outbound') and emails it.
+ */
+export async function dispatchCounselInviteAction(input: {
+  organizationName: string;
+  contactEmail: string;
+  contactName: string | null;
+  firmType: FirmType;
+  inviteNote: string | null;
+}): Promise<{ ok: boolean; error?: string; grantToken?: string }> {
+  const ctx = await requireHqAdmin();
+  if (!ctx.ok) return { ok: false, error: ctx.error };
+  const { admin, userId } = ctx;
+  if (!admin) return { ok: false, error: 'Admin client unavailable.' };
+
+  const organizationName = input.organizationName.trim();
+  const contactEmail = input.contactEmail.trim().toLowerCase();
+  const contactName = (input.contactName ?? '').trim() || null;
+  const firmType = (FIRM_TYPES.includes(input.firmType) ? input.firmType : 'firm') as FirmType;
+  if (!organizationName) return { ok: false, error: 'Organization name is required.' };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
+    return { ok: false, error: 'Provide a valid contact email.' };
+  }
+
+  const token = newToken(48);
+  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days for cold outreach
+  const { error: insertErr } = await admin.from('firm_access_grants').insert({
+    request_id: null,
+    email: contactEmail,
+    organization_name: organizationName,
+    firm_type: firmType,
+    token,
+    expires_at: expiresAt.toISOString(),
+    granted_by: userId,
+    kind: 'outbound',
+    invite_note: input.inviteNote?.trim() || null,
+  });
+  if (insertErr) return { ok: false, error: insertErr.message };
+
+  const url =
+    (process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://www.advottic.com') +
+    `/counsel/welcome?grant=${encodeURIComponent(token)}`;
+  const greeting = contactName ? `Hi ${escapeHtml(contactName)},` : 'Hello,';
+  await sendEmail({
+    to: contactEmail,
+    subject: `An Advottic Counsel workspace has been reserved for ${organizationName}`,
+    html: `
+      <p>${greeting}</p>
+      <p>We've reserved an Advottic Counsel workspace for <strong>${escapeHtml(organizationName)}</strong>. Counsel is our organizational legal workspace - clients, matters, documents, e-signature, and team chat in one premium environment, with the data sovereignty your organization needs.</p>
+      ${input.inviteNote?.trim() ? `<blockquote style="border-left:3px solid #d5bb7e;margin:14px 0;padding:6px 14px;color:#444;">${escapeHtml(input.inviteNote.trim())}</blockquote>` : ''}
+      <p>Use the single-use link below to claim it. Sign in with <strong>${escapeHtml(contactEmail)}</strong> when prompted.</p>
+      <p><a href="${escapeHtml(url)}" style="background:#0f2d24;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600;">Activate workspace</a></p>
+      <p>If the button doesn't work, copy this URL into your browser:<br/><span style="font-family:monospace;font-size:13px;">${escapeHtml(url)}</span></p>
+      <p>This link is single-use and expires in 30 days.</p>
+      <p>- The Advottic team</p>
+    `,
+    text: `${contactName ? 'Hi ' + contactName + ',' : 'Hello,'}\n\nWe've reserved an Advottic Counsel workspace for ${organizationName}. Counsel is our organizational legal workspace - clients, matters, documents, e-signature, and team chat in one premium environment.\n\n${input.inviteNote?.trim() ? input.inviteNote.trim() + '\n\n' : ''}Activation link (sign in with ${contactEmail}):\n${url}\n\nSingle-use, expires in 30 days.\n\n- The Advottic team`,
+  }).catch(() => {});
+
+  revalidatePath('/admin/invitations');
+  return { ok: true, grantToken: token };
+}
+
+/**
+ * Resends an outstanding grant (re-emails the same token if not yet
+ * accepted/expired). Used for follow-ups on slow-to-redeem invitations.
+ */
+export async function resendCounselInviteAction(
+  grantId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const ctx = await requireHqAdmin();
+  if (!ctx.ok) return { ok: false, error: ctx.error };
+  const { admin } = ctx;
+  if (!admin) return { ok: false, error: 'Admin client unavailable.' };
+
+  const { data: grant } = await admin
+    .from('firm_access_grants')
+    .select('id, email, organization_name, token, expires_at, accepted_at, invite_note, kind')
+    .eq('id', grantId)
+    .maybeSingle();
+  if (!grant) return { ok: false, error: 'Grant not found.' };
+  const g = grant as {
+    id: string;
+    email: string;
+    organization_name: string;
+    token: string;
+    expires_at: string;
+    accepted_at: string | null;
+    invite_note: string | null;
+    kind: string;
+  };
+  if (g.accepted_at) return { ok: false, error: 'Already redeemed.' };
+  if (new Date(g.expires_at).getTime() < Date.now()) {
+    return { ok: false, error: 'Grant has expired - issue a new invitation instead.' };
+  }
+  const url =
+    (process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://www.advottic.com') +
+    `/counsel/welcome?grant=${encodeURIComponent(g.token)}`;
+  await sendEmail({
+    to: g.email,
+    subject: `Reminder: your Advottic Counsel workspace for ${g.organization_name}`,
+    html: `
+      <p>Just a friendly reminder that the Advottic Counsel workspace for <strong>${escapeHtml(g.organization_name)}</strong> is still waiting for you.</p>
+      <p><a href="${escapeHtml(url)}" style="background:#0f2d24;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600;">Activate workspace</a></p>
+      <p style="font-family:monospace;font-size:13px;">${escapeHtml(url)}</p>
+      <p>Single-use link. Expires ${escapeHtml(new Date(g.expires_at).toLocaleDateString())}.</p>
+      <p>- The Advottic team</p>
+    `,
+    text: `Reminder: the Advottic Counsel workspace for ${g.organization_name} is still waiting for you.\n\nActivation link:\n${url}\n\nExpires ${new Date(g.expires_at).toLocaleDateString()}.\n\n- The Advottic team`,
+  }).catch(() => {});
+  revalidatePath('/admin/invitations');
+  return { ok: true };
+}
+
+/**
+ * Revokes an outstanding grant before it has been redeemed. Sets
+ * expires_at to now so the welcome page rejects it.
+ */
+export async function revokeCounselGrantAction(
+  grantId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const ctx = await requireHqAdmin();
+  if (!ctx.ok) return { ok: false, error: ctx.error };
+  const { admin } = ctx;
+  if (!admin) return { ok: false, error: 'Admin client unavailable.' };
+  const { data: grant } = await admin
+    .from('firm_access_grants')
+    .select('id, accepted_at')
+    .eq('id', grantId)
+    .maybeSingle();
+  if (!grant) return { ok: false, error: 'Grant not found.' };
+  if ((grant as { accepted_at: string | null }).accepted_at) {
+    return { ok: false, error: 'Already redeemed - cannot revoke.' };
+  }
+  const { error } = await admin
+    .from('firm_access_grants')
+    .update({ expires_at: new Date().toISOString() })
+    .eq('id', grantId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath('/admin/invitations');
+  return { ok: true };
+}
+
 // Marker so we can inspect at runtime whether the redirect helper is
 // being treated as a side effect. Used by smoke tests.
 export async function _firmActionsLoaded(): Promise<true> {
