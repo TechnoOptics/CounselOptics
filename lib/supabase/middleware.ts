@@ -7,6 +7,13 @@ import { NextResponse, type NextRequest } from 'next/server';
 // redirected to /cases inside the page itself.
 const PROTECTED_PREFIXES = ['/cases', '/profile', '/admin', '/billing', '/feedback', '/counsel'];
 
+// Publicly accessible routes that live UNDER a protected prefix. The
+// /counsel namespace is invitation-only, but the public application form
+// (/counsel/request) and the grant-redemption welcome page
+// (/counsel/welcome) must be reachable without an account so prospective
+// firms can apply and approved firms can redeem their setup link.
+const PUBLIC_OVERRIDES = ['/counsel/request', '/counsel/welcome'];
+
 /**
  * Edge auth-refresh middleware.
  *
@@ -64,7 +71,10 @@ export async function updateSession(request: NextRequest) {
     } = await supabase.auth.getUser();
 
     const path = request.nextUrl.pathname;
-    const needsAuth = PROTECTED_PREFIXES.some((p) => path === p || path.startsWith(p + '/'));
+    const isPublicOverride = PUBLIC_OVERRIDES.some((p) => path === p || path.startsWith(p + '/'));
+    const needsAuth =
+      !isPublicOverride &&
+      PROTECTED_PREFIXES.some((p) => path === p || path.startsWith(p + '/'));
     if (needsAuth && !user) {
       const signInUrl = request.nextUrl.clone();
       signInUrl.pathname = '/sign-in';
