@@ -53,12 +53,6 @@ export function HqHeader({
           </nav>
         </div>
         <div className="flex items-center gap-2">
-          <Link
-            href="/cases"
-            className="hidden md:inline text-[12px] text-cream-100/55 hover:text-cream-100 px-2 py-1 rounded-md hover:bg-white/5"
-          >
-            Exit to consumer app
-          </Link>
           <UserMenu />
         </div>
       </div>

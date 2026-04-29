@@ -45,11 +45,18 @@ export async function UserMenu() {
   const initials = computeInitials(displayName);
 
   // Suppress consumer-side links (My cases, Billing) when the user
-  // is inside /counsel/*. Counsel users are working on behalf of an
-  // organization and should not be tempted back into the personal
-  // portal from inside their professional workspace.
+  // is inside /counsel/* OR inside the HQ console at /admin/*.
+  // Counsel users are working on behalf of an organization, and HQ
+  // admins are operating the business - neither should be tempted
+  // back into the personal portal from inside their professional
+  // workspace. The flag is named `isCounselMode` for legacy reasons;
+  // it really means "in any non-consumer shell".
   const pathname = headers().get('x-pathname') ?? '';
-  const isCounselMode = pathname === '/counsel' || pathname.startsWith('/counsel/');
+  const isCounselMode =
+    pathname === '/counsel' ||
+    pathname.startsWith('/counsel/') ||
+    pathname === '/admin' ||
+    pathname.startsWith('/admin/');
 
   return (
     <UserMenuClient
