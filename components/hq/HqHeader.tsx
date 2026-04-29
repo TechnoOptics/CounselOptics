@@ -23,7 +23,7 @@ export function HqHeader({
   pathname: string;
 }) {
   return (
-    <header className="sticky top-0 z-20 bg-[#060708]/85 backdrop-blur border-b border-white/5">
+    <header className="sticky top-0 z-20 bg-[#060708]/85 backdrop-blur">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
           <Link
@@ -56,7 +56,7 @@ export function HqHeader({
           <UserMenu />
         </div>
       </div>
-      <nav className="sm:hidden border-t border-white/5 px-4 py-2 flex items-center gap-1 overflow-x-auto">
+      <nav className="sm:hidden px-4 py-2 flex items-center gap-1 overflow-x-auto">
         {CRUMBS.map((c) => {
           const active = c.id === perspective;
           return (
@@ -74,6 +74,7 @@ export function HqHeader({
           );
         })}
       </nav>
+      <div className="header-glow-line" aria-hidden />
     </header>
   );
 }
