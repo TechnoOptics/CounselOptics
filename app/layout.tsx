@@ -136,13 +136,17 @@ export const viewport = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  // Detect /counsel/* so we can swap the consumer chrome for the
-  // firm-side chrome. Counsel users are professionals working on
-  // behalf of an organization - they don't need Find counsel,
-  // Public defender, Billing, or the trial banner inside that mode.
+  // Detect /counsel/* and /admin/* so we can swap the consumer
+  // chrome for the dedicated firm-side and HQ chrome. Counsel users
+  // are professionals working on behalf of an organization, and the
+  // HQ console is the founder cockpit - neither needs Find counsel,
+  // Public defender, Billing, the trial banner, the consumer
+  // sidebar, Bella, or the marketing footer that consumers see.
   // Pathname is forwarded by middleware via the x-pathname header.
   const pathname = headers().get('x-pathname') ?? '';
   const isCounselMode = pathname === '/counsel' || pathname.startsWith('/counsel/');
+  const isHqMode = pathname === '/admin' || pathname.startsWith('/admin/');
+  const isShellMode = isCounselMode || isHqMode;
 
   // Decide whether to mount the consent popup AND whether the user is signed
   // in (so we can gate the search trigger + sidebar/mobile-nav on auth).
@@ -216,7 +220,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             trial banner are intentionally hidden inside /counsel/*
             because firms have per-contract billing and the consumer
             directories are not relevant to organizational users. */}
-        {!isCounselMode && (
+        {!isShellMode && (
           <>
             <header className="sticky top-0 z-20">
               <div className="relative z-30 bg-forest-950/95 backdrop-blur-md pt-[env(safe-area-inset-top)]">
@@ -252,10 +256,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             {signedIn && <SearchPalette />}
           </>
         )}
-        {isCounselMode ? (
-          // Counsel mode: render children directly so the counsel
-          // layout's full-bleed shell isn't squeezed by the consumer
-          // sidebar grid.
+        {isShellMode ? (
+          // Counsel and HQ render their own full-bleed shells. Skip
+          // the consumer sidebar/main grid so those layouts can do
+          // whatever they need without being squeezed.
           children
         ) : (
           <main className="flex-1">
@@ -269,10 +273,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             </div>
           </main>
         )}
-        <Bella signedIn={signedIn} />
+        {!isShellMode && <Bella signedIn={signedIn} />}
         {consent.needed && <ConsentModal fallbackName={consent.fallbackName} />}
         <CookieBanner />
-        {!isCounselMode && trial && (trial.mode === 'stripe_trialing' || trial.mode === 'free_trial' || trial.mode === 'expired') && (
+        {!isShellMode && trial && (trial.mode === 'stripe_trialing' || trial.mode === 'free_trial' || trial.mode === 'expired') && (
           <TrialBanner
             mode={trial.mode}
             trialEndsAt={trial.trialEndsAt}
@@ -285,6 +289,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <FreshnessGuard
           initialSha={(process.env.VERCEL_GIT_COMMIT_SHA ?? 'dev').slice(0, 12)}
         />
+        {!isShellMode && (
         <footer className="border-t border-ink-200 bg-white dark:bg-forest-950 dark:border-forest-700/40">
           <div className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-8 text-[11px] text-ink-500 dark:text-cream-100/55">
             <div className="grid gap-6 sm:gap-8 grid-cols-2 md:grid-cols-4">
@@ -350,6 +355,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             </p>
           </div>
         </footer>
+        )}
       </body>
     </html>
   );

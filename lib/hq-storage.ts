@@ -222,6 +222,12 @@ export type HqDashboardCounts = {
     pendingGrants: number;
     expiredGrants: number;
   };
+  ops: {
+    crashOpen: number;
+    healthStatus: 'pass' | 'fail' | 'unknown';
+    healthLastRun: string | null;
+    healthFailureCount: number;
+  };
 };
 
 export async function adminGetHqDashboardCounts(): Promise<HqDashboardCounts> {
@@ -236,6 +242,7 @@ export async function adminGetHqDashboardCounts(): Promise<HqDashboardCounts> {
         pendingGrants: 0,
         expiredGrants: 0,
       },
+      ops: { crashOpen: 0, healthStatus: 'unknown', healthLastRun: null, healthFailureCount: 0 },
     };
   }
 
@@ -247,6 +254,8 @@ export async function adminGetHqDashboardCounts(): Promise<HqDashboardCounts> {
     firmsResp,
     requestsResp,
     grantsResp,
+    crashResp,
+    healthResp,
   ] = await Promise.all([
     admin.auth.admin.listUsers({ perPage: 1000 }),
     admin.from('subscriptions').select('status'),
@@ -255,6 +264,16 @@ export async function adminGetHqDashboardCounts(): Promise<HqDashboardCounts> {
     admin.from('firms').select('id', { count: 'exact', head: true }),
     admin.from('firm_access_requests').select('status'),
     admin.from('firm_access_grants').select('expires_at, accepted_at'),
+    admin
+      .from('crash_reports')
+      .select('id', { count: 'exact', head: true })
+      .is('acknowledged_at', null),
+    admin
+      .from('system_health')
+      .select('ran_at, probes, failures')
+      .order('ran_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   const subs = (subsResp.data ?? []) as { status: string }[];
@@ -264,6 +283,28 @@ export async function adminGetHqDashboardCounts(): Promise<HqDashboardCounts> {
   const requests = (requestsResp.data ?? []) as { status: string }[];
   const grants = (grantsResp.data ?? []) as { expires_at: string; accepted_at: string | null }[];
   const now = Date.now();
+
+  let healthStatus: 'pass' | 'fail' | 'unknown' = 'unknown';
+  let healthLastRun: string | null = null;
+  let healthFailureCount = 0;
+  const latestHealth = (healthResp as { data: unknown }).data as
+    | {
+        ran_at: string;
+        probes: Record<string, string>;
+        failures: { probe: string; error: string }[];
+      }
+    | null
+    | undefined;
+  if (latestHealth) {
+    healthLastRun = latestHealth.ran_at;
+    healthFailureCount = (latestHealth.failures ?? []).length;
+    const probeValues = Object.values(latestHealth.probes ?? {});
+    healthStatus = probeValues.some((v) => v === 'fail')
+      ? 'fail'
+      : probeValues.length > 0
+        ? 'pass'
+        : 'unknown';
+  }
 
   return {
     consumer: {
@@ -283,6 +324,12 @@ export async function adminGetHqDashboardCounts(): Promise<HqDashboardCounts> {
       expiredGrants: grants.filter(
         (g) => !g.accepted_at && new Date(g.expires_at).getTime() < now,
       ).length,
+    },
+    ops: {
+      crashOpen: crashResp.count ?? 0,
+      healthStatus,
+      healthLastRun,
+      healthFailureCount,
     },
   };
 }

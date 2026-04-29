@@ -1,107 +1,162 @@
 import Link from 'next/link';
+import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { isCurrentUserAdmin, isSupabaseConfigured } from '@/lib/supabase/server';
 import { isServiceRoleConfigured } from '@/lib/supabase/admin';
+import { HqHeader } from '@/components/hq/HqHeader';
 
 export const dynamic = 'force-dynamic';
 
+type Perspective = 'overview' | 'consumer' | 'counsel' | 'operations';
+
+const CONSUMER_PATHS = new Set([
+  '/admin/consumer',
+  '/admin/users',
+  '/admin/cases',
+  '/admin/feedback',
+]);
+const COUNSEL_PATHS = new Set([
+  '/admin/counsel',
+  '/admin/firms',
+  '/admin/counsel-requests',
+  '/admin/invitations',
+]);
+const OPERATIONS_PATHS = new Set(['/admin/health', '/admin/crashes']);
+
+function detectPerspective(pathname: string): Perspective {
+  if (pathname === '/admin') return 'overview';
+  if (CONSUMER_PATHS.has(pathname) || pathname.startsWith('/admin/consumer/')) return 'consumer';
+  if (COUNSEL_PATHS.has(pathname) || pathname.startsWith('/admin/counsel/')) return 'counsel';
+  if (OPERATIONS_PATHS.has(pathname)) return 'operations';
+  return 'overview';
+}
+
 /**
- * Advottic HQ - the founder/owner cockpit that owns BOTH the consumer
- * Advottic app AND Advottic Counsel. Three nav groups:
- *   - Overview: cross-product KPIs and feedback stream
- *   - Consumer: user management, cases, subscriptions
- *   - Counsel: firms, requests, outbound invitations
- *   - Operations: health, raw counts
+ * Advottic HQ shell. The founder's executive cockpit, premium dark.
+ * Lives at /admin/* and explicitly does NOT inherit consumer chrome
+ * (header, sidebar, footer, Bella, trial banner) - app/layout.tsx
+ * detects /admin/* and skips them.
+ *
+ * Two-tier nav:
+ *   - Top crumbs: Overview / Consumer / Counsel / Operations
+ *   - Subnav: only the relevant tabs for the current perspective
+ *
+ * The /admin landing has no subnav - just the dashboard with the
+ * "pick your side" entry cards.
  */
 export default async function HqLayout({ children }: { children: React.ReactNode }) {
   if (!isSupabaseConfigured()) {
     return (
-      <div className="max-w-xl mx-auto card p-8 space-y-3">
-        <h1 className="text-2xl font-semibold tracking-tight">Advottic HQ</h1>
-        <p className="text-sm text-ink-600 leading-relaxed">
-          The HQ console requires Supabase. See <code className="font-mono">SETUP.md</code>.
-        </p>
-      </div>
-    );
-  }
-
-  const admin = await isCurrentUserAdmin();
-  if (!admin) {
-    redirect('/cases');
-  }
-
-  if (!isServiceRoleConfigured()) {
-    return (
-      <div className="max-w-2xl mx-auto card p-8 space-y-3">
-        <h1 className="text-2xl font-semibold tracking-tight">Advottic HQ</h1>
-        <p className="text-sm text-ink-600 leading-relaxed">
-          You're an admin, but the server is missing the{' '}
-          <code className="font-mono">SUPABASE_SERVICE_ROLE_KEY</code> environment variable. Add
-          it (Supabase Dashboard, Project Settings, API, "service_role" key) to enable HQ.
-          The service-role key must never be exposed to the browser.
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="eyebrow mb-2">Advottic HQ</p>
-          <h1 className="text-3xl font-semibold tracking-tight text-ink-950 dark:text-cream-100">
-            Business cockpit
+      <ShellFrame>
+        <div className="max-w-xl mx-auto card p-8 space-y-3">
+          <h1 className="text-2xl font-semibold tracking-tight text-cream-100">
+            Advottic HQ
           </h1>
-          <p className="text-sm text-ink-500 dark:text-cream-100/60 mt-1 max-w-2xl">
-            Founder console for the consumer app and Advottic Counsel.
-            Manage users, firms, billing, requests, and feedback in one place.
+          <p className="text-sm text-cream-100/70 leading-relaxed">
+            HQ requires Supabase. See <code className="font-mono">SETUP.md</code>.
           </p>
         </div>
-      </header>
-
-      <nav className="border-b border-ink-200 dark:border-forest-700/40 -mx-1">
-        <div className="flex flex-col gap-2 pb-1">
-          <NavGroup label="Overview">
-            <HqTab href="/admin">Dashboard</HqTab>
-            <HqTab href="/admin/feedback">Feedback</HqTab>
-          </NavGroup>
-          <NavGroup label="Consumer">
-            <HqTab href="/admin/users">Users</HqTab>
-            <HqTab href="/admin/cases">Cases</HqTab>
-          </NavGroup>
-          <NavGroup label="Counsel">
-            <HqTab href="/admin/firms">Active firms</HqTab>
-            <HqTab href="/admin/counsel-requests">Access requests</HqTab>
-            <HqTab href="/admin/invitations">Outbound invites</HqTab>
-          </NavGroup>
-          <NavGroup label="Operations">
-            <HqTab href="/admin/health">Health</HqTab>
-          </NavGroup>
+      </ShellFrame>
+    );
+  }
+  const admin = await isCurrentUserAdmin();
+  if (!admin) redirect('/cases');
+  if (!isServiceRoleConfigured()) {
+    return (
+      <ShellFrame>
+        <div className="max-w-2xl mx-auto card p-8 space-y-3">
+          <h1 className="text-2xl font-semibold tracking-tight text-cream-100">
+            Advottic HQ
+          </h1>
+          <p className="text-sm text-cream-100/70 leading-relaxed">
+            You're an admin, but the server is missing the{' '}
+            <code className="font-mono">SUPABASE_SERVICE_ROLE_KEY</code>. Add it
+            (Supabase Dashboard, Project Settings, API, "service_role" key) to enable
+            HQ. The service-role key must never reach the browser.
+          </p>
         </div>
-      </nav>
-      <div>{children}</div>
-    </div>
+      </ShellFrame>
+    );
+  }
+
+  const pathname = headers().get('x-pathname') ?? '/admin';
+  const perspective = detectPerspective(pathname);
+
+  return (
+    <ShellFrame>
+      <HqHeader perspective={perspective} pathname={pathname} />
+      <main className="flex-1 mx-auto max-w-7xl w-full px-4 sm:px-6 py-6 sm:py-8">
+        {perspective !== 'overview' && (
+          <PerspectiveSubnav perspective={perspective} pathname={pathname} />
+        )}
+        <div>{children}</div>
+      </main>
+      <footer className="border-t border-white/5 bg-black/40 backdrop-blur">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 py-4 text-[11px] text-cream-100/50 flex flex-wrap items-center justify-between gap-2">
+          <p>
+            <span className="font-semibold text-cream-100">Advottic HQ</span> ·
+            Business cockpit
+          </p>
+          <p>Powered by Techno Optics LLC</p>
+        </div>
+      </footer>
+    </ShellFrame>
   );
 }
 
-function NavGroup({ label, children }: { label: string; children: React.ReactNode }) {
+function ShellFrame({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex flex-wrap items-center gap-1">
-      <span className="text-[10px] uppercase tracking-[0.14em] font-semibold text-ink-400 dark:text-cream-100/45 px-2 min-w-[78px]">
-        {label}
-      </span>
+    <div className="dark hq-shell min-h-screen flex flex-col text-cream-100">
       {children}
     </div>
   );
 }
 
-function HqTab({ href, children }: { href: string; children: React.ReactNode }) {
+function PerspectiveSubnav({
+  perspective,
+  pathname,
+}: {
+  perspective: Exclude<Perspective, 'overview'>;
+  pathname: string;
+}) {
+  const tabs: { href: string; label: string }[] =
+    perspective === 'consumer'
+      ? [
+          { href: '/admin/consumer', label: 'Overview' },
+          { href: '/admin/users', label: 'Users' },
+          { href: '/admin/cases', label: 'Cases' },
+          { href: '/admin/feedback', label: 'Feedback' },
+        ]
+      : perspective === 'counsel'
+        ? [
+            { href: '/admin/counsel', label: 'Overview' },
+            { href: '/admin/firms', label: 'Firms' },
+            { href: '/admin/counsel-requests', label: 'Requests' },
+            { href: '/admin/invitations', label: 'Invitations' },
+          ]
+        : [
+            { href: '/admin/health', label: 'System health' },
+            { href: '/admin/crashes', label: 'Crash reports' },
+          ];
+
   return (
-    <Link
-      href={href}
-      className="px-3 py-1.5 text-[13px] font-medium text-ink-600 dark:text-cream-100/70 hover:text-ink-950 dark:hover:text-cream-100 hover:bg-ink-50/60 dark:hover:bg-forest-800/40 rounded-md transition-colors"
-    >
-      {children}
-    </Link>
+    <nav className="mb-6 flex flex-wrap gap-1 border-b border-white/5 -mx-1 pb-1">
+      {tabs.map((t) => {
+        const active = pathname === t.href;
+        return (
+          <Link
+            key={t.href}
+            href={t.href}
+            className={`px-3 py-1.5 text-[13px] font-medium rounded-md transition-colors ${
+              active
+                ? 'bg-white/8 text-cream-100'
+                : 'text-cream-100/65 hover:text-cream-100 hover:bg-white/5'
+            }`}
+          >
+            {t.label}
+          </Link>
+        );
+      })}
+    </nav>
   );
 }
