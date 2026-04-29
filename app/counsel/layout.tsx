@@ -1,6 +1,6 @@
 import Link from 'next/link';
-import Image from 'next/image';
 import { redirect } from 'next/navigation';
+import { headers } from 'next/headers';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { getActiveFirmContext, listMyFirms } from '@/lib/firm-storage';
 import { CounselSidebar } from '@/components/counsel/CounselSidebar';
@@ -31,6 +31,16 @@ export default async function CounselLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // Short-circuit public + token-gated routes. These pages render
+  // their own full-bleed shells (the public request form and the
+  // grant-redemption welcome screen) and must not inherit the
+  // firm-membership-gated chrome. The pages still get the dark
+  // counsel-shell because they wrap their own content in it.
+  const pathname = headers().get('x-pathname') ?? '';
+  const isPublicCounselRoute =
+    pathname === '/counsel/request' || pathname === '/counsel/welcome';
+  if (isPublicCounselRoute) return <>{children}</>;
+
   if (!isSupabaseConfigured()) {
     return (
       <div className="max-w-xl mx-auto card p-8 mt-10">
@@ -47,11 +57,17 @@ export default async function CounselLayout({
   const user = await getCurrentUser();
   if (!user) redirect('/sign-in?next=/counsel');
 
-  // Some routes are reachable without a firm:
-  //   - /counsel/onboarding (create your first firm)
-  //   - /counsel/accept-invite?token=... (accept an emailed invite)
-  // Everything else requires firm membership.
+  // Counsel is now invitation-only: a signed-in user without firm
+  // membership cannot reach the dashboard. They are routed to:
+  //   - /counsel/accept-invite (already-existing firm member invite)
+  //   - /counsel/request (public application form)
+  // /counsel/onboarding still exists but is reachable only from a
+  // valid grant via /counsel/welcome - the layout still gates it on
+  // firm membership in the same way as the rest.
   const myFirms = await listMyFirms();
+  if (myFirms.length === 0 && pathname !== '/counsel/accept-invite') {
+    redirect('/counsel/request');
+  }
   let active = await getActiveFirmContext();
   if (!active && myFirms.length > 0) {
     // Default to first membership if active_firm_id is unset.

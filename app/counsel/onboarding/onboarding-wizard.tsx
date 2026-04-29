@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { createFirmAction } from '@/lib/firm-actions';
+import { createFirmAction, createFirmFromGrantAction } from '@/lib/firm-actions';
 import {
   FIRM_TYPES,
   FIRM_TYPE_LABEL,
@@ -99,9 +99,18 @@ const FIRM_SIZE_BANDS = ['1-5', '6-25', '26-100', '100+'] as const;
 export function OnboardingWizard({
   defaultName,
   defaultEmail,
+  defaultFirmType,
+  grantToken,
 }: {
   defaultName: string;
   defaultEmail: string | null;
+  /** When provided (e.g. from a grant), pre-fills the firm-type
+   *  selector. The user can still change it. */
+  defaultFirmType?: FirmType;
+  /** When provided, submission uses createFirmFromGrantAction
+   *  instead of createFirmAction so the grant is validated +
+   *  marked accepted on the server. */
+  grantToken?: string;
 }) {
   const router = useRouter();
   // 'welcome' is the first-time premium splash; 1-5 are the wizard
@@ -112,7 +121,7 @@ export function OnboardingWizard({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  const [firmType, setFirmType] = useState<FirmType>('firm');
+  const [firmType, setFirmType] = useState<FirmType>(defaultFirmType ?? 'firm');
   const [name, setName] = useState(defaultName);
   const [slug, setSlug] = useState('');
   const [accent, setAccent] = useState(ACCENTS[0].hex);
@@ -199,8 +208,11 @@ export function OnboardingWizard({
       'practiceAreas',
       (firmType === 'corporate' ? businessAreas : practiceAreas).join(','),
     );
+    if (grantToken) formData.set('grant', grantToken);
     startTransition(async () => {
-      const res = await createFirmAction(formData);
+      const res = grantToken
+        ? await createFirmFromGrantAction(formData)
+        : await createFirmAction(formData);
       if (!res.ok) {
         setError(res.error ?? 'Could not create firm.');
         return;

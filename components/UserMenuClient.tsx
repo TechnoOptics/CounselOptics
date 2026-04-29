@@ -144,17 +144,11 @@ export function UserMenuClient(props: UserMenuProps) {
               ))}
             </div>
           )}
-          {!props.isCounselMode && (
-            <Link
-              href="/counsel/onboarding"
-              onClick={() => setOpen(false)}
-              className="block border-t border-ink-100 px-4 py-2.5 text-sm text-ink-700 hover:bg-cream-50 hover:text-forest-900 transition-colors"
-            >
-              {props.firmMemberships?.length
-                ? 'Set up another firm'
-                : 'Set up a firm (Counsel mode)'}
-            </Link>
-          )}
+          {/* Counsel is invitation-only - no self-service signup
+              from the consumer-side menu. Existing members see the
+              "Counsel mode" submenu above (jumps to /counsel).
+              Everyone else can apply via the public /counsel/request
+              form, which is reachable from marketing surfaces. */}
           <form action="/auth/sign-out" method="post" className="border-t border-ink-100">
             <button
               type="submit"

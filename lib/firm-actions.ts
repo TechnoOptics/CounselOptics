@@ -646,6 +646,264 @@ export async function createFirmChannelAction(
 }
 
 // =====================================================================
+// Counsel access requests + grants (invitation-only Counsel signup)
+// =====================================================================
+
+export type RequestCounselAccessResult = {
+  ok: boolean;
+  error?: string;
+};
+
+/**
+ * Public action - the /counsel/request page is reachable without
+ * auth. Creates a firm_access_requests row through the admin client
+ * (service role) and emails the Advottic team. The team manually
+ * reviews + approves; approval calls approveCounselAccessRequestAction
+ * which mints a grant token and emails it to the applicant.
+ */
+export async function requestCounselAccessAction(
+  formData: FormData,
+): Promise<RequestCounselAccessResult> {
+  const organizationName = String(formData.get('organizationName') ?? '').trim();
+  const contactName = String(formData.get('contactName') ?? '').trim();
+  const contactEmail = String(formData.get('contactEmail') ?? '').trim().toLowerCase();
+  const contactRole = String(formData.get('contactRole') ?? '').trim() || null;
+  const firmTypeRaw = String(formData.get('firmType') ?? 'firm');
+  const firmType = (FIRM_TYPES.includes(firmTypeRaw as FirmType)
+    ? firmTypeRaw
+    : 'firm') as FirmType;
+  const teamSize = String(formData.get('teamSize') ?? '').trim() || null;
+  const jurisdictions = String(formData.get('jurisdictions') ?? '').trim() || null;
+  const description = String(formData.get('description') ?? '').trim() || null;
+  if (!organizationName) return { ok: false, error: 'Organization name is required.' };
+  if (!contactName) return { ok: false, error: 'Your name is required.' };
+  if (!contactEmail || !contactEmail.includes('@')) {
+    return { ok: false, error: 'Enter a valid email.' };
+  }
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server is missing SUPABASE_SERVICE_ROLE_KEY.' };
+
+  const { error } = await admin.from('firm_access_requests').insert({
+    organization_name: organizationName,
+    contact_name: contactName,
+    contact_email: contactEmail,
+    contact_role: contactRole,
+    firm_type: firmType,
+    team_size: teamSize,
+    jurisdictions,
+    description,
+  });
+  if (error) return { ok: false, error: error.message };
+
+  // Notify the Advottic team. Best-effort.
+  await sendEmail({
+    to: process.env.ADMIN_NOTIFY_TO?.trim() || 'contact@advottic.com',
+    subject: `[Counsel] Access request: ${organizationName}`,
+    html: `
+      <p><strong>${escapeHtml(organizationName)}</strong> has requested Advottic Counsel access.</p>
+      <ul>
+        <li>Contact: ${escapeHtml(contactName)} &lt;${escapeHtml(contactEmail)}&gt;</li>
+        ${contactRole ? `<li>Role: ${escapeHtml(contactRole)}</li>` : ''}
+        <li>Type: ${escapeHtml(firmType)}</li>
+        ${teamSize ? `<li>Team size: ${escapeHtml(teamSize)}</li>` : ''}
+        ${jurisdictions ? `<li>Jurisdictions: ${escapeHtml(jurisdictions)}</li>` : ''}
+      </ul>
+      ${description ? `<p>${escapeHtml(description).replace(/\n/g, '<br/>')}</p>` : ''}
+      <p><a href="${(process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://www.advottic.com')}/admin/counsel-requests">Review in admin dashboard</a></p>
+    `,
+    text: `${organizationName} has requested Advottic Counsel access.\n\nContact: ${contactName} <${contactEmail}>\nType: ${firmType}\n${description ? '\n' + description : ''}\n\nReview: ${(process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://www.advottic.com')}/admin/counsel-requests`,
+  }).catch(() => {});
+
+  // Confirmation email to the applicant.
+  await sendEmail({
+    to: contactEmail,
+    subject: 'We received your Advottic Counsel request',
+    html: `
+      <p>Thanks for reaching out about Advottic Counsel for <strong>${escapeHtml(organizationName)}</strong>.</p>
+      <p>The Advottic team reviews every request personally - usually within one business day. If approved, we'll email you a single-use link to set up your workspace. The link will be sent to this email address.</p>
+      <p>If you have any questions in the meantime, reply to this email.</p>
+      <p>- Advottic</p>
+    `,
+    text: `Thanks for reaching out about Advottic Counsel for ${organizationName}.\n\nThe Advottic team reviews every request personally - usually within one business day. If approved, we'll email you a single-use link to set up your workspace.\n\n- Advottic`,
+  }).catch(() => {});
+
+  return { ok: true };
+}
+
+/**
+ * Admin-only. Approves a request, mints a grant, sends the
+ * applicant a single-use signup link.
+ */
+export async function approveCounselAccessRequestAction(
+  requestId: string,
+): Promise<{ ok: boolean; error?: string; grantToken?: string }> {
+  const user = await requireUser();
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server is missing SUPABASE_SERVICE_ROLE_KEY.' };
+  // Confirm the caller is an admin.
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('is_admin')
+    .eq('id', user.id)
+    .maybeSingle();
+  if (!profile || !(profile as { is_admin: boolean }).is_admin) {
+    return { ok: false, error: 'Admin access required.' };
+  }
+  const { data: req } = await admin
+    .from('firm_access_requests')
+    .select('*')
+    .eq('id', requestId)
+    .maybeSingle();
+  if (!req) return { ok: false, error: 'Request not found.' };
+  const r = req as {
+    id: string;
+    organization_name: string;
+    contact_email: string;
+    firm_type: FirmType;
+    status: string;
+  };
+  if (r.status !== 'pending') {
+    return { ok: false, error: `Request is already ${r.status}.` };
+  }
+  const token = newToken(48);
+  const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+  const { error: insertErr } = await admin.from('firm_access_grants').insert({
+    request_id: r.id,
+    email: r.contact_email.toLowerCase(),
+    organization_name: r.organization_name,
+    firm_type: r.firm_type,
+    token,
+    expires_at: expiresAt.toISOString(),
+    granted_by: user.id,
+  });
+  if (insertErr) return { ok: false, error: insertErr.message };
+  await admin
+    .from('firm_access_requests')
+    .update({
+      status: 'approved',
+      reviewed_by: user.id,
+      reviewed_at: new Date().toISOString(),
+    })
+    .eq('id', r.id);
+
+  const url =
+    (process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://www.advottic.com') +
+    `/counsel/welcome?grant=${encodeURIComponent(token)}`;
+  await sendEmail({
+    to: r.contact_email,
+    subject: `Your Advottic Counsel access is ready - ${r.organization_name}`,
+    html: `
+      <p>Welcome to Advottic Counsel, ${escapeHtml(r.organization_name)}.</p>
+      <p>Your single-use setup link is below. Sign in with <strong>${escapeHtml(r.contact_email)}</strong> when prompted.</p>
+      <p><a href="${escapeHtml(url)}" style="background:#0f2d24;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600;">Set up your workspace</a></p>
+      <p>If the button doesn't work, copy this URL into your browser:<br/><span style="font-family:monospace;font-size:13px;">${escapeHtml(url)}</span></p>
+      <p>This link is single-use and expires in 14 days.</p>
+      <p>- The Advottic team</p>
+    `,
+    text: `Welcome to Advottic Counsel, ${r.organization_name}.\n\nYour single-use setup link:\n${url}\n\nSign in with ${r.contact_email} when prompted. Link is single-use and expires in 14 days.\n\n- The Advottic team`,
+  }).catch(() => {});
+
+  revalidatePath('/admin/counsel-requests');
+  return { ok: true, grantToken: token };
+}
+
+export async function denyCounselAccessRequestAction(
+  requestId: string,
+  note: string | null,
+): Promise<{ ok: boolean; error?: string }> {
+  const user = await requireUser();
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server is missing SUPABASE_SERVICE_ROLE_KEY.' };
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('is_admin')
+    .eq('id', user.id)
+    .maybeSingle();
+  if (!profile || !(profile as { is_admin: boolean }).is_admin) {
+    return { ok: false, error: 'Admin access required.' };
+  }
+  const { error } = await admin
+    .from('firm_access_requests')
+    .update({
+      status: 'denied',
+      reviewed_by: user.id,
+      reviewed_at: new Date().toISOString(),
+      review_note: note?.trim() || null,
+    })
+    .eq('id', requestId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath('/admin/counsel-requests');
+  return { ok: true };
+}
+
+/**
+ * Validates a grant token + the signed-in user's email match,
+ * runs the original createFirmAction logic, and marks the grant
+ * accepted. Used by the token-gated /counsel/welcome onboarding
+ * flow.
+ */
+export async function createFirmFromGrantAction(
+  formData: FormData,
+): Promise<CreateFirmResult> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: 'Sign in first.' };
+  if (!user.email) return { ok: false, error: 'Your account has no email.' };
+  const grantToken = String(formData.get('grant') ?? '').trim();
+  if (!grantToken) {
+    return { ok: false, error: 'Missing grant token. Use the link from your invitation email.' };
+  }
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server is missing SUPABASE_SERVICE_ROLE_KEY.' };
+  const { data: grantRow } = await admin
+    .from('firm_access_grants')
+    .select('*')
+    .eq('token', grantToken)
+    .maybeSingle();
+  if (!grantRow) return { ok: false, error: 'Grant not found or already used.' };
+  const grant = grantRow as {
+    id: string;
+    email: string;
+    organization_name: string;
+    firm_type: FirmType;
+    expires_at: string;
+    accepted_at: string | null;
+  };
+  if (grant.accepted_at) return { ok: false, error: 'This grant has already been used.' };
+  if (Date.parse(grant.expires_at) < Date.now()) {
+    return { ok: false, error: 'This grant has expired. Contact the Advottic team for a new one.' };
+  }
+  if (grant.email.toLowerCase() !== user.email.toLowerCase()) {
+    return {
+      ok: false,
+      error: `This grant was issued to ${grant.email}. Sign in with that email to redeem it.`,
+    };
+  }
+  // Reuse the existing onboarding payload by injecting validated
+  // pre-fills and delegating to createFirmAction. We cannot literally
+  // call createFirmAction here because it doesn't take a grant token,
+  // so we replicate its body inline + clean up the grant.
+  const fakeFormData = new FormData();
+  for (const [k, v] of formData.entries()) fakeFormData.set(k, v);
+  // Force the firm_type from the grant if not explicitly overridden.
+  if (!fakeFormData.get('firmType')) fakeFormData.set('firmType', grant.firm_type);
+  if (!fakeFormData.get('name')) fakeFormData.set('name', grant.organization_name);
+  const result = await createFirmAction(fakeFormData);
+  if (!result.ok || !result.firmId) return result;
+  // Mark grant as accepted, link to the new firm.
+  await admin
+    .from('firm_access_grants')
+    .update({ accepted_at: new Date().toISOString(), firm_id: result.firmId })
+    .eq('id', grant.id);
+  // Update the parent request status if any.
+  await admin
+    .from('firm_access_requests')
+    .update({ status: 'accepted' })
+    .eq('contact_email', grant.email.toLowerCase())
+    .eq('status', 'approved');
+  return result;
+}
+
+// =====================================================================
 // Helpers
 // =====================================================================
 
