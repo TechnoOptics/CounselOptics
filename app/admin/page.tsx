@@ -108,30 +108,19 @@ function HeroStat({
   label,
   value,
   subline,
-  accent,
 }: {
   label: string;
   value: number;
   subline: string;
-  accent: 'cool' | 'warm';
+  accent?: 'cool' | 'warm';
 }) {
-  const ring =
-    accent === 'cool'
-      ? 'ring-sky-700/30 hover:ring-sky-500/40'
-      : 'ring-amber-700/30 hover:ring-amber-500/40';
-  const number =
-    accent === 'cool' ? 'text-sky-200' : 'text-amber-200';
   return (
-    <div
-      className={`card p-7 ring-1 ${ring} transition-colors`}
-    >
+    <div className="card p-7 transition-colors">
       <p className="eyebrow text-cream-100/65">{label}</p>
-      <p
-        className={`mt-3 font-display text-6xl font-medium tracking-[-0.03em] tabular-nums ${number}`}
-      >
+      <p className="mt-3 font-display text-6xl font-medium tracking-[-0.03em] tabular-nums text-gold-flow">
         {value.toLocaleString()}
       </p>
-      <p className="text-[13px] text-cream-100/60 mt-2">{subline}</p>
+      <p className="text-[13px] text-cream-100/65 mt-2">{subline}</p>
     </div>
   );
 }
@@ -228,7 +217,7 @@ function PerspectiveCard({
       <div className="flex items-baseline justify-between gap-3">
         <div>
           <p className={`eyebrow ${tagColor}`}>{tag}</p>
-          <h3 className="font-display text-2xl text-cream-100 mt-0.5">{title}</h3>
+          <h3 className="font-display text-2xl mt-0.5 text-gold-flow">{title}</h3>
         </div>
         <span className="text-cream-100/55 text-sm" aria-hidden>
           →

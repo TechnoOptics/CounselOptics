@@ -13,12 +13,12 @@ export default async function AdminUsersPage() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <p className="text-sm text-ink-500">
+        <p className="text-sm text-ink-500 dark:text-cream-100/55">
           {users.length} user{users.length === 1 ? '' : 's'} · {adminCount} admin
           {adminCount === 1 ? '' : 's'}
         </p>
         {adminCount < 2 && (
-          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-1.5">
+          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 dark:text-amber-200 dark:bg-amber-950/40 dark:border-amber-700/40 rounded-md px-3 py-1.5">
             At least 2 admins are required. Promote another user before
             demoting yourself.
           </p>
@@ -32,7 +32,7 @@ export default async function AdminUsersPage() {
         style={{ WebkitOverflowScrolling: 'touch' }}
       >
         <table className="w-full text-sm min-w-[820px]">
-          <thead className="bg-ink-50 border-b border-ink-200">
+          <thead className="bg-ink-50 border-b border-ink-200 dark:bg-white/5 dark:border-white/10">
             <tr className="text-left">
               <Th>User</Th>
               <Th>Representation</Th>
@@ -44,30 +44,30 @@ export default async function AdminUsersPage() {
               <Th>Access</Th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-ink-100">
+          <tbody className="divide-y divide-ink-100 dark:divide-white/5">
             {users.map((u) => (
-              <tr key={u.id} className="hover:bg-ink-50/40">
+              <tr key={u.id} className="hover:bg-ink-50/40 dark:hover:bg-white/5">
                 <Td>
-                  <div className="font-medium text-ink-950">
+                  <div className="font-medium text-ink-950 dark:text-cream-100">
                     {u.displayName || u.email || u.id.slice(0, 8)}
                   </div>
-                  <div className="text-xs text-ink-500">{u.email}</div>
+                  <div className="text-xs text-ink-500 dark:text-cream-100/55">{u.email}</div>
                   {u.organization && (
-                    <div className="text-xs text-ink-500">{u.organization}</div>
+                    <div className="text-xs text-ink-500 dark:text-cream-100/55">{u.organization}</div>
                   )}
                   {!u.consentedAt && (
-                    <div className="text-[10px] uppercase tracking-wider text-amber-700 mt-0.5">
+                    <div className="text-[10px] uppercase tracking-wider text-amber-700 dark:text-amber-300 mt-0.5">
                       No consent yet
                     </div>
                   )}
                 </Td>
                 <Td>
                   {u.representation ? (
-                    <span className="text-ink-800 text-xs">
+                    <span className="text-ink-800 dark:text-cream-100/85 text-xs">
                       {REPRESENTATION_LABEL[u.representation]}
                     </span>
                   ) : (
-                    <span className="text-ink-400">-</span>
+                    <span className="text-ink-400 dark:text-cream-100/40">-</span>
                   )}
                 </Td>
                 <Td>
@@ -77,14 +77,14 @@ export default async function AdminUsersPage() {
                         u.subscriptionTier === 'pro'
                           ? 'bg-gold-500 text-forest-950'
                           : u.subscriptionTier === 'standard'
-                            ? 'bg-forest-900 text-cream-200'
-                            : 'bg-ink-100 text-ink-800'
+                            ? 'bg-forest-900 text-cream-200 dark:bg-white/15 dark:text-cream-100'
+                            : 'bg-ink-100 text-ink-800 dark:bg-white/10 dark:text-cream-100/85'
                       }`}
                     >
                       {TIER_LABEL[u.subscriptionTier]}
                     </span>
                   ) : (
-                    <span className="text-ink-400">-</span>
+                    <span className="text-ink-400 dark:text-cream-100/40">-</span>
                   )}
                 </Td>
                 <Td>
@@ -92,33 +92,37 @@ export default async function AdminUsersPage() {
                     <span
                       className={`badge ${
                         u.subscriptionStatus === 'active'
-                          ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                          ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-200 dark:border-emerald-700/40'
                           : u.subscriptionStatus === 'trialing'
-                            ? 'bg-sky-50 text-sky-800 border border-sky-200'
+                            ? 'bg-sky-50 text-sky-800 border border-sky-200 dark:bg-sky-950/40 dark:text-sky-200 dark:border-sky-700/40'
                             : u.subscriptionStatus === 'past_due' ||
                               u.subscriptionStatus === 'unpaid'
-                              ? 'bg-amber-50 text-amber-900 border border-amber-200'
+                              ? 'bg-amber-50 text-amber-900 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-200 dark:border-amber-700/40'
                               : u.subscriptionStatus === 'canceled' ||
                                 u.subscriptionStatus === 'inactive'
-                                ? 'bg-ink-100 text-ink-700'
-                                : 'bg-rose-50 text-rose-800 border border-rose-200'
+                                ? 'bg-ink-100 text-ink-700 dark:bg-white/10 dark:text-cream-100/70'
+                                : 'bg-rose-50 text-rose-800 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-200 dark:border-rose-700/40'
                       }`}
                     >
                       {u.subscriptionStatus}
                     </span>
                   ) : (
-                    <span className="text-ink-400 text-xs">none</span>
+                    <span className="text-ink-400 dark:text-cream-100/40 text-xs">none</span>
                   )}
                 </Td>
-                <Td className="tabular-nums">{u.caseCount}</Td>
-                <Td>
+                <Td className="tabular-nums text-ink-800 dark:text-cream-100/85">
+                  {u.caseCount}
+                </Td>
+                <Td className="text-ink-700 dark:text-cream-100/75">
                   {u.lastSignInAt ? (
                     new Date(u.lastSignInAt).toLocaleString()
                   ) : (
-                    <span className="text-ink-400">never</span>
+                    <span className="text-ink-400 dark:text-cream-100/40">never</span>
                   )}
                 </Td>
-                <Td>{new Date(u.createdAt).toLocaleDateString()}</Td>
+                <Td className="text-ink-700 dark:text-cream-100/75">
+                  {new Date(u.createdAt).toLocaleDateString()}
+                </Td>
                 <Td>
                   <UserToggles
                     userId={u.id}
@@ -142,7 +146,10 @@ export default async function AdminUsersPage() {
             ))}
             {users.length === 0 && (
               <tr>
-                <td colSpan={8} className="p-8 text-center text-sm text-ink-500">
+                <td
+                  colSpan={8}
+                  className="p-8 text-center text-sm text-ink-500 dark:text-cream-100/55"
+                >
                   No users.
                 </td>
               </tr>
@@ -150,10 +157,16 @@ export default async function AdminUsersPage() {
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-ink-500">
+      <p className="text-xs text-ink-500 dark:text-cream-100/55">
         Toggle admin to grant or revoke admin access. Toggle "Active" off to block a user from
         signing in. Blocked users see a friendly message pointing them at{' '}
-        <a className="underline" href="mailto:contact@advottic.com">contact@advottic.com</a>.
+        <a
+          className="underline hover:text-ink-800 dark:hover:text-cream-100"
+          href="mailto:contact@advottic.com"
+        >
+          contact@advottic.com
+        </a>
+        .
       </p>
     </div>
   );
@@ -161,7 +174,7 @@ export default async function AdminUsersPage() {
 
 function Th({ children }: { children: React.ReactNode }) {
   return (
-    <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-ink-500">
+    <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-ink-500 dark:text-cream-100/60">
       {children}
     </th>
   );

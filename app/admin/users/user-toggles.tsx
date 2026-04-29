@@ -104,7 +104,7 @@ export function UserToggles({
         />
       </div>
       {error && (
-        <p className="text-[10.5px] text-rose-700 leading-snug">{error}</p>
+        <p className="text-[10.5px] text-rose-700 dark:text-rose-300 leading-snug">{error}</p>
       )}
     </div>
   );
@@ -141,7 +141,7 @@ function Toggle({
     >
       <span
         className={`relative inline-flex h-5 w-9 flex-none rounded-full transition-colors ${
-          checked ? onColor : 'bg-ink-300'
+          checked ? onColor : 'bg-ink-300 dark:bg-white/20'
         }`}
       >
         <span
@@ -150,7 +150,15 @@ function Toggle({
           }`}
         />
       </span>
-      <span className={checked ? 'text-ink-900' : 'text-ink-500'}>{label}</span>
+      <span
+        className={
+          checked
+            ? 'text-ink-900 dark:text-cream-100'
+            : 'text-ink-500 dark:text-cream-100/55'
+        }
+      >
+        {label}
+      </span>
     </button>
   );
 }

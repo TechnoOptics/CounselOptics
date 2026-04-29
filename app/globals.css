@@ -494,6 +494,23 @@ body > * {
   background-color: rgba(13, 16, 21, 0.8);
 }
 
+/* Gold gradient text - the hero / accent treatment for tile numbers,
+   page titles, and any "this matters" text inside the hq-shell.
+   Background-clip: text means the gradient becomes the text fill. */
+.text-gold-flow {
+  background: linear-gradient(
+    135deg,
+    #f5edd6 0%,
+    #d5bb7e 35%,
+    #c9a96e 65%,
+    #d5bb7e 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
 /* Entrance-and-attention animation for the GDPR cookie modal. The
    dialog briefly lifts + scales in, then a slow gold-glow breathe
    anchors attention. Two-phase: pop-in over 0.45s, then a 4s

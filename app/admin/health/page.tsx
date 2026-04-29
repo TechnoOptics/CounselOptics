@@ -1,4 +1,5 @@
 import { adminListHealthChecks } from '@/lib/storage';
+import { adminGetHqHealthExtras } from '@/lib/hq-storage';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'System health - Advottic HQ' };
@@ -12,58 +13,250 @@ const PROBE_LABEL: Record<string, string> = {
 };
 
 export default async function HqHealthPage() {
-  const checks = await adminListHealthChecks(48);
+  const [checks, extras] = await Promise.all([
+    adminListHealthChecks(48),
+    adminGetHqHealthExtras(),
+  ]);
   const latest = checks[0] ?? null;
   const probeNames = latest ? Object.keys(latest.probes) : Object.keys(PROBE_LABEL);
   const last24 = checks.slice(0, 24);
 
   return (
-    <div className="space-y-6 animate-fade-up">
+    <div className="space-y-8 animate-fade-up">
       <header>
         <p className="eyebrow mb-1">Operations</p>
-        <h2 className="font-display text-2xl text-cream-100 tracking-[-0.01em]">
+        <h2 className="font-display text-2xl text-gold-flow tracking-[-0.01em]">
           System health
         </h2>
-        <p className="text-[13px] text-cream-100/65 mt-1">
-          Hourly synthetic probes across the integrations Advottic relies on.
+        <p className="text-[13px] text-cream-100/70 mt-1">
+          Hourly synthetic probes, security signals, and a live readout of who's
+          using Advottic right now.
         </p>
       </header>
 
-      {!latest ? (
-        <p className="text-sm text-cream-100/70">
-          No health checks recorded yet. The cron runs every hour; trigger one manually
-          with <code className="font-mono">/api/cron/health</code>.
-        </p>
-      ) : (
-        <>
-          <p className="text-[12.5px] text-cream-100/55">
-            Last run {new Date(latest.ranAt).toLocaleString()}
-            {typeof latest.durationMs === 'number' && ` (${latest.durationMs} ms)`}
+      {/* Top row: posture metrics across the whole platform. */}
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <UptimeTile uptime={extras.uptime} />
+        <ActivityTile activity={extras.activity} />
+        <GdprTile gdpr={extras.gdpr} />
+        <SecurityTile security={extras.security} />
+      </section>
+
+      {/* Hourly probes, unchanged shape. */}
+      <section className="space-y-3">
+        <header>
+          <p className="eyebrow text-cream-100/70">Hourly probes</p>
+          <p className="text-[13px] text-cream-100/65 mt-0.5">
+            Synthetic checks across the integrations Advottic relies on.
           </p>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            {probeNames.map((p) => (
-              <ProbeTile
-                key={p}
-                name={PROBE_LABEL[p] ?? p}
-                status={latest.probes[p as keyof typeof latest.probes] as string}
-                history={last24.map((c) => c.probes[p as keyof typeof c.probes] as string)}
-              />
-            ))}
-          </div>
-          {latest.failures.length > 0 && (
-            <div className="card p-4 ring-1 ring-rose-700/40">
-              <p className="eyebrow text-rose-300 mb-2">Failure detail</p>
-              <ul className="text-[13px] space-y-1.5 text-cream-100/85">
-                {latest.failures.map((f, i) => (
-                  <li key={i}>
-                    <span className="font-mono text-rose-300">{f.probe}</span> - {f.error}
-                  </li>
-                ))}
-              </ul>
+        </header>
+        {!latest ? (
+          <p className="text-sm text-cream-100/70">
+            No health checks recorded yet. The cron runs every hour; trigger one manually
+            with <code className="font-mono">/api/cron/health</code>.
+          </p>
+        ) : (
+          <>
+            <p className="text-[12.5px] text-cream-100/55">
+              Last run {new Date(latest.ranAt).toLocaleString()}
+              {typeof latest.durationMs === 'number' && ` (${latest.durationMs} ms)`}
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              {probeNames.map((p) => (
+                <ProbeTile
+                  key={p}
+                  name={PROBE_LABEL[p] ?? p}
+                  status={latest.probes[p as keyof typeof latest.probes] as string}
+                  history={last24.map((c) => c.probes[p as keyof typeof c.probes] as string)}
+                />
+              ))}
             </div>
-          )}
-        </>
-      )}
+            {latest.failures.length > 0 && (
+              <div className="card p-4 ring-1 ring-rose-700/40">
+                <p className="eyebrow text-rose-300 mb-2">Failure detail</p>
+                <ul className="text-[13px] space-y-1.5 text-cream-100/85">
+                  {latest.failures.map((f, i) => (
+                    <li key={i}>
+                      <span className="font-mono text-rose-300">{f.probe}</span> - {f.error}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </>
+        )}
+      </section>
+    </div>
+  );
+}
+
+// =====================================================================
+// Top-row health metric tiles
+// =====================================================================
+
+function UptimeTile({
+  uptime,
+}: {
+  uptime: { passedRuns: number; totalRuns: number; ratio: number };
+}) {
+  const pct = (uptime.ratio * 100).toFixed(1);
+  const tone =
+    uptime.totalRuns === 0
+      ? 'text-cream-100/55'
+      : uptime.ratio >= 0.99
+        ? 'text-emerald-300'
+        : uptime.ratio >= 0.95
+          ? 'text-amber-300'
+          : 'text-rose-300';
+  return (
+    <Tile label="24h uptime" sub={`${uptime.passedRuns}/${uptime.totalRuns} probe runs all-pass`}>
+      <p className={`font-display text-4xl font-medium tabular-nums ${tone}`}>
+        {uptime.totalRuns === 0 ? '—' : `${pct}%`}
+      </p>
+    </Tile>
+  );
+}
+
+function ActivityTile({
+  activity,
+}: {
+  activity: {
+    totalAccounts: number;
+    onlineNow: number;
+    activeToday: number;
+    activeWeek: number;
+  };
+}) {
+  const ratio =
+    activity.totalAccounts > 0 ? activity.onlineNow / activity.totalAccounts : 0;
+  // Three concentric ring fills: online (gold), active today, active week
+  const total = Math.max(activity.totalAccounts, 1);
+  const onlineDeg = (activity.onlineNow / total) * 360;
+  const todayDeg = (activity.activeToday / total) * 360;
+  const weekDeg = (activity.activeWeek / total) * 360;
+  return (
+    <Tile
+      label="User activity"
+      sub={`${activity.activeToday.toLocaleString()} signed in today · ${activity.activeWeek.toLocaleString()} this week`}
+    >
+      <div className="flex items-center gap-3 mt-1">
+        <div
+          className="relative h-16 w-16 rounded-full"
+          style={{
+            background: `conic-gradient(rgba(255,255,255,0.07) 0 ${weekDeg}deg, transparent ${weekDeg}deg 360deg)`,
+          }}
+        >
+          <div
+            className="absolute inset-1 rounded-full"
+            style={{
+              background: `conic-gradient(rgba(213,187,126,0.45) 0 ${todayDeg}deg, transparent ${todayDeg}deg 360deg)`,
+            }}
+          />
+          <div
+            className="absolute inset-2 rounded-full"
+            style={{
+              background: `conic-gradient(rgba(213,187,126,0.95) 0 ${onlineDeg}deg, transparent ${onlineDeg}deg 360deg)`,
+            }}
+          />
+          <div className="absolute inset-3 rounded-full bg-[#0d1015] flex items-center justify-center">
+            <span className="text-[11px] font-semibold text-cream-100 tabular-nums">
+              {activity.onlineNow.toLocaleString()}
+            </span>
+          </div>
+        </div>
+        <div className="text-[11px] text-cream-100/65 leading-snug">
+          <p>
+            <span className="text-cream-100 font-semibold tabular-nums">
+              {activity.onlineNow.toLocaleString()}
+            </span>{' '}
+            online now
+          </p>
+          <p>
+            of{' '}
+            <span className="text-cream-100/85 tabular-nums">
+              {activity.totalAccounts.toLocaleString()}
+            </span>{' '}
+            accounts
+          </p>
+          <p className="text-cream-100/45 mt-0.5">
+            {(ratio * 100).toFixed(1)}% online
+          </p>
+        </div>
+      </div>
+    </Tile>
+  );
+}
+
+function GdprTile({
+  gdpr,
+}: {
+  gdpr: { consented: number; total: number; rate: number };
+}) {
+  const pct = (gdpr.rate * 100).toFixed(1);
+  const tone =
+    gdpr.rate >= 0.95
+      ? 'text-emerald-300'
+      : gdpr.rate >= 0.8
+        ? 'text-amber-300'
+        : 'text-rose-300';
+  return (
+    <Tile
+      label="GDPR acceptance"
+      sub={`${gdpr.consented.toLocaleString()} of ${gdpr.total.toLocaleString()} accounts have accepted`}
+    >
+      <p className={`font-display text-4xl font-medium tabular-nums ${tone}`}>
+        {gdpr.total === 0 ? '—' : `${pct}%`}
+      </p>
+    </Tile>
+  );
+}
+
+function SecurityTile({
+  security,
+}: {
+  security: {
+    openEvents: number;
+    last24hCount: number;
+    last24hHigh: number;
+    last24hCritical: number;
+  };
+}) {
+  const danger = security.last24hCritical > 0 || security.last24hHigh > 0;
+  const tone = danger
+    ? 'text-rose-300'
+    : security.last24hCount > 0
+      ? 'text-amber-300'
+      : 'text-emerald-300';
+  return (
+    <Tile
+      label="Security events (24h)"
+      sub={
+        security.last24hCount === 0
+          ? 'No suspicious activity detected'
+          : `${security.last24hHigh} high · ${security.last24hCritical} critical · ${security.openEvents} open`
+      }
+    >
+      <p className={`font-display text-4xl font-medium tabular-nums ${tone}`}>
+        {security.last24hCount.toLocaleString()}
+      </p>
+    </Tile>
+  );
+}
+
+function Tile({
+  label,
+  sub,
+  children,
+}: {
+  label: string;
+  sub: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="card p-5">
+      <p className="eyebrow text-cream-100/55 mb-2">{label}</p>
+      {children}
+      <p className="text-[11.5px] text-cream-100/55 mt-2 leading-snug">{sub}</p>
     </div>
   );
 }

@@ -333,3 +333,126 @@ export async function adminGetHqDashboardCounts(): Promise<HqDashboardCounts> {
     },
   };
 }
+
+// =====================================================================
+// Extended health metrics for the System health page
+// =====================================================================
+
+export type HqHealthExtras = {
+  gdpr: { consented: number; total: number; rate: number };
+  security: {
+    openEvents: number;
+    last24hCount: number;
+    last24hHigh: number;
+    last24hCritical: number;
+  };
+  uptime: { passedRuns: number; totalRuns: number; ratio: number };
+  activity: {
+    totalAccounts: number;
+    onlineNow: number; // signed in within the last 5 minutes
+    activeToday: number; // signed in within the last 24 hours
+    activeWeek: number; // signed in within the last 7 days
+  };
+};
+
+const FIVE_MIN_MS = 5 * 60 * 1000;
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+const ONE_WEEK_MS = 7 * ONE_DAY_MS;
+
+export async function adminGetHqHealthExtras(): Promise<HqHealthExtras> {
+  const admin = createAdminSupabase();
+  if (!admin) {
+    return {
+      gdpr: { consented: 0, total: 0, rate: 0 },
+      security: { openEvents: 0, last24hCount: 0, last24hHigh: 0, last24hCritical: 0 },
+      uptime: { passedRuns: 0, totalRuns: 0, ratio: 0 },
+      activity: { totalAccounts: 0, onlineNow: 0, activeToday: 0, activeWeek: 0 },
+    };
+  }
+
+  const since24h = new Date(Date.now() - ONE_DAY_MS).toISOString();
+
+  const [
+    profilesResp,
+    securityOpenResp,
+    securityRecentResp,
+    healthChecksResp,
+    authResp,
+  ] = await Promise.all([
+    admin.from('profiles').select('id, consented_at'),
+    admin
+      .from('security_events')
+      .select('id', { count: 'exact', head: true })
+      .is('acknowledged_at', null),
+    admin
+      .from('security_events')
+      .select('severity')
+      .gte('occurred_at', since24h),
+    admin
+      .from('system_health')
+      .select('probes')
+      .gte('ran_at', since24h),
+    admin.auth.admin.listUsers({ perPage: 1000 }),
+  ]);
+
+  const profiles = (profilesResp.data ?? []) as {
+    id: string;
+    consented_at: string | null;
+  }[];
+  const consented = profiles.filter((p) => Boolean(p.consented_at)).length;
+  const total = profiles.length;
+
+  const recent = (securityRecentResp.data ?? []) as { severity: string }[];
+  const last24hHigh = recent.filter((r) => r.severity === 'high').length;
+  const last24hCritical = recent.filter((r) => r.severity === 'critical').length;
+
+  const checks = (healthChecksResp.data ?? []) as {
+    probes: Record<string, string>;
+  }[];
+  let passedRuns = 0;
+  for (const c of checks) {
+    const values = Object.values(c.probes ?? {});
+    if (values.length === 0) continue;
+    const allPass = values.every((v) => v === 'pass');
+    if (allPass) passedRuns += 1;
+  }
+
+  const now = Date.now();
+  const authUsers = (authResp.data?.users ?? []) as {
+    id: string;
+    last_sign_in_at?: string | null;
+  }[];
+  const totalAccounts = authUsers.length;
+  let onlineNow = 0;
+  let activeToday = 0;
+  let activeWeek = 0;
+  for (const u of authUsers) {
+    if (!u.last_sign_in_at) continue;
+    const ts = new Date(u.last_sign_in_at).getTime();
+    if (Number.isNaN(ts)) continue;
+    const age = now - ts;
+    if (age <= FIVE_MIN_MS) onlineNow += 1;
+    if (age <= ONE_DAY_MS) activeToday += 1;
+    if (age <= ONE_WEEK_MS) activeWeek += 1;
+  }
+
+  return {
+    gdpr: {
+      consented,
+      total,
+      rate: total > 0 ? consented / total : 0,
+    },
+    security: {
+      openEvents: securityOpenResp.count ?? 0,
+      last24hCount: recent.length,
+      last24hHigh,
+      last24hCritical,
+    },
+    uptime: {
+      passedRuns,
+      totalRuns: checks.length,
+      ratio: checks.length > 0 ? passedRuns / checks.length : 0,
+    },
+    activity: { totalAccounts, onlineNow, activeToday, activeWeek },
+  };
+}

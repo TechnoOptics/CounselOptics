@@ -102,8 +102,8 @@ export default async function HqFirmsPage() {
                           f.ownerPlan === 'pro'
                             ? 'bg-gold-500 text-forest-950'
                             : f.ownerPlan === 'standard'
-                              ? 'bg-forest-900 text-cream-200'
-                              : 'bg-ink-100 text-ink-800'
+                              ? 'bg-forest-900 text-cream-200 dark:bg-white/15 dark:text-cream-100'
+                              : 'bg-ink-100 text-ink-800 dark:bg-white/10 dark:text-cream-100/85'
                         }`}
                       >
                         {f.ownerPlan}
