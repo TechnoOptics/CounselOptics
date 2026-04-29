@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { getProfile } from '@/lib/storage';
+import { listMyFirms } from '@/lib/firm-storage';
 import { UserMenuClient } from './UserMenuClient';
 
 export async function UserMenu() {
@@ -28,7 +29,10 @@ export async function UserMenu() {
     );
   }
 
-  const profile = await getProfile().catch(() => null);
+  const [profile, myFirms] = await Promise.all([
+    getProfile().catch(() => null),
+    listMyFirms().catch(() => []),
+  ]);
 
   const displayName =
     profile?.displayName ||
@@ -47,6 +51,11 @@ export async function UserMenu() {
       initials={initials}
       isAdmin={Boolean(profile?.isAdmin)}
       organization={profile?.organization ?? null}
+      firmMemberships={myFirms.map((m) => ({
+        firmId: m.firm.id,
+        firmName: m.firm.name,
+        accentColor: m.firm.accentColor,
+      }))}
     />
   );
 }

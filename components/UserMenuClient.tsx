@@ -10,6 +10,14 @@ export type UserMenuProps = {
   initials: string;
   isAdmin: boolean;
   organization: string | null;
+  /** Firms the user is a member of. Empty array hides the
+   *  "Switch to firm view" submenu so consumer-only users never see
+   *  it. Populated by getMyFirms() server-side in UserMenu. */
+  firmMemberships?: Array<{
+    firmId: string;
+    firmName: string;
+    accentColor: string;
+  }>;
 };
 
 export function UserMenuClient(props: UserMenuProps) {
@@ -96,6 +104,42 @@ export function UserMenuClient(props: UserMenuProps) {
               </MenuLink>
             )}
           </div>
+          {(props.firmMemberships?.length ?? 0) > 0 && (
+            <div className="border-t border-ink-100 py-1.5">
+              <p className="px-4 pt-1 pb-1 text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-500">
+                Counsel mode
+              </p>
+              {props.firmMemberships!.map((m) => (
+                <Link
+                  key={m.firmId}
+                  href="/counsel"
+                  onClick={() => setOpen(false)}
+                  className="flex items-center gap-2.5 px-4 py-2 text-sm text-ink-800 hover:bg-cream-50 hover:text-forest-900 transition-colors"
+                >
+                  <span
+                    className="h-5 w-5 rounded inline-flex items-center justify-center text-white text-[11px] font-semibold flex-none"
+                    style={{ backgroundColor: m.accentColor }}
+                    aria-hidden
+                  >
+                    {m.firmName.slice(0, 1).toUpperCase()}
+                  </span>
+                  <span className="flex-1 truncate">Switch to {m.firmName}</span>
+                  <span aria-hidden className="text-ink-400">
+                    →
+                  </span>
+                </Link>
+              ))}
+            </div>
+          )}
+          <Link
+            href="/counsel/onboarding"
+            onClick={() => setOpen(false)}
+            className="block border-t border-ink-100 px-4 py-2.5 text-sm text-ink-700 hover:bg-cream-50 hover:text-forest-900 transition-colors"
+          >
+            {props.firmMemberships?.length
+              ? 'Set up another firm'
+              : 'Set up a firm (Counsel mode)'}
+          </Link>
           <form action="/auth/sign-out" method="post" className="border-t border-ink-100">
             <button
               type="submit"

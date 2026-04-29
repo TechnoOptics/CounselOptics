@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  let payload: { messages?: BellaMessage[]; caseId?: string };
+  let payload: { messages?: BellaMessage[]; caseId?: string; firmMode?: boolean };
   try {
     payload = await req.json();
   } catch {
@@ -109,11 +109,43 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Firm-mode addendum: when the request is initiated from inside
+  // /counsel/* (the client passes referer-based hint via payload.firmMode
+  // OR we look up the user's active firm), give Bella jurisdiction +
+  // practice-area context so issue-spotting is firm-relevant.
+  let firmContext: {
+    firmName: string;
+    jurisdictions: string[];
+    practiceAreas: string[];
+    role: string;
+  } | null = null;
+  if (!isPublic) {
+    try {
+      const referer = req.headers.get('referer') ?? '';
+      const fromCounsel =
+        referer.includes('/counsel') || Boolean(payload.firmMode);
+      if (fromCounsel) {
+        const { getActiveFirmContext } = await import('@/lib/firm-storage');
+        const ctx = await getActiveFirmContext();
+        if (ctx) {
+          firmContext = {
+            firmName: ctx.firm.name,
+            jurisdictions: ctx.firm.jurisdictions,
+            practiceAreas: ctx.firm.practiceAreas,
+            role: ctx.membership.role,
+          };
+        }
+      }
+    } catch {
+      firmContext = null;
+    }
+  }
+
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        for await (const chunk of streamBella({ messages: sanitized, caseContext, isPublic })) {
+        for await (const chunk of streamBella({ messages: sanitized, caseContext, isPublic, firmContext })) {
           controller.enqueue(encoder.encode(chunk));
         }
         controller.close();

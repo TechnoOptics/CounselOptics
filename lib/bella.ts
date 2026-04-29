@@ -115,6 +115,43 @@ Format your replies:
 - Never paste long blocks of statute text. Summarize and recommend the user read the source.
 - End with a brief follow-up question only when it actually moves the conversation forward.`;
 
+/**
+ * Firm-mode addendum. Appended to BELLA_SYSTEM (not the public one)
+ * when the request comes from inside /counsel/* and the user is a
+ * member of an active firm. Provides Bella with the firm's
+ * jurisdictions and practice areas so issue-spotting is firm-relevant.
+ *
+ * Caveat: Bella does NOT have access to a paid case-law database
+ * (Westlaw / LexisNexis). Her legal-information answers come from
+ * Claude's training. Hedging language is mandatory.
+ */
+export function buildFirmAddendum(input: {
+  firmName: string;
+  jurisdictions: string[];
+  practiceAreas: string[];
+  role: string;
+}): string {
+  const j = input.jurisdictions.length
+    ? input.jurisdictions.join(', ')
+    : 'unspecified jurisdictions';
+  const p = input.practiceAreas.length
+    ? input.practiceAreas.join(', ')
+    : 'general practice';
+  return `
+
+You are speaking with a member of ${input.firmName}, a law firm using Advottic Counsel. Their role at the firm is ${input.role}. Tailor your assistance to:
+- Jurisdictions the firm practices in: ${j}.
+- Practice areas: ${p}.
+
+Counsel-mode behavior:
+- The user is inside /counsel/*, the law-firm perspective. Address them as a legal professional. You can use more legal terminology than in consumer mode, but still hedge ("appears to", "may", "could potentially") since you are not a substitute for the firm's research team.
+- When asked to analyze a case, focus on issue-spotting (claims, defenses, procedural deadlines, evidence gaps), reference applicable doctrines in the firm's jurisdictions, and suggest concrete next steps the firm can take inside Advottic (upload documents to the vault, send for in-app signing, share with the client, set a hearing reminder).
+- You do NOT have a paid case-law database. When a citation is needed, describe the doctrine in plain language, name the canonical case if you can with appropriate hedging, and tell the user to verify the citation in their own research tools (Westlaw, Lexis, Fastcase, Casetext) before relying on it.
+- For state-specific procedural questions, lean on the jurisdictions listed above. If the user asks about a state outside the firm's listed jurisdictions, answer generally and recommend they confirm with local counsel.
+- Refuse to draft legally-binding language as a substitute for an attorney's review. You can produce DRAFT clauses, outlines, demand-letter scaffolds with placeholders for facts, but every output should remind the user that the firm's licensed attorney is the one who signs off.
+`;
+}
+
 export const BELLA_SYSTEM_DOC_REVIEW = `You are Bella, an Advottic assistant doing a one-shot review of a document a user has pasted in. They are NOT signed in and may have no context for what's in the document. Your job is to explain it in plain English.
 
 Voice rules:
@@ -415,6 +452,14 @@ export async function* streamBella(input: {
   caseContext?: string | null;
   isPublic?: boolean;
   mode?: BellaMode;
+  /** When set, appends the firm-aware addendum to the system prompt
+   *  so Bella is aware she's helping a member of a firm in /counsel/*. */
+  firmContext?: {
+    firmName: string;
+    jurisdictions: string[];
+    practiceAreas: string[];
+    role: string;
+  } | null;
 }): AsyncGenerator<string, void, unknown> {
   const apiKey = resolveApiKey();
   if (!apiKey) {
@@ -462,6 +507,13 @@ export async function* streamBella(input: {
     systemBlocks.push({
       type: 'text',
       text: `The user is currently viewing this case. Use it as context for app questions, but do not invent facts that aren't in here.\n\n${input.caseContext}`,
+    });
+  }
+
+  if (input.firmContext && mode === 'authed') {
+    systemBlocks.push({
+      type: 'text',
+      text: buildFirmAddendum(input.firmContext),
     });
   }
 
