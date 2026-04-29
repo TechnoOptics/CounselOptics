@@ -5,8 +5,8 @@ import { revalidatePath } from 'next/cache';
 import { createServerSupabase, getCurrentUser, requireUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
 import { sendEmail } from './email';
-import type { FirmRole, FirmSigningStatus } from './firm-types';
-import { FIRM_ROLES } from './firm-types';
+import type { FirmRole, FirmSigningStatus, FirmType } from './firm-types';
+import { FIRM_ROLES, FIRM_TYPES } from './firm-types';
 
 /**
  * Server actions powering the law-firm perspective.
@@ -52,6 +52,25 @@ export async function createFirmAction(formData: FormData): Promise<CreateFirmRe
   const logoUrl = String(formData.get('logoUrl') ?? '').trim() || null;
   const jurisdictions = parseList(String(formData.get('jurisdictions') ?? ''));
   const practiceAreas = parseList(String(formData.get('practiceAreas') ?? ''));
+  const firmTypeRaw = String(formData.get('firmType') ?? 'firm');
+  const firmType = (FIRM_TYPES.includes(firmTypeRaw as FirmType)
+    ? firmTypeRaw
+    : 'firm') as FirmType;
+  // Type-specific metadata is sent as a JSON string under "metadata"
+  // so the wizard can pass an arbitrary shape per firm type without
+  // exploding the action signature.
+  let metadata: Record<string, unknown> = {};
+  try {
+    const raw = String(formData.get('metadata') ?? '').trim();
+    if (raw) {
+      const parsed = JSON.parse(raw) as unknown;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        metadata = parsed as Record<string, unknown>;
+      }
+    }
+  } catch {
+    metadata = {};
+  }
 
   if (!name) return { ok: false, error: 'Firm name is required.' };
   const slug = slugInput ? slugify(slugInput) : slugify(name);
@@ -94,6 +113,8 @@ export async function createFirmAction(formData: FormData): Promise<CreateFirmRe
     .insert({
       name,
       slug,
+      firm_type: firmType,
+      metadata,
       logo_url: logoUrl,
       accent_color: accentColor,
       jurisdictions,

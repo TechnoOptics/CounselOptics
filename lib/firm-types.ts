@@ -6,6 +6,63 @@
  * See docs/LAW_FIRM_MODE.md for the architecture overview.
  */
 
+// ---------------------------------------------------------------------------
+// Firm type
+// ---------------------------------------------------------------------------
+
+export type FirmType =
+  | 'individual'
+  | 'firm'
+  | 'corporate'
+  | 'government'
+  | 'legal_aid'
+  | 'other';
+
+export const FIRM_TYPES: FirmType[] = [
+  'individual',
+  'firm',
+  'corporate',
+  'government',
+  'legal_aid',
+  'other',
+];
+
+export const FIRM_TYPE_LABEL: Record<FirmType, string> = {
+  individual: 'Individual counsel',
+  firm: 'Law firm',
+  corporate: 'Corporate / in-house counsel',
+  government: 'Government / state',
+  legal_aid: 'Legal aid / nonprofit',
+  other: 'Other',
+};
+
+export const FIRM_TYPE_DESCRIPTION: Record<FirmType, string> = {
+  individual:
+    'A solo attorney or independent practitioner. You handle your own caseload and may bring in part-time staff.',
+  firm: 'A traditional law firm with multiple attorneys, partners, and support staff working under a shared brand.',
+  corporate:
+    'An in-house legal team inside a company. Your client is the company itself - contracts, compliance, M&A, employment, regulatory.',
+  government:
+    'A government legal department - attorney general office, public defender, county counsel, agency legal team.',
+  legal_aid:
+    'A nonprofit, legal-aid clinic, or pro-bono organization that serves a population that cannot afford private counsel.',
+  other:
+    "Doesn't fit the above. Tell us what you do and we'll tailor the workspace to it.",
+};
+
+/** Free-form metadata captured during onboarding, conditional on
+ *  firm type. The shape is intentionally loose so we can ask new
+ *  questions without database migrations. Documented union types:
+ *
+ *  individual: { barNumber?: string; yearAdmitted?: number }
+ *  firm:       { sizeBand?: '1-5'|'6-25'|'26-100'|'100+'; foundedYear?: number }
+ *  corporate:  { parentCompany?: string; industry?: string; isGeneralCounsel?: boolean; businessAreas?: string[] }
+ *  government: { agencyType?: string; governmentLevel?: 'federal'|'state'|'county'|'municipal'; caseFocus?: string[] }
+ *  legal_aid:  { populationServed?: string; fundingSource?: string }
+ *  other:      { description?: string }
+ */
+export type FirmMetadata = Record<string, unknown>;
+
 export type FirmRole = 'owner' | 'admin' | 'attorney' | 'paralegal' | 'staff';
 
 export const FIRM_ROLES: FirmRole[] = [
@@ -41,6 +98,8 @@ export type Firm = {
   id: string;
   slug: string;
   name: string;
+  firmType: FirmType;
+  metadata: FirmMetadata;
   logoUrl: string | null;
   accentColor: string;
   jurisdictions: string[];

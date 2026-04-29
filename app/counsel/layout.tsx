@@ -59,9 +59,13 @@ export default async function CounselLayout({
   }
 
   // If we resolved a context, expose it to children via the wrapper.
+  // The "dark" class forces dark Tailwind variants throughout the
+  // counsel side regardless of the user's consumer-side theme - the
+  // organizational portal reads as premium / professional rather than
+  // the cream-and-gold marketing tone of the consumer app.
   return (
     <div
-      className="min-h-screen flex flex-col"
+      className="dark counsel-shell min-h-screen flex flex-col text-cream-100"
       style={
         active
           ? ({
@@ -83,21 +87,18 @@ export default async function CounselLayout({
         ) : null}
         <main className="flex-1 min-w-0">{children}</main>
       </div>
-      <footer className="border-t border-ink-200 dark:border-forest-700/40 bg-white dark:bg-forest-950">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 py-4 text-[11px] text-ink-500 dark:text-cream-100/55 flex flex-wrap items-center justify-between gap-2">
+      <footer className="border-t border-forest-700/40 bg-forest-950/80 backdrop-blur">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 py-4 text-[11px] text-cream-100/55 flex flex-wrap items-center justify-between gap-2">
           <p>
-            <span className="font-semibold text-forest-900 dark:text-cream-100">
+            <span className="font-semibold text-cream-100">
               Advottic Counsel
             </span>{' '}
-            &middot; Law-firm perspective.{' '}
-            <Link href="/" className="underline hover:text-forest-900 dark:hover:text-cream-100">
-              Personal view
-            </Link>
+            &middot; Organizational legal workspace.
           </p>
           <p>
             <Link
               href="/about"
-              className="underline hover:text-forest-900 dark:hover:text-cream-100"
+              className="underline hover:text-cream-100"
             >
               What Advottic is, and isn&rsquo;t
             </Link>

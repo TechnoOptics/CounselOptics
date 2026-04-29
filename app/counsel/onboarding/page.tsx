@@ -24,23 +24,14 @@ export default async function CounselOnboardingPage() {
   const myFirms = await listMyFirms();
   if (myFirms.length > 0) redirect('/counsel');
   return (
-    <div className="max-w-2xl mx-auto space-y-6 animate-fade-up py-2 sm:py-6">
-      <header>
-        <p className="eyebrow mb-2">Counsel onboarding</p>
-        <h1 className="font-display text-3xl sm:text-4xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          Set up your firm.
-        </h1>
-        <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 leading-relaxed">
-          Two minutes. You can change everything later from firm settings.
-        </p>
-      </header>
+    <div className="max-w-3xl mx-auto space-y-6 animate-fade-up py-2 sm:py-6">
       <OnboardingWizard
         defaultName=""
         defaultEmail={user.email ?? null}
       />
-      <p className="text-xs text-ink-500 dark:text-cream-100/55">
+      <p className="text-xs text-cream-100/55 text-center">
         Already invited to a firm?{' '}
-        <Link href="/counsel/accept-invite" className="underline hover:text-forest-900 dark:hover:text-cream-100">
+        <Link href="/counsel/accept-invite" className="underline hover:text-cream-100">
           Open an invitation
         </Link>{' '}
         instead.

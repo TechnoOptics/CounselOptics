@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Suspense } from 'react';
+import { headers } from 'next/headers';
 import { Inter, Saira_Condensed, Fraunces } from 'next/font/google';
 import './globals.css';
 import { UserMenu } from '@/components/UserMenu';
@@ -135,6 +136,14 @@ export const viewport = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Detect /counsel/* so we can swap the consumer chrome for the
+  // firm-side chrome. Counsel users are professionals working on
+  // behalf of an organization - they don't need Find counsel,
+  // Public defender, Billing, or the trial banner inside that mode.
+  // Pathname is forwarded by middleware via the x-pathname header.
+  const pathname = headers().get('x-pathname') ?? '';
+  const isCounselMode = pathname === '/counsel' || pathname.startsWith('/counsel/');
+
   // Decide whether to mount the consent popup AND whether the user is signed
   // in (so we can gate the search trigger + sidebar/mobile-nav on auth).
   // Server-side so the navigation HTML literally isn't shipped to logged-out
@@ -201,72 +210,69 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <ThemeBoot serverTheme={serverTheme} />
       </head>
       <body className="min-h-screen flex flex-col font-sans">
-        {/* Disclaimer is captured during signup terms; we no longer
-            show a global "not legal advice" band above the header. */}
-        <header className="sticky top-0 z-20">
-          {/* Top row: logo + search + avatar. Lifted on z so the avatar menu
-              can drop down OVER the secondary subheader. Width + horizontal
-              padding match the main content wrapper so the logo lines up
-              vertically with the page hero copy. */}
-          <div className="relative z-30 bg-forest-950/95 backdrop-blur-md pt-[env(safe-area-inset-top)]">
-            <div className="mx-auto max-w-7xl px-4 sm:px-6 py-3 flex items-center justify-between">
-              {/* Animated gold shimmer beneath the header. CSS-only,
-                  12s loop, calm vibe. Sits just above the next sub-row
-                  (search palette / mobile nav) so the line reads as the
-                  header's bottom edge. */}
-              <Link
-                href="/"
-                aria-label="Advottic home"
-                className="inline-flex items-center min-w-0 group"
-              >
-                {/* Full landscape lockup: gold pillar mark + gold triangle
-                    accent + ADVOTTIC wordmark in white, baked into a single
-                    transparent PNG. Designed for dark backgrounds. The
-                    wide aspect (~8.3:1) means height drives width hard,
-                    so we keep mobile small to preserve room for the
-                    Sign in CTA on the right. */}
-                <Image
-                  src="/advottic-wordmark.png"
-                  alt="Advottic"
-                  width={14494}
-                  height={1699}
-                  priority
-                  className="h-6 sm:h-8 lg:h-9 w-auto max-w-[55vw] block group-hover:opacity-90 transition-opacity"
-                />
-              </Link>
-              <div className="flex items-center gap-1">
-                {/* On mobile the search lives in the secondary header (next
-                    to the hamburger) to keep the top row uncluttered. */}
-                {signedIn && <SearchTrigger className="hidden sm:inline-flex" />}
-                {signedIn && <div className="hidden sm:block h-5 w-px bg-cream-100/15 mx-2" />}
-                <UserMenu />
+        {/* Counsel mode renders its own header / sidebar / footer in
+            app/counsel/layout.tsx and reuses none of the consumer
+            chrome. Find counsel, Public defender, Billing, and the
+            trial banner are intentionally hidden inside /counsel/*
+            because firms have per-contract billing and the consumer
+            directories are not relevant to organizational users. */}
+        {!isCounselMode && (
+          <>
+            <header className="sticky top-0 z-20">
+              <div className="relative z-30 bg-forest-950/95 backdrop-blur-md pt-[env(safe-area-inset-top)]">
+                <div className="mx-auto max-w-7xl px-4 sm:px-6 py-3 flex items-center justify-between">
+                  <Link
+                    href="/"
+                    aria-label="Advottic home"
+                    className="inline-flex items-center min-w-0 group"
+                  >
+                    <Image
+                      src="/advottic-wordmark.png"
+                      alt="Advottic"
+                      width={14494}
+                      height={1699}
+                      priority
+                      className="h-6 sm:h-8 lg:h-9 w-auto max-w-[55vw] block group-hover:opacity-90 transition-opacity"
+                    />
+                  </Link>
+                  <div className="flex items-center gap-1">
+                    {signedIn && <SearchTrigger className="hidden sm:inline-flex" />}
+                    {signedIn && <div className="hidden sm:block h-5 w-px bg-cream-100/15 mx-2" />}
+                    <UserMenu />
+                  </div>
+                </div>
+                <div className="header-glow-line" aria-hidden />
               </div>
+              {signedIn && (
+                <Suspense fallback={null}>
+                  <MobileNav />
+                </Suspense>
+              )}
+            </header>
+            {signedIn && <SearchPalette />}
+          </>
+        )}
+        {isCounselMode ? (
+          // Counsel mode: render children directly so the counsel
+          // layout's full-bleed shell isn't squeezed by the consumer
+          // sidebar grid.
+          children
+        ) : (
+          <main className="flex-1">
+            <div className="mx-auto max-w-7xl px-4 sm:px-6 py-6 sm:py-10 flex gap-6 lg:gap-8 items-start">
+              {signedIn && (
+                <Suspense fallback={null}>
+                  <Sidebar />
+                </Suspense>
+              )}
+              <div className="flex-1 min-w-0">{children}</div>
             </div>
-            <div className="header-glow-line" aria-hidden />
-          </div>
-          {/* Mobile-only: hamburger-led nav. Only shown to signed-in users
-              since marketing visitors don't have anywhere to navigate to yet. */}
-          {signedIn && (
-            <Suspense fallback={null}>
-              <MobileNav />
-            </Suspense>
-          )}
-        </header>
-        {signedIn && <SearchPalette />}
-        <main className="flex-1">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 py-6 sm:py-10 flex gap-6 lg:gap-8 items-start">
-            {signedIn && (
-              <Suspense fallback={null}>
-                <Sidebar />
-              </Suspense>
-            )}
-            <div className="flex-1 min-w-0">{children}</div>
-          </div>
-        </main>
+          </main>
+        )}
         <Bella signedIn={signedIn} />
         {consent.needed && <ConsentModal fallbackName={consent.fallbackName} />}
         <CookieBanner />
-        {trial && (trial.mode === 'stripe_trialing' || trial.mode === 'free_trial' || trial.mode === 'expired') && (
+        {!isCounselMode && trial && (trial.mode === 'stripe_trialing' || trial.mode === 'free_trial' || trial.mode === 'expired') && (
           <TrialBanner
             mode={trial.mode}
             trialEndsAt={trial.trialEndsAt}

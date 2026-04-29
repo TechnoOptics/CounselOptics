@@ -362,6 +362,49 @@ body > * {
   animation: co-cookie-glow 3s ease-in-out infinite;
 }
 
+/* Counsel-mode premium dark shell. Layered radial halos on top of a
+   forest-to-near-black gradient body so the firm-side reads as a
+   professional workspace rather than a brighter marketing surface.
+   The `dark` class on the same element forces all Tailwind dark:
+   variants in child components to fire regardless of the user's
+   consumer theme. */
+.counsel-shell {
+  background-color: #050b09;
+  background-image:
+    radial-gradient(ellipse at 18% 12%, rgba(213, 187, 126, 0.08), rgba(213, 187, 126, 0) 55%),
+    radial-gradient(ellipse at 88% 92%, rgba(15, 32, 26, 0.85), rgba(15, 32, 26, 0) 60%),
+    linear-gradient(180deg, #0a1f19 0%, #0a1714 55%, #050b09 100%);
+  background-attachment: fixed;
+}
+
+/* Card surface inside counsel-shell: sit slightly above the gradient
+   with a soft luminous edge so they read as elevated cards instead
+   of disappearing into the background. */
+.counsel-shell .card {
+  background-color: rgba(15, 32, 26, 0.62);
+  border-color: rgba(213, 187, 126, 0.12);
+  backdrop-filter: blur(6px);
+}
+.counsel-shell .card:hover {
+  border-color: rgba(213, 187, 126, 0.32);
+}
+
+/* Inputs read as inset wells against the dark backdrop. */
+.counsel-shell .input,
+.counsel-shell select.input,
+.counsel-shell textarea.input {
+  background-color: rgba(10, 31, 25, 0.55);
+  border-color: rgba(213, 187, 126, 0.18);
+  color: rgb(245, 237, 214);
+}
+.counsel-shell .input::placeholder {
+  color: rgba(245, 237, 214, 0.45);
+}
+.counsel-shell .input:focus {
+  border-color: rgba(213, 187, 126, 0.45);
+  background-color: rgba(10, 31, 25, 0.7);
+}
+
 /* Entrance-and-attention animation for the GDPR cookie modal. The
    dialog briefly lifts + scales in, then a slow gold-glow breathe
    anchors attention. Two-phase: pop-in over 0.45s, then a 4s

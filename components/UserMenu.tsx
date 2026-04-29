@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { headers } from 'next/headers';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { getProfile } from '@/lib/storage';
 import { listMyFirms } from '@/lib/firm-storage';
@@ -43,6 +44,13 @@ export async function UserMenu() {
     profile?.avatarUrl || (user.user_metadata?.avatar_url as string | undefined) || null;
   const initials = computeInitials(displayName);
 
+  // Suppress consumer-side links (My cases, Billing) when the user
+  // is inside /counsel/*. Counsel users are working on behalf of an
+  // organization and should not be tempted back into the personal
+  // portal from inside their professional workspace.
+  const pathname = headers().get('x-pathname') ?? '';
+  const isCounselMode = pathname === '/counsel' || pathname.startsWith('/counsel/');
+
   return (
     <UserMenuClient
       email={user.email ?? ''}
@@ -56,6 +64,7 @@ export async function UserMenu() {
         firmName: m.firm.name,
         accentColor: m.firm.accentColor,
       }))}
+      isCounselMode={isCounselMode}
     />
   );
 }

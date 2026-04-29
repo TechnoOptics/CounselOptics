@@ -3,6 +3,7 @@ import Image from 'next/image';
 import type { Firm, FirmMember } from '@/lib/firm-types';
 import { FIRM_ROLE_LABEL } from '@/lib/firm-types';
 import { CounselFirmSwitcher } from './CounselFirmSwitcher';
+import { UserMenu } from '@/components/UserMenu';
 
 /**
  * Top bar for /counsel/*. Renders the firm logo + name on the left,
@@ -24,7 +25,7 @@ export function CounselHeader({
   memberships: Array<{ firm: Firm; membership: FirmMember }>;
 }) {
   return (
-    <header className="border-b border-ink-200 dark:border-forest-700/40 bg-white/95 dark:bg-forest-950/95 backdrop-blur-md sticky top-0 z-30">
+    <header className="border-b border-forest-700/50 bg-forest-950/95 backdrop-blur-md sticky top-0 z-30">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
           <Link
@@ -50,16 +51,16 @@ export function CounselHeader({
               </span>
             )}
             <span className="min-w-0">
-              <span className="block text-[11px] uppercase tracking-[0.18em] font-semibold text-ink-500 dark:text-cream-100/55 leading-none">
+              <span className="block text-[11px] uppercase tracking-[0.18em] font-semibold text-gold-300 leading-none">
                 Counsel
               </span>
-              <span className="block text-sm font-semibold text-forest-900 dark:text-cream-100 truncate max-w-[40vw] sm:max-w-[28ch]">
+              <span className="block text-sm font-semibold text-cream-100 truncate max-w-[40vw] sm:max-w-[28ch]">
                 {firm ? firm.name : 'Set up your firm'}
               </span>
             </span>
           </Link>
           {membership && (
-            <span className="hidden sm:inline-flex badge bg-ink-100 text-ink-700 dark:bg-forest-800 dark:text-cream-100/85 text-[10px]">
+            <span className="hidden sm:inline-flex badge bg-forest-800 text-cream-100/85 text-[10px]">
               {FIRM_ROLE_LABEL[membership.role]}
             </span>
           )}
@@ -71,12 +72,7 @@ export function CounselHeader({
               memberships={memberships}
             />
           )}
-          <Link
-            href="/cases"
-            className="hidden sm:inline-flex text-[12.5px] text-ink-700 dark:text-cream-100/85 hover:text-forest-900 dark:hover:text-cream-100 underline underline-offset-2"
-          >
-            Personal view &rarr;
-          </Link>
+          <UserMenu />
         </div>
       </div>
     </header>

@@ -5,7 +5,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 // the new /welcome is a public install + sign-in page used as the share-app
 // destination, so it must NOT require auth. Authenticated visitors get
 // redirected to /cases inside the page itself.
-const PROTECTED_PREFIXES = ['/cases', '/profile', '/admin', '/billing', '/feedback'];
+const PROTECTED_PREFIXES = ['/cases', '/profile', '/admin', '/billing', '/feedback', '/counsel'];
 
 /**
  * Edge auth-refresh middleware.
@@ -19,7 +19,13 @@ const PROTECTED_PREFIXES = ['/cases', '/profile', '/admin', '/billing', '/feedba
  * chunked session never made it to the browser intact.
  */
 export async function updateSession(request: NextRequest) {
-  let response = NextResponse.next({ request });
+  // Forward the current pathname to server components via a request
+  // header. Server components can read it with `headers().get('x-pathname')`.
+  // Used by the root layout to swap consumer chrome for counsel chrome
+  // when the visitor is on /counsel/*.
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-pathname', request.nextUrl.pathname);
+  let response = NextResponse.next({ request: { headers: requestHeaders } });
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -45,7 +51,7 @@ export async function updateSession(request: NextRequest) {
             request.cookies.set(name, value);
           });
           // Recreate the response ONCE, then attach every cookie in one go.
-          response = NextResponse.next({ request });
+          response = NextResponse.next({ request: { headers: requestHeaders } });
           cookiesToSet.forEach(({ name, value, options }) => {
             response.cookies.set(name, value, options);
           });

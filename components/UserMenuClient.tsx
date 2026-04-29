@@ -18,6 +18,11 @@ export type UserMenuProps = {
     firmName: string;
     accentColor: string;
   }>;
+  /** True when the request originates inside /counsel/*. Hides the
+   *  consumer-side links (My cases, Billing) and the "Set up another
+   *  firm" prompt because the user is already in their organizational
+   *  workspace. */
+  isCounselMode?: boolean;
 };
 
 export function UserMenuClient(props: UserMenuProps) {
@@ -89,12 +94,20 @@ export function UserMenuClient(props: UserMenuProps) {
             <MenuLink href="/profile" onClick={() => setOpen(false)}>
               Profile & settings
             </MenuLink>
-            <MenuLink href="/billing" onClick={() => setOpen(false)}>
-              Billing & subscription
-            </MenuLink>
-            <MenuLink href="/cases" onClick={() => setOpen(false)}>
-              My cases
-            </MenuLink>
+            {/* Consumer-side links are hidden when the user is inside
+                /counsel/* - those surfaces (personal billing, personal
+                case list) are not relevant in the organizational
+                workspace. */}
+            {!props.isCounselMode && (
+              <>
+                <MenuLink href="/billing" onClick={() => setOpen(false)}>
+                  Billing & subscription
+                </MenuLink>
+                <MenuLink href="/cases" onClick={() => setOpen(false)}>
+                  My cases
+                </MenuLink>
+              </>
+            )}
             <MenuLink href="/feedback" onClick={() => setOpen(false)}>
               Send feedback
             </MenuLink>
@@ -104,7 +117,7 @@ export function UserMenuClient(props: UserMenuProps) {
               </MenuLink>
             )}
           </div>
-          {(props.firmMemberships?.length ?? 0) > 0 && (
+          {(props.firmMemberships?.length ?? 0) > 0 && !props.isCounselMode && (
             <div className="border-t border-ink-100 py-1.5">
               <p className="px-4 pt-1 pb-1 text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-500">
                 Counsel mode
@@ -131,15 +144,17 @@ export function UserMenuClient(props: UserMenuProps) {
               ))}
             </div>
           )}
-          <Link
-            href="/counsel/onboarding"
-            onClick={() => setOpen(false)}
-            className="block border-t border-ink-100 px-4 py-2.5 text-sm text-ink-700 hover:bg-cream-50 hover:text-forest-900 transition-colors"
-          >
-            {props.firmMemberships?.length
-              ? 'Set up another firm'
-              : 'Set up a firm (Counsel mode)'}
-          </Link>
+          {!props.isCounselMode && (
+            <Link
+              href="/counsel/onboarding"
+              onClick={() => setOpen(false)}
+              className="block border-t border-ink-100 px-4 py-2.5 text-sm text-ink-700 hover:bg-cream-50 hover:text-forest-900 transition-colors"
+            >
+              {props.firmMemberships?.length
+                ? 'Set up another firm'
+                : 'Set up a firm (Counsel mode)'}
+            </Link>
+          )}
           <form action="/auth/sign-out" method="post" className="border-t border-ink-100">
             <button
               type="submit"
