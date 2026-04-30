@@ -52,11 +52,11 @@ export async function UserMenu() {
   // workspace. The flag is named `isCounselMode` for legacy reasons;
   // it really means "in any non-consumer shell".
   const pathname = headers().get('x-pathname') ?? '';
+  const isHqMode = pathname === '/admin' || pathname.startsWith('/admin/');
   const isCounselMode =
     pathname === '/counsel' ||
     pathname.startsWith('/counsel/') ||
-    pathname === '/admin' ||
-    pathname.startsWith('/admin/');
+    isHqMode;
 
   return (
     <UserMenuClient
@@ -72,6 +72,7 @@ export async function UserMenu() {
         accentColor: m.firm.accentColor,
       }))}
       isCounselMode={isCounselMode}
+      isHqMode={isHqMode}
     />
   );
 }

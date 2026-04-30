@@ -18,11 +18,15 @@ export type UserMenuProps = {
     firmName: string;
     accentColor: string;
   }>;
-  /** True when the request originates inside /counsel/*. Hides the
-   *  consumer-side links (My cases, Billing) and the "Set up another
-   *  firm" prompt because the user is already in their organizational
-   *  workspace. */
+  /** True when the request originates inside /counsel/* OR /admin/*.
+   *  Hides the consumer-side links (My cases, Billing) and the
+   *  "Set up another firm" prompt because the user is already in
+   *  their professional workspace. */
   isCounselMode?: boolean;
+  /** True when the request originates inside /admin/* specifically.
+   *  Hides the "Advottic HQ" entry since it would link the page to
+   *  itself. */
+  isHqMode?: boolean;
 };
 
 export function UserMenuClient(props: UserMenuProps) {
@@ -111,12 +115,36 @@ export function UserMenuClient(props: UserMenuProps) {
             <MenuLink href="/feedback" onClick={() => setOpen(false)}>
               Send feedback
             </MenuLink>
-            {props.isAdmin && (
-              <MenuLink href="/admin" onClick={() => setOpen(false)}>
-                Admin dashboard
-              </MenuLink>
-            )}
           </div>
+          {props.isAdmin && !props.isHqMode && (
+            <div className="border-t border-ink-100 py-1.5">
+              <p className="px-4 pt-1 pb-1 text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-500">
+                Founder console
+              </p>
+              <Link
+                href="/admin"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2.5 px-4 py-2 text-sm text-ink-800 hover:bg-cream-50 hover:text-forest-900 transition-colors group"
+              >
+                <span
+                  className="h-5 w-5 rounded inline-flex items-center justify-center text-[11px] font-semibold flex-none text-forest-950"
+                  style={{
+                    background:
+                      'linear-gradient(135deg, #f5edd6 0%, #d5bb7e 50%, #c9a96e 100%)',
+                  }}
+                  aria-hidden
+                >
+                  HQ
+                </span>
+                <span className="flex-1 truncate font-medium">
+                  Advottic HQ
+                </span>
+                <span aria-hidden className="text-ink-400 group-hover:text-forest-700">
+                  →
+                </span>
+              </Link>
+            </div>
+          )}
           {(props.firmMemberships?.length ?? 0) > 0 && !props.isCounselMode && (
             <div className="border-t border-ink-100 py-1.5">
               <p className="px-4 pt-1 pb-1 text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-500">
