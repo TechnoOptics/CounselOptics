@@ -16,6 +16,8 @@ import { ThemeBoot } from '@/components/ThemeBoot';
 import { CrashReporter } from '@/components/CrashReporter';
 import { FreshnessGuard } from '@/components/FreshnessGuard';
 import { TrialBanner } from '@/components/TrialBanner';
+import { NoCapture } from '@/components/NoCapture';
+import { TraceWatermark } from '@/components/TraceWatermark';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import {
   ensureSignupHistory,
@@ -154,6 +156,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // visitors, and stays gone after refresh.
   let consent: { needed: false } | { needed: true; fallbackName: string } = { needed: false };
   let signedIn = false;
+  let userEmail: string | null = null;
   let serverTheme: 'light' | 'dark' | 'system' = 'light';
   let serverLanguage: string | null = null;
   let trial: {
@@ -167,6 +170,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       const user = await getCurrentUser();
       if (user) {
         signedIn = true;
+        userEmail = user.email ?? null;
         const profile = await getProfile().catch(() => null);
         if (profile?.theme) serverTheme = profile.theme;
         if (profile?.language) serverLanguage = profile.language;
@@ -284,6 +288,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             tier={trial.tier}
           />
         )}
+        <NoCapture />
+        {signedIn && <TraceWatermark email={userEmail} />}
         <ServiceWorkerRegister />
         <CrashReporter />
         <FreshnessGuard

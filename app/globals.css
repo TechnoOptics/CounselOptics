@@ -494,6 +494,42 @@ body > * {
   background-color: rgba(13, 16, 21, 0.8);
 }
 
+/* ----------------------- Capture deterrents -----------------------
+   Best-effort friction against casual screenshot / save / print. The
+   keyboard and right-click handlers live in <NoCapture />; these
+   rules cover the platform behaviors a JS handler can't catch.
+
+   Limits: nothing here stops an OS-level screenshot, a screen
+   recorder, or a phone pointed at the screen. Pair with the
+   <TraceWatermark /> for traceability. */
+img,
+video,
+canvas {
+  -webkit-user-drag: none;
+  user-drag: none;
+  -webkit-touch-callout: none; /* iOS long-press to save */
+}
+
+/* Hide everything when the user invokes Print, leaving a single
+   message. Browsers that still expose Save-as-PDF will produce a
+   blank-with-message page. */
+@media print {
+  html, body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+  body > *:not(#print-block) {
+    display: none !important;
+  }
+  body::before {
+    content: 'Printing and PDF export are disabled on this site. Contact contact@advottic.com if you need an export.';
+    display: block;
+    padding: 48px;
+    font: 600 14px/1.5 ui-sans-serif, system-ui, sans-serif;
+    color: #000;
+  }
+}
+
 /* Gold gradient text - the hero / accent treatment for tile numbers,
    page titles, and any "this matters" text inside the hq-shell.
    Background-clip: text means the gradient becomes the text fill. */
