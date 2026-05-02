@@ -108,6 +108,29 @@ const nextConfig = {
   // see the canonical path even before the rewrite resolves.
   async redirects() {
     return [
+      // www.advottic.com/* -> advottic.com/*  (canonical apex)
+      //
+      // Why: Supabase Auth's "Allowed Redirect URLs" list whitelists the
+      // apex callback (https://advottic.com/auth/callback). When a user
+      // initiates OAuth from www, the browser supabase client computes
+      // redirectTo from window.location.origin = https://www.advottic.com,
+      // which Supabase doesn't recognize, so it falls back to Site URL
+      // (apex root) and the user lands at https://advottic.com/?code=...
+      // - the wrong path, no PKCE exchange, no session.
+      //
+      // Collapsing www -> apex at the edge keeps every user on the one
+      // origin Supabase trusts. Also stops cookie scope from splitting
+      // across two hostnames (each cookie is host-scoped by default).
+      //
+      // 307 (temporary) instead of 308 so we can roll this back without
+      // poisoning browser/CDN caches if anything downstream depends on
+      // www. Promote to permanent: true after a clean week.
+      {
+        source: '/:path*',
+        has: [{ type: 'host', value: 'www.advottic.com' }],
+        destination: 'https://advottic.com/:path*',
+        permanent: false,
+      },
       // hq.advottic.com/admin/X -> hq.advottic.com/X
       {
         source: '/admin/:path*',

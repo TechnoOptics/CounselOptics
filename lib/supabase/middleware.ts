@@ -102,10 +102,13 @@ export async function updateSession(request: NextRequest) {
     if (needsAuth && !user) {
       const signInUrl = request.nextUrl.clone();
       signInUrl.pathname = '/sign-in';
-      // Send unauthed users from hq.advottic.com to www.advottic.com/sign-in
-      // since that's where the sign-in surface lives.
+      // Send unauthed users from hq.advottic.com to advottic.com/sign-in
+      // (apex, NOT www). Supabase Auth's Allowed Redirect URLs list only
+      // whitelists the apex /auth/callback - OAuth from www falls back to
+      // Site URL and breaks. Sending unauthed hq users straight to apex
+      // also avoids a wasted hop through the www -> apex redirect.
       if (isHqHost) {
-        signInUrl.host = 'www.advottic.com';
+        signInUrl.host = 'advottic.com';
       }
       // Preserve the original URL the user was trying to reach so we
       // can land them back there post-sign-in.
