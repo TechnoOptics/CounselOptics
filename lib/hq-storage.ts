@@ -355,9 +355,9 @@ export type LiveHealth = {
   cronSnapshotStale: boolean;
 };
 
-/** Stale threshold: hourly cron should run every 60 minutes. Anything
- *  older than 2x that means the cron is broken. */
-const CRON_STALE_THRESHOLD_MS = 2 * 60 * 60 * 1000;
+/** Stale threshold: daily cron should run every 24 hours. Anything
+ *  older than 36h (1.5x cadence) means the cron is broken. */
+const CRON_STALE_THRESHOLD_MS = 36 * 60 * 60 * 1000;
 
 /**
  * Hits Supabase right now to verify it's reachable. Used by the HQ

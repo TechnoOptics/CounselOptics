@@ -4,6 +4,7 @@ import {
   recordHealthCheck,
   lastHealthEmailSentAt,
   markHealthEmailSent,
+  adminListCrashReports,
   type ProbeName,
   type ProbeStatus,
 } from '@/lib/storage';
@@ -13,16 +14,24 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 /**
- * Hourly health check.
+ * Daily health check.
  *
- * Vercel Cron (configured in vercel.json) hits this endpoint with
- * `Authorization: Bearer <CRON_SECRET>`. We exercise the critical paths
- * (auth, database, email, stripe, bella) and record one row to
- * system_health. If any probe fails, we email contact@advottic.com
- * with the failures so the team can investigate.
+ * Vercel Cron (configured in vercel.json - currently 07:00 UTC daily)
+ * hits this endpoint with `Authorization: Bearer <CRON_SECRET>`. We
+ * exercise the critical paths (auth, database, email, stripe, bella)
+ * and record one row to system_health. We also pull every
+ * unacknowledged crash report so the daily email digest is the single
+ * place to see "what went wrong yesterday" - failed probes plus client
+ * crashes since the last digest.
+ *
+ * The /admin/health page also runs a LIVE probe at request time, so
+ * fresh state is always available even between cron runs. The cron's
+ * job is the historical record + the email digest.
  *
  * Important: this endpoint reports state, it does NOT auto-fix anything.
  * Auto-patching production from a cron is too risky for a legal app.
+ * The agent-as-PR-author flow lives in a separate workflow with human
+ * review before merge.
  */
 export async function GET(request: NextRequest) {
   const cronSecret = process.env.CRON_SECRET?.trim();
@@ -130,30 +139,84 @@ export async function GET(request: NextRequest) {
     durationMs,
   });
 
-  // Email digest only when:
-  //   1) at least one probe failed, AND
-  //   2) we haven't sent a digest in the last 24 hours.
-  // The cron records every hourly probe (so /admin/health stays
-  // fresh), but the inbox only fires once per day max.
-  if (failures.length > 0) {
+  // Pull unacknowledged crash reports for the digest. Capped at 25 so
+  // a runaway crash storm cannot bloat the email past Resend's size
+  // limit. The full list is always available at /admin/crashes.
+  const unackedCrashes = await adminListCrashReports({
+    includeAcknowledged: false,
+    limit: 25,
+  }).catch(() => []);
+
+  // Email digest fires when EITHER probes failed OR there are
+  // unacknowledged crashes, and the per-day throttle is not already
+  // tripped. With cron now running once a day at 07:00 UTC the
+  // throttle aligns naturally with the cadence.
+  const shouldDigest = failures.length > 0 || unackedCrashes.length > 0;
+  if (shouldDigest) {
     const lastEmailedAt = await lastHealthEmailSentAt();
     const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
     if (lastEmailedAt === null || Date.parse(lastEmailedAt) < oneDayAgo) {
       const to = process.env.HEALTH_DIGEST_TO?.trim() || 'contact@advottic.com';
-      const lines = failures
-        .map((f) => `- ${f.probe.toUpperCase()}: ${f.error}`)
-        .join('<br />');
-      const subject = `[Advottic] Health check: ${failures.length} probe${failures.length === 1 ? '' : 's'} failing`;
+
+      const subjectParts: string[] = [];
+      if (failures.length > 0) {
+        subjectParts.push(
+          `${failures.length} probe${failures.length === 1 ? '' : 's'} failing`,
+        );
+      }
+      if (unackedCrashes.length > 0) {
+        subjectParts.push(
+          `${unackedCrashes.length} crash${unackedCrashes.length === 1 ? '' : 'es'}`,
+        );
+      }
+      const subject = `[Advottic] Daily health: ${subjectParts.join(' / ')}`;
+
+      const failureBlock =
+        failures.length > 0
+          ? `<h3 style="margin:18px 0 6px;font-size:14px;color:#9f1239;">Failed probes (${failures.length})</h3>
+<ul style="margin:0 0 8px;padding-left:18px;font-size:13px;color:#3f3f46;">
+${failures
+  .map(
+    (f) =>
+      `<li><strong style="font-family:ui-monospace,Menlo,Consolas,monospace;color:#9f1239;">${escapeHtml(f.probe)}</strong>: ${escapeHtml(f.error)}</li>`,
+  )
+  .join('\n')}
+</ul>`
+          : '';
+
+      const crashBlock =
+        unackedCrashes.length > 0
+          ? `<h3 style="margin:18px 0 6px;font-size:14px;color:#9f1239;">Unacknowledged client crashes (${unackedCrashes.length})</h3>
+<ul style="margin:0 0 8px;padding-left:18px;font-size:13px;color:#3f3f46;">
+${unackedCrashes
+  .map((c) => {
+    const when = new Date(c.reportedAt).toLocaleString('en-US', {
+      timeZone: 'UTC',
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    });
+    const path = c.url ? c.url.replace(/^https?:\/\/[^/]+/, '') : '';
+    return `<li style="margin-bottom:6px;">
+  <span style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:#52525b;">${escapeHtml(when)} UTC${path ? ` &middot; ${escapeHtml(path)}` : ''}</span><br/>
+  <span style="font-weight:600;color:#0f2d24;">${escapeHtml(c.message)}</span>
+</li>`;
+  })
+  .join('\n')}
+</ul>
+<p style="margin:0 0 8px;font-size:12px;color:#52525b;">Open <a href="https://www.advottic.com/admin/crashes" style="color:#0f2d24;">/admin/crashes</a> to acknowledge or investigate.</p>`
+          : '';
+
       const html = `<!doctype html><html><body style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Inter,sans-serif;padding:16px;color:#0f2d24;">
-<h2 style="margin:0 0 8px;font-size:16px;">Health check report</h2>
-<p style="margin:0 0 12px;font-size:13px;color:#3f3f46;">Ran at ${new Date().toISOString()} - ${durationMs} ms.</p>
-<p style="margin:0 0 12px;font-size:13px;"><strong>Failures:</strong><br />${lines}</p>
-<p style="margin:0 0 12px;font-size:12px;color:#52525b;">Probes summary: ${JSON.stringify(probes)}</p>
-<p style="margin:0;font-size:11px;color:#a1a1aa;">Auto-generated. Throttled to once per 24h - probes still run hourly. Open /admin/health for the full history.</p>
+<h2 style="margin:0 0 8px;font-size:16px;">Advottic - daily health digest</h2>
+<p style="margin:0 0 12px;font-size:13px;color:#3f3f46;">Probe run at ${escapeHtml(new Date().toISOString())} - ${durationMs} ms.</p>
+${failureBlock}
+${crashBlock}
+<p style="margin:18px 0 0;font-size:12px;color:#52525b;">Probes summary: <span style="font-family:ui-monospace,Menlo,Consolas,monospace;">${escapeHtml(JSON.stringify(probes))}</span></p>
+<p style="margin:6px 0 0;font-size:11px;color:#a1a1aa;">Auto-generated daily. Open <a href="https://www.advottic.com/admin/health" style="color:#52525b;">/admin/health</a> for live status.</p>
 </body></html>`;
+
       const r = await sendEmail({ to, subject, html }).catch(() => null);
       if (r && r.ok && recordedRowId) {
-        // Mark this row so the next 24-hour throttle window is anchored here.
         await markHealthEmailSent(recordedRowId).catch(() => {});
       }
     }
@@ -163,7 +226,17 @@ export async function GET(request: NextRequest) {
     ok: failures.length === 0,
     probes,
     failures,
+    crashCount: unackedCrashes.length,
     durationMs,
     ranAt: new Date().toISOString(),
   });
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }

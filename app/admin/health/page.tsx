@@ -30,8 +30,8 @@ export default async function HqHealthPage() {
           System health
         </h2>
         <p className="text-[13px] text-cream-100/70 mt-1">
-          Real-time Supabase probe, hourly synthetic checks, security signals,
-          and a live readout of who's using Advottic right now.
+          Real-time Supabase probe, daily synthetic checks at 07:00 UTC,
+          security signals, and a live readout of who's using Advottic right now.
         </p>
       </header>
 
@@ -45,12 +45,15 @@ export default async function HqHealthPage() {
         <SecurityTile security={extras.security} />
       </section>
 
-      {/* Hourly probes, unchanged shape. */}
+      {/* Daily probes - one cron run per day at 07:00 UTC. The live
+          probe at the top of this page handles between-cron freshness. */}
       <section className="space-y-3">
         <header>
-          <p className="eyebrow text-cream-100/70">Hourly probes</p>
+          <p className="eyebrow text-cream-100/70">Daily probes</p>
           <p className="text-[13px] text-cream-100/65 mt-0.5">
-            Synthetic checks across the integrations Advottic relies on.
+            One synthetic run per day at 07:00 UTC. The 24-bar history
+            below covers the last 24 days. Use the Live banner above for
+            current state.
           </p>
         </header>
         {!latest ? (
