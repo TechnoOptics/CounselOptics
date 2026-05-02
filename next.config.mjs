@@ -85,6 +85,34 @@ const nextConfig = {
       },
     ];
   },
+  // hq.advottic.com is the founder-facing alias for the HQ console.
+  // Anyone landing on hq.advottic.com is bounced to the equivalent
+  // www.advottic.com/admin/* path - we 308 instead of rewriting so
+  // the URL bar settles on the canonical /admin/* paths and the
+  // existing UserMenu / layout / middleware logic (which all key off
+  // pathname starting with /admin) doesn't need any host-aware
+  // branching. Path-preserving so hq.advottic.com/firms goes to
+  // /admin/firms, hq.advottic.com/users to /admin/users, etc.
+  async redirects() {
+    return [
+      // /admin/* on hq subdomain - go straight to www without the
+      // /admin/admin/* double-stack.
+      {
+        source: '/admin/:path*',
+        has: [{ type: 'host', value: 'hq.advottic.com' }],
+        destination: 'https://www.advottic.com/admin/:path*',
+        permanent: false,
+      },
+      // Everything else on hq subdomain - prefix with /admin and
+      // send to www.
+      {
+        source: '/:path*',
+        has: [{ type: 'host', value: 'hq.advottic.com' }],
+        destination: 'https://www.advottic.com/admin/:path*',
+        permanent: false,
+      },
+    ];
+  },
 };
 
 export default nextConfig;
