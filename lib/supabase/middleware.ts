@@ -31,23 +31,30 @@ export async function updateSession(request: NextRequest) {
   // Used by the root layout to swap consumer chrome for counsel chrome
   // when on /counsel/* and for HQ chrome when on /admin/*.
   //
-  // Special-case hq.advottic.com: the URL bar shows /firms, /users,
-  // /consumer, etc. (no /admin prefix), but the routes those resolve
-  // to are at app/admin/X/page.tsx (handled by next.config.mjs
-  // rewrites). For x-pathname we report the canonical /admin/X path
-  // so the consumer-vs-HQ chrome swap, the auth check, and the
-  // perspective detector all see the path that matches the rendered
-  // route - no host-aware branching needed in any consumer of the
-  // header.
+  // Special-case hq.advottic.com and enterprise.advottic.com: their URL
+  // bars never show the internal route prefix ("/admin" or "/counsel"),
+  // so paths look like hq.advottic.com/firms or
+  // enterprise.advottic.com/clients. The routes still live under the
+  // prefix (app/admin/X/page.tsx, app/counsel/X/page.tsx) - rewrites in
+  // next.config.mjs map them. For x-pathname we report the canonical
+  // prefixed path so chrome swap, auth check, and perspective detection
+  // all see the path that matches the rendered route. No host-aware
+  // branching needed in any consumer of the header.
   const host = request.headers.get('host') ?? '';
   const isHqHost = host === 'hq.advottic.com';
+  const isEnterpriseHost = host === 'enterprise.advottic.com';
   const originalPath = request.nextUrl.pathname;
-  const effectivePath = isHqHost
+  const prefixForHost: string | null = isHqHost
+    ? '/admin'
+    : isEnterpriseHost
+      ? '/counsel'
+      : null;
+  const effectivePath = prefixForHost
     ? originalPath === '/' || originalPath === ''
-      ? '/admin'
-      : originalPath.startsWith('/admin')
+      ? prefixForHost
+      : originalPath.startsWith(prefixForHost)
         ? originalPath
-        : `/admin${originalPath}`
+        : `${prefixForHost}${originalPath}`
     : originalPath;
 
   const requestHeaders = new Headers(request.headers);
@@ -102,12 +109,12 @@ export async function updateSession(request: NextRequest) {
     if (needsAuth && !user) {
       const signInUrl = request.nextUrl.clone();
       signInUrl.pathname = '/sign-in';
-      // Send unauthed users from hq.advottic.com to advottic.com/sign-in
-      // (apex, NOT www). Supabase Auth's Allowed Redirect URLs list only
-      // whitelists the apex /auth/callback - OAuth from www falls back to
-      // Site URL and breaks. Sending unauthed hq users straight to apex
-      // also avoids a wasted hop through the www -> apex redirect.
-      if (isHqHost) {
+      // Send unauthed users from hq.advottic.com or enterprise.advottic.com
+      // to advottic.com/sign-in (apex). Supabase Auth's Allowed Redirect
+      // URLs list only whitelists the apex /auth/callback - OAuth from a
+      // sibling host falls back to Site URL and breaks. Sending unauthed
+      // subdomain users straight to apex also avoids the www -> apex hop.
+      if (isHqHost || isEnterpriseHost) {
         signInUrl.host = 'advottic.com';
       }
       // Preserve the original URL the user was trying to reach so we

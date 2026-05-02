@@ -86,26 +86,29 @@ const nextConfig = {
     ];
   },
   // hq.advottic.com is the founder-facing alias for the HQ console.
-  // The URL bar should NEVER show "/admin" on this subdomain - the
-  // user's mental model is that hq.advottic.com IS the admin portal,
-  // so paths look like hq.advottic.com/firms, /users, /counsel, etc.
+  // enterprise.advottic.com is the firm/Enterprise alias for the counsel
+  // portal. Both follow the same two-rule pattern: the URL bar never
+  // shows the internal route prefix ("/admin" or "/counsel") - the
+  // user's mental model is that the subdomain IS the portal, so paths
+  // read like hq.advottic.com/firms or enterprise.advottic.com/clients.
   //
-  // Two-rule strategy:
+  // Two-rule strategy per subdomain:
   //
-  //   1. REDIRECT: hq.advottic.com/admin/X -> hq.advottic.com/X.
-  //      Strips the legacy /admin segment from the URL bar so
-  //      internal <Link href="/admin/firms"> clicks settle on the
-  //      clean URL after one hop. Also handles users who paste an
-  //      old www.advottic.com/admin/X bookmark into hq.advottic.com.
+  //   1. REDIRECT: <sub>.advottic.com/<prefix>/X -> <sub>.advottic.com/X.
+  //      Strips the legacy prefix segment from the URL bar so internal
+  //      <Link href="/admin/firms"> or <Link href="/counsel/clients">
+  //      clicks settle on the clean URL after one hop. Also handles
+  //      users who paste an old advottic.com/<prefix>/X bookmark into
+  //      the subdomain.
   //
-  //   2. REWRITE: hq.advottic.com/X -> internally /admin/X.
-  //      Server-side only - browser URL is unchanged. The Next.js
-  //      routing then resolves /admin/X against the actual file
-  //      tree (app/admin/X/page.tsx) and renders the HQ surfaces.
+  //   2. REWRITE: <sub>.advottic.com/X -> internally /<prefix>/X.
+  //      Server-side only - browser URL is unchanged. Next.js then
+  //      resolves /<prefix>/X against the actual file tree and renders
+  //      the appropriate surfaces.
   //
-  // The middleware sets x-pathname using the effective /admin/X path
-  // when Host is hq.advottic.com so server components / auth checks
-  // see the canonical path even before the rewrite resolves.
+  // The middleware sets x-pathname using the effective /<prefix>/X
+  // path when Host matches a subdomain so server components / auth
+  // checks see the canonical path even before the rewrite resolves.
   async redirects() {
     return [
       // www.advottic.com/* -> advottic.com/*  (canonical apex)
@@ -145,6 +148,20 @@ const nextConfig = {
         destination: '/',
         permanent: false,
       },
+      // enterprise.advottic.com/counsel/X -> enterprise.advottic.com/X
+      {
+        source: '/counsel/:path*',
+        has: [{ type: 'host', value: 'enterprise.advottic.com' }],
+        destination: '/:path*',
+        permanent: false,
+      },
+      // enterprise.advottic.com/counsel -> enterprise.advottic.com/  (root case)
+      {
+        source: '/counsel',
+        has: [{ type: 'host', value: 'enterprise.advottic.com' }],
+        destination: '/',
+        permanent: false,
+      },
     ];
   },
   async rewrites() {
@@ -163,6 +180,18 @@ const nextConfig = {
           source: '/:path*',
           has: [{ type: 'host', value: 'hq.advottic.com' }],
           destination: '/admin/:path*',
+        },
+        // enterprise.advottic.com/ -> internally /counsel (Enterprise landing)
+        {
+          source: '/',
+          has: [{ type: 'host', value: 'enterprise.advottic.com' }],
+          destination: '/counsel',
+        },
+        // enterprise.advottic.com/<anything> -> internally /counsel/<anything>
+        {
+          source: '/:path*',
+          has: [{ type: 'host', value: 'enterprise.advottic.com' }],
+          destination: '/counsel/:path*',
         },
       ],
     };
