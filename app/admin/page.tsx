@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { adminGetHqDashboardCounts } from '@/lib/hq-storage';
+import { adminGetHqDashboardCounts, adminGetLiveHealth } from '@/lib/hq-storage';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Advottic HQ' };
@@ -13,9 +13,10 @@ export const metadata = { title: 'Advottic HQ' };
  * /admin/counsel.
  */
 export default async function HqLandingPage() {
-  const counts = await adminGetHqDashboardCounts();
-  const healthGood = counts.ops.healthStatus === 'pass';
-  const healthFail = counts.ops.healthStatus === 'fail';
+  const [counts, live] = await Promise.all([
+    adminGetHqDashboardCounts(),
+    adminGetLiveHealth(),
+  ]);
 
   return (
     <div className="space-y-10 animate-fade-up">
@@ -35,11 +36,7 @@ export default async function HqLandingPage() {
       </section>
 
       <section className="flex flex-wrap items-center gap-3">
-        <HealthPill
-          status={counts.ops.healthStatus}
-          failureCount={counts.ops.healthFailureCount}
-          lastRun={counts.ops.healthLastRun}
-        />
+        <LiveSupabasePill live={live} />
         <CrashButton count={counts.ops.crashOpen} />
         {(counts.consumer.pastDueSubs > 0 || counts.counsel.expiredGrants > 0) && (
           <span className="text-[12px] text-amber-300/85 px-3 py-1.5 rounded-md bg-amber-950/40 ring-1 ring-amber-700/40">
@@ -48,6 +45,11 @@ export default async function HqLandingPage() {
             {counts.consumer.pastDueSubs > 0 && counts.counsel.expiredGrants > 0 && ' · '}
             {counts.counsel.expiredGrants > 0 &&
               `${counts.counsel.expiredGrants} expired invitation${counts.counsel.expiredGrants === 1 ? '' : 's'}`}
+          </span>
+        )}
+        {live.cronSnapshotStale && (
+          <span className="text-[12px] text-amber-300/85 px-3 py-1.5 rounded-md bg-amber-950/40 ring-1 ring-amber-700/40">
+            Hourly cron is not firing - investigate
           </span>
         )}
       </section>
@@ -93,13 +95,11 @@ export default async function HqLandingPage() {
         </div>
       </section>
 
-      {(healthFail || !healthGood) && (
-        <p className="text-[11px] text-cream-100/50 italic">
-          {healthFail
-            ? 'One or more synthetic probes are failing. Open System health to investigate.'
-            : 'No synthetic probes have run yet. The hourly cron writes to system_health.'}
-        </p>
-      )}
+      <p className="text-[11px] text-cream-100/45 italic">
+        Numbers refresh on every page load. The Supabase pill at the top runs a
+        live database + auth probe at request time, so it never lies even when
+        the hourly cron is broken.
+      </p>
     </div>
   );
 }
@@ -125,45 +125,31 @@ function HeroStat({
   );
 }
 
-function HealthPill({
-  status,
-  failureCount,
-  lastRun,
+function LiveSupabasePill({
+  live,
 }: {
-  status: 'pass' | 'fail' | 'unknown';
-  failureCount: number;
-  lastRun: string | null;
+  live: Awaited<ReturnType<typeof adminGetLiveHealth>>;
 }) {
-  const tone =
-    status === 'pass'
-      ? 'bg-emerald-950/40 ring-emerald-700/40 text-emerald-200'
-      : status === 'fail'
-        ? 'bg-rose-950/40 ring-rose-700/40 text-rose-200'
-        : 'bg-white/5 ring-white/10 text-cream-100/70';
-  const dot =
-    status === 'pass'
-      ? 'bg-emerald-400'
-      : status === 'fail'
-        ? 'bg-rose-400'
-        : 'bg-cream-100/40';
-  const label =
-    status === 'pass'
-      ? 'All systems pass'
-      : status === 'fail'
-        ? `${failureCount} probe${failureCount === 1 ? '' : 's'} failing`
-        : 'No probes yet';
+  const tone = live.ok
+    ? 'bg-emerald-950/40 ring-emerald-700/40 text-emerald-200'
+    : 'bg-rose-950/40 ring-rose-700/40 text-rose-200';
+  const dot = live.ok ? 'bg-emerald-400' : 'bg-rose-400';
+  const label = live.ok
+    ? 'Supabase live'
+    : live.probes.find((p) => p.status === 'fail')?.error ?? 'Supabase unreachable';
   return (
     <Link
       href="/admin/health"
       className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-md ring-1 text-[12.5px] transition-colors ${tone}`}
     >
-      <span className={`h-2 w-2 rounded-full ${dot}`} aria-hidden />
+      <span
+        className={`h-2 w-2 rounded-full ${dot} ${live.ok ? 'animate-pulse' : ''}`}
+        aria-hidden
+      />
       <span>{label}</span>
-      {lastRun && status !== 'unknown' && (
-        <span className="text-cream-100/50 font-mono text-[11px]">
-          · last run {timeAgo(lastRun)}
-        </span>
-      )}
+      <span className="text-cream-100/55 font-mono text-[11px]">
+        · {live.totalLatencyMs}ms
+      </span>
     </Link>
   );
 }
@@ -247,11 +233,3 @@ function PerspectiveCard({
   );
 }
 
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const minutes = Math.round(diff / 60000);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.round(hours / 24)}d ago`;
-}

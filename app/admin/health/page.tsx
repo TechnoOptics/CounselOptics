@@ -1,5 +1,5 @@
 import { adminListHealthChecks } from '@/lib/storage';
-import { adminGetHqHealthExtras } from '@/lib/hq-storage';
+import { adminGetHqHealthExtras, adminGetLiveHealth } from '@/lib/hq-storage';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'System health - Advottic HQ' };
@@ -13,7 +13,8 @@ const PROBE_LABEL: Record<string, string> = {
 };
 
 export default async function HqHealthPage() {
-  const [checks, extras] = await Promise.all([
+  const [live, checks, extras] = await Promise.all([
+    adminGetLiveHealth(),
     adminListHealthChecks(48),
     adminGetHqHealthExtras(),
   ]);
@@ -29,10 +30,12 @@ export default async function HqHealthPage() {
           System health
         </h2>
         <p className="text-[13px] text-cream-100/70 mt-1">
-          Hourly synthetic probes, security signals, and a live readout of who's
-          using Advottic right now.
+          Real-time Supabase probe, hourly synthetic checks, security signals,
+          and a live readout of who's using Advottic right now.
         </p>
       </header>
+
+      <LiveStatusBanner live={live} />
 
       {/* Top row: posture metrics across the whole platform. */}
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -258,6 +261,72 @@ function Tile({
       {children}
       <p className="text-[11.5px] text-cream-100/55 mt-2 leading-snug">{sub}</p>
     </div>
+  );
+}
+
+function LiveStatusBanner({ live }: { live: Awaited<ReturnType<typeof adminGetLiveHealth>> }) {
+  const failed = live.probes.filter((p) => p.status === 'fail');
+  const tone = live.ok
+    ? 'ring-emerald-700/40 bg-emerald-950/30'
+    : 'ring-rose-700/40 bg-rose-950/30';
+  const dot = live.ok ? 'bg-emerald-400' : 'bg-rose-400';
+  const ageHours =
+    live.cronSnapshotAgeMs !== null
+      ? Math.floor(live.cronSnapshotAgeMs / (60 * 60 * 1000))
+      : null;
+  return (
+    <section className={`card p-5 ring-1 ${tone}`}>
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <span className={`h-2.5 w-2.5 rounded-full ${dot} animate-pulse`} aria-hidden />
+          <p className="font-display text-lg text-cream-100">
+            {live.ok
+              ? 'Supabase reachable right now'
+              : 'Supabase unreachable right now'}
+          </p>
+        </div>
+        <p className="text-[11px] text-cream-100/55 font-mono tabular-nums">
+          live probe · {live.totalLatencyMs} ms
+        </p>
+      </div>
+      <ul className="mt-3 grid gap-1.5 sm:grid-cols-2">
+        {live.probes.map((p) => (
+          <li
+            key={p.name}
+            className="flex items-baseline justify-between gap-2 text-[12px]"
+          >
+            <span className="text-cream-100/85 capitalize">{p.name}</span>
+            <span
+              className={
+                p.status === 'pass'
+                  ? 'text-emerald-300 font-mono tabular-nums'
+                  : 'text-rose-300 font-mono tabular-nums'
+              }
+            >
+              {p.status === 'pass' ? `${p.latencyMs}ms · pass` : 'fail'}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {failed.length > 0 && (
+        <ul className="mt-3 space-y-1 text-[12px] text-rose-200">
+          {failed.map((p) => (
+            <li key={p.name}>
+              <span className="font-mono">{p.name}</span> — {p.error ?? 'unknown error'}
+            </li>
+          ))}
+        </ul>
+      )}
+      {live.cronSnapshotStale && (
+        <p className="mt-3 text-[12px] text-amber-200 bg-amber-950/40 ring-1 ring-amber-700/40 rounded-md px-3 py-2">
+          <strong>Hourly probe snapshot is stale</strong>
+          {ageHours !== null && ` (last cron run ${ageHours}h ago)`}. The
+          Vercel Cron at <code className="font-mono">/api/cron/health</code> may
+          not be firing - check <code className="font-mono">CRON_SECRET</code> and
+          your Vercel plan's cron quota. The live probe above is unaffected.
+        </p>
+      )}
+    </section>
   );
 }
 

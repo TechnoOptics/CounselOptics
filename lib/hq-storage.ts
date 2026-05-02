@@ -335,6 +335,134 @@ export async function adminGetHqDashboardCounts(): Promise<HqDashboardCounts> {
 }
 
 // =====================================================================
+// Live health probe - runs on demand at request time so the HQ
+// dashboard never lies when the hourly cron breaks
+// =====================================================================
+
+export type LiveProbe = {
+  name: 'database' | 'auth';
+  status: 'pass' | 'fail';
+  latencyMs: number;
+  error: string | null;
+};
+
+export type LiveHealth = {
+  ranAt: string;
+  totalLatencyMs: number;
+  probes: LiveProbe[];
+  ok: boolean;
+  cronSnapshotAgeMs: number | null;
+  cronSnapshotStale: boolean;
+};
+
+/** Stale threshold: hourly cron should run every 60 minutes. Anything
+ *  older than 2x that means the cron is broken. */
+const CRON_STALE_THRESHOLD_MS = 2 * 60 * 60 * 1000;
+
+/**
+ * Hits Supabase right now to verify it's reachable. Used by the HQ
+ * landing's status pill and the System health page's "Live" row, so
+ * the founder always sees the actual current state regardless of
+ * whether the hourly cron is healthy.
+ */
+export async function adminGetLiveHealth(): Promise<LiveHealth> {
+  const startedAt = Date.now();
+  const probes: LiveProbe[] = [];
+  const admin = createAdminSupabase();
+
+  if (!admin) {
+    return {
+      ranAt: new Date(startedAt).toISOString(),
+      totalLatencyMs: 0,
+      probes: [
+        {
+          name: 'database',
+          status: 'fail',
+          latencyMs: 0,
+          error: 'SUPABASE_SERVICE_ROLE_KEY not configured',
+        },
+      ],
+      ok: false,
+      cronSnapshotAgeMs: null,
+      cronSnapshotStale: true,
+    };
+  }
+
+  // Database: cheap count head against a small table.
+  {
+    const t0 = Date.now();
+    try {
+      const { error } = await admin
+        .from('profiles')
+        .select('id', { count: 'exact', head: true });
+      probes.push({
+        name: 'database',
+        status: error ? 'fail' : 'pass',
+        latencyMs: Date.now() - t0,
+        error: error?.message ?? null,
+      });
+    } catch (err) {
+      probes.push({
+        name: 'database',
+        status: 'fail',
+        latencyMs: Date.now() - t0,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  // Auth: list-users with perPage=1 is the documented health-check pattern.
+  {
+    const t0 = Date.now();
+    try {
+      const { error } = await admin.auth.admin.listUsers({ page: 1, perPage: 1 });
+      probes.push({
+        name: 'auth',
+        status: error ? 'fail' : 'pass',
+        latencyMs: Date.now() - t0,
+        error: error?.message ?? null,
+      });
+    } catch (err) {
+      probes.push({
+        name: 'auth',
+        status: 'fail',
+        latencyMs: Date.now() - t0,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  // Snapshot age - if the cron has not written in 2h, the static
+  // "Hourly probes" tiles are stale and the UI must say so.
+  let cronSnapshotAgeMs: number | null = null;
+  try {
+    const { data: latest } = await admin
+      .from('system_health')
+      .select('ran_at')
+      .order('ran_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const latestRow = latest as { ran_at: string } | null | undefined;
+    if (latestRow?.ran_at) {
+      cronSnapshotAgeMs = Date.now() - new Date(latestRow.ran_at).getTime();
+    }
+  } catch {
+    cronSnapshotAgeMs = null;
+  }
+
+  const ok = probes.every((p) => p.status === 'pass');
+  return {
+    ranAt: new Date(startedAt).toISOString(),
+    totalLatencyMs: Date.now() - startedAt,
+    probes,
+    ok,
+    cronSnapshotAgeMs,
+    cronSnapshotStale:
+      cronSnapshotAgeMs === null || cronSnapshotAgeMs > CRON_STALE_THRESHOLD_MS,
+  };
+}
+
+// =====================================================================
 // Extended health metrics for the System health page
 // =====================================================================
 
