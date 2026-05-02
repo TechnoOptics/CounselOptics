@@ -85,14 +85,15 @@ export function ConsentModal({
         {/* Brand strip */}
         <div className="brand-mark text-cream-200 px-6 py-5">
           <p className="text-[10px] tracking-[0.28em] uppercase font-semibold text-gold-300">
-            Welcome to Advottic
+            Thanks for signing up
           </p>
           <h2 className="text-xl md:text-2xl font-semibold tracking-tight text-cream-100 mt-1">
-            One quick consent before you start.
+            Welcome to Advottic. One quick consent before you start.
           </h2>
           <p className="text-cream-100/80 text-sm mt-1.5 max-w-xl leading-relaxed">
-            We need your representation status and acceptance of our terms before any case
-            data is created on your behalf. This is a one-time step.
+            We're glad you're here. We just need your representation status and acceptance of
+            our terms before any case data is created on your behalf. This is a one-time step;
+            a quick tour follows.
           </p>
         </div>
 

@@ -29,7 +29,14 @@ export default async function CasesPage({
     return <SetupNeeded message={err instanceof Error ? err.message : undefined} />;
   }
   const showWelcomeBack = searchParams?.welcome === '1';
-  const showTour = showWelcomeBack && profile?.consentedAt && !profile?.tourCompletedAt;
+  // Tour fires for any consented user who hasn't completed or skipped it yet,
+  // not only on the post-consent redirect. The old gate (welcome=1) meant a
+  // user who refreshed mid-flow, opened /cases from a bookmark, or closed
+  // the tab and came back never saw the walkthrough at all - their first
+  // real impression was an empty dashboard with no orientation. Once they
+  // hit "Got it" or "Skip tour", markTourCompletedAction sets the flag and
+  // it never appears again, so this stays a one-time event.
+  const showTour = Boolean(profile?.consentedAt && !profile?.tourCompletedAt);
   const filter = searchParams?.filter === 'shared' ? 'shared' : 'all';
 
   const currentUser = isSupabaseConfigured() ? await getCurrentUser() : null;
@@ -78,8 +85,9 @@ export default async function CasesPage({
       <TourModal visible={Boolean(showTour)} />
       {showWelcomeBack && (
         <div className="rounded-lg border border-gold-200 bg-cream-50 px-4 py-3 text-sm text-forest-900 animate-fade-in">
-          <strong>Welcome to Advottic</strong>
-          {profile?.displayName ? `, ${firstName(profile.displayName)}` : ''}. Click <strong>New case</strong> to start your first matter, or use the avatar menu to set up billing.
+          <strong>Thanks for joining Advottic{profile?.displayName ? `, ${firstName(profile.displayName)}` : ''}!</strong>{' '}
+          We've put together a quick tour of the key features. When you're ready, click{' '}
+          <strong>New case</strong> to start your first matter, or use the avatar menu to set up billing.
         </div>
       )}
       <div className="flex flex-wrap items-end justify-between gap-4">
