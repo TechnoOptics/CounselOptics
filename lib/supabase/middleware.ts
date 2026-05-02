@@ -26,12 +26,32 @@ const PUBLIC_OVERRIDES = ['/counsel/request', '/counsel/welcome'];
  * chunked session never made it to the browser intact.
  */
 export async function updateSession(request: NextRequest) {
-  // Forward the current pathname to server components via a request
-  // header. Server components can read it with `headers().get('x-pathname')`.
+  // Forward the EFFECTIVE pathname to server components via a request
+  // header. Server components read it with `headers().get('x-pathname')`.
   // Used by the root layout to swap consumer chrome for counsel chrome
-  // when the visitor is on /counsel/*.
+  // when on /counsel/* and for HQ chrome when on /admin/*.
+  //
+  // Special-case hq.advottic.com: the URL bar shows /firms, /users,
+  // /consumer, etc. (no /admin prefix), but the routes those resolve
+  // to are at app/admin/X/page.tsx (handled by next.config.mjs
+  // rewrites). For x-pathname we report the canonical /admin/X path
+  // so the consumer-vs-HQ chrome swap, the auth check, and the
+  // perspective detector all see the path that matches the rendered
+  // route - no host-aware branching needed in any consumer of the
+  // header.
+  const host = request.headers.get('host') ?? '';
+  const isHqHost = host === 'hq.advottic.com';
+  const originalPath = request.nextUrl.pathname;
+  const effectivePath = isHqHost
+    ? originalPath === '/' || originalPath === ''
+      ? '/admin'
+      : originalPath.startsWith('/admin')
+        ? originalPath
+        : `/admin${originalPath}`
+    : originalPath;
+
   const requestHeaders = new Headers(request.headers);
-  requestHeaders.set('x-pathname', request.nextUrl.pathname);
+  requestHeaders.set('x-pathname', effectivePath);
   let response = NextResponse.next({ request: { headers: requestHeaders } });
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -70,15 +90,26 @@ export async function updateSession(request: NextRequest) {
       data: { user },
     } = await supabase.auth.getUser();
 
-    const path = request.nextUrl.pathname;
-    const isPublicOverride = PUBLIC_OVERRIDES.some((p) => path === p || path.startsWith(p + '/'));
+    // Auth check uses the EFFECTIVE path so a request to
+    // hq.advottic.com/firms (which resolves to /admin/firms) is
+    // gated by the /admin protected prefix as expected.
+    const isPublicOverride = PUBLIC_OVERRIDES.some(
+      (p) => effectivePath === p || effectivePath.startsWith(p + '/'),
+    );
     const needsAuth =
       !isPublicOverride &&
-      PROTECTED_PREFIXES.some((p) => path === p || path.startsWith(p + '/'));
+      PROTECTED_PREFIXES.some((p) => effectivePath === p || effectivePath.startsWith(p + '/'));
     if (needsAuth && !user) {
       const signInUrl = request.nextUrl.clone();
       signInUrl.pathname = '/sign-in';
-      signInUrl.searchParams.set('next', path);
+      // Send unauthed users from hq.advottic.com to www.advottic.com/sign-in
+      // since that's where the sign-in surface lives.
+      if (isHqHost) {
+        signInUrl.host = 'www.advottic.com';
+      }
+      // Preserve the original URL the user was trying to reach so we
+      // can land them back there post-sign-in.
+      signInUrl.searchParams.set('next', effectivePath);
       return NextResponse.redirect(signInUrl);
     }
   } catch (err) {

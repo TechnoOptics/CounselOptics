@@ -86,32 +86,63 @@ const nextConfig = {
     ];
   },
   // hq.advottic.com is the founder-facing alias for the HQ console.
-  // Anyone landing on hq.advottic.com is bounced to the equivalent
-  // www.advottic.com/admin/* path - we 308 instead of rewriting so
-  // the URL bar settles on the canonical /admin/* paths and the
-  // existing UserMenu / layout / middleware logic (which all key off
-  // pathname starting with /admin) doesn't need any host-aware
-  // branching. Path-preserving so hq.advottic.com/firms goes to
-  // /admin/firms, hq.advottic.com/users to /admin/users, etc.
+  // The URL bar should NEVER show "/admin" on this subdomain - the
+  // user's mental model is that hq.advottic.com IS the admin portal,
+  // so paths look like hq.advottic.com/firms, /users, /counsel, etc.
+  //
+  // Two-rule strategy:
+  //
+  //   1. REDIRECT: hq.advottic.com/admin/X -> hq.advottic.com/X.
+  //      Strips the legacy /admin segment from the URL bar so
+  //      internal <Link href="/admin/firms"> clicks settle on the
+  //      clean URL after one hop. Also handles users who paste an
+  //      old www.advottic.com/admin/X bookmark into hq.advottic.com.
+  //
+  //   2. REWRITE: hq.advottic.com/X -> internally /admin/X.
+  //      Server-side only - browser URL is unchanged. The Next.js
+  //      routing then resolves /admin/X against the actual file
+  //      tree (app/admin/X/page.tsx) and renders the HQ surfaces.
+  //
+  // The middleware sets x-pathname using the effective /admin/X path
+  // when Host is hq.advottic.com so server components / auth checks
+  // see the canonical path even before the rewrite resolves.
   async redirects() {
     return [
-      // /admin/* on hq subdomain - go straight to www without the
-      // /admin/admin/* double-stack.
+      // hq.advottic.com/admin/X -> hq.advottic.com/X
       {
         source: '/admin/:path*',
         has: [{ type: 'host', value: 'hq.advottic.com' }],
-        destination: 'https://www.advottic.com/admin/:path*',
+        destination: '/:path*',
         permanent: false,
       },
-      // Everything else on hq subdomain - prefix with /admin and
-      // send to www.
+      // hq.advottic.com/admin -> hq.advottic.com/  (root case)
       {
-        source: '/:path*',
+        source: '/admin',
         has: [{ type: 'host', value: 'hq.advottic.com' }],
-        destination: 'https://www.advottic.com/admin/:path*',
+        destination: '/',
         permanent: false,
       },
     ];
+  },
+  async rewrites() {
+    return {
+      beforeFiles: [
+        // hq.advottic.com/ -> internally /admin (HQ landing)
+        {
+          source: '/',
+          has: [{ type: 'host', value: 'hq.advottic.com' }],
+          destination: '/admin',
+        },
+        // hq.advottic.com/<anything> -> internally /admin/<anything>
+        // beforeFiles ensures we win over file-system routing for
+        // top-level paths like /firms, /users, /consumer, etc.
+        {
+          source: '/:path*',
+          has: [{ type: 'host', value: 'hq.advottic.com' }],
+          destination: '/admin/:path*',
+        },
+      ],
+    };
   },
 };
 
