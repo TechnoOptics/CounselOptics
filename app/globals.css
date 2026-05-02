@@ -89,10 +89,7 @@ body::before {
   pointer-events: none;
   background-image:
     radial-gradient(1200px 600px at 90% -10%, rgba(213, 187, 126, 0.16), transparent 60%),
-    radial-gradient(900px 500px at -10% 100%, rgba(15, 45, 36, 0.06), transparent 60%),
-    linear-gradient(rgba(15, 45, 36, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(15, 45, 36, 0.03) 1px, transparent 1px);
-  background-size: auto, auto, 32px 32px, 32px 32px;
+    radial-gradient(900px 500px at -10% 100%, rgba(15, 45, 36, 0.06), transparent 60%);
   z-index: 0;
   mask-image: linear-gradient(180deg, black 0%, black 30%, rgba(0, 0, 0, 0.6) 100%);
 }
@@ -121,9 +118,7 @@ html.dark, html.dark body {
 html.dark body::before {
   background-image:
     radial-gradient(1200px 600px at 90% -10%, rgba(213, 187, 126, 0.10), transparent 60%),
-    radial-gradient(900px 500px at -10% 100%, rgba(213, 187, 126, 0.04), transparent 60%),
-    linear-gradient(rgba(245, 237, 214, 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(245, 237, 214, 0.025) 1px, transparent 1px);
+    radial-gradient(900px 500px at -10% 100%, rgba(213, 187, 126, 0.04), transparent 60%);
 }
 /* Text classes that are typically used directly on the page body
    (which goes dark above) need a cream fallback so they stay readable.
