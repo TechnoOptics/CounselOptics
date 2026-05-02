@@ -401,28 +401,29 @@ body > * {
 }
 
 /* Advottic HQ shell - the founder console that owns BOTH products.
-   Distinct from counsel-shell (which is forest+gold for the legal
-   workspace): HQ uses a near-black + cool steel palette so it reads
-   as an executive dashboard rather than a product surface. The dark
-   class on the same element forces all dark: tailwind variants. */
+   Forest-tinged dark to sit comfortably alongside counsel-shell as
+   part of the Advottic brand family, with a warm gold wash up top
+   so it still reads as an executive cockpit and not a clone of
+   Counsel. The dark class on the same element forces all dark:
+   tailwind variants. */
 .hq-shell {
-  background-color: #060708;
+  background-color: #0a1714;
   background-image:
-    radial-gradient(ellipse at 14% 8%, rgba(170, 195, 220, 0.06), rgba(170, 195, 220, 0) 55%),
-    radial-gradient(ellipse at 92% 96%, rgba(20, 26, 32, 0.9), rgba(20, 26, 32, 0) 60%),
-    linear-gradient(180deg, #0d1015 0%, #0a0c10 55%, #060708 100%);
+    radial-gradient(ellipse at 18% 8%, rgba(213, 187, 126, 0.10), rgba(213, 187, 126, 0) 55%),
+    radial-gradient(ellipse at 92% 100%, rgba(15, 32, 26, 0.9), rgba(15, 32, 26, 0) 60%),
+    linear-gradient(180deg, #0e231d 0%, #0a1714 55%, #07120e 100%);
   background-attachment: fixed;
 }
 
 /* HQ tiles use a gold gradient frame so the executive console stays
    in the brand family with consumer Advottic and Counsel. The card
-   itself stays steel-blue so the gold reads as a frame around it
-   rather than a tinted surface. The ::before holds the gradient
-   border (drawn via a padding box / content box masking trick), and
-   ::after lays a soft inner glow on hover. */
+   itself sits slightly above the forest backdrop so the gold reads
+   as a frame around it rather than a tinted surface. The ::before
+   holds the gradient border (drawn via a padding box / content box
+   masking trick), and ::after lays a soft inner glow on hover. */
 .hq-shell .card {
   position: relative;
-  background-color: rgba(20, 26, 32, 0.65);
+  background-color: rgba(15, 32, 26, 0.72);
   border-color: transparent;
   backdrop-filter: blur(6px);
   isolation: isolate;
@@ -477,16 +478,16 @@ body > * {
 .hq-shell .input,
 .hq-shell select.input,
 .hq-shell textarea.input {
-  background-color: rgba(13, 16, 21, 0.6);
-  border-color: rgba(170, 195, 220, 0.16);
-  color: rgb(232, 236, 242);
+  background-color: rgba(10, 23, 20, 0.6);
+  border-color: rgba(213, 187, 126, 0.18);
+  color: rgb(245, 237, 214);
 }
 .hq-shell .input::placeholder {
-  color: rgba(232, 236, 242, 0.4);
+  color: rgba(245, 237, 214, 0.45);
 }
 .hq-shell .input:focus {
-  border-color: rgba(170, 195, 220, 0.45);
-  background-color: rgba(13, 16, 21, 0.8);
+  border-color: rgba(213, 187, 126, 0.45);
+  background-color: rgba(10, 23, 20, 0.8);
 }
 
 /* ----------------------- Capture deterrents -----------------------

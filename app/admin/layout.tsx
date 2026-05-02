@@ -85,14 +85,14 @@ export default async function HqLayout({ children }: { children: React.ReactNode
   return (
     <ShellFrame>
       <HqHeader perspective={perspective} pathname={pathname} />
-      <main className="flex-1 mx-auto max-w-7xl w-full px-4 sm:px-6 py-6 sm:py-8">
+      <main className="flex-1 w-full px-6 sm:px-10 lg:px-16 py-6 sm:py-8">
         {perspective !== 'overview' && (
           <PerspectiveSubnav perspective={perspective} pathname={pathname} />
         )}
         <div>{children}</div>
       </main>
       <footer className="border-t border-white/5 bg-black/40 backdrop-blur">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 py-4 text-[11px] text-cream-100/50 flex flex-wrap items-center justify-between gap-2">
+        <div className="px-6 sm:px-10 lg:px-16 py-4 text-[11px] text-cream-100/50 flex flex-wrap items-center justify-between gap-2">
           <p>
             <span className="font-semibold text-cream-100">Advottic HQ</span> ·
             Business cockpit

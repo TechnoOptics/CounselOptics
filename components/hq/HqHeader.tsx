@@ -23,8 +23,8 @@ export function HqHeader({
   pathname: string;
 }) {
   return (
-    <header className="sticky top-0 z-20 bg-[#060708]/85 backdrop-blur">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
+    <header className="sticky top-0 z-20 bg-[#0a1714]/90 backdrop-blur">
+      <div className="px-6 sm:px-10 lg:px-16 py-3 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
           <Link
             href="/admin"
