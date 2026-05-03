@@ -32,4 +32,12 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Biometric sign-in (@aparajita/capacitor-biometric-auth). USE_BIOMETRIC
+         is the modern API (Android 9+); USE_FINGERPRINT keeps support for
+         devices that only expose the legacy fingerprint manager. Both are
+         "normal" permissions, no runtime prompt needed - the biometric
+         system itself handles the user-facing dialog. -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <uses-permission android:name="android.permission.USE_FINGERPRINT" />
 </manifest>

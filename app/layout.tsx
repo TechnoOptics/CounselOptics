@@ -14,6 +14,7 @@ import { Sidebar, MobileNav } from '@/components/Sidebar';
 import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
 import { ThemeBoot } from '@/components/ThemeBoot';
 import { CrashReporter } from '@/components/CrashReporter';
+import { BiometricSessionSync } from '@/components/BiometricSessionSync';
 import { FreshnessGuard } from '@/components/FreshnessGuard';
 import { TrialBanner } from '@/components/TrialBanner';
 import { NoCapture } from '@/components/NoCapture';
@@ -292,6 +293,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         {signedIn && <TraceWatermark email={userEmail} />}
         <ServiceWorkerRegister />
         <CrashReporter />
+        {/* Native shells: keep the biometric-stored refresh token in
+            sync as Supabase rotates tokens. No-op on web. */}
+        <BiometricSessionSync />
         <FreshnessGuard
           initialSha={(process.env.VERCEL_GIT_COMMIT_SHA ?? 'dev').slice(0, 12)}
         />

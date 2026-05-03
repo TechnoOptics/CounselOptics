@@ -21,6 +21,7 @@ android/.gradle/
 android/.idea/
 android/local.properties
 android/key.properties
+android/keystore.properties
 android/app/release/
 android/captures/
 # Capacitor sync target - the entire compiled Next.js server bundle

@@ -27,6 +27,9 @@ function bulletsForTier(tier: Tier): Bullet[] {
     { label: 'Advottic Review case review', included: f.aiReview },
     { label: 'Bella, your on-demand assistant', included: f.bella },
     { label: 'Invite collaborators (attorney sharing)', included: f.collaborators },
+    { label: 'Court e-filing directory', included: f.eFilingDirectory },
+    { label: 'Public defender directory', included: f.publicDefenderDirectory },
+    { label: 'Monthly Pro tokens + top-ups', included: f.proTokens },
     { label: '7-day free trial', included: true },
   ];
 }

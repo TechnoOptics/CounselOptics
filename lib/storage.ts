@@ -1438,10 +1438,58 @@ function subscriptionFromRow(r: SubscriptionRow): Subscription {
   };
 }
 
+/**
+ * Comp accounts: emails that always have full Pro access without
+ * needing a paid Stripe subscription. Used for the founder/owner
+ * accounts that demo the product, support customers, and run
+ * internal QA. Compared case-insensitively. Add new emails here
+ * (lowercase) and they take effect on the next request, no DB
+ * write needed.
+ */
+const COMP_EMAILS: ReadonlySet<string> = new Set([
+  'contact@technooptics.com',
+  'contact@advottic.com',
+]);
+
+function isCompEmail(email: string | null | undefined): boolean {
+  if (!email) return false;
+  return COMP_EMAILS.has(email.trim().toLowerCase());
+}
+
+/**
+ * Build a synthetic Pro/active subscription for a comp account. Carries
+ * a `comp-` prefixed id and null Stripe IDs so it is never confused
+ * with a real Stripe-mirrored row. `currentPeriodEnd` is null (no
+ * renewal date) and `cancelAtPeriodEnd` is false, mirroring how the
+ * billing UI renders an indefinite plan.
+ */
+function compSubscription(userId: string): Subscription {
+  const now = new Date().toISOString();
+  return {
+    id: `comp-${userId}`,
+    userId,
+    stripeCustomerId: null,
+    stripeSubscriptionId: null,
+    status: 'active',
+    priceId: null,
+    tier: 'pro',
+    currentPeriodEnd: null,
+    cancelAtPeriodEnd: false,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
 export async function getCurrentSubscription(): Promise<Subscription | null> {
   if (!usingSupabase()) return null;
   const user = await getCurrentUser();
   if (!user) return null;
+  // Comp accounts (founder / support / QA emails) always read as Pro/active.
+  // Skip the DB lookup so the comp grant never gets overwritten by a stale
+  // or missing row.
+  if (isCompEmail(user.email)) {
+    return compSubscription(user.id);
+  }
   const supabase = createServerSupabase();
   const { data, error } = await supabase
     .from('subscriptions')

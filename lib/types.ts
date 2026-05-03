@@ -245,6 +245,12 @@ export type TierFeatures = {
   pdfExport: boolean;
   bella: boolean;
   collaborators: boolean;
+  /** Court e-filing directory (/file-exhibits). Pro-tier gated. */
+  eFilingDirectory: boolean;
+  /** Public defender directory (/public-defender). Pro-tier gated. */
+  publicDefenderDirectory: boolean;
+  /** Monthly Bella + Advottic Review token grant + top-ups. Pro-tier only. */
+  proTokens: boolean;
   monthlyPriceUsd: number;
 };
 
@@ -255,6 +261,9 @@ export const TIER_FEATURES: Record<Tier, TierFeatures> = {
     pdfExport: true,
     bella: false,
     collaborators: false,
+    eFilingDirectory: false,
+    publicDefenderDirectory: false,
+    proTokens: false,
     monthlyPriceUsd: 9,
   },
   standard: {
@@ -263,6 +272,9 @@ export const TIER_FEATURES: Record<Tier, TierFeatures> = {
     pdfExport: true,
     bella: true,
     collaborators: false,
+    eFilingDirectory: false,
+    publicDefenderDirectory: false,
+    proTokens: false,
     monthlyPriceUsd: 19,
   },
   pro: {
@@ -271,6 +283,9 @@ export const TIER_FEATURES: Record<Tier, TierFeatures> = {
     pdfExport: true,
     bella: true,
     collaborators: true,
+    eFilingDirectory: true,
+    publicDefenderDirectory: true,
+    proTokens: true,
     monthlyPriceUsd: 50,
   },
 };

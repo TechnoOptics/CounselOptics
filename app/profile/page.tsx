@@ -9,6 +9,7 @@ import { ThemePicker } from '@/components/ThemePicker';
 import { LanguagePicker } from '@/components/LanguagePicker';
 import { InstallAppButton } from '@/components/InstallAppButton';
 import { ShareAppButton } from '@/components/ShareAppButton';
+import { BiometricSettings } from '@/components/BiometricSettings';
 import { REPRESENTATION_LABEL, type RepresentationStatus } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -210,6 +211,9 @@ export default async function ProfilePage() {
 
         <ThemePicker initial={profile?.theme ?? 'system'} />
         <LanguagePicker initial={profile?.language ?? 'en'} />
+
+        {/* Native-only. Renders nothing on web so the section stays clean. */}
+        <BiometricSettings />
 
         <div>
           <p className="label">Install Advottic</p>

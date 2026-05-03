@@ -6,6 +6,7 @@ import { storageUnavailable, STORAGE_SETUP_MESSAGE } from '@/lib/setup-status';
 import { isSupabaseConfigured, getCurrentUser } from '@/lib/supabase/server';
 import { TourModal } from '@/components/TourModal';
 import { BrandMark } from '@/components/BrandMark';
+import { BiometricEnrollPrompt } from '@/components/BiometricEnrollPrompt';
 
 export const dynamic = 'force-dynamic';
 
@@ -83,6 +84,9 @@ export default async function CasesPage({
   return (
     <div className="space-y-8 animate-fade-up">
       <TourModal visible={Boolean(showTour)} />
+      {/* Biometric enrollment prompt - first time on a native shell only.
+          No-op on web, on devices without biometric, and after dismissal. */}
+      <BiometricEnrollPrompt />
       {showWelcomeBack && (
         <div className="rounded-lg border border-gold-200 bg-cream-50 px-4 py-3 text-sm text-forest-900 animate-fade-in">
           <strong>Thanks for joining Advottic{profile?.displayName ? `, ${firstName(profile.displayName)}` : ''}!</strong>{' '}

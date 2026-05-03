@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { SignInButtons } from './sign-in-buttons';
 import { BrandMark } from '@/components/BrandMark';
+import { BiometricUnlockGate } from '@/components/BiometricUnlockGate';
 
 export const dynamic = 'force-dynamic';
 
@@ -57,7 +58,15 @@ export default async function SignInPage({
           </p>
         )}
 
-        <SignInButtons next={next} />
+        {/* On native shells with biometric enrolled, the gate renders
+            its own "Welcome back, unlock with Face/Touch ID" surface
+            and SignInButtons stays hidden. On web (or first install,
+            or after the user picks "Use a different account") the
+            gate falls through to children and the regular form
+            renders. */}
+        <BiometricUnlockGate next={next}>
+          <SignInButtons next={next} />
+        </BiometricUnlockGate>
 
         <p className="text-xs text-ink-500 mt-6 leading-relaxed">
           By continuing you acknowledge that Advottic helps you organize your case -
