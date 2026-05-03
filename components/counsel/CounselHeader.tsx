@@ -25,7 +25,12 @@ export function CounselHeader({
   memberships: Array<{ firm: Firm; membership: FirmMember }>;
 }) {
   return (
-    <header className="border-b border-forest-700/50 bg-forest-950/95 backdrop-blur-md sticky top-0 z-30">
+    // pt-[env(safe-area-inset-top)] extends the dark header background up
+    // through the iOS notch / dynamic island and Android punch-hole on
+    // mobile. With viewport-fit=cover (set globally), the page renders
+    // under those cutouts, so without this padding the body's lighter
+    // background bleeds through behind the camera area.
+    <header className="border-b border-forest-700/50 bg-forest-950/95 backdrop-blur-md sticky top-0 z-30 pt-[env(safe-area-inset-top)]">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
           <Link
