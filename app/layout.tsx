@@ -64,11 +64,11 @@ const SITE_URL =
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: 'Advottic - Walk into court prepared',
+    default: 'Advottic - Build your case',
     template: '%s · Advottic',
   },
   description:
-    'Organize evidence, surface jurisdiction-aware issues with Advottic Review, prepare for hearings, and ship a packet your attorney can read in five minutes.',
+    "Keep the receipts. We'll turn them into a case file for the day you need it.",
   manifest: '/manifest.webmanifest',
   applicationName: 'Advottic',
   appleWebApp: {
@@ -83,17 +83,17 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     siteName: 'Advottic',
-    title: 'Advottic - Walk into court prepared',
+    title: 'Advottic - Build your case',
     description:
-      'Organize evidence, surface jurisdiction-aware issues, prepare for hearings, and ship a clean packet your attorney can read in five minutes.',
+      "Keep the receipts. We'll turn them into a case file for the day you need it.",
     url: SITE_URL,
     locale: 'en_US',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Advottic - Walk into court prepared',
+    title: 'Advottic - Build your case',
     description:
-      'Organize evidence, surface jurisdiction-aware issues, prepare for hearings, and ship a clean packet your attorney can read in five minutes.',
+      "Keep the receipts. We'll turn them into a case file for the day you need it.",
   },
   robots: {
     index: true,

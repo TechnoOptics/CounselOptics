@@ -1,7 +1,7 @@
 {
-  "name": "Advottic - Strategic advocacy. Trusted results.",
+  "name": "Advottic - Build your case",
   "short_name": "Advottic",
-  "description": "Organize evidence, surface jurisdiction-aware issues with Advottic Review, prepare for hearings, and ship a packet your attorney can read in five minutes.",
+  "description": "Keep the receipts. We'll turn them into a case file for the day you need it.",
   "start_url": "/cases",
   "scope": "/",
   "display": "standalone",
