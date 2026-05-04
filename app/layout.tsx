@@ -154,6 +154,31 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const isHqMode = pathname === '/admin' || pathname.startsWith('/admin/');
   const isShellMode = isCounselMode || isHqMode;
 
+  // App-mode = the user is doing actual case work, where the in-app
+  // sidebar (New case / Cases / Shared with me / Find counsel /
+  // File exhibits / Public defender / Billing) belongs. Everywhere
+  // else - the marketing landing, the enterprise sales page, sign-in,
+  // the welcome / about / legal trio - is sales / informational and
+  // must NOT render the sidebar even when the visitor is signed in.
+  // Without this gate a signed-in user lands on / and sees both the
+  // top header AND the in-app left rail at the same time, which
+  // reads as "two headers" and bleeds the workspace into the
+  // marketing surface.
+  const APP_ROUTE_PREFIXES = [
+    '/cases',
+    '/profile',
+    '/billing',
+    '/feedback',
+    '/find-counsel',
+    '/file-exhibits',
+    '/public-defender',
+  ];
+  const isAppRoute =
+    pathname !== '' &&
+    APP_ROUTE_PREFIXES.some(
+      (p) => pathname === p || pathname.startsWith(p + '/'),
+    );
+
   // Decide whether to mount the consent popup AND whether the user is signed
   // in (so we can gate the search trigger + sidebar/mobile-nav on auth).
   // Server-side so the navigation HTML literally isn't shipped to logged-out
@@ -271,7 +296,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 </div>
                 <div className="header-glow-line" aria-hidden />
               </div>
-              {signedIn && (
+              {signedIn && isAppRoute && (
                 <Suspense fallback={null}>
                   <MobileNav />
                 </Suspense>
@@ -288,7 +313,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         ) : (
           <main className="flex-1">
             <div className="mx-auto max-w-7xl px-4 sm:px-6 py-6 sm:py-10 flex gap-6 lg:gap-8 items-start">
-              {signedIn && (
+              {signedIn && isAppRoute && (
                 <Suspense fallback={null}>
                   <Sidebar />
                 </Suspense>
