@@ -85,33 +85,17 @@ const nextConfig = {
       },
     ];
   },
-  // hq.advottic.com is the founder-facing alias for the HQ console.
-  // enterprise.advottic.com is the firm/Enterprise alias for the counsel
-  // portal. Both follow the same two-rule pattern: the URL bar never
-  // shows the internal route prefix ("/admin" or "/counsel") - the
-  // user's mental model is that the subdomain IS the portal, so paths
-  // read like hq.advottic.com/firms or enterprise.advottic.com/clients.
-  //
-  // Two-rule strategy per subdomain:
-  //
-  //   1. REDIRECT: <sub>.advottic.com/<prefix>/X -> <sub>.advottic.com/X.
-  //      Strips the legacy prefix segment from the URL bar so internal
-  //      <Link href="/admin/firms"> or <Link href="/counsel/clients">
-  //      clicks settle on the clean URL after one hop. Also handles
-  //      users who paste an old advottic.com/<prefix>/X bookmark into
-  //      the subdomain.
-  //
-  //   2. REWRITE: <sub>.advottic.com/X -> internally /<prefix>/X.
-  //      Server-side only - browser URL is unchanged. Next.js then
-  //      resolves /<prefix>/X against the actual file tree and renders
-  //      the appropriate surfaces.
-  //
-  // The middleware sets x-pathname using the effective /<prefix>/X
-  // path when Host matches a subdomain so server components / auth
-  // checks see the canonical path even before the rewrite resolves.
+  // www.advottic.com -> apex collapse stays in next.config.mjs because
+  // it is a cross-host external redirect. All other subdomain routing
+  // (hq.advottic.com -> /admin/*, enterprise.advottic.com -> /counsel/*)
+  // lives in middleware.ts now: the previous redirect+rewrite chain in
+  // beforeFiles double-applied at the Vercel Edge once cookies started
+  // crossing subdomains, turning /admin into /admin/admin and 404'ing
+  // every signed-in tester. Middleware does both legs in a single pass
+  // with explicit ordering and no chance of re-evaluation.
   async redirects() {
     return [
-      // www.advottic.com/* -> advottic.com/*  (canonical apex)
+      // www.advottic.com/* -> advottic.com/*  (canonical apex).
       //
       // Why: Supabase Auth's "Allowed Redirect URLs" list whitelists the
       // apex callback (https://advottic.com/auth/callback). When a user
@@ -134,67 +118,7 @@ const nextConfig = {
         destination: 'https://advottic.com/:path*',
         permanent: false,
       },
-      // hq.advottic.com/admin/X -> hq.advottic.com/X
-      {
-        source: '/admin/:path*',
-        has: [{ type: 'host', value: 'hq.advottic.com' }],
-        destination: '/:path*',
-        permanent: false,
-      },
-      // hq.advottic.com/admin -> hq.advottic.com/  (root case)
-      {
-        source: '/admin',
-        has: [{ type: 'host', value: 'hq.advottic.com' }],
-        destination: '/',
-        permanent: false,
-      },
-      // enterprise.advottic.com/counsel/X -> enterprise.advottic.com/X
-      {
-        source: '/counsel/:path*',
-        has: [{ type: 'host', value: 'enterprise.advottic.com' }],
-        destination: '/:path*',
-        permanent: false,
-      },
-      // enterprise.advottic.com/counsel -> enterprise.advottic.com/  (root case)
-      {
-        source: '/counsel',
-        has: [{ type: 'host', value: 'enterprise.advottic.com' }],
-        destination: '/',
-        permanent: false,
-      },
     ];
-  },
-  async rewrites() {
-    return {
-      beforeFiles: [
-        // hq.advottic.com/ -> internally /admin (HQ landing)
-        {
-          source: '/',
-          has: [{ type: 'host', value: 'hq.advottic.com' }],
-          destination: '/admin',
-        },
-        // hq.advottic.com/<anything> -> internally /admin/<anything>
-        // beforeFiles ensures we win over file-system routing for
-        // top-level paths like /firms, /users, /consumer, etc.
-        {
-          source: '/:path*',
-          has: [{ type: 'host', value: 'hq.advottic.com' }],
-          destination: '/admin/:path*',
-        },
-        // enterprise.advottic.com/ -> internally /counsel (Enterprise landing)
-        {
-          source: '/',
-          has: [{ type: 'host', value: 'enterprise.advottic.com' }],
-          destination: '/counsel',
-        },
-        // enterprise.advottic.com/<anything> -> internally /counsel/<anything>
-        {
-          source: '/:path*',
-          has: [{ type: 'host', value: 'enterprise.advottic.com' }],
-          destination: '/counsel/:path*',
-        },
-      ],
-    };
   },
 };
 

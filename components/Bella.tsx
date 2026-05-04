@@ -64,6 +64,12 @@ export function Bella({ signedIn = true }: { signedIn?: boolean }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
+  // The SSE stream from /api/bella accumulates into `streamBuffer` as
+  // chunks arrive. The visible assistant message in `messages[last]`
+  // catches up to this buffer one or more characters at a time on a
+  // tick (see the type-out useEffect below) so the response reveals
+  // at a human-typing pace instead of dumping in network-burst chunks.
+  const [streamBuffer, setStreamBuffer] = useState('');
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const pathname = usePathname();
   const router = useRouter();
@@ -150,6 +156,44 @@ export function Bella({ signedIn = true }: { signedIn?: boolean }) {
     el.scrollTop = el.scrollHeight;
   }, [streaming]);
 
+  // Type-out effect: advance the visible assistant message toward
+  // streamBuffer one (or more) characters per tick. The pace is tuned
+  // so short answers feel like a person typing while long answers
+  // don't make the user wait minutes - if the buffer gets far ahead
+  // of what's visible (network arrived faster than the typing pace),
+  // we accelerate so we don't fall behind permanently.
+  //
+  // When streaming finishes AND the buffer is fully revealed, this
+  // effect goes idle and stops scheduling timers.
+  useEffect(() => {
+    const lastIdx = messages.length - 1;
+    if (lastIdx < 0) return;
+    const last = messages[lastIdx];
+    if (!last || last.role !== 'assistant') return;
+    const visibleLen = last.content.length;
+    if (visibleLen >= streamBuffer.length) return;
+
+    const lag = streamBuffer.length - visibleLen;
+    // Reveal more per tick when the buffer is far ahead so we catch
+    // up. Tick rate stays in the 18-30ms window so the effect always
+    // *feels* like typing, just at variable speed.
+    const charsThisTick =
+      lag > 800 ? Math.ceil(lag / 30) :
+      lag > 200 ? Math.ceil(lag / 60) :
+      1;
+    const tickMs = lag > 400 ? 12 : lag > 120 ? 18 : 28;
+
+    const timer = setTimeout(() => {
+      const nextContent = streamBuffer.slice(0, visibleLen + charsThisTick);
+      setMessages((m) =>
+        m.map((msg, i) =>
+          i === lastIdx ? { ...msg, content: nextContent } : msg,
+        ),
+      );
+    }, tickMs);
+    return () => clearTimeout(timer);
+  }, [streamBuffer, messages]);
+
   const caseId = pathname?.match(/^\/cases\/([^\/?#]+)(?:\/|$)/)?.[1] ?? null;
 
   async function send() {
@@ -162,6 +206,10 @@ export function Bella({ signedIn = true }: { signedIn?: boolean }) {
 
     const placeholderIndex = next.length;
     setMessages([...next, { role: 'assistant', content: '' }]);
+    // Reset the type-out buffer for this new response. Previous
+    // streamBuffer values must not leak forward or the type-out effect
+    // will think there's still content to reveal.
+    setStreamBuffer('');
 
     try {
       const res = await fetch('/api/bella', {
@@ -207,13 +255,12 @@ export function Bella({ signedIn = true }: { signedIn?: boolean }) {
           // it is on screen before the route swap.
           setTimeout(() => router.push(p), 350);
         }
-        setMessages((m) =>
-          m.map((msg, i) =>
-            i === placeholderIndex
-              ? { role: 'assistant', content: stripMarkdownChrome(clean) }
-              : msg,
-          ),
-        );
+        // Write into the type-out buffer instead of directly into the
+        // assistant message. The type-out useEffect tracks this buffer
+        // and reveals it character-by-character so the response feels
+        // like a person typing instead of dumping in chunks the size
+        // of the SSE payload.
+        setStreamBuffer(stripMarkdownChrome(clean));
       }
     } catch (err) {
       setMessages((m) =>
@@ -372,11 +419,19 @@ export function Bella({ signedIn = true }: { signedIn?: boolean }) {
               {messages.map((m, i) => (
                 <Bubble key={i} role={m.role} content={m.content} />
               ))}
+              {/* "Bella is thinking" bubble. Shows when we are waiting on
+                  the first SSE byte (no content yet on the placeholder
+                  message) so the user sees a real chat bubble with
+                  bouncing dots instead of an empty assistant slot. The
+                  bubble shape matches Bubble({role:'assistant'}) so it
+                  reads as a continuation of the conversation. */}
               {streaming && messages[messages.length - 1]?.content === '' && (
-                <div className="flex gap-1 px-1">
-                  <Dot delay={0} />
-                  <Dot delay={150} />
-                  <Dot delay={300} />
+                <div className="flex justify-start">
+                  <div className="rounded-2xl rounded-tl-md px-4 py-3 bg-white dark:bg-forest-800/70 border border-ink-200 dark:border-forest-700/60 inline-flex items-center gap-1">
+                    <Dot delay={0} />
+                    <Dot delay={150} />
+                    <Dot delay={300} />
+                  </div>
                 </div>
               )}
             </div>

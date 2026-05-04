@@ -27,20 +27,26 @@ const PUBLIC_OVERRIDES = ['/counsel/request', '/counsel/welcome'];
  * chunked session never made it to the browser intact.
  */
 export async function updateSession(request: NextRequest) {
+  // Subdomain routing for hq.advottic.com (-> /admin/*) and
+  // enterprise.advottic.com (-> /counsel/*).
+  //
+  // We do BOTH the URL-cleaning redirect (strip /admin or /counsel
+  // from the URL bar) AND the internal rewrite (serve the prefixed
+  // route while keeping the URL bar clean) here in middleware. The
+  // earlier next.config.mjs implementation chained two beforeFiles
+  // rewrites which Vercel's Edge re-evaluated, turning /admin into
+  // /admin/admin and 404'ing every signed-in tester once cookies
+  // started traveling across subdomains. Doing it in one middleware
+  // pass eliminates re-evaluation entirely.
+  //
   // Forward the EFFECTIVE pathname to server components via a request
   // header. Server components read it with `headers().get('x-pathname')`.
   // Used by the root layout to swap consumer chrome for counsel chrome
-  // when on /counsel/* and for HQ chrome when on /admin/*.
-  //
-  // Special-case hq.advottic.com and enterprise.advottic.com: their URL
-  // bars never show the internal route prefix ("/admin" or "/counsel"),
-  // so paths look like hq.advottic.com/firms or
-  // enterprise.advottic.com/clients. The routes still live under the
-  // prefix (app/admin/X/page.tsx, app/counsel/X/page.tsx) - rewrites in
-  // next.config.mjs map them. For x-pathname we report the canonical
-  // prefixed path so chrome swap, auth check, and perspective detection
-  // all see the path that matches the rendered route. No host-aware
-  // branching needed in any consumer of the header.
+  // when on /counsel/* and for HQ chrome when on /admin/*. The header
+  // value is always the canonical prefixed path (/admin/X, /counsel/X)
+  // even when the URL bar shows /X on a subdomain - chrome swap, auth
+  // check, and perspective detection all see the path that matches the
+  // rendered route.
   const host = request.headers.get('host') ?? '';
   const isHqHost = host === 'hq.advottic.com';
   const isEnterpriseHost = host === 'enterprise.advottic.com';
@@ -50,17 +56,62 @@ export async function updateSession(request: NextRequest) {
     : isEnterpriseHost
       ? '/counsel'
       : null;
+
+  // Step 1: URL-cleaning redirect.
+  // If a user lands on hq.advottic.com/admin/firms (because they pasted
+  // an old apex bookmark or a <Link href="/admin/firms"> click), bounce
+  // them to hq.advottic.com/firms so the URL bar stays clean. Only
+  // applies to the page itself - never to _next assets, API routes, or
+  // the /auth/callback that Supabase posts to.
+  const isAssetOrApi =
+    originalPath.startsWith('/_next/') ||
+    originalPath.startsWith('/api/') ||
+    originalPath === '/auth/callback' ||
+    originalPath === '/favicon.ico';
+  if (
+    prefixForHost &&
+    !isAssetOrApi &&
+    (originalPath === prefixForHost ||
+      originalPath.startsWith(prefixForHost + '/'))
+  ) {
+    const cleanPath =
+      originalPath === prefixForHost
+        ? '/'
+        : originalPath.slice(prefixForHost.length);
+    const cleanUrl = request.nextUrl.clone();
+    cleanUrl.pathname = cleanPath;
+    return NextResponse.redirect(cleanUrl);
+  }
+
+  // Step 2: Compute the effective path (canonical prefixed path) and
+  // decide whether we need to internally rewrite this request.
   const effectivePath = prefixForHost
     ? originalPath === '/' || originalPath === ''
       ? prefixForHost
-      : originalPath.startsWith(prefixForHost)
-        ? originalPath
-        : `${prefixForHost}${originalPath}`
+      : `${prefixForHost}${originalPath}`
     : originalPath;
+  const needsRewrite =
+    Boolean(prefixForHost) && !isAssetOrApi && effectivePath !== originalPath;
 
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set('x-pathname', effectivePath);
-  let response = NextResponse.next({ request: { headers: requestHeaders } });
+
+  // Build the initial response. If a subdomain request needs to be
+  // served from a prefixed internal route, use NextResponse.rewrite to
+  // serve from /admin/X or /counsel/X while keeping the URL bar at /X.
+  // Otherwise NextResponse.next is the standard pass-through.
+  const buildResponse = (): NextResponse => {
+    if (needsRewrite) {
+      const rewriteUrl = request.nextUrl.clone();
+      rewriteUrl.pathname = effectivePath;
+      return NextResponse.rewrite(rewriteUrl, {
+        request: { headers: requestHeaders },
+      });
+    }
+    return NextResponse.next({ request: { headers: requestHeaders } });
+  };
+
+  let response = buildResponse();
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -92,7 +143,9 @@ export async function updateSession(request: NextRequest) {
             request.cookies.set(name, value);
           });
           // Recreate the response ONCE, then attach every cookie in one go.
-          response = NextResponse.next({ request: { headers: requestHeaders } });
+          // Use the same buildResponse helper so a subdomain rewrite is
+          // preserved when Supabase rotates auth cookies mid-request.
+          response = buildResponse();
           cookiesToSet.forEach(({ name, value, options }) => {
             response.cookies.set(name, value, {
               ...options,
