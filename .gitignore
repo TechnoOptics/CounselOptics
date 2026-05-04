@@ -22,6 +22,9 @@ android/.idea/
 android/local.properties
 android/key.properties
 android/keystore.properties
+# Portable JDK + Android SDK toolchain that build_aab uses. Auto-set
+# up on first build run; ~1.5 GB, never committed.
+android/.android-sdk/
 android/app/release/
 android/captures/
 # Capacitor sync target - the entire compiled Next.js server bundle

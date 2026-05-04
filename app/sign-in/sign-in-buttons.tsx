@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { createBrowserSupabase } from '@/lib/supabase/client';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
 
@@ -19,10 +20,24 @@ const APPLE_ENABLED =
   (process.env.NEXT_PUBLIC_APPLE_ENABLED ?? '').trim() === '1';
 
 export function SignInButtons({ next }: { next: string }) {
+  const router = useRouter();
   const [pending, setPending] = useState<Mode | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [emailSent, setEmailSent] = useState<string | null>(null);
   const [email, setEmail] = useState('');
+  const [code, setCode] = useState('');
+  // Once the magic-link email has been requested, verifyMode flips on
+  // so the form renders the 6-digit OTP input instead of the email
+  // box. Supabase sends BOTH a magic link AND the 6-digit token in
+  // the same email by default, so users have two paths:
+  //   - Click the link in the email (works on web; opens whichever
+  //     browser the email client routes to, which on mobile may not
+  //     be the same browser they started in - hence the OTP path)
+  //   - Type the 6-digit code into the field below (always keeps the
+  //     user in the same browser session, so on success the Supabase
+  //     cookies land in the right place and they're signed in
+  //     immediately).
+  const [verifyMode, setVerifyMode] = useState(false);
 
   async function signInWithProvider(provider: Provider) {
     setError(null);
@@ -99,6 +114,7 @@ export function SignInButtons({ next }: { next: string }) {
       });
       if (authError) throw authError;
       setEmailSent(email.trim());
+      setVerifyMode(true);
     } catch (err) {
       const raw = err instanceof Error ? err.message : 'Sign-in failed.';
       // Supabase's per-email throttle returns
@@ -120,6 +136,56 @@ export function SignInButtons({ next }: { next: string }) {
     } finally {
       setPending(null);
     }
+  }
+
+  /**
+   * Verify the 6-digit OTP code the user typed. This path keeps the
+   * user in the SAME browser they started in, which is the whole
+   * reason it exists - tapping the magic link in a mail client (Gmail,
+   * Outlook on mobile, etc.) often opens the link in an in-app browser
+   * separate from the original tab, so the session cookie lands
+   * somewhere the original sign-in page can never see. Code entry
+   * sidesteps that by establishing the session in the current browsing
+   * context. After verifyOtp resolves, supabase has set its cookies
+   * for the current origin; router.push hands off to the destination
+   * and the server will see the new session on the next request.
+   */
+  async function verifyEmailCode(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    setPending('email');
+    try {
+      const supabase = createBrowserSupabase();
+      const { data, error: authError } = await supabase.auth.verifyOtp({
+        email: email.trim(),
+        token: code.trim(),
+        type: 'email',
+      });
+      if (authError) throw authError;
+      if (!data.session) {
+        throw new Error('Sign-in succeeded but no session was returned. Try again.');
+      }
+      // The session cookies are set. Push to the requested destination
+      // (defaults to /cases via the page wrapper). Use replace so the
+      // sign-in page is dropped from history - users hitting Back from
+      // /cases shouldn't bounce to the sign-in form.
+      router.replace(next);
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : 'Could not verify the code.';
+      const friendly = /token has expired|invalid|incorrect/i.test(raw)
+        ? "That code didn't work. Codes expire after 1 hour and can only be used once. Request a fresh one below."
+        : raw;
+      setError(friendly);
+    } finally {
+      setPending(null);
+    }
+  }
+
+  function startOver() {
+    setVerifyMode(false);
+    setEmailSent(null);
+    setCode('');
+    setError(null);
   }
 
   return (
@@ -168,26 +234,65 @@ export function SignInButtons({ next }: { next: string }) {
         <span className="h-px flex-1 bg-ink-200" />
       </div>
 
-      <form onSubmit={signInWithEmail} className="space-y-2">
-        <input
-          type="email"
-          required
-          placeholder="you@example.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          disabled={pending !== null}
-          className="input"
-        />
-        <button type="submit" disabled={pending !== null} className="btn-primary w-full">
-          {pending === 'email' ? <Spinner /> : <MailIcon />}
-          Send magic link
-        </button>
-      </form>
-
-      {emailSent && (
-        <p className="rounded-lg border border-forest-200 bg-cream-50 px-3 py-2 text-xs text-forest-900">
-          Check {emailSent} for a sign-in link from Supabase.
-        </p>
+      {!verifyMode ? (
+        <form onSubmit={signInWithEmail} className="space-y-2">
+          <input
+            type="email"
+            required
+            placeholder="you@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            disabled={pending !== null}
+            className="input"
+            autoComplete="email"
+            inputMode="email"
+          />
+          <button type="submit" disabled={pending !== null} className="btn-primary w-full">
+            {pending === 'email' ? <Spinner /> : <MailIcon />}
+            Email me a sign-in code
+          </button>
+        </form>
+      ) : (
+        <form onSubmit={verifyEmailCode} className="space-y-2">
+          <p className="rounded-lg border border-forest-200 bg-cream-50 px-3 py-2 text-xs text-forest-900 leading-relaxed">
+            We sent a 6-digit code to <strong>{emailSent}</strong>. Type it below to sign in
+            here, or click the link in the email - either works.
+          </p>
+          <input
+            type="text"
+            required
+            placeholder="6-digit code"
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            disabled={pending !== null}
+            className="input tracking-[0.4em] text-center font-mono text-lg"
+            // inputMode="numeric" pulls up the digit pad on mobile;
+            // autoComplete="one-time-code" lets iOS / Android suggest
+            // the code straight from the email notification banner so
+            // the user can tap once instead of switching apps.
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={6}
+            minLength={6}
+            pattern="\d{6}"
+          />
+          <button
+            type="submit"
+            disabled={pending !== null || code.length !== 6}
+            className="btn-primary w-full"
+          >
+            {pending === 'email' ? <Spinner /> : <MailIcon />}
+            Sign in
+          </button>
+          <button
+            type="button"
+            onClick={startOver}
+            disabled={pending !== null}
+            className="text-xs text-ink-500 hover:text-ink-900 underline w-full text-center"
+          >
+            Use a different email
+          </button>
+        </form>
       )}
       {error && (
         <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
