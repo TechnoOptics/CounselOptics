@@ -21,6 +21,40 @@ function stripNavMarkers(s: string): { clean: string; paths: string[] } {
   return { clean, paths };
 }
 
+/**
+ * Strip the markdown noise an LLM tends to emit even when told not
+ * to: ** bold **, __ underline __, leading "# " headings, list
+ * bullet prefixes ("- ", "* ", "1. "), inline `code` ticks, and
+ * blockquote ">" markers.
+ *
+ * The display layer then sees plain prose, which reads like a
+ * person typed it and not like a machine-generated chunk.
+ *
+ * Markdown-style links [text](url) are left intact - the chat
+ * surface renders them as anchors which is genuinely useful (tel:
+ * links, the operator WhatsApp number, etc.).
+ */
+function stripMarkdownChrome(s: string): string {
+  return s
+    // **bold** / __bold__ -> bold
+    .replace(/\*\*([^*\n]+)\*\*/g, '$1')
+    .replace(/__([^_\n]+)__/g, '$1')
+    // *italic* / _italic_ -> italic (avoid matching bullet asterisks
+    // that have whitespace around them)
+    .replace(/(?<!\*)\*(?!\s)([^*\n]+?)(?<!\s)\*(?!\*)/g, '$1')
+    .replace(/(?<!_)_(?!\s)([^_\n]+?)(?<!\s)_(?!_)/g, '$1')
+    // `inline code` -> inline code
+    .replace(/`([^`\n]+)`/g, '$1')
+    // Leading "### Heading" -> "Heading"
+    .replace(/^#{1,6}\s+/gm, '')
+    // Leading "- ", "* ", "+ " bullet markers -> remove
+    .replace(/^\s*[-*+]\s+/gm, '')
+    // Leading "1. ", "2. " numbered list markers -> remove
+    .replace(/^\s*\d+\.\s+/gm, '')
+    // Leading "> " blockquote markers
+    .replace(/^>\s*/gm, '');
+}
+
 type Message = { role: 'user' | 'assistant'; content: string };
 
 const STORAGE_KEY = 'bella-conversation';
@@ -93,11 +127,28 @@ export function Bella({ signedIn = true }: { signedIn?: boolean }) {
     }
   }, [messages]);
 
-  // Scroll to bottom on new content
+  // Scroll to bottom only when the chat panel first opens AND when
+  // the user themselves submits a new message (so they see their own
+  // text + Bella's answer start). Do NOT auto-scroll while Bella is
+  // streaming - the text often arrives faster than the user can
+  // read, and forcing the scroll yanks them away from where they
+  // were reading.
   useEffect(() => {
     const el = scrollerRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [messages, streaming, open]);
+    if (!el) return;
+    if (open) el.scrollTop = el.scrollHeight;
+  }, [open]);
+  useEffect(() => {
+    if (!streaming) return;
+    const el = scrollerRef.current;
+    if (!el) return;
+    // Only scroll on the *first* tick of a new streaming response,
+    // i.e. when the placeholder assistant message just appeared.
+    // Subsequent chunks must NOT scroll. The dependency on
+    // `streaming` flips true once per round-trip, so this useEffect
+    // body runs exactly once per Bella reply.
+    el.scrollTop = el.scrollHeight;
+  }, [streaming]);
 
   const caseId = pathname?.match(/^\/cases\/([^\/?#]+)(?:\/|$)/)?.[1] ?? null;
 
@@ -158,7 +209,9 @@ export function Bella({ signedIn = true }: { signedIn?: boolean }) {
         }
         setMessages((m) =>
           m.map((msg, i) =>
-            i === placeholderIndex ? { role: 'assistant', content: clean } : msg,
+            i === placeholderIndex
+              ? { role: 'assistant', content: stripMarkdownChrome(clean) }
+              : msg,
           ),
         );
       }

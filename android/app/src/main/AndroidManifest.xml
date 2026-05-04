@@ -18,6 +18,40 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
+            <!-- Android App Links: route advottic.com/auth/callback into
+                 the app's WebView instead of opening a separate browser
+                 tab. Without this, magic-link emails clicked on Android
+                 open in Chrome / Gmail's in-app browser, which is a
+                 different cookie context from the Capacitor WebView
+                 the user started in - cookies land in the wrong place
+                 and they end up "signed in" only on the browser tab.
+
+                 autoVerify="true" requires a matching
+                 /.well-known/assetlinks.json file hosted at
+                 https://advottic.com/.well-known/assetlinks.json with
+                 our app's signing-key SHA-256 fingerprint. We host
+                 that file from public/.well-known/assetlinks.json so
+                 the SSL'd advottic.com origin serves it. Google's
+                 verifier crawls it the first time the app installs;
+                 if the fingerprint matches, all matching links open
+                 directly in the app from then on. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:host="advottic.com" />
+                <data android:pathPrefix="/auth/callback" />
+            </intent-filter>
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:host="www.advottic.com" />
+                <data android:pathPrefix="/auth/callback" />
+            </intent-filter>
         </activity>
 
         <provider

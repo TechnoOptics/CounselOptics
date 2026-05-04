@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import {
   getCase,
+  getCurrentSubscription,
   getEffectiveTrialState,
   getLatestReview,
   getProfile,
@@ -8,7 +9,7 @@ import {
 } from '@/lib/storage';
 import { getCurrentUser } from '@/lib/supabase/server';
 import { generateCasePdf } from '@/lib/pdf';
-import { isFullAccessTrial } from '@/lib/tier';
+import { hasFeature, isFullAccessTrial } from '@/lib/tier';
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const caseRecord = await getCase(params.id);
@@ -16,12 +17,13 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     return new NextResponse('Case not found', { status: 404 });
   }
 
-  const [exhibits, review, profile, user, trialState] = await Promise.all([
+  const [exhibits, review, profile, user, trialState, sub] = await Promise.all([
     listExhibits(caseRecord.id),
     getLatestReview(caseRecord.id),
     getProfile(),
     getCurrentUser(),
     getEffectiveTrialState().catch(() => null),
+    getCurrentSubscription().catch(() => null),
   ]);
 
   const clientName =
@@ -32,8 +34,15 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   // Watermark trial-period exports so they can't be passed off as a
   // finished packet without subscribing. isFullAccessTrial covers
   // both the email-anchored 7-day free trial AND the 7-day Stripe
-  // trial. Active subscribers get a clean export.
+  // trial. Active subscribers get a clean export (no watermark).
   const isTrial = trialState ? isFullAccessTrial(trialState) : false;
+
+  // Advottic Review (the AI summary) is gated to Standard / Pro tiers
+  // OR to anyone inside an active trial. Without entitlement we omit
+  // the Review section entirely from the export so a Basic / expired
+  // -trial user does not get a packet that includes a review they
+  // can no longer access in-app.
+  const reviewEntitled = isTrial || hasFeature(sub, 'aiReview');
 
   const pdf = await generateCasePdf({
     caseRecord,
@@ -42,6 +51,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     profile,
     clientName,
     trial: isTrial,
+    reviewEntitled,
   });
   const ab = pdf.buffer.slice(pdf.byteOffset, pdf.byteOffset + pdf.byteLength) as ArrayBuffer;
 

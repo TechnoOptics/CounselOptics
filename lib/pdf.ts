@@ -1,4 +1,6 @@
 import PDFDocument from 'pdfkit';
+import path from 'node:path';
+import { promises as fs } from 'node:fs';
 import type {
   AIReview,
   Case,
@@ -6,6 +8,26 @@ import type {
   Profile,
 } from './types';
 import { getExhibitFileBuffer } from './storage';
+
+// Cap each list section in the PDF Review so the export does not
+// balloon to 30 pages on a heavy matter. The web app still shows the
+// full lists; the PDF version trims them at the tail with a
+// "+ N more in the app" note.
+const PDF_REVIEW_LIST_CAP = 10;
+
+// Lazy-loaded once per process - the file is small (~5 KB) and we
+// re-use the buffer across exports.
+let cachedLogoBuffer: Buffer | null = null;
+async function loadLogoBuffer(): Promise<Buffer | null> {
+  if (cachedLogoBuffer) return cachedLogoBuffer;
+  try {
+    const p = path.join(process.cwd(), 'public', 'advottic-mark.png');
+    cachedLogoBuffer = await fs.readFile(p);
+    return cachedLogoBuffer;
+  } catch {
+    return null;
+  }
+}
 
 type Doc = PDFKit.PDFDocument;
 
@@ -42,7 +64,19 @@ export async function generateCasePdf(input: {
    * attorney or filing clerk without embarrassment.
    */
   trial?: boolean;
+  /**
+   * Whether the user is currently entitled to the Advottic Review
+   * feature (Standard / Pro tier or active trial). When false, the
+   * Review section is omitted from the PDF entirely - even if a
+   * legacy review exists in the database. The user gets a clean
+   * case packet with case info + exhibits + disclaimer.
+   */
+  reviewEntitled?: boolean;
 }): Promise<Buffer> {
+  // Load the brand mark for the cover. Best-effort - if the file is
+  // missing in production for some reason, the cover renders without
+  // it rather than the export failing.
+  const logoBuffer = await loadLogoBuffer();
   // Load image buffers up front so the stream can write them synchronously
   // later. Only grab files we can actually render; skip oversized / unreadable.
   const exhibitImages = new Map<string, Buffer>();
@@ -72,7 +106,7 @@ export async function generateCasePdf(input: {
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', reject);
 
-      writePdf(doc, input, exhibitImages);
+      writePdf(doc, { ...input, logoBuffer }, exhibitImages);
 
       // Page numbers (skip cover) and watermark every page including
       // cover during trial. The watermark layer is drawn LAST so it
@@ -99,19 +133,28 @@ function writePdf(
     review: AIReview | null;
     profile?: Profile | null;
     clientName?: string | null;
+    reviewEntitled?: boolean;
+    logoBuffer?: Buffer | null;
   },
   exhibitImages: Map<string, Buffer>,
 ) {
-  const { caseRecord, exhibits, review, profile, clientName } = input;
+  const { caseRecord, exhibits, review, profile, clientName, reviewEntitled, logoBuffer } = input;
 
-  drawCoverPage(doc, caseRecord, { profile, clientName });
+  drawCoverPage(doc, caseRecord, { profile, clientName, logoBuffer });
 
   // Case information page
   doc.addPage();
   drawCaseInformation(doc, caseRecord);
 
-  // Case review
-  if (review) {
+  // Case review - only included if (a) one exists AND (b) the user
+  // is currently entitled to the Advottic Review feature. Trial users
+  // get the section; expired-trial users on Basic do not, so a
+  // packet they hand to an attorney post-trial does not include a
+  // review they no longer have access to in-app.
+  // Default `reviewEntitled` to `true` so existing callers (and the
+  // Capacitor mobile shell on first load) keep their behavior; the
+  // export route flips it explicitly based on subscription state.
+  if (review && reviewEntitled !== false) {
     doc.addPage();
     drawReview(doc, review);
   }
@@ -136,7 +179,7 @@ function writePdf(
 function drawCoverPage(
   doc: Doc,
   c: Case,
-  extras: { profile?: Profile | null; clientName?: string | null },
+  extras: { profile?: Profile | null; clientName?: string | null; logoBuffer?: Buffer | null },
 ) {
   const jurisdiction = joinJurisdiction(c);
 
@@ -147,6 +190,24 @@ function drawCoverPage(
 
   const x = MARGIN + 18;
   let y = MARGIN + 6;
+
+  // Brand mark + wordmark in the upper-right corner of the cover.
+  // Sits above the eyebrow line so the document reads as Advottic
+  // -branded at a glance, even if a recipient only ever sees the
+  // first page.
+  if (extras.logoBuffer) {
+    try {
+      const logoSize = 36;
+      doc.image(
+        extras.logoBuffer,
+        PAGE_WIDTH - MARGIN - logoSize,
+        MARGIN + 4,
+        { fit: [logoSize, logoSize] },
+      );
+    } catch {
+      // Image embed can throw on a malformed PNG; degrade gracefully.
+    }
+  }
 
   doc.font('Helvetica-Bold').fontSize(9).fillColor(COLOR.muted);
   doc.text('ADVOTTIC · CASE PACKET', x, y, { characterSpacing: 2 });
@@ -252,6 +313,19 @@ function drawCaseInformation(doc: Doc, c: Case) {
 
 // ---------------------------- Case review --------------------------------
 
+/**
+ * Cap a list at PDF_REVIEW_LIST_CAP items, appending a "+ N more in
+ * the app" item if the original was longer. Keeps the export from
+ * ballooning past 30 pages on a heavy matter while still telling the
+ * reader the rest exists.
+ */
+function cap(items: string[]): string[] {
+  if (items.length <= PDF_REVIEW_LIST_CAP) return items;
+  const trimmed = items.slice(0, PDF_REVIEW_LIST_CAP);
+  trimmed.push(`+ ${items.length - PDF_REVIEW_LIST_CAP} more in the app`);
+  return trimmed;
+}
+
 function drawReview(doc: Doc, review: AIReview) {
   resetToContentTop(doc);
   section(doc, 'Case review');
@@ -268,21 +342,27 @@ function drawReview(doc: Doc, review: AIReview) {
   body(doc, review.classification || '-');
   gap(doc, 10);
 
-  list(doc, 'Timeline', review.timeline);
-  list(doc, 'Key facts', review.keyFacts);
-  list(doc, 'Possible legal issues', review.possibleIssues);
-  list(doc, 'Applicable legal doctrines', review.applicableLegalReferences ?? []);
+  // Each list is capped at PDF_REVIEW_LIST_CAP items in the PDF
+  // (full lists remain in the web app). Without the cap a heavy
+  // matter could push the Review section past 30 pages, which is
+  // what testers reported as "summary is broken and makes very long
+  // pages." Trimmed lists feel "produced," full lists feel like a
+  // database dump.
+  list(doc, 'Timeline', cap(review.timeline));
+  list(doc, 'Key facts', cap(review.keyFacts));
+  list(doc, 'Possible legal issues', cap(review.possibleIssues));
+  list(doc, 'Applicable legal doctrines', cap(review.applicableLegalReferences ?? []));
 
   gap(doc, 8);
   subsection(doc, 'Evidence & discovery');
-  list(doc, 'Evidence to strengthen the case', review.evidenceToStrengthen ?? []);
-  list(doc, 'Possible subpoena / records targets', review.subpoenaTargets ?? []);
+  list(doc, 'Evidence to strengthen the case', cap(review.evidenceToStrengthen ?? []));
+  list(doc, 'Possible subpoena / records targets', cap(review.subpoenaTargets ?? []));
 
   gap(doc, 8);
-  list(doc, 'Evidence mapping to exhibits', review.evidenceMapping);
-  list(doc, 'Missing information', review.missingInformation);
-  list(doc, 'Suggested next steps', review.suggestedNextSteps);
-  list(doc, 'Questions to ask an attorney', review.questionsForAttorney);
+  list(doc, 'Evidence mapping to exhibits', cap(review.evidenceMapping));
+  list(doc, 'Missing information', cap(review.missingInformation));
+  list(doc, 'Suggested next steps', cap(review.suggestedNextSteps));
+  list(doc, 'Questions to ask an attorney', cap(review.questionsForAttorney));
 
   gap(doc, 14);
   doc

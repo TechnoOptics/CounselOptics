@@ -444,17 +444,27 @@ export async function recordConsentAction(formData: FormData) {
   }
   const displayName = String(formData.get('displayName') ?? '').trim();
   const language = String(formData.get('language') ?? '').trim().slice(0, 8);
+  const themeRaw = String(formData.get('theme') ?? '').trim();
+  const theme: 'system' | 'light' | 'dark' | null =
+    themeRaw === 'light' || themeRaw === 'dark' || themeRaw === 'system'
+      ? themeRaw
+      : null;
   await recordConsent({
     representation: repRaw as RepresentationStatus,
     displayName: displayName || undefined,
   });
-  // Language is captured at first sign-in via the consent modal so the
-  // account already has a locale on file once translations roll out.
-  if (language) {
+  // Language + theme are captured at first sign-in via the consent
+  // modal so the account already has both on file once translations
+  // roll out and so the user does not have to dig into settings to
+  // pick a theme on first launch.
+  const profileUpdates: { language?: string; theme?: 'system' | 'light' | 'dark' } = {};
+  if (language) profileUpdates.language = language;
+  if (theme) profileUpdates.theme = theme;
+  if (Object.keys(profileUpdates).length > 0) {
     try {
-      await upsertProfile({ language });
+      await upsertProfile(profileUpdates);
     } catch {
-      // language save is non-blocking; consent already recorded
+      // best-effort; consent has already been recorded
     }
   }
   // No redirect - the popup modal in the layout dismisses itself and triggers

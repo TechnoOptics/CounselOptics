@@ -406,15 +406,29 @@ export function SmartAssistForm() {
   const isLast = stepIndex === steps.length - 1;
   const canContinue = step.isValid(state);
 
-  // Auto-focus the first interactive control on each step. autoFocus
-  // alone is unreliable on dynamic mounts (especially mobile Safari),
-  // so we explicitly focus after the swipe animation has settled.
+  // Auto-focus on each step. Two-stage: first focus the card itself
+  // (so screen readers + keyboard users land on the question heading),
+  // then after the swipe animation has settled, focus the first
+  // interactive control inside.
+  //
+  // The earlier version only ran the second stage and excluded radios
+  // from the selector, so steps whose first input was a radio (e.g.
+  // representation, posture) ended up focusing nothing - the user
+  // reported the focus appearing to "jump elsewhere" between steps.
+  // Including radios + falling back to the card itself keeps focus
+  // on the question card every time.
   useEffect(() => {
     const card = cardRef.current;
     if (!card) return;
+    // Stage 1: immediate. Card gets tabindex=-1 so it can receive
+    // programmatic focus without ending up in the tab order.
+    card.setAttribute('tabindex', '-1');
+    card.focus({ preventScroll: true });
+    // Stage 2: after the slide animation, hand off to the first
+    // tabbable input.
     const timer = setTimeout(() => {
       const target = card.querySelector<HTMLElement>(
-        'input:not([type=hidden]):not([type=radio]), textarea, select, button[data-wizard-focus]',
+        'input:not([type=hidden]), textarea, select, button[data-wizard-focus]',
       );
       target?.focus({ preventScroll: true });
     }, 280);

@@ -22,6 +22,7 @@ export function ConsentModal({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [language, setLanguage] = useState<string>('en');
+  const [theme, setTheme] = useState<'system' | 'light' | 'dark'>('system');
 
   // Best-effort default to the browser's preferred language if it matches
   // one we support. Otherwise stay on English.
@@ -100,27 +101,47 @@ export function ConsentModal({
         <form action={onSubmit} className="px-6 py-5 space-y-5 max-h-[70vh] overflow-y-auto">
           <input type="hidden" name="displayName" value={fallbackName} />
           <input type="hidden" name="language" value={language} />
+          <input type="hidden" name="theme" value={theme} />
 
-          <div>
-            <label className="label" htmlFor="language">
-              Preferred language
-            </label>
-            <select
-              id="language"
-              value={language}
-              onChange={(e) => setLanguage(e.target.value)}
-              className="input max-w-xs"
-            >
-              {SUPPORTED_LANGUAGES.map((lang) => (
-                <option key={lang.code} value={lang.code}>
-                  {lang.label}
-                </option>
-              ))}
-            </select>
-            <p className="text-[11px] text-ink-500 mt-1.5">
-              Saved to your profile so the app honors it across devices. You can change this
-              anytime in Profile settings.
-            </p>
+          <div className="grid gap-5 md:grid-cols-2">
+            <div>
+              <label className="label" htmlFor="language">
+                Preferred language
+              </label>
+              <select
+                id="language"
+                value={language}
+                onChange={(e) => setLanguage(e.target.value)}
+                className="input"
+              >
+                {SUPPORTED_LANGUAGES.map((lang) => (
+                  <option key={lang.code} value={lang.code}>
+                    {lang.label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] text-ink-500 mt-1.5">
+                Saved to your profile. Change in settings any time.
+              </p>
+            </div>
+            <div>
+              <label className="label" htmlFor="theme">
+                Theme
+              </label>
+              <select
+                id="theme"
+                value={theme}
+                onChange={(e) => setTheme(e.target.value as 'system' | 'light' | 'dark')}
+                className="input"
+              >
+                <option value="system">Follow my device</option>
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+              </select>
+              <p className="text-[11px] text-ink-500 mt-1.5">
+                Defaults to your device&apos;s setting. Switchable in Profile.
+              </p>
+            </div>
           </div>
 
           <fieldset>

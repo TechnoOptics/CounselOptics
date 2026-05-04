@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createBrowserSupabase } from '@/lib/supabase/client';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
+import { BiometricSignInHint } from '@/components/BiometricSignInHint';
 
 type Provider = 'google' | 'azure' | 'apple';
 type Mode = Provider | 'email';
@@ -190,6 +191,11 @@ export function SignInButtons({ next }: { next: string }) {
 
   return (
     <div className="space-y-3">
+      {/* Native shells with biometric hardware but not yet enrolled
+          see this hint above the OAuth buttons. Enrolled users land
+          on BiometricUnlockGate instead, which replaces the form
+          entirely. Web is a no-op. */}
+      <BiometricSignInHint />
       <button
         type="button"
         onClick={() => signInWithProvider('google')}

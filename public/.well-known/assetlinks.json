@@ -1,0 +1,13 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.advottic.app",
+      "sha256_cert_fingerprints": [
+        "55:B1:F5:AD:A6:C0:79:34:65:C5:54:88:33:9F:A9:AA:41:5A:CF:CE:18:32:3E:AD:2C:07:54:D4:D5:82:A1:E2",
+        "30:47:FF:88:DF:9F:8F:35:F7:B9:C3:31:A4:77:A9:A7:80:E1:1C:B8:5F:FB:30:94:72:14:A8:66:97:F1:9D:74"
+      ]
+    }
+  }
+]
