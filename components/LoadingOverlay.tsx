@@ -27,7 +27,26 @@ export function LoadingOverlay({ show, label }: { show: boolean; label?: string 
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
-  if (!show) return null;
+  // Safety hatch: if the overlay has been "show=true" for more than
+  // 12 seconds, the caller almost certainly forgot to flip it false
+  // (or an OAuth redirect was interrupted, or the user resumed a
+  // Capacitor WebView that had the overlay frozen mid-state). Hide
+  // ourselves so the user is not stuck on an opaque blank screen.
+  // 12s is well past any normal sign-in or form submission, and the
+  // worst-case false positive (a genuinely slow request) results in
+  // the page underneath becoming interactive again - far better than
+  // a forever-loading veil.
+  const [forceHide, setForceHide] = useState(false);
+  useEffect(() => {
+    if (!show) {
+      setForceHide(false);
+      return;
+    }
+    const t = setTimeout(() => setForceHide(true), 12_000);
+    return () => clearTimeout(t);
+  }, [show]);
+
+  if (!show || forceHide) return null;
 
   const node = (
     <div

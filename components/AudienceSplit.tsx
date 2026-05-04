@@ -15,10 +15,8 @@ import Link from 'next/link';
  * the CTA copy ("Continue" vs "Switch to ...") so the user always
  * has a one-tap path back to the other audience.
  *
- * The design is deliberately big and editorial - the user explicitly
- * asked for "captivating," "show off the good work," and "make them
- * feel like they're missing out." So we lead with magnetic copy, not
- * feature bullets, and let the visual hierarchy carry the FOMO.
+ * Every glyph is an in-house SVG so the page reads as a serious
+ * legal tool, not a consumer app dotted with emoji.
  */
 export function AudienceSplit({
   active,
@@ -36,9 +34,9 @@ export function AudienceSplit({
           The same calm software, sized to <span className="bg-gold-shine bg-clip-text text-transparent gold-pan italic">how you work</span>.
         </h2>
         <p className="mt-3 sm:mt-4 text-[15px] sm:text-[16px] leading-relaxed text-ink-700 dark:text-cream-100/80 max-w-xl">
-          Whether you're a single human tracking the matter that just landed in your lap, or a
-          firm running fifty active matters across three jurisdictions, Advottic keeps the work
-          tidy so the truth is ready when the moment arrives.
+          Whether you&apos;re tracking a matter that just landed in your lap, or a firm running
+          fifty active matters across three jurisdictions, Advottic keeps the work tidy so the
+          truth is ready when the moment arrives.
         </p>
       </header>
 
@@ -68,14 +66,20 @@ function AudienceCard({ variant, active }: { variant: Variant; active: boolean }
       className={`relative overflow-hidden rounded-3xl p-7 sm:p-9 lg:p-10 transition-all duration-500 ${
         active
           ? variant === 'personal'
-            ? 'bg-gradient-to-br from-cream-50 via-white to-cream-100 ring-1 ring-gold-500/40 shadow-card-hover'
-            : 'bg-gradient-to-br from-forest-900 via-forest-950 to-forest-900 ring-1 ring-gold-500/30 shadow-card-hover text-cream-100'
-          : 'bg-white dark:bg-forest-900/40 ring-1 ring-ink-200 dark:ring-forest-700/40 hover:ring-gold-500/40'
+            ? // Light-cream wash in light mode, deep forest in dark mode so
+              // the heading + bullets stay legible regardless of the user's
+              // system preference. Earlier version was light-only and the
+              // entire card disappeared on dark backgrounds.
+              'bg-gradient-to-br from-cream-50 via-white to-cream-100 dark:from-forest-900 dark:via-forest-950 dark:to-forest-900 ring-1 ring-gold-500/40 shadow-card-hover'
+            : // Enterprise active = always the deep forest treatment, in
+              // both light and dark, because the firm pitch wants the
+              // serious-finance feel either way.
+              'bg-gradient-to-br from-forest-900 via-forest-950 to-forest-900 ring-1 ring-gold-500/30 shadow-card-hover text-cream-100'
+          : // Inactive cards: subdued surface, ring brightens on hover.
+            'bg-white dark:bg-forest-900/40 ring-1 ring-ink-200 dark:ring-forest-700/40 hover:ring-gold-500/40'
       }`}
     >
-      {/* Decorative ambient gradient. Personal = warm cream wash from
-          the upper-right; enterprise = gold halo from the lower-left.
-          Pure CSS, GPU-accelerated, no impact on cumulative layout. */}
+      {/* Ambient gradient halo */}
       {variant === 'personal' ? (
         <div
           aria-hidden
@@ -109,24 +113,33 @@ function AudienceCard({ variant, active }: { variant: Variant; active: boolean }
       <div className="relative z-10">
         <div className="flex items-center justify-between mb-5">
           <p
-            className={`inline-flex items-center gap-2 text-[10px] tracking-[0.28em] uppercase font-semibold ${
-              variant === 'enterprise' && active
-                ? 'text-gold-300'
+            className={`inline-flex items-center gap-2.5 text-[10px] tracking-[0.28em] uppercase font-semibold ${
+              (variant === 'enterprise' && active) || (variant === 'personal' && active)
+                ? 'text-gold-700 dark:text-gold-300'
                 : 'text-gold-700 dark:text-gold-300'
-            }`}
+            } ${variant === 'enterprise' && active ? '!text-gold-300' : ''}`}
           >
-            <span className="text-2xl leading-none not-italic">{config.glyph}</span>
+            <span
+              className={`inline-flex h-7 w-7 items-center justify-center rounded-full ${
+                variant === 'personal'
+                  ? 'bg-gold-100 text-gold-800 dark:bg-gold-400/15 dark:text-gold-300'
+                  : 'bg-gold-400/20 text-gold-300'
+              }`}
+              aria-hidden
+            >
+              {variant === 'personal' ? <PersonGlyph /> : <BuildingGlyph />}
+            </span>
             {config.eyebrow}
           </p>
           {active && (
             <span
               className={`text-[9px] tracking-[0.22em] uppercase font-semibold rounded-full px-2 py-0.5 ${
                 variant === 'personal'
-                  ? 'bg-gold-100 text-gold-800 border border-gold-300'
+                  ? 'bg-gold-100 text-gold-800 border border-gold-300 dark:bg-gold-400/15 dark:text-gold-300 dark:border-gold-400/30'
                   : 'bg-gold-400/15 text-gold-300 border border-gold-400/30'
               }`}
             >
-              You're here
+              You&apos;re here
             </span>
           )}
         </div>
@@ -162,7 +175,7 @@ function AudienceCard({ variant, active }: { variant: Variant; active: boolean }
                 aria-hidden
                 className={`mt-0.5 inline-flex h-5 w-5 flex-none items-center justify-center rounded-full ${
                   variant === 'personal'
-                    ? 'bg-gold-100 text-gold-800'
+                    ? 'bg-gold-100 text-gold-800 dark:bg-gold-400/15 dark:text-gold-300'
                     : 'bg-gold-400/20 text-gold-300'
                 }`}
               >
@@ -173,7 +186,7 @@ function AudienceCard({ variant, active }: { variant: Variant; active: boolean }
           ))}
         </ul>
 
-        {/* Numeric proof strip - one or two big numbers + the FOMO line. */}
+        {/* Numeric proof strip */}
         <div
           className={`mt-7 grid grid-cols-2 gap-5 border-t pt-5 ${
             variant === 'enterprise' && active
@@ -209,22 +222,22 @@ function AudienceCard({ variant, active }: { variant: Variant; active: boolean }
           {active ? (
             <Link
               href={config.primaryHref}
-              className={
-                variant === 'personal'
-                  ? 'btn bg-gold-metal text-forest-950 hover:brightness-110 shadow-gold-glow font-semibold px-5 py-2.5'
-                  : 'btn bg-gold-metal text-forest-950 hover:brightness-110 shadow-gold-glow font-semibold px-5 py-2.5'
-              }
+              className="btn bg-gold-metal text-forest-950 hover:brightness-110 shadow-gold-glow font-semibold px-5 py-2.5"
             >
               {config.primaryCta}
               <ArrowRight />
             </Link>
           ) : (
+            // Inactive card switch CTA. Stays visible against BOTH a
+            // light-mode card surface and a dark-mode card surface; the
+            // earlier version had identical foreground/background in
+            // dark, which made the button vanish.
             <Link
               href={variant === 'personal' ? '/' : '/enterprise'}
               className={
                 variant === 'personal'
-                  ? 'btn bg-forest-900 text-cream-50 hover:bg-forest-800 font-semibold px-5 py-2.5'
-                  : 'btn border border-gold-400/40 text-cream-100 hover:bg-cream-100/10 font-semibold px-5 py-2.5'
+                  ? 'btn bg-forest-900 text-cream-50 hover:bg-forest-800 dark:bg-gold-metal dark:text-forest-950 dark:hover:brightness-110 font-semibold px-5 py-2.5'
+                  : 'btn bg-gold-metal text-forest-950 hover:brightness-110 font-semibold px-5 py-2.5'
               }
             >
               {config.switchCta}
@@ -248,8 +261,7 @@ function AudienceCard({ variant, active }: { variant: Variant; active: boolean }
 }
 
 const PERSONAL = {
-  eyebrow: 'For one human',
-  glyph: '◐',
+  eyebrow: 'For one person',
   headline: "When it's just you, your evidence, and the date on the calendar.",
   subhead:
     'A calm place to gather screenshots, dates, and the truth in your own words. Walk into court (or your attorney) with a packet they can read in five minutes.',
@@ -261,36 +273,68 @@ const PERSONAL = {
     'Encrypted at rest. Yours forever. Delete in one tap.',
   ],
   proof: [
-    { value: '7 days', label: 'Free trial. No card to start.' },
-    { value: '$9 / mo', label: 'After trial, basic tier.' },
+    { value: '7 days', label: 'Free trial - no card to start' },
+    { value: 'Cancel', label: 'Any time, one tap' },
   ],
-  primaryCta: 'Start your case file',
+  primaryCta: 'Start free - no card needed',
   primaryHref: '/cases/new',
   switchCta: 'Show me the personal side',
 };
 
 const ENTERPRISE = {
-  eyebrow: 'For firms + counsel',
-  glyph: '◑',
+  eyebrow: 'For firms, in-house, counsel',
   headline: 'Run every matter through one calm, secure, audited surface.',
   subhead:
-    'A workspace your attorneys, paralegals, and clients all share, scoped to the matter. Intake forms, evidence rooms, AI-assisted issue spotting, audit logs, SSO. Replace three tools with the one your team will actually use.',
+    'A workspace your attorneys, paralegals, and clients share, scoped to the matter. Intake, evidence rooms, AI-assisted triage, document signing inside the encrypted vault, audit logs, SSO. Replace the stitched stack with one tool your team will actually use.',
   bullets: [
     'Per-matter rooms with role-based access (counsel, paralegal, client)',
-    'Branded client intake. White-label the firm name on every screen.',
-    'Advottic Review for fast case triage across the practice',
-    'Microsoft / Google SSO. Full audit log + signed retention policy.',
-    'Encrypted client vault, AES-256 at rest, TLS in transit.',
-    'Bulk export, retention controls, deletion on demand.',
+    'Invite collaborators - signing partners, co-counsel, the client',
+    'Built-in document signing that never leaves the encrypted vault',
+    'Branded client intake. Your firm name on every screen.',
+    'Microsoft / Google SSO. Full audit log + retention policy.',
+    'Custom pricing - sized to firm + practice area. Talk to us.',
   ],
   proof: [
-    { value: '∞', label: 'Matters per firm. Per-seat pricing.' },
-    { value: 'SOC 2', label: 'Posture. Controls available on request.' },
+    { value: 'Custom', label: 'Per-seat pricing, agreed in writing' },
+    { value: 'SOC 2', label: 'Posture - controls on request' },
   ],
-  primaryCta: 'Talk to us about your firm',
-  primaryHref: '/enterprise#talk',
+  primaryCta: 'Tell us about your firm',
+  primaryHref: '/enterprise#inquiry',
   switchCta: 'Show me the enterprise side',
 };
+
+// =====================================================================
+// In-house SVG icon set. No emoji - keeps the page reading as a
+// serious legal tool, not a consumer app dotted with picture-fonts.
+// =====================================================================
+
+function PersonGlyph() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle cx="12" cy="8" r="4" stroke="currentColor" strokeWidth="2" />
+      <path
+        d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function BuildingGlyph() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M4 21V5a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v16M13 21V11a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v10M3 21h18M7 8h2M7 12h2M7 16h2M16 14h1M16 18h1"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 function CheckIcon() {
   return (

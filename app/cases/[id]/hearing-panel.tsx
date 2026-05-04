@@ -114,6 +114,12 @@ export function HearingPanel({
               type="datetime-local"
               value={hearingAt}
               onChange={(e) => setHearingAt(e.target.value)}
+              // Block past dates and any time inside the next 30
+              // minutes - hearings need at least a small buffer for
+              // travel + check-in, and selecting "right now" is
+              // virtually always a typo. The slice(0,16) trims to the
+              // datetime-local format YYYY-MM-DDTHH:MM.
+              min={new Date(Date.now() + 30 * 60 * 1000).toISOString().slice(0, 16)}
               className="input"
             />
           </div>

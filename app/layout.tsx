@@ -353,7 +353,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               </p>
               <p className="text-ink-400 dark:text-cream-100/45">
                 Powered by{' '}
-                <span className="font-semibold text-forest-900 dark:text-cream-100">Techno Optics LLC</span>
+                <a
+                  href="https://technooptics.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-semibold text-forest-900 dark:text-cream-100 underline-offset-2 hover:underline hover:text-gold-700 dark:hover:text-gold-300 transition-colors"
+                >
+                  Techno Optics LLC
+                </a>
               </p>
             </div>
             <p className="mt-3 text-[10px] leading-relaxed text-ink-400 dark:text-cream-100/45 max-w-3xl">

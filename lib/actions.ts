@@ -838,3 +838,85 @@ export async function setUserBlockedAction(
     };
   }
 }
+
+/**
+ * Persist an enterprise inquiry submitted from /enterprise. The
+ * submission is stored in the `enterprise_inquiries` Supabase table
+ * via the service-role client (bypasses RLS - the form is public,
+ * by design, and we need to write rows for unauthenticated visitors).
+ *
+ * The admin team triages new rows from /admin/enterprise-inquiries
+ * (TODO: build the dashboard surface), replies by email, and once
+ * a deal is signed, sets a custom price in the firm's subscription
+ * record so auto-payment runs on the agreed cadence.
+ *
+ * Throws on validation failure so the client form can show the
+ * error inline. Server-side throwing also short-circuits any
+ * rate-limit bypass attempts via the action endpoint.
+ */
+export async function submitEnterpriseInquiryAction(formData: FormData): Promise<void> {
+  const firmName = (formData.get('firmName') ?? '').toString().trim();
+  const contactName = (formData.get('contactName') ?? '').toString().trim();
+  const contactRole = (formData.get('contactRole') ?? '').toString().trim();
+  const email = (formData.get('email') ?? '').toString().trim().toLowerCase();
+  const sector = (formData.get('sector') ?? '').toString().trim();
+  const size = (formData.get('size') ?? '').toString().trim();
+  const message = (formData.get('message') ?? '').toString().trim();
+
+  if (!firmName || firmName.length > 200) {
+    throw new Error('Please enter a valid firm or organization name.');
+  }
+  if (!contactName || contactName.length > 120) {
+    throw new Error('Please enter your name.');
+  }
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 200) {
+    throw new Error('Please enter a valid work email address.');
+  }
+  if (!sector || !['firm', 'inhouse-corp', 'inhouse-other', 'legal-aid', 'government', 'other'].includes(sector)) {
+    throw new Error('Please pick a sector.');
+  }
+  if (size && !['1-3', '4-10', '11-50', '51-200', '200+'].includes(size)) {
+    throw new Error('Please pick a team size from the list.');
+  }
+  if (message.length > 2000) {
+    throw new Error('Please keep your message under 2,000 characters.');
+  }
+
+  if (!usingSupabase()) {
+    // No Supabase configured - log the inquiry for manual follow-up
+    // and return success to the user. Acceptable in local-dev / setup
+    // mode; admin will see this in their server log.
+    console.warn('[submitEnterpriseInquiryAction] Supabase not configured, inquiry logged only', {
+      firmName,
+      email,
+      sector,
+    });
+    return;
+  }
+
+  // Use the admin (service-role) client because the form is public.
+  // RLS would otherwise block an anonymous INSERT.
+  const { createAdminSupabase } = await import('./supabase/admin');
+  const admin = createAdminSupabase();
+  if (!admin) {
+    // Service-role key isn't wired yet. Fail loudly server-side, but
+    // tell the user something soft so they don't think the form is
+    // permanently broken.
+    console.error('[submitEnterpriseInquiryAction] SUPABASE_SERVICE_ROLE_KEY not set');
+    throw new Error('Inquiry could not be saved right now. Please email contact@advottic.com directly.');
+  }
+  const { error } = await admin.from('enterprise_inquiries').insert({
+    firm_name: firmName,
+    contact_name: contactName,
+    contact_role: contactRole || null,
+    email,
+    sector,
+    team_size: size || null,
+    message: message || null,
+    status: 'new',
+  });
+  if (error) {
+    console.error('[submitEnterpriseInquiryAction] insert failed', error);
+    throw new Error('Could not save your inquiry. Please try again or email contact@advottic.com.');
+  }
+}

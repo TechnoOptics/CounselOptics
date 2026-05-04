@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { AudienceSplit } from '@/components/AudienceSplit';
-import { TestimonialMarquee } from '@/components/TestimonialMarquee';
+import { EnterpriseInquiryForm } from '@/components/EnterpriseInquiryForm';
+import { EnterpriseSectorTabs } from '@/components/EnterpriseSectorTabs';
 
 const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://www.advottic.com';
@@ -11,29 +12,55 @@ export const metadata: Metadata = {
     absolute: 'Advottic for Enterprise - One workspace per matter',
   },
   description:
-    'A calm, audited workspace your firm and clients share, scoped to the matter. Branded intake, AI-assisted issue spotting, SSO, audit logs, encrypted vault. Built for firms that take privilege seriously.',
+    'A calm, audited workspace your firm and clients share, scoped to the matter. Branded intake, AI-assisted issue spotting, SSO, audit logs, encrypted vault, in-portal document signing. Built for firms, in-house counsel, and legal ops teams who take privilege seriously.',
   alternates: { canonical: '/enterprise' },
   openGraph: {
     title: 'Advottic for Enterprise',
     description:
-      'A workspace your attorneys, paralegals, and clients all share, scoped to the matter. Branded intake, audit logs, SSO, encrypted vault.',
+      'A workspace your attorneys, paralegals, and clients share, scoped to the matter. Branded intake, audit logs, SSO, encrypted vault, in-portal document signing.',
     url: '/enterprise',
     type: 'website',
   },
 };
 
+/**
+ * Enterprise landing. The whole page lives on a deep-forest base
+ * (regardless of the user's light/dark preference) because the firm
+ * pitch wants the serious-finance feel. The audience split at top
+ * lets visitors flip back to the personal side; everything below is
+ * sized for a firm decision-maker.
+ *
+ * Architecture:
+ *   1. AudienceSplit - keeps the personal/enterprise switch always
+ *      one tap away.
+ *   2. Hero - bold tagline + matter dashboard mock with audit chip.
+ *   3. EnterpriseSectorTabs - the user picks who they are
+ *      (private firm, in-house, in-house corporate counsel, legal
+ *      aid, government), and the capability list re-renders to
+ *      show what matters to that sector. Solves the "what we have
+ *      now does not apply to in-house corporate counsel" problem.
+ *   4. Workflow - intake -> triage -> collaborate -> deliver.
+ *   5. Compliance posture cards.
+ *   6. Comparison table vs the stitched stack.
+ *   7. EnterpriseInquiryForm - the form an interested firm fills
+ *      out instead of an email mailto. Submission lands in
+ *      enterprise_inquiries (Supabase) and is reviewed by an admin
+ *      who reaches out and sets custom pricing in the firm's
+ *      subscription record.
+ */
 export default function EnterprisePage() {
   return (
-    <div className="space-y-20 sm:space-y-28">
-      <AudienceSplit active="enterprise" />
-      <EnterpriseHero />
-      <Capabilities />
-      <Workflow />
-      <Compliance />
-      <CompareTable />
-      <TestimonialMarquee />
-      <Talk />
-      <EnterpriseStructuredData />
+    <div className="enterprise-shell -mx-4 sm:-mx-6 px-4 sm:px-6 py-12 sm:py-16 space-y-20 sm:space-y-28 bg-gradient-to-b from-forest-950 via-forest-950 to-forest-900 text-cream-100">
+      <div className="max-w-7xl mx-auto space-y-20 sm:space-y-28">
+        <AudienceSplit active="enterprise" />
+        <EnterpriseHero />
+        <EnterpriseSectorTabs />
+        <Workflow />
+        <Compliance />
+        <CompareTable />
+        <EnterpriseInquiry />
+        <EnterpriseStructuredData />
+      </div>
     </div>
   );
 }
@@ -47,11 +74,11 @@ function EnterpriseHero() {
     <section className="relative -mt-2 animate-fade-up">
       <div className="grid gap-8 sm:gap-10 lg:grid-cols-12 lg:gap-14 items-center">
         <div className="lg:col-span-7">
-          <p className="inline-flex items-center gap-2 text-[11px] tracking-[0.3em] uppercase font-semibold text-gold-700 dark:text-gold-300">
-            <span className="inline-block h-px w-8 bg-gold-500 dark:bg-gold-400" />
+          <p className="inline-flex items-center gap-2 text-[11px] tracking-[0.3em] uppercase font-semibold text-gold-300">
+            <span className="inline-block h-px w-8 bg-gold-400" />
             Advottic for Firms
           </p>
-          <h1 className="mt-5 font-display text-[44px] sm:text-[60px] lg:text-[78px] font-medium tracking-[-0.025em] leading-[0.96] text-forest-900 dark:text-cream-100">
+          <h1 className="mt-5 font-display text-[44px] sm:text-[60px] lg:text-[78px] font-medium tracking-[-0.025em] leading-[0.96] text-cream-100">
             Stop hunting for the
             <br />
             <span className="bg-gold-shine bg-clip-text text-transparent gold-pan italic">
@@ -59,29 +86,29 @@ function EnterpriseHero() {
             </span>{' '}
             of the file.
           </h1>
-          <p className="mt-6 text-[17px] sm:text-lg leading-relaxed text-ink-700 dark:text-cream-100/80 max-w-xl">
+          <p className="mt-6 text-[17px] sm:text-lg leading-relaxed text-cream-100/80 max-w-xl">
             Every matter, one room. Every exhibit, one source of truth. Every attorney,
-            paralegal, and client on the same page. With audit, signing, and retention controls
-            you can hand to opposing counsel without flinching.
+            paralegal, and client on the same page. Sign documents inside the vault. Hand the
+            audit log to opposing counsel without flinching.
           </p>
           <div className="mt-9 flex flex-wrap items-center gap-3">
             <Link
-              href="#talk"
+              href="#inquiry"
               className="btn bg-gold-metal text-forest-950 hover:brightness-110 shadow-gold-glow font-semibold px-5 py-2.5"
             >
-              Schedule a 20-min walkthrough
+              Tell us about your firm
               <ArrowRight />
             </Link>
             <Link
-              href="/example"
-              className="btn-ghost text-forest-900 dark:text-cream-100 hover:text-gold-700 dark:hover:text-gold-300 underline-offset-4 hover:underline px-3 py-2.5 font-semibold"
+              href="#sectors"
+              className="btn bg-cream-100/8 hover:bg-cream-100/15 border border-cream-100/20 text-cream-100 font-semibold px-5 py-2.5"
             >
-              See a live matter →
+              See what fits your team
             </Link>
           </div>
-          <div className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-ink-500 dark:text-cream-100/55">
+          <div className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-cream-100/55">
             <span className="inline-flex items-center gap-1.5">
-              <DotEmerald /> 30-day pilot, no commit
+              <DotEmerald /> Custom pricing, written agreement
             </span>
             <span className="inline-flex items-center gap-1.5">
               <DotEmerald /> SSO included
@@ -91,33 +118,33 @@ function EnterpriseHero() {
             </span>
           </div>
 
-          <dl className="mt-6 sm:mt-10 grid grid-cols-3 gap-6 max-w-lg border-t border-forest-700/30 dark:border-forest-700/40 pt-4 sm:pt-6">
+          <dl className="mt-6 sm:mt-10 grid grid-cols-3 gap-6 max-w-lg border-t border-cream-100/15 pt-4 sm:pt-6">
             <div>
-              <dt className="text-[10px] uppercase tracking-[0.22em] font-semibold text-forest-700 dark:text-gold-300">
+              <dt className="text-[10px] uppercase tracking-[0.22em] font-semibold text-gold-300">
                 Per matter
               </dt>
-              <dd className="mt-1 font-display text-2xl sm:text-[28px] font-medium tabular-nums text-forest-900 dark:text-cream-100">
+              <dd className="mt-1 font-display text-2xl sm:text-[28px] font-medium tabular-nums text-cream-100">
                 One room
               </dd>
-              <p className="text-[11px] text-ink-500 dark:text-cream-100/55 mt-0.5">role-scoped, audited</p>
+              <p className="text-[11px] text-cream-100/55 mt-0.5">role-scoped, audited</p>
             </div>
             <div>
-              <dt className="text-[10px] uppercase tracking-[0.22em] font-semibold text-forest-700 dark:text-gold-300">
+              <dt className="text-[10px] uppercase tracking-[0.22em] font-semibold text-gold-300">
                 Encryption
               </dt>
-              <dd className="mt-1 font-display text-2xl sm:text-[28px] font-medium tabular-nums text-forest-900 dark:text-cream-100">
+              <dd className="mt-1 font-display text-2xl sm:text-[28px] font-medium tabular-nums text-cream-100">
                 AES-256
               </dd>
-              <p className="text-[11px] text-ink-500 dark:text-cream-100/55 mt-0.5">at rest + TLS in transit</p>
+              <p className="text-[11px] text-cream-100/55 mt-0.5">at rest + TLS in transit</p>
             </div>
             <div>
-              <dt className="text-[10px] uppercase tracking-[0.22em] font-semibold text-forest-700 dark:text-gold-300">
-                Per-seat
+              <dt className="text-[10px] uppercase tracking-[0.22em] font-semibold text-gold-300">
+                Pricing
               </dt>
-              <dd className="mt-1 font-display text-2xl sm:text-[28px] font-medium tabular-nums text-forest-900 dark:text-cream-100">
+              <dd className="mt-1 font-display text-2xl sm:text-[28px] font-medium tabular-nums text-cream-100">
                 Custom
               </dd>
-              <p className="text-[11px] text-ink-500 dark:text-cream-100/55 mt-0.5">scoped to firm size</p>
+              <p className="text-[11px] text-cream-100/55 mt-0.5">scoped to your firm</p>
             </div>
           </dl>
         </div>
@@ -133,7 +160,6 @@ function EnterpriseHero() {
 function FirmDashboardMock() {
   return (
     <div className="relative">
-      {/* Glow halo */}
       <div
         aria-hidden
         className="pointer-events-none absolute -inset-6 rounded-[3rem] opacity-50 blur-3xl"
@@ -142,7 +168,7 @@ function FirmDashboardMock() {
             'radial-gradient(circle at 30% 30%, rgba(213,187,126,0.35) 0%, rgba(213,187,126,0) 65%), radial-gradient(circle at 70% 80%, rgba(15,45,36,0.35) 0%, rgba(15,45,36,0) 60%)',
         }}
       />
-      <div className="relative rounded-3xl border border-forest-700/30 bg-gradient-to-br from-forest-900 via-forest-950 to-forest-900 text-cream-100 p-6 sm:p-7 shadow-card-hover overflow-hidden">
+      <div className="relative rounded-3xl border border-gold-400/20 bg-gradient-to-br from-forest-900 via-forest-950 to-forest-900 text-cream-100 p-6 sm:p-7 shadow-card-hover overflow-hidden">
         <div className="flex items-center justify-between mb-5">
           <p className="text-[10px] tracking-[0.28em] uppercase font-semibold text-gold-300">
             Firm dashboard - live
@@ -177,12 +203,12 @@ function FirmDashboardMock() {
         <div className="mt-5 grid grid-cols-2 gap-3 text-[11px]">
           <div className="rounded-xl border border-cream-100/15 bg-cream-100/5 p-3">
             <p className="text-gold-300 tracking-wider uppercase text-[9px] mb-1">
-              This week
+              Documents signed
             </p>
             <p className="font-display text-2xl font-medium tabular-nums">
               17
             </p>
-            <p className="text-cream-100/55">new exhibits added</p>
+            <p className="text-cream-100/55">in the vault, this week</p>
           </div>
           <div className="rounded-xl border border-cream-100/15 bg-cream-100/5 p-3">
             <p className="text-gold-300 tracking-wider uppercase text-[9px] mb-1">
@@ -200,87 +226,7 @@ function FirmDashboardMock() {
 }
 
 // =====================================================================
-// Capabilities grid - eight magnetic feature cells
-// =====================================================================
-
-function Capabilities() {
-  const cells = [
-    {
-      title: 'Per-matter rooms',
-      body: 'Each matter is its own scoped workspace. Counsel, paralegal, and client see only what their role grants. No more "wrong client folder" mistakes.',
-      icon: '🗂',
-    },
-    {
-      title: 'Branded client intake',
-      body: "Your firm's name, your colors, your domain. The client never sees Advottic until they're already deep in their file.",
-      icon: '✦',
-    },
-    {
-      title: 'Advottic Review',
-      body: 'AI-assisted triage that reads the case, surfaces the issues, calls out the evidentiary gaps, and writes the questions worth asking the client. Plain English.',
-      icon: '◈',
-    },
-    {
-      title: 'Bella, embedded',
-      body: 'Plain-language legal info on demand for clients, jurisdictional cheat sheets for your team. Bella never gives advice; she makes the case file talk back.',
-      icon: '◉',
-    },
-    {
-      title: 'Encrypted exhibit vault',
-      body: 'AES-256 at rest, TLS in transit. Private signed URLs. No public links, ever. Retention rules tied to your firm policy.',
-      icon: '🔒',
-    },
-    {
-      title: 'Audit + retention',
-      body: "Every read, write, share, and export is logged with the actor's identity. Hand the audit log to opposing counsel without flinching.",
-      icon: '📜',
-    },
-    {
-      title: 'SSO + role mapping',
-      body: 'Microsoft Entra (Azure AD), Google Workspace. Roles map to AD groups so onboarding a new associate is one click in your existing IdP.',
-      icon: '🛡',
-    },
-    {
-      title: 'Bulk export',
-      body: 'Pull every exhibit + case packet for a closed matter as a signed PDF + JSON archive. Plug it into your existing DMS or hand it to the client.',
-      icon: '⤓',
-    },
-  ];
-
-  return (
-    <section>
-      <header className="text-center max-w-2xl mx-auto mb-12">
-        <p className="eyebrow justify-center mb-3">Eight capabilities, one workspace</p>
-        <h2 className="font-display text-3xl sm:text-[40px] font-medium tracking-[-0.02em] leading-[1.05] text-forest-900 dark:text-cream-100">
-          Everything your matter needs.{' '}
-          <span className="bg-gold-shine bg-clip-text text-transparent gold-pan italic">Nothing it doesn't.</span>
-        </h2>
-        <p className="text-sm sm:text-base text-ink-600 dark:text-cream-100/70 mt-3 leading-relaxed">
-          Replaces three tools with one your team will actually use. Designed for firms whose
-          reputation depends on the file being right.
-        </p>
-      </header>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 stagger">
-        {cells.map((c) => (
-          <article key={c.title} className="card-hover p-6">
-            <p className="text-2xl mb-3" aria-hidden>
-              {c.icon}
-            </p>
-            <h3 className="font-semibold tracking-tight text-forest-900 dark:text-cream-100 text-[15px] mb-2">
-              {c.title}
-            </h3>
-            <p className="text-sm text-ink-600 dark:text-cream-100/70 leading-relaxed">
-              {c.body}
-            </p>
-          </article>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-// =====================================================================
-// Workflow - "a day in the firm" visual narrative
+// Workflow - day-in-the-life narrative
 // =====================================================================
 
 function Workflow() {
@@ -300,7 +246,7 @@ function Workflow() {
       n: '02',
       eyebrow: 'Triage',
       title: 'Advottic Review reads the file in 30 seconds.',
-      body: 'Run Review on a freshly-intaked matter. It returns the issues it spotted, the evidentiary gaps, the relevant statutes for the jurisdiction, and the questions worth asking the client. Your hourly time goes to judgement, not skimming.',
+      body: 'Run Review on a freshly-intaked matter. It returns the issues it spotted, the evidentiary gaps, the relevant statutes for the jurisdiction, and the questions worth asking the client. Hourly time goes to judgement, not skimming.',
       bullets: [
         'Jurisdiction-aware issue spotting',
         'Gap analysis: what evidence is missing',
@@ -310,12 +256,12 @@ function Workflow() {
     {
       n: '03',
       eyebrow: 'Collaborate',
-      title: 'Counsel, paralegal, client - all in one room.',
-      body: 'Your team adds exhibits and notes. The client adds documents through their scoped view. Every action is audited. Conflicts are flagged before they become a problem. You always know who saw what, and when.',
+      title: 'Counsel, paralegal, client - one room. With signing.',
+      body: "Your team adds exhibits and notes. The client adds documents through their scoped view. Sign the engagement letter, the retainer, the release, all inside the vault - the file never leaves the encrypted portal. Every action is audited.",
       bullets: [
         'Role-scoped views (counsel / paralegal / client)',
+        'In-portal document signing - never leaves the vault',
         'Real-time presence + activity log',
-        'No version drift - one file, one truth',
       ],
     },
     {
@@ -334,8 +280,10 @@ function Workflow() {
   return (
     <section>
       <header className="text-center max-w-2xl mx-auto mb-12">
-        <p className="eyebrow justify-center mb-3">A day at the firm</p>
-        <h2 className="font-display text-3xl sm:text-[40px] font-medium tracking-[-0.02em] leading-[1.05] text-forest-900 dark:text-cream-100">
+        <p className="text-[11px] tracking-[0.3em] uppercase font-semibold text-gold-300 mb-3">
+          A day at the firm
+        </p>
+        <h2 className="font-display text-3xl sm:text-[40px] font-medium tracking-[-0.02em] leading-[1.05] text-cream-100">
           From intake to packet, one quiet thread.
         </h2>
       </header>
@@ -350,24 +298,24 @@ function Workflow() {
             className="relative grid gap-4 sm:grid-cols-[4.5rem_1fr] items-start"
           >
             <div className="flex sm:flex-col items-center sm:items-stretch gap-3 sm:gap-2">
-              <span className="relative inline-flex h-12 w-12 sm:h-[4.5rem] sm:w-[4.5rem] items-center justify-center rounded-full bg-gradient-to-br from-forest-900 to-forest-950 text-cream-100 ring-1 ring-gold-400/40 shadow-card font-mono text-sm sm:text-base">
+              <span className="relative inline-flex h-12 w-12 sm:h-[4.5rem] sm:w-[4.5rem] items-center justify-center rounded-full bg-gradient-to-br from-forest-800 to-forest-950 text-cream-100 ring-1 ring-gold-400/40 shadow-card font-mono text-sm sm:text-base">
                 {s.n}
               </span>
-              <p className="text-[10px] tracking-[0.22em] uppercase font-semibold text-gold-700 sm:text-center">
+              <p className="text-[10px] tracking-[0.22em] uppercase font-semibold text-gold-300 sm:text-center">
                 {s.eyebrow}
               </p>
             </div>
-            <div className="card p-6 sm:p-7">
-              <h3 className="text-xl sm:text-2xl font-semibold tracking-tight text-forest-900 dark:text-cream-100">
+            <div className="rounded-2xl border border-cream-100/15 bg-cream-100/5 p-6 sm:p-7 backdrop-blur">
+              <h3 className="text-xl sm:text-2xl font-semibold tracking-tight text-cream-100">
                 {s.title}
               </h3>
-              <p className="text-sm sm:text-[15px] leading-relaxed text-ink-700 dark:text-cream-100/75 mt-2">
+              <p className="text-sm sm:text-[15px] leading-relaxed text-cream-100/75 mt-2">
                 {s.body}
               </p>
-              <ul className="mt-4 space-y-1.5 text-sm text-ink-700 dark:text-cream-100/80">
+              <ul className="mt-4 space-y-1.5 text-sm text-cream-100/85">
                 {s.bullets.map((b) => (
                   <li key={b} className="flex items-start gap-2.5">
-                    <Check />
+                    <CheckIcon />
                     <span>{b}</span>
                   </li>
                 ))}
@@ -381,7 +329,7 @@ function Workflow() {
 }
 
 // =====================================================================
-// Compliance - quietly serious posture statements
+// Compliance posture
 // =====================================================================
 
 function Compliance() {
@@ -397,19 +345,19 @@ function Compliance() {
       body: 'No new password to manage, no rogue accounts. Roles map to AD groups so onboarding a new associate is one click in your existing IdP.',
     },
     {
+      eyebrow: 'Signing',
+      title: 'In-portal document signing',
+      body: 'Engagement letters, retainers, releases - all signed inside the encrypted vault. Documents never leave the portal, never sit in third-party signing systems.',
+    },
+    {
       eyebrow: 'Audit',
       title: 'Append-only event log',
-      body: 'Every read, write, share, export, and login is logged with timestamp + actor. Exportable as JSON for your compliance team. Retention follows your firm policy.',
+      body: 'Every read, write, share, sign, export, and login is logged with timestamp + actor. Exportable as JSON for your compliance team. Retention follows your firm policy.',
     },
     {
       eyebrow: 'Posture',
       title: 'SOC 2 Type II controls in place',
       body: 'Annual third-party audit. Vulnerability scanning, penetration testing, vendor due diligence. Documentation available under NDA.',
-    },
-    {
-      eyebrow: 'Data',
-      title: 'Yours forever, exportable always',
-      body: 'Bulk export the entire firm archive as signed PDFs + JSON anytime. Cancellation deletes nothing automatically; deletion is opt-in via a typed confirmation.',
     },
     {
       eyebrow: 'Privilege',
@@ -419,7 +367,7 @@ function Compliance() {
   ];
 
   return (
-    <section className="rounded-3xl bg-gradient-to-br from-forest-800 via-forest-900 to-forest-950 ring-1 ring-forest-700/40 text-cream-100 px-6 sm:px-10 py-10 sm:py-14 relative overflow-hidden">
+    <section className="rounded-3xl bg-gradient-to-br from-forest-900/80 via-forest-950 to-forest-900/80 ring-1 ring-gold-400/15 px-6 sm:px-10 py-10 sm:py-14 relative overflow-hidden">
       <div
         aria-hidden
         className="absolute -right-32 -top-24 h-96 w-96 rounded-full opacity-25 blur-3xl"
@@ -455,7 +403,7 @@ function Compliance() {
 }
 
 // =====================================================================
-// Comparison - "your stack today vs Advottic" - the FOMO move
+// Comparison table
 // =====================================================================
 
 function CompareTable() {
@@ -463,6 +411,7 @@ function CompareTable() {
     { capability: 'One audited workspace per matter', us: true, them: false },
     { capability: 'Branded client intake (no Typeform / Tally)', us: true, them: false },
     { capability: 'AI-assisted issue spotting + gap analysis', us: true, them: false },
+    { capability: 'In-portal document signing (vault never leaves)', us: true, them: false },
     { capability: 'Encrypted exhibit vault with retention rules', us: true, them: 'Sometimes' },
     { capability: 'Append-only audit log of every action', us: true, them: false },
     { capability: 'Microsoft Entra + Google SSO out of the box', us: true, them: 'Add-on' },
@@ -474,35 +423,37 @@ function CompareTable() {
   return (
     <section>
       <header className="text-center max-w-2xl mx-auto mb-10">
-        <p className="eyebrow justify-center mb-3">The cost of staying with what you have</p>
-        <h2 className="font-display text-3xl sm:text-[40px] font-medium tracking-[-0.02em] leading-[1.05] text-forest-900 dark:text-cream-100">
+        <p className="text-[11px] tracking-[0.3em] uppercase font-semibold text-gold-300 mb-3">
+          The cost of staying with what you have
+        </p>
+        <h2 className="font-display text-3xl sm:text-[40px] font-medium tracking-[-0.02em] leading-[1.05] text-cream-100">
           Three tools and a folder, or one workspace.
         </h2>
-        <p className="text-sm sm:text-base text-ink-600 dark:text-cream-100/70 mt-3 leading-relaxed">
-          Most firms run intake on a form builder, exhibits in a Dropbox, signing in DocuSign,
-          and chase versions in email. Every hand-off is a privilege risk. Every duplicated
-          file is a billable hour you can't bill.
+        <p className="text-sm sm:text-base text-cream-100/70 mt-3 leading-relaxed">
+          Most firms run intake on a form builder, exhibits in a Dropbox, signing in a separate
+          tool, and chase versions in email. Every hand-off is a privilege risk. Every duplicated
+          file is a billable hour you can&apos;t bill.
         </p>
       </header>
-      <div className="overflow-hidden rounded-2xl border border-ink-200 dark:border-forest-700/40">
+      <div className="overflow-hidden rounded-2xl border border-cream-100/15">
         <table className="w-full text-sm">
           <thead>
-            <tr className="bg-cream-50 dark:bg-forest-900/40 text-left">
-              <th className="py-3 px-4 sm:px-6 font-semibold text-ink-700 dark:text-cream-100/85">
+            <tr className="bg-cream-100/5 text-left">
+              <th className="py-3 px-4 sm:px-6 font-semibold text-cream-100/85">
                 Capability
               </th>
-              <th className="py-3 px-3 sm:px-6 font-semibold text-forest-900 dark:text-cream-100 w-24 sm:w-32 text-center">
+              <th className="py-3 px-3 sm:px-6 font-semibold text-cream-100 w-24 sm:w-32 text-center">
                 Advottic
               </th>
-              <th className="py-3 px-3 sm:px-6 font-semibold text-ink-500 dark:text-cream-100/60 w-24 sm:w-32 text-center">
+              <th className="py-3 px-3 sm:px-6 font-semibold text-cream-100/60 w-24 sm:w-32 text-center">
                 Stitched stack
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-ink-100 dark:divide-forest-700/30">
+          <tbody className="divide-y divide-cream-100/10">
             {rows.map((r) => (
-              <tr key={r.capability} className="bg-white dark:bg-forest-900/20">
-                <td className="py-3.5 px-4 sm:px-6 text-ink-700 dark:text-cream-100/80">
+              <tr key={r.capability} className="bg-forest-950/40">
+                <td className="py-3.5 px-4 sm:px-6 text-cream-100/85">
                   {r.capability}
                 </td>
                 <td className="py-3.5 px-3 sm:px-6 text-center">
@@ -524,7 +475,7 @@ function CellMark({ val }: { val: boolean | string }) {
   if (val === true) {
     return (
       <span
-        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
+        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-400/15 text-emerald-300 ring-1 ring-emerald-400/30"
         aria-label="Yes"
       >
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden>
@@ -542,7 +493,7 @@ function CellMark({ val }: { val: boolean | string }) {
   if (val === false) {
     return (
       <span
-        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-rose-50 text-rose-600 ring-1 ring-rose-200"
+        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-rose-400/15 text-rose-300 ring-1 ring-rose-400/30"
         aria-label="No"
       >
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden>
@@ -557,21 +508,21 @@ function CellMark({ val }: { val: boolean | string }) {
     );
   }
   return (
-    <span className="text-[11px] uppercase tracking-wider text-ink-500 dark:text-cream-100/55">
+    <span className="text-[11px] uppercase tracking-wider text-cream-100/55">
       {val}
     </span>
   );
 }
 
 // =====================================================================
-// Talk to us - lead-form pointer
+// Inquiry section - real form, not a mailto
 // =====================================================================
 
-function Talk() {
+function EnterpriseInquiry() {
   return (
     <section
-      id="talk"
-      className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-cream-50 via-white to-cream-100 dark:from-forest-900/40 dark:via-forest-950/40 dark:to-forest-900/40 ring-1 ring-gold-300/40 px-6 sm:px-10 py-10 sm:py-16"
+      id="inquiry"
+      className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-forest-900 via-forest-950 to-forest-900 ring-1 ring-gold-400/20 px-6 sm:px-10 py-10 sm:py-16"
     >
       <div
         aria-hidden
@@ -581,36 +532,46 @@ function Talk() {
             'radial-gradient(circle, rgba(213,187,126,0.40) 0%, rgba(213,187,126,0) 70%)',
         }}
       />
-      <div className="relative max-w-3xl">
-        <p className="eyebrow mb-3">A 20-minute walkthrough, then your call</p>
-        <h2 className="font-display text-3xl sm:text-[44px] font-medium tracking-[-0.02em] leading-[1.05] text-forest-900 dark:text-cream-100">
-          See your firm running on Advottic, today.
-        </h2>
-        <p className="mt-4 text-base sm:text-lg leading-relaxed text-ink-700 dark:text-cream-100/80 max-w-2xl">
-          We'll set up a sandbox, drop in one of your real (de-identified) matters, and walk
-          your team through it. After the demo you decide if it's worth a 30-day pilot. No
-          contract, no commitment, no slick salesperson on the call.
-        </p>
-        <div className="mt-7 flex flex-col sm:flex-row sm:items-center gap-3">
-          <a
-            href="mailto:contact@advottic.com?subject=Advottic%20for%20Enterprise%20demo&body=Hi%20Advottic%20team%2C%0A%0AI%27d%20like%20to%20see%20a%20walkthrough%20for%20my%20firm.%20Here%27s%20a%20bit%20of%20context%3A%0A%0A-%20Firm%20name%3A%20%0A-%20Practice%20area%3A%20%0A-%20Approximate%20attorney%20count%3A%20%0A-%20What%20we%27re%20using%20today%3A%20%0A%0AThanks!"
-            className="btn bg-gold-metal text-forest-950 hover:brightness-110 shadow-gold-glow font-semibold px-6 py-3"
-          >
-            Email contact@advottic.com
-            <ArrowRight />
-          </a>
-          <Link
-            href="/cases/new"
-            className="btn-ghost text-forest-900 dark:text-cream-100 hover:text-gold-700 dark:hover:text-gold-300 underline-offset-4 hover:underline px-3 py-3 font-semibold"
-          >
-            Or sign up and try it solo →
-          </Link>
+      <div className="relative grid gap-10 lg:grid-cols-2 lg:gap-14 max-w-6xl mx-auto">
+        <div>
+          <p className="text-[11px] tracking-[0.3em] uppercase font-semibold text-gold-300 mb-3">
+            A 20-minute walkthrough, then your call
+          </p>
+          <h2 className="font-display text-3xl sm:text-[44px] font-medium tracking-[-0.02em] leading-[1.05] text-cream-100">
+            See your firm running on Advottic, today.
+          </h2>
+          <p className="mt-4 text-base sm:text-lg leading-relaxed text-cream-100/80 max-w-xl">
+            Tell us a bit about your team and we&apos;ll set up a sandbox seeded with one of
+            your real (de-identified) matters. After the demo you decide if it&apos;s worth a
+            30-day pilot. No commitment.
+          </p>
+          <ul className="mt-7 space-y-3 text-sm text-cream-100/80">
+            <li className="flex items-start gap-3">
+              <CheckIcon />
+              <span>
+                <strong className="text-cream-100">Custom pricing in writing.</strong> We agree
+                on a per-seat or per-matter rate scoped to your firm size and practice area.
+              </span>
+            </li>
+            <li className="flex items-start gap-3">
+              <CheckIcon />
+              <span>
+                <strong className="text-cream-100">Auto-payment on the cadence you pick.</strong>{' '}
+                Once we&apos;ve agreed on a number, billing runs on its own schedule.
+              </span>
+            </li>
+            <li className="flex items-start gap-3">
+              <CheckIcon />
+              <span>
+                <strong className="text-cream-100">Real reply within one business day.</strong>{' '}
+                A human reads every inquiry. No CRM, no follow-up sequences.
+              </span>
+            </li>
+          </ul>
         </div>
-        <p className="mt-6 text-xs text-ink-500 dark:text-cream-100/55 leading-relaxed max-w-2xl">
-          We'll respond within one business day. If you'd rather chat live, drop a number in the
-          email body and we'll call you. No CRM, no marketing list, no follow-ups you didn't
-          ask for.
-        </p>
+        <div className="rounded-2xl border border-cream-100/15 bg-cream-100/5 p-6 sm:p-8 backdrop-blur">
+          <EnterpriseInquiryForm />
+        </div>
       </div>
     </section>
   );
@@ -620,7 +581,7 @@ function Talk() {
 // Helpers
 // =====================================================================
 
-function Check() {
+function CheckIcon() {
   return (
     <svg
       width="16"
@@ -628,7 +589,7 @@ function Check() {
       viewBox="0 0 24 24"
       fill="none"
       aria-hidden
-      className="mt-0.5 flex-none text-emerald-600"
+      className="mt-0.5 flex-none text-emerald-300"
     >
       <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.6" />
       <path
@@ -643,7 +604,7 @@ function Check() {
 }
 
 function DotEmerald() {
-  return <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden />;
+  return <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" aria-hidden />;
 }
 
 function ArrowRight() {
@@ -666,7 +627,7 @@ function EnterpriseStructuredData() {
     '@type': 'Product',
     name: 'Advottic for Enterprise',
     description:
-      'Multi-attorney case management platform. Per-matter rooms, branded client intake, encrypted exhibit vault, audit log, SSO, AI-assisted issue spotting.',
+      'Multi-attorney case management platform. Per-matter rooms, branded client intake, encrypted exhibit vault with in-portal document signing, audit log, SSO, AI-assisted issue spotting.',
     brand: { '@type': 'Brand', name: 'Advottic' },
     offers: {
       '@type': 'Offer',

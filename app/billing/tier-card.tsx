@@ -114,7 +114,16 @@ export function TierCard({
       </ul>
 
       {isCurrent ? (
-        <button type="button" disabled className="btn-secondary w-full opacity-70">
+        // Use a brand-tinted treatment instead of btn-secondary, which
+        // sits flat on the dark forest theme and gets lost. The gold
+        // border + cream label reads as "active" in both modes.
+        <button
+          type="button"
+          disabled
+          className="w-full rounded-lg border border-gold-500 bg-gold-500/15 dark:bg-gold-500/20 text-forest-900 dark:text-cream-100 font-semibold py-2.5 px-4 cursor-default flex items-center justify-center gap-2"
+          aria-label="Current plan"
+        >
+          <CheckIcon />
           Your current plan
         </button>
       ) : (
