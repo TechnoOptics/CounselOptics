@@ -45,10 +45,23 @@ export type VercelDomainResult =
   | { ok: false; error: string; status?: number };
 
 /**
- * Add a domain to the configured Vercel project. Idempotent: if the
- * domain is already attached to this project, returns ok. If it's
- * attached to a different project (would 409 conflict), the error is
- * surfaced verbatim so the operator can investigate.
+ * Add a domain to the configured Vercel project. Idempotent in two ways:
+ *
+ *   1. GET preflight: if the domain is already attached to this
+ *      specific project, skip the POST entirely and return ok. This
+ *      handles the case where an operator added the domain manually
+ *      via the Vercel UI before flipping the HQ toggle - Vercel's
+ *      POST endpoint returns "already in use by one of your projects"
+ *      in that situation, which is technically conflict but
+ *      semantically a success (the domain IS on the project we want).
+ *
+ *   2. POST 409 fallback: if the GET preflight failed for any
+ *      transient reason and we tried the POST, treat the
+ *      domain_already_in_use_by_this_project response as success.
+ *
+ * If the domain is attached to a DIFFERENT project (genuine conflict),
+ * we surface the error message verbatim so the operator can decide
+ * whether to detach it from the other project first.
  */
 export async function addProjectDomain(
   domain: string,
@@ -61,6 +74,29 @@ export async function addProjectDomain(
         'Vercel API not configured. Set VERCEL_API_TOKEN and VERCEL_PROJECT_ID in Vercel env.',
     };
   }
+
+  // Preflight: GET /v9/projects/{id}/domains/{name}. Returns 200 if
+  // attached to this project, 404 if not. Cheap and authoritative.
+  const probeUrl = withTeam(
+    new URL(
+      `${VERCEL_API}/v9/projects/${creds.projectId}/domains/${encodeURIComponent(domain)}`,
+    ),
+    creds.teamId,
+  );
+  try {
+    const probe = await fetch(probeUrl.toString(), {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${creds.token}` },
+      cache: 'no-store',
+    });
+    if (probe.ok) return { ok: true };
+    // 404 = not attached, fall through to the POST below.
+    // Other status codes also fall through; the POST error will be
+    // more informative than whatever odd state the probe surfaced.
+  } catch {
+    // Network blip - try the POST anyway.
+  }
+
   const url = withTeam(
     new URL(`${VERCEL_API}/v10/projects/${creds.projectId}/domains`),
     creds.teamId,
@@ -73,18 +109,18 @@ export async function addProjectDomain(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ name: domain }),
-      // Edge-friendly fetch settings; this runs from a server action
-      // not the edge runtime so the cache directive is just hygiene.
       cache: 'no-store',
     });
     if (res.ok) return { ok: true };
-    // 409 means "already attached to this project" or "attached to
-    // another project". Read the body to disambiguate.
     const body = (await res.json().catch(() => ({}))) as {
       error?: { code?: string; message?: string };
     };
     const code = body.error?.code ?? '';
     const msg = body.error?.message ?? `Vercel returned ${res.status}.`;
+    // Belt-and-suspenders idempotency: if Vercel reports the domain
+    // is already on a project owned by us AND the probe said it's on
+    // this project (handled above), we should never reach here. Cover
+    // a few message shapes anyway in case Vercel wording changes.
     if (
       res.status === 409 &&
       (code === 'domain_already_in_use_by_this_project' ||
