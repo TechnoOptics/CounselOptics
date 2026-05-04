@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Capacitor } from '@capacitor/core';
 import { createBrowserSupabase } from '@/lib/supabase/client';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { BiometricSignInHint } from '@/components/BiometricSignInHint';
@@ -55,28 +56,110 @@ export function SignInButtons({ next }: { next: string }) {
       // the cookie and the callback on the same host.
       const origin = window.location.origin;
       const redirectTo = `${origin}/auth/callback?next=${encodeURIComponent(next)}`;
+      const oauthOptions = {
+        redirectTo,
+        // Microsoft (Azure) needs an explicit `User.Read` scope alongside
+        // openid/profile/email to reliably return the user's email -
+        // some tenants (especially personal accounts) skip email
+        // otherwise, which makes Supabase fail to create the session.
+        // Apple needs `name email` so we get the display name on first
+        // sign-in (Apple only sends it once, ever, on the very first
+        // authorization) - Supabase persists it on the auth.users row.
+        scopes:
+          provider === 'azure'
+            ? 'openid profile email User.Read offline_access'
+            : provider === 'apple'
+              ? 'name email'
+              : undefined,
+        queryParams:
+          provider === 'azure'
+            ? { prompt: 'select_account' }
+            : undefined,
+      };
+
+      // Native shells (iOS / Android Capacitor) need a different OAuth
+      // dance than the web. On the web Supabase just does
+      //   window.location.href = oauthUrl
+      // and after the provider redirects back to /auth/callback, the
+      // page handles the exchange in the same browser context.
+      //
+      // On native that breaks: tapping "Continue with Google" launches
+      // the OAuth provider in a Custom Tab (Android) or SFSafariViewController
+      // (iOS), and after Supabase redirects back to advottic.com/auth/callback
+      // the user is stranded INSIDE that browser tab - the cookies land
+      // in the web context and never make it back into the app's WebView.
+      //
+      // The fix is the standard mobile OAuth pattern:
+      //   1. Ask Supabase for the OAuth URL but skipBrowserRedirect.
+      //   2. Open it ourselves with @capacitor/browser so we control the tab.
+      //   3. Subscribe to App.appUrlOpen BEFORE opening - the autoVerify
+      //      App Link on advottic.com/auth/callback (assetlinks.json is
+      //      hosted under /.well-known/) routes the redirect back into
+      //      the app as a deep link.
+      //   4. When the deep link fires, close the in-app browser and
+      //      hand the URL off to the WebView's /auth/callback route,
+      //      which exchanges the code server-side - the WebView's
+      //      cookie jar is the same origin (advottic.com) so the new
+      //      session lands in the right place.
+      // The native fix only works on AABs that bundle the @capacitor/browser
+      // plugin (versionCode 6+). Older shells (v1.0.2 / versionCode 5) fall
+      // through to the web flow, which is the same broken-but-survivable
+      // experience they had before this hotfix - they will pick up the new
+      // path automatically once Play auto-updates them.
+      const browserAvailable =
+        Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('Browser');
+      if (browserAvailable) {
+        const [{ App }, { Browser }] = await Promise.all([
+          import('@capacitor/app'),
+          import('@capacitor/browser'),
+        ]);
+
+        // Arm the deep-link listener BEFORE asking for the OAuth URL,
+        // so we never miss the redirect even if the provider is fast.
+        const sub = await App.addListener('appUrlOpen', async ({ url }) => {
+          if (!url.includes('/auth/callback')) return;
+          await sub.remove();
+          // Close the OAuth tab so the user is no longer staring at
+          // the spinner in the browser - the app takes over from here.
+          try {
+            await Browser.close();
+          } catch {
+            // Harmless if the tab already self-closed (iOS sometimes
+            // does this after a redirect chain).
+          }
+          // Navigate the WebView to the callback URL. This runs the
+          // server-side route handler at /auth/callback, which calls
+          // exchangeCodeForSession with the PKCE verifier from the
+          // WebView's cookie jar and sets the new auth cookies on
+          // advottic.com (which IS the WebView's origin).
+          try {
+            const u = new URL(url);
+            router.replace(u.pathname + u.search);
+          } catch {
+            router.replace(next);
+          }
+        });
+
+        const { data, error: authError } = await supabase.auth.signInWithOAuth({
+          provider,
+          options: { ...oauthOptions, skipBrowserRedirect: true },
+        });
+        if (authError) {
+          await sub.remove();
+          throw authError;
+        }
+        if (!data?.url) {
+          await sub.remove();
+          throw new Error('Sign-in URL was not returned by the auth provider.');
+        }
+        await Browser.open({ url: data.url, presentationStyle: 'fullscreen' });
+        return;
+      }
+
+      // Web flow: Supabase JS handles the redirect itself.
       const { error: authError } = await supabase.auth.signInWithOAuth({
         provider,
-        options: {
-          redirectTo,
-          // Microsoft (Azure) needs an explicit `User.Read` scope alongside
-          // openid/profile/email to reliably return the user's email -
-          // some tenants (especially personal accounts) skip email
-          // otherwise, which makes Supabase fail to create the session.
-          // Apple needs `name email` so we get the display name on first
-          // sign-in (Apple only sends it once, ever, on the very first
-          // authorization) - Supabase persists it on the auth.users row.
-          scopes:
-            provider === 'azure'
-              ? 'openid profile email User.Read offline_access'
-              : provider === 'apple'
-                ? 'name email'
-                : undefined,
-          queryParams:
-            provider === 'azure'
-              ? { prompt: 'select_account' }
-              : undefined,
-        },
+        options: oauthOptions,
       });
       if (authError) throw authError;
     } catch (err) {
