@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { UserMenu } from '@/components/UserMenu';
 
 type Perspective = 'overview' | 'consumer' | 'counsel' | 'operations';
@@ -33,9 +34,23 @@ export function HqHeader({
         <div className="flex items-center gap-3 min-w-0">
           <Link
             href="/admin"
-            className="font-display text-[18px] tracking-tight text-cream-100 hover:opacity-90 truncate"
+            aria-label="Advottic HQ home"
+            className="inline-flex items-center gap-2 min-w-0 group"
           >
-            Advottic <span className="text-cream-100/60">HQ</span>
+            <Image
+              src="/advottic-wordmark.png"
+              alt="Advottic"
+              width={14494}
+              height={1699}
+              priority
+              className="h-6 sm:h-7 w-auto max-w-[40vw] block group-hover:opacity-90 transition-opacity"
+            />
+            <span
+              className="hidden sm:inline-block px-1.5 py-[1px] rounded text-[10px] font-semibold uppercase tracking-[0.2em] text-cream-100/65 ring-1 ring-cream-100/20"
+              aria-hidden
+            >
+              HQ
+            </span>
           </Link>
           <span className="hidden sm:inline-block h-4 w-px bg-white/10" aria-hidden />
           <nav className="hidden sm:flex items-center gap-0.5">

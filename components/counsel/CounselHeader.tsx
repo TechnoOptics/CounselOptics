@@ -35,35 +35,52 @@ export function CounselHeader({
         <div className="flex items-center gap-3 min-w-0">
           <Link
             href="/counsel"
-            className="flex items-center gap-2.5 min-w-0 group"
-            aria-label="Counsel home"
+            className="inline-flex items-center gap-2 min-w-0 group"
+            aria-label="Advottic Counsel home"
           >
+            {/* Advottic wordmark anchors the brand identity across every
+                portal. The firm's own logo + name appear as a secondary
+                context pill to the right - co-branded, with Advottic
+                primary so the platform identity stays recognizable
+                even when the firm has heavy custom theming. */}
+            <Image
+              src="/advottic-wordmark.png"
+              alt="Advottic"
+              width={14494}
+              height={1699}
+              priority
+              className="h-6 sm:h-7 w-auto max-w-[35vw] block group-hover:opacity-90 transition-opacity"
+            />
+            <span
+              className="hidden sm:inline-block px-1.5 py-[1px] rounded text-[10px] font-semibold uppercase tracking-[0.2em] text-gold-300 ring-1 ring-gold-300/30"
+              aria-hidden
+            >
+              Counsel
+            </span>
+          </Link>
+          <span className="hidden sm:inline-block h-5 w-px bg-cream-100/15" aria-hidden />
+          <div className="flex items-center gap-2 min-w-0">
             {firm?.logoUrl ? (
               <Image
                 src={firm.logoUrl}
                 alt=""
-                width={32}
-                height={32}
-                className="h-8 w-8 rounded-md object-cover ring-1 ring-ink-200 dark:ring-forest-700/60"
+                width={28}
+                height={28}
+                className="h-7 w-7 rounded-md object-cover ring-1 ring-forest-700/60 flex-none"
               />
             ) : (
               <span
-                className="h-8 w-8 rounded-md inline-flex items-center justify-center text-white font-semibold text-sm shadow-sm"
+                className="h-7 w-7 rounded-md inline-flex items-center justify-center text-white font-semibold text-xs shadow-sm flex-none"
                 style={{ backgroundColor: firm?.accentColor || '#0f2d24' }}
                 aria-hidden
               >
                 {firm ? firm.name.slice(0, 1).toUpperCase() : 'A'}
               </span>
             )}
-            <span className="min-w-0">
-              <span className="block text-[11px] uppercase tracking-[0.18em] font-semibold text-gold-300 leading-none">
-                Counsel
-              </span>
-              <span className="block text-sm font-semibold text-cream-100 truncate max-w-[40vw] sm:max-w-[28ch]">
-                {firm ? firm.name : 'Set up your firm'}
-              </span>
+            <span className="text-sm font-semibold text-cream-100 truncate max-w-[36vw] sm:max-w-[24ch]">
+              {firm ? firm.name : 'Set up your firm'}
             </span>
-          </Link>
+          </div>
           {membership && (
             <span className="hidden sm:inline-flex badge bg-forest-800 text-cream-100/85 text-[10px]">
               {FIRM_ROLE_LABEL[membership.role]}
