@@ -21,6 +21,11 @@ export type HqFirmRow = {
   accentColor: string;
   jurisdictions: string[];
   practiceAreas: string[];
+  /**
+   * True when the firm has been provisioned a tenant white-label
+   * subdomain at <slug>.advottic.com. Drives the HQ subdomain toggle.
+   */
+  subdomainEnabled: boolean;
   createdAt: string;
   memberCount: number;
   clientCount: number;
@@ -43,7 +48,7 @@ export async function adminListFirms(): Promise<HqFirmRow[]> {
   const { data: firmsRaw, error } = await admin
     .from('firms')
     .select(
-      'id, slug, name, firm_type, accent_color, jurisdictions, practice_areas, created_at, created_by',
+      'id, slug, name, firm_type, accent_color, jurisdictions, practice_areas, subdomain_enabled, created_at, created_by',
     )
     .order('created_at', { ascending: false });
   if (error) throw error;
@@ -55,6 +60,7 @@ export async function adminListFirms(): Promise<HqFirmRow[]> {
     accent_color: string;
     jurisdictions: string[] | null;
     practice_areas: string[] | null;
+    subdomain_enabled: boolean | null;
     created_at: string;
     created_by: string | null;
   };
@@ -130,6 +136,7 @@ export async function adminListFirms(): Promise<HqFirmRow[]> {
     accentColor: f.accent_color,
     jurisdictions: f.jurisdictions ?? [],
     practiceAreas: f.practice_areas ?? [],
+    subdomainEnabled: Boolean(f.subdomain_enabled),
     createdAt: f.created_at,
     memberCount: memberCounts.get(f.id) ?? 0,
     clientCount: clientCounts.get(f.id) ?? 0,

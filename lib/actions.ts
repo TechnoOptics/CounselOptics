@@ -728,6 +728,184 @@ export async function setUserAdminAction(
 }
 
 // ---------------------------------------------------------------------------
+// Phase 2 white-label: provision / revoke a tenant subdomain for a firm.
+// HQ-only. The flow:
+//   1. Validate caller is admin.
+//   2. Look up the firm row (admin client to bypass RLS).
+//   3. Compute hostname = <slug>.advottic.com (slug already unique).
+//   4. Call Vercel API to add the domain to the project. The wildcard
+//      CNAME at GoDaddy means DNS already resolves; Vercel auto-issues
+//      a TLS cert against the configured hostname.
+//   5. Flip firms.subdomain_enabled in the DB.
+//   6. Invalidate the in-process firm cache so the next request to
+//      <slug>.advottic.com lands on the tenant flow within seconds
+//      instead of waiting for the 60s TTL.
+// All five steps happen inside a single server action so the operator
+// gets a clean ok / error response.
+// ---------------------------------------------------------------------------
+
+export type SubdomainProvisionResult = {
+  ok: boolean;
+  error?: string;
+  hostname?: string;
+};
+
+export async function provisionTenantSubdomainAction(
+  firmId: string,
+): Promise<SubdomainProvisionResult> {
+  try {
+    await assertAdmin();
+    const { addProjectDomain, isVercelApiConfigured } = await import(
+      './vercel'
+    );
+    if (!isVercelApiConfigured()) {
+      return {
+        ok: false,
+        error:
+          'Vercel API is not configured. Set VERCEL_API_TOKEN and VERCEL_PROJECT_ID in the Vercel project environment variables and redeploy.',
+      };
+    }
+    const { createAdminSupabase } = await import('./supabase/admin');
+    const admin = createAdminSupabase();
+    if (!admin) {
+      return {
+        ok: false,
+        error:
+          'Service role is not configured on this deployment. Set SUPABASE_SERVICE_ROLE_KEY.',
+      };
+    }
+    const { data: firm, error: readErr } = await admin
+      .from('firms')
+      .select('slug, subdomain_enabled')
+      .eq('id', firmId)
+      .maybeSingle();
+    if (readErr || !firm) {
+      return { ok: false, error: 'Firm not found.' };
+    }
+    const slug = (firm as { slug: string }).slug;
+    if (!slug || !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(slug)) {
+      return {
+        ok: false,
+        error: `Firm slug "${slug}" is not subdomain-safe. Use lowercase letters, digits, and hyphens.`,
+      };
+    }
+    const hostname = `${slug}.advottic.com`;
+
+    // Vercel first - if registration fails we never write the flag,
+    // so the system stays in a consistent state.
+    const vercel = await addProjectDomain(hostname);
+    if (!vercel.ok) {
+      return {
+        ok: false,
+        error: `Vercel domain registration failed: ${vercel.error}`,
+      };
+    }
+
+    // Flip the flag.
+    const { error: writeErr } = await admin
+      .from('firms')
+      .update({ subdomain_enabled: true })
+      .eq('id', firmId);
+    if (writeErr) {
+      return {
+        ok: false,
+        error: `Domain registered with Vercel, but flipping the database flag failed: ${writeErr.message}. Retry the toggle.`,
+      };
+    }
+
+    // Drop the cache so the next request hits a fresh row.
+    const { invalidateFirmSubdomain } = await import('./firm-cache');
+    invalidateFirmSubdomain(slug);
+
+    revalidatePath('/admin/firms');
+    return { ok: true, hostname };
+  } catch (err) {
+    console.error('[provisionTenantSubdomainAction] failed', err);
+    return {
+      ok: false,
+      error:
+        err instanceof Error
+          ? err.message
+          : 'Could not provision tenant subdomain.',
+    };
+  }
+}
+
+export async function revokeTenantSubdomainAction(
+  firmId: string,
+): Promise<SubdomainProvisionResult> {
+  try {
+    await assertAdmin();
+    const { removeProjectDomain, isVercelApiConfigured } = await import(
+      './vercel'
+    );
+    const { createAdminSupabase } = await import('./supabase/admin');
+    const admin = createAdminSupabase();
+    if (!admin) {
+      return {
+        ok: false,
+        error:
+          'Service role is not configured on this deployment. Set SUPABASE_SERVICE_ROLE_KEY.',
+      };
+    }
+    const { data: firm, error: readErr } = await admin
+      .from('firms')
+      .select('slug')
+      .eq('id', firmId)
+      .maybeSingle();
+    if (readErr || !firm) {
+      return { ok: false, error: 'Firm not found.' };
+    }
+    const slug = (firm as { slug: string }).slug;
+    const hostname = `${slug}.advottic.com`;
+
+    // Flip the flag FIRST when revoking. The middleware tenant
+    // resolver checks subdomain_enabled, so flipping first stops new
+    // requests from being routed as tenant traffic immediately even
+    // if the Vercel detach takes a moment.
+    const { error: writeErr } = await admin
+      .from('firms')
+      .update({ subdomain_enabled: false })
+      .eq('id', firmId);
+    if (writeErr) {
+      return {
+        ok: false,
+        error: `Disabling the subdomain flag failed: ${writeErr.message}.`,
+      };
+    }
+
+    const { invalidateFirmSubdomain } = await import('./firm-cache');
+    invalidateFirmSubdomain(slug);
+
+    // Vercel detach is best-effort. If it fails the flag is already
+    // off, so the subdomain serves 404 from middleware anyway. Surface
+    // the error so the operator knows to clean up the Vercel side.
+    if (isVercelApiConfigured()) {
+      const vercel = await removeProjectDomain(hostname);
+      if (!vercel.ok) {
+        return {
+          ok: false,
+          error: `Subdomain disabled in DB, but Vercel detach failed: ${vercel.error}. Remove the domain manually in the Vercel dashboard.`,
+          hostname,
+        };
+      }
+    }
+
+    revalidatePath('/admin/firms');
+    return { ok: true, hostname };
+  } catch (err) {
+    console.error('[revokeTenantSubdomainAction] failed', err);
+    return {
+      ok: false,
+      error:
+        err instanceof Error
+          ? err.message
+          : 'Could not revoke tenant subdomain.',
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // User preferences (theme + language). Light wrappers around upsertProfile
 // so client components can persist via a single round-trip.
 // ---------------------------------------------------------------------------

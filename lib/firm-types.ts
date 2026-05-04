@@ -104,6 +104,14 @@ export type Firm = {
   accentColor: string;
   jurisdictions: string[];
   practiceAreas: string[];
+  /**
+   * Phase 2 white-label flag. When true the firm has been provisioned
+   * a tenant subdomain at <slug>.advottic.com (DNS + Vercel domain
+   * already registered, TLS issued). Toggled from HQ via the
+   * provisionTenantSubdomainAction / revokeTenantSubdomainAction
+   * server actions.
+   */
+  subdomainEnabled: boolean;
   createdBy: string | null;
   createdAt: string;
   updatedAt: string;

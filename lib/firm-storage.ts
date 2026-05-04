@@ -40,6 +40,7 @@ type FirmRow = {
   accent_color: string;
   jurisdictions: string[];
   practice_areas: string[];
+  subdomain_enabled: boolean | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -56,6 +57,7 @@ function firmFromRow(r: FirmRow): Firm {
     accentColor: r.accent_color,
     jurisdictions: r.jurisdictions ?? [],
     practiceAreas: r.practice_areas ?? [],
+    subdomainEnabled: Boolean(r.subdomain_enabled),
     createdBy: r.created_by,
     createdAt: r.created_at,
     updatedAt: r.updated_at,

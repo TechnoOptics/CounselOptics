@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { adminListFirms } from '@/lib/hq-storage';
 import { FIRM_TYPE_LABEL } from '@/lib/firm-types';
+import { SubdomainToggle } from './subdomain-toggle';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Active firms - Advottic HQ' };
@@ -55,6 +56,7 @@ export default async function HqFirmsPage() {
                 <Th>Members</Th>
                 <Th>Clients</Th>
                 <Th>Cases</Th>
+                <Th>Subdomain</Th>
                 <Th>Last activity</Th>
                 <Th>Created</Th>
               </tr>
@@ -118,6 +120,13 @@ export default async function HqFirmsPage() {
                   <Td className="tabular-nums">{f.memberCount}</Td>
                   <Td className="tabular-nums">{f.clientCount}</Td>
                   <Td className="tabular-nums">{f.caseCount}</Td>
+                  <Td>
+                    <SubdomainToggle
+                      firmId={f.id}
+                      slug={f.slug}
+                      enabled={f.subdomainEnabled}
+                    />
+                  </Td>
                   <Td className="text-xs text-ink-600 dark:text-cream-100/70">
                     {f.lastActivityAt ? (
                       new Date(f.lastActivityAt).toLocaleDateString()
