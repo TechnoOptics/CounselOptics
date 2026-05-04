@@ -24,7 +24,10 @@ export async function GET(request: NextRequest) {
   const oauthError = url.searchParams.get('error');
   const oauthErrorDesc = url.searchParams.get('error_description');
   const nextParam = url.searchParams.get('next');
-  const next = nextParam && nextParam.startsWith('/') ? nextParam : '/cases';
+  // `next` accepts a same-origin path (most common) or an absolute
+  // https://<slug>.advottic.com URL (Phase 2 tenant subdomain bounce).
+  // Anything else falls back to /cases to keep open-redirect closed.
+  const next = sanitizeNextRedirect(nextParam);
 
   if (oauthError) {
     console.error('[auth/callback] provider returned error', {
@@ -169,4 +172,27 @@ function redirectWithError(requestUrl: URL, next: string, message: string) {
   dest.searchParams.set('error', encodeURIComponent(message));
   dest.searchParams.set('next', next);
   return NextResponse.redirect(dest);
+}
+
+/**
+ * Whitelist `next` for redirects from the OAuth + magic-link callback.
+ * Same-origin paths (`/cases`) pass through. Absolute URLs only pass
+ * if the host is advottic.com or a *.advottic.com subdomain - this
+ * supports the Phase 2 tenant-subdomain bounce (apex `/sign-in?next=https://zinpro.advottic.com/clients`)
+ * without opening up to attacker-controlled hosts.
+ */
+function sanitizeNextRedirect(raw: string | null): string {
+  if (!raw) return '/cases';
+  if (raw.startsWith('/') && !raw.startsWith('//')) return raw;
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== 'https:') return '/cases';
+    const h = u.host.toLowerCase();
+    if (h === 'advottic.com' || h.endsWith('.advottic.com')) {
+      return u.toString();
+    }
+  } catch {
+    /* fall through */
+  }
+  return '/cases';
 }

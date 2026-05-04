@@ -1,6 +1,18 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { cookieDomainForHost } from './cookie-domain';
+import { getFirmBySubdomain, RESERVED_SUBDOMAINS } from '@/lib/firm-cache';
+
+/**
+ * Phase 2 white-label feature flag. When set to "1" in the
+ * environment, requests to <slug>.advottic.com are resolved against
+ * the firms table and rewritten to /counsel/* with tenant context
+ * injected. When unset, only enterprise.advottic.com and the apex are
+ * recognized - the route lives in code already but stays inert until
+ * we are ready to send the first customer their dedicated subdomain.
+ */
+const TENANT_SUBDOMAINS_ENABLED =
+  (process.env.NEXT_PUBLIC_TENANT_SUBDOMAINS ?? '').trim() === '1';
 
 // /welcome was historically auth-protected as a post-sign-in landing page;
 // the new /welcome is a public install + sign-in page used as the share-app
@@ -50,10 +62,30 @@ export async function updateSession(request: NextRequest) {
   const host = request.headers.get('host') ?? '';
   const isHqHost = host === 'hq.advottic.com';
   const isEnterpriseHost = host === 'enterprise.advottic.com';
+
+  // Tenant-subdomain detection. <slug>.advottic.com routes the same
+  // way as enterprise.advottic.com (rewrite to /counsel/*) but ALSO
+  // injects firm context headers so the counsel layout pre-selects
+  // the firm and applies their branding instead of showing a switcher.
+  // Reserved names (hq, www, etc.) and the apex skip this branch.
+  const hostParts = host.split(':')[0].toLowerCase().split('.');
+  const looksLikeAdvotticSubdomain =
+    hostParts.length === 3 &&
+    hostParts[1] === 'advottic' &&
+    hostParts[2] === 'com';
+  const candidateSlug = looksLikeAdvotticSubdomain ? hostParts[0] : null;
+  const isCandidateTenant =
+    TENANT_SUBDOMAINS_ENABLED &&
+    candidateSlug !== null &&
+    !RESERVED_SUBDOMAINS.has(candidateSlug) &&
+    !isHqHost &&
+    !isEnterpriseHost;
+
   const originalPath = request.nextUrl.pathname;
+  // Tenant subdomains share the /counsel route with enterprise.advottic.com.
   const prefixForHost: string | null = isHqHost
     ? '/admin'
-    : isEnterpriseHost
+    : isEnterpriseHost || isCandidateTenant
       ? '/counsel'
       : null;
 
@@ -95,6 +127,29 @@ export async function updateSession(request: NextRequest) {
 
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set('x-pathname', effectivePath);
+
+  // Tenant subdomain resolution. If the slug matches a firm with
+  // subdomain_enabled=true, inject the firm context into request
+  // headers so the counsel layout can skip the switcher, pre-select
+  // the firm, and apply their branding without an extra DB round-trip.
+  // If the slug looks tenant-shaped but does not match any enabled
+  // firm, return 404 (don't fall through to the apex - that would
+  // mask typos and make all unknown subdomains silently land on the
+  // generic enterprise portal, which is not what we want).
+  let tenantFirm: Awaited<ReturnType<typeof getFirmBySubdomain>> = null;
+  if (isCandidateTenant && candidateSlug && !isAssetOrApi) {
+    tenantFirm = await getFirmBySubdomain(candidateSlug);
+    if (!tenantFirm) {
+      return new NextResponse('Not found', { status: 404 });
+    }
+    requestHeaders.set('x-tenant-firm-id', tenantFirm.id);
+    requestHeaders.set('x-tenant-firm-slug', tenantFirm.slug);
+    requestHeaders.set('x-tenant-firm-name', tenantFirm.name);
+    requestHeaders.set('x-tenant-firm-accent', tenantFirm.accentColor);
+    if (tenantFirm.logoUrl) {
+      requestHeaders.set('x-tenant-firm-logo', tenantFirm.logoUrl);
+    }
+  }
 
   // Build the initial response. If a subdomain request needs to be
   // served from a prefixed internal route, use NextResponse.rewrite to
@@ -172,17 +227,29 @@ export async function updateSession(request: NextRequest) {
     if (needsAuth && !user) {
       const signInUrl = request.nextUrl.clone();
       signInUrl.pathname = '/sign-in';
-      // Send unauthed users from hq.advottic.com or enterprise.advottic.com
-      // to advottic.com/sign-in (apex). Supabase Auth's Allowed Redirect
-      // URLs list only whitelists the apex /auth/callback - OAuth from a
-      // sibling host falls back to Site URL and breaks. Sending unauthed
-      // subdomain users straight to apex also avoids the www -> apex hop.
-      if (isHqHost || isEnterpriseHost) {
+      // Send unauthed users from hq.advottic.com, enterprise.advottic.com,
+      // OR a tenant subdomain (<slug>.advottic.com) to advottic.com/sign-in
+      // (apex). Supabase Auth's Allowed Redirect URLs list whitelists the
+      // apex /auth/callback - OAuth from a sibling host falls back to Site
+      // URL and breaks. The wildcard *.advottic.com entry handles the
+      // tenant case, but we still anchor sign-in on the apex so PKCE
+      // verifier cookies land where the callback will read them. After
+      // sign-in completes the apex page bounces back to the tenant URL
+      // because the auth cookie is Domain=.advottic.com and travels.
+      const isTenantSubdomain = Boolean(tenantFirm);
+      if (isHqHost || isEnterpriseHost || isTenantSubdomain) {
         signInUrl.host = 'advottic.com';
       }
-      // Preserve the original URL the user was trying to reach so we
-      // can land them back there post-sign-in.
-      signInUrl.searchParams.set('next', effectivePath);
+      // For tenant subdomains, preserve the FULL URL (not just the path)
+      // so /sign-in can route the user back to <slug>.advottic.com after
+      // authentication. For hq/enterprise the path-only `next` is fine
+      // because /sign-in's router.replace(next) lands on the apex which
+      // already routes /admin and /counsel to their respective shells.
+      const nextValue =
+        isTenantSubdomain && tenantFirm
+          ? `https://${tenantFirm.slug}.advottic.com${originalPath === '/' ? '' : originalPath}`
+          : effectivePath;
+      signInUrl.searchParams.set('next', nextValue);
       return NextResponse.redirect(signInUrl);
     }
   } catch (err) {

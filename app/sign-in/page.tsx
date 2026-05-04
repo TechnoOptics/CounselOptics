@@ -7,12 +7,43 @@ import { BiometricUnlockGate } from '@/components/BiometricUnlockGate';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * Validate `next` for both same-origin path redirects (`/cases`,
+ * `/counsel/clients`) and cross-origin advottic.com subdomain
+ * redirects (`https://zinpro.advottic.com/clients`). The cross-origin
+ * case is required by Phase 2 white-label: an unauthed visit to
+ * `zinpro.advottic.com` bounces through `advottic.com/sign-in?next=https://zinpro.advottic.com/...`,
+ * and after auth we have to send the user back to the tenant
+ * subdomain.
+ *
+ * Any other absolute URL is rejected to avoid an open-redirect
+ * vulnerability - we never want `next` to land a freshly-authenticated
+ * session on an attacker-controlled host.
+ */
+function sanitizeNext(raw: string | undefined): string {
+  if (!raw) return '/cases';
+  if (raw.startsWith('/') && !raw.startsWith('//')) {
+    return raw;
+  }
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== 'https:') return '/cases';
+    const h = u.host.toLowerCase();
+    if (h === 'advottic.com' || h.endsWith('.advottic.com')) {
+      return u.toString();
+    }
+  } catch {
+    /* fall through */
+  }
+  return '/cases';
+}
+
 export default async function SignInPage({
   searchParams,
 }: {
   searchParams?: { next?: string; error?: string };
 }) {
-  const next = searchParams?.next && searchParams.next.startsWith('/') ? searchParams.next : '/cases';
+  const next = sanitizeNext(searchParams?.next);
 
   if (!isSupabaseConfigured()) {
     return (

@@ -28,6 +28,23 @@ export function SignInButtons({ next }: { next: string }) {
   const [emailSent, setEmailSent] = useState<string | null>(null);
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
+
+  // Navigate after a successful sign-in. Most of the time `next` is a
+  // same-origin path like "/cases" and router.replace handles it. For
+  // Phase 2 white-label, the apex /sign-in can receive an absolute
+  // <slug>.advottic.com URL when a tenant subdomain bounced an unauthed
+  // visitor through the apex - in that case we have to do a full-page
+  // navigation because router.replace cannot cross hosts. The auth
+  // cookie is Domain=.advottic.com so the session travels with the
+  // navigation. sanitizeNext on the server already validated the URL is
+  // on advottic.com, so this cannot land on an attacker-controlled host.
+  function goNext(target: string) {
+    if (target.startsWith('http://') || target.startsWith('https://')) {
+      window.location.href = target;
+      return;
+    }
+    router.replace(target);
+  }
   // Once the magic-link email has been requested, verifyMode flips on
   // so the form renders the 6-digit OTP input instead of the email
   // box. Supabase sends BOTH a magic link AND the 6-digit token in
@@ -249,11 +266,11 @@ export function SignInButtons({ next }: { next: string }) {
       if (!data.session) {
         throw new Error('Sign-in succeeded but no session was returned. Try again.');
       }
-      // The session cookies are set. Push to the requested destination
-      // (defaults to /cases via the page wrapper). Use replace so the
-      // sign-in page is dropped from history - users hitting Back from
-      // /cases shouldn't bounce to the sign-in form.
-      router.replace(next);
+      // The session cookies are set. Hand off to the requested
+      // destination (defaults to /cases via the page wrapper).
+      // goNext handles both same-origin paths and cross-host
+      // *.advottic.com URLs (Phase 2 tenant subdomains).
+      goNext(next);
     } catch (err) {
       const raw = err instanceof Error ? err.message : 'Could not verify the code.';
       const friendly = /token has expired|invalid|incorrect/i.test(raw)

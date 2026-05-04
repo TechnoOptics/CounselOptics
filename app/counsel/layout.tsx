@@ -5,6 +5,7 @@ import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { getActiveFirmContext, listMyFirms } from '@/lib/firm-storage';
 import { CounselSidebar } from '@/components/counsel/CounselSidebar';
 import { CounselHeader } from '@/components/counsel/CounselHeader';
+import type { Firm, FirmMember } from '@/lib/firm-types';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,10 +37,25 @@ export default async function CounselLayout({
   // grant-redemption welcome screen) and must not inherit the
   // firm-membership-gated chrome. The pages still get the dark
   // counsel-shell because they wrap their own content in it.
-  const pathname = headers().get('x-pathname') ?? '';
+  const headersList = headers();
+  const pathname = headersList.get('x-pathname') ?? '';
   const isPublicCounselRoute =
     pathname === '/counsel/request' || pathname === '/counsel/welcome';
   if (isPublicCounselRoute) return <>{children}</>;
+
+  // Phase 2 white-label: middleware injects tenant headers when the
+  // request comes from <slug>.advottic.com. When present, this layout
+  // skips the firm switcher entirely (the URL bar IS the firm) and
+  // pre-selects this firm as active regardless of profiles.active_firm_id.
+  // If the signed-in user does not belong to this firm we hard-redirect
+  // them to the apex sign-in with a friendly error - never silently
+  // drop them into a different firm's data.
+  const tenantFirmId = headersList.get('x-tenant-firm-id');
+  const tenantFirmSlug = headersList.get('x-tenant-firm-slug');
+  const tenantFirmName = headersList.get('x-tenant-firm-name');
+  const tenantFirmAccent = headersList.get('x-tenant-firm-accent');
+  const tenantFirmLogo = headersList.get('x-tenant-firm-logo');
+  const isTenantSubdomain = Boolean(tenantFirmId && tenantFirmSlug);
 
   if (!isSupabaseConfigured()) {
     return (
@@ -65,13 +81,42 @@ export default async function CounselLayout({
   // valid grant via /counsel/welcome - the layout still gates it on
   // firm membership in the same way as the rest.
   const myFirms = await listMyFirms();
+
+  // Tenant-subdomain access gate. The user MUST be a member of the
+  // firm whose subdomain they're on. We fail closed: redirect to the
+  // apex sign-in (forces a clean re-auth) with a friendly error that
+  // explains they don't have access to that workspace. This avoids
+  // any possibility of a session for one firm leaking into another's
+  // tenant URL.
+  if (isTenantSubdomain) {
+    const matching = myFirms.find((m) => m.firm.id === tenantFirmId);
+    if (!matching) {
+      const message = tenantFirmName
+        ? `You don't have access to the ${tenantFirmName} workspace yet. Sign in to your firm's portal, or ask an admin to invite you.`
+        : "You don't have access to this firm's workspace yet.";
+      redirect(
+        `https://advottic.com/sign-in?error=${encodeURIComponent(message)}`,
+      );
+    }
+  }
+
   if (myFirms.length === 0 && pathname !== '/counsel/accept-invite') {
     redirect('/counsel/request');
   }
-  let active = await getActiveFirmContext();
-  if (!active && myFirms.length > 0) {
-    // Default to first membership if active_firm_id is unset.
-    active = myFirms[0] ?? null;
+
+  // On a tenant subdomain, the firm context is dictated by the URL,
+  // not by profiles.active_firm_id. Pre-select that firm. On the
+  // generic enterprise.advottic.com host, fall back to the user's
+  // active firm or the first membership.
+  let active: { firm: Firm; membership: FirmMember } | null;
+  if (isTenantSubdomain) {
+    active = myFirms.find((m) => m.firm.id === tenantFirmId) ?? null;
+  } else {
+    active = await getActiveFirmContext();
+    if (!active && myFirms.length > 0) {
+      // Default to first membership if active_firm_id is unset.
+      active = myFirms[0] ?? null;
+    }
   }
 
   // If we resolved a context, expose it to children via the wrapper.
@@ -94,6 +139,7 @@ export default async function CounselLayout({
         firm={active?.firm ?? null}
         membership={active?.membership ?? null}
         memberships={myFirms}
+        tenantMode={isTenantSubdomain}
       />
       <div className="flex-1 flex w-full max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 gap-6">
         {active ? (

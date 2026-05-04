@@ -19,10 +19,25 @@ export function CounselHeader({
   firm,
   membership,
   memberships,
+  tenantMode = false,
 }: {
   firm: Firm | null;
   membership: FirmMember | null;
   memberships: Array<{ firm: Firm; membership: FirmMember }>;
+  /**
+   * When true, the URL bar already contains the firm's identity
+   * (<slug>.advottic.com), so the firm IS the brand. The header flips
+   * its hierarchy: firm logo + firm name primary on the left, the
+   * Advottic wordmark demoted to a quiet "powered by" mark on the
+   * right side. The firm switcher is hidden in tenant mode regardless
+   * of how many firms the user belongs to - the URL pins the context.
+   *
+   * When false (default), the header uses the shared
+   * enterprise.advottic.com co-brand: Advottic wordmark primary on
+   * the left, firm logo + name as a secondary context pill, with the
+   * firm switcher visible if the user belongs to more than one firm.
+   */
+  tenantMode?: boolean;
 }) {
   return (
     // pt-[env(safe-area-inset-top)] extends the dark header background up
@@ -32,67 +47,129 @@ export function CounselHeader({
     // background bleeds through behind the camera area.
     <header className="border-b border-forest-700/50 bg-forest-950/95 backdrop-blur-md sticky top-0 z-30 pt-[env(safe-area-inset-top)]">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <Link
-            href="/counsel"
-            className="inline-flex items-center gap-2 min-w-0 group"
-            aria-label="Advottic Counsel home"
-          >
-            {/* Advottic wordmark anchors the brand identity across every
-                portal. The firm's own logo + name appear as a secondary
-                context pill to the right - co-branded, with Advottic
-                primary so the platform identity stays recognizable
-                even when the firm has heavy custom theming. */}
-            <Image
-              src="/advottic-wordmark.png"
-              alt="Advottic"
-              width={14494}
-              height={1699}
-              priority
-              className="h-6 sm:h-7 w-auto max-w-[35vw] block group-hover:opacity-90 transition-opacity"
-            />
-            <span
-              className="hidden sm:inline-block px-1.5 py-[1px] rounded text-[10px] font-semibold uppercase tracking-[0.2em] text-gold-300 ring-1 ring-gold-300/30"
-              aria-hidden
+        {tenantMode ? (
+          // Tenant mode: firm IS the brand because the URL bar shows
+          // <slug>.advottic.com. Big firm logo + name on the left, no
+          // firm switcher (URL pins the context).
+          <div className="flex items-center gap-3 min-w-0">
+            <Link
+              href="/"
+              className="inline-flex items-center gap-3 min-w-0 group"
+              aria-label={`${firm?.name ?? 'Counsel'} home`}
             >
-              Counsel
-            </span>
-          </Link>
-          <span className="hidden sm:inline-block h-5 w-px bg-cream-100/15" aria-hidden />
-          <div className="flex items-center gap-2 min-w-0">
-            {firm?.logoUrl ? (
+              {firm?.logoUrl ? (
+                <Image
+                  src={firm.logoUrl}
+                  alt=""
+                  width={36}
+                  height={36}
+                  className="h-9 w-9 rounded-md object-cover ring-1 ring-forest-700/60 flex-none"
+                />
+              ) : (
+                <span
+                  className="h-9 w-9 rounded-md inline-flex items-center justify-center text-white font-semibold text-sm shadow-sm flex-none"
+                  style={{ backgroundColor: firm?.accentColor || '#0f2d24' }}
+                  aria-hidden
+                >
+                  {firm ? firm.name.slice(0, 1).toUpperCase() : 'A'}
+                </span>
+              )}
+              <span className="min-w-0">
+                <span className="block text-base font-semibold text-cream-100 truncate max-w-[40vw] sm:max-w-[28ch] leading-tight">
+                  {firm?.name ?? 'Counsel'}
+                </span>
+                {membership && (
+                  <span className="block text-[10px] uppercase tracking-[0.18em] font-semibold text-cream-100/55 leading-tight mt-0.5">
+                    {FIRM_ROLE_LABEL[membership.role]}
+                  </span>
+                )}
+              </span>
+            </Link>
+          </div>
+        ) : (
+          // Shared-portal mode (enterprise.advottic.com): Advottic
+          // wordmark anchors brand, firm context lives in the
+          // secondary pill cluster.
+          <div className="flex items-center gap-3 min-w-0">
+            <Link
+              href="/counsel"
+              className="inline-flex items-center gap-2 min-w-0 group"
+              aria-label="Advottic Counsel home"
+            >
               <Image
-                src={firm.logoUrl}
-                alt=""
-                width={28}
-                height={28}
-                className="h-7 w-7 rounded-md object-cover ring-1 ring-forest-700/60 flex-none"
+                src="/advottic-wordmark.png"
+                alt="Advottic"
+                width={14494}
+                height={1699}
+                priority
+                className="h-6 sm:h-7 w-auto max-w-[35vw] block group-hover:opacity-90 transition-opacity"
               />
-            ) : (
               <span
-                className="h-7 w-7 rounded-md inline-flex items-center justify-center text-white font-semibold text-xs shadow-sm flex-none"
-                style={{ backgroundColor: firm?.accentColor || '#0f2d24' }}
+                className="hidden sm:inline-block px-1.5 py-[1px] rounded text-[10px] font-semibold uppercase tracking-[0.2em] text-gold-300 ring-1 ring-gold-300/30"
                 aria-hidden
               >
-                {firm ? firm.name.slice(0, 1).toUpperCase() : 'A'}
+                Counsel
+              </span>
+            </Link>
+            <span className="hidden sm:inline-block h-5 w-px bg-cream-100/15" aria-hidden />
+            <div className="flex items-center gap-2 min-w-0">
+              {firm?.logoUrl ? (
+                <Image
+                  src={firm.logoUrl}
+                  alt=""
+                  width={28}
+                  height={28}
+                  className="h-7 w-7 rounded-md object-cover ring-1 ring-forest-700/60 flex-none"
+                />
+              ) : (
+                <span
+                  className="h-7 w-7 rounded-md inline-flex items-center justify-center text-white font-semibold text-xs shadow-sm flex-none"
+                  style={{ backgroundColor: firm?.accentColor || '#0f2d24' }}
+                  aria-hidden
+                >
+                  {firm ? firm.name.slice(0, 1).toUpperCase() : 'A'}
+                </span>
+              )}
+              <span className="text-sm font-semibold text-cream-100 truncate max-w-[36vw] sm:max-w-[24ch]">
+                {firm ? firm.name : 'Set up your firm'}
+              </span>
+            </div>
+            {membership && (
+              <span className="hidden sm:inline-flex badge bg-forest-800 text-cream-100/85 text-[10px]">
+                {FIRM_ROLE_LABEL[membership.role]}
               </span>
             )}
-            <span className="text-sm font-semibold text-cream-100 truncate max-w-[36vw] sm:max-w-[24ch]">
-              {firm ? firm.name : 'Set up your firm'}
-            </span>
           </div>
-          {membership && (
-            <span className="hidden sm:inline-flex badge bg-forest-800 text-cream-100/85 text-[10px]">
-              {FIRM_ROLE_LABEL[membership.role]}
-            </span>
-          )}
-        </div>
+        )}
         <div className="flex items-center gap-2">
-          {memberships.length > 1 && (
+          {/* Firm switcher only in shared-portal mode. On a tenant
+              subdomain the URL pins the firm and the switcher is
+              suppressed even when the user belongs to multiple firms. */}
+          {!tenantMode && memberships.length > 1 && (
             <CounselFirmSwitcher
               activeFirmId={firm?.id ?? null}
               memberships={memberships}
             />
+          )}
+          {/* "Powered by Advottic" mark in tenant mode - quiet, half
+              opacity, on the right next to the user menu so the
+              platform identity is acknowledged without competing with
+              the firm's brand. */}
+          {tenantMode && (
+            <Link
+              href="https://advottic.com"
+              className="hidden sm:inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] text-cream-100/45 hover:text-cream-100/75 transition-colors"
+              aria-label="Powered by Advottic"
+            >
+              <span>Powered by</span>
+              <Image
+                src="/advottic-wordmark.png"
+                alt="Advottic"
+                width={14494}
+                height={1699}
+                className="h-4 w-auto opacity-70"
+              />
+            </Link>
           )}
           <UserMenu />
         </div>
