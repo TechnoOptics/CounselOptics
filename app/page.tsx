@@ -5,6 +5,7 @@ import { storageUnavailable } from '@/lib/setup-status';
 import { TestimonialMarquee } from '@/components/TestimonialMarquee';
 import { BellaAvatar } from '@/components/BellaAvatar';
 import { AboutTeaser } from '@/components/AboutTeaser';
+import { AudienceSplit } from '@/components/AudienceSplit';
 
 const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://www.advottic.com';
@@ -49,6 +50,12 @@ export default async function HomePage() {
 
   return (
     <div className="space-y-20 sm:space-y-28">
+      {/* Audience chooser sits above the hero so first-time visitors
+          immediately see "this is built for me, plus there's an
+          enterprise track." The Personal card is highlighted on /;
+          the Enterprise card links to /enterprise which mirrors the
+          layout but with firm-focused copy. */}
+      <AudienceSplit active="personal" />
       <Hero existingCases={cases.length} />
       <TrustBadges />
       <FlowTimeline />

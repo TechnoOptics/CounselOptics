@@ -1,0 +1,321 @@
+import Link from 'next/link';
+
+/**
+ * Top-of-home-page audience selector. Two big captivating cards:
+ *
+ *   Left  - Personal: people building their own case file (default
+ *           audience for /; tapping "Continue" smooth-scrolls to the
+ *           rest of /'s personal-flavored content via #personal-flow).
+ *   Right - Enterprise: firms, in-house teams, paralegals (links to
+ *           /enterprise which has a parallel layout but with copy and
+ *           proof points sized for a firm pitch).
+ *
+ * Renders identically on both /  and /enterprise; the `active` prop
+ * just picks which card gets the glowing "current" state and shifts
+ * the CTA copy ("Continue" vs "Switch to ...") so the user always
+ * has a one-tap path back to the other audience.
+ *
+ * The design is deliberately big and editorial - the user explicitly
+ * asked for "captivating," "show off the good work," and "make them
+ * feel like they're missing out." So we lead with magnetic copy, not
+ * feature bullets, and let the visual hierarchy carry the FOMO.
+ */
+export function AudienceSplit({
+  active,
+}: {
+  active: 'personal' | 'enterprise';
+}) {
+  return (
+    <section id="audience" className="relative -mt-2 animate-fade-up">
+      <header className="max-w-2xl mb-7 sm:mb-10">
+        <p className="inline-flex items-center gap-2 text-[11px] tracking-[0.3em] uppercase font-semibold text-gold-700 dark:text-gold-300">
+          <span className="inline-block h-px w-8 bg-gold-500 dark:bg-gold-400" />
+          Built for two audiences. Pick yours.
+        </p>
+        <h2 className="mt-4 font-display text-[34px] sm:text-[44px] lg:text-[52px] font-medium tracking-[-0.02em] leading-[1.02] text-forest-900 dark:text-cream-100">
+          The same calm software, sized to <span className="bg-gold-shine bg-clip-text text-transparent gold-pan italic">how you work</span>.
+        </h2>
+        <p className="mt-3 sm:mt-4 text-[15px] sm:text-[16px] leading-relaxed text-ink-700 dark:text-cream-100/80 max-w-xl">
+          Whether you're a single human tracking the matter that just landed in your lap, or a
+          firm running fifty active matters across three jurisdictions, Advottic keeps the work
+          tidy so the truth is ready when the moment arrives.
+        </p>
+      </header>
+
+      <div className="grid gap-4 lg:grid-cols-2 lg:gap-6">
+        <AudienceCard
+          variant="personal"
+          active={active === 'personal'}
+        />
+        <AudienceCard
+          variant="enterprise"
+          active={active === 'enterprise'}
+        />
+      </div>
+    </section>
+  );
+}
+
+type Variant = 'personal' | 'enterprise';
+
+function AudienceCard({ variant, active }: { variant: Variant; active: boolean }) {
+  const config = variant === 'personal' ? PERSONAL : ENTERPRISE;
+  const otherHref = variant === 'personal' ? '/enterprise' : '/';
+  const otherLabel = variant === 'personal' ? 'enterprise' : 'personal';
+
+  return (
+    <article
+      className={`relative overflow-hidden rounded-3xl p-7 sm:p-9 lg:p-10 transition-all duration-500 ${
+        active
+          ? variant === 'personal'
+            ? 'bg-gradient-to-br from-cream-50 via-white to-cream-100 ring-1 ring-gold-500/40 shadow-card-hover'
+            : 'bg-gradient-to-br from-forest-900 via-forest-950 to-forest-900 ring-1 ring-gold-500/30 shadow-card-hover text-cream-100'
+          : 'bg-white dark:bg-forest-900/40 ring-1 ring-ink-200 dark:ring-forest-700/40 hover:ring-gold-500/40'
+      }`}
+    >
+      {/* Decorative ambient gradient. Personal = warm cream wash from
+          the upper-right; enterprise = gold halo from the lower-left.
+          Pure CSS, GPU-accelerated, no impact on cumulative layout. */}
+      {variant === 'personal' ? (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full opacity-50 blur-3xl"
+          style={{
+            background:
+              'radial-gradient(circle, rgba(213,187,126,0.30) 0%, rgba(213,187,126,0) 70%)',
+          }}
+        />
+      ) : (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -left-24 -bottom-24 h-80 w-80 rounded-full opacity-60 blur-3xl"
+          style={{
+            background:
+              'radial-gradient(circle, rgba(213,187,126,0.32) 0%, rgba(213,187,126,0) 70%)',
+          }}
+        />
+      )}
+
+      {/* Active-state glowing strip */}
+      {active && (
+        <span
+          aria-hidden
+          className={`absolute left-0 top-0 bottom-0 w-1 ${
+            variant === 'personal' ? 'bg-gold-500' : 'bg-gold-400'
+          }`}
+        />
+      )}
+
+      <div className="relative z-10">
+        <div className="flex items-center justify-between mb-5">
+          <p
+            className={`inline-flex items-center gap-2 text-[10px] tracking-[0.28em] uppercase font-semibold ${
+              variant === 'enterprise' && active
+                ? 'text-gold-300'
+                : 'text-gold-700 dark:text-gold-300'
+            }`}
+          >
+            <span className="text-2xl leading-none not-italic">{config.glyph}</span>
+            {config.eyebrow}
+          </p>
+          {active && (
+            <span
+              className={`text-[9px] tracking-[0.22em] uppercase font-semibold rounded-full px-2 py-0.5 ${
+                variant === 'personal'
+                  ? 'bg-gold-100 text-gold-800 border border-gold-300'
+                  : 'bg-gold-400/15 text-gold-300 border border-gold-400/30'
+              }`}
+            >
+              You're here
+            </span>
+          )}
+        </div>
+
+        <h3
+          className={`font-display text-[28px] sm:text-[34px] lg:text-[38px] font-medium tracking-[-0.02em] leading-[1.05] ${
+            variant === 'enterprise' && active
+              ? 'text-cream-100'
+              : 'text-forest-900 dark:text-cream-100'
+          }`}
+        >
+          {config.headline}
+        </h3>
+
+        <p
+          className={`mt-4 text-[15px] sm:text-[16px] leading-relaxed ${
+            variant === 'enterprise' && active
+              ? 'text-cream-100/80'
+              : 'text-ink-700 dark:text-cream-100/80'
+          }`}
+        >
+          {config.subhead}
+        </p>
+
+        <ul
+          className={`mt-6 space-y-2.5 text-sm ${
+            variant === 'enterprise' && active ? 'text-cream-100/85' : 'text-ink-700 dark:text-cream-100/80'
+          }`}
+        >
+          {config.bullets.map((b) => (
+            <li key={b} className="flex items-start gap-2.5">
+              <span
+                aria-hidden
+                className={`mt-0.5 inline-flex h-5 w-5 flex-none items-center justify-center rounded-full ${
+                  variant === 'personal'
+                    ? 'bg-gold-100 text-gold-800'
+                    : 'bg-gold-400/20 text-gold-300'
+                }`}
+              >
+                <CheckIcon />
+              </span>
+              <span>{b}</span>
+            </li>
+          ))}
+        </ul>
+
+        {/* Numeric proof strip - one or two big numbers + the FOMO line. */}
+        <div
+          className={`mt-7 grid grid-cols-2 gap-5 border-t pt-5 ${
+            variant === 'enterprise' && active
+              ? 'border-cream-100/15'
+              : 'border-ink-200 dark:border-forest-700/40'
+          }`}
+        >
+          {config.proof.map((p) => (
+            <div key={p.label}>
+              <p
+                className={`font-display text-2xl sm:text-[28px] font-medium tabular-nums ${
+                  variant === 'enterprise' && active
+                    ? 'text-cream-100'
+                    : 'text-forest-900 dark:text-cream-100'
+                }`}
+              >
+                {p.value}
+              </p>
+              <p
+                className={`text-[11px] mt-0.5 tracking-wide ${
+                  variant === 'enterprise' && active
+                    ? 'text-cream-100/55'
+                    : 'text-ink-500 dark:text-cream-100/55'
+                }`}
+              >
+                {p.label}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-7 flex flex-col sm:flex-row sm:items-center gap-3">
+          {active ? (
+            <Link
+              href={config.primaryHref}
+              className={
+                variant === 'personal'
+                  ? 'btn bg-gold-metal text-forest-950 hover:brightness-110 shadow-gold-glow font-semibold px-5 py-2.5'
+                  : 'btn bg-gold-metal text-forest-950 hover:brightness-110 shadow-gold-glow font-semibold px-5 py-2.5'
+              }
+            >
+              {config.primaryCta}
+              <ArrowRight />
+            </Link>
+          ) : (
+            <Link
+              href={variant === 'personal' ? '/' : '/enterprise'}
+              className={
+                variant === 'personal'
+                  ? 'btn bg-forest-900 text-cream-50 hover:bg-forest-800 font-semibold px-5 py-2.5'
+                  : 'btn border border-gold-400/40 text-cream-100 hover:bg-cream-100/10 font-semibold px-5 py-2.5'
+              }
+            >
+              {config.switchCta}
+              <ArrowRight />
+            </Link>
+          )}
+          <Link
+            href={otherHref}
+            className={`text-xs underline-offset-4 hover:underline ${
+              variant === 'enterprise' && active
+                ? 'text-cream-100/65 hover:text-cream-100'
+                : 'text-ink-500 hover:text-forest-900 dark:text-cream-100/55 dark:hover:text-cream-100'
+            }`}
+          >
+            Or look at the {otherLabel} side instead →
+          </Link>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+const PERSONAL = {
+  eyebrow: 'For one human',
+  glyph: '◐',
+  headline: "When it's just you, your evidence, and the date on the calendar.",
+  subhead:
+    'A calm place to gather screenshots, dates, and the truth in your own words. Walk into court (or your attorney) with a packet they can read in five minutes.',
+  bullets: [
+    'Auto-numbered exhibits, dates pulled from the file metadata',
+    'Bella, the in-app assistant, in plain English',
+    'Advottic Review surfaces issues + questions worth asking your lawyer',
+    'Export the full case packet as one PDF',
+    'Encrypted at rest. Yours forever. Delete in one tap.',
+  ],
+  proof: [
+    { value: '7 days', label: 'Free trial. No card to start.' },
+    { value: '$9 / mo', label: 'After trial, basic tier.' },
+  ],
+  primaryCta: 'Start your case file',
+  primaryHref: '/cases/new',
+  switchCta: 'Show me the personal side',
+};
+
+const ENTERPRISE = {
+  eyebrow: 'For firms + counsel',
+  glyph: '◑',
+  headline: 'Run every matter through one calm, secure, audited surface.',
+  subhead:
+    'A workspace your attorneys, paralegals, and clients all share, scoped to the matter. Intake forms, evidence rooms, AI-assisted issue spotting, audit logs, SSO. Replace three tools with the one your team will actually use.',
+  bullets: [
+    'Per-matter rooms with role-based access (counsel, paralegal, client)',
+    'Branded client intake. White-label the firm name on every screen.',
+    'Advottic Review for fast case triage across the practice',
+    'Microsoft / Google SSO. Full audit log + signed retention policy.',
+    'Encrypted client vault, AES-256 at rest, TLS in transit.',
+    'Bulk export, retention controls, deletion on demand.',
+  ],
+  proof: [
+    { value: '∞', label: 'Matters per firm. Per-seat pricing.' },
+    { value: 'SOC 2', label: 'Posture. Controls available on request.' },
+  ],
+  primaryCta: 'Talk to us about your firm',
+  primaryHref: '/enterprise#talk',
+  switchCta: 'Show me the enterprise side',
+};
+
+function CheckIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M5 13l4 4 10-10"
+        stroke="currentColor"
+        strokeWidth="3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function ArrowRight() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M5 12h14m0 0l-6-6m6 6l-6 6"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
