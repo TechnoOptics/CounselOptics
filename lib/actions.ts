@@ -850,6 +850,105 @@ export async function setUserBlockedAction(
 }
 
 /**
+ * Update an enterprise inquiry from the admin dashboard. Status +
+ * admin notes only - the rest of the row (contact, message, etc.)
+ * is what the firm submitted and should not be edited.
+ *
+ * Admin-gated. Returns nothing on success; throws on auth failure
+ * or DB error so the client can show inline.
+ */
+export async function updateEnterpriseInquiryAction(input: {
+  id: string;
+  status: string;
+  adminNotes?: string;
+}): Promise<void> {
+  await assertAdmin();
+  const validStatuses = [
+    'new',
+    'contacted',
+    'demo-scheduled',
+    'pilot',
+    'signed',
+    'closed-lost',
+    'archived',
+  ];
+  if (!validStatuses.includes(input.status)) {
+    throw new Error('Invalid status.');
+  }
+  const notes = (input.adminNotes ?? '').slice(0, 4000);
+  const { createAdminSupabase } = await import('./supabase/admin');
+  const admin = createAdminSupabase();
+  if (!admin) throw new Error('SUPABASE_SERVICE_ROLE_KEY not configured.');
+  const { error } = await admin
+    .from('enterprise_inquiries')
+    .update({
+      status: input.status,
+      admin_notes: notes || null,
+    })
+    .eq('id', input.id);
+  if (error) {
+    console.error('[updateEnterpriseInquiryAction] failed', error);
+    throw new Error('Could not update inquiry.');
+  }
+  revalidatePath('/admin/enterprise-inquiries');
+}
+
+/**
+ * Record (or refresh) the device fingerprint for the current user.
+ * Used to deter the "make a new email to get a fresh 7-day trial on
+ * the same device" abuse pattern.
+ *
+ * The first time a device_id is seen, we INSERT with first_seen_at
+ * = now and the current user as latest_user_id. Subsequent calls
+ * (same device, same OR different user) bump signup_count + reset
+ * latest_user_id + update last_seen_at. The trial-state computation
+ * (in storage.ts) consults this table alongside signup_history and
+ * uses the earlier first_seen_at as the trial anchor when they
+ * differ - so a fresh email on a previously-seen device starts the
+ * trial clock at the device's first_seen_at, not now.
+ *
+ * Best-effort: any failure is swallowed. Trial enforcement is not a
+ * security boundary; it's a friction layer.
+ */
+export async function recordDeviceFingerprintAction(deviceId: string): Promise<void> {
+  if (!usingSupabase()) return;
+  if (!deviceId || deviceId.length > 200) return;
+  const user = await getCurrentUser();
+  if (!user) return;
+  const { createAdminSupabase } = await import('./supabase/admin');
+  const admin = createAdminSupabase();
+  if (!admin) return;
+  // Upsert: insert with current user, on conflict (PK = device_id)
+  // bump count + last_seen_at + latest_user_id.
+  const now = new Date().toISOString();
+  const { data: existing } = await admin
+    .from('device_trial_history')
+    .select('signup_count, latest_user_id')
+    .eq('device_id', deviceId)
+    .maybeSingle();
+  if (!existing) {
+    await admin.from('device_trial_history').insert({
+      device_id: deviceId,
+      first_seen_at: now,
+      latest_user_id: user.id,
+      signup_count: 1,
+      last_seen_at: now,
+    });
+    return;
+  }
+  const prev = existing as { signup_count: number; latest_user_id: string | null };
+  const isNewUser = prev.latest_user_id !== user.id;
+  await admin
+    .from('device_trial_history')
+    .update({
+      latest_user_id: user.id,
+      signup_count: isNewUser ? prev.signup_count + 1 : prev.signup_count,
+      last_seen_at: now,
+    })
+    .eq('device_id', deviceId);
+}
+
+/**
  * Persist an enterprise inquiry submitted from /enterprise. The
  * submission is stored in the `enterprise_inquiries` Supabase table
  * via the service-role client (bypasses RLS - the form is public,

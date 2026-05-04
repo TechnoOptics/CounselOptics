@@ -1647,15 +1647,40 @@ export async function getEffectiveTrialState(): Promise<EffectiveTrialState> {
     return { mode: 'none', trialEndsAt: null, daysRemaining: 0, tier: null };
   }
   const email = user.email.trim().toLowerCase();
-  const { data: row } = await admin
-    .from('signup_history')
-    .select('first_signup_at')
-    .eq('email', email)
-    .maybeSingle();
-  const firstSignupAt =
-    (row as { first_signup_at?: string } | null)?.first_signup_at ??
+  // Anchor the trial on the EARLIEST of:
+  //   1. signup_history.first_signup_at (per email)
+  //   2. device_trial_history.first_seen_at  for any device this
+  //      user has signed in from (per hardware identifier)
+  // This blocks the "delete account, make a new email on the same
+  // phone, get a fresh trial" abuse pattern.
+  const [emailRowResult, deviceRowsResult] = await Promise.all([
+    admin
+      .from('signup_history')
+      .select('first_signup_at')
+      .eq('email', email)
+      .maybeSingle(),
+    admin
+      .from('device_trial_history')
+      .select('first_seen_at')
+      .eq('latest_user_id', user.id)
+      .order('first_seen_at', { ascending: true })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+  const emailFirst =
+    (emailRowResult.data as { first_signup_at?: string } | null)?.first_signup_at ??
     user.created_at ??
     null;
+  const deviceFirst =
+    (deviceRowsResult.data as { first_seen_at?: string } | null)?.first_seen_at ?? null;
+  // Pick the earlier of the two anchors. If only one is available,
+  // use it. If both are missing, no trial.
+  const firstSignupAt =
+    emailFirst && deviceFirst
+      ? Date.parse(emailFirst) <= Date.parse(deviceFirst)
+        ? emailFirst
+        : deviceFirst
+      : (emailFirst || deviceFirst);
   if (!firstSignupAt) {
     return { mode: 'none', trialEndsAt: null, daysRemaining: 0, tier: null };
   }

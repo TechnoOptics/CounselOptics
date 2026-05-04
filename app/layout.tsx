@@ -15,6 +15,7 @@ import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
 import { ThemeBoot } from '@/components/ThemeBoot';
 import { CrashReporter } from '@/components/CrashReporter';
 import { BiometricSessionSync } from '@/components/BiometricSessionSync';
+import { DeviceFingerprintRecorder } from '@/components/DeviceFingerprintRecorder';
 import { FreshnessGuard } from '@/components/FreshnessGuard';
 import { TrialBanner } from '@/components/TrialBanner';
 import { NoCapture } from '@/components/NoCapture';
@@ -296,6 +297,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         {/* Native shells: keep the biometric-stored refresh token in
             sync as Supabase rotates tokens. No-op on web. */}
         <BiometricSessionSync />
+        {/* Device fingerprint recorder - once per session, anchors
+            the user's trial clock to the device they signed up on
+            so a fresh email on the same phone can't reset the trial.
+            Renders nothing; signed-out users skip via the action. */}
+        {signedIn && <DeviceFingerprintRecorder />}
         <FreshnessGuard
           initialSha={(process.env.VERCEL_GIT_COMMIT_SHA ?? 'dev').slice(0, 12)}
         />

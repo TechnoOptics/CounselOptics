@@ -74,4 +74,17 @@
          system itself handles the user-facing dialog. -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <uses-permission android:name="android.permission.USE_FINGERPRINT" />
+
+    <!-- Voice dictation (@capacitor-community/speech-recognition). RECORD_AUDIO
+         is a runtime permission (the plugin requests it on first use). -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!-- Required by Android 11+ when querying speech-recognizer
+         services across packages. Without this, SpeechRecognizer
+         queries return false on a stock Android 11+ install. -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+    </queries>
 </manifest>
