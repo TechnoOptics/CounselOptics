@@ -387,6 +387,38 @@ export async function inviteCollaboratorAction(caseId: string, formData: FormDat
     eventType: 'collaborator_invited',
     metadata: { email, role },
   });
+  // Notify the invited user (if they already have an account) that
+  // they've been added to the case. Look up their auth user_id by
+  // email; if they don't exist yet, the email invitation handles
+  // outreach and we'll notify them on first sign-in.
+  try {
+    const { createAdminSupabase } = await import('./supabase/admin');
+    const admin = createAdminSupabase();
+    if (admin) {
+      const { data } = await admin
+        .from('profiles')
+        .select('id')
+        .eq('email', email)
+        .maybeSingle();
+      const inviteeId = (data as { id?: string } | null)?.id;
+      if (inviteeId) {
+        const caseRecord = await getCase(caseId);
+        const { createNotification } = await import('./notifications');
+        await createNotification({
+          userId: inviteeId,
+          type: 'case_invited',
+          title: 'You were invited to a case',
+          body: caseRecord?.title
+            ? `Open the case to start collaborating: ${caseRecord.title}`
+            : 'Open the case to start collaborating.',
+          link: `/cases/${caseId}`,
+          caseId,
+        });
+      }
+    }
+  } catch {
+    /* notification miss is non-blocking */
+  }
   revalidatePath(`/cases/${caseId}`);
   return { emailed: result.emailed };
 }
@@ -643,6 +675,24 @@ export async function runReviewAction(caseId: string) {
   const review = await runReview(caseRecord, exhibits);
   await saveReview(review);
   await logCaseEvent({ caseId, eventType: 'review_run' });
+  // Notify the case owner that the review finished. Best-effort -
+  // a notification miss should not break the review flow. Skip if
+  // ownerId isn't populated (file-mode storage path).
+  if (caseRecord.ownerId) {
+    try {
+      const { createNotification } = await import('./notifications');
+      await createNotification({
+        userId: caseRecord.ownerId,
+        type: 'case_review_complete',
+        title: 'Advottic Review is ready',
+        body: `Review complete for "${caseRecord.title}".`,
+        link: `/cases/${caseId}`,
+        caseId,
+      });
+    } catch {
+      /* notification miss is non-blocking */
+    }
+  }
   revalidatePath(`/cases/${caseId}`);
   revalidatePath('/cases');
 }
@@ -847,6 +897,33 @@ export async function setUserBlockedAction(
       error: err instanceof Error ? err.message : 'Could not update account status.',
     };
   }
+}
+
+/**
+ * Mark a single notification read for the current user. Best-effort.
+ */
+export async function markNotificationReadAction(id: string): Promise<void> {
+  const { markNotificationRead } = await import('./notifications');
+  await markNotificationRead(id);
+  revalidatePath('/');
+}
+
+/**
+ * Mark every unread notification read for the current user.
+ */
+export async function markAllNotificationsReadAction(): Promise<void> {
+  const { markAllNotificationsRead } = await import('./notifications');
+  await markAllNotificationsRead();
+  revalidatePath('/');
+}
+
+/**
+ * Delete a single notification from the current user's inbox.
+ */
+export async function deleteNotificationAction(id: string): Promise<void> {
+  const { deleteNotification } = await import('./notifications');
+  await deleteNotification(id);
+  revalidatePath('/');
 }
 
 /**

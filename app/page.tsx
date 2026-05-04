@@ -6,6 +6,7 @@ import { TestimonialMarquee } from '@/components/TestimonialMarquee';
 import { BellaAvatar } from '@/components/BellaAvatar';
 import { AboutTeaser } from '@/components/AboutTeaser';
 import { AudienceSplit } from '@/components/AudienceSplit';
+import { FeatureGallery } from '@/components/FeatureGallery';
 
 const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://www.advottic.com';
@@ -58,10 +59,11 @@ export default async function HomePage() {
       <AudienceSplit active="personal" />
       <Hero existingCases={cases.length} />
       <TrustBadges />
-      <FlowTimeline />
+      {/* Visual feature gallery - replaces the old text-heavy
+          FlowTimeline + Personas + Outcomes block. Tap a tile,
+          read the detail, jump straight to that surface. */}
+      <FeatureGallery />
       <BellaShowcase />
-      <Personas />
-      <Outcomes />
       <TestimonialMarquee />
       <AboutTeaser />
       <Faq />

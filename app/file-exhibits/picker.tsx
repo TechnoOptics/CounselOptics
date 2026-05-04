@@ -1,7 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Jurisdiction } from '@/lib/jurisdictions';
+import { STATE_CENTROIDS, haversineKm } from '@/lib/state-centroids';
 
 const PRO_SE_LABELS: Record<Jurisdiction['proSeAllowed'], string> = {
   yes: 'Pro se filing supported',
@@ -20,11 +21,69 @@ const PRO_SE_TONES: Record<Jurisdiction['proSeAllowed'], string> = {
 export function FileExhibitsPicker({ states }: { states: Jurisdiction[] }) {
   const [code, setCode] = useState<string>('');
   const [query, setQuery] = useState('');
-
-  const ordered = useMemo(
-    () => [...states].sort((a, b) => a.name.localeCompare(b.name)),
-    [states],
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [geoStatus, setGeoStatus] = useState<'idle' | 'asking' | 'denied' | 'unsupported' | 'ok'>(
+    'idle',
   );
+
+  // Best-effort geolocation. We never auto-prompt - the user has to
+  // click "Use my location" first - because asking for GPS on the
+  // file-exhibits page out of nowhere reads as creepy. Once the user
+  // opts in we sort the picker by Haversine distance from their
+  // coords to each state's capital centroid.
+  function requestLocation() {
+    if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
+      setGeoStatus('unsupported');
+      return;
+    }
+    setGeoStatus('asking');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setGeoStatus('ok');
+      },
+      (err) => {
+        if (err.code === err.PERMISSION_DENIED) setGeoStatus('denied');
+        else setGeoStatus('idle');
+      },
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 30 * 60 * 1000 },
+    );
+  }
+
+  // If the user already opted into geolocation on another page,
+  // re-use it silently. Permissions API is widely supported but
+  // gracefully no-ops where not.
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('permissions' in navigator)) return;
+    navigator.permissions
+      .query({ name: 'geolocation' as PermissionName })
+      .then((p) => {
+        if (p.state === 'granted') requestLocation();
+      })
+      .catch(() => {
+        /* permissions API rejected - no-op */
+      });
+  }, []);
+
+  const ordered = useMemo(() => {
+    // No coords = alphabetical (default behavior, matches v1.0.1).
+    if (!coords) {
+      return [...states].sort((a, b) => a.name.localeCompare(b.name));
+    }
+    // With coords, score each state by distance from the user's
+    // location to that state's capital centroid. Federal sorts to
+    // the bottom (it's not bound to one place). States with no
+    // centroid in our table fall back to a huge distance so they
+    // sink to the end - we don't have data on them either way.
+    return [...states]
+      .map((s) => {
+        const c = STATE_CENTROIDS[s.code];
+        const distance = c ? haversineKm(coords, c) : Number.POSITIVE_INFINITY;
+        return { s, distance };
+      })
+      .sort((a, b) => a.distance - b.distance)
+      .map((x) => x.s);
+  }, [states, coords]);
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return ordered;
@@ -48,15 +107,40 @@ export function FileExhibitsPicker({ states }: { states: Jurisdiction[] }) {
               Pick your state
             </h2>
           </div>
-          {selected && (
-            <button
-              type="button"
-              onClick={() => setCode('')}
-              className="btn-ghost text-[12.5px]"
-            >
-              Clear
-            </button>
-          )}
+          <div className="flex flex-wrap items-center gap-2">
+            {!coords && geoStatus !== 'unsupported' && geoStatus !== 'denied' && (
+              <button
+                type="button"
+                onClick={requestLocation}
+                disabled={geoStatus === 'asking'}
+                className="btn-ghost text-[12.5px] inline-flex items-center gap-1.5"
+                aria-label="Sort states by distance to me"
+              >
+                <PinIcon />
+                {geoStatus === 'asking' ? 'Locating...' : 'Use my location'}
+              </button>
+            )}
+            {coords && (
+              <span className="text-[11px] text-emerald-700 dark:text-emerald-300 inline-flex items-center gap-1">
+                <PinIcon />
+                Sorted by distance to you
+              </span>
+            )}
+            {geoStatus === 'denied' && (
+              <span className="text-[11px] text-ink-500 dark:text-cream-100/55">
+                Location blocked - sorted alphabetically.
+              </span>
+            )}
+            {selected && (
+              <button
+                type="button"
+                onClick={() => setCode('')}
+                className="btn-ghost text-[12.5px]"
+              >
+                Clear
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
@@ -207,5 +291,20 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
         {value}
       </dd>
     </div>
+  );
+}
+
+function PinIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 22s7-7.58 7-13a7 7 0 1 0-14 0c0 5.42 7 13 7 13z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="9" r="2.5" stroke="currentColor" strokeWidth="1.8" />
+    </svg>
   );
 }

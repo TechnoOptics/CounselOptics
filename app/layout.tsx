@@ -6,6 +6,8 @@ import { headers } from 'next/headers';
 import { Inter, Saira_Condensed, Fraunces } from 'next/font/google';
 import './globals.css';
 import { UserMenu } from '@/components/UserMenu';
+import { NotificationBell } from '@/components/NotificationBell';
+import { listNotifications, unreadNotificationCount } from '@/lib/notifications';
 import { Bella } from '@/components/Bella';
 import { CookieBanner } from '@/components/CookieBanner';
 import { SearchPalette, SearchTrigger } from '@/components/SearchPalette';
@@ -210,6 +212,16 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     }
   }
 
+  // Initial notification feed for the bell. Falls back to empty on
+  // any failure so a Supabase hiccup never blocks the header from
+  // rendering. Bell hides itself when signed out.
+  const [initialNotifications, initialUnread] = signedIn
+    ? await Promise.all([
+        listNotifications({ limit: 30 }).catch(() => []),
+        unreadNotificationCount().catch(() => 0),
+      ])
+    : [[], 0];
+
   return (
     <html
       lang={serverLanguage ?? 'en'}
@@ -247,6 +259,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   </Link>
                   <div className="flex items-center gap-1">
                     {signedIn && <SearchTrigger className="hidden sm:inline-flex" />}
+                    {signedIn && (
+                      <NotificationBell
+                        initial={initialNotifications}
+                        initialUnread={initialUnread}
+                      />
+                    )}
                     {signedIn && <div className="hidden sm:block h-5 w-px bg-cream-100/15 mx-2" />}
                     <UserMenu />
                   </div>
