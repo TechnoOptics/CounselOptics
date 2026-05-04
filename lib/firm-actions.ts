@@ -167,7 +167,48 @@ export async function createFirmAction(formData: FormData): Promise<CreateFirmRe
     .update({ active_firm_id: firm.id })
     .eq('id', user.id);
 
+  // Phase 2 white-label auto-provisioning. When the env flag is set
+  // (default ON for new firms in production) AND Vercel API
+  // credentials are configured, every newly-created firm gets its
+  // tenant subdomain registered automatically. Best-effort - if the
+  // Vercel call fails the firm still exists and an HQ operator can
+  // flip the toggle manually from /admin/firms later. We do NOT fail
+  // the firm-creation flow on a provisioning hiccup because the firm
+  // can still operate at enterprise.advottic.com without a vanity URL.
+  const autoProvision =
+    (process.env.NEXT_PUBLIC_AUTO_PROVISION_TENANT_SUBDOMAIN ?? '1').trim() !==
+    '0';
+  if (autoProvision) {
+    try {
+      const [{ addProjectDomain, isVercelApiConfigured }, { invalidateFirmSubdomain }] =
+        await Promise.all([import('./vercel'), import('./firm-cache')]);
+      if (isVercelApiConfigured()) {
+        const hostname = `${firm.slug}.advottic.com`;
+        const vercel = await addProjectDomain(hostname);
+        if (vercel.ok) {
+          await admin
+            .from('firms')
+            .update({ subdomain_enabled: true })
+            .eq('id', firm.id);
+          invalidateFirmSubdomain(firm.slug);
+        } else {
+          console.warn(
+            '[createFirmAction] auto-provision skipped: Vercel API rejected domain',
+            { hostname, error: vercel.error, status: vercel.status },
+          );
+        }
+      }
+    } catch (err) {
+      // Never block firm creation. Surface in logs only.
+      console.warn(
+        '[createFirmAction] auto-provision threw; firm still created',
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
+
   revalidatePath('/counsel');
+  revalidatePath('/admin/firms');
   return { ok: true, firmId: firm.id, slug: firm.slug };
 }
 
