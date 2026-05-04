@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { cookieDomainForHost } from './cookie-domain';
 
 // /welcome was historically auth-protected as a post-sign-in landing page;
 // the new /welcome is a public install + sign-in page used as the share-app
@@ -73,6 +74,12 @@ export async function updateSession(request: NextRequest) {
   // 500 the whole site (MIDDLEWARE_INVOCATION_FAILED) - if auth lookup fails
   // we fall through to the page, which already handles its own auth state.
   try {
+    // Promote the cookie Domain to .advottic.com on production so the
+    // session is shared across hq.advottic.com, enterprise.advottic.com,
+    // www.advottic.com, and the apex. Without this, navigating to any
+    // subdomain triggers a /sign-in bounce because the apex cookies do
+    // not travel cross-host.
+    const cookieDomain = cookieDomainForHost(host);
     const supabase = createServerClient(url, anon, {
       cookies: {
         getAll() {
@@ -87,7 +94,10 @@ export async function updateSession(request: NextRequest) {
           // Recreate the response ONCE, then attach every cookie in one go.
           response = NextResponse.next({ request: { headers: requestHeaders } });
           cookiesToSet.forEach(({ name, value, options }) => {
-            response.cookies.set(name, value, options);
+            response.cookies.set(name, value, {
+              ...options,
+              ...(cookieDomain ? { domain: cookieDomain } : {}),
+            });
           });
         },
       },

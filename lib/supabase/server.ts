@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
+import { cookieDomainForHost } from './cookie-domain';
 
 export function getSupabaseUrl(): string | undefined {
   return process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() || undefined;
@@ -22,6 +23,10 @@ export function createServerSupabase() {
     );
   }
   const cookieStore = cookies();
+  // Read the request host so cookie writes can promote Domain to
+  // .advottic.com, sharing the auth session across hq./enterprise./www.
+  const host = headers().get('host');
+  const domain = cookieDomainForHost(host);
   return createServerClient(url, anon, {
     cookies: {
       getAll() {
@@ -30,7 +35,12 @@ export function createServerSupabase() {
       setAll(cookiesToSet) {
         try {
           cookiesToSet.forEach(({ name, value, options }) => {
-            cookieStore.set({ name, value, ...options });
+            cookieStore.set({
+              name,
+              value,
+              ...options,
+              ...(domain ? { domain } : {}),
+            });
           });
         } catch {
           // setAll runs during a Server Component render where cookies are

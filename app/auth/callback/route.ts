@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { getSupabaseUrl, getSupabaseAnonKey } from '@/lib/supabase/server';
+import { cookieDomainForHost } from '@/lib/supabase/cookie-domain';
 
 export const dynamic = 'force-dynamic';
 
@@ -98,6 +99,10 @@ export async function GET(request: NextRequest) {
   // ship back to the browser.
   const successResponse = NextResponse.redirect(new URL(next, url.origin));
 
+  // Scope auth cookies to .advottic.com so a session minted here travels
+  // to hq.advottic.com and enterprise.advottic.com without forcing
+  // another sign-in bounce per subdomain.
+  const cookieDomain = cookieDomainForHost(request.headers.get('host'));
   const supabase = createServerClient(supabaseUrl, anonKey, {
     cookies: {
       getAll() {
@@ -105,7 +110,10 @@ export async function GET(request: NextRequest) {
       },
       setAll(cookiesToSet) {
         cookiesToSet.forEach(({ name, value, options }) => {
-          successResponse.cookies.set(name, value, options);
+          successResponse.cookies.set(name, value, {
+            ...options,
+            ...(cookieDomain ? { domain: cookieDomain } : {}),
+          });
         });
       },
     },
