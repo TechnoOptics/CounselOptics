@@ -77,6 +77,18 @@ const nextConfig = {
     // capture. (Default-on in Next 15.)
     instrumentationHook: true,
   },
+  // Allow next/image to load firm logos + avatars uploaded to public
+  // Supabase Storage buckets. The wildcard hostname covers any
+  // Supabase project URL we might use for staging/dev.
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '*.supabase.co',
+        pathname: '/storage/v1/object/public/**',
+      },
+    ],
+  },
   async headers() {
     return [
       {

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { adminListFirms } from '@/lib/hq-storage';
 import { FIRM_TYPE_LABEL } from '@/lib/firm-types';
 import { SubdomainToggle } from './subdomain-toggle';
+import { BrandingEditor } from './branding-editor';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Active firms - Advottic HQ' };
@@ -65,13 +66,13 @@ export default async function HqFirmsPage() {
               {firms.map((f) => (
                 <tr key={f.id} className="hover:bg-ink-50/40 dark:hover:bg-forest-800/30">
                   <Td>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 relative">
                       <span
                         className="inline-block w-2.5 h-2.5 rounded-full"
                         style={{ backgroundColor: f.accentColor }}
                         aria-hidden
                       />
-                      <div>
+                      <div className="flex-1 min-w-0">
                         <div className="font-medium text-ink-950 dark:text-cream-100">
                           {f.name}
                         </div>
@@ -79,6 +80,13 @@ export default async function HqFirmsPage() {
                           /{f.slug}
                         </div>
                       </div>
+                      <BrandingEditor
+                        firmId={f.id}
+                        firmName={f.name}
+                        slug={f.slug}
+                        logoUrl={f.logoUrl}
+                        accentColor={f.accentColor}
+                      />
                     </div>
                   </Td>
                   <Td className="text-xs text-ink-700 dark:text-cream-100/70">

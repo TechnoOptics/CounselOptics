@@ -831,6 +831,159 @@ export async function provisionTenantSubdomainAction(
   }
 }
 
+/**
+ * HQ-only: update a firm's brand assets (logo + accent color). Used
+ * from the /admin/firms table. The firm logo is uploaded to the
+ * public firm-logos Supabase Storage bucket; accent color is a hex
+ * string that the counsel layout injects as the --firm-accent CSS
+ * variable. After update we invalidate the firm cache so the new
+ * branding shows up on <slug>.advottic.com without waiting the 60s
+ * TTL.
+ */
+export type FirmBrandingResult = {
+  ok: boolean;
+  error?: string;
+  logoUrl?: string;
+};
+
+export async function updateFirmBrandingAction(
+  firmId: string,
+  formData: FormData,
+): Promise<FirmBrandingResult> {
+  try {
+    await assertAdmin();
+    const { createAdminSupabase } = await import('./supabase/admin');
+    const admin = createAdminSupabase();
+    if (!admin) {
+      return {
+        ok: false,
+        error:
+          'Service role is not configured on this deployment. Set SUPABASE_SERVICE_ROLE_KEY.',
+      };
+    }
+
+    const { data: firm, error: readErr } = await admin
+      .from('firms')
+      .select('id, slug, logo_url')
+      .eq('id', firmId)
+      .maybeSingle();
+    if (readErr || !firm) {
+      return { ok: false, error: 'Firm not found.' };
+    }
+    const slug = (firm as { slug: string }).slug;
+    const previousLogoUrl = (firm as { logo_url: string | null }).logo_url;
+
+    const accentRaw = (formData.get('accentColor') as string | null)?.trim();
+    const accent = accentRaw && /^#[0-9a-fA-F]{6}$/.test(accentRaw) ? accentRaw : null;
+    const removeLogo = formData.get('removeLogo') === '1';
+    const file = formData.get('logo') as File | null;
+
+    const updates: Record<string, unknown> = {};
+    if (accent) updates.accent_color = accent;
+
+    let newLogoUrl: string | null = null;
+
+    if (removeLogo) {
+      updates.logo_url = null;
+    } else if (file && typeof (file as File).arrayBuffer === 'function' && file.size > 0) {
+      // Validate file type + size on the server (never trust client).
+      const allowed = new Set([
+        'image/png',
+        'image/jpeg',
+        'image/webp',
+        'image/svg+xml',
+      ]);
+      if (!allowed.has(file.type)) {
+        return {
+          ok: false,
+          error: `Logo must be PNG, JPEG, WebP, or SVG (got ${file.type || 'unknown'}).`,
+        };
+      }
+      // 2 MB cap. The header renders the logo at 32-36px so anything
+      // bigger is just bloat and slows tenant page loads.
+      if (file.size > 2 * 1024 * 1024) {
+        return {
+          ok: false,
+          error: `Logo is too big (${Math.round(file.size / 1024)} KB). Keep it under 2 MB.`,
+        };
+      }
+      const ext =
+        file.type === 'image/png' ? 'png'
+        : file.type === 'image/jpeg' ? 'jpg'
+        : file.type === 'image/webp' ? 'webp'
+        : 'svg';
+      // Append a cache-busting timestamp so the public URL changes
+      // each upload - browsers + Vercel image proxy cache by URL.
+      const path = `${slug}/${Date.now()}.${ext}`;
+      const buffer = Buffer.from(await file.arrayBuffer());
+      const { error: upErr } = await admin.storage
+        .from('firm-logos')
+        .upload(path, buffer, {
+          contentType: file.type,
+          upsert: false,
+          cacheControl: '31536000',
+        });
+      if (upErr) {
+        return { ok: false, error: `Storage upload failed: ${upErr.message}` };
+      }
+      const { data: pub } = admin.storage.from('firm-logos').getPublicUrl(path);
+      newLogoUrl = pub.publicUrl;
+      updates.logo_url = newLogoUrl;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return {
+        ok: false,
+        error: 'No changes - upload a logo, change the accent color, or check Remove logo.',
+      };
+    }
+
+    const { error: writeErr } = await admin
+      .from('firms')
+      .update(updates)
+      .eq('id', firmId);
+    if (writeErr) {
+      return { ok: false, error: writeErr.message };
+    }
+
+    // Best-effort: delete the previous logo file so we don't pile up
+    // orphaned blobs. Non-fatal.
+    if ((removeLogo || newLogoUrl) && previousLogoUrl) {
+      try {
+        const u = new URL(previousLogoUrl);
+        // Path under the bucket lives after `/firm-logos/`.
+        const marker = '/firm-logos/';
+        const idx = u.pathname.indexOf(marker);
+        if (idx >= 0) {
+          const oldPath = u.pathname.slice(idx + marker.length);
+          if (oldPath.startsWith(`${slug}/`)) {
+            await admin.storage.from('firm-logos').remove([oldPath]);
+          }
+        }
+      } catch {
+        /* best effort */
+      }
+    }
+
+    // Invalidate the in-process firm cache so the next request to
+    // <slug>.advottic.com picks up the new branding immediately.
+    const { invalidateFirmSubdomain } = await import('./firm-cache');
+    invalidateFirmSubdomain(slug);
+
+    revalidatePath('/admin/firms');
+    return { ok: true, logoUrl: newLogoUrl ?? undefined };
+  } catch (err) {
+    console.error('[updateFirmBrandingAction] failed', err);
+    return {
+      ok: false,
+      error:
+        err instanceof Error
+          ? err.message
+          : 'Could not update firm branding.',
+    };
+  }
+}
+
 export async function revokeTenantSubdomainAction(
   firmId: string,
 ): Promise<SubdomainProvisionResult> {

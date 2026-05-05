@@ -19,6 +19,7 @@ export type HqFirmRow = {
   name: string;
   firmType: FirmType;
   accentColor: string;
+  logoUrl: string | null;
   jurisdictions: string[];
   practiceAreas: string[];
   /**
@@ -48,7 +49,7 @@ export async function adminListFirms(): Promise<HqFirmRow[]> {
   const { data: firmsRaw, error } = await admin
     .from('firms')
     .select(
-      'id, slug, name, firm_type, accent_color, jurisdictions, practice_areas, subdomain_enabled, created_at, created_by',
+      'id, slug, name, firm_type, accent_color, logo_url, jurisdictions, practice_areas, subdomain_enabled, created_at, created_by',
     )
     .order('created_at', { ascending: false });
   if (error) throw error;
@@ -58,6 +59,7 @@ export async function adminListFirms(): Promise<HqFirmRow[]> {
     name: string;
     firm_type: FirmType;
     accent_color: string;
+    logo_url: string | null;
     jurisdictions: string[] | null;
     practice_areas: string[] | null;
     subdomain_enabled: boolean | null;
@@ -134,6 +136,7 @@ export async function adminListFirms(): Promise<HqFirmRow[]> {
     name: f.name,
     firmType: f.firm_type,
     accentColor: f.accent_color,
+    logoUrl: f.logo_url,
     jurisdictions: f.jurisdictions ?? [],
     practiceAreas: f.practice_areas ?? [],
     subdomainEnabled: Boolean(f.subdomain_enabled),
