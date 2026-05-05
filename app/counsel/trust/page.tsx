@@ -2,7 +2,10 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { createServerSupabase } from '@/lib/supabase/server';
-import { reconcileTrustAccount, listTrustTransactions } from '@/lib/trust-accounting';
+import {
+  reconcileTrustAccount,
+  listTrustTransactions,
+} from '@/lib/trust-accounting-queries';
 import { CreateAccountForm } from './create-account-form';
 import { RecordTransactionForm } from './record-transaction-form';
 
