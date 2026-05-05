@@ -196,6 +196,58 @@ export default async function ProfilePage() {
         Google / Microsoft account or shows your initials.
       </div>
 
+      {/* Inbox + Documents quick links. Documents-from-firms is a
+          Pro feature, so the card explicitly calls that out. */}
+      <section className="card p-6 space-y-4">
+        <div>
+          <p className="eyebrow mb-2">Inbox</p>
+          <h2 className="font-display text-xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
+            Notifications and documents
+          </h2>
+          <p className="text-sm text-ink-500 dark:text-cream-100/55 mt-0.5">
+            One place for everything firms send you - meetings, case updates,
+            and documents that need your signature.
+          </p>
+        </div>
+        <div className="grid sm:grid-cols-2 gap-3">
+          <Link
+            href="/inbox"
+            className="rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 bg-white dark:bg-forest-900/40 hover:ring-forest-700 dark:hover:ring-gold-metal/40 transition-colors p-4 block"
+          >
+            <p className="font-display text-base text-forest-900 dark:text-cream-100">
+              Notification inbox
+            </p>
+            <p className="text-[12.5px] text-ink-600 dark:text-cream-100/70 mt-1 leading-snug">
+              Cases, meetings, and document activity. Click anything to jump
+              straight to the source.
+            </p>
+            <p className="text-[12px] font-semibold text-forest-900 dark:text-cream-100 mt-3 inline-flex items-center gap-1">
+              Open inbox <span aria-hidden>→</span>
+            </p>
+          </Link>
+          <Link
+            href="/inbox/documents"
+            className="rounded-lg ring-1 ring-amber-200 dark:ring-amber-700/40 bg-amber-50/50 dark:bg-amber-950/20 hover:ring-amber-500 dark:hover:ring-amber-500/60 transition-colors p-4 block"
+          >
+            <div className="flex items-center justify-between">
+              <p className="font-display text-base text-forest-900 dark:text-cream-100">
+                Documents from firms
+              </p>
+              <span className="inline-flex items-center px-1.5 py-[1px] rounded text-[9.5px] font-semibold uppercase tracking-[0.16em] ring-1 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 ring-amber-200 dark:ring-amber-700/40">
+                Pro
+              </span>
+            </div>
+            <p className="text-[12.5px] text-ink-600 dark:text-cream-100/70 mt-1 leading-snug">
+              Receive documents from any law firm using Advottic Counsel,
+              sign and send back without printing or scanning.
+            </p>
+            <p className="text-[12px] font-semibold text-forest-900 dark:text-cream-100 mt-3 inline-flex items-center gap-1">
+              Open documents <span aria-hidden>→</span>
+            </p>
+          </Link>
+        </div>
+      </section>
+
       {/* Preferences card. Theme + language are stored on the profile so
           they carry across devices. Install button uses the PWA prompt. */}
       <section className="card p-6 space-y-6">

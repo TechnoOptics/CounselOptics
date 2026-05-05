@@ -209,7 +209,9 @@ export async function POST(req: NextRequest) {
   await admin.from('firm_signing_requests').update(updates).eq('id', request.id);
 
   // If everyone has signed, emit the closing 'completed' event so
-  // the audit trail terminates cleanly.
+  // the audit trail terminates cleanly, and notify every signer
+  // (plus the firm member who created the request) that the doc is
+  // fully executed.
   if (nextStatus === 'completed') {
     await appendSignatureEvent(admin, {
       signingRequestId: request.id,
@@ -217,6 +219,65 @@ export async function POST(req: NextRequest) {
       documentSha256: request.document_sha256,
       metadata: { total_signers: total, signed: signed },
     });
+
+    try {
+      const { createNotification } = await import('@/lib/notifications');
+      // Pull the document name + the firm member who created the
+      // request so we can populate the notification body cleanly.
+      const { data: docRow } = await admin
+        .from('firm_documents')
+        .select('name')
+        .eq('id', request.document_id)
+        .maybeSingle();
+      const docName =
+        (docRow as { name?: string } | null)?.name ?? 'Document';
+      const { data: reqRow2 } = await admin
+        .from('firm_signing_requests')
+        .select('requested_by')
+        .eq('id', request.id)
+        .maybeSingle();
+      const requestedBy =
+        (reqRow2 as { requested_by?: string } | null)?.requested_by ?? null;
+
+      // Notify every signer that the document is fully executed.
+      const { data: allSignerRows } = await admin
+        .from('firm_signatures')
+        .select('signer_email')
+        .eq('signing_request_id', request.id);
+      const emails = ((allSignerRows ?? []) as { signer_email: string }[])
+        .map((r) => r.signer_email.toLowerCase())
+        .filter(Boolean);
+      if (emails.length > 0) {
+        const { data: usersResp } = await admin.auth.admin.listUsers({
+          page: 1,
+          perPage: 200,
+        });
+        const matched = (usersResp?.users ?? []).filter((u) =>
+          u.email && emails.includes(u.email.toLowerCase()),
+        );
+        for (const u of matched) {
+          await createNotification({
+            userId: u.id,
+            type: 'signing_request_completed',
+            title: `Fully executed: ${docName}`,
+            body: 'All signers have completed their signatures.',
+            link: '/inbox/documents',
+          });
+        }
+      }
+      // Notify the firm member who initiated the request.
+      if (requestedBy) {
+        await createNotification({
+          userId: requestedBy,
+          type: 'signing_request_completed',
+          title: `Fully executed: ${docName}`,
+          body: 'All signers on the request you sent have completed.',
+          link: '/counsel/signing',
+        });
+      }
+    } catch {
+      /* notifications are best-effort */
+    }
   }
 
   return NextResponse.json({ ok: true });

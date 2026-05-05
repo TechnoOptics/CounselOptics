@@ -487,6 +487,145 @@ function firmCaseFromRow(r: CaseRow): Case {
 }
 
 /**
+ * Consumer-side documents inbox: every signing request currently
+ * pointed at the calling user's email address, joined to its parent
+ * request, document, and firm so the inbox can render firm name +
+ * document name + status without N+1 lookups.
+ *
+ * Uses the service role because firm_signatures RLS only allows
+ * firm members to read their firm's rows; consumers need to see
+ * rows that target THEIR email even when they're not in the firm.
+ * Caller is identified via the signed-in user from the Supabase
+ * session; we never expose other people's signing rows.
+ */
+export type ConsumerInboxDocument = {
+  signatureId: string;
+  signingRequestId: string;
+  token: string;
+  documentName: string;
+  firmName: string;
+  firmAccentColor: string;
+  signerEmail: string;
+  signerName: string | null;
+  signedAt: string | null;
+  requestStatus: string;
+  requestSentAt: string | null;
+  requestCompletedAt: string | null;
+};
+
+export async function listConsumerInboxDocuments(
+  email: string,
+): Promise<ConsumerInboxDocument[]> {
+  if (!email) return [];
+  const admin = createAdminSupabase();
+  if (!admin) return [];
+
+  // 1. Pull every signature row addressed to this email. Order
+  //    pending first (signed_at null) then most-recently-signed.
+  const { data: sigsData, error: sigsErr } = await admin
+    .from('firm_signatures')
+    .select(
+      'id, signing_request_id, token, signer_email, signer_name, signed_at',
+    )
+    .eq('signer_email', email.toLowerCase())
+    .order('signed_at', { ascending: false, nullsFirst: true });
+  if (sigsErr) {
+    console.error('[listConsumerInboxDocuments] signatures', sigsErr.message);
+    return [];
+  }
+  const sigs = (sigsData ?? []) as Array<{
+    id: string;
+    signing_request_id: string;
+    token: string;
+    signer_email: string;
+    signer_name: string | null;
+    signed_at: string | null;
+  }>;
+  if (sigs.length === 0) return [];
+
+  // 2. Batch-fetch the parent signing requests.
+  const requestIds = Array.from(new Set(sigs.map((s) => s.signing_request_id)));
+  const { data: reqsData } = await admin
+    .from('firm_signing_requests')
+    .select('id, status, sent_at, completed_at, document_id, firm_id')
+    .in('id', requestIds);
+  const reqMap = new Map<
+    string,
+    {
+      status: string;
+      sent_at: string | null;
+      completed_at: string | null;
+      document_id: string;
+      firm_id: string;
+    }
+  >();
+  for (const r of (reqsData ?? []) as Array<{
+    id: string;
+    status: string;
+    sent_at: string | null;
+    completed_at: string | null;
+    document_id: string;
+    firm_id: string;
+  }>) {
+    reqMap.set(r.id, r);
+  }
+
+  // 3. Batch-fetch the documents.
+  const docIds = Array.from(
+    new Set(
+      Array.from(reqMap.values()).map((v) => v.document_id),
+    ),
+  );
+  const { data: docsData } = await admin
+    .from('firm_documents')
+    .select('id, name')
+    .in('id', docIds);
+  const docMap = new Map<string, string>();
+  for (const d of (docsData ?? []) as Array<{ id: string; name: string }>) {
+    docMap.set(d.id, d.name);
+  }
+
+  // 4. Batch-fetch the firms.
+  const firmIds = Array.from(
+    new Set(Array.from(reqMap.values()).map((v) => v.firm_id)),
+  );
+  const { data: firmsData } = await admin
+    .from('firms')
+    .select('id, name, accent_color')
+    .in('id', firmIds);
+  const firmMap = new Map<string, { name: string; accent: string }>();
+  for (const f of (firmsData ?? []) as Array<{
+    id: string;
+    name: string;
+    accent_color: string;
+  }>) {
+    firmMap.set(f.id, { name: f.name, accent: f.accent_color });
+  }
+
+  return sigs
+    .map((s) => {
+      const r = reqMap.get(s.signing_request_id);
+      if (!r) return null;
+      const firm = firmMap.get(r.firm_id);
+      return {
+        signatureId: s.id,
+        signingRequestId: s.signing_request_id,
+        token: s.token,
+        documentName: docMap.get(r.document_id) ?? 'Document',
+        firmName: firm?.name ?? 'Firm',
+        firmAccentColor: firm?.accent ?? '#1f4936',
+        signerEmail: s.signer_email,
+        signerName: s.signer_name,
+        signedAt: s.signed_at,
+        requestStatus: r.status,
+        requestSentAt: r.sent_at,
+        requestCompletedAt: r.completed_at,
+      } as ConsumerInboxDocument;
+    })
+    .filter((v): v is ConsumerInboxDocument => v !== null);
+}
+
+/**
  * Cases shared with the firm (i.e. cases.firm_id = firmId). RLS
  * already restricts the user-scoped client to firm members; this
  * function additionally filters to a specific firm so a user in

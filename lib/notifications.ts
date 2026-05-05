@@ -9,6 +9,11 @@ export type NotificationType =
   | 'case_review_complete'
   | 'case_hearing_reminder'
   | 'case_status_changed'
+  | 'signing_request_received'
+  | 'signing_request_completed'
+  | 'signing_request_canceled'
+  | 'meeting_scheduled'
+  | 'document_received'
   | 'system';
 
 export type AppNotification = {

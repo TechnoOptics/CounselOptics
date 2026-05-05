@@ -1,5 +1,7 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import type { Metadata } from 'next';
+import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { listCases } from '@/lib/storage';
 import { storageUnavailable } from '@/lib/setup-status';
 import { TestimonialMarquee } from '@/components/TestimonialMarquee';
@@ -40,6 +42,18 @@ export const metadata: Metadata = {
 };
 
 export default async function HomePage() {
+  // Once a user is signed in, the marketing splash is noise. Send
+  // them to their cases dashboard instead. Non-blocking on Supabase
+  // misconfig - we silently skip the auth check if it's not wired.
+  if (isSupabaseConfigured()) {
+    try {
+      const user = await getCurrentUser();
+      if (user) redirect('/cases');
+    } catch {
+      /* fall through to marketing */
+    }
+  }
+
   let cases: Awaited<ReturnType<typeof listCases>> = [];
   if (!storageUnavailable()) {
     try {

@@ -738,6 +738,10 @@ export async function createSigningRequestAction(
       signer_count: signers.length,
     },
   });
+  // Lazy-load the notifications producer so this action stays cheap
+  // when notifications are no-ops (eg. Supabase not configured in dev).
+  const { createNotification } = await import('./notifications');
+
   for (const signer of signers) {
     const token = newToken(32);
     await admin.from('firm_signatures').insert({
@@ -752,6 +756,31 @@ export async function createSigningRequestAction(
     const url =
       (process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://www.advottic.com') +
       `/sign/${token}`;
+
+    // If the signer is already an Advottic user, drop a notification
+    // in their inbox so they discover the request without relying on
+    // email delivery.
+    try {
+      const { data: signerUser } = await admin.auth.admin.listUsers({
+        page: 1,
+        perPage: 50,
+      });
+      const matchedUser = (signerUser?.users ?? []).find(
+        (u) => u.email?.toLowerCase() === signer.email.trim().toLowerCase(),
+      );
+      if (matchedUser) {
+        await createNotification({
+          userId: matchedUser.id,
+          type: 'signing_request_received',
+          title: `Signature requested: ${docName}`,
+          body: `${user.email ?? 'A firm member'} sent you "${docName}" for signature.`,
+          link: `/sign/${token}`,
+        });
+      }
+    } catch {
+      /* notifications are best-effort */
+    }
+
     await sendEmail({
       to: signer.email,
       subject: `Signature requested: ${docName}`,
