@@ -195,34 +195,40 @@ html.dark body::before {
    only fires when the text element's parent IS the offending background.
    This is a safety net, not the primary styling system.
 
-   `.bg-white` already gets repainted to forest-900 in dark mode by the rules
-   above, so the dark-on-dark guards naturally cover dark-mode cards too. */
-.bg-white > .text-cream-50,
-.bg-white > .text-cream-100,
-.bg-white > .text-cream-200,
-.bg-cream-50 > .text-cream-50,
-.bg-cream-50 > .text-cream-100,
-.bg-cream-100 > .text-cream-50,
-.bg-cream-100 > .text-cream-100,
-.bg-cream-200 > .text-cream-50,
-.bg-cream-200 > .text-cream-100 {
+   IMPORTANT: every guard is gated by `html:not(.dark)` (light-on-light) or
+   `html.dark` (dark-on-dark) because Tailwind's `dark:bg-forest-900` variant
+   does NOT remove `bg-white` from the class list - the structural selector
+   `.bg-white > .text-cream-100` would otherwise force cream text to dark
+   forest even on a card that is *painted* forest-900 in dark mode, which is
+   what made HQ stat numbers render invisible-on-invisible. The
+   theme-scoping makes the guard fire only on the surface that is actually
+   being painted that color. */
+html:not(.dark) .bg-white > .text-cream-50,
+html:not(.dark) .bg-white > .text-cream-100,
+html:not(.dark) .bg-white > .text-cream-200,
+html:not(.dark) .bg-cream-50 > .text-cream-50,
+html:not(.dark) .bg-cream-50 > .text-cream-100,
+html:not(.dark) .bg-cream-100 > .text-cream-50,
+html:not(.dark) .bg-cream-100 > .text-cream-100,
+html:not(.dark) .bg-cream-200 > .text-cream-50,
+html:not(.dark) .bg-cream-200 > .text-cream-100 {
   color: #0f2d24; /* forest-900 - the project's "dark green" */
 }
 
-.bg-forest-900 > .text-forest-900,
-.bg-forest-900 > .text-forest-800,
-.bg-forest-900 > .text-forest-700,
-.bg-forest-900 > .text-ink-700,
-.bg-forest-900 > .text-ink-800,
-.bg-forest-900 > .text-ink-900,
-.bg-forest-900 > .text-ink-950,
-.bg-forest-950 > .text-forest-900,
-.bg-forest-950 > .text-forest-800,
-.bg-forest-950 > .text-forest-700,
-.bg-forest-950 > .text-ink-700,
-.bg-forest-950 > .text-ink-800,
-.bg-forest-950 > .text-ink-900,
-.bg-forest-950 > .text-ink-950 {
+html.dark .bg-forest-900 > .text-forest-900,
+html.dark .bg-forest-900 > .text-forest-800,
+html.dark .bg-forest-900 > .text-forest-700,
+html.dark .bg-forest-900 > .text-ink-700,
+html.dark .bg-forest-900 > .text-ink-800,
+html.dark .bg-forest-900 > .text-ink-900,
+html.dark .bg-forest-900 > .text-ink-950,
+html.dark .bg-forest-950 > .text-forest-900,
+html.dark .bg-forest-950 > .text-forest-800,
+html.dark .bg-forest-950 > .text-forest-700,
+html.dark .bg-forest-950 > .text-ink-700,
+html.dark .bg-forest-950 > .text-ink-800,
+html.dark .bg-forest-950 > .text-ink-900,
+html.dark .bg-forest-950 > .text-ink-950 {
   color: #fbf7e9; /* cream-50 */
 }
 
@@ -301,6 +307,58 @@ body > * {
     transparent 100%
   );
   filter: blur(0.5px) drop-shadow(0 0 8px rgba(213, 187, 126, 0.85));
+  animation: co-header-shimmer 12s linear infinite;
+}
+
+/*
+ * Tenant variant of the header glow line - used on <slug>.advottic.com
+ * (counsel layout in tenant mode). Reads var(--firm-accent) which the
+ * counsel layout sets from firms.accent_color so each white-label
+ * tenant gets a strip in their brand color while every text element
+ * keeps its hard-coded accessible foreground. Gold fallback covers
+ * the case where --firm-accent isn't set (shared enterprise.advottic.com
+ * portal still shows the regular gold strip).
+ *
+ * Implementation note: we duplicate the structure rather than
+ * cascade-override because the keyframes + ::after geometry are easier
+ * to scan when each variant is its own self-contained block. The
+ * shimmer ::after stays cream-on-accent to keep the highlight visible
+ * even on dark accents (a pure-blue strip with a pure-blue shimmer
+ * reads as a flat line).
+ */
+.header-glow-line-tenant {
+  position: relative;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in oklab, var(--firm-accent, #d5bb7e) 70%, transparent) 25%,
+    var(--firm-accent, #d5bb7e) 50%,
+    color-mix(in oklab, var(--firm-accent, #d5bb7e) 70%, transparent) 75%,
+    transparent 100%
+  );
+  box-shadow:
+    0 1px 4px color-mix(in oklab, var(--firm-accent, #d5bb7e) 55%, transparent),
+    0 4px 14px color-mix(in oklab, var(--firm-accent, #d5bb7e) 32%, transparent),
+    0 10px 32px color-mix(in oklab, var(--firm-accent, #d5bb7e) 18%, transparent);
+  overflow: hidden;
+}
+.header-glow-line-tenant::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 30%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(245, 237, 214, 0.7) 30%,
+    color-mix(in oklab, var(--firm-accent, #d5bb7e) 60%, white 40%) 50%,
+    rgba(245, 237, 214, 0.7) 70%,
+    transparent 100%
+  );
+  filter: blur(0.5px) drop-shadow(0 0 8px color-mix(in oklab, var(--firm-accent, #d5bb7e) 70%, transparent));
   animation: co-header-shimmer 12s linear infinite;
 }
 

@@ -45,7 +45,7 @@ export function CounselHeader({
     // mobile. With viewport-fit=cover (set globally), the page renders
     // under those cutouts, so without this padding the body's lighter
     // background bleeds through behind the camera area.
-    <header className="border-b border-forest-700/50 bg-forest-950/95 backdrop-blur-md sticky top-0 z-30 pt-[env(safe-area-inset-top)]">
+    <header className="bg-forest-950/95 backdrop-blur-md sticky top-0 z-30 pt-[env(safe-area-inset-top)]">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
         {tenantMode ? (
           // Tenant mode: firm IS the brand because the URL bar shows
@@ -174,6 +174,20 @@ export function CounselHeader({
           <UserMenu />
         </div>
       </div>
+      {/* Decorative glow strip under the header. On a tenant subdomain
+          (tenantMode=true) it picks up the firm's accent color via the
+          --firm-accent CSS variable that the counsel layout sets from
+          firms.accent_color. On the shared enterprise.advottic.com
+          portal it falls through to the regular gold strip so the
+          surface stays in the Advottic brand family.
+          Text colors stay hard-coded cream/gold in BOTH modes - the
+          accent only paints the strip, never type, so a firm whose
+          accent happens to match the dark forest background can still
+          read every label. */}
+      <div
+        className={tenantMode ? 'header-glow-line-tenant' : 'header-glow-line'}
+        aria-hidden
+      />
     </header>
   );
 }
