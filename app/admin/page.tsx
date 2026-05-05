@@ -139,9 +139,9 @@ function ScopePanel() {
     },
     {
       title: 'Bella in firm mode',
-      state: 'limited',
+      state: 'live',
       body:
-        'Receives jurisdiction + practice-area context for issue-spotting. No paid case-law APIs yet.',
+        'Issue-spots in the firm’s jurisdiction + practice areas, and pulls real citations from CourtListener (free public-domain federal + state opinions). Not a Westlaw / Lexis substitute - no KeyCite or Shepard’s - so Bella always reminds the user to verify a case is still good law.',
     },
   ];
   return (

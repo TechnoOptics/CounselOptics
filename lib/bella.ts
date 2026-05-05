@@ -80,6 +80,7 @@ You have tools. Prefer using them over describing things:
   - /security - trust center
 - **search_my_cases(query?, limit?)** - search the signed-in user's cases by title or subject text. Returns id, title, status, subject, jurisdiction, hearing date. Use whenever the user asks "where is my case about X" or "show me my open cases" or anything similar.
 - **get_case_detail(case_id)** - pull full detail for a specific case (description, exhibits, latest Advottic Review review summary). Use after search_my_cases narrows down the case the user means.
+- **search_case_law(query, jurisdiction?, date_after?, date_before?, limit?)** - look up real judicial opinions in CourtListener (free public-domain database from Free Law Project; covers SCOTUS, federal circuits, and most state appellate courts). Use whenever the user asks about precedent, "is there a case on X", or you would otherwise have hedged with "the canonical case might be...". Always cite the URL returned. Remind the user this is not a paid database (no KeyCite, no Shepard's) and to verify the case is still good law before relying on it.
 
 How to use tools well:
 - When the user says "create a new case" or "let's start a case", call navigate_to('/cases/new') so the wizard opens. Add a one-line confirmation in your reply.
@@ -149,7 +150,7 @@ You are speaking with a member of ${input.firmName}, a law firm using Advottic C
 Counsel-mode behavior:
 - The user is inside /counsel/*, the law-firm perspective. Address them as a legal professional. You can use more legal terminology than in consumer mode, but still hedge ("appears to", "may", "could potentially") since you are not a substitute for the firm's research team.
 - When asked to analyze a case, focus on issue-spotting (claims, defenses, procedural deadlines, evidence gaps), reference applicable doctrines in the firm's jurisdictions, and suggest concrete next steps the firm can take inside Advottic (upload documents to the vault, send for in-app signing, share with the client, set a hearing reminder).
-- You do NOT have a paid case-law database. When a citation is needed, describe the doctrine in plain language, name the canonical case if you can with appropriate hedging, and tell the user to verify the citation in their own research tools (Westlaw, Lexis, Fastcase, Casetext) before relying on it.
+- For citations, you have search_case_law available - use it. CourtListener is free and covers federal + most state opinions. Reach for it whenever the user asks "is there a case on X", asks for precedent, or you would otherwise hedge with "the canonical case might be...". Cite the URL it returns so the firm can read the source. Always remind the user to confirm with KeyCite / Shepard's in their paid research tools (Westlaw, Lexis, Fastcase, Casetext) before relying on it - CourtListener does not signal whether a case has been overturned, distinguished, or limited.
 - For state-specific procedural questions, lean on the jurisdictions listed above. If the user asks about a state outside the firm's listed jurisdictions, answer generally and recommend they confirm with local counsel.
 - Refuse to draft legally-binding language as a substitute for an attorney's review. You can produce DRAFT clauses, outlines, demand-letter scaffolds with placeholders for facts, but every output should remind the user that the firm's licensed attorney is the one who signs off.
 `;
@@ -210,7 +211,11 @@ export type BellaMode = 'authed' | 'public' | 'doc-review';
 
 // Tool definitions. The authed user gets the full set; public visitors
 // only get navigate_to (pointing at /sign-in, /example, etc.).
-type ToolName = 'navigate_to' | 'search_my_cases' | 'get_case_detail';
+type ToolName =
+  | 'navigate_to'
+  | 'search_my_cases'
+  | 'get_case_detail'
+  | 'search_case_law';
 
 const NAVIGATE_TOOL: Anthropic.Messages.Tool = {
   name: 'navigate_to',
@@ -269,12 +274,60 @@ const GET_CASE_DETAIL_TOOL: Anthropic.Messages.Tool = {
   },
 };
 
+const SEARCH_CASE_LAW_TOOL: Anthropic.Messages.Tool = {
+  name: 'search_case_law',
+  description:
+    'Look up case law and judicial opinions via CourtListener (Free Law Project, free public access, federal + state coverage). ' +
+    'Use to ground answers in actual citations when the user asks about precedent, asks "is there a case on X", or you would otherwise reach for a paid service like Westlaw / LexisNexis. ' +
+    'Returns up to `limit` opinions with case name, citation, court, decision date, jurisdiction, a short snippet, and a public CourtListener URL Bella can link to. ' +
+    'IMPORTANT - this is NOT a paid case-law database: results are public-domain opinions, do not include headnotes / KeyCite / Shepard\'s, and depth varies by jurisdiction. Always cite the URL so the user can read the source. Always remind the user to confirm the holding with a licensed attorney before relying on it.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      query: {
+        type: 'string',
+        description:
+          'Search query. Plain English works ("res ipsa loquitur dog bite"). Operators supported: quotes for phrases, AND/OR/NOT, fielded search like court:scotus or judge:"Sotomayor". Keep under 200 chars.',
+      },
+      jurisdiction: {
+        type: 'string',
+        description:
+          'Optional jurisdiction filter. Use a CourtListener court id (e.g. "scotus" for SCOTUS, "ca9" for 9th Circuit, "minnctapp" for Minn Court of Appeals, "tex" for Texas Supreme). Omit for nationwide.',
+      },
+      date_after: {
+        type: 'string',
+        description: 'Optional ISO date (YYYY-MM-DD). Filters to opinions filed on or after this date.',
+      },
+      date_before: {
+        type: 'string',
+        description: 'Optional ISO date (YYYY-MM-DD). Filters to opinions filed on or before this date.',
+      },
+      limit: {
+        type: 'integer',
+        minimum: 1,
+        maximum: 10,
+        description: 'Max opinions to return. Default 5; cap 10 to keep the response readable.',
+      },
+    },
+    required: ['query'],
+  },
+};
+
 function toolsFor(mode: BellaMode): Anthropic.Messages.Tool[] {
   if (mode === 'authed') {
-    return [NAVIGATE_TOOL, SEARCH_CASES_TOOL, GET_CASE_DETAIL_TOOL];
+    return [
+      NAVIGATE_TOOL,
+      SEARCH_CASES_TOOL,
+      GET_CASE_DETAIL_TOOL,
+      SEARCH_CASE_LAW_TOOL,
+    ];
   }
   if (mode === 'public') {
-    return [NAVIGATE_TOOL];
+    // Public visitors can search case law too - it's a discovery
+    // surface that helps them understand whether their situation has
+    // legal precedent, without requiring a sign-up. Still no paid
+    // database access; same disclaimer applies.
+    return [NAVIGATE_TOOL, SEARCH_CASE_LAW_TOOL];
   }
   return []; // doc-review is one-shot, no tools
 }
@@ -445,7 +498,138 @@ async function executeTool(
     };
   }
 
+  if (name === 'search_case_law') {
+    return await searchCourtListener(input);
+  }
+
   return { ok: false, error: `Unknown tool: ${name}` };
+}
+
+/**
+ * CourtListener / Free Law Project search. Free public-domain case
+ * law - federal + most state opinions. No auth required for basic
+ * search; we send the optional COURTLISTENER_API_TOKEN if present so
+ * we get the per-token rate limit (5,000 req/hr) instead of the
+ * anonymous one (5,000 req/day per IP). Token is set in
+ * COURTLISTENER_API_TOKEN env var (server-only).
+ *
+ * API docs: https://www.courtlistener.com/help/api/rest/
+ *
+ * The shape we return to Bella is intentionally compact: she does
+ * NOT need every snippet field, just enough to cite the case in a
+ * one-paragraph answer with a link the user can click to read the
+ * actual opinion.
+ */
+async function searchCourtListener(input: Record<string, unknown>) {
+  const query = String(input.query ?? '').trim().slice(0, 200);
+  if (!query) {
+    return { ok: false, error: 'Empty query.' };
+  }
+  const rawLimit = Number(input.limit ?? 5);
+  const limit = Math.min(10, Math.max(1, Number.isFinite(rawLimit) ? rawLimit : 5));
+  const url = new URL('https://www.courtlistener.com/api/rest/v4/search/');
+  url.searchParams.set('type', 'o'); // opinions
+  url.searchParams.set('q', query);
+  url.searchParams.set('order_by', 'score desc');
+  url.searchParams.set('format', 'json');
+  // CourtListener pages at 20 by default; we slice client-side to
+  // keep the response small.
+  const jurisdiction = String(input.jurisdiction ?? '').trim();
+  if (jurisdiction) url.searchParams.set('court', jurisdiction);
+  const dateAfter = String(input.date_after ?? '').trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateAfter)) {
+    url.searchParams.set('filed_after', dateAfter);
+  }
+  const dateBefore = String(input.date_before ?? '').trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateBefore)) {
+    url.searchParams.set('filed_before', dateBefore);
+  }
+
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    'User-Agent': 'Advottic-Bella/1.0 (https://advottic.com)',
+  };
+  const token = process.env.COURTLISTENER_API_TOKEN?.trim();
+  if (token) headers.Authorization = `Token ${token}`;
+
+  let res: Response;
+  try {
+    // Time-cap the call so a slow CourtListener response can't stall
+    // a Bella turn. 6s is well above their typical p99 (~1.5s).
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 6_000);
+    res = await fetch(url.toString(), {
+      headers,
+      cache: 'no-store',
+      signal: ctl.signal,
+    });
+    clearTimeout(timer);
+  } catch (err) {
+    return {
+      ok: false,
+      error: `CourtListener request failed: ${err instanceof Error ? err.message : 'unknown'}.`,
+    };
+  }
+  if (!res.ok) {
+    return {
+      ok: false,
+      error: `CourtListener returned ${res.status}.`,
+    };
+  }
+
+  type Result = {
+    caseName?: string;
+    citation?: string[] | string | null;
+    court?: string | null;
+    court_id?: string | null;
+    dateFiled?: string | null;
+    snippet?: string | null;
+    absolute_url?: string | null;
+    docket_id?: number | null;
+    cluster_id?: number | null;
+  };
+  let body: { count?: number; results?: Result[] };
+  try {
+    body = (await res.json()) as { count?: number; results?: Result[] };
+  } catch {
+    return { ok: false, error: 'CourtListener returned non-JSON.' };
+  }
+  const results = (body.results ?? []).slice(0, limit).map((r) => {
+    const citationArr = Array.isArray(r.citation)
+      ? r.citation
+      : r.citation
+        ? [r.citation]
+        : [];
+    const url = r.absolute_url
+      ? `https://www.courtlistener.com${r.absolute_url}`
+      : null;
+    // Strip CourtListener's <em>...</em> highlight markup from the
+    // snippet so Bella's plain-text rendering doesn't show literal
+    // tags. Cap the snippet at 320 chars to keep the tool result
+    // small.
+    const rawSnippet = (r.snippet ?? '').replace(/<\/?em>/g, '');
+    const snippet = rawSnippet.length > 320
+      ? rawSnippet.slice(0, 317) + '...'
+      : rawSnippet;
+    return {
+      case_name: r.caseName ?? null,
+      citation: citationArr.slice(0, 3),
+      court: r.court ?? null,
+      court_id: r.court_id ?? null,
+      date_filed: r.dateFiled ?? null,
+      snippet,
+      url,
+    };
+  });
+
+  return {
+    ok: true,
+    total_matches: body.count ?? results.length,
+    returned: results.length,
+    results,
+    disclaimer:
+      'CourtListener is a free public-domain database (Free Law Project). Coverage and depth vary by jurisdiction; this is not Westlaw / LexisNexis / Bloomberg Law and does not include headnotes, KeyCite signals, or Shepard\'s. Always confirm the holding and current validity with a licensed attorney before relying on it.',
+  };
 }
 
 const MAX_AGENT_TURNS = 5;
