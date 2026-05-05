@@ -984,6 +984,74 @@ export async function updateFirmBrandingAction(
   }
 }
 
+/**
+ * Disconnect a firm's OAuth integration with a third-party provider
+ * (Microsoft 365, Zoom, etc). Soft-revokes - we keep the row for the
+ * audit trail of who disconnected and when, but null out the encrypted
+ * tokens so they cannot be used. The next /authorize hit by any firm
+ * member upserts a fresh connection (revoked_at clears, new tokens
+ * land).
+ */
+export async function disconnectFirmIntegrationAction(
+  firmId: string,
+  provider: 'microsoft' | 'zoom',
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const user = await getCurrentUser();
+    if (!user) return { ok: false, error: 'Sign in first.' };
+    const supabase = createServerSupabase();
+    // Owner/admin gate via RLS on firm_integrations + an explicit role
+    // check so non-admins get a friendlier error than the generic
+    // "no rows updated."
+    const { data: member } = await supabase
+      .from('firm_members')
+      .select('role')
+      .eq('firm_id', firmId)
+      .eq('user_id', user.id)
+      .maybeSingle();
+    if (!member) {
+      return { ok: false, error: 'You are not a member of that firm.' };
+    }
+    const role = (member as { role: string }).role;
+    if (!['owner', 'admin'].includes(role)) {
+      return {
+        ok: false,
+        error: 'Only firm owners or admins can disconnect integrations.',
+      };
+    }
+    const { createAdminSupabase } = await import('./supabase/admin');
+    const admin = createAdminSupabase();
+    if (!admin) {
+      return {
+        ok: false,
+        error: 'Service role is not configured on this deployment.',
+      };
+    }
+    const { error: updateErr } = await admin
+      .from('firm_integrations')
+      .update({
+        revoked_at: new Date().toISOString(),
+        revoked_by: user.id,
+      })
+      .eq('firm_id', firmId)
+      .eq('provider', provider);
+    if (updateErr) {
+      return { ok: false, error: updateErr.message };
+    }
+    revalidatePath('/counsel/meetings');
+    return { ok: true };
+  } catch (err) {
+    console.error('[disconnectFirmIntegrationAction] failed', err);
+    return {
+      ok: false,
+      error:
+        err instanceof Error
+          ? err.message
+          : 'Could not disconnect integration.',
+    };
+  }
+}
+
 export async function revokeTenantSubdomainAction(
   firmId: string,
 ): Promise<SubdomainProvisionResult> {

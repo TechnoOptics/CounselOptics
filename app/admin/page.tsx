@@ -133,9 +133,9 @@ function ScopePanel() {
     },
     {
       title: 'MS 365 + Zoom integrations',
-      state: 'stub',
+      state: 'preview',
       body:
-        'Buttons are stubbed. Manual meeting capture works today; OAuth lands when the developer-portal apps are registered.',
+        'OAuth handshake + encrypted token storage are live. Connect from /counsel/meetings once the developer-portal apps are registered and MICROSOFT_CLIENT_ID / ZOOM_CLIENT_ID are set in Vercel env. Scheduling-from-case + meeting auto-link in chat ship next.',
     },
     {
       title: 'Bella in firm mode',
