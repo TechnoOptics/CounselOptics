@@ -17,6 +17,7 @@ const ITEMS: Array<{
   { href: '/counsel/chat', label: 'Chat', icon: <ChatIcon />, hint: 'Channels + DMs' },
   { href: '/counsel/meetings', label: 'Meetings', icon: <CalIcon />, hint: 'Calendar' },
   { href: '/counsel/leads', label: 'Leads', icon: <UsersIcon />, hint: 'Inbound from /find-counsel' },
+  { href: '/counsel/referrals', label: 'Referrals', icon: <UsersIcon />, hint: 'Co-counsel + fee splits' },
   { href: '/counsel/time', label: 'Time', icon: <DashIcon />, hint: 'Time entries' },
   { href: '/counsel/billing', label: 'Billing', icon: <SignIcon />, hint: 'Invoices' },
   { href: '/counsel/trust', label: 'Trust', icon: <SignIcon />, hint: 'IOLTA ledger' },
