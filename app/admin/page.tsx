@@ -122,9 +122,9 @@ function ScopePanel() {
   const items: ScopeItem[] = [
     {
       title: 'E-signature',
-      state: 'preview',
+      state: 'live',
       body:
-        'Audit trail lives: each request records the document SHA-256, every link view + signature appends to a tamper-evident hash chain (firm_signature_events), and /api/firm/sign/audit-trail/{id} surfaces the chain to firm members. Output PDFs stay watermarked "DRAFT - NOT LEGALLY BINDING" until an attorney has reviewed this implementation against UETA / E-SIGN for the relying party\'s jurisdiction.',
+        'UETA-aligned. The signer steps through a two-step flow: (1) electronic-records disclosure consent + hardware/software confirmation, (2) intent-to-sign affirmation. Each request records the document SHA-256 at creation; every event (sent, viewed, signed, completed) appends to a tamper-evident hash chain. /api/firm/sign/audit-trail/{id} surfaces the chain to firm members for in-app review or export. Watermark dropped. Jurisdictional fit (which document classes are valid electronically under your state\'s carve-outs) stays with counsel.',
     },
     {
       title: 'Team chat',

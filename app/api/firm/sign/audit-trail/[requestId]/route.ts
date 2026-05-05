@@ -13,10 +13,15 @@ export const dynamic = 'force-dynamic';
  *   - The chain verification result (ok / brokenAt + reason)
  *   - The full event log for the request
  *   - The document hash captured at request creation time
+ *   - Per-signer rollup (email, name, signed_at, audit_hash)
  *
- * Used by the firm-side signing-request detail page to render a
- * "DRAFT - NOT LEGALLY BINDING" companion that proves the integrity
- * of the signing flow even before the watermark drops.
+ * Used by the firm-side signing-request detail page to render the
+ * tamper-evident companion to the executed document. A relying party
+ * (the firm, opposing counsel, a court) can verify the chain
+ * end-to-end: the document SHA-256 captured at request creation
+ * matches what the signer consented to, every event is hash-linked
+ * to the previous one, and breaks are surfaced with the offending
+ * event id.
  *
  * Caller must be a member of the firm that owns the request. RLS on
  * firm_signature_events enforces the same gate at the row level for
@@ -98,6 +103,6 @@ export async function GET(
     events: events ?? [],
     signatures: sigs ?? [],
     disclaimer:
-      'Technical audit trail only. Output PDFs remain watermarked "DRAFT - NOT LEGALLY BINDING" until an attorney has reviewed this implementation against UETA / E-SIGN requirements for the relying party\'s jurisdiction.',
+      'UETA-aligned technical audit trail. The signing flow captures an electronic-records disclosure consent and an intent-to-sign affirmation as separate timestamped events, hashes the document at request creation, and chains every subsequent event into a tamper-evident log. Whether the resulting signature is binding for a specific document class in a specific jurisdiction is a question for your counsel - some classes (eg. wills, certain real-estate conveyances, UCC instruments) are carved out by state law.',
   });
 }

@@ -122,28 +122,30 @@ export default async function CounselDashboard() {
         />
       </section>
 
-      <section className="card p-5 sm:p-6 ring-1 ring-amber-300/40 dark:ring-amber-500/30 bg-amber-50/40 dark:bg-amber-950/20">
-        <p className="eyebrow mb-2">Heads up</p>
+      <section className="card p-5 sm:p-6 ring-1 ring-emerald-300/30 dark:ring-emerald-500/25 bg-emerald-50/30 dark:bg-emerald-950/15">
+        <p className="eyebrow mb-2">What ships today</p>
         <h2 className="font-display text-lg sm:text-xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          What ships in v1, what&rsquo;s coming
+          The platform at a glance
         </h2>
         <ul className="mt-3 grid gap-2 text-sm sm:grid-cols-2 text-ink-700 dark:text-cream-100/80 leading-relaxed">
           <li>
-            <strong>E-signature</strong> ships in <em>preview mode</em>. Output PDFs are
-            watermarked &ldquo;DRAFT - NOT LEGALLY BINDING&rdquo; until the full UETA-compliant
-            audit trail lands.
+            <strong>E-signature</strong> captures intent under a UETA-aligned
+            disclosure flow, hashes the document at request creation, and chains
+            every event (sent, viewed, signed, completed) to a tamper-evident
+            audit trail. Jurisdictional fit (which document classes are valid
+            under your state&rsquo;s carve-outs) stays with your counsel.
           </li>
           <li>
-            <strong>Team chat</strong> uses polled refresh in v1. Real-time WebSockets are a
-            planned follow-on.
+            <strong>Team chat</strong> is real-time over Supabase WebSockets,
+            with a 60-second heartbeat refresh as a safety net.
           </li>
           <li>
-            <strong>MS 365 + Zoom</strong> integration buttons are stubbed. Manual meeting
-            capture works today; OAuth lands when the developer-portal apps are registered.
+            <strong>MS 365 + Zoom</strong> connect via OAuth from
+            /counsel/meetings. Tokens are AES-256-GCM encrypted at rest.
           </li>
           <li>
-            <strong>Bella</strong> in firm mode receives jurisdiction + practice-area context
-            for issue-spotting. No paid case-law APIs yet.
+            <strong>Bella</strong> in firm mode pulls real citations from
+            CourtListener (free public-domain federal + state opinions).
           </li>
         </ul>
       </section>

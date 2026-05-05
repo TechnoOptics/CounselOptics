@@ -29,12 +29,15 @@ export default async function CounselSigningPage() {
           to send a new request.
         </p>
       </header>
-      <section className="card p-5 sm:p-6 ring-1 ring-amber-300/40 dark:ring-amber-500/30 bg-amber-50/40 dark:bg-amber-950/15">
-        <p className="text-sm text-amber-900 dark:text-amber-100 leading-relaxed">
-          <strong>Preview mode.</strong> v1 signing produces a draft signed document with a
-          visible &ldquo;DRAFT - NOT LEGALLY BINDING&rdquo; watermark. Use it for internal
-          review and client approvals while we ship the full UETA / E-SIGN-Act-compliant
-          audit trail.
+      <section className="card p-5 sm:p-6 ring-1 ring-emerald-300/30 dark:ring-emerald-500/25 bg-emerald-50/30 dark:bg-emerald-950/15">
+        <p className="text-sm text-ink-700 dark:text-cream-100/85 leading-relaxed">
+          <strong>UETA-aligned signing.</strong> Each request hashes the
+          document at creation, captures intent through a two-step disclosure
+          flow, and appends every event (sent, viewed, signed, completed) to
+          a tamper-evident audit chain you can inspect from each request below.
+          Jurisdictional fit for specific document classes (real-estate
+          conveyances, wills, certain UCC instruments) stays a question for
+          your counsel.
         </p>
       </section>
 

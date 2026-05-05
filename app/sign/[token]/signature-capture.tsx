@@ -3,44 +3,61 @@
 import { useEffect, useRef, useState } from 'react';
 
 type Mode = 'draw' | 'type';
+type Step = 'disclosure' | 'capture' | 'done';
 
 /**
- * Client-side signature capture. Two modes:
+ * Client-side signature capture. Two-step flow:
  *
- *   - draw: free-hand canvas. We export to a base64 PNG.
- *   - type: rendered as a script font on the same canvas so the
- *     output is a single image regardless of mode.
+ *   1. disclosure: the UETA / E-SIGN Act consumer disclosure. The
+ *      signer must affirmatively agree to do business electronically
+ *      AND confirm hardware/software readiness BEFORE seeing the
+ *      signature pad. This ordering matters - 15 USC 7001(c) requires
+ *      consent to electronic delivery be obtained "after the consumer"
+ *      has been given the disclosure, not bundled into the signature.
  *
- * On submit we POST to /api/firm/sign with the token, the
- * base64 PNG, and the typed name. The route validates the token
- * server-side (admin client), records IP + user-agent, writes the
- * signature image to the firm-signatures bucket, fills in
- * firm_signatures.signed_at, and updates the parent request's
- * status (sent -> partial or completed).
+ *   2. capture: free-hand canvas or font-rendered typed signature. The
+ *      "intent to sign" checkbox carries the canonical UETA intent
+ *      language, separate from the electronic-records consent in
+ *      step 1.
+ *
+ * Submit posts the token, the base64 PNG, the typed name, and a
+ * record of the consent timestamps to /api/firm/sign. The server
+ * persists the signature image, fills firm_signatures.signed_at, and
+ * appends the 'signed' event to the audit chain.
  */
 export function SignatureCapture({
   token,
   signerEmail,
   signerName,
   documentName,
+  firmName,
 }: {
   token: string;
   signerEmail: string;
   signerName: string | null;
   documentName: string;
+  firmName: string;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [step, setStep] = useState<Step>('disclosure');
+
+  // Disclosure-step state.
+  const [erdAgreed, setErdAgreed] = useState(false);
+  const [hwAgreed, setHwAgreed] = useState(false);
+  const [erdConsentedAt, setErdConsentedAt] = useState<string | null>(null);
+
+  // Capture-step state.
   const [mode, setMode] = useState<Mode>('draw');
   const [typed, setTyped] = useState(signerName ?? '');
   const [drawing, setDrawing] = useState(false);
   const [hasInk, setHasInk] = useState(false);
-  const [agreed, setAgreed] = useState(false);
+  const [intentAffirmed, setIntentAffirmed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
 
-  // Resize canvas to its CSS box so drawing matches the cursor.
+  // Resize canvas when entering the capture step.
   useEffect(() => {
+    if (step !== 'capture') return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const dpr = window.devicePixelRatio || 1;
@@ -55,11 +72,11 @@ export function SignatureCapture({
       ctx.lineJoin = 'round';
       ctx.strokeStyle = '#0f2d24';
     }
-  }, []);
+  }, [step]);
 
   // Re-render typed signature when mode/text changes.
   useEffect(() => {
-    if (mode !== 'type') return;
+    if (step !== 'capture' || mode !== 'type') return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -76,7 +93,7 @@ export function SignatureCapture({
     ctx.textBaseline = 'middle';
     ctx.fillText(typed, 16, h / 2);
     setHasInk(true);
-  }, [mode, typed]);
+  }, [step, mode, typed]);
 
   function getXY(e: React.PointerEvent<HTMLCanvasElement>) {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -114,10 +131,24 @@ export function SignatureCapture({
     setTyped(signerName ?? '');
   }
 
+  function advanceFromDisclosure() {
+    if (!erdAgreed || !hwAgreed) {
+      setError(
+        'Both confirmations are required to receive this document electronically.',
+      );
+      return;
+    }
+    setError(null);
+    setErdConsentedAt(new Date().toISOString());
+    setStep('capture');
+  }
+
   async function submit() {
     setError(null);
-    if (!agreed) {
-      setError('Please confirm you intend to sign electronically.');
+    if (!intentAffirmed) {
+      setError(
+        'Please affirm your intent to sign before submitting.',
+      );
       return;
     }
     if (!hasInk) {
@@ -136,6 +167,14 @@ export function SignatureCapture({
           token,
           signatureDataUrl: dataUrl,
           typedName: mode === 'type' ? typed : null,
+          consent: {
+            electronicRecordsConsentedAt: erdConsentedAt,
+            hardwareSoftwareConfirmedAt: erdConsentedAt,
+            intentAffirmedAt: new Date().toISOString(),
+            uaSnapshot:
+              typeof navigator !== 'undefined' ? navigator.userAgent : null,
+            tzOffsetMinutes: new Date().getTimezoneOffset(),
+          },
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -144,14 +183,14 @@ export function SignatureCapture({
         setSubmitting(false);
         return;
       }
-      setDone(true);
+      setStep('done');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Network error.');
       setSubmitting(false);
     }
   }
 
-  if (done) {
+  if (step === 'done') {
     return (
       <section className="card p-8 text-center">
         <p className="eyebrow mb-2 justify-center">Signed</p>
@@ -159,15 +198,122 @@ export function SignatureCapture({
           Thanks, {signerName || signerEmail}.
         </h2>
         <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 leading-relaxed">
-          Your signature has been recorded for &ldquo;{documentName}&rdquo;. The firm has
-          been notified and will share the executed copy with you.
+          Your signature for &ldquo;{documentName}&rdquo; has been recorded. The
+          firm has been notified and will share the executed copy plus the
+          audit trail with you.
         </p>
+        <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-4 leading-relaxed">
+          Keep this email or page reference for your records. The signed copy
+          is associated with a tamper-evident audit trail you can request at
+          any time.
+        </p>
+      </section>
+    );
+  }
+
+  if (step === 'disclosure') {
+    return (
+      <section className="card p-5 sm:p-6 space-y-4">
+        <header>
+          <p className="eyebrow mb-1">Step 1 of 2</p>
+          <h2 className="font-display text-xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
+            Electronic records and signatures disclosure
+          </h2>
+          <p className="text-[13px] text-ink-600 dark:text-cream-100/70 mt-1.5 leading-relaxed">
+            Before you sign, please review the following. {firmName} is using
+            Advottic Counsel to deliver this document and capture your
+            signature electronically.
+          </p>
+        </header>
+
+        <div className="rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 bg-cream-50/40 dark:bg-forest-900/30 p-4 text-[12.5px] leading-relaxed text-ink-800 dark:text-cream-100/85 space-y-3">
+          <Section title="Your right to receive paper copies">
+            You may request a paper copy of this document from {firmName} at
+            any time, before or after you sign, at no charge. Email the firm
+            using the contact they provided alongside this signing link.
+          </Section>
+          <Section title="Withdrawing your consent">
+            You may withdraw your consent to do business electronically at
+            any time by replying to the firm and asking to receive paper
+            documents instead. Withdrawing consent does not affect the legal
+            validity of any record signed before the withdrawal.
+          </Section>
+          <Section title="Updating your contact information">
+            If your email or phone number changes, contact the firm directly.
+            Advottic does not allow signers to update their own contact
+            details on the firm&rsquo;s record.
+          </Section>
+          <Section title="Hardware and software you need">
+            A modern web browser (Chrome, Safari, Edge, or Firefox released
+            in the last two years), an internet connection, and a device
+            able to render the document and capture either a typed name or a
+            drawn signature. A PDF viewer is required to read the signed
+            output. If you cannot use these, ask the firm for a paper copy
+            instead.
+          </Section>
+          <Section title="What you are agreeing to">
+            By proceeding, you confirm that you can access this disclosure
+            and the document electronically, and you consent to receive
+            records related to this matter electronically through Advottic
+            Counsel. You are not yet signing the document - that happens in
+            step 2.
+          </Section>
+        </div>
+
+        <label className="flex items-start gap-3 text-[13px] text-ink-700 dark:text-cream-100/80">
+          <input
+            type="checkbox"
+            checked={erdAgreed}
+            onChange={(e) => setErdAgreed(e.currentTarget.checked)}
+            className="mt-1"
+          />
+          <span>
+            I have read this disclosure and I consent to receive records
+            related to this matter electronically.
+          </span>
+        </label>
+        <label className="flex items-start gap-3 text-[13px] text-ink-700 dark:text-cream-100/80">
+          <input
+            type="checkbox"
+            checked={hwAgreed}
+            onChange={(e) => setHwAgreed(e.currentTarget.checked)}
+            className="mt-1"
+          />
+          <span>
+            I confirm I have the hardware and software described above and
+            can access electronic records on this device.
+          </span>
+        </label>
+
+        {error && (
+          <p className="rounded-lg border border-rose-200 dark:border-rose-700/40 bg-rose-50 dark:bg-rose-950/30 px-3 py-2 text-sm text-rose-800 dark:text-rose-200">
+            {error}
+          </p>
+        )}
+
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={advanceFromDisclosure}
+            disabled={!erdAgreed || !hwAgreed}
+            className="btn-primary"
+          >
+            Continue to sign
+          </button>
+        </div>
       </section>
     );
   }
 
   return (
     <section className="card p-5 sm:p-6 space-y-4">
+      <header>
+        <p className="eyebrow mb-1">Step 2 of 2</p>
+        <h2 className="font-display text-xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
+          Sign the document
+        </h2>
+      </header>
+
       <div className="flex items-center justify-between gap-3">
         <p className="eyebrow">Your signature</p>
         <div className="inline-flex rounded-md ring-1 ring-ink-200 dark:ring-forest-700/60 overflow-hidden text-[12px]">
@@ -224,14 +370,15 @@ export function SignatureCapture({
       <label className="flex items-start gap-3 text-[13px] text-ink-700 dark:text-cream-100/80">
         <input
           type="checkbox"
-          checked={agreed}
-          onChange={(e) => setAgreed(e.currentTarget.checked)}
+          checked={intentAffirmed}
+          onChange={(e) => setIntentAffirmed(e.currentTarget.checked)}
           className="mt-1"
         />
         <span>
-          I, <strong>{signerName || signerEmail}</strong>, intend to sign this document
-          electronically. I understand the v1 output is watermarked &ldquo;DRAFT - NOT
-          LEGALLY BINDING&rdquo; for review purposes.
+          I, <strong>{signerName || signerEmail}</strong>, intend that the
+          mark above be my signature on &ldquo;{documentName}&rdquo;, with the
+          same legal effect as a handwritten signature. I am acting on my
+          own behalf or as authorized for the entity I represent.
         </span>
       </label>
 
@@ -241,16 +388,40 @@ export function SignatureCapture({
         </p>
       )}
 
-      <div className="flex justify-end">
+      <div className="flex items-center justify-between">
+        <button
+          type="button"
+          onClick={() => setStep('disclosure')}
+          className="btn-ghost text-sm"
+        >
+          Back to disclosure
+        </button>
         <button
           type="button"
           onClick={submit}
-          disabled={submitting || !hasInk || !agreed}
+          disabled={submitting || !hasInk || !intentAffirmed}
           className="btn-primary"
         >
           {submitting ? 'Recording signature...' : 'Sign document'}
         </button>
       </div>
     </section>
+  );
+}
+
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <p className="font-semibold text-forest-900 dark:text-cream-100 mb-1">
+        {title}
+      </p>
+      <p>{children}</p>
+    </div>
   );
 }

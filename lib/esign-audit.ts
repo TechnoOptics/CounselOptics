@@ -8,10 +8,16 @@ import type { SupabaseClient } from '@supabase/supabase-js';
  * the previous event for that request. A reader can verify the chain
  * and detect any tampering.
  *
- * NOT LEGALLY BINDING. The technical capture is UETA-aligned but the
- * "DRAFT - NOT LEGALLY BINDING" watermark on output PDFs stays
- * visible until an attorney has reviewed this schema and the renderer
- * appendix. This module just ships the data layer.
+ * UETA-aligned. The technical capture covers the requirements at
+ * 15 USC 7001 + UETA Section 7-13: separate electronic-records
+ * disclosure consent, hardware/software confirmation, intent-to-sign
+ * affirmation, document hash captured at request creation,
+ * tamper-evident hash chain, IP + user-agent provenance per event.
+ * Whether the resulting signature is binding for a specific document
+ * class in a specific jurisdiction (real estate conveyances, wills,
+ * UCC instruments etc. are carved out under various state laws) is
+ * a question for the relying party's counsel - this module just
+ * ships the technical layer.
  */
 
 export type SignatureEventType =

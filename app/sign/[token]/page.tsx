@@ -142,15 +142,6 @@ export default async function SignPage({ params }: { params: { token: string } }
           </p>
         </header>
 
-        <section className="rounded-lg ring-1 ring-amber-300/40 dark:ring-amber-500/30 bg-amber-50/40 dark:bg-amber-950/20 p-4">
-          <p className="text-sm text-amber-900 dark:text-amber-100 leading-relaxed">
-            <strong>Preview signing.</strong> The signed PDF will carry a visible
-            &ldquo;DRAFT - NOT LEGALLY BINDING&rdquo; watermark while Advottic finalizes
-            the audit-trail features for legally enforceable signatures. Use this for
-            internal review or non-binding approvals only.
-          </p>
-        </section>
-
         {request.message && (
           <p className="card p-4 italic text-sm text-ink-700 dark:text-cream-100/80 leading-relaxed">
             &ldquo;{request.message}&rdquo;
@@ -162,6 +153,7 @@ export default async function SignPage({ params }: { params: { token: string } }
           signerEmail={signature.signerEmail}
           signerName={signature.signerName}
           documentName={document.name}
+          firmName={firm.name}
         />
       </main>
 

@@ -13,24 +13,36 @@ export const dynamic = 'force-dynamic';
  *   {
  *     token: string,                  // from /sign/[token]
  *     signatureDataUrl: string,       // PNG data URL from canvas
- *     typedName?: string | null
+ *     typedName?: string | null,
+ *     consent?: {                     // UETA disclosure capture
+ *       electronicRecordsConsentedAt?: string,
+ *       hardwareSoftwareConfirmedAt?: string,
+ *       intentAffirmedAt?: string,
+ *       uaSnapshot?: string | null,
+ *       tzOffsetMinutes?: number,
+ *     }
  *   }
  *
  * On success: writes the signature image to the firm-signatures
  * bucket, fills firm_signatures.signed_at + ip + user_agent + audit
  * hash, and updates the parent request's status (sent -> partial or
- * completed depending on whether all signers are done).
- *
- * v1 disclaimer: the audit_hash is informational. Real UETA-compliant
- * signature work (identity attestation, hash chain across signers,
- * archival of unsigned + signed PDF, retention metadata) lands in a
- * follow-on session.
+ * completed depending on whether all signers are done). The consent
+ * payload is persisted in the audit chain metadata so a later
+ * verifier can see the signer affirmed the electronic-records
+ * disclosure separately from the intent-to-sign.
  */
 export async function POST(req: NextRequest) {
   let payload: {
     token?: string;
     signatureDataUrl?: string;
     typedName?: string | null;
+    consent?: {
+      electronicRecordsConsentedAt?: string;
+      hardwareSoftwareConfirmedAt?: string;
+      intentAffirmedAt?: string;
+      uaSnapshot?: string | null;
+      tzOffsetMinutes?: number;
+    };
   };
   try {
     payload = await req.json();
@@ -145,7 +157,9 @@ export async function POST(req: NextRequest) {
   // Append the signed event to the audit chain. Hash chains to the
   // most recent prior event for this request (request_created from
   // when the firm sent the link, plus any link_viewed events when
-  // the signer opened the page).
+  // the signer opened the page). The UETA consent capture rides
+  // along inside metadata so the chain proves the electronic-records
+  // disclosure was affirmed BEFORE the intent-to-sign.
   await appendSignatureEvent(admin, {
     signingRequestId: request.id,
     signatureId: sig.id,
@@ -159,6 +173,20 @@ export async function POST(req: NextRequest) {
       signature_image_path: path,
       audit_hash: auditHash,
       image_bytes: buffer.length,
+      consent: payload.consent
+        ? {
+            electronic_records_consented_at:
+              payload.consent.electronicRecordsConsentedAt ?? null,
+            hardware_software_confirmed_at:
+              payload.consent.hardwareSoftwareConfirmedAt ?? null,
+            intent_affirmed_at: payload.consent.intentAffirmedAt ?? null,
+            ua_snapshot: payload.consent.uaSnapshot ?? null,
+            tz_offset_minutes:
+              typeof payload.consent.tzOffsetMinutes === 'number'
+                ? payload.consent.tzOffsetMinutes
+                : null,
+          }
+        : null,
     },
   });
 

@@ -63,11 +63,12 @@ export function CreateSigningRequestForm({
     <section className="card p-5 sm:p-6 space-y-4">
       <p className="eyebrow">Send for signature</p>
       <p className="text-[11px] text-ink-500 dark:text-cream-100/55 leading-relaxed">
-        Each signer gets a single-use link that opens the document inside Advottic. The
-        document never leaves the app.{' '}
-        <strong className="text-amber-700 dark:text-amber-300">
-          Outputs in v1 are watermarked &ldquo;DRAFT - NOT LEGALLY BINDING.&rdquo;
-        </strong>
+        Each signer gets a single-use link that opens the document inside
+        Advottic. The signer steps through a UETA-aligned electronic-records
+        disclosure before reaching the signature pad, and every action lands
+        in a tamper-evident audit chain. Jurisdictional fit (which document
+        classes can be signed electronically in your state) stays with your
+        counsel.
       </p>
       <ul className="space-y-2">
         {signers.map((s, i) => (
