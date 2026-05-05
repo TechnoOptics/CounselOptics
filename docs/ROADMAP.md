@@ -6,6 +6,35 @@ thing we'd start tomorrow if we picked up the next session.
 
 ## Shipped
 
+- Invoicing on top of time tracking: firm_invoices schema, build-draft
+  / send / mark-paid actions, Stripe payment-link generation when
+  STRIPE_SECRET_KEY is set, automatic notification fan-out to client
+- IOLTA trust accounting: firm_trust_accounts + firm_trust_transactions
+  schema, signed-amount ledger that derives every balance, three-way
+  reconciliation summary (book vs reconciled vs per-client), audit-safe
+  append-style writes
+- Conflict check + matter intake: firm_matter_intakes schema, fuzzy
+  name match against existing clients + prior matter parties, severity
+  ladder (low / medium / high), explicit clear-with-written-reason flow
+- Court-form registry: 7 starter forms (CA CM-010, CA POS-010, NY RJI,
+  Federal AO 440, TX civil cover, CA FL-100, Federal AO 121) with
+  field maps + path resolver + transform pipeline. PDF AcroForm fill
+  is the next step (pdf-lib install)
+- Co-counsel referral: cocounsel_referrals schema with proposed split,
+  client-consent audit, paid-vs-owed tracking. Stripe Connect transfer
+  on the next pass
+- Public API expansion: /api/v1/documents + /api/v1/signing-requests
+  with pagination + per-request progress
+- Discovery review: discovery_jobs + discovery_findings schema, pure
+  scanDocument() classifier with 10 flag categories (privilege markers,
+  PHI / PII, trade secrets, hot-doc heuristics, admission language)
+  and severity ladder. Worker queue (Inngest / QStash) is the next step
+- Browser extension scaffold: manifest v3 + service worker + popup +
+  context-menu "Save to Advottic case" entry. Posts to /api/v1/exhibits
+  with the user's API token (stored in chrome.storage.local)
+- Embeddable widget at /embed/bella?firm=<slug>: iframe-friendly route
+  for firms to drop on their public sites, funnels visitors to
+  /find-counsel with the firm pre-tagged
 - Multi-tenant Counsel mode at enterprise.advottic.com + per-firm subdomains
 - HQ admin console + Security pulse with 10 live monitors and autofix playbook
 - E-signature with UETA-aligned 2-step disclosure + tamper-evident audit chain

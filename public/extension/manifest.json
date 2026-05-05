@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "Advottic - Save to case",
+  "version": "0.1.0",
+  "description": "Highlight text on any page and save it to an Advottic case as an exhibit. Works in Gmail, Outlook, and any other web app.",
+  "permissions": ["activeTab", "storage", "contextMenus"],
+  "host_permissions": [
+    "https://advottic.com/*",
+    "https://*.advottic.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon-16.png",
+      "48": "icon-48.png",
+      "128": "icon-128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"]
+    }
+  ],
+  "icons": {
+    "16": "icon-16.png",
+    "48": "icon-48.png",
+    "128": "icon-128.png"
+  }
+}
