@@ -115,7 +115,7 @@ export default async function HqLandingPage() {
 function ScopePanel() {
   type ScopeItem = {
     title: string;
-    state: 'preview' | 'polled' | 'stub' | 'limited';
+    state: 'preview' | 'polled' | 'stub' | 'limited' | 'live';
     body: string;
   };
   const items: ScopeItem[] = [
@@ -127,8 +127,9 @@ function ScopePanel() {
     },
     {
       title: 'Team chat',
-      state: 'polled',
-      body: 'Polled refresh in v1. Real-time WebSockets are a planned follow-on.',
+      state: 'live',
+      body:
+        'Real-time via Supabase WebSockets. Messages, edits, and deletes propagate to every channel member within ~100ms; a 60s heartbeat refetch covers any dropped event.',
     },
     {
       title: 'MS 365 + Zoom integrations',
@@ -181,24 +182,28 @@ function ScopePanel() {
 function ScopeStateBadge({
   state,
 }: {
-  state: 'preview' | 'polled' | 'stub' | 'limited';
+  state: 'preview' | 'polled' | 'stub' | 'limited' | 'live';
 }) {
   const tone =
-    state === 'preview'
-      ? 'bg-amber-950/40 ring-amber-700/40 text-amber-200'
-      : state === 'polled'
-        ? 'bg-sky-950/40 ring-sky-700/40 text-sky-200'
-        : state === 'stub'
-          ? 'bg-rose-950/40 ring-rose-700/40 text-rose-200'
-          : 'bg-emerald-950/40 ring-emerald-700/40 text-emerald-200';
+    state === 'live'
+      ? 'bg-emerald-950/50 ring-emerald-500/50 text-emerald-100'
+      : state === 'preview'
+        ? 'bg-amber-950/40 ring-amber-700/40 text-amber-200'
+        : state === 'polled'
+          ? 'bg-sky-950/40 ring-sky-700/40 text-sky-200'
+          : state === 'stub'
+            ? 'bg-rose-950/40 ring-rose-700/40 text-rose-200'
+            : 'bg-emerald-950/40 ring-emerald-700/40 text-emerald-200';
   const label =
-    state === 'preview'
-      ? 'Preview'
-      : state === 'polled'
-        ? 'Polled'
-        : state === 'stub'
-          ? 'Stub'
-          : 'Limited';
+    state === 'live'
+      ? 'Live'
+      : state === 'preview'
+        ? 'Preview'
+        : state === 'polled'
+          ? 'Polled'
+          : state === 'stub'
+            ? 'Stub'
+            : 'Limited';
   return (
     <span
       className={`inline-flex items-center px-1.5 py-[1px] rounded text-[10px] font-semibold uppercase tracking-[0.16em] ring-1 ${tone}`}

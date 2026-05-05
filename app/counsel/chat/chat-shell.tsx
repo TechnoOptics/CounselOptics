@@ -6,17 +6,29 @@ import {
   createFirmChannelAction,
   sendFirmMessageAction,
 } from '@/lib/firm-actions';
+import { createBrowserSupabase } from '@/lib/supabase/client';
 import type { FirmChannel, FirmMessage } from '@/lib/firm-types';
 
-const POLL_MS = 3000;
+// Heartbeat refetch interval - the Realtime channel covers the live
+// case, this is just a safety net so a missed event (network blip,
+// tab unfocused for too long, edge worker reconnect) corrects itself
+// within the minute.
+const HEARTBEAT_MS = 60_000;
 
 /**
  * Two-pane chat shell. Left pane: channel list + new-channel form.
  * Right pane: message thread for the active channel.
  *
- * The message read path polls /api/firm/messages?channelId=... every
- * 3s. Sending is a server action. This is the deliberate "polled v1"
- * pattern - real-time WebSockets land in a follow-on session.
+ * Read path: Supabase Realtime subscription on firm_messages filtered
+ * to the active channel. INSERTs append to the thread, UPDATEs replace
+ * by id (covers edits + soft-delete via deleted_at), DELETEs filter
+ * the row out. A single heartbeat refetch every 60s catches any event
+ * the websocket missed (rare but possible on flaky networks). RLS on
+ * firm_messages still gates which rows reach the subscriber.
+ *
+ * Send path: server action (sendFirmMessageAction). The action's
+ * INSERT triggers the Realtime event that everyone in the channel
+ * (including the sender) receives within ~100ms.
  */
 export function ChatShell({
   firmId,
@@ -40,14 +52,19 @@ export function ChatShell({
   const [showNewChannel, setShowNewChannel] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
-  // Poll messages for the active channel.
+  // Read path: Realtime subscription + initial backfill + heartbeat.
   useEffect(() => {
     if (!activeId) return;
     let cancelled = false;
-    async function fetchOnce() {
+    const channelId = activeId;
+
+    // Initial backfill via the same REST endpoint - we still need to
+    // load the existing message history; Realtime only delivers
+    // changes from the moment we subscribe.
+    async function loadHistory() {
       try {
         const res = await fetch(
-          `/api/firm/messages?channelId=${encodeURIComponent(activeId!)}`,
+          `/api/firm/messages?channelId=${encodeURIComponent(channelId)}`,
           { cache: 'no-store' },
         );
         if (!res.ok) return;
@@ -55,14 +72,103 @@ export function ChatShell({
         if (cancelled) return;
         setMessages(json.messages);
       } catch {
-        /* ignore - next tick */
+        /* next tick will retry via heartbeat */
       }
     }
-    fetchOnce();
-    const id = setInterval(fetchOnce, POLL_MS);
+    loadHistory();
+
+    // Realtime subscription. Postgres-level filter keeps us off
+    // every-channel chatter; the client still respects RLS so we
+    // could only receive what we're allowed to see anyway, but
+    // narrowing here is a bandwidth win.
+    const supabase = createBrowserSupabase();
+    const sub = supabase
+      .channel(`firm-messages:${channelId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'firm_messages',
+          filter: `channel_id=eq.${channelId}`,
+        },
+        (payload) => {
+          if (cancelled) return;
+          const row = payload.new as Record<string, unknown>;
+          const msg: FirmMessage = {
+            id: row.id as string,
+            channelId: row.channel_id as string,
+            userId: row.user_id as string,
+            body: row.body as string,
+            attachments: (row.attachments as FirmMessage['attachments']) ?? [],
+            createdAt: row.created_at as string,
+            editedAt: (row.edited_at as string | null) ?? null,
+            deletedAt: (row.deleted_at as string | null) ?? null,
+          };
+          // Drop soft-deleted inserts (shouldn't happen in practice)
+          // and dedupe in case the heartbeat already brought us this id.
+          if (msg.deletedAt) return;
+          setMessages((prev) =>
+            prev.some((m) => m.id === msg.id) ? prev : [...prev, msg],
+          );
+        },
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'firm_messages',
+          filter: `channel_id=eq.${channelId}`,
+        },
+        (payload) => {
+          if (cancelled) return;
+          const row = payload.new as Record<string, unknown>;
+          const id = row.id as string;
+          const deletedAt = (row.deleted_at as string | null) ?? null;
+          setMessages((prev) => {
+            // UPDATE with deleted_at != null is a soft delete: drop the row.
+            if (deletedAt) return prev.filter((m) => m.id !== id);
+            return prev.map((m) =>
+              m.id === id
+                ? {
+                    ...m,
+                    body: row.body as string,
+                    attachments:
+                      (row.attachments as FirmMessage['attachments']) ?? [],
+                    editedAt: (row.edited_at as string | null) ?? null,
+                  }
+                : m,
+            );
+          });
+        },
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'firm_messages',
+          filter: `channel_id=eq.${channelId}`,
+        },
+        (payload) => {
+          if (cancelled) return;
+          const row = payload.old as Record<string, unknown>;
+          const id = row.id as string;
+          setMessages((prev) => prev.filter((m) => m.id !== id));
+        },
+      )
+      .subscribe();
+
+    // Safety-net heartbeat. If the websocket drops or a tab was
+    // backgrounded long enough that the connection was reaped, this
+    // refetch repairs the message list within the minute.
+    const heartbeat = setInterval(loadHistory, HEARTBEAT_MS);
+
     return () => {
       cancelled = true;
-      clearInterval(id);
+      clearInterval(heartbeat);
+      supabase.removeChannel(sub);
     };
   }, [activeId]);
 
