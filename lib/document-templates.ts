@@ -410,6 +410,273 @@ ____________________
 Date:`,
   },
   {
+    id: 'power_of_attorney',
+    title: 'Durable power of attorney',
+    description:
+      'Authorizes an agent to act for you on financial matters, surviving incapacity. State-specific - must be witnessed and / or notarized depending on jurisdiction.',
+    audience: 'consumer',
+    requiredInputs: [
+      { key: 'principal', label: "Your name (the principal)" },
+      { key: 'principal_address', label: "Your address" },
+      { key: 'agent', label: "Agent's full name" },
+      { key: 'agent_address', label: "Agent's address" },
+      { key: 'state', label: 'State (jurisdiction)' },
+      { key: 'powers', label: 'Powers granted (general / specific - list categories)' },
+      { key: 'effective', label: 'When effective (immediately / on incapacity)' },
+    ],
+    skeleton: `DURABLE POWER OF ATTORNEY
+
+I, [Principal name], of [Principal address], being of sound mind, designate [Agent name] of [Agent address] as my Attorney-in-Fact ("Agent") to act for me in any lawful way with respect to the powers granted below, with full authority to bind me as if I were acting personally.
+
+1. Powers Granted. My Agent shall have authority to act on my behalf with respect to:
+[List the categories the principal has chosen - eg. real property, banking, business operations, tax matters, retirement plans, government benefits, healthcare consents (if comprehensive POA), litigation, gifts within annual exclusion, etc.]
+
+2. Durability. This power of attorney shall not be affected by my subsequent incapacity. [If springing: This power of attorney shall become effective only upon a written determination by two licensed physicians that I am unable to manage my financial affairs.]
+
+3. Effective Date. This power of attorney is effective [immediately upon signing / on the date of my incapacity as described above].
+
+4. Revocation. This power of attorney may be revoked at any time by a written instrument delivered to my Agent. Any third party who acts in good faith reliance on this instrument before receiving notice of revocation shall be held harmless.
+
+5. Indemnity. My Agent shall not be liable for any act or omission undertaken in good faith. I will indemnify my Agent against any loss arising from such good-faith acts.
+
+6. Reliance. Any third party may rely on a copy of this instrument as if it were the original. I waive any claim against a third party who acts in reliance on this instrument.
+
+7. Governing Law. This power of attorney is governed by the laws of the State of [state].
+
+Signed this [day] day of [month], [year].
+
+________________________________
+[Principal name], Principal
+
+WITNESSES
+We, the undersigned, witnessed the Principal sign this instrument and confirm that the Principal appeared to be of sound mind and acting freely.
+
+________________________________     ________________________________
+Witness 1                            Witness 2
+
+NOTARY ACKNOWLEDGEMENT
+State of [state]
+County of [county]
+
+On this date, [Principal name] personally appeared before me and acknowledged signing this instrument.
+
+________________________________
+Notary Public
+My commission expires:`,
+  },
+  {
+    id: 'living_will',
+    title: 'Living will / advance directive',
+    description:
+      'States your wishes regarding life-sustaining treatment if you become unable to communicate. State-specific witness / notarization rules apply.',
+    audience: 'consumer',
+    requiredInputs: [
+      { key: 'declarant', label: 'Your name' },
+      { key: 'state', label: 'State (jurisdiction)' },
+      { key: 'preferences', label: 'Treatment preferences (eg. no extraordinary measures, comfort care only, full code, etc.)' },
+      { key: 'agent', label: 'Healthcare agent name (optional)' },
+    ],
+    skeleton: `ADVANCE HEALTHCARE DIRECTIVE / LIVING WILL
+
+I, [Declarant name], of sound mind, make this declaration as a directive to be followed if I am unable to communicate my wishes regarding healthcare.
+
+1. Conditions. If I am diagnosed by my attending physician and a second physician as having a terminal condition, being permanently unconscious, or being in an end-stage condition, and if life-sustaining treatment would only artificially prolong the dying process, my wishes are as follows:
+
+[List the user's specific preferences. Common categories:
+ - Cardiopulmonary resuscitation (CPR): yes / no
+ - Mechanical ventilation: yes / time-limited trial / no
+ - Tube feeding / artificial nutrition: yes / no
+ - Antibiotics for infections: yes / comfort only / no
+ - Dialysis: yes / no
+ - Comfort care and pain management: always provided
+ - Organ donation: opt-in / opt-out]
+
+2. Healthcare Agent. [If named: I designate [Agent name] as my Healthcare Agent to make medical decisions consistent with this declaration if I cannot communicate. The Agent has access to my medical records.]
+
+3. Conscience. I understand that any healthcare provider who in conscience cannot follow these directions must transfer my care to a provider who will.
+
+4. Effect. This declaration shall be effective until revoked. I may revoke it orally or in writing at any time.
+
+Signed this [day] day of [month], [year].
+
+________________________________
+[Declarant name]
+
+WITNESSES (state-specific - typically two adults who are not the agent and not entitled to inherit from the declarant)
+
+________________________________     ________________________________
+Witness 1                            Witness 2`,
+  },
+  {
+    id: 'independent_contractor',
+    title: 'Independent contractor agreement',
+    description:
+      "Engagement of a contractor (not an employee). Defines scope, payment, IP assignment, confidentiality, and the worker's W-9 / 1099 status.",
+    audience: 'firm',
+    requiredInputs: [
+      { key: 'company_name', label: 'Engaging company name' },
+      { key: 'contractor_name', label: "Contractor's name" },
+      { key: 'scope', label: 'Scope of work (one paragraph)' },
+      { key: 'fee_structure', label: 'Fee (hourly + rate / fixed / milestone-based)' },
+      { key: 'term', label: 'Term (until completed / fixed end date)' },
+      { key: 'governing_law', label: 'Governing-law state' },
+    ],
+    skeleton: `INDEPENDENT CONTRACTOR AGREEMENT
+
+This Independent Contractor Agreement (the "Agreement") is entered into on [Effective Date] between [Company name] ("Company") and [Contractor name] ("Contractor").
+
+1. Services. Contractor will perform the following services (the "Services"): [scope]. Contractor will determine the means and methods of performance, subject to Company's reasonable direction as to results.
+
+2. Compensation. Company will pay Contractor [fee structure]. Invoices are due [net X]. Contractor is responsible for all taxes on amounts paid, including self-employment tax.
+
+3. Term and Termination. This Agreement begins on the Effective Date and continues [term]. Either party may terminate on [N] days written notice; Company may terminate immediately for material breach. On termination, Company will pay for Services performed through the termination date.
+
+4. Independent Contractor Status. Contractor is an independent contractor, not an employee. Contractor is not entitled to benefits the Company provides to its employees. Contractor will furnish a W-9; Company will issue a Form 1099 for amounts subject to reporting.
+
+5. IP Ownership. All work product Contractor creates under this Agreement is "work made for hire" under U.S. copyright law. To the extent any work product does not so qualify, Contractor hereby assigns to Company all right, title, and interest in such work product. Contractor will execute such further documents as Company reasonably requests to perfect this assignment.
+
+6. Confidentiality. During and after the engagement, Contractor will hold in confidence all non-public information of Company, will use it only for the Services, and will return or destroy it on termination at Company's request.
+
+7. Warranties. Contractor represents that (a) the Services will be performed in a workmanlike manner, (b) the work product will not infringe any third-party rights, and (c) Contractor has the right to enter into this Agreement.
+
+8. Indemnity. Each party will defend and indemnify the other from third-party claims arising out of the indemnifying party's breach of this Agreement, gross negligence, or willful misconduct, up to the amount of fees paid under this Agreement in the 12 months preceding the claim.
+
+9. Governing Law. This Agreement is governed by the laws of [governing_law] without regard to its conflict-of-laws rules.
+
+10. Entire Agreement. This Agreement is the entire agreement of the parties and supersedes any prior negotiations.
+
+Signed:
+
+____________________
+[Company name]
+By:
+Title:
+Date:
+
+____________________
+[Contractor name]
+Date:`,
+  },
+  {
+    id: 'msa_sow',
+    title: 'Master services agreement + SOW shell',
+    description:
+      'Long-term framework agreement for ongoing professional services, with a separate Statement of Work for each engagement.',
+    audience: 'firm',
+    requiredInputs: [
+      { key: 'client_name', label: 'Client name' },
+      { key: 'provider_name', label: 'Provider name' },
+      { key: 'services_summary', label: 'High-level services description' },
+      { key: 'governing_law', label: 'Governing-law state' },
+      { key: 'liability_cap', label: 'Liability cap (eg. fees paid in last 12 months)' },
+    ],
+    skeleton: `MASTER SERVICES AGREEMENT
+
+This Master Services Agreement (the "MSA") is entered into on [Effective Date] between [Client name] ("Client") and [Provider name] ("Provider").
+
+1. Services. Provider will perform services described in mutually-executed Statements of Work ("SOWs"). Each SOW is a separate contract; if there is any conflict between an SOW and this MSA, the SOW controls for that engagement only.
+
+2. Fees and Payment. Each SOW will state the fees and payment schedule. Invoices are due [net 30]. Late amounts accrue interest at [1.5%] per month or the highest rate permitted by law, whichever is less.
+
+3. Term. This MSA begins on the Effective Date and continues until terminated. Either party may terminate this MSA on [60] days written notice; outstanding SOWs continue under this MSA until completed.
+
+4. Confidentiality. Each party will hold the other's non-public information in confidence, will use it only to perform under this MSA / an SOW, and will protect it with the same care it uses for its own confidential information of similar importance, but no less than reasonable care.
+
+5. IP. Provider grants Client a worldwide, non-exclusive license to use Provider's pre-existing IP solely as embedded in the deliverables. Custom-developed deliverables are owned by [Client / Provider with a license to Client - choose one in the SOW].
+
+6. Warranties. Provider warrants the Services will be performed in a professional and workmanlike manner. Provider DISCLAIMS all other warranties to the maximum extent permitted by law.
+
+7. Limitation of Liability. EXCEPT FOR breach of confidentiality, indemnity obligations, or gross negligence / willful misconduct, neither party will be liable for indirect, incidental, special, consequential, or punitive damages, and each party's total liability under this MSA + an SOW is capped at [liability_cap].
+
+8. Indemnity. Provider will defend Client against third-party claims that the Services as delivered infringe a U.S. patent, copyright, or trade secret, and pay damages awarded against Client. Client will defend Provider against third-party claims arising from Client's use of the Services in violation of this MSA / an SOW or applicable law.
+
+9. Governing Law and Disputes. This MSA is governed by the laws of [governing_law] without regard to conflict-of-laws rules. Disputes will be resolved by binding arbitration in [city, state] under [JAMS / AAA] commercial rules.
+
+10. General. This MSA is the entire agreement of the parties on its subject, may be amended only in a writing signed by both parties, and binds permitted successors and assigns. Notices must be in writing to the addresses on the signature page.
+
+Signed:
+
+____________________
+[Client name]                         [Provider name]
+By:                                  By:
+Title:                                Title:
+Date:                                 Date:
+
+EXHIBIT A - STATEMENT OF WORK FORMAT
+
+SOW No. [N]
+Effective: [Date]
+
+A. Description of Services: [project narrative]
+B. Deliverables: [bulleted list with dates]
+C. Schedule: [milestones]
+D. Fees: [fixed / time-and-materials / milestone payments]
+E. Acceptance Criteria: [how Client confirms each deliverable]
+F. Project Personnel: [key staff]
+G. Assumptions: [what Client provides, what could change scope]
+
+Each SOW is signed by both parties and incorporated into the MSA.`,
+  },
+  {
+    id: 'settlement_release',
+    title: 'Settlement agreement and general release',
+    description:
+      'Resolves a dispute and releases all claims known and unknown. Includes 1542 waiver where applicable, confidentiality, and a no-admission clause.',
+    audience: 'firm',
+    requiredInputs: [
+      { key: 'releasor', label: 'Releasing party (the one giving up claims)' },
+      { key: 'releasee', label: 'Released party (the one being released)' },
+      { key: 'dispute', label: 'One-sentence description of the dispute' },
+      { key: 'consideration', label: 'Settlement amount or other consideration' },
+      { key: 'governing_law', label: 'Governing-law state' },
+      { key: 'confidential', label: 'Confidential? (yes/no)' },
+    ],
+    skeleton: `SETTLEMENT AGREEMENT AND GENERAL RELEASE
+
+This Settlement Agreement and General Release (the "Agreement") is entered into on [Effective Date] between [Releasor] ("Releasor") and [Releasee] ("Releasee") (each a "Party").
+
+RECITALS
+
+A. The Parties are involved in a dispute concerning [one-sentence summary] (the "Dispute").
+
+B. The Parties wish to resolve the Dispute without admission of liability.
+
+NOW THEREFORE, in consideration of the promises below, the Parties agree:
+
+1. Consideration. Releasee will pay Releasor [consideration] within [N] days of execution of this Agreement, in full and final settlement of the Dispute.
+
+2. Release. In exchange for the consideration above, Releasor irrevocably releases Releasee, its affiliates, officers, directors, employees, agents, successors, and assigns from any and all claims, demands, damages, causes of action, debts, and liabilities, known or unknown, suspected or unsuspected, that Releasor has or may have against Releasee arising out of or in any way connected with the Dispute or any act or omission of Releasee on or before the Effective Date.
+
+3. [Section 1542 Waiver, where applicable - California]. Releasor expressly waives the protection of any statute or common-law principle that would otherwise prevent the release of unknown claims. Without limitation, Releasor waives California Civil Code Section 1542, which provides:
+"A general release does not extend to claims that the creditor or releasing party does not know or suspect to exist in his or her favor at the time of executing the release and that, if known by him or her, would have materially affected his or her settlement with the debtor or released party."
+
+4. No Admission. This Agreement is a compromise of disputed claims. It is not, and shall not be construed as, an admission of liability by any Party.
+
+5. Confidentiality. [If confidential: The terms and existence of this Agreement are confidential. Neither Party will disclose them except to (a) the Party's professional advisors bound by confidentiality, (b) tax authorities to the extent required, and (c) by court order, on prior written notice to the other Party where legally permitted.]
+
+6. Non-Disparagement. Each Party agrees not to make any disparaging statements about the other concerning the matters covered by this Agreement.
+
+7. Cooperation. Releasor will execute such further documents and take such further actions as are reasonably necessary to give effect to this Agreement (eg. dismissal with prejudice of any pending action).
+
+8. Entire Agreement. This Agreement is the entire agreement of the Parties on its subject and supersedes any prior negotiations.
+
+9. Governing Law. This Agreement is governed by the laws of [governing_law] without regard to its conflict-of-laws rules.
+
+10. Voluntary. Each Party has had the opportunity to consult counsel and signs this Agreement voluntarily, understanding its terms.
+
+Signed:
+
+____________________
+[Releasor name]
+Date:
+
+____________________
+[Releasee name]
+By:
+Title:
+Date:`,
+  },
+  {
     id: 'terms_of_service',
     title: 'Website terms of service',
     description:

@@ -135,3 +135,145 @@ export async function submitFirmLeadAction(
   revalidatePath('/find-counsel');
   return { ok: true, leadId, matchedFirms: firms.length };
 }
+
+/**
+ * Firm responds to a lead with "interested" + an optional proposed
+ * fee, or "pass". The consumer sees the response in their inbox.
+ */
+export async function respondToLeadAction(
+  firmId: string,
+  leadId: string,
+  responseType: 'interested' | 'pass',
+  message: string | null,
+  proposedFee: string | null,
+): Promise<{ ok: boolean; error?: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: 'Sign in first.' };
+
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server is not fully configured.' };
+
+  // Membership gate (RLS would also enforce).
+  const { data: member } = await admin
+    .from('firm_members')
+    .select('role')
+    .eq('firm_id', firmId)
+    .eq('user_id', user.id)
+    .maybeSingle();
+  if (!member) {
+    return { ok: false, error: 'You are not a member of that firm.' };
+  }
+
+  const { data: lead } = await admin
+    .from('firm_leads')
+    .select('id, user_id, contact_email, contact_name, summary')
+    .eq('id', leadId)
+    .maybeSingle();
+  if (!lead) return { ok: false, error: 'Lead not found.' };
+
+  const { error: upsertErr } = await admin
+    .from('firm_lead_responses')
+    .upsert(
+      {
+        lead_id: leadId,
+        firm_id: firmId,
+        responding_user_id: user.id,
+        response_type: responseType,
+        message,
+        proposed_fee: proposedFee,
+      },
+      { onConflict: 'lead_id,firm_id' },
+    );
+  if (upsertErr) return { ok: false, error: upsertErr.message };
+
+  // Notify the consumer (when we know who they are).
+  const consumerUserId = (lead as { user_id?: string | null }).user_id;
+  if (consumerUserId && responseType === 'interested') {
+    const { createNotification } = await import('./notifications');
+    const { data: firmRow } = await admin
+      .from('firms')
+      .select('name')
+      .eq('id', firmId)
+      .maybeSingle();
+    const firmName =
+      (firmRow as { name?: string } | null)?.name ?? 'A firm';
+    await createNotification({
+      userId: consumerUserId,
+      type: 'system',
+      title: `${firmName} is interested in your matter`,
+      body:
+        message ??
+        `${firmName} reviewed your brief and wants to take it on. Open the lead to see their proposal and decide whether to accept.`,
+      link: `/inbox/leads/${leadId}`,
+    });
+  }
+
+  revalidatePath('/counsel/leads');
+  revalidatePath(`/counsel/leads/${leadId}`);
+  return { ok: true };
+}
+
+/**
+ * Consumer accepts a specific firm's "interested" response. The
+ * firm gets contact details revealed; other firms get a polite
+ * "the consumer chose another firm" notification.
+ */
+export async function acceptFirmAction(
+  leadId: string,
+  firmId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: 'Sign in first.' };
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server is not fully configured.' };
+
+  const { data: lead } = await admin
+    .from('firm_leads')
+    .select('id, user_id')
+    .eq('id', leadId)
+    .maybeSingle();
+  if (!lead) return { ok: false, error: 'Lead not found.' };
+  if ((lead as { user_id?: string | null }).user_id !== user.id) {
+    return { ok: false, error: 'You can only accept on your own leads.' };
+  }
+
+  // Mark accepted on the chosen firm; mark declined on the others.
+  await admin
+    .from('firm_lead_responses')
+    .update({ response_type: 'accepted' })
+    .eq('lead_id', leadId)
+    .eq('firm_id', firmId);
+
+  await admin
+    .from('firm_lead_responses')
+    .update({ response_type: 'declined_by_user' })
+    .eq('lead_id', leadId)
+    .neq('firm_id', firmId)
+    .eq('response_type', 'interested');
+
+  await admin
+    .from('firm_leads')
+    .update({ status: 'closed' })
+    .eq('id', leadId);
+
+  // Notify firm members of acceptance + contact details.
+  const { createNotification } = await import('./notifications');
+  const { data: members } = await admin
+    .from('firm_members')
+    .select('user_id, role')
+    .eq('firm_id', firmId)
+    .in('role', ['owner', 'admin', 'attorney']);
+  for (const m of (members ?? []) as Array<{ user_id: string }>) {
+    await createNotification({
+      userId: m.user_id,
+      type: 'system',
+      title: 'Lead accepted you',
+      body: 'Open the lead to see contact details and follow up.',
+      link: `/counsel/leads/${leadId}`,
+    });
+  }
+
+  revalidatePath('/counsel/leads');
+  revalidatePath(`/inbox/leads/${leadId}`);
+  return { ok: true };
+}

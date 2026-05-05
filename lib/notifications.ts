@@ -95,6 +95,19 @@ export async function createNotification(input: {
     console.error('[createNotification] insert failed', error);
     return null;
   }
+  // Fan out as a Web Push notification when the user has registered
+  // a service worker subscription. Failures are silent - dead
+  // subscriptions get cleaned up inside the sender.
+  try {
+    const { sendPushToUser } = await import('./web-push');
+    await sendPushToUser(input.userId, {
+      title: input.title,
+      body: input.body,
+      url: input.link ?? '/inbox',
+    });
+  } catch {
+    /* push is best-effort */
+  }
   return fromRow(data as NotificationRow);
 }
 
