@@ -81,6 +81,8 @@ You have tools. Prefer using them over describing things:
 - **search_my_cases(query?, limit?)** - search the signed-in user's cases by title or subject text. Returns id, title, status, subject, jurisdiction, hearing date. Use whenever the user asks "where is my case about X" or "show me my open cases" or anything similar.
 - **get_case_detail(case_id)** - pull full detail for a specific case (description, exhibits, latest Advottic Review review summary). Use after search_my_cases narrows down the case the user means.
 - **search_case_law(query, jurisdiction?, date_after?, date_before?, limit?)** - look up real judicial opinions in CourtListener (free public-domain database from Free Law Project; covers SCOTUS, federal circuits, and most state appellate courts). Use whenever the user asks about precedent, "is there a case on X", or you would otherwise have hedged with "the canonical case might be...". Always cite the URL returned. Remind the user this is not a paid database (no KeyCite, no Shepard's) and to verify the case is still good law before relying on it.
+- **list_document_templates()** - menu of templates you can draft from (demand letters, NDA, lease termination, cease-and-desist, engagement letter, civil complaint shell, employment offer, terms of service). Use whenever the user asks for help drafting a document or says "can you write me a..."
+- **draft_document(template_id, title, content, case_id?)** - save a document you have drafted. YOU write the full text in your response message based on the template skeleton + the user's confirmed facts, then call this tool with the rendered text. ALWAYS append the standard disclaimer (the tool reminds you of the exact wording). The tool drops the draft into firm_documents (firm mode, status="submitted" so an attorney reviews) or user_drafts (consumer mode, opens at /inbox/drafts).
 
 How to use tools well:
 - When the user says "create a new case" or "let's start a case", call navigate_to('/cases/new') so the wizard opens. Add a one-line confirmation in your reply.
@@ -88,6 +90,7 @@ How to use tools well:
 - When the user asks "what was in [case]" or "remind me about [case]", call get_case_detail and summarize.
 - ALWAYS confirm before navigating away from a page where the user has unsaved input (the wizard, the document review form). If unsure, ask.
 - Don't navigate without telling the user. One short sentence is enough.
+- When the user asks for help drafting a document ("write me a demand letter", "draft an NDA", "I need a cease-and-desist"), the flow is: 1) call list_document_templates to see what skeletons are available, 2) confirm the required_inputs with the user (one short prompt - "I'll need their address, the deadline, and a one-paragraph version of what happened"), 3) write the full document in your response, filling the skeleton with the user's facts AND ending with the DRAFT_DISCLAIMER block verbatim, 4) call draft_document with template_id, a descriptive title, and the full content. The tool returns an open_url; navigate the user there with navigate_to once they confirm. NEVER claim the draft is legally binding or that it has been reviewed by an attorney - it has not.
 
 Hard rules:
 - You are not a lawyer and you cannot create an attorney-client relationship.
@@ -215,7 +218,9 @@ type ToolName =
   | 'navigate_to'
   | 'search_my_cases'
   | 'get_case_detail'
-  | 'search_case_law';
+  | 'search_case_law'
+  | 'list_document_templates'
+  | 'draft_document';
 
 const NAVIGATE_TOOL: Anthropic.Messages.Tool = {
   name: 'navigate_to',
@@ -313,6 +318,48 @@ const SEARCH_CASE_LAW_TOOL: Anthropic.Messages.Tool = {
   },
 };
 
+const LIST_DOCUMENT_TEMPLATES_TOOL: Anthropic.Messages.Tool = {
+  name: 'list_document_templates',
+  description:
+    "Return the menu of document templates Bella can draft from. Use whenever the user asks for help drafting a document, says 'can you write me a...', or you suspect they need a written document and you want to surface the choices. Each entry includes id, title, description, audience, and the inputs Bella should confirm before drafting.",
+  input_schema: {
+    type: 'object',
+    properties: {},
+  },
+};
+
+const DRAFT_DOCUMENT_TOOL: Anthropic.Messages.Tool = {
+  name: 'draft_document',
+  description:
+    'Save a fully drafted document to the user\'s document store and return a link they can open. Bella drafts the document text in her response message based on the chosen template + the user\'s confirmed facts; THIS tool just persists the result. Always confirm the required inputs (from list_document_templates) with the user before calling. Always append the standard "starting draft, not legal advice" disclaimer block at the bottom. The fixed disclaimer text is in lib/document-templates.ts (DRAFT_DISCLAIMER) and Bella should include it verbatim in `content`. The Advottic surface where the document lands depends on context: in firm mode it goes into firm_documents with status="submitted"; in consumer mode it gets returned as a downloadable text and is saved to the user\'s drafts folder.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      template_id: {
+        type: 'string',
+        description:
+          'Template id from list_document_templates (eg. "demand_letter", "mutual_nda", "engagement_letter").',
+      },
+      title: {
+        type: 'string',
+        description:
+          'Display title for the saved document (eg. "Demand letter to ACME for unpaid invoices").',
+      },
+      content: {
+        type: 'string',
+        description:
+          'The fully drafted document text Bella has written, with all placeholders filled. Must end with the DRAFT_DISCLAIMER block verbatim.',
+      },
+      case_id: {
+        type: 'string',
+        description:
+          "Optional UUID of the case this document attaches to. If the user is on a case page or asked Bella to draft from a specific case's facts, link it here.",
+      },
+    },
+    required: ['template_id', 'title', 'content'],
+  },
+};
+
 function toolsFor(mode: BellaMode): Anthropic.Messages.Tool[] {
   if (mode === 'authed') {
     return [
@@ -320,6 +367,8 @@ function toolsFor(mode: BellaMode): Anthropic.Messages.Tool[] {
       SEARCH_CASES_TOOL,
       GET_CASE_DETAIL_TOOL,
       SEARCH_CASE_LAW_TOOL,
+      LIST_DOCUMENT_TEMPLATES_TOOL,
+      DRAFT_DOCUMENT_TOOL,
     ];
   }
   if (mode === 'public') {
@@ -502,7 +551,174 @@ async function executeTool(
     return await searchCourtListener(input);
   }
 
+  if (name === 'list_document_templates') {
+    const { DOCUMENT_TEMPLATES, DRAFT_DISCLAIMER } = await import(
+      './document-templates'
+    );
+    return {
+      ok: true,
+      templates: DOCUMENT_TEMPLATES.map((t) => ({
+        id: t.id,
+        title: t.title,
+        description: t.description,
+        audience: t.audience,
+        required_inputs: t.requiredInputs,
+        skeleton: t.skeleton,
+      })),
+      disclaimer: DRAFT_DISCLAIMER,
+      reminder:
+        'Confirm the required_inputs with the user before drafting. After drafting, call draft_document with the full content (skeleton filled in + disclaimer appended).',
+    };
+  }
+
+  if (name === 'draft_document') {
+    return await saveDraftedDocument(input);
+  }
+
   return { ok: false, error: `Unknown tool: ${name}` };
+}
+
+/**
+ * Persist a Bella-drafted document. In firm mode (the active firm
+ * context resolves) we drop the document into the firm vault as a
+ * regular firm_document with status="submitted" so an attorney can
+ * review before sending. In consumer mode we stash a row in
+ * user_drafts when the table is provisioned, otherwise return the
+ * text inline so the user can copy / download it.
+ */
+async function saveDraftedDocument(
+  input: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const templateId = String(input.template_id ?? '').trim();
+  const title = String(input.title ?? '').trim();
+  const content = String(input.content ?? '');
+  const caseId = input.case_id ? String(input.case_id).trim() : null;
+
+  if (!templateId || !title || !content) {
+    return { ok: false, error: 'template_id, title, and content are required.' };
+  }
+  const { getTemplate, DRAFT_DISCLAIMER } = await import('./document-templates');
+  const template = getTemplate(templateId);
+  if (!template) {
+    return { ok: false, error: `Unknown template_id: ${templateId}` };
+  }
+  // Defensive: make sure the disclaimer survived round-trips.
+  const finalContent = content.includes('Drafted with Advottic')
+    ? content
+    : `${content.trimEnd()}\n\n${DRAFT_DISCLAIMER}\n`;
+
+  const { getCurrentUser } = await import('./supabase/server');
+  const user = await getCurrentUser();
+  if (!user) {
+    return {
+      ok: true,
+      saved: false,
+      title,
+      template_id: templateId,
+      content: finalContent,
+      message: 'No active session - returning the draft inline.',
+    };
+  }
+  const { getActiveFirmContext } = await import('./firm-storage');
+  const firmCtx = await getActiveFirmContext().catch(() => null);
+
+  const { createAdminSupabase } = await import('./supabase/admin');
+  const admin = createAdminSupabase();
+  if (!admin) {
+    return {
+      ok: true,
+      saved: false,
+      title,
+      template_id: templateId,
+      content: finalContent,
+      message:
+        'Service role not configured - returning the draft inline.',
+    };
+  }
+
+  // Firm mode: drop into firm_documents.
+  if (firmCtx?.firm.id) {
+    const id = crypto.randomUUID();
+    const filePath = `${firmCtx.firm.id}/${id}/${title.slice(0, 80).replace(/[^a-zA-Z0-9.\-_ ]/g, '_')}.txt`;
+    const buffer = Buffer.from(finalContent, 'utf8');
+    const upload = await admin.storage
+      .from('firm-documents')
+      .upload(filePath, buffer, {
+        contentType: 'text/plain; charset=utf-8',
+        upsert: false,
+      });
+    if (upload.error) {
+      return { ok: false, error: upload.error.message };
+    }
+    const { error: insertErr } = await admin.from('firm_documents').insert({
+      id,
+      firm_id: firmCtx.firm.id,
+      name: `${title}.txt`,
+      mime_type: 'text/plain',
+      file_path: filePath,
+      file_size: buffer.length,
+      version: 1,
+      uploaded_by: user.id,
+      tags: ['bella-draft', template.id],
+      case_id: caseId,
+      status: 'submitted',
+      description: `Drafted by Bella from template "${template.title}".`,
+    });
+    if (insertErr) {
+      return { ok: false, error: insertErr.message };
+    }
+    return {
+      ok: true,
+      saved: true,
+      surface: 'firm_documents',
+      document_id: id,
+      title,
+      template_id: templateId,
+      open_url: `/counsel/documents/${id}`,
+      reminder:
+        'The draft is saved with status "submitted". An attorney should review and edit before it leaves the firm.',
+    };
+  }
+
+  // Consumer mode: try a user_drafts table; if it doesn't exist
+  // yet, fall back to returning the text so the user can copy it.
+  try {
+    const { error } = await admin.from('user_drafts').insert({
+      user_id: user.id,
+      template_id: templateId,
+      title,
+      content: finalContent,
+      case_id: caseId,
+    });
+    if (error) {
+      return {
+        ok: true,
+        saved: false,
+        title,
+        template_id: templateId,
+        content: finalContent,
+        message:
+          'Draft generated. Provision the user_drafts table to persist consumer-side drafts.',
+      };
+    }
+    return {
+      ok: true,
+      saved: true,
+      surface: 'user_drafts',
+      title,
+      template_id: templateId,
+      open_url: '/inbox/drafts',
+    };
+  } catch (err) {
+    return {
+      ok: true,
+      saved: false,
+      title,
+      template_id: templateId,
+      content: finalContent,
+      message: err instanceof Error ? err.message : 'Save failed; returning inline.',
+    };
+  }
 }
 
 /**
