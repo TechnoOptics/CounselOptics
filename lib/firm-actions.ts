@@ -576,6 +576,37 @@ export async function createSigningRequestAction(
   const user = await requireUser();
   if (signers.length === 0) return { ok: false, error: 'Add at least one signer.' };
   const supabase = createServerSupabase();
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server is missing SUPABASE_SERVICE_ROLE_KEY.' };
+
+  // Compute SHA-256 of the document at the moment the request is
+  // created so the audit trail can prove the bytes the signers
+  // consented to match the bytes the firm later relies on. We pull
+  // the document file_path, download from storage, hash. Failure to
+  // hash does not block creating the request - falls back to null.
+  const { data: doc } = await admin
+    .from('firm_documents')
+    .select('name, file_path')
+    .eq('id', documentId)
+    .maybeSingle();
+  const docName = (doc as { name?: string } | null)?.name ?? 'Document';
+  const docPath = (doc as { file_path?: string } | null)?.file_path ?? null;
+  let documentSha256: string | null = null;
+  if (docPath) {
+    try {
+      const { data: bytes, error: dlErr } = await admin.storage
+        .from('firm-documents')
+        .download(docPath);
+      if (!dlErr && bytes) {
+        const buf = Buffer.from(await bytes.arrayBuffer());
+        const { sha256 } = await import('./esign-audit');
+        documentSha256 = sha256(buf);
+      }
+    } catch {
+      /* hash failure must not block signing */
+    }
+  }
+
   const { data: req, error: reqErr } = await supabase
     .from('firm_signing_requests')
     .insert({
@@ -585,19 +616,27 @@ export async function createSigningRequestAction(
       message,
       status: 'sent' as FirmSigningStatus,
       sent_at: new Date().toISOString(),
+      document_sha256: documentSha256,
     })
     .select('id')
     .single();
   if (reqErr || !req) return { ok: false, error: reqErr?.message ?? 'Could not create request.' };
   const requestId = (req as { id: string }).id;
-  const admin = createAdminSupabase();
-  if (!admin) return { ok: false, error: 'Server is missing SUPABASE_SERVICE_ROLE_KEY.' };
-  const { data: doc } = await admin
-    .from('firm_documents')
-    .select('name')
-    .eq('id', documentId)
-    .maybeSingle();
-  const docName = (doc as { name?: string } | null)?.name ?? 'Document';
+
+  // Append the first event in the chain. request_created records who
+  // initiated it + the document hash; later events chain off this one.
+  const { appendSignatureEvent } = await import('./esign-audit');
+  await appendSignatureEvent(admin, {
+    signingRequestId: requestId,
+    eventType: 'request_created',
+    userId: user.id,
+    documentSha256,
+    metadata: {
+      document_id: documentId,
+      document_name: docName,
+      signer_count: signers.length,
+    },
+  });
   for (const signer of signers) {
     const token = newToken(32);
     await admin.from('firm_signatures').insert({

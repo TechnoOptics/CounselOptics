@@ -1,6 +1,9 @@
 import Link from 'next/link';
+import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { getSignatureByToken } from '@/lib/firm-storage';
+import { createAdminSupabase } from '@/lib/supabase/admin';
+import { appendSignatureEvent } from '@/lib/esign-audit';
 import { SignatureCapture } from './signature-capture';
 
 export const dynamic = 'force-dynamic';
@@ -28,6 +31,36 @@ export default async function SignPage({ params }: { params: { token: string } }
   if (!data) notFound();
 
   const { signature, request, document, firm } = data;
+
+  // Audit trail: record that the signer opened the link. Best-effort
+  // and skipped once the signature is already executed (so a
+  // post-completion bookmark click doesn't pollute the chain). Hits
+  // the service role client because this page is unauthenticated.
+  if (!signature.signedAt && request.status !== 'canceled') {
+    try {
+      const admin = createAdminSupabase();
+      if (admin) {
+        const h = headers();
+        const ip =
+          h.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+          h.get('x-real-ip') ||
+          null;
+        const userAgent = h.get('user-agent') ?? null;
+        await appendSignatureEvent(admin, {
+          signingRequestId: request.id,
+          signatureId: signature.id,
+          eventType: 'link_viewed',
+          signerEmail: signature.signerEmail,
+          ipAddress: ip,
+          userAgent,
+          documentSha256:
+            (request as { documentSha256?: string | null }).documentSha256 ?? null,
+        });
+      }
+    } catch {
+      /* never block the sign page on audit logging */
+    }
+  }
 
   if (signature.signedAt) {
     return (

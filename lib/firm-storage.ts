@@ -179,6 +179,7 @@ type FirmSigningRequestRow = {
   sent_at: string | null;
   completed_at: string | null;
   created_at: string;
+  document_sha256: string | null;
 };
 
 function signingRequestFromRow(r: FirmSigningRequestRow): FirmSigningRequest {
@@ -192,6 +193,7 @@ function signingRequestFromRow(r: FirmSigningRequestRow): FirmSigningRequest {
     sentAt: r.sent_at,
     completedAt: r.completed_at,
     createdAt: r.created_at,
+    documentSha256: r.document_sha256,
   };
 }
 

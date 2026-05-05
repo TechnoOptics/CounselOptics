@@ -123,7 +123,7 @@ function ScopePanel() {
       title: 'E-signature',
       state: 'preview',
       body:
-        'Ships in preview mode. Output PDFs are watermarked "DRAFT - NOT LEGALLY BINDING" until the full UETA-compliant audit trail lands.',
+        'Audit trail lives: each request records the document SHA-256, every link view + signature appends to a tamper-evident hash chain (firm_signature_events), and /api/firm/sign/audit-trail/{id} surfaces the chain to firm members. Output PDFs stay watermarked "DRAFT - NOT LEGALLY BINDING" until an attorney has reviewed this implementation against UETA / E-SIGN for the relying party\'s jurisdiction.',
     },
     {
       title: 'Team chat',

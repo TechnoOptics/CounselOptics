@@ -199,6 +199,14 @@ export type FirmSigningRequest = {
   sentAt: string | null;
   completedAt: string | null;
   createdAt: string;
+  /**
+   * SHA-256 of the document bytes captured at request-creation time.
+   * Used by the audit trail to prove the bytes the signer consented
+   * to match the bytes the firm later relies on. Null when the
+   * request was created before the audit-trail migration shipped or
+   * when the document download failed at hash time.
+   */
+  documentSha256: string | null;
 };
 
 export type FirmSignature = {

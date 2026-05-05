@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import crypto from 'node:crypto';
 import { createAdminSupabase } from '@/lib/supabase/admin';
+import { appendSignatureEvent } from '@/lib/esign-audit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -86,6 +87,7 @@ export async function POST(req: NextRequest) {
     firm_id: string;
     document_id: string;
     status: 'draft' | 'sent' | 'partial' | 'completed' | 'canceled';
+    document_sha256: string | null;
   };
   if (request.status === 'canceled') {
     return NextResponse.json(
@@ -140,6 +142,26 @@ export async function POST(req: NextRequest) {
     })
     .eq('id', sig.id);
 
+  // Append the signed event to the audit chain. Hash chains to the
+  // most recent prior event for this request (request_created from
+  // when the firm sent the link, plus any link_viewed events when
+  // the signer opened the page).
+  await appendSignatureEvent(admin, {
+    signingRequestId: request.id,
+    signatureId: sig.id,
+    eventType: 'signed',
+    signerEmail: sig.signer_email,
+    signerName: payload.typedName?.trim() || null,
+    ipAddress: ip,
+    userAgent,
+    documentSha256: request.document_sha256,
+    metadata: {
+      signature_image_path: path,
+      audit_hash: auditHash,
+      image_bytes: buffer.length,
+    },
+  });
+
   // Roll up parent request status.
   const { data: allSigs } = await admin
     .from('firm_signatures')
@@ -157,6 +179,17 @@ export async function POST(req: NextRequest) {
   const updates: Record<string, unknown> = { status: nextStatus };
   if (nextStatus === 'completed') updates.completed_at = new Date().toISOString();
   await admin.from('firm_signing_requests').update(updates).eq('id', request.id);
+
+  // If everyone has signed, emit the closing 'completed' event so
+  // the audit trail terminates cleanly.
+  if (nextStatus === 'completed') {
+    await appendSignatureEvent(admin, {
+      signingRequestId: request.id,
+      eventType: 'completed',
+      documentSha256: request.document_sha256,
+      metadata: { total_signers: total, signed: signed },
+    });
+  }
 
   return NextResponse.json({ ok: true });
 }
