@@ -21,7 +21,11 @@ const COUNSEL_PATHS = new Set([
   '/admin/counsel-requests',
   '/admin/invitations',
 ]);
-const OPERATIONS_PATHS = new Set(['/admin/health', '/admin/crashes']);
+const OPERATIONS_PATHS = new Set([
+  '/admin/health',
+  '/admin/crashes',
+  '/admin/security',
+]);
 
 function detectPerspective(pathname: string): Perspective {
   if (pathname === '/admin') return 'overview';
@@ -136,6 +140,7 @@ function PerspectiveSubnav({
           ]
         : [
             { href: '/admin/health', label: 'System health' },
+            { href: '/admin/security', label: 'Security pulse' },
             { href: '/admin/crashes', label: 'Crash reports' },
           ];
 

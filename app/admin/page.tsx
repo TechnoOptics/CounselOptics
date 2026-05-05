@@ -37,6 +37,7 @@ export default async function HqLandingPage() {
 
       <section className="flex flex-wrap items-center gap-3">
         <LiveSupabasePill live={live} />
+        <SecurityPulsePill />
         <CrashButton count={counts.ops.crashOpen} />
         {(counts.consumer.pastDueSubs > 0 || counts.counsel.expiredGrants > 0) && (
           <span className="text-[12px] text-amber-300/85 px-3 py-1.5 rounded-md bg-amber-950/40 ring-1 ring-amber-700/40">
@@ -259,6 +260,31 @@ function LiveSupabasePill({
       <span className="text-cream-100/55 font-mono text-[11px]">
         · {live.totalLatencyMs}ms
       </span>
+    </Link>
+  );
+}
+
+/**
+ * Compact link to the live Security pulse dashboard. Renders as a
+ * shield-style pill so operators can jump to the full readout from
+ * any HQ surface. The actual posture (green/amber/red) is computed
+ * inside /admin/security; this pill is just the entry point.
+ */
+function SecurityPulsePill() {
+  return (
+    <Link
+      href="/admin/security"
+      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md ring-1 text-[12.5px] bg-emerald-950/30 ring-emerald-700/30 text-emerald-200 hover:text-emerald-100 transition-colors"
+    >
+      <span className="relative inline-flex h-2 w-2">
+        <span
+          className="animate-ping absolute inset-0 rounded-full opacity-75 bg-emerald-400"
+          style={{ animationDuration: '2.5s' }}
+          aria-hidden
+        />
+        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
+      </span>
+      <span>Security pulse</span>
     </Link>
   );
 }
