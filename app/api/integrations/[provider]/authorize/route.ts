@@ -5,6 +5,7 @@ import { getCurrentUser } from '@/lib/supabase/server';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import {
   buildRedirectUri,
+  getOAuthCookieDomain,
   getProviderConfig,
   isProviderConfigured,
 } from '@/lib/integration-oauth';
@@ -58,14 +59,18 @@ export async function GET(
   // bound to this request. Callback compares cookie to query state and
   // rejects mismatches.
   const stateNonce = crypto.randomBytes(24).toString('base64url');
+  const origin = new URL(request.url).origin;
+  // Capture the originating origin so the callback (which may run on
+  // a different host - the canonical one - if INTEGRATION_REDIRECT_ORIGIN
+  // is set) can bounce the user back to where they started.
   const statePayload = JSON.stringify({
     nonce: stateNonce,
     firmId: firmCtx.firm.id,
     userId: user.id,
+    origin,
   });
   const stateB64 = Buffer.from(statePayload).toString('base64url');
 
-  const origin = new URL(request.url).origin;
   const redirectUri = buildRedirectUri(provider, origin);
 
   const params = new URLSearchParams({
@@ -82,13 +87,18 @@ export async function GET(
 
   const res = NextResponse.redirect(authUrl);
   // Cookie name is provider-scoped so simultaneous Microsoft + Zoom
-  // connect flows don't trample each other.
+  // connect flows don't trample each other. We bind the cookie to the
+  // shared parent domain (eg. .advottic.com) when configured, so the
+  // callback running on the canonical host can read it even when the
+  // flow started from a tenant subdomain.
+  const cookieDomain = getOAuthCookieDomain();
   cookies().set(`adv_oauth_${provider.id}`, stateNonce, {
     httpOnly: true,
     secure: true,
     sameSite: 'lax',
     path: '/',
     maxAge: 600, // 10 min
+    ...(cookieDomain ? { domain: cookieDomain } : {}),
   });
   return res;
 }

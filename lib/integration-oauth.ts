@@ -95,17 +95,42 @@ export function isProviderConfigured(provider: ProviderConfig): boolean {
 }
 
 /**
- * Compute the redirect URI used in the OAuth flow. Anchored on the
- * request origin so localhost dev + Vercel preview deploys + production
- * each get a same-origin callback. The exact URL must match what was
- * registered on the developer portal (case-sensitive, trailing-slash
- * sensitive). On Vercel, register both the apex
- * https://advottic.com/api/integrations/<provider>/callback AND any
- * other deploy origin you connect from.
+ * Compute the redirect URI used in the OAuth flow.
+ *
+ * In production every tenant origin (advottic.com, enterprise.advottic.com,
+ * <slug>.advottic.com) routes the OAuth callback through a single canonical
+ * URL: https://advottic.com/api/integrations/<provider>/callback. That's
+ * the only URL we register on Zoom + Microsoft Entra, and it stays valid
+ * regardless of which subdomain the user started from. Strict Mode in
+ * the Zoom Marketplace would reject any other host.
+ *
+ * Override the canonical origin with INTEGRATION_REDIRECT_ORIGIN if you
+ * need to test from a non-production host (eg. a Vercel preview that's
+ * been added to the developer-portal allow list). When the env var is
+ * not set we fall back to the request origin so localhost + preview
+ * deploys keep working without code changes.
  */
 export function buildRedirectUri(
   provider: ProviderConfig,
   origin: string,
 ): string {
-  return `${origin.replace(/\/+$/, '')}/api/integrations/${provider.id}/callback`;
+  const canonical = process.env.INTEGRATION_REDIRECT_ORIGIN?.trim();
+  const base = canonical && canonical.length > 0 ? canonical : origin;
+  return `${base.replace(/\/+$/, '')}/api/integrations/${provider.id}/callback`;
+}
+
+/**
+ * Cookie domain used by the OAuth state cookie. When the OAuth flow
+ * starts from a tenant subdomain (eg. enterprise.advottic.com) and the
+ * callback runs on the canonical host (advottic.com), the state cookie
+ * must be readable on both - so we set it with a shared parent domain.
+ *
+ * Configured via OAUTH_COOKIE_DOMAIN (eg. ".advottic.com"). Falling
+ * back to undefined keeps localhost + preview deploys working: the
+ * cookie defaults to host-only, which matches the legacy per-origin
+ * behaviour.
+ */
+export function getOAuthCookieDomain(): string | undefined {
+  const v = process.env.OAUTH_COOKIE_DOMAIN?.trim();
+  return v && v.length > 0 ? v : undefined;
 }

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
 import {
   buildRedirectUri,
+  getOAuthCookieDomain,
   getProviderConfig,
   isProviderConfigured,
 } from '@/lib/integration-oauth';
@@ -54,7 +55,12 @@ export async function GET(
     return redirectWithError(request, 'Missing authorization response.');
   }
 
-  let parsedState: { nonce?: string; firmId?: string; userId?: string };
+  let parsedState: {
+    nonce?: string;
+    firmId?: string;
+    userId?: string;
+    origin?: string;
+  };
   try {
     parsedState = JSON.parse(
       Buffer.from(stateRaw, 'base64url').toString('utf8'),
@@ -76,7 +82,10 @@ export async function GET(
     );
   }
 
-  // Exchange code for tokens.
+  // Exchange code for tokens. The redirect_uri sent here MUST byte-match
+  // the one sent in /authorize - if INTEGRATION_REDIRECT_ORIGIN was set,
+  // both routes resolve to the canonical host; otherwise both use the
+  // request origin.
   const redirectUri = buildRedirectUri(provider, url.origin);
   const tokenBody = new URLSearchParams({
     client_id: process.env[provider.clientIdEnv]!.trim(),
@@ -209,16 +218,31 @@ export async function GET(
     );
   }
 
-  // Clear the state cookie - it's been spent.
+  // Send the user back to the host they started from. When the flow
+  // started on a tenant subdomain (eg. enterprise.advottic.com) the
+  // callback ran on the canonical host - the `origin` carried in the
+  // state lets us bounce them to the right place.
+  //
+  // Defense in depth: even though the state nonce was verified above,
+  // we still validate the origin against an allow list so a malicious
+  // crafted state can never trigger an open redirect.
+  const requestOrigin = new URL(request.url).origin;
+  const finalBase = isAllowedOrigin(parsedState.origin)
+    ? parsedState.origin!
+    : requestOrigin;
   const res = NextResponse.redirect(
-    new URL(`/counsel/meetings?connected=${provider.id}`, request.url),
+    new URL(`/counsel/meetings?connected=${provider.id}`, finalBase),
   );
+  // Clear the state cookie - it's been spent. Match the domain
+  // attribute used at /authorize so the browser actually drops it.
+  const cookieDomain = getOAuthCookieDomain();
   cookies().set(`adv_oauth_${provider.id}`, '', {
     httpOnly: true,
     secure: true,
     sameSite: 'lax',
     path: '/',
     maxAge: 0,
+    ...(cookieDomain ? { domain: cookieDomain } : {}),
   });
   return res;
 }
@@ -227,4 +251,28 @@ function redirectWithError(req: NextRequest, message: string) {
   const dest = new URL('/counsel/meetings', req.url);
   dest.searchParams.set('integration_error', message);
   return NextResponse.redirect(dest);
+}
+
+/**
+ * Origin whitelist for the post-callback redirect. We accept the
+ * canonical advottic.com host and any subdomain of it (so tenant
+ * subdomains like enterprise.advottic.com work without code changes
+ * per tenant), plus localhost and *.vercel.app for dev / preview
+ * deploys. Anything else falls back to the request origin.
+ */
+function isAllowedOrigin(origin: string | undefined): boolean {
+  if (!origin) return false;
+  let parsed: URL;
+  try {
+    parsed = new URL(origin);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return false;
+  const host = parsed.host.toLowerCase();
+  if (host === 'advottic.com') return true;
+  if (host.endsWith('.advottic.com')) return true;
+  if (host === 'localhost' || host.startsWith('localhost:')) return true;
+  if (host.endsWith('.vercel.app')) return true;
+  return false;
 }
