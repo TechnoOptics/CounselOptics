@@ -8,13 +8,18 @@ const ITEMS: Array<{
   hint: string;
 }> = [
   { href: '/counsel', label: 'Dashboard', icon: <DashIcon />, hint: 'Overview' },
-  { href: '/counsel/cases', label: 'Cases', icon: <CaseIcon />, hint: 'All firm cases' },
+  { href: '/counsel/intake', label: 'Intake', icon: <UserIcon />, hint: 'New matter + conflict check' },
+  { href: '/counsel/cases', label: 'Cases', icon: <CaseIcon />, hint: 'All firm matters' },
   { href: '/counsel/clients', label: 'Clients', icon: <UserIcon />, hint: 'Roster + invites' },
   { href: '/counsel/team', label: 'Team', icon: <UsersIcon />, hint: 'Members + roles' },
   { href: '/counsel/documents', label: 'Documents', icon: <DocIcon />, hint: 'Vault' },
   { href: '/counsel/signing', label: 'Signing', icon: <SignIcon />, hint: 'E-sign requests' },
   { href: '/counsel/chat', label: 'Chat', icon: <ChatIcon />, hint: 'Channels + DMs' },
   { href: '/counsel/meetings', label: 'Meetings', icon: <CalIcon />, hint: 'Calendar' },
+  { href: '/counsel/leads', label: 'Leads', icon: <UsersIcon />, hint: 'Inbound from /find-counsel' },
+  { href: '/counsel/time', label: 'Time', icon: <DashIcon />, hint: 'Time entries' },
+  { href: '/counsel/billing', label: 'Billing', icon: <SignIcon />, hint: 'Invoices' },
+  { href: '/counsel/trust', label: 'Trust', icon: <SignIcon />, hint: 'IOLTA ledger' },
 ];
 
 export function CounselSidebar({

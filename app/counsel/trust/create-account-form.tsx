@@ -1,0 +1,119 @@
+'use client';
+
+import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import { createClient } from '@supabase/supabase-js';
+
+const STATES = [
+  'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
+  'KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ',
+  'NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT',
+  'VA','WA','WV','WI','WY','DC',
+];
+
+/**
+ * One-time setup of the firm's first trust account. Subsequent
+ * accounts can be added via /counsel/settings (out of scope for v1).
+ */
+export function CreateAccountForm({ firmId }: { firmId: string }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  function submit(formData: FormData) {
+    setError(null);
+    const name = String(formData.get('name') ?? '').trim();
+    const bank = String(formData.get('bank') ?? '').trim();
+    const state = String(formData.get('state') ?? '').trim();
+    const acct = String(formData.get('acct') ?? '').trim();
+    if (!name || !state) {
+      setError('Name and state are required.');
+      return;
+    }
+    startTransition(async () => {
+      const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+      const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
+      const client = createClient(url, anon);
+      const masked = acct
+        ? `****${acct.slice(-4)}`
+        : null;
+      const { error: insertErr } = await client
+        .from('firm_trust_accounts')
+        .insert({
+          firm_id: firmId,
+          name,
+          bank_name: bank || null,
+          account_number_masked: masked,
+          state,
+          is_iolta: true,
+        });
+      if (insertErr) setError(insertErr.message);
+      else router.refresh();
+    });
+  }
+
+  return (
+    <form action={submit} className="card p-5 space-y-4">
+      <p className="eyebrow">Add your first trust account</p>
+      <div className="grid sm:grid-cols-2 gap-3">
+        <label className="block">
+          <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+            Account label
+          </span>
+          <input
+            name="name"
+            required
+            placeholder="Main IOLTA"
+            className="input"
+          />
+        </label>
+        <label className="block">
+          <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+            Bank
+          </span>
+          <input name="bank" placeholder="Bank name" className="input" />
+        </label>
+        <label className="block">
+          <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+            Last 4 of account number
+          </span>
+          <input
+            name="acct"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            maxLength={4}
+            placeholder="1234"
+            className="input"
+          />
+        </label>
+        <label className="block">
+          <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+            State
+          </span>
+          <select name="state" className="input" required defaultValue="">
+            <option value="" disabled>
+              Pick a state
+            </option>
+            {STATES.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      {error && (
+        <p className="rounded-lg border border-rose-200 dark:border-rose-700/40 bg-rose-50 dark:bg-rose-950/30 px-3 py-2 text-sm text-rose-800 dark:text-rose-200">
+          {error}
+        </p>
+      )}
+
+      <div className="flex justify-end">
+        <button type="submit" className="btn-primary" disabled={pending}>
+          {pending ? 'Saving...' : 'Add account'}
+        </button>
+      </div>
+    </form>
+  );
+}
