@@ -510,6 +510,15 @@ export async function uploadFirmDocumentAction(
   const tagsRaw = String(formData.get('tags') ?? '').trim();
   const caseId = String(formData.get('caseId') ?? '').trim() || null;
   const clientUserId = String(formData.get('clientUserId') ?? '').trim() || null;
+  const statusRaw = String(formData.get('status') ?? 'submitted').trim();
+  const description = String(formData.get('description') ?? '').trim() || null;
+  const dueAtRaw = String(formData.get('dueAt') ?? '').trim();
+  const dueAt = dueAtRaw ? new Date(dueAtRaw).toISOString() : null;
+  // Whitelist initial status values - the rest are workflow states
+  // reached after the document is moving, not at upload time.
+  const status = ['received', 'submitted', 'ready'].includes(statusRaw)
+    ? statusRaw
+    : 'submitted';
 
   if (!(file instanceof File) || file.size === 0) {
     return { ok: false, error: 'Choose a file to upload.' };
@@ -555,12 +564,92 @@ export async function uploadFirmDocumentAction(
       tags: parseList(tagsRaw),
       case_id: caseId,
       client_user_id: clientUserId,
+      status,
+      description,
+      due_at: dueAt,
     })
     .select('id')
     .single();
   if (insertErr || !doc) return { ok: false, error: insertErr?.message ?? 'Insert failed.' };
   revalidatePath('/counsel/documents');
   return { ok: true, documentId: (doc as { id: string }).id };
+}
+
+/**
+ * Update a document's status and optionally its case linkage,
+ * description, and due date. Used by the document detail page's
+ * status changer + the firm's signing flow when a request fires
+ * an event that should auto-flip the document state (eg. all
+ * signers internal -> signed_internal).
+ *
+ * Allowed status values are checked at the database layer; this
+ * action just whitelists the strings client-side so we can return
+ * a friendly error instead of letting Postgres reject the row.
+ */
+const ALLOWED_DOC_STATUSES = new Set([
+  'received',
+  'submitted',
+  'ready',
+  'sent',
+  'pending',
+  'signed_internal',
+  'signed_employee',
+  'signed_client',
+  'signed_other',
+  'on_hold',
+  'overdue',
+  'canceled',
+]);
+
+export async function updateFirmDocumentAction(
+  firmId: string,
+  documentId: string,
+  patch: {
+    status?: string;
+    caseId?: string | null;
+    description?: string | null;
+    dueAt?: string | null;
+  },
+): Promise<{ ok: boolean; error?: string }> {
+  const user = await requireUser();
+  const supabase = createServerSupabase();
+  const { data: member } = await supabase
+    .from('firm_members')
+    .select('role')
+    .eq('firm_id', firmId)
+    .eq('user_id', user.id)
+    .maybeSingle();
+  if (!member) return { ok: false, error: 'You are not a member of that firm.' };
+  const role = (member as { role: FirmRole }).role;
+  if (!['owner', 'admin', 'attorney', 'paralegal'].includes(role)) {
+    return { ok: false, error: 'Your role cannot edit documents.' };
+  }
+
+  const updates: Record<string, unknown> = {};
+  if (typeof patch.status === 'string') {
+    if (!ALLOWED_DOC_STATUSES.has(patch.status)) {
+      return { ok: false, error: `Unknown status: ${patch.status}` };
+    }
+    updates.status = patch.status;
+    updates.status_updated_at = new Date().toISOString();
+  }
+  if (patch.caseId !== undefined) updates.case_id = patch.caseId;
+  if (patch.description !== undefined) updates.description = patch.description;
+  if (patch.dueAt !== undefined) updates.due_at = patch.dueAt;
+
+  if (Object.keys(updates).length === 0) {
+    return { ok: false, error: 'Nothing to update.' };
+  }
+
+  const { error } = await supabase
+    .from('firm_documents')
+    .update(updates)
+    .eq('id', documentId)
+    .eq('firm_id', firmId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath('/counsel/documents');
+  revalidatePath(`/counsel/documents/${documentId}`);
+  return { ok: true };
 }
 
 // =====================================================================
@@ -622,6 +711,18 @@ export async function createSigningRequestAction(
     .single();
   if (reqErr || !req) return { ok: false, error: reqErr?.message ?? 'Could not create request.' };
   const requestId = (req as { id: string }).id;
+
+  // Move the document into 'sent' state since it's now in the signer's
+  // hands. The operator can advance to a signed_* state once execution
+  // happens, or back to 'pending' if a counterparty needs more time.
+  await admin
+    .from('firm_documents')
+    .update({
+      status: 'sent',
+      status_updated_at: new Date().toISOString(),
+    })
+    .eq('id', documentId)
+    .in('status', ['submitted', 'received', 'ready', 'pending', 'on_hold']);
 
   // Append the first event in the chain. request_created records who
   // initiated it + the document hash; later events chain off this one.

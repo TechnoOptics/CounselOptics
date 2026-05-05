@@ -157,6 +157,83 @@ export type FirmClient = {
 
 // ---------- Documents + signing ----------
 
+/**
+ * Workflow state for a document. Documents in a law firm are
+ * seldom signed in a vacuum - they belong to a case file, a
+ * matter, or a ticket, and they pass through a real lifecycle.
+ *
+ *   received        - incoming from external party
+ *   submitted       - uploaded internally, awaiting review
+ *   ready           - reviewed, ready to use or send
+ *   sent            - sent out for review or signing
+ *   pending         - waiting on a signer or counterparty action
+ *   signed_internal - executed by firm-side attorney
+ *   signed_employee - signed by firm employee (HR, internal)
+ *   signed_client   - signed by client
+ *   signed_other    - signed by counterparty / opposing party
+ *   on_hold         - paused (waiting on info, deal halted)
+ *   overdue         - due_at has passed without resolution
+ *   canceled        - canceled
+ */
+export type FirmDocumentStatus =
+  | 'received'
+  | 'submitted'
+  | 'ready'
+  | 'sent'
+  | 'pending'
+  | 'signed_internal'
+  | 'signed_employee'
+  | 'signed_client'
+  | 'signed_other'
+  | 'on_hold'
+  | 'overdue'
+  | 'canceled';
+
+export const FIRM_DOCUMENT_STATUSES: FirmDocumentStatus[] = [
+  'received',
+  'submitted',
+  'ready',
+  'sent',
+  'pending',
+  'signed_internal',
+  'signed_employee',
+  'signed_client',
+  'signed_other',
+  'on_hold',
+  'overdue',
+  'canceled',
+];
+
+export const FIRM_DOCUMENT_STATUS_LABEL: Record<FirmDocumentStatus, string> = {
+  received: 'Received',
+  submitted: 'Submitted',
+  ready: 'Ready',
+  sent: 'Sent',
+  pending: 'Pending',
+  signed_internal: 'Signed (internal)',
+  signed_employee: 'Signed (employee)',
+  signed_client: 'Signed (client)',
+  signed_other: 'Signed (other party)',
+  on_hold: 'On hold',
+  overdue: 'Overdue',
+  canceled: 'Canceled',
+};
+
+export const FIRM_DOCUMENT_STATUS_TONE: Record<FirmDocumentStatus, 'gray' | 'blue' | 'amber' | 'green' | 'rose'> = {
+  received: 'blue',
+  submitted: 'gray',
+  ready: 'blue',
+  sent: 'amber',
+  pending: 'amber',
+  signed_internal: 'green',
+  signed_employee: 'green',
+  signed_client: 'green',
+  signed_other: 'green',
+  on_hold: 'gray',
+  overdue: 'rose',
+  canceled: 'rose',
+};
+
 export type FirmDocument = {
   id: string;
   firmId: string;
@@ -172,6 +249,10 @@ export type FirmDocument = {
   caseId: string | null;
   clientUserId: string | null;
   archivedAt: string | null;
+  status: FirmDocumentStatus;
+  statusUpdatedAt: string;
+  description: string | null;
+  dueAt: string | null;
 };
 
 export type FirmSigningStatus =

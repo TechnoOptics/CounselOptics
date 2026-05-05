@@ -148,6 +148,10 @@ type FirmDocumentRow = {
   case_id: string | null;
   client_user_id: string | null;
   archived_at: string | null;
+  status: string | null;
+  status_updated_at: string | null;
+  description: string | null;
+  due_at: string | null;
 };
 
 function documentFromRow(r: FirmDocumentRow): FirmDocument {
@@ -166,6 +170,10 @@ function documentFromRow(r: FirmDocumentRow): FirmDocument {
     caseId: r.case_id,
     clientUserId: r.client_user_id,
     archivedAt: r.archived_at,
+    status: ((r.status ?? 'submitted') as FirmDocument['status']),
+    statusUpdatedAt: r.status_updated_at ?? r.uploaded_at,
+    description: r.description ?? null,
+    dueAt: r.due_at ?? null,
   };
 }
 
