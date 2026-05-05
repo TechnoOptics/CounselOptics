@@ -54,9 +54,16 @@ export const ZOOM_CONFIG: ProviderConfig = {
   label: 'Zoom',
   authorizeUrl: 'https://zoom.us/oauth/authorize',
   tokenUrl: 'https://zoom.us/oauth/token',
-  // Zoom's General App OAuth scope strings. meeting:write covers
-  // create + update, user:read fills the "connected as" UI.
-  scopes: ['user:read', 'meeting:write', 'meeting:read'],
+  // Zoom General App granular scopes (the legacy `user:read` /
+  // `meeting:write` shorthand was retired in favor of resource-prefixed
+  // names). user:read:user fills the "connected as" UI.
+  // meeting:write:meeting covers POST /users/{id}/meetings.
+  // meeting:read:list_meetings covers GET /users/{id}/meetings.
+  scopes: [
+    'user:read:user',
+    'meeting:write:meeting',
+    'meeting:read:list_meetings',
+  ],
   clientIdEnv: 'ZOOM_CLIENT_ID',
   clientSecretEnv: 'ZOOM_CLIENT_SECRET',
   profileUrl: 'https://api.zoom.us/v2/users/me',

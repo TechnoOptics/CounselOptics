@@ -51,3 +51,5 @@ android/app/google-services.json
 # Local API tooling artifacts
 .deploy-check.json
 .deploy-trigger.json
+
+.vercel
