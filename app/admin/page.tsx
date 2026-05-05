@@ -95,12 +95,116 @@ export default async function HqLandingPage() {
         </div>
       </section>
 
+      <ScopePanel />
+
       <p className="text-[11px] text-cream-100/45 italic">
         Numbers refresh on every page load. The Supabase pill at the top runs a
         live database + auth probe at request time, so it never lies even when
         the hourly cron is broken.
       </p>
     </div>
+  );
+}
+
+/**
+ * Platform-scope memo. Operators glance at this before answering
+ * "does Advottic do X yet?" - keeps the gap between what's marketed
+ * and what's actually shipping clear at a glance. Update the items
+ * here when a row migrates from "coming" to "v1" or vice versa.
+ */
+function ScopePanel() {
+  type ScopeItem = {
+    title: string;
+    state: 'preview' | 'polled' | 'stub' | 'limited';
+    body: string;
+  };
+  const items: ScopeItem[] = [
+    {
+      title: 'E-signature',
+      state: 'preview',
+      body:
+        'Ships in preview mode. Output PDFs are watermarked "DRAFT - NOT LEGALLY BINDING" until the full UETA-compliant audit trail lands.',
+    },
+    {
+      title: 'Team chat',
+      state: 'polled',
+      body: 'Polled refresh in v1. Real-time WebSockets are a planned follow-on.',
+    },
+    {
+      title: 'MS 365 + Zoom integrations',
+      state: 'stub',
+      body:
+        'Buttons are stubbed. Manual meeting capture works today; OAuth lands when the developer-portal apps are registered.',
+    },
+    {
+      title: 'Bella in firm mode',
+      state: 'limited',
+      body:
+        'Receives jurisdiction + practice-area context for issue-spotting. No paid case-law APIs yet.',
+    },
+  ];
+  return (
+    <section className="card p-6 space-y-4">
+      <header className="flex items-baseline justify-between gap-3">
+        <div>
+          <p className="eyebrow text-cream-100/70">Platform scope</p>
+          <h2 className="font-display text-xl text-cream-100 mt-0.5">
+            What ships in v1, what&rsquo;s coming
+          </h2>
+        </div>
+        <p className="text-[11px] text-cream-100/45 hidden sm:block">
+          Operator memo &middot; updated per release
+        </p>
+      </header>
+      <ul className="grid gap-3 sm:grid-cols-2">
+        {items.map((it) => (
+          <li
+            key={it.title}
+            className="rounded-lg p-4 ring-1 ring-white/5 bg-black/20 space-y-1.5"
+          >
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-[13px] font-semibold text-cream-100">
+                {it.title}
+              </p>
+              <ScopeStateBadge state={it.state} />
+            </div>
+            <p className="text-[12.5px] text-cream-100/70 leading-relaxed">
+              {it.body}
+            </p>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function ScopeStateBadge({
+  state,
+}: {
+  state: 'preview' | 'polled' | 'stub' | 'limited';
+}) {
+  const tone =
+    state === 'preview'
+      ? 'bg-amber-950/40 ring-amber-700/40 text-amber-200'
+      : state === 'polled'
+        ? 'bg-sky-950/40 ring-sky-700/40 text-sky-200'
+        : state === 'stub'
+          ? 'bg-rose-950/40 ring-rose-700/40 text-rose-200'
+          : 'bg-emerald-950/40 ring-emerald-700/40 text-emerald-200';
+  const label =
+    state === 'preview'
+      ? 'Preview'
+      : state === 'polled'
+        ? 'Polled'
+        : state === 'stub'
+          ? 'Stub'
+          : 'Limited';
+  return (
+    <span
+      className={`inline-flex items-center px-1.5 py-[1px] rounded text-[10px] font-semibold uppercase tracking-[0.16em] ring-1 ${tone}`}
+    >
+      {label}
+    </span>
   );
 }
 
