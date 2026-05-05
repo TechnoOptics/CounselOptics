@@ -215,6 +215,27 @@ export async function updateSession(request: NextRequest) {
       data: { user },
     } = await supabase.auth.getUser();
 
+    // Auth-aware home redirect.
+    //
+    // On the consumer apex (advottic.com, www.advottic.com), the marketing
+    // splash at `/` is for prospects. Once a session is present we send
+    // them straight to their cases dashboard - the marketing trial /
+    // demo content is noise for someone who has already onboarded.
+    //
+    // The HQ host (hq.advottic.com/) and Counsel hosts
+    // (enterprise.advottic.com/ + tenant subdomains) hit their own
+    // landing routes via the rewrite step above, so this branch only
+    // fires on the unprefixed consumer side.
+    if (
+      user &&
+      !prefixForHost &&
+      (originalPath === '/' || originalPath === '')
+    ) {
+      const dashUrl = request.nextUrl.clone();
+      dashUrl.pathname = '/cases';
+      return NextResponse.redirect(dashUrl);
+    }
+
     // Auth check uses the EFFECTIVE path so a request to
     // hq.advottic.com/firms (which resolves to /admin/firms) is
     // gated by the /admin protected prefix as expected.

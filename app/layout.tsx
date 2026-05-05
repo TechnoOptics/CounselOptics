@@ -269,8 +269,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <div className="relative z-30 bg-forest-950/95 backdrop-blur-md pt-[env(safe-area-inset-top)]">
                 <div className="mx-auto max-w-7xl px-4 sm:px-6 py-3 flex items-center justify-between">
                   <Link
-                    href="/"
-                    aria-label="Advottic home"
+                    href={signedIn ? '/cases' : '/'}
+                    aria-label={signedIn ? 'Cases dashboard' : 'Advottic home'}
                     className="inline-flex items-center min-w-0 group"
                   >
                     <Image
