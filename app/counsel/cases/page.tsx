@@ -77,7 +77,7 @@ export default async function CounselCasesPage() {
                 <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {buckets[status].map((c) => (
                     <li key={c.id} className="card p-4 hover:shadow-card-hover hover:-translate-y-0.5 transition-all">
-                      <Link href={`/cases/${c.id}`} className="block">
+                      <Link href={`/counsel/cases/${c.id}`} className="block">
                         <span
                           className={`inline-flex items-center px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider rounded ring-1 ${STATUS_TONE[status]}`}
                         >
