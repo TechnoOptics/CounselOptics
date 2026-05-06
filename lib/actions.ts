@@ -239,22 +239,30 @@ export async function createCaseAction(
   // Best-effort activity log + owner notification.
   await logCaseEvent({ caseId: createdId, eventType: 'case_created' });
 
-  // Auto-run Advottic Review on the freshly-created case so the user lands
-  // on a case page that already has an issue-spotting review attached.
-  // No exhibits exist yet, so the review is description-only - still
-  // useful, and the user can re-run after uploading evidence. Wrapped
-  // in try/catch so AI failures (rate limit, missing key) never block
-  // the redirect.
-  try {
-    const fresh = await getCase(createdId);
-    if (fresh) {
-      const review = await runReview(fresh, []);
-      await saveReview(review);
-      await logCaseEvent({ caseId: createdId, eventType: 'review_run' });
-    }
-  } catch (err) {
-    console.error('[createCaseAction] auto-review failed', err);
-  }
+  // Auto-review with a hard 2-second cap so the redirect is fast.
+  //
+  // We used to AWAIT runReview here, which made the user stare at
+  // the "Creating your case file" overlay for 5-30 seconds while
+  // Claude generated the issue-spotting summary - making it look
+  // like the wizard was broken. Race the review against a 2s
+  // timeout: we attach it when the call is fast, otherwise the
+  // user lands on /cases with the case visible and can re-run the
+  // review from the case detail page.
+  await Promise.race([
+    (async () => {
+      try {
+        const fresh = await getCase(createdId);
+        if (fresh) {
+          const review = await runReview(fresh, []);
+          await saveReview(review);
+          await logCaseEvent({ caseId: createdId, eventType: 'review_run' });
+        }
+      } catch (err) {
+        console.error('[createCaseAction] auto-review failed', err);
+      }
+    })(),
+    new Promise<void>((resolve) => setTimeout(resolve, 2000)),
+  ]);
 
   // Redirect outside the try/catch so the NEXT_REDIRECT control-flow
   // exception isn't swallowed. Land on the case list (not the detail

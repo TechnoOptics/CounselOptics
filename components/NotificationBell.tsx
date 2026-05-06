@@ -8,6 +8,7 @@ import {
   markNotificationReadAction,
 } from '@/lib/actions';
 import type { AppNotification } from '@/lib/notifications';
+import { PushOptIn } from './PushOptIn';
 
 /**
  * Bell icon + dropdown for in-app notifications. Mounted once in the
@@ -123,7 +124,10 @@ export function NotificationBell({
         <div
           role="dialog"
           aria-label="Notifications"
-          className="absolute right-0 mt-2 w-[320px] sm:w-[360px] max-h-[70vh] overflow-y-auto rounded-2xl border border-ink-200 dark:border-forest-700/40 bg-white dark:bg-forest-950 shadow-card-hover z-50 animate-fade-up"
+          // Mobile: pin to viewport with 8px margins so the panel
+          // never overflows on narrow screens. Desktop: anchor
+          // under the bell with the original 360px column.
+          className="fixed inset-x-2 top-[calc(env(safe-area-inset-top)+3.5rem)] sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 sm:mt-2 sm:w-[360px] max-h-[70vh] overflow-y-auto rounded-2xl border border-ink-200 dark:border-forest-700/40 bg-white dark:bg-forest-950 shadow-card-hover z-50 animate-fade-up"
         >
           <div className="flex items-center justify-between px-4 py-3 border-b border-ink-100 dark:border-forest-800/60">
             <p className="text-sm font-semibold text-forest-900 dark:text-cream-100">
@@ -200,6 +204,15 @@ export function NotificationBell({
               ))}
             </ul>
           )}
+          {/* Push opt-in pill at the footer. Renders nothing when
+              push is unsupported (desktop pre-Sonoma Safari, etc.)
+              or when the user is already subscribed. Closes the
+              gap between in-app notifications and OS-level alerts
+              that ping the device when Advottic is in the
+              background. */}
+          <div className="border-t border-ink-100 dark:border-forest-800/60 px-4 py-3">
+            <PushOptIn />
+          </div>
         </div>
       )}
     </div>

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { listNotifications } from '@/lib/notifications';
+import { PushOptIn } from '@/components/PushOptIn';
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
@@ -57,15 +58,21 @@ export default async function InboxPage() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-8 animate-fade-up">
-      <header>
-        <p className="eyebrow mb-1">Inbox</p>
-        <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          Your inbox
-        </h1>
-        <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-xl leading-relaxed">
-          Notifications about your cases, meetings, and documents in one
-          place. Click any item to jump to the source.
-        </p>
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="eyebrow mb-1">Inbox</p>
+          <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
+            Your inbox
+          </h1>
+          <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-xl leading-relaxed">
+            Notifications about your cases, meetings, and documents in one
+            place. Click any item to jump to the source.
+          </p>
+        </div>
+        {/* Browser push opt-in. Surfaces only when push is supported
+            and the user hasn't subscribed yet; otherwise renders
+            nothing. Closes the gap between in-app + device alerts. */}
+        <PushOptIn />
       </header>
 
       {/* Sub-section quick links */}
