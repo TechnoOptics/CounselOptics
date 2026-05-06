@@ -22,6 +22,8 @@ const ITEMS: NavItem[] = [
   { label: 'Find counsel', href: '/find-counsel', prefix: '/find-counsel', icon: ScalesIcon },
   { label: 'File exhibits', href: '/file-exhibits', prefix: '/file-exhibits', icon: FileIcon },
   { label: 'Public defender', href: '/public-defender', prefix: '/public-defender', icon: GavelIcon },
+  { label: 'Contracts', href: '/contracts', prefix: '/contracts', icon: FileIcon },
+  { label: 'Vault', href: '/vault', prefix: '/vault', icon: FileIcon },
   { label: 'Billing', href: '/billing', prefix: '/billing', icon: CardIcon },
 ];
 

@@ -18,7 +18,17 @@ const TENANT_SUBDOMAINS_ENABLED =
 // the new /welcome is a public install + sign-in page used as the share-app
 // destination, so it must NOT require auth. Authenticated visitors get
 // redirected to /cases inside the page itself.
-const PROTECTED_PREFIXES = ['/cases', '/profile', '/admin', '/billing', '/feedback', '/counsel'];
+const PROTECTED_PREFIXES = [
+  '/cases',
+  '/profile',
+  '/admin',
+  '/billing',
+  '/feedback',
+  '/counsel',
+  '/contracts',
+  '/vault',
+  '/inbox',
+];
 
 // Publicly accessible routes that live UNDER a protected prefix. The
 // /counsel namespace is invitation-only, but the public application form

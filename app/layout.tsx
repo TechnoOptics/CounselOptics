@@ -172,6 +172,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     '/find-counsel',
     '/file-exhibits',
     '/public-defender',
+    '/contracts',
+    '/vault',
+    '/inbox',
   ];
   const isAppRoute =
     pathname !== '' &&
