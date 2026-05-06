@@ -108,7 +108,63 @@ export async function createNotification(input: {
   } catch {
     /* push is best-effort */
   }
+
+  // Email fan-out for the higher-signal types only. Avoids
+  // duplicating every minor in-app event into the user's inbox.
+  if (EMAIL_FAN_OUT_TYPES.has(input.type)) {
+    try {
+      await sendEmailNotification(input.userId, {
+        title: input.title,
+        body: input.body ?? null,
+        link: input.link ?? '/inbox',
+      });
+    } catch {
+      /* email is best-effort */
+    }
+  }
+
   return fromRow(data as NotificationRow);
+}
+
+/**
+ * Notification types that warrant an email alongside the in-app
+ * record + push. Anything time-sensitive (deadline reminders,
+ * signing requests, hearing dates) should be in here. Casual
+ * activity (case_status_changed) stays in-app only.
+ */
+const EMAIL_FAN_OUT_TYPES = new Set<NotificationType>([
+  'signing_request_received',
+  'signing_request_completed',
+  'signing_request_canceled',
+  'case_hearing_reminder',
+  'case_invited',
+  'meeting_scheduled',
+]);
+
+async function sendEmailNotification(
+  userId: string,
+  payload: { title: string; body: string | null; link: string },
+): Promise<void> {
+  const admin = createAdminSupabase();
+  if (!admin) return;
+  const { data: usersResp } = await admin.auth.admin.listUsers({
+    page: 1,
+    perPage: 200,
+  });
+  const u = (usersResp?.users ?? []).find((x) => x.id === userId);
+  if (!u || !u.email) return;
+  const { sendEmail } = await import('./email');
+  const site =
+    process.env.NEXT_PUBLIC_SITE_URL?.trim() ?? 'https://advottic.com';
+  const url = payload.link.startsWith('http')
+    ? payload.link
+    : `${site}${payload.link.startsWith('/') ? '' : '/'}${payload.link}`;
+  await sendEmail({
+    to: u.email,
+    subject: payload.title,
+    text: `${payload.body ?? ''}\n\nOpen in Advottic: ${url}`,
+    html: `<p>${payload.body ?? ''}</p><p><a href="${url}">Open in Advottic</a></p>`,
+  });
 }
 
 /** Most recent notifications for the current user. */

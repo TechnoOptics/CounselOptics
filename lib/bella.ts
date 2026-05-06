@@ -83,6 +83,12 @@ You have tools. Prefer using them over describing things:
 - **search_case_law(query, jurisdiction?, date_after?, date_before?, limit?)** - look up real judicial opinions in CourtListener (free public-domain database from Free Law Project; covers SCOTUS, federal circuits, and most state appellate courts). Use whenever the user asks about precedent, "is there a case on X", or you would otherwise have hedged with "the canonical case might be...". Always cite the URL returned. Remind the user this is not a paid database (no KeyCite, no Shepard's) and to verify the case is still good law before relying on it.
 - **list_document_templates()** - menu of templates you can draft from (demand letters, NDA, lease termination, cease-and-desist, engagement letter, civil complaint shell, employment offer, terms of service). Use whenever the user asks for help drafting a document or says "can you write me a..."
 - **draft_document(template_id, title, content, case_id?)** - save a document you have drafted. YOU write the full text in your response message based on the template skeleton + the user's confirmed facts, then call this tool with the rendered text. ALWAYS append the standard disclaimer (the tool reminds you of the exact wording). The tool drops the draft into firm_documents (firm mode, status="submitted" so an attorney reviews) or user_drafts (consumer mode, opens at /inbox/drafts).
+- **start_timer / stop_timer** - log billable time on the active firm. Open one before starting substantive work; stop when switching tasks. One-open-timer-per-user is enforced.
+- **add_deadline(case_id, kind, title, due_at)** - record a court date / response / SOL on a case. ALWAYS confirm the date with the user before calling. The 90/30/7 day notification cron fires automatically.
+- **suggest_sol(accrual_date, state, claim_type)** - returns a suggested statute-of-limitations due_at for the most common claim types. The tool's response carries the canonical "verify with counsel" reminder; pass it through verbatim.
+- **record_trust_transaction(account_id, client_label, kind, amount_cents, ...)** - post to the IOLTA ledger. NEVER post a disbursement that would create a negative client sub-balance; if you suspect this, decline and ask the operator to confirm the deposit is in.
+- **propose_invoice(case_id, client_email, client_name?)** - bundle every billable, completed time entry on a case into a draft invoice. The operator still has to send it (Stripe pay link generated then).
+- **create_matter_intake(client_name, ...)** + **run_conflict_check(intake_id)** - new-client onboarding. After creating an intake, ALWAYS run the conflict check so the operator sees hits before engaging.
 
 How to use tools well:
 - When the user says "create a new case" or "let's start a case", call navigate_to('/cases/new') so the wizard opens. Add a one-line confirmation in your reply.
@@ -220,7 +226,15 @@ type ToolName =
   | 'get_case_detail'
   | 'search_case_law'
   | 'list_document_templates'
-  | 'draft_document';
+  | 'draft_document'
+  | 'start_timer'
+  | 'stop_timer'
+  | 'add_deadline'
+  | 'suggest_sol'
+  | 'record_trust_transaction'
+  | 'propose_invoice'
+  | 'create_matter_intake'
+  | 'run_conflict_check';
 
 const NAVIGATE_TOOL: Anthropic.Messages.Tool = {
   name: 'navigate_to',
@@ -360,6 +374,184 @@ const DRAFT_DOCUMENT_TOOL: Anthropic.Messages.Tool = {
   },
 };
 
+// ===========================================================================
+// Practice-management tools (firm side). These operate on the live
+// firm context; they no-op gracefully when called outside firm mode.
+// ===========================================================================
+
+const START_TIMER_TOOL: Anthropic.Messages.Tool = {
+  name: 'start_timer',
+  description:
+    "Start a billable-time timer for the active firm. If the user has an open timer, that one is closed first (one-open-timer-per-user invariant). Use whenever the user says 'starting work on X', 'logging time on case Y', or before answering a substantive billable question. Returns the entry id and the timestamp it started at.",
+  input_schema: {
+    type: 'object',
+    properties: {
+      case_id: {
+        type: 'string',
+        description: 'Optional UUID of the case the work is on. If on a case page, infer it from context.',
+      },
+      description: {
+        type: 'string',
+        description: "One-line description of the work, eg. 'Drafted demand letter to ACME'.",
+      },
+    },
+  },
+};
+
+const STOP_TIMER_TOOL: Anthropic.Messages.Tool = {
+  name: 'stop_timer',
+  description:
+    'Stop the user\'s currently-open timer for the active firm. Records duration_seconds. Use when the user says they are done, switching tasks, or wrapping up.',
+  input_schema: { type: 'object', properties: {} },
+};
+
+const ADD_DEADLINE_TOOL: Anthropic.Messages.Tool = {
+  name: 'add_deadline',
+  description:
+    'Add a deadline to a case (firm side). Use whenever the user mentions a court date, a response due, an SOL, or an "by [date]" obligation. Always confirm the date with the user before calling - misread dates are common. The 90/30/7 day reminder cron fires automatically; you do not need to schedule that.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      case_id: { type: 'string', description: 'UUID of the case.' },
+      kind: {
+        type: 'string',
+        enum: [
+          'statute_of_limitations',
+          'response_due',
+          'discovery_due',
+          'motion_due',
+          'hearing',
+          'trial',
+          'filing_deadline',
+          'appeal',
+          'custom',
+        ],
+      },
+      title: { type: 'string', description: 'Short title (eg. "Answer due", "MTD opposition")' },
+      due_at: {
+        type: 'string',
+        description: 'ISO-8601 datetime the deadline is due (eg. 2026-08-15T17:00:00-07:00).',
+      },
+      description: { type: 'string' },
+    },
+    required: ['case_id', 'kind', 'title', 'due_at'],
+  },
+};
+
+const SUGGEST_SOL_TOOL: Anthropic.Messages.Tool = {
+  name: 'suggest_sol',
+  description:
+    'Suggest a statute-of-limitations deadline date based on the accrual date, state, and claim type. Returns the suggested due_at + a "verify with counsel" reminder (tolling, discovery rule, repose, notice-of-claim, minor / disability extensions can shift this materially). Use when the user asks "when does the SOL run on X" or before adding an SOL deadline.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      accrual_date: { type: 'string', description: 'ISO date the claim accrued (injury / breach / discovery).' },
+      state: { type: 'string', description: 'Two-letter state code (CA, NY, TX, ...).' },
+      claim_type: {
+        type: 'string',
+        enum: [
+          'personal_injury',
+          'property_damage',
+          'breach_of_written_contract',
+          'breach_of_oral_contract',
+          'fraud',
+          'wrongful_death',
+          'employment_discrimination',
+          'wage_hour',
+          'libel_slander',
+          'product_liability',
+          'medical_malpractice',
+          'legal_malpractice',
+          'real_property',
+          'collection',
+        ],
+      },
+    },
+    required: ['accrual_date', 'state', 'claim_type'],
+  },
+};
+
+const RECORD_TRUST_TX_TOOL: Anthropic.Messages.Tool = {
+  name: 'record_trust_transaction',
+  description:
+    'Post a transaction to the firm\'s trust ledger (IOLTA). Always confirm the amount + kind + client label with the user before calling. Negative balances on a client\'s sub-ledger are NEVER allowed; if you suspect this would create one, decline and ask.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      account_id: { type: 'string', description: 'UUID of the firm trust account.' },
+      client_label: {
+        type: 'string',
+        description: 'Client / matter label, eg. "Smith v. Acme - retainer".',
+      },
+      kind: {
+        type: 'string',
+        enum: [
+          'deposit',
+          'earned_fee_transfer',
+          'disbursement',
+          'refund',
+          'bank_fee',
+          'interest',
+          'correction',
+        ],
+      },
+      amount_cents: { type: 'integer', minimum: 1, description: 'Amount in cents. Always positive.' },
+      description: { type: 'string' },
+      reference: { type: 'string', description: 'Wire / check / Stripe reference for the audit trail.' },
+      case_id: { type: 'string' },
+    },
+    required: ['account_id', 'client_label', 'kind', 'amount_cents'],
+  },
+};
+
+const PROPOSE_INVOICE_TOOL: Anthropic.Messages.Tool = {
+  name: 'propose_invoice',
+  description:
+    "Bundle every billable, completed time entry on a case that hasn't been invoiced yet into a draft invoice. Use when the user says 'draft an invoice for case X' or 'bill the time on Y'. Returns the invoice id; the operator still has to send it (Stripe payment link is generated then).",
+  input_schema: {
+    type: 'object',
+    properties: {
+      case_id: { type: 'string', description: 'UUID of the case.' },
+      client_email: { type: 'string', description: 'Client email to address the invoice to.' },
+      client_name: { type: 'string' },
+    },
+    required: ['case_id', 'client_email'],
+  },
+};
+
+const CREATE_INTAKE_TOOL: Anthropic.Messages.Tool = {
+  name: 'create_matter_intake',
+  description:
+    'Open a new matter intake with client + opposing party + matter type. Confirms the parties with the user first. After creation, ALWAYS run conflict check via run_conflict_check() so the operator sees hits before engaging.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      client_name: { type: 'string' },
+      client_email: { type: 'string' },
+      client_phone: { type: 'string' },
+      matter_type: { type: 'string' },
+      matter_summary: { type: 'string' },
+      jurisdiction_state: { type: 'string' },
+      opposing_parties: { type: 'array', items: { type: 'string' } },
+      related_parties: { type: 'array', items: { type: 'string' } },
+    },
+    required: ['client_name'],
+  },
+};
+
+const RUN_CONFLICT_CHECK_TOOL: Anthropic.Messages.Tool = {
+  name: 'run_conflict_check',
+  description:
+    'Run a conflict check on a matter intake. Returns the list of hits (existing client, prior opposing, prior related) with severity. The operator decides whether to clear with a written reason.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      intake_id: { type: 'string' },
+    },
+    required: ['intake_id'],
+  },
+};
+
 function toolsFor(mode: BellaMode): Anthropic.Messages.Tool[] {
   if (mode === 'authed') {
     return [
@@ -369,6 +561,14 @@ function toolsFor(mode: BellaMode): Anthropic.Messages.Tool[] {
       SEARCH_CASE_LAW_TOOL,
       LIST_DOCUMENT_TEMPLATES_TOOL,
       DRAFT_DOCUMENT_TOOL,
+      START_TIMER_TOOL,
+      STOP_TIMER_TOOL,
+      ADD_DEADLINE_TOOL,
+      SUGGEST_SOL_TOOL,
+      RECORD_TRUST_TX_TOOL,
+      PROPOSE_INVOICE_TOOL,
+      CREATE_INTAKE_TOOL,
+      RUN_CONFLICT_CHECK_TOOL,
     ];
   }
   if (mode === 'public') {
@@ -575,7 +775,129 @@ async function executeTool(
     return await saveDraftedDocument(input);
   }
 
+  if (name === 'suggest_sol') {
+    const { suggestSOL } = await import('./deadlines-data');
+    const accrual = String(input.accrual_date ?? '').trim();
+    const state = String(input.state ?? '').trim();
+    const claimType = String(input.claim_type ?? '').trim();
+    if (!accrual || !state || !claimType) {
+      return { ok: false, error: 'accrual_date, state, claim_type are all required.' };
+    }
+    const result = suggestSOL(
+      accrual,
+      state,
+      claimType as Parameters<typeof suggestSOL>[2],
+    );
+    return result
+      ? { ok: true, ...result }
+      : { ok: false, error: 'No SOL match for that combo.' };
+  }
+
+  if (name === 'start_timer') {
+    const ctx = await getActiveFirmContextSafe();
+    if (!ctx) return { ok: false, error: 'No active firm context.' };
+    const { startTimerAction } = await import('./time-tracking');
+    return await startTimerAction(ctx.firm.id, {
+      caseId: input.case_id ? String(input.case_id) : null,
+      description: input.description ? String(input.description) : null,
+      source: 'bella',
+    });
+  }
+
+  if (name === 'stop_timer') {
+    const ctx = await getActiveFirmContextSafe();
+    if (!ctx) return { ok: false, error: 'No active firm context.' };
+    const { stopTimerAction } = await import('./time-tracking');
+    return await stopTimerAction(ctx.firm.id);
+  }
+
+  if (name === 'add_deadline') {
+    const ctx = await getActiveFirmContextSafe();
+    const { addDeadlineAction } = await import('./deadlines-actions');
+    return await addDeadlineAction(String(input.case_id ?? ''), {
+      firmId: ctx?.firm.id ?? null,
+      kind: String(input.kind ?? 'custom') as Parameters<typeof addDeadlineAction>[1]['kind'],
+      title: String(input.title ?? ''),
+      dueAt: String(input.due_at ?? ''),
+      description: input.description ? String(input.description) : null,
+    });
+  }
+
+  if (name === 'record_trust_transaction') {
+    const ctx = await getActiveFirmContextSafe();
+    if (!ctx) return { ok: false, error: 'No active firm context.' };
+    const { recordTrustTransactionAction } = await import('./trust-accounting');
+    const amount = Number(input.amount_cents ?? 0);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return { ok: false, error: 'amount_cents must be a positive integer.' };
+    }
+    return await recordTrustTransactionAction(
+      ctx.firm.id,
+      String(input.account_id ?? ''),
+      {
+        clientLabel: String(input.client_label ?? ''),
+        kind: String(input.kind ?? 'deposit') as Parameters<
+          typeof recordTrustTransactionAction
+        >[2]['kind'],
+        amountCents: Math.round(amount),
+        description: input.description ? String(input.description) : null,
+        reference: input.reference ? String(input.reference) : null,
+        caseId: input.case_id ? String(input.case_id) : null,
+      },
+    );
+  }
+
+  if (name === 'propose_invoice') {
+    const ctx = await getActiveFirmContextSafe();
+    if (!ctx) return { ok: false, error: 'No active firm context.' };
+    const { buildDraftInvoiceAction } = await import('./invoicing');
+    return await buildDraftInvoiceAction(
+      ctx.firm.id,
+      String(input.case_id ?? ''),
+      String(input.client_email ?? '').trim().toLowerCase(),
+      input.client_name ? String(input.client_name) : null,
+    );
+  }
+
+  if (name === 'create_matter_intake') {
+    const ctx = await getActiveFirmContextSafe();
+    if (!ctx) return { ok: false, error: 'No active firm context.' };
+    const { createMatterIntakeAction } = await import('./conflict-check');
+    return await createMatterIntakeAction(ctx.firm.id, {
+      clientName: String(input.client_name ?? ''),
+      clientEmail: input.client_email ? String(input.client_email) : null,
+      clientPhone: input.client_phone ? String(input.client_phone) : null,
+      matterType: input.matter_type ? String(input.matter_type) : null,
+      matterSummary: input.matter_summary ? String(input.matter_summary) : null,
+      jurisdictionState: input.jurisdiction_state
+        ? String(input.jurisdiction_state)
+        : null,
+      opposingParties: Array.isArray(input.opposing_parties)
+        ? (input.opposing_parties as unknown[]).map(String)
+        : [],
+      relatedParties: Array.isArray(input.related_parties)
+        ? (input.related_parties as unknown[]).map(String)
+        : [],
+    });
+  }
+
+  if (name === 'run_conflict_check') {
+    const ctx = await getActiveFirmContextSafe();
+    if (!ctx) return { ok: false, error: 'No active firm context.' };
+    const { runConflictCheckAction } = await import('./conflict-check');
+    return await runConflictCheckAction(ctx.firm.id, String(input.intake_id ?? ''));
+  }
+
   return { ok: false, error: `Unknown tool: ${name}` };
+}
+
+async function getActiveFirmContextSafe() {
+  try {
+    const { getActiveFirmContext } = await import('./firm-storage');
+    return await getActiveFirmContext();
+  } catch {
+    return null;
+  }
 }
 
 /**
