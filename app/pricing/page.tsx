@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { BreadcrumbJsonLd, FaqJsonLd } from '@/components/seo/JsonLd';
 
 export const metadata = {
   title: 'Pricing - Advottic',
@@ -157,9 +158,42 @@ const FIRM_TIERS: Tier[] = [
   },
 ];
 
+// Pricing FAQ - mirrors the visible accordion below. Keep both
+// in sync when copy changes; mismatches risk Google demoting the
+// FAQ rich result.
+const PRICING_FAQ: Array<{ q: string; a: string }> = [
+  {
+    q: 'Do I need a credit card on the Free tier?',
+    a: 'No. Free is genuinely free; we collect a card only when you start a paid trial.',
+  },
+  {
+    q: 'What happens at the end of the 14-day trial?',
+    a: "You're auto-enrolled on the tier you trialed. Cancel any time before day 14 to avoid the charge; downgrade to Free with one click.",
+  },
+  {
+    q: 'Can I switch tiers later?',
+    a: "Yes. Upgrades are immediate; downgrades take effect at the next billing cycle. No data is deleted on downgrade - you keep read access to anything that exceeds the new tier's limits.",
+  },
+  {
+    q: 'Is the AI a black box?',
+    a: "No. Bella tells you what tool she's calling and what tool result she got back; the audit trail records every signature event. You can disable AI features per firm or per user.",
+  },
+  {
+    q: 'What about state-bar rules?',
+    a: 'Whether a specific Advottic feature can be used for a specific document class in your jurisdiction is a question for your counsel. We surface the right warnings (SOL tolling reminders, trust accounting negative-balance flags, UETA carve-outs in e-sign) but the legal call stays with you.',
+  },
+];
+
 export default function PricingPage() {
   return (
     <div className="space-y-16 sm:space-y-24 pb-20 animate-fade-up">
+      <BreadcrumbJsonLd
+        items={[
+          { name: 'Home', href: '/' },
+          { name: 'Pricing', href: '/pricing' },
+        ]}
+      />
+      <FaqJsonLd questions={PRICING_FAQ} />
       <header className="text-center space-y-3 max-w-3xl mx-auto pt-4 sm:pt-8">
         <p className="eyebrow justify-center">Pricing</p>
         <h1 className="font-display text-[40px] sm:text-[56px] font-medium tracking-[-0.02em] leading-[1.05] text-forest-900 dark:text-cream-100">

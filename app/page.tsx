@@ -9,6 +9,7 @@ import { BellaAvatar } from '@/components/BellaAvatar';
 import { AboutTeaser } from '@/components/AboutTeaser';
 import { AudienceSplit } from '@/components/AudienceSplit';
 import { FeatureGallery } from '@/components/FeatureGallery';
+import { AppJsonLd, FaqJsonLd } from '@/components/seo/JsonLd';
 
 const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://www.advottic.com';
@@ -88,158 +89,46 @@ export default async function HomePage() {
 }
 
 /**
- * Schema.org JSON-LD blocks for the home page. Three documents:
+ * Schema.org JSON-LD for the home page. Organization + WebSite are
+ * mounted site-wide via SiteJsonLd in app/layout.tsx; here we layer
+ * the two page-specific schemas:
  *
- *   - Organization: who Advottic is. Lets Google show a knowledge
- *     panel on branded searches.
- *   - SoftwareApplication: what Advottic is, with pricing tiers and
- *     the application category. Eligible for the rich-result
- *     "Software" treatment in SERPs.
- *   - FAQPage: the FAQ section below. Lets Google surface FAQ
- *     accordions directly in the search result.
+ *   - SoftwareApplication: real pricing tiers and application
+ *     category. Eligible for the "Software" rich result on SERPs.
+ *   - FAQPage: drives the expandable Q+A SERP treatment that lifts
+ *     CTR by 5-15 points on long-tail informational queries.
  *
- * Lives at the very bottom of the page so the script tag appears
- * AFTER the FAQ DOM nodes - some validators want the JSON-LD to
- * follow its referenced content for the cleanest E-E-A-T signal.
- * Strategy="afterInteractive" keeps it out of the critical path.
+ * Pricing here MUST mirror the human-readable tiers on /pricing -
+ * Google penalizes mismatches between visible content and JSON-LD.
  */
 function HomeStructuredData() {
-  const organization = {
-    '@context': 'https://schema.org',
-    '@type': 'Organization',
-    name: 'Advottic',
-    legalName: 'Advottic LLC',
-    url: SITE_URL,
-    logo: `${SITE_URL}/icon-512.png`,
-    sameAs: [
-      'https://github.com/TechnoOptics',
-    ],
-    contactPoint: [
-      {
-        '@type': 'ContactPoint',
-        email: 'contact@advottic.com',
-        contactType: 'customer support',
-        availableLanguage: ['en'],
-      },
-      {
-        '@type': 'ContactPoint',
-        telephone: '+1-925-300-1600',
-        contactType: 'customer support',
-        availableLanguage: ['en'],
-      },
-    ],
-    description:
-      'Advottic helps people organize evidence, surface jurisdiction-aware issues, prepare for hearings, and ship a clean packet to their attorney. We are not a law firm and do not provide legal advice.',
-  };
-
-  const software = {
-    '@context': 'https://schema.org',
-    '@type': 'SoftwareApplication',
-    name: 'Advottic',
-    operatingSystem: 'Web, iOS, Android',
-    applicationCategory: 'BusinessApplication',
-    applicationSubCategory: 'Legal Case Management',
-    description:
-      'Case-organization, evidence-management, and pre-hearing prep tool for self-represented litigants and people preparing to meet with an attorney. Includes Bella, an on-demand assistant, and Advottic Review, an AI-assisted issue-spotting and gap analysis.',
-    url: SITE_URL,
-    offers: [
-      {
-        '@type': 'Offer',
-        name: 'Basic',
-        price: '9',
-        priceCurrency: 'USD',
-        priceValidUntil: '2027-01-01',
-        category: 'subscription',
-      },
-      {
-        '@type': 'Offer',
-        name: 'Standard',
-        price: '19',
-        priceCurrency: 'USD',
-        priceValidUntil: '2027-01-01',
-        category: 'subscription',
-      },
-      {
-        '@type': 'Offer',
-        name: 'Pro',
-        price: '50',
-        priceCurrency: 'USD',
-        priceValidUntil: '2027-01-01',
-        category: 'subscription',
-      },
-    ],
-    publisher: { '@type': 'Organization', name: 'Advottic LLC' },
-  };
-
-  const faq = {
-    '@context': 'https://schema.org',
-    '@type': 'FAQPage',
-    mainEntity: [
-      {
-        '@type': 'Question',
-        name: 'Is Advottic legal advice?',
-        acceptedAnswer: {
-          '@type': 'Answer',
-          text: 'No. Advottic helps you organize evidence and prepare a case file. We are not a law firm and do not create an attorney-client relationship. For decisions that matter, talk to a licensed attorney.',
-        },
-      },
-      {
-        '@type': 'Question',
-        name: 'I am facing criminal charges. Can Advottic help?',
-        acceptedAnswer: {
-          '@type': 'Answer',
-          text: 'If there is any chance of incarceration, request a public defender right away - that help is free and your constitutional right. Advottic can hold the timeline and the documents in the meantime.',
-        },
-      },
-      {
-        '@type': 'Question',
-        name: 'Where is my information kept?',
-        acceptedAnswer: {
-          '@type': 'Answer',
-          text: 'Your case lives in a private, encrypted database; uploads sit in a private file vault. Only your account can open them. You can export everything you have written or uploaded at any time.',
-        },
-      },
-      {
-        '@type': 'Question',
-        name: 'Can my attorney see my case?',
-        acceptedAnswer: {
-          '@type': 'Answer',
-          text: 'Yes. On the Pro plan you can invite them by email. They get read access plus the ability to add exhibits, but cannot edit case metadata. Remove them at any time.',
-        },
-      },
-      {
-        '@type': 'Question',
-        name: 'Is there a free trial?',
-        acceptedAnswer: {
-          '@type': 'Answer',
-          text: 'Yes - 7 days, all features unlocked, no card required to start. Trial-period exports are watermarked "FREE TRIAL" so they are obvious draft outputs, not final deliverables.',
-        },
-      },
-    ],
-  };
-
-  // Inline <script> tags (not next/script) so the JSON-LD ships in
-  // the SSR HTML. Crawlers that don't execute JavaScript - Bingbot's
-  // first pass, social-link previewers, AI training crawlers - still
-  // see the structured data, and Googlebot picks it up on the very
-  // first render rather than waiting for hydration.
+  // Mirror the FAQ accordion below. If you edit one, edit both.
+  const homeFaq = [
+    {
+      q: 'Is Advottic legal advice?',
+      a: 'No. Advottic helps you organize evidence and prepare a case file. We are not a law firm and do not create an attorney-client relationship. For decisions that matter, talk to a licensed attorney.',
+    },
+    {
+      q: 'I am facing criminal charges. Can Advottic help?',
+      a: 'If there is any chance of incarceration, request a public defender right away. That help is free and is your constitutional right. Advottic can hold the timeline and the documents in the meantime.',
+    },
+    {
+      q: 'Where is my information kept?',
+      a: 'Your case lives in a private, encrypted database; uploads sit in a private file vault. Only your account can open them. You can export everything you have written or uploaded at any time.',
+    },
+    {
+      q: 'Can my attorney see my case?',
+      a: 'Yes. On the Pro plan you can invite them by email. They get read access plus the ability to add exhibits, but cannot edit case metadata. Remove them at any time.',
+    },
+    {
+      q: 'Is there a free trial?',
+      a: 'Yes - 14 days on every paid tier, no credit card required. Trial-period exports are watermarked so they are obvious draft outputs, not final deliverables.',
+    },
+  ];
   return (
     <>
-      <script
-        id="ld-organization"
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(organization) }}
-      />
-      <script
-        id="ld-software"
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(software) }}
-      />
-      <script
-        id="ld-faq"
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faq) }}
-      />
+      <AppJsonLd />
+      <FaqJsonLd questions={homeFaq} />
     </>
   );
 }

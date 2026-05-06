@@ -17,6 +17,7 @@ import { Sidebar, MobileNav } from '@/components/Sidebar';
 import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
 import { ThemeBoot } from '@/components/ThemeBoot';
 import { CrashReporter } from '@/components/CrashReporter';
+import { SiteJsonLd } from '@/components/seo/JsonLd';
 import { BiometricSessionSync } from '@/components/BiometricSessionSync';
 import { DeviceFingerprintRecorder } from '@/components/DeviceFingerprintRecorder';
 import { FreshnessGuard } from '@/components/FreshnessGuard';
@@ -261,6 +262,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <ThemeBoot serverTheme={serverTheme} />
       </head>
       <body className="min-h-screen flex flex-col font-sans">
+        {/* Site-wide structured data: Organization + WebSite (with
+            sitelinks search box). Surfaces on every page so the
+            knowledge panel + brand SERP carry consistent metadata. */}
+        <SiteJsonLd />
         {/* Counsel mode renders its own header / sidebar / footer in
             app/counsel/layout.tsx and reuses none of the consumer
             chrome. Find counsel, Public defender, Billing, and the

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { FindCounselClient } from './find-counsel-client';
 import { ConnectAdvotticForm } from './connect-advottic';
+import { BreadcrumbJsonLd, ServiceJsonLd } from '@/components/seo/JsonLd';
 
 export const metadata: Metadata = {
   title: 'Find counsel near you',
@@ -27,6 +28,17 @@ export const metadata: Metadata = {
 export default function FindCounselPage() {
   return (
     <div className="space-y-10 animate-fade-up">
+      <BreadcrumbJsonLd
+        items={[
+          { name: 'Home', href: '/' },
+          { name: 'Find counsel', href: '/find-counsel' },
+        ]}
+      />
+      <ServiceJsonLd
+        name="Advottic Counsel matching"
+        description="Connect individuals with vetted Advottic Counsel law firms in their state. Free, no account required to submit a brief; firms respond within 24 hours."
+        serviceType="Lawyer referral and matching"
+      />
       <header>
         <p className="eyebrow mb-2">Counsel finder</p>
         <h1 className="font-display text-[40px] sm:text-[48px] font-medium tracking-[-0.02em] leading-[1.05] text-forest-900 dark:text-cream-100">
