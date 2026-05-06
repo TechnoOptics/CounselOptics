@@ -121,7 +121,16 @@ export function UserMenuClient(props: UserMenuProps) {
               <p className="px-4 pt-1 pb-1 text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-500">
                 Founder console
               </p>
-              <Link
+              {/*
+                Hard <a> instead of <Link>. Crossing from the consumer
+                shell into /admin (a different layout chrome) needs a
+                full document load so middleware can re-run and forward
+                the new x-pathname header to the root layout. With a
+                soft Next.js navigation the root layout stays mounted
+                with the previous chrome until any subsequent click
+                triggers a re-render.
+              */}
+              <a
                 href="/admin"
                 onClick={() => setOpen(false)}
                 className="flex items-center gap-2.5 px-4 py-2 text-sm text-ink-800 hover:bg-cream-50 hover:text-forest-900 transition-colors group"
@@ -142,7 +151,7 @@ export function UserMenuClient(props: UserMenuProps) {
                 <span aria-hidden className="text-ink-400 group-hover:text-forest-700">
                   →
                 </span>
-              </Link>
+              </a>
             </div>
           )}
           {(props.firmMemberships?.length ?? 0) > 0 && !props.isCounselMode && (
@@ -151,7 +160,9 @@ export function UserMenuClient(props: UserMenuProps) {
                 Counsel mode
               </p>
               {props.firmMemberships!.map((m) => (
-                <Link
+                /* Same chrome-crossing reason as the HQ link above:
+                   /counsel uses its own root layout. Force a hard load. */
+                <a
                   key={m.firmId}
                   href="/counsel"
                   onClick={() => setOpen(false)}
@@ -168,7 +179,7 @@ export function UserMenuClient(props: UserMenuProps) {
                   <span aria-hidden className="text-ink-400">
                     →
                   </span>
-                </Link>
+                </a>
               ))}
             </div>
           )}
