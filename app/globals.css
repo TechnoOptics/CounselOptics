@@ -931,6 +931,23 @@ canvas {
   }
   .input {
     @apply w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm placeholder:text-ink-400 focus:outline-none focus:ring-2 focus:ring-forest-700/15 focus:border-forest-700 transition-colors dark:bg-forest-900/60 dark:border-forest-600 dark:text-cream-100 dark:placeholder:text-cream-100/40 dark:focus:ring-gold-500/20 dark:focus:border-gold-500;
+    /* iOS auto-scrolls a focused input to the top of the viewport.
+       scroll-margin-top adds breathing room so the focused input
+       lands BELOW the sticky header instead of getting hidden by it.
+       16px font-size prevents iOS Safari from zooming on focus. */
+    scroll-margin-top: 5rem;
+    font-size: max(16px, 0.875rem);
+  }
+  textarea.input,
+  select.input {
+    scroll-margin-top: 5rem;
+    font-size: max(16px, 0.875rem);
+  }
+  .card {
+    /* When a card transition is the focus of attention (multi-step
+       wizards, "Continue" -> next card), keep its top below the
+       header on auto-scroll. */
+    scroll-margin-top: 5rem;
   }
   .label {
     @apply block text-sm font-medium text-forest-900 mb-1.5 dark:text-cream-100;

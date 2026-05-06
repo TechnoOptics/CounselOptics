@@ -17,6 +17,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { useModalLifecycle } from '@/lib/use-modal-lifecycle';
 import { Preferences } from '@capacitor/preferences';
 import { createBrowserSupabase } from '@/lib/supabase/client';
 import {
@@ -33,6 +34,8 @@ export function BiometricEnrollPrompt() {
   const [phase, setPhase] = useState<'hidden' | 'asking' | 'enrolling' | 'enrolled' | 'error'>(
     'hidden',
   );
+  // Body-scroll-lock when the prompt is on screen.
+  useModalLifecycle({ enabled: phase !== 'hidden' });
   const [label, setLabel] = useState('biometric');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [email, setEmail] = useState<string | null>(null);

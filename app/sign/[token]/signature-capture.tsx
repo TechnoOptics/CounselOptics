@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useStepAnchor } from '@/lib/use-step-anchor';
 
 type Mode = 'draw' | 'type';
 type Step = 'disclosure' | 'capture' | 'done';
@@ -40,6 +41,9 @@ export function SignatureCapture({
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [step, setStep] = useState<Step>('disclosure');
+  // Re-anchor the card on every step transition so the user
+  // never has to scroll back up to find the new content.
+  const cardRef = useStepAnchor<HTMLElement>(step);
 
   // Disclosure-step state.
   const [erdAgreed, setErdAgreed] = useState(false);
@@ -192,7 +196,7 @@ export function SignatureCapture({
 
   if (step === 'done') {
     return (
-      <section className="card p-8 text-center">
+      <section ref={cardRef} className="card p-8 text-center scroll-mt-20">
         <p className="eyebrow mb-2 justify-center">Signed</p>
         <h2 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
           Thanks, {signerName || signerEmail}.
@@ -213,7 +217,7 @@ export function SignatureCapture({
 
   if (step === 'disclosure') {
     return (
-      <section className="card p-5 sm:p-6 space-y-4">
+      <section ref={cardRef} className="card p-5 sm:p-6 space-y-4 scroll-mt-20">
         <header>
           <p className="eyebrow mb-1">Step 1 of 2</p>
           <h2 className="font-display text-xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
@@ -306,7 +310,7 @@ export function SignatureCapture({
   }
 
   return (
-    <section className="card p-5 sm:p-6 space-y-4">
+    <section ref={cardRef} className="card p-5 sm:p-6 space-y-4 scroll-mt-20">
       <header>
         <p className="eyebrow mb-1">Step 2 of 2</p>
         <h2 className="font-display text-xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">

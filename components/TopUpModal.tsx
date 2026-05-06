@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { TOKEN_PACKAGES, type TokenPackage } from '@/lib/token-packages';
+import { Dialog } from '@/components/Dialog';
 
 /**
  * Compact Bella token top-up modal. Renders the four packs
@@ -22,14 +23,6 @@ export function TopUpModal({
 }) {
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
-    }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
 
   async function buy(p: TokenPackage) {
     setPending(p.id);
@@ -57,16 +50,8 @@ export function TopUpModal({
   }
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      className="fixed inset-0 z-50 bg-forest-950/70 backdrop-blur flex items-center justify-center p-4"
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-2xl rounded-2xl bg-white dark:bg-forest-900 ring-1 ring-white/10 shadow-2xl p-6 sm:p-8 space-y-5"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <Dialog onClose={onClose} ariaLabel="Top up Bella tokens" size="md">
+      <div className="p-6 sm:p-8 space-y-5">
         <header className="space-y-1">
           <p className="eyebrow">Bella tokens</p>
           <h2 className="font-display text-2xl text-forest-900 dark:text-cream-100">
@@ -146,6 +131,6 @@ export function TopUpModal({
           </button>
         </footer>
       </div>
-    </div>
+    </Dialog>
   );
 }

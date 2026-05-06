@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { submitFirmLeadAction } from '@/lib/marketplace-actions';
+import { useStepAnchor } from '@/lib/use-step-anchor';
 
 const PRACTICE_AREAS = [
   'Personal injury',
@@ -42,6 +43,8 @@ export function ConnectAdvotticForm() {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<{ matched: number } | null>(null);
+  // Re-anchor the form / success card on transition.
+  const cardRef = useStepAnchor<HTMLElement>(done ? 'done' : 'form');
   const [areaSelections, setAreaSelections] = useState<Set<string>>(
     new Set(),
   );
@@ -71,7 +74,7 @@ export function ConnectAdvotticForm() {
 
   if (done) {
     return (
-      <section className="card p-6 sm:p-8 ring-1 ring-emerald-300/40 dark:ring-emerald-700/40 bg-emerald-50/40 dark:bg-emerald-950/20">
+      <section ref={cardRef} className="card p-6 sm:p-8 ring-1 ring-emerald-300/40 dark:ring-emerald-700/40 bg-emerald-50/40 dark:bg-emerald-950/20 scroll-mt-20">
         <p className="eyebrow text-emerald-700 dark:text-emerald-300 mb-2">
           Match request submitted
         </p>
@@ -96,7 +99,11 @@ export function ConnectAdvotticForm() {
   }
 
   return (
-    <form action={submit} className="card p-5 sm:p-6 space-y-5">
+    <form
+      ref={cardRef as unknown as React.RefObject<HTMLFormElement>}
+      action={submit}
+      className="card p-5 sm:p-6 space-y-5 scroll-mt-20"
+    >
       <div>
         <p className="eyebrow mb-2">Get matched - free</p>
         <h2 className="font-display text-2xl text-forest-900 dark:text-cream-100">

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState, useTransition } from 'react';
 import { recordConsentAction } from '@/lib/actions';
 import { SUPPORTED_LANGUAGES } from '@/lib/types';
+import { useModalLifecycle } from '@/lib/use-modal-lifecycle';
 
 /**
  * Layout-level consent popup. Renders only when the server says
@@ -19,6 +20,9 @@ export function ConsentModal({
 }) {
   const router = useRouter();
   const [hidden, setHidden] = useState(false);
+  // Lock body scroll while the consent modal is on screen so the
+  // page behind isn't accidentally swiped on mobile.
+  useModalLifecycle({ enabled: !hidden });
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [language, setLanguage] = useState<string>('en');
