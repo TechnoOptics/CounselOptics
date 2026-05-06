@@ -1252,6 +1252,13 @@ export async function* streamBella(input: {
   // Sum input + output across every turn so we can deduct Pro
   // tokens once at the end (Bella often loops via tool_use).
   let totalTokens = 0;
+  // Detailed usage broken out by category so the firm-aware token
+  // economy can apply the correct multipliers (cached input 0.5x,
+  // fresh input 1x, output 5x). totalTokens stays for the legacy
+  // gate; we report into the new system in addition.
+  let totalInputTokens = 0;
+  let totalCachedInputTokens = 0;
+  let totalOutputTokens = 0;
   for (let turn = 0; turn < MAX_AGENT_TURNS; turn++) {
     const stream = await client.messages.stream({
       model: MODEL,
@@ -1273,6 +1280,14 @@ export async function* streamBella(input: {
     const finalMsg = await stream.finalMessage();
     totalTokens +=
       (finalMsg.usage?.input_tokens ?? 0) + (finalMsg.usage?.output_tokens ?? 0);
+    totalInputTokens += finalMsg.usage?.input_tokens ?? 0;
+    totalOutputTokens += finalMsg.usage?.output_tokens ?? 0;
+    // Anthropic SDK exposes cache_read_input_tokens on usage when
+    // prompt caching is engaged. Default to 0 when absent.
+    const cached = (
+      finalMsg.usage as unknown as { cache_read_input_tokens?: number } | null
+    )?.cache_read_input_tokens;
+    if (typeof cached === 'number') totalCachedInputTokens += cached;
 
     // If the model stopped to use a tool, run it and loop.
     if (finalMsg.stop_reason === 'tool_use') {
@@ -1308,31 +1323,79 @@ export async function* streamBella(input: {
 
     // end_turn / stop_sequence / max_tokens - reply is complete.
     if (mode === 'authed' && totalTokens > 0) {
-      try {
-        const { consumeTokensForCurrentUser } = await import('./storage');
-        await consumeTokensForCurrentUser({
-          amount: totalTokens,
-          reason: 'bella',
-          metadata: { turns: turn + 1 },
-        });
-      } catch {
-        // never break a successful response on a metering failure
-      }
+      await meterBellaTurn({
+        inputTokens: totalInputTokens,
+        cachedInputTokens: totalCachedInputTokens,
+        outputTokens: totalOutputTokens,
+        turns: turn + 1,
+        capped: false,
+      });
     }
     return;
   }
   // Hit the agent-turn cap; gentle close.
   if (mode === 'authed' && totalTokens > 0) {
-    try {
-      const { consumeTokensForCurrentUser } = await import('./storage');
-      await consumeTokensForCurrentUser({
-        amount: totalTokens,
-        reason: 'bella',
-        metadata: { turns: MAX_AGENT_TURNS, capped: true },
-      });
-    } catch {
-      // never break the close on a metering failure
-    }
+    await meterBellaTurn({
+      inputTokens: totalInputTokens,
+      cachedInputTokens: totalCachedInputTokens,
+      outputTokens: totalOutputTokens,
+      turns: MAX_AGENT_TURNS,
+      capped: true,
+    });
   }
   yield '\n\n_(I was looping a lot - paused to avoid spinning. Ask me again if I missed your question.)_';
+}
+
+/**
+ * Single metering hook for Bella. Routes through the new
+ * tier-aware token economy so:
+ *   - Every paid tier (not just legacy Pro) is metered
+ *   - Firm-pool tiers (Small Firm / Growing / Enterprise) debit
+ *     the pool first, falling back to personal balance
+ *   - Cached input tokens are billed at 0.5x, output at 5x
+ *
+ * Failures never break the response - we always swallow + log.
+ */
+async function meterBellaTurn(input: {
+  inputTokens: number;
+  cachedInputTokens: number;
+  outputTokens: number;
+  turns: number;
+  capped: boolean;
+}): Promise<void> {
+  try {
+    const { getCurrentUser } = await import('./supabase/server');
+    const user = await getCurrentUser();
+    if (!user) return;
+    let firmId: string | null = null;
+    try {
+      const { getActiveFirmContext } = await import('./firm-storage');
+      const firmCtx = await getActiveFirmContext();
+      firmId = firmCtx?.firm.id ?? null;
+    } catch {
+      /* not in firm context - fine */
+    }
+    const { debitFromAnthropicUsage } = await import('./token-economy');
+    await debitFromAnthropicUsage(
+      {
+        userId: user.id,
+        firmId,
+        reason: 'bella',
+        metadata: {
+          turns: input.turns,
+          capped: input.capped,
+          input_tokens: input.inputTokens,
+          cached_input_tokens: input.cachedInputTokens,
+          output_tokens: input.outputTokens,
+        },
+      },
+      {
+        inputTokens: input.inputTokens,
+        cachedInputTokens: input.cachedInputTokens,
+        outputTokens: input.outputTokens,
+      },
+    );
+  } catch {
+    /* never break a response on a metering failure */
+  }
 }

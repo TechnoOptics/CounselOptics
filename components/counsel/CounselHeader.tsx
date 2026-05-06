@@ -4,6 +4,7 @@ import type { Firm, FirmMember } from '@/lib/firm-types';
 import { FIRM_ROLE_LABEL } from '@/lib/firm-types';
 import { CounselFirmSwitcher } from './CounselFirmSwitcher';
 import { UserMenu } from '@/components/UserMenu';
+import { TokenBalanceGauge } from '@/components/TokenBalanceGauge';
 
 /**
  * Top bar for /counsel/*. Renders the firm logo + name on the left,
@@ -171,6 +172,11 @@ export function CounselHeader({
               />
             </Link>
           )}
+          <span className="hidden sm:inline-flex">
+            <TokenBalanceGauge
+              initial={{ combined: 0, firmPool: null, personal: 0, monthlyGrant: 0 }}
+            />
+          </span>
           <UserMenu />
         </div>
       </div>

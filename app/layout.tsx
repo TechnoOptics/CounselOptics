@@ -7,6 +7,7 @@ import { Inter, Saira_Condensed, Fraunces } from 'next/font/google';
 import './globals.css';
 import { UserMenu } from '@/components/UserMenu';
 import { NotificationBell } from '@/components/NotificationBell';
+import { TokenBalanceGauge } from '@/components/TokenBalanceGauge';
 import { listNotifications, unreadNotificationCount } from '@/lib/notifications';
 import { Bella } from '@/components/Bella';
 import { CookieBanner } from '@/components/CookieBanner';
@@ -287,6 +288,18 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   </Link>
                   <div className="flex items-center gap-1">
                     {signedIn && <SearchTrigger className="hidden sm:inline-flex" />}
+                    {signedIn && (
+                      <span className="hidden sm:inline-flex">
+                        <TokenBalanceGauge
+                          initial={{
+                            combined: 0,
+                            firmPool: null,
+                            personal: 0,
+                            monthlyGrant: 0,
+                          }}
+                        />
+                      </span>
+                    )}
                     {signedIn && (
                       <NotificationBell
                         initial={initialNotifications}

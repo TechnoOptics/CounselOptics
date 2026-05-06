@@ -120,11 +120,54 @@ export async function POST(req: NextRequest) {
             ? session.subscription
             : session.subscription?.id;
 
-        // Token top-up flow: a one-time payment (mode='payment') with no
-        // subscription. We pull the price ID from line items and credit
-        // the user's token balance. Top-ups also pass `topup_size` in
-        // metadata as a belt-and-suspenders signal in case the price map
-        // gets out of sync with env vars.
+        // Token top-up flow: a one-time payment (mode='payment').
+        //
+        // New path (preferred): /api/billing/topup-checkout sets
+        //   metadata.product = 'token_topup'
+        //   metadata.package_id = boost|boost_plus|power|mega
+        //   metadata.user_id  = the buying user
+        //   metadata.firm_id  = (optional) firm-pool target
+        // We resolve the package + tokens from token-packages.ts so
+        // a price-id swap can never grant the wrong amount, and we
+        // credit the firm pool when firm_id is set.
+        //
+        // Legacy path: older topup-* SKUs without our metadata fall
+        // through to the price-id map below for backwards compat.
+        const sessionMeta = session.metadata ?? {};
+        if (
+          session.mode === 'payment' &&
+          sessionMeta.product === 'token_topup' &&
+          typeof sessionMeta.package_id === 'string'
+        ) {
+          const paymentIntentId =
+            typeof session.payment_intent === 'string'
+              ? session.payment_intent
+              : session.payment_intent?.id ?? session.id;
+          const { applyTopupPurchase } = await import('@/lib/token-economy');
+          const result = await applyTopupPurchase({
+            paymentIntentId,
+            packageId: sessionMeta.package_id,
+            userId: (sessionMeta.user_id as string | undefined) ?? userId ?? null,
+            firmId: (sessionMeta.firm_id as string | undefined) ?? null,
+            amountCents: session.amount_total ?? 0,
+            currency: (session.currency ?? 'USD').toUpperCase(),
+          });
+          if (result.ok) {
+            await notifyAdminOfRevenue({
+              kind: 'topup_purchased',
+              email:
+                session.customer_details?.email ?? session.customer_email ?? null,
+              tierOrSize: `${sessionMeta.package_id} (${(result.tokens / 1_000).toLocaleString()}k tokens${
+                sessionMeta.firm_id ? ' - firm pool' : ''
+              })`,
+              amountCents: session.amount_total ?? null,
+              customerId: customerId ?? null,
+              sessionId: session.id,
+            });
+          }
+          break;
+        }
+
         if (userId && session.mode === 'payment') {
           const lineItems = await stripe.checkout.sessions.listLineItems(
             session.id,
