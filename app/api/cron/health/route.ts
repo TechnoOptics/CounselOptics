@@ -203,7 +203,7 @@ ${unackedCrashes
   })
   .join('\n')}
 </ul>
-<p style="margin:0 0 8px;font-size:12px;color:#52525b;">Open <a href="https://www.advottic.com/admin/crashes" style="color:#0f2d24;">/admin/crashes</a> to acknowledge or investigate.</p>`
+<p style="margin:0 0 8px;font-size:12px;color:#52525b;">Open <a href="https://advottic.com/admin/crashes" style="color:#0f2d24;">/admin/crashes</a> to acknowledge or investigate.</p>`
           : '';
 
       const html = `<!doctype html><html><body style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Inter,sans-serif;padding:16px;color:#0f2d24;">
@@ -212,7 +212,7 @@ ${unackedCrashes
 ${failureBlock}
 ${crashBlock}
 <p style="margin:18px 0 0;font-size:12px;color:#52525b;">Probes summary: <span style="font-family:ui-monospace,Menlo,Consolas,monospace;">${escapeHtml(JSON.stringify(probes))}</span></p>
-<p style="margin:6px 0 0;font-size:11px;color:#a1a1aa;">Auto-generated daily. Open <a href="https://www.advottic.com/admin/health" style="color:#52525b;">/admin/health</a> for live status.</p>
+<p style="margin:6px 0 0;font-size:11px;color:#a1a1aa;">Auto-generated daily. Open <a href="https://advottic.com/admin/health" style="color:#52525b;">/admin/health</a> for live status.</p>
 </body></html>`;
 
       const r = await sendEmail({ to, subject, html }).catch(() => null);

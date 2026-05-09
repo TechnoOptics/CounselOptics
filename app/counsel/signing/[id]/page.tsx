@@ -11,7 +11,7 @@ import { FIRM_SIGNING_STATUS_LABEL } from '@/lib/firm-types';
 export const dynamic = 'force-dynamic';
 
 const SITE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://www.advottic.com';
+  process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://advottic.com';
 
 export default async function SigningRequestDetail({
   params,

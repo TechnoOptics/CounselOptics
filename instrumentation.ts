@@ -35,7 +35,7 @@ export async function onRequestError(
   try {
     const origin = process.env.VERCEL_URL
       ? `https://${process.env.VERCEL_URL}`
-      : process.env.NEXT_PUBLIC_SITE_URL || 'https://www.advottic.com';
+      : process.env.NEXT_PUBLIC_SITE_URL || 'https://advottic.com';
     await fetch(`${origin}/api/crash`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
     req.headers.get('origin') ||
     `https://${req.headers.get('host')}` ||
     process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
-    'https://www.advottic.com';
+    'https://advottic.com';
 
   const session = await stripe.checkout.sessions.create({
     mode: 'payment',

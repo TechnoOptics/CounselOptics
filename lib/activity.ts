@@ -123,7 +123,7 @@ export async function notifyCollaboratorsOfHearing(input: {
     Open the case file in Advottic to review the timeline, exhibits, and your role before the hearing.
   </p>
   <p style="margin:0 0 18px;">
-    <a href="https://www.advottic.com/cases/${input.caseId}" style="display:inline-block;background:#0f2d24;color:#fbf7e9;text-decoration:none;padding:11px 20px;border-radius:9px;font-weight:600;font-size:13.5px;">Open case file</a>
+    <a href="https://advottic.com/cases/${input.caseId}" style="display:inline-block;background:#0f2d24;color:#fbf7e9;text-decoration:none;padding:11px 20px;border-radius:9px;font-weight:600;font-size:13.5px;">Open case file</a>
   </p>
   <p style="margin:0;font-size:11px;color:#a1a1aa;line-height:1.55;">Advottic provides legal information and case organization, not legal advice. If you weren&rsquo;t expecting this, you can ignore the email.</p>
 </td></tr>

@@ -310,7 +310,7 @@ export async function inviteFirmMemberAction(
   if (error) return { ok: false, error: error.message };
   // Fire-and-forget invitation email.
   const url =
-    (process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://www.advottic.com') +
+    (process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://advottic.com') +
     `/counsel/accept-invite?token=${encodeURIComponent(token)}`;
   const firmName = (firm as { name: string }).name;
   await sendEmail({
@@ -474,7 +474,7 @@ export async function inviteFirmClientAction(
     // sign in (we record the pending invite by email instead).
     await admin.auth.admin.inviteUserByEmail(email, {
       redirectTo:
-        (process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://www.advottic.com') +
+        (process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://advottic.com') +
         '/welcome',
       data: { invited_by_firm_id: firmId, display_name: displayName },
     });
@@ -489,8 +489,8 @@ export async function inviteFirmClientAction(
   await sendEmail({
     to: email,
     subject: `${firmName2} invited you to Advottic`,
-    html: `<p>Your attorney's office added you to Advottic so you can share documents, sign agreements, and communicate securely.</p><p>If you already have an Advottic account, <a href="https://www.advottic.com/sign-in">sign in here</a>. Otherwise, watch for a sign-in link from Advottic.</p>`,
-    text: `Your attorney's office added you to Advottic so you can share documents, sign agreements, and communicate securely.\n\nIf you already have an Advottic account, sign in at https://www.advottic.com/sign-in. Otherwise, watch for a sign-in link from Advottic.`,
+    html: `<p>Your attorney's office added you to Advottic so you can share documents, sign agreements, and communicate securely.</p><p>If you already have an Advottic account, <a href="https://advottic.com/sign-in">sign in here</a>. Otherwise, watch for a sign-in link from Advottic.</p>`,
+    text: `Your attorney's office added you to Advottic so you can share documents, sign agreements, and communicate securely.\n\nIf you already have an Advottic account, sign in at https://advottic.com/sign-in. Otherwise, watch for a sign-in link from Advottic.`,
   }).catch(() => {});
   revalidatePath('/counsel/clients');
   return { ok: true };
@@ -754,7 +754,7 @@ export async function createSigningRequestAction(
       position_y: signer.positionY ?? 0.1,
     });
     const url =
-      (process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://www.advottic.com') +
+      (process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://advottic.com') +
       `/sign/${token}`;
 
     // If the signer is already an Advottic user, drop a notification
@@ -919,9 +919,9 @@ export async function requestCounselAccessAction(
         ${jurisdictions ? `<li>Jurisdictions: ${escapeHtml(jurisdictions)}</li>` : ''}
       </ul>
       ${description ? `<p>${escapeHtml(description).replace(/\n/g, '<br/>')}</p>` : ''}
-      <p><a href="${(process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://www.advottic.com')}/admin/counsel-requests">Review in admin dashboard</a></p>
+      <p><a href="${(process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://advottic.com')}/admin/counsel-requests">Review in admin dashboard</a></p>
     `,
-    text: `${organizationName} has requested Advottic Counsel access.\n\nContact: ${contactName} <${contactEmail}>\nType: ${firmType}\n${description ? '\n' + description : ''}\n\nReview: ${(process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://www.advottic.com')}/admin/counsel-requests`,
+    text: `${organizationName} has requested Advottic Counsel access.\n\nContact: ${contactName} <${contactEmail}>\nType: ${firmType}\n${description ? '\n' + description : ''}\n\nReview: ${(process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://advottic.com')}/admin/counsel-requests`,
   }).catch(() => {});
 
   // Confirmation email to the applicant.
@@ -997,7 +997,7 @@ export async function approveCounselAccessRequestAction(
     .eq('id', r.id);
 
   const url =
-    (process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://www.advottic.com') +
+    (process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://advottic.com') +
     `/counsel/welcome?grant=${encodeURIComponent(token)}`;
   await sendEmail({
     to: r.contact_email,
@@ -1279,7 +1279,7 @@ export async function dispatchCounselInviteAction(input: {
   if (insertErr) return { ok: false, error: insertErr.message };
 
   const url =
-    (process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://www.advottic.com') +
+    (process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://advottic.com') +
     `/counsel/welcome?grant=${encodeURIComponent(token)}`;
   const greeting = contactName ? `Hi ${escapeHtml(contactName)},` : 'Hello,';
   await sendEmail({
@@ -1335,7 +1335,7 @@ export async function resendCounselInviteAction(
     return { ok: false, error: 'Grant has expired - issue a new invitation instead.' };
   }
   const url =
-    (process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://www.advottic.com') +
+    (process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://advottic.com') +
     `/counsel/welcome?grant=${encodeURIComponent(g.token)}`;
   await sendEmail({
     to: g.email,

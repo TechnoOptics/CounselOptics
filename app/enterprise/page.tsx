@@ -5,7 +5,7 @@ import { EnterpriseInquiryForm } from '@/components/EnterpriseInquiryForm';
 import { EnterpriseSectorTabs } from '@/components/EnterpriseSectorTabs';
 
 const SITE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://www.advottic.com';
+  process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://advottic.com';
 
 export const metadata: Metadata = {
   title: {

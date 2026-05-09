@@ -5,5 +5,5 @@
 Contact: mailto:security@advottic.com
 Expires: 2027-01-01T00:00:00.000Z
 Preferred-Languages: en
-Canonical: https://www.advottic.com/.well-known/security.txt
-Policy: https://www.advottic.com/security
+Canonical: https://advottic.com/.well-known/security.txt
+Policy: https://advottic.com/security

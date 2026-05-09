@@ -36,7 +36,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       caseRecord.subjectName ? `Subject: ${caseRecord.subjectName}` : null,
       caseRecord.caseType ? `Case type: ${caseRecord.caseType}` : null,
       caseRecord.hearingNotes ? `\n${caseRecord.hearingNotes}` : null,
-      `\nManaged in Advottic - https://www.advottic.com/cases/${caseRecord.id}`,
+      `\nManaged in Advottic - https://advottic.com/cases/${caseRecord.id}`,
     ]
       .filter(Boolean)
       .join('\n'),
