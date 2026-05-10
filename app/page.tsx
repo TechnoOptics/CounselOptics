@@ -9,6 +9,7 @@ import { BellaAvatar } from '@/components/BellaAvatar';
 import { AboutTeaser } from '@/components/AboutTeaser';
 import { AudienceSplit } from '@/components/AudienceSplit';
 import { FeatureGallery } from '@/components/FeatureGallery';
+import { TechTrustStrip } from '@/components/TechTrustStrip';
 import { AppJsonLd, FaqJsonLd } from '@/components/seo/JsonLd';
 
 const SITE_URL =
@@ -80,6 +81,7 @@ export default async function HomePage() {
       <FeatureGallery />
       <BellaShowcase />
       <TestimonialMarquee />
+      <TechTrustStrip />
       <AboutTeaser />
       <Faq />
       <FinalCta />

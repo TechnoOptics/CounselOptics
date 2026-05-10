@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { BreadcrumbJsonLd, FaqJsonLd } from '@/components/seo/JsonLd';
+import { TechTrustStrip } from '@/components/TechTrustStrip';
 
 export const metadata = {
   title: 'Pricing - Advottic',
@@ -222,6 +223,10 @@ export default function PricingPage() {
             <TierCard key={t.id} tier={t} />
           ))}
         </div>
+      </section>
+
+      <section className="max-w-6xl mx-auto px-4 sm:px-6">
+        <TechTrustStrip />
       </section>
 
       <section className="max-w-6xl mx-auto px-4 sm:px-6 space-y-6">
