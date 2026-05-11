@@ -1,5 +1,7 @@
 import type { MetadataRoute } from 'next';
 import { ARTICLES } from '@/lib/articles';
+import { COMPARISONS } from '@/lib/comparisons';
+import { STATES_SMALL_CLAIMS } from '@/lib/state-small-claims';
 
 /**
  * Public sitemap. Lists every URL we want indexed by Google /
@@ -42,6 +44,8 @@ const ENTRIES: Entry[] = [
   { path: '/press', changeFrequency: 'monthly', priority: 0.55 },
   { path: '/affiliate', changeFrequency: 'monthly', priority: 0.55 },
   { path: '/developers', changeFrequency: 'monthly', priority: 0.55 },
+  { path: '/compare', changeFrequency: 'weekly', priority: 0.85 },
+  { path: '/resources/states', changeFrequency: 'monthly', priority: 0.8 },
 
   // Tier 4: legal + utility
   { path: '/privacy', changeFrequency: 'yearly', priority: 0.4 },
@@ -68,5 +72,23 @@ export default function sitemap(): MetadataRoute.Sitemap {
     changeFrequency: 'monthly' as const,
     priority: 0.7,
   }));
-  return [...baseEntries, ...articleEntries];
+  // Comparison pages target the highest-commercial-intent SEO surface
+  // (brand-vs searches), so they get a higher priority than articles.
+  const compareEntries: MetadataRoute.Sitemap = COMPARISONS.map((c) => ({
+    url: `${SITE_URL}/compare/${c.slug}`,
+    lastModified: new Date(c.reviewedAt),
+    changeFrequency: 'monthly' as const,
+    priority: 0.8,
+  }));
+  // 50 state small-claims pages. Long-tail volume per page is modest
+  // but the aggregate footprint is significant for "small claims [state]"
+  // long-tail queries. Priority kept modest to not crowd cornerstone
+  // articles in the sitemap signal.
+  const stateEntries: MetadataRoute.Sitemap = STATES_SMALL_CLAIMS.map((s) => ({
+    url: `${SITE_URL}/resources/states/${s.slug}/small-claims`,
+    lastModified: now,
+    changeFrequency: 'yearly' as const,
+    priority: 0.6,
+  }));
+  return [...baseEntries, ...articleEntries, ...compareEntries, ...stateEntries];
 }

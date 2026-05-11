@@ -7,6 +7,7 @@ import {
   BreadcrumbJsonLd,
   FaqJsonLd,
 } from '@/components/seo/JsonLd';
+import { NewsletterSignup } from '@/components/NewsletterSignup';
 
 /**
  * Server-rendered article detail page. Each entry in lib/articles.ts
@@ -206,6 +207,13 @@ export default function ArticlePage({ params }: Props) {
           </ul>
         </section>
       )}
+
+      <section className="pt-6 border-t border-ink-200 dark:border-forest-700/40">
+        <NewsletterSignup
+          source={`article_${article.slug}`}
+          variant="card"
+        />
+      </section>
 
       <section className="space-y-5 pt-6 border-t border-ink-200 dark:border-forest-700/40">
         <h2 className="font-display text-[20px] font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">

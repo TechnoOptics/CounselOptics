@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ARTICLES, type Article } from '@/lib/articles';
 import { BreadcrumbJsonLd } from '@/components/seo/JsonLd';
+import { NewsletterSignup } from '@/components/NewsletterSignup';
 
 export const metadata = {
   title: 'Resources - templates, guides, and legal explainers',
@@ -145,21 +146,8 @@ export default function ResourcesPage() {
         );
       })}
 
-      <section className="max-w-3xl mx-auto px-4 sm:px-6 text-center space-y-3">
-        <p className="eyebrow justify-center">Stay sharp</p>
-        <h2 className="font-display text-2xl text-forest-900 dark:text-cream-100">
-          New guides drop every week.
-        </h2>
-        <p className="text-[14px] text-ink-600 dark:text-cream-100/70 leading-relaxed max-w-prose mx-auto">
-          Want the next guide in your inbox? Sign up for a free
-          Advottic account; we send a short digest of the new
-          resources every Friday, no spam, unsubscribe with one click.
-        </p>
-        <div className="pt-3">
-          <Link href="/sign-in?next=/cases" className="btn-primary">
-            Create a free account
-          </Link>
-        </div>
+      <section className="max-w-3xl mx-auto px-4 sm:px-6">
+        <NewsletterSignup source="resources_hub" variant="card" />
       </section>
     </div>
   );
