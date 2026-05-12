@@ -353,7 +353,17 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   <Sidebar initialPrefs={consumerMenuPrefs} />
                 </Suspense>
               )}
-              <div className="flex-1 min-w-0">{children}</div>
+              {/* Defensive Suspense around route content. Audit 2026-05-12
+                  flagged 45 React #419 crashes spanning every public +
+                  authenticated path. #419 means hydration recovered by
+                  client-rendering the entire root - a Suspense boundary
+                  here means any suspending hook (useSearchParams in a
+                  page-level client component, etc.) only re-renders the
+                  page slot, not the whole tree, and the user sees no
+                  flash. Layout chrome stays SSR. */}
+              <div className="flex-1 min-w-0">
+                <Suspense fallback={null}>{children}</Suspense>
+              </div>
             </div>
           </main>
         )}

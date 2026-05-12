@@ -66,6 +66,10 @@ const SECURITY_HEADERS = [
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Suppress the `X-Powered-By: Next.js` response header. Free
+  // version disclosure handed to every visitor and pen-test scanner;
+  // the audit flagged it as P1-3. No functional impact.
+  poweredByHeader: false,
   experimental: {
     serverActions: {
       bodySizeLimit: '50mb',
