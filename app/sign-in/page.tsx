@@ -57,9 +57,19 @@ function sanitizeNext(raw: string | undefined): string {
 export default async function SignInPage({
   searchParams,
 }: {
-  searchParams?: { next?: string; error?: string };
+  searchParams?: { next?: string; error?: string; switch?: string };
 }) {
   const next = sanitizeNext(searchParams?.next);
+  // `?switch=1` (or `?switch=true`) means: the user landed here on
+  // purpose to change accounts. Don't auto-bounce them onto whatever
+  // session this browser already has - instead, show the "you're
+  // signed in as X, sign out to switch" panel so they have a
+  // deliberate path to a different identity. Without this, an admin
+  // who shares a browser with a family member literally cannot
+  // escape the family member's session because /sign-in always
+  // detects the existing cookie and forwards them past the picker.
+  const switching =
+    searchParams?.switch === '1' || searchParams?.switch === 'true';
 
   if (!isSupabaseConfigured()) {
     return (
@@ -77,7 +87,10 @@ export default async function SignInPage({
   }
 
   const user = await getCurrentUser();
-  if (user) redirect(next);
+  // Auto-redirect ONLY when the user did NOT explicitly ask to
+  // switch. The switching branch falls through to the picker below
+  // with an extra "currently signed in as X" panel on top.
+  if (user && !switching) redirect(next);
 
   return (
     <div className="max-w-md mx-auto animate-fade-up">
@@ -103,6 +116,52 @@ export default async function SignInPage({
           <p className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 mb-4">
             {decodeURIComponent(searchParams.error)}
           </p>
+        )}
+
+        {switching && user && (
+          // "Sign out & pick a different account" panel. Shown only
+          // when the user reached /sign-in with ?switch=1 while
+          // already signed in - they explicitly asked for the
+          // chooser, so we surface the existing identity AND the
+          // escape hatch. The hidden `next` field is carried through
+          // sign-out so the post-sign-out chooser still knows where
+          // to land them after the new sign-in lands.
+          <div className="rounded-lg border border-ink-200 bg-cream-50/40 dark:bg-forest-900/40 dark:border-forest-700/40 px-4 py-3 mb-4">
+            <p className="text-[11px] uppercase tracking-[0.18em] text-ink-500 dark:text-cream-100/55">
+              Currently signed in
+            </p>
+            <p className="text-sm font-medium text-ink-950 dark:text-cream-100 mt-1 truncate">
+              {user.email ?? 'Unknown user'}
+            </p>
+            <p className="text-[12px] text-ink-600 dark:text-cream-100/70 mt-1 leading-snug">
+              Continue with this account, or sign out and pick a
+              different one below.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Link
+                href={next}
+                className="btn-secondary text-[12px] px-3 py-1.5"
+              >
+                Continue as {user.email?.split('@')[0] ?? 'this user'}
+              </Link>
+              <form action="/auth/sign-out" method="post">
+                {/* After sign-out, land back here in switch mode so
+                    the chooser stays open and the previous next= is
+                    preserved through one more hop. */}
+                <input
+                  type="hidden"
+                  name="next"
+                  value={`/sign-in?switch=1&next=${encodeURIComponent(next)}`}
+                />
+                <button
+                  type="submit"
+                  className="rounded-md bg-rose-50 dark:bg-rose-950/30 ring-1 ring-rose-200 dark:ring-rose-700/40 text-rose-800 dark:text-rose-200 text-[12px] px-3 py-1.5 font-semibold hover:bg-rose-100 dark:hover:bg-rose-950/50"
+                >
+                  Sign out & use a different account
+                </button>
+              </form>
+            </div>
+          </div>
         )}
 
         {/* On native shells with biometric enrolled, the gate renders

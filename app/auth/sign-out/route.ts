@@ -16,9 +16,27 @@ export const dynamic = 'force-dynamic';
  * browser keeps a half-valid session after delete-account.
  */
 export async function POST(request: NextRequest) {
+  // Optional `next` form field lets the caller route post-sign-out to
+  // a specific page. Used by the /sign-in?switch=1 "use a different
+  // account" button so the chooser stays open across the sign-out.
+  // Validation is strict: same-origin path only, no protocol-relative
+  // URLs, no absolute URLs - same-origin redirects defeat open-redirect
+  // abuse if someone posts a forged form.
+  let nextPath = '/';
+  try {
+    const form = await request.formData();
+    const raw = form.get('next');
+    if (typeof raw === 'string' && raw.startsWith('/') && !raw.startsWith('//')) {
+      nextPath = raw;
+    }
+  } catch {
+    // Body might be empty or non-form; fall through to default '/'.
+  }
   const dest = new URL(request.url);
-  dest.pathname = '/';
-  dest.search = '';
+  dest.pathname = nextPath.split('?')[0] ?? '/';
+  dest.search = nextPath.includes('?')
+    ? '?' + nextPath.split('?').slice(1).join('?')
+    : '';
   const response = NextResponse.redirect(dest, { status: 303 });
 
   const url = getSupabaseUrl();

@@ -210,14 +210,33 @@ export function UserMenuClient(props: UserMenuProps) {
               "Counsel mode" submenu above (jumps to /counsel).
               Everyone else can apply via the public /counsel/request
               form, which is reachable from marketing surfaces. */}
-          <form action="/auth/sign-out" method="post" className="border-t border-ink-100">
-            <button
-              type="submit"
-              className="w-full text-left px-4 py-2.5 text-sm text-rose-700 hover:bg-rose-50 transition-colors"
-            >
-              Sign out
-            </button>
-          </form>
+          <div className="border-t border-ink-100">
+            {/* "Switch account" - signs the current session out and
+                lands at /sign-in?switch=1 so the chooser stays open
+                instead of auto-signing the user back in with their
+                existing cookies. Pairs with prompt=select_account
+                on the Google + Microsoft OAuth init so the provider
+                also shows its account picker. Without both pieces,
+                a browser that's already signed into a Google account
+                can't escape that identity inside Advottic. */}
+            <form action="/auth/sign-out" method="post">
+              <input type="hidden" name="next" value="/sign-in?switch=1" />
+              <button
+                type="submit"
+                className="w-full text-left px-4 py-2.5 text-sm text-ink-800 hover:bg-cream-50 hover:text-forest-900 transition-colors"
+              >
+                Switch account
+              </button>
+            </form>
+            <form action="/auth/sign-out" method="post">
+              <button
+                type="submit"
+                className="w-full text-left px-4 py-2.5 text-sm text-rose-700 hover:bg-rose-50 transition-colors"
+              >
+                Sign out
+              </button>
+            </form>
+          </div>
         </div>
       )}
     </div>

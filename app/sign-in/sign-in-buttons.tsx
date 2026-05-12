@@ -172,8 +172,18 @@ export function SignInButtons({ next }: { next: string }) {
             : provider === 'apple'
               ? 'name email'
               : undefined,
+        // `prompt: select_account` forces the provider to show the
+        // account chooser instead of silently re-using the last
+        // signed-in session. Without this, a user who is already
+        // signed into Google in this browser is signed straight into
+        // Advottic under THAT identity - even if they came to /sign-in
+        // specifically to switch accounts. Microsoft has always set
+        // this; Google had been omitted (default was "use whichever
+        // Google account is sitting in chrome.google.com"). Apple
+        // doesn't honor prompt= but its native sheet always shows
+        // the chooser, so it's a no-op there.
         queryParams:
-          provider === 'azure'
+          provider === 'azure' || provider === 'google'
             ? { prompt: 'select_account' }
             : undefined,
       };
