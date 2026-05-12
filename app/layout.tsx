@@ -18,6 +18,7 @@ import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
 import { ThemeBoot } from '@/components/ThemeBoot';
 import { CrashReporter } from '@/components/CrashReporter';
 import { SiteJsonLd } from '@/components/seo/JsonLd';
+import { ImpersonationBanner } from '@/components/ImpersonationBanner';
 import { BiometricSessionSync } from '@/components/BiometricSessionSync';
 import { DeviceFingerprintRecorder } from '@/components/DeviceFingerprintRecorder';
 import { FreshnessGuard } from '@/components/FreshnessGuard';
@@ -266,6 +267,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             sitelinks search box). Surfaces on every page so the
             knowledge panel + brand SERP carry consistent metadata. */}
         <SiteJsonLd />
+        {/* Impersonation warning. Sticky top banner, rendered on
+            every page (consumer + counsel + admin chrome) so an HQ
+            operator who's used "Sign in as user" cannot forget they
+            are acting as someone else. The component is a no-op
+            until the impersonating=1 query string is seen on first
+            load; after that it persists per-tab via sessionStorage. */}
+        {signedIn && <ImpersonationBanner targetEmail={userEmail} />}
         {/* Counsel mode renders its own header / sidebar / footer in
             app/counsel/layout.tsx and reuses none of the consumer
             chrome. Find counsel, Public defender, Billing, and the
