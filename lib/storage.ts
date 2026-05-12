@@ -2173,3 +2173,33 @@ export async function adminAcknowledgeCrash(crashId: string): Promise<void> {
     })
     .eq('id', crashId);
 }
+
+/**
+ * Bulk-acknowledge a group of crash IDs in a single round trip.
+ * Used by the grouped /admin/crashes view (audit P2): when 21 rows
+ * share the same React #419 signature, "acknowledge group" closes
+ * all of them at once instead of forcing an operator to click 21
+ * times. Returns the count of rows actually written.
+ */
+export async function adminAcknowledgeCrashIds(crashIds: string[]): Promise<number> {
+  if (crashIds.length === 0) return 0;
+  const admin = createAdminSupabase();
+  if (!admin) return 0;
+  const user = await getCurrentUser();
+  // Cap at 500 to keep the IN clause from blowing up. Realistic crash
+  // groups are tens, not thousands.
+  const ids = crashIds.slice(0, 500);
+  const { error, count } = await admin
+    .from('crash_reports')
+    .update(
+      {
+        acknowledged_at: new Date().toISOString(),
+        acknowledged_by: user?.id ?? null,
+      },
+      { count: 'exact' },
+    )
+    .in('id', ids)
+    .is('acknowledged_at', null);
+  if (error) return 0;
+  return count ?? 0;
+}

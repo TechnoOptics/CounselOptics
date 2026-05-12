@@ -18,7 +18,7 @@ export default async function CounselChatPage() {
           Team conversations
         </h1>
         <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-1">
-          Polled refresh every 3 seconds. Real-time WebSocket upgrade is on the roadmap.
+          Real-time via Supabase WebSockets. Messages, edits, and deletes propagate in ~100ms; a 60-second heartbeat refetch covers any dropped event.
         </p>
       </header>
       <ChatShell firmId={ctx.firm.id} initialChannels={channels} userId={ctx.membership.userId} />

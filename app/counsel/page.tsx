@@ -92,16 +92,15 @@ export default async function CounselDashboard() {
           eyebrow="Signing"
           headline={String(pendingSigning.length)}
           metric="awaiting signature"
-          body="In-app e-sign. Signers click a link that stays inside Advottic. Documents never leave."
+          body="UETA-aligned: 2-step intent capture, tamper-evident audit chain, SHA-256 document hash. Jurisdictional document-class fit stays with counsel."
           accent={ctx.firm.accentColor}
-          warning="Outputs are stamped DRAFT - not legally binding in v1."
         />
         <Tile
           href="/counsel/chat"
           eyebrow="Team chat"
           headline="Channels + DMs"
-          metric="Polled refresh"
-          body="Talk to your team in channels and direct messages. Realtime upgrade coming."
+          metric="Realtime"
+          body="Real-time via Supabase WebSockets. Messages, edits and deletes propagate in ~100ms; a 60-second heartbeat refetch covers any dropped event."
           accent={ctx.firm.accentColor}
         />
         <Tile
