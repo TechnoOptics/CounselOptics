@@ -3,6 +3,7 @@ import { adminListFirms } from '@/lib/hq-storage';
 import { FIRM_TYPE_LABEL } from '@/lib/firm-types';
 import { SubdomainToggle } from './subdomain-toggle';
 import { BrandingEditor } from './branding-editor';
+import { ImpersonateOwnerButton } from './impersonate-owner-button';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Active firms - Advottic HQ' };
@@ -104,6 +105,13 @@ export default async function HqFirmsPage() {
                         {f.ownerEmail}
                       </a>
                     )}
+                    <div className="mt-1">
+                      <ImpersonateOwnerButton
+                        ownerUserId={f.ownerUserId}
+                        firmName={f.name}
+                        ownerEmail={f.ownerEmail}
+                      />
+                    </div>
                   </Td>
                   <Td className="text-xs">
                     {f.ownerPlan ? (

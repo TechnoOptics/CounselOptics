@@ -36,6 +36,10 @@ export type HqFirmRow = {
   // currently the firm creator). Subscriptions are still per-user
   // until firm-level billing lands; we surface the creator's plan as
   // a stand-in.
+  /** auth.users.id of the firm's creator. Powers the "View as
+   *  firm owner" impersonation flow on /admin/firms. May be null
+   *  for legacy rows; UI hides the impersonate affordance when so. */
+  ownerUserId: string | null;
   ownerEmail: string | null;
   ownerName: string | null;
   ownerPlan: string | null;
@@ -145,6 +149,7 @@ export async function adminListFirms(): Promise<HqFirmRow[]> {
     clientCount: clientCounts.get(f.id) ?? 0,
     caseCount: caseCounts.get(f.id) ?? 0,
     lastActivityAt: lastActivity.get(f.id) ?? null,
+    ownerUserId: f.created_by ?? null,
     ownerEmail: f.created_by ? emails.get(f.created_by) ?? null : null,
     ownerName: f.created_by ? profiles.get(f.created_by)?.display_name ?? null : null,
     ownerPlan: f.created_by ? subs.get(f.created_by)?.tier ?? null : null,
