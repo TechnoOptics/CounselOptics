@@ -31,8 +31,29 @@ export function ReviewDocumentClient() {
         body: JSON.stringify({ document }),
       });
       if (!res.ok) {
-        const data = await res.json().catch(() => ({ error: 'Could not start the review.' }));
-        setError(data.error || 'Something went wrong.');
+        // Surface known failure modes with specific copy so the user
+        // understands what to do next instead of seeing "something
+        // went wrong" and bouncing.
+        const data = await res
+          .json()
+          .catch(() => ({ error: null as string | null }));
+        let msg: string;
+        if (res.status === 429) {
+          msg =
+            data.error ||
+            'Slow down - too many reviews in a short window. Try again in a minute.';
+        } else if (res.status === 402 || res.status === 403) {
+          msg =
+            data.error ||
+            'Your plan is out of review credits for this period. Open Billing to add a top-up or upgrade.';
+        } else if (res.status === 503 || res.status === 504) {
+          msg =
+            data.error ||
+            'Bella is overloaded right now. Try again in 30 seconds.';
+        } else {
+          msg = data.error || `Could not start the review (HTTP ${res.status}).`;
+        }
+        setError(msg);
         return;
       }
       const reader = res.body?.getReader();

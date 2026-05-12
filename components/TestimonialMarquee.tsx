@@ -17,7 +17,7 @@ const TESTIMONIALS: Testimonial[] = [
   },
   {
     quote:
-      "The Advottic Review review surfaced a procedural defense I didn't know existed. My attorney told me later it shaved months off the timeline.",
+      "The Advottic Review surfaced a procedural defense I didn't know existed. My attorney told me later it shaved months off the timeline.",
     name: 'David K.',
     context: 'Small-business owner, contract dispute',
   },
@@ -150,9 +150,40 @@ export function TestimonialMarquee() {
           A few of the things people have told us about how Advottic helped them advocate for
           themselves, learn the system, or just stop feeling alone in the file.
         </p>
-        <p className="text-[10.5px] uppercase tracking-[0.22em] text-ink-400 mt-3">
-          {pausedRef.current ? 'Paused · scroll or wait 4s' : 'Auto-scrolling · hover to pause'}
-        </p>
+        <div className="mt-3 inline-flex items-center gap-2">
+          <p className="text-[10.5px] uppercase tracking-[0.22em] text-ink-400">
+            {pausedRef.current ? 'Paused' : 'Auto-scrolling'}
+          </p>
+          <button
+            type="button"
+            // Explicit toggle so keyboard and touch users have a clear
+            // affordance to stop the marquee; complements the hover /
+            // focus pause that already exists for mouse + screen-reader
+            // navigation.
+            onClick={() => {
+              if (resumeTimer.current) {
+                window.clearTimeout(resumeTimer.current);
+                resumeTimer.current = null;
+              }
+              pausedRef.current = !pausedRef.current;
+              force((n) => n + 1);
+            }}
+            aria-pressed={pausedRef.current}
+            aria-label={pausedRef.current ? 'Resume auto-scroll' : 'Pause auto-scroll'}
+            className="inline-flex items-center justify-center h-5 w-5 rounded-full ring-1 ring-ink-200 dark:ring-cream-100/30 text-ink-500 dark:text-cream-100/65 hover:text-forest-900 dark:hover:text-cream-100 hover:ring-forest-700 dark:hover:ring-cream-100/70 transition-colors"
+          >
+            {pausedRef.current ? (
+              <svg width="9" height="9" viewBox="0 0 12 12" fill="currentColor" aria-hidden>
+                <path d="M3 1.5 L10 6 L3 10.5 Z" />
+              </svg>
+            ) : (
+              <svg width="9" height="9" viewBox="0 0 12 12" fill="currentColor" aria-hidden>
+                <rect x="3" y="2" width="2" height="8" rx="0.5" />
+                <rect x="7" y="2" width="2" height="8" rx="0.5" />
+              </svg>
+            )}
+          </button>
+        </div>
       </div>
 
       <div

@@ -54,9 +54,9 @@ export default function SecurityPage() {
         />
       </section>
 
-      {/* Section: How we keep your funds (cases) safe */}
+      {/* Section: How we keep your case content safe */}
       <Section
-        eyebrow="Funds (case content) safety"
+        eyebrow="Case content safety"
         title="How we keep your case content safe"
       >
         <SubSection title="In transit">
@@ -260,8 +260,8 @@ export default function SecurityPage() {
         <div className="space-y-2">
           <Faq q="Is my case content used to improve any outside service?">
             No. Our processing partner&apos;s commercial terms forbid using your inputs to
-            improve their service or any other product. Your content reaches Bella or Legal
-            Eye, returns an answer, and is not retained beyond delivering that answer.
+            improve their service or any other product. Your content reaches Bella or Advottic
+            Review, returns an answer, and is not retained beyond delivering that answer.
           </Faq>
           <Faq q="Can my attorney see my case without an Advottic account?">
             Yes - invite them as a collaborator. They'll receive a magic-link invite, see only

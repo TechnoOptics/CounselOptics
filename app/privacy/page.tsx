@@ -5,6 +5,13 @@ export const metadata = {
   description:
     'What data Advottic collects, how we use it, who we share it with (almost nobody), how long we keep it, and how you control it.',
   alternates: { canonical: '/privacy' },
+  openGraph: {
+    title: 'Privacy Policy · Advottic',
+    description:
+      'Plain-English Privacy Policy covering account info, case content, sub-processors, retention, GDPR/CCPA rights, and children.',
+    url: '/privacy',
+    type: 'article',
+  },
 };
 
 export default function PrivacyPage() {
@@ -34,7 +41,7 @@ export default function PrivacyPage() {
           </li>
           <li>
             <strong>Case content you create</strong>: case files, descriptions, exhibits (file
-            uploads with metadata you provide), and Advottic Review reviews.
+            uploads with metadata you provide), and Advottic Reviews.
           </li>
           <li>
             <strong>Collaborators</strong>: emails you enter to invite collaborators to your
@@ -48,6 +55,12 @@ export default function PrivacyPage() {
             <strong>Operational logs</strong>: IP addresses on Advottic Review / Bella requests for rate limiting and
             standard server logs from our hosting provider.
           </li>
+          <li>
+            <strong>Feedback submissions</strong>: when you use the in-app
+            feedback form, we record the page you were on, your browser
+            user-agent, and the account email so we can follow up. We do not
+            capture case content from the feedback form.
+          </li>
         </ul>
       </Section>
 
@@ -55,7 +68,7 @@ export default function PrivacyPage() {
         <ul className="list-disc list-outside pl-6 space-y-1">
           <li>
             <strong>Contract</strong>: providing the service you signed up for (case organization,
-            Advottic Review review, exports).
+            Advottic Review, exports).
           </li>
           <li>
             <strong>Legitimate interests</strong>: securing the platform, preventing abuse,
@@ -87,6 +100,14 @@ export default function PrivacyPage() {
           </li>
           <li>
             <strong>Stripe</strong> - subscription billing for paid plans.
+          </li>
+          <li>
+            <strong>Resend</strong> - transactional email delivery (sign-in
+            magic links, signing request notifications, billing receipts,
+            collaborator invites). We send Resend the recipient address, the
+            email subject and body, and the rendered HTML. We do not send
+            case content beyond what the user has explicitly chosen to share
+            via email (e.g., a signing request).
           </li>
         </ul>
       </Section>
@@ -154,6 +175,33 @@ export default function PrivacyPage() {
         </p>
       </Section>
 
+      <Section title="Children">
+        <p>
+          Advottic is intended for adults handling their own legal matters
+          and for the law firms that serve them. The service is not directed
+          at anyone under 18, and we do not knowingly collect personal
+          information from anyone under 18.
+        </p>
+        <p>
+          In line with the U.S. Children&rsquo;s Online Privacy Protection
+          Act (COPPA), if we learn that we have collected personal
+          information from a child under 13 without verifiable parental
+          consent, we will delete that information promptly. If you are a
+          parent or guardian and believe your child has provided us with
+          personal information, please email{' '}
+          <a href="mailto:contact@advottic.com" className="underline">
+            contact@advottic.com
+          </a>{' '}
+          and we will delete it within 30 days.
+        </p>
+        <p>
+          When working on matters that involve a minor (a custody case, a
+          school discipline matter, a guardianship), the adult Advottic
+          account holder controls the matter file. We do not require a child
+          to log in or provide information directly.
+        </p>
+      </Section>
+
       <Section title="Mobile apps (iOS &amp; Android)">
         <p>
           The Advottic native apps wrap the same web service inside a native
@@ -186,8 +234,11 @@ export default function PrivacyPage() {
             shown because we do not request the IDFA.
           </li>
           <li>
-            <strong>Children.</strong> The mobile apps are not directed at
-            anyone under 18. See the Children section above.
+            <strong>Children.</strong> Same rule as the web service: the
+            mobile apps are not directed at anyone under 18, and we do not
+            knowingly collect personal information from anyone under 18.
+            See the &ldquo;Children&rdquo; section above for full details
+            and the COPPA contact path.
           </li>
         </ul>
       </Section>

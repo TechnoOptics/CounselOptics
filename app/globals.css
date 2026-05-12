@@ -943,6 +943,17 @@ canvas {
     scroll-margin-top: 5rem;
     font-size: max(16px, 0.875rem);
   }
+  /* Per-field invalid state. :user-invalid (not :invalid) only matches
+     after the user has interacted with the field - so a freshly-rendered
+     "required" input does NOT immediately look red. The rose ring is
+     subtle but unmistakable; pairs with native HTML validation messages
+     on submit. Drops in automatically on every .input across the app. */
+  .input:user-invalid {
+    @apply border-rose-300 ring-2 ring-rose-200/60 dark:border-rose-500/60 dark:ring-rose-700/30;
+  }
+  .input:user-invalid:focus {
+    @apply border-rose-400 ring-2 ring-rose-300/40 dark:border-rose-400 dark:ring-rose-600/30;
+  }
   .card {
     /* When a card transition is the focus of attention (multi-step
        wizards, "Continue" -> next card), keep its top below the
@@ -1033,7 +1044,7 @@ canvas {
 
   /* "AI" surface: dark forest with a subtle gold-on-deep-green gradient
      and a pulsing aurora that says "alive / standing by." Wrap Bella's
-     dialog header, Advottic Review review-not-yet-run state, etc. */
+     dialog header, Advottic Review-not-yet-run state, etc. */
   .card-ai {
     @apply rounded-xl text-cream-100 shadow-card relative overflow-hidden;
     background:

@@ -1,12 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { PUBLIC_DEFENDERS } from '@/lib/public-defenders';
 import { PublicDefenderPicker } from './picker';
-import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
-import { getCurrentSubscription } from '@/lib/storage';
-
-export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: 'Find a public defender',
@@ -30,23 +25,13 @@ export const metadata: Metadata = {
   ],
 };
 
-export default async function PublicDefenderPage() {
-  // Strict Pro-only resource. Trial users on lower tiers do NOT
-  // get access; this is one of the two pages reserved as a real
-  // Pro perk so the tier has teeth. A Stripe trial against the Pro
-  // price still counts as Pro (status=trialing on a Pro sub),
-  // since they have committed to Pro - they just have not been
-  // billed yet.
-  if (isSupabaseConfigured()) {
-    const user = await getCurrentUser();
-    if (!user) redirect('/sign-in?next=/public-defender');
-    const sub = await getCurrentSubscription();
-    const tier = sub?.tier ?? null;
-    const status = sub?.status ?? 'inactive';
-    const isProActive = tier === 'pro' && (status === 'active' || status === 'trialing');
-    if (!isProActive) redirect('/billing?gate=public-defender');
-  }
-
+export default function PublicDefenderPage() {
+  // Free for everyone, no sign-in. The constitutional right to a
+  // public defender is not a paid Advottic feature - the homepage
+  // and /about both promise this resource will be in front of users
+  // "at every decision point", so the directory must always be
+  // accessible to logged-out visitors and trial users. (Previously
+  // gated behind Pro; removed per audit 2026-05-11.)
   return (
     <div className="max-w-4xl mx-auto space-y-10 animate-fade-up">
       <header className="text-center">

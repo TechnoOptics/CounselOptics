@@ -17,6 +17,14 @@ import { TopUpButtons } from './topup-buttons';
 
 export const dynamic = 'force-dynamic';
 
+export const metadata = {
+  title: 'Billing',
+  description:
+    'Manage your Advottic subscription, top up Bella tokens, and review recent usage.',
+  alternates: { canonical: '/billing' },
+  robots: { index: false, follow: false },
+};
+
 const STATUS_LABEL: Record<string, string> = {
   inactive: 'No active subscription',
   trialing: 'Trial',
@@ -62,9 +70,22 @@ export default async function BillingPage({
 
   const sub = await getCurrentSubscription();
   const stripeReady = isStripeConfigured();
-  const status = sub?.status ?? 'inactive';
-  const isActive = status === 'active' || status === 'trialing';
+  const rawStatus = sub?.status ?? 'inactive';
   const currentTier: Tier | null = sub?.tier ?? null;
+
+  // Real-time gate. If the Stripe row still says "trialing" or "active"
+  // but the currentPeriodEnd is already in the past, treat the
+  // subscription as expired so the page never shows "trial in progress"
+  // a week after the period actually ended. Stripe's webhook for
+  // subscription.deleted / customer.subscription.updated sometimes lags
+  // or fails; the local clock is the source of truth for the user.
+  const periodEnd = sub?.currentPeriodEnd ? Date.parse(sub.currentPeriodEnd) : null;
+  const isPeriodPast = periodEnd !== null && periodEnd < Date.now();
+  const status =
+    (rawStatus === 'trialing' || rawStatus === 'active') && isPeriodPast
+      ? 'inactive'
+      : rawStatus;
+  const isActive = status === 'active' || status === 'trialing';
 
   // Pro tier: pull token balance + recent ledger so we can render the
   // gauge + history below the plan cards.
@@ -111,27 +132,47 @@ export default async function BillingPage({
           Top-up canceled. No charge has been made.
         </p>
       )}
-      {searchParams?.gate && (
-        <p className="rounded-lg border border-gold-300/50 bg-cream-50 px-4 py-3 text-sm text-forest-900">
-          {searchParams.gate === 'trial-ended' ? (
-            <>
-              <strong>Your trial has ended.</strong> Subscribe below to keep creating cases
-              and using Bella + Advottic Review. You can still view your existing cases and look up
-              counsel without a subscription.
-            </>
-          ) : (
-            <>
-              The{' '}
-              <strong>
-                {searchParams.gate === 'file-exhibits'
-                  ? 'Court e-filing directory'
-                  : searchParams.gate === 'public-defender'
-                    ? 'Public defender directory'
-                    : 'page you tried to open'}
-              </strong>{' '}
-              is part of the Pro plan. Upgrade below to unlock it.
-            </>
-          )}
+      {/* Auto-surface a "trial ended" notice when the Stripe row still
+          reads trialing/active but the local clock says the period is
+          past. Avoid double-rendering when ?gate=trial-ended is already
+          present in the URL. */}
+      {isPeriodPast &&
+        rawStatus !== 'active' &&
+        rawStatus !== 'inactive' &&
+        searchParams?.gate !== 'trial-ended' && (
+          <p className="rounded-lg border border-gold-300/50 bg-cream-50 px-4 py-3 text-sm text-forest-900">
+            <strong>Your trial has ended.</strong> Subscribe below to keep creating cases and
+            using Bella + Advottic Review. You can still view your existing cases and look up
+            counsel without a subscription.
+          </p>
+        )}
+      {/* The ?gate=file-exhibits and ?gate=public-defender URL params
+          are kept for backward compatibility with old bookmarks - we
+          render a friendly redirect notice rather than a paywall, since
+          both directories are now free across every tier. */}
+      {searchParams?.gate === 'trial-ended' && (
+        <p className="rounded-lg border border-gold-300/50 bg-cream-50 px-4 py-3 text-sm text-forest-900 leading-relaxed">
+          <strong>Your trial has ended.</strong> Subscribe below to keep creating cases and
+          using Bella + Advottic Review. You can still view your existing cases and look up
+          counsel without a subscription.
+        </p>
+      )}
+      {(searchParams?.gate === 'file-exhibits' ||
+        searchParams?.gate === 'public-defender') && (
+        <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 leading-relaxed">
+          Good news: the{' '}
+          <strong className="inline font-semibold">
+            {searchParams.gate === 'file-exhibits'
+              ? 'Court e-filing directory'
+              : 'Public defender directory'}
+          </strong>{' '}
+          is now free for everyone, no subscription required.{' '}
+          <Link
+            href={searchParams.gate === 'file-exhibits' ? '/file-exhibits' : '/public-defender'}
+            className="underline font-medium"
+          >
+            Open the directory &rarr;
+          </Link>
         </p>
       )}
 
@@ -151,7 +192,11 @@ export default async function BillingPage({
           </div>
           {sub?.currentPeriodEnd && (
             <p className="text-xs text-ink-500 mt-2">
-              {sub.cancelAtPeriodEnd ? 'Ends on' : 'Renews on'}{' '}
+              {isPeriodPast
+                ? 'Expired on'
+                : sub.cancelAtPeriodEnd
+                  ? 'Ends on'
+                  : 'Renews on'}{' '}
               {new Date(sub.currentPeriodEnd).toLocaleDateString(undefined, {
                 year: 'numeric',
                 month: 'short',
@@ -229,7 +274,7 @@ const REASON_LABEL: Record<TokenLedgerReason, string> = {
   topup_medium: 'Top-up · 600k',
   topup_large: 'Top-up · 1.5M',
   bella: 'Bella conversation',
-  legal_eye: 'Advottic Review review',
+  legal_eye: 'Advottic Review',
   admin_adjust: 'Admin adjustment',
 };
 

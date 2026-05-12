@@ -470,7 +470,7 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
                           Delete this case
                         </h3>
                         <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1.5 max-w-md leading-relaxed">
-                          Removes the case, every exhibit, every Advottic Review review, and any
+                          Removes the case, every exhibit, every Advottic Review, and any
                           collaborator access. This is permanent - the case cannot be recovered.
                         </p>
                       </div>

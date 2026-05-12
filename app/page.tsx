@@ -47,12 +47,25 @@ export default async function HomePage() {
   // Once a user is signed in, the marketing splash is noise. Send
   // them to their cases dashboard instead. Non-blocking on Supabase
   // misconfig - we silently skip the auth check if it's not wired.
+  // Track whether the signed-in lookup succeeded but the redirect
+  // somehow didn't fire (rare; happens under certain edge-runtime
+  // conditions). In that case we still want to surface a "Go to
+  // dashboard" path in the hero so the user is never stuck on the
+  // marketing chrome.
+  let signedIn = false;
   if (isSupabaseConfigured()) {
     try {
       const user = await getCurrentUser();
-      if (user) redirect('/cases');
-    } catch {
-      /* fall through to marketing */
+      if (user) {
+        signedIn = true;
+        redirect('/cases');
+      }
+    } catch (err) {
+      // redirect() throws a Next.js NEXT_REDIRECT internally; let it
+      // bubble. Any other error - fall through to marketing.
+      if ((err as { digest?: string } | null)?.digest?.startsWith('NEXT_REDIRECT')) {
+        throw err;
+      }
     }
   }
 
@@ -73,7 +86,7 @@ export default async function HomePage() {
           the Enterprise card links to /enterprise which mirrors the
           layout but with firm-focused copy. */}
       <AudienceSplit active="personal" />
-      <Hero existingCases={cases.length} />
+      <Hero existingCases={cases.length} signedIn={signedIn} />
       <TrustBadges />
       {/* Visual feature gallery - replaces the old text-heavy
           FlowTimeline + Personas + Outcomes block. Tap a tile,
@@ -139,7 +152,13 @@ function HomeStructuredData() {
 // Hero - editorial, asymmetric, product-forward
 // =====================================================================
 
-function Hero({ existingCases }: { existingCases: number }) {
+function Hero({
+  existingCases,
+  signedIn,
+}: {
+  existingCases: number;
+  signedIn: boolean;
+}) {
   return (
     <section className="relative -mt-2 animate-fade-up">
       <div className="grid gap-4 sm:gap-10 lg:grid-cols-12 lg:gap-14 items-center">
@@ -163,20 +182,35 @@ function Hero({ existingCases }: { existingCases: number }) {
             paper to back you up.
           </p>
           <div className="mt-9 flex flex-wrap items-center gap-3">
+            {signedIn ? (
+              // Signed-in user landed here because the redirect to /cases
+              // didn't fire for some reason. Surface the dashboard as the
+              // primary CTA so they're never stuck on the marketing chrome.
+              <Link
+                href="/cases"
+                className="btn bg-gold-metal text-forest-950 hover:brightness-110 shadow-gold-glow font-semibold px-5 py-2.5"
+              >
+                Open my dashboard
+                <ArrowRight />
+              </Link>
+            ) : (
+              <Link
+                href="/cases/new"
+                className="btn bg-gold-metal text-forest-950 hover:brightness-110 shadow-gold-glow font-semibold px-5 py-2.5"
+              >
+                Start your case file
+                <ArrowRight />
+              </Link>
+            )}
             <Link
-              href="/cases/new"
-              className="btn bg-gold-metal text-forest-950 hover:brightness-110 shadow-gold-glow font-semibold px-5 py-2.5"
-            >
-              Start your case file
-              <ArrowRight />
-            </Link>
-            <Link
-              href={existingCases > 0 ? '/cases' : '/example'}
+              href={signedIn ? '/cases/new' : existingCases > 0 ? '/cases' : '/example'}
               className="btn-ghost text-forest-900 dark:text-cream-100 hover:text-gold-700 dark:hover:text-gold-300 underline-offset-4 hover:underline px-3 py-2.5 font-semibold"
             >
-              {existingCases > 0
-                ? `View ${existingCases} case${existingCases === 1 ? '' : 's'} →`
-                : 'See an example case →'}
+              {signedIn
+                ? 'Start a new case →'
+                : existingCases > 0
+                  ? `View ${existingCases} case${existingCases === 1 ? '' : 's'} →`
+                  : 'See an example case →'}
             </Link>
           </div>
           <div className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-ink-500 dark:text-cream-100/55">
@@ -263,7 +297,7 @@ function ProductPreview() {
           />
           <img
             src={heroUrl}
-            alt="Advottic case file with exhibits, Advottic Review review, and an upcoming hearing in five days"
+            alt="Advottic case file with exhibits, Advottic Review, and an upcoming hearing in five days"
             className="relative w-full h-full object-cover rounded-2xl ring-1 ring-forest-700/30 shadow-card-hover"
             loading="eager"
             fetchPriority="high"
@@ -905,7 +939,7 @@ function SmartFeaturesGrid() {
       <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-4">
         <BentoCard
           span={2}
-          eyebrow="Advottic Review review"
+          eyebrow="Advottic Review"
           title="Jurisdiction-aware issue spotting in seconds."
           body="A thorough review reads your case and exhibits, surfaces possible issues, evidence gaps, and next-step questions for your attorney. Always hedged, never legal advice."
           accent="gold"
@@ -934,7 +968,7 @@ function SmartFeaturesGrid() {
         <BentoCard
           eyebrow="PDF packet"
           title="A clean export your attorney can read in five minutes."
-          body="Cover, case info, exhibits, and the latest Advottic Review review - one polished file."
+          body="Cover, case info, exhibits, and the latest Advottic Review - one polished file."
         />
         <BentoCard
           eyebrow="Find counsel"

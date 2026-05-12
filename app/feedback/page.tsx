@@ -7,10 +7,16 @@ import { FeedbackForm } from './feedback-form';
 
 export const dynamic = 'force-dynamic';
 
+// The root layout sets `template: '%s · Advottic'`, so a bare 'Feedback'
+// here renders as "Feedback · Advottic". The previous value
+// "Feedback - Advottic" was getting the suffix appended too, producing
+// the visible "Feedback - Advottic · Advottic" double-brand.
 export const metadata: Metadata = {
-  title: 'Feedback - Advottic',
+  title: 'Feedback',
   description:
     'Report a bug, suggest a feature, or just tell us how Advottic is working for you.',
+  alternates: { canonical: '/feedback' },
+  robots: { index: false, follow: false },
 };
 
 export default async function FeedbackPage() {

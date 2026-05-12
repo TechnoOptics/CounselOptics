@@ -5,6 +5,13 @@ export const metadata = {
   description:
     'Which cookies Advottic uses, what each one does, how long it lives, and how to control them. Plain English.',
   alternates: { canonical: '/cookies' },
+  openGraph: {
+    title: 'Cookie Policy · Advottic',
+    description:
+      'Which cookies Advottic uses, what each one does, how long it lives, and how to control them.',
+    url: '/cookies',
+    type: 'article',
+  },
 };
 
 export default function CookiePolicyPage() {

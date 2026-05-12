@@ -245,9 +245,17 @@ export type TierFeatures = {
   pdfExport: boolean;
   bella: boolean;
   collaborators: boolean;
-  /** Court e-filing directory (/file-exhibits). Pro-tier gated. */
+  /**
+   * Court e-filing directory (/file-exhibits). Free for everyone as
+   * of 2026-05-11; the constant is retained on the tier shape so the
+   * tier-card render does not have to be re-typed, but every tier
+   * now reports `true` and the route no longer gates.
+   */
   eFilingDirectory: boolean;
-  /** Public defender directory (/public-defender). Pro-tier gated. */
+  /**
+   * Public defender directory (/public-defender). Free for everyone
+   * as of 2026-05-11. Same posture as eFilingDirectory above.
+   */
   publicDefenderDirectory: boolean;
   /** Monthly Bella + Advottic Review token grant + top-ups. Pro-tier only. */
   proTokens: boolean;
@@ -261,8 +269,9 @@ export const TIER_FEATURES: Record<Tier, TierFeatures> = {
     pdfExport: true,
     bella: false,
     collaborators: false,
-    eFilingDirectory: false,
-    publicDefenderDirectory: false,
+    // Free across every tier (see TierFeatures.eFilingDirectory comment).
+    eFilingDirectory: true,
+    publicDefenderDirectory: true,
     proTokens: false,
     monthlyPriceUsd: 9,
   },
@@ -272,8 +281,8 @@ export const TIER_FEATURES: Record<Tier, TierFeatures> = {
     pdfExport: true,
     bella: true,
     collaborators: false,
-    eFilingDirectory: false,
-    publicDefenderDirectory: false,
+    eFilingDirectory: true,
+    publicDefenderDirectory: true,
     proTokens: false,
     monthlyPriceUsd: 19,
   },

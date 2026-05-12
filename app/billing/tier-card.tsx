@@ -9,29 +9,58 @@ const TIER_TAGLINE: Record<Tier, string> = {
   pro: 'Go unlimited with collaboration.',
 };
 
-type Bullet = { label: string; included: boolean };
+type Bullet = { label: string };
 
+/**
+ * Bullets per tier - INCLUDED features ONLY. Previously the card
+ * listed every feature on every tier with a strikethrough for those
+ * not included; review feedback (2026-05-11) showed users were
+ * reading the strikethrough labels as "included" and the strike as
+ * decorative. Solution: list only what the tier actually unlocks,
+ * then state in plain text below the list which features require
+ * upgrading.
+ *
+ * The "Public defender directory" used to appear on every tier as a
+ * strikethrough line. It is no longer paywalled (per the marketing
+ * promise on /) and is free across every tier and the public site,
+ * so we no longer list it here at all - it would be confusing to
+ * show as a "feature" of paid plans when even free / Public defender
+ * works without a subscription.
+ */
 function bulletsForTier(tier: Tier): Bullet[] {
   const f = TIER_FEATURES[tier];
-  return [
+  const bullets: Bullet[] = [
     {
       label:
-        f.caseLimit === null ? 'Unlimited cases' : `Up to ${f.caseLimit} case${f.caseLimit === 1 ? '' : 's'}`,
-      included: true,
+        f.caseLimit === null
+          ? 'Unlimited cases'
+          : `Up to ${f.caseLimit} case${f.caseLimit === 1 ? '' : 's'}`,
     },
-    {
-      label: 'Exhibits with category, source, incident date',
-      included: true,
-    },
-    { label: 'PDF case packet export', included: f.pdfExport },
-    { label: 'Advottic Review case review', included: f.aiReview },
-    { label: 'Bella, your on-demand assistant', included: f.bella },
-    { label: 'Invite collaborators (attorney sharing)', included: f.collaborators },
-    { label: 'Court e-filing directory', included: f.eFilingDirectory },
-    { label: 'Public defender directory', included: f.publicDefenderDirectory },
-    { label: 'Monthly Pro tokens + top-ups', included: f.proTokens },
-    { label: '7-day free trial', included: true },
+    { label: 'Exhibits with category, source, incident date' },
   ];
+  if (f.pdfExport) bullets.push({ label: 'PDF case packet export' });
+  if (f.bella) bullets.push({ label: 'Bella, your on-demand assistant' });
+  if (f.aiReview) bullets.push({ label: 'Advottic Review on every case' });
+  if (f.collaborators)
+    bullets.push({ label: 'Invite collaborators (attorney sharing)' });
+  if (f.eFilingDirectory) bullets.push({ label: 'Court e-filing directory' });
+  if (f.proTokens)
+    bullets.push({ label: 'Generous monthly Bella + Review tokens, with top-ups' });
+  return bullets;
+}
+
+/**
+ * Plain-text "and what you don't get" footnote for non-top tiers, so
+ * a user shopping the cards understands what stays on the table.
+ */
+function omittedNote(tier: Tier): string | null {
+  if (tier === 'basic') {
+    return 'Doesn\'t include Bella or Advottic Review. Add Standard for AI-assisted review, or Pro for unlimited cases + collaboration + monthly tokens.';
+  }
+  if (tier === 'standard') {
+    return 'Doesn\'t include unlimited cases, collaborator sharing, court e-filing directory, or the monthly Bella + Review token grant. Add Pro for those.';
+  }
+  return null;
 }
 
 export function TierCard({
@@ -95,23 +124,25 @@ export function TierCard({
         </p>
       </div>
 
-      <ul className="space-y-2 mb-6 text-sm flex-1">
+      <ul className="space-y-2 mb-4 text-sm flex-1">
         {bullets.map((b, i) => (
           <li key={i} className="flex items-start gap-2.5">
             <span
-              className={`mt-0.5 h-4 w-4 rounded-full flex-none flex items-center justify-center ${
-                b.included ? 'bg-forest-900 text-cream-200' : 'bg-ink-100 text-ink-400'
-              }`}
+              className="mt-0.5 h-4 w-4 rounded-full flex-none flex items-center justify-center bg-forest-900 text-cream-200"
               aria-hidden
             >
-              {b.included ? <CheckIcon /> : <DashIcon />}
+              <CheckIcon />
             </span>
-            <span className={b.included ? 'text-ink-800' : 'text-ink-400 line-through'}>
-              {b.label}
-            </span>
+            <span className="text-ink-800">{b.label}</span>
           </li>
         ))}
       </ul>
+
+      {omittedNote(tier) && (
+        <p className="text-[12px] text-ink-500 leading-relaxed mb-5">
+          {omittedNote(tier)}
+        </p>
+      )}
 
       {isCurrent ? (
         // Use a brand-tinted treatment instead of btn-secondary, which

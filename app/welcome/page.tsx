@@ -110,7 +110,7 @@ export default async function WelcomePage() {
             screenshots - auto-numbered as exhibits with category, source, and incident date.
           </Bullet>
           <Bullet>
-            <strong>Advottic Review review</strong> - jurisdiction-aware issue spotting, evidence
+            <strong>Advottic Review</strong> - jurisdiction-aware issue spotting, evidence
             gaps, and possible subpoena targets. Hedged language, never legal advice.
           </Bullet>
           <Bullet>

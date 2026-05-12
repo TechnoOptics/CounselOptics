@@ -63,7 +63,7 @@ export function TrialBanner({
 
   if (isExpired) {
     return (
-      <div className="fixed left-3 right-3 sm:left-auto sm:right-6 bottom-3 sm:bottom-6 sm:max-w-md z-[55]">
+      <div className="fixed left-3 right-3 sm:left-auto sm:right-6 bottom-20 sm:bottom-24 sm:max-w-md z-[55]">
         <div
           role="status"
           className="trial-banner-glow rounded-xl bg-forest-950 text-cream-100 ring-1 ring-rose-300/40 shadow-card-hover px-4 py-3 flex items-center gap-3 backdrop-blur"
@@ -91,7 +91,7 @@ export function TrialBanner({
   // Trialing (Stripe or free) - pulsing reminder.
   return (
     <div
-      className={`fixed left-3 right-3 sm:left-auto sm:right-6 bottom-3 sm:bottom-6 sm:max-w-md z-[55] transition-all duration-500 ease-out ${
+      className={`fixed left-3 right-3 sm:left-auto sm:right-6 bottom-20 sm:bottom-24 sm:max-w-md z-[55] transition-all duration-500 ease-out ${
         visible
           ? 'opacity-100 translate-y-0 pointer-events-auto'
           : 'opacity-0 translate-y-2 pointer-events-none'

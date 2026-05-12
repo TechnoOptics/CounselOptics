@@ -190,7 +190,7 @@ Use this verbatim. Both stores accept the same descriptions; keep word counts wi
 > Invite your attorney by email - they get read access plus the ability to add exhibits, but cannot edit case metadata or invite others. (Pro plan)
 >
 > EXPORT
-> One PDF case packet with a cover, case info, exhibits index, and Advottic Review review - ready to email or print.
+> One PDF case packet with a cover, case info, exhibits index, and Advottic Review - ready to email or print.
 >
 > ASK BELLA
 > An on-demand virtual assistant explains legal doctrines in plain English, walks you through the app, and never crosses the line into legal advice. For criminal matters, Bella will always remind you that you have a constitutional right to a public defender.
@@ -249,7 +249,7 @@ Both stores require screenshots. **Take them on a real device after installing y
 3. **Case detail header** — open one case, capture the dark forest hero with the gold-shine title + KPI strip (Exhibits / Hearing / Advottic Review / Sharing).
 4. **Hearing tab** — capture the countdown card + prioritized checklist with mixed urgency (some items completed).
 5. **Exhibits tab with auto-scan** — capture an exhibit row showing the auto-detected ticket type, identifiers, parties, and dates accordion expanded.
-6. **Advottic Review review** — capture the AI review tab with summary + possible issues + evidence-to-strengthen lists visible.
+6. **Advottic Review** — capture the AI review tab with summary + possible issues + evidence-to-strengthen lists visible.
 7. **Bella in action** — open Bella, capture a conversation with at least 2 exchanges showing markdown rendering.
 8. **Find counsel** — capture the find-counsel page with the embedded Google Maps result + practice-area filter.
 

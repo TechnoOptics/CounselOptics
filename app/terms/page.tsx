@@ -3,6 +3,13 @@ export const metadata = {
   description:
     'The terms governing use of Advottic, including the limits of our service (we are not a law firm), arbitration, and acceptable use.',
   alternates: { canonical: '/terms' },
+  openGraph: {
+    title: 'Terms of Use · Advottic',
+    description:
+      'The terms governing use of Advottic - what we provide, what we do not (we are not a law firm), arbitration, and acceptable use.',
+    url: '/terms',
+    type: 'article',
+  },
 };
 
 export default function TermsPage() {
@@ -24,7 +31,7 @@ export default function TermsPage() {
 
       <Section title="Not legal advice">
         <p>
-          Advottic Review reviews and Bella&apos;s answers are informational only. They may be incomplete, outdated, or wrong. Always consult a
+          Advottic Reviews and Bella&apos;s answers are informational only. They may be incomplete, outdated, or wrong. Always consult a
           licensed attorney in your jurisdiction before acting. If you are facing criminal
           charges or any possibility of incarceration, request a public defender at your first
           court appearance - you have a constitutional right to one at no cost.
@@ -103,7 +110,7 @@ export default function TermsPage() {
 
       <Section title="Limitation of liability">
         <p>
-          To the fullest extent permitted by law, Advottic&apos; total liability for any claim
+          To the fullest extent permitted by law, Advottic&apos;s total liability for any claim
           arising from your use of the service is limited to the amount you paid us in the
           previous 12 months. We are not liable for indirect, consequential, or special damages.
         </p>

@@ -49,8 +49,16 @@ export function TokenBalanceGauge({
     };
   }, []);
 
+  // Pro tier (and Pro-trial) gets a monthlyGrant > 0 and the gauge.
+  // Lower tiers have no grant and no balance; rendering "0 of 1"
+  // implies a locked-out state that misrepresents what they get.
+  // Hide the badge entirely in that case. Users with a firmPool
+  // also always see the gauge (firm-side surface).
+  const hasMeaningfulGrant = snap.monthlyGrant > 0 || snap.firmPool !== null || snap.combined > 0;
   const grant = Math.max(snap.monthlyGrant, 1);
   const pct = Math.min(100, Math.max(0, (snap.combined / grant) * 100));
+
+  if (!hasMeaningfulGrant) return null;
   const tone =
     pct < 10
       ? 'ring-rose-300 dark:ring-rose-700/40 bg-rose-50/60 dark:bg-rose-950/30 text-rose-800 dark:text-rose-200'

@@ -41,7 +41,7 @@ export function ReviewPanel({
     <section className="space-y-5">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight text-ink-950 dark:text-cream-100">Advottic Review review</h2>
+          <h2 className="text-xl font-semibold tracking-tight text-ink-950 dark:text-cream-100">Advottic Review</h2>
           <p className="text-sm text-ink-500 mt-0.5">
             {review ? (
               <>
@@ -85,7 +85,7 @@ export function ReviewPanel({
             className="btn bg-gold-metal text-forest-950 hover:brightness-110 shadow-gold-glow font-semibold px-5 py-2.5"
           >
             <SparkleIcon />
-            Run Advottic Review review
+            Run Advottic Review
           </button>
         </div>
       )}

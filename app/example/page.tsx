@@ -2,6 +2,31 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { ExampleBella } from './example-bella';
 
+// Revalidate daily so the demo hearing date computed below stays
+// forward-looking. Without this, Next.js renders the page once at
+// build time and the date freezes; visitors a week later see a
+// "next hearing" that has already passed.
+export const revalidate = 86_400;
+
+/**
+ * The example case has a hearing that should always feel like it is
+ * about to happen. Anchor 9 days from "today" (the most recent build
+ * or ISR revalidation, refreshed every 24h via the export above).
+ */
+function getDemoHearingDate(): { dayLabel: string; longLabel: string; shortLabel: string } {
+  const date = new Date();
+  date.setDate(date.getDate() + 9);
+  const dayLabel = date.toLocaleDateString('en-US', { weekday: 'long' });
+  const longLabel = date.toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  });
+  const shortLabel = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return { dayLabel, longLabel, shortLabel };
+}
+
 export const metadata: Metadata = {
   title: 'A look inside Advottic · Example case',
   description:
@@ -73,6 +98,7 @@ export default function ExamplePage() {
 // ---------------------------------------------------------------------
 
 function CaseHero() {
+  const hearing = getDemoHearingDate();
   return (
     <section>
       <p className="eyebrow mb-3">1 · The case header</p>
@@ -123,7 +149,7 @@ function CaseHero() {
         </div>
         <div className="relative mt-6 grid grid-cols-2 sm:grid-cols-4 border-t border-cream-100/10 bg-forest-950/30 backdrop-blur-sm">
           <Kpi label="Exhibits" value="7" sub="on file" tone="emerald" />
-          <Kpi label="Hearing" value="9d" sub="May 4" tone="amber" />
+          <Kpi label="Hearing" value="9d" sub={hearing.shortLabel} tone="amber" />
           <Kpi label="Advottic Review" value="✓" sub="review on file" tone="emerald" />
           <Kpi label="Sharing" value="1" sub="attorney" tone="cream" />
         </div>
@@ -171,6 +197,7 @@ function Kpi({
 // ---------------------------------------------------------------------
 
 function Tabs() {
+  const hearing = getDemoHearingDate();
   return (
     <section className="space-y-10">
       <p className="eyebrow">2 · What goes in</p>
@@ -220,7 +247,7 @@ function Tabs() {
             Upcoming hearing
           </p>
           <h4 className="text-2xl md:text-3xl font-semibold tracking-tight mt-1">In 9 days</h4>
-          <p className="text-sm opacity-90 mt-1.5">Saturday, May 4, 2026, 9:30 AM</p>
+          <p className="text-sm opacity-90 mt-1.5">{hearing.longLabel}, 9:30 AM</p>
           <p className="text-sm opacity-80 mt-1">
             <span className="opacity-70">Location:</span> Scott County District Court, Courtroom 4
           </p>
@@ -248,7 +275,7 @@ function Tabs() {
               },
               {
                 t: 'Print PDF case packet × 3',
-                b: 'Cover, case info, exhibits index, Advottic Review review.',
+                b: 'Cover, case info, exhibits index, Advottic Review.',
                 tone: 'amber',
                 done: false,
               },
@@ -298,7 +325,7 @@ function Tabs() {
 
       <div>
         <h3 className="text-xl font-semibold tracking-tight text-forest-900">
-          Advottic Review review (excerpt)
+          Advottic Review (excerpt)
         </h3>
         <p className="text-sm text-ink-500 mt-0.5">
           Jurisdiction-aware issue spotting and concrete evidence to gather.

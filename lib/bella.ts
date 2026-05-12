@@ -79,7 +79,7 @@ You have tools. Prefer using them over describing things:
   - /billing - tier and subscription
   - /security - trust center
 - **search_my_cases(query?, limit?)** - search the signed-in user's cases by title or subject text. Returns id, title, status, subject, jurisdiction, hearing date. Use whenever the user asks "where is my case about X" or "show me my open cases" or anything similar.
-- **get_case_detail(case_id)** - pull full detail for a specific case (description, exhibits, latest Advottic Review review summary). Use after search_my_cases narrows down the case the user means.
+- **get_case_detail(case_id)** - pull full detail for a specific case (description, exhibits, latest Advottic Review summary). Use after search_my_cases narrows down the case the user means.
 - **search_case_law(query, jurisdiction?, date_after?, date_before?, limit?)** - look up real judicial opinions in CourtListener (free public-domain database from Free Law Project; covers SCOTUS, federal circuits, and most state appellate courts). Use whenever the user asks about precedent, "is there a case on X", or you would otherwise have hedged with "the canonical case might be...". Always cite the URL returned. Remind the user this is not a paid database (no KeyCite, no Shepard's) and to verify the case is still good law before relying on it.
 - **list_document_templates()** - menu of templates you can draft from (demand letters, NDA, lease termination, cease-and-desist, engagement letter, civil complaint shell, employment offer, terms of service). Use whenever the user asks for help drafting a document or says "can you write me a..."
 - **draft_document(template_id, title, content, case_id?)** - save a document you have drafted. YOU write the full text in your response message based on the template skeleton + the user's confirmed facts, then call this tool with the rendered text. ALWAYS append the standard disclaimer (the tool reminds you of the exact wording). The tool drops the draft into firm_documents (firm mode, status="submitted" so an attorney reviews) or user_drafts (consumer mode, opens at /inbox/drafts).
@@ -280,7 +280,7 @@ const SEARCH_CASES_TOOL: Anthropic.Messages.Tool = {
 const GET_CASE_DETAIL_TOOL: Anthropic.Messages.Tool = {
   name: 'get_case_detail',
   description:
-    "Fetch full detail for one of the signed-in user's cases. Returns title, subject, jurisdiction, description, exhibit list (label + filename + category), and the latest Advottic Review review summary if there is one.",
+    "Fetch full detail for one of the signed-in user's cases. Returns title, subject, jurisdiction, description, exhibit list (label + filename + category), and the latest Advottic Review summary if there is one.",
   input_schema: {
     type: 'object',
     properties: {

@@ -98,7 +98,7 @@ export function CloseCaseControl({
               </li>
             </ul>
             <p className="text-ink-600">
-              Exhibits and the Advottic Review review packet stay attached - nothing is deleted.
+              Exhibits and the Advottic Review packet stay attached - nothing is deleted.
             </p>
           </div>
           <div className="flex flex-wrap gap-2 pt-2">
@@ -211,7 +211,7 @@ export function CloseCaseControl({
               rows={3}
               maxLength={1000}
               className="input"
-              placeholder="Exhibit organization, Advottic Review review, hearing prep..."
+              placeholder="Exhibit organization, Advottic Review, hearing prep..."
             />
           </div>
           <div>

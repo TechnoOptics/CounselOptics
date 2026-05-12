@@ -5,6 +5,13 @@ export const metadata = {
   description:
     'How Advottic supports keyboard navigation, screen readers, reduced-motion preferences, and assistive technology across the case-management product.',
   alternates: { canonical: '/accessibility' },
+  openGraph: {
+    title: 'Accessibility · Advottic',
+    description:
+      'Keyboard navigation, screen-reader support, reduced motion, color contrast, and the accessible channels you can use to reach us.',
+    url: '/accessibility',
+    type: 'article',
+  },
 };
 
 export default function AccessibilityPage() {
@@ -50,20 +57,47 @@ export default function AccessibilityPage() {
 
       <Section title="Need an accommodation?">
         <p>
-          Email{' '}
-          <a className="underline" href="mailto:contact@advottic.com">contact@advottic.com</a>{' '}
-          or message us via WhatsApp at{' '}
-          <a
-            className="underline"
-            href="https://wa.me/19253001600"
-            target="_blank"
-            rel="noreferrer"
-          >
-            +1 (925) 300-1600
-          </a>
-          . Tell us what you need and we&apos;ll work with you - keyboard alternatives, scaled
-          fonts, alternative formats for case packets, or a one-on-one walkthrough.
+          We offer several channels so you can pick the one that works best
+          for you. Tell us what you need and we&apos;ll work with you -
+          keyboard alternatives, scaled fonts, alternative formats for case
+          packets, or a one-on-one walkthrough.
         </p>
+        <ul className="list-disc list-outside pl-6 space-y-1 mt-3">
+          <li>
+            Email{' '}
+            <a className="underline" href="mailto:contact@advottic.com">
+              contact@advottic.com
+            </a>
+            . Replies within one business day.
+          </li>
+          <li>
+            SMS or WhatsApp at{' '}
+            <a className="underline" href="sms:+19253001600">
+              +1 (925) 300-1600
+            </a>{' '}
+            (
+            <a
+              className="underline"
+              href="https://wa.me/19253001600"
+              target="_blank"
+              rel="noreferrer"
+            >
+              open on WhatsApp
+            </a>
+            ).
+          </li>
+          <li>
+            U.S. relay-service users can reach us via 7-1-1 and ask the
+            operator to call our SMS number above.
+          </li>
+          <li>
+            Prefer a web form?{' '}
+            <Link href="/feedback" className="underline">
+              The in-app feedback form
+            </Link>{' '}
+            routes to the same inbox.
+          </li>
+        </ul>
       </Section>
 
       <p className="text-xs text-ink-500">

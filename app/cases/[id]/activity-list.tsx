@@ -7,7 +7,7 @@ const EVENT_LABEL: Record<CaseEventType, string> = {
   case_deleted: 'deleted the case',
   exhibit_uploaded: 'uploaded an exhibit',
   exhibit_deleted: 'deleted an exhibit',
-  review_run: 'ran a Advottic Review review',
+  review_run: 'ran an Advottic Review',
   hearing_updated: 'updated the hearing',
   collaborator_invited: 'invited a collaborator',
   collaborator_removed: 'removed a collaborator',

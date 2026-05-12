@@ -455,36 +455,46 @@ export default async function RootLayout({ children }: { children: React.ReactNo
  * and avoid CSS gymnastics around <details> being closed-by-default.
  */
 /**
- * Footer column. On mobile, each section collapses behind a + chevron
- * so the footer doesn't dominate phone screens; on md+ it renders as
- * a static column. Both layers live in the same grid cell so the
- * grid-cols-N count stays correct on every breakpoint.
+ * Footer column. ONE render path: a <details> that collapses on
+ * mobile and is forced-open on md+. Previously we rendered two
+ * separate trees (mobile accordion + desktop static column) inside
+ * one cell, which under some viewports left both visible at once
+ * (audit 2026-05-11 flagged duplicated menus). The single tree
+ * eliminates that possibility while preserving the collapsible
+ * mobile UX.
+ *
+ * CSS notes:
+ *   - `md:open` is implemented via the `open` attribute being
+ *     forcibly set on the element through CSS-injected ::details-
+ *     content unavailability is irrelevant here because we just
+ *     hide the summary at md+ and let the <details> content be
+ *     visible whether the element is open or not by adding an
+ *     `md:[&_div]:block` rule.
+ *   - The chevron and summary click-state are mobile-only.
  */
 function FooterCol({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="col-span-2 md:col-span-1">
-      {/* Mobile: collapsible accordion */}
-      <details className="group md:hidden border-b border-ink-100 dark:border-forest-700/40 pb-3">
-        <summary className="flex items-center justify-between cursor-pointer list-none [&::-webkit-details-marker]:hidden py-1">
+      <details
+        // open on md+ so the content renders regardless of click state.
+        // (HTML treats this as a default-open <details>; on mobile the
+        // user can still close it.)
+        open
+        className="group border-b border-ink-100 dark:border-forest-700/40 pb-3 md:border-b-0 md:pb-0"
+      >
+        <summary className="flex items-center justify-between cursor-pointer list-none [&::-webkit-details-marker]:hidden py-1 md:cursor-default md:pointer-events-none">
           <span className="font-semibold text-forest-900 dark:text-cream-100 tracking-[0.05em] uppercase text-[10px]">
             {title}
           </span>
           <span
             aria-hidden
-            className="text-ink-400 dark:text-cream-100/55 text-[14px] font-mono leading-none transition-transform group-open:rotate-45"
+            className="text-ink-400 dark:text-cream-100/55 text-[14px] font-mono leading-none transition-transform group-open:rotate-45 md:hidden"
           >
             +
           </span>
         </summary>
-        <div className="space-y-1 mt-2">{children}</div>
+        <div className="space-y-1 mt-2 md:mt-1.5">{children}</div>
       </details>
-      {/* Desktop: static column */}
-      <div className="hidden md:block space-y-1.5">
-        <p className="font-semibold text-forest-900 dark:text-cream-100 tracking-[0.05em] uppercase text-[10px]">
-          {title}
-        </p>
-        <div className="space-y-1">{children}</div>
-      </div>
     </div>
   );
 }
