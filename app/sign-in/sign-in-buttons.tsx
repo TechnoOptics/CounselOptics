@@ -7,6 +7,82 @@ import { createBrowserSupabase } from '@/lib/supabase/client';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { BiometricSignInHint } from '@/components/BiometricSignInHint';
 
+/**
+ * Pre-flight cleanup before any auth flow.
+ *
+ * Two real-world failure modes this fixes:
+ *
+ * 1. Stale host-scoped Supabase cookies. Before the apex-canonical
+ *    migration the browser stored auth cookies as host-scoped on
+ *    www.advottic.com (no Domain attribute). After the migration new
+ *    cookies are written with Domain=.advottic.com. Browsers keep BOTH
+ *    and send both at lookup time. The server reads whichever it
+ *    encounters first, which is sometimes the stale one, causing
+ *    "PKCE code verifier not found in storage" even though a brand-
+ *    new verifier was just written.
+ *
+ * 2. Half-finished previous OAuth attempts. If a user clicked Sign
+ *    in with Microsoft, the exchange failed mid-flow, and they then
+ *    click Sign in with Google, the leftover Microsoft-flow verifier
+ *    can shadow the new Google one if the cookie names collide.
+ *
+ * The fix: explicitly delete the PKCE verifier cookie on multiple
+ * Domain attributes before starting a new flow. We do NOT touch
+ * the actual session cookie (sb-...-auth-token) so an already-signed-
+ * in user staying on /sign-in does not get logged out. Only the
+ * "code-verifier" cookie family is cleared.
+ *
+ * The Supabase project ref comes from NEXT_PUBLIC_SUPABASE_URL.
+ */
+function clearStalePkceCookies() {
+  if (typeof document === 'undefined') return;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+  // Extract the project ref - the hostname is <ref>.supabase.co.
+  const match = supabaseUrl.match(/https?:\/\/([^.]+)\.supabase\./i);
+  const ref = match?.[1];
+  if (!ref) return;
+  const expiredAttrs = 'Max-Age=0; Path=/';
+  const baseNames = [
+    `sb-${ref}-auth-token-code-verifier`,
+  ];
+  // Cookies can be chunked across .0 .1 .2 etc. when they are large.
+  // Verifier is small enough not to chunk, but cover a few just in case.
+  for (const base of baseNames) {
+    const variants = [base, `${base}.0`, `${base}.1`, `${base}.2`];
+    for (const name of variants) {
+      // Host-scoped (no Domain) - clears the pre-migration cookies.
+      document.cookie = `${name}=; ${expiredAttrs}`;
+      // Domain-scoped .advottic.com - clears the post-migration cookies.
+      document.cookie = `${name}=; ${expiredAttrs}; Domain=.advottic.com`;
+      // Domain-scoped advottic.com (no leading dot) - some browsers
+      // treat these as distinct from .advottic.com. Clear both.
+      document.cookie = `${name}=; ${expiredAttrs}; Domain=advottic.com`;
+    }
+  }
+}
+
+/**
+ * If the user clicked Sign In on www.advottic.com (somehow without
+ * the edge-level www-to-apex redirect having fired - happens on rare
+ * Safari + cached-redirect combinations), force a hard navigation to
+ * the apex /sign-in BEFORE we set the PKCE verifier cookie. The
+ * verifier is anchored to whatever host writes it; mixing hosts
+ * across the OAuth roundtrip is the #1 cause of the "code verifier
+ * not found" error.
+ *
+ * Returns true if a redirect was triggered (caller should not
+ * continue with the flow on this tick).
+ */
+function forceApexBeforeAuth(next: string): boolean {
+  if (typeof window === 'undefined') return false;
+  const host = window.location.hostname.toLowerCase();
+  if (host !== 'www.advottic.com') return false;
+  const target = new URL('/sign-in', 'https://advottic.com');
+  target.searchParams.set('next', next);
+  window.location.replace(target.toString());
+  return true;
+}
+
 type Provider = 'google' | 'azure' | 'apple';
 type Mode = Provider | 'email';
 
@@ -62,6 +138,14 @@ export function SignInButtons({ next }: { next: string }) {
     setError(null);
     setEmailSent(null);
     setPending(provider);
+    // Pre-flight: if we landed on www somehow, bounce to apex first.
+    // Returns true if a redirect was triggered; in that case stop here
+    // and let the next page render run the flow on the right host.
+    if (forceApexBeforeAuth(next)) return;
+    // Pre-flight: nuke any leftover PKCE verifier cookies from a
+    // previous (perhaps failed) attempt. Prevents the host-vs-domain
+    // cookie shadowing that produces "PKCE code verifier not found".
+    clearStalePkceCookies();
     try {
       const supabase = createBrowserSupabase();
       // Use the user's current origin, NOT NEXT_PUBLIC_SITE_URL - if the
@@ -198,6 +282,8 @@ export function SignInButtons({ next }: { next: string }) {
     setError(null);
     setEmailSent(null);
     setPending('email');
+    if (forceApexBeforeAuth(next)) return;
+    clearStalePkceCookies();
     try {
       const supabase = createBrowserSupabase();
       // Use the user's current origin, NOT NEXT_PUBLIC_SITE_URL - if the

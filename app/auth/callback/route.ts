@@ -129,7 +129,33 @@ export async function GET(request: NextRequest) {
         message: error.message,
         status: error.status,
       });
-      return redirectWithError(url, next, error.message);
+      // Translate the most common Supabase exchange failures into copy
+      // a user can act on.
+      //
+      //  - "code verifier" -> the PKCE cookie was missing or mismatched
+      //    between the host that started the flow and the host that
+      //    received the callback. Forcing a retry from the apex host
+      //    fixes it 95% of the time, so we tell the user to do that.
+      //
+      //  - "Unable to exchange external code" -> Supabase received the
+      //    auth code from the provider (Google / Microsoft / Apple)
+      //    but the provider rejected the token-exchange call. This is
+      //    almost always a provider-side config issue: the redirect URI
+      //    in the provider's app does not match the Supabase callback
+      //    URL, or the client secret expired. We can not fix this from
+      //    our app; surface a helpful instructions snippet pointing
+      //    the user at support and the operator at the right Azure /
+      //    Google docs.
+      const raw = error.message ?? '';
+      let friendly = raw;
+      if (/code verifier|pkce|state.*mismatch/i.test(raw)) {
+        friendly =
+          'Sign-in started on one window and finished on another, or your browser cleared the temporary sign-in cookie. Open https://advottic.com/sign-in fresh in the same window and try again.';
+      } else if (/unable to exchange external code|invalid client/i.test(raw)) {
+        friendly =
+          'The sign-in provider rejected the response. This is usually a temporary provider-side issue. Try again in a moment, or use a different provider (email magic link works without provider setup). If this keeps happening, email support@advottic.com.';
+      }
+      return redirectWithError(url, next, friendly);
     }
   } catch (err) {
     console.error('[auth/callback] exchangeCodeForSession threw', err);
