@@ -106,6 +106,72 @@ export function UserToggles({
       {error && (
         <p className="text-[10.5px] text-rose-700 dark:text-rose-300 leading-snug">{error}</p>
       )}
+      {!isSelf && !isPermanentAdmin && !isAdmin && !isBlocked && (
+        <ImpersonateButton userId={userId} />
+      )}
+    </div>
+  );
+}
+
+/**
+ * "Sign in as" button for HQ admins. Hidden for self, admins (no
+ * admin-on-admin impersonation), and blocked accounts. Opens the
+ * resulting magic link in a new tab so the admin keeps their own
+ * session intact in the original tab.
+ *
+ * Every successful click writes an audit row in admin_impersonations
+ * server-side. The optional `reason` prompt is best-practice for
+ * support hygiene (ticket ID + one-line summary).
+ */
+function ImpersonateButton({ userId }: { userId: string }) {
+  const [pending, setPending] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  async function go() {
+    if (pending) return;
+    const reason = window.prompt(
+      'Reason for impersonating this user (optional - ticket ID + summary, recorded in audit log):',
+      '',
+    );
+    if (reason === null) return; // cancel
+    setErr(null);
+    setPending(true);
+    try {
+      const r = await fetch('/api/admin/impersonate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, reason }),
+      });
+      const j = (await r.json()) as { url?: string; error?: string; detail?: string };
+      if (!r.ok || !j.url) {
+        setErr(j.detail || j.error || `HTTP ${r.status}`);
+        return;
+      }
+      // Open in a NEW tab so the admin's own session in this tab
+      // stays signed in. The new tab's magic-link exchange will
+      // mint a fresh session bound to the target user.
+      window.open(j.url, '_blank', 'noopener,noreferrer');
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Network error.');
+    } finally {
+      setPending(false);
+    }
+  }
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={go}
+        disabled={pending}
+        className="inline-flex items-center gap-1 text-[11px] font-medium text-forest-900 dark:text-gold-300 underline underline-offset-2 hover:text-gold-700 dark:hover:text-gold-200 disabled:opacity-60 disabled:cursor-not-allowed"
+        title="Open a one-hour magic-link sign-in for this user in a new tab. Audited."
+      >
+        {pending ? 'Generating…' : 'Sign in as →'}
+      </button>
+      {err && (
+        <p className="text-[10.5px] text-rose-700 dark:text-rose-300 leading-snug mt-0.5">
+          {err}
+        </p>
+      )}
     </div>
   );
 }
