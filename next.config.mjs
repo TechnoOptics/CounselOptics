@@ -70,6 +70,13 @@ const nextConfig = {
   // version disclosure handed to every visitor and pen-test scanner;
   // the audit flagged it as P1-3. No functional impact.
   poweredByHeader: false,
+  // Upload sourcemaps to Vercel so production stack traces are
+  // readable instead of minified gibberish. Audit P0-3 (React #419)
+  // could not be root-caused without these. Cost: ~5-10s on build,
+  // bundle stays the same (maps are served as separate .map files
+  // and gated behind Vercel's CDN auth headers). Maps are NOT
+  // public; only Vercel auth can fetch them.
+  productionBrowserSourceMaps: true,
   experimental: {
     serverActions: {
       bodySizeLimit: '50mb',

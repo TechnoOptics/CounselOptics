@@ -109,7 +109,7 @@ export default async function CounselDashboard() {
           eyebrow="Meetings"
           headline="Calendar"
           metric="MS 365 + Zoom"
-          body="Schedule and capture meetings. OAuth integrations are coming - manual capture works today."
+          body="Connect Microsoft 365 calendar or Zoom from /counsel/meetings. Tokens encrypted at rest; scheduling-from-case ships next."
           accent={ctx.firm.accentColor}
         />
         <Tile

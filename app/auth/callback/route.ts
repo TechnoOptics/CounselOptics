@@ -209,6 +209,20 @@ function redirectWithError(requestUrl: URL, next: string, message: string) {
  */
 function sanitizeNextRedirect(raw: string | null): string {
   if (!raw) return '/cases';
+  // Audit 2026-05-12 P0-1: defensive against `next` arriving double-encoded
+  // (e.g. `%252Fcases` for `/cases`). Peel off encoding layers until the
+  // path starts with `/` or stops looking encoded. Cap at 3 passes.
+  let depth = 0;
+  while (depth < 3 && /^(%25)+(2F|3A)/i.test(raw)) {
+    try {
+      const decoded = decodeURIComponent(raw);
+      if (decoded === raw) break;
+      raw = decoded;
+      depth++;
+    } catch {
+      break;
+    }
+  }
   if (raw.startsWith('/') && !raw.startsWith('//')) return raw;
   try {
     const u = new URL(raw);

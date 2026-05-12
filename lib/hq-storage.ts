@@ -274,7 +274,10 @@ export async function adminGetHqDashboardCounts(): Promise<HqDashboardCounts> {
   ] = await Promise.all([
     admin.auth.admin.listUsers({ perPage: 1000 }),
     admin.from('subscriptions').select('status'),
-    admin.from('cases').select('id', { count: 'exact', head: true }),
+    // Sandbox-flagged cases (test data, scratch rows, accidental dups)
+    // are excluded from the HQ tally so the operator dashboard reflects
+    // real platform usage. Audit 2026-05-12 P2.
+    admin.from('cases').select('id', { count: 'exact', head: true }).eq('sandbox', false),
     admin.from('feedback').select('status').neq('status', 'resolved'),
     admin.from('firms').select('id', { count: 'exact', head: true }),
     admin.from('firm_access_requests').select('status'),

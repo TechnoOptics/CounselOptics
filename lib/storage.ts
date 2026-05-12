@@ -1160,7 +1160,12 @@ export async function adminGetCounts(): Promise<{
   }
   const [users, cases, exhibits, reviews] = await Promise.all([
     admin.auth.admin.listUsers().then((r) => r.data.users.length),
-    admin.from('cases').select('id', { count: 'exact', head: true }).then((r) => r.count ?? 0),
+    // Exclude sandbox cases from HQ stat counts (audit 2026-05-12 P2).
+    admin
+      .from('cases')
+      .select('id', { count: 'exact', head: true })
+      .eq('sandbox', false)
+      .then((r) => r.count ?? 0),
     admin
       .from('exhibits')
       .select('id', { count: 'exact', head: true })
