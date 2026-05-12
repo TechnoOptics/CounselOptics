@@ -215,6 +215,8 @@ export const SUPPORTED_LANGUAGES = [
 ] as const;
 export type LanguageCode = (typeof SUPPORTED_LANGUAGES)[number]['code'];
 
+import type { AllMenuPreferences } from './menu-prefs';
+
 export type Profile = {
   id: string;
   displayName?: string | null;
@@ -228,6 +230,8 @@ export type Profile = {
   tourCompletedAt?: string | null;
   theme?: ThemePref;
   language?: string | null;
+  /** Per-portal sidebar customization. See lib/menu-prefs.ts. */
+  menuPreferences?: AllMenuPreferences;
   updatedAt: string;
 };
 

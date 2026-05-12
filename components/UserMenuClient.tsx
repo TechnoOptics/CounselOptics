@@ -98,10 +98,10 @@ export function UserMenuClient(props: UserMenuProps) {
             <MenuLink href="/profile" onClick={() => setOpen(false)}>
               Profile & settings
             </MenuLink>
-            {/* Consumer-side links are hidden when the user is inside
-                /counsel/* - those surfaces (personal billing, personal
-                case list) are not relevant in the organizational
-                workspace. */}
+            {/* Consumer-side links (Billing, My cases) only render
+                when actually inside the consumer shell. The "Switch
+                portal" section below provides a one-click path back
+                to the consumer side from counsel / HQ. */}
             {!props.isCounselMode && (
               <>
                 <MenuLink href="/billing" onClick={() => setOpen(false)}>
@@ -116,73 +116,95 @@ export function UserMenuClient(props: UserMenuProps) {
               Send feedback
             </MenuLink>
           </div>
-          {props.isAdmin && !props.isHqMode && (
-            <div className="border-t border-ink-100 py-1.5">
-              <p className="px-4 pt-1 pb-1 text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-500">
-                Founder console
-              </p>
-              {/*
-                Hard <a> instead of <Link>. Crossing from the consumer
-                shell into /admin (a different layout chrome) needs a
-                full document load so middleware can re-run and forward
-                the new x-pathname header to the root layout. With a
-                soft Next.js navigation the root layout stays mounted
-                with the previous chrome until any subsequent click
-                triggers a re-render.
-              */}
-              <a
-                href="/admin"
-                onClick={() => setOpen(false)}
-                className="flex items-center gap-2.5 px-4 py-2 text-sm text-ink-800 hover:bg-cream-50 hover:text-forest-900 transition-colors group"
-              >
-                <span
-                  className="h-5 w-5 rounded inline-flex items-center justify-center text-[11px] font-semibold flex-none text-forest-950"
-                  style={{
-                    background:
-                      'linear-gradient(135deg, #f5edd6 0%, #d5bb7e 50%, #c9a96e 100%)',
-                  }}
-                  aria-hidden
-                >
-                  HQ
-                </span>
-                <span className="flex-1 truncate font-medium">
-                  Advottic HQ
-                </span>
-                <span aria-hidden className="text-ink-400 group-hover:text-forest-700">
-                  →
-                </span>
-              </a>
-            </div>
-          )}
-          {(props.firmMemberships?.length ?? 0) > 0 && !props.isCounselMode && (
-            <div className="border-t border-ink-100 py-1.5">
-              <p className="px-4 pt-1 pb-1 text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-500">
-                Counsel mode
-              </p>
-              {props.firmMemberships!.map((m) => (
-                /* Same chrome-crossing reason as the HQ link above:
-                   /counsel uses its own root layout. Force a hard load. */
-                <a
-                  key={m.firmId}
-                  href="/counsel"
-                  onClick={() => setOpen(false)}
-                  className="flex items-center gap-2.5 px-4 py-2 text-sm text-ink-800 hover:bg-cream-50 hover:text-forest-900 transition-colors"
-                >
-                  <span
-                    className="h-5 w-5 rounded inline-flex items-center justify-center text-white text-[11px] font-semibold flex-none"
-                    style={{ backgroundColor: m.accentColor }}
-                    aria-hidden
+
+          {/* Switch-portal cluster. Surfaces every portal the user
+              has access to, regardless of which one they're currently
+              in. Lets contact@advottic.com (HQ admin + firm owner)
+              and any multi-portal user jump between the consumer
+              dashboard, the firm workspace(s), and the HQ console
+              from a single menu - no re-signing in, no remembering
+              which subdomain to type into the URL bar. */}
+          {(() => {
+            const showHq = props.isAdmin && !props.isHqMode;
+            const firms = props.firmMemberships ?? [];
+            // Consumer link only appears when we're NOT already in
+            // consumer mode (isCounselMode covers BOTH counsel and HQ).
+            const showConsumer = props.isCounselMode;
+            const hasAny = showHq || firms.length > 0 || showConsumer;
+            if (!hasAny) return null;
+            return (
+              <div className="border-t border-ink-100 py-1.5">
+                <p className="px-4 pt-1 pb-1 text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-500">
+                  Switch portal
+                </p>
+                {showConsumer && (
+                  // Hard <a> - consumer vs counsel/HQ shells live on
+                  // different layouts; the chrome only swaps on a
+                  // full reload so middleware can re-emit x-pathname.
+                  <a
+                    href="/cases"
+                    onClick={() => setOpen(false)}
+                    className="flex items-center gap-2.5 px-4 py-2 text-sm text-ink-800 hover:bg-cream-50 hover:text-forest-900 transition-colors"
                   >
-                    {m.firmName.slice(0, 1).toUpperCase()}
-                  </span>
-                  <span className="flex-1 truncate">Switch to {m.firmName}</span>
-                  <span aria-hidden className="text-ink-400">
-                    →
-                  </span>
-                </a>
-              ))}
-            </div>
-          )}
+                    <span
+                      className="h-5 w-5 rounded inline-flex items-center justify-center text-cream-50 text-[11px] font-semibold flex-none bg-forest-900"
+                      aria-hidden
+                    >
+                      A
+                    </span>
+                    <span className="flex-1 truncate">Consumer dashboard</span>
+                    <span aria-hidden className="text-ink-400">
+                      →
+                    </span>
+                  </a>
+                )}
+                {showHq && (
+                  <a
+                    href="/admin"
+                    onClick={() => setOpen(false)}
+                    className="flex items-center gap-2.5 px-4 py-2 text-sm text-ink-800 hover:bg-cream-50 hover:text-forest-900 transition-colors group"
+                  >
+                    <span
+                      className="h-5 w-5 rounded inline-flex items-center justify-center text-[11px] font-semibold flex-none text-forest-950"
+                      style={{
+                        background:
+                          'linear-gradient(135deg, #f5edd6 0%, #d5bb7e 50%, #c9a96e 100%)',
+                      }}
+                      aria-hidden
+                    >
+                      HQ
+                    </span>
+                    <span className="flex-1 truncate font-medium">
+                      Advottic HQ
+                    </span>
+                    <span aria-hidden className="text-ink-400 group-hover:text-forest-700">
+                      →
+                    </span>
+                  </a>
+                )}
+                {firms.map((m) => (
+                  <a
+                    key={m.firmId}
+                    href="/counsel"
+                    onClick={() => setOpen(false)}
+                    className="flex items-center gap-2.5 px-4 py-2 text-sm text-ink-800 hover:bg-cream-50 hover:text-forest-900 transition-colors"
+                  >
+                    <span
+                      className="h-5 w-5 rounded inline-flex items-center justify-center text-white text-[11px] font-semibold flex-none"
+                      style={{ backgroundColor: m.accentColor }}
+                      aria-hidden
+                    >
+                      {m.firmName.slice(0, 1).toUpperCase()}
+                    </span>
+                    <span className="flex-1 truncate">{m.firmName}</span>
+                    <span aria-hidden className="text-ink-400">
+                      →
+                    </span>
+                  </a>
+                ))}
+              </div>
+            );
+          })()}
           {/* Counsel is invitation-only - no self-service signup
               from the consumer-side menu. Existing members see the
               "Counsel mode" submenu above (jumps to /counsel).

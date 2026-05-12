@@ -1,11 +1,19 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { SearchTrigger } from './SearchPalette';
+import {
+  applyMenuPreferences,
+  type MenuPreferences,
+} from '@/lib/menu-prefs';
+import { saveMenuPreferencesAction } from '@/lib/actions';
 
 type NavItem = {
+  /** Stable id used by the customization layer. Uses href so an
+   *  existing preference row stays valid as long as the route does. */
+  id: string;
   label: string;
   href: string;
   // For active matching: exact match on `href`, or the pathname starts with `prefix`.
@@ -16,15 +24,15 @@ type NavItem = {
 };
 
 const ITEMS: NavItem[] = [
-  { label: 'New case', href: '/cases/new', icon: PlusIcon },
-  { label: 'Cases', href: '/cases', prefix: '/cases', icon: CasesIcon },
-  { label: 'Shared with me', href: '/cases?filter=shared', filter: 'shared', icon: ShareIcon },
-  { label: 'Find counsel', href: '/find-counsel', prefix: '/find-counsel', icon: ScalesIcon },
-  { label: 'File exhibits', href: '/file-exhibits', prefix: '/file-exhibits', icon: FileIcon },
-  { label: 'Public defender', href: '/public-defender', prefix: '/public-defender', icon: GavelIcon },
-  { label: 'Contracts', href: '/contracts', prefix: '/contracts', icon: FileIcon },
-  { label: 'Vault', href: '/vault', prefix: '/vault', icon: FileIcon },
-  { label: 'Billing', href: '/billing', prefix: '/billing', icon: CardIcon },
+  { id: '/cases/new', label: 'New case', href: '/cases/new', icon: PlusIcon },
+  { id: '/cases', label: 'Cases', href: '/cases', prefix: '/cases', icon: CasesIcon },
+  { id: '/cases?filter=shared', label: 'Shared with me', href: '/cases?filter=shared', filter: 'shared', icon: ShareIcon },
+  { id: '/find-counsel', label: 'Find counsel', href: '/find-counsel', prefix: '/find-counsel', icon: ScalesIcon },
+  { id: '/file-exhibits', label: 'File exhibits', href: '/file-exhibits', prefix: '/file-exhibits', icon: FileIcon },
+  { id: '/public-defender', label: 'Public defender', href: '/public-defender', prefix: '/public-defender', icon: GavelIcon },
+  { id: '/contracts', label: 'Contracts', href: '/contracts', prefix: '/contracts', icon: FileIcon },
+  { id: '/vault', label: 'Vault', href: '/vault', prefix: '/vault', icon: FileIcon },
+  { id: '/billing', label: 'Billing', href: '/billing', prefix: '/billing', icon: CardIcon },
 ];
 
 function useActive() {
@@ -53,9 +61,92 @@ function useActive() {
 /**
  * Desktop / tablet sidebar. Hidden on small screens (mobile, narrow folded
  * foldables) where SidebarMobile renders a horizontal scroll bar instead.
+ *
+ * `initialPrefs` carries the user's saved customization for the
+ * consumer portal: hidden item ids + reordered ids. Loaded server-
+ * side in app/layout.tsx and passed in. Edit mode is fully
+ * client-side until "Save" hits the saveMenuPreferencesAction
+ * server action.
  */
-export function Sidebar() {
+export function Sidebar({
+  initialPrefs,
+}: {
+  initialPrefs?: MenuPreferences;
+}) {
   const isActive = useActive();
+  const [editing, setEditing] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  // Draft state mirrors the saved prefs until the user clicks
+  // Save. Cancel resets back to initialPrefs.
+  const initialOrder = useMemo(() => {
+    const o = initialPrefs?.order ?? [];
+    const known = new Set(ITEMS.map((i) => i.id));
+    const filtered = o.filter((id) => known.has(id));
+    for (const it of ITEMS) if (!filtered.includes(it.id)) filtered.push(it.id);
+    return filtered;
+  }, [initialPrefs]);
+  const initialHidden = useMemo(
+    () => new Set(initialPrefs?.hidden ?? []),
+    [initialPrefs],
+  );
+  const [draftOrder, setDraftOrder] = useState<string[]>(initialOrder);
+  const [draftHidden, setDraftHidden] = useState<Set<string>>(initialHidden);
+
+  const byId = useMemo(() => new Map(ITEMS.map((i) => [i.id, i])), []);
+
+  // Visible items when NOT editing - apply saved prefs.
+  const visibleItems = useMemo(
+    () => applyMenuPreferences(ITEMS, initialPrefs),
+    [initialPrefs],
+  );
+
+  function moveUp(index: number) {
+    if (index <= 0) return;
+    setDraftOrder((arr) => {
+      const next = arr.slice();
+      [next[index - 1], next[index]] = [next[index], next[index - 1]];
+      return next;
+    });
+  }
+  function moveDown(index: number) {
+    setDraftOrder((arr) => {
+      if (index >= arr.length - 1) return arr;
+      const next = arr.slice();
+      [next[index + 1], next[index]] = [next[index], next[index + 1]];
+      return next;
+    });
+  }
+  function toggleHidden(id: string) {
+    setDraftHidden((s) => {
+      const next = new Set(s);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function save() {
+    setError(null);
+    startTransition(async () => {
+      const r = await saveMenuPreferencesAction('consumer', {
+        hidden: Array.from(draftHidden),
+        order: draftOrder,
+      });
+      if (!r.ok) {
+        setError(r.error);
+        return;
+      }
+      setEditing(false);
+    });
+  }
+  function cancel() {
+    setDraftOrder(initialOrder);
+    setDraftHidden(initialHidden);
+    setError(null);
+    setEditing(false);
+  }
+
   return (
     <aside
       aria-label="Primary"
@@ -64,31 +155,171 @@ export function Sidebar() {
       className="hidden md:block sticky top-20 self-start w-[200px] lg:w-[224px] flex-none"
     >
       <nav className="rounded-2xl bg-gradient-to-b from-forest-900 via-forest-900 to-forest-950 ring-1 ring-forest-700/40 shadow-card text-cream-100 p-3 space-y-1">
-        {ITEMS.map((item) => {
-          const active = isActive(item);
-          return (
-            <Link
-              key={item.href + item.label}
-              href={item.href}
-              aria-current={active ? 'page' : undefined}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
-                active
-                  ? 'bg-forest-700/60 text-cream-100 ring-1 ring-gold-400/40'
-                  : 'text-cream-100/80 hover:text-cream-100 hover:bg-forest-800/70'
-              }`}
+        {/* Edit affordance. Default state: pencil icon. Edit state:
+            up/down arrows + visibility eye on each row + Save / Cancel
+            controls at the bottom. The pencil is intentionally small
+            and gold so it reads as a tool, not a primary nav item. */}
+        <div className="flex items-center justify-between gap-2 px-2 pb-1.5 pt-0.5 mb-1 border-b border-forest-700/40">
+          <p className="text-[10px] uppercase tracking-[0.18em] font-semibold text-cream-100/55">
+            {editing ? 'Edit menu' : 'Menu'}
+          </p>
+          {!editing ? (
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              aria-label="Edit menu order and visibility"
+              title="Reorder or hide items"
+              className="inline-flex h-6 w-6 items-center justify-center rounded-md text-cream-100/55 hover:text-gold-300 hover:bg-forest-700/50 transition-colors"
             >
-              <span className={active ? 'text-gold-400' : 'text-cream-100/60'}>
-                {item.icon()}
-              </span>
-              <span className="truncate">{item.label}</span>
-              {active && (
-                <span aria-hidden className="ml-auto h-1.5 w-1.5 rounded-full bg-gold-400" />
-              )}
-            </Link>
-          );
-        })}
+              <PencilIcon />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={cancel}
+              disabled={pending}
+              className="text-[11px] text-cream-100/55 hover:text-cream-100 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+          )}
+        </div>
+
+        {editing
+          ? draftOrder.map((id, idx) => {
+              const item = byId.get(id);
+              if (!item) return null;
+              const hidden = draftHidden.has(id);
+              return (
+                <div
+                  key={id}
+                  className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-sm ${
+                    hidden
+                      ? 'opacity-50 bg-forest-800/30'
+                      : 'bg-forest-800/40'
+                  }`}
+                >
+                  <span className="text-cream-100/60 flex-none">
+                    {item.icon()}
+                  </span>
+                  <span className="flex-1 truncate text-[12.5px]">
+                    {item.label}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => moveUp(idx)}
+                    disabled={idx === 0 || pending}
+                    aria-label={`Move ${item.label} up`}
+                    className="inline-flex h-5 w-5 items-center justify-center rounded text-cream-100/55 hover:text-cream-100 hover:bg-forest-700/50 disabled:opacity-25"
+                  >
+                    <UpIcon />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => moveDown(idx)}
+                    disabled={idx === draftOrder.length - 1 || pending}
+                    aria-label={`Move ${item.label} down`}
+                    className="inline-flex h-5 w-5 items-center justify-center rounded text-cream-100/55 hover:text-cream-100 hover:bg-forest-700/50 disabled:opacity-25"
+                  >
+                    <DownIcon />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleHidden(id)}
+                    disabled={pending}
+                    aria-label={hidden ? `Show ${item.label}` : `Hide ${item.label}`}
+                    title={hidden ? 'Show' : 'Hide'}
+                    className="inline-flex h-5 w-5 items-center justify-center rounded text-cream-100/55 hover:text-cream-100 hover:bg-forest-700/50"
+                  >
+                    {hidden ? <EyeOffIcon /> : <EyeIcon />}
+                  </button>
+                </div>
+              );
+            })
+          : visibleItems.map((item) => {
+              const active = isActive(item);
+              return (
+                <Link
+                  key={item.id}
+                  href={item.href}
+                  aria-current={active ? 'page' : undefined}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                    active
+                      ? 'bg-forest-700/60 text-cream-100 ring-1 ring-gold-400/40'
+                      : 'text-cream-100/80 hover:text-cream-100 hover:bg-forest-800/70'
+                  }`}
+                >
+                  <span className={active ? 'text-gold-400' : 'text-cream-100/60'}>
+                    {item.icon()}
+                  </span>
+                  <span className="truncate">{item.label}</span>
+                  {active && (
+                    <span aria-hidden className="ml-auto h-1.5 w-1.5 rounded-full bg-gold-400" />
+                  )}
+                </Link>
+              );
+            })}
+
+        {editing && (
+          <div className="pt-2 mt-2 border-t border-forest-700/40 space-y-1.5">
+            {error && (
+              <p className="text-[11px] text-rose-300 leading-snug px-1">{error}</p>
+            )}
+            <button
+              type="button"
+              onClick={save}
+              disabled={pending}
+              className="w-full inline-flex items-center justify-center gap-2 rounded-md bg-gold-metal text-forest-950 px-3 py-1.5 text-[12px] font-semibold hover:brightness-110 disabled:opacity-60"
+            >
+              {pending ? 'Saving…' : 'Save changes'}
+            </button>
+          </div>
+        )}
       </nav>
     </aside>
+  );
+}
+
+function PencilIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M16.5 3.5l4 4-11.5 11.5H5v-4l11.5-11.5z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+function UpIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M6 14l6-6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+function DownIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M6 10l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+function EyeIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z" stroke="currentColor" strokeWidth="1.6" />
+      <circle cx="12" cy="12" r="2.5" stroke="currentColor" strokeWidth="1.6" />
+    </svg>
+  );
+}
+function EyeOffIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M3 3l18 18" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M10.5 6.2A12 12 0 0112 6c6.5 0 10 6 10 6a17 17 0 01-3 3.6M6 6.5C3 8.6 2 12 2 12s3.5 6 10 6c1.5 0 2.8-.3 4-.7" stroke="currentColor" strokeWidth="1.6" />
+    </svg>
   );
 }
 
@@ -97,11 +328,22 @@ export function Sidebar() {
  * horizontal-scroll mobile nav. The dropdown closes on item click, escape,
  * route change, or click-outside.
  */
-export function MobileNav() {
+export function MobileNav({
+  initialPrefs,
+}: {
+  initialPrefs?: MenuPreferences;
+}) {
   const isActive = useActive();
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const pathname = usePathname();
+  // Apply the same per-portal customization as the desktop Sidebar
+  // so hiding "Vault" on desktop ALSO hides it in the mobile dropdown.
+  // Reorder + hide are read-only on mobile; editing happens on desktop.
+  const visibleItems = useMemo(
+    () => applyMenuPreferences(ITEMS, initialPrefs),
+    [initialPrefs],
+  );
 
   // Close on route change.
   useEffect(() => {
@@ -127,7 +369,9 @@ export function MobileNav() {
     };
   }, [open]);
 
-  // Find the active item to label the closed button.
+  // Find the active item to label the closed button. Read from the
+  // master ITEMS list so the label still appears even if the user
+  // hid the item from the menu (they navigated to it via URL).
   const activeItem = ITEMS.find(isActive) ?? null;
 
   return (
@@ -161,10 +405,10 @@ export function MobileNav() {
           className="absolute left-0 right-0 top-full z-30 px-3 pb-3 animate-fade-up"
         >
           <ul className="rounded-xl bg-forest-900 ring-1 ring-forest-700/40 shadow-card-hover overflow-hidden divide-y divide-forest-700/30">
-            {ITEMS.map((item) => {
+            {visibleItems.map((item) => {
               const active = isActive(item);
               return (
-                <li key={item.href + item.label}>
+                <li key={item.id}>
                   <Link
                     href={item.href}
                     role="menuitem"

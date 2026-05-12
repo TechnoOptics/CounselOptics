@@ -23,6 +23,7 @@ import type {
 import { createServerSupabase, getCurrentUser, isSupabaseConfigured } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
 import { sendEmail, buildInviteEmailHtml } from './email';
+import { parseMenuPreferences, type AllMenuPreferences } from './menu-prefs';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
@@ -201,6 +202,9 @@ function profileFromRow(r: ProfileRow): Profile {
     tourCompletedAt: r.tour_completed_at ?? null,
     theme: r.theme ?? 'light',
     language: r.language ?? null,
+    menuPreferences: parseMenuPreferences(
+      (r as unknown as { menu_preferences?: unknown }).menu_preferences,
+    ),
     updatedAt: r.updated_at,
   };
 }

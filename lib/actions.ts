@@ -33,8 +33,9 @@ import {
   type FeedbackStatus,
 } from './storage';
 import { classifyCaseType, runReview, scanDocument, transcribeMedia } from './ai';
-import { createServerSupabase, getCurrentUser, isCurrentUserAdmin } from './supabase/server';
+import { createServerSupabase, getCurrentUser, isCurrentUserAdmin, isSupabaseConfigured } from './supabase/server';
 import { logCaseEvent } from './activity';
+import type { MenuPortal } from './menu-prefs';
 import {
   CASE_TYPES,
   type CaseStatus,
@@ -1513,3 +1514,75 @@ export async function submitEnterpriseInquiryAction(formData: FormData): Promise
     throw new Error('Could not save your inquiry. Please try again or email contact@advottic.com.');
   }
 }
+
+// ---------------------------------------------------------------------------
+// Sidebar menu customization
+// ---------------------------------------------------------------------------
+
+/**
+ * Persist a user's sidebar customization for a given portal. The
+ * client passes the freshly-edited preference shape; the server
+ * does a partial-merge into profiles.menu_preferences so editing
+ * one portal does not clobber another. RLS already constrains the
+ * row to the current user; we add a defense-in-depth user_id
+ * filter on the update so a stolen row id cannot poison another
+ * profile.
+ */
+export async function saveMenuPreferencesAction(
+  portal: MenuPortal,
+  next: { hidden: string[]; order: string[] },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!isSupabaseConfigured()) {
+    return { ok: false, error: 'Auth is not configured.' };
+  }
+  const supabase = createServerSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Not signed in.' };
+  if (portal !== 'consumer' && portal !== 'counsel' && portal !== 'admin') {
+    return { ok: false, error: 'Unknown portal.' };
+  }
+  // Sanitize inputs: cap lengths and string-only members so a
+  // bad client payload can not balloon the jsonb column.
+  const hidden = Array.from(
+    new Set(
+      (Array.isArray(next.hidden) ? next.hidden : [])
+        .filter((s) => typeof s === 'string')
+        .map((s) => s.slice(0, 256)),
+    ),
+  ).slice(0, 64);
+  const order = Array.from(
+    new Set(
+      (Array.isArray(next.order) ? next.order : [])
+        .filter((s) => typeof s === 'string')
+        .map((s) => s.slice(0, 256)),
+    ),
+  ).slice(0, 64);
+
+  // Partial merge: read current, splice in the new portal block,
+  // write back. The Postgres jsonb_set operator could do this in
+  // one statement but the round trip is simpler to reason about.
+  const { data: row } = await supabase
+    .from('profiles')
+    .select('menu_preferences')
+    .eq('id', user.id)
+    .maybeSingle();
+  const current =
+    ((row as { menu_preferences: Record<string, unknown> | null } | null)
+      ?.menu_preferences as Record<string, unknown> | null) ?? {};
+  const merged = { ...current, [portal]: { hidden, order } };
+  const { error } = await supabase
+    .from('profiles')
+    .update({ menu_preferences: merged })
+    .eq('id', user.id);
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+  // Re-render any layout that reads the prefs (the consumer
+  // sidebar is rendered by app/layout.tsx).
+  revalidatePath('/cases');
+  revalidatePath('/');
+  return { ok: true };
+}
+

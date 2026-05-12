@@ -194,6 +194,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   let userEmail: string | null = null;
   let serverTheme: 'light' | 'dark' | 'system' = 'light';
   let serverLanguage: string | null = null;
+  // Consumer-portal sidebar customization. Loaded server-side here
+  // so the Sidebar + MobileNav components render with the user's
+  // saved order + visibility on first paint (no flicker, no extra
+  // round trip). Shape lives in lib/menu-prefs.ts.
+  let consumerMenuPrefs: import('@/lib/menu-prefs').MenuPreferences | undefined;
   let trial: {
     mode: 'active_subscription' | 'stripe_trialing' | 'free_trial' | 'expired' | 'none';
     trialEndsAt: string | null;
@@ -209,6 +214,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         const profile = await getProfile().catch(() => null);
         if (profile?.theme) serverTheme = profile.theme;
         if (profile?.language) serverLanguage = profile.language;
+        consumerMenuPrefs = profile?.menuPreferences?.consumer;
         if (!profile?.consentedAt) {
           consent = {
             needed: true,
@@ -327,7 +333,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               </div>
               {signedIn && isAppRoute && (
                 <Suspense fallback={null}>
-                  <MobileNav />
+                  <MobileNav initialPrefs={consumerMenuPrefs} />
                 </Suspense>
               )}
             </header>
@@ -344,7 +350,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <div className="mx-auto max-w-7xl px-4 sm:px-6 py-6 sm:py-10 flex gap-6 lg:gap-8 items-start">
               {signedIn && isAppRoute && (
                 <Suspense fallback={null}>
-                  <Sidebar />
+                  <Sidebar initialPrefs={consumerMenuPrefs} />
                 </Suspense>
               )}
               <div className="flex-1 min-w-0">{children}</div>
