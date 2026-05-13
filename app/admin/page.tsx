@@ -134,9 +134,9 @@ function ScopePanel() {
     },
     {
       title: 'MS 365 + Zoom integrations',
-      state: 'preview',
+      state: 'live',
       body:
-        'OAuth handshake + encrypted token storage are live. Connect from /counsel/meetings once the developer-portal apps are registered and MICROSOFT_CLIENT_ID / ZOOM_CLIENT_ID are set in Vercel env. Scheduling-from-case + meeting auto-link in chat ship next.',
+        'OAuth handshake + AES-GCM token storage + firm_integrations table are live. Verified via curl: /api/integrations/{microsoft,zoom}/authorize returns 307 (sign-in redirect), not 503 (config error). Awaiting first firm Connect from /counsel/meetings. Scheduling-from-case + meeting auto-link in chat ship next.',
     },
     {
       title: 'Bella in firm mode',
