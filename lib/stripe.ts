@@ -79,10 +79,18 @@ export function tierSlugFromPriceId(
   priceId: string | null | undefined,
 ): TierSlug | null {
   if (!priceId) return null;
-  // Legacy tiers first - existing subscriptions still resolve here.
+  // Legacy 'basic' / 'standard' map cleanly to their TierSlug names
+  // and share the same MONTHLY_TOKEN_GRANT entries. The legacy
+  // STRIPE_PRICE_PRO does NOT map here on purpose: its existing
+  // subscriber(s) get 1.5M tokens via the grantProMonthlyTokens
+  // fallback in the webhook (PRO_MONTHLY_TOKEN_GRANT). If we mapped
+  // STRIPE_PRICE_PRO -> 'pro' TierSlug, the new tier-aware path
+  // would only grant 500K tokens (MONTHLY_TOKEN_GRANT['pro']) and
+  // silently downgrade them at renewal. New Personal Pro customers
+  // sit on STRIPE_PRICE_PERSONAL_PRO below and correctly receive
+  // 500K via the new path.
   if (priceId === process.env.STRIPE_PRICE_BASIC?.trim()) return 'basic';
   if (priceId === process.env.STRIPE_PRICE_STANDARD?.trim()) return 'standard';
-  if (priceId === process.env.STRIPE_PRICE_PRO?.trim()) return 'pro';
   if (priceId === process.env.STRIPE_MONTHLY_PRICE_ID?.trim()) return 'standard';
   // Consumer ladder.
   if (priceId === process.env.STRIPE_PRICE_PERSONAL_PRO?.trim()) return 'pro';
