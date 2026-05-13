@@ -14,6 +14,8 @@ import { TIER_FEATURES, TIER_LABEL, type Tier } from '@/lib/types';
 import { TierCard } from './tier-card';
 import { ManageButton } from './billing-actions';
 import { TopUpButtons } from './topup-buttons';
+import { countItemsForUser, calculateOverage } from '@/lib/item-limits';
+import { type TierSlug } from '@/lib/token-packages';
 
 export const dynamic = 'force-dynamic';
 
@@ -92,6 +94,17 @@ export default async function BillingPage({
   const isPro = currentTier === 'pro' && isActive;
   const tokens = isPro ? await getTokenBalance() : null;
   const ledger = isPro ? await listTokenLedger({ limit: 10 }) : [];
+
+  // Items-used gauge data. Renders for every signed-in user, with a
+  // tier-aware cap. Legacy Tier values (basic/standard/pro) map 1:1
+  // onto TierSlug; Free users get the 1-item floor. The overage state
+  // tells the gauge how to color the bar (green / amber approaching /
+  // rose over).
+  const itemCount = await countItemsForUser(user.id);
+  const effectiveTierSlug: TierSlug = isActive && currentTier
+    ? (currentTier as TierSlug)
+    : 'free';
+  const overage = calculateOverage(itemCount.total, effectiveTierSlug);
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 animate-fade-up">
@@ -240,6 +253,18 @@ export default async function BillingPage({
         ))}
       </div>
 
+      {/* Items-used gauge. Shows for every signed-in user; surfaces
+          how close the account is to the tier cap and (when over) how
+          many tokens the next monthly cycle will debit as overage. */}
+      <ItemsGauge
+        count={itemCount}
+        itemLimit={overage.itemLimit}
+        overage={overage.overage}
+        monthlyOverageTokens={overage.monthlyOverageTokens}
+        isApproaching={overage.isApproaching}
+        isOver={overage.isOver}
+      />
+
       {/* Pro-only token gauge + top-up + ledger. Renders only when the
           user is on an active Pro subscription, since lower tiers do
           not meter and visitors of higher tiers should never see the
@@ -277,6 +302,105 @@ const REASON_LABEL: Record<TokenLedgerReason, string> = {
   legal_eye: 'Advottic Review',
   admin_adjust: 'Admin adjustment',
 };
+
+/**
+ * Items-used gauge. Renders for every signed-in user on /billing.
+ * Communicates three states:
+ *   - Under cap (green): you're within your plan
+ *   - Approaching (amber): >= 80% used; heads-up to think about upgrade
+ *   - Over cap (rose): each extra item debits tokens monthly
+ *
+ * Uncapped Enterprise customers see a simple "Items used" total with
+ * no bar (no cap to fill against).
+ */
+function ItemsGauge({
+  count,
+  itemLimit,
+  overage,
+  monthlyOverageTokens,
+  isApproaching,
+  isOver,
+}: {
+  count: { cases: number; contracts: number; total: number };
+  itemLimit: number | null;
+  overage: number;
+  monthlyOverageTokens: number;
+  isApproaching: boolean;
+  isOver: boolean;
+}) {
+  const pct = itemLimit && itemLimit > 0
+    ? Math.min(100, (count.total / itemLimit) * 100)
+    : 0;
+  const barTone = isOver
+    ? 'bg-gradient-to-r from-rose-500 via-rose-600 to-rose-700'
+    : isApproaching
+      ? 'bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700'
+      : 'bg-gradient-to-r from-emerald-500 via-emerald-600 to-forest-700';
+  return (
+    <section className="card p-6 sm:p-7 space-y-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <div>
+          <p className="eyebrow">Items used</p>
+          <h2 className="font-display text-2xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100 mt-1">
+            {count.total.toLocaleString()}
+            {itemLimit !== null && (
+              <span className="text-base text-ink-500 dark:text-cream-100/55 font-sans font-normal">
+                {' '}of {itemLimit.toLocaleString()}{' '}
+                items
+              </span>
+            )}
+            {itemLimit === null && (
+              <span className="text-base text-ink-500 dark:text-cream-100/55 font-sans font-normal">
+                {' '}items (uncapped)
+              </span>
+            )}
+          </h2>
+        </div>
+        <p className="text-[12px] text-ink-500 dark:text-cream-100/55">
+          {count.cases} case{count.cases === 1 ? '' : 's'} ·{' '}
+          {count.contracts} contract{count.contracts === 1 ? '' : 's'}
+        </p>
+      </div>
+      {itemLimit !== null && (
+        <div
+          role="progressbar"
+          aria-valuenow={Math.round(pct)}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label="Items used out of plan limit"
+          className="relative h-3 w-full rounded-full bg-ink-100 dark:bg-forest-800/60 overflow-hidden"
+        >
+          <span
+            className={`absolute inset-y-0 left-0 ${barTone}`}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      )}
+      {isOver && (
+        <p className="text-[12.5px] text-rose-800 dark:text-rose-200 leading-relaxed">
+          You&rsquo;re <strong>{overage}</strong> item{overage === 1 ? '' : 's'}{' '}
+          past your plan limit. The next billing cycle will deduct about{' '}
+          <strong>{monthlyOverageTokens.toLocaleString()}</strong> tokens from
+          your monthly grant. Upgrade your tier or buy a Boost pack to keep your
+          balance healthy.
+        </p>
+      )}
+      {isApproaching && !isOver && (
+        <p className="text-[12.5px] text-amber-900 dark:text-amber-200 leading-relaxed">
+          Heads up &mdash; you&rsquo;re close to your plan&rsquo;s item limit.
+          Items past the cap will start charging from your Bella token balance
+          at month-end. Consider upgrading if you&rsquo;ll keep growing.
+        </p>
+      )}
+      {!isOver && !isApproaching && itemLimit !== null && (
+        <p className="text-[12px] text-ink-500 dark:text-cream-100/55 leading-relaxed">
+          One item = one case, one contract, or one vault folder. Past the cap,
+          extras are metered against your monthly Bella tokens.
+        </p>
+      )}
+    </section>
+  );
+}
 
 function TokenGauge({ balance }: { balance: number }) {
   const monthly = PRO_MONTHLY_TOKEN_GRANT;

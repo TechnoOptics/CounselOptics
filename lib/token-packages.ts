@@ -134,6 +134,67 @@ export const FIRM_POOL_GRANT: Record<TierSlug, number> = {
 };
 
 /**
+ * Items included per tier without an overage charge. An "item" is a
+ * case, a contract, OR a vault folder - one shared budget per user
+ * (or per attorney on firm tiers). When the count exceeds the limit,
+ * every extra item silently consumes ITEM_OVERAGE_TOKENS_PER_MONTH
+ * tokens from the user's monthly grant on the next billing cycle.
+ *
+ * A value of `null` means uncapped (Enterprise only, negotiated).
+ *
+ * Rationale: 'Unlimited' is a pricing-churn risk - one heavy user
+ * subsidizes the rest of the tier and we can't model unit economics.
+ * Cap + token overage keeps the price ladder honest and lets heavy
+ * users pay the marginal cost of their usage without surprise bills.
+ */
+export const TIER_ITEM_LIMITS: Record<TierSlug, number | null> = {
+  free: 1,
+  pro: 20,
+  pro_plus: 50,
+  solo: 20,
+  small_firm: 50,
+  growing_firm: 100,
+  enterprise: null, // negotiated, typically uncapped
+  // Legacy tiers - generous caps so existing customers don't get a
+  // surprise on the new billing surface. Migrate at renewal.
+  basic: 20,
+  standard: 50,
+};
+
+/**
+ * Token cost per overage item per month. Debited from the user's
+ * token balance on the billing cycle. Consumer/Solo tiers pay 25K;
+ * larger firm tiers get a per-item discount because their token
+ * grants are bigger and the per-matter overhead is amortized across
+ * more seats.
+ *
+ * At our blended ~$0.0000095/token cost basis: 25K tokens ≈ $0.24
+ * platform cost, ~$0.62 retail-equivalent via the Boost pack. That's
+ * a slim per-item charge that scales gracefully into the next tier.
+ */
+export const ITEM_OVERAGE_TOKENS_PER_MONTH: Record<TierSlug, number> = {
+  free: 0, // no overage allowed - Free is a single-case ceiling
+  pro: 25_000,
+  pro_plus: 25_000,
+  solo: 50_000,
+  small_firm: 50_000,
+  growing_firm: 30_000, // larger pool, smaller per-item charge
+  enterprise: 0, // uncapped, no overage charge
+  basic: 25_000,
+  standard: 25_000,
+};
+
+/**
+ * Human-readable item-limit label for the UI. Returns 'Uncapped' for
+ * Enterprise / null limits and 'N items' otherwise.
+ */
+export function itemLimitLabel(tier: TierSlug): string {
+  const limit = TIER_ITEM_LIMITS[tier];
+  if (limit === null) return 'Uncapped';
+  return `${limit} items`;
+}
+
+/**
  * Turn the Anthropic usage record into the user-facing token cost.
  * Cached input is half-priced (covers our overhead); output is 5x
  * fresh input (matches Anthropic's pricing ratio). Round up so we
