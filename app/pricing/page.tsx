@@ -161,10 +161,10 @@ const FIRM_TIERS: Tier[] = [
   {
     id: 'enterprise',
     name: 'Enterprise',
-    price: 'Custom',
-    cadence: 'Talk to sales',
+    price: 'From $1,800',
+    cadence: '/ month',
     blurb:
-      '100+ users, SSO, custom data-residency, HIPAA BAA, 99.9% SLA.',
+      '100+ users, SSO, custom data-residency, HIPAA BAA, 99.9% SLA. Final price scales with seats, residency, support tier, and SLA.',
     features: [
       '100+ users, no per-seat ceiling',
       'Negotiated matter ceiling (typically uncapped)',
