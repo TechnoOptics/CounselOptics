@@ -24,9 +24,13 @@ const STATUS_STYLES: Record<CaseStatus, string> = {
 export default async function AdminCasesPage({
   searchParams,
 }: {
-  searchParams?: { groupBy?: string };
+  searchParams?: { groupBy?: string; include?: string };
 }) {
-  const cases = await adminListCases();
+  // `?include=sandbox` flips on the sandbox-flagged rows (test data,
+  // accidental double-submits, etc). Default hides them so the
+  // operator default view shows real platform usage. Audit V2 (P2).
+  const includeSandbox = searchParams?.include === 'sandbox';
+  const cases = await adminListCases({ includeSandbox });
   const groupBy = searchParams?.groupBy === 'caseType' ? 'caseType' : 'flat';
 
   const groups = new Map<string, typeof cases>();
@@ -42,29 +46,61 @@ export default async function AdminCasesPage({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-ink-500 dark:text-cream-100/55">
-          {cases.length} case{cases.length === 1 ? '' : 's'} across all users
+          {cases.length} case{cases.length === 1 ? '' : 's'}
+          {includeSandbox ? ' (including sandbox)' : ' (sandbox hidden)'}
         </p>
-        <div className="flex items-center gap-1 text-xs">
-          <span className="text-ink-500 dark:text-cream-100/55">Group by:</span>
+        <div className="flex items-center gap-3 text-xs">
+          <div className="flex items-center gap-1">
+            <span className="text-ink-500 dark:text-cream-100/55">Group by:</span>
+            <Link
+              href={includeSandbox ? '/admin/cases?include=sandbox' : '/admin/cases'}
+              className={`px-2.5 py-1 rounded ${
+                groupBy === 'flat'
+                  ? 'bg-forest-900 text-cream-200 dark:bg-white/15 dark:text-cream-100'
+                  : 'text-ink-700 hover:bg-ink-100 dark:text-cream-100/65 dark:hover:bg-white/5'
+              }`}
+            >
+              Updated date
+            </Link>
+            <Link
+              href={
+                includeSandbox
+                  ? '/admin/cases?groupBy=caseType&include=sandbox'
+                  : '/admin/cases?groupBy=caseType'
+              }
+              className={`px-2.5 py-1 rounded ${
+                groupBy === 'caseType'
+                  ? 'bg-forest-900 text-cream-200 dark:bg-white/15 dark:text-cream-100'
+                  : 'text-ink-700 hover:bg-ink-100 dark:text-cream-100/65 dark:hover:bg-white/5'
+              }`}
+            >
+              Case type
+            </Link>
+          </div>
+          {/* Sandbox visibility toggle. Default hides rows flagged
+              sandbox=true (test data, accidental double-submits). */}
           <Link
-            href="/admin/cases"
+            href={
+              includeSandbox
+                ? groupBy === 'caseType'
+                  ? '/admin/cases?groupBy=caseType'
+                  : '/admin/cases'
+                : groupBy === 'caseType'
+                  ? '/admin/cases?groupBy=caseType&include=sandbox'
+                  : '/admin/cases?include=sandbox'
+            }
             className={`px-2.5 py-1 rounded ${
-              groupBy === 'flat'
-                ? 'bg-forest-900 text-cream-200 dark:bg-white/15 dark:text-cream-100'
+              includeSandbox
+                ? 'bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200'
                 : 'text-ink-700 hover:bg-ink-100 dark:text-cream-100/65 dark:hover:bg-white/5'
             }`}
+            title={
+              includeSandbox
+                ? 'Sandbox rows visible. Click to hide.'
+                : 'Sandbox rows hidden. Click to show.'
+            }
           >
-            Updated date
-          </Link>
-          <Link
-            href="/admin/cases?groupBy=caseType"
-            className={`px-2.5 py-1 rounded ${
-              groupBy === 'caseType'
-                ? 'bg-forest-900 text-cream-200 dark:bg-white/15 dark:text-cream-100'
-                : 'text-ink-700 hover:bg-ink-100 dark:text-cream-100/65 dark:hover:bg-white/5'
-            }`}
-          >
-            Case type
+            {includeSandbox ? 'Sandbox shown' : 'Show sandbox'}
           </Link>
         </div>
       </div>

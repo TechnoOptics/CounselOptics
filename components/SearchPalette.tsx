@@ -103,7 +103,12 @@ export function SearchPalette() {
     return cases
       .filter((c) =>
         [c.title, c.subjectName, c.caseType, c.status, c.subjectType]
-          .filter(Boolean)
+          // Defensive: API rows can come back with null/undefined/numeric
+          // values for unfilled columns. Audit V2-1 traced a production
+          // crash to .toLowerCase() being called on a non-string here.
+          // Coerce to string before normalizing.
+          .map((v) => (v == null ? '' : String(v)))
+          .filter((s) => s.length > 0)
           .some((s) => s.toLowerCase().includes(q)),
       )
       .slice(0, 12);

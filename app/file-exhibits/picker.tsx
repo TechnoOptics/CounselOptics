@@ -87,11 +87,14 @@ export function FileExhibitsPicker({ states }: { states: Jurisdiction[] }) {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return ordered;
+    // Defensive coercion (audit V2-1): each field is typed `string` but
+    // tests / fixture rows can produce null. `.toLowerCase()` on null
+    // throws a hard crash that propagates to the React tree.
     return ordered.filter(
       (s) =>
-        s.name.toLowerCase().includes(q) ||
-        s.code.toLowerCase().includes(q) ||
-        s.courtName.toLowerCase().includes(q),
+        String(s.name ?? '').toLowerCase().includes(q) ||
+        String(s.code ?? '').toLowerCase().includes(q) ||
+        String(s.courtName ?? '').toLowerCase().includes(q),
     );
   }, [ordered, query]);
 

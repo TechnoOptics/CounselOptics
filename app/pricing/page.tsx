@@ -6,8 +6,15 @@ import { SavingsCalculator } from '@/components/SavingsCalculator';
 export const metadata = {
   title: 'Pricing - Advottic',
   description:
-    'Personal plans from $19/mo and law-firm plans from $59/user/mo. AI-powered legal assistance for individuals; full practice management for firms.',
+    'Built on a foundation lawyers can defend. Personal plans from $19/mo and law-firm plans from $59/user/mo. AI-powered legal assistance for individuals; full practice management for firms.',
   alternates: { canonical: '/pricing' },
+  openGraph: {
+    title: 'Advottic pricing - Built on a foundation lawyers can defend',
+    description:
+      'Personal plans from $19/mo, firm plans from $59/user/mo. Calm software, defensible audit trail, savings vs Clio + DocuSign + Spellbook on day one.',
+    url: '/pricing',
+    type: 'website',
+  },
 };
 
 type Tier = {
@@ -197,7 +204,13 @@ export default function PricingPage() {
       />
       <FaqJsonLd questions={PRICING_FAQ} />
       <header className="text-center space-y-3 max-w-3xl mx-auto pt-4 sm:pt-8">
-        <p className="eyebrow justify-center">Pricing</p>
+        {/* Audit V2-6: promote "Built on a foundation lawyers can defend"
+            from the mid-page trust strip up to the hero eyebrow. This
+            is the single strongest line on the page and was wasted
+            below the fold. */}
+        <p className="eyebrow justify-center">
+          Built on a foundation lawyers can defend
+        </p>
         <h1 className="font-display text-[40px] sm:text-[56px] font-medium tracking-[-0.02em] leading-[1.05] text-forest-900 dark:text-cream-100">
           Two sides of one platform.
         </h1>

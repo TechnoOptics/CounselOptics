@@ -184,6 +184,22 @@ export async function verifySignatureChain(
         events: rows.length,
       };
     }
+    // Audit 2026-05-12 (V2) P0-2 fix: the inserter hashes
+    // `ts = new Date().toISOString()` which produces the canonical
+    // `2026-05-05T15:22:53.135Z` form. PostgREST returns the same
+    // timestamptz back as `2026-05-05T15:22:53.135+00:00` (with
+    // `+00:00` offset, no `Z`). Feeding `e.created_at` directly into
+    // the hash compares the right bytes to the wrong string and
+    // raises a false-positive chain break. Round-tripping through
+    // `new Date(...).toISOString()` normalizes back to the form the
+    // inserter used.
+    const normalizedTs = (() => {
+      try {
+        return new Date(e.created_at).toISOString();
+      } catch {
+        return e.created_at;
+      }
+    })();
     const payload = JSON.stringify({
       request: e.signing_request_id,
       signature: e.signature_id,
@@ -194,7 +210,7 @@ export async function verifySignatureChain(
       ip: e.ip_address,
       ua: e.user_agent,
       doc: e.document_sha256,
-      ts: e.created_at,
+      ts: normalizedTs,
     });
     const recomputed: string = crypto
       .createHash('sha256')

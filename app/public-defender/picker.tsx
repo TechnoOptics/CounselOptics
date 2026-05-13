@@ -17,9 +17,10 @@ export function PublicDefenderPicker({ records }: { records: PublicDefenderRecor
     if (!q) return ordered;
     return ordered.filter(
       (r) =>
-        r.name.toLowerCase().includes(q) ||
-        r.code.toLowerCase().includes(q) ||
-        r.pdOffice.name.toLowerCase().includes(q),
+        // Defensive coercion (audit V2-1): treat missing fields as ''.
+        String(r.name ?? '').toLowerCase().includes(q) ||
+        String(r.code ?? '').toLowerCase().includes(q) ||
+        String(r.pdOffice?.name ?? '').toLowerCase().includes(q),
     );
   }, [ordered, query]);
 

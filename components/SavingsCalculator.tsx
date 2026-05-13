@@ -32,9 +32,19 @@ type Tool = {
   pricePerUserMonth: number;
   /** Short tagline shown beneath the name. */
   blurb: string;
-  /** Source URL for the price (so we can defend it). */
+  /** Internal /compare page for the deep dive. */
   href?: string;
+  /** Public pricing page on the competitor's own site. Audit V2-5:
+   *  source-stamp the rates so a prospect can verify them. */
+  sourceUrl?: string;
 };
+
+/**
+ * Pricing source-of-truth date. Audit V2-5 (2026-05-12): bake the
+ * "Last reviewed" date into the calculator so we can defend the
+ * numbers and refresh on a known cadence.
+ */
+const PRICING_REVIEWED_AT = '2026-05-01';
 
 const TOOLS: Tool[] = [
   {
@@ -43,6 +53,7 @@ const TOOLS: Tool[] = [
     pricePerUserMonth: 129,
     blurb: 'Practice management',
     href: '/compare/clio',
+    sourceUrl: 'https://www.clio.com/pricing/',
   },
   {
     id: 'mycase',
@@ -50,6 +61,7 @@ const TOOLS: Tool[] = [
     pricePerUserMonth: 69,
     blurb: 'Practice management',
     href: '/compare/mycase',
+    sourceUrl: 'https://www.mycase.com/pricing/',
   },
   {
     id: 'smokeball',
@@ -57,6 +69,7 @@ const TOOLS: Tool[] = [
     pricePerUserMonth: 149,
     blurb: 'Practice management (Windows)',
     href: '/compare/smokeball',
+    sourceUrl: 'https://www.smokeball.com/pricing',
   },
   {
     id: 'spellbook',
@@ -64,6 +77,7 @@ const TOOLS: Tool[] = [
     pricePerUserMonth: 169,
     blurb: 'Contract review AI',
     href: '/compare/spellbook',
+    sourceUrl: 'https://www.spellbook.legal/pricing',
   },
   {
     id: 'cocounsel',
@@ -71,6 +85,7 @@ const TOOLS: Tool[] = [
     pricePerUserMonth: 280,
     blurb: 'Legal research AI (+ Westlaw)',
     href: '/compare/cocounsel',
+    sourceUrl: 'https://casetext.com/pricing/',
   },
   {
     id: 'harvey',
@@ -78,6 +93,9 @@ const TOOLS: Tool[] = [
     pricePerUserMonth: 416,
     blurb: 'Big-law research AI',
     href: '/compare/harvey',
+    // Harvey does not publish list pricing; the rate here is the
+    // industry-reported figure that has been quoted publicly by
+    // partner firms. No public source URL to link.
   },
   {
     id: 'docusign',
@@ -85,12 +103,14 @@ const TOOLS: Tool[] = [
     pricePerUserMonth: 45,
     blurb: 'E-signature',
     href: '/compare/docusign',
+    sourceUrl: 'https://www.docusign.com/products-and-pricing',
   },
   {
     id: 'lexicata',
     name: 'CRM (Lexicata / Lawmatics)',
     pricePerUserMonth: 79,
     blurb: 'Client intake + CRM',
+    sourceUrl: 'https://www.lawmatics.com/pricing/',
   },
 ];
 
@@ -298,16 +318,46 @@ export function SavingsCalculator() {
         </Link>
       </div>
 
-      <p className="text-[11px] text-ink-500 dark:text-cream-100/55 leading-relaxed">
-        Per-seat list prices last reviewed May 2026 from each
-        vendor&rsquo;s public pricing page; sources linked on each{' '}
-        <Link href="/compare" className="underline">
-          comparison page
-        </Link>
-        . Negotiated annual contracts often differ. Advottic firm tiers
-        described on this page do not change with the calculator; see the
-        firm cards above for full feature lists.
-      </p>
+      {/* Source-citation footer (audit V2-5). Lists every per-seat
+          rate above next to the public pricing URL we sourced it
+          from, plus the review date. Harvey does not publish list
+          pricing so we mark it as industry-reported. Refresh quarterly. */}
+      <div className="space-y-2">
+        <p className="text-[11px] text-ink-500 dark:text-cream-100/55 leading-relaxed">
+          Per-seat list prices last reviewed{' '}
+          <span className="font-medium">{PRICING_REVIEWED_AT}</span> from
+          each vendor&rsquo;s public pricing page; we refresh quarterly.
+          Negotiated annual contracts often differ. Advottic firm tiers
+          described above do not change with the calculator.
+        </p>
+        <details className="text-[11px] text-ink-500 dark:text-cream-100/55 leading-relaxed">
+          <summary className="cursor-pointer underline underline-offset-2 hover:text-forest-900 dark:hover:text-cream-100">
+            Show sources for each rate
+          </summary>
+          <ul className="mt-2 space-y-1 pl-1">
+            {TOOLS.map((t) => (
+              <li key={t.id} className="font-mono tabular-nums">
+                <span className="font-sans">{t.name}</span>{' '}
+                {USD.format(t.pricePerUserMonth)}/seat/mo &mdash;{' '}
+                {t.sourceUrl ? (
+                  <a
+                    href={t.sourceUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline underline-offset-2 hover:text-forest-900 dark:hover:text-cream-100 break-all"
+                  >
+                    {t.sourceUrl.replace(/^https?:\/\//, '')}
+                  </a>
+                ) : (
+                  <span className="italic">
+                    industry-reported (vendor does not publish list pricing)
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </details>
+      </div>
     </section>
   );
 }

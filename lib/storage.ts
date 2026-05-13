@@ -1111,14 +1111,23 @@ async function ensureProfileExists(
   );
 }
 
-export async function adminListCases(): Promise<AdminCaseRow[]> {
+export async function adminListCases(
+  options: { includeSandbox?: boolean } = {},
+): Promise<AdminCaseRow[]> {
   const admin = createAdminSupabase();
   if (!admin) return [];
 
-  const { data: cases, error } = await admin
+  // Audit V2 (P2 follow-up): hide sandbox-flagged test cases from the
+  // operator default view. Callers can pass includeSandbox=true to see
+  // everything (the page-level toggle is what flips it on).
+  let query = admin
     .from('cases')
     .select('*')
     .order('updated_at', { ascending: false });
+  if (!options.includeSandbox) {
+    query = query.eq('sandbox', false);
+  }
+  const { data: cases, error } = await query;
   if (error) throw error;
 
   const owners = Array.from(new Set((cases as CaseRow[]).map((c) => c.user_id)));

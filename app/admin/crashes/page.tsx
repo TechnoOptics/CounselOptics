@@ -119,19 +119,47 @@ function groupCrashes(rows: CrashRow[]): CrashGroup[] {
   return groups;
 }
 
+/**
+ * Default-hide cross-origin script errors and browser-extension noise.
+ * Audit V2-3 flagged these as padding the inbox:
+ *   - "Script error." is the sanitized cross-origin script-tag error
+ *     (third-party script throws, browser blocks the stack).
+ *   - "__firefox__" is a Firefox content-script injection, not our bug.
+ *   - "ResizeObserver loop limit exceeded" is a Chrome quirk, not a
+ *     real crash, but landed in the inbox too.
+ * Toggle via ?noise=show to inspect them deliberately.
+ */
+const NOISE_PATTERNS: RegExp[] = [
+  /^Script error\.?$/i,
+  /__firefox__/,
+  /ResizeObserver loop/i,
+];
+
+function isNoiseCrash(c: CrashRow): boolean {
+  const msg = c.message ?? '';
+  return NOISE_PATTERNS.some((re) => re.test(msg));
+}
+
 export default async function HqCrashesPage({
   searchParams,
 }: {
-  searchParams?: { include?: string; view?: string };
+  searchParams?: { include?: string; view?: string; noise?: string };
 }) {
   const includeAcknowledged = searchParams?.include === 'all';
+  const showNoise = searchParams?.noise === 'show';
   const isGrouped = (searchParams?.view ?? 'grouped') !== 'list';
   // Bump limit when grouping so signatures with many copies don't get
   // truncated. The page only renders a card per group, so it's fine.
-  const crashes = await adminListCrashReports({
+  const allCrashes = await adminListCrashReports({
     includeAcknowledged,
     limit: isGrouped ? 500 : 200,
   });
+  // Apply noise filter at the page level so the bucket can be inspected
+  // on demand without polluting the default operator surface.
+  const crashes = showNoise
+    ? allCrashes
+    : allCrashes.filter((c) => !isNoiseCrash(c));
+  const noiseCount = allCrashes.length - crashes.length;
   const groups = isGrouped ? groupCrashes(crashes) : [];
   const openCount = crashes.filter((c) => !c.acknowledgedAt).length;
 
@@ -177,7 +205,7 @@ export default async function HqCrashesPage({
           <span className="text-cream-100/30">·</span>
           <nav className="flex items-center gap-1">
             <a
-              href={`/admin/crashes${isGrouped ? '?view=grouped' : '?view=list'}`}
+              href={`/admin/crashes${isGrouped ? '?view=grouped' : '?view=list'}${showNoise ? (isGrouped ? '&noise=show' : '&noise=show') : ''}`}
               className={`px-2.5 py-1 rounded-md transition-colors ${
                 !includeAcknowledged
                   ? 'bg-white/10 text-cream-100 font-semibold'
@@ -187,7 +215,7 @@ export default async function HqCrashesPage({
               Open ({openCount})
             </a>
             <a
-              href={`/admin/crashes?include=all${isGrouped ? '&view=grouped' : '&view=list'}`}
+              href={`/admin/crashes?include=all${isGrouped ? '&view=grouped' : '&view=list'}${showNoise ? '&noise=show' : ''}`}
               className={`px-2.5 py-1 rounded-md transition-colors ${
                 includeAcknowledged
                   ? 'bg-white/10 text-cream-100 font-semibold'
@@ -197,6 +225,37 @@ export default async function HqCrashesPage({
               All
             </a>
           </nav>
+          {/* Noise toggle: cross-origin script errors + Firefox
+              extension injection + ResizeObserver quirks. Audit V2-3. */}
+          {(noiseCount > 0 || showNoise) && (
+            <>
+              <span className="text-cream-100/30">·</span>
+              <a
+                href={(() => {
+                  const params = new URLSearchParams();
+                  if (isGrouped) params.set('view', 'grouped');
+                  else params.set('view', 'list');
+                  if (includeAcknowledged) params.set('include', 'all');
+                  if (!showNoise) params.set('noise', 'show');
+                  return `/admin/crashes?${params.toString()}`;
+                })()}
+                className={`px-2.5 py-1 rounded-md transition-colors text-[11px] ${
+                  showNoise
+                    ? 'bg-amber-100/10 text-amber-200 font-semibold'
+                    : 'text-cream-100/55 hover:bg-white/5'
+                }`}
+                title={
+                  showNoise
+                    ? 'Hiding the noise bucket. Click to hide cross-origin Script-error + browser-extension noise.'
+                    : `Showing ${noiseCount} hidden noise event${noiseCount === 1 ? '' : 's'}.`
+                }
+              >
+                {showNoise
+                  ? 'Hide noise'
+                  : `+${noiseCount} noise${noiseCount === 1 ? '' : 's'} hidden`}
+              </a>
+            </>
+          )}
         </div>
       </header>
 

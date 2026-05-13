@@ -122,7 +122,12 @@ export function CallALawyerCallout({
               We also noticed:{' '}
               {hits
                 .slice(1)
-                .map((h) => DECISION_LABELS[h.category].title.toLowerCase())
+                // Defensive lookup (audit V2-1): if a category enters
+                // here that isn't in DECISION_LABELS the row would
+                // crash with .title.toLowerCase() on undefined. Skip
+                // unknown categories instead of crashing the callout.
+                .map((h) => DECISION_LABELS[h.category]?.title?.toLowerCase())
+                .filter((s): s is string => typeof s === 'string' && s.length > 0)
                 .join(', ')}
               .
             </p>
