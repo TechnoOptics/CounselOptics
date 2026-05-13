@@ -270,7 +270,7 @@ export default async function BillingPage({
           not meter and visitors of higher tiers should never see the
           empty version of this card. */}
       {isPro && tokens && (
-        <section className="space-y-5">
+        <section id="topup" className="space-y-5 scroll-mt-20">
           <TokenGauge balance={tokens.balance} />
           <TopUpButtons />
           {ledger.length > 0 && (
@@ -301,6 +301,7 @@ const REASON_LABEL: Record<TokenLedgerReason, string> = {
   bella: 'Bella conversation',
   legal_eye: 'Advottic Review',
   admin_adjust: 'Admin adjustment',
+  item_overage_debit: 'Items past plan cap',
 };
 
 /**
@@ -377,13 +378,29 @@ function ItemsGauge({
         </div>
       )}
       {isOver && (
-        <p className="text-[12.5px] text-rose-800 dark:text-rose-200 leading-relaxed">
-          You&rsquo;re <strong>{overage}</strong> item{overage === 1 ? '' : 's'}{' '}
-          past your plan limit. The next billing cycle will deduct about{' '}
-          <strong>{monthlyOverageTokens.toLocaleString()}</strong> tokens from
-          your monthly grant. Upgrade your tier or buy a Boost pack to keep your
-          balance healthy.
-        </p>
+        <div className="space-y-2">
+          <p className="text-[12.5px] text-rose-800 dark:text-rose-200 leading-relaxed">
+            You&rsquo;re <strong>{overage}</strong> item
+            {overage === 1 ? '' : 's'} past your plan limit. The next billing
+            cycle will deduct about{' '}
+            <strong>{monthlyOverageTokens.toLocaleString()}</strong> tokens
+            from your monthly grant.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <a
+              href="#topup"
+              className="inline-flex items-center gap-1 rounded-md bg-gold-metal text-forest-950 px-3 py-1.5 text-[12px] font-semibold hover:brightness-110"
+            >
+              Buy a Boost pack &rarr;
+            </a>
+            <Link
+              href="/pricing"
+              className="inline-flex items-center gap-1 rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 bg-white dark:bg-forest-900/40 px-3 py-1.5 text-[12px] font-medium text-forest-900 dark:text-cream-100 hover:bg-cream-50 dark:hover:bg-forest-800/60"
+            >
+              Compare tiers
+            </Link>
+          </div>
+        </div>
       )}
       {isApproaching && !isOver && (
         <p className="text-[12.5px] text-amber-900 dark:text-amber-200 leading-relaxed">

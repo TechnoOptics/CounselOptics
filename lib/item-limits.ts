@@ -176,3 +176,99 @@ export async function softCheckCanCreate(input: {
 
   return { allow: true };
 }
+
+/**
+ * Debit overage tokens for the user's current item count at the
+ * start of a new billing period. Called by the Stripe webhook on
+ * `invoice.payment_succeeded` BEFORE the monthly grant is applied -
+ * the order matters because we want the new grant to be reduced by
+ * any outstanding overage from the previous period.
+ *
+ * Idempotent on (userId, periodEnd): if we've already debited for a
+ * given period_end, we return early. Stripe sometimes retries
+ * webhook deliveries; this prevents double-charging.
+ *
+ * Returns the actual amount debited (0 when no overage or no-op).
+ */
+export async function applyMonthlyOverageDebit(input: {
+  userId: string;
+  tier: TierSlug;
+  periodEnd: string;
+}): Promise<{ debited: number; itemsOver: number }> {
+  const admin = createAdminSupabase();
+  if (!admin) return { debited: 0, itemsOver: 0 };
+
+  // Idempotency: cheaper than a separate ledger lookup, we stash the
+  // last-overage period-end on the profile row. Same period = no-op.
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('token_balance, token_overage_period_end')
+    .eq('id', input.userId)
+    .maybeSingle();
+  const existing = (profile as {
+    token_balance?: number;
+    token_overage_period_end?: string;
+  } | null) ?? { token_balance: 0 };
+  if (existing.token_overage_period_end === input.periodEnd) {
+    return { debited: 0, itemsOver: 0 };
+  }
+
+  // Compute the overage in items and translate to tokens. We hit the
+  // DB for the live count so a user who deleted items between renewal
+  // attempts gets a fair read.
+  const count = await countItemsForUser(input.userId);
+  const state = calculateOverage(count.total, input.tier);
+  if (!state.isOver || state.monthlyOverageTokens <= 0) {
+    // Even when nothing is owed, advance the period-end stamp so a
+    // retry on the same period stays a no-op.
+    await admin
+      .from('profiles')
+      .update({
+        token_overage_period_end: input.periodEnd,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', input.userId);
+    return { debited: 0, itemsOver: 0 };
+  }
+
+  // Debit. Floor at zero - we never go negative on the balance; the
+  // user just has $0 of Bella headroom until they top up. Overage
+  // larger than balance gets logged at the cap (informational - we
+  // can't extract tokens we don't have).
+  const balance = existing.token_balance ?? 0;
+  const debit = Math.min(balance, state.monthlyOverageTokens);
+  const nextBalance = balance - debit;
+
+  await admin
+    .from('profiles')
+    .update({
+      token_balance: nextBalance,
+      token_overage_period_end: input.periodEnd,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', input.userId);
+
+  // Write to the token ledger so the /billing history shows the
+  // overage debit alongside grants and top-ups. Best-effort; a ledger
+  // failure must not block the webhook handler.
+  try {
+    await admin.from('token_ledger').insert({
+      user_id: input.userId,
+      delta: -debit,
+      balance_after: nextBalance,
+      reason: 'item_overage_debit',
+      metadata: {
+        items_used: state.itemsUsed,
+        item_limit: state.itemLimit,
+        items_over: state.overage,
+        tier: input.tier,
+        period_end: input.periodEnd,
+      },
+    });
+  } catch {
+    /* ledger failures must not crash the webhook */
+  }
+
+  return { debited: debit, itemsOver: state.overage };
+}
+

@@ -1,6 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import type Stripe from 'stripe';
-import { getStripe, getWebhookSecret, tierFromPriceId } from '@/lib/stripe';
+import {
+  getStripe,
+  getWebhookSecret,
+  tierFromPriceId,
+  tierSlugFromPriceId,
+} from '@/lib/stripe';
 import {
   upsertSubscriptionFromStripe,
   userIdForStripeCustomer,
@@ -8,6 +13,8 @@ import {
   adjustTokens,
   type TokenLedgerReason,
 } from '@/lib/storage';
+import { grantTierMonthlyTokens } from '@/lib/token-economy';
+import { applyMonthlyOverageDebit } from '@/lib/item-limits';
 import { sendEmail } from '@/lib/email';
 import type { SubscriptionStatus, Tier } from '@/lib/types';
 
@@ -271,8 +278,13 @@ export async function POST(req: NextRequest) {
         break;
       }
       // Renewals come in as invoice.payment_succeeded with billing_reason
-      // = 'subscription_cycle'. Use this to re-grant Pro tokens once
-      // per billing period; the grant helper is idempotent per period.
+      // = 'subscription_cycle'. Use this to:
+      //   1. Debit any outstanding item-overage tokens from the previous
+      //      period BEFORE applying the new grant (so the user feels the
+      //      overage and either upgrades or buys a Boost pack).
+      //   2. Apply the monthly token grant for the resolved tier.
+      // Both helpers are idempotent per (userId, periodEnd); Stripe
+      // retries on the same period are no-ops.
       case 'invoice.payment_succeeded': {
         const invoice = event.data.object as Stripe.Invoice;
         const reason = (invoice as { billing_reason?: string }).billing_reason;
@@ -281,7 +293,6 @@ export async function POST(req: NextRequest) {
         if (!subscriptionId) break;
         const sub = await stripe.subscriptions.retrieve(subscriptionId);
         const priceId = sub.items.data[0]?.price.id ?? null;
-        if (tierFromPriceId(priceId) !== 'pro') break;
         const customerId =
           typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
         const userId =
@@ -289,7 +300,31 @@ export async function POST(req: NextRequest) {
           (await userIdForStripeCustomer(customerId));
         if (!userId) break;
         const periodEnd = periodEndFromSub(sub);
-        if (periodEnd) {
+        if (!periodEnd) break;
+
+        // Resolve the TierSlug (broader than the legacy Tier enum).
+        // Falls back to the legacy 'pro' grant if the new mapping
+        // doesn't recognize the price (older subscriptions).
+        const tierSlug = tierSlugFromPriceId(priceId);
+
+        // Step 1: debit overage tokens (BEFORE the new grant). Order
+        // matters: a user with 25 items on a 20-item plan owes the
+        // overage on this period's renewal; applying the new grant
+        // first would let them dodge by depleting it on Bella.
+        if (tierSlug) {
+          await applyMonthlyOverageDebit({ userId, tier: tierSlug, periodEnd });
+        }
+
+        // Step 2: apply the tier's monthly grant. The new tier-aware
+        // helper covers every paid tier; legacy grantProMonthlyTokens
+        // still runs for backward-compat on the 'pro' Tier value so
+        // existing per-tenant code that watches that helper keeps
+        // working until migrated.
+        if (tierSlug && tierSlug !== 'free') {
+          await grantTierMonthlyTokens({ userId, tier: tierSlug, periodEnd });
+        } else if (tierFromPriceId(priceId) === 'pro') {
+          // Legacy fallback: older subscriptions that don't match any
+          // of the new STRIPE_PRICE_* env vars still get their grant.
           await grantProMonthlyTokens({ userId, periodEnd });
         }
         break;

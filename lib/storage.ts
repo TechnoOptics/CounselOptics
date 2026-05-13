@@ -1731,7 +1731,11 @@ export type TokenLedgerReason =
   | 'topup_large'
   | 'bella'
   | 'legal_eye'
-  | 'admin_adjust';
+  | 'admin_adjust'
+  // 2026-05-13: per-billing-cycle deduction for cases/contracts past
+  // the tier's item cap. Written by lib/item-limits.ts
+  // applyMonthlyOverageDebit() during the Stripe renewal webhook.
+  | 'item_overage_debit';
 
 export type TokenBalance = {
   balance: number;
