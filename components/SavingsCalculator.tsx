@@ -122,7 +122,7 @@ const ADVOTTIC_TIERS = [
     name: 'Counsel Solo',
     pricePerUserMonth: 59,
     maxAttorneys: 1,
-    mattersPerAttorney: 20,
+    mattersPerAttorney: 30,
   },
   {
     name: 'Counsel Small Firm',

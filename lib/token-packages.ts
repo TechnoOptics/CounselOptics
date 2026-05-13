@@ -98,7 +98,12 @@ export const MONTHLY_TOKEN_GRANT: Record<TierSlug, number> = {
   pro_plus: 1_500_000,
   solo: 2_500_000,
   small_firm: 4_000_000,
-  growing_firm: 8_000_000,
+  // Growing trimmed from 8M to 6M (2026-05-12). At 8M the per-seat
+  // token cost was $76 against a $149 price, leaving only ~45% margin.
+  // 6M brings the cost to $57, lifting margin to ~55% in line with
+  // the rest of the firm ladder. Heavy users buy Boost packs (which
+  // are high-margin) for the marginal demand.
+  growing_firm: 6_000_000,
   enterprise: 15_000_000,
   // Legacy tiers - keep their old grants until migrated.
   basic: 100_000,
@@ -127,7 +132,8 @@ export const FIRM_POOL_GRANT: Record<TierSlug, number> = {
   pro_plus: 0,
   solo: 0, // single seat - personal balance is enough
   small_firm: 4_000_000,
-  growing_firm: 8_000_000,
+  // Trimmed alongside MONTHLY_TOKEN_GRANT for margin parity.
+  growing_firm: 6_000_000,
   enterprise: 15_000_000,
   basic: 0,
   standard: 0,
@@ -151,7 +157,13 @@ export const TIER_ITEM_LIMITS: Record<TierSlug, number | null> = {
   free: 1,
   pro: 20,
   pro_plus: 50,
-  solo: 20,
+  // Solo bumped from 20 to 30 (2026-05-12) to match the typical
+  // working-solo-attorney's caseload (20-40 active matters). 20 was
+  // tight enough that 'Clio offers unlimited' would have been a real
+  // sticker-shock objection on the pricing page. Cost to us: zero -
+  // a stale matter is essentially free. Heavy Bella use on those
+  // matters is what we actually meter via tokens.
+  solo: 30,
   small_firm: 50,
   growing_firm: 100,
   enterprise: null, // negotiated, typically uncapped
