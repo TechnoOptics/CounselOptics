@@ -182,10 +182,14 @@ jobs:
         #     reads from capacitor.config.ts so the result is
         #     deterministic; (c) skipping ios/ in the repo keeps
         #     Windows-on-the-dev-machine workflows simple.
-        # The dependent assets dir bootstrap (same fix as Android)
-        # protects against the `ios/App/App/public` ENOENT case.
+        #
+        # Do NOT `mkdir -p ios` first: unlike the Android assets dir,
+        # `cap add ios` creates ios/ itself and ABORTS with "ios
+        # platform already exists" if the directory is present (even
+        # if empty). Run 1 failed exactly this way. We instead remove
+        # any stale ios/ to make the step idempotent on reruns.
         run: |
-          mkdir -p ios
+          rm -rf ios
           npx cap add ios
           npx cap sync ios
 
