@@ -96,7 +96,10 @@ jobs:
       # per upload to App Store Connect; align it to the Android
       # versionCode so the two stores stay in sync. Read both from
       # android/app/build.gradle at runtime (single source of truth).
-      EXPORT_METHOD: app-store
+      # Xcode 16 renamed the export method: "app-store" is deprecated
+      # and warns "Use 'app-store-connect' instead." (seen in iOS run
+      # 4 export logs). Use the new spelling.
+      EXPORT_METHOD: app-store-connect
 
     steps:
       - name: Checkout
