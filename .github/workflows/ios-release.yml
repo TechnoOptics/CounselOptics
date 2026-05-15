@@ -248,13 +248,13 @@ jobs:
             echo "::warning::App.entitlements is not referenced by the Xcode project. Apple Sign-In may not be enabled on the signed binary."
           fi
 
-      - name: pod install
-        # Capacitor's iOS shell pulls native plugins via CocoaPods.
-        # cap-cli runs `pod install` as part of `cap sync ios`, but
-        # we run it explicitly here so a slow CocoaPods download is
-        # visible in its own step in the build log.
-        working-directory: ios/App
-        run: pod install
+      # NOTE: no `pod install` step. Capacitor 8.3.4 defaults to Swift
+      # Package Manager, not CocoaPods - `cap sync ios` writes a
+      # Package.swift and there is NO Podfile / .xcworkspace. SPM
+      # dependencies are resolved by xcodebuild itself at archive
+      # time (-scheme App against App.xcodeproj). iOS run 2 failed
+      # here with "No Podfile found"; the fix is to delete this step
+      # and target the .xcodeproj directly below.
 
       - name: Build and archive
         env:
@@ -275,8 +275,17 @@ jobs:
           # attempt to pin to a specific named profile; with
           # -allowProvisioningUpdates the auto-fetched profile is
           # used instead.
+          # Capacitor 8 SPM project: build the .xcodeproj directly.
+          # There is no .xcworkspace (that's a CocoaPods artifact).
+          # -scheme App resolves SPM package deps automatically.
+          # -resolvePackageDependencies first so a slow SPM fetch is
+          # its own log section rather than buried in the archive.
           xcodebuild \
-            -workspace App.xcworkspace \
+            -project App.xcodeproj \
+            -scheme App \
+            -resolvePackageDependencies
+          xcodebuild \
+            -project App.xcodeproj \
             -scheme App \
             -configuration Release \
             -destination "generic/platform=iOS" \
