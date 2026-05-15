@@ -89,6 +89,29 @@ function forceApexBeforeAuth(next: string): boolean {
   return true;
 }
 
+/**
+ * Native Sign in with Apple needs a nonce dance:
+ *   - Apple embeds SHA256(nonce) in the returned id_token.
+ *   - Supabase's signInWithIdToken re-hashes the RAW nonce we give
+ *     it and compares, to prove the token was minted for THIS
+ *     request (replay protection).
+ * So we generate a raw random string, send its SHA-256 to Apple,
+ * and hand the raw value to Supabase. Web Crypto is available in the
+ * Capacitor WKWebView/Android WebView and in every browser.
+ */
+function cryptoRandomString(byteLen = 32): string {
+  const arr = new Uint8Array(byteLen);
+  crypto.getRandomValues(arr);
+  return Array.from(arr, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+async function sha256Hex(input: string): Promise<string> {
+  const data = new TextEncoder().encode(input);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(digest), (b) =>
+    b.toString(16).padStart(2, '0'),
+  ).join('');
+}
+
 type Provider = 'google' | 'azure' | 'apple';
 type Mode = Provider | 'email';
 
@@ -224,6 +247,92 @@ export function SignInButtons({ next }: { next: string }) {
       // experience they had before this hotfix - they will pick up the new
       // path automatically once Play auto-updates them.
       const { Capacitor } = await import('@capacitor/core');
+
+      // ===================================================================
+      // NATIVE ON-DEVICE SIGN-IN (no browser at all)
+      // ===================================================================
+      // The user explicitly does not want OAuth punted to a browser
+      // sheet. For Apple on iOS we use the OS-native
+      // ASAuthorizationController sheet (@capacitor-community/apple-
+      // sign-in) and hand the resulting identity token straight to
+      // Supabase via signInWithIdToken. No SFSafariViewController, no
+      // Universal Link round-trip - the system Apple sheet slides up
+      // over the app and the session lands directly in the WebView
+      // cookie jar.
+      //
+      // This is ADDITIVE and FAIL-SAFE: any failure that is not an
+      // explicit user-cancel falls through to the existing browser /
+      // web OAuth flow below, so sign-in can never regress (old shells
+      // without the plugin, or before the Supabase Apple provider
+      // lists com.advottic.app as an authorized client ID, just keep
+      // the previous behavior).
+      //
+      // Google native needs iOS/Android OAuth client IDs provisioned
+      // in Google Cloud + registered on Supabase's Google provider, so
+      // it stays on the browser flow until those exist. Microsoft has
+      // no native Supabase signInWithIdToken path and stays on the
+      // browser flow by design.
+      if (
+        provider === 'apple' &&
+        Capacitor.getPlatform() === 'ios' &&
+        Capacitor.isPluginAvailable('SignInWithApple')
+      ) {
+        try {
+          const { SignInWithApple } = await import(
+            '@capacitor-community/apple-sign-in'
+          );
+          const rawNonce = cryptoRandomString();
+          const hashedNonce = await sha256Hex(rawNonce);
+          const appleResult = await SignInWithApple.authorize({
+            // The native client ID is the app bundle ID (NOT the web
+            // Services ID). Supabase's Apple provider must list this
+            // under "Authorized Client IDs" or it rejects the token
+            // with "Unacceptable audience" - in which case we fall
+            // through to the browser flow.
+            clientId: 'com.advottic.app',
+            redirectURI: `${origin}/auth/callback`,
+            scopes: 'email name',
+            nonce: hashedNonce,
+          });
+          const idToken = appleResult.response?.identityToken;
+          if (!idToken) {
+            throw new Error('Apple returned no identity token.');
+          }
+          const { error: idErr } = await supabase.auth.signInWithIdToken({
+            provider: 'apple',
+            token: idToken,
+            nonce: rawNonce,
+          });
+          if (idErr) throw idErr;
+          // Session cookies are set on advottic.com (the WebView
+          // origin). Hand off to the destination.
+          goNext(next);
+          return;
+        } catch (nativeErr) {
+          const m =
+            nativeErr instanceof Error
+              ? nativeErr.message
+              : String(nativeErr);
+          // User dismissed the native sheet on purpose - do NOT then
+          // pop a browser at them; just reset and let them retry.
+          if (
+            /cancel|1001|user canceled|the operation couldn.?t be completed/i.test(
+              m,
+            )
+          ) {
+            setPending(null);
+            return;
+          }
+          // Plugin/config failure - fall through to the browser/web
+          // OAuth flow so sign-in still works.
+          console.warn(
+            '[auth] native Apple sign-in failed, falling back to browser flow:',
+            m,
+          );
+        }
+      }
+      // ===================================================================
+
       const browserAvailable =
         Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('Browser');
       if (browserAvailable) {

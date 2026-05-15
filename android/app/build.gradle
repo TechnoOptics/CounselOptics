@@ -30,8 +30,16 @@ android {
         // fix; the version bump keeps both stores in lockstep and is
         // required because Play + App Store Connect reject re-used
         // version codes.
-        versionCode 8
-        versionName "1.0.5"
+        // v1.0.6 (code 9): native on-device Sign in with Apple (iOS).
+        // "Continue with Apple" now uses the OS-native sheet via
+        // @capacitor-community/apple-sign-in + Supabase
+        // signInWithIdToken instead of opening a browser. Fail-safe:
+        // falls back to the previous browser flow on any error.
+        // Android unchanged functionally (web code auto-updates in
+        // the remote-URL WebView); bump keeps store version codes
+        // unique + in lockstep.
+        versionCode 9
+        versionName "1.0.6"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
