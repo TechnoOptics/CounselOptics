@@ -53,6 +53,59 @@ const config: CapacitorConfig = {
     // iOS 14 covers every iPhone 6s and newer (shipped since 2015),
     // which is the right floor for a legal-tech app: older devices
     // are out of their security-patch window anyway.
+    //
+    // -------------------------------------------------------------
+    // Info.plist privacy strings for native plugin usage.
+    //
+    // iOS enforces NSXxxUsageDescription strings at first call into
+    // each protected API. If a string is missing when the plugin
+    // first runs, the app crashes silently with a hidden
+    // EXC_BAD_ACCESS in the system console - reviewer will catch
+    // this on first launch and reject the submission.
+    //
+    // Capacitor copies the strings below into the generated
+    // ios/App/App/Info.plist on `npx cap sync ios`. They must be
+    // first-person, action-oriented, and explain WHY in a sentence
+    // a reviewer reading App Review Guideline 5.1.1 (Data
+    // Collection and Storage) would not flag for over-collection.
+    //
+    // The four plugins below are the ones actually used in the
+    // current build:
+    //   - @aparajita/capacitor-biometric-auth (lib/biometric.ts)
+    //   - @capacitor/camera + @capacitor/filesystem (planned)
+    //   - @capacitor-community/speech-recognition
+    //     (components/VoiceDictateButton.tsx)
+    //   - @capacitor/device (lib/device-fingerprint.ts)
+    //
+    // If we add @capacitor/push-notifications, @capacitor/geolocation,
+    // or @capacitor/local-notifications later, add the matching
+    // entries here and bump the App Store submission with the
+    // updated privacy disclosures.
+    // -------------------------------------------------------------
+    infoPlist: {
+      // Face ID / Touch ID (biometric sign-in)
+      NSFaceIDUsageDescription:
+        "Use Face ID to sign in to Advottic without typing your email each time. Your biometric data never leaves this device.",
+      // Microphone (voice dictation when composing a case)
+      NSMicrophoneUsageDescription:
+        "Use the microphone to dictate case notes. Audio is transcribed on-device by iOS and never uploaded.",
+      // Speech recognition (paired with microphone; iOS treats it as a separate disclosure)
+      NSSpeechRecognitionUsageDescription:
+        "Convert your spoken notes to text so you can add them to a case file. Recognition runs on-device when possible.",
+      // Camera (capture documents, citations, exhibits)
+      NSCameraUsageDescription:
+        "Photograph documents, citations, and exhibits to add them directly to your case file. Photos stay private to your account.",
+      // Photo library read (pick existing exhibits from camera roll)
+      NSPhotoLibraryUsageDescription:
+        "Attach existing photos as case exhibits. Advottic only reads the photos you explicitly choose.",
+      // Photo library write (save the executed PDF packet back to camera roll)
+      NSPhotoLibraryAddUsageDescription:
+        "Save your case packet PDF to your photo library so you can share or print it.",
+      // App Tracking Transparency: we do NOT track. Apple still
+      // wants a string in case a future plugin ever asks.
+      NSUserTrackingUsageDescription:
+        "Advottic does not track you across other apps and websites and never will. This permission is reserved for future use.",
+    },
   },
   android: {
     backgroundColor: '#0F2D24',
