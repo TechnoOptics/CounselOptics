@@ -3,11 +3,24 @@
 # Why this workflow exists
 # ------------------------
 # Operator runs on Windows; iOS toolchain is Mac-only. GitHub's
-# `macos-latest` runners come with Xcode 16+, CocoaPods, the iOS
-# Simulator, and the App Store Connect command-line tools pre-
-# installed. Combined with App Store Connect API key authentication
-# (no Apple ID + 2FA dance), this workflow produces a TestFlight
-# upload without ever touching a physical Mac.
+# macOS runners come with Xcode, the iOS Simulator, and the App
+# Store Connect command-line tools pre-installed. Combined with
+# App Store Connect API key authentication (no Apple ID + 2FA
+# dance), this workflow produces a TestFlight upload without ever
+# touching a physical Mac.
+#
+# Xcode / SDK requirement (added after iOS run 5)
+# -----------------------------------------------
+# Apple now SERVER-SIDE REJECTS uploads built with an SDK older
+# than iOS 26 (Xcode 26+):
+#   "Validation failed (409) SDK version issue. This app was built
+#    with the iOS 18.5 SDK. All iOS and iPadOS apps must be built
+#    with the iOS 26 SDK or later ... in order to be uploaded to
+#    App Store Connect."
+# `macos-latest` still defaulted to Xcode 16.4 (iOS 18.5 SDK), so
+# altool uploaded and then Apple rejected it during validation.
+# We now pin the runner to macos-15 and explicitly select the
+# latest-stable Xcode (>=26) before any xcodebuild invocation.
 #
 # Trigger
 # -------
@@ -60,8 +73,8 @@
 # Linux minutes which are *not* applicable to macOS). A typical
 # Capacitor iOS build takes 15-25 minutes per run. Use this
 # workflow sparingly - prefer batching multiple changes into one
-# release. The first build always takes longer because CocoaPods
-# downloads the Capacitor pod sources fresh.
+# release. The first build always takes longer because Swift
+# Package Manager resolves the Capacitor package sources fresh.
 
 name: iOS release build
 
@@ -84,7 +97,11 @@ permissions:
 jobs:
   build-ipa:
     name: Build + sign + upload IPA
-    runs-on: macos-latest
+    # macos-15 (Sequoia) is the GitHub image that ships Xcode 26.
+    # Xcode 26 requires macOS 15+, so macos-14 cannot host it and
+    # `macos-latest` still resolved to an Xcode 16 default. Pin
+    # explicitly so the SDK is deterministic across runner rollouts.
+    runs-on: macos-15
     timeout-minutes: 60
 
     env:
@@ -104,6 +121,33 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Select latest-stable Xcode (>= 26, Apple upload mandate)
+        # Apple rejects uploads built with < iOS 26 SDK. The runner
+        # image ships several Xcodes; the default `xcode-select` may
+        # still point at an older one. maxim-lobanov/setup-xcode
+        # switches the active developer dir to the newest stable
+        # Xcode installed on the image. If the image somehow lacks
+        # Xcode 26 the action fails loudly here (good - far better
+        # than building the wrong SDK and getting rejected post-
+        # upload like iOS run 5 did).
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Print toolchain (assert iOS 26 SDK)
+        # Hard gate: read the active SDK and fail the job NOW if it
+        # is older than iOS 26, so a stale runner image surfaces a
+        # clear error instead of a confusing 409 from altool 20
+        # minutes later.
+        run: |
+          xcodebuild -version
+          SDK_VER=$(xcodebuild -showsdks | sed -nE 's/.*iphoneos([0-9]+)\..*/\1/p' | sort -n | tail -1)
+          echo "Newest installed iOS SDK major version: ${SDK_VER:-unknown}"
+          if [ -z "$SDK_VER" ] || [ "$SDK_VER" -lt 26 ]; then
+            echo "::error::Active Xcode exposes iOS SDK ${SDK_VER:-?} but Apple requires >= 26 for App Store Connect uploads. The runner image needs Xcode 26+."
+            exit 1
+          fi
 
       - name: Set up Node.js 22
         uses: actions/setup-node@v4
@@ -392,6 +436,15 @@ jobs:
           APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
           APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
         run: |
+          # CRITICAL: pipefail. Without it, `altool ... | tee`
+          # returns tee's exit status (always 0), so a FAILED upload
+          # reports the step as green. That is exactly what masked
+          # iOS run 5: altool hit "Validation failed (409) SDK
+          # version issue" and exited non-zero, but the job went
+          # green and nothing reached TestFlight. With pipefail the
+          # pipeline now carries altool's real exit code and the
+          # `-e` shell aborts the step on failure.
+          set -o pipefail
           # xcrun altool reads the API key from
           # ~/private_keys/AuthKey_<id>.p8 by default when the
           # --apiKey + --apiIssuer flags are provided. Output is
@@ -402,6 +455,13 @@ jobs:
             --apiKey "$APP_STORE_CONNECT_API_KEY_ID" \
             --apiIssuer "$APP_STORE_CONNECT_API_ISSUER_ID" \
             --output-format json | tee "$RUNNER_TEMP/altool-output.json"
+          # Belt-and-suspenders: even if a future altool build
+          # returns 0 on a soft error, fail the step if the JSON
+          # carries a product-errors array.
+          if grep -q '"product-errors"' "$RUNNER_TEMP/altool-output.json"; then
+            echo "::error::altool reported product-errors - upload did NOT reach TestFlight. See JSON above."
+            exit 1
+          fi
           echo "## TestFlight upload" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Uploaded \`$IPA_PATH\` to App Store Connect." >> $GITHUB_STEP_SUMMARY
