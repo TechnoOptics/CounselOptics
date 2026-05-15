@@ -240,12 +240,25 @@ jobs:
           npx cap add ios
           npx cap sync ios
 
-      - name: Patch Info.plist with version + build number
+      - name: Patch Info.plist with version + build number + privacy strings
         # Capacitor 8 leaves CFBundleShortVersionString and
         # CFBundleVersion at their template defaults ("1.0" / "1").
         # App Store Connect rejects an upload whose CFBundleVersion
         # is already used on an existing build, so we set them
         # explicitly to the Android-side values.
+        #
+        # The NSxxxUsageDescription privacy strings ALSO live here -
+        # NOT in capacitor.config.ts. `infoPlist` is not a
+        # CapacitorConfig field, so the strings that used to be in the
+        # config were (a) ignored by `cap sync` (never reached the
+        # binary - builds 6/7 shipped without them) and (b) a hard
+        # `next build` type error that broke every Vercel deploy.
+        # PlistBuddy writing them into the freshly-generated
+        # ios/App/App/Info.plist is the only thing that actually puts
+        # them in the signed app. iOS enforces these at first call
+        # into each protected API; a missing string crashes the app
+        # on first use and gets the submission rejected under App
+        # Review Guideline 5.1.1.
         run: |
           INFO_PLIST=ios/App/App/Info.plist
           if [ ! -f "$INFO_PLIST" ]; then
@@ -254,8 +267,34 @@ jobs:
           fi
           /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${MARKETING_VERSION}" "$INFO_PLIST"
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${CURRENT_PROJECT_VERSION}" "$INFO_PLIST"
+
+          # Upsert helper: Set if the key exists, else Add it. The
+          # ios/ dir is regenerated fresh every run (rm -rf ios) so
+          # these keys never pre-exist, but the fallback keeps the
+          # step idempotent if that ever changes.
+          plist_str() {
+            /usr/libexec/PlistBuddy -c "Set :$1 $2" "$INFO_PLIST" 2>/dev/null \
+              || /usr/libexec/PlistBuddy -c "Add :$1 string $2" "$INFO_PLIST"
+          }
+          # Strings are first-person + action-oriented + jurisdiction-
+          # neutral so an App Review 5.1.1 reader does not flag them
+          # for over-collection. None contain quotes/apostrophes, so
+          # PlistBuddy's rest-of-line value parsing is safe here.
+          plist_str NSFaceIDUsageDescription "Use Face ID to sign in to Advottic without typing your email each time. Your biometric data never leaves this device."
+          plist_str NSMicrophoneUsageDescription "Use the microphone to dictate case notes. Audio is transcribed on-device by iOS and never uploaded."
+          plist_str NSSpeechRecognitionUsageDescription "Convert your spoken notes to text so you can add them to a case file. Recognition runs on-device when possible."
+          plist_str NSCameraUsageDescription "Photograph documents, citations, and exhibits to add them directly to your case file. Photos stay private to your account."
+          plist_str NSPhotoLibraryUsageDescription "Attach existing photos as case exhibits. Advottic only reads the photos you explicitly choose."
+          plist_str NSPhotoLibraryAddUsageDescription "Save your case packet PDF to your photo library so you can share or print it."
+          plist_str NSUserTrackingUsageDescription "Advottic does not track you across other apps and websites and never will. This permission is reserved for future use."
+
+          echo "Patched Info.plist:"
           /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$INFO_PLIST"
           /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$INFO_PLIST"
+          for k in NSFaceIDUsageDescription NSMicrophoneUsageDescription NSSpeechRecognitionUsageDescription NSCameraUsageDescription NSPhotoLibraryUsageDescription NSPhotoLibraryAddUsageDescription NSUserTrackingUsageDescription; do
+            printf '  %s = ' "$k"
+            /usr/libexec/PlistBuddy -c "Print :$k" "$INFO_PLIST"
+          done
 
       - name: Add Sign in with Apple + Associated Domains entitlements
         # Two entitlements, both required for auth to work natively:
