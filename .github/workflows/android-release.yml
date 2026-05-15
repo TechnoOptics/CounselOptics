@@ -69,7 +69,10 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          # Capacitor 8.3.4 declares `engines.node >=22`; Node 20 emits
+          # EBADENGINE warnings and is going away from GitHub runners in
+          # Sep 2026 anyway. Run on 22 LTS.
+          node-version: '22'
           cache: 'npm'
 
       - name: Set up JDK 17
