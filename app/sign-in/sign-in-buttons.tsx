@@ -345,16 +345,67 @@ export function SignInButtons({ next }: { next: string }) {
             // Harmless if the tab already self-closed (iOS sometimes
             // does this after a redirect chain).
           }
-          // Navigate the WebView to the callback URL. This runs the
-          // server-side route handler at /auth/callback, which calls
-          // exchangeCodeForSession with the PKCE verifier from the
-          // WebView's cookie jar and sets the new auth cookies on
-          // advottic.com (which IS the WebView's origin).
+          // THE HANDOFF FIX.
+          //
+          // Previously this did `router.replace('/auth/callback?...')`.
+          // That is broken two ways:
+          //   1. /auth/callback is a server Route Handler, NOT a page.
+          //      Next.js client-side router.replace cannot navigate to
+          //      a route handler, so the server exchange never ran.
+          //   2. Even a hard nav to the server route fails on native:
+          //      the PKCE verifier was written by the WebView's
+          //      Supabase client into the WebView cookie jar; when the
+          //      OAuth finishes in the external Safari/Custom Tab the
+          //      callback request carries that tab's cookies (no
+          //      verifier) -> "Sign-in started on one window and
+          //      finished on another / code verifier not found".
+          //
+          // Instead, exchange the code RIGHT HERE in the WebView using
+          // the SAME `supabase` client instance that called
+          // signInWithOAuth. That instance holds the PKCE verifier in
+          // its own storage, so the exchange always finds it - no
+          // server round-trip, no cross-context cookie dependency.
           try {
             const u = new URL(url);
-            router.replace(u.pathname + u.search);
-          } catch {
-            router.replace(next);
+            const providerErr =
+              u.searchParams.get('error_description') ||
+              u.searchParams.get('error');
+            if (providerErr) {
+              setError(providerErr.replace(/\+/g, ' '));
+              setPending(null);
+              return;
+            }
+            const code = u.searchParams.get('code');
+            if (!code) {
+              // Token-fragment / no-code variant: let the server
+              // route deal with it via a real document navigation
+              // (router.replace can't reach a route handler).
+              window.location.href = u.pathname + u.search;
+              return;
+            }
+            const { error: exErr } =
+              await supabase.auth.exchangeCodeForSession(code);
+            if (exErr) {
+              setError(
+                /code verifier|pkce|both auth code and code verifier/i.test(
+                  exErr.message,
+                )
+                  ? 'Sign-in could not be completed. Please tap the button and try again.'
+                  : exErr.message,
+              );
+              setPending(null);
+              return;
+            }
+            // Session is now set in the WebView's Supabase client
+            // (cookies on advottic.com, the WebView origin). Go.
+            goNext(next);
+          } catch (cbErr) {
+            setError(
+              cbErr instanceof Error
+                ? cbErr.message
+                : 'Sign-in could not be completed.',
+            );
+            setPending(null);
           }
         });
 
