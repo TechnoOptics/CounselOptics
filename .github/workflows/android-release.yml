@@ -100,11 +100,14 @@ jobs:
             echo "::error::ANDROID_KEYSTORE_BASE64 secret is empty. See workflow header for how to set it."
             exit 1
           fi
-          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/advottic-release.keystore
-          # Sanity check: keystore should be > 1 KB. If the secret was
-          # pasted incorrectly (e.g. missing newlines), decode produces
-          # a tiny garbage file that gradle will reject with a confusing
-          # error - fail fast here with a clear message instead.
+          # Strip whitespace (CR, LF, tabs, spaces) before decoding.
+          # When the secret is piped into `gh secret set` from a
+          # Windows PowerShell pipeline, the runner sees a trailing
+          # \r that GNU `base64 --decode` rejects with "invalid input".
+          # The strip handles that path AND any user who pastes a
+          # multi-line base64 dump (default certutil output) without
+          # collapsing it first.
+          echo "$ANDROID_KEYSTORE_BASE64" | tr -d '\r\n\t ' | base64 --decode > android/app/advottic-release.keystore
           SIZE=$(stat -c%s android/app/advottic-release.keystore)
           if [ "$SIZE" -lt 1024 ]; then
             echo "::error::Decoded keystore is only $SIZE bytes. ANDROID_KEYSTORE_BASE64 was probably pasted incorrectly."
@@ -122,11 +125,20 @@ jobs:
             echo "::error::Missing one of ANDROID_STORE_PASSWORD / ANDROID_KEY_ALIAS / ANDROID_KEY_PASSWORD."
             exit 1
           fi
+          # Trim trailing whitespace from each secret. When `gh secret
+          # set` is piped from a Windows PowerShell pipeline, the
+          # secret arrives with a trailing \r. gradle's
+          # Properties.load() reads it literally, so the storePassword
+          # becomes "password\r" and the keystore unlock fails with
+          # "tampered with or password was incorrect".
+          STORE_PW=$(printf '%s' "$ANDROID_STORE_PASSWORD" | tr -d '\r\n')
+          KEY_ALIAS=$(printf '%s' "$ANDROID_KEY_ALIAS" | tr -d '\r\n')
+          KEY_PW=$(printf '%s' "$ANDROID_KEY_PASSWORD" | tr -d '\r\n')
           cat > android/keystore.properties <<EOF
           storeFile=advottic-release.keystore
-          storePassword=$ANDROID_STORE_PASSWORD
-          keyAlias=$ANDROID_KEY_ALIAS
-          keyPassword=$ANDROID_KEY_PASSWORD
+          storePassword=$STORE_PW
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PW
           EOF
           # Print the file with passwords redacted so the log shows
           # the structure is right without leaking the secrets.
