@@ -257,17 +257,41 @@ jobs:
           /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$INFO_PLIST"
           /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$INFO_PLIST"
 
-      - name: Add Sign in with Apple entitlement
-        # The website offers Sign in with Apple alongside Google +
-        # Microsoft, which means Apple's App Review Guideline 4.8
-        # requires the app to also offer it. The entitlement file
-        # tells Apple's signing service to issue a profile that
-        # includes the Sign in with Apple capability.
+      - name: Add Sign in with Apple + Associated Domains entitlements
+        # Two entitlements, both required for auth to work natively:
         #
-        # `cap add ios` does NOT add this entitlement by default
+        # 1. com.apple.developer.applesignin
+        #    The website offers Sign in with Apple alongside Google +
+        #    Microsoft, so App Review Guideline 4.8 requires the app
+        #    to offer it too. Tells Apple's signing service to issue
+        #    a profile with the Sign in with Apple capability.
+        #
+        # 2. com.apple.developer.associated-domains -> applinks:advottic.com
+        #    THE FIX for "OAuth session stays in the browser." Without
+        #    this entitlement (plus the matching AASA file served at
+        #    https://advottic.com/.well-known/apple-app-site-association)
+        #    iOS has no association telling it that
+        #    advottic.com/auth/callback belongs to this app. The
+        #    SFSafariViewController opened for OAuth finishes the
+        #    Supabase redirect itself, the session cookies land in
+        #    Safari's jar, and App.appUrlOpen in sign-in-buttons.tsx
+        #    never fires - the user is "signed in" only in the browser
+        #    sheet. With the entitlement, iOS hands the
+        #    advottic.com/auth/callback Universal Link back into the
+        #    app, the listener closes the tab and replays the callback
+        #    in the WebView whose origin IS advottic.com, so the
+        #    session lands where it belongs. This is the iOS mirror of
+        #    the Android App Links intent-filter already in
+        #    AndroidManifest.xml.
+        #
+        # Only advottic.com (apex) - the WebView's server.url is the
+        # apex and www -> apex is a 301 that would break AASA fetch
+        # for a www applinks entry.
+        #
+        # `cap add ios` does NOT add either entitlement by default
         # because Capacitor doesn't know which OAuth flows the app
-        # uses. We inject it via plutil so the Xcode project's
-        # CODE_SIGN_ENTITLEMENTS build setting picks it up.
+        # uses. We inject them so the Xcode project's
+        # CODE_SIGN_ENTITLEMENTS build setting picks them up.
         run: |
           ENT_FILE=ios/App/App/App.entitlements
           cat > "$ENT_FILE" <<EOF
@@ -279,10 +303,15 @@ jobs:
             <array>
               <string>Default</string>
             </array>
+            <key>com.apple.developer.associated-domains</key>
+            <array>
+              <string>applinks:advottic.com</string>
+              <string>webcredentials:advottic.com</string>
+            </array>
           </dict>
           </plist>
           EOF
-          echo "Wrote Sign in with Apple entitlement to $ENT_FILE"
+          echo "Wrote Sign in with Apple + Associated Domains entitlements to $ENT_FILE"
           # Make sure the Xcode project references this file.
           PROJECT=ios/App/App.xcodeproj/project.pbxproj
           if ! grep -q "App.entitlements" "$PROJECT"; then

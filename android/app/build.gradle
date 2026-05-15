@@ -20,12 +20,18 @@ android {
         applicationId "com.advottic.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        // Audit-V9 deploy 2026-05-14: lazy-import + LocaleTime hydration
-        // fixes, RLS migration verified, consent gate carves staff routes
-        // out, /pricing + /sign-in title stutters resolved, cookie scoped
-        // to .advottic.com. First Internal Testing track upload.
-        versionCode 7
-        versionName "1.0.4"
+        // v1.0.5 (code 8): native OAuth handoff fix. Adds the iOS
+        // Associated Domains entitlement + the matching
+        // /.well-known/apple-app-site-association so "Continue with
+        // Google / Microsoft / Apple" returns into the app instead
+        // of stranding the session in the in-app Safari sheet.
+        // Android App Links were already correct (assetlinks.json
+        // matches the Play App Signing key) so this is an iOS-side
+        // fix; the version bump keeps both stores in lockstep and is
+        // required because Play + App Store Connect reject re-used
+        // version codes.
+        versionCode 8
+        versionName "1.0.5"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
