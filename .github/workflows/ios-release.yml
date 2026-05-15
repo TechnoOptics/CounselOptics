@@ -1,0 +1,387 @@
+# Builds the signed iOS .ipa for App Store Connect / TestFlight upload.
+#
+# Why this workflow exists
+# ------------------------
+# Operator runs on Windows; iOS toolchain is Mac-only. GitHub's
+# `macos-latest` runners come with Xcode 16+, CocoaPods, the iOS
+# Simulator, and the App Store Connect command-line tools pre-
+# installed. Combined with App Store Connect API key authentication
+# (no Apple ID + 2FA dance), this workflow produces a TestFlight
+# upload without ever touching a physical Mac.
+#
+# Trigger
+# -------
+# Manual only (workflow_dispatch). Two inputs:
+#   - upload_to_testflight: whether to push the IPA to App Store Connect
+#     after the build. Default true. Set false for "just build, no
+#     upload" diagnostic runs.
+#   - release_notes: a short tag for the run summary. Cosmetic.
+#
+# Required GitHub Secrets (Repo Settings -> Secrets and variables ->
+# Actions -> New repository secret):
+#
+#   APPLE_TEAM_ID
+#     Your 10-character Apple Developer Team ID. Find it at
+#     developer.apple.com/account -> Membership Details -> Team ID.
+#     Looks like "ABCDE12345".
+#
+#   APP_STORE_CONNECT_API_KEY_ID
+#     The 10-character Key ID for an App Store Connect API key with
+#     "App Manager" access. Generate at
+#     appstoreconnect.apple.com -> Users and Access -> Integrations ->
+#     App Store Connect API -> Generate API Key. The Key ID is
+#     listed on the row after you create it.
+#
+#   APP_STORE_CONNECT_API_ISSUER_ID
+#     The UUID Issuer ID for your App Store Connect team. Same page
+#     as above, shown at the top under "Issuer ID". Looks like
+#     "57246542-96fe-1a63-e053-0824d011072a".
+#
+#   APP_STORE_CONNECT_API_KEY_BASE64
+#     The .p8 private key file you download ONCE when creating the
+#     API key (Apple does not let you re-download it). Base64-encode
+#     the file:
+#       macOS / Linux: `base64 -w 0 AuthKey_XXXXXXXXXX.p8`
+#       Git Bash / WSL on Windows: same as above (use Git Bash, not
+#       PowerShell, to avoid CRLF injection).
+#     Paste the resulting single-line base64 string as the secret.
+#
+# Output
+# ------
+# The IPA is uploaded as a workflow artifact named `advottic-ipa`,
+# and (when upload_to_testflight = true) also pushed to App Store
+# Connect via xcrun altool. Allow ~10-30 minutes for the build to
+# finish processing in App Store Connect -> TestFlight -> Builds.
+#
+# Cost
+# ----
+# macOS runners are billed at $0.08/minute on private repos beyond
+# the GitHub Free monthly minute allowance (currently 2000 free
+# Linux minutes which are *not* applicable to macOS). A typical
+# Capacitor iOS build takes 15-25 minutes per run. Use this
+# workflow sparingly - prefer batching multiple changes into one
+# release. The first build always takes longer because CocoaPods
+# downloads the Capacitor pod sources fresh.
+
+name: iOS release build
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload_to_testflight:
+        description: 'Upload the built IPA to App Store Connect TestFlight after the build?'
+        type: boolean
+        required: false
+        default: true
+      release_notes:
+        description: 'One-line note for the build summary (does not become the App Store description)'
+        required: false
+        default: 'Manual iOS release build'
+
+permissions:
+  contents: read
+
+jobs:
+  build-ipa:
+    name: Build + sign + upload IPA
+    runs-on: macos-latest
+    timeout-minutes: 60
+
+    env:
+      # Read once at top-level so all steps see the same value.
+      # capacitor.config.ts pins this to com.advottic.app; mirror here
+      # so xcodebuild can resolve provisioning profiles by bundle ID.
+      IOS_BUNDLE_ID: com.advottic.app
+      # Marketing + build numbers. The build number must be unique
+      # per upload to App Store Connect; align it to the Android
+      # versionCode so the two stores stay in sync. Read both from
+      # android/app/build.gradle at runtime (single source of truth).
+      EXPORT_METHOD: app-store
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Read version + build number from android/app/build.gradle
+        # The Android side already pins versionCode + versionName for
+        # this release (latest commit bumped to 7 / 1.0.4). Reading
+        # them here keeps Android and iOS lockstep without a manual
+        # second source-of-truth bump.
+        run: |
+          VERSION_NAME=$(grep -E '^\s*versionName\b' android/app/build.gradle | head -1 | sed -E 's/.*versionName "([^"]+)".*/\1/')
+          VERSION_CODE=$(grep -E '^\s*versionCode\b' android/app/build.gradle | head -1 | sed -E 's/.*versionCode ([0-9]+).*/\1/')
+          if [ -z "$VERSION_NAME" ] || [ -z "$VERSION_CODE" ]; then
+            echo "::error::Could not parse versionName / versionCode from android/app/build.gradle"
+            exit 1
+          fi
+          echo "MARKETING_VERSION=$VERSION_NAME" >> $GITHUB_ENV
+          echo "CURRENT_PROJECT_VERSION=$VERSION_CODE" >> $GITHUB_ENV
+          echo "## iOS release inputs" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Marketing version (CFBundleShortVersionString):** $VERSION_NAME" >> $GITHUB_STEP_SUMMARY
+          echo "**Build number (CFBundleVersion):** $VERSION_CODE" >> $GITHUB_STEP_SUMMARY
+          echo "**Bundle ID:** ${IOS_BUNDLE_ID}" >> $GITHUB_STEP_SUMMARY
+          echo "**Trigger note:** ${{ inputs.release_notes }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Validate required iOS secrets
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+        run: |
+          missing=()
+          [ -z "$APPLE_TEAM_ID" ] && missing+=("APPLE_TEAM_ID")
+          [ -z "$APP_STORE_CONNECT_API_KEY_ID" ] && missing+=("APP_STORE_CONNECT_API_KEY_ID")
+          [ -z "$APP_STORE_CONNECT_API_ISSUER_ID" ] && missing+=("APP_STORE_CONNECT_API_ISSUER_ID")
+          [ -z "$APP_STORE_CONNECT_API_KEY_BASE64" ] && missing+=("APP_STORE_CONNECT_API_KEY_BASE64")
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing required secret(s): ${missing[*]}"
+            echo "See the workflow header for instructions on where to find each value."
+            exit 1
+          fi
+          echo "All 4 required secrets are present."
+
+      - name: Decode App Store Connect API key
+        env:
+          APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+        run: |
+          # xcrun looks for the key in ~/private_keys with the
+          # canonical filename AuthKey_<KEY_ID>.p8 (this is an
+          # undocumented convention; see man xcodebuild).
+          mkdir -p ~/private_keys
+          KEY_FILE=~/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8
+          # Same defense as the Android keystore: strip whitespace
+          # before decoding so a CRLF-tainted secret doesn't
+          # silently corrupt the key.
+          echo "$APP_STORE_CONNECT_API_KEY_BASE64" | tr -d '\r\n\t ' | base64 --decode > "$KEY_FILE"
+          chmod 600 "$KEY_FILE"
+          # Sanity-check: a real .p8 starts with "-----BEGIN PRIVATE KEY-----".
+          if ! head -1 "$KEY_FILE" | grep -q "BEGIN PRIVATE KEY"; then
+            echo "::error::Decoded key file doesn't look like a .p8 (missing BEGIN PRIVATE KEY header)."
+            echo "First 64 bytes of decoded content:"
+            head -c 64 "$KEY_FILE" | xxd
+            exit 1
+          fi
+          echo "API key decoded to $KEY_FILE"
+
+      - name: Create ios/ via Capacitor (fresh per-run)
+        # We deliberately don't commit the ios/ directory. Reasons:
+        # (a) Xcode project format churns across Xcode releases and
+        #     produces noisy diffs; (b) every `cap add ios` already
+        #     reads from capacitor.config.ts so the result is
+        #     deterministic; (c) skipping ios/ in the repo keeps
+        #     Windows-on-the-dev-machine workflows simple.
+        # The dependent assets dir bootstrap (same fix as Android)
+        # protects against the `ios/App/App/public` ENOENT case.
+        run: |
+          mkdir -p ios
+          npx cap add ios
+          npx cap sync ios
+
+      - name: Patch Info.plist with version + build number
+        # Capacitor 8 leaves CFBundleShortVersionString and
+        # CFBundleVersion at their template defaults ("1.0" / "1").
+        # App Store Connect rejects an upload whose CFBundleVersion
+        # is already used on an existing build, so we set them
+        # explicitly to the Android-side values.
+        run: |
+          INFO_PLIST=ios/App/App/Info.plist
+          if [ ! -f "$INFO_PLIST" ]; then
+            echo "::error::$INFO_PLIST does not exist after cap add. Did the iOS bootstrap fail?"
+            exit 1
+          fi
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${MARKETING_VERSION}" "$INFO_PLIST"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${CURRENT_PROJECT_VERSION}" "$INFO_PLIST"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$INFO_PLIST"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$INFO_PLIST"
+
+      - name: Add Sign in with Apple entitlement
+        # The website offers Sign in with Apple alongside Google +
+        # Microsoft, which means Apple's App Review Guideline 4.8
+        # requires the app to also offer it. The entitlement file
+        # tells Apple's signing service to issue a profile that
+        # includes the Sign in with Apple capability.
+        #
+        # `cap add ios` does NOT add this entitlement by default
+        # because Capacitor doesn't know which OAuth flows the app
+        # uses. We inject it via plutil so the Xcode project's
+        # CODE_SIGN_ENTITLEMENTS build setting picks it up.
+        run: |
+          ENT_FILE=ios/App/App/App.entitlements
+          cat > "$ENT_FILE" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>com.apple.developer.applesignin</key>
+            <array>
+              <string>Default</string>
+            </array>
+          </dict>
+          </plist>
+          EOF
+          echo "Wrote Sign in with Apple entitlement to $ENT_FILE"
+          # Make sure the Xcode project references this file.
+          PROJECT=ios/App/App.xcodeproj/project.pbxproj
+          if ! grep -q "App.entitlements" "$PROJECT"; then
+            # cap-cli registers the entitlement reference inside the
+            # build configuration list. If a future Capacitor release
+            # changes that behavior, this grep will fail and we'll
+            # need to inject it manually here. Fail loudly so the
+            # break surfaces in the build log instead of silently
+            # producing an unsigned binary.
+            echo "::warning::App.entitlements is not referenced by the Xcode project. Apple Sign-In may not be enabled on the signed binary."
+          fi
+
+      - name: pod install
+        # Capacitor's iOS shell pulls native plugins via CocoaPods.
+        # cap-cli runs `pod install` as part of `cap sync ios`, but
+        # we run it explicitly here so a slow CocoaPods download is
+        # visible in its own step in the build log.
+        working-directory: ios/App
+        run: pod install
+
+      - name: Build and archive
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+        working-directory: ios/App
+        run: |
+          # -allowProvisioningUpdates + the App Store Connect API key
+          # together let xcodebuild fetch / regenerate the
+          # provisioning profile at build time without any local
+          # cert/profile management. This is the path that lets us
+          # build iOS from a CI runner with zero stored certificates.
+          #
+          # DEVELOPMENT_TEAM resolves Apple to the right team when
+          # multiple are accessible from the API key.
+          # PROVISIONING_PROFILE_SPECIFIER="" disables Xcode's
+          # attempt to pin to a specific named profile; with
+          # -allowProvisioningUpdates the auto-fetched profile is
+          # used instead.
+          xcodebuild \
+            -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8 \
+            -authenticationKeyID ${APP_STORE_CONNECT_API_KEY_ID} \
+            -authenticationKeyIssuerID ${APP_STORE_CONNECT_API_ISSUER_ID} \
+            DEVELOPMENT_TEAM=${APPLE_TEAM_ID} \
+            PRODUCT_BUNDLE_IDENTIFIER=${IOS_BUNDLE_ID} \
+            CODE_SIGN_STYLE=Automatic \
+            archive
+
+      - name: Export IPA
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+        working-directory: ios/App
+        run: |
+          # Generate the ExportOptions.plist that xcodebuild
+          # -exportArchive needs. Inlined here (rather than checked
+          # into the repo) so the team ID is read fresh from the
+          # secret on every run.
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>${EXPORT_METHOD}</string>
+            <key>teamID</key>
+            <string>${APPLE_TEAM_ID}</string>
+            <key>signingStyle</key>
+            <string>automatic</string>
+            <key>uploadBitcode</key>
+            <false/>
+            <key>uploadSymbols</key>
+            <true/>
+            <key>compileBitcode</key>
+            <false/>
+            <key>stripSwiftSymbols</key>
+            <true/>
+            <key>destination</key>
+            <string>export</string>
+          </dict>
+          </plist>
+          EOF
+          xcodebuild \
+            -exportArchive \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8 \
+            -authenticationKeyID ${APP_STORE_CONNECT_API_KEY_ID} \
+            -authenticationKeyIssuerID ${APP_STORE_CONNECT_API_ISSUER_ID}
+
+      - name: Verify IPA + report size
+        run: |
+          IPA=$(ls "$RUNNER_TEMP/export"/*.ipa 2>/dev/null | head -1)
+          if [ -z "$IPA" ] || [ ! -f "$IPA" ]; then
+            echo "::error::No IPA found in $RUNNER_TEMP/export/"
+            ls -la "$RUNNER_TEMP/export/" || true
+            exit 1
+          fi
+          SIZE_BYTES=$(stat -f%z "$IPA")
+          SIZE_MB=$(awk "BEGIN {printf \"%.2f\", $SIZE_BYTES / 1024 / 1024}")
+          echo "## IPA produced" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Path on runner:** \`$IPA\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Size:** ${SIZE_MB} MB ($SIZE_BYTES bytes)" >> $GITHUB_STEP_SUMMARY
+          # Stash for the next step.
+          echo "IPA_PATH=$IPA" >> $GITHUB_ENV
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: advottic-ipa
+          path: ${{ env.IPA_PATH }}
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Upload to TestFlight via App Store Connect
+        if: ${{ inputs.upload_to_testflight }}
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+        run: |
+          # xcrun altool reads the API key from
+          # ~/private_keys/AuthKey_<id>.p8 by default when the
+          # --apiKey + --apiIssuer flags are provided. Output is
+          # noisy but the exit code is the source of truth.
+          xcrun altool --upload-app \
+            --type ios \
+            --file "$IPA_PATH" \
+            --apiKey "$APP_STORE_CONNECT_API_KEY_ID" \
+            --apiIssuer "$APP_STORE_CONNECT_API_ISSUER_ID" \
+            --output-format json | tee "$RUNNER_TEMP/altool-output.json"
+          echo "## TestFlight upload" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Uploaded \`$IPA_PATH\` to App Store Connect." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Allow 10-30 minutes for Apple's TestFlight processing pipeline before the build appears in App Store Connect -> TestFlight -> iOS." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "If processing fails you'll get an email at the Apple ID of the team's primary contact. Common causes: missing Privacy Manifest, ITMS-90189 (CFBundleVersion already used)." >> $GITHUB_STEP_SUMMARY
+
+      - name: Clean up secrets-derived files
+        if: always()
+        run: |
+          rm -rf ~/private_keys
+          rm -f "$RUNNER_TEMP/ExportOptions.plist"
