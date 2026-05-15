@@ -2,7 +2,13 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Capacitor } from '@capacitor/core';
+// Capacitor is loaded lazily inside the OAuth handlers (line ~221).
+// Static-importing @capacitor/core here runs the plugin's module-load
+// side effects on every server-side render of the sign-in page,
+// which surfaces as React error #419 when SSR aborts inside the
+// Suspense boundary around `<Suspense>{children}</Suspense>` in
+// app/layout.tsx. The hands-on V3 audit traced 29 such crashes on
+// /sign-in?next=/admin and the OAuth callback.
 import { createBrowserSupabase } from '@/lib/supabase/client';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { BiometricSignInHint } from '@/components/BiometricSignInHint';
@@ -217,6 +223,7 @@ export function SignInButtons({ next }: { next: string }) {
       // through to the web flow, which is the same broken-but-survivable
       // experience they had before this hotfix - they will pick up the new
       // path automatically once Play auto-updates them.
+      const { Capacitor } = await import('@capacitor/core');
       const browserAvailable =
         Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('Browser');
       if (browserAvailable) {

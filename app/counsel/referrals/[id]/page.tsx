@@ -6,7 +6,7 @@ import { RespondToReferralForm } from './respond-form';
 import { RecordPaymentForm } from './record-payment-form';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Referral · Counsel · Advottic' };
+export const metadata = { title: 'Referral · Counsel' };
 
 const STATUS_TONE: Record<string, string> = {
   proposed:

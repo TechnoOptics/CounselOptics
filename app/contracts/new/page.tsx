@@ -5,7 +5,7 @@ import { ContractUploadForm } from './upload-form';
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
-  title: 'Add a contract - Advottic',
+  title: 'Add a contract',
   robots: { index: false, follow: false },
 };
 

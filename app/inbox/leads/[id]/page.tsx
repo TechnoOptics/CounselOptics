@@ -6,7 +6,7 @@ import { AcceptFirmButton } from './accept-firm-button';
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
-  title: 'Lead responses · Inbox · Advottic',
+  title: 'Lead responses · Inbox',
   robots: { index: false, follow: false },
 };
 

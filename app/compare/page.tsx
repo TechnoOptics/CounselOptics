@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { COMPARISONS } from '@/lib/comparisons';
-import { BreadcrumbJsonLd } from '@/components/seo/JsonLd';
+import { BreadcrumbJsonLd, ItemListJsonLd } from '@/components/seo/JsonLd';
 
 export const metadata = {
   title: 'Advottic compared to every major legal-tech tool',
@@ -40,6 +40,17 @@ export default function CompareHubPage() {
           { name: 'Home', href: '/' },
           { name: 'Compare', href: '/compare' },
         ]}
+      />
+      {/* ItemList schema for the comparison hub. Tells Google "this
+          page is a curated list of N comparisons" - unlocks the
+          carousel SERP treatment for "advottic alternatives" and
+          related navigational queries. */}
+      <ItemListJsonLd
+        listName="Advottic versus competitor comparisons"
+        items={COMPARISONS.map((c) => ({
+          name: `Advottic vs ${c.competitorName}`,
+          href: `/compare/${c.slug}`,
+        }))}
       />
       <header className="text-center space-y-4 max-w-3xl mx-auto pt-4 sm:pt-8 px-4">
         <p className="eyebrow justify-center">Comparisons</p>

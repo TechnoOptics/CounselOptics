@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { ARTICLES, type Article } from '@/lib/articles';
-import { BreadcrumbJsonLd } from '@/components/seo/JsonLd';
+import { BreadcrumbJsonLd, ItemListJsonLd } from '@/components/seo/JsonLd';
 import { NewsletterSignup } from '@/components/NewsletterSignup';
 
 export const metadata = {
@@ -93,6 +93,16 @@ export default function ResourcesPage() {
           { name: 'Home', href: '/' },
           { name: 'Resources', href: '/resources' },
         ]}
+      />
+      {/* ItemList schema for the resource hub. Surfaces the article
+          carousel SERP treatment for "legal templates" / "small claims
+          guide" / similar navigational queries. */}
+      <ItemListJsonLd
+        listName="Advottic legal resource library"
+        items={ARTICLES.map((a) => ({
+          name: a.title,
+          href: `/resources/${a.slug}`,
+        }))}
       />
 
       <header className="text-center space-y-4 max-w-3xl mx-auto pt-4 sm:pt-8 px-4">

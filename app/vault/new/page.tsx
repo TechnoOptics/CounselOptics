@@ -5,7 +5,7 @@ import { ReceiptUploadForm } from './upload-form';
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
-  title: 'Add to vault - Advottic',
+  title: 'Add to vault',
   robots: { index: false, follow: false },
 };
 

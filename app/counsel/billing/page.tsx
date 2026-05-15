@@ -5,7 +5,7 @@ import { createServerSupabase } from '@/lib/supabase/server';
 import { MarkPaidButton } from './mark-paid-button';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Billing · Counsel · Advottic' };
+export const metadata = { title: 'Billing · Counsel' };
 
 const STATUS_TONE: Record<string, string> = {
   draft:

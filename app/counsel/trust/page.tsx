@@ -10,7 +10,8 @@ import { CreateAccountForm } from './create-account-form';
 import { RecordTransactionForm } from './record-transaction-form';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Trust accounting · Counsel · Advottic' };
+// Audit W20 V3 CR-27: title template applies once at layout level.
+export const metadata = { title: 'Trust accounting · Counsel' };
 
 const KIND_TONE: Record<string, string> = {
   deposit:
@@ -66,10 +67,23 @@ export default async function CounselTrustPage() {
             Trust accounting
           </h1>
           <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
+            {/*
+              Audit W20 V3 CR-8: the old copy implied three-way
+              reconciliation "against the bank statement" - which read
+              as automated bank-feed integration. The form only
+              collects account label, bank, last-4, and state; the
+              actual reconciliation today is between the matter ledger,
+              the firm general ledger, and a bank statement the
+              operator uploads monthly. Aligning the copy to what the
+              flow actually does keeps the promise honest. The Plaid
+              live-feed path is on the roadmap and will replace the
+              upload step when it ships.
+            */}
             IOLTA-style ledger of every dollar held for a client. Every state
-            bar requires per-matter ledgers, three-way reconciliation against
-            the bank statement, and monthly statements per client. Add your
-            first trust account below to start.
+            bar requires per-matter ledgers, three-way reconciliation between
+            your matter ledger, your firm&rsquo;s general ledger, and the bank
+            statement you upload monthly, plus per-client statements. Add
+            your first trust account below to start.
           </p>
         </header>
         <CreateAccountForm firmId={ctx.firm.id} />

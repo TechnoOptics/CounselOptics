@@ -22,6 +22,10 @@ const COUNSEL_PATHS = new Set([
   '/admin/invitations',
 ]);
 const OPERATIONS_PATHS = new Set([
+  // Both URLs render the same page (V3 CR-20: /admin/operations is the
+  // canonical slug now, /admin/health is kept as an alias for backward
+  // compatibility with existing internal links + alert templates).
+  '/admin/operations',
   '/admin/health',
   '/admin/crashes',
   '/admin/security',
@@ -139,7 +143,10 @@ function PerspectiveSubnav({
             { href: '/admin/invitations', label: 'Invitations' },
           ]
         : [
-            { href: '/admin/health', label: 'System health' },
+            // V3 CR-20: URL slug now matches the visible "Operations"
+            // label. The /admin/health alias still works for any old
+            // bookmark or alert template that links to it.
+            { href: '/admin/operations', label: 'System health' },
             { href: '/admin/security', label: 'Security pulse' },
             { href: '/admin/crashes', label: 'Crash reports' },
           ];

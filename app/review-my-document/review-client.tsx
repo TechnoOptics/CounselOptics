@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { stripBellaMarkdown } from '@/lib/bella-markdown';
 
 const MAX_CHARS = 30_000;
 
@@ -142,11 +143,23 @@ export function ReviewDocumentClient() {
               Bella · Powerful and informed assistant
             </p>
           </div>
+          {/*
+            Audit P1-2: Bella's stream used to render literal
+            asterisks (**bold**) and a no-op `[text](#)` anchor
+            because this surface bypassed the floating-widget
+            sanitiser. We now run the canonical
+            `stripBellaMarkdown` over the live stream before paint,
+            which collapses the markdown chrome to readable prose
+            without pulling a full markdown renderer (and the
+            associated CSP allowlist) into the public review page.
+          */}
           <div
             ref={responseRef}
             className="prose prose-sm max-w-none text-ink-800 dark:text-cream-100/85 whitespace-pre-wrap leading-relaxed"
           >
-            {response || (
+            {response ? (
+              stripBellaMarkdown(response)
+            ) : (
               <span className="text-ink-500 dark:text-cream-100/55 italic">
                 Reading the document...
               </span>

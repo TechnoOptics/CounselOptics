@@ -1,4 +1,5 @@
 import type { MetadataRoute } from 'next';
+import { headers } from 'next/headers';
 import { ARTICLES } from '@/lib/articles';
 import { COMPARISONS } from '@/lib/comparisons';
 import { STATES_SMALL_CLAIMS } from '@/lib/state-small-claims';
@@ -9,6 +10,12 @@ import { STATES_SMALL_CLAIMS } from '@/lib/state-small-claims';
  * /billing, /counsel, /contracts, /vault, /inbox) are NOT here -
  * those are blocked in app/robots.ts and shouldn't appear in
  * search results.
+ *
+ * Host-aware: the sitemap is only served on the apex
+ * (advottic.com / www.advottic.com). A request to
+ * hq.advottic.com/sitemap.xml returns an empty sitemap so a stray
+ * crawler that ignores robots.txt does not inherit URL discovery
+ * from the non-apex host.
  */
 const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
@@ -53,10 +60,20 @@ const ENTRIES: Entry[] = [
   { path: '/cookies', changeFrequency: 'yearly', priority: 0.3 },
   { path: '/dmca', changeFrequency: 'yearly', priority: 0.3 },
   { path: '/accessibility', changeFrequency: 'yearly', priority: 0.3 },
-  { path: '/sign-in', changeFrequency: 'yearly', priority: 0.2 },
+  // /sign-in deliberately omitted (Week-1 audit, item #10). Auth screens
+  // are noindex'd in app/sign-in/page.tsx metadata; keeping them out of
+  // the sitemap removes the conflicting signal entirely.
 ];
 
 export default function sitemap(): MetadataRoute.Sitemap {
+  // Belt-and-suspenders alongside robots.ts: serve an empty sitemap on
+  // hq.advottic.com, enterprise.advottic.com, and tenant subdomains so
+  // no crawler can use it to discover apex URLs from those hosts.
+  const host = headers().get('host') ?? '';
+  const isApex =
+    host === 'advottic.com' || host === 'www.advottic.com' || host === '';
+  if (!isApex) return [];
+
   const now = new Date();
   const baseEntries: MetadataRoute.Sitemap = ENTRIES.map((e) => ({
     url: `${SITE_URL}${e.path}`,

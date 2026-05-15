@@ -99,6 +99,38 @@ export async function updateSession(request: NextRequest) {
       ? '/counsel'
       : null;
 
+  // Step 0: Sign-in alias normalization.
+  // Users sometimes type or bookmark URLs like /admin/sign-in,
+  // /admin/login, /counsel/sign-in, or /counsel/login expecting them
+  // to land on the relevant sign-in page. None of those routes
+  // actually exist, so without an alias they hit the /admin gate,
+  // bounce to /sign-in?next=/admin/sign-in, and after auth bounce
+  // BACK to the bogus URL - producing the 404 page the user reported.
+  // Aliasing here means the canonical /sign-in?next=<workspace> flow
+  // always runs, regardless of how the URL was typed.
+  const SIGN_IN_ALIASES: Record<string, string> = {
+    '/admin/sign-in': '/sign-in?next=%2Fadmin',
+    '/admin/login': '/sign-in?next=%2Fadmin',
+    '/admin/signin': '/sign-in?next=%2Fadmin',
+    '/counsel/sign-in': '/sign-in?next=%2Fcounsel',
+    '/counsel/login': '/sign-in?next=%2Fcounsel',
+    '/counsel/signin': '/sign-in?next=%2Fcounsel',
+  };
+  const aliasTarget = SIGN_IN_ALIASES[originalPath];
+  if (aliasTarget) {
+    const aliasUrl = request.nextUrl.clone();
+    const [path, qs] = aliasTarget.split('?');
+    aliasUrl.pathname = path;
+    aliasUrl.search = qs ? `?${qs}` : '';
+    // On HQ / Enterprise / tenant subdomains, anchor sign-in on the
+    // apex so PKCE cookies land where the OAuth callback can read
+    // them - matches the existing protected-route behavior.
+    if (isHqHost || isEnterpriseHost || isCandidateTenant) {
+      aliasUrl.host = 'advottic.com';
+    }
+    return NextResponse.redirect(aliasUrl);
+  }
+
   // Step 1: URL-cleaning redirect.
   // If a user lands on hq.advottic.com/admin/firms (because they pasted
   // an old apex bookmark or a <Link href="/admin/firms"> click), bounce
@@ -109,7 +141,28 @@ export async function updateSession(request: NextRequest) {
     originalPath.startsWith('/_next/') ||
     originalPath.startsWith('/api/') ||
     originalPath === '/auth/callback' ||
-    originalPath === '/favicon.ico';
+    originalPath === '/favicon.ico' ||
+    // SEO / metadata routes must be served as-is regardless of host.
+    // Without this exemption, /robots.txt on hq.advottic.com would be
+    // rewritten to /admin/robots.txt, hit the auth gate, and redirect
+    // to /sign-in - which means hq.advottic.com/robots.txt would
+    // serve a "Redirecting..." HTML body to every crawler that hits
+    // it. The host-aware robots.ts / sitemap.ts already serve the
+    // right content per host; the middleware just needs to stay out
+    // of the way.
+    originalPath === '/robots.txt' ||
+    originalPath === '/sitemap.xml' ||
+    originalPath === '/llms.txt' ||
+    originalPath === '/opengraph-image' ||
+    originalPath === '/twitter-image' ||
+    originalPath === '/manifest.webmanifest' ||
+    originalPath === '/sw.js' ||
+    originalPath === '/sw-push.js' ||
+    originalPath.startsWith('/.well-known/') ||
+    originalPath === '/apple-icon.png' ||
+    originalPath === '/icon-192.png' ||
+    originalPath === '/icon-512.png' ||
+    originalPath === '/icon-maskable-512.png';
   if (
     prefixForHost &&
     !isAssetOrApi &&
@@ -127,11 +180,19 @@ export async function updateSession(request: NextRequest) {
 
   // Step 2: Compute the effective path (canonical prefixed path) and
   // decide whether we need to internally rewrite this request.
-  const effectivePath = prefixForHost
-    ? originalPath === '/' || originalPath === ''
-      ? prefixForHost
-      : `${prefixForHost}${originalPath}`
-    : originalPath;
+  //
+  // Metadata routes (robots.txt, sitemap.xml, llms.txt, manifest,
+  // opengraph-image, service worker, well-known) must keep their
+  // unprefixed path on subdomains so the auth gate further down
+  // doesn't treat them as protected admin/counsel routes. The
+  // host-aware robots.ts / sitemap.ts already vary their content
+  // by Host header.
+  const effectivePath =
+    prefixForHost && !isAssetOrApi
+      ? originalPath === '/' || originalPath === ''
+        ? prefixForHost
+        : `${prefixForHost}${originalPath}`
+      : originalPath;
   const needsRewrite =
     Boolean(prefixForHost) && !isAssetOrApi && effectivePath !== originalPath;
 
@@ -150,7 +211,10 @@ export async function updateSession(request: NextRequest) {
   if (isCandidateTenant && candidateSlug && !isAssetOrApi) {
     tenantFirm = await getFirmBySubdomain(candidateSlug);
     if (!tenantFirm) {
-      return new NextResponse('Not found', { status: 404 });
+      // 404 still gets noindex since this is a non-apex subdomain.
+      const notFoundRes = new NextResponse('Not found', { status: 404 });
+      notFoundRes.headers.set('X-Robots-Tag', 'noindex, nofollow');
+      return notFoundRes;
     }
     requestHeaders.set('x-tenant-firm-id', tenantFirm.id);
     requestHeaders.set('x-tenant-firm-slug', tenantFirm.slug);
@@ -161,6 +225,38 @@ export async function updateSession(request: NextRequest) {
     }
   }
 
+  // ============================================================
+  // Subdomain SEO policy (X-Robots-Tag)
+  // ============================================================
+  // Only the apex (advottic.com / www.advottic.com) competes in
+  // Google's index. Every other subdomain is either auth-only
+  // (hq.advottic.com) or a host alias for canonical content that
+  // already lives on the apex (enterprise.advottic.com,
+  // <firm>.advottic.com). Letting Google index those would split
+  // the brand's ranking signal across duplicate URLs and risks
+  // serving the auth-console to the brand query.
+  //
+  // X-Robots-Tag is the HTTP-header equivalent of <meta name="robots">
+  // and applies to every response on the host - including HTML, JSON,
+  // OG-image fetches, and any random URL a stray crawler tries. The
+  // header trumps page-level metadata, so even if a page forgets to
+  // set robots metadata it stays out of the index.
+  //
+  // We compute the right value ONCE and apply via `applySeoHeaders`
+  // on every return path. Without this discipline the header is lost
+  // whenever Supabase rotates auth cookies (its setAll rebuilds the
+  // response) or whenever an early branch returns a fresh redirect /
+  // rewrite (isUnauthedRoot, /sign-in bounce, tenant 404).
+  const subdomainSeoTag: string | null = isHqHost
+    ? 'noindex, nofollow, noarchive, nosnippet'
+    : isEnterpriseHost || isCandidateTenant
+      ? 'noindex, follow'
+      : null;
+  const applySeoHeaders = (res: NextResponse): NextResponse => {
+    if (subdomainSeoTag) res.headers.set('X-Robots-Tag', subdomainSeoTag);
+    return res;
+  };
+
   // Build the initial response. If a subdomain request needs to be
   // served from a prefixed internal route, use NextResponse.rewrite to
   // serve from /admin/X or /counsel/X while keeping the URL bar at /X.
@@ -169,11 +265,15 @@ export async function updateSession(request: NextRequest) {
     if (needsRewrite) {
       const rewriteUrl = request.nextUrl.clone();
       rewriteUrl.pathname = effectivePath;
-      return NextResponse.rewrite(rewriteUrl, {
-        request: { headers: requestHeaders },
-      });
+      return applySeoHeaders(
+        NextResponse.rewrite(rewriteUrl, {
+          request: { headers: requestHeaders },
+        }),
+      );
     }
-    return NextResponse.next({ request: { headers: requestHeaders } });
+    return applySeoHeaders(
+      NextResponse.next({ request: { headers: requestHeaders } }),
+    );
   };
 
   let response = buildResponse();
@@ -210,6 +310,8 @@ export async function updateSession(request: NextRequest) {
           // Recreate the response ONCE, then attach every cookie in one go.
           // Use the same buildResponse helper so a subdomain rewrite is
           // preserved when Supabase rotates auth cookies mid-request.
+          // buildResponse re-applies the SEO headers via applySeoHeaders
+          // so the X-Robots-Tag survives the cookie rotation.
           response = buildResponse();
           cookiesToSet.forEach(({ name, value, options }) => {
             response.cookies.set(name, value, {
@@ -243,7 +345,39 @@ export async function updateSession(request: NextRequest) {
     ) {
       const dashUrl = request.nextUrl.clone();
       dashUrl.pathname = '/cases';
-      return NextResponse.redirect(dashUrl);
+      return applySeoHeaders(NextResponse.redirect(dashUrl));
+    }
+
+    // Pre-login landing for hq/enterprise/tenant subdomains.
+    // Per Week-1 audit (items #3 and #4): an unauthed visitor who
+    // lands on the ROOT of hq.advottic.com or enterprise.advottic.com
+    // (or a tenant subdomain) should NOT be bounced straight to
+    // /sign-in. They need a brief pre-login surface to confirm
+    // which product they're signing into - admins for HQ, firms /
+    // in-house counsel for Enterprise. Deeper paths
+    // (/clients, /matters, etc.) still gate behind auth normally.
+    const isUnauthedRoot =
+      !user &&
+      Boolean(prefixForHost) &&
+      (originalPath === '/' || originalPath === '');
+    if (isUnauthedRoot) {
+      const landingUrl = request.nextUrl.clone();
+      // HQ gets its own thin briefing page; Enterprise and tenant
+      // subdomains reuse the established /enterprise marketing page.
+      landingUrl.pathname = isHqHost ? '/hq-welcome' : '/enterprise';
+      // Carry the desired post-sign-in destination forward so the
+      // "Sign in" CTA on the landing page lands the user in the
+      // right workspace (admin console vs counsel workspace).
+      landingUrl.searchParams.set(
+        'returnTo',
+        isHqHost ? '/admin' : '/counsel',
+      );
+      requestHeaders.set('x-pathname', landingUrl.pathname);
+      return applySeoHeaders(
+        NextResponse.rewrite(landingUrl, {
+          request: { headers: requestHeaders },
+        }),
+      );
     }
 
     // Auth check uses the EFFECTIVE path so a request to
@@ -281,7 +415,7 @@ export async function updateSession(request: NextRequest) {
           ? `https://${tenantFirm.slug}.advottic.com${originalPath === '/' ? '' : originalPath}`
           : effectivePath;
       signInUrl.searchParams.set('next', nextValue);
-      return NextResponse.redirect(signInUrl);
+      return applySeoHeaders(NextResponse.redirect(signInUrl));
     }
   } catch (err) {
     // Surfacing the message to Vercel runtime logs, not the user.

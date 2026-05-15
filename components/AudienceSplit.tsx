@@ -244,16 +244,27 @@ function AudienceCard({ variant, active }: { variant: Variant; active: boolean }
               <ArrowRight />
             </Link>
           )}
-          <Link
-            href={otherHref}
-            className={`text-xs underline-offset-4 hover:underline ${
-              variant === 'enterprise' && active
-                ? 'text-cream-100/65 hover:text-cream-100'
-                : 'text-ink-500 hover:text-forest-900 dark:text-cream-100/55 dark:hover:text-cream-100'
-            }`}
-          >
-            Or look at the {otherLabel} side instead →
-          </Link>
+          {active && (
+            // Audit W20 P1 (bug B6): on the INACTIVE card this tertiary
+            // link computed otherHref relative to the card's variant,
+            // not relative to the page the visitor is on. On /enterprise
+            // the inactive personal card rendered "Or look at the
+            // enterprise side instead" pointing back to /enterprise, a
+            // dead-end self-reference. Guarding on `active` means the
+            // cross-link only ships from the card the visitor is
+            // currently looking at, which is also where the language
+            // ("look at the OTHER side") actually makes sense.
+            <Link
+              href={otherHref}
+              className={`text-xs underline-offset-4 hover:underline ${
+                variant === 'enterprise' && active
+                  ? 'text-cream-100/65 hover:text-cream-100'
+                  : 'text-ink-500 hover:text-forest-900 dark:text-cream-100/55 dark:hover:text-cream-100'
+              }`}
+            >
+              Or look at the {otherLabel} side instead →
+            </Link>
+          )}
         </div>
       </div>
     </article>

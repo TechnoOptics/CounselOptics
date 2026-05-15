@@ -2,7 +2,7 @@ import { adminListHealthChecks } from '@/lib/storage';
 import { adminGetHqHealthExtras, adminGetLiveHealth } from '@/lib/hq-storage';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'System health - Advottic HQ' };
+export const metadata = { title: { absolute: 'System health · Advottic HQ' } };
 
 const PROBE_LABEL: Record<string, string> = {
   auth: 'Auth',
@@ -123,6 +123,14 @@ function UptimeTile({
   );
 }
 
+/**
+ * User-activity readout. Audit W20 V3 CR-38: the tile used to read
+ * "0 online now of 20 accounts" without explaining what "online"
+ * means (5-minute heartbeat window? does it include staff sessions?
+ * is the metric cached?). Operators kept asking. The tooltip below
+ * answers all three at once, and the sub-string explains the
+ * window inline so the tile is legible without hovering.
+ */
 function ActivityTile({
   activity,
 }: {
@@ -143,7 +151,8 @@ function ActivityTile({
   return (
     <Tile
       label="User activity"
-      sub={`${activity.activeToday.toLocaleString()} signed in today · ${activity.activeWeek.toLocaleString()} this week`}
+      sub={`${activity.activeToday.toLocaleString()} signed in today · ${activity.activeWeek.toLocaleString()} this 7d · 5-minute online window`}
+      titleHint="'Online now' = sessions with auth activity in the last 5 minutes. Excludes service-role + cron requests. Refreshes when this page reloads."
     >
       <div className="flex items-center gap-3 mt-1">
         <div
@@ -205,14 +214,35 @@ function GdprTile({
       : gdpr.rate >= 0.8
         ? 'text-amber-300'
         : 'text-rose-300';
+  const pending = gdpr.total - gdpr.consented;
   return (
+    // Audit W20 V3 CR-39: the tile now surfaces the pending count
+    // inline and links into /admin/users?filter=gdpr-pending so staff
+    // can nudge the un-consented accounts in one click. The
+    // titleHint explains how the metric is computed (current
+    // accepted_at status, not historical).
     <Tile
       label="GDPR acceptance"
-      sub={`${gdpr.consented.toLocaleString()} of ${gdpr.total.toLocaleString()} accounts have accepted`}
+      sub={
+        pending > 0
+          ? `${gdpr.consented.toLocaleString()} of ${gdpr.total.toLocaleString()} accepted · ${pending.toLocaleString()} pending`
+          : `${gdpr.consented.toLocaleString()} of ${gdpr.total.toLocaleString()} accepted`
+      }
+      titleHint="Computed from profiles.consented_at. Old test accounts may inflate the denominator; archive them in /admin/users to clean up."
     >
       <p className={`font-display text-4xl font-medium tabular-nums ${tone}`}>
         {gdpr.total === 0 ? '—' : `${pct}%`}
       </p>
+      {pending > 0 && (
+        <p className="mt-1.5">
+          <a
+            href="/admin/users?filter=gdpr-pending"
+            className="text-[11px] underline underline-offset-2 text-cream-100/70 hover:text-cream-100"
+          >
+            Review {pending.toLocaleString()} pending →
+          </a>
+        </p>
+      )}
     </Tile>
   );
 }
@@ -252,15 +282,27 @@ function SecurityTile({
 function Tile({
   label,
   sub,
+  titleHint,
   children,
 }: {
   label: string;
   sub: string;
+  /** Optional native tooltip surfaced on the label - V3 CR-38/CR-39. */
+  titleHint?: string;
   children: React.ReactNode;
 }) {
   return (
     <div className="card p-5">
-      <p className="eyebrow text-cream-100/55 mb-2">{label}</p>
+      <p
+        className="eyebrow text-cream-100/55 mb-2"
+        title={titleHint}
+        // The cursor change is the affordance that the label has more
+        // context behind it - a question-mark icon would compete with
+        // the surrounding numerics for attention.
+        style={titleHint ? { cursor: 'help' } : undefined}
+      >
+        {label}
+      </p>
       {children}
       <p className="text-[11.5px] text-cream-100/55 mt-2 leading-snug">{sub}</p>
     </div>

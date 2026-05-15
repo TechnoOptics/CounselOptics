@@ -4,7 +4,7 @@ import { getActiveFirmContext } from '@/lib/firm-storage';
 import { listFirmLeadsForFirm } from '@/lib/marketplace-storage';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Leads · Counsel · Advottic' };
+export const metadata = { title: 'Leads · Counsel' };
 
 const URGENCY_TONE: Record<string, string> = {
   emergency:

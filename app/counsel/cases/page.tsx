@@ -76,8 +76,20 @@ export default async function CounselCasesPage() {
                 </p>
                 <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {buckets[status].map((c) => (
-                    <li key={c.id} className="card p-4 hover:shadow-card-hover hover:-translate-y-0.5 transition-all">
-                      <Link href={`/counsel/cases/${c.id}`} className="block">
+                    // Audit W20 V3 CR-31: padding lives on the Link
+                    // (not the wrapping <li>) so the entire visible
+                    // card area is clickable. Previously the p-4 sat
+                    // on the <li>, leaving a ~1rem padding band where
+                    // a click landed outside the Link and bounced.
+                    // prefetch={false} matches the rest of the Counsel
+                    // sidebar (CR-28) - the same router quirk applies
+                    // to in-page navigations into auth-shaped routes.
+                    <li key={c.id} className="card hover:shadow-card-hover hover:-translate-y-0.5 transition-all">
+                      <Link
+                        href={`/counsel/cases/${c.id}`}
+                        prefetch={false}
+                        className="block p-4 rounded-2xl"
+                      >
                         <span
                           className={`inline-flex items-center px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider rounded ring-1 ${STATUS_TONE[status]}`}
                         >

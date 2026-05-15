@@ -8,7 +8,7 @@ export const metadata: Metadata = {
     'Paste a contract, lease, demand letter, or court order. Bella, our AI assistant, will explain it in plain English and flag what to watch for. No account, no card, no training on your data.',
   alternates: { canonical: '/review-my-document' },
   openGraph: {
-    title: 'Free document review · Advottic',
+    title: 'Free document review',
     description:
       'Paste a contract, lease, or court order and get a plain-English explanation. No account, no card, no training on your data.',
     url: '/review-my-document',

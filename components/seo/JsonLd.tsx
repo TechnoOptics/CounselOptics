@@ -38,6 +38,15 @@ function emit(payload: unknown) {
 /**
  * Site-wide Organization + WebSite schema. Mount once in
  * app/layout.tsx; surfaces on every page.
+ *
+ * We emit THREE shapes:
+ *   1. Organization - covers "what is Advottic" + brand SERP knowledge
+ *      panel, founding date, employees, social links, contact tree.
+ *   2. WebSite - registers the sitelinks search box and the canonical
+ *      site URL so Google understands the apex is the brand home.
+ *   3. ProfessionalService - tells Google this is a legal-tech SaaS,
+ *      not a generic productivity app. Combined with the offers in
+ *      AppJsonLd, this is what unlocks the price + category snippet.
  */
 export function SiteJsonLd() {
   return (
@@ -45,15 +54,36 @@ export function SiteJsonLd() {
       {emit({
         '@context': 'https://schema.org',
         '@type': 'Organization',
+        '@id': `${SITE_URL}#organization`,
         name: 'Advottic',
+        alternateName: ['Advottic Inc', 'Techno Optics LLC'],
         legalName: 'Techno Optics LLC',
         url: SITE_URL,
-        logo: `${SITE_URL}/advottic-wordmark.png`,
+        logo: {
+          '@type': 'ImageObject',
+          url: `${SITE_URL}/advottic-wordmark.png`,
+          width: 512,
+          height: 128,
+        },
+        image: `${SITE_URL}/opengraph-image`,
         description:
           'AI-powered legal platform. Personal users handle their own matters with Bella, an always-on AI legal assistant. Law firms run their entire practice on Advottic Counsel.',
+        foundingDate: '2025',
+        founder: {
+          '@type': 'Person',
+          name: 'Abel Muchai',
+          jobTitle: 'Founder & CEO',
+        },
+        address: {
+          '@type': 'PostalAddress',
+          addressLocality: 'Minneapolis',
+          addressRegion: 'MN',
+          addressCountry: 'US',
+        },
         sameAs: [
           'https://twitter.com/advottic',
           'https://www.linkedin.com/company/advottic',
+          'https://github.com/TechnoOptics',
         ],
         contactPoint: [
           {
@@ -61,17 +91,26 @@ export function SiteJsonLd() {
             contactType: 'customer support',
             email: 'support@advottic.com',
             availableLanguage: ['English'],
+            areaServed: 'US',
           },
           {
             '@type': 'ContactPoint',
             contactType: 'sales',
             email: 'sales@advottic.com',
             availableLanguage: ['English'],
+            areaServed: 'US',
           },
           {
             '@type': 'ContactPoint',
             contactType: 'security',
             email: 'security@advottic.com',
+            availableLanguage: ['English'],
+            areaServed: 'Worldwide',
+          },
+          {
+            '@type': 'ContactPoint',
+            contactType: 'privacy',
+            email: 'privacy@advottic.com',
             availableLanguage: ['English'],
           },
         ],
@@ -79,13 +118,33 @@ export function SiteJsonLd() {
       {emit({
         '@context': 'https://schema.org',
         '@type': 'WebSite',
+        '@id': `${SITE_URL}#website`,
         name: 'Advottic',
+        alternateName: 'Advottic - Build your case',
         url: SITE_URL,
+        inLanguage: 'en-US',
+        publisher: { '@id': `${SITE_URL}#organization` },
         potentialAction: {
           '@type': 'SearchAction',
-          target: `${SITE_URL}/resources?q={search_term_string}`,
+          target: {
+            '@type': 'EntryPoint',
+            urlTemplate: `${SITE_URL}/resources?q={search_term_string}`,
+          },
           'query-input': 'required name=search_term_string',
         },
+      })}
+      {emit({
+        '@context': 'https://schema.org',
+        '@type': 'ProfessionalService',
+        '@id': `${SITE_URL}#service`,
+        name: 'Advottic - Legal case preparation platform',
+        description:
+          'AI-assisted case organization, evidence management, hearing preparation, and document review for self-represented individuals and law firms.',
+        url: SITE_URL,
+        image: `${SITE_URL}/opengraph-image`,
+        priceRange: '$0 - $1,800 / month',
+        areaServed: { '@type': 'Country', name: 'United States' },
+        provider: { '@id': `${SITE_URL}#organization` },
       })}
     </>
   );
@@ -290,5 +349,177 @@ export function ServiceJsonLd({
     provider: { '@type': 'Organization', name: 'Advottic' },
     areaServed: { '@type': 'Country', name: area },
     url: SITE_URL,
+  });
+}
+
+/**
+ * ItemList schema for hub / index pages (e.g. /resources,
+ * /resources/states, /compare). Tells Google "this page is a curated
+ * list of N items" which unlocks the carousel SERP treatment for
+ * navigational queries.
+ */
+export function ItemListJsonLd({
+  items,
+  listName,
+}: {
+  items: Array<{ name: string; href: string }>;
+  listName?: string;
+}) {
+  return emit({
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    ...(listName ? { name: listName } : {}),
+    numberOfItems: items.length,
+    itemListElement: items.map((it, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      name: it.name,
+      url: it.href.startsWith('http') ? it.href : `${SITE_URL}${it.href}`,
+    })),
+  });
+}
+
+/**
+ * Product schema for the /pricing page. Combined with offers, gives
+ * the SERP the price + currency snippet on commercial queries like
+ * "advottic pricing" or "legal case software cost".
+ */
+export function PricingProductJsonLd({
+  ratingValue,
+  ratingCount,
+}: {
+  ratingValue?: string;
+  ratingCount?: number;
+} = {}) {
+  return emit({
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: 'Advottic',
+    description:
+      'AI-powered case organization and contract review for individuals and law firms. Six tiers from $19/month personal to $1,800/month enterprise.',
+    brand: { '@type': 'Brand', name: 'Advottic' },
+    category: 'Legal Software',
+    image: `${SITE_URL}/opengraph-image`,
+    url: `${SITE_URL}/pricing`,
+    offers: {
+      '@type': 'AggregateOffer',
+      offerCount: 6,
+      lowPrice: '0',
+      highPrice: '1800',
+      priceCurrency: 'USD',
+      url: `${SITE_URL}/pricing`,
+    },
+    ...(ratingValue && ratingCount
+      ? {
+          aggregateRating: {
+            '@type': 'AggregateRating',
+            ratingValue,
+            ratingCount,
+            bestRating: '5',
+            worstRating: '1',
+          },
+        }
+      : {}),
+  });
+}
+
+/**
+ * Comparison schema for /compare/<competitor> pages. Marks the page
+ * as a comparison resource between two named entities so Google can
+ * surface it for "advottic vs <competitor>" intent.
+ */
+export function ComparisonJsonLd({
+  competitorName,
+  competitorUrl,
+  slug,
+}: {
+  competitorName: string;
+  competitorUrl?: string;
+  slug: string;
+}) {
+  return emit({
+    '@context': 'https://schema.org',
+    '@type': 'WebPage',
+    name: `Advottic vs ${competitorName}`,
+    description: `Side-by-side comparison of Advottic and ${competitorName} for legal-tech buyers. Pricing, features, security posture, and use-case fit.`,
+    url: `${SITE_URL}/compare/${slug}`,
+    isPartOf: { '@id': `${SITE_URL}#website` },
+    primaryImageOfPage: { '@type': 'ImageObject', url: `${SITE_URL}/opengraph-image` },
+    about: [
+      { '@type': 'Brand', name: 'Advottic' },
+      {
+        '@type': 'Brand',
+        name: competitorName,
+        ...(competitorUrl ? { url: competitorUrl } : {}),
+      },
+    ],
+  });
+}
+
+/**
+ * LegalService schema for state small-claims pages
+ * (/resources/states/<state>/small-claims). Each state page becomes a
+ * jurisdiction-specific service node so Google's local SERP can surface
+ * it for "small claims [state]" queries with the proper region tag.
+ */
+export function LegalServiceStateJsonLd({
+  stateName,
+  stateSlug,
+  filingFeeRange,
+  monetaryCap,
+}: {
+  stateName: string;
+  stateSlug: string;
+  filingFeeRange?: string;
+  monetaryCap?: string;
+}) {
+  return emit({
+    '@context': 'https://schema.org',
+    '@type': 'LegalService',
+    name: `Small Claims Court Preparation - ${stateName}`,
+    description: `${stateName} small claims court filing guide: jurisdictional cap${monetaryCap ? ` ($${monetaryCap})` : ''}, filing fees${filingFeeRange ? ` (${filingFeeRange})` : ''}, evidence prep, and hearing checklist.`,
+    url: `${SITE_URL}/resources/states/${stateSlug}/small-claims`,
+    areaServed: {
+      '@type': 'AdministrativeArea',
+      name: stateName,
+      containedInPlace: { '@type': 'Country', name: 'United States' },
+    },
+    provider: { '@id': `${SITE_URL}#organization` },
+    serviceType: 'Self-represented litigant preparation',
+    audience: { '@type': 'Audience', audienceType: 'Pro se litigants' },
+  });
+}
+
+/**
+ * HowTo schema for resource articles that walk through a procedural
+ * task (e.g. "How to file an NDA", "How to respond to an eviction
+ * notice"). Drives the rich expandable "steps" treatment in SERPs.
+ */
+export function HowToJsonLd({
+  title,
+  description,
+  totalTime,
+  steps,
+  slug,
+}: {
+  title: string;
+  description: string;
+  totalTime?: string;
+  steps: Array<{ name: string; text: string }>;
+  slug: string;
+}) {
+  return emit({
+    '@context': 'https://schema.org',
+    '@type': 'HowTo',
+    name: title,
+    description,
+    ...(totalTime ? { totalTime } : {}),
+    url: `${SITE_URL}/resources/${slug}`,
+    step: steps.map((s, i) => ({
+      '@type': 'HowToStep',
+      position: i + 1,
+      name: s.name,
+      text: s.text,
+    })),
   });
 }

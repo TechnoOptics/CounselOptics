@@ -19,6 +19,16 @@ type Mode = 'stripe_trialing' | 'free_trial' | 'expired';
  *   - expired         : free trial up + no active subscription
  *                       (rose-ringed, no auto-hide)
  */
+// Audit V7 CR-60: 24-hour postpone storage. Holds the wall-clock
+// timestamp (ms since epoch) that the trial reminder should next
+// surface. Stored in localStorage so the postpone survives page
+// reloads but not browser-data clears. Per-account scoping is
+// unnecessary because every signed-in profile produces its own
+// `TrialBanner` mount; the storage key is shared across sessions
+// for the same browser profile.
+const POSTPONE_STORAGE_KEY = 'advottic-trial-banner-postpone-until';
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
 export function TrialBanner({
   mode,
   trialEndsAt,
@@ -32,9 +42,27 @@ export function TrialBanner({
 }) {
   const [visible, setVisible] = useState(false);
   const [dismissedThisSession, setDismissedThisSession] = useState(false);
+  // Audit V7 CR-60: honor a localStorage-backed postpone so a user
+  // who explicitly says "remind me later" actually gets 24 hours of
+  // peace, not just dismissal until next reload.
+  const [postponedUntil, setPostponedUntil] = useState<number | null>(null);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(POSTPONE_STORAGE_KEY);
+      const n = raw ? Number(raw) : NaN;
+      if (Number.isFinite(n) && n > Date.now()) {
+        setPostponedUntil(n);
+      } else if (raw) {
+        // Stale postpone window - clear so we don't re-check it.
+        localStorage.removeItem(POSTPONE_STORAGE_KEY);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   useEffect(() => {
-    if (dismissedThisSession || mode === 'expired') return;
+    if (dismissedThisSession || mode === 'expired' || postponedUntil !== null) return;
     // Reduced-motion users get a static, always-visible reminder
     // instead of the pulse-on / pulse-off cycle. Still dismissable.
     const reduceMotion =
@@ -55,9 +83,43 @@ export function TrialBanner({
       clearInterval(cycle);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dismissedThisSession, mode]);
+  }, [dismissedThisSession, mode, postponedUntil]);
 
   if (dismissedThisSession) return null;
+  if (postponedUntil !== null) return null;
+
+  // Audit V7 CR-60: derive the trial start date so the toast tells
+  // the user how long they've been in the trial, not just how long
+  // they have left. trialEndsAt comes from the server as ISO; the
+  // free / Stripe trial windows are both 7 days, so subtracting
+  // (7 - daysRemaining) days lands on the start. We render the
+  // date in the viewer's locale via toLocaleDateString to keep the
+  // copy human; falling back to a plain "Day N of 7" framing when
+  // trialEndsAt is missing.
+  const trialDayOfSeven = Math.max(1, Math.min(7, 7 - daysRemaining + 1));
+  const startedLabel = (() => {
+    if (!trialEndsAt) return `Day ${trialDayOfSeven} of 7`;
+    try {
+      const startMs = new Date(trialEndsAt).getTime() - 7 * ONE_DAY_MS;
+      const startDate = new Date(startMs);
+      return `In trial since ${startDate.toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+      })}`;
+    } catch {
+      return `Day ${trialDayOfSeven} of 7`;
+    }
+  })();
+
+  function postponeForOneDay() {
+    const until = Date.now() + ONE_DAY_MS;
+    try {
+      localStorage.setItem(POSTPONE_STORAGE_KEY, String(until));
+    } catch {
+      /* ignore */
+    }
+    setPostponedUntil(until);
+  }
 
   const isExpired = mode === 'expired';
 
@@ -115,13 +177,31 @@ export function TrialBanner({
               ? 'Subscribe before it ends to keep Bella, Advottic Review, and case creation.'
               : 'Subscribe before the trial ends to keep your access.'}
           </p>
+          {/*
+            Audit V7 CR-60: "in-trial since" sub-line + 24h postpone.
+            Tells the user how long they've been in the trial, which
+            anchors the "X days left" framing above with a concrete
+            start date.
+          */}
+          <p className="text-[10.5px] text-cream-100/55 leading-snug mt-0.5">
+            {startedLabel}
+          </p>
         </div>
-        <Link
-          href="/billing"
-          className="flex-none rounded-md bg-gold-metal text-forest-950 px-3 py-1.5 text-[12px] font-semibold hover:brightness-110"
-        >
-          Subscribe
-        </Link>
+        <div className="flex-none flex flex-col items-end gap-1">
+          <Link
+            href="/billing"
+            className="rounded-md bg-gold-metal text-forest-950 px-3 py-1.5 text-[12px] font-semibold hover:brightness-110"
+          >
+            Subscribe
+          </Link>
+          <button
+            type="button"
+            onClick={postponeForOneDay}
+            className="text-[10.5px] text-cream-100/55 hover:text-cream-100/85 underline underline-offset-2"
+          >
+            Remind me tomorrow
+          </button>
+        </div>
         <button
           type="button"
           onClick={() => setDismissedThisSession(true)}

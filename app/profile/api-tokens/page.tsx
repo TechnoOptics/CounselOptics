@@ -9,7 +9,7 @@ import { NewTokenForm } from './new-token-form';
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
-  title: 'API tokens · Advottic',
+  title: 'API tokens',
   robots: { index: false, follow: false },
 };
 

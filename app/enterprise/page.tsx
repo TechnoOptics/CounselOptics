@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { AudienceSplit } from '@/components/AudienceSplit';
 import { EnterpriseInquiryForm } from '@/components/EnterpriseInquiryForm';
 import { EnterpriseSectorTabs } from '@/components/EnterpriseSectorTabs';
 
@@ -26,36 +25,39 @@ export const metadata: Metadata = {
 /**
  * Enterprise landing. The whole page lives on a deep-forest base
  * (regardless of the user's light/dark preference) because the firm
- * pitch wants the serious-finance feel. The audience split at top
- * lets visitors flip back to the personal side; everything below is
- * sized for a firm decision-maker.
+ * pitch wants the serious-finance feel. Everything is sized for a
+ * firm decision-maker - no consumer marketing.
+ *
+ * The previous version mounted <AudienceSplit active="enterprise" />
+ * at the top, which (a) rendered the "For one person" card next to
+ * the firm card, pitching consumer features to a firm visitor,
+ * (b) emitted dark-on-dark headline text because AudienceSplit's
+ * color logic targets OS dark mode but the enterprise shell forces
+ * dark regardless, and (c) rendered a white inactive card on the
+ * forest gradient, breaking the edge-to-edge dark surface. Removing
+ * it kills all three issues at once. The site header logo + footer
+ * still surface the personal product for anyone who wants to switch.
  *
  * Architecture:
- *   1. AudienceSplit - keeps the personal/enterprise switch always
- *      one tap away.
- *   2. Hero - bold tagline + matter dashboard mock with audit chip.
- *   3. EnterpriseSectorTabs - the user picks who they are
+ *   1. Hero - bold tagline + matter dashboard mock with audit chip.
+ *   2. EnterpriseSectorTabs - the user picks who they are
  *      (private firm, in-house, in-house corporate counsel, legal
  *      aid, government), and the capability list re-renders to
- *      show what matters to that sector. Solves the "what we have
- *      now does not apply to in-house corporate counsel" problem.
- *   4. Workflow - intake -> triage -> collaborate -> deliver.
- *   5. Compliance posture cards.
- *   6. Comparison table vs the stitched stack.
- *   7. EnterpriseInquiryForm - the form an interested firm fills
- *      out instead of an email mailto. Submission lands in
- *      enterprise_inquiries (Supabase) and is reviewed by an admin
- *      who reaches out and sets custom pricing in the firm's
- *      subscription record.
+ *      show what matters to that sector.
+ *   3. Workflow - intake -> triage -> collaborate -> deliver.
+ *   4. Compliance posture cards.
+ *   5. Comparison table vs the stitched stack.
+ *   6. EnterpriseInquiryForm - the form an interested firm fills
+ *      out instead of an email mailto.
  */
 export default function EnterprisePage() {
   return (
     <div className="enterprise-shell -mx-4 sm:-mx-6 px-4 sm:px-6 py-12 sm:py-16 space-y-20 sm:space-y-28 bg-gradient-to-b from-forest-950 via-forest-950 to-forest-900 text-cream-100">
       <div className="max-w-7xl mx-auto space-y-20 sm:space-y-28">
-        <AudienceSplit active="enterprise" />
         <EnterpriseHero />
         <EnterpriseSectorTabs />
         <Workflow />
+        <FirmCapabilities />
         <Compliance />
         <CompareTable />
         <EnterpriseInquiry />
@@ -78,13 +80,27 @@ function EnterpriseHero() {
             <span className="inline-block h-px w-8 bg-gold-400" />
             Advottic for Firms
           </p>
+          {/*
+            Audit CR-42: the previous markup produced "the<br/>right
+            version" which collapsed to "theright" under innerText
+            extractors (and screen readers that ignore <br/>'s line
+            break). Two changes make the heading legible regardless
+            of how it's read:
+              1. Explicit trailing space after "the " before the
+                 <br/> so the visible text content has whitespace
+                 even when the line break is stripped.
+              2. The <span> includes the trailing space so "right
+                 version of" stays cohesive when read aloud.
+            Visual rendering is unchanged - the leading-[0.96] hero
+            still hard-wraps at the <br/>.
+          */}
           <h1 className="mt-5 font-display text-[44px] sm:text-[60px] lg:text-[78px] font-medium tracking-[-0.025em] leading-[0.96] text-cream-100">
-            Stop hunting for the
+            Stop hunting for the{' '}
             <br />
             <span className="bg-gold-shine bg-clip-text text-transparent gold-pan italic">
               right version
-            </span>{' '}
-            of the file.
+            </span>
+            {' of the file.'}
           </h1>
           <p className="mt-6 text-[17px] sm:text-lg leading-relaxed text-cream-100/80 max-w-xl">
             Every matter, one room. Every exhibit, one source of truth. Every attorney,
@@ -325,6 +341,875 @@ function Workflow() {
         ))}
       </ol>
     </section>
+  );
+}
+
+// =====================================================================
+// Firm Capabilities - rich visual showcase of the six features that
+// pull firms across the buying line. Each card mounts a faithful
+// visual mock of the actual product surface (not a generic icon), so
+// a procurement reviewer scrolling the page can see, in 90 seconds,
+// what the firm-side of Advottic actually does.
+// =====================================================================
+
+function FirmCapabilities() {
+  return (
+    <section className="relative">
+      <header className="text-center max-w-3xl mx-auto mb-12 sm:mb-16">
+        <p className="text-[11px] tracking-[0.3em] uppercase font-semibold text-gold-300 mb-3">
+          What ships in the box
+        </p>
+        <h2 className="font-display text-3xl sm:text-[44px] font-medium tracking-[-0.02em] leading-[1.04] text-cream-100">
+          Seven tools your firm pays separately for today,{' '}
+          <span className="bg-gold-shine bg-clip-text text-transparent gold-pan italic">
+            included
+          </span>{' '}
+          inside one workspace.
+        </h2>
+        <p className="text-sm sm:text-base text-cream-100/70 mt-4 leading-relaxed">
+          No DocuSign add-on, no Calendly seat, no separate AI subscription, no
+          trust-accounting plugin. Every workflow below lives inside the same
+          encrypted vault, under the same audit log, scoped to the same matter.
+        </p>
+      </header>
+      <div className="space-y-6 sm:space-y-7">
+        <EsignMock />
+        <MeetingsMock />
+        <BellaAgentMock />
+        <TeamChatMock />
+        <div className="grid gap-6 sm:gap-7 lg:grid-cols-3">
+          <IoltaMock />
+          <AuditChainMock />
+          <DiscoveryMock />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------
+// 1) In-portal document signing
+// ---------------------------------------------------------------------
+
+function EsignMock() {
+  return (
+    <CapabilityFrame
+      eyebrow="In-portal document signing"
+      title="Sign engagement letters, retainers, and releases without leaving the vault."
+      blurb="Every signature event is hash-chained into a tamper-evident audit ledger. Documents never leave the encrypted portal, never sit in a third-party signing tool, and never expose privileged content to a vendor outside your DPA."
+      bullets={[
+        'Drag-to-place signature, initials, and date fields',
+        'Recipient routing (signer, approver, witness, CC)',
+        'Cryptographic chain over every event - exportable for opposing counsel',
+        'No per-envelope fees, no DocuSign seat math',
+      ]}
+      tierHint="Counsel Solo and above"
+    >
+      <div className="rounded-2xl border border-cream-100/15 bg-forest-950/70 backdrop-blur p-5 sm:p-6 space-y-4">
+        <header className="flex items-center justify-between">
+          <div>
+            <p className="text-[10px] tracking-[0.22em] uppercase text-gold-300">
+              Engagement letter
+            </p>
+            <p className="text-sm font-semibold text-cream-100 mt-1">
+              Apartment lease - Sandoval v. 9th &amp; Cedar LLC
+            </p>
+          </div>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-400/15 ring-1 ring-amber-300/40 text-amber-200 text-[10.5px] font-semibold px-2.5 py-1 tracking-wider uppercase">
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-300 animate-pulse" />
+            Awaiting 1 of 3
+          </span>
+        </header>
+
+        <div className="rounded-xl border border-cream-100/10 bg-cream-100/5 p-4">
+          <p className="text-[10px] tracking-[0.18em] uppercase font-semibold text-gold-300 mb-2">
+            Recipients
+          </p>
+          <ul className="divide-y divide-cream-100/8">
+            {[
+              {
+                name: 'M. Sandoval',
+                role: 'Client',
+                status: 'signed',
+                ts: 'Today, 9:14 AM',
+              },
+              {
+                name: 'Counsel of record',
+                role: 'Witness',
+                status: 'signed',
+                ts: 'Today, 9:21 AM',
+              },
+              {
+                name: 'Co-counsel - Patel',
+                role: 'Approver',
+                status: 'pending',
+                ts: 'Sent 12 min ago',
+              },
+            ].map((r) => (
+              <li
+                key={r.name}
+                className="flex items-center justify-between py-2 text-[12.5px]"
+              >
+                <div className="flex items-center gap-2.5">
+                  <span
+                    className={
+                      r.status === 'signed'
+                        ? 'inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-400/20 text-emerald-300 ring-1 ring-emerald-400/40'
+                        : 'inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-400/15 text-amber-200 ring-1 ring-amber-300/35'
+                    }
+                  >
+                    {r.status === 'signed' ? (
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden>
+                        <path
+                          d="M5 13l4 4 10-10"
+                          stroke="currentColor"
+                          strokeWidth="3"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    ) : (
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-300 animate-pulse" />
+                    )}
+                  </span>
+                  <div>
+                    <p className="font-semibold text-cream-100">{r.name}</p>
+                    <p className="text-cream-100/55 text-[11px]">{r.role}</p>
+                  </div>
+                </div>
+                <p className="text-cream-100/60 text-[11px] tabular-nums">{r.ts}</p>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="rounded-xl border border-cream-100/10 bg-cream-100/5 p-3 font-mono text-[11px] text-cream-100/65 space-y-1">
+          <p className="text-gold-300 tracking-wider uppercase text-[9.5px] font-sans font-semibold">
+            Audit chain · sha-256
+          </p>
+          <p className="break-all">
+            #142 <span className="text-emerald-300">9b3c8a14</span>...e07f
+          </p>
+          <p className="break-all">
+            #141 <span className="text-emerald-300">f1d203b6</span>...4a2c
+          </p>
+          <p className="break-all">
+            #140 <span className="text-emerald-300">06ae9c41</span>...7882
+          </p>
+          <p className="text-cream-100/45 font-sans text-[10.5px] pt-0.5">
+            Every signature, view, and download is linked to the previous event by hash. Break one link and the chain visibly breaks for opposing counsel.
+          </p>
+        </div>
+      </div>
+    </CapabilityFrame>
+  );
+}
+
+// ---------------------------------------------------------------------
+// 2) Calendar + Meetings: Microsoft 365 (Teams) + Zoom
+// ---------------------------------------------------------------------
+
+function MeetingsMock() {
+  return (
+    <CapabilityFrame
+      eyebrow="Calendar + meetings"
+      title="Microsoft Teams and Zoom, wired into every matter."
+      blurb="Connect the firm's Microsoft 365 tenant and Zoom workspace once at the admin level. From that moment, every matter room can schedule a Teams meeting or generate a Zoom link inline, with the calendar event landing on the right attorney's Outlook or Google calendar - no copy-paste."
+      bullets={[
+        'OAuth via Microsoft Entra (Outlook + Teams via Graph) and Zoom Marketplace',
+        'Tokens AES-GCM encrypted at rest; firm owners + admins are the only roles that can revoke',
+        'Meeting links flow into the matter timeline alongside exhibits, notes, and signatures',
+        'Per-firm revocation: a leaving attorney loses meeting access the moment they leave the AD group',
+      ]}
+      tierHint="Counsel Small Firm and above"
+      reversed
+    >
+      <div className="rounded-2xl border border-cream-100/15 bg-forest-950/70 backdrop-blur p-5 sm:p-6 space-y-4">
+        <header className="flex items-center justify-between">
+          <div>
+            <p className="text-[10px] tracking-[0.22em] uppercase text-gold-300">
+              Connected providers
+            </p>
+            <p className="text-sm font-semibold text-cream-100 mt-1">
+              firm.advottic.com / integrations
+            </p>
+          </div>
+          <span className="text-[10.5px] text-emerald-300 inline-flex items-center gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            Live
+          </span>
+        </header>
+
+        <div className="grid sm:grid-cols-2 gap-3">
+          <ProviderCard
+            name="Microsoft 365"
+            sub="Outlook calendar · Teams meeting"
+            scopes="User.Read · Calendars.ReadWrite · offline_access"
+            status="Connected as admin@firm.com"
+          />
+          <ProviderCard
+            name="Zoom"
+            sub="meeting:write · meeting:read"
+            scopes="user:read · meeting:write · meeting:read"
+            status="Connected as billing@firm.com"
+          />
+        </div>
+
+        <div className="rounded-xl border border-cream-100/10 bg-cream-100/5 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[10px] tracking-[0.22em] uppercase font-semibold text-gold-300">
+              Tomorrow on the firm calendar
+            </p>
+            <span className="text-[10.5px] text-cream-100/55">Tue, 9:00 - 5:00</span>
+          </div>
+          <ul className="space-y-2">
+            {[
+              {
+                t: '09:30',
+                title: 'Sandoval intake call',
+                where: 'Teams',
+                matter: 'Apartment lease - 2026',
+              },
+              {
+                t: '11:00',
+                title: 'Co-counsel sync · Patel & Co',
+                where: 'Zoom',
+                matter: 'Vendor dispute - Acme',
+              },
+              {
+                t: '14:30',
+                title: 'Client signature walkthrough',
+                where: 'Teams',
+                matter: 'Estate of W. - probate',
+              },
+            ].map((m) => (
+              <li
+                key={m.t}
+                className="flex items-center justify-between rounded-lg bg-cream-100/5 ring-1 ring-cream-100/10 px-3 py-2 text-[12.5px]"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="font-mono text-cream-100/70 tabular-nums shrink-0">
+                    {m.t}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-cream-100 font-semibold truncate">{m.title}</p>
+                    <p className="text-cream-100/55 text-[11px] truncate">{m.matter}</p>
+                  </div>
+                </div>
+                <span
+                  className={`shrink-0 rounded-full text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 ${
+                    m.where === 'Teams'
+                      ? 'bg-blue-400/15 text-blue-200 ring-1 ring-blue-400/30'
+                      : 'bg-sky-400/15 text-sky-200 ring-1 ring-sky-400/30'
+                  }`}
+                >
+                  {m.where}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </CapabilityFrame>
+  );
+}
+
+function ProviderCard({
+  name,
+  sub,
+  scopes,
+  status,
+}: {
+  name: string;
+  sub: string;
+  scopes: string;
+  status: string;
+}) {
+  return (
+    <div className="rounded-xl border border-cream-100/10 bg-cream-100/5 p-4">
+      <div className="flex items-center justify-between">
+        <p className="font-semibold text-cream-100">{name}</p>
+        <span className="inline-flex items-center gap-1 text-[10px] text-emerald-300 font-semibold uppercase tracking-wider">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" aria-hidden>
+            <path
+              d="M5 13l4 4 10-10"
+              stroke="currentColor"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          OK
+        </span>
+      </div>
+      <p className="text-[11.5px] text-cream-100/65 mt-0.5">{sub}</p>
+      <p className="text-[10px] font-mono text-cream-100/45 mt-2 break-all">{scopes}</p>
+      <p className="text-[10.5px] text-cream-100/55 mt-1">{status}</p>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+// 3) Bella - AI agent that takes action
+// ---------------------------------------------------------------------
+
+function BellaAgentMock() {
+  return (
+    <CapabilityFrame
+      eyebrow="Bella, the AI agent that takes action"
+      title="Not a chatbot. A clerk that drafts, files, and reconciles."
+      blurb="Most legal-AI tools answer questions. Bella runs tools: she drafts the engagement letter, starts a time entry when she sees you working on a matter, runs a conflict check on a new intake, and pulls in CourtListener case law when the legal basis benefits from precedent. Every action is logged."
+      bullets={[
+        'Tools include create_matter_intake, run_conflict_check, draft_document, start_time_entry, send_engagement_letter, file_court_form',
+        'Zero-retention configured on Anthropic Claude - your firm data is never used to train any external model',
+        'Per-user token budget so a heavy week never produces a surprise invoice',
+        'Every Bella action is timestamped in the audit log for Model Rule 1.6 compliance',
+      ]}
+      tierHint="Bella included at every Counsel tier"
+    >
+      <div className="rounded-2xl border border-cream-100/15 bg-forest-950/70 backdrop-blur p-5 sm:p-6 space-y-3">
+        <header className="flex items-center gap-3">
+          <span className="relative inline-flex h-9 w-9 items-center justify-center rounded-full ring-2 ring-gold-400/45 bg-gradient-to-br from-forest-700 via-forest-800 to-forest-950">
+            <span
+              className="font-display text-[16px] font-medium tracking-tight"
+              style={{
+                background: 'linear-gradient(135deg, #f3e1ad 0%, #d5bb7e 50%, #b89853 100%)',
+                backgroundClip: 'text',
+                WebkitBackgroundClip: 'text',
+                color: 'transparent',
+              }}
+            >
+              B
+            </span>
+          </span>
+          <div>
+            <p className="text-sm font-semibold text-cream-100">Bella</p>
+            <p className="text-[10.5px] text-cream-100/55">
+              Working on Vendor dispute - Acme
+            </p>
+          </div>
+          <span className="ml-auto text-[10px] text-emerald-300 inline-flex items-center gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            Live
+          </span>
+        </header>
+
+        <div className="rounded-xl bg-cream-100/5 ring-1 ring-cream-100/10 p-3 text-[12.5px] text-cream-100/85 leading-relaxed">
+          Drafted the engagement letter from your firm template and queued it for signature.
+          Conflict check came back clean against the last 3 years of matter history. Started a
+          0.4h time entry against intake review.
+        </div>
+
+        <div className="flex flex-wrap gap-2 pt-1">
+          <ActionChip label="draft_document" detail="engagement_letter_v3.docx" />
+          <ActionChip label="run_conflict_check" detail="0 hits / 3-year window" />
+          <ActionChip label="start_time_entry" detail="0.4h · intake review" />
+          <ActionChip label="send_engagement_letter" detail="queued for signature" />
+        </div>
+
+        <p className="text-[10.5px] text-cream-100/50 pt-1 font-mono">
+          context window: 1 matter · 12 exhibits · 4 messages · 1 court rule set
+        </p>
+      </div>
+    </CapabilityFrame>
+  );
+}
+
+function ActionChip({ label, detail }: { label: string; detail: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-gold-400/12 ring-1 ring-gold-400/30 text-gold-200 text-[10.5px] font-semibold px-2.5 py-1">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" aria-hidden>
+        <path
+          d="M5 13l4 4 10-10"
+          stroke="currentColor"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+      <span className="font-mono">{label}</span>
+      <span className="text-gold-200/70 font-normal">· {detail}</span>
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------
+// 4) Team chat - matter-room conversations with Realtime
+// ---------------------------------------------------------------------
+
+function TeamChatMock() {
+  return (
+    <CapabilityFrame
+      eyebrow="Team conversations"
+      title="A Slack-shaped workspace, scoped to your firm and your matters."
+      blurb="Channels for firm-wide topics, group DMs for the team on a specific matter, and one-to-one DMs for sensitive back-and-forth. Messages, edits, and deletes propagate in roughly 100 milliseconds via Supabase Realtime WebSockets, with a 60-second heartbeat refetch as a safety net for flaky networks."
+      bullets={[
+        'Channels, group DMs, and 1:1 DMs - row-level security per channel membership',
+        'Edit + soft-delete history, attachments (images, files, signed documents from the vault)',
+        'Per-member last-read timestamp drives unread counts and inbox-style notifications',
+        'No third-party chat vendor - messages live in the same Postgres + RLS as your matters',
+      ]}
+      tierHint="All Counsel tiers"
+      reversed
+    >
+      <div className="rounded-2xl border border-cream-100/15 bg-forest-950/70 backdrop-blur overflow-hidden">
+        <div className="grid grid-cols-[140px_1fr] min-h-[360px]">
+          {/* Channel sidebar */}
+          <aside className="border-r border-cream-100/10 bg-forest-950/40 p-3 text-[11px] space-y-3">
+            <div>
+              <p className="text-[9.5px] tracking-[0.22em] uppercase font-semibold text-gold-300 mb-1.5 px-1">
+                Channels
+              </p>
+              <ul className="space-y-0.5">
+                <ChannelRow name="general" unread={3} />
+                <ChannelRow name="intake-and-conflicts" />
+                <ChannelRow name="sandoval-v-9th-cedar" active />
+                <ChannelRow name="acme-vendor-dispute" unread={1} />
+              </ul>
+            </div>
+            <div>
+              <p className="text-[9.5px] tracking-[0.22em] uppercase font-semibold text-gold-300 mb-1.5 px-1">
+                Direct
+              </p>
+              <ul className="space-y-0.5">
+                <DmRow name="Patel · co-counsel" presence="online" />
+                <DmRow name="J. Liu · paralegal" presence="away" />
+                <DmRow name="Sandoval · client" presence="offline" />
+              </ul>
+            </div>
+          </aside>
+
+          {/* Active channel */}
+          <section className="flex flex-col">
+            <header className="flex items-center justify-between border-b border-cream-100/10 px-4 py-2.5">
+              <div>
+                <p className="text-[12.5px] font-semibold text-cream-100">
+                  # sandoval-v-9th-cedar
+                </p>
+                <p className="text-[10.5px] text-cream-100/55">
+                  4 members · linked to matter MAT-104
+                </p>
+              </div>
+              <span className="inline-flex items-center gap-1.5 text-[10px] text-emerald-300">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Realtime
+              </span>
+            </header>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 text-[12.5px]">
+              <ChatMessage
+                who="C. Rivera"
+                role="Counsel"
+                ts="9:14 AM"
+                body={
+                  <>
+                    Conflict check came back clean against the last 3 years. Drafted the engagement
+                    letter from our firm template;{' '}
+                    <span className="rounded bg-gold-400/15 ring-1 ring-gold-400/30 text-gold-200 px-1 font-mono text-[11px]">
+                      @Patel
+                    </span>{' '}
+                    you&apos;re up next as approver.
+                  </>
+                }
+              />
+              <ChatMessage
+                who="J. Liu"
+                role="Paralegal"
+                ts="9:18 AM"
+                body={
+                  <>
+                    Uploaded the lease addendum to the vault.{' '}
+                    <span className="inline-flex items-center gap-1.5 mt-1.5 rounded-md bg-cream-100/5 ring-1 ring-cream-100/15 px-2 py-1 text-[11px] text-cream-100/85">
+                      <PaperclipIcon />
+                      EX-012 · lease-addendum.pdf
+                    </span>
+                  </>
+                }
+              />
+              <ChatMessage
+                who="Bella"
+                role="AI agent"
+                ts="9:19 AM"
+                bot
+                body="Started a 0.4h time entry on this matter for intake review. Logged in audit chain #143."
+              />
+              <ChatMessage
+                who="M. Patel"
+                role="Co-counsel"
+                ts="9:21 AM"
+                body="Signed. Good to go on our end."
+              />
+            </div>
+
+            <footer className="border-t border-cream-100/10 px-3 py-2.5">
+              <div className="flex items-center gap-2">
+                <div className="flex-1 rounded-lg bg-cream-100/5 ring-1 ring-cream-100/10 px-3 py-1.5 text-[11.5px] text-cream-100/45">
+                  Message # sandoval-v-9th-cedar
+                </div>
+                <button
+                  type="button"
+                  aria-label="Send"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-gold-metal text-forest-950 shadow-sm"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+                    <path
+                      d="M5 12h14m0 0l-5-5m5 5l-5 5"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </button>
+              </div>
+              <p className="text-[10px] text-cream-100/40 mt-1.5 px-1">
+                Read by 3 of 4 · last delivery 9:21 AM
+              </p>
+            </footer>
+          </section>
+        </div>
+      </div>
+    </CapabilityFrame>
+  );
+}
+
+function ChannelRow({
+  name,
+  active,
+  unread,
+}: {
+  name: string;
+  active?: boolean;
+  unread?: number;
+}) {
+  return (
+    <li
+      className={`flex items-center justify-between rounded px-2 py-1 ${
+        active ? 'bg-gold-400/15 text-gold-100 font-semibold' : 'text-cream-100/75'
+      }`}
+    >
+      <span className="truncate">
+        <span className="text-cream-100/45 mr-0.5">#</span>
+        {name}
+      </span>
+      {unread ? (
+        <span className="rounded-full bg-rose-400/20 ring-1 ring-rose-300/40 text-rose-200 text-[9.5px] font-bold tabular-nums px-1.5 py-0">
+          {unread}
+        </span>
+      ) : null}
+    </li>
+  );
+}
+
+function DmRow({
+  name,
+  presence,
+}: {
+  name: string;
+  presence: 'online' | 'away' | 'offline';
+}) {
+  const tone =
+    presence === 'online'
+      ? 'bg-emerald-400'
+      : presence === 'away'
+        ? 'bg-amber-400'
+        : 'bg-cream-100/30';
+  return (
+    <li className="flex items-center gap-2 rounded px-2 py-1 text-cream-100/75">
+      <span className={`h-1.5 w-1.5 rounded-full ${tone} shrink-0`} />
+      <span className="truncate">{name}</span>
+    </li>
+  );
+}
+
+function ChatMessage({
+  who,
+  role,
+  ts,
+  body,
+  bot,
+}: {
+  who: string;
+  role: string;
+  ts: string;
+  body: React.ReactNode;
+  bot?: boolean;
+}) {
+  return (
+    <div className="flex items-start gap-2.5">
+      <span
+        className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-semibold shrink-0 ${
+          bot
+            ? 'bg-gradient-to-br from-gold-400/30 to-gold-700/40 text-gold-100 ring-1 ring-gold-400/50'
+            : 'bg-cream-100/10 text-cream-100 ring-1 ring-cream-100/15'
+        }`}
+      >
+        {who
+          .split(/[\s.]+/)
+          .filter(Boolean)
+          .map((p) => p[0])
+          .slice(0, 2)
+          .join('')}
+      </span>
+      <div className="flex-1 min-w-0">
+        <p className="text-[11.5px] flex items-baseline gap-2">
+          <span className="font-semibold text-cream-100">{who}</span>
+          <span className="text-cream-100/45 text-[10.5px]">{role}</span>
+          <span className="text-cream-100/35 text-[10.5px] tabular-nums">{ts}</span>
+        </p>
+        <div className="text-cream-100/85 leading-relaxed">{body}</div>
+      </div>
+    </div>
+  );
+}
+
+function PaperclipIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M21 11l-9 9a5 5 0 01-7-7l9-9a3 3 0 014 4l-9 9a1 1 0 11-1-1l8-8"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+// ---------------------------------------------------------------------
+// 4) IOLTA trust accounting
+// ---------------------------------------------------------------------
+
+function IoltaMock() {
+  return (
+    <CapabilityCard
+      eyebrow="IOLTA trust accounting"
+      title="3-way reconciliation, no spreadsheet."
+      blurb="Daily reconciliation between bank, ledger, and matter sub-accounts. Negative-balance protection is enforced at the database, not just the UI - the row literally can't go red."
+      tierHint="Counsel Solo and above"
+    >
+      <div className="rounded-xl border border-cream-100/10 bg-cream-100/5 p-4 text-[12px]">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-gold-300 tracking-wider uppercase text-[9.5px] font-semibold">
+            Reconciliation · Mar 2026
+          </p>
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-400/15 ring-1 ring-emerald-400/30 text-emerald-300 text-[10px] font-semibold px-2 py-0.5">
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <path
+                d="M5 13l4 4 10-10"
+                stroke="currentColor"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            Balanced
+          </span>
+        </div>
+        <dl className="space-y-2 tabular-nums">
+          {[
+            { l: 'Bank statement', v: '$184,602.18' },
+            { l: 'Trust ledger', v: '$184,602.18' },
+            { l: 'Sub-accounts sum', v: '$184,602.18' },
+          ].map((r) => (
+            <div key={r.l} className="flex items-center justify-between text-cream-100/85">
+              <dt>{r.l}</dt>
+              <dd className="font-mono font-semibold">{r.v}</dd>
+            </div>
+          ))}
+          <div className="border-t border-cream-100/10 pt-2 flex items-center justify-between text-emerald-300">
+            <dt>Variance</dt>
+            <dd className="font-mono font-semibold">$0.00</dd>
+          </div>
+        </dl>
+      </div>
+    </CapabilityCard>
+  );
+}
+
+// ---------------------------------------------------------------------
+// 5) Append-only audit log
+// ---------------------------------------------------------------------
+
+function AuditChainMock() {
+  return (
+    <CapabilityCard
+      eyebrow="Append-only audit log"
+      title="Every read, write, sign, export."
+      blurb="A cryptographic chain over every event. Hand the JSON export to opposing counsel and the chain verifies in 30 seconds - or visibly breaks if a row was altered."
+      tierHint="All Counsel tiers"
+    >
+      <div className="rounded-xl border border-cream-100/10 bg-cream-100/5 p-4 text-[11.5px] font-mono space-y-1.5 text-cream-100/80">
+        {[
+          { ts: '14:31:09', who: 'M. Sandoval', evt: 'sign.engagement.letter' },
+          { ts: '14:30:54', who: 'admin@firm', evt: 'send.engagement.letter' },
+          { ts: '14:28:11', who: 'Bella', evt: 'run.conflict.check (0 hits)' },
+          { ts: '14:27:02', who: 'paralegal-7', evt: 'upload.exhibit (EX-012)' },
+          { ts: '14:25:48', who: 'admin@firm', evt: 'create.matter.intake' },
+        ].map((e, i) => (
+          <div key={i} className="flex items-baseline gap-2">
+            <span className="text-cream-100/45 tabular-nums">{e.ts}</span>
+            <span className="text-gold-300">{e.who}</span>
+            <span className="text-cream-100/75">{e.evt}</span>
+          </div>
+        ))}
+        <p className="text-[10px] text-emerald-300/80 pt-1 sans-serif">
+          chain verified · sha-256 over 4,217 events
+        </p>
+      </div>
+    </CapabilityCard>
+  );
+}
+
+// ---------------------------------------------------------------------
+// 6) Discovery review
+// ---------------------------------------------------------------------
+
+function DiscoveryMock() {
+  return (
+    <CapabilityCard
+      eyebrow="Discovery review"
+      title="AI-assisted bulk review with privilege flags."
+      blurb="Drop a 250-document production. Bella tags privilege candidates, surfaces high-priority items, and writes one-sentence summaries so first-pass review collapses from a day to an afternoon."
+      tierHint="Counsel Small Firm and above"
+    >
+      <div className="rounded-xl border border-cream-100/10 bg-cream-100/5 p-3 space-y-1.5">
+        {[
+          { ref: 'DOC-104', kind: 'Email · 03/12', priv: true, pri: 'High', text: 'Counsel-client exchange re: settlement floor.' },
+          { ref: 'DOC-205', kind: 'Memo · 04/01', priv: false, pri: 'High', text: 'Internal damages model with assumptions table.' },
+          { ref: 'DOC-318', kind: 'PDF · 05/09', priv: false, pri: 'Med', text: 'Vendor invoice; references the disputed work order.' },
+          { ref: 'DOC-411', kind: 'Email · 05/11', priv: true, pri: 'Low', text: 'Calendar invite with attached agenda.' },
+        ].map((d) => (
+          <div
+            key={d.ref}
+            className="rounded-lg bg-cream-100/5 ring-1 ring-cream-100/10 p-2.5"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[11px] font-mono text-cream-100/85">{d.ref}</p>
+              <div className="flex items-center gap-1.5">
+                {d.priv && (
+                  <span className="text-[9.5px] rounded-full bg-amber-400/15 ring-1 ring-amber-300/35 text-amber-200 font-semibold px-1.5 py-0.5">
+                    PRIV
+                  </span>
+                )}
+                <span
+                  className={`text-[9.5px] rounded-full font-semibold px-1.5 py-0.5 ${
+                    d.pri === 'High'
+                      ? 'bg-rose-400/15 ring-1 ring-rose-300/35 text-rose-200'
+                      : d.pri === 'Med'
+                        ? 'bg-amber-400/15 ring-1 ring-amber-300/35 text-amber-200'
+                        : 'bg-cream-100/10 ring-1 ring-cream-100/15 text-cream-100/60'
+                  }`}
+                >
+                  {d.pri}
+                </span>
+              </div>
+            </div>
+            <p className="text-[11px] text-cream-100/65 mt-0.5">{d.kind}</p>
+            <p className="text-[11.5px] text-cream-100/85 mt-1 leading-snug">{d.text}</p>
+          </div>
+        ))}
+      </div>
+    </CapabilityCard>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Shared frames
+// ---------------------------------------------------------------------
+
+function CapabilityFrame({
+  eyebrow,
+  title,
+  blurb,
+  bullets,
+  tierHint,
+  reversed,
+  children,
+}: {
+  eyebrow: string;
+  title: string;
+  blurb: string;
+  bullets: string[];
+  tierHint: string;
+  reversed?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <article className="relative overflow-hidden rounded-3xl border border-cream-100/12 bg-gradient-to-br from-forest-900/60 via-forest-950/60 to-forest-900/60 backdrop-blur p-6 sm:p-9 lg:p-12">
+      <div
+        aria-hidden
+        className={`pointer-events-none absolute h-72 w-72 rounded-full opacity-30 blur-3xl ${
+          reversed ? 'right-0 top-0' : 'left-0 bottom-0'
+        }`}
+        style={{
+          background:
+            'radial-gradient(circle, rgba(213,187,126,0.5) 0%, rgba(213,187,126,0) 65%)',
+        }}
+      />
+      <div
+        className={`relative grid gap-8 sm:gap-10 lg:gap-14 items-center ${
+          reversed ? 'lg:grid-cols-[1.05fr_1fr]' : 'lg:grid-cols-[1fr_1.05fr]'
+        }`}
+      >
+        <div className={reversed ? 'lg:order-2' : ''}>
+          <p className="text-[11px] tracking-[0.28em] uppercase font-semibold text-gold-300">
+            {eyebrow}
+          </p>
+          <h3 className="mt-3 font-display text-2xl sm:text-3xl lg:text-[34px] font-medium tracking-[-0.015em] leading-[1.08] text-cream-100">
+            {title}
+          </h3>
+          <p className="text-[14.5px] sm:text-[15.5px] leading-relaxed text-cream-100/75 mt-4">
+            {blurb}
+          </p>
+          <ul className="mt-5 space-y-2 text-[13.5px] text-cream-100/85">
+            {bullets.map((b) => (
+              <li key={b} className="flex items-start gap-2.5">
+                <CheckIcon />
+                <span>{b}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-5 inline-flex items-center gap-2 text-[11px] tracking-[0.18em] uppercase font-semibold text-gold-300">
+            <span className="inline-block h-px w-5 bg-gold-400" />
+            {tierHint}
+          </p>
+        </div>
+        <div className={reversed ? 'lg:order-1' : ''}>{children}</div>
+      </div>
+    </article>
+  );
+}
+
+function CapabilityCard({
+  eyebrow,
+  title,
+  blurb,
+  tierHint,
+  children,
+}: {
+  eyebrow: string;
+  title: string;
+  blurb: string;
+  tierHint: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <article className="rounded-2xl border border-cream-100/12 bg-gradient-to-br from-forest-900/55 via-forest-950/55 to-forest-900/55 backdrop-blur p-5 sm:p-6 flex flex-col">
+      <p className="text-[10.5px] tracking-[0.28em] uppercase font-semibold text-gold-300">
+        {eyebrow}
+      </p>
+      <h3 className="mt-2 font-display text-lg sm:text-[20px] font-medium tracking-[-0.01em] leading-tight text-cream-100">
+        {title}
+      </h3>
+      <p className="text-[13px] leading-relaxed text-cream-100/72 mt-2">{blurb}</p>
+      <div className="mt-4 flex-1">{children}</div>
+      <p className="mt-4 inline-flex items-center gap-2 text-[10.5px] tracking-[0.18em] uppercase font-semibold text-gold-300">
+        <span className="inline-block h-px w-4 bg-gold-400" />
+        {tierHint}
+      </p>
+    </article>
   );
 }
 

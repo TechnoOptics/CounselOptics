@@ -27,7 +27,13 @@ export type SignatureEventType =
   | 'signed'
   | 'completed'
   | 'canceled'
-  | 'reminder_sent';
+  | 'reminder_sent'
+  // Final-render lifecycle (lib/signature-render.ts). Emitted after
+  // the request flips to 'completed' so a reviewer can tell whether
+  // an executed PDF was successfully produced, and how many of the
+  // captured signatures actually made it onto the page.
+  | 'final_pdf_rendered'
+  | 'final_pdf_render_failed';
 
 type EventInput = {
   signingRequestId: string;

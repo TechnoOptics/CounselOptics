@@ -6,7 +6,7 @@ import { PushOptIn } from '@/components/PushOptIn';
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
-  title: 'Inbox · Advottic',
+  title: 'Inbox',
   description:
     'Notifications about your cases, meetings, and documents in one place.',
   robots: { index: false, follow: false },

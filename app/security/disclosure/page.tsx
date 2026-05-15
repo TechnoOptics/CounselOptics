@@ -1,7 +1,7 @@
 import Link from 'next/link';
 
 export const metadata = {
-  title: 'Responsible disclosure - Advottic',
+  title: 'Responsible disclosure',
   description:
     'How to report a security vulnerability to Advottic. Safe-harbor commitments, scope, and PGP key.',
   alternates: { canonical: '/security/disclosure' },

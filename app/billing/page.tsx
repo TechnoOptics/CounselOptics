@@ -240,8 +240,43 @@ export default async function BillingPage({
         </div>
       )}
 
+      {/* Audit CR-49: previously the Top-up section lived deep in the
+          page and only rendered for Pro users. Free-tier users had no
+          discoverable path to top-up - they had to upgrade first to
+          even see the affordance. This row surfaces it near the top:
+          Pro users jump to the top-up panel via #topup; free-tier
+          users see an upgrade nudge that explains what top-ups are
+          for. The Pro path lives inside the section below; this is
+          just navigation. */}
+      <div className="flex flex-wrap items-baseline justify-between gap-3 rounded-2xl border border-gold-300/40 bg-gradient-to-br from-cream-50 to-white dark:from-forest-900 dark:to-forest-950 p-4 sm:p-5 ring-1 ring-gold-400/20">
+        <div className="min-w-0">
+          <p className="eyebrow mb-1 text-gold-700 dark:text-gold-300">
+            Tokens
+          </p>
+          <p className="text-[13px] text-ink-700 dark:text-cream-100/80 leading-relaxed">
+            Bella runs on tokens. Active subscribers get a monthly grant; you can
+            add more any time with a one-off top-up.
+          </p>
+        </div>
+        {isPro ? (
+          <a
+            href="#topup"
+            className="btn-primary text-[13px] px-3.5 py-2 whitespace-nowrap"
+          >
+            Top up tokens →
+          </a>
+        ) : (
+          <a
+            href="#tiers"
+            className="btn-secondary text-[13px] px-3.5 py-2 whitespace-nowrap"
+          >
+            Upgrade to enable top-ups
+          </a>
+        )}
+      </div>
+
       {/* Three tier cards */}
-      <div className="grid gap-4 md:grid-cols-3 items-stretch stagger">
+      <div id="tiers" className="grid gap-4 md:grid-cols-3 items-stretch stagger scroll-mt-20">
         {TIER_ORDER.map((t) => (
           <TierCard
             key={t}

@@ -5,7 +5,7 @@ import { createServerSupabase } from '@/lib/supabase/server';
 import { TokenTopUpButton } from './topup-button';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Bella tokens · Counsel · Advottic' };
+export const metadata = { title: 'Bella tokens · Counsel' };
 
 function formatTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;

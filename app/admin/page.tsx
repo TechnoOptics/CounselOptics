@@ -249,7 +249,7 @@ function LiveSupabasePill({
     : live.probes.find((p) => p.status === 'fail')?.error ?? 'Supabase unreachable';
   return (
     <Link
-      href="/admin/health"
+      href="/admin/operations"
       className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-md ring-1 text-[12.5px] transition-colors ${tone}`}
     >
       <span

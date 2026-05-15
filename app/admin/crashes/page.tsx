@@ -6,7 +6,7 @@ import {
 import { revalidatePath } from 'next/cache';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Crash reports - Advottic HQ' };
+export const metadata = { title: { absolute: 'Crash reports · Advottic HQ' } };
 
 async function ackCrashAction(formData: FormData) {
   'use server';
@@ -119,25 +119,14 @@ function groupCrashes(rows: CrashRow[]): CrashGroup[] {
   return groups;
 }
 
-/**
- * Default-hide cross-origin script errors and browser-extension noise.
- * Audit V2-3 flagged these as padding the inbox:
- *   - "Script error." is the sanitized cross-origin script-tag error
- *     (third-party script throws, browser blocks the stack).
- *   - "__firefox__" is a Firefox content-script injection, not our bug.
- *   - "ResizeObserver loop limit exceeded" is a Chrome quirk, not a
- *     real crash, but landed in the inbox too.
- * Toggle via ?noise=show to inspect them deliberately.
- */
-const NOISE_PATTERNS: RegExp[] = [
-  /^Script error\.?$/i,
-  /__firefox__/,
-  /ResizeObserver loop/i,
-];
+// Noise filter centralised in lib/crash-noise.ts (V3 CR-23). The HQ
+// overview pill and this page now compute the same default-visible
+// count, so an operator never sees a 49-vs-44 discrepancy between
+// surfaces.
+import { isCrashNoise } from '@/lib/crash-noise';
 
 function isNoiseCrash(c: CrashRow): boolean {
-  const msg = c.message ?? '';
-  return NOISE_PATTERNS.some((re) => re.test(msg));
+  return isCrashNoise(c.message);
 }
 
 export default async function HqCrashesPage({

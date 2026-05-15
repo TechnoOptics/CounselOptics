@@ -1,0 +1,32 @@
+# Vercel deploy upload exclusions. Belt-and-suspenders alongside .gitignore
+# because the CLI sometimes uploads paths that .gitignore alone covers.
+# Most importantly: keeps the Android/Capacitor toolchain out of the
+# Vercel upload (the portable Android SDK is ~1.5 GB and breaks deploys).
+
+node_modules
+.next
+out
+dist
+.git
+data
+*.log
+
+# Capacitor / Android native build chain - never needed by the web build
+android
+ios
+
+# Other large local-only artifacts
+docs/build
+.claude
+.vscode
+.idea
+
+# Local env files
+.env
+.env.local
+.env.*.local
+.env.production.local
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db

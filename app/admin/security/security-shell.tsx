@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { LocaleTime } from '@/components/LocaleTime';
 import type {
   PulseSummary,
   PulseCheckResult,
@@ -140,7 +141,7 @@ function PulseHeader({
           <div>
             <p className="font-display text-lg text-cream-100">{pulseLabel}</p>
             <p className="text-[11.5px] text-cream-100/55">
-              Last run {new Date(summary.ranAt).toLocaleTimeString()} ·{' '}
+              Last run <LocaleTime iso={summary.ranAt} mode="time" /> ·{' '}
               {summary.totalDurationMs} ms · auto-refresh every 30s
             </p>
           </div>

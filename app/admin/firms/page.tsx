@@ -6,7 +6,7 @@ import { BrandingEditor } from './branding-editor';
 import { ImpersonateOwnerButton } from './impersonate-owner-button';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Active firms - Advottic HQ' };
+export const metadata = { title: { absolute: 'Active firms · Advottic HQ' } };
 
 export default async function HqFirmsPage() {
   const firms = await adminListFirms();

@@ -5,7 +5,7 @@ import { getContractType } from '@/lib/contract-types';
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
-  title: 'Contracts - Advottic',
+  title: 'Contracts',
   description: 'Store contracts. Run an AI review. Track expirations.',
   robots: { index: false, follow: false },
 };

@@ -1,15 +1,54 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { createServerSupabase } from '@/lib/supabase/server';
+import { getOrCreateMatterChannelAction } from '@/lib/firm-actions';
 import { listOpenTimer } from '@/lib/time-tracking';
 import { listTrustTransactions } from '@/lib/trust-accounting-queries';
 import { TimerWidget } from '@/components/TimerWidget';
+import type { FirmMessage } from '@/lib/firm-types';
 import { DraftInvoiceButton } from './draft-invoice-button';
 import { AddDeadlineForm } from './add-deadline-form';
 import { CompleteDeadlineButton } from './complete-deadline-button';
+import { MatterChatPanel } from './matter-chat-panel';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * Audit V5 CR-30: the counsel-side case detail used to show
+ * "Cases · Advottic" in the browser tab for every matter, making
+ * tab-switching across multiple open matters impossible. Reading
+ * the matter title server-side and emitting it via the standard
+ * "%s · Advottic" template turns each tab into a useful identifier.
+ * Wrapped in try/catch so a transient DB failure can't 500 the tab
+ * title - falls back to "Matter".
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: { id: string };
+}): Promise<Metadata> {
+  try {
+    const ctx = await getActiveFirmContext();
+    if (!ctx) return { title: 'Matter' };
+    const supabase = createServerSupabase();
+    const { data } = await supabase
+      .from('cases')
+      .select('title, firm_id')
+      .eq('id', params.id)
+      .maybeSingle();
+    if (!data || data.firm_id !== ctx.firm.id) {
+      return { title: 'Matter · Not found' };
+    }
+    return {
+      title: `${(data as { title: string }).title} · Matters`,
+      robots: { index: false, follow: false },
+    };
+  } catch {
+    return { title: 'Matter' };
+  }
+}
 
 const STATUS_LABEL: Record<string, string> = {
   draft: 'Draft',
@@ -230,6 +269,18 @@ export default async function CounselCaseDetailPage({
           </p>
         </section>
       )}
+
+      {/* Matter room - idempotent: getOrCreate ensures one channel
+          per case_id (the unique index on firm_channels.case_id
+          guarantees we never duplicate). Auto-membership adds every
+          firm member to the channel so the room is populated even
+          before anyone explicitly joins. */}
+      <MatterChatSection
+        firmId={ctx.firm.id}
+        caseId={params.id}
+        caseTitle={c.title}
+        currentUserId={ctx.membership.userId}
+      />
 
       {/* Deadlines */}
       <section className="space-y-3">
@@ -456,5 +507,84 @@ function Stat({
         {value}
       </p>
     </div>
+  );
+}
+
+/**
+ * Server-rendered matter-chat section. Wraps the client MatterChatPanel
+ * with the data it needs:
+ *   - getOrCreateMatterChannelAction guarantees a channel exists (idempotent)
+ *   - initial messages backfill so the panel mounts populated
+ *   - author lookup map so messages render real names, not UUIDs
+ *
+ * Wrapped in a separate async component so the case detail page can
+ * render the rest of its UI while the chat backfill resolves.
+ */
+async function MatterChatSection({
+  firmId,
+  caseId,
+  caseTitle,
+  currentUserId,
+}: {
+  firmId: string;
+  caseId: string;
+  caseTitle: string;
+  currentUserId: string;
+}) {
+  const channelRes = await getOrCreateMatterChannelAction(firmId, caseId, caseTitle);
+  if (!channelRes.ok || !channelRes.channelId) {
+    return (
+      <section className="card p-5">
+        <p className="eyebrow text-[10px] mb-1">Matter room</p>
+        <p className="text-[13px] text-ink-500 dark:text-cream-100/55 italic">
+          Could not prepare the matter chat. Reload the page or contact support.
+        </p>
+      </section>
+    );
+  }
+  const channelId = channelRes.channelId;
+
+  // Hydrate the most recent ~80 messages + author display names so the
+  // chat panel mounts with real history. The Realtime subscription
+  // picks up everything after; this just primes the pump.
+  const supabase = createServerSupabase();
+  const [{ data: messageRows }, { data: memberRows }] = await Promise.all([
+    supabase
+      .from('firm_messages')
+      .select('id, channel_id, user_id, body, attachments, created_at, edited_at, deleted_at')
+      .eq('channel_id', channelId)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: true })
+      .limit(80),
+    supabase
+      .from('firm_members')
+      .select('user_id, display_name, email')
+      .eq('firm_id', firmId),
+  ]);
+  const initialMessages: FirmMessage[] = (messageRows ?? []).map(
+    (r: Record<string, unknown>) => ({
+      id: r.id as string,
+      channelId: r.channel_id as string,
+      userId: r.user_id as string,
+      body: r.body as string,
+      attachments: (r.attachments as FirmMessage['attachments']) ?? [],
+      createdAt: r.created_at as string,
+      editedAt: (r.edited_at as string | null) ?? null,
+      deletedAt: (r.deleted_at as string | null) ?? null,
+    }),
+  );
+  const authors = (memberRows ?? []).map((r: Record<string, unknown>) => ({
+    userId: r.user_id as string,
+    displayName: (r.display_name as string | null) ?? null,
+    email: (r.email as string | null) ?? null,
+  }));
+
+  return (
+    <MatterChatPanel
+      channelId={channelId}
+      initialMessages={initialMessages}
+      authors={authors}
+      currentUserId={currentUserId}
+    />
   );
 }

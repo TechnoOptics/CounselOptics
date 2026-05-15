@@ -5,6 +5,7 @@ import {
   setFeedbackStatusAction,
   updateFeedbackNotesAction,
 } from '@/lib/actions';
+import { LocaleTime } from '@/components/LocaleTime';
 import type { FeedbackRow as FB, FeedbackStatus } from '@/lib/storage';
 
 const STATUS_OPTIONS: { value: FeedbackStatus; label: string }[] = [
@@ -65,15 +66,11 @@ export function FeedbackRow({ item }: { item: FB }) {
             <span className={`badge capitalize ${CATEGORY_TONE[item.category] ?? CATEGORY_TONE.other}`}>
               {item.category}
             </span>
-            <span className="text-[11px] text-ink-500 dark:text-cream-100/55 font-mono tabular-nums">
-              {new Date(item.createdAt).toLocaleString(undefined, {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric',
-                hour: 'numeric',
-                minute: '2-digit',
-              })}
-            </span>
+            <LocaleTime
+              iso={item.createdAt}
+              mode="datetime"
+              className="text-[11px] text-ink-500 dark:text-cream-100/55 font-mono tabular-nums"
+            />
           </div>
           <h3 className="font-semibold text-ink-950 dark:text-cream-100">{item.subject}</h3>
           <p className="text-[11px] text-ink-500 dark:text-cream-100/55 mt-0.5">

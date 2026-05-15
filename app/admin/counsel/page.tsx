@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { adminGetHqDashboardCounts, adminListFirms, adminListGrants } from '@/lib/hq-storage';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Counsel overview - Advottic HQ' };
+export const metadata = { title: { absolute: 'Counsel overview · Advottic HQ' } };
 
 /**
  * Counsel perspective overview. The cockpit for organizational

@@ -5,7 +5,7 @@ import { getFirmLeadForFirm } from '@/lib/marketplace-storage';
 import { LeadResponseForm } from './lead-response-form';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Lead · Counsel · Advottic' };
+export const metadata = { title: 'Lead · Counsel' };
 
 export default async function FirmLeadDetailPage({
   params,

@@ -7,7 +7,7 @@ export const metadata: Metadata = {
     "I'm Abel, the founder of Advottic. I built it because I think the legal system should be easier to walk into prepared. I'd love your help testing it - and your honest feedback.",
   alternates: { canonical: '/invite' },
   openGraph: {
-    title: 'A personal invitation from Abel · Advottic',
+    title: 'A personal invitation from Abel',
     description:
       "I built Advottic to help people walk into court prepared. I'd be honored if you tried it and told me what you think.",
     url: '/invite',

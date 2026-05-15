@@ -311,11 +311,23 @@ const checkStaleOAuthTokens: CheckDefinition = {
       };
     }
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    // Audit W20 V3 CR-21: the check used to read `token_expires_at`,
+    // but the actual firm_integrations column is `expires_at` (see
+    // supabase/fixes/2026-05-12-firm-integrations-and-rls-check.sql).
+    // The wrong column made every probe return a "does not exist"
+    // error that matched the "table missing" branch below, leaving
+    // the HQ Security pulse permanently in the "unknown" state even
+    // after the migration was applied. Aligning the column name lets
+    // the check actually report stale / fresh.
+    // Audit V5 CR-47: filter out revoked rows so a firm that
+    // disconnected + reconnected the same provider doesn't show up
+    // twice on the dashboard.
     const { data, error } = await admin
       .from('firm_integrations')
-      .select('id, provider, account_email, token_expires_at, updated_at')
-      .lt('token_expires_at', new Date().toISOString())
-      .order('token_expires_at', { ascending: true })
+      .select('id, provider, account_email, expires_at, connected_at, revoked_at')
+      .is('revoked_at', null)
+      .lt('expires_at', new Date().toISOString())
+      .order('expires_at', { ascending: true })
       .limit(50);
     if (error) {
       // The table may not exist yet; degrade gracefully.
@@ -335,25 +347,41 @@ const checkStaleOAuthTokens: CheckDefinition = {
       id: string;
       provider: string;
       account_email: string | null;
-      updated_at: string;
+      connected_at: string;
     }>;
-    const stale = expired.filter((r) => r.updated_at < oneDayAgo);
+    const stale = expired.filter((r) => r.connected_at < oneDayAgo);
     if (expired.length === 0) {
       return {
         status: 'healthy',
         message: 'No expired OAuth tokens in firm_integrations.',
       };
     }
+    // Audit V5 CR-47: the detail list previously showed
+    //   "zoom:contact@example.com, zoom:contact@example.com"
+    // because a revoked-but-not-deleted row plus the active row
+    // share the same (provider, account_email) tuple, and the
+    // `revoked_at is not null` rows aren't filtered upstream. We
+    // de-duplicate on the formatted "provider:account" key so each
+    // affected user appears once, regardless of how many rows their
+    // firm has accumulated. Counts above are unchanged - they
+    // represent rows, which is what the autofix actually iterates.
+    const seen = new Set<string>();
+    const detail = expired
+      .map((r) => `${r.provider}:${r.account_email ?? r.id}`)
+      .filter((key) => {
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .slice(0, 8)
+      .join(', ');
     return {
       status: stale.length > 0 ? 'warning' : 'healthy',
       message:
         stale.length > 0
           ? `${stale.length} expired token(s) not refreshed in 24h.`
           : `${expired.length} expired token(s) (will refresh on next use).`,
-      detail: expired
-        .slice(0, 8)
-        .map((r) => `${r.provider}:${r.account_email ?? r.id}`)
-        .join(', '),
+      detail,
       autofix:
         stale.length > 0
           ? {
@@ -536,6 +564,84 @@ const checkDocumentShaSpotCheck: CheckDefinition = {
   },
 };
 
+const checkAuthLatencyVariance: CheckDefinition = {
+  id: 'auth.latency_variance',
+  label: 'Auth probe latency variance',
+  category: 'auth',
+  // Audit CR-48: the auth probe (admin.auth.admin.listUsers) reports a
+  // single latency on each pulse, but a single sample can't tell a
+  // healthy 80ms probe from a degraded 800ms probe. This check fires
+  // the probe N times in a row, computes the mean + sample standard
+  // deviation, and warns when either drifts past the documented
+  // thresholds. Five back-to-back samples (~one second of wall time
+  // on a healthy box) is enough to catch GC pauses, transient
+  // Supabase pgbouncer hiccups, and slow-start regressions without
+  // dominating the pulse-run budget.
+  run: async ({ admin }) => {
+    if (!admin) {
+      return {
+        status: 'unknown',
+        message: 'Service role unavailable; cannot probe auth.',
+      };
+    }
+    const samples: number[] = [];
+    let lastError: string | null = null;
+    const SAMPLE_COUNT = 5;
+    for (let i = 0; i < SAMPLE_COUNT; i++) {
+      const t0 = Date.now();
+      try {
+        const { error } = await admin.auth.admin.listUsers({
+          page: 1,
+          perPage: 1,
+        });
+        const dt = Date.now() - t0;
+        if (error) {
+          lastError = error.message;
+        } else {
+          samples.push(dt);
+        }
+      } catch (err) {
+        lastError = err instanceof Error ? err.message : String(err);
+      }
+    }
+    if (samples.length === 0) {
+      return {
+        status: 'critical',
+        message: 'All auth latency samples failed.',
+        detail: lastError ?? 'Unknown auth-probe error.',
+      };
+    }
+    // Sample standard deviation (N-1) so the small-N case isn't
+    // optimistic. Mean rounded to whole ms for the message.
+    const mean = samples.reduce((a, b) => a + b, 0) / samples.length;
+    const variance =
+      samples.reduce((acc, s) => acc + (s - mean) ** 2, 0) /
+      Math.max(1, samples.length - 1);
+    const stddev = Math.sqrt(variance);
+    const max = Math.max(...samples);
+    // Thresholds: a clean Supabase ListUsers call typically sits at
+    // 80-180ms from us-east-1. Healthy variance is < 100ms 1-sigma;
+    // > 250ms 1-sigma OR > 1500ms peak is worth a warn; > 600ms 1-
+    // sigma OR > 3000ms peak is critical (something is queueing).
+    const status: 'healthy' | 'warning' | 'critical' =
+      stddev > 600 || max > 3000
+        ? 'critical'
+        : stddev > 250 || max > 1500
+          ? 'warning'
+          : 'healthy';
+    return {
+      status,
+      message: `Auth ${Math.round(mean)}ms +/- ${Math.round(stddev)}ms (n=${samples.length}, max ${max}ms)`,
+      detail:
+        status === 'healthy'
+          ? undefined
+          : `Samples (ms): ${samples.join(', ')}.${
+              lastError ? ` Latest error: ${lastError}` : ''
+            }`,
+    };
+  },
+};
+
 const checkSubdomainHealth: CheckDefinition = {
   id: 'deploy.subdomain',
   label: 'enterprise.advottic.com reachability',
@@ -586,6 +692,7 @@ export const ALL_CHECKS: CheckDefinition[] = [
   checkOpenSecurityEvents,
   checkLoginFailureSpike,
   checkDocumentShaSpotCheck,
+  checkAuthLatencyVariance, // audit CR-48
   checkSubdomainHealth,
 ];
 

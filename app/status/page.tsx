@@ -4,7 +4,7 @@ import { adminGetLiveHealth } from '@/lib/hq-storage';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const metadata = {
-  title: 'Status - Advottic',
+  title: 'Status',
   description:
     'Live operational status for Advottic. Probes Supabase, Stripe, Resend, and Anthropic in real time on every page load.',
 };

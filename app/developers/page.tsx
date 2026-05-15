@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { BreadcrumbJsonLd } from '@/components/seo/JsonLd';
 
 export const metadata = {
-  title: 'Developers - Advottic API and integrations',
+  title: { absolute: 'Developers · Advottic API and integrations' },
   description:
     'REST API, webhooks, and Capacitor SDK for building on top of Advottic. Read-only access to cases, contracts, and signing requests; write access for partners.',
   alternates: { canonical: '/developers' },

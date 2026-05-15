@@ -2,7 +2,11 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { COMPARISONS, type Comparison } from '@/lib/comparisons';
-import { BreadcrumbJsonLd, FaqJsonLd } from '@/components/seo/JsonLd';
+import {
+  BreadcrumbJsonLd,
+  ComparisonJsonLd,
+  FaqJsonLd,
+} from '@/components/seo/JsonLd';
 
 type Props = { params: { slug: string } };
 
@@ -77,6 +81,13 @@ export default function ComparePage({ params }: Props) {
         ]}
       />
       <FaqJsonLd questions={c.faq} />
+      {/* WebPage + about[two Brand entities] schema. Tells Google
+          explicitly that this page compares two named products - the
+          structured data analog of the H1 "Advottic vs <Competitor>". */}
+      <ComparisonJsonLd
+        competitorName={c.competitorName}
+        slug={c.slug}
+      />
 
       <nav
         aria-label="Breadcrumb"
@@ -246,7 +257,7 @@ export default function ComparePage({ params }: Props) {
       <aside className="rounded-xl ring-2 ring-gold-metal/60 dark:ring-amber-500/40 bg-gradient-to-b from-amber-50/40 to-transparent dark:from-amber-950/20 p-6 sm:p-8 space-y-4 max-w-3xl">
         <p className="eyebrow">Ready to try Advottic?</p>
         <p className="font-display text-xl sm:text-2xl text-forest-900 dark:text-cream-100 leading-tight">
-          14-day free trial. No credit card. Migrate from {c.competitorName} in
+          7-day free trial. No credit card. Migrate from {c.competitorName} in
           one click.
         </p>
         <p className="text-[14px] text-ink-600 dark:text-cream-100/75 leading-relaxed">
@@ -256,7 +267,7 @@ export default function ComparePage({ params }: Props) {
         </p>
         <div className="flex flex-wrap gap-3 pt-2">
           <Link href="/sign-in?next=/counsel/onboarding" className="btn-primary">
-            Start 14-day trial
+            Start 7-day trial
           </Link>
           <Link href="/pricing" className="btn-secondary">
             See all pricing

@@ -6,7 +6,7 @@ export const metadata = {
     'Which cookies Advottic uses, what each one does, how long it lives, and how to control them. Plain English.',
   alternates: { canonical: '/cookies' },
   openGraph: {
-    title: 'Cookie Policy · Advottic',
+    title: 'Cookie Policy',
     description:
       'Which cookies Advottic uses, what each one does, how long it lives, and how to control them.',
     url: '/cookies',

@@ -1,8 +1,29 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Capacitor } from '@capacitor/core';
-import { SpeechRecognition } from '@capacitor-community/speech-recognition';
+// Capacitor plugins are loaded at runtime via dynamic import so the
+// SSR module graph never resolves them. Importing them eagerly used
+// to pull native side-effects into the server render of every page
+// that transitively reaches /cases/new (smart-assist tree), which
+// surfaced as React #419 crashes on cases/new and on any other route
+// that shares its chunk graph. Audit V3 CR-22 / V5 CR-22.
+async function loadNativeMods() {
+  const [core, sr] = await Promise.all([
+    import('@capacitor/core'),
+    import('@capacitor-community/speech-recognition'),
+  ]);
+  return { Capacitor: core.Capacitor, SpeechRecognition: sr.SpeechRecognition };
+}
+
+// Synchronous "is this a native shell?" probe that doesn't trigger
+// the dynamic import. Capacitor sets `window.Capacitor` on app
+// boot, so we can read it the same way lib/biometric.ts does.
+function isNativeShellSync(): boolean {
+  if (typeof window === 'undefined') return false;
+  const cap = (window as { Capacitor?: { isNativePlatform?: () => boolean } })
+    .Capacitor;
+  return Boolean(cap?.isNativePlatform?.());
+}
 
 /**
  * Mic button that streams speech-to-text into a callback. Two paths:
@@ -36,14 +57,21 @@ export function VoiceDictateButton({
   const [path, setPath] = useState<'native' | 'web' | 'none'>('none');
   const [recording, setRecording] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // `SpeechRecognition` (the global DOM type) is the web-API recognizer
+  // ref; for the native path we stash a listener handle in here too,
+  // which is why the type is intentionally broad.
   const webRecRef = useRef<SpeechRecognition | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     async function detect() {
-      // Native path probe: only on Capacitor shells.
-      if (Capacitor.isNativePlatform()) {
+      // Native path probe: only on Capacitor shells. The native
+      // probe synchronously short-circuits on web via the
+      // window.Capacitor check so we never trigger the dynamic
+      // imports on desktop browsers.
+      if (isNativeShellSync()) {
         try {
+          const { SpeechRecognition } = await loadNativeMods();
           const avail = await SpeechRecognition.available();
           if (cancelled) return;
           if (avail.available) {
@@ -83,6 +111,7 @@ export function VoiceDictateButton({
   async function startNative() {
     setError(null);
     try {
+      const { SpeechRecognition } = await loadNativeMods();
       const perm = await SpeechRecognition.checkPermissions();
       if (perm.speechRecognition !== 'granted') {
         const req = await SpeechRecognition.requestPermissions();
@@ -130,6 +159,7 @@ export function VoiceDictateButton({
 
   async function stopNative() {
     try {
+      const { SpeechRecognition } = await loadNativeMods();
       await SpeechRecognition.stop();
       await SpeechRecognition.removeAllListeners();
     } catch {

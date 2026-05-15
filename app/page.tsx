@@ -87,17 +87,41 @@ export default async function HomePage() {
           layout but with firm-focused copy. */}
       <AudienceSplit active="personal" />
       <Hero existingCases={cases.length} signedIn={signedIn} />
-      <TrustBadges />
+      {/* Below-the-fold sections are wrapped in `cv-auto` so the browser
+          defers their layout / paint until they scroll near the viewport.
+          Per Week-1 audit (item #1): homepage FCP was 3.6 s, primarily
+          because the full ~7,100 px scroll height was being painted
+          synchronously. The class is defined in globals.css as
+          `content-visibility: auto; contain-intrinsic-size: 1px 800px`
+          which gives the browser permission to skip rendering for
+          off-screen content while still preserving SSR HTML for SEO. */}
+      <div className="cv-auto">
+        <TrustBadges />
+      </div>
       {/* Visual feature gallery - replaces the old text-heavy
           FlowTimeline + Personas + Outcomes block. Tap a tile,
           read the detail, jump straight to that surface. */}
-      <FeatureGallery />
-      <BellaShowcase />
-      <TestimonialMarquee />
-      <TechTrustStrip />
-      <AboutTeaser />
-      <Faq />
-      <FinalCta />
+      <div className="cv-auto">
+        <FeatureGallery />
+      </div>
+      <div className="cv-auto">
+        <BellaShowcase />
+      </div>
+      <div className="cv-auto">
+        <TestimonialMarquee />
+      </div>
+      <div className="cv-auto">
+        <TechTrustStrip />
+      </div>
+      <div className="cv-auto">
+        <AboutTeaser />
+      </div>
+      <div className="cv-auto">
+        <Faq />
+      </div>
+      <div className="cv-auto">
+        <FinalCta />
+      </div>
       <HomeStructuredData />
     </div>
   );
@@ -137,7 +161,7 @@ function HomeStructuredData() {
     },
     {
       q: 'Is there a free trial?',
-      a: 'Yes - 14 days on every paid tier, no credit card required. Trial-period exports are watermarked so they are obvious draft outputs, not final deliverables.',
+      a: 'Yes - 7 days on every paid tier, no credit card required. Trial-period exports are watermarked so they are obvious draft outputs, not final deliverables.',
     },
   ];
   return (
@@ -168,11 +192,23 @@ function Hero({
             <span className="inline-block h-px w-8 bg-gold-500 dark:bg-gold-400" />
             A quiet place to build your story
           </p>
+          {/*
+            Audit V7 CR-42 (expanded scope): the previous markup
+            placed a hard <br/> directly between the words "happen"
+            and "all", so innerText collapsed to "happenall" - a
+            screen-reader and SEO-crawler regression on the highest-
+            traffic page on the site. Explicit trailing space after
+            "happen " before the <br/> and a leading space inside the
+            <span> keep the text legible to assistive tech AND to
+            anything that strips line breaks, while the visual
+            wrap is unchanged (leading-[0.95] still hard-wraps at
+            the <br/>).
+          */}
           <h1 className="mt-5 font-display text-[44px] sm:text-[60px] lg:text-[80px] font-medium tracking-[-0.025em] leading-[0.95] text-forest-900 dark:text-cream-100">
-            Big things rarely happen
+            Big things rarely happen{' '}
             <br />
             <span className="bg-gold-shine bg-clip-text text-transparent gold-pan italic">
-              all at once.
+              {' '}all at once.
             </span>
           </h1>
           <p className="mt-6 text-[17px] sm:text-lg leading-relaxed text-ink-700 dark:text-cream-100/80 max-w-xl">

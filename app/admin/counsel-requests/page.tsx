@@ -5,7 +5,7 @@ import { FIRM_TYPE_LABEL, type FirmType } from '@/lib/firm-types';
 import { RequestActions } from './request-actions';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Counsel access requests - Advottic HQ' };
+export const metadata = { title: { absolute: 'Counsel access requests · Advottic HQ' } };
 
 type RequestRow = {
   id: string;

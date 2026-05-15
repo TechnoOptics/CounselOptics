@@ -5,7 +5,7 @@ import { createServerSupabase } from '@/lib/supabase/server';
 import { getContractType } from '@/lib/contract-types';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Contracts · Counsel · Advottic' };
+export const metadata = { title: 'Contracts · Counsel' };
 
 const STATUS_TONE: Record<string, string> = {
   stored:

@@ -5,7 +5,7 @@ import { createServerSupabase } from '@/lib/supabase/server';
 import { ConflictCheckPanel } from './conflict-check-panel';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Intake · Counsel · Advottic' };
+export const metadata = { title: 'Intake · Counsel' };
 
 const STATUS_TONE: Record<string, string> = {
   in_progress:

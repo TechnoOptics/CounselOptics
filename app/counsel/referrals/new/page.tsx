@@ -5,7 +5,7 @@ import { createServerSupabase } from '@/lib/supabase/server';
 import { ProposeReferralForm } from './propose-referral-form';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'New referral · Counsel · Advottic' };
+export const metadata = { title: 'New referral · Counsel' };
 
 export default async function NewReferralPage() {
   const ctx = await getActiveFirmContext();

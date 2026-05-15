@@ -2,7 +2,7 @@ import { runAllPulseChecks } from '@/lib/security-pulse';
 import { SecurityPulseShell } from './security-shell';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Security pulse - Advottic HQ' };
+export const metadata = { title: { absolute: 'Security pulse · Advottic HQ' } };
 
 export default async function HqSecurityPage() {
   // Run once on the server so the first paint already shows live

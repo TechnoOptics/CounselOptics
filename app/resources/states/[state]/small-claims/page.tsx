@@ -6,7 +6,7 @@ import {
   SMALL_CLAIMS_REVIEWED_AT,
   type StateSmallClaims,
 } from '@/lib/state-small-claims';
-import { BreadcrumbJsonLd } from '@/components/seo/JsonLd';
+import { BreadcrumbJsonLd, LegalServiceStateJsonLd } from '@/components/seo/JsonLd';
 
 /**
  * Programmatic per-state small-claims page. One route, 50 pages
@@ -83,6 +83,16 @@ export default function StateSmallClaimsPage({ params }: Props) {
           { name: 'States', href: '/resources/states' },
           { name: s.name, href: `/resources/states/${s.slug}/small-claims` },
         ]}
+      />
+      {/* LegalService schema with state-scoped areaServed - drives the
+          local SERP for "small claims [state]" queries and qualifies
+          the page for Google's Knowledge Panel for jurisdiction-aware
+          legal information. */}
+      <LegalServiceStateJsonLd
+        stateName={s.name}
+        stateSlug={s.slug}
+        filingFeeRange={s.filingFee}
+        monetaryCap={s.monetaryLimit.toLocaleString()}
       />
 
       <nav

@@ -6,7 +6,8 @@ import { listOpenTimer } from '@/lib/time-tracking';
 import { TimerWidget } from '@/components/TimerWidget';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Time · Counsel · Advottic' };
+// Audit W20 V3 CR-27: title template applies once at layout level.
+export const metadata = { title: 'Time · Counsel' };
 
 function fmtDuration(seconds: number) {
   const hours = seconds / 3600;

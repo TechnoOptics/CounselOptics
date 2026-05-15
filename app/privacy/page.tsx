@@ -6,7 +6,7 @@ export const metadata = {
     'What data Advottic collects, how we use it, who we share it with (almost nobody), how long we keep it, and how you control it.',
   alternates: { canonical: '/privacy' },
   openGraph: {
-    title: 'Privacy Policy · Advottic',
+    title: 'Privacy Policy',
     description:
       'Plain-English Privacy Policy covering account info, case content, sub-processors, retention, GDPR/CCPA rights, and children.',
     url: '/privacy',

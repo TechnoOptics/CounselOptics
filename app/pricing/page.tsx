@@ -1,13 +1,32 @@
 import Link from 'next/link';
-import { BreadcrumbJsonLd, FaqJsonLd } from '@/components/seo/JsonLd';
+import {
+  BreadcrumbJsonLd,
+  FaqJsonLd,
+  PricingProductJsonLd,
+} from '@/components/seo/JsonLd';
 import { TechTrustStrip } from '@/components/TechTrustStrip';
 import { SavingsCalculator } from '@/components/SavingsCalculator';
 
 export const metadata = {
-  title: 'Pricing - Advottic',
+  // Audit CR-46: previous title was 'Pricing - Advottic' which the
+  // root layout's "%s · Advottic" template then suffixed AGAIN,
+  // producing 'Pricing - Advottic · Advottic' in the browser tab.
+  // Use { absolute: ... } to opt out of the template and emit a
+  // single, clean title.
+  title: { absolute: 'Pricing · Advottic' },
   description:
     'Built on a foundation lawyers can defend. Personal plans from $19/mo and law-firm plans from $59/user/mo. AI-powered legal assistance for individuals; full practice management for firms.',
   alternates: { canonical: '/pricing' },
+  keywords: [
+    'advottic pricing',
+    'legal software pricing',
+    'AI legal assistant cost',
+    'law firm software pricing',
+    'pro se case software',
+    'Clio alternative pricing',
+    'Spellbook alternative pricing',
+    'legal tech subscription',
+  ],
   openGraph: {
     title: 'Advottic pricing - Built on a foundation lawyers can defend',
     description:
@@ -63,8 +82,13 @@ const CONSUMER_TIERS: Tier[] = [
       'Documents inbox + priority lawyer matching',
       'Extras: 25K tokens / item / month past the cap',
     ],
-    cta: { label: 'Start 14-day trial', href: '/billing?upgrade=pro' },
-    emphasized: true,
+    cta: { label: 'Start 7-day trial', href: '/billing?upgrade=pro' },
+    // emphasized intentionally false: audit W20 flagged "Most popular"
+    // badge appearing on Personal Pro AND Small Firm simultaneously,
+    // which collapses the badge's signal. Small Firm is the actual
+    // most-popular tier (its blurb already says "Most popular") so
+    // the badge lives there. Personal Pro is anchored by being the
+    // first paid tier in the consumer column, which is enough hierarchy.
   },
   {
     id: 'family',
@@ -85,7 +109,7 @@ const CONSUMER_TIERS: Tier[] = [
       'Priority response from matched firms (24h)',
       'Extras: 25K tokens / item / month past the cap',
     ],
-    cta: { label: 'Start 14-day trial', href: '/billing?upgrade=family' },
+    cta: { label: 'Start 7-day trial', href: '/billing?upgrade=family' },
   },
 ];
 
@@ -108,7 +132,7 @@ const FIRM_TIERS: Tier[] = [
       '10 e-sign requests / month',
       'Extras: 50K tokens / matter / month past the cap',
     ],
-    cta: { label: 'Start 14-day trial', href: '/counsel/onboarding' },
+    cta: { label: 'Start 7-day trial', href: '/counsel/onboarding' },
   },
   {
     id: 'firm',
@@ -131,7 +155,7 @@ const FIRM_TIERS: Tier[] = [
       'Priority email support',
       'Extras: 50K tokens / matter / month past the cap',
     ],
-    cta: { label: 'Start 14-day trial', href: '/counsel/onboarding' },
+    cta: { label: 'Start 7-day trial', href: '/counsel/onboarding' },
     emphasized: true,
   },
   {
@@ -156,7 +180,7 @@ const FIRM_TIERS: Tier[] = [
       'Quarterly business review',
       'Extras: 30K tokens / matter / month past the cap',
     ],
-    cta: { label: 'Start 14-day trial', href: '/counsel/request' },
+    cta: { label: 'Start 7-day trial', href: '/counsel/request' },
   },
   {
     id: 'enterprise',
@@ -198,8 +222,8 @@ const PRICING_FAQ: Array<{ q: string; a: string }> = [
     a: 'Items past your tier cap silently consume Bella tokens from your monthly grant - 25K tokens per extra item per month on Personal Pro / Plus, 50K on Solo / Small Firm, 30K on Growing Firm. You see the line in your billing history, and if your balance runs low you can buy a Boost pack or upgrade tiers. There are no surprise card charges.',
   },
   {
-    q: 'What happens at the end of the 14-day trial?',
-    a: "You're auto-enrolled on the tier you trialed. Cancel any time before day 14 to avoid the charge; downgrade to Free with one click.",
+    q: 'What happens at the end of the 7-day trial?',
+    a: "You're auto-enrolled on the tier you trialed. Cancel any time before day 7 to avoid the charge; downgrade to Free with one click.",
   },
   {
     q: 'Can I switch tiers later?',
@@ -225,6 +249,12 @@ export default function PricingPage() {
         ]}
       />
       <FaqJsonLd questions={PRICING_FAQ} />
+      {/* Product + AggregateOffer schema. The aggregate offer (lowPrice
+          $0, highPrice $1,800) is what unlocks the price + currency
+          snippet on commercial queries. AggregateRating is wired ONLY
+          once we accumulate real reviews to surface - false ratings
+          here would trigger Google's structured-data manual action. */}
+      <PricingProductJsonLd />
       <header className="text-center space-y-3 max-w-3xl mx-auto pt-4 sm:pt-8">
         {/* Audit V2-6: promote "Built on a foundation lawyers can defend"
             from the mid-page trust strip up to the hero eyebrow. This
@@ -242,7 +272,7 @@ export default function PricingPage() {
           you need; the platform is the same.
         </p>
         <div className="flex justify-center gap-6 pt-4 text-[12.5px] text-ink-500 dark:text-cream-100/55">
-          <span>14-day free trial on every paid tier</span>
+          <span>7-day free trial on every paid tier</span>
           <span aria-hidden>·</span>
           <span>20% off with annual prepay</span>
           <span aria-hidden>·</span>
@@ -342,8 +372,8 @@ export default function PricingPage() {
           a="No. Free is genuinely free; we collect a card only when you start a paid trial."
         />
         <Q
-          q="What happens at the end of the 14-day trial?"
-          a="You're auto-enrolled on the tier you trialed. Cancel any time before day 14 to avoid the charge; downgrade to Free with one click."
+          q="What happens at the end of the 7-day trial?"
+          a="You're auto-enrolled on the tier you trialed. Cancel any time before day 7 to avoid the charge; downgrade to Free with one click."
         />
         <Q
           q="Can I switch tiers later?"

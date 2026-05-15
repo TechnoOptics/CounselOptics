@@ -9,7 +9,7 @@ export const metadata: Metadata = {
     'A starting point for getting a public defender if you are facing criminal charges, plus civil legal-aid resources for non-criminal matters. State-by-state directory.',
   alternates: { canonical: '/public-defender' },
   openGraph: {
-    title: 'Find a public defender · Advottic',
+    title: 'Find a public defender',
     description:
       'State-by-state directory of public defender offices and civil legal-aid organizations. If you cannot afford a lawyer, you have options.',
     url: '/public-defender',
@@ -113,6 +113,96 @@ export default function PublicDefenderPage() {
       </section>
 
       <PublicDefenderPicker records={PUBLIC_DEFENDERS} />
+
+      {/* Server-rendered state-by-state public-defender + civil legal-aid
+          directory. Audit W20 P0 (bug B3) flagged that crawlers and no-JS
+          visitors saw an effectively-empty body because the picker above
+          is `'use client'`. This SSR block lists every state's primary
+          PD office, civil-legal-aid orgs, and the apply-for-counsel
+          steps so the page earns the high-intent search traffic
+          ("public defender [state]", "free legal aid near me") it
+          already targets in the meta keywords. */}
+      <section
+        id="state-directory"
+        className="space-y-6 scroll-mt-24"
+        aria-label="Public defender state directory"
+      >
+        <header className="space-y-2">
+          <p className="eyebrow">Every state · alphabetical</p>
+          <h2 className="font-display text-2xl sm:text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
+            Public defender offices, state by state.
+          </h2>
+          <p className="text-sm text-ink-600 dark:text-cream-100/70 leading-relaxed max-w-3xl">
+            Each state below lists the primary public-defender office (for
+            criminal cases) and the main civil legal-aid organizations (for
+            eviction, custody, debt, and similar non-criminal matters where
+            no right to appointed counsel attaches). Phone numbers and URLs
+            are the current public contact points; please verify on the
+            office&rsquo;s site before relying.
+          </p>
+        </header>
+        <div className="grid gap-4 sm:grid-cols-2">
+          {PUBLIC_DEFENDERS.slice()
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .map((r) => (
+              <article
+                key={r.code}
+                className="rounded-lg border border-ink-200/70 dark:border-forest-700/40 bg-cream-50/50 dark:bg-forest-900/40 p-4 space-y-2"
+              >
+                <header>
+                  <h3 className="font-display text-base font-medium text-forest-900 dark:text-cream-100">
+                    {r.name}
+                  </h3>
+                  <p className="text-[12px] text-ink-500 dark:text-cream-100/60 mt-0.5">
+                    {r.pdOffice.name}
+                  </p>
+                </header>
+                <p className="text-[12.5px] text-ink-700 dark:text-cream-100/80 leading-snug">
+                  {r.summary}
+                </p>
+                <div className="pt-1 flex flex-wrap gap-x-4 gap-y-1 text-[12.5px]">
+                  <a
+                    href={r.pdOffice.url}
+                    target="_blank"
+                    rel="noreferrer noopener nofollow"
+                    className="underline text-forest-900 dark:text-cream-100 hover:text-forest-700"
+                  >
+                    Public defender office →
+                  </a>
+                  {r.pdOffice.phone && (
+                    <a
+                      href={`tel:${r.pdOffice.phone.replace(/[^+\d]/g, '')}`}
+                      className="underline text-ink-700 dark:text-cream-100/80 hover:text-forest-700"
+                    >
+                      {r.pdOffice.phone}
+                    </a>
+                  )}
+                </div>
+                {r.civilLegalAid.length > 0 && (
+                  <div className="pt-1 text-[12px] leading-snug">
+                    <p className="text-[10px] uppercase tracking-[0.18em] font-semibold text-gold-700 dark:text-gold-300 mb-1">
+                      Civil legal aid
+                    </p>
+                    <ul className="space-y-0.5">
+                      {r.civilLegalAid.map((org) => (
+                        <li key={org.url}>
+                          <a
+                            href={org.url}
+                            target="_blank"
+                            rel="noreferrer noopener nofollow"
+                            className="underline text-ink-700 dark:text-cream-100/75 hover:text-forest-700"
+                          >
+                            {org.name}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </article>
+            ))}
+        </div>
+      </section>
 
       <section className="card p-6 text-center">
         <p className="eyebrow mb-2 justify-center">After you have a lawyer</p>

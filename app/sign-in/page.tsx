@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
@@ -6,6 +7,102 @@ import { BrandMark } from '@/components/BrandMark';
 import { BiometricUnlockGate } from '@/components/BiometricUnlockGate';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * Auth screens have no business in Google's index. Per Week-1 audit
+ * (May 13, 2026, item #2 + #10): noindex /sign-in so the brand query
+ * never serves the login page above richer pages, and so the entry is
+ * effectively dropped from the sitemap's signal. `follow` is kept so
+ * crawlers still walk the post-login navigation footprint via the
+ * standard footer / nav links rendered around the form.
+ *
+ * Canonical points to /sign-in (self) per audit W20 SEO finding: the
+ * earlier configuration left canonical undefined, which inherited the
+ * root-layout default of "/" - search engines then treated /sign-in as
+ * a duplicate of the homepage. Self-canonical + noindex is the
+ * "remove from index without confusing crawler" pattern that Google's
+ * own docs recommend.
+ *
+ * Page title is computed per-request via generateMetadata below so
+ * the browser tab reads "Sign in to Advottic HQ" / "Sign in to
+ * Advottic Counsel" / "Sign in to Advottic" depending on next=. Per
+ * V3 CR-13: the staff sign-in tab used to read the consumer marketing
+ * pitch, which was disorienting when staff had a HQ tab open next to
+ * a customer tab.
+ */
+export function generateMetadata({
+  searchParams,
+}: {
+  searchParams?: { next?: string };
+}): Metadata {
+  const next = sanitizeNext(searchParams?.next);
+  let pathForTitle = next;
+  try {
+    if (next.startsWith('http')) pathForTitle = new URL(next).pathname || '/';
+  } catch {
+    /* keep raw */
+  }
+  const title = pathForTitle.startsWith('/admin')
+    ? 'Sign in to Advottic HQ'
+    : pathForTitle.startsWith('/counsel')
+      ? 'Sign in to Advottic Counsel'
+      : 'Sign in to Advottic';
+  return {
+    // Audit V7 CR-59: the previous setup returned a plain string,
+    // which the root layout's "%s · Advottic" template suffixed
+    // again - producing "Sign in to Advottic · Advottic". Use
+    // { absolute: ... } so the brand appears exactly once. The
+    // staff-mode and counsel-mode variants already include the
+    // suffix the audience needs.
+    title: { absolute: title },
+    alternates: { canonical: '/sign-in' },
+    robots: {
+      index: false,
+      follow: true,
+      googleBot: { index: false, follow: true },
+    },
+  };
+}
+
+/**
+ * Resolve a subdomain-specific banner from the `next` parameter. The
+ * /sign-in page always renders on the apex (advottic.com) - even when
+ * the user lands here from hq.advottic.com or enterprise.advottic.com
+ * the middleware rewrites the host so PKCE cookies stick to one origin.
+ * That means the only signal of "where the user came from" is the
+ * post-login destination encoded in `next`.
+ *
+ * Per Week-1 audit item #7 (subdomain branding): admins arriving from
+ * HQ should see "HQ admin console", firms arriving from Enterprise
+ * should see "firm workspace", and standalone /sign-in stays generic.
+ */
+function bannerForNext(next: string): { eyebrow: string; helper: string } | null {
+  // `next` is sanitized upstream - it's either a same-origin path
+  // ("/admin", "/counsel/clients") or a same-org cross-subdomain URL
+  // (https://zinpro.advottic.com/...). Both forms surface the
+  // destination prefix the same way once we extract the pathname.
+  let path = next;
+  try {
+    if (next.startsWith('http')) {
+      path = new URL(next).pathname || '/';
+    }
+  } catch {
+    path = next;
+  }
+  if (path.startsWith('/admin')) {
+    return {
+      eyebrow: 'HQ admin console',
+      helper: "You're signing into the Advottic HQ admin console. Use the same account you registered with for staff access.",
+    };
+  }
+  if (path.startsWith('/counsel')) {
+    return {
+      eyebrow: 'Firm workspace',
+      helper: "You're signing into your firm's Advottic Counsel workspace. Use your firm-issued email for SSO.",
+    };
+  }
+  return null;
+}
 
 /**
  * Validate `next` for both same-origin path redirects (`/cases`,
@@ -39,6 +136,13 @@ function sanitizeNext(raw: string | undefined): string {
     }
   }
   if (raw.startsWith('/') && !raw.startsWith('//')) {
+    // Collapse sign-in alias paths to their bare workspace prefix so
+    // a stale link with next=/admin/sign-in (which 404s because no
+    // such route exists) lands the user on /admin after auth - the
+    // page they actually wanted. Mirror logic of SIGN_IN_ALIASES in
+    // lib/supabase/middleware.ts.
+    if (/^\/admin\/(sign-in|signin|login)\/?$/.test(raw)) return '/admin';
+    if (/^\/counsel\/(sign-in|signin|login)\/?$/.test(raw)) return '/counsel';
     return raw;
   }
   try {
@@ -60,6 +164,7 @@ export default async function SignInPage({
   searchParams?: { next?: string; error?: string; switch?: string };
 }) {
   const next = sanitizeNext(searchParams?.next);
+  const subdomainBanner = bannerForNext(next);
   // `?switch=1` (or `?switch=true`) means: the user landed here on
   // purpose to change accounts. Don't auto-bounce them onto whatever
   // session this browser already has - instead, show the "you're
@@ -102,14 +207,31 @@ export default async function SignInPage({
           <BrandMark size={180} />
         </div>
         <div className="relative z-10">
-        <p className="eyebrow mb-3">Welcome</p>
+        <p className="eyebrow mb-3">{subdomainBanner ? subdomainBanner.eyebrow : 'Welcome'}</p>
         <h1 className="font-display text-3xl font-medium tracking-[-0.015em] text-ink-950 leading-[1.05] mb-2">
           Sign in or create an account
         </h1>
         <p className="text-sm text-ink-600 leading-relaxed mb-6">
-          Continue with Google or Microsoft, or use a magic link. We&apos;ll create your
-          Advottic account on first sign-in - no separate signup form. Your case files,
-          exhibits, and reviews stay tied to your account.
+          {subdomainBanner
+            ? subdomainBanner.helper
+            : (
+              <>
+                {/*
+                  Audit W20 V3 CR-11: when NEXT_PUBLIC_APPLE_ENABLED=1
+                  the SignInButtons render an Apple button on the
+                  consumer surface too, but the marketing description
+                  here listed only Google + Microsoft. Now: Apple is
+                  named whenever the env flag is on (which is the
+                  current production posture), keeping the copy and
+                  the actual button list in sync.
+                */}
+                Continue with Google, Microsoft
+                {process.env.NEXT_PUBLIC_APPLE_ENABLED === '1' ? ', or Apple' : ''}
+                , or use a magic link. We&apos;ll create your Advottic account on first sign-in -
+                no separate signup form. Your case files, exhibits, and reviews stay tied to
+                your account.
+              </>
+            )}
         </p>
 
         {searchParams?.error && (
@@ -174,16 +296,60 @@ export default async function SignInPage({
           <SignInButtons next={next} />
         </BiometricUnlockGate>
 
+        {/*
+          Audit W20 V3 CR-12: the disclaimer below used to render the
+          consumer "we are not a law firm and Advottic is not legal
+          advice" copy regardless of audience. That copy was wrong for
+          staff signing into HQ (staff aren't organizing a case) and
+          for firms signing into Counsel (they ARE the law firm).
+          Now: pick the right line per audience based on the
+          sanitized `next` destination.
+        */}
         <p className="text-xs text-ink-500 mt-6 leading-relaxed">
-          By continuing you acknowledge that Advottic helps you organize your case -
-          we are not a law firm and Advottic is not legal advice.{' '}
-          <Link
-            href="/about"
-            className="underline underline-offset-2 hover:text-forest-900 dark:hover:text-cream-100"
-          >
-            Learn more
-          </Link>
-          .
+          {subdomainBanner?.eyebrow === 'HQ admin console' ? (
+            <>
+              Staff access is logged and audited. By continuing you
+              acknowledge the Advottic{' '}
+              <Link
+                href="/terms"
+                className="underline underline-offset-2 hover:text-forest-900 dark:hover:text-cream-100"
+              >
+                Terms
+              </Link>{' '}
+              and{' '}
+              <Link
+                href="/privacy"
+                className="underline underline-offset-2 hover:text-forest-900 dark:hover:text-cream-100"
+              >
+                Privacy
+              </Link>
+              .
+            </>
+          ) : subdomainBanner?.eyebrow === 'Firm workspace' ? (
+            <>
+              Your firm&apos;s Counsel workspace operates under your bar&apos;s
+              ethics rules and the Advottic{' '}
+              <Link
+                href="/terms"
+                className="underline underline-offset-2 hover:text-forest-900 dark:hover:text-cream-100"
+              >
+                Terms
+              </Link>
+              . The audit log captures every sign, share, and export.
+            </>
+          ) : (
+            <>
+              By continuing you acknowledge that Advottic helps you organize your case -
+              we are not a law firm and Advottic is not legal advice.{' '}
+              <Link
+                href="/about"
+                className="underline underline-offset-2 hover:text-forest-900 dark:hover:text-cream-100"
+              >
+                Learn more
+              </Link>
+              .
+            </>
+          )}
         </p>
         </div>
       </div>

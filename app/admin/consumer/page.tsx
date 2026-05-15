@@ -3,7 +3,7 @@ import { adminGetCounts, adminListFeedback } from '@/lib/storage';
 import { adminGetHqDashboardCounts } from '@/lib/hq-storage';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Consumer overview - Advottic HQ' };
+export const metadata = { title: { absolute: 'Consumer overview · Advottic HQ' } };
 
 /**
  * Consumer perspective overview. Surfaces the signals an admin needs
@@ -70,20 +70,48 @@ export default async function HqConsumerOverviewPage() {
               See all
             </Link>
           </header>
+          {/*
+            Audit W20 V3 CR-41: each feedback row now surfaces an
+            "age" pill that goes amber after 3 business days and
+            rose after 7. The triage SLA is "respond or resolve
+            within 3 business days for bugs, 7 for feature
+            requests" - the visual makes a stale queue
+            self-evident to anyone scanning HQ.
+          */}
           <ul className="space-y-2">
-            {openFeedback.map((f) => (
-              <li key={f.id} className="card p-4">
-                <div className="flex items-baseline justify-between gap-3 mb-1">
-                  <p className="text-[12px] uppercase tracking-wider font-semibold text-cream-100/60">
-                    {f.category} · {f.status}
-                  </p>
-                  <p className="text-[11px] text-cream-100/45 font-mono tabular-nums">
-                    {new Date(f.createdAt).toLocaleDateString()}
-                  </p>
-                </div>
-                <p className="text-[13px] text-cream-100/85 line-clamp-2">{f.body}</p>
-              </li>
-            ))}
+            {openFeedback.map((f) => {
+              const ageMs = Date.now() - Date.parse(f.createdAt);
+              const ageDays = Math.floor(ageMs / (24 * 60 * 60 * 1000));
+              const stale = ageDays >= 7;
+              const aging = !stale && ageDays >= 3;
+              return (
+                <li key={f.id} className="card p-4">
+                  <div className="flex items-baseline justify-between gap-3 mb-1">
+                    <p className="text-[12px] uppercase tracking-wider font-semibold text-cream-100/60">
+                      {f.category} · {f.status}
+                    </p>
+                    <div className="flex items-baseline gap-2">
+                      <span
+                        className={
+                          stale
+                            ? 'inline-flex items-center text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-rose-400/15 ring-1 ring-rose-300/40 text-rose-200'
+                            : aging
+                              ? 'inline-flex items-center text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-amber-400/15 ring-1 ring-amber-300/40 text-amber-200'
+                              : 'inline-flex items-center text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-cream-100/10 ring-1 ring-cream-100/15 text-cream-100/60'
+                        }
+                        title={`Open ${ageDays} day${ageDays === 1 ? '' : 's'}`}
+                      >
+                        {ageDays === 0 ? 'Today' : `${ageDays}d open`}
+                      </span>
+                      <p className="text-[11px] text-cream-100/45 font-mono tabular-nums">
+                        {new Date(f.createdAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-[13px] text-cream-100/85 line-clamp-2">{f.body}</p>
+                </li>
+              );
+            })}
           </ul>
         </section>
       )}

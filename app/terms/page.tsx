@@ -4,7 +4,7 @@ export const metadata = {
     'The terms governing use of Advottic, including the limits of our service (we are not a law firm), arbitration, and acceptable use.',
   alternates: { canonical: '/terms' },
   openGraph: {
-    title: 'Terms of Use · Advottic',
+    title: 'Terms of Use',
     description:
       'The terms governing use of Advottic - what we provide, what we do not (we are not a law firm), arbitration, and acceptable use.',
     url: '/terms',
@@ -110,7 +110,7 @@ export default function TermsPage() {
 
       <Section title="Limitation of liability">
         <p>
-          To the fullest extent permitted by law, Advottic&apos;s total liability for any claim
+          To the fullest extent permitted by law, Advottic&rsquo;s total liability for any claim
           arising from your use of the service is limited to the amount you paid us in the
           previous 12 months. We are not liable for indirect, consequential, or special damages.
         </p>

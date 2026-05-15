@@ -6,6 +6,10 @@ import { hasSafetyCue } from '@/lib/safety';
 import { hasDecisionCue } from '@/lib/decision-cues';
 import { SafetyAdvisory } from '@/components/SafetyAdvisory';
 import { CallALawyerCallout } from '@/components/CallALawyerCallout';
+// Canonical Bella sanitiser. Aliased to the historical local name
+// so call sites below don't change. See lib/bella-markdown.ts for
+// the audit P1-2 history.
+import { stripBellaMarkdown as stripMarkdownChrome } from '@/lib/bella-markdown';
 
 // Marker the server emits when Bella's navigate_to tool fires. We strip
 // it from the rendered text and call router.push so the user actually
@@ -19,63 +23,6 @@ function stripNavMarkers(s: string): { clean: string; paths: string[] } {
     return '';
   });
   return { clean, paths };
-}
-
-/**
- * Strip the markdown noise an LLM tends to emit even when told not
- * to: ** bold **, __ underline __, leading "# " headings, list
- * bullet prefixes ("- ", "* ", "1. "), inline `code` ticks, and
- * blockquote ">" markers.
- *
- * The display layer then sees plain prose, which reads like a
- * person typed it and not like a machine-generated chunk.
- *
- * Markdown-style links [text](url) are left intact - the chat
- * surface renders them as anchors which is genuinely useful (tel:
- * links, the operator WhatsApp number, etc.). EXCEPT: empty-anchor
- * links like [click here](#) get the chrome stripped because the
- * model emits those when it wants to reference a place it cannot
- * actually link to - rendering as a dead <a href="#"> is worse than
- * just showing the text.
- *
- * Audit 2026-05-12 P1-2: users saw literal asterisks + `[text](#)`
- * syntax in chat. Root causes addressed here:
- *   1. Empty-anchor links rendered as broken anchors -> stripped now.
- *   2. Single-newline emphasis (`*word*` spanning lines) bypassed the
- *      old regex's `[^*\n]+` restriction. Loosened.
- *   3. Trailing strays (an opening ** without a closing one at end of
- *      message) sat through render. Final-pass strip handles them.
- */
-function stripMarkdownChrome(s: string): string {
-  return s
-    // Empty-anchor markdown links [text](#) -> text (audit P1-2).
-    // The model emits these when it wants to gesture at a route it
-    // doesn't actually have a URL for. Rendering as <a href="#">
-    // makes a "clickable" link that does nothing - confusing.
-    .replace(/\[([^\]]+)\]\(\s*#\s*\)/g, '$1')
-    // **bold** / __bold__ -> bold
-    .replace(/\*\*([^*]+)\*\*/g, '$1')
-    .replace(/__([^_]+)__/g, '$1')
-    // *italic* / _italic_ -> italic (avoid matching bullet asterisks
-    // that have whitespace around them)
-    .replace(/(?<!\*)\*(?!\s)([^*\n]+?)(?<!\s)\*(?!\*)/g, '$1')
-    .replace(/(?<!_)_(?!\s)([^_\n]+?)(?<!\s)_(?!_)/g, '$1')
-    // `inline code` -> inline code
-    .replace(/`([^`\n]+)`/g, '$1')
-    // Leading "### Heading" -> "Heading"
-    .replace(/^#{1,6}\s+/gm, '')
-    // Leading "- ", "* ", "+ " bullet markers -> remove
-    .replace(/^\s*[-*+]\s+/gm, '')
-    // Leading "1. ", "2. " numbered list markers -> remove
-    .replace(/^\s*\d+\.\s+/gm, '')
-    // Leading "> " blockquote markers
-    .replace(/^>\s*/gm, '')
-    // Final safety net: any orphan ** or __ marker at end-of-text
-    // (model started a bold/italic but never closed it). Audit P1-2
-    // flagged these as visible during the type-out reveal. Stripping
-    // them is cosmetically safer than leaving them on screen.
-    .replace(/\*{1,2}$/g, '')
-    .replace(/_{1,2}$/g, '');
 }
 
 type Message = { role: 'user' | 'assistant'; content: string };

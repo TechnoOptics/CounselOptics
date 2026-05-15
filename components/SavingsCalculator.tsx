@@ -332,7 +332,7 @@ export function SavingsCalculator() {
           href="/sign-in?next=/counsel/onboarding"
           className="btn-primary"
         >
-          Start a 14-day free trial
+          Start a 7-day free trial
         </Link>
         <Link href="/compare" className="btn-secondary">
           See feature comparisons

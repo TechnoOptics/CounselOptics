@@ -9,7 +9,7 @@ import { SignatureCapture } from './signature-capture';
 export const dynamic = 'force-dynamic';
 
 export const metadata = {
-  title: 'Sign document · Advottic',
+  title: 'Sign document',
   description:
     'Review and sign a document inside Advottic. The link stays in the app, the document never leaves.',
   robots: { index: false, follow: false },

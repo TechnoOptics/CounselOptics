@@ -9,7 +9,7 @@ export const metadata: Metadata = {
     'Get matched with a law firm on Advottic Counsel, or browse nearby firms via Google Maps. Free directory, no account required.',
   alternates: { canonical: '/find-counsel' },
   openGraph: {
-    title: 'Find counsel near you · Advottic',
+    title: 'Find counsel near you',
     description:
       'Get matched with a vetted Advottic firm in your state, or browse nearby attorneys and civil legal-aid offices on Google Maps.',
     url: '/find-counsel',

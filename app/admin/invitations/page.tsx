@@ -4,7 +4,7 @@ import { InviteForm } from './invite-form';
 import { GrantActions } from './grant-actions';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Counsel invitations - Advottic HQ' };
+export const metadata = { title: { absolute: 'Counsel invitations · Advottic HQ' } };
 
 export default async function HqInvitationsPage() {
   const grants = await adminListGrants();

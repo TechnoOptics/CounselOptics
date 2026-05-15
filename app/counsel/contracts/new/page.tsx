@@ -4,7 +4,7 @@ import { getActiveFirmContext } from '@/lib/firm-storage';
 import { ContractUploadForm } from '@/app/contracts/new/upload-form';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'New contract · Counsel · Advottic' };
+export const metadata = { title: 'New contract · Counsel' };
 
 export default async function NewFirmContractPage() {
   const ctx = await getActiveFirmContext();

@@ -80,12 +80,33 @@ export function ReviewPanel({
             Generate a structured, jurisdiction-aware issue-spotting summary
             grounded in your case description and exhibits.
           </p>
+          {/*
+            Audit W20 V3 CR-24: this CTA used to lack `disabled={pending}`
+            and a loading state, so the first click looked like a no-op
+            (the pending spinner was on the smaller header button only).
+            Users would re-click - the second click hit while the first
+            request was still in flight, sometimes succeeding, sometimes
+            racing. Adding disabled={pending} + a spinner + a label
+            swap fixes both the perceptual problem (click feels alive)
+            and the race (second click is blocked by the disabled flag).
+          */}
           <button
             onClick={trigger}
-            className="btn bg-gold-metal text-forest-950 hover:brightness-110 shadow-gold-glow font-semibold px-5 py-2.5"
+            disabled={pending}
+            aria-busy={pending}
+            className="btn bg-gold-metal text-forest-950 hover:brightness-110 shadow-gold-glow font-semibold px-5 py-2.5 disabled:opacity-70 disabled:cursor-progress"
           >
-            <SparkleIcon />
-            Run Advottic Review
+            {pending ? (
+              <>
+                <Spinner />
+                Reading the case…
+              </>
+            ) : (
+              <>
+                <SparkleIcon />
+                Run Advottic Review
+              </>
+            )}
           </button>
         </div>
       )}

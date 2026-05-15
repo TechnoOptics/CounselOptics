@@ -3,7 +3,7 @@ import { adminListCases } from '@/lib/storage';
 import { STATUS_LABEL, SUBJECT_TYPE_LABEL, type CaseStatus } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Cases - Advottic HQ' };
+export const metadata = { title: { absolute: 'Cases · Advottic HQ' } };
 
 const STATUS_STYLES: Record<CaseStatus, string> = {
   draft:

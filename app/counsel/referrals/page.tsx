@@ -4,7 +4,7 @@ import { getActiveFirmContext } from '@/lib/firm-storage';
 import { createServerSupabase } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Co-counsel referrals · Counsel · Advottic' };
+export const metadata = { title: 'Co-counsel referrals · Counsel' };
 
 const STATUS_TONE: Record<string, string> = {
   proposed:

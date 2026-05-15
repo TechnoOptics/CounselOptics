@@ -25,6 +25,81 @@ body {
 .safe-pad-bottom { padding-bottom: var(--safe-bottom); }
 .safe-mb-bottom { margin-bottom: var(--safe-bottom); }
 
+/*
+  Skip-when-offscreen utility. Per Week-1 audit (item #1), the marketing
+  page's FCP was 3.6 s because the browser was painting the entire
+  ~7,100 px scroll height synchronously. `content-visibility: auto` lets
+  the engine skip layout / paint for elements that are well off-screen,
+  bringing FCP in line with above-the-fold cost only.
+
+  `contain-intrinsic-size: 1px 800px` reserves a height placeholder so
+  the scrollbar doesn't snap on first scroll, and so anchor links to
+  below-fold sections still scroll to roughly the right offset before
+  the deferred content materializes. 800 px is a "wide enough" guess for
+  any section on the homepage; the exact number doesn't matter once the
+  section paints normally.
+
+  Supported in Chromium (84+), Edge (84+), Safari 18+, and the engine
+  falls back to "render normally" on unsupported browsers (Firefox at
+  time of writing) - meaning this is a pure progressive-enhancement win
+  with no fallback risk.
+*/
+.cv-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: 1px 800px;
+}
+
+/*
+  Enterprise shell - full-bleed dark gradient.
+
+  The /enterprise route renders inside the root layout's max-w-7xl
+  main container, so without help the deep-forest background would
+  stop at 1280px and the page would show body color on either side
+  on wider monitors. This rule escapes the container using the
+  viewport-margin trick (margin-left: calc(50% - 50vw)) so the
+  gradient stretches edge-to-edge regardless of screen width, while
+  the inner .max-w-7xl wrapper still caps content width for
+  readability. Mobile + tablet already escape via Tailwind's
+  -mx-4 / -mx-6; this rule only kicks in beyond the lg breakpoint
+  where the page actually has room to overflow.
+*/
+/*
+  Pull the enterprise shell up so the dark forest meets the header
+  with no cream gap. The layout's main container has py-6 (24px)
+  default and sm:py-10 (40px) above, which would otherwise paint a
+  cream band between the consumer header and the enterprise shell.
+  Negative top margin equal to the layout's top padding closes it.
+
+  !important matches the rest of the .enterprise-shell rule (see
+  note in the @media block below for why).
+*/
+.enterprise-shell {
+  margin-top: -1.5rem !important;
+}
+@media (min-width: 640px) {
+  .enterprise-shell {
+    margin-top: -2.5rem !important;
+  }
+}
+@media (min-width: 1024px) {
+  /*
+    !important is reluctant but necessary: the enterprise page also
+    carries Tailwind's `-mx-4 sm:-mx-6` which compiles to a class of
+    equal specificity to .enterprise-shell. Source order doesn't help
+    in production because Tailwind's JIT-emitted utility CSS sometimes
+    lands in a later cascade layer than @layer utilities-following
+    custom rules. !important here is scoped tightly (one class, one
+    media query) and only used to win against a same-specificity
+    Tailwind utility, not to mask a real conflict.
+  */
+  .enterprise-shell {
+    margin-left: calc(50% - 50vw) !important;
+    margin-right: calc(50% - 50vw) !important;
+    padding-left: max(1.5rem, calc(50vw - 40rem)) !important;
+    padding-right: max(1.5rem, calc(50vw - 40rem)) !important;
+  }
+}
+
 @font-face {
   font-family: 'Conquera';
   src:

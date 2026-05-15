@@ -1,7 +1,16 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { JURISDICTIONS } from '@/lib/jurisdictions';
+import { JURISDICTIONS, type Jurisdiction } from '@/lib/jurisdictions';
 import { FileExhibitsPicker } from './picker';
+
+// Short labels for the SSR directory's pro-se badge column. Mirrors
+// the labels in picker.tsx but tighter for the inline list use.
+const PRO_SE_SHORT: Record<Jurisdiction['proSeAllowed'], string> = {
+  yes: 'Pro se OK',
+  limited: 'Pro se limited',
+  no: 'Attorneys only',
+  'paper-fallback': 'Paper filing',
+};
 
 export const metadata: Metadata = {
   title: 'File exhibits with the court',
@@ -9,7 +18,7 @@ export const metadata: Metadata = {
     'A starting point for filing exhibits in U.S. federal court and every state court. Pick your jurisdiction to see the e-filing portal, accepted formats, fee waivers, and service-of-process basics.',
   alternates: { canonical: '/file-exhibits' },
   openGraph: {
-    title: 'File exhibits with the court · Advottic',
+    title: 'File exhibits with the court',
     description:
       'State-by-state e-filing portal directory: federal PACER, every state e-filing system, accepted formats, and fee-waiver information.',
     url: '/file-exhibits',
@@ -93,6 +102,93 @@ export default function FileExhibitsPage() {
       <FederalCard jurisdiction={federal} />
 
       <FileExhibitsPicker states={states} />
+
+      {/* Server-rendered state directory. Audit W20 P0 (bug B2) flagged
+          that crawlers and no-JS users saw an effectively-empty body
+          because the FileExhibitsPicker above is `'use client'` -
+          excellent UX (geo-sort + search), but invisible to Google and
+          Bing without JS execution. This SSR block is the canonical
+          state-by-state list: every state, court system, portal link
+          (rel=nofollow noreferrer to government sites), accepted formats,
+          and a fee-waiver flag. SEO crawlers index it; screen readers
+          read it; the interactive picker enhances on hydration. */}
+      <section
+        id="state-directory"
+        className="space-y-6 scroll-mt-24"
+        aria-label="State court e-filing directory"
+      >
+        <header className="space-y-2">
+          <p className="eyebrow">Every state · alphabetical</p>
+          <h2 className="font-display text-2xl sm:text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
+            Court e-filing portals, state by state.
+          </h2>
+          <p className="text-sm text-ink-600 dark:text-cream-100/70 leading-relaxed max-w-3xl">
+            Each link goes to the court&rsquo;s official e-filing landing page.
+            Court rules change; the entry-point URL stays stable. Re-verify
+            filing fees and waiver eligibility on the court&rsquo;s own site
+            before relying on the figures here.
+          </p>
+        </header>
+        <div className="grid gap-4 sm:grid-cols-2">
+          {states
+            .slice()
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .map((j) => (
+              <article
+                key={j.code}
+                className="rounded-lg border border-ink-200/70 dark:border-forest-700/40 bg-cream-50/50 dark:bg-forest-900/40 p-4 space-y-1.5"
+              >
+                <div className="flex items-baseline justify-between gap-2">
+                  <h3 className="font-display text-base font-medium text-forest-900 dark:text-cream-100">
+                    {j.name}
+                  </h3>
+                  <span className="text-[10px] uppercase tracking-[0.16em] text-ink-500 dark:text-cream-100/55 font-semibold">
+                    {PRO_SE_SHORT[j.proSeAllowed]}
+                  </span>
+                </div>
+                <p className="text-[12.5px] text-ink-600 dark:text-cream-100/65 leading-snug">
+                  {j.courtName}
+                </p>
+                <p className="text-[12.5px] text-ink-700 dark:text-cream-100/75 leading-snug">
+                  <span className="font-semibold text-forest-800 dark:text-cream-100">
+                    Accepted formats:
+                  </span>{' '}
+                  {j.formats}
+                </p>
+                <div className="pt-1.5 flex flex-wrap gap-3 text-[12.5px]">
+                  <a
+                    href={j.portalUrl}
+                    target="_blank"
+                    rel="noreferrer noopener nofollow"
+                    className="underline text-forest-900 dark:text-cream-100 hover:text-forest-700"
+                  >
+                    Open e-filing portal →
+                  </a>
+                  {j.feeWaiver?.url && (
+                    <a
+                      href={j.feeWaiver.url}
+                      target="_blank"
+                      rel="noreferrer noopener nofollow"
+                      className="underline text-ink-600 dark:text-cream-100/70 hover:text-forest-700"
+                    >
+                      Fee waiver
+                    </a>
+                  )}
+                  {j.selfHelpUrl && (
+                    <a
+                      href={j.selfHelpUrl}
+                      target="_blank"
+                      rel="noreferrer noopener nofollow"
+                      className="underline text-ink-600 dark:text-cream-100/70 hover:text-forest-700"
+                    >
+                      Self-help
+                    </a>
+                  )}
+                </div>
+              </article>
+            ))}
+        </div>
+      </section>
 
       <section className="card p-6 text-center">
         <p className="eyebrow mb-2 justify-center">If filing is the next problem</p>

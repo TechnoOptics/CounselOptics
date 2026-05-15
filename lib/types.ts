@@ -237,10 +237,25 @@ export type Profile = {
 
 export type Tier = 'basic' | 'standard' | 'pro';
 
+/**
+ * Display labels for the three legacy consumer tiers. The internal
+ * slug values stay `basic | standard | pro` because they're already
+ * persisted in Stripe subscriptions, the subscriptions table, and
+ * webhooks - renaming them would orphan every existing customer.
+ *
+ * The LABELS were re-aligned 2026-05-14 to match the public /pricing
+ * surface (Audit W20 V3 CR-19): public ladder shows Personal Pro $19,
+ * Personal Plus $29, then firm tiers. The in-app /billing card used to
+ * show "Basic $9 · Standard $19 · Pro $50" - completely different
+ * names AND prices from public. Now they match: Free $0 → Personal
+ * Pro $19 → Personal Plus $29. Firm tiers (Solo, Small Firm, Growing,
+ * Enterprise) live exclusively on /pricing and are reachable from
+ * /billing via a "See firm tiers" cross-link.
+ */
 export const TIER_LABEL: Record<Tier, string> = {
-  basic: 'Basic',
-  standard: 'Standard',
-  pro: 'Pro',
+  basic: 'Free',
+  standard: 'Personal Pro',
+  pro: 'Personal Plus',
 };
 
 export type TierFeatures = {
@@ -266,6 +281,24 @@ export type TierFeatures = {
   monthlyPriceUsd: number;
 };
 
+/**
+ * Per-tier feature matrix.
+ *
+ * Prices + case caps re-aligned 2026-05-14 to match the public /pricing
+ * ladder (Audit W20 V3 CR-19):
+ *
+ *   basic    -> Free       · $0/mo  · 1 item    (was $9/mo, 1 case)
+ *   standard -> Personal Pro · $19/mo · 20 items (was $19/mo, 5 cases)
+ *   pro      -> Personal Plus · $29/mo · 50 items (was $50/mo, unlimited)
+ *
+ * `caseLimit` is now an integer instead of `null` for the top tier;
+ * the public /pricing surface and the new TIER_ITEM_LIMITS in
+ * lib/token-packages.ts both encode 50 items for Personal Plus. The
+ * code paths that read `caseLimit === null` as "unlimited" are
+ * audited - none remain that depend on the unlimited semantics; the
+ * gauge in app/billing/page.tsx uses calculateOverage() which honors
+ * the integer cap directly.
+ */
 export const TIER_FEATURES: Record<Tier, TierFeatures> = {
   basic: {
     caseLimit: 1,
@@ -277,21 +310,21 @@ export const TIER_FEATURES: Record<Tier, TierFeatures> = {
     eFilingDirectory: true,
     publicDefenderDirectory: true,
     proTokens: false,
-    monthlyPriceUsd: 9,
+    monthlyPriceUsd: 0,
   },
   standard: {
-    caseLimit: 5,
+    caseLimit: 20,
     aiReview: true,
     pdfExport: true,
     bella: true,
     collaborators: false,
     eFilingDirectory: true,
     publicDefenderDirectory: true,
-    proTokens: false,
+    proTokens: true,
     monthlyPriceUsd: 19,
   },
   pro: {
-    caseLimit: null,
+    caseLimit: 50,
     aiReview: true,
     pdfExport: true,
     bella: true,
@@ -299,7 +332,7 @@ export const TIER_FEATURES: Record<Tier, TierFeatures> = {
     eFilingDirectory: true,
     publicDefenderDirectory: true,
     proTokens: true,
-    monthlyPriceUsd: 50,
+    monthlyPriceUsd: 29,
   },
 };
 

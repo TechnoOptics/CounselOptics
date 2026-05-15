@@ -194,10 +194,29 @@ function ConnectorCard({
 
       {isConnected && connection && (
         <p className="text-xs text-ink-600 dark:text-cream-100/65 mt-3">
-          Connected as{' '}
-          <span className="font-mono text-forest-900 dark:text-cream-100">
-            {connection.account_email ?? connection.account_display_name ?? 'unknown'}
+          {/*
+            Audit W20 V3 CR-40: the connection used to render only
+            the email, which could belong to a different domain than
+            the firm's primary identity (e.g. an operator who
+            connected Zoom with their personal email while signed
+            into the firm under a different alias). Now we lead
+            with the display name when available and put the email
+            in a quieter monospaced tail so a new staff member can
+            see WHO connected the integration as well as which
+            account is in use.
+          */}
+          Connected by{' '}
+          <span className="text-forest-900 dark:text-cream-100 font-semibold">
+            {connection.account_display_name ?? connection.account_email ?? 'unknown'}
           </span>
+          {connection.account_display_name && connection.account_email && (
+            <>
+              {' '}using{' '}
+              <span className="font-mono text-ink-700 dark:text-cream-100/85">
+                {connection.account_email}
+              </span>
+            </>
+          )}
           {' '}&middot;{' '}
           {new Date(connection.connected_at).toLocaleDateString()}
         </p>

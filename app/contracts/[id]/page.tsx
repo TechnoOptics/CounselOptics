@@ -6,7 +6,7 @@ import { ReviewPanel } from './review-panel';
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
-  title: 'Contract - Advottic',
+  title: 'Contract',
   robots: { index: false, follow: false },
 };
 

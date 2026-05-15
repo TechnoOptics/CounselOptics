@@ -71,10 +71,29 @@ export function CreateIntakeForm({ firmId }: { firmId: string }) {
 
       <div className="grid sm:grid-cols-2 gap-3">
         <label className="block">
+          {/*
+            Audit W20 V3 CR-9: required-field marker. Previously the
+            "Client name" field used the bare native `required` attr -
+            screen-readers and sighted users alike had no visual cue
+            that the field was mandatory until submit. The asterisk
+            + aria-required="true" + the matched aria-describedby
+            link to the error region make the requirement legible
+            in both the visual and the accessibility tree.
+          */}
           <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-            Client name
+            Client name{' '}
+            <span aria-hidden className="text-rose-600 dark:text-rose-300">
+              *
+            </span>
+            <span className="sr-only">(required)</span>
           </span>
-          <input name="clientName" required className="input" />
+          <input
+            name="clientName"
+            required
+            aria-required="true"
+            aria-describedby="intake-form-error"
+            className="input"
+          />
         </label>
         <label className="block">
           <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
@@ -142,11 +161,27 @@ export function CreateIntakeForm({ firmId }: { firmId: string }) {
         />
       </label>
 
-      {error && (
-        <p className="rounded-lg border border-rose-200 dark:border-rose-700/40 bg-rose-50 dark:bg-rose-950/30 px-3 py-2 text-sm text-rose-800 dark:text-rose-200">
-          {error}
-        </p>
-      )}
+      {/*
+        Live error region. aria-live="polite" so screen readers
+        announce validation failures without interrupting whatever
+        the user is reading. role="alert" alone would interrupt;
+        polite is the right call for a non-blocking form.
+        id matches the aria-describedby on the required input
+        so an AT user navigating the field hears the error
+        inline before they submit again.
+      */}
+      <div
+        id="intake-form-error"
+        role="status"
+        aria-live="polite"
+        className={error ? 'block' : 'hidden'}
+      >
+        {error && (
+          <p className="rounded-lg border border-rose-200 dark:border-rose-700/40 bg-rose-50 dark:bg-rose-950/30 px-3 py-2 text-sm text-rose-800 dark:text-rose-200">
+            {error}
+          </p>
+        )}
+      </div>
 
       <div className="flex justify-end">
         <button type="submit" className="btn-primary" disabled={pending}>

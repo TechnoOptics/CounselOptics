@@ -27,14 +27,55 @@
  * testing so we don't add native build complexity to v1.0.
  */
 
-import {
-  BiometricAuth,
-  BiometryError,
-  BiometryErrorType,
+// Type-only imports keep the static dependency surface in the type
+// system while the actual native modules are deferred to runtime via
+// the lazy `nativeMods()` helper below. Without this, every page that
+// transitively imports lib/biometric (e.g. BiometricSessionSync in
+// the root layout) would load three Capacitor plugins at SSR module
+// resolution time. Those plugins access globals like `window` and
+// `Capacitor` on import, which throws inside the Node SSR worker and
+// surfaces as React error #419 ("server could not finish this
+// Suspense boundary"). The hands-on V3 audit traced 29 such crashes
+// across /sign-in, /file-exhibits, /public-defender, and the OAuth
+// callback - all roots of the auth and SEO funnels.
+import type {
+  BiometryError as BiometryErrorClass,
+  BiometryErrorType as BiometryErrorTypeEnum,
   BiometryType,
 } from '@aparajita/capacitor-biometric-auth';
-import { Preferences } from '@capacitor/preferences';
-import { Capacitor } from '@capacitor/core';
+
+/**
+ * Dynamically load the three Capacitor plugins on first use. The
+ * import() calls only execute in the browser (every call site below
+ * is guarded by isNativeShell() which itself short-circuits when
+ * window is undefined), so the SSR pass never touches them.
+ *
+ * Cached on the module after the first call so subsequent unlocks
+ * skip the dynamic-import cost.
+ */
+let nativeModsCache: {
+  BiometricAuth: typeof import('@aparajita/capacitor-biometric-auth').BiometricAuth;
+  BiometryError: typeof import('@aparajita/capacitor-biometric-auth').BiometryError;
+  BiometryErrorType: typeof import('@aparajita/capacitor-biometric-auth').BiometryErrorType;
+  Preferences: typeof import('@capacitor/preferences').Preferences;
+  Capacitor: typeof import('@capacitor/core').Capacitor;
+} | null = null;
+async function nativeMods() {
+  if (nativeModsCache) return nativeModsCache;
+  const [bio, prefs, core] = await Promise.all([
+    import('@aparajita/capacitor-biometric-auth'),
+    import('@capacitor/preferences'),
+    import('@capacitor/core'),
+  ]);
+  nativeModsCache = {
+    BiometricAuth: bio.BiometricAuth,
+    BiometryError: bio.BiometryError,
+    BiometryErrorType: bio.BiometryErrorType,
+    Preferences: prefs.Preferences,
+    Capacitor: core.Capacitor,
+  };
+  return nativeModsCache;
+}
 
 // Storage keys. Prefixed with `advottic-bio-` so we never collide with
 // Supabase's own auth storage keys, and so a future "wipe biometric
@@ -47,9 +88,19 @@ export type BiometricStatus =
   | { available: true; type: BiometryType; reason: null }
   | { available: false; type: null; reason: string };
 
-/** True only inside a Capacitor native shell (iOS / Android). Web returns false. */
+/**
+ * True only inside a Capacitor native shell (iOS / Android). Web
+ * returns false. Used as a fast synchronous guard at the top of every
+ * other function in this module so SSR never reaches the dynamic
+ * Capacitor import. The probe reads `window.Capacitor` directly -
+ * Capacitor sets that global on app boot in the native shell, so we
+ * get the answer without awaiting the dynamic-import promise.
+ */
 export function isNativeShell(): boolean {
-  return Capacitor.isNativePlatform();
+  if (typeof window === 'undefined') return false;
+  const cap = (window as { Capacitor?: { isNativePlatform?: () => boolean } })
+    .Capacitor;
+  return Boolean(cap?.isNativePlatform?.());
 }
 
 /**
@@ -62,6 +113,7 @@ export async function checkBiometricStatus(): Promise<BiometricStatus> {
     return { available: false, type: null, reason: 'Not on a native device.' };
   }
   try {
+    const { BiometricAuth } = await nativeMods();
     const info = await BiometricAuth.checkBiometry();
     if (info.isAvailable) {
       return { available: true, type: info.biometryType, reason: null };
@@ -81,18 +133,30 @@ export async function checkBiometricStatus(): Promise<BiometricStatus> {
   }
 }
 
-/** Human-friendly label for the local biometric, matched to the device. */
+/**
+ * Human-friendly label for the local biometric, matched to the device.
+ *
+ * Capacitor's BiometryType is a TypeScript enum. The string values are
+ * stable across plugin versions, so we compare against literals here
+ * instead of importing the enum - that keeps this function callable
+ * synchronously from any UI without awaiting the dynamic plugin
+ * import. If the plugin ever renames its enum members we'd need to
+ * update the literals here; that's a one-line maintenance cost
+ * traded for SSR safety on every page.
+ */
 export function biometryLabel(type: BiometryType | null): string {
-  switch (type) {
-    case BiometryType.faceId:
+  // Coerce to string so the comparison is robust to numeric-vs-string
+  // enum representations.
+  switch (String(type)) {
+    case 'faceId':
       return 'Face ID';
-    case BiometryType.touchId:
+    case 'touchId':
       return 'Touch ID';
-    case BiometryType.fingerprintAuthentication:
+    case 'fingerprintAuthentication':
       return 'fingerprint';
-    case BiometryType.faceAuthentication:
+    case 'faceAuthentication':
       return 'face unlock';
-    case BiometryType.irisAuthentication:
+    case 'irisAuthentication':
       return 'iris scan';
     default:
       return 'biometric';
@@ -106,6 +170,7 @@ export function biometryLabel(type: BiometryType | null): string {
  */
 export async function isBiometricEnrolled(): Promise<boolean> {
   if (!isNativeShell()) return false;
+  const { Preferences } = await nativeMods();
   const { value } = await Preferences.get({ key: PREFS_REFRESH_TOKEN });
   return Boolean(value);
 }
@@ -118,6 +183,7 @@ export async function isBiometricEnrolled(): Promise<boolean> {
  */
 export async function getEnrolledEmail(): Promise<string | null> {
   if (!isNativeShell()) return null;
+  const { Preferences } = await nativeMods();
   const { value } = await Preferences.get({ key: PREFS_USER_EMAIL });
   return value;
 }
@@ -134,6 +200,7 @@ export async function enrollBiometric(input: {
   email: string;
 }): Promise<void> {
   if (!isNativeShell()) return;
+  const { Preferences } = await nativeMods();
   const now = new Date().toISOString();
   await Promise.all([
     Preferences.set({ key: PREFS_REFRESH_TOKEN, value: input.refreshToken }),
@@ -149,6 +216,7 @@ export async function enrollBiometric(input: {
  */
 export async function clearBiometric(): Promise<void> {
   if (!isNativeShell()) return;
+  const { Preferences } = await nativeMods();
   await Promise.all([
     Preferences.remove({ key: PREFS_REFRESH_TOKEN }),
     Preferences.remove({ key: PREFS_USER_EMAIL }),
@@ -177,6 +245,8 @@ export async function restoreSessionWithBiometric(
   if (!enrolled) {
     return { ok: false, reason: 'no-enrollment', message: 'No biometric enrolled.' };
   }
+  const { BiometricAuth, BiometryError, BiometryErrorType, Preferences } =
+    await nativeMods();
   try {
     await BiometricAuth.authenticate({
       reason,

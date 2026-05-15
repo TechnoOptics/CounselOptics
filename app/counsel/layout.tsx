@@ -144,7 +144,12 @@ export default async function CounselLayout({
       <div className="flex-1 flex w-full max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 gap-6">
         {active ? (
           <aside className="hidden md:block w-56 flex-none">
-            <CounselSidebar firm={active.firm} membership={active.membership} />
+            <CounselSidebar
+              firm={active.firm}
+              membership={active.membership}
+              pathname={pathname}
+              tenantMode={isTenantSubdomain}
+            />
           </aside>
         ) : null}
         <main className="flex-1 min-w-0">{children}</main>

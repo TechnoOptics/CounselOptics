@@ -25,6 +25,42 @@ To install:
 
 This requires a Mac (for iOS), Xcode 15+, and Android Studio. You can do Android-only on Windows/Linux.
 
+### Version posture (verified 2026-05-14)
+
+| Layer                       | Version       | Notes                                                                 |
+| --------------------------- | ------------- | --------------------------------------------------------------------- |
+| `@capacitor/core`           | **8.3.4**     | Latest stable Capacitor 8.x — `^8.3.4` pinned in `package.json`.     |
+| `@capacitor/cli`            | **8.3.4**     | Matched to core. Runs `cap sync`, `cap add ios`, etc.                 |
+| `@capacitor/android`        | **8.3.4**     | Android shell library; pulls AGP 8.13.0 + Gradle 8.x.                 |
+| `@capacitor/ios`            | **8.3.4**     | iOS shell library; pulls Swift 5.9 toolchain.                         |
+| `@capacitor/app`            | **8.1.0**     | Deep-link + lifecycle bridge.                                         |
+| `@capacitor/browser`        | **8.0.3**     | In-app browser for OAuth redirect flow.                               |
+| `@capacitor/device`         | **8.0.2**     | Stable device fingerprint helper.                                     |
+| `@capacitor/preferences`    | **8.0.1**     | Native key-value storage backing the biometric refresh token.         |
+| Android `compileSdkVersion` | **36**        | Android 16 — current Google Play maximum. Lives in `android/variables.gradle`. |
+| Android `targetSdkVersion`  | **36**        | Same.                                                                  |
+| Android `minSdkVersion`     | **24**        | Android 7.0 — Capacitor 8's floor, covers ~99% of active devices.   |
+| iOS deployment target       | **14.0**      | Set in `capacitor.config.ts` (`ios.minVersion`). Capacitor 8's floor; iPhone 6s and newer. |
+| Android Gradle Plugin       | **8.13.0**    | Pinned in `android/build.gradle`. Matches the toolchain that ships with Capacitor 8.3.x. |
+
+To re-verify after a dependency bump:
+
+```sh
+# Check published versions against package.json
+for pkg in @capacitor/core @capacitor/cli @capacitor/android @capacitor/ios \
+          @capacitor/app @capacitor/browser @capacitor/device @capacitor/preferences; do
+  printf "%-32s " "$pkg"
+  npm view "$pkg" version
+done
+```
+
+### What changed 2026-05-14
+
+- Bumped `@capacitor/core / cli / android / ios` from `^8.3.1` to `^8.3.4` (patches only — no breaking changes).
+- Bumped `@capacitor/app` to `^8.1.0`, `@capacitor/browser` to `^8.0.3` (also patches).
+- Added an explicit `ios.minVersion: '14.0'` to `capacitor.config.ts` so a fresh `cap add ios` regenerates the Xcode project with the right deployment-target baseline. iOS 14 is Capacitor 8's published minimum.
+- All Capacitor plugin imports in `lib/biometric.ts`, `lib/device-fingerprint.ts`, and `app/sign-in/sign-in-buttons.tsx` are loaded dynamically inside functions (not statically at module top) — this protects the SSR pass from native-only module side effects. See React #419 fix in audit W20 V3.
+
 ### One-time setup
 
 ```sh

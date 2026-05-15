@@ -6,7 +6,7 @@ import { listConsumerInboxDocuments } from '@/lib/firm-storage';
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
-  title: 'Documents · Inbox · Advottic',
+  title: 'Documents · Inbox',
   description:
     'Documents that law firms have sent you to review and sign, plus a record of what you have already executed.',
   robots: { index: false, follow: false },

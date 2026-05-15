@@ -6,7 +6,7 @@ export const metadata = {
     'How Advottic supports keyboard navigation, screen readers, reduced-motion preferences, and assistive technology across the case-management product.',
   alternates: { canonical: '/accessibility' },
   openGraph: {
-    title: 'Accessibility · Advottic',
+    title: 'Accessibility',
     description:
       'Keyboard navigation, screen-reader support, reduced motion, color contrast, and the accessible channels you can use to reach us.',
     url: '/accessibility',

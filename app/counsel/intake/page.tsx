@@ -5,7 +5,11 @@ import { createServerSupabase } from '@/lib/supabase/server';
 import { CreateIntakeForm } from './create-intake-form';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Intake · Counsel · Advottic' };
+// Title intentionally omits the · Advottic suffix - the root layout's
+// metadata.title.template ('%s · Advottic') adds it automatically.
+// Audit W20 V3 CR-27: this page (along with /trust and /time) was
+// double-suffixing, producing "Advottic · Advottic" in the browser tab.
+export const metadata = { title: 'Intake · Counsel' };
 
 const STATUS_TONE: Record<string, string> = {
   in_progress:

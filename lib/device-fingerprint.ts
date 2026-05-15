@@ -22,18 +22,38 @@
  * than the device that produced it.
  */
 
-import { Capacitor } from '@capacitor/core';
-import { Device } from '@capacitor/device';
-
+// Capacitor + Device plugin imports are deferred to runtime via the
+// `loadNative()` helper below. Static imports here would execute on
+// the SSR pass for every page that transitively loads device-finger
+// print (the root layout's DeviceFingerprintRecorder), throwing
+// inside Node and surfacing as React #419. The dynamic import only
+// runs on the client, and only inside a native shell where the
+// plugins are actually wired.
 const STORAGE_KEY = 'advottic-device-id';
 
 let cached: string | null = null;
 
+async function loadNative() {
+  const [core, device] = await Promise.all([
+    import('@capacitor/core'),
+    import('@capacitor/device'),
+  ]);
+  return { Capacitor: core.Capacitor, Device: device.Device };
+}
+
+function isNativePlatformSync(): boolean {
+  if (typeof window === 'undefined') return false;
+  const cap = (window as { Capacitor?: { isNativePlatform?: () => boolean } })
+    .Capacitor;
+  return Boolean(cap?.isNativePlatform?.());
+}
+
 export async function getDeviceId(): Promise<string> {
   if (cached) return cached;
 
-  if (Capacitor.isNativePlatform()) {
+  if (isNativePlatformSync()) {
     try {
+      const { Device } = await loadNative();
       const info = await Device.getId();
       // Plugin returns { identifier } on Capacitor 6+; older
       // versions used { uuid }. Accept either.

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { Firm, FirmMember } from '@/lib/firm-types';
+import { isCounselItemActive, tenantHref } from '@/lib/counsel-routing';
 
 const ITEMS: Array<{
   href: string;
@@ -24,51 +25,108 @@ const ITEMS: Array<{
   { href: '/counsel/trust', label: 'Trust', icon: <SignIcon />, hint: 'IOLTA ledger' },
 ];
 
+// `isCounselItemActive` and `tenantHref` live in lib/counsel-routing.ts
+// so the URL logic can be unit-tested without bundling React. The
+// regression script in scripts/test/counsel-routing.mjs runs in CI and
+// guards against the V3/V4/V5 audit's recurring "Firm settings
+// dead-click" finding (CR-5 / CR-28).
+
 export function CounselSidebar({
   firm,
   membership,
+  pathname,
+  tenantMode = false,
 }: {
   firm: Firm;
   membership: FirmMember;
+  /**
+   * Effective pathname forwarded by the layout via the x-pathname
+   * header. Audit W20 V3 CR-14: previously the sidebar had no
+   * active-state highlight at all, and the hover treatment looked
+   * identical to what a user expected the current page to look like.
+   * Now: hover is a soft tint (cream-50 / forest-800), active is a
+   * filled pill with a left-border accent + bold label - visually
+   * distinct enough to never be confused.
+   */
+  pathname: string;
+  /**
+   * True when the page is being served from a tenant subdomain
+   * (enterprise.advottic.com, <slug>.advottic.com). In that mode the
+   * URL bar elides the /counsel prefix, so the sidebar hrefs need to
+   * elide it too - otherwise every link bounces through a Step-1
+   * 307 redirect. Audit V5 CR-5/CR-28.
+   */
+  tenantMode?: boolean;
 }) {
   return (
     <nav className="card p-3 sticky top-24 space-y-0.5">
       <p className="text-[10px] uppercase tracking-[0.2em] font-semibold text-ink-500 dark:text-cream-100/55 px-2 pt-1 pb-2">
         {firm.name}
       </p>
-      {ITEMS.map((item) => (
-        <Link
-          key={item.href}
-          href={item.href}
-          className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-sm text-ink-800 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/60 hover:text-forest-900 dark:hover:text-cream-100 transition-colors"
-        >
-          <span
-            className="h-5 w-5 rounded inline-flex items-center justify-center text-white flex-none"
-            style={{ backgroundColor: firm.accentColor, opacity: 0.85 }}
-            aria-hidden
-          >
-            {item.icon}
-          </span>
-          <span className="flex-1">{item.label}</span>
-          <span className="text-[10px] text-ink-400 dark:text-cream-100/45">{item.hint}</span>
-        </Link>
-      ))}
-      {(membership.role === 'owner' || membership.role === 'admin') && (
-        <>
-          <div className="my-2 border-t border-ink-100 dark:border-forest-700/40" />
+      {ITEMS.map((item) => {
+        const active = isCounselItemActive(item.href, pathname);
+        const href = tenantHref(item.href, tenantMode);
+        return (
+          // Audit V3 CR-28 / V5 CR-5+CR-28: prefetch={false} + the
+          // tenantHref mapping together avoid the dead-click symptom.
+          // The tenantHref keeps the click off the redirect entirely;
+          // prefetch={false} keeps the apex case (no rewrite) honest
+          // by not caching a stale prefetch when middleware logic
+          // changes. Cost: ~one server round-trip per navigation,
+          // invisible at the latencies this site operates at.
           <Link
-            href="/counsel/settings"
-            className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-sm text-ink-800 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/60 hover:text-forest-900 dark:hover:text-cream-100 transition-colors"
+            key={item.href}
+            href={href}
+            prefetch={false}
+            aria-current={active ? 'page' : undefined}
+            data-testid={`counsel-sidebar-${item.href.replace(/^\//, '').replace(/\//g, '-') || 'root'}`}
+            className={
+              active
+                ? 'flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-sm font-semibold text-forest-900 dark:text-cream-100 bg-forest-900/10 dark:bg-cream-100/10 ring-1 ring-forest-900/15 dark:ring-cream-100/15 border-l-2 border-forest-900 dark:border-gold-400 transition-colors'
+                : 'flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-sm text-ink-800 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/60 hover:text-forest-900 dark:hover:text-cream-100 transition-colors'
+            }
           >
             <span
               className="h-5 w-5 rounded inline-flex items-center justify-center text-white flex-none"
-              style={{ backgroundColor: firm.accentColor, opacity: 0.85 }}
+              style={{ backgroundColor: firm.accentColor, opacity: active ? 1 : 0.85 }}
               aria-hidden
             >
-              <GearIcon />
+              {item.icon}
             </span>
-            <span>Firm settings</span>
+            <span className="flex-1">{item.label}</span>
+            <span className="text-[10px] text-ink-400 dark:text-cream-100/45">{item.hint}</span>
           </Link>
+        );
+      })}
+      {(membership.role === 'owner' || membership.role === 'admin') && (
+        <>
+          <div className="my-2 border-t border-ink-100 dark:border-forest-700/40" />
+          {(() => {
+            const active = isCounselItemActive('/counsel/settings', pathname);
+            const href = tenantHref('/counsel/settings', tenantMode);
+            return (
+              <Link
+                href={href}
+                prefetch={false}
+                data-testid="counsel-sidebar-settings"
+                aria-current={active ? 'page' : undefined}
+                className={
+                  active
+                    ? 'flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-sm font-semibold text-forest-900 dark:text-cream-100 bg-forest-900/10 dark:bg-cream-100/10 ring-1 ring-forest-900/15 dark:ring-cream-100/15 border-l-2 border-forest-900 dark:border-gold-400 transition-colors'
+                    : 'flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-sm text-ink-800 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/60 hover:text-forest-900 dark:hover:text-cream-100 transition-colors'
+                }
+              >
+                <span
+                  className="h-5 w-5 rounded inline-flex items-center justify-center text-white flex-none"
+                  style={{ backgroundColor: firm.accentColor, opacity: active ? 1 : 0.85 }}
+                  aria-hidden
+                >
+                  <GearIcon />
+                </span>
+                <span>Firm settings</span>
+              </Link>
+            );
+          })()}
         </>
       )}
     </nav>

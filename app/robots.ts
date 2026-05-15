@@ -1,24 +1,61 @@
 import type { MetadataRoute } from 'next';
+import { headers } from 'next/headers';
 
 const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
   (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://advottic.com');
 
 /**
- * Crawler policy. Public marketing routes are open. Anything that
- * touches user data, auth, billing, or admin is hard-blocked - we do
- * not want signed-out search-engine requests indexing case files,
- * Stripe checkout redirects, or admin dashboards.
+ * Crawler policy. Three tiers:
  *
- * Two AI-crawler bots are explicitly disallowed:
- *   - GPTBot (OpenAI training crawler)
- *   - CCBot (Common Crawl, used downstream by many model trainers)
- * Search-aware AI crawlers like Google-Extended, PerplexityBot, and
- * ChatGPT-User remain allowed because they cite the source - that
- * pattern is a referral channel, not training data theft. Adjust to
- * taste.
+ * 1. **Apex (advottic.com / www.advottic.com)** - the canonical brand
+ *    surface. Public marketing routes are wide open, with positive
+ *    welcomes to the major search engines + cite-back AI crawlers.
+ *    Anything that touches user data, auth, billing, or admin is
+ *    hard-blocked.
+ *
+ * 2. **HQ (hq.advottic.com)** - staff console, never public. Serve a
+ *    "Disallow: /" robots.txt so even a passing crawler that follows
+ *    a leaked link drops the URL immediately.
+ *
+ * 3. **Enterprise / tenant (enterprise.advottic.com,
+ *    <firm>.advottic.com)** - host aliases for canonical apex
+ *    content. Also "Disallow: /" so the ranking signal concentrates
+ *    on the apex URL the canonical metadata points at.
+ *
+ * AI crawler policy on the apex:
+ *   - **Disallowed**: GPTBot, CCBot, Bytespider, ClaudeBot,
+ *     anthropic-ai, Diffbot, Omgilibot, FacebookBot - training-only
+ *     crawlers that don't cite the source.
+ *   - **Allowed**: Google-Extended (Gemini / AI Overviews),
+ *     PerplexityBot, ChatGPT-User (search-mode), Applebot-Extended,
+ *     OAI-SearchBot, cohere-ai - they cite the source so the
+ *     downstream traffic is a referral channel.
  */
 export default function robots(): MetadataRoute.Robots {
+  // Pull the request host so we can serve a stricter policy on the
+  // non-apex subdomains. headers() is request-scoped, so this still
+  // statically generates per-request.
+  const host = headers().get('host') ?? '';
+  const isApex = host === 'advottic.com' || host === 'www.advottic.com' || host === '';
+  const isHq = host === 'hq.advottic.com';
+
+  if (!isApex) {
+    // HQ + Enterprise + tenant subdomains: block every crawler entirely.
+    // The defense-in-depth pattern - middleware already injects an
+    // X-Robots-Tag: noindex header, but robots.txt is the FIRST file
+    // a polite crawler reads. Telling Bingbot "Disallow: /" before it
+    // even fetches the home page is cheaper than waiting for it to
+    // discover the noindex meta.
+    return {
+      rules: [{ userAgent: '*', disallow: '/' }],
+      // Intentionally omit `sitemap` here - we never want a non-apex
+      // crawler to find the apex sitemap from a noindex'd host (it
+      // would create duplicate-content signal hints).
+      host: isHq ? 'https://hq.advottic.com' : `https://${host}`,
+    };
+  }
+
   return {
     rules: [
       {
@@ -45,18 +82,47 @@ export default function robots(): MetadataRoute.Robots {
           '/inbox/',
           '/inbox',
           '/sign/',
+          '/sign-in',
           '/auth/',
           '/auth',
+          '/hq-welcome',
           '/_next/',
           '/static/',
         ],
       },
-      // Block training-only AI crawlers that don't cite or drive
-      // referrals. Citing crawlers like PerplexityBot, ChatGPT-User,
-      // and Google-Extended (Bard / AI Overviews) remain allowed
-      // because they're a referral channel, not training-data theft.
+      // Positive welcome to the major search engines + cite-back AI
+      // crawlers. Restating "Allow: /" + "Disallow: <auth paths>" per
+      // bot is redundant (the wildcard rule covers them) but it makes
+      // the policy explicit to a human reading robots.txt and to bots
+      // that prefer the most specific rule.
+      { userAgent: 'Googlebot', allow: '/' },
+      { userAgent: 'Googlebot-News', allow: '/' },
+      { userAgent: 'Googlebot-Image', allow: '/' },
+      { userAgent: 'Bingbot', allow: '/' },
+      { userAgent: 'DuckDuckBot', allow: '/' },
+      { userAgent: 'Applebot', allow: '/' },
+      { userAgent: 'Slurp', allow: '/' }, // Yahoo
+      { userAgent: 'YandexBot', allow: '/' },
+      { userAgent: 'Baiduspider', allow: '/' },
+      // Cite-back AI crawlers - these drive referrals, treat as search
+      // engines, not training-data thieves.
+      { userAgent: 'Google-Extended', allow: '/' },
+      { userAgent: 'PerplexityBot', allow: '/' },
+      { userAgent: 'ChatGPT-User', allow: '/' },
+      { userAgent: 'OAI-SearchBot', allow: '/' },
+      { userAgent: 'Applebot-Extended', allow: '/' },
+      { userAgent: 'cohere-ai', allow: '/' },
+      // Hard-block training-only AI crawlers that don't cite or refer.
       { userAgent: 'GPTBot', disallow: '/' },
       { userAgent: 'CCBot', disallow: '/' },
+      { userAgent: 'Bytespider', disallow: '/' },
+      { userAgent: 'ClaudeBot', disallow: '/' },
+      { userAgent: 'anthropic-ai', disallow: '/' },
+      { userAgent: 'Diffbot', disallow: '/' },
+      { userAgent: 'Omgilibot', disallow: '/' },
+      { userAgent: 'FacebookBot', disallow: '/' },
+      { userAgent: 'Meta-ExternalAgent', disallow: '/' },
+      { userAgent: 'AI2Bot', disallow: '/' },
     ],
     sitemap: `${SITE_URL}/sitemap.xml`,
     host: SITE_URL,

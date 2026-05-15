@@ -3,8 +3,105 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
+// Storage keys / cookie name. Both the legacy localStorage key and
+// the cross-subdomain cookie name are read at boot so users who
+// ack'd before the cross-domain migration aren't re-prompted.
 const STORAGE_KEY = 'co-cookie-ack';
+const COOKIE_KEY = 'co_cookie_ack';
 type Choice = 'accepted' | 'declined' | 'configured';
+
+/**
+ * Where the cookie's Domain attribute should point so that one ack
+ * on advottic.com is honored by enterprise.advottic.com,
+ * hq.advottic.com, and any future tenant subdomain.
+ *
+ * Strategy (audit V5 CR-50):
+ *   - Walk the hostname from right to left.
+ *   - Skip the public-suffix label (last two labels usually: `co.uk`,
+ *     `advottic.com`). We treat anything below the apex `.advottic.com`
+ *     as a subdomain to share into.
+ *   - Use `.advottic.com` when on advottic.com or *.advottic.com.
+ *   - For localhost / IP / preview deploys (vercel.app), fall back
+ *     to host-scoped (no Domain attr) - there's nothing to share.
+ *
+ * We intentionally don't try to detect arbitrary parent domains; the
+ * production deployment lives on advottic.com and we hard-code that.
+ */
+function consentCookieDomain(): string | null {
+  if (typeof location === 'undefined') return null;
+  const host = location.hostname;
+  // Bare apex + every subdomain of advottic.com → write at parent.
+  if (host === 'advottic.com' || host.endsWith('.advottic.com')) {
+    return '.advottic.com';
+  }
+  return null;
+}
+
+/**
+ * Read the existing consent record. Tries the cross-subdomain cookie
+ * first (post-V5 storage), then falls back to the host-scoped
+ * localStorage value users on the previous build may already have.
+ */
+function readStoredChoice(): { choice: Choice } | null {
+  if (typeof document !== 'undefined') {
+    const match = document.cookie
+      .split(';')
+      .map((p) => p.trim())
+      .find((p) => p.startsWith(COOKIE_KEY + '='));
+    if (match) {
+      const raw = decodeURIComponent(match.slice(COOKIE_KEY.length + 1));
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed.choice === 'string') {
+          return { choice: parsed.choice as Choice };
+        }
+      } catch {
+        /* fall through to localStorage */
+      }
+    }
+  }
+  try {
+    const legacy = localStorage.getItem(STORAGE_KEY);
+    if (!legacy) return null;
+    const parsed = JSON.parse(legacy);
+    if (parsed && typeof parsed.choice === 'string') {
+      return { choice: parsed.choice as Choice };
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+/**
+ * Write the consent record to BOTH the cross-subdomain cookie and
+ * legacy localStorage (the latter so a user who clears cookies but
+ * keeps localStorage still doesn't get re-prompted, and for back-
+ * compat with any older codepath still reading localStorage).
+ */
+function writeStoredChoice(payload: object) {
+  const serialized = JSON.stringify(payload);
+  // Cookie write
+  try {
+    if (typeof document !== 'undefined') {
+      const domain = consentCookieDomain();
+      // 13 months - Apple/Google's cap on first-party cookies.
+      const maxAge = 60 * 60 * 24 * 397;
+      const domainAttr = domain ? `; Domain=${domain}` : '';
+      const secure = location.protocol === 'https:' ? '; Secure' : '';
+      document.cookie =
+        `${COOKIE_KEY}=${encodeURIComponent(serialized)}; Max-Age=${maxAge}; Path=/${domainAttr}; SameSite=Lax${secure}`;
+    }
+  } catch {
+    /* ignore */
+  }
+  // localStorage mirror
+  try {
+    localStorage.setItem(STORAGE_KEY, serialized);
+  } catch {
+    /* ignore */
+  }
+}
 
 /**
  * GDPR-style cookie banner. On first visit we open the full
@@ -28,26 +125,22 @@ export function CookieBanner() {
   const [marketing, setMarketing] = useState(false);
 
   useEffect(() => {
-    try {
-      const ack = localStorage.getItem(STORAGE_KEY);
-      if (!ack) setShow(true);
-    } catch {
-      /* ignore */
-    }
+    // Read whichever store has the ack - cookie wins so a user who
+    // ack'd on advottic.com is never re-prompted on enterprise. or
+    // hq.advottic.com (audit V5 CR-50). If we only find a legacy
+    // localStorage record, the writer below will mirror it into the
+    // cookie on next persist() call.
+    const stored = readStoredChoice();
+    if (!stored) setShow(true);
   }, []);
 
   function persist(choice: Choice) {
-    try {
-      const payload = JSON.stringify({
-        choice,
-        analytics,
-        marketing,
-        at: new Date().toISOString(),
-      });
-      localStorage.setItem(STORAGE_KEY, payload);
-    } catch {
-      /* ignore */
-    }
+    writeStoredChoice({
+      choice,
+      analytics,
+      marketing,
+      at: new Date().toISOString(),
+    });
     setShow(false);
   }
 
@@ -129,28 +222,30 @@ export function CookieBanner() {
               {' · '}
               <Link href="/terms" className="underline">Terms</Link>
             </p>
+            {/*
+              Audit W20 V3 CR-26: the dialog used to offer "Accept
+              essentials / Configure / Decline non-essentials" - but
+              there ARE no non-essentials today (the /cookies page
+              and the body text above both say so), so the decline +
+              configure buttons read as theatre. Collapsed to a
+              single "Got it" CTA. When/if we add non-essential
+              cookies in the future, restore the toggle UI behind
+              a feature flag.
+            */}
             <div className="flex flex-wrap items-center gap-2 pt-1">
               <button
                 type="button"
                 onClick={() => persist('accepted')}
                 className="btn-primary text-[13px] px-3.5 py-2"
               >
-                Accept essentials
+                Got it
               </button>
-              <button
-                type="button"
-                onClick={() => setPhase('configure')}
-                className="btn-secondary text-[13px] px-3.5 py-2"
-              >
-                Configure
-              </button>
-              <button
-                type="button"
-                onClick={() => persist('declined')}
+              <Link
+                href="/cookies"
                 className="text-[11.5px] text-ink-500 dark:text-cream-100/55 hover:text-forest-900 dark:hover:text-cream-100 underline ml-auto"
               >
-                Decline non-essentials
-              </button>
+                Read the full policy
+              </Link>
             </div>
           </div>
         )}

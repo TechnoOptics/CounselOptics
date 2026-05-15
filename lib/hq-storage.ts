@@ -7,6 +7,7 @@
  */
 
 import { createAdminSupabase } from './supabase/admin';
+import { isCrashNoise } from './crash-noise';
 import type { FirmType } from './firm-types';
 
 // =====================================================================
@@ -238,7 +239,10 @@ export type HqDashboardCounts = {
     expiredGrants: number;
   };
   ops: {
+    /** Noise-filtered count - matches the default visible count on /admin/crashes (V3 CR-23). */
     crashOpen: number;
+    /** Raw unfiltered count - includes Script error / Firefox / ResizeObserver noise. */
+    crashOpenRaw: number;
     healthStatus: 'pass' | 'fail' | 'unknown';
     healthLastRun: string | null;
     healthFailureCount: number;
@@ -257,7 +261,7 @@ export async function adminGetHqDashboardCounts(): Promise<HqDashboardCounts> {
         pendingGrants: 0,
         expiredGrants: 0,
       },
-      ops: { crashOpen: 0, healthStatus: 'unknown', healthLastRun: null, healthFailureCount: 0 },
+      ops: { crashOpen: 0, crashOpenRaw: 0, healthStatus: 'unknown', healthLastRun: null, healthFailureCount: 0 },
     };
   }
 
@@ -282,10 +286,18 @@ export async function adminGetHqDashboardCounts(): Promise<HqDashboardCounts> {
     admin.from('firms').select('id', { count: 'exact', head: true }),
     admin.from('firm_access_requests').select('status'),
     admin.from('firm_access_grants').select('expires_at, accepted_at'),
+    // Audit W20 V3 CR-23: fetch the actual rows so we can subtract
+    // the noise (script-error / firefox-extension / ResizeObserver
+    // false positives) before reporting an open-count. Previously
+    // the head:true count returned the raw 49 while the crashes
+    // page defaulted to "Open (44)" + "+5 noise hidden" - that gap
+    // left operators asking "where did the 5 go?" Now both surfaces
+    // report the same noise-filtered number.
     admin
       .from('crash_reports')
-      .select('id', { count: 'exact', head: true })
-      .is('acknowledged_at', null),
+      .select('id, message')
+      .is('acknowledged_at', null)
+      .limit(500),
     admin
       .from('system_health')
       .select('ran_at, probes, failures')
@@ -344,7 +356,16 @@ export async function adminGetHqDashboardCounts(): Promise<HqDashboardCounts> {
       ).length,
     },
     ops: {
-      crashOpen: crashResp.count ?? 0,
+      // crashOpen reflects the noise-filtered count to match the
+      // default visible count on /admin/crashes (CR-23). The raw
+      // crashOpenRaw is included alongside so the security pulse
+      // and any other downstream surface that wants the unfiltered
+      // total can read it without re-querying.
+      crashOpen: ((crashResp as { data: Array<{ message: string | null }> | null }).data ?? [])
+        .filter((r) => !isCrashNoise(r.message))
+        .length,
+      crashOpenRaw: ((crashResp as { data: Array<{ message: string | null }> | null }).data ?? [])
+        .length,
       healthStatus,
       healthLastRun,
       healthFailureCount,

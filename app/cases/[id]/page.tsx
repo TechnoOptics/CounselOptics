@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import {
@@ -30,6 +31,35 @@ import { hasDecisionCue } from '@/lib/decision-cues';
 import { getProfile } from '@/lib/storage';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * Per-case browser-tab title. Audit W20 V3 CR-30: previously the page
+ * inherited the consumer marketing title ("Advottic - Build your case")
+ * for every case detail view, so a user with three matters open in
+ * three tabs could not tell them apart from the tab strip alone.
+ * generateMetadata reads the matter title server-side and surfaces it
+ * via the standard title-template ("%s · Advottic"), turning each tab
+ * into a usable matter identifier. Falls back gracefully when the
+ * case row can't be loaded so a transient DB error doesn't 500 the
+ * tab title.
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: { id: string };
+}): Promise<Metadata> {
+  if (storageUnavailable()) return { title: 'Case' };
+  try {
+    const c = await getCase(params.id);
+    if (!c) return { title: 'Case · Not found' };
+    return {
+      title: `${c.title} · Cases`,
+      robots: { index: false, follow: false },
+    };
+  } catch {
+    return { title: 'Case' };
+  }
+}
 
 export default async function CaseDetailPage({ params }: { params: { id: string } }) {
   if (storageUnavailable()) redirect('/cases');

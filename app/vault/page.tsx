@@ -5,7 +5,7 @@ import { RECEIPT_CATEGORIES } from '@/lib/contract-types';
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
-  title: 'Vault - Advottic',
+  title: 'Vault',
   description:
     'Keep receipts. Photos, screenshots, voicemails, emails - tagged + searchable, just in case.',
   robots: { index: false, follow: false },

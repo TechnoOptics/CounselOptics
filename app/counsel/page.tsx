@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import {
@@ -8,10 +9,24 @@ import {
   listFirmDocuments,
   listFirmSigningRequests,
   listMyFirms,
+  listFirmCases,
 } from '@/lib/firm-storage';
 import { FIRM_ROLE_LABEL } from '@/lib/firm-types';
 
 export const dynamic = 'force-dynamic';
+
+// Audit V5 CR-51: the counsel root used to inherit the consumer
+// title template ("Advottic - Build your case") because no per-page
+// metadata existed and Next.js falls back to the root layout. Firms
+// landing on the dashboard saw a consumer marketing tagline in the
+// browser tab, which read as a broken brand on the firm side. The
+// absolute title shipped here also bypasses the root template
+// suffix so the tab reads cleanly on the firm portal.
+export const metadata: Metadata = {
+  title: { absolute: 'Dashboard · Advottic Counsel' },
+  description:
+    'Your firm cockpit: matters, clients, signing, billing, trust ledger.',
+};
 
 /**
  * /counsel - firm-side dashboard. Shows the membership at a glance
@@ -27,15 +42,32 @@ export default async function CounselDashboard() {
   const ctx = (await getActiveFirmContext()) ?? myFirms[0];
   if (!ctx) redirect('/counsel/onboarding');
 
-  const [clients, invitations, members, documents, signing] = await Promise.all([
+  const [clients, invitations, members, documents, signing, cases] = await Promise.all([
     listFirmClients(ctx.firm.id),
     listFirmInvitations(ctx.firm.id),
     listFirmMembers(ctx.firm.id),
     listFirmDocuments(ctx.firm.id),
     listFirmSigningRequests(ctx.firm.id),
+    listFirmCases(ctx.firm.id),
   ]);
 
   const pendingSigning = signing.filter((s) => s.status === 'sent' || s.status === 'partial');
+  // Audit W20 V3 CR-29: the Cases tile used to render a hardcoded
+  // em-dash placeholder ('—', which the audit's text scrape read as
+  // an underscore) because listFirmCases wasn't being fetched here.
+  // The Cases route itself was already loading the real data, so the
+  // tile was the only spot reporting "no data" for an end-user who
+  // actually had four open matters. Now we count statuses that map
+  // to "currently in flight" - draft is excluded, archived/closed
+  // are excluded, the rest count as open + active.
+  const openCaseStatuses = new Set([
+    'open',
+    'under_review',
+    'needs_evidence',
+    'export_ready',
+  ]);
+  const openActiveCases = cases.filter((c) => openCaseStatuses.has(c.status));
+  const totalCases = cases.length;
 
   return (
     <div className="space-y-8 animate-fade-up">
@@ -54,8 +86,12 @@ export default async function CounselDashboard() {
         <Tile
           href="/counsel/cases"
           eyebrow="Cases"
-          headline="Open + active"
-          metric="—"
+          headline={`${openActiveCases.length} open + active`}
+          metric={
+            totalCases === 0
+              ? 'No matters yet'
+              : `${totalCases} total · ${totalCases - openActiveCases.length} closed / archived`
+          }
           body="Cases shared with the firm appear here. Use the personal view to start a new case, then attach the firm to it."
           accent={ctx.firm.accentColor}
         />
@@ -121,30 +157,45 @@ export default async function CounselDashboard() {
         />
       </section>
 
+      {/*
+        Audit W20 V3 CR-18 + CR-36: this panel used to surface
+        engineering-release-note language ("UETA-aligned 2-step intent
+        capture", "tamper-evident SHA-256 audit chain", "real-time via
+        Supabase WebSockets", "AES-256-GCM encrypted"). That copy was
+        right for HQ staff reading the Operator memo on /admin, but
+        wrong for a firm Owner who logged into Counsel expecting
+        "what changed for my firm this week." Now: each bullet is
+        firm-facing ("your team", "your matters") and the
+        implementation-detail prose moved to a staff-only changelog
+        surface. The dashboard reads as a feature recap, not a
+        runbook excerpt.
+      */}
       <section className="card p-5 sm:p-6 ring-1 ring-emerald-300/30 dark:ring-emerald-500/25 bg-emerald-50/30 dark:bg-emerald-950/15">
-        <p className="eyebrow mb-2">What ships today</p>
+        <p className="eyebrow mb-2">Your firm on Advottic</p>
         <h2 className="font-display text-lg sm:text-xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          The platform at a glance
+          What your team can do today
         </h2>
         <ul className="mt-3 grid gap-2 text-sm sm:grid-cols-2 text-ink-700 dark:text-cream-100/80 leading-relaxed">
           <li>
-            <strong>E-signature</strong> captures intent under a UETA-aligned
-            disclosure flow, hashes the document at request creation, and chains
-            every event (sent, viewed, signed, completed) to a tamper-evident
-            audit trail. Jurisdictional fit (which document classes are valid
-            under your state&rsquo;s carve-outs) stays with your counsel.
+            <strong>Sign documents inside the vault</strong>. Engagement
+            letters, retainers, releases - every signature is captured
+            with a verifiable audit trail you can hand to opposing counsel
+            without flinching.
           </li>
           <li>
-            <strong>Team chat</strong> is real-time over Supabase WebSockets,
-            with a 60-second heartbeat refresh as a safety net.
+            <strong>Talk to your team in real time</strong>. Channels for
+            firm-wide topics, group DMs for the team on a specific
+            matter, and 1:1 conversations with role-scoped access.
           </li>
           <li>
-            <strong>MS 365 + Zoom</strong> connect via OAuth from
-            /counsel/meetings. Tokens are AES-256-GCM encrypted at rest.
+            <strong>Schedule with Microsoft 365 + Zoom</strong>. Connect
+            once from <Link href="/counsel/meetings" className="underline">Meetings</Link>;
+            calendars and meeting links flow into every matter room.
           </li>
           <li>
-            <strong>Bella</strong> in firm mode pulls real citations from
-            CourtListener (free public-domain federal + state opinions).
+            <strong>Ask Bella for a citation</strong>. Bella pulls real
+            federal + state opinions from CourtListener so your team can
+            verify, not just trust.
           </li>
         </ul>
       </section>

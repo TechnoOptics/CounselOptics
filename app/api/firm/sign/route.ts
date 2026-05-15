@@ -209,9 +209,11 @@ export async function POST(req: NextRequest) {
   await admin.from('firm_signing_requests').update(updates).eq('id', request.id);
 
   // If everyone has signed, emit the closing 'completed' event so
-  // the audit trail terminates cleanly, and notify every signer
-  // (plus the firm member who created the request) that the doc is
-  // fully executed.
+  // the audit trail terminates cleanly, render the executed PDF
+  // (stamps every signer's captured PNG onto the source document at
+  // the recorded coordinates - see lib/signature-render.ts), and
+  // notify every signer plus the firm member who created the
+  // request that the doc is fully executed.
   if (nextStatus === 'completed') {
     await appendSignatureEvent(admin, {
       signingRequestId: request.id,
@@ -219,6 +221,27 @@ export async function POST(req: NextRequest) {
       documentSha256: request.document_sha256,
       metadata: { total_signers: total, signed: signed },
     });
+
+    // Render the executed PDF. Wrapped in try/catch so a renderer
+    // failure (encrypted source PDF, missing PNG, storage hiccup)
+    // doesn't break the completion happy path - the underlying
+    // signature rows still hold the immutable PNGs, and the
+    // renderer can be safely re-run later from an admin tool.
+    try {
+      const { renderFinalSignedPdf } = await import('@/lib/signature-render');
+      await renderFinalSignedPdf(admin, request.id);
+    } catch (err) {
+      // Best-effort surface to the audit chain so reviewers see why
+      // there's no signed_file_path on the request row.
+      await appendSignatureEvent(admin, {
+        signingRequestId: request.id,
+        eventType: 'final_pdf_render_failed',
+        documentSha256: request.document_sha256,
+        metadata: {
+          error: err instanceof Error ? err.message : String(err),
+        },
+      }).catch(() => {});
+    }
 
     try {
       const { createNotification } = await import('@/lib/notifications');
@@ -240,24 +263,54 @@ export async function POST(req: NextRequest) {
         (reqRow2 as { requested_by?: string } | null)?.requested_by ?? null;
 
       // Notify every signer that the document is fully executed.
+      // Previously this called listUsers({page:1, perPage:200}) which
+      // missed every user beyond row 200 in a multi-tenant project -
+      // reviewer caught this. Look up the user ids by email directly
+      // against the profiles table (with auth.users as a cold-start
+      // fallback for OAuth users whose profile row hasn't been
+      // written yet).
       const { data: allSignerRows } = await admin
         .from('firm_signatures')
         .select('signer_email')
         .eq('signing_request_id', request.id);
-      const emails = ((allSignerRows ?? []) as { signer_email: string }[])
-        .map((r) => r.signer_email.toLowerCase())
-        .filter(Boolean);
+      const emails = Array.from(
+        new Set(
+          ((allSignerRows ?? []) as { signer_email: string }[])
+            .map((r) => r.signer_email?.toLowerCase())
+            .filter(Boolean),
+        ),
+      );
       if (emails.length > 0) {
-        const { data: usersResp } = await admin.auth.admin.listUsers({
-          page: 1,
-          perPage: 200,
-        });
-        const matched = (usersResp?.users ?? []).filter((u) =>
-          u.email && emails.includes(u.email.toLowerCase()),
+        const { data: profileRows } = await admin
+          .from('profiles')
+          .select('id, email')
+          .in('email', emails);
+        const matchedIds = new Set<string>(
+          ((profileRows ?? []) as { id: string; email: string | null }[])
+            .map((p) => p.id)
+            .filter(Boolean),
         );
-        for (const u of matched) {
+        // Cold-start fallback for emails that didn't match a profile
+        // row (rare but possible during OAuth onboarding).
+        const matchedEmails = new Set(
+          ((profileRows ?? []) as { email: string | null }[])
+            .map((p) => p.email?.toLowerCase())
+            .filter(Boolean),
+        );
+        const stillUnknown = emails.filter((e) => !matchedEmails.has(e));
+        if (stillUnknown.length > 0) {
+          const { data: authRows } = await admin
+            .schema('auth')
+            .from('users')
+            .select('id, email')
+            .in('email', stillUnknown);
+          for (const row of (authRows ?? []) as { id: string }[]) {
+            if (row.id) matchedIds.add(row.id);
+          }
+        }
+        for (const userId of matchedIds) {
           await createNotification({
-            userId: u.id,
+            userId,
             type: 'signing_request_completed',
             title: `Fully executed: ${docName}`,
             body: 'All signers have completed their signatures.',

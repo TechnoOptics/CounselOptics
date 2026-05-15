@@ -14,7 +14,11 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Preferences } from '@capacitor/preferences';
+// Capacitor + plugin types only — runtime modules are loaded lazily
+// inside the handlers below so that this component's module graph
+// doesn't pull native code into the SSR pass. See lib/biometric.ts
+// for the canonical rationale (audit V3 CR-22 / V5 CR-22).
+import type { Preferences as PreferencesType } from '@capacitor/preferences';
 import { createBrowserSupabase } from '@/lib/supabase/client';
 import {
   biometryLabel,
@@ -24,7 +28,12 @@ import {
   isBiometricEnrolled,
   isNativeShell,
 } from '@/lib/biometric';
-import { BiometryType } from '@aparajita/capacitor-biometric-auth';
+import type { BiometryType } from '@aparajita/capacitor-biometric-auth';
+
+async function loadPreferences(): Promise<typeof PreferencesType> {
+  const mod = await import('@capacitor/preferences');
+  return mod.Preferences;
+}
 
 type State =
   | { kind: 'loading' }
@@ -57,6 +66,7 @@ export function BiometricSettings() {
       setState({ kind: 'available', type: status.type, enrolled: false, email: null });
       return;
     }
+    const Preferences = await loadPreferences();
     const [{ value: email }, { value: enrolledAt }] = await Promise.all([
       Preferences.get({ key: 'advottic-bio-user-email' }),
       Preferences.get({ key: 'advottic-bio-enrolled-at' }),
@@ -88,6 +98,7 @@ export function BiometricSettings() {
       });
       // Wipe the dismissal flag so a future sign-out / sign-in doesn't
       // skip the prompt for the same email.
+      const Preferences = await loadPreferences();
       await Preferences.remove({ key: 'advottic-bio-dismissed-' + data.session.user.email });
       await refresh();
     } catch (err) {

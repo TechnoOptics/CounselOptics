@@ -95,13 +95,25 @@ export const metadata: Metadata = {
       "Keep the receipts. We'll turn them into a case file for the day you need it.",
     url: SITE_URL,
     locale: 'en_US',
+    // og:image is auto-injected by app/opengraph-image.tsx (Next.js
+    // convention) - it generates a 1200x630 forest-gradient brand
+    // card at /opengraph-image dynamically via @vercel/og. No need
+    // to set `images` here; doing so would emit duplicate meta tags.
   },
   twitter: {
     card: 'summary_large_image',
+    site: '@advottic',
+    creator: '@advottic',
     title: 'Advottic - Build your case',
     description:
       "Keep the receipts. We'll turn them into a case file for the day you need it.",
+    // twitter:image also auto-injected by the opengraph-image
+    // convention (Next.js mirrors og:image into twitter:image when
+    // twitter.images is omitted).
   },
+  authors: [{ name: 'Advottic', url: SITE_URL }],
+  creator: 'Advottic',
+  publisher: 'Techno Optics LLC',
   robots: {
     index: true,
     follow: true,
@@ -211,11 +223,39 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       if (user) {
         signedIn = true;
         userEmail = user.email ?? null;
-        const profile = await getProfile().catch(() => null);
+        // Audit V7 CR-57: previously `await getProfile().catch(() => null)`
+        // collapsed BOTH "no record" and "database hiccup" into the same
+        // null result, then `!profile?.consentedAt` triggered the consent
+        // modal in either case. A transient read failure was therefore
+        // showing the arbitration dialog to users who had already
+        // signed it - which weakens the legal enforceability of the
+        // original acceptance. We now distinguish read-failure from
+        // missing-record: read failures pass through with `consent`
+        // staying `needed: false` so a flaky DB read doesn't fabricate
+        // a re-consent event. The legitimate "this user has never
+        // consented" case (profile loaded successfully, consentedAt is
+        // null) still triggers the modal.
+        let profile: Awaited<ReturnType<typeof getProfile>> | null = null;
+        let profileReadOk = false;
+        try {
+          profile = await getProfile();
+          profileReadOk = true;
+        } catch {
+          // Read failed - treat as "consent state unknown, defer".
+          profileReadOk = false;
+        }
         if (profile?.theme) serverTheme = profile.theme;
         if (profile?.language) serverLanguage = profile.language;
         consumerMenuPrefs = profile?.menuPreferences?.consumer;
-        if (!profile?.consentedAt) {
+        // Audit V7 CR-56: the consent gate is a CONSUMER legal-terms
+        // dialog (binding arbitration, class-action waiver). HQ staff
+        // and firm-side users sign different agreements via different
+        // surfaces and should not be intercepted by it on every
+        // session - it created a UX dead-end where the auditor could
+        // not reach /admin/* routes after clearing local storage. Only
+        // mount when we know the user has no server-side consent
+        // record AND they're not on the staff/firm shell.
+        if (profileReadOk && !profile?.consentedAt && !isShellMode) {
           consent = {
             needed: true,
             fallbackName:
@@ -367,7 +407,19 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             </div>
           </main>
         )}
-        {!isShellMode && <Bella signedIn={signedIn} />}
+        {/*
+          Bella is hidden on auth-funnel pages (audit CR-43). Showing
+          a floating chat widget on /sign-in adds visual noise on a
+          screen whose only job is to capture credentials, and the
+          chat itself has nothing useful to say there - signed-out
+          guidance lives in the marketing pages. The gate also covers
+          the magic-link follow-up paths (/auth/callback,
+          /sign-in?error=..., /sign-in?next=...) so an error state
+          doesn't bring the widget back.
+        */}
+        {!isShellMode &&
+          !pathname.startsWith('/sign-in') &&
+          !pathname.startsWith('/auth/') && <Bella signedIn={signedIn} />}
         {consent.needed && <ConsentModal fallbackName={consent.fallbackName} />}
         <CookieBanner />
         {!isShellMode && trial && (trial.mode === 'stripe_trialing' || trial.mode === 'free_trial' || trial.mode === 'expired') && (

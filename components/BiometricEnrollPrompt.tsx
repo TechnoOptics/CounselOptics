@@ -18,8 +18,18 @@
 
 import { useEffect, useState } from 'react';
 import { useModalLifecycle } from '@/lib/use-modal-lifecycle';
-import { Preferences } from '@capacitor/preferences';
+// Lazy-load @capacitor/preferences at runtime — see lib/biometric.ts
+// for the canonical rationale (audit V3 CR-22 / V5 CR-22). Importing
+// it statically here pulls native code into the SSR module graph for
+// every page that mounts the consumer shell (the enroll prompt lives
+// in the cases-list tree).
+import type { Preferences as PreferencesType } from '@capacitor/preferences';
 import { createBrowserSupabase } from '@/lib/supabase/client';
+
+async function loadPreferences(): Promise<typeof PreferencesType> {
+  const mod = await import('@capacitor/preferences');
+  return mod.Preferences;
+}
 import {
   biometryLabel,
   checkBiometricStatus,
@@ -52,6 +62,7 @@ export function BiometricEnrollPrompt() {
       const { data } = await supabase.auth.getUser();
       const userEmail = data.user?.email ?? null;
       if (cancelled || !userEmail) return;
+      const Preferences = await loadPreferences();
       const { value: dismissed } = await Preferences.get({
         key: DISMISSED_PREFIX + userEmail,
       });
@@ -92,6 +103,7 @@ export function BiometricEnrollPrompt() {
 
   async function handleDismiss() {
     if (email) {
+      const Preferences = await loadPreferences();
       await Preferences.set({ key: DISMISSED_PREFIX + email, value: '1' });
     }
     setPhase('hidden');

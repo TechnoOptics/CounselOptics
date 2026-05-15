@@ -6,7 +6,7 @@ export const metadata = {
     'How to report copyright or intellectual-property infringement on Advottic, who to contact, and the takedown process.',
   alternates: { canonical: '/dmca' },
   openGraph: {
-    title: 'DMCA & IP Policy · Advottic',
+    title: 'DMCA & IP Policy',
     description:
       'Report copyright or intellectual-property infringement on Advottic - who to contact, what to include, and the takedown process.',
     url: '/dmca',
