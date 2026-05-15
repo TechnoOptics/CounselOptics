@@ -89,29 +89,6 @@ function forceApexBeforeAuth(next: string): boolean {
   return true;
 }
 
-/**
- * Native Sign in with Apple needs a nonce dance:
- *   - Apple embeds SHA256(nonce) in the returned id_token.
- *   - Supabase's signInWithIdToken re-hashes the RAW nonce we give
- *     it and compares, to prove the token was minted for THIS
- *     request (replay protection).
- * So we generate a raw random string, send its SHA-256 to Apple,
- * and hand the raw value to Supabase. Web Crypto is available in the
- * Capacitor WKWebView/Android WebView and in every browser.
- */
-function cryptoRandomString(byteLen = 32): string {
-  const arr = new Uint8Array(byteLen);
-  crypto.getRandomValues(arr);
-  return Array.from(arr, (b) => b.toString(16).padStart(2, '0')).join('');
-}
-async function sha256Hex(input: string): Promise<string> {
-  const data = new TextEncoder().encode(input);
-  const digest = await crypto.subtle.digest('SHA-256', data);
-  return Array.from(new Uint8Array(digest), (b) =>
-    b.toString(16).padStart(2, '0'),
-  ).join('');
-}
-
 type Provider = 'google' | 'azure' | 'apple';
 type Mode = Provider | 'email';
 
@@ -253,19 +230,25 @@ export function SignInButtons({ next }: { next: string }) {
       // ===================================================================
       // The user explicitly does not want OAuth punted to a browser
       // sheet. For Apple on iOS we use the OS-native
-      // ASAuthorizationController sheet (@capacitor-community/apple-
-      // sign-in) and hand the resulting identity token straight to
-      // Supabase via signInWithIdToken. No SFSafariViewController, no
-      // Universal Link round-trip - the system Apple sheet slides up
-      // over the app and the session lands directly in the WebView
-      // cookie jar.
+      // ASAuthorizationController sheet via @capgo/capacitor-social-
+      // login (the Capacitor-8 native social plugin - the older
+      // @capacitor-community/apple-sign-in pins Capacitor-7 SPM and
+      // will not resolve against this app's Capacitor-8 packages).
+      // The Apple identity token goes straight to Supabase via
+      // signInWithIdToken. No SFSafariViewController, no Universal
+      // Link round-trip - the system Apple sheet slides up over the
+      // app and the session lands directly in the WebView cookie jar.
       //
-      // This is ADDITIVE and FAIL-SAFE: any failure that is not an
-      // explicit user-cancel falls through to the existing browser /
-      // web OAuth flow below, so sign-in can never regress (old shells
-      // without the plugin, or before the Supabase Apple provider
-      // lists com.advottic.app as an authorized client ID, just keep
-      // the previous behavior).
+      // We deliberately pass NO nonce: Apple's request.nonce and
+      // Supabase's signInWithIdToken nonce are both optional, and
+      // omitting it on BOTH sides sidesteps the raw-vs-hashed nonce
+      // ambiguity that otherwise causes "Invalid nonce" rejections.
+      //
+      // ADDITIVE + FAIL-SAFE: an explicit user-cancel just resets;
+      // any other failure (old shell without the plugin, or before
+      // Supabase's Apple provider lists com.advottic.app as an
+      // authorized client ID) falls through to the existing browser /
+      // web OAuth flow below, so sign-in can never regress.
       //
       // Google native needs iOS/Android OAuth client IDs provisioned
       // in Google Cloud + registered on Supabase's Google provider, so
@@ -275,33 +258,34 @@ export function SignInButtons({ next }: { next: string }) {
       if (
         provider === 'apple' &&
         Capacitor.getPlatform() === 'ios' &&
-        Capacitor.isPluginAvailable('SignInWithApple')
+        Capacitor.isPluginAvailable('SocialLogin')
       ) {
         try {
-          const { SignInWithApple } = await import(
-            '@capacitor-community/apple-sign-in'
+          const { SocialLogin } = await import(
+            '@capgo/capacitor-social-login'
           );
-          const rawNonce = cryptoRandomString();
-          const hashedNonce = await sha256Hex(rawNonce);
-          const appleResult = await SignInWithApple.authorize({
-            // The native client ID is the app bundle ID (NOT the web
-            // Services ID). Supabase's Apple provider must list this
-            // under "Authorized Client IDs" or it rejects the token
-            // with "Unacceptable audience" - in which case we fall
-            // through to the browser flow.
-            clientId: 'com.advottic.app',
-            redirectURI: `${origin}/auth/callback`,
-            scopes: 'email name',
-            nonce: hashedNonce,
+          // clientId is the app bundle ID. redirectUrl '' tells the
+          // plugin to use the native iOS flow (no web redirect). The
+          // Sign in with Apple capability is already in the iOS
+          // entitlements (ios-release.yml).
+          await SocialLogin.initialize({
+            apple: { clientId: 'com.advottic.app', redirectUrl: '' },
           });
-          const idToken = appleResult.response?.identityToken;
+          const { result } = await SocialLogin.login({
+            provider: 'apple',
+            options: { scopes: ['name', 'email'] },
+          });
+          const idToken = result.idToken;
           if (!idToken) {
             throw new Error('Apple returned no identity token.');
           }
+          // Supabase's Apple provider must list com.advottic.app under
+          // "Authorized Client IDs" or this rejects with "Unacceptable
+          // audience" - in which case we fall through to the browser
+          // flow (no regression).
           const { error: idErr } = await supabase.auth.signInWithIdToken({
             provider: 'apple',
             token: idToken,
-            nonce: rawNonce,
           });
           if (idErr) throw idErr;
           // Session cookies are set on advottic.com (the WebView
@@ -309,6 +293,12 @@ export function SignInButtons({ next }: { next: string }) {
           goNext(next);
           return;
         } catch (nativeErr) {
+          const code =
+            nativeErr &&
+            typeof nativeErr === 'object' &&
+            'code' in nativeErr
+              ? String((nativeErr as { code?: unknown }).code)
+              : '';
           const m =
             nativeErr instanceof Error
               ? nativeErr.message
@@ -316,7 +306,8 @@ export function SignInButtons({ next }: { next: string }) {
           // User dismissed the native sheet on purpose - do NOT then
           // pop a browser at them; just reset and let them retry.
           if (
-            /cancel|1001|user canceled|the operation couldn.?t be completed/i.test(
+            code === 'USER_CANCELLED' ||
+            /cancel|user canceled|the operation couldn.?t be completed/i.test(
               m,
             )
           ) {

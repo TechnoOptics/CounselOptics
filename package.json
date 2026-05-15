@@ -15,7 +15,6 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.91.1",
     "@aparajita/capacitor-biometric-auth": "^10.0.0",
-    "@capacitor-community/apple-sign-in": "^7.1.0",
     "@capacitor-community/speech-recognition": "^7.0.1",
     "@capacitor/android": "^8.3.4",
     "@capacitor/app": "^8.1.0",
@@ -24,6 +23,7 @@
     "@capacitor/device": "^8.0.2",
     "@capacitor/ios": "^8.3.4",
     "@capacitor/preferences": "^8.0.1",
+    "@capgo/capacitor-social-login": "^8.3.22",
     "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.104.1",
     "next": "14.2.35",
