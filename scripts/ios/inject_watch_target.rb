@@ -80,7 +80,17 @@ watch_target.build_configurations.each do |cfg|
   bs['SWIFT_VERSION']              = '5.0'
   bs['CURRENT_PROJECT_VERSION']    = build_ver
   bs['MARKETING_VERSION']          = mkt_ver
-  bs['SKIP_INSTALL']               = 'NO'
+  # CRITICAL: an EMBEDDED watch target must NOT install as its own
+  # top-level archive product. With SKIP_INSTALL=NO the .xcarchive's
+  # Products/Applications/ holds BOTH App.app AND a standalone
+  # AdvotticWatch.app; xcodebuild's IDEDistributionMethodManager then
+  # cannot pick a distribution method for a two-app archive and
+  # exportArchive dies with the opaque "Unknown Distribution Error" /
+  # "expected one {} but found app-store-connect". YES = the watch
+  # exists ONLY embedded in App.app/Watch (the Embed Watch Content
+  # phase still copies it). This is exactly how Xcode configures
+  # embedded watch / app-extension targets.
+  bs['SKIP_INSTALL']               = 'YES'
   bs['ENABLE_BITCODE']             = 'NO'
   bs['CODE_SIGN_STYLE']            = 'Automatic'
   bs['DEVELOPMENT_TEAM']           = team unless team.empty?
