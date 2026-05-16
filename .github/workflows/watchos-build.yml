@@ -1,0 +1,100 @@
+# Verification build for the standalone Advottic Apple Watch app.
+#
+# Purpose: the watchOS app lived as source-only (watchos/AdvotticWatch)
+# that could ONLY be compiled by opening it on a Mac. That is the same
+# "ship blind" gap the :wear module had before wear-build.yml. This
+# workflow generates the Xcode project from the XcodeGen spec and
+# compiles it on a macOS runner, so every watchOS change is proven to
+# build before anything is layered on top (Phase 2 WatchConnectivity
+# bridge, etc.) - exactly the discipline applied to Android Wear.
+#
+# Build-only: -sdk watchsimulator + CODE_SIGNING_ALLOWED=NO means no
+# keystore / no provisioning / no signing, the watchOS analog of
+# `:wear:assembleDebug`. It does NOT distribute and does NOT touch the
+# Capacitor iOS app (that project is regenerated every CI build; the
+# watch stays a separate standalone project per WATCHOS_SETUP.md).
+#
+# Manual only - same posture as the other build/release workflows.
+name: watchOS build (verify)
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_notes:
+        description: 'One-line note for the run summary'
+        required: false
+        default: 'watchOS module verification build'
+
+permissions:
+  contents: read
+
+jobs:
+  build-watchos:
+    name: Build AdvotticWatch (watchsimulator)
+    # macos-15 (Sequoia) ships Xcode 26, matching ios-release.yml so
+    # the watch builds against the same toolchain as the phone app.
+    runs-on: macos-15
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select latest-stable Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Print toolchain
+        run: |
+          xcodebuild -version
+          echo "---"
+          # Confirm a watchOS simulator SDK is present; fail loudly
+          # early if the image somehow lacks it.
+          if ! xcodebuild -showsdks | grep -qi 'watchsimulator'; then
+            echo "::error::No watchOS simulator SDK on this image - cannot verify the watch build."
+            xcodebuild -showsdks || true
+            exit 1
+          fi
+          xcodebuild -showsdks | grep -i watch || true
+
+      - name: Install XcodeGen
+        # Pre-installed Homebrew on the runner. XcodeGen turns the
+        # human-reviewable project.yml into a real .xcodeproj - the
+        # same one command the friend runs locally.
+        run: brew install xcodegen
+
+      - name: Generate the Xcode project
+        working-directory: watchos/AdvotticWatch
+        run: |
+          xcodegen generate
+          if [ ! -d AdvotticWatch.xcodeproj ]; then
+            echo "::error::xcodegen did not produce AdvotticWatch.xcodeproj"
+            ls -la
+            exit 1
+          fi
+          ls -la AdvotticWatch.xcodeproj
+
+      - name: Build the watchOS app (no signing)
+        working-directory: watchos/AdvotticWatch
+        run: |
+          set -o pipefail
+          # -target (not -scheme): XcodeGen does not emit a shared
+          # scheme by default, and -target + -sdk watchsimulator needs
+          # neither a scheme nor a concrete destination. Signing off =
+          # pure compile/link verification.
+          xcodebuild \
+            -project AdvotticWatch.xcodeproj \
+            -target AdvotticWatch \
+            -sdk watchsimulator \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO \
+            build | tail -40
+
+      - name: Report
+        run: |
+          echo "## watchOS module built" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Project:** \`watchos/AdvotticWatch\` (XcodeGen -> AdvotticWatch.xcodeproj)" >> $GITHUB_STEP_SUMMARY
+          echo "**Toolchain:** $(xcodebuild -version | tr '\n' ' ')" >> $GITHUB_STEP_SUMMARY
+          echo "**Note:** ${{ inputs.release_notes }}" >> $GITHUB_STEP_SUMMARY
