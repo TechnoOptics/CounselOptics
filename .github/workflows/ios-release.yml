@@ -279,23 +279,36 @@ jobs:
             # heredoc correctly (same mechanic as the entitlements step).
             cat >> "$AD" <<'SWIFT'
 
-          // Advottic native polish - applied once Capacitor's bridge
-          // view loads (Capacitor has no config for these WKWebView
-          // properties): scrollView.bounces=false kills the iOS
-          // rubber-band so the page never drags past its borders and
-          // the sticky header reads as locked;
-          // allowsBackForwardNavigationGestures maps the iOS edge
-          // swipe-back to web-history back (native-feeling pop).
+          // Advottic native polish - Capacitor exposes no config for
+          // these WKWebView properties, so set them after launch:
+          // scrollView.bounces=false kills the iOS rubber-band so the
+          // page never drags past its borders and the sticky header
+          // reads as locked; allowsBackForwardNavigationGestures maps
+          // the iOS edge swipe-back to web-history back. Hooked on the
+          // bulletproof UIKit didBecomeActive notification (no
+          // Capacitor-specific symbol - an earlier build failed
+          // because Notification.Name.capacitorViewDidLoad does not
+          // exist), with a short retry until the bridge webView is
+          // attached. Idempotent - re-applying is harmless.
           enum AdvotticWebView {
               static func install() {
-                  NotificationCenter.default.addObserver(forName: Notification.Name.capacitorViewDidLoad, object: nil, queue: .main) { note in
-                      DispatchQueue.main.async {
-                          let vc = (note.object as? CAPBridgeViewController) ?? (UIApplication.shared.windows.first(where: { $0.isKeyWindow })?.rootViewController as? CAPBridgeViewController)
-                          guard let webView = vc?.webView else { return }
-                          webView.allowsBackForwardNavigationGestures = true
-                          webView.scrollView.bounces = false
-                          webView.scrollView.alwaysBounceVertical = false
-                          webView.scrollView.alwaysBounceHorizontal = false
+                  NotificationCenter.default.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { _ in
+                      apply(retries: 12)
+                  }
+              }
+              private static func apply(retries: Int) {
+                  let root = UIApplication.shared.windows.first(where: { $0.isKeyWindow })?.rootViewController
+                  let vc = (root as? CAPBridgeViewController) ?? root?.children.compactMap({ $0 as? CAPBridgeViewController }).first
+                  if let webView = vc?.webView {
+                      webView.allowsBackForwardNavigationGestures = true
+                      webView.scrollView.bounces = false
+                      webView.scrollView.alwaysBounceVertical = false
+                      webView.scrollView.alwaysBounceHorizontal = false
+                      return
+                  }
+                  if retries > 0 {
+                      DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                          apply(retries: retries - 1)
                       }
                   }
               }
