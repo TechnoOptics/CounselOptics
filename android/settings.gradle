@@ -2,4 +2,10 @@ include ':app'
 include ':capacitor-cordova-android-plugins'
 project(':capacitor-cordova-android-plugins').projectDir = new File('./capacitor-cordova-android-plugins/')
 
+// Advottic Wear OS companion (Kotlin + Wear Compose). Separate
+// applicationId / Play listing - NOT bundled into the phone AAB;
+// the phone android-release workflow only builds :app:bundleRelease.
+include ':wear'
+project(':wear').projectDir = new File('./wear/')
+
 apply from: 'capacitor.settings.gradle'

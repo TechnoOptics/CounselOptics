@@ -1,0 +1,86 @@
+# Phase-1 verification build for the Advottic Wear OS module.
+#
+# Purpose: prove the new :wear module and the Kotlin / Compose /
+# Wear-Compose / AGP 8.13 version matrix actually configure and
+# compile inside the existing Capacitor Android project, before any
+# more is built on top. assembleDebug -> no signing/keystore needed.
+#
+# This does NOT touch the phone app: the phone android-release
+# workflow still builds only :app:bundleRelease. The :wear module is
+# a separate applicationId (com.advottic.watch) destined for its own
+# Play listing.
+#
+# Manual only - same posture as the other release workflows.
+name: Wear OS build (verify)
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_notes:
+        description: 'One-line note for the run summary'
+        required: false
+        default: 'Wear module verification build'
+
+permissions:
+  contents: read
+
+jobs:
+  build-wear:
+    name: Build :wear (assembleDebug)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Capacitor sync (so capacitor.settings.gradle paths exist)
+        # android/settings.gradle applies capacitor.settings.gradle,
+        # which `include`s the Capacitor plugin Gradle projects from
+        # node_modules. Gradle configures the WHOLE build even when we
+        # only assemble :wear, so those paths must exist or settings
+        # evaluation fails. `cap sync android` materializes them.
+        run: |
+          mkdir -p android/app/src/main/assets
+          npx cap sync android
+
+      - name: Make gradlew executable
+        run: chmod +x android/gradlew
+
+      - name: Build the Wear module
+        working-directory: android
+        run: ./gradlew :wear:assembleDebug --console=plain --no-daemon
+
+      - name: Report
+        run: |
+          APK=$(find android/wear/build/outputs/apk -name "*.apk" | head -1)
+          if [ -z "$APK" ] || [ ! -f "$APK" ]; then
+            echo "::error::No Wear APK produced - module did not assemble"
+            find android/wear/build/outputs/ -type f || true
+            exit 1
+          fi
+          SZ=$(stat -c%s "$APK")
+          echo "## Wear module built" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**APK:** \`$APK\` ($SZ bytes)" >> $GITHUB_STEP_SUMMARY
+          echo "**Note:** ${{ inputs.release_notes }}" >> $GITHUB_STEP_SUMMARY

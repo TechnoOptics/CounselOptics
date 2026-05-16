@@ -10,6 +10,15 @@ buildscript {
         classpath 'com.android.tools.build:gradle:8.13.0'
         classpath 'com.google.gms:google-services:4.4.4'
 
+        // Kotlin + Compose for the :wear module only. Added at the
+        // root buildscript because the legacy `apply plugin:` style
+        // resolves plugins from here. :app (Capacitor / Java) never
+        // applies these, so the phone build is unaffected. Kotlin
+        // 2.0.x ships its own Compose compiler via the
+        // plugin.compose plugin (no kotlinCompilerExtensionVersion).
+        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:2.0.21'
+        classpath 'org.jetbrains.kotlin:compose-compiler-gradle-plugin:2.0.21'
+
         // NOTE: Do not place your application dependencies here; they belong
         // in the individual module build.gradle files
     }

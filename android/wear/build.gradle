@@ -1,0 +1,71 @@
+// Advottic Wear OS companion - minimal native module.
+//
+// This is NOT the Capacitor app (a watch can't run that webview).
+// It's a standalone-capable Wear OS app (Kotlin + Wear Compose). In
+// Phase 1 it renders a placeholder glance; Phase 2 wires the
+// Wearable Data Layer payload pushed by the phone-side AdvotticWatch
+// Capacitor plugin (open-case count + latest update + deep link).
+//
+// Separate applicationId (com.advottic.watch): modern standalone
+// Wear OS apps are distributed as their own Play Console listing -
+// legacy phone-APK embedding is deprecated.
+apply plugin: 'com.android.application'
+apply plugin: 'org.jetbrains.kotlin.android'
+apply plugin: 'org.jetbrains.kotlin.plugin.compose'
+
+android {
+    namespace = "com.advottic.watch"
+    compileSdk = rootProject.ext.compileSdkVersion
+
+    defaultConfig {
+        applicationId "com.advottic.watch"
+        // Wear OS 3 = API 30 (the floor for modern standalone Wear).
+        minSdkVersion 30
+        // Wear OS 5 = API 34; Play's current Wear target requirement.
+        targetSdkVersion 34
+        versionCode 1
+        versionName "1.0.0"
+    }
+
+    buildFeatures {
+        compose true
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
+    buildTypes {
+        release {
+            // Phase 1: keep it simple - no shrinking, debuggable
+            // build path is what CI assembles to prove the module
+            // and the Kotlin/Compose/AGP version matrix line up.
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+dependencies {
+    def composeBom = platform('androidx.compose:compose-bom:2024.09.03')
+    implementation composeBom
+
+    implementation 'androidx.core:core-ktx:1.13.1'
+    implementation 'androidx.activity:activity-compose:1.9.3'
+    implementation 'androidx.compose.ui:ui'
+    implementation 'androidx.compose.ui:ui-tooling-preview'
+
+    // Wear-specific Compose surfaces (Scaffold/Text/Chip styled for
+    // round + small screens).
+    implementation 'androidx.wear.compose:compose-material:1.4.0'
+    implementation 'androidx.wear.compose:compose-foundation:1.4.0'
+
+    // Data Layer client - declared now so Phase 2 (phone -> watch
+    // payload) needs no dependency change, only code.
+    implementation 'com.google.android.gms:play-services-wearable:18.2.0'
+}
