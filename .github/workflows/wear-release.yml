@@ -1,0 +1,176 @@
+# Builds the SIGNED Wear OS App Bundle (.aab) for Google Play.
+#
+# Why a separate workflow from android-release.yml
+# ------------------------------------------------
+# The watch is a standalone Wear OS app with its OWN applicationId
+# (com.advottic.watch) and therefore its OWN Play Console listing and
+# its OWN versionCode lifecycle - independent of the phone app
+# (com.advottic.app). Modern standalone Wear apps are NOT embedded in
+# the phone APK; they ship as their own listing. Keeping the build
+# separate means the watch can be re-released without touching the
+# phone's versionCode (Play rejects duplicate codes).
+#
+# Signing
+# -------
+# The watch reuses the SAME upload keystore as the phone (one upload
+# key can sign multiple apps). This workflow reproduces
+# android/keystore.properties and decodes the keystore into
+# android/app/ exactly like android-release.yml; android/wear/build
+# .gradle resolves that shared keystore from the Gradle root.
+#
+# Required GitHub Secrets (identical to the phone workflow - reuse
+# the ones already configured):
+#   ANDROID_KEYSTORE_BASE64   base64 of advottic-release.keystore
+#   ANDROID_STORE_PASSWORD    storePassword
+#   ANDROID_KEY_ALIAS         keyAlias
+#   ANDROID_KEY_PASSWORD      keyPassword
+#
+# Output
+# ------
+# The signed bundle is uploaded as the workflow artifact
+# `advottic-watch-aab` (a zip containing wear-release.aab). Download
+# it from the run's Summary page and upload to the Wear OS listing in
+# Play Console -> Testing -> Internal testing -> Create new release.
+#
+# Manual only (workflow_dispatch) - same posture as the other release
+# workflows so an accidental push never burns a Play versionCode.
+
+name: Wear OS release build
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_notes:
+        description: 'One-line note for the run summary (does not affect the AAB)'
+        required: false
+        default: 'Manual Wear OS release build'
+
+permissions:
+  contents: read
+
+jobs:
+  build-wear-aab:
+    name: Build signed Wear AAB
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Decode keystore into android/app/
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 secret is empty. Reuse the same secret the phone workflow uses."
+            exit 1
+          fi
+          echo "$ANDROID_KEYSTORE_BASE64" | tr -d '\r\n\t ' | base64 --decode > android/app/advottic-release.keystore
+          SIZE=$(stat -c%s android/app/advottic-release.keystore)
+          if [ "$SIZE" -lt 1024 ]; then
+            echo "::error::Decoded keystore is only $SIZE bytes. ANDROID_KEYSTORE_BASE64 was probably pasted incorrectly."
+            exit 1
+          fi
+          echo "Decoded keystore: $SIZE bytes"
+
+      - name: Write keystore.properties
+        env:
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$ANDROID_STORE_PASSWORD" ] || [ -z "$ANDROID_KEY_ALIAS" ] || [ -z "$ANDROID_KEY_PASSWORD" ]; then
+            echo "::error::Missing one of ANDROID_STORE_PASSWORD / ANDROID_KEY_ALIAS / ANDROID_KEY_PASSWORD."
+            exit 1
+          fi
+          STORE_PW=$(printf '%s' "$ANDROID_STORE_PASSWORD" | tr -d '\r\n')
+          KEY_ALIAS=$(printf '%s' "$ANDROID_KEY_ALIAS" | tr -d '\r\n')
+          KEY_PW=$(printf '%s' "$ANDROID_KEY_PASSWORD" | tr -d '\r\n')
+          cat > android/keystore.properties <<EOF
+          storeFile=advottic-release.keystore
+          storePassword=$STORE_PW
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PW
+          EOF
+          sed -E 's/(Password=).*/\1***REDACTED***/g' android/keystore.properties
+
+      - name: Capacitor sync (so capacitor.settings.gradle paths exist)
+        # android/settings.gradle applies capacitor.settings.gradle,
+        # which `include`s the Capacitor plugin Gradle projects from
+        # node_modules. Gradle configures the WHOLE build even when we
+        # only bundle :wear, so those paths must exist or settings
+        # evaluation fails. `cap sync android` materializes them.
+        run: |
+          mkdir -p android/app/src/main/assets
+          npx cap sync android
+
+      - name: Print build inputs
+        run: |
+          echo "## Wear OS release build" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${GITHUB_SHA}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Trigger note:** ${{ inputs.release_notes }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Version" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          grep -E 'versionCode|versionName' android/wear/build.gradle | sed 's/^[[:space:]]*//' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Make gradlew executable
+        run: chmod +x android/gradlew
+
+      - name: Build signed Wear AAB
+        working-directory: android
+        run: ./gradlew :wear:bundleRelease --console=plain --no-daemon
+
+      - name: Verify AAB exists + report size
+        run: |
+          AAB=android/wear/build/outputs/bundle/release/wear-release.aab
+          if [ ! -f "$AAB" ]; then
+            echo "::error::Wear AAB was not produced at $AAB"
+            ls -R android/wear/build/outputs/ || true
+            exit 1
+          fi
+          SIZE_BYTES=$(stat -c%s "$AAB")
+          SIZE_MB=$(awk "BEGIN {printf \"%.2f\", $SIZE_BYTES / 1024 / 1024}")
+          echo "## Wear AAB built successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Path:** \`$AAB\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Size:** ${SIZE_MB} MB ($SIZE_BYTES bytes)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Download from the **Artifacts** section at the bottom of this run page, then upload to the **com.advottic.watch** Play Console listing -> Testing -> Internal testing -> Create new release. See WEAR_DISTRIBUTION.md for the full checklist." >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload Wear AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: advottic-watch-aab
+          path: android/wear/build/outputs/bundle/release/wear-release.aab
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Clean up secrets-derived files
+        if: always()
+        run: |
+          rm -f android/app/advottic-release.keystore
+          rm -f android/keystore.properties

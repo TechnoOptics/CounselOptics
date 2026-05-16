@@ -13,6 +13,18 @@ apply plugin: 'com.android.application'
 apply plugin: 'org.jetbrains.kotlin.android'
 apply plugin: 'org.jetbrains.kotlin.plugin.compose'
 
+// Release signing - same scheme as :app. android/keystore.properties
+// (gitignored) is written by the dev once / by CI from secrets, and
+// the upload keystore is decoded into android/app/. The watch is a
+// SEPARATE Play listing (com.advottic.watch) but the same upload key
+// can sign it - so resolve that shared keystore from the Gradle root
+// instead of duplicating the binary into this module.
+def keystorePropertiesFile = rootProject.file("keystore.properties")
+def keystoreProperties = new Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
 android {
     namespace = "com.advottic.watch"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -40,13 +52,33 @@ android {
         jvmTarget = '17'
     }
 
+    signingConfigs {
+        release {
+            if (keystorePropertiesFile.exists()) {
+                // CI decodes the shared upload keystore into
+                // android/app/; resolve it relative to the Gradle
+                // root so :wear signs with the same key as :app.
+                storeFile rootProject.file("app/" + keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // Phase 1: keep it simple - no shrinking, debuggable
-            // build path is what CI assembles to prove the module
-            // and the Kotlin/Compose/AGP version matrix line up.
+            // No shrinking for v1: a tiny Wear Compose app gains
+            // little from R8 and Compose/Wear keep-rules are an easy
+            // way to ship a broken first release. :app uses the same
+            // posture. Revisit once the listing is live and stable.
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            // Only sign when the keystore is present, so a contributor
+            // without it can still build unsigned variants locally.
+            if (keystorePropertiesFile.exists()) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }
