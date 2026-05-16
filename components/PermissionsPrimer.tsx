@@ -12,14 +12,16 @@
  *   - Microphone  -> @capacitor-community/speech-recognition
  *                    (voice dictation, components/VoiceDictateButton)
  *   - Notifications -> web-push (case updates, components/PushOptIn)
+ *   - Camera/Photos -> @capacitor/camera, paired with the exhibit
+ *                      capture in app/cases/[id]/upload-form.tsx and
+ *                      the NSCamera/NSPhotoLibrary Info.plist strings.
  *
  * NOT included on purpose:
  *   - Face ID / biometric: handled by BiometricEnrollPrompt at sign-in.
- *   - Camera / Location: no plugin is installed and no feature uses
- *     them. Requesting an unused permission both does nothing and is
- *     an App Store Review rejection (Guideline 5.1.1 / 2.5.x). When a
- *     real camera feature ships, add its block here alongside a
- *     matching Info.plist usage string.
+ *   - Location: no geolocation plugin and no native feature uses it
+ *     (the file-exhibits jurisdiction sort uses opt-in web geolocation
+ *     only). Requesting an unused permission does nothing and is an
+ *     App Store Review rejection (Guideline 5.1.1 / 2.5.x).
  *
  * Will not show:
  *   - on web / desktop
@@ -44,8 +46,8 @@ async function loadPreferences(): Promise<typeof PreferencesType> {
 }
 
 // Bump the version suffix if the set of primed permissions changes,
-// so existing users see the new ones once.
-const PRIMED_KEY = 'advottic-perms-primed-v1';
+// so existing users see the new ones once. v2 adds Camera/Photos.
+const PRIMED_KEY = 'advottic-perms-primed-v2';
 
 export function PermissionsPrimer() {
   const [phase, setPhase] = useState<
@@ -100,6 +102,23 @@ export function PermissionsPrimer() {
     }
   }
 
+  async function requestCamera() {
+    try {
+      const { Camera } = await import('@capacitor/camera');
+      const current = await Camera.checkPermissions();
+      // Only prompt for states still askable; never override a
+      // user's explicit "denied" (the OS won't re-prompt anyway).
+      const needsCamera = current.camera !== 'granted' && current.camera !== 'denied';
+      const needsPhotos = current.photos !== 'granted' && current.photos !== 'denied';
+      if (needsCamera || needsPhotos) {
+        await Camera.requestPermissions({ permissions: ['camera', 'photos'] });
+      }
+    } catch {
+      // Plugin missing on an older shell - the HTML capture input in
+      // upload-form.tsx still prompts on first use, so non-fatal.
+    }
+  }
+
   async function requestNotifications() {
     try {
       if (
@@ -117,9 +136,11 @@ export function PermissionsPrimer() {
 
   async function handleEnable() {
     setPhase('working');
-    // Sequential, not Promise.all: two OS permission sheets at once
-    // get coalesced/dropped by iOS. Request mic, then notifications.
+    // Sequential, not Promise.all: stacked OS permission sheets get
+    // coalesced/dropped by iOS. Mic, then camera/photos, then
+    // notifications - each resolves before the next is shown.
     await requestMicrophone();
+    await requestCamera();
     await requestNotifications();
     await markPrimed();
     setPhase('done');
@@ -170,6 +191,20 @@ export function PermissionsPrimer() {
               </p>
               <p className="text-xs text-ink-600 dark:text-cream-100/70 leading-relaxed">
                 Dictate case notes by voice instead of typing.
+              </p>
+            </div>
+          </li>
+          <li className="flex gap-3">
+            <span aria-hidden className="text-xl leading-none mt-0.5">
+              &#x1F4F7;
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-ink-900 dark:text-cream-100">
+                Camera &amp; Photos
+              </p>
+              <p className="text-xs text-ink-600 dark:text-cream-100/70 leading-relaxed">
+                Snap or attach documents, citations, and exhibits
+                straight into a case.
               </p>
             </div>
           </li>
