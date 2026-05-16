@@ -8,6 +8,7 @@ import { TourModal } from '@/components/TourModal';
 import { BrandMark } from '@/components/BrandMark';
 import { BiometricEnrollPrompt } from '@/components/BiometricEnrollPrompt';
 import { PermissionsPrimer } from '@/components/PermissionsPrimer';
+import { WatchSync } from '@/components/WatchSync';
 
 export const dynamic = 'force-dynamic';
 
@@ -82,8 +83,21 @@ export default async function CasesPage({
     );
   }
 
+  // Wear OS glance summary: open-case count + the most recently
+  // updated open case. Computed from data already loaded above (no
+  // extra query / API). WatchSync forwards it to the watch only on
+  // the Android Capacitor shell; it's an inert no-op elsewhere.
+  const latestOpen = [...owned].sort(
+    (a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt),
+  )[0];
+
   return (
     <div className="space-y-8 animate-fade-up">
+      <WatchSync
+        openCount={owned.length}
+        latestTitle={latestOpen?.title ?? ''}
+        latestCaseId={latestOpen?.id ?? ''}
+      />
       <TourModal visible={Boolean(showTour)} />
       {/* Biometric enrollment prompt - first time on a native shell only.
           No-op on web, on devices without biometric, and after dismissal. */}

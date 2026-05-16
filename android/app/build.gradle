@@ -67,8 +67,14 @@ android {
         // gesture. Android system-back is remapped to web-history
         // back via components/NativeBackGesture. Native AppDelegate
         // change -> new build; codes stay unique across both stores.
-        versionCode 13
-        versionName "1.0.10"
+        // v1.0.11 (code 14): Wear OS Phase 2 - AdvotticWatchPlugin
+        // (local Java Capacitor plugin, registered in MainActivity)
+        // pushes an open-case summary over the Wearable Data Layer to
+        // the :wear module. play-services-wearable added to :app.
+        // Phone-side functional change -> new build; codes stay
+        // unique across both stores.
+        versionCode 14
+        versionName "1.0.11"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -112,6 +118,10 @@ dependencies {
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation project(':capacitor-android')
+    // Wear OS bridge (AdvotticWatchPlugin -> Wearable Data Layer ->
+    // the :wear module). Phone-side only; the :wear module declares
+    // its own copy. Pinned to match the :wear module's 18.2.0.
+    implementation "com.google.android.gms:play-services-wearable:18.2.0"
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"

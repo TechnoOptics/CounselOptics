@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
@@ -18,26 +20,37 @@ import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.TimeText
 
 /**
- * Advottic Wear OS - Phase 1.
+ * Advottic Wear OS - Phase 2.
  *
- * Renders a glanceable placeholder. Phase 2 replaces the placeholder
- * body with the payload the phone-side AdvotticWatch Capacitor plugin
- * pushes over the Wearable Data Layer (open-case count + latest
- * update + an "open on phone" deep link), plus a Tile.
+ * Renders the case summary the phone pushes over the Wearable Data
+ * Layer (received by SummaryListenerService, persisted by
+ * SummaryStore). Falls back to a standalone-safe placeholder until
+ * the first sync, so the watch is never blank or crashy. The state
+ * is re-read in onResume so reopening the app reflects the latest
+ * push without any observer plumbing.
  *
- * Deliberately tiny and standalone-safe: if the phone has never
- * synced, the user still gets a coherent screen instead of a crash
- * or a blank watch face.
+ * Phase 3 adds a glanceable Tile + an "open on phone" hand-off.
  */
 class MainActivity : ComponentActivity() {
+    private val summary: MutableState<SummaryStore.Summary> =
+        mutableStateOf(SummaryStore.Summary(0, "", "", false))
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { WearApp() }
+        summary.value = SummaryStore.read(this)
+        setContent { WearApp(summary.value) }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Re-read so a sync that arrived while the app was backgrounded
+        // (or before this launch) shows immediately.
+        summary.value = SummaryStore.read(this)
     }
 }
 
 @Composable
-fun WearApp() {
+fun WearApp(summary: SummaryStore.Summary) {
     MaterialTheme {
         Scaffold(timeText = { TimeText() }) {
             Column(
@@ -52,12 +65,33 @@ fun WearApp() {
                     textAlign = TextAlign.Center,
                     style = MaterialTheme.typography.title3,
                 )
-                Text(
-                    text = "Open Advottic on your phone to see case updates here.",
-                    textAlign = TextAlign.Center,
-                    style = MaterialTheme.typography.caption2,
-                    modifier = Modifier.padding(top = 6.dp),
-                )
+                if (summary.hasData) {
+                    Text(
+                        text = if (summary.openCount == 1) {
+                            "1 open case"
+                        } else {
+                            "${summary.openCount} open cases"
+                        },
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.body2,
+                        modifier = Modifier.padding(top = 6.dp),
+                    )
+                    if (summary.latestTitle.isNotBlank()) {
+                        Text(
+                            text = "Latest: ${summary.latestTitle}",
+                            textAlign = TextAlign.Center,
+                            style = MaterialTheme.typography.caption2,
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
+                    }
+                } else {
+                    Text(
+                        text = "Open Advottic on your phone to see case updates here.",
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.caption2,
+                        modifier = Modifier.padding(top = 6.dp),
+                    )
+                }
             }
         }
     }
