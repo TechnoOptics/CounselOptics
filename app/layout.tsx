@@ -18,6 +18,7 @@ import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
 import { ThemeBoot } from '@/components/ThemeBoot';
 import { CrashReporter } from '@/components/CrashReporter';
 import { SiteJsonLd } from '@/components/seo/JsonLd';
+import { NativeBackGesture } from '@/components/NativeBackGesture';
 import { ImpersonationBanner } from '@/components/ImpersonationBanner';
 import { BiometricSessionSync } from '@/components/BiometricSessionSync';
 import { DeviceFingerprintRecorder } from '@/components/DeviceFingerprintRecorder';
@@ -434,6 +435,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         {signedIn && <TraceWatermark email={userEmail} />}
         <ServiceWorkerRegister />
         <CrashReporter />
+        {/* Android: remap the system back gesture to web-history back
+            (premium parity with the iOS native swipe-back). No-op on
+            web/iOS. */}
+        <NativeBackGesture />
         {/* Native shells: keep the biometric-stored refresh token in
             sync as Supabase rotates tokens. No-op on web. */}
         <BiometricSessionSync />

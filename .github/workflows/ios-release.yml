@@ -240,6 +240,72 @@ jobs:
           npx cap add ios
           npx cap sync ios
 
+      - name: Patch AppDelegate (premium webview - no rubber-band + swipe-back)
+        # Two native WKWebView tweaks Capacitor's config cannot express:
+        #   1. scrollView.bounces = false  -> kills the iOS elastic
+        #      overscroll so the page never drags past its borders and
+        #      the sticky header stays bolted to the top.
+        #   2. allowsBackForwardNavigationGestures = true -> the iOS
+        #      edge swipe-back gesture navigates web history like a
+        #      native push/pop.
+        # ios/ is regenerated every run, so we patch the generated
+        # AppDelegate.swift (already in the pbxproj) right after
+        # `cap add ios`. Fails LOUDLY if Capacitor's template shifts,
+        # rather than silently shipping without the polish.
+        run: |
+          AD=ios/App/App/AppDelegate.swift
+          python3 - "$AD" <<'PY'
+          import re, sys
+          p = sys.argv[1]
+          try:
+              src = open(p, encoding='utf-8').read()
+          except FileNotFoundError:
+              sys.exit(f"::error::{p} not found - Capacitor iOS template changed")
+          if 'import Capacitor' not in src or 'didFinishLaunchingWithOptions' not in src:
+              sys.exit("::error::AppDelegate.swift not in expected Capacitor shape - aborting webview patch")
+          if 'AdvotticWebView.install' in src:
+              print("AppDelegate already patched - skipping")
+              sys.exit(0)
+          m = re.search(r'didFinishLaunchingWithOptions[^\{]*\{', src)
+          if not m:
+              sys.exit("::error::could not locate didFinishLaunchingWithOptions opening brace")
+          i = m.end()
+          src = src[:i] + "\n        AdvotticWebView.install()" + src[i:]
+          helper = '''
+
+// Advottic native polish. Capacitor exposes no config for either of
+// these WKWebView properties, so we set them once the bridge view
+// loads:
+//   - scrollView.bounces = false: no rubber-band / overscroll past
+//     the borders; the sticky header reads as truly locked.
+//   - allowsBackForwardNavigationGestures: iOS edge swipe-back maps
+//     to web-history back, like a native navigation pop.
+enum AdvotticWebView {
+    static func install() {
+        NotificationCenter.default.addObserver(
+            forName: Notification.Name.capacitorViewDidLoad,
+            object: nil, queue: .main) { note in
+            DispatchQueue.main.async {
+                let vc = (note.object as? CAPBridgeViewController)
+                    ?? (UIApplication.shared.windows
+                        .first(where: { $0.isKeyWindow })?
+                        .rootViewController as? CAPBridgeViewController)
+                guard let webView = vc?.webView else { return }
+                webView.allowsBackForwardNavigationGestures = true
+                webView.scrollView.bounces = false
+                webView.scrollView.alwaysBounceVertical = false
+                webView.scrollView.alwaysBounceHorizontal = false
+            }
+        }
+    }
+}
+'''
+          open(p, 'w', encoding='utf-8').write(src + helper)
+          print("AppDelegate patched: webview lock + swipe-back")
+          PY
+          echo "--- AppDelegate.swift tail ---"
+          tail -28 "$AD"
+
       - name: Patch Info.plist with version + build number + privacy strings
         # Capacitor 8 leaves CFBundleShortVersionString and
         # CFBundleVersion at their template defaults ("1.0" / "1").

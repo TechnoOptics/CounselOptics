@@ -60,8 +60,15 @@ android {
         // Info.plist strings already present; the exhibit HTML capture
         // in upload-form.tsx is unchanged. New native plugin -> new
         // build; codes stay unique across both stores.
-        versionCode 12
-        versionName "1.0.9"
+        // v1.0.10 (code 13): premium native polish. iOS AppDelegate
+        // patch (ios-release.yml) disables WKWebView rubber-band
+        // overscroll (page no longer drags past its borders; sticky
+        // header reads as locked) and enables the edge swipe-back
+        // gesture. Android system-back is remapped to web-history
+        // back via components/NativeBackGesture. Native AppDelegate
+        // change -> new build; codes stay unique across both stores.
+        versionCode 13
+        versionName "1.0.10"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
