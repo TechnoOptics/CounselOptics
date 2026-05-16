@@ -1,0 +1,79 @@
+# XcodeGen spec - Apple Watch EMBEDDED-COMPANION reference project.
+#
+# Why this exists
+# ---------------
+# WCSession (the iOS<->watch bridge) only works when the watch app is
+# a PAIRED COMPANION of the iOS app: related bundle ids
+# (com.advottic.app  <->  com.advottic.app.watchkitapp). Our shipping
+# watch is standalone (com.advottic.watch) and the Capacitor iOS
+# project is regenerated every CI build, so we cannot prove the
+# companion architecture inside the live release without risky
+# surgery on the one green store pipeline.
+#
+# This project is that proof, isolated: a minimal iOS host that
+# EMBEDS the watch app and exercises the WCSession bridge on BOTH
+# sides. It reuses the SAME watch Swift sources as the standalone app
+# (../watchos/AdvotticWatch/Sources) so there is one watch source of
+# truth. watchos-companion-build.yml compiles it (simulator, no
+# signing) - the iOS analog of :wear:assembleDebug for the paired
+# architecture. Folding this into the real signed Capacitor release
+# (inject the target in ios-release.yml + provisioning) is the
+# deferred Mac-in-the-loop step; this de-risks it by proving the code
+# and the pairing compile end to end.
+name: AdvotticWatchCompanion
+
+options:
+  bundleIdPrefix: com.advottic
+  deploymentTarget:
+    iOS: "16.0"
+    watchOS: "10.0"
+  createIntermediateGroups: true
+
+targets:
+  # Embedded watchOS app. Reuses the standalone watch Sources; only
+  # the Info.plist differs (companion needs WKCompanionAppBundle-
+  # Identifier), so the shared Info.plist is excluded and a companion
+  # one is supplied here.
+  AdvotticWatch:
+    type: application
+    platform: watchOS
+    sources:
+      - path: ../watchos/AdvotticWatch/Sources
+        excludes:
+          - Info.plist
+    info:
+      path: AdvotticWatch-Info.plist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.advottic.app.watchkitapp
+        GENERATE_INFOPLIST_FILE: NO
+        TARGETED_DEVICE_FAMILY: "4"
+        SWIFT_VERSION: "5.0"
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "1"
+
+  # Minimal iOS host. Stands in for the Capacitor app purely to prove
+  # the iOS-side WCSession bridge compiles and embeds the watch. The
+  # real integration wraps PhoneWatchBridge in a Capacitor plugin
+  # (see the file header) - not done here to keep this dependency-free.
+  AdvotticPhoneHost:
+    type: application
+    platform: iOS
+    sources:
+      - path: PhoneHost
+    info:
+      path: PhoneHost/Info.plist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.advottic.app
+        GENERATE_INFOPLIST_FILE: NO
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SWIFT_VERSION: "5.0"
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "1"
+    dependencies:
+      # Produces the "Embed Watch Content" phase: building the host
+      # builds + embeds the watch app, so one xcodebuild verifies the
+      # whole paired pair.
+      - target: AdvotticWatch
+        embed: true
