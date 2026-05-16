@@ -409,21 +409,34 @@ export function SignInButtons({ next }: { next: string }) {
           }
         });
 
-        // CRITICAL: native redirect must be a CUSTOM URL SCHEME, not
-        // https://advottic.com/auth/callback. iOS suppresses Universal
-        // Links back to the app that presented the SFSafariViewController
-        // (the @capacitor/browser sheet), so an https redirect can
-        // never return to the app - the session strands in the Safari
-        // sheet ("logged in, but in the browser"). A custom-scheme URL
-        // (com.advottic.app://...) IS handed back to the app from
-        // SFSafariViewController, firing the appUrlOpen listener above,
-        // which then exchanges the code in the WebView's Supabase
-        // client. This scheme is allow-listed in Supabase Auth ->
-        // URL Configuration -> Redirect URLs, and registered natively
-        // (iOS CFBundleURLSchemes / Android intent-filter).
-        const nativeRedirectTo = `com.advottic.app://auth/callback?next=${encodeURIComponent(
-          next,
-        )}`;
+        // The native redirect should be a CUSTOM URL SCHEME
+        // (com.advottic.app://...): iOS suppresses Universal Links back
+        // to the app that presented the SFSafariViewController, so an
+        // https redirect strands the session in the Safari sheet,
+        // whereas a custom scheme IS handed back to the app and fires
+        // the appUrlOpen listener above.
+        //
+        // BUT the custom scheme only works on builds that actually
+        // REGISTERED it (iOS CFBundleURLSchemes / Android intent-filter
+        // landed in versionCode 10). This web code deploys to ALL
+        // installed apps instantly via Vercel, so on a pre-10 build the
+        // scheme is unknown and iOS shows "Safari cannot open the page
+        // because the link is invalid". Gate on the real native build
+        // number: >=10 uses the working custom scheme; older builds
+        // fall back to the previous https redirect (imperfect handoff,
+        // but no hard "invalid link" failure) until they update.
+        let nativeRedirectTo = oauthOptions.redirectTo;
+        try {
+          const info = await App.getInfo();
+          const buildNum = parseInt(info.build, 10);
+          if (Number.isFinite(buildNum) && buildNum >= 10) {
+            nativeRedirectTo = `com.advottic.app://auth/callback?next=${encodeURIComponent(
+              next,
+            )}`;
+          }
+        } catch {
+          // App.getInfo unavailable - stay on the https redirect.
+        }
         const { data, error: authError } = await supabase.auth.signInWithOAuth({
           provider,
           options: {
