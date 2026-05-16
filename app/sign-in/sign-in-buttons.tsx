@@ -409,9 +409,28 @@ export function SignInButtons({ next }: { next: string }) {
           }
         });
 
+        // CRITICAL: native redirect must be a CUSTOM URL SCHEME, not
+        // https://advottic.com/auth/callback. iOS suppresses Universal
+        // Links back to the app that presented the SFSafariViewController
+        // (the @capacitor/browser sheet), so an https redirect can
+        // never return to the app - the session strands in the Safari
+        // sheet ("logged in, but in the browser"). A custom-scheme URL
+        // (com.advottic.app://...) IS handed back to the app from
+        // SFSafariViewController, firing the appUrlOpen listener above,
+        // which then exchanges the code in the WebView's Supabase
+        // client. This scheme is allow-listed in Supabase Auth ->
+        // URL Configuration -> Redirect URLs, and registered natively
+        // (iOS CFBundleURLSchemes / Android intent-filter).
+        const nativeRedirectTo = `com.advottic.app://auth/callback?next=${encodeURIComponent(
+          next,
+        )}`;
         const { data, error: authError } = await supabase.auth.signInWithOAuth({
           provider,
-          options: { ...oauthOptions, skipBrowserRedirect: true },
+          options: {
+            ...oauthOptions,
+            redirectTo: nativeRedirectTo,
+            skipBrowserRedirect: true,
+          },
         });
         if (authError) {
           await sub.remove();

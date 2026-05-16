@@ -52,6 +52,22 @@
                 <data android:host="www.advottic.com" />
                 <data android:pathPrefix="/auth/callback" />
             </intent-filter>
+
+            <!-- Custom-scheme deep link for the OAuth callback. The
+                 https App Links above work on Android, but the iOS
+                 side MUST use a custom scheme (iOS suppresses Universal
+                 Links back to the app that presented the in-app Safari
+                 sheet). Supabase issues a single native redirectTo, so
+                 we register com.advottic.app:// here as well - the
+                 sign-in code path is then identical on both platforms
+                 and the callback reliably returns to the app. No
+                 autoVerify: custom schemes are not domain-verified. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="com.advottic.app" />
+            </intent-filter>
         </activity>
 
         <provider

@@ -38,8 +38,17 @@ android {
         // Android unchanged functionally (web code auto-updates in
         // the remote-URL WebView); bump keeps store version codes
         // unique + in lockstep.
-        versionCode 9
-        versionName "1.0.6"
+        // v1.0.7 (code 10): custom-scheme OAuth redirect. Native
+        // sign-in now redirects to com.advottic.app://auth/callback
+        // (registered: iOS CFBundleURLSchemes via ios-release.yml,
+        // Android intent-filter here; allow-listed in Supabase
+        // Redirect URLs). Custom schemes DO return to the app from
+        // the iOS in-app Safari sheet (Universal Links do not), so
+        // the OAuth session finally hands back to the WebView instead
+        // of stranding "logged in, but in the browser". Native change
+        // -> new build; codes must stay unique across both stores.
+        versionCode 10
+        versionName "1.0.7"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

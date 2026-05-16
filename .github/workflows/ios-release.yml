@@ -288,9 +288,26 @@ jobs:
           plist_str NSPhotoLibraryAddUsageDescription "Save your case packet PDF to your photo library so you can share or print it."
           plist_str NSUserTrackingUsageDescription "Advottic does not track you across other apps and websites and never will. This permission is reserved for future use."
 
+          # Register the custom URL scheme com.advottic.app:// so iOS
+          # hands the OAuth deep-link callback back to the app from the
+          # SFSafariViewController. iOS suppresses Universal Links back
+          # to the app that presented the SFSafariViewController, so an
+          # https callback can never return - but a custom scheme does.
+          # This scheme is allow-listed in Supabase Auth -> URL
+          # Configuration and used as the native OAuth redirectTo in
+          # app/sign-in/sign-in-buttons.tsx. ios/ is regenerated fresh
+          # each run (rm -rf ios), so delete-then-add is deterministic.
+          /usr/libexec/PlistBuddy -c "Delete :CFBundleURLTypes" "$INFO_PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes array" "$INFO_PLIST"
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0 dict" "$INFO_PLIST"
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLName string com.advottic.app" "$INFO_PLIST"
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes array" "$INFO_PLIST"
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string com.advottic.app" "$INFO_PLIST"
+
           echo "Patched Info.plist:"
           /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$INFO_PLIST"
           /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$INFO_PLIST"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleURLTypes" "$INFO_PLIST"
           for k in NSFaceIDUsageDescription NSMicrophoneUsageDescription NSSpeechRecognitionUsageDescription NSCameraUsageDescription NSPhotoLibraryUsageDescription NSPhotoLibraryAddUsageDescription NSUserTrackingUsageDescription; do
             printf '  %s = ' "$k"
             /usr/libexec/PlistBuddy -c "Print :$k" "$INFO_PLIST"
