@@ -1,0 +1,428 @@
+# iOS release build WITH the embedded Apple Watch app.
+#
+# Relationship to ios-release.yml
+# -------------------------------
+# This is a SUPERSET of ios-release.yml, kept as a SEPARATE workflow
+# on purpose: the phone-only pipeline is hard-won-green (the OAuth /
+# Apple-login / bundle-collision saga) and must never be put at risk
+# by watch work. ios-release.yml is unchanged and remains the
+# canonical phone path. This workflow adds one thing: it injects the
+# Advottic watchOS app as an EMBEDDED COMPANION target into the
+# Capacitor-generated ios/App project (scripts/ios/inject_watch_
+# target.rb), so a signed build carries the watch.
+#
+# Verification posture (why upload defaults to FALSE here)
+# --------------------------------------------------------
+# Export + TestFlight upload need the com.advottic.app.watchkitapp
+# App ID + provisioning, which only the account holder can create in
+# the Apple Developer portal. So those steps are gated behind
+# `upload_to_testflight`. The DEFAULT run does inject + UNSIGNED
+# archive only and asserts the watch is embedded in the .xcarchive -
+# a fully CI-verifiable, zero-provisioning proof that the integration
+# works inside the real Capacitor app. Flip the input to true once
+# the App ID exists to also export + upload.
+#
+# Secrets: same four as ios-release.yml (APPLE_TEAM_ID,
+# APP_STORE_CONNECT_API_KEY_ID / _ISSUER_ID / _KEY_BASE64). Only read
+# when uploading.
+
+name: iOS release build (with Watch)
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload_to_testflight:
+        description: 'Export + upload to TestFlight? Needs the com.advottic.app.watchkitapp App ID to exist. Default false = inject + archive verification only.'
+        type: boolean
+        required: false
+        default: false
+      release_notes:
+        description: 'One-line note for the build summary'
+        required: false
+        default: 'Manual iOS+Watch release build'
+
+permissions:
+  contents: read
+
+jobs:
+  build-ipa-watch:
+    name: Build iOS + embedded Watch
+    runs-on: macos-15
+    timeout-minutes: 60
+
+    env:
+      IOS_BUNDLE_ID: com.advottic.app
+      EXPORT_METHOD: app-store-connect
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select latest-stable Xcode (>= 26, Apple upload mandate)
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Print toolchain (assert iOS 26 SDK)
+        run: |
+          xcodebuild -version
+          SDK_VER=$(xcodebuild -showsdks | sed -nE 's/.*iphoneos([0-9]+)\..*/\1/p' | sort -n | tail -1)
+          echo "Newest installed iOS SDK major version: ${SDK_VER:-unknown}"
+          if [ -z "$SDK_VER" ] || [ "$SDK_VER" -lt 26 ]; then
+            echo "::error::Active Xcode exposes iOS SDK ${SDK_VER:-?} but Apple requires >= 26. Runner needs Xcode 26+."
+            exit 1
+          fi
+          if ! xcodebuild -showsdks | grep -qi 'watchos'; then
+            echo "::error::No watchOS SDK on this image - cannot build the embedded watch."
+            exit 1
+          fi
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Read version + build number from android/app/build.gradle
+        run: |
+          VERSION_NAME=$(grep -E '^\s*versionName\b' android/app/build.gradle | head -1 | sed -E 's/.*versionName "([^"]+)".*/\1/')
+          VERSION_CODE=$(grep -E '^\s*versionCode\b' android/app/build.gradle | head -1 | sed -E 's/.*versionCode ([0-9]+).*/\1/')
+          if [ -z "$VERSION_NAME" ] || [ -z "$VERSION_CODE" ]; then
+            echo "::error::Could not parse versionName / versionCode from android/app/build.gradle"
+            exit 1
+          fi
+          echo "MARKETING_VERSION=$VERSION_NAME" >> $GITHUB_ENV
+          echo "CURRENT_PROJECT_VERSION=$VERSION_CODE" >> $GITHUB_ENV
+          echo "## iOS+Watch release inputs" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Marketing version:** $VERSION_NAME" >> $GITHUB_STEP_SUMMARY
+          echo "**Build number:** $VERSION_CODE" >> $GITHUB_STEP_SUMMARY
+          echo "**Upload to TestFlight:** ${{ inputs.upload_to_testflight }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Trigger note:** ${{ inputs.release_notes }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Validate required iOS secrets
+        if: ${{ inputs.upload_to_testflight }}
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+        run: |
+          missing=()
+          [ -z "$APPLE_TEAM_ID" ] && missing+=("APPLE_TEAM_ID")
+          [ -z "$APP_STORE_CONNECT_API_KEY_ID" ] && missing+=("APP_STORE_CONNECT_API_KEY_ID")
+          [ -z "$APP_STORE_CONNECT_API_ISSUER_ID" ] && missing+=("APP_STORE_CONNECT_API_ISSUER_ID")
+          [ -z "$APP_STORE_CONNECT_API_KEY_BASE64" ] && missing+=("APP_STORE_CONNECT_API_KEY_BASE64")
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing required secret(s): ${missing[*]}"
+            exit 1
+          fi
+          echo "All 4 required secrets are present."
+
+      - name: Decode App Store Connect API key
+        if: ${{ inputs.upload_to_testflight }}
+        env:
+          APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+        run: |
+          mkdir -p ~/private_keys
+          KEY_FILE=~/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8
+          echo "$APP_STORE_CONNECT_API_KEY_BASE64" | tr -d '\r\n\t ' | base64 --decode > "$KEY_FILE"
+          chmod 600 "$KEY_FILE"
+          if ! head -1 "$KEY_FILE" | grep -q "BEGIN PRIVATE KEY"; then
+            echo "::error::Decoded key file doesn't look like a .p8."
+            exit 1
+          fi
+          echo "API key decoded to $KEY_FILE"
+
+      - name: Create ios/ via Capacitor (fresh per-run)
+        run: |
+          rm -rf ios
+          npx cap add ios
+          npx cap sync ios
+
+      - name: Patch AppDelegate (premium webview - no rubber-band + swipe-back)
+        run: |
+          AD=ios/App/App/AppDelegate.swift
+          if [ ! -f "$AD" ]; then
+            echo "::error::$AD not found - Capacitor iOS template changed"
+            exit 1
+          fi
+          if ! grep -q 'import Capacitor' "$AD" || ! grep -q 'didFinishLaunchingWithOptions' "$AD"; then
+            echo "::error::AppDelegate.swift not in expected Capacitor shape - aborting webview patch"
+            exit 1
+          fi
+          if grep -q 'AdvotticWebView.install' "$AD"; then
+            echo "AppDelegate already patched - skipping"
+          else
+            perl -0777 -pi -e 's/didFinishLaunchingWithOptions[^{]*\{/$&\n        AdvotticWebView.install()/' "$AD"
+            if ! grep -q 'AdvotticWebView.install' "$AD"; then
+              echo "::error::failed to insert AdvotticWebView.install() call site"
+              exit 1
+            fi
+            cat >> "$AD" <<'SWIFT'
+
+          // Advottic native polish - Capacitor exposes no config for
+          // these WKWebView properties, so set them after launch:
+          // scrollView.bounces=false kills the iOS rubber-band so the
+          // page never drags past its borders and the sticky header
+          // reads as locked; allowsBackForwardNavigationGestures maps
+          // the iOS edge swipe-back to web-history back. Hooked on the
+          // bulletproof UIKit didBecomeActive notification, with a
+          // short retry until the bridge webView is attached.
+          enum AdvotticWebView {
+              static func install() {
+                  NotificationCenter.default.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { _ in
+                      apply(retries: 12)
+                  }
+              }
+              private static func apply(retries: Int) {
+                  let root = UIApplication.shared.windows.first(where: { $0.isKeyWindow })?.rootViewController
+                  let vc = (root as? CAPBridgeViewController) ?? root?.children.compactMap({ $0 as? CAPBridgeViewController }).first
+                  if let webView = vc?.webView {
+                      webView.allowsBackForwardNavigationGestures = true
+                      webView.scrollView.bounces = false
+                      webView.scrollView.alwaysBounceVertical = false
+                      webView.scrollView.alwaysBounceHorizontal = false
+                      return
+                  }
+                  if retries > 0 {
+                      DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                          apply(retries: retries - 1)
+                      }
+                  }
+              }
+          }
+          SWIFT
+            echo "AppDelegate patched: webview lock + swipe-back"
+          fi
+
+      - name: Patch Info.plist with version + build number + privacy strings
+        run: |
+          INFO_PLIST=ios/App/App/Info.plist
+          if [ ! -f "$INFO_PLIST" ]; then
+            echo "::error::$INFO_PLIST does not exist after cap add."
+            exit 1
+          fi
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${MARKETING_VERSION}" "$INFO_PLIST"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${CURRENT_PROJECT_VERSION}" "$INFO_PLIST"
+          plist_str() {
+            /usr/libexec/PlistBuddy -c "Set :$1 $2" "$INFO_PLIST" 2>/dev/null \
+              || /usr/libexec/PlistBuddy -c "Add :$1 string $2" "$INFO_PLIST"
+          }
+          plist_str NSFaceIDUsageDescription "Use Face ID to sign in to Advottic without typing your email each time. Your biometric data never leaves this device."
+          plist_str NSMicrophoneUsageDescription "Use the microphone to dictate case notes. Audio is transcribed on-device by iOS and never uploaded."
+          plist_str NSSpeechRecognitionUsageDescription "Convert your spoken notes to text so you can add them to a case file. Recognition runs on-device when possible."
+          plist_str NSCameraUsageDescription "Photograph documents, citations, and exhibits to add them directly to your case file. Photos stay private to your account."
+          plist_str NSPhotoLibraryUsageDescription "Attach existing photos as case exhibits. Advottic only reads the photos you explicitly choose."
+          plist_str NSPhotoLibraryAddUsageDescription "Save your case packet PDF to your photo library so you can share or print it."
+          plist_str NSUserTrackingUsageDescription "Advottic does not track you across other apps and websites and never will. This permission is reserved for future use."
+          /usr/libexec/PlistBuddy -c "Delete :ITSAppUsesNonExemptEncryption" "$INFO_PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" "$INFO_PLIST"
+          /usr/libexec/PlistBuddy -c "Delete :CFBundleURLTypes" "$INFO_PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes array" "$INFO_PLIST"
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0 dict" "$INFO_PLIST"
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLName string com.advottic.app" "$INFO_PLIST"
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes array" "$INFO_PLIST"
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string com.advottic.app" "$INFO_PLIST"
+          echo "Patched Info.plist."
+
+      - name: Add Sign in with Apple + Associated Domains entitlements
+        run: |
+          ENT_FILE=ios/App/App/App.entitlements
+          cat > "$ENT_FILE" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>com.apple.developer.applesignin</key>
+            <array>
+              <string>Default</string>
+            </array>
+            <key>com.apple.developer.associated-domains</key>
+            <array>
+              <string>applinks:advottic.com</string>
+              <string>webcredentials:advottic.com</string>
+            </array>
+          </dict>
+          </plist>
+          EOF
+          echo "Wrote entitlements to $ENT_FILE"
+
+      - name: Stage the watch sources into ios/App
+        # ios/ is regenerated each run; copy the SHARED watch sources
+        # (one source of truth) + the companion Info.plist + the
+        # iOS-side WCSession bridge next to the project so the
+        # injection script adds clean in-project paths.
+        run: |
+          mkdir -p ios/App/AdvotticWatch
+          cp watchos/AdvotticWatch/Sources/*.swift ios/App/AdvotticWatch/
+          cp ios-watch/AdvotticWatch-Info.plist ios/App/AdvotticWatch/Info.plist
+          cp ios-watch/PhoneHost/PhoneWatchBridge.swift ios/App/App/PhoneWatchBridge.swift
+          echo "Staged:"
+          ls -la ios/App/AdvotticWatch
+          ls -la ios/App/App/PhoneWatchBridge.swift
+
+      - name: Inject the embedded watch target into App.xcodeproj
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          # xcodeproj is the canonical pbxproj manipulation gem
+          # (CocoaPods' library). Pin-install so the runner's bundled
+          # version can't drift the script under us.
+          gem install xcodeproj --no-document
+          ruby scripts/ios/inject_watch_target.rb
+          # Hard gate: the target must now exist in the pbxproj.
+          if ! grep -q 'AdvotticWatch' ios/App/App.xcodeproj/project.pbxproj; then
+            echo "::error::Watch target not present in pbxproj after injection."
+            exit 1
+          fi
+          echo "Embedded watch target injected."
+
+      - name: Build and archive (iOS + embedded watch, unsigned)
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        working-directory: ios/App
+        run: |
+          # Same proven phone recipe: resolve SPM deps, then archive
+          # UNSIGNED (export does signing). Building -scheme App now
+          # also builds + embeds the AdvotticWatch dependency, so the
+          # archive carries the watch. -destination generic/platform=
+          # iOS lets the watch dependency build for watchOS (a global
+          # -sdk would force it to iOS and break WCSessionDelegate).
+          xcodebuild \
+            -project App.xcodeproj \
+            -scheme App \
+            -resolvePackageDependencies
+          xcodebuild \
+            -project App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            DEVELOPMENT_TEAM=${APPLE_TEAM_ID} \
+            CODE_SIGNING_ALLOWED=NO \
+            archive
+
+      - name: Assert the watch is embedded in the archive
+        # The core CI-verifiable proof, independent of signing /
+        # provisioning: the .xcarchive's App.app must contain the
+        # embedded watch app at Watch/AdvotticWatch.app.
+        run: |
+          WATCH_APP="$RUNNER_TEMP/App.xcarchive/Products/Applications/App.app/Watch/AdvotticWatch.app"
+          if [ ! -d "$WATCH_APP" ]; then
+            echo "::error::Embedded watch app NOT found at $WATCH_APP"
+            echo "--- App.app contents ---"
+            ls -R "$RUNNER_TEMP/App.xcarchive/Products/Applications/App.app" || true
+            exit 1
+          fi
+          echo "## Embedded watch verified" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`App.app/Watch/AdvotticWatch.app\` is present in the archive." >> $GITHUB_STEP_SUMMARY
+          echo "Binary:" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          ls -la "$WATCH_APP" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          /usr/libexec/PlistBuddy -c "Print :WKCompanionAppBundleIdentifier" "$WATCH_APP/Info.plist" \
+            && echo "Companion id wired." >> $GITHUB_STEP_SUMMARY
+
+      - name: Export IPA
+        if: ${{ inputs.upload_to_testflight }}
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+        working-directory: ios/App
+        run: |
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>${EXPORT_METHOD}</string>
+            <key>teamID</key>
+            <string>${APPLE_TEAM_ID}</string>
+            <key>signingStyle</key>
+            <string>automatic</string>
+            <key>uploadBitcode</key>
+            <false/>
+            <key>uploadSymbols</key>
+            <true/>
+            <key>compileBitcode</key>
+            <false/>
+            <key>stripSwiftSymbols</key>
+            <true/>
+            <key>destination</key>
+            <string>export</string>
+          </dict>
+          </plist>
+          EOF
+          # -allowProvisioningUpdates + the App Store Connect API key
+          # will, if the key has App Manager rights, auto-create the
+          # com.advottic.app.watchkitapp App ID + profile. If Apple
+          # still requires the App ID to pre-exist this step fails
+          # cleanly HERE - the phone pipeline (ios-release.yml) is a
+          # different workflow and is unaffected.
+          xcodebuild \
+            -exportArchive \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8 \
+            -authenticationKeyID ${APP_STORE_CONNECT_API_KEY_ID} \
+            -authenticationKeyIssuerID ${APP_STORE_CONNECT_API_ISSUER_ID}
+
+      - name: Verify IPA + report size
+        if: ${{ inputs.upload_to_testflight }}
+        run: |
+          IPA=$(ls "$RUNNER_TEMP/export"/*.ipa 2>/dev/null | head -1)
+          if [ -z "$IPA" ] || [ ! -f "$IPA" ]; then
+            echo "::error::No IPA found in $RUNNER_TEMP/export/"
+            ls -la "$RUNNER_TEMP/export/" || true
+            exit 1
+          fi
+          SIZE_BYTES=$(stat -f%z "$IPA")
+          SIZE_MB=$(awk "BEGIN {printf \"%.2f\", $SIZE_BYTES / 1024 / 1024}")
+          echo "**IPA:** \`$IPA\` (${SIZE_MB} MB)" >> $GITHUB_STEP_SUMMARY
+          echo "IPA_PATH=$IPA" >> $GITHUB_ENV
+
+      - name: Upload IPA artifact
+        if: ${{ inputs.upload_to_testflight }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: advottic-ipa-watch
+          path: ${{ env.IPA_PATH }}
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Upload to TestFlight via App Store Connect
+        if: ${{ inputs.upload_to_testflight }}
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+        run: |
+          set -o pipefail
+          xcrun altool --upload-app \
+            --type ios \
+            --file "$IPA_PATH" \
+            --apiKey "$APP_STORE_CONNECT_API_KEY_ID" \
+            --apiIssuer "$APP_STORE_CONNECT_API_ISSUER_ID" \
+            --output-format json | tee "$RUNNER_TEMP/altool-output.json"
+          if grep -q '"product-errors"' "$RUNNER_TEMP/altool-output.json"; then
+            echo "::error::altool reported product-errors - upload did NOT reach TestFlight."
+            exit 1
+          fi
+          echo "## TestFlight upload (iOS + Watch)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Uploaded \`$IPA_PATH\`. Allow 10-30 min for processing." >> $GITHUB_STEP_SUMMARY
+
+      - name: Clean up secrets-derived files
+        if: always()
+        run: |
+          rm -rf ~/private_keys
+          rm -f "$RUNNER_TEMP/ExportOptions.plist"
