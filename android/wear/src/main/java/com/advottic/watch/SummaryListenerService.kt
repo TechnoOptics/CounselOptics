@@ -1,5 +1,6 @@
 package com.advottic.watch
 
+import androidx.wear.tiles.TileService
 import com.google.android.gms.wearable.DataEvent
 import com.google.android.gms.wearable.DataEventBuffer
 import com.google.android.gms.wearable.DataMapItem
@@ -25,6 +26,15 @@ class SummaryListenerService : WearableListenerService() {
                 latestTitle = map.getString("latestTitle") ?: "",
                 latestCaseId = map.getString("latestCaseId") ?: "",
             )
+            // Phase 3b: nudge the Tile so the glance reflects this push
+            // without waiting for the user to open the app. Best-effort:
+            // if no Tile is added this is a harmless no-op.
+            try {
+                TileService.getUpdater(this)
+                    .requestUpdate(SummaryTileService::class.java)
+            } catch (_: Throwable) {
+                // Never let a Tile refresh failure drop the data sync.
+            }
         }
     }
 }

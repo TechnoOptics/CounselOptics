@@ -70,6 +70,14 @@ dependencies {
     // Fire-and-forget the returned future, so no extra futures dep.
     implementation 'androidx.wear:wear-remote-interactions:1.1.0'
 
+    // Phase 3b: glanceable Tile. Plain ProtoLayout builders (no
+    // protolayout-material) keep the version surface minimal; Guava
+    // supplies Futures.immediateFuture for the synchronous tile -
+    // the listenablefuture stub conflict is auto-resolved by Gradle.
+    implementation 'androidx.wear.tiles:tiles:1.4.0'
+    implementation 'androidx.wear.protolayout:protolayout:1.2.0'
+    implementation 'com.google.guava:guava:33.3.1-android'
+
     // Data Layer client - declared now so Phase 2 (phone -> watch
     // payload) needs no dependency change, only code.
     implementation 'com.google.android.gms:play-services-wearable:18.2.0'
