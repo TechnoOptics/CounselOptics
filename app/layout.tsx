@@ -19,6 +19,7 @@ import { ThemeBoot } from '@/components/ThemeBoot';
 import { CrashReporter } from '@/components/CrashReporter';
 import { SiteJsonLd } from '@/components/seo/JsonLd';
 import { NativeBackGesture } from '@/components/NativeBackGesture';
+import { WatchNoteInbox } from '@/components/WatchNoteInbox';
 import { ImpersonationBanner } from '@/components/ImpersonationBanner';
 import { BiometricSessionSync } from '@/components/BiometricSessionSync';
 import { DeviceFingerprintRecorder } from '@/components/DeviceFingerprintRecorder';
@@ -439,6 +440,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             (premium parity with the iOS native swipe-back). No-op on
             web/iOS. */}
         <NativeBackGesture />
+        {/* Wear OS Phase 3c: surface a voice note handed off from the
+            watch (advottic.com/cases/<id>?note=...) for the user to
+            review/copy, then strip the param. Inert without it. */}
+        {signedIn && <WatchNoteInbox />}
         {/* Native shells: keep the biometric-stored refresh token in
             sync as Supabase rotates tokens. No-op on web. */}
         <BiometricSessionSync />

@@ -3,8 +3,11 @@ package com.advottic.watch
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.speech.RecognizerIntent
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,20 +28,27 @@ import androidx.wear.compose.material.Scaffold
 import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.TimeText
 import androidx.wear.remote.interactions.RemoteActivityHelper
+import java.net.URLEncoder
 
 /**
- * Advottic Wear OS - Phase 2 + 3a.
+ * Advottic Wear OS - Phase 2 + 3a + 3b + 3c.
  *
  * Phase 2: renders the case summary the phone pushes over the
  * Wearable Data Layer (SummaryListenerService -> SummaryStore),
  * with a standalone-safe placeholder until the first sync.
  *
- * Phase 3a: when there is a latest case, an "Open on phone" chip
- * uses RemoteActivityHelper to open that case on the paired phone
- * (advottic.com/cases/<id> - the user is already signed in there).
- * Fire-and-forget: if no phone is reachable it simply no-ops.
+ * Phase 3a: "Open on phone" chip hands the latest case to the paired
+ * phone via RemoteActivityHelper (the phone session is signed in).
  *
- * Phase 3b (next) adds a glanceable Tile; 3c a quick voice note.
+ * Phase 3b: a glanceable Tile mirrors the summary (SummaryTileService).
+ *
+ * Phase 3c: a "Voice note" chip uses the Wear system speech
+ * recognizer (no RECORD_AUDIO - the recognizer activity owns the
+ * mic) and hands the transcript to the phone as
+ * advottic.com/cases/<id>?note=<text>. The note lands in the
+ * already-authenticated WebView, where a small island surfaces it
+ * for the user to act on - so the wrist never touches an auth
+ * boundary or needs a new server endpoint.
  */
 class MainActivity : ComponentActivity() {
     private val summary: MutableState<SummaryStore.Summary> =
@@ -56,11 +66,12 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private fun openCaseOnPhone(context: android.content.Context, caseId: String) {
+/** Best-effort hand-off of a URL to the paired phone. Never throws. */
+private fun handOffToPhone(context: android.content.Context, url: String) {
     try {
         val intent = Intent(Intent.ACTION_VIEW)
             .addCategory(Intent.CATEGORY_BROWSABLE)
-            .setData(Uri.parse("https://advottic.com/cases/$caseId"))
+            .setData(Uri.parse(url))
         // Returns a ListenableFuture<Void>; best-effort, not awaited -
         // if the phone is unreachable this just does nothing.
         RemoteActivityHelper(context).startRemoteActivity(intent)
@@ -69,9 +80,60 @@ private fun openCaseOnPhone(context: android.content.Context, caseId: String) {
     }
 }
 
+private fun openCaseOnPhone(context: android.content.Context, caseId: String) {
+    handOffToPhone(context, "https://advottic.com/cases/$caseId")
+}
+
+private fun noteUrl(caseId: String, text: String): String {
+    // Land on the specific case when we have one, else the dashboard.
+    val base =
+        if (caseId.isNotBlank()) {
+            "https://advottic.com/cases/$caseId"
+        } else {
+            "https://advottic.com/cases"
+        }
+    // URLEncoder emits '+' for space (form encoding); the web reads
+    // the param with decodeURIComponent, so normalise to %20.
+    val enc = URLEncoder.encode(text, "UTF-8").replace("+", "%20")
+    return "$base?note=$enc"
+}
+
 @Composable
 fun WearApp(summary: SummaryStore.Summary) {
     val context = LocalContext.current
+
+    // System speech recognizer. No RECORD_AUDIO permission needed -
+    // the recognizer activity owns the mic. On a transcript, hand it
+    // to the phone scoped to the latest case (or the dashboard).
+    val voiceLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        val spoken = result.data
+            ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+            ?.firstOrNull()
+            ?.trim()
+            .orEmpty()
+        if (spoken.isNotEmpty()) {
+            handOffToPhone(context, noteUrl(summary.latestCaseId, spoken))
+        }
+    }
+
+    fun startVoiceNote() {
+        try {
+            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(
+                    RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
+                )
+                putExtra(RecognizerIntent.EXTRA_PROMPT, "Add a case note")
+            }
+            voiceLauncher.launch(intent)
+        } catch (_: Throwable) {
+            // No recognizer on this watch - silently ignore so the
+            // glance never crashes over an optional convenience.
+        }
+    }
+
     MaterialTheme {
         Scaffold(timeText = { TimeText() }) {
             Column(
@@ -122,6 +184,19 @@ fun WearApp(summary: SummaryStore.Summary) {
                                 .padding(top = 10.dp),
                         )
                     }
+                    Chip(
+                        onClick = { startVoiceNote() },
+                        label = {
+                            Text(
+                                text = "Voice note",
+                                textAlign = TextAlign.Center,
+                            )
+                        },
+                        colors = ChipDefaults.secondaryChipColors(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                    )
                 } else {
                     Text(
                         text = "Open Advottic on your phone to see case updates here.",
