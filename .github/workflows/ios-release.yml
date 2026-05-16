@@ -254,57 +254,57 @@ jobs:
         # rather than silently shipping without the polish.
         run: |
           AD=ios/App/App/AppDelegate.swift
-          python3 - "$AD" <<'PY'
-          import re, sys
-          p = sys.argv[1]
-          try:
-              src = open(p, encoding='utf-8').read()
-          except FileNotFoundError:
-              sys.exit(f"::error::{p} not found - Capacitor iOS template changed")
-          if 'import Capacitor' not in src or 'didFinishLaunchingWithOptions' not in src:
-              sys.exit("::error::AppDelegate.swift not in expected Capacitor shape - aborting webview patch")
-          if 'AdvotticWebView.install' in src:
-              print("AppDelegate already patched - skipping")
-              sys.exit(0)
-          m = re.search(r'didFinishLaunchingWithOptions[^\{]*\{', src)
-          if not m:
-              sys.exit("::error::could not locate didFinishLaunchingWithOptions opening brace")
-          i = m.end()
-          src = src[:i] + "\n        AdvotticWebView.install()" + src[i:]
-          helper = '''
+          if [ ! -f "$AD" ]; then
+            echo "::error::$AD not found - Capacitor iOS template changed"
+            exit 1
+          fi
+          if ! grep -q 'import Capacitor' "$AD" || ! grep -q 'didFinishLaunchingWithOptions' "$AD"; then
+            echo "::error::AppDelegate.swift not in expected Capacitor shape - aborting webview patch"
+            exit 1
+          fi
+          if grep -q 'AdvotticWebView.install' "$AD"; then
+            echo "AppDelegate already patched - skipping"
+          else
+            # Insert the call right after the didFinishLaunching brace.
+            # $& is the whole match; single-quoted -e keeps it perl, not shell.
+            perl -0777 -pi -e 's/didFinishLaunchingWithOptions[^{]*\{/$&\n        AdvotticWebView.install()/' "$AD"
+            if ! grep -q 'AdvotticWebView.install' "$AD"; then
+              echo "::error::failed to insert AdvotticWebView.install() call site"
+              exit 1
+            fi
+            # Append the helper. Single-quoted 'SWIFT' so $0 (Swift
+            # closure shorthand) is NOT shell-expanded. The SWIFT
+            # terminator sits at the YAML block indent, so after YAML
+            # strips that indent it lands at column 0 and closes the
+            # heredoc correctly (same mechanic as the entitlements step).
+            cat >> "$AD" <<'SWIFT'
 
-// Advottic native polish. Capacitor exposes no config for either of
-// these WKWebView properties, so we set them once the bridge view
-// loads:
-//   - scrollView.bounces = false: no rubber-band / overscroll past
-//     the borders; the sticky header reads as truly locked.
-//   - allowsBackForwardNavigationGestures: iOS edge swipe-back maps
-//     to web-history back, like a native navigation pop.
-enum AdvotticWebView {
-    static func install() {
-        NotificationCenter.default.addObserver(
-            forName: Notification.Name.capacitorViewDidLoad,
-            object: nil, queue: .main) { note in
-            DispatchQueue.main.async {
-                let vc = (note.object as? CAPBridgeViewController)
-                    ?? (UIApplication.shared.windows
-                        .first(where: { $0.isKeyWindow })?
-                        .rootViewController as? CAPBridgeViewController)
-                guard let webView = vc?.webView else { return }
-                webView.allowsBackForwardNavigationGestures = true
-                webView.scrollView.bounces = false
-                webView.scrollView.alwaysBounceVertical = false
-                webView.scrollView.alwaysBounceHorizontal = false
-            }
-        }
-    }
-}
-'''
-          open(p, 'w', encoding='utf-8').write(src + helper)
-          print("AppDelegate patched: webview lock + swipe-back")
-          PY
+          // Advottic native polish - applied once Capacitor's bridge
+          // view loads (Capacitor has no config for these WKWebView
+          // properties): scrollView.bounces=false kills the iOS
+          // rubber-band so the page never drags past its borders and
+          // the sticky header reads as locked;
+          // allowsBackForwardNavigationGestures maps the iOS edge
+          // swipe-back to web-history back (native-feeling pop).
+          enum AdvotticWebView {
+              static func install() {
+                  NotificationCenter.default.addObserver(forName: Notification.Name.capacitorViewDidLoad, object: nil, queue: .main) { note in
+                      DispatchQueue.main.async {
+                          let vc = (note.object as? CAPBridgeViewController) ?? (UIApplication.shared.windows.first(where: { $0.isKeyWindow })?.rootViewController as? CAPBridgeViewController)
+                          guard let webView = vc?.webView else { return }
+                          webView.allowsBackForwardNavigationGestures = true
+                          webView.scrollView.bounces = false
+                          webView.scrollView.alwaysBounceVertical = false
+                          webView.scrollView.alwaysBounceHorizontal = false
+                      }
+                  }
+              }
+          }
+          SWIFT
+            echo "AppDelegate patched: webview lock + swipe-back"
+          fi
           echo "--- AppDelegate.swift tail ---"
-          tail -28 "$AD"
+          tail -24 "$AD"
 
       - name: Patch Info.plist with version + build number + privacy strings
         # Capacitor 8 leaves CFBundleShortVersionString and
