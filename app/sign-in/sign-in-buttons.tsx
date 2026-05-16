@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 // Capacitor is loaded lazily inside the OAuth handlers (line ~221).
 // Static-importing @capacitor/core here runs the plugin's module-load
 // side effects on every server-side render of the sign-in page,
@@ -104,28 +103,30 @@ const APPLE_ENABLED =
   (process.env.NEXT_PUBLIC_APPLE_ENABLED ?? '').trim() === '1';
 
 export function SignInButtons({ next }: { next: string }) {
-  const router = useRouter();
   const [pending, setPending] = useState<Mode | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [emailSent, setEmailSent] = useState<string | null>(null);
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
 
-  // Navigate after a successful sign-in. Most of the time `next` is a
-  // same-origin path like "/cases" and router.replace handles it. For
-  // Phase 2 white-label, the apex /sign-in can receive an absolute
-  // <slug>.advottic.com URL when a tenant subdomain bounced an unauthed
-  // visitor through the apex - in that case we have to do a full-page
-  // navigation because router.replace cannot cross hosts. The auth
-  // cookie is Domain=.advottic.com so the session travels with the
-  // navigation. sanitizeNext on the server already validated the URL is
-  // on advottic.com, so this cannot land on an attacker-controlled host.
+  // Navigate after a successful sign-in.
+  //
+  // This MUST be a full-document navigation, not router.replace. The
+  // header avatar/"Sign in" swap lives in <UserMenu/>, a SERVER
+  // component in app/layout.tsx that calls getCurrentUser() from the
+  // request cookies. When sign-in completes client-side (the native
+  // OAuth code-exchange in the WebView, or verifyOtp), a soft
+  // router.replace re-runs client navigation but the already-painted
+  // server-rendered layout - including UserMenu - is NOT re-evaluated,
+  // so it keeps showing the "Sign in" button even though the user is
+  // now authenticated. A full navigation re-requests the page with the
+  // new auth cookie, the server re-renders UserMenu, and it correctly
+  // shows the profile avatar instead of "Sign in". Sign-in is a
+  // once-per-session event so the extra full load is a fine trade for
+  // correct chrome. sanitizeNext on the server already validated the
+  // URL is on advottic.com, so this cannot land on an attacker host.
   function goNext(target: string) {
-    if (target.startsWith('http://') || target.startsWith('https://')) {
-      window.location.href = target;
-      return;
-    }
-    router.replace(target);
+    window.location.assign(target);
   }
   // Once the magic-link email has been requested, verifyMode flips on
   // so the form renders the 6-digit OTP input instead of the email

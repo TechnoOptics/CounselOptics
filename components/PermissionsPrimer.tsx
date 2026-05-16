@@ -1,0 +1,224 @@
+'use client';
+
+/**
+ * Permissions priming sheet. Mounts inside the app shell post-sign-in
+ * and, on the FIRST launch on a native device only, explains and then
+ * requests the OS permissions the app actually uses, up front, instead
+ * of springing the raw system prompt the first time the user happens
+ * to tap "dictate".
+ *
+ * Scope is deliberately limited to capabilities that are actually
+ * wired into the native build:
+ *   - Microphone  -> @capacitor-community/speech-recognition
+ *                    (voice dictation, components/VoiceDictateButton)
+ *   - Notifications -> web-push (case updates, components/PushOptIn)
+ *
+ * NOT included on purpose:
+ *   - Face ID / biometric: handled by BiometricEnrollPrompt at sign-in.
+ *   - Camera / Location: no plugin is installed and no feature uses
+ *     them. Requesting an unused permission both does nothing and is
+ *     an App Store Review rejection (Guideline 5.1.1 / 2.5.x). When a
+ *     real camera feature ships, add its block here alongside a
+ *     matching Info.plist usage string.
+ *
+ * Will not show:
+ *   - on web / desktop
+ *   - after it has been shown once on this device (dismiss or enable)
+ *
+ * The user can always change any of these later in iOS/Android
+ * Settings; this screen is a one-time courtesy, not a gate - "Not
+ * now" is a first-class choice and never blocks the app.
+ */
+
+import { useEffect, useState } from 'react';
+import { useModalLifecycle } from '@/lib/use-modal-lifecycle';
+import { isNativeShell } from '@/lib/biometric';
+// Lazy-load @capacitor/* at runtime - static imports pull native code
+// into the SSR module graph for every page mounting the consumer
+// shell (same rationale as BiometricEnrollPrompt / lib/biometric).
+import type { Preferences as PreferencesType } from '@capacitor/preferences';
+
+async function loadPreferences(): Promise<typeof PreferencesType> {
+  const mod = await import('@capacitor/preferences');
+  return mod.Preferences;
+}
+
+// Bump the version suffix if the set of primed permissions changes,
+// so existing users see the new ones once.
+const PRIMED_KEY = 'advottic-perms-primed-v1';
+
+export function PermissionsPrimer() {
+  const [phase, setPhase] = useState<
+    'hidden' | 'asking' | 'working' | 'done'
+  >('hidden');
+  useModalLifecycle({ enabled: phase !== 'hidden' });
+
+  useEffect(() => {
+    let cancelled = false;
+    async function evaluate() {
+      if (!isNativeShell()) return;
+      try {
+        const Preferences = await loadPreferences();
+        const { value } = await Preferences.get({ key: PRIMED_KEY });
+        if (cancelled || value) return;
+        setPhase('asking');
+      } catch {
+        // Preferences unavailable - skip silently rather than risk
+        // re-prompting every launch.
+      }
+    }
+    void evaluate();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function markPrimed() {
+    try {
+      const Preferences = await loadPreferences();
+      await Preferences.set({ key: PRIMED_KEY, value: '1' });
+    } catch {
+      /* best-effort; worst case it shows once more next launch */
+    }
+  }
+
+  async function requestMicrophone() {
+    try {
+      const { SpeechRecognition } = await import(
+        '@capacitor-community/speech-recognition'
+      );
+      // checkPermissions first so we don't re-prompt if already granted
+      // (some OS versions show a "denied" state we shouldn't override).
+      const current = await SpeechRecognition.checkPermissions();
+      if (current.speechRecognition !== 'granted') {
+        await SpeechRecognition.requestPermissions();
+      }
+    } catch {
+      // Plugin missing on an older shell, or user denied - the voice
+      // dictation button still re-requests on first use, so this is
+      // non-fatal.
+    }
+  }
+
+  async function requestNotifications() {
+    try {
+      if (
+        typeof window !== 'undefined' &&
+        'Notification' in window &&
+        typeof Notification.requestPermission === 'function' &&
+        Notification.permission === 'default'
+      ) {
+        await Notification.requestPermission();
+      }
+    } catch {
+      /* non-fatal - PushOptIn re-requests when the user opts in */
+    }
+  }
+
+  async function handleEnable() {
+    setPhase('working');
+    // Sequential, not Promise.all: two OS permission sheets at once
+    // get coalesced/dropped by iOS. Request mic, then notifications.
+    await requestMicrophone();
+    await requestNotifications();
+    await markPrimed();
+    setPhase('done');
+    setTimeout(() => setPhase('hidden'), 1400);
+  }
+
+  async function handleSkip() {
+    await markPrimed();
+    setPhase('hidden');
+  }
+
+  if (phase === 'hidden') return null;
+
+  return (
+    <div
+      role="dialog"
+      aria-labelledby="perms-primer-title"
+      aria-describedby="perms-primer-desc"
+      className="fixed inset-0 z-[100] bg-black/50 flex items-end sm:items-center justify-center p-4"
+    >
+      <div className="card w-full sm:max-w-md p-6 space-y-4 animate-fade-up">
+        <div>
+          <p className="eyebrow mb-1">Set up Advottic</p>
+          <h2
+            id="perms-primer-title"
+            className="font-display text-2xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100"
+          >
+            Turn on a couple of things
+          </h2>
+          <p
+            id="perms-primer-desc"
+            className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 leading-relaxed"
+          >
+            Advottic works best with these enabled. You can change them
+            any time in Settings - this is just so you&#x2019;re not
+            interrupted later.
+          </p>
+        </div>
+
+        <ul className="space-y-3">
+          <li className="flex gap-3">
+            <span aria-hidden className="text-xl leading-none mt-0.5">
+              &#x1F3A4;
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-ink-900 dark:text-cream-100">
+                Microphone
+              </p>
+              <p className="text-xs text-ink-600 dark:text-cream-100/70 leading-relaxed">
+                Dictate case notes by voice instead of typing.
+              </p>
+            </div>
+          </li>
+          <li className="flex gap-3">
+            <span aria-hidden className="text-xl leading-none mt-0.5">
+              &#x1F514;
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-ink-900 dark:text-cream-100">
+                Notifications
+              </p>
+              <p className="text-xs text-ink-600 dark:text-cream-100/70 leading-relaxed">
+                Get alerted when there&#x2019;s an update on your case.
+              </p>
+            </div>
+          </li>
+        </ul>
+
+        {phase === 'working' && (
+          <p className="text-sm text-ink-500">Opening permission prompts...</p>
+        )}
+        {phase === 'done' && (
+          <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+            All set. You can fine-tune these any time in Settings.
+          </p>
+        )}
+
+        {(phase === 'asking' || phase === 'working') && (
+          <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end pt-1">
+            <button
+              type="button"
+              onClick={handleSkip}
+              disabled={phase === 'working'}
+              className="btn-secondary"
+            >
+              Not now
+            </button>
+            <button
+              type="button"
+              onClick={handleEnable}
+              disabled={phase === 'working'}
+              className="btn bg-forest-900 hover:bg-forest-800 text-cream-50"
+              style={{ color: 'var(--btn-primary-fg, #fbf7e9)' }}
+            >
+              Enable
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

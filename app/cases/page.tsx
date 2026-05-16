@@ -7,6 +7,7 @@ import { isSupabaseConfigured, getCurrentUser } from '@/lib/supabase/server';
 import { TourModal } from '@/components/TourModal';
 import { BrandMark } from '@/components/BrandMark';
 import { BiometricEnrollPrompt } from '@/components/BiometricEnrollPrompt';
+import { PermissionsPrimer } from '@/components/PermissionsPrimer';
 
 export const dynamic = 'force-dynamic';
 
@@ -87,6 +88,11 @@ export default async function CasesPage({
       {/* Biometric enrollment prompt - first time on a native shell only.
           No-op on web, on devices without biometric, and after dismissal. */}
       <BiometricEnrollPrompt />
+      {/* One-time permissions priming (Microphone + Notifications) -
+          native first launch only. No-op on web and after first run.
+          Camera/Location intentionally excluded until those features
+          ship (no plugin = App Store rejection). */}
+      <PermissionsPrimer />
       {showWelcomeBack && (
         <div className="rounded-lg border border-gold-200 bg-cream-50 px-4 py-3 text-sm text-forest-900 animate-fade-in">
           <strong>Thanks for joining Advottic{profile?.displayName ? `, ${firstName(profile.displayName)}` : ''}!</strong>{' '}
