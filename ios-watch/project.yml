@@ -77,3 +77,19 @@ targets:
       # whole paired pair.
       - target: AdvotticWatch
         embed: true
+
+# A shared scheme so CI builds with `-scheme ... -destination
+# 'generic/platform=iOS Simulator'`. -destination (not a global
+# `-sdk`) is essential: `-sdk iphonesimulator` overrides the SDK for
+# EVERY target, which forces the embedded watchOS sources to compile
+# against the iOS SDK (where WCSessionDelegate requires the iOS-only
+# sessionDidBecomeInactive/Deactivate). -destination lets each target
+# build for its own platform. The scheme also helps anyone opening
+# this in Xcode.
+schemes:
+  AdvotticPhoneHost:
+    build:
+      targets:
+        AdvotticPhoneHost: all
+    run:
+      config: Debug

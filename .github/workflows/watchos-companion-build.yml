@@ -74,15 +74,18 @@ jobs:
         working-directory: ios-watch
         run: |
           set -o pipefail
-          # Building the iOS host target builds its embedded watch app
+          # Building the host scheme builds its embedded watch app
           # dependency too (Embed Watch Content phase), so one
           # invocation verifies BOTH halves of the bridge + the
-          # pairing. -target (XcodeGen emits no shared scheme by
-          # default); signing off = pure compile/link verification.
+          # pairing. -destination 'generic/platform=iOS Simulator'
+          # (NOT a global `-sdk iphonesimulator`, which would force
+          # the embedded watchOS sources to compile against the iOS
+          # SDK) lets each target build for its own platform. Signing
+          # off = pure compile/link verification.
           xcodebuild \
             -project AdvotticWatchCompanion.xcodeproj \
-            -target AdvotticPhoneHost \
-            -sdk iphonesimulator \
+            -scheme AdvotticPhoneHost \
+            -destination 'generic/platform=iOS Simulator' \
             -configuration Debug \
             CODE_SIGNING_ALLOWED=NO \
             build | tail -50
