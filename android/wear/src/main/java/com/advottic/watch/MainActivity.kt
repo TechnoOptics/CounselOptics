@@ -1,35 +1,44 @@
 package com.advottic.watch
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.wear.compose.material.Chip
+import androidx.wear.compose.material.ChipDefaults
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Scaffold
 import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.TimeText
+import androidx.wear.remote.interactions.RemoteActivityHelper
 
 /**
- * Advottic Wear OS - Phase 2.
+ * Advottic Wear OS - Phase 2 + 3a.
  *
- * Renders the case summary the phone pushes over the Wearable Data
- * Layer (received by SummaryListenerService, persisted by
- * SummaryStore). Falls back to a standalone-safe placeholder until
- * the first sync, so the watch is never blank or crashy. The state
- * is re-read in onResume so reopening the app reflects the latest
- * push without any observer plumbing.
+ * Phase 2: renders the case summary the phone pushes over the
+ * Wearable Data Layer (SummaryListenerService -> SummaryStore),
+ * with a standalone-safe placeholder until the first sync.
  *
- * Phase 3 adds a glanceable Tile + an "open on phone" hand-off.
+ * Phase 3a: when there is a latest case, an "Open on phone" chip
+ * uses RemoteActivityHelper to open that case on the paired phone
+ * (advottic.com/cases/<id> - the user is already signed in there).
+ * Fire-and-forget: if no phone is reachable it simply no-ops.
+ *
+ * Phase 3b (next) adds a glanceable Tile; 3c a quick voice note.
  */
 class MainActivity : ComponentActivity() {
     private val summary: MutableState<SummaryStore.Summary> =
@@ -43,14 +52,26 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Re-read so a sync that arrived while the app was backgrounded
-        // (or before this launch) shows immediately.
         summary.value = SummaryStore.read(this)
+    }
+}
+
+private fun openCaseOnPhone(context: android.content.Context, caseId: String) {
+    try {
+        val intent = Intent(Intent.ACTION_VIEW)
+            .addCategory(Intent.CATEGORY_BROWSABLE)
+            .setData(Uri.parse("https://advottic.com/cases/$caseId"))
+        // Returns a ListenableFuture<Void>; best-effort, not awaited -
+        // if the phone is unreachable this just does nothing.
+        RemoteActivityHelper(context).startRemoteActivity(intent)
+    } catch (_: Throwable) {
+        // Never crash the watch over a hand-off attempt.
     }
 }
 
 @Composable
 fun WearApp(summary: SummaryStore.Summary) {
+    val context = LocalContext.current
     MaterialTheme {
         Scaffold(timeText = { TimeText() }) {
             Column(
@@ -82,6 +103,23 @@ fun WearApp(summary: SummaryStore.Summary) {
                             textAlign = TextAlign.Center,
                             style = MaterialTheme.typography.caption2,
                             modifier = Modifier.padding(top = 4.dp),
+                        )
+                    }
+                    if (summary.latestCaseId.isNotBlank()) {
+                        Chip(
+                            onClick = {
+                                openCaseOnPhone(context, summary.latestCaseId)
+                            },
+                            label = {
+                                Text(
+                                    text = "Open on phone",
+                                    textAlign = TextAlign.Center,
+                                )
+                            },
+                            colors = ChipDefaults.primaryChipColors(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 10.dp),
                         )
                     }
                 } else {
