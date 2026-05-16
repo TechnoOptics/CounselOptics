@@ -255,7 +255,21 @@ export function SignInButtons({ next }: { next: string }) {
       // it stays on the browser flow until those exist. Microsoft has
       // no native Supabase signInWithIdToken path and stays on the
       // browser flow by design.
+      // NATIVE APPLE (capgo) IS TEMPORARILY DISABLED.
+      // In testing it "did nothing / no response" - the capgo Apple
+      // native flow hangs on iOS here, and because a hang neither
+      // resolves nor rejects, the catch-based fallback never fires
+      // (the button just spins forever). Rather than keep chasing a
+      // flaky native plugin we can't validate without a distributed
+      // build, Apple now uses the SAME proven custom-scheme browser
+      // flow as Google/Microsoft below: a brief Safari sheet that
+      // returns to the app via com.advottic.app://. Uniform and
+      // reliable beats "native but broken". Flip NATIVE_APPLE_ENABLED
+      // back to true only once the capgo Apple flow is verified
+      // working on a real installed build.
+      const NATIVE_APPLE_ENABLED = false;
       if (
+        NATIVE_APPLE_ENABLED &&
         provider === 'apple' &&
         Capacitor.getPlatform() === 'ios' &&
         Capacitor.isPluginAvailable('SocialLogin')

@@ -288,6 +288,18 @@ jobs:
           plist_str NSPhotoLibraryAddUsageDescription "Save your case packet PDF to your photo library so you can share or print it."
           plist_str NSUserTrackingUsageDescription "Advottic does not track you across other apps and websites and never will. This permission is reserved for future use."
 
+          # Export compliance, declared in Info.plist so App Store
+          # Connect NEVER shows the "Missing Compliance" prompt again.
+          # This is the Info.plist form of the answer already given on
+          # builds 7/8/9 ("None of the above" = no non-exempt
+          # encryption; the app only uses standard HTTPS/TLS, which is
+          # exempt). Apple's own export-compliance dialog explicitly
+          # points here. Effect: every build is immediately "Ready to
+          # Test" and auto-distributes to internal testers with zero
+          # manual App Store Connect step / no operator login.
+          /usr/libexec/PlistBuddy -c "Delete :ITSAppUsesNonExemptEncryption" "$INFO_PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" "$INFO_PLIST"
+
           # Register the custom URL scheme com.advottic.app:// so iOS
           # hands the OAuth deep-link callback back to the app from the
           # SFSafariViewController. iOS suppresses Universal Links back
