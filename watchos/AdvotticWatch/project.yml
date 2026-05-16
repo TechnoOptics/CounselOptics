@@ -1,0 +1,46 @@
+# XcodeGen spec for the standalone Advottic Apple Watch app.
+#
+# Why XcodeGen instead of a committed .xcodeproj: a hand-written
+# project.pbxproj is large, fragile, and cannot be verified without
+# Xcode. This small declarative spec deterministically generates a
+# correct project on the Mac with one command (`xcodegen generate`),
+# and is human-reviewable. If XcodeGen isn't available, WATCHOS_SETUP.md
+# documents the equivalent manual Xcode-template steps.
+#
+# Standalone (independent) watchOS app - NOT embedded in the
+# Capacitor iOS app (that project is regenerated every CI build and
+# would wipe an embedded target). Phase 1 is a glanceable placeholder;
+# the phone->watch data bridge is a later phase (see WATCHOS_SETUP.md).
+name: AdvotticWatch
+
+options:
+  bundleIdPrefix: com.advottic
+  deploymentTarget:
+    watchOS: "10.0"
+  createIntermediateGroups: true
+
+targets:
+  AdvotticWatch:
+    type: application
+    platform: watchOS
+    sources:
+      - path: Sources
+    # All Info.plist keys live in Sources/Info.plist (incl. the
+    # watchOS-7+ single-target marker WKApplication). No `properties`
+    # merge here - keeps one source of truth, no XcodeGen merge
+    # ambiguity.
+    info:
+      path: Sources/Info.plist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.advottic.watch
+        # Techno Optics LLC team (confirmed: Apple Developer ->
+        # Membership). The friend can flip signing to Automatic in
+        # Xcode; this just preseeds the right team.
+        DEVELOPMENT_TEAM: FNU92FR9C9
+        CODE_SIGN_STYLE: Automatic
+        GENERATE_INFOPLIST_FILE: NO
+        TARGETED_DEVICE_FAMILY: "4"
+        SWIFT_VERSION: "5.0"
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "1"
