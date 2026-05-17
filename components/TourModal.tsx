@@ -41,6 +41,11 @@ export function TourModal({ visible }: { visible: boolean }) {
   // on touchend. Using a ref so the value doesn't trigger re-renders.
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
+  // The dialog is re-keyed per step (slide animation), so it remounts
+  // on every Next/Back. Re-focus it each time so keyboard/screen-reader
+  // focus stays inside the modal and the card is the visual focal point
+  // (the user explicitly wants focus set here, centered).
+  const dialogRef = useRef<HTMLDivElement | null>(null);
 
   // Keyboard nav: left/right arrows + Esc to close. Listener owns the
   // entire window so users can drive the tour from a Bluetooth keyboard
@@ -61,6 +66,13 @@ export function TourModal({ visible }: { visible: boolean }) {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open]);
+
+  // Set focus into the dialog when it opens and on every step change
+  // (the card remounts per step via key={step}, which would otherwise
+  // drop focus to <body>).
+  useEffect(() => {
+    if (open) dialogRef.current?.focus();
+  }, [open, step]);
 
   if (!open) return null;
 
@@ -121,14 +133,17 @@ export function TourModal({ visible }: { visible: boolean }) {
   const isLast = step === STEPS.length - 1;
 
   return (
-    <div className="fixed inset-0 z-40 flex items-end sm:items-center justify-center sm:p-4 bg-forest-950/40 backdrop-blur-sm">
+    <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-forest-950/40 backdrop-blur-sm">
       <div
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
+        aria-modal="true"
         aria-label="Welcome tour"
         aria-roledescription="walkthrough"
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
-        className={`relative w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-card-hover border border-forest-200 overflow-hidden touch-pan-y select-none ${
+        className={`relative w-full max-w-md bg-white rounded-2xl shadow-card-hover overflow-hidden touch-pan-y select-none focus:outline-none ${
           direction === 'forward' ? 'animate-card-forward' : direction === 'back' ? 'animate-card-back' : ''
         }`}
         // Re-key on step so the slide animation re-fires cleanly when the

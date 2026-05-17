@@ -9,7 +9,6 @@ import { UserMenu } from '@/components/UserMenu';
 import { NotificationBell } from '@/components/NotificationBell';
 import { TokenBalanceGauge } from '@/components/TokenBalanceGauge';
 import { listNotifications, unreadNotificationCount } from '@/lib/notifications';
-import { Bella } from '@/components/Bella';
 import { CookieBanner } from '@/components/CookieBanner';
 import { SearchPalette, SearchTrigger } from '@/components/SearchPalette';
 import { ConsentModal } from '@/components/ConsentModal';
@@ -409,19 +408,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             </div>
           </main>
         )}
-        {/*
-          Bella is hidden on auth-funnel pages (audit CR-43). Showing
-          a floating chat widget on /sign-in adds visual noise on a
-          screen whose only job is to capture credentials, and the
-          chat itself has nothing useful to say there - signed-out
-          guidance lives in the marketing pages. The gate also covers
-          the magic-link follow-up paths (/auth/callback,
-          /sign-in?error=..., /sign-in?next=...) so an error state
-          doesn't bring the widget back.
-        */}
-        {!isShellMode &&
-          !pathname.startsWith('/sign-in') &&
-          !pathname.startsWith('/auth/') && <Bella signedIn={signedIn} />}
+        {/* "Ask Bella" floating widget removed per product decision. */}
         {consent.needed && <ConsentModal fallbackName={consent.fallbackName} />}
         <CookieBanner />
         {!isShellMode && trial && (trial.mode === 'stripe_trialing' || trial.mode === 'free_trial' || trial.mode === 'expired') && (
