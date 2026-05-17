@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 // Storage keys / cookie name. Both the legacy localStorage key and
 // the cross-subdomain cookie name are read at boot so users who
@@ -120,6 +120,12 @@ export function CookieBanner() {
   // with the focus animation + backdrop dim. The mount effect below
   // confirms there's no stored choice before showing anything.
   const [expanded, setExpanded] = useState(true);
+  // Focus the panel when the popup expands so it's the focal point
+  // (consistent with the other notification pop-ups).
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (expanded) requestAnimationFrame(() => panelRef.current?.focus());
+  }, [expanded]);
   const [phase, setPhase] = useState<'overview' | 'configure'>('overview');
   const [analytics, setAnalytics] = useState(false);
   const [marketing, setMarketing] = useState(false);
@@ -175,7 +181,7 @@ export function CookieBanner() {
       role="dialog"
       aria-modal="true"
       aria-label="Cookie and privacy preferences"
-      className="fixed inset-0 z-[50] flex items-end sm:items-center justify-center p-3 sm:p-6"
+      className="fixed inset-0 z-[50] flex items-center justify-center p-3 sm:p-6"
     >
       <button
         type="button"
@@ -184,10 +190,12 @@ export function CookieBanner() {
         className="absolute inset-0 bg-forest-950/70 backdrop-blur-md animate-fade-in"
       />
       <div
-        className="relative w-full sm:max-w-md rounded-2xl border border-gold-300/40 bg-white dark:bg-forest-900 shadow-card-hover overflow-hidden animate-cookie-focus"
+        ref={panelRef}
+        tabIndex={-1}
+        className="relative w-full max-w-md rounded-2xl bg-white dark:bg-forest-900 shadow-card-hover overflow-hidden animate-cookie-focus focus:outline-none"
         style={{
           boxShadow:
-            '0 0 0 1px rgba(213,187,126,0.55), 0 28px 80px -10px rgba(15,45,36,0.65), 0 0 90px rgba(213,187,126,0.32)',
+            '0 28px 80px -10px rgba(15,45,36,0.65), 0 0 90px rgba(213,187,126,0.32)',
         }}
       >
         <div className="brand-mark text-cream-200 px-5 py-3.5 flex items-center justify-between">

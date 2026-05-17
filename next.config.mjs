@@ -35,7 +35,14 @@ const CSP = [
   `base-uri 'self'`,
   `form-action 'self' https://checkout.stripe.com https://billing.stripe.com`,
   `frame-ancestors 'none'`,
-  `upgrade-insecure-requests`,
+  // NOTE: `upgrade-insecure-requests` intentionally omitted. The CSP
+  // below ships as Content-Security-Policy-Report-Only, and that
+  // directive is a spec-defined no-op in report-only mode - every
+  // page load logged a console error ("...ignored when delivered in
+  // a report-only policy"). The site is HTTPS-only with no mixed
+  // content, so it has no effect here anyway. Re-add it on the line
+  // below when switching the header to enforced Content-Security-
+  // Policy (drop `-Report-Only`).
 ].join('; ');
 
 const SECURITY_HEADERS = [

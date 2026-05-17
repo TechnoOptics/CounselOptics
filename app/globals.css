@@ -1041,6 +1041,16 @@ canvas {
   .card {
     @apply rounded-xl border border-ink-200 bg-white shadow-card transition-all duration-300 dark:bg-forest-900/70 dark:border-forest-700/60 dark:text-cream-100;
   }
+  /* Shared surface for centered notification pop-ups (PermissionsPrimer,
+     BiometricEnrollPrompt, ConsentModal, WatchNoteInbox, ...). Same
+     rounded/elevated look as .card but deliberately NO border - the
+     light card border read as a stray white boundary on the dimmed
+     modal backdrop. The deeper shadow carries the separation instead.
+     `focus:outline-none` because these panels are programmatically
+     focused for a11y; the dimmed backdrop is the visual focus cue. */
+  .popup-panel {
+    @apply rounded-2xl bg-white shadow-card-hover focus:outline-none dark:bg-forest-900 dark:text-cream-100;
+  }
   .card-hover {
     @apply card relative overflow-hidden;
   }

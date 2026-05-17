@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { recordConsentAction } from '@/lib/actions';
 import { SUPPORTED_LANGUAGES } from '@/lib/types';
 import { useModalLifecycle } from '@/lib/use-modal-lifecycle';
@@ -22,7 +22,8 @@ export function ConsentModal({
   const [hidden, setHidden] = useState(false);
   // Lock body scroll while the consent modal is on screen so the
   // page behind isn't accidentally swiped on mobile.
-  useModalLifecycle({ enabled: !hidden });
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  useModalLifecycle({ enabled: !hidden, focusRef: panelRef });
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [language, setLanguage] = useState<string>('en');
@@ -76,15 +77,18 @@ export function ConsentModal({
       role="dialog"
       aria-modal="true"
       aria-label="Consent and representation"
-      className="fixed inset-0 z-[55] flex items-start justify-center px-4 py-6 sm:py-10 overflow-y-auto"
+      className="fixed inset-0 z-[55] flex items-center justify-center px-4 py-6 sm:py-10 overflow-y-auto"
     >
       {/* Hard backdrop. No click-out: choice required. */}
       <div className="absolute inset-0 bg-forest-950/82 backdrop-blur-md animate-fade-in" />
       <div
-        className="relative w-full max-w-2xl rounded-2xl border border-gold-300/40 bg-white shadow-card-hover overflow-hidden animate-fade-up"
+        ref={panelRef}
+        tabIndex={-1}
+        aria-modal="true"
+        className="relative w-full max-w-2xl rounded-2xl bg-white shadow-card-hover overflow-hidden animate-fade-up focus:outline-none dark:bg-forest-900"
         style={{
           boxShadow:
-            '0 0 0 1px rgba(213,187,126,0.4), 0 22px 60px -12px rgba(15,45,36,0.55), 0 0 80px rgba(213,187,126,0.18)',
+            '0 22px 60px -12px rgba(15,45,36,0.55), 0 0 80px rgba(213,187,126,0.18)',
         }}
       >
         {/* Brand strip */}

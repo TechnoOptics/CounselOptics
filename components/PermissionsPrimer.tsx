@@ -32,7 +32,7 @@
  * now" is a first-class choice and never blocks the app.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useModalLifecycle } from '@/lib/use-modal-lifecycle';
 import { isNativeShell } from '@/lib/biometric';
 // Lazy-load @capacitor/* at runtime - static imports pull native code
@@ -57,7 +57,8 @@ export function PermissionsPrimer() {
   const [phase, setPhase] = useState<
     'hidden' | 'asking' | 'working' | 'done'
   >('hidden');
-  useModalLifecycle({ enabled: phase !== 'hidden' });
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  useModalLifecycle({ enabled: phase !== 'hidden', focusRef: panelRef });
 
   useEffect(() => {
     let cancelled = false;
@@ -163,9 +164,14 @@ export function PermissionsPrimer() {
       role="dialog"
       aria-labelledby="perms-primer-title"
       aria-describedby="perms-primer-desc"
-      className="fixed inset-0 z-[100] bg-black/50 flex items-end sm:items-center justify-center p-4"
+      className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4"
     >
-      <div className="card w-full sm:max-w-md p-6 space-y-4 animate-fade-up">
+      <div
+        ref={panelRef}
+        tabIndex={-1}
+        aria-modal="true"
+        className="popup-panel w-full max-w-md p-6 space-y-4 animate-fade-up"
+      >
         <div>
           <p className="eyebrow mb-1">Set up Advottic</p>
           <h2

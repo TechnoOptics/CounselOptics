@@ -16,7 +16,7 @@
  * Re-enabling after a dismissal happens from /profile.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useModalLifecycle } from '@/lib/use-modal-lifecycle';
 // Lazy-load @capacitor/preferences at runtime — see lib/biometric.ts
 // for the canonical rationale (audit V3 CR-22 / V5 CR-22). Importing
@@ -51,7 +51,8 @@ export function BiometricEnrollPrompt() {
     'hidden',
   );
   // Body-scroll-lock when the prompt is on screen.
-  useModalLifecycle({ enabled: phase !== 'hidden' });
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  useModalLifecycle({ enabled: phase !== 'hidden', focusRef: panelRef });
   const [label, setLabel] = useState('biometric');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [email, setEmail] = useState<string | null>(null);
@@ -122,9 +123,14 @@ export function BiometricEnrollPrompt() {
       role="dialog"
       aria-labelledby="bio-enroll-title"
       aria-describedby="bio-enroll-desc"
-      className="fixed inset-0 z-[100] bg-black/50 flex items-end sm:items-center justify-center p-4"
+      className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4"
     >
-      <div className="card w-full sm:max-w-md p-6 space-y-4 animate-fade-up">
+      <div
+        ref={panelRef}
+        tabIndex={-1}
+        aria-modal="true"
+        className="popup-panel w-full max-w-md p-6 space-y-4 animate-fade-up"
+      >
         <div>
           <p className="eyebrow mb-1">Quick sign-in</p>
           <h2

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, type RefObject } from 'react';
 
 /**
  * Lightweight modal-lifecycle hook for components that don't want
@@ -11,6 +11,9 @@ import { useEffect } from 'react';
  *   - Body scroll lock while open
  *   - ESC handler that calls onClose
  *   - Scrollbar-width compensation so the page doesn't shift
+ *   - Moves focus onto the panel (pass `focusRef`) so keyboard /
+ *     screen-reader focus AND visual attention land on the pop-up,
+ *     not the page behind the dimmed backdrop
  *
  * Pass `enabled=false` to short-circuit (eg. while the modal is
  * mounted but in a closed state).
@@ -18,9 +21,11 @@ import { useEffect } from 'react';
 export function useModalLifecycle({
   enabled = true,
   onClose,
+  focusRef,
 }: {
   enabled?: boolean;
   onClose?: () => void;
+  focusRef?: RefObject<HTMLElement | null>;
 }): void {
   useEffect(() => {
     if (!enabled) return;
@@ -31,6 +36,13 @@ export function useModalLifecycle({
     document.body.style.overflow = 'hidden';
     if (scrollbarWidth > 0) {
       document.body.style.paddingRight = `${scrollbarWidth}px`;
+    }
+
+    // Focus the panel after it has painted/animated in (rAF), so the
+    // pop-up is the focal point. tabIndex={-1} on the panel makes it
+    // programmatically focusable without entering the tab order.
+    if (focusRef?.current) {
+      requestAnimationFrame(() => focusRef.current?.focus());
     }
 
     let listener: ((e: KeyboardEvent) => void) | null = null;
@@ -49,5 +61,5 @@ export function useModalLifecycle({
       document.body.style.paddingRight = prevPaddingRight;
       if (listener) window.removeEventListener('keydown', listener);
     };
-  }, [enabled, onClose]);
+  }, [enabled, onClose, focusRef]);
 }

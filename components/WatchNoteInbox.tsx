@@ -17,11 +17,15 @@
  * it is a harmless no-op on plain web.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export function WatchNoteInbox() {
   const [note, setNote] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (note) requestAnimationFrame(() => panelRef.current?.focus());
+  }, [note]);
 
   useEffect(() => {
     try {
@@ -61,9 +65,14 @@ export function WatchNoteInbox() {
     <div
       role="status"
       aria-live="polite"
-      className="fixed inset-x-0 bottom-0 z-[60] flex justify-center px-3 pb-[calc(env(safe-area-inset-bottom)+12px)] pointer-events-none"
+      className="fixed inset-0 z-[60] flex items-center justify-center p-4 pointer-events-none"
     >
-      <div className="pointer-events-auto w-full max-w-md rounded-2xl border border-gold-300 bg-forest-950/95 text-cream-100 shadow-card backdrop-blur-md p-4 animate-fade-up">
+      <div
+        ref={panelRef}
+        tabIndex={-1}
+        aria-modal="true"
+        className="pointer-events-auto w-full max-w-md rounded-2xl bg-forest-950/95 text-cream-100 shadow-card-hover backdrop-blur-md p-4 animate-fade-up focus:outline-none"
+      >
         <div className="flex items-start justify-between gap-3">
           <p className="text-[10px] uppercase tracking-[0.22em] font-semibold text-cream-100/65">
             Voice note from your watch
