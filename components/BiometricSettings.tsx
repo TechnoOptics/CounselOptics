@@ -30,9 +30,13 @@ import {
 } from '@/lib/biometric';
 import type { BiometryType } from '@aparajita/capacitor-biometric-auth';
 
-async function loadPreferences(): Promise<typeof PreferencesType> {
+// Resolve to a PLAIN wrapper, never the Capacitor plugin proxy
+// itself - an async fn returning the proxy makes the Promise
+// machinery probe `.then` on it, which the Android proxy rejects
+// with `"Preferences.then()" is not implemented on android`.
+async function loadPreferences(): Promise<{ Preferences: typeof PreferencesType }> {
   const mod = await import('@capacitor/preferences');
-  return mod.Preferences;
+  return { Preferences: mod.Preferences };
 }
 
 type State =
@@ -66,7 +70,7 @@ export function BiometricSettings() {
       setState({ kind: 'available', type: status.type, enrolled: false, email: null });
       return;
     }
-    const Preferences = await loadPreferences();
+    const { Preferences } = await loadPreferences();
     const [{ value: email }, { value: enrolledAt }] = await Promise.all([
       Preferences.get({ key: 'advottic-bio-user-email' }),
       Preferences.get({ key: 'advottic-bio-enrolled-at' }),
@@ -98,7 +102,7 @@ export function BiometricSettings() {
       });
       // Wipe the dismissal flag so a future sign-out / sign-in doesn't
       // skip the prompt for the same email.
-      const Preferences = await loadPreferences();
+      const { Preferences } = await loadPreferences();
       await Preferences.remove({ key: 'advottic-bio-dismissed-' + data.session.user.email });
       await refresh();
     } catch (err) {

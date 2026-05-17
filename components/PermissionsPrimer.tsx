@@ -40,9 +40,13 @@ import { isNativeShell } from '@/lib/biometric';
 // shell (same rationale as BiometricEnrollPrompt / lib/biometric).
 import type { Preferences as PreferencesType } from '@capacitor/preferences';
 
-async function loadPreferences(): Promise<typeof PreferencesType> {
+// Resolve to a PLAIN wrapper, never the Capacitor plugin proxy
+// itself - an async fn returning the proxy makes the Promise
+// machinery probe `.then` on it, which the Android proxy rejects
+// with `"Preferences.then()" is not implemented on android`.
+async function loadPreferences(): Promise<{ Preferences: typeof PreferencesType }> {
   const mod = await import('@capacitor/preferences');
-  return mod.Preferences;
+  return { Preferences: mod.Preferences };
 }
 
 // Bump the version suffix if the set of primed permissions changes,
@@ -60,7 +64,7 @@ export function PermissionsPrimer() {
     async function evaluate() {
       if (!isNativeShell()) return;
       try {
-        const Preferences = await loadPreferences();
+        const { Preferences } = await loadPreferences();
         const { value } = await Preferences.get({ key: PRIMED_KEY });
         if (cancelled || value) return;
         setPhase('asking');
@@ -77,7 +81,7 @@ export function PermissionsPrimer() {
 
   async function markPrimed() {
     try {
-      const Preferences = await loadPreferences();
+      const { Preferences } = await loadPreferences();
       await Preferences.set({ key: PRIMED_KEY, value: '1' });
     } catch {
       /* best-effort; worst case it shows once more next launch */

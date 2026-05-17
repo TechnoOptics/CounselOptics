@@ -26,9 +26,15 @@ import { useModalLifecycle } from '@/lib/use-modal-lifecycle';
 import type { Preferences as PreferencesType } from '@capacitor/preferences';
 import { createBrowserSupabase } from '@/lib/supabase/client';
 
-async function loadPreferences(): Promise<typeof PreferencesType> {
+// Resolve to a PLAIN wrapper, never the Capacitor plugin proxy
+// itself. An async fn that returns the proxy makes the Promise
+// resolution procedure probe `.then` on it; Capacitor's Android
+// proxy rejects that with `"Preferences.then()" is not implemented
+// on android`, throwing on every authenticated page load. Wrapping
+// it in an object keeps the resolved value non-thenable.
+async function loadPreferences(): Promise<{ Preferences: typeof PreferencesType }> {
   const mod = await import('@capacitor/preferences');
-  return mod.Preferences;
+  return { Preferences: mod.Preferences };
 }
 import {
   biometryLabel,
@@ -62,7 +68,7 @@ export function BiometricEnrollPrompt() {
       const { data } = await supabase.auth.getUser();
       const userEmail = data.user?.email ?? null;
       if (cancelled || !userEmail) return;
-      const Preferences = await loadPreferences();
+      const { Preferences } = await loadPreferences();
       const { value: dismissed } = await Preferences.get({
         key: DISMISSED_PREFIX + userEmail,
       });
@@ -103,7 +109,7 @@ export function BiometricEnrollPrompt() {
 
   async function handleDismiss() {
     if (email) {
-      const Preferences = await loadPreferences();
+      const { Preferences } = await loadPreferences();
       await Preferences.set({ key: DISMISSED_PREFIX + email, value: '1' });
     }
     setPhase('hidden');
