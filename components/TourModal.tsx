@@ -24,10 +24,6 @@ const STEPS = [
     title: 'Collaborators (Pro)',
     body: 'Invite your attorney by email - they can read the case and add exhibits, but cannot modify the matter.',
   },
-  {
-    title: 'Bella, on demand',
-    body: 'Click "Ask Bella" any time for plain-language legal info, app help, or to summarize the case you\'re viewing.',
-  },
 ];
 
 const SWIPE_THRESHOLD_PX = 50;
