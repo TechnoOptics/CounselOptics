@@ -20,7 +20,19 @@ import { createPortal } from 'react-dom';
  * viewport-true everywhere. The mount guard keeps SSR / first paint
  * safe (no `document` on the server, no hydration mismatch).
  */
-export function PopupPortal({ children }: { children: React.ReactNode }) {
+export function PopupPortal({
+  children,
+  dark = true,
+}: {
+  children: React.ReactNode;
+  /**
+   * Render on the dark brand surface (default). Set false for a
+   * pop-up that has its own complete, deliberately-light design
+   * (e.g. ConsentModal's branded header + form) so forcing dark
+   * doesn't break elements that have no dark: variant.
+   */
+  dark?: boolean;
+}) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   if (!mounted || typeof document === 'undefined') return null;
@@ -31,6 +43,7 @@ export function PopupPortal({ children }: { children: React.ReactNode }) {
   // regardless of the page's own theme. `display:contents` keeps the
   // wrapper boxless so it never affects the fixed overlay's layout
   // (it still counts as a DOM ancestor for the dark: selectors).
+  if (!dark) return createPortal(children, document.body);
   return createPortal(
     <div className="dark" style={{ display: 'contents' }}>
       {children}

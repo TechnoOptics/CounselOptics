@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { focusWhenReady } from '@/lib/focus-when-ready';
+import { PopupPortal } from './PopupPortal';
 
 // Storage keys / cookie name. Both the legacy localStorage key and
 // the cross-subdomain cookie name are read at boot so users who
@@ -178,6 +179,7 @@ export function CookieBanner() {
   // The user picks a choice or minimizes to the pill - tapping the
   // backdrop minimizes (does not auto-accept anything).
   return (
+    <PopupPortal>
     <div
       role="dialog"
       aria-modal="true"
@@ -310,6 +312,7 @@ export function CookieBanner() {
         )}
       </div>
     </div>
+    </PopupPortal>
   );
 }
 

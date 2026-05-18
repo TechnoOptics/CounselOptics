@@ -151,7 +151,7 @@ export function BiometricEnrollPrompt() {
         </div>
 
         {phase === 'enrolling' && (
-          <p className="text-sm text-ink-500">Saving secure key...</p>
+          <p className="text-sm text-ink-500 dark:text-cream-100/60">Saving secure key...</p>
         )}
         {phase === 'enrolled' && (
           <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
@@ -169,15 +169,14 @@ export function BiometricEnrollPrompt() {
             <button
               type="button"
               onClick={handleDismiss}
-              className="btn-secondary"
+              className="btn text-cream-100/75 hover:text-cream-100 hover:bg-cream-100/5"
             >
               Not now
             </button>
             <button
               type="button"
               onClick={handleEnable}
-              className="btn bg-forest-900 hover:bg-forest-800 text-cream-50"
-              style={{ color: 'var(--btn-primary-fg, #fbf7e9)' }}
+              className="btn bg-gold-400 hover:bg-gold-300 text-forest-950 font-semibold"
             >
               {phase === 'error' ? 'Try again' : `Enable ${label}`}
             </button>

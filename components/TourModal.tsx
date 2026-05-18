@@ -142,7 +142,7 @@ export function TourModal({ visible }: { visible: boolean }) {
         aria-roledescription="walkthrough"
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
-        className={`relative w-full max-w-md bg-white rounded-2xl shadow-card-hover overflow-hidden touch-pan-y select-none focus:outline-none ${
+        className={`relative w-full max-w-md bg-white dark:bg-forest-900 rounded-2xl shadow-card-hover overflow-hidden touch-pan-y select-none focus:outline-none ${
           direction === 'forward' ? 'animate-card-forward' : direction === 'back' ? 'animate-card-back' : ''
         }`}
         // Re-key on step so the slide animation re-fires cleanly when the
@@ -157,15 +157,15 @@ export function TourModal({ visible }: { visible: boolean }) {
           <h2 className="text-base sm:text-lg font-semibold tracking-tight mt-1">{current.title}</h2>
         </div>
         <div className="px-5 sm:px-6 py-4 sm:py-5 pb-8">
-          <p className="text-sm text-ink-700 leading-relaxed">{current.body}</p>
-          <p className="text-[11px] text-ink-400 mt-3 sm:hidden">
+          <p className="text-sm text-ink-700 dark:text-cream-100/85 leading-relaxed">{current.body}</p>
+          <p className="text-[11px] text-ink-400 dark:text-cream-100/45 mt-3 sm:hidden">
             Swipe left or right to move between steps
           </p>
           <div className="flex items-center justify-between mt-5 gap-2">
             <button
               type="button"
               onClick={() => dismiss({ saveCompleted: true })}
-              className="text-xs text-ink-500 hover:text-ink-900 underline"
+              className="text-xs text-ink-500 hover:text-ink-900 dark:text-cream-100/55 dark:hover:text-cream-100 underline"
             >
               Skip tour
             </button>

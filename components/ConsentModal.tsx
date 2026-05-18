@@ -74,7 +74,7 @@ export function ConsentModal({
   }
 
   return (
-    <PopupPortal>
+    <PopupPortal dark={false}>
     <div
       role="dialog"
       aria-modal="true"
