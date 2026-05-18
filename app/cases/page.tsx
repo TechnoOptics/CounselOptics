@@ -125,6 +125,9 @@ export default async function CasesPage({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Link href="/war-room" className="btn-secondary">
+            War Room
+          </Link>
           <Link href="/deadlines" className="btn-secondary">
             Deadline Radar
           </Link>
