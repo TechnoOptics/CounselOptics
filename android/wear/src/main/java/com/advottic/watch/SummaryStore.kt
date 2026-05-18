@@ -51,4 +51,21 @@ object SummaryStore {
             nextHearingTitle = p.getString("nextHearingTitle", "") ?: "",
         )
     }
+
+    /**
+     * Last "${hearingAt}|${tier}" the wrist alert fired for, so a
+     * repeated phone push of the same data never re-buzzes. save()
+     * never touches this key, so it survives every sync until the
+     * hearing moves or escalates a tier.
+     */
+    fun readAlertKey(ctx: Context): String =
+        ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+            .getString("lastAlertKey", "") ?: ""
+
+    fun saveAlertKey(ctx: Context, key: String) {
+        ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+            .edit()
+            .putString("lastAlertKey", key)
+            .apply()
+    }
 }

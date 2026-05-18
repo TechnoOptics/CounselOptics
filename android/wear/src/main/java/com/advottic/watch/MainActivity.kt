@@ -1,10 +1,14 @@
 package com.advottic.watch
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.speech.RecognizerIntent
 import androidx.activity.ComponentActivity
+import androidx.core.content.ContextCompat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -69,8 +73,33 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        requestNotificationsIfNeeded()
         summary.value = SummaryStore.read(this)
         setContent { WearApp(summary.value) }
+    }
+
+    /**
+     * Best-effort POST_NOTIFICATIONS prompt (API 33+) so the proactive
+     * imminent-hearing wrist alert can actually buzz. No result
+     * handling: HearingAlertNotifier is idempotent and silently
+     * no-ops until the grant lands, so a decline never breaks
+     * anything - the user simply keeps the pull surfaces.
+     */
+    private fun requestNotificationsIfNeeded() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        val granted = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.POST_NOTIFICATIONS,
+        ) == PackageManager.PERMISSION_GRANTED
+        if (granted) return
+        try {
+            requestPermissions(
+                arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                /* requestCode = */ 1,
+            )
+        } catch (_: Throwable) {
+            // Never let a permission prompt failure block the glance.
+        }
     }
 
     override fun onResume() {

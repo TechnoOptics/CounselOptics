@@ -55,6 +55,11 @@ class SummaryListenerService : WearableListenerService() {
             } catch (_: Throwable) {
                 // Never let a complication refresh failure drop the sync.
             }
+            // Phase 3d: proactive wrist alert. If this push moved the
+            // next hearing into the 7-day / 24-hour window, tap the
+            // wrist with a glanceable card. Idempotent + best-effort:
+            // see HearingAlertNotifier.
+            HearingAlertNotifier.maybeNotify(this, SummaryStore.read(this))
         }
     }
 }
