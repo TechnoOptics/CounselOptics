@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { markTourCompletedAction } from '@/lib/actions';
+import { PopupPortal } from './PopupPortal';
 
 const STEPS = [
   {
@@ -129,6 +130,7 @@ export function TourModal({ visible }: { visible: boolean }) {
   const isLast = step === STEPS.length - 1;
 
   return (
+    <PopupPortal>
     <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-forest-950/40 backdrop-blur-sm">
       <div
         ref={dialogRef}
@@ -220,5 +222,6 @@ export function TourModal({ visible }: { visible: boolean }) {
         </div>
       </div>
     </div>
+    </PopupPortal>
   );
 }

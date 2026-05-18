@@ -18,6 +18,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
+import { PopupPortal } from './PopupPortal';
 
 export function WatchNoteInbox() {
   const [note, setNote] = useState<string | null>(null);
@@ -62,6 +63,7 @@ export function WatchNoteInbox() {
   };
 
   return (
+    <PopupPortal>
     <div
       role="status"
       aria-live="polite"
@@ -114,5 +116,6 @@ export function WatchNoteInbox() {
         </div>
       </div>
     </div>
+    </PopupPortal>
   );
 }

@@ -18,6 +18,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useModalLifecycle } from '@/lib/use-modal-lifecycle';
+import { PopupPortal } from './PopupPortal';
 // Lazy-load @capacitor/preferences at runtime — see lib/biometric.ts
 // for the canonical rationale (audit V3 CR-22 / V5 CR-22). Importing
 // it statically here pulls native code into the SSR module graph for
@@ -119,6 +120,7 @@ export function BiometricEnrollPrompt() {
   if (phase === 'hidden') return null;
 
   return (
+    <PopupPortal>
     <div
       role="dialog"
       aria-labelledby="bio-enroll-title"
@@ -183,5 +185,6 @@ export function BiometricEnrollPrompt() {
         )}
       </div>
     </div>
+    </PopupPortal>
   );
 }

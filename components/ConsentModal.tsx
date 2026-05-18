@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import { recordConsentAction } from '@/lib/actions';
 import { SUPPORTED_LANGUAGES } from '@/lib/types';
 import { useModalLifecycle } from '@/lib/use-modal-lifecycle';
+import { PopupPortal } from './PopupPortal';
 
 /**
  * Layout-level consent popup. Renders only when the server says
@@ -73,6 +74,7 @@ export function ConsentModal({
   }
 
   return (
+    <PopupPortal>
     <div
       role="dialog"
       aria-modal="true"
@@ -287,5 +289,6 @@ export function ConsentModal({
         </form>
       </div>
     </div>
+    </PopupPortal>
   );
 }

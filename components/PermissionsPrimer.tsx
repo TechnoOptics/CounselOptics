@@ -34,6 +34,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useModalLifecycle } from '@/lib/use-modal-lifecycle';
+import { PopupPortal } from './PopupPortal';
 import { isNativeShell } from '@/lib/biometric';
 // Lazy-load @capacitor/* at runtime - static imports pull native code
 // into the SSR module graph for every page mounting the consumer
@@ -160,6 +161,7 @@ export function PermissionsPrimer() {
   if (phase === 'hidden') return null;
 
   return (
+    <PopupPortal>
     <div
       role="dialog"
       aria-labelledby="perms-primer-title"
@@ -265,5 +267,6 @@ export function PermissionsPrimer() {
         )}
       </div>
     </div>
+    </PopupPortal>
   );
 }
