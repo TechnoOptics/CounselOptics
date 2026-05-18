@@ -124,10 +124,18 @@ export default async function CasesPage({
               : `${owned.length} active${closed.length ? ` · ${closed.length} closed` : ''}${sharedWithMe.length ? ` · ${sharedWithMe.length} shared with you` : ''}`}
           </p>
         </div>
-        <Link href="/cases/new" className="btn-primary">
-          <PlusIcon />
-          New case
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link href="/deadlines" className="btn-secondary">
+            Deadline Radar
+          </Link>
+          <Link href="/decoder" className="btn-secondary">
+            Decode a document
+          </Link>
+          <Link href="/cases/new" className="btn-primary">
+            <PlusIcon />
+            New case
+          </Link>
+        </div>
       </div>
 
       {/* KPI tiles - mockup-inspired dark cards with bright accent numbers */}
