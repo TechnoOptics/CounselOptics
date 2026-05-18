@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Advottic brand palette (mirrors the Compose BrandColors). -->
+<resources>
+    <color name="advottic_forest">#FF0B1F19</color>
+    <color name="advottic_forest_mid">#FF143A2D</color>
+    <color name="advottic_gold">#FFE6CE93</color>
+    <color name="advottic_gold_deep">#FFCBA24A</color>
+</resources>

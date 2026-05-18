@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Adaptive-icon foreground: a clean gold "A" monogram, kept well
+     inside the circular Wear safe zone (centre ~52dp of the 108
+     canvas). Stroke-built so it stays crisp at every density and
+     adds zero binary assets. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:pathData="M36,80 L54,28 L72,80"
+        android:strokeColor="#FFE6CE93"
+        android:strokeWidth="8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M43,60 L65,60"
+        android:strokeColor="#FFE6CE93"
+        android:strokeWidth="8"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+</vector>

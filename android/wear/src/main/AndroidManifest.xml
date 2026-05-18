@@ -17,12 +17,13 @@
          gated on the grant so a decline simply does nothing. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
-    <!-- Phase 1 uses the built-in Android app icon so the module
-         builds with zero bundled binary assets; a branded Advottic
-         watch icon lands in the distribution phase. -->
+    <!-- Branded adaptive icon: gold "A" monogram on the forest brand
+         surface. Pure vector (no PNGs) so the module stays
+         binary-asset-free while looking like the rest of the app. -->
     <application
         android:allowBackup="false"
-        android:icon="@android:drawable/sym_def_app_icon"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.DeviceDefault">
@@ -71,6 +72,7 @@
         <service
             android:name=".SummaryTileService"
             android:label="@string/app_name"
+            android:icon="@drawable/ic_advottic_mark"
             android:exported="true"
             android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
             <intent-filter>
@@ -89,7 +91,7 @@
         <service
             android:name=".HearingComplicationService"
             android:label="@string/app_name"
-            android:icon="@android:drawable/sym_def_app_icon"
+            android:icon="@drawable/ic_advottic_mark"
             android:exported="true"
             android:permission="com.google.android.wearable.permission.BIND_COMPLICATION_PROVIDER">
             <intent-filter>

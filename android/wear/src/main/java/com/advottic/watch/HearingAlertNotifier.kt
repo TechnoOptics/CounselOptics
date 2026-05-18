@@ -106,7 +106,7 @@ object HearingAlertNotifier {
             )
 
             val n = NotificationCompat.Builder(ctx, CHANNEL)
-                .setSmallIcon(android.R.drawable.sym_def_app_icon)
+                .setSmallIcon(R.drawable.ic_advottic_mark)
                 .setContentTitle(title)
                 .setContentText(body)
                 .setStyle(NotificationCompat.BigTextStyle().bigText(body))
