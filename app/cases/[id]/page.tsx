@@ -214,13 +214,16 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
             <ShieldIcon />
             Courtroom Mode
           </Link>
+          <Link href={`/cases/${c.id}/packet`} className="btn-secondary">
+            <DownloadIcon />
+            Court Packet
+          </Link>
           <a
             href={`/cases/${c.id}/export`}
             className="btn-secondary"
             target="_blank"
             rel="noreferrer"
           >
-            <DownloadIcon />
             Export PDF
           </a>
         </div>
