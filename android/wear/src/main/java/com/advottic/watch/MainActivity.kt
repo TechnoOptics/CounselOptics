@@ -58,6 +58,7 @@ import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Scaffold
 import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.TimeText
+import androidx.wear.compose.material.TimeTextDefaults
 import androidx.wear.compose.material.Vignette
 import androidx.wear.compose.material.VignettePosition
 import androidx.wear.remote.interactions.RemoteActivityHelper
@@ -400,7 +401,15 @@ fun WearApp(summary: SummaryStore.Summary) {
                 ),
         ) {
             Scaffold(
-                timeText = { TimeText() },
+                timeText = {
+                    // Gold, on-brand time to match the ADVOTTIC
+                    // wordmark instead of the stock white.
+                    TimeText(
+                        timeTextStyle = TimeTextDefaults
+                            .timeTextStyle(color = Gold)
+                            .copy(fontWeight = FontWeight.Medium),
+                    )
+                },
                 vignette = {
                     Vignette(vignettePosition = VignettePosition.TopAndBottom)
                 },
