@@ -205,7 +205,32 @@ private fun billed(mins: Long): String {
 fun WearApp(summary: SummaryStore.Summary) {
     val context = LocalContext.current
     val haptics = LocalHapticFeedback.current
-    fun buzz() = haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+
+    // Courtroom Mode: while the quiet window is open, chip haptics
+    // are suppressed (a buzzing wrist in court is the hazard) and the
+    // imminent-hearing alert is held back (see HearingAlertNotifier).
+    // quietUntil is persisted so it survives the app closing during
+    // the hearing; it auto-restores when the window lapses.
+    var quietUntil by remember {
+        mutableStateOf(QuietStore.quietUntil(context))
+    }
+    var nowTick by remember {
+        mutableStateOf(System.currentTimeMillis())
+    }
+    val quiet = quietUntil > nowTick
+    LaunchedEffect(quietUntil) {
+        while (quietUntil > System.currentTimeMillis()) {
+            nowTick = System.currentTimeMillis()
+            delay(1000L)
+        }
+        nowTick = System.currentTimeMillis()
+    }
+
+    fun buzz() {
+        if (!quiet) {
+            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+        }
+    }
     val listState = rememberScalingLazyListState()
 
     // Soft entrance - the surface settles in like a stone catching light.
@@ -613,6 +638,50 @@ fun WearApp(summary: SummaryStore.Summary) {
                                         ForestMid
                                     },
                                     contentColor = if (running) {
+                                        Forest
+                                    } else {
+                                        Gold
+                                    },
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 8.dp),
+                            )
+                        }
+                        item {
+                            Chip(
+                                onClick = {
+                                    if (quiet) {
+                                        QuietStore.clear(context)
+                                        quietUntil = 0L
+                                    } else {
+                                        QuietStore.start(context)
+                                        quietUntil =
+                                            QuietStore.quietUntil(context)
+                                    }
+                                },
+                                label = {
+                                    Text(
+                                        if (quiet) {
+                                            val mins = (
+                                                (quietUntil - nowTick) /
+                                                    60_000L
+                                                ).coerceAtLeast(0L)
+                                            "Court silent  ${billed(mins)}"
+                                        } else {
+                                            "Courtroom mode"
+                                        },
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                },
+                                colors = ChipDefaults.chipColors(
+                                    backgroundColor = if (quiet) {
+                                        Rose
+                                    } else {
+                                        ForestMid
+                                    },
+                                    contentColor = if (quiet) {
                                         Forest
                                     } else {
                                         Gold

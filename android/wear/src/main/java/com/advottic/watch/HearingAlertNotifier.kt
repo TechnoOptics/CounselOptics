@@ -72,6 +72,11 @@ object HearingAlertNotifier {
     fun maybeNotify(ctx: Context, s: SummaryStore.Summary) {
         try {
             if (!s.hasData || s.nextHearingAt <= 0L) return
+            // Courtroom Mode: hold the alert back so the wrist stays
+            // silent in front of a judge. We deliberately do NOT
+            // record the de-dupe key here, so a still-relevant alert
+            // re-surfaces the moment court is over.
+            if (QuietStore.isQuiet(ctx)) return
             val diff = s.nextHearingAt - System.currentTimeMillis()
             // Past or happening-now: the live countdown already says
             // "now"; a push alert for a lapsed time is just noise.
