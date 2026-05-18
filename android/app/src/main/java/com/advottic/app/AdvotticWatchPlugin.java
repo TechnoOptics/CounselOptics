@@ -1,9 +1,15 @@
 package com.advottic.app;
 
+import android.app.UiModeManager;
+import android.content.Context;
+import android.content.res.Configuration;
+
+import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import com.google.android.gms.wearable.CapabilityClient;
 import com.google.android.gms.wearable.PutDataMapRequest;
 import com.google.android.gms.wearable.PutDataRequest;
 import com.google.android.gms.wearable.Wearable;
@@ -32,6 +38,81 @@ import org.json.JSONArray;
 public class AdvotticWatchPlugin extends Plugin {
 
     private static final String PATH = "/advottic/summary";
+    private static final String WATCH_CAPABILITY = "advottic_watch_app";
+
+    /**
+     * Tells the web layer about the watch, two ways:
+     *
+     *  - isWatch: is THIS device a watch-class device. The phone app
+     *    normally never runs on the watch (the watch is a separate
+     *    native module), but the web layer gets a reliable signal.
+     *  - watchPaired / watchReachable / watchAppInstalled: whether a
+     *    Wear OS node is connected, and whether one of them actually
+     *    advertises the Advottic watch-app capability - so the phone
+     *    can show real watch status instead of guessing.
+     *
+     * Resolves a single object; always resolves (never rejects) with
+     * safe defaults so a missing/odd Wear stack never breaks the UI.
+     */
+    @PluginMethod
+    public void watchStatus(PluginCall call) {
+        final JSObject ret = new JSObject();
+
+        boolean isWatch = false;
+        try {
+            UiModeManager ui = (UiModeManager) getContext()
+                .getSystemService(Context.UI_MODE_SERVICE);
+            if (ui != null
+                && ui.getCurrentModeType()
+                    == Configuration.UI_MODE_TYPE_WATCH) {
+                isWatch = true;
+            }
+            if (getContext().getPackageManager()
+                .hasSystemFeature("android.hardware.type.watch")) {
+                isWatch = true;
+            }
+        } catch (Exception ignored) {
+            // Form-factor probe is best-effort.
+        }
+        ret.put("isWatch", isWatch);
+
+        try {
+            Wearable.getNodeClient(getContext()).getConnectedNodes()
+                .addOnSuccessListener(nodes -> {
+                    boolean any = nodes != null && !nodes.isEmpty();
+                    ret.put("watchPaired", any);
+                    ret.put("watchReachable", any);
+                    ret.put("nodeCount", nodes == null ? 0 : nodes.size());
+                    Wearable.getCapabilityClient(getContext())
+                        .getCapability(
+                            WATCH_CAPABILITY,
+                            CapabilityClient.FILTER_REACHABLE)
+                        .addOnSuccessListener(info -> {
+                            ret.put(
+                                "watchAppInstalled",
+                                !info.getNodes().isEmpty());
+                            call.resolve(ret);
+                        })
+                        .addOnFailureListener(e -> {
+                            ret.put("watchAppInstalled", false);
+                            call.resolve(ret);
+                        });
+                })
+                .addOnFailureListener(e -> {
+                    ret.put("watchPaired", false);
+                    ret.put("watchReachable", false);
+                    ret.put("watchAppInstalled", false);
+                    ret.put("nodeCount", 0);
+                    call.resolve(ret);
+                });
+        } catch (Exception e) {
+            ret.put("watchPaired", false);
+            ret.put("watchReachable", false);
+            ret.put("watchAppInstalled", false);
+            ret.put("nodeCount", 0);
+            call.resolve(ret);
+        }
+    }
 
     @PluginMethod
     public void sync(PluginCall call) {

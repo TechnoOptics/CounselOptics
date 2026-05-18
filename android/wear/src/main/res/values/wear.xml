@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Wear OS Data Layer capability.
+
+  Listing "advottic_watch_app" here makes this watch app advertise
+  that capability to the paired phone over the Data Layer. The phone
+  side (AdvotticWatchPlugin.watchStatus) queries CapabilityClient for
+  it, so the phone can tell not just "a watch is paired" but "a watch
+  with the Advottic watch app installed is reachable" - and adapt its
+  UI accordingly.
+-->
+<resources>
+    <string-array name="android_wear_capabilities">
+        <item>advottic_watch_app</item>
+    </string-array>
+</resources>
