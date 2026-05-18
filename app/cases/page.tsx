@@ -137,6 +137,9 @@ export default async function CasesPage({
           >
             Safe Witness
           </Link>
+          <Link href="/cases/new/speak" className="btn-secondary">
+            Speak your case
+          </Link>
           <Link href="/cases/new" className="btn-primary">
             <PlusIcon />
             New case
