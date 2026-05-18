@@ -240,37 +240,66 @@ private fun ScrollBezel(
         animationSpec = tween(durationMillis = 420),
         label = "bezel",
     )
-    val sheen = Color(0xFFF5E8C2)
+    val darkMetal = Color(0xFF15110A)
+    val sheen = Color(0xFFFBF2D4)
+    // Fine brushed-metal grain: many evenly-spaced alternating faint
+    // light/dark stops read as the fine circumferential striations of
+    // a brushed bezel when laid over the dark->gold base. Remembered
+    // so it is built once, not every recomposition.
+    val brushed = remember {
+        List(56) { i ->
+            if (i % 2 == 0) Color(0x12FFFFFF) else Color(0x140A0A06)
+        }
+    }
     Canvas(modifier = modifier) {
-        val strokeW = 5.dp.toPx()
+        val strokeW = 3.5.dp.toPx()
         val inset = strokeW / 2f + 2.dp.toPx()
         val topLeft = Offset(inset, inset)
         val arcSize = Size(
             size.width - inset * 2f,
             size.height - inset * 2f,
         )
-        // The ever-present bezel track.
+        val stroke = Stroke(width = strokeW, cap = StrokeCap.Round)
+        // Recessed dark groove - the unfilled bezel.
         drawArc(
-            color = Gold.copy(alpha = 0.10f),
+            color = darkMetal.copy(alpha = 0.55f),
             startAngle = 0f,
             sweepAngle = 360f,
             useCenter = false,
             topLeft = topLeft,
             size = arcSize,
-            style = Stroke(width = strokeW, cap = StrokeCap.Round),
+            style = stroke,
         )
         val sweep = 360f * progress
         if (sweep > 0.75f) {
+            // Dark -> gold metallic base: shadowed where the ring
+            // curves away, bright sheen where light catches it.
             drawArc(
                 brush = Brush.sweepGradient(
-                    listOf(GoldDeep, Gold, sheen, Gold, GoldDeep),
+                    0.00f to darkMetal,
+                    0.16f to GoldDeep,
+                    0.34f to Gold,
+                    0.50f to sheen,
+                    0.66f to Gold,
+                    0.84f to GoldDeep,
+                    1.00f to darkMetal,
                 ),
                 startAngle = -90f,
                 sweepAngle = sweep,
                 useCenter = false,
                 topLeft = topLeft,
                 size = arcSize,
-                style = Stroke(width = strokeW, cap = StrokeCap.Round),
+                style = stroke,
+            )
+            // Brushed-aluminium grain laid over the base.
+            drawArc(
+                brush = Brush.sweepGradient(brushed),
+                startAngle = -90f,
+                sweepAngle = sweep,
+                useCenter = false,
+                topLeft = topLeft,
+                size = arcSize,
+                style = stroke,
             )
         }
     }
