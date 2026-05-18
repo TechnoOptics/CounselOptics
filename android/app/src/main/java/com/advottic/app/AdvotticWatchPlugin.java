@@ -8,6 +8,8 @@ import com.google.android.gms.wearable.PutDataMapRequest;
 import com.google.android.gms.wearable.PutDataRequest;
 import com.google.android.gms.wearable.Wearable;
 
+import org.json.JSONArray;
+
 /**
  * Phone -> Wear OS bridge (Wear Phase 2).
  *
@@ -44,6 +46,11 @@ public class AdvotticWatchPlugin extends Plugin {
         long nextHearingAt = nextHearingAtD == null ? 0L : nextHearingAtD.longValue();
         String nextHearingTitle = call.getString("nextHearingTitle", "");
         if (nextHearingTitle == null) nextHearingTitle = "";
+        // The next few upcoming hearings (the wrist "docket"). Passed
+        // as a JS array of {at,title}; forwarded verbatim as a JSON
+        // string so the watch stays the only place that parses it.
+        JSONArray upcoming = call.getArray("upcoming");
+        String upcomingJson = upcoming == null ? "[]" : upcoming.toString();
 
         try {
             PutDataMapRequest req = PutDataMapRequest.create(PATH);
@@ -52,6 +59,7 @@ public class AdvotticWatchPlugin extends Plugin {
             req.getDataMap().putString("latestCaseId", latestCaseId);
             req.getDataMap().putLong("nextHearingAt", nextHearingAt);
             req.getDataMap().putString("nextHearingTitle", nextHearingTitle);
+            req.getDataMap().putString("upcomingJson", upcomingJson);
             // A changing timestamp guarantees the DataItem differs
             // from the last one, so the Data Layer actually re-emits
             // it to the watch instead of de-duping an identical

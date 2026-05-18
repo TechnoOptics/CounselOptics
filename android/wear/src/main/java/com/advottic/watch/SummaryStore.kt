@@ -1,6 +1,7 @@
 package com.advottic.watch
 
 import android.content.Context
+import org.json.JSONArray
 
 /**
  * Tiny persisted holder for the case summary the phone pushes over
@@ -11,6 +12,9 @@ import android.content.Context
 object SummaryStore {
     private const val PREF = "advottic_watch"
 
+    /** One docket entry: when the hearing is and what case it is. */
+    data class Hearing(val at: Long, val title: String)
+
     data class Summary(
         val openCount: Int,
         val latestTitle: String,
@@ -19,7 +23,34 @@ object SummaryStore {
         /** Epoch millis of the soonest upcoming hearing, 0 if none. */
         val nextHearingAt: Long = 0L,
         val nextHearingTitle: String = "",
-    )
+        /**
+         * JSON array string of the next few upcoming hearings
+         * (`[{"at":<ms>,"title":"..."}]`, soonest first, includes the
+         * one mirrored in nextHearingAt). Raw on purpose so the store
+         * stays a dumb holder; parse with [upcoming].
+         */
+        val upcomingJson: String = "",
+    ) {
+        /** Parsed docket, soonest first. Never throws: bad/empty -> []. */
+        fun upcoming(): List<Hearing> = parseUpcoming(upcomingJson)
+    }
+
+    fun parseUpcoming(json: String): List<Hearing> {
+        if (json.isBlank()) return emptyList()
+        return try {
+            val arr = JSONArray(json)
+            buildList {
+                for (i in 0 until arr.length()) {
+                    val o = arr.optJSONObject(i) ?: continue
+                    val at = o.optLong("at", 0L)
+                    if (at <= 0L) continue
+                    add(Hearing(at, o.optString("title", "")))
+                }
+            }
+        } catch (_: Throwable) {
+            emptyList()
+        }
+    }
 
     fun save(
         ctx: Context,
@@ -28,6 +59,7 @@ object SummaryStore {
         latestCaseId: String,
         nextHearingAt: Long = 0L,
         nextHearingTitle: String = "",
+        upcomingJson: String = "",
     ) {
         ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE)
             .edit()
@@ -36,6 +68,7 @@ object SummaryStore {
             .putString("latestCaseId", latestCaseId)
             .putLong("nextHearingAt", nextHearingAt)
             .putString("nextHearingTitle", nextHearingTitle)
+            .putString("upcomingJson", upcomingJson)
             .putBoolean("hasData", true)
             .apply()
     }
@@ -49,6 +82,7 @@ object SummaryStore {
             hasData = p.getBoolean("hasData", false),
             nextHearingAt = p.getLong("nextHearingAt", 0L),
             nextHearingTitle = p.getString("nextHearingTitle", "") ?: "",
+            upcomingJson = p.getString("upcomingJson", "") ?: "",
         )
     }
 

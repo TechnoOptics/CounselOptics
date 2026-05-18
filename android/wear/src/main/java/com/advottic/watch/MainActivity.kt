@@ -360,6 +360,71 @@ fun WearApp(summary: SummaryStore.Summary) {
                                 }
                             }
                         }
+                        val docket = summary.upcoming()
+                        if (docket.size > 1) {
+                            item {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 12.dp)
+                                        .clip(RoundedCornerShape(18.dp))
+                                        .background(Color(0xFF10271F))
+                                        .padding(
+                                            horizontal = 14.dp,
+                                            vertical = 12.dp,
+                                        ),
+                                ) {
+                                    Text(
+                                        text = "DOCKET",
+                                        color = Gold,
+                                        letterSpacing = 3.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        style =
+                                            MaterialTheme.typography.caption2,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                    // drop(1): the soonest is already the
+                                    // big card above; the docket is "what
+                                    // else is coming this week".
+                                    docket.drop(1).forEachIndexed { i, h ->
+                                        val (rel, accent) =
+                                            hearingCountdown(h.at)
+                                        Text(
+                                            text = rel,
+                                            color = accent,
+                                            fontWeight = FontWeight.Bold,
+                                            style = MaterialTheme
+                                                .typography.caption1,
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(
+                                                    top = if (i == 0) {
+                                                        8.dp
+                                                    } else {
+                                                        10.dp
+                                                    },
+                                                ),
+                                        )
+                                        if (h.title.isNotBlank()) {
+                                            Text(
+                                                text = h.title,
+                                                color = Cream.copy(
+                                                    alpha = 0.75f,
+                                                ),
+                                                style = MaterialTheme
+                                                    .typography.caption2,
+                                                textAlign = TextAlign.Center,
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(top = 2.dp),
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         if (summary.latestCaseId.isNotBlank()) {
                             item {
                                 Chip(
