@@ -121,6 +121,32 @@ private fun noteUrl(caseId: String, text: String): String {
     return "$base?note=$enc"
 }
 
+private val Amber = Color(0xFFE6B45A)
+private val Rose = Color(0xFFE5816B)
+
+/** A human countdown + an urgency colour for the hearing card. */
+private fun hearingCountdown(at: Long): Pair<String, Color> {
+    val diff = at - System.currentTimeMillis()
+    if (diff <= 0L) return "happening now" to Rose
+    val mins = diff / 60_000L
+    val hours = mins / 60L
+    val days = hours / 24L
+    val label = when {
+        days >= 60 -> "in ${days / 30} months"
+        days >= 14 -> "in ${days / 7} weeks"
+        days >= 2 -> "in $days days"
+        days == 1L -> "tomorrow"
+        hours >= 2 -> "in $hours hours"
+        else -> "within the hour"
+    }
+    val color = when {
+        days <= 1 -> Rose
+        days <= 7 -> Amber
+        else -> Gold
+    }
+    return label to color
+}
+
 @Composable
 fun WearApp(summary: SummaryStore.Summary) {
     val context = LocalContext.current
@@ -252,6 +278,53 @@ fun WearApp(summary: SummaryStore.Summary) {
                                         end = 8.dp,
                                     ),
                                 )
+                            }
+                        }
+                        if (summary.nextHearingAt > 0L) {
+                            item {
+                                val (label, accent) =
+                                    hearingCountdown(summary.nextHearingAt)
+                                Column(
+                                    horizontalAlignment =
+                                        Alignment.CenterHorizontally,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 12.dp)
+                                        .clip(RoundedCornerShape(18.dp))
+                                        .background(Color(0xFF10271F))
+                                        .padding(
+                                            horizontal = 14.dp,
+                                            vertical = 12.dp,
+                                        ),
+                                ) {
+                                    Text(
+                                        text = "HEARING",
+                                        color = Gold,
+                                        letterSpacing = 3.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        style = MaterialTheme.typography.caption2,
+                                        textAlign = TextAlign.Center,
+                                    )
+                                    Text(
+                                        text = label,
+                                        color = accent,
+                                        fontWeight = FontWeight.Bold,
+                                        style = MaterialTheme.typography.title2,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.padding(top = 2.dp),
+                                    )
+                                    if (summary.nextHearingTitle.isNotBlank()) {
+                                        Text(
+                                            text = summary.nextHearingTitle,
+                                            color = Cream.copy(alpha = 0.75f),
+                                            style =
+                                                MaterialTheme.typography.caption2,
+                                            textAlign = TextAlign.Center,
+                                            modifier =
+                                                Modifier.padding(top = 3.dp),
+                                        )
+                                    }
+                                }
                             }
                         }
                         if (summary.latestCaseId.isNotBlank()) {

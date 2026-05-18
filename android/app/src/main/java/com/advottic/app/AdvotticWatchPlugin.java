@@ -38,12 +38,20 @@ public class AdvotticWatchPlugin extends Plugin {
         String latestCaseId = call.getString("latestCaseId", "");
         if (latestTitle == null) latestTitle = "";
         if (latestCaseId == null) latestCaseId = "";
+        // Epoch millis exceeds int range; JS numbers are doubles, so
+        // read as double and narrow to long. 0 = no upcoming hearing.
+        Double nextHearingAtD = call.getDouble("nextHearingAt", 0d);
+        long nextHearingAt = nextHearingAtD == null ? 0L : nextHearingAtD.longValue();
+        String nextHearingTitle = call.getString("nextHearingTitle", "");
+        if (nextHearingTitle == null) nextHearingTitle = "";
 
         try {
             PutDataMapRequest req = PutDataMapRequest.create(PATH);
             req.getDataMap().putInt("openCount", openCount);
             req.getDataMap().putString("latestTitle", latestTitle);
             req.getDataMap().putString("latestCaseId", latestCaseId);
+            req.getDataMap().putLong("nextHearingAt", nextHearingAt);
+            req.getDataMap().putString("nextHearingTitle", nextHearingTitle);
             // A changing timestamp guarantees the DataItem differs
             // from the last one, so the Data Layer actually re-emits
             // it to the watch instead of de-duping an identical

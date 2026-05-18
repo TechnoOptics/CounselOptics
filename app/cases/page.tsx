@@ -90,6 +90,13 @@ export default async function CasesPage({
   const latestOpen = [...owned].sort(
     (a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt),
   )[0];
+  // Soonest upcoming hearing across owned cases - the watch shows it
+  // as a premium glanceable countdown.
+  const nextHearing = [...owned]
+    .filter((c): c is Case & { hearingAt: string } => Boolean(c.hearingAt))
+    .map((c) => ({ at: Date.parse(c.hearingAt as string), title: c.title }))
+    .filter((x) => !Number.isNaN(x.at) && x.at >= Date.now())
+    .sort((a, b) => a.at - b.at)[0];
 
   return (
     <div className="space-y-8 animate-fade-up">
@@ -97,6 +104,8 @@ export default async function CasesPage({
         openCount={owned.length}
         latestTitle={latestOpen?.title ?? ''}
         latestCaseId={latestOpen?.id ?? ''}
+        nextHearingAt={nextHearing?.at ?? 0}
+        nextHearingTitle={nextHearing?.title ?? ''}
       />
       <TourModal visible={Boolean(showTour)} />
       {/* Biometric enrollment prompt - first time on a native shell only.

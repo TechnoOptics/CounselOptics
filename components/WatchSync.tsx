@@ -20,10 +20,15 @@ export function WatchSync({
   openCount,
   latestTitle,
   latestCaseId,
+  nextHearingAt = 0,
+  nextHearingTitle = '',
 }: {
   openCount: number;
   latestTitle: string;
   latestCaseId: string;
+  /** Epoch millis of the soonest upcoming hearing, 0 if none. */
+  nextHearingAt?: number;
+  nextHearingTitle?: string;
 }) {
   useEffect(() => {
     let cancelled = false;
@@ -42,10 +47,18 @@ export function WatchSync({
             openCount: number;
             latestTitle: string;
             latestCaseId: string;
+            nextHearingAt: number;
+            nextHearingTitle: string;
           }): Promise<void>;
         }>('AdvotticWatch');
         if (cancelled) return;
-        await AdvotticWatch.sync({ openCount, latestTitle, latestCaseId });
+        await AdvotticWatch.sync({
+          openCount,
+          latestTitle,
+          latestCaseId,
+          nextHearingAt,
+          nextHearingTitle,
+        });
       } catch {
         // Old shell without the plugin, watch unpaired, etc. - the
         // glance is best-effort and must never break the phone.
@@ -54,7 +67,7 @@ export function WatchSync({
     return () => {
       cancelled = true;
     };
-  }, [openCount, latestTitle, latestCaseId]);
+  }, [openCount, latestTitle, latestCaseId, nextHearingAt, nextHearingTitle]);
 
   return null;
 }

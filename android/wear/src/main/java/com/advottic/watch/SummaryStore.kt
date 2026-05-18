@@ -16,6 +16,9 @@ object SummaryStore {
         val latestTitle: String,
         val latestCaseId: String,
         val hasData: Boolean,
+        /** Epoch millis of the soonest upcoming hearing, 0 if none. */
+        val nextHearingAt: Long = 0L,
+        val nextHearingTitle: String = "",
     )
 
     fun save(
@@ -23,12 +26,16 @@ object SummaryStore {
         openCount: Int,
         latestTitle: String,
         latestCaseId: String,
+        nextHearingAt: Long = 0L,
+        nextHearingTitle: String = "",
     ) {
         ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE)
             .edit()
             .putInt("openCount", openCount)
             .putString("latestTitle", latestTitle)
             .putString("latestCaseId", latestCaseId)
+            .putLong("nextHearingAt", nextHearingAt)
+            .putString("nextHearingTitle", nextHearingTitle)
             .putBoolean("hasData", true)
             .apply()
     }
@@ -40,6 +47,8 @@ object SummaryStore {
             latestTitle = p.getString("latestTitle", "") ?: "",
             latestCaseId = p.getString("latestCaseId", "") ?: "",
             hasData = p.getBoolean("hasData", false),
+            nextHearingAt = p.getLong("nextHearingAt", 0L),
+            nextHearingTitle = p.getString("nextHearingTitle", "") ?: "",
         )
     }
 }
