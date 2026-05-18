@@ -11,6 +11,21 @@
 
 import { useRef, useState } from 'react';
 
+// Inline formatter: turn **bold** into real <strong>, leave the rest
+// as text (so the "scary letter" decode never shows raw asterisks).
+function inline(s: string): React.ReactNode[] {
+  const parts = s.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((p, i) =>
+    /^\*\*[^*]+\*\*$/.test(p) ? (
+      <strong key={i} className="font-semibold text-ink-900">
+        {p.slice(2, -2)}
+      </strong>
+    ) : (
+      <span key={i}>{p}</span>
+    ),
+  );
+}
+
 function render(md: string) {
   const out: React.ReactNode[] = [];
   const lines = md.split('\n');
@@ -22,7 +37,7 @@ function render(md: string) {
         {list.map((li, i) => (
           <li key={i} className="flex gap-2 text-sm text-ink-700 leading-relaxed">
             <span className="mt-2 h-1 w-1 flex-none rounded-full bg-gold-500" />
-            <span>{li}</span>
+            <span>{inline(li)}</span>
           </li>
         ))}
       </ul>,
@@ -31,9 +46,14 @@ function render(md: string) {
   };
   lines.forEach((raw, i) => {
     const l = raw.trimEnd();
-    if (/^##\s+/.test(l)) {
+    if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(l)) {
       flush(`l${i}`);
-      const t = l.replace(/^##\s+/, '');
+      out.push(
+        <hr key={`hr${i}`} className="my-4 border-ink-100" />,
+      );
+    } else if (/^#{1,3}\s+/.test(l)) {
+      flush(`l${i}`);
+      const t = l.replace(/^#{1,3}\s+/, '').replace(/\*\*/g, '');
       const danger = /deadline|must do|watch out/i.test(t);
       out.push(
         <h3
@@ -59,7 +79,7 @@ function render(md: string) {
               : 'text-sm text-ink-700 leading-relaxed my-1'
           }
         >
-          {em ? l.trim().replace(/^_|_$/g, '') : l}
+          {em ? l.trim().replace(/^_|_$/g, '') : inline(l)}
         </p>,
       );
     }
