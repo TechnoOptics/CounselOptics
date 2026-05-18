@@ -8,47 +8,58 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
+import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
 import androidx.wear.compose.material.Chip
 import androidx.wear.compose.material.ChipDefaults
+import androidx.wear.compose.material.Colors
 import androidx.wear.compose.material.MaterialTheme
+import androidx.wear.compose.material.PositionIndicator
 import androidx.wear.compose.material.Scaffold
 import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.TimeText
+import androidx.wear.compose.material.Vignette
+import androidx.wear.compose.material.VignettePosition
 import androidx.wear.remote.interactions.RemoteActivityHelper
 import java.net.URLEncoder
 
 /**
- * Advottic Wear OS - Phase 2 + 3a + 3b + 3c.
+ * Advottic Wear OS - premium "jewelry" build.
  *
- * Phase 2: renders the case summary the phone pushes over the
- * Wearable Data Layer (SummaryListenerService -> SummaryStore),
- * with a standalone-safe placeholder until the first sync.
- *
- * Phase 3a: "Open on phone" chip hands the latest case to the paired
- * phone via RemoteActivityHelper (the phone session is signed in).
- *
- * Phase 3b: a glanceable Tile mirrors the summary (SummaryTileService).
- *
- * Phase 3c: a "Voice note" chip uses the Wear system speech
- * recognizer (no RECORD_AUDIO - the recognizer activity owns the
- * mic) and hands the transcript to the phone as
- * advottic.com/cases/<id>?note=<text>. The note lands in the
- * already-authenticated WebView, where a small island surfaces it
- * for the user to act on - so the wrist never touches an auth
- * boundary or needs a new server endpoint.
+ * Phase 2/3 functionality (synced glance, Open-on-phone, Voice note,
+ * Tile, standalone-safe placeholder) wrapped in a deep forest -> gold
+ * brand surface: ScalingLazyColumn so content curves and scales
+ * toward the bezel, a Vignette edge-fade, curved TimeText, a gold
+ * ADVOTTIC wordmark, jewelled chips, and a soft entrance.
  */
 class MainActivity : ComponentActivity() {
     private val summary: MutableState<SummaryStore.Summary> =
@@ -66,14 +77,32 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+// --- Brand palette --------------------------------------------------
+private val Forest = Color(0xFF0B1F19)
+private val ForestMid = Color(0xFF143A2D)
+private val Gold = Color(0xFFE6CE93)
+private val GoldDeep = Color(0xFFCBA24A)
+private val Cream = Color(0xFFFBF7E9)
+
+private val BrandColors = Colors(
+    primary = GoldDeep,
+    onPrimary = Forest,
+    secondary = ForestMid,
+    onSecondary = Cream,
+    background = Forest,
+    onBackground = Cream,
+    surface = ForestMid,
+    onSurface = Cream,
+    error = Color(0xFFE5816B),
+    onError = Forest,
+)
+
 /** Best-effort hand-off of a URL to the paired phone. Never throws. */
 private fun handOffToPhone(context: android.content.Context, url: String) {
     try {
         val intent = Intent(Intent.ACTION_VIEW)
             .addCategory(Intent.CATEGORY_BROWSABLE)
             .setData(Uri.parse(url))
-        // Returns a ListenableFuture<Void>; best-effort, not awaited -
-        // if the phone is unreachable this just does nothing.
         RemoteActivityHelper(context).startRemoteActivity(intent)
     } catch (_: Throwable) {
         // Never crash the watch over a hand-off attempt.
@@ -85,15 +114,9 @@ private fun openCaseOnPhone(context: android.content.Context, caseId: String) {
 }
 
 private fun noteUrl(caseId: String, text: String): String {
-    // Land on the specific case when we have one, else the dashboard.
     val base =
-        if (caseId.isNotBlank()) {
-            "https://advottic.com/cases/$caseId"
-        } else {
-            "https://advottic.com/cases"
-        }
-    // URLEncoder emits '+' for space (form encoding); the web reads
-    // the param with decodeURIComponent, so normalise to %20.
+        if (caseId.isNotBlank()) "https://advottic.com/cases/$caseId"
+        else "https://advottic.com/cases"
     val enc = URLEncoder.encode(text, "UTF-8").replace("+", "%20")
     return "$base?note=$enc"
 }
@@ -101,10 +124,17 @@ private fun noteUrl(caseId: String, text: String): String {
 @Composable
 fun WearApp(summary: SummaryStore.Summary) {
     val context = LocalContext.current
+    val listState = rememberScalingLazyListState()
 
-    // System speech recognizer. No RECORD_AUDIO permission needed -
-    // the recognizer activity owns the mic. On a transcript, hand it
-    // to the phone scoped to the latest case (or the dashboard).
+    // Soft entrance - the surface settles in like a stone catching light.
+    var shown by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { shown = true }
+    val appear by animateFloatAsState(
+        targetValue = if (shown) 1f else 0f,
+        animationSpec = tween(durationMillis = 650),
+        label = "appear",
+    )
+
     val voiceLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
     ) { result ->
@@ -129,81 +159,161 @@ fun WearApp(summary: SummaryStore.Summary) {
             }
             voiceLauncher.launch(intent)
         } catch (_: Throwable) {
-            // No recognizer on this watch - silently ignore so the
-            // glance never crashes over an optional convenience.
+            // No recognizer on this watch - silently ignore.
         }
     }
 
-    MaterialTheme {
-        Scaffold(timeText = { TimeText() }) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
+    MaterialTheme(colors = BrandColors) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Forest, ForestMid, Forest),
+                    ),
+                ),
+        ) {
+            Scaffold(
+                timeText = { TimeText() },
+                vignette = {
+                    Vignette(vignettePosition = VignettePosition.TopAndBottom)
+                },
+                positionIndicator = {
+                    PositionIndicator(scalingLazyListState = listState)
+                },
             ) {
-                Text(
-                    text = "Advottic",
-                    textAlign = TextAlign.Center,
-                    style = MaterialTheme.typography.title3,
-                )
-                if (summary.hasData) {
-                    Text(
-                        text = if (summary.openCount == 1) {
-                            "1 open case"
-                        } else {
-                            "${summary.openCount} open cases"
-                        },
-                        textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.body2,
-                        modifier = Modifier.padding(top = 6.dp),
-                    )
-                    if (summary.latestTitle.isNotBlank()) {
-                        Text(
-                            text = "Latest: ${summary.latestTitle}",
-                            textAlign = TextAlign.Center,
-                            style = MaterialTheme.typography.caption2,
-                            modifier = Modifier.padding(top = 4.dp),
-                        )
-                    }
-                    if (summary.latestCaseId.isNotBlank()) {
-                        Chip(
-                            onClick = {
-                                openCaseOnPhone(context, summary.latestCaseId)
-                            },
-                            label = {
-                                Text(
-                                    text = "Open on phone",
-                                    textAlign = TextAlign.Center,
-                                )
-                            },
-                            colors = ChipDefaults.primaryChipColors(),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 10.dp),
-                        )
-                    }
-                    Chip(
-                        onClick = { startVoiceNote() },
-                        label = {
+                ScalingLazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .alpha(appear),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    // Wordmark
+                    item {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
                             Text(
-                                text = "Voice note",
+                                text = "ADVOTTIC",
+                                color = Gold,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 4.sp,
+                                style = MaterialTheme.typography.title3,
                                 textAlign = TextAlign.Center,
                             )
-                        },
-                        colors = ChipDefaults.secondaryChipColors(),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp),
-                    )
-                } else {
-                    Text(
-                        text = "Open Advottic on your phone to see case updates here.",
-                        textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.caption2,
-                        modifier = Modifier.padding(top = 6.dp),
-                    )
+                            Spacer(Modifier.height(6.dp))
+                            Box(
+                                Modifier
+                                    .height(2.dp)
+                                    .fillMaxWidth(0.28f)
+                                    .clip(RoundedCornerShape(1.dp))
+                                    .background(
+                                        Brush.horizontalGradient(
+                                            listOf(GoldDeep, Gold, GoldDeep),
+                                        ),
+                                    ),
+                            )
+                        }
+                    }
+
+                    if (summary.hasData) {
+                        item {
+                            Text(
+                                text = if (summary.openCount == 1) "1"
+                                else "${summary.openCount}",
+                                color = Gold,
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.display3,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(top = 8.dp),
+                            )
+                        }
+                        item {
+                            Text(
+                                text = if (summary.openCount == 1) "open case"
+                                else "open cases",
+                                color = Cream.copy(alpha = 0.7f),
+                                letterSpacing = 2.sp,
+                                style = MaterialTheme.typography.caption2,
+                                textAlign = TextAlign.Center,
+                            )
+                        }
+                        if (summary.latestTitle.isNotBlank()) {
+                            item {
+                                Text(
+                                    text = summary.latestTitle,
+                                    color = Cream,
+                                    style = MaterialTheme.typography.body2,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(
+                                        top = 8.dp,
+                                        start = 8.dp,
+                                        end = 8.dp,
+                                    ),
+                                )
+                            }
+                        }
+                        if (summary.latestCaseId.isNotBlank()) {
+                            item {
+                                Chip(
+                                    onClick = {
+                                        openCaseOnPhone(
+                                            context,
+                                            summary.latestCaseId,
+                                        )
+                                    },
+                                    label = {
+                                        Text(
+                                            "Open on phone",
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier.fillMaxWidth(),
+                                        )
+                                    },
+                                    colors = ChipDefaults.chipColors(
+                                        backgroundColor = GoldDeep,
+                                        contentColor = Forest,
+                                    ),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 12.dp),
+                                )
+                            }
+                        }
+                        item {
+                            Chip(
+                                onClick = { startVoiceNote() },
+                                label = {
+                                    Text(
+                                        "Voice note",
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                },
+                                colors = ChipDefaults.chipColors(
+                                    backgroundColor = ForestMid,
+                                    contentColor = Gold,
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 8.dp),
+                            )
+                        }
+                    } else {
+                        item {
+                            Text(
+                                text = "Open Advottic on your phone to see your cases here.",
+                                color = Cream.copy(alpha = 0.65f),
+                                style = MaterialTheme.typography.caption1,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(
+                                    top = 10.dp,
+                                    start = 10.dp,
+                                    end = 10.dp,
+                                ),
+                            )
+                        }
+                    }
                 }
             }
         }
