@@ -1,0 +1,183 @@
+# Publishes the SIGNED Wear OS App Bundle to Google Play.
+#
+# This is the Play-side mirror of ios-release.yml's TestFlight upload:
+# build the signed .aab exactly like wear-release.yml, then push it
+# to the Play "internal" testing track via the Google Play Developer
+# API - no console clicking, no operator login.
+#
+# ONE-TIME PREREQUISITES (only the account owner can do these - they
+# are why this could not be automated before it existed):
+#
+#   1. Create the app in Play Console once: Play Console -> Create app
+#      -> package name com.advottic.watch (it is a SEPARATE listing
+#      from the phone app com.advottic.app). Upload any AAB once so
+#      the listing leaves "draft".
+#
+#   2. Create a Play publishing service account:
+#      Play Console -> Setup -> API access -> link a Google Cloud
+#      project -> create a service account -> grant it "Release
+#      manager" (or "Release to testing tracks only"). Download its
+#      JSON key.
+#
+#   3. Add the JSON as a repo secret named PLAY_SERVICE_ACCOUNT_JSON
+#      (Settings -> Secrets and variables -> Actions -> New secret;
+#      paste the raw JSON file contents).
+#
+# After that this workflow needs zero further setup and every Wear
+# release can go to Play Internal Testing on a single dispatch.
+#
+# Signing: identical to wear-release.yml - the shared upload keystore
+# is decoded from the existing ANDROID_* secrets.
+#
+# Manual only (workflow_dispatch) so a push never burns a Play
+# versionCode or an Internal Testing release.
+
+name: Wear OS publish (Play Internal Testing)
+
+on:
+  workflow_dispatch:
+    inputs:
+      track:
+        description: 'Play track to publish to'
+        type: choice
+        options:
+          - internal
+          - alpha
+          - beta
+        required: false
+        default: internal
+      release_notes:
+        description: 'One-line note for the run summary'
+        required: false
+        default: 'Manual Wear OS Play publish'
+
+permissions:
+  contents: read
+
+jobs:
+  publish-wear:
+    name: Build signed AAB + publish to Play
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Require the Play service account secret
+        # Fail FAST with a precise instruction if the one-time
+        # credential is missing, instead of a confusing error 20
+        # steps later. This is the single thing only the account
+        # owner can provide.
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -z "$PLAY_SERVICE_ACCOUNT_JSON" ]; then
+            echo "::error::PLAY_SERVICE_ACCOUNT_JSON secret is not set. See this workflow's header for the one-time Play Console + service-account setup. Until it exists, the signed .aab from wear-release.yml must be uploaded by hand."
+            exit 1
+          fi
+          echo "Play service account secret present."
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Decode keystore into android/app/
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 secret is empty."
+            exit 1
+          fi
+          echo "$ANDROID_KEYSTORE_BASE64" | tr -d '\r\n\t ' | base64 --decode > android/app/advottic-release.keystore
+          SIZE=$(stat -c%s android/app/advottic-release.keystore)
+          if [ "$SIZE" -lt 1024 ]; then
+            echo "::error::Decoded keystore is only $SIZE bytes - secret likely malformed."
+            exit 1
+          fi
+          echo "Decoded keystore: $SIZE bytes"
+
+      - name: Write keystore.properties
+        env:
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$ANDROID_STORE_PASSWORD" ] || [ -z "$ANDROID_KEY_ALIAS" ] || [ -z "$ANDROID_KEY_PASSWORD" ]; then
+            echo "::error::Missing one of ANDROID_STORE_PASSWORD / ANDROID_KEY_ALIAS / ANDROID_KEY_PASSWORD."
+            exit 1
+          fi
+          STORE_PW=$(printf '%s' "$ANDROID_STORE_PASSWORD" | tr -d '\r\n')
+          KEY_ALIAS=$(printf '%s' "$ANDROID_KEY_ALIAS" | tr -d '\r\n')
+          KEY_PW=$(printf '%s' "$ANDROID_KEY_PASSWORD" | tr -d '\r\n')
+          cat > android/keystore.properties <<EOF
+          storeFile=advottic-release.keystore
+          storePassword=$STORE_PW
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PW
+          EOF
+          sed -E 's/(Password=).*/\1***REDACTED***/g' android/keystore.properties
+
+      - name: Capacitor sync (so capacitor.settings.gradle paths exist)
+        run: |
+          mkdir -p android/app/src/main/assets
+          npx cap sync android
+
+      - name: Make gradlew executable
+        run: chmod +x android/gradlew
+
+      - name: Build signed Wear AAB
+        working-directory: android
+        run: ./gradlew :wear:bundleRelease --console=plain --no-daemon
+
+      - name: Verify AAB exists
+        run: |
+          AAB=android/wear/build/outputs/bundle/release/wear-release.aab
+          if [ ! -f "$AAB" ]; then
+            echo "::error::Wear AAB not produced at $AAB"
+            exit 1
+          fi
+          echo "AAB_PATH=$AAB" >> $GITHUB_ENV
+          echo "Built $(stat -c%s "$AAB") byte AAB."
+
+      - name: Publish to Google Play
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.advottic.watch
+          releaseFiles: ${{ env.AAB_PATH }}
+          track: ${{ inputs.track }}
+          status: completed
+
+      - name: Report
+        run: |
+          echo "## Wear OS published to Play" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Package:** com.advottic.watch" >> $GITHUB_STEP_SUMMARY
+          echo "**Track:** ${{ inputs.track }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Note:** ${{ inputs.release_notes }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Testers on the ${{ inputs.track }} track get it after Play processing (a few minutes to a few hours for the first release)." >> $GITHUB_STEP_SUMMARY
+
+      - name: Clean up secrets-derived files
+        if: always()
+        run: |
+          rm -f android/app/advottic-release.keystore
+          rm -f android/keystore.properties
