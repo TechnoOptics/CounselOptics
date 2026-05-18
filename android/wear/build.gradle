@@ -121,4 +121,13 @@ dependencies {
     // coroutine entry point) plus ComplicationDataSourceUpdateRequester
     // so the phone push can nudge the face instantly.
     implementation 'androidx.wear.watchface:watchface-complications-data-source-ktx:1.2.1'
+
+    // Phase 3e: standalone freshness. A periodic WorkManager job
+    // re-evaluates the local summary so the imminent-hearing alert
+    // still fires - and the Tile/complication still update - when a
+    // hearing crosses into the 24h window with no phone push (phone
+    // off, watch out of range, the user just did not open the app).
+    // WorkManager persists its queue across reboot itself, so no boot
+    // receiver is needed.
+    implementation 'androidx.work:work-runtime-ktx:2.9.1'
 }

@@ -75,6 +75,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         requestNotificationsIfNeeded()
+        // Idempotent: arm the standalone hourly refresh so alerts /
+        // Tile / complication stay correct without a phone push.
+        RefreshWorker.ensure(this)
         summary.value = SummaryStore.read(this)
         setContent { WearApp(summary.value) }
     }
