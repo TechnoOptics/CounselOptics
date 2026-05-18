@@ -204,15 +204,24 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
           <ArrowIcon />
           Back to cases
         </Link>
-        <a
-          href={`/cases/${c.id}/export`}
-          className="btn-secondary"
-          target="_blank"
-          rel="noreferrer"
-        >
-          <DownloadIcon />
-          Export PDF
-        </a>
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/cases/${c.id}/courtroom`}
+            className="btn bg-forest-900 hover:bg-forest-800 text-cream-50 font-semibold"
+          >
+            <ShieldIcon />
+            Courtroom Mode
+          </Link>
+          <a
+            href={`/cases/${c.id}/export`}
+            className="btn-secondary"
+            target="_blank"
+            rel="noreferrer"
+          >
+            <DownloadIcon />
+            Export PDF
+          </a>
+        </div>
       </div>
 
       {/* Case header - dark forest hero with KPI strip */}
@@ -772,6 +781,20 @@ function DownloadIcon() {
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
       <path
         d="M12 4v12m0 0l-4-4m4 4l4-4M5 20h14"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function ShieldIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 3l7 3v5c0 4.5-3 8.5-7 10-4-1.5-7-5.5-7-10V6l7-3Z"
         stroke="currentColor"
         strokeWidth="2"
         strokeLinecap="round"
