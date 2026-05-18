@@ -27,10 +27,13 @@
 #
 # Output
 # ------
-# The signed bundle is uploaded as the workflow artifact
-# `advottic-watch-aab` (a zip containing wear-release.aab). Download
-# it from the run's Summary page and upload to the Wear OS listing in
-# Play Console -> Testing -> Internal testing -> Create new release.
+# Two artifacts on the run's Summary page:
+#   advottic-watch-aab  signed wear-release.aab - upload to the Wear
+#                        OS listing in Play Console -> Testing ->
+#                        Internal testing -> Create new release.
+#   advottic-watch-apk  signed wear-release.apk - sideload straight
+#                        onto a real watch via `adb install` for
+#                        on-wrist testing without any Play account.
 #
 # Manual only (workflow_dispatch) - same posture as the other release
 # workflows so an accidental push never burns a Play versionCode.
@@ -140,9 +143,12 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x android/gradlew
 
-      - name: Build signed Wear AAB
+      - name: Build signed Wear AAB + sideloadable APK
+        # bundleRelease -> .aab for Play. assembleRelease -> a signed
+        # universal .apk that installs straight onto a real watch via
+        # adb, with no Play account, for on-wrist testing.
         working-directory: android
-        run: ./gradlew :wear:bundleRelease --console=plain --no-daemon
+        run: ./gradlew :wear:bundleRelease :wear:assembleRelease --console=plain --no-daemon
 
       - name: Verify AAB exists + report size
         run: |
@@ -159,13 +165,42 @@ jobs:
           echo "**Path:** \`$AAB\`" >> $GITHUB_STEP_SUMMARY
           echo "**Size:** ${SIZE_MB} MB ($SIZE_BYTES bytes)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Download from the **Artifacts** section at the bottom of this run page, then upload to the **com.advottic.watch** Play Console listing -> Testing -> Internal testing -> Create new release. See WEAR_DISTRIBUTION.md for the full checklist." >> $GITHUB_STEP_SUMMARY
+          echo "Upload the **.aab** to the **com.advottic.watch** Play Console listing -> Testing -> Internal testing. To test NOW without Play, grab the **.apk** artifact and sideload it (instructions below). See WEAR_DISTRIBUTION.md for the full checklist." >> $GITHUB_STEP_SUMMARY
+
+      - name: Verify signed APK + sideload instructions
+        run: |
+          APK=$(find android/wear/build/outputs/apk/release -name "*.apk" | head -1)
+          if [ -z "$APK" ] || [ ! -f "$APK" ]; then
+            echo "::error::Signed Wear APK was not produced"
+            ls -R android/wear/build/outputs/apk/ || true
+            exit 1
+          fi
+          SIZE_BYTES=$(stat -c%s "$APK")
+          SIZE_MB=$(awk "BEGIN {printf \"%.2f\", $SIZE_BYTES / 1024 / 1024}")
+          echo "## Sideloadable Wear APK built" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Path:** \`$APK\` (${SIZE_MB} MB)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Install on a real watch" >> $GITHUB_STEP_SUMMARY
+          echo "1. Download the **advottic-watch-apk** artifact below and unzip it." >> $GITHUB_STEP_SUMMARY
+          echo "2. On the watch: Settings -> System -> About -> tap Build number 7x (Developer options), then enable **ADB debugging** and **Debug over Wi-Fi** (or pair via USB)." >> $GITHUB_STEP_SUMMARY
+          echo "3. \`adb connect <watch-ip>:5555\` (Wi-Fi) or plug in via USB." >> $GITHUB_STEP_SUMMARY
+          echo "4. \`adb install -r wear-release.apk\`" >> $GITHUB_STEP_SUMMARY
+          echo "5. Launch **Advottic** from the watch app list. Add the Tile (swipe left from the face) and the complication (long-press the face -> Customize)." >> $GITHUB_STEP_SUMMARY
 
       - name: Upload Wear AAB artifact
         uses: actions/upload-artifact@v4
         with:
           name: advottic-watch-aab
           path: android/wear/build/outputs/bundle/release/wear-release.aab
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Upload sideloadable Wear APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: advottic-watch-apk
+          path: android/wear/build/outputs/apk/release/*.apk
           retention-days: 30
           if-no-files-found: error
 
