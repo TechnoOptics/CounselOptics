@@ -131,6 +131,12 @@ export default async function CasesPage({
           <Link href="/decoder" className="btn-secondary">
             Decode a document
           </Link>
+          <Link
+            href="/safe"
+            className="btn border border-rose-300 text-rose-700 hover:bg-rose-50 font-semibold"
+          >
+            Safe Witness
+          </Link>
           <Link href="/cases/new" className="btn-primary">
             <PlusIcon />
             New case

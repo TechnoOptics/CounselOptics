@@ -193,6 +193,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     '/inbox',
     '/deadlines',
     '/decoder',
+    '/safe',
   ];
   const isAppRoute =
     pathname !== '' &&
