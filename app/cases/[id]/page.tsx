@@ -20,6 +20,7 @@ import { HearingPanel } from './hearing-panel';
 import { ExhibitScan } from './exhibit-scan';
 import { Tabs } from '@/components/Tabs';
 import { CaseStory, type StoryItem } from '@/components/CaseStory';
+import { OpposingCounsel } from '@/components/OpposingCounsel';
 import { BellaPrompt } from '@/components/BellaPrompt';
 import { DeleteCaseButton } from './delete-case-button';
 import { PresenceIndicator } from '@/components/PresenceIndicator';
@@ -376,6 +377,11 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
             id: 'story',
             label: 'Story',
             content: <CaseStory caseId={c.id} items={storyItems} />,
+          },
+          {
+            id: 'practice',
+            label: 'Practice',
+            content: <OpposingCounsel caseId={c.id} />,
           },
           {
             id: 'exhibits',
