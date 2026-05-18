@@ -32,7 +32,9 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -150,6 +152,8 @@ private fun hearingCountdown(at: Long): Pair<String, Color> {
 @Composable
 fun WearApp(summary: SummaryStore.Summary) {
     val context = LocalContext.current
+    val haptics = LocalHapticFeedback.current
+    fun buzz() = haptics.performHapticFeedback(HapticFeedbackType.LongPress)
     val listState = rememberScalingLazyListState()
 
     // Soft entrance - the surface settles in like a stone catching light.
@@ -331,6 +335,7 @@ fun WearApp(summary: SummaryStore.Summary) {
                             item {
                                 Chip(
                                     onClick = {
+                                        buzz()
                                         openCaseOnPhone(
                                             context,
                                             summary.latestCaseId,
@@ -355,7 +360,10 @@ fun WearApp(summary: SummaryStore.Summary) {
                         }
                         item {
                             Chip(
-                                onClick = { startVoiceNote() },
+                                onClick = {
+                                    buzz()
+                                    startVoiceNote()
+                                },
                                 label = {
                                     Text(
                                         "Voice note",
@@ -366,6 +374,31 @@ fun WearApp(summary: SummaryStore.Summary) {
                                 colors = ChipDefaults.chipColors(
                                     backgroundColor = ForestMid,
                                     contentColor = Gold,
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 8.dp),
+                            )
+                        }
+                        item {
+                            Chip(
+                                onClick = {
+                                    buzz()
+                                    handOffToPhone(
+                                        context,
+                                        "https://advottic.com/safe",
+                                    )
+                                },
+                                label = {
+                                    Text(
+                                        "Safe Witness",
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                },
+                                colors = ChipDefaults.chipColors(
+                                    backgroundColor = Rose,
+                                    contentColor = Forest,
                                 ),
                                 modifier = Modifier
                                     .fillMaxWidth()
