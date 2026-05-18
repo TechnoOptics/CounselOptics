@@ -24,5 +24,17 @@ export function PopupPortal({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   if (!mounted || typeof document === 'undefined') return null;
-  return createPortal(children, document.body);
+  // Render every pop-up on the app's premium dark brand surface
+  // (forest + cream) instead of a stark white box that clashes with
+  // the rest of the experience. Wrapping in `.dark` activates the
+  // already-designed dark-theme variants on every element inside,
+  // regardless of the page's own theme. `display:contents` keeps the
+  // wrapper boxless so it never affects the fixed overlay's layout
+  // (it still counts as a DOM ancestor for the dark: selectors).
+  return createPortal(
+    <div className="dark" style={{ display: 'contents' }}>
+      {children}
+    </div>,
+    document.body,
+  );
 }

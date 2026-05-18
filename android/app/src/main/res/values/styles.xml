@@ -13,10 +13,17 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
+        <!-- Dark forest status bar with WHITE clock/icons to match the
+             dark header. windowLightStatusBar=false => light (white)
+             system icons. Literal colour so no colors.xml needed. -->
+        <item name="android:statusBarColor">#0F2D24</item>
+        <item name="android:windowLightStatusBar">false</item>
     </style>
 
 
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
+        <item name="android:statusBarColor">#0F2D24</item>
+        <item name="android:windowLightStatusBar">false</item>
     </style>
 </resources>

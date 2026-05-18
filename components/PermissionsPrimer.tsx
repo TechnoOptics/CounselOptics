@@ -35,6 +35,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useModalLifecycle } from '@/lib/use-modal-lifecycle';
 import { PopupPortal } from './PopupPortal';
+import { MicrophoneIcon, CameraIcon, BellIcon } from './icons/PermissionIcons';
 import { isNativeShell } from '@/lib/biometric';
 // Lazy-load @capacitor/* at runtime - static imports pull native code
 // into the SSR module graph for every page mounting the consumer
@@ -194,8 +195,8 @@ export function PermissionsPrimer() {
 
         <ul className="space-y-3">
           <li className="flex gap-3">
-            <span aria-hidden className="text-xl leading-none mt-0.5">
-              &#x1F3A4;
+            <span className="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-gold-400/15 text-gold-300">
+              <MicrophoneIcon className="h-[18px] w-[18px]" />
             </span>
             <div>
               <p className="text-sm font-semibold text-ink-900 dark:text-cream-100">
@@ -207,8 +208,8 @@ export function PermissionsPrimer() {
             </div>
           </li>
           <li className="flex gap-3">
-            <span aria-hidden className="text-xl leading-none mt-0.5">
-              &#x1F4F7;
+            <span className="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-gold-400/15 text-gold-300">
+              <CameraIcon className="h-[18px] w-[18px]" />
             </span>
             <div>
               <p className="text-sm font-semibold text-ink-900 dark:text-cream-100">
@@ -221,8 +222,8 @@ export function PermissionsPrimer() {
             </div>
           </li>
           <li className="flex gap-3">
-            <span aria-hidden className="text-xl leading-none mt-0.5">
-              &#x1F514;
+            <span className="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-gold-400/15 text-gold-300">
+              <BellIcon className="h-[18px] w-[18px]" />
             </span>
             <div>
               <p className="text-sm font-semibold text-ink-900 dark:text-cream-100">
