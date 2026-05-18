@@ -15,6 +15,9 @@ object SummaryStore {
     /** One docket entry: when the hearing is and what case it is. */
     data class Hearing(val at: Long, val title: String)
 
+    /** One Action Center item: what to do, and whether it is urgent. */
+    data class Action(val text: String, val urgent: Boolean)
+
     data class Summary(
         val openCount: Int,
         val latestTitle: String,
@@ -30,9 +33,35 @@ object SummaryStore {
          * stays a dumb holder; parse with [upcoming].
          */
         val upcomingJson: String = "",
+        /**
+         * JSON array string of Action Center items
+         * (`[{"text":"...","urgent":true}]`, urgent first). Raw for
+         * the same reason as upcomingJson; parse with [actions].
+         */
+        val actionsJson: String = "",
     ) {
         /** Parsed docket, soonest first. Never throws: bad/empty -> []. */
         fun upcoming(): List<Hearing> = parseUpcoming(upcomingJson)
+
+        /** Parsed Action Center, urgent first. Never throws. */
+        fun actions(): List<Action> = parseActions(actionsJson)
+    }
+
+    fun parseActions(json: String): List<Action> {
+        if (json.isBlank()) return emptyList()
+        return try {
+            val arr = JSONArray(json)
+            buildList {
+                for (i in 0 until arr.length()) {
+                    val o = arr.optJSONObject(i) ?: continue
+                    val text = o.optString("text", "")
+                    if (text.isBlank()) continue
+                    add(Action(text, o.optBoolean("urgent", false)))
+                }
+            }
+        } catch (_: Throwable) {
+            emptyList()
+        }
     }
 
     fun parseUpcoming(json: String): List<Hearing> {
@@ -60,6 +89,7 @@ object SummaryStore {
         nextHearingAt: Long = 0L,
         nextHearingTitle: String = "",
         upcomingJson: String = "",
+        actionsJson: String = "",
     ) {
         ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE)
             .edit()
@@ -69,6 +99,7 @@ object SummaryStore {
             .putLong("nextHearingAt", nextHearingAt)
             .putString("nextHearingTitle", nextHearingTitle)
             .putString("upcomingJson", upcomingJson)
+            .putString("actionsJson", actionsJson)
             .putBoolean("hasData", true)
             .apply()
     }
@@ -83,6 +114,7 @@ object SummaryStore {
             nextHearingAt = p.getLong("nextHearingAt", 0L),
             nextHearingTitle = p.getString("nextHearingTitle", "") ?: "",
             upcomingJson = p.getString("upcomingJson", "") ?: "",
+            actionsJson = p.getString("actionsJson", "") ?: "",
         )
     }
 

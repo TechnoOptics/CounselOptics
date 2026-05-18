@@ -398,6 +398,60 @@ fun WearApp(summary: SummaryStore.Summary) {
                                 }
                             }
                         }
+                        val actionItems = summary.actions()
+                        if (actionItems.isNotEmpty()) {
+                            item {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 12.dp)
+                                        .clip(RoundedCornerShape(18.dp))
+                                        .background(Color(0xFF221A12))
+                                        .padding(
+                                            horizontal = 14.dp,
+                                            vertical = 12.dp,
+                                        ),
+                                ) {
+                                    Text(
+                                        text = "ACTION CENTER",
+                                        color = Gold,
+                                        letterSpacing = 3.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        style = MaterialTheme
+                                            .typography.caption2,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                    actionItems.forEachIndexed { i, a ->
+                                        Text(
+                                            text = "• ${a.text}",
+                                            color = if (a.urgent) {
+                                                Rose
+                                            } else {
+                                                Cream.copy(alpha = 0.85f)
+                                            },
+                                            fontWeight = if (a.urgent) {
+                                                FontWeight.Bold
+                                            } else {
+                                                FontWeight.Normal
+                                            },
+                                            style = MaterialTheme
+                                                .typography.caption1,
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(
+                                                    top = if (i == 0) {
+                                                        8.dp
+                                                    } else {
+                                                        9.dp
+                                                    },
+                                                ),
+                                        )
+                                    }
+                                }
+                            }
+                        }
                         val docket = summary.upcoming()
                         if (docket.size > 1) {
                             item {

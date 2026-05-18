@@ -51,6 +51,11 @@ public class AdvotticWatchPlugin extends Plugin {
         // string so the watch stays the only place that parses it.
         JSONArray upcoming = call.getArray("upcoming");
         String upcomingJson = upcoming == null ? "[]" : upcoming.toString();
+        // Action Center items ({text,urgent}) - things acted on the
+        // user's case or that they need to do. Same verbatim-JSON
+        // forwarding as the docket.
+        JSONArray actions = call.getArray("actions");
+        String actionsJson = actions == null ? "[]" : actions.toString();
 
         try {
             PutDataMapRequest req = PutDataMapRequest.create(PATH);
@@ -60,6 +65,7 @@ public class AdvotticWatchPlugin extends Plugin {
             req.getDataMap().putLong("nextHearingAt", nextHearingAt);
             req.getDataMap().putString("nextHearingTitle", nextHearingTitle);
             req.getDataMap().putString("upcomingJson", upcomingJson);
+            req.getDataMap().putString("actionsJson", actionsJson);
             // A changing timestamp guarantees the DataItem differs
             // from the last one, so the Data Layer actually re-emits
             // it to the watch instead of de-duping an identical

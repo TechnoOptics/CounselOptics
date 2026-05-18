@@ -103,6 +103,45 @@ export default async function CasesPage({
     .slice(0, 5);
   const nextHearing = upcomingHearings[0];
 
+  // Wear "Action Center": things that were acted on a case or that
+  // the user needs to do, derived only from data already loaded
+  // above. Honest and conservative - no fabricated tasks.
+  const nowMs = Date.now();
+  const HOUR = 3_600_000;
+  const DAY = 86_400_000;
+  const actionItems: { text: string; urgent: boolean }[] = [];
+  for (const c of owned) {
+    if (!c.hearingAt) continue;
+    const t = Date.parse(c.hearingAt);
+    if (Number.isNaN(t)) continue;
+    const hrs = (t - nowMs) / HOUR;
+    // 1) Imminent hearing prep (within 72h).
+    if (hrs >= 0 && hrs <= 72) {
+      actionItems.push({ text: `Prep: ${c.title}`, urgent: hrs <= 24 });
+    }
+    // 2) A hearing within a week with no location set yet - a
+    //    concrete to-do that matters before walking into court.
+    const days = (t - nowMs) / DAY;
+    if (!c.hearingLocation && days >= 0 && days <= 7) {
+      actionItems.push({
+        text: `Add hearing location: ${c.title}`,
+        urgent: days <= 2,
+      });
+    }
+  }
+  // 3) A case updated very recently - surface that an action landed
+  //    on it so it is not missed.
+  for (const c of owned) {
+    const u = Date.parse(c.updatedAt);
+    if (Number.isNaN(u)) continue;
+    if ((nowMs - u) / HOUR <= 24) {
+      actionItems.push({ text: `Recent update: ${c.title}`, urgent: false });
+    }
+  }
+  const actions = actionItems
+    .sort((a, b) => Number(b.urgent) - Number(a.urgent))
+    .slice(0, 6);
+
   return (
     <div className="space-y-8 animate-fade-up">
       <WatchSync
@@ -112,6 +151,7 @@ export default async function CasesPage({
         nextHearingAt={nextHearing?.at ?? 0}
         nextHearingTitle={nextHearing?.title ?? ''}
         upcoming={upcomingHearings}
+        actions={actions}
       />
       <TourModal visible={Boolean(showTour)} />
       {/* Biometric enrollment prompt - first time on a native shell only.

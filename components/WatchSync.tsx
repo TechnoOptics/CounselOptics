@@ -23,6 +23,7 @@ export function WatchSync({
   nextHearingAt = 0,
   nextHearingTitle = '',
   upcoming = [],
+  actions = [],
 }: {
   openCount: number;
   latestTitle: string;
@@ -32,6 +33,8 @@ export function WatchSync({
   nextHearingTitle?: string;
   /** The next few upcoming hearings (the wrist docket), soonest first. */
   upcoming?: { at: number; title: string }[];
+  /** Action Center items: things acted on a case or to-dos, urgent first. */
+  actions?: { text: string; urgent: boolean }[];
 }) {
   useEffect(() => {
     let cancelled = false;
@@ -53,6 +56,7 @@ export function WatchSync({
             nextHearingAt: number;
             nextHearingTitle: string;
             upcoming: { at: number; title: string }[];
+            actions: { text: string; urgent: boolean }[];
           }): Promise<void>;
         }>('AdvotticWatch');
         if (cancelled) return;
@@ -63,6 +67,7 @@ export function WatchSync({
           nextHearingAt,
           nextHearingTitle,
           upcoming,
+          actions,
         });
       } catch {
         // Old shell without the plugin, watch unpaired, etc. - the
@@ -81,6 +86,7 @@ export function WatchSync({
     nextHearingAt,
     nextHearingTitle,
     JSON.stringify(upcoming),
+    JSON.stringify(actions),
   ]);
 
   return null;

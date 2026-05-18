@@ -30,6 +30,7 @@ class SummaryListenerService : WearableListenerService() {
                 nextHearingAt = map.getLong("nextHearingAt", 0L),
                 nextHearingTitle = map.getString("nextHearingTitle") ?: "",
                 upcomingJson = map.getString("upcomingJson") ?: "",
+                actionsJson = map.getString("actionsJson") ?: "",
             )
             // Phase 3b: nudge the Tile so the glance reflects this push
             // without waiting for the user to open the app. Best-effort:
