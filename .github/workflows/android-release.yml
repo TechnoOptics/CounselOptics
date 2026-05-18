@@ -174,9 +174,14 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x android/gradlew
 
-      - name: Build signed AAB
+      - name: Build signed AAB + sideloadable APK
+        # bundleRelease -> .aab for Play. assembleRelease -> a signed
+        # universal .apk that installs straight onto a phone via adb,
+        # with no Play account, for testing the native shell (e.g.
+        # the AdvotticWatch plugin that pushes case data to the watch)
+        # on a real device now.
         working-directory: android
-        run: ./gradlew bundleRelease --console=plain --no-daemon
+        run: ./gradlew bundleRelease assembleRelease --console=plain --no-daemon
 
       - name: Verify AAB exists + report size
         run: |
@@ -193,7 +198,21 @@ jobs:
           echo "**Path:** \`$AAB\`" >> $GITHUB_STEP_SUMMARY
           echo "**Size:** ${SIZE_MB} MB ($SIZE_BYTES bytes)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Download from the **Artifacts** section at the bottom of this run page, then upload to Google Play Console -> Internal testing -> Create new release." >> $GITHUB_STEP_SUMMARY
+          echo "Upload the **.aab** to Google Play Console -> Internal testing. To test the watch sync NOW without Play, grab the **.apk** artifact and sideload it (adb install -r) onto the phone paired to the watch." >> $GITHUB_STEP_SUMMARY
+
+      - name: Verify signed APK + report
+        run: |
+          APK=$(find android/app/build/outputs/apk/release -name "*.apk" | head -1)
+          if [ -z "$APK" ] || [ ! -f "$APK" ]; then
+            echo "::error::Signed phone APK was not produced"
+            ls -R android/app/build/outputs/apk/ || true
+            exit 1
+          fi
+          SIZE_MB=$(awk "BEGIN {printf \"%.2f\", $(stat -c%s "$APK") / 1024 / 1024}")
+          echo "## Sideloadable phone APK built" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Path:** \`$APK\` (${SIZE_MB} MB)" >> $GITHUB_STEP_SUMMARY
+          echo "Install on the watch-paired phone: \`adb install -r app-release.apk\`, then open Advottic -> Cases to push to the watch." >> $GITHUB_STEP_SUMMARY
 
       - name: Upload AAB artifact
         uses: actions/upload-artifact@v4
@@ -204,6 +223,14 @@ jobs:
           path: android/app/build/outputs/bundle/release/app-release.aab
           # 30-day retention: long enough to recover from a botched
           # Play Console upload, short enough to keep storage tidy.
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Upload sideloadable APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: advottic-apk
+          path: android/app/build/outputs/apk/release/*.apk
           retention-days: 30
           if-no-files-found: error
 
