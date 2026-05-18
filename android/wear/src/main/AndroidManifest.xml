@@ -67,6 +67,31 @@
                 <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />
             </intent-filter>
         </service>
+
+        <!-- Phase 3c: watch-face Complication data source. Bound by the
+             system complication host, so it must be exported and gated
+             by BIND_COMPLICATION_PROVIDER. SUPPORTED_TYPES advertises
+             the slots we serve; UPDATE_PERIOD_SECONDS is a 30-min
+             battery-friendly floor (the phone push also nudges it
+             instantly via ComplicationDataSourceUpdateRequester, so the
+             period is just a backstop for the day-rollover). No config
+             activity: the complication needs no per-instance setup. -->
+        <service
+            android:name=".HearingComplicationService"
+            android:label="@string/app_name"
+            android:icon="@android:drawable/sym_def_app_icon"
+            android:exported="true"
+            android:permission="com.google.android.wearable.permission.BIND_COMPLICATION_PROVIDER">
+            <intent-filter>
+                <action android:name="android.support.wearable.complications.ACTION_COMPLICATION_UPDATE_REQUEST" />
+            </intent-filter>
+            <meta-data
+                android:name="android.support.wearable.complications.SUPPORTED_TYPES"
+                android:value="SHORT_TEXT,LONG_TEXT" />
+            <meta-data
+                android:name="android.support.wearable.complications.UPDATE_PERIOD_SECONDS"
+                android:value="1800" />
+        </service>
     </application>
 
 </manifest>

@@ -113,4 +113,12 @@ dependencies {
     // Data Layer client - declared now so Phase 2 (phone -> watch
     // payload) needs no dependency change, only code.
     implementation 'com.google.android.gms:play-services-wearable:18.2.0'
+
+    // Phase 3c: watch-face Complication data source - the flagship
+    // "your next hearing on your watch face, 24/7" surface. The -ktx
+    // artifact transitively pulls watchface-complications-data-source
+    // and adds SuspendingComplicationDataSourceService (clean Kotlin
+    // coroutine entry point) plus ComplicationDataSourceUpdateRequester
+    // so the phone push can nudge the face instantly.
+    implementation 'androidx.wear.watchface:watchface-complications-data-source-ktx:1.2.1'
 }

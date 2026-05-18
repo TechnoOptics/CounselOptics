@@ -1,6 +1,8 @@
 package com.advottic.watch
 
+import android.content.ComponentName
 import androidx.wear.tiles.TileService
+import androidx.wear.watchface.complications.datasource.ComplicationDataSourceUpdateRequester
 import com.google.android.gms.wearable.DataEvent
 import com.google.android.gms.wearable.DataEventBuffer
 import com.google.android.gms.wearable.DataMapItem
@@ -36,6 +38,22 @@ class SummaryListenerService : WearableListenerService() {
                     .requestUpdate(SummaryTileService::class.java)
             } catch (_: Throwable) {
                 // Never let a Tile refresh failure drop the data sync.
+            }
+            // Phase 3c: nudge the watch-face Complication so the next
+            // hearing on the user's face updates the instant case data
+            // changes, instead of waiting up to 30 min for the system
+            // update period. Best-effort: a no-op if the user has not
+            // added the complication.
+            try {
+                ComplicationDataSourceUpdateRequester.create(
+                    this,
+                    ComponentName(
+                        this,
+                        HearingComplicationService::class.java,
+                    ),
+                ).requestUpdateAll()
+            } catch (_: Throwable) {
+                // Never let a complication refresh failure drop the sync.
             }
         }
     }
