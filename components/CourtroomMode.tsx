@@ -17,6 +17,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { PopupPortal } from './PopupPortal';
 
 type Ex = { id: string; label: string; fileName: string; category?: string | null };
 
@@ -142,6 +143,7 @@ export function CourtroomMode({
   const ss = String(seconds % 60).padStart(2, '0');
 
   return (
+    <PopupPortal dark={false}>
     <div className="fixed inset-0 z-[80] overflow-y-auto bg-gradient-to-b from-forest-950 via-forest-900 to-forest-950 text-cream-100">
       <div className="mx-auto max-w-2xl px-5 py-6 pb-24 space-y-7">
         {/* Header */}
@@ -365,6 +367,7 @@ export function CourtroomMode({
         </div>
       </div>
     </div>
+    </PopupPortal>
   );
 }
 

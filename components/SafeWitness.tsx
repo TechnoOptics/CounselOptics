@@ -16,6 +16,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
+import { PopupPortal } from './PopupPortal';
 
 type Contact = { name: string; email: string };
 type Phase = 'setup' | 'idle' | 'arming' | 'active' | 'review';
@@ -271,14 +272,16 @@ export function SafeWitness() {
   // ---- Discreet overlay (recording continues) ----
   if (hidden && (phase === 'arming' || phase === 'active')) {
     return (
-      <button
-        type="button"
-        onClick={() => setHidden(false)}
-        aria-label="Reveal Safe Witness controls"
-        className="fixed inset-0 z-[95] bg-black text-black flex items-center justify-center"
-      >
-        <span className="text-[10px] text-white/10">tap</span>
-      </button>
+      <PopupPortal dark={false}>
+        <button
+          type="button"
+          onClick={() => setHidden(false)}
+          aria-label="Reveal Safe Witness controls"
+          className="fixed inset-0 z-[95] bg-black text-black flex items-center justify-center"
+        >
+          <span className="text-[10px] text-white/10">tap</span>
+        </button>
+      </PopupPortal>
     );
   }
 
@@ -476,15 +479,17 @@ function Shell({
   tone?: 'alert';
 }) {
   return (
-    <div
-      className={`fixed inset-0 z-[90] overflow-y-auto ${
-        tone === 'alert'
-          ? 'bg-gradient-to-b from-[#1a0b0e] via-forest-950 to-forest-950'
-          : 'bg-gradient-to-b from-forest-950 via-forest-900 to-forest-950'
-      } text-cream-100`}
-    >
-      <div className="mx-auto max-w-md px-6 py-10 pb-16">{children}</div>
-    </div>
+    <PopupPortal dark={false}>
+      <div
+        className={`fixed inset-0 z-[90] overflow-y-auto ${
+          tone === 'alert'
+            ? 'bg-gradient-to-b from-[#1a0b0e] via-forest-950 to-forest-950'
+            : 'bg-gradient-to-b from-forest-950 via-forest-900 to-forest-950'
+        } text-cream-100`}
+      >
+        <div className="mx-auto max-w-md px-6 py-10 pb-16">{children}</div>
+      </div>
+    </PopupPortal>
   );
 }
 
