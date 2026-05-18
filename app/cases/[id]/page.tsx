@@ -19,6 +19,7 @@ import { CloseCaseControl } from './close-case-control';
 import { HearingPanel } from './hearing-panel';
 import { ExhibitScan } from './exhibit-scan';
 import { Tabs } from '@/components/Tabs';
+import { CaseStory, type StoryItem } from '@/components/CaseStory';
 import { BellaPrompt } from '@/components/BellaPrompt';
 import { DeleteCaseButton } from './delete-case-button';
 import { PresenceIndicator } from '@/components/PresenceIndicator';
@@ -124,6 +125,54 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
           },
         ]
       : []),
+  ];
+
+  // Case Story spine - exhibits anchored to when the event actually
+  // happened (incidentDate), plus the opening, hearing and meaningful
+  // activity. Sorted client-side in the component.
+  const storyItems: StoryItem[] = [
+    {
+      id: 'opened',
+      at: c.createdAt,
+      kind: 'opened' as const,
+      title: 'Case opened',
+      detail: `${c.caseType} matter - ${c.posture}`,
+    },
+    ...exhibits.map((e) => ({
+      id: `ex-${e.id}`,
+      at: e.incidentDate || e.uploadedAt,
+      kind: 'evidence' as const,
+      title: e.label,
+      detail:
+        [e.description, e.source && `Source: ${e.source}`]
+          .filter(Boolean)
+          .join(' · ') || e.fileName,
+      category: e.category ?? null,
+    })),
+    ...(c.hearingAt
+      ? [
+          {
+            id: 'hearing',
+            at: c.hearingAt,
+            kind: 'hearing' as const,
+            title: 'Hearing',
+            detail:
+              [c.hearingLocation, c.hearingNotes].filter(Boolean).join(' · ') ||
+              'Scheduled',
+            future: Date.parse(c.hearingAt) > Date.now(),
+          },
+        ]
+      : []),
+    ...activity
+      .filter((a) => !/viewed|search|opened_case/i.test(a.eventType))
+      .slice(0, 30)
+      .map((a) => ({
+        id: `ev-${a.id}`,
+        at: a.createdAt,
+        kind: 'event' as const,
+        title: a.eventType.replace(/_/g, ' '),
+        detail: a.actorDisplayName ? `by ${a.actorDisplayName}` : undefined,
+      })),
   ];
 
   // Decide whether the "this is a moment for counsel" callout
@@ -314,6 +363,11 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
                 },
               ]
             : []),
+          {
+            id: 'story',
+            label: 'Story',
+            content: <CaseStory caseId={c.id} items={storyItems} />,
+          },
           {
             id: 'exhibits',
             label: 'Exhibits',
