@@ -1050,6 +1050,13 @@ canvas {
      focused for a11y; the dimmed backdrop is the visual focus cue. */
   .popup-panel {
     @apply rounded-2xl bg-white shadow-card-hover focus:outline-none dark:bg-forest-900 dark:text-cream-100;
+    /* A pop-up taller than the viewport cannot be visually centered -
+       it overflows and the top gets clipped. Cap the height and let
+       the panel scroll its own content so `items-center` always
+       holds and nothing is unreachable. */
+    max-height: calc(100dvh - 2rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
   .card-hover {
     @apply card relative overflow-hidden;

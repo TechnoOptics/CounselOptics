@@ -71,7 +71,7 @@ export function WatchNoteInbox() {
         ref={panelRef}
         tabIndex={-1}
         aria-modal="true"
-        className="pointer-events-auto w-full max-w-md rounded-2xl bg-forest-950/95 text-cream-100 shadow-card-hover backdrop-blur-md p-4 animate-fade-up focus:outline-none"
+        className="pointer-events-auto w-full max-w-md rounded-2xl bg-forest-950/95 text-cream-100 shadow-card-hover backdrop-blur-md p-4 animate-fade-up focus:outline-none max-h-[calc(100dvh-2rem)] overflow-y-auto"
       >
         <div className="flex items-start justify-between gap-3">
           <p className="text-[10px] uppercase tracking-[0.22em] font-semibold text-cream-100/65">

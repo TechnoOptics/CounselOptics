@@ -192,7 +192,7 @@ export function CookieBanner() {
       <div
         ref={panelRef}
         tabIndex={-1}
-        className="relative w-full max-w-md rounded-2xl bg-white dark:bg-forest-900 shadow-card-hover overflow-hidden animate-cookie-focus focus:outline-none"
+        className="relative w-full max-w-md rounded-2xl bg-white dark:bg-forest-900 shadow-card-hover max-h-[calc(100dvh-2rem)] overflow-y-auto animate-cookie-focus focus:outline-none"
         style={{
           boxShadow:
             '0 28px 80px -10px rgba(15,45,36,0.65), 0 0 90px rgba(213,187,126,0.32)',

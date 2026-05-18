@@ -85,7 +85,7 @@ export function ConsentModal({
         ref={panelRef}
         tabIndex={-1}
         aria-modal="true"
-        className="relative w-full max-w-2xl rounded-2xl bg-white shadow-card-hover overflow-hidden animate-fade-up focus:outline-none dark:bg-forest-900"
+        className="relative w-full max-w-2xl rounded-2xl bg-white shadow-card-hover max-h-[calc(100dvh-3rem)] overflow-y-auto animate-fade-up focus:outline-none dark:bg-forest-900"
         style={{
           boxShadow:
             '0 22px 60px -12px rgba(15,45,36,0.55), 0 0 80px rgba(213,187,126,0.18)',
