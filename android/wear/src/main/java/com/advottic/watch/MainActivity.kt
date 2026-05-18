@@ -6,7 +6,6 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.speech.RecognizerIntent
 import androidx.activity.ComponentActivity
 import androidx.core.content.ContextCompat
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -218,31 +217,24 @@ fun WearApp(summary: SummaryStore.Summary) {
         label = "appear",
     )
 
-    val voiceLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult(),
-    ) { result ->
-        val spoken = result.data
-            ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-            ?.firstOrNull()
-            ?.trim()
-            .orEmpty()
-        if (spoken.isNotEmpty()) {
-            handOffToPhone(context, noteUrl(summary.latestCaseId, spoken))
-        }
-    }
+    // In-app voice capture with a live waveform (see
+    // VoiceCaptureOverlay). Gated on RECORD_AUDIO: tapping Voice note
+    // requests it the first time, and capture only opens once granted
+    // so a decline simply does nothing.
+    var voiceActive by remember { mutableStateOf(false) }
+    val micPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted -> if (granted) voiceActive = true }
 
-    fun startVoiceNote() {
-        try {
-            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(
-                    RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
-                )
-                putExtra(RecognizerIntent.EXTRA_PROMPT, "Add a case note")
-            }
-            voiceLauncher.launch(intent)
-        } catch (_: Throwable) {
-            // No recognizer on this watch - silently ignore.
+    fun launchVoice() {
+        val granted = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.RECORD_AUDIO,
+        ) == PackageManager.PERMISSION_GRANTED
+        if (granted) {
+            voiceActive = true
+        } else {
+            micPermission.launch(Manifest.permission.RECORD_AUDIO)
         }
     }
 
@@ -502,7 +494,7 @@ fun WearApp(summary: SummaryStore.Summary) {
                             Chip(
                                 onClick = {
                                     buzz()
-                                    startVoiceNote()
+                                    launchVoice()
                                 },
                                 label = {
                                     Text(
@@ -618,6 +610,20 @@ fun WearApp(summary: SummaryStore.Summary) {
                         }
                     }
                 }
+            }
+            if (voiceActive) {
+                VoiceCaptureOverlay(
+                    onResult = { spoken ->
+                        if (spoken.isNotBlank()) {
+                            handOffToPhone(
+                                context,
+                                noteUrl(summary.latestCaseId, spoken),
+                            )
+                        }
+                        voiceActive = false
+                    },
+                    onDismiss = { voiceActive = false },
+                )
             }
         }
     }

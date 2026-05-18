@@ -12,6 +12,11 @@
          no-ops until granted, so this never blocks the glance. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Phase 3f: in-app voice note with a live amplitude visualizer.
+         Runtime-requested when the user taps Voice note; capture is
+         gated on the grant so a decline simply does nothing. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
     <!-- Phase 1 uses the built-in Android app icon so the module
          builds with zero bundled binary assets; a branded Advottic
          watch icon lands in the distribution phase. -->
