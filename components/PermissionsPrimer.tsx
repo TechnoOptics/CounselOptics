@@ -251,7 +251,7 @@ export function PermissionsPrimer() {
               type="button"
               onClick={handleSkip}
               disabled={phase === 'working'}
-              className="btn-secondary"
+              className="btn text-cream-100/75 hover:text-cream-100 hover:bg-cream-100/5"
             >
               Not now
             </button>
@@ -259,8 +259,7 @@ export function PermissionsPrimer() {
               type="button"
               onClick={handleEnable}
               disabled={phase === 'working'}
-              className="btn bg-forest-900 hover:bg-forest-800 text-cream-50"
-              style={{ color: 'var(--btn-primary-fg, #fbf7e9)' }}
+              className="btn bg-gold-400 hover:bg-gold-300 text-forest-950 font-semibold"
             >
               Enable
             </button>
