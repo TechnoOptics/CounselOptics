@@ -26,7 +26,7 @@ permissions:
 
 jobs:
   build-wear:
-    name: Build :wear (assembleDebug)
+    name: Test + build :wear
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -66,6 +66,13 @@ jobs:
 
       - name: Make gradlew executable
         run: chmod +x android/gradlew
+
+      - name: Run :wear unit tests
+        # Pure-logic gate: JSON parsers, countdown/tier math and the
+        # timer formatters. Runs before assemble so a logic regression
+        # fails fast and is clearly attributed.
+        working-directory: android
+        run: ./gradlew :wear:testDebugUnitTest --console=plain --no-daemon
 
       - name: Build the Wear module
         working-directory: android

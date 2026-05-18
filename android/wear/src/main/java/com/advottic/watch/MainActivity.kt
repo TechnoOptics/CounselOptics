@@ -165,7 +165,7 @@ private val Amber = Color(0xFFE6B45A)
 private val Rose = Color(0xFFE5816B)
 
 /** A human countdown + an urgency colour for the hearing card. */
-private fun hearingCountdown(at: Long): Pair<String, Color> {
+internal fun hearingCountdown(at: Long): Pair<String, Color> {
     val diff = at - System.currentTimeMillis()
     if (diff <= 0L) return "happening now" to Rose
     val mins = diff / 60_000L
@@ -188,7 +188,7 @@ private fun hearingCountdown(at: Long): Pair<String, Color> {
 }
 
 /** Live stopwatch readout: M:SS, or H:MM:SS once past an hour. */
-private fun clock(ms: Long): String {
+internal fun clock(ms: Long): String {
     val s = (ms / 1000L).coerceAtLeast(0L)
     val h = s / 3600L
     val m = (s % 3600L) / 60L
@@ -201,7 +201,7 @@ private fun clock(ms: Long): String {
 }
 
 /** Billed duration for the hand-off note, e.g. "1h 06m" / "42m". */
-private fun billed(mins: Long): String {
+internal fun billed(mins: Long): String {
     val h = mins / 60L
     val m = mins % 60L
     return if (h > 0L) "${h}h %02dm".format(m) else "${m}m"
