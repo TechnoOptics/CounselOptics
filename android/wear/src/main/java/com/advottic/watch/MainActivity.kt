@@ -13,6 +13,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,6 +26,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -33,8 +35,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -43,12 +49,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
+import androidx.wear.compose.foundation.lazy.ScalingLazyListState
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
 import androidx.wear.compose.material.Chip
 import androidx.wear.compose.material.ChipDefaults
 import androidx.wear.compose.material.Colors
 import androidx.wear.compose.material.MaterialTheme
-import androidx.wear.compose.material.PositionIndicator
 import androidx.wear.compose.material.Scaffold
 import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.TimeText
@@ -201,6 +207,75 @@ private fun billed(mins: Long): String {
     return if (h > 0L) "${h}h %02dm".format(m) else "${m}m"
 }
 
+/**
+ * Rolex-style scroll bezel.
+ *
+ * A faint gold ring hugs the whole circular face like a watch bezel;
+ * a glossy gold gradient arc sweeps clockwise from 12 o'clock in
+ * proportion to scroll position. The sweep gradient is fixed in
+ * space so the growing arc reveals a polished sheen rather than a
+ * flat fill - it reads like light moving across a real bezel. Purely
+ * decorative: no pointer input, so scrolling is untouched.
+ */
+@Composable
+private fun ScrollBezel(
+    listState: ScalingLazyListState,
+    modifier: Modifier = Modifier,
+) {
+    val target by remember {
+        derivedStateOf {
+            val total = listState.layoutInfo.totalItemsCount
+            if (total <= 1) {
+                0f
+            } else {
+                (
+                    listState.centerItemIndex.toFloat() /
+                        (total - 1).toFloat()
+                    ).coerceIn(0f, 1f)
+            }
+        }
+    }
+    val progress by animateFloatAsState(
+        targetValue = target,
+        animationSpec = tween(durationMillis = 420),
+        label = "bezel",
+    )
+    val sheen = Color(0xFFF5E8C2)
+    Canvas(modifier = modifier) {
+        val strokeW = 5.dp.toPx()
+        val inset = strokeW / 2f + 2.dp.toPx()
+        val topLeft = Offset(inset, inset)
+        val arcSize = Size(
+            size.width - inset * 2f,
+            size.height - inset * 2f,
+        )
+        // The ever-present bezel track.
+        drawArc(
+            color = Gold.copy(alpha = 0.10f),
+            startAngle = 0f,
+            sweepAngle = 360f,
+            useCenter = false,
+            topLeft = topLeft,
+            size = arcSize,
+            style = Stroke(width = strokeW, cap = StrokeCap.Round),
+        )
+        val sweep = 360f * progress
+        if (sweep > 0.75f) {
+            drawArc(
+                brush = Brush.sweepGradient(
+                    listOf(GoldDeep, Gold, sheen, Gold, GoldDeep),
+                ),
+                startAngle = -90f,
+                sweepAngle = sweep,
+                useCenter = false,
+                topLeft = topLeft,
+                size = arcSize,
+                style = Stroke(width = strokeW, cap = StrokeCap.Round),
+            )
+        }
+    }
+}
+
 @Composable
 fun WearApp(summary: SummaryStore.Summary) {
     val context = LocalContext.current
@@ -300,9 +375,9 @@ fun WearApp(summary: SummaryStore.Summary) {
                 vignette = {
                     Vignette(vignettePosition = VignettePosition.TopAndBottom)
                 },
-                positionIndicator = {
-                    PositionIndicator(scalingLazyListState = listState)
-                },
+                // Default scrollbar suppressed in favour of the
+                // golden bezel ring drawn over the whole face below.
+                positionIndicator = {},
             ) {
                 ScalingLazyColumn(
                     state = listState,
@@ -734,6 +809,14 @@ fun WearApp(summary: SummaryStore.Summary) {
                     }
                 }
             }
+            // Rolex-style scroll bezel: a faint gold ring round the
+            // whole face with a glossy gradient arc that sweeps as
+            // you scroll. Drawn over the Scaffold, under the voice
+            // overlay; never intercepts touch.
+            ScrollBezel(
+                listState = listState,
+                modifier = Modifier.fillMaxSize(),
+            )
             if (voiceActive) {
                 VoiceCaptureOverlay(
                     onResult = { spoken ->
