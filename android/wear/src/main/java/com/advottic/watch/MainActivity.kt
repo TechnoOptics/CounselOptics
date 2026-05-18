@@ -56,6 +56,7 @@ import androidx.wear.compose.material.TimeText
 import androidx.wear.compose.material.Vignette
 import androidx.wear.compose.material.VignettePosition
 import androidx.wear.remote.interactions.RemoteActivityHelper
+import kotlinx.coroutines.delay
 import java.net.URLEncoder
 
 /**
@@ -178,6 +179,26 @@ private fun hearingCountdown(at: Long): Pair<String, Color> {
     return label to color
 }
 
+/** Live stopwatch readout: M:SS, or H:MM:SS once past an hour. */
+private fun clock(ms: Long): String {
+    val s = (ms / 1000L).coerceAtLeast(0L)
+    val h = s / 3600L
+    val m = (s % 3600L) / 60L
+    val sec = s % 60L
+    return if (h > 0L) {
+        "%d:%02d:%02d".format(h, m, sec)
+    } else {
+        "%d:%02d".format(m, sec)
+    }
+}
+
+/** Billed duration for the hand-off note, e.g. "1h 06m" / "42m". */
+private fun billed(mins: Long): String {
+    val h = mins / 60L
+    val m = mins % 60L
+    return if (h > 0L) "${h}h %02dm".format(m) else "${m}m"
+}
+
 @Composable
 fun WearApp(summary: SummaryStore.Summary) {
     val context = LocalContext.current
@@ -219,6 +240,28 @@ fun WearApp(summary: SummaryStore.Summary) {
             voiceLauncher.launch(intent)
         } catch (_: Throwable) {
             // No recognizer on this watch - silently ignore.
+        }
+    }
+
+    // Billable-time stopwatch. timerStart is the persisted start
+    // epoch (0 = stopped) so it survives the app closing mid-session;
+    // elapsedMs ticks once a second only while running.
+    var timerStart by remember {
+        mutableStateOf(TimerStore.startedAt(context))
+    }
+    var elapsedMs by remember {
+        mutableStateOf(
+            if (timerStart > 0L) {
+                System.currentTimeMillis() - timerStart
+            } else {
+                0L
+            },
+        )
+    }
+    LaunchedEffect(timerStart) {
+        while (timerStart > 0L) {
+            elapsedMs = System.currentTimeMillis() - timerStart
+            delay(1000L)
         }
     }
 
@@ -468,6 +511,63 @@ fun WearApp(summary: SummaryStore.Summary) {
                                 colors = ChipDefaults.chipColors(
                                     backgroundColor = ForestMid,
                                     contentColor = Gold,
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 8.dp),
+                            )
+                        }
+                        item {
+                            val running = timerStart > 0L
+                            Chip(
+                                onClick = {
+                                    buzz()
+                                    if (running) {
+                                        val mins = (
+                                            (System.currentTimeMillis() -
+                                                timerStart) / 60_000L
+                                            ).coerceAtLeast(1L)
+                                        TimerStore.clear(context)
+                                        timerStart = 0L
+                                        elapsedMs = 0L
+                                        handOffToPhone(
+                                            context,
+                                            noteUrl(
+                                                summary.latestCaseId,
+                                                "Wrist timer: " +
+                                                    "${billed(mins)} logged",
+                                            ),
+                                        )
+                                    } else {
+                                        val now =
+                                            System.currentTimeMillis()
+                                        TimerStore.start(context, now)
+                                        timerStart = now
+                                        elapsedMs = 0L
+                                    }
+                                },
+                                label = {
+                                    Text(
+                                        if (running) {
+                                            "Stop  ${clock(elapsedMs)}"
+                                        } else {
+                                            "Start timer"
+                                        },
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                },
+                                colors = ChipDefaults.chipColors(
+                                    backgroundColor = if (running) {
+                                        Amber
+                                    } else {
+                                        ForestMid
+                                    },
+                                    contentColor = if (running) {
+                                        Forest
+                                    } else {
+                                        Gold
+                                    },
                                 ),
                                 modifier = Modifier
                                     .fillMaxWidth()
