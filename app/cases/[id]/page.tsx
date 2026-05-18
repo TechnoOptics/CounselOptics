@@ -21,6 +21,7 @@ import { ExhibitScan } from './exhibit-scan';
 import { Tabs } from '@/components/Tabs';
 import { CaseStory, type StoryItem } from '@/components/CaseStory';
 import { OpposingCounsel } from '@/components/OpposingCounsel';
+import { EvidenceHeatmap } from '@/components/EvidenceHeatmap';
 import { BellaPrompt } from '@/components/BellaPrompt';
 import { DeleteCaseButton } from './delete-case-button';
 import { PresenceIndicator } from '@/components/PresenceIndicator';
@@ -382,6 +383,11 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
             id: 'practice',
             label: 'Practice',
             content: <OpposingCounsel caseId={c.id} />,
+          },
+          {
+            id: 'strength',
+            label: 'Strength',
+            content: <EvidenceHeatmap caseId={c.id} />,
           },
           {
             id: 'exhibits',
