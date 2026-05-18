@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, type RefObject } from 'react';
+import { focusWhenReady } from '@/lib/focus-when-ready';
 
 /**
  * Lightweight modal-lifecycle hook for components that don't want
@@ -41,8 +42,10 @@ export function useModalLifecycle({
     // Focus the panel after it has painted/animated in (rAF), so the
     // pop-up is the focal point. tabIndex={-1} on the panel makes it
     // programmatically focusable without entering the tab order.
-    if (focusRef?.current) {
-      requestAnimationFrame(() => focusRef.current?.focus());
+    if (focusRef) {
+      // Retry across frames: the panel renders through a portal whose
+      // mount-guard delays it a render, so it may not exist yet.
+      focusWhenReady(focusRef);
     }
 
     let listener: ((e: KeyboardEvent) => void) | null = null;

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { markTourCompletedAction } from '@/lib/actions';
 import { PopupPortal } from './PopupPortal';
+import { focusWhenReady } from '@/lib/focus-when-ready';
 
 const STEPS = [
   {
@@ -68,7 +69,7 @@ export function TourModal({ visible }: { visible: boolean }) {
   // (the card remounts per step via key={step}, which would otherwise
   // drop focus to <body>).
   useEffect(() => {
-    if (open) dialogRef.current?.focus();
+    if (open) focusWhenReady(dialogRef);
   }, [open, step]);
 
   if (!open) return null;

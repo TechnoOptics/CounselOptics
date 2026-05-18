@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
+import { focusWhenReady } from '@/lib/focus-when-ready';
 
 // Storage keys / cookie name. Both the legacy localStorage key and
 // the cross-subdomain cookie name are read at boot so users who
@@ -124,7 +125,7 @@ export function CookieBanner() {
   // (consistent with the other notification pop-ups).
   const panelRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
-    if (expanded) requestAnimationFrame(() => panelRef.current?.focus());
+    if (expanded) focusWhenReady(panelRef);
   }, [expanded]);
   const [phase, setPhase] = useState<'overview' | 'configure'>('overview');
   const [analytics, setAnalytics] = useState(false);

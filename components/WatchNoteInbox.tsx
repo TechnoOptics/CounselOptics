@@ -19,13 +19,14 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { PopupPortal } from './PopupPortal';
+import { focusWhenReady } from '@/lib/focus-when-ready';
 
 export function WatchNoteInbox() {
   const [note, setNote] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
-    if (note) requestAnimationFrame(() => panelRef.current?.focus());
+    if (note) focusWhenReady(panelRef);
   }, [note]);
 
   useEffect(() => {
