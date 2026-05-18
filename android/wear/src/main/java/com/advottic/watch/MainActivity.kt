@@ -62,6 +62,7 @@ import androidx.wear.compose.material.TimeTextDefaults
 import androidx.wear.compose.material.Vignette
 import androidx.wear.compose.material.VignettePosition
 import androidx.wear.remote.interactions.RemoteActivityHelper
+import com.google.android.gms.wearable.Wearable
 import kotlinx.coroutines.delay
 import java.net.URLEncoder
 
@@ -387,6 +388,29 @@ fun WearApp(summary: SummaryStore.Summary) {
         while (timerStart > 0L) {
             elapsedMs = System.currentTimeMillis() - timerStart
             delay(1000L)
+        }
+    }
+
+    // Pairing visibility: when there is no synced data, the empty
+    // screen is otherwise ambiguous (is the phone unreachable, or
+    // just hasn't pushed?). Ask the Data Layer whether any phone node
+    // is connected so we can tell the user the actionable thing.
+    // "checking" -> "connected" (open the phone app) / "disconnected"
+    // (fix Bluetooth/pairing) / "unknown" (probe failed - generic).
+    var phoneLink by remember { mutableStateOf("checking") }
+    LaunchedEffect(Unit) {
+        try {
+            Wearable.getNodeClient(context).connectedNodes
+                .addOnSuccessListener { nodes ->
+                    phoneLink = if (nodes.isNullOrEmpty()) {
+                        "disconnected"
+                    } else {
+                        "connected"
+                    }
+                }
+                .addOnFailureListener { phoneLink = "unknown" }
+        } catch (_: Throwable) {
+            phoneLink = "unknown"
         }
     }
 
@@ -832,9 +856,26 @@ fun WearApp(summary: SummaryStore.Summary) {
                         }
                     } else {
                         item {
+                            val (msg, tint) = when (phoneLink) {
+                                "connected" ->
+                                    "Phone connected. Open Advottic " +
+                                        "on your phone to sync your " +
+                                        "cases." to Cream
+                                "disconnected" ->
+                                    "Phone not connected. Check " +
+                                        "Bluetooth and the Galaxy " +
+                                        "Wearable pairing." to Rose
+                                "checking" ->
+                                    "Checking your phone…" to
+                                        Cream.copy(alpha = 0.6f)
+                                else ->
+                                    "Open Advottic on your phone to " +
+                                        "see your cases here." to
+                                        Cream.copy(alpha = 0.65f)
+                            }
                             Text(
-                                text = "Open Advottic on your phone to see your cases here.",
-                                color = Cream.copy(alpha = 0.65f),
+                                text = msg,
+                                color = tint,
                                 style = MaterialTheme.typography.caption1,
                                 textAlign = TextAlign.Center,
                                 modifier = Modifier.padding(
