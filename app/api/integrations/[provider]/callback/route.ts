@@ -43,6 +43,9 @@ export async function GET(
   if (!isProviderConfigured(provider)) {
     return redirectWithError(request, 'OAuth not configured.');
   }
+  // Non-null capture so the diagnostic closure keeps the narrowing
+  // (TS drops control-flow narrowing inside nested functions).
+  const prov = provider;
 
   const url = new URL(request.url);
   const code = url.searchParams.get('code');
@@ -87,9 +90,42 @@ export async function GET(
   // both routes resolve to the canonical host; otherwise both use the
   // request origin.
   const redirectUri = buildRedirectUri(provider, url.origin);
+
+  // Secret-safe pre-flight. We NEVER log or echo the secret itself,
+  // only its shape, so we can tell the admin exactly what is wrong
+  // instead of "401, fix your secret".
+  const rawId = process.env[prov.clientIdEnv];
+  const rawSecret = process.env[prov.clientSecretEnv];
+  const GUID =
+    /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+  function diagnoseSecret(): string {
+    if (!rawSecret || !rawSecret.trim()) {
+      return `${prov.clientSecretEnv} is not set on this deployment. Set it in Vercel for the PRODUCTION environment, then trigger a redeploy (env changes do not apply to existing deployments).`;
+    }
+    if (rawSecret !== rawSecret.trim() || /[\r\n]/.test(rawSecret)) {
+      return `${prov.clientSecretEnv} has stray whitespace or a line break. Re-paste the value with no leading/trailing spaces or newlines, then redeploy.`;
+    }
+    if (prov.id === 'microsoft' && GUID.test(rawSecret.trim())) {
+      return `${prov.clientSecretEnv} is a GUID, which is the Secret ID, not the secret Value. In Azure - Certificates & secrets the Value is shown only once when you create the secret (the "Value" column, not "Secret ID"). Create a new client secret, copy its Value, set it, and redeploy.`;
+    }
+    if (rawSecret.trim().length < 20) {
+      return `${prov.clientSecretEnv} looks too short to be a real client secret Value. Copy the full Value from Azure - Certificates & secrets and redeploy.`;
+    }
+    if (prov.id === 'microsoft' && (!rawId || !GUID.test(rawId.trim()))) {
+      return `${prov.clientIdEnv} is missing or not a valid Application (client) ID GUID. Confirm it matches the same app registration the secret belongs to.`;
+    }
+    return `The ${prov.clientSecretEnv} value does not match the app registration: it may belong to a different app, or the secret was deleted/expired. Create a fresh secret on the SAME app whose client ID is ${prov.clientIdEnv}, copy its Value, set it, and redeploy.`;
+  }
+  if (!rawId || !rawId.trim() || !rawSecret || !rawSecret.trim()) {
+    return redirectWithError(
+      request,
+      `Could not connect ${provider.label}. ${diagnoseSecret()}`,
+    );
+  }
+
   const tokenBody = new URLSearchParams({
-    client_id: process.env[provider.clientIdEnv]!.trim(),
-    client_secret: process.env[provider.clientSecretEnv]!.trim(),
+    client_id: rawId.trim(),
+    client_secret: rawSecret.trim(),
     grant_type: 'authorization_code',
     code,
     redirect_uri: redirectUri,
@@ -114,9 +150,12 @@ export async function GET(
     // Translate the common provider misconfigs into an instruction
     // the admin can act on, instead of a raw OAuth dump.
     let hint = '';
-    if (/AADSTS7000215/.test(body)) {
-      hint =
-        ' Fix: in Azure - Certificates & secrets, copy the secret VALUE (not the Secret ID) into the MICROSOFT_CLIENT_SECRET env var, then redeploy.';
+    if (/AADSTS7000215|invalid_client/.test(body)) {
+      // Tell them the SPECIFIC reason, derived from the secret's
+      // shape (never the secret itself).
+      hint = ' ' + diagnoseSecret();
+    } else if (/AADSTS7000222|expired/i.test(body)) {
+      hint = ` Fix: the ${provider.clientSecretEnv} has EXPIRED. Create a new client secret in Azure, copy its Value, update the env var, and redeploy.`;
     } else if (/AADSTS700016|AADSTS90002|unauthorized_client/.test(body)) {
       hint =
         ' Fix: MICROSOFT_CLIENT_ID does not match an app registration on this tenant - check the Application (client) ID.';
