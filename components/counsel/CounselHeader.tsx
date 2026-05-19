@@ -47,7 +47,7 @@ export function CounselHeader({
     // under those cutouts, so without this padding the body's lighter
     // background bleeds through behind the camera area.
     <header className="bg-forest-950/95 backdrop-blur-md sticky top-0 z-30 pt-[env(safe-area-inset-top)]">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
+      <div className="mx-auto max-w-none px-4 sm:px-6 lg:px-10 py-3 flex items-center justify-between gap-3">
         {tenantMode ? (
           // Tenant mode: firm IS the brand because the URL bar shows
           // <slug>.advottic.com. Big firm logo + name on the left, no

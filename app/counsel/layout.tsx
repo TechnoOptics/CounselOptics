@@ -141,7 +141,7 @@ export default async function CounselLayout({
         memberships={myFirms}
         tenantMode={isTenantSubdomain}
       />
-      <div className="flex-1 flex w-full max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 gap-6">
+      <div className="flex-1 flex w-full max-w-none mx-auto px-4 sm:px-6 lg:px-10 py-6 sm:py-8 gap-6">
         {active ? (
           <aside className="hidden md:block w-56 flex-none">
             <CounselSidebar
@@ -155,7 +155,7 @@ export default async function CounselLayout({
         <main className="flex-1 min-w-0">{children}</main>
       </div>
       <footer className="border-t border-forest-700/40 bg-forest-950/80 backdrop-blur">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 py-4 text-[11px] text-cream-100/55 flex flex-wrap items-center justify-between gap-2">
+        <div className="mx-auto max-w-none px-4 sm:px-6 lg:px-10 py-4 text-[11px] text-cream-100/55 flex flex-wrap items-center justify-between gap-2">
           <p>
             <span className="font-semibold text-cream-100">
               Advottic Counsel

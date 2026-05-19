@@ -87,7 +87,7 @@ export default async function PortalLayout({
       }
     >
       <header className="border-b border-forest-700/40 bg-forest-950/80 backdrop-blur sticky top-0 z-30">
-        <div className="mx-auto max-w-5xl px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
+        <div className="mx-auto max-w-none px-4 sm:px-6 lg:px-10 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-2.5 min-w-0">
             <span
               className="h-7 w-7 rounded-md flex-none inline-flex items-center justify-center text-white text-[12px] font-bold"
@@ -137,12 +137,12 @@ export default async function PortalLayout({
         </div>
       </header>
 
-      <main className="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+      <main className="flex-1 w-full max-w-none mx-auto px-4 sm:px-6 lg:px-10 py-6 sm:py-8">
         {children}
       </main>
 
       <footer className="border-t border-forest-700/40 bg-forest-950/80 backdrop-blur">
-        <div className="mx-auto max-w-5xl px-4 sm:px-6 py-4 text-[11px] text-cream-100/55 flex flex-wrap items-center justify-between gap-2">
+        <div className="mx-auto max-w-none px-4 sm:px-6 lg:px-10 py-4 text-[11px] text-cream-100/55 flex flex-wrap items-center justify-between gap-2">
           <p>
             <span className="font-semibold text-cream-100">Advottic</span>{' '}
             &middot; {firm.name} employee portal

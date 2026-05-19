@@ -335,7 +335,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <>
             <header className="sticky top-0 z-20">
               <div className="relative z-30 bg-forest-950/95 backdrop-blur-md pt-[env(safe-area-inset-top)]">
-                <div className="mx-auto max-w-[1760px] px-4 sm:px-6 py-3 flex items-center justify-between">
+                <div className="mx-auto max-w-none px-4 sm:px-6 lg:px-10 py-3 flex items-center justify-between">
                   <Link
                     href={signedIn ? '/cases' : '/'}
                     aria-label={signedIn ? 'Cases dashboard' : 'Advottic home'}
@@ -392,7 +392,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           children
         ) : (
           <main className="flex-1">
-            <div className="mx-auto max-w-[1760px] px-4 sm:px-6 py-6 sm:py-10 flex gap-6 lg:gap-8 items-start">
+            <div className="mx-auto max-w-none px-4 sm:px-6 lg:px-10 py-6 sm:py-10 flex gap-6 lg:gap-8 items-start">
               {signedIn && isAppRoute && (
                 <Suspense fallback={null}>
                   <Sidebar initialPrefs={consumerMenuPrefs} />
@@ -448,7 +448,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         />
         {!isShellMode && (
         <footer className="border-t border-ink-200 bg-white dark:bg-forest-950 dark:border-forest-700/40">
-          <div className="mx-auto max-w-[1760px] px-4 sm:px-6 py-6 sm:py-8 text-[11px] text-ink-500 dark:text-cream-100/55">
+          <div className="mx-auto max-w-none px-4 sm:px-6 lg:px-10 py-6 sm:py-8 text-[11px] text-ink-500 dark:text-cream-100/55">
             <div className="grid gap-6 sm:gap-8 grid-cols-2 md:grid-cols-4">
               <div className="space-y-1.5 col-span-2 md:col-span-1">
                 <p className="font-semibold text-forest-900 dark:text-cream-100 tracking-[0.05em] uppercase text-[10px]">
