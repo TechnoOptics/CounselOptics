@@ -127,22 +127,34 @@ export default async function CounselMeetingsPage({
         />
       </section>
 
-      <section className="card p-5 sm:p-6 ring-1 ring-amber-300/40 dark:ring-amber-500/30 bg-amber-50/40 dark:bg-amber-950/20">
-        <p className="eyebrow mb-2">What you can do today</p>
-        <ul className="text-sm text-ink-700 dark:text-cream-100/80 space-y-1.5 leading-relaxed">
-          <li>
-            Capture meeting details on a case (date, location, attendees) using the
-            existing hearing panel - the same UI works for any meeting.
-          </li>
-          <li>
-            Paste a Zoom or Teams link into a case description or chat channel; everyone
-            with access opens it from there.
-          </li>
-          <li>
-            Once connected, scheduling-from-case + auto-link in chat ship in the next
-            integration session.
-          </li>
-        </ul>
+      <section className="card p-5 sm:p-6 ring-1 ring-emerald-300/40 dark:ring-emerald-500/30 bg-emerald-50/40 dark:bg-emerald-950/20">
+        <p className="eyebrow mb-2">Schedule &amp; invite</p>
+        {byProvider.size > 0 ? (
+          <>
+            <p className="text-sm text-ink-700 dark:text-cream-100/80 leading-relaxed">
+              You&rsquo;re connected. Set up a Teams or Zoom meeting and
+              every attendee gets a branded invite with a one-tap
+              add-to-calendar - it also lands on the shared team
+              calendar.
+            </p>
+            <div className="mt-4">
+              <Link href="/counsel/calendar" className="btn-primary">
+                Schedule a meeting
+              </Link>
+            </div>
+          </>
+        ) : (
+          <p className="text-sm text-ink-700 dark:text-cream-100/80 leading-relaxed">
+            Connect Microsoft 365 or Zoom above, then head to the{' '}
+            <Link
+              href="/counsel/calendar"
+              className="underline font-semibold"
+            >
+              shared calendar
+            </Link>{' '}
+            to schedule meetings and send invites.
+          </p>
+        )}
       </section>
 
       <p className="text-[11px] text-ink-500 dark:text-cream-100/55">

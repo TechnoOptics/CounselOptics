@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { createAdminSupabase } from '@/lib/supabase/admin';
+import { MeetingScheduler } from './MeetingScheduler';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Calendar · Counsel' };
@@ -138,10 +139,12 @@ export default async function CounselCalendarPage() {
         </p>
       </header>
 
+      <MeetingScheduler firmId={firmId} />
+
       {items.length === 0 ? (
         <p className="card p-6 text-[13px] text-ink-500 dark:text-cream-100/55 italic">
-          Nothing on the calendar yet. Schedule a meeting from a
-          request, or add a deadline on a case.
+          Nothing on the calendar yet. Use &ldquo;Schedule
+          meeting&rdquo; above, or add a deadline on a case.
         </p>
       ) : (
         <div className="space-y-6">

@@ -6,7 +6,7 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { createServerSupabase, getCurrentUser, requireUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
-import { sendEmail } from './email';
+import { sendEmail, buildMeetingInviteEmailHtml } from './email';
 import type { FirmRole, FirmSigningStatus, FirmType } from './firm-types';
 import { FIRM_ROLES, FIRM_TYPES } from './firm-types';
 import {
@@ -1163,6 +1163,143 @@ export async function scheduleMeetingFromIntakeAction(
   revalidatePath(`/counsel/intake/${intakeId}`);
   revalidatePath(`/portal/${intakeId}`);
   return { ok: true, joinUrl: result.joinUrl };
+}
+
+// =====================================================================
+// Schedule a standalone meeting from the shared calendar (no request)
+// =====================================================================
+
+function gcalStamp(ms: number): string {
+  // Google Calendar template wants YYYYMMDDTHHMMSSZ (UTC, no punctuation).
+  return new Date(ms).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+}
+
+export async function scheduleStandaloneMeetingAction(
+  firmId: string,
+  formData: FormData,
+): Promise<{
+  ok: boolean;
+  error?: string;
+  joinUrl?: string;
+  provider?: 'microsoft' | 'zoom';
+  invited?: number;
+}> {
+  const user = await requireUser();
+  if (!(await callerIsFirmMember(firmId))) {
+    return { ok: false, error: 'You do not have access to this firm.' };
+  }
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server not configured.' };
+
+  const topic =
+    String(formData.get('title') ?? '').trim() || 'Advottic meeting';
+  const startISO = String(formData.get('startISO') ?? '').trim();
+  const durationMin = Math.min(
+    480,
+    Math.max(15, Number(formData.get('durationMin') ?? 30) || 30),
+  );
+  const startMs = Date.parse(startISO);
+  if (!startISO || Number.isNaN(startMs)) {
+    return { ok: false, error: 'Pick a valid date and time.' };
+  }
+  if (startMs < Date.now() - 60_000) {
+    return { ok: false, error: 'Pick a time in the future.' };
+  }
+
+  const attendees = new Set<string>();
+  String(formData.get('attendees') ?? '')
+    .split(/[,;\s]+/)
+    .map((s) => s.trim())
+    .filter((s) => s.includes('@') && s.length <= 254)
+    .forEach((a) => attendees.add(a.toLowerCase()));
+  if (user.email) attendees.add(user.email.toLowerCase());
+
+  const result = await scheduleFirmMeeting(firmId, {
+    topic,
+    startISO: new Date(startMs).toISOString(),
+    durationMin,
+    attendees: [...attendees],
+  });
+  if (!result.ok) return { ok: false, error: result.error };
+
+  // Persist for the shared calendar (best-effort - the meeting itself
+  // already exists in Teams/Zoom + the organizer's calendar).
+  try {
+    await admin.from('firm_meetings').insert({
+      firm_id: firmId,
+      intake_id: null,
+      created_by: user.id,
+      provider: result.provider,
+      topic,
+      join_url: result.joinUrl,
+      start_at: new Date(startMs).toISOString(),
+      duration_min: durationMin,
+    });
+  } catch {
+    /* calendar persistence is best-effort */
+  }
+
+  // Send a branded invite to every attendee. Microsoft Graph already
+  // emails Outlook attendees for Teams events; this guarantees Zoom
+  // invitees + any non-Outlook recipient also get a proper invite
+  // with a one-tap add-to-calendar.
+  const { data: mem } = await admin
+    .from('firm_members')
+    .select('display_name')
+    .eq('firm_id', firmId)
+    .eq('user_id', user.id)
+    .maybeSingle();
+  const organizerName =
+    (mem as { display_name?: string } | null)?.display_name ||
+    user.email ||
+    'Advottic';
+  const providerLabel =
+    result.provider === 'microsoft' ? 'Microsoft Teams' : 'Zoom';
+  const whenText = new Date(startMs).toLocaleString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+  const endMs = startMs + durationMin * 60_000;
+  const addToCalendarUrl =
+    'https://calendar.google.com/calendar/render?action=TEMPLATE' +
+    `&text=${encodeURIComponent(topic)}` +
+    `&dates=${gcalStamp(startMs)}/${gcalStamp(endMs)}` +
+    `&details=${encodeURIComponent(`Join: ${result.joinUrl}`)}` +
+    `&location=${encodeURIComponent(result.joinUrl)}`;
+  const html = buildMeetingInviteEmailHtml({
+    organizerName,
+    topic,
+    whenText,
+    durationMin,
+    providerLabel,
+    joinUrl: result.joinUrl,
+    addToCalendarUrl,
+  });
+  let invited = 0;
+  await Promise.all(
+    [...attendees].map(async (to) => {
+      const r = await sendEmail({
+        to,
+        subject: `Invitation: ${topic} - ${whenText}`,
+        html,
+        replyTo: user.email ?? undefined,
+      });
+      if (r.ok) invited += 1;
+    }),
+  );
+
+  revalidatePath('/counsel/calendar');
+  revalidatePath('/counsel/meetings');
+  return {
+    ok: true,
+    joinUrl: result.joinUrl,
+    provider: result.provider,
+    invited,
+  };
 }
 
 export async function setIntakeFolderAction(
