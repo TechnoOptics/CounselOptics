@@ -5,6 +5,7 @@ import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { getActiveFirmContext, listMyFirms } from '@/lib/firm-storage';
 import { CounselSidebar } from '@/components/counsel/CounselSidebar';
 import { CounselHeader } from '@/components/counsel/CounselHeader';
+import { AskAdvottic } from '@/components/counsel/AskAdvottic';
 import type { Firm, FirmMember } from '@/lib/firm-types';
 
 export const dynamic = 'force-dynamic';
@@ -152,7 +153,10 @@ export default async function CounselLayout({
             />
           </aside>
         ) : null}
-        <main className="flex-1 min-w-0">{children}</main>
+        <main className="flex-1 min-w-0">
+          {active ? <AskAdvottic /> : null}
+          {children}
+        </main>
       </div>
       <footer className="border-t border-forest-700/40 bg-forest-950/80 backdrop-blur">
         <div className="mx-auto max-w-none px-4 sm:px-6 lg:px-10 py-4 text-[11px] text-cream-100/55 flex flex-wrap items-center justify-between gap-2">
