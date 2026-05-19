@@ -10,7 +10,14 @@ import { scheduleStandaloneMeetingAction } from '@/lib/firm-actions';
  * branded invite with a one-tap add-to-calendar, and the meeting
  * lands on this shared calendar for the whole legal team.
  */
-export function MeetingScheduler({ firmId }: { firmId: string }) {
+export function MeetingScheduler({
+  firmId,
+  connected,
+}: {
+  firmId: string;
+  /** Providers actually connected for this firm, e.g. ['microsoft','zoom']. */
+  connected: Array<'microsoft' | 'zoom'>;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -110,6 +117,42 @@ export function MeetingScheduler({ firmId }: { firmId: string }) {
                 <option value="60">60 minutes</option>
                 <option value="90">90 minutes</option>
               </select>
+            </label>
+            <label className="block sm:col-span-2">
+              <span className="block text-[12px] font-medium text-forest-900 dark:text-cream-100 mb-1">
+                Platform
+              </span>
+              {connected.length === 0 ? (
+                <p className="text-[12px] text-amber-700 dark:text-amber-300">
+                  No meeting account is connected.{' '}
+                  <a
+                    href="/counsel/meetings"
+                    className="underline font-semibold"
+                  >
+                    Connect Microsoft 365 or Zoom
+                  </a>{' '}
+                  first.
+                </p>
+              ) : (
+                <select
+                  name="provider"
+                  defaultValue={
+                    connected.length > 1 ? 'auto' : connected[0]
+                  }
+                  className="input"
+                  disabled={pending}
+                >
+                  {connected.length > 1 && (
+                    <option value="auto">Auto (Teams preferred)</option>
+                  )}
+                  {connected.includes('microsoft') && (
+                    <option value="microsoft">Microsoft Teams</option>
+                  )}
+                  {connected.includes('zoom') && (
+                    <option value="zoom">Zoom</option>
+                  )}
+                </select>
+              )}
             </label>
             <label className="block sm:col-span-2">
               <span className="block text-[12px] font-medium text-forest-900 dark:text-cream-100 mb-1">

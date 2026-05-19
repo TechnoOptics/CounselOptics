@@ -32,8 +32,25 @@ export default async function CounselCalendarPage() {
   const horizon = new Date(now - 24 * 3600_000).toISOString();
 
   const items: AgendaItem[] = [];
+  const connected: Array<'microsoft' | 'zoom'> = [];
 
   if (admin) {
+    // Which meeting providers are actually connected (drives the
+    // Teams/Zoom chooser in the scheduler).
+    const { data: integ } = await admin
+      .from('firm_integrations')
+      .select('provider')
+      .eq('firm_id', firmId)
+      .is('revoked_at', null);
+    for (const r of (integ ?? []) as Array<{ provider: string }>) {
+      if (
+        (r.provider === 'microsoft' || r.provider === 'zoom') &&
+        !connected.includes(r.provider)
+      ) {
+        connected.push(r.provider);
+      }
+    }
+
     // Scheduled Teams/Zoom meetings.
     const { data: meetings } = await admin
       .from('firm_meetings')
@@ -139,7 +156,7 @@ export default async function CounselCalendarPage() {
         </p>
       </header>
 
-      <MeetingScheduler firmId={firmId} />
+      <MeetingScheduler firmId={firmId} connected={connected} />
 
       {items.length === 0 ? (
         <p className="card p-6 text-[13px] text-ink-500 dark:text-cream-100/55 italic">

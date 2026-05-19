@@ -1214,11 +1214,20 @@ export async function scheduleStandaloneMeetingAction(
     .forEach((a) => attendees.add(a.toLowerCase()));
   if (user.email) attendees.add(user.email.toLowerCase());
 
+  const providerChoice = String(formData.get('provider') ?? 'auto').trim();
+  const provider: 'microsoft' | 'zoom' | undefined =
+    providerChoice === 'microsoft'
+      ? 'microsoft'
+      : providerChoice === 'zoom'
+        ? 'zoom'
+        : undefined;
+
   const result = await scheduleFirmMeeting(firmId, {
     topic,
     startISO: new Date(startMs).toISOString(),
     durationMin,
     attendees: [...attendees],
+    provider,
   });
   if (!result.ok) return { ok: false, error: result.error };
 

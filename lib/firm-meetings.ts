@@ -120,11 +120,15 @@ async function refreshToken(
 }
 
 /**
- * Resolve a usable access token for the firm, preferring Microsoft
- * (Teams) then Zoom. Refreshes + persists if expired.
+ * Resolve a usable access token for the firm. When `preferred` is
+ * given the caller explicitly chose Teams or Zoom, so use exactly
+ * that one (and say so clearly if it isn't connected). With no
+ * preference, fall back to Microsoft (Teams) then Zoom. Refreshes +
+ * persists if expired.
  */
 async function getActiveIntegration(
   firmId: string,
+  preferred?: Provider,
 ): Promise<{ provider: Provider; accessToken: string } | { error: string }> {
   if (!isIntegrationEncryptionConfigured()) {
     return { error: 'Integration encryption is not configured on the server.' };
@@ -150,10 +154,21 @@ async function getActiveIntegration(
         'No meeting account is connected. Connect Microsoft 365 or Zoom in Meetings first.',
     };
   }
-  // Teams first - it produces a richer calendar event.
-  const row =
-    rows.find((r) => r.provider === 'microsoft') ??
-    rows.find((r) => r.provider === 'zoom');
+  let row;
+  if (preferred) {
+    row = rows.find((r) => r.provider === preferred);
+    if (!row) {
+      const label = preferred === 'microsoft' ? 'Microsoft 365 (Teams)' : 'Zoom';
+      return {
+        error: `${label} isn't connected for this firm. Connect it in Meetings, or pick the other provider.`,
+      };
+    }
+  } else {
+    // No explicit choice: Teams first - it produces a richer event.
+    row =
+      rows.find((r) => r.provider === 'microsoft') ??
+      rows.find((r) => r.provider === 'zoom');
+  }
   if (!row) {
     return { error: 'No supported meeting provider is connected.' };
   }
@@ -293,9 +308,11 @@ export async function scheduleFirmMeeting(
     startISO: string;
     durationMin: number;
     attendees: string[];
+    /** Explicit provider choice; omit to auto-pick Teams then Zoom. */
+    provider?: Provider;
   },
 ): Promise<MeetingResult> {
-  const integ = await getActiveIntegration(firmId);
+  const integ = await getActiveIntegration(firmId, opts.provider);
   if ('error' in integ) return { ok: false, error: integ.error };
   const made = await createProviderMeeting(
     integ.provider,
