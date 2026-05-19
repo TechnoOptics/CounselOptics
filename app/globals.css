@@ -1489,26 +1489,32 @@ select:focus-visible,
     offset-distance: 100%;
   }
 }
+/* A small, round gold glow point that travels along the EXACT
+ * rounded-rectangle path of the bar (offset-path: inset(0 round 1rem)
+ * matches the bar's border-radius), so the corners are followed
+ * perfectly - no rectangular pill ends sticking out at the curves.
+ * offset-rotate: 0deg keeps it a circle at every position. The radial
+ * gradient + screen blend gives the soft "marble of light" feel.
+ */
 .ask-shimmer-dot {
   position: absolute;
   top: 0;
   left: 0;
-  width: 120px;
-  height: 6px;
+  width: 14px;
+  height: 14px;
+  margin: -7px;
   border-radius: 999px;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(213, 187, 126, 0.45) 25%,
-    rgba(255, 240, 180, 1) 50%,
-    rgba(213, 187, 126, 0.45) 75%,
-    transparent 100%
+  background: radial-gradient(
+    circle,
+    rgba(255, 240, 180, 0.95) 0%,
+    rgba(232, 200, 120, 0.55) 45%,
+    rgba(232, 200, 120, 0) 100%
   );
-  filter: blur(2px);
+  filter: blur(1.5px);
   offset-path: inset(0 round 1rem);
   offset-distance: 0%;
-  offset-rotate: auto;
-  animation: ask-perimeter-shimmer 6s linear infinite;
+  offset-rotate: 0deg;
+  animation: ask-perimeter-shimmer 7s linear infinite;
   pointer-events: none;
   mix-blend-mode: screen;
 }
