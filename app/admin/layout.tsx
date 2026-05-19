@@ -29,6 +29,7 @@ const OPERATIONS_PATHS = new Set([
   '/admin/health',
   '/admin/crashes',
   '/admin/security',
+  '/admin/security-center',
 ]);
 
 function detectPerspective(pathname: string): Perspective {
@@ -147,6 +148,7 @@ function PerspectiveSubnav({
             // label. The /admin/health alias still works for any old
             // bookmark or alert template that links to it.
             { href: '/admin/operations', label: 'System health' },
+            { href: '/admin/security-center', label: 'Security Center' },
             { href: '/admin/security', label: 'Security pulse' },
             { href: '/admin/crashes', label: 'Crash reports' },
           ];
