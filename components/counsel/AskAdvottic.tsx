@@ -77,17 +77,13 @@ export function AskAdvottic() {
           e.preventDefault();
           ask(q);
         }}
-        className="relative isolate"
+        className="relative"
       >
-        {/* Rotating golden glow rim. The inner bar is opaque so the
-            conic gradient only peeks at the edges; ::before carries a
-            heavily-blurred copy that traces a halo just outside the
-            box too. */}
-        <div
-          aria-hidden
-          className="ask-glow-rim absolute inset-[-1.5px] rounded-2xl pointer-events-none"
-        />
-        <div className="relative flex items-center gap-2 rounded-2xl bg-forest-900 ring-1 ring-forest-700/50 focus-within:ring-gold-500/60 px-4 py-3 transition-shadow shadow-[0_0_28px_-12px_rgba(232,200,120,0.45)]">
+        {/* Gold border with a sheen that travels around the
+            perimeter - same motion family as the gold shimmer under
+            the page header, bent into a closed rectangle. */}
+        <div className="ask-frame relative flex items-center gap-2 rounded-2xl bg-forest-900/70 px-4 py-3 transition-shadow overflow-visible">
+          <span aria-hidden className="ask-shimmer-dot" />
           <SparkIcon />
           <input
             value={q}

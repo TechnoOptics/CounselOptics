@@ -1453,40 +1453,68 @@ select:focus-visible,
 }
 
 /* ---------------------------------------------------------------------------
- * Ask Advottic: rotating golden glow rim.
- *
- * A conic-gradient that rotates around the bar's perimeter; the inner box
- * keeps an opaque background so only the rim shows the gradient, and the
- * ::before pseudo carries a much-blurred copy that traces a halo just
- * outside the box too. Both rotate together so the gold "marches" around
- * the edge and the soft glow drifts with it. Respects reduced-motion.
+ * Ask Advottic: gold border with a shimmer that travels around the
+ * perimeter - the same family of motion as .header-glow-line under
+ * the page header, just bent into a closed rectangle. The static
+ * border is painted on a ::before via the gradient-border mask trick
+ * (paints only the ~1px rim, leaves the inside untouched). The
+ * sheen is a small bright pill that follows offset-path around the
+ * rounded rectangle so it slides along the top, then the right, then
+ * the bottom, then the left, smoothly. Respects reduced-motion.
  * ------------------------------------------------------------------------- */
-@keyframes ask-glow-spin {
+.ask-frame {
+  position: relative;
+}
+.ask-frame::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    rgba(213, 187, 126, 0.35) 0%,
+    rgba(245, 237, 214, 0.55) 50%,
+    rgba(213, 187, 126, 0.35) 100%
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+@keyframes ask-perimeter-shimmer {
   to {
-    transform: rotate(360deg);
+    offset-distance: 100%;
   }
 }
-.ask-glow-rim {
-  /* A short, gentle arc of gold that orbits the box. The arc is
-     contained well inside the conic so the gradient doesn't bleed
-     through long stretches of the rim. */
-  background: conic-gradient(
-    from 0deg,
-    rgba(213, 187, 126, 0) 0deg,
-    rgba(213, 187, 126, 0) 270deg,
-    rgba(232, 200, 120, 0.55) 295deg,
-    rgba(255, 230, 150, 0.95) 312deg,
-    rgba(232, 200, 120, 0.55) 329deg,
-    rgba(213, 187, 126, 0) 354deg,
-    rgba(213, 187, 126, 0) 360deg
+.ask-shimmer-dot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 120px;
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(213, 187, 126, 0.45) 25%,
+    rgba(255, 240, 180, 1) 50%,
+    rgba(213, 187, 126, 0.45) 75%,
+    transparent 100%
   );
-  animation: ask-glow-spin 5s linear infinite;
   filter: blur(2px);
-  /* Keep the bright arc tight near the rim - no oversized blurred
-     halo bleeding into the page below. */
+  offset-path: inset(0 round 1rem);
+  offset-distance: 0%;
+  offset-rotate: auto;
+  animation: ask-perimeter-shimmer 6s linear infinite;
+  pointer-events: none;
+  mix-blend-mode: screen;
 }
 @media (prefers-reduced-motion: reduce) {
-  .ask-glow-rim {
+  .ask-shimmer-dot {
     animation: none;
+    opacity: 0;
   }
 }
