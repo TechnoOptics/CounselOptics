@@ -1,4 +1,7 @@
+'use client';
+
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import type { Firm, FirmMember } from '@/lib/firm-types';
 import { isCounselItemActive, tenantHref } from '@/lib/counsel-routing';
 import { applyMenuConfig, readMenuConfig } from '@/lib/menu-config';
@@ -62,6 +65,16 @@ export function CounselSidebar({
    */
   tenantMode?: boolean;
 }) {
+  // The pathname prop is forwarded from the server layout for the
+  // initial SSR pass (so the right item is highlighted on first
+  // paint with no flicker). Once we're in the browser, the App
+  // Router's layout DOES NOT re-render on segment changes, so the
+  // prop is frozen at first load. usePathname() updates live on
+  // every soft navigation, so we prefer it - falling back to the
+  // SSR prop only when usePathname returns null (very brief, during
+  // hydration). This fixes the "highlight stuck on previous page"
+  // bug after clicking another sidebar item.
+  const livePathname = usePathname() ?? pathname;
   // Per-firm customization (hide / rename / reorder). Falls back to
   // the full default menu when the firm has not customized anything.
   const sections = applyMenuConfig(readMenuConfig(firm.metadata));
@@ -76,7 +89,7 @@ export function CounselSidebar({
             {sec.section}
           </p>
           {sec.items.map((item) => {
-            const active = isCounselItemActive(item.href, pathname);
+            const active = isCounselItemActive(item.href, livePathname);
             const href = tenantHref(item.href, tenantMode);
             return (
           // Audit V3 CR-28 / V5 CR-5+CR-28: prefetch={false} + the
@@ -116,7 +129,7 @@ export function CounselSidebar({
         <>
           <div className="my-2 border-t border-ink-100 dark:border-forest-700/40" />
           {(() => {
-            const active = isCounselItemActive('/counsel/settings', pathname);
+            const active = isCounselItemActive('/counsel/settings', livePathname);
             const href = tenantHref('/counsel/settings', tenantMode);
             return (
               <Link

@@ -1,9 +1,9 @@
 import Link from 'next/link';
-import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { getWorkspacePersona } from '@/lib/persona';
 import { exitPortalPreviewAction } from '@/lib/firm-actions';
+import { HubNavLink, type HubNavItem } from '@/components/portal/HubNavLink';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,12 +19,7 @@ export const dynamic = 'force-dynamic';
  *   - employee persona      -> render the Hub
  *   - none                  -> a calm "request access" card
  */
-type NavItem = {
-  href: string;
-  label: string;
-  hint: string;
-  soon?: boolean;
-};
+type NavItem = HubNavItem;
 
 export default async function PortalLayout({
   children,
@@ -99,8 +94,6 @@ export default async function PortalLayout({
       ?.hideAdvotticLogo === true;
   const reviewLabel = ownBrand ? 'Document review' : 'Advottic Review';
 
-  const pathname = headers().get('x-pathname') ?? '/portal';
-
   const primary: NavItem[] = [
     { href: '/portal', label: 'Home', hint: 'Your dashboard' },
     { href: '/portal/requests', label: 'My requests', hint: 'Track everything' },
@@ -129,40 +122,6 @@ export default async function PortalLayout({
       hint: 'Reminders + notifications',
     },
   ];
-
-  const NavLink = ({ item }: { item: NavItem }) => {
-    if (item.soon) {
-      return (
-        <div
-          className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-cream-100/35 cursor-default select-none"
-          title="Coming soon"
-        >
-          <span className="text-[13.5px]">{item.label}</span>
-          <span className="text-[9px] uppercase tracking-[0.14em] px-1.5 py-0.5 rounded bg-cream-100/5 ring-1 ring-cream-100/10">
-            Soon
-          </span>
-        </div>
-      );
-    }
-    const active =
-      pathname === item.href ||
-      (item.href !== '/portal' && pathname.startsWith(`${item.href}/`));
-    return (
-      <Link
-        href={item.href}
-        className={`block px-3 py-2 rounded-lg transition-colors ${
-          active
-            ? 'bg-cream-100/[0.08] text-cream-100 ring-1 ring-cream-100/10'
-            : 'text-cream-100/70 hover:text-cream-100 hover:bg-cream-100/5'
-        }`}
-      >
-        <span className="text-[13.5px] font-medium">{item.label}</span>
-        <span className="block text-[11px] text-cream-100/40">
-          {item.hint}
-        </span>
-      </Link>
-    );
-  };
 
   return (
     <div
@@ -204,14 +163,14 @@ export default async function PortalLayout({
 
         <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
           {primary.map((i) => (
-            <NavLink key={i.href + i.label} item={i} />
+            <HubNavLink key={i.href + i.label} item={i} />
           ))}
           <div className="pt-4 mt-3 border-t border-forest-700/30">
             <p className="px-3 pb-1 text-[10px] uppercase tracking-[0.18em] text-cream-100/30">
               Workspace
             </p>
             {workspace.map((i) => (
-              <NavLink key={i.label} item={i} />
+              <HubNavLink key={i.label} item={i} />
             ))}
           </div>
         </nav>
@@ -259,13 +218,11 @@ export default async function PortalLayout({
           </div>
           <nav className="flex items-center gap-1 text-[12px]">
             {primary.map((i) => (
-              <Link
+              <HubNavLink
                 key={i.href + i.label}
-                href={i.href}
-                className="px-2 py-1 rounded text-cream-100/75 hover:text-cream-100 hover:bg-cream-100/5"
-              >
-                {i.label}
-              </Link>
+                item={i}
+                variant="pill"
+              />
             ))}
             <form action="/auth/sign-out" method="post">
               <button
