@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { getWorkspacePersona } from '@/lib/persona';
+import { exitPortalPreviewAction } from '@/lib/firm-actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -78,6 +79,8 @@ export default async function PortalLayout({
   if (persona.kind !== 'employee') redirect('/portal');
   const { firm, employee } = persona;
   const who = employee.displayName || employee.email;
+  const can = (f: 'requests.create' | 'review') =>
+    persona.entitlements.includes(f);
   // Full white-label (own logo + "hide Advottic logo" in settings):
   // the portal drops every Advottic brand reference.
   const ownBrand =
@@ -128,18 +131,22 @@ export default async function PortalLayout({
             >
               My requests
             </Link>
-            <Link
-              href="/portal/new"
-              className="px-2.5 py-1.5 rounded-md text-cream-100/80 hover:text-cream-100 hover:bg-cream-100/5 transition-colors"
-            >
-              New request
-            </Link>
-            <Link
-              href="/review-my-document"
-              className="px-2.5 py-1.5 rounded-md text-cream-100/80 hover:text-cream-100 hover:bg-cream-100/5 transition-colors"
-            >
-              {reviewLabel}
-            </Link>
+            {can('requests.create') && (
+              <Link
+                href="/portal/new"
+                className="px-2.5 py-1.5 rounded-md text-cream-100/80 hover:text-cream-100 hover:bg-cream-100/5 transition-colors"
+              >
+                New request
+              </Link>
+            )}
+            {can('review') && (
+              <Link
+                href="/review-my-document"
+                className="px-2.5 py-1.5 rounded-md text-cream-100/80 hover:text-cream-100 hover:bg-cream-100/5 transition-colors"
+              >
+                {reviewLabel}
+              </Link>
+            )}
             <form action="/auth/sign-out" method="post">
               <button
                 type="submit"
@@ -152,6 +159,26 @@ export default async function PortalLayout({
           </nav>
         </div>
       </header>
+
+      {persona.preview && (
+        <div className="bg-gold-500/15 border-b border-gold-500/30 text-gold-100">
+          <div className="mx-auto max-w-none px-4 sm:px-6 lg:px-10 py-2 flex flex-wrap items-center justify-between gap-2 text-[13px]">
+            <span>
+              Previewing the employee portal as{' '}
+              <strong>{persona.previewRoleName}</strong> - this is
+              exactly what employees in that role see.
+            </span>
+            <form action={exitPortalPreviewAction}>
+              <button
+                type="submit"
+                className="underline font-semibold hover:opacity-80"
+              >
+                Exit preview
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
 
       <main className="flex-1 w-full max-w-none mx-auto px-4 sm:px-6 lg:px-10 py-6 sm:py-8">
         {children}

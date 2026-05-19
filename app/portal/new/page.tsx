@@ -9,6 +9,10 @@ export const metadata = { title: 'New request · Portal' };
 export default async function PortalNewRequestPage() {
   const persona = await getWorkspacePersona();
   if (persona.kind !== 'employee') redirect('/portal');
+  // Filing is a gated capability - a view-only role can't reach this.
+  if (!persona.entitlements.includes('requests.create')) {
+    redirect('/portal');
+  }
 
   const submittedBy =
     persona.employee.displayName || persona.employee.email;

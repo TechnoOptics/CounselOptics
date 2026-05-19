@@ -6,9 +6,11 @@ import {
 } from '@/lib/firm-storage';
 import { FIRM_ROLES, FIRM_ROLE_LABEL, FIRM_ROLE_DESCRIPTION } from '@/lib/firm-types';
 import { listFirmEmployeesAction } from '@/lib/firm-actions';
+import { readPortalRoles } from '@/lib/portal-features';
 import { InviteMemberForm } from './invite-form';
 import { TeamMemberRow } from './member-row';
 import { EmployeesPanel } from './employees-panel';
+import { RolesManager } from './roles-manager';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Team · Counsel' };
@@ -25,6 +27,7 @@ export default async function CounselTeamPage() {
   const employees = canManage
     ? await listFirmEmployeesAction(ctx.firm.id)
     : [];
+  const portalRoles = canManage ? readPortalRoles(ctx.firm.metadata) : [];
 
   return (
     <div className="space-y-6 animate-fade-up">
@@ -71,7 +74,15 @@ export default async function CounselTeamPage() {
       </section>
 
       {canManage && (
-        <EmployeesPanel firmId={ctx.firm.id} initial={employees} />
+        <RolesManager firmId={ctx.firm.id} initial={portalRoles} />
+      )}
+
+      {canManage && (
+        <EmployeesPanel
+          firmId={ctx.firm.id}
+          initial={employees}
+          roles={portalRoles}
+        />
       )}
 
       {invitations.length > 0 && (

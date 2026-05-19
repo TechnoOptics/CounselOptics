@@ -5,8 +5,10 @@ import { useRouter } from 'next/navigation';
 import {
   addFirmEmployeeAction,
   setFirmEmployeeActiveAction,
+  setFirmEmployeeRoleAction,
   type FirmEmployeeListItem,
 } from '@/lib/firm-actions';
+import type { PortalRole } from '@/lib/portal-features';
 
 /**
  * Owner/admin panel: the non-legal employees who get the scoped
@@ -17,9 +19,11 @@ import {
 export function EmployeesPanel({
   firmId,
   initial,
+  roles,
 }: {
   firmId: string;
   initial: FirmEmployeeListItem[];
+  roles: PortalRole[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -43,6 +47,13 @@ export function EmployeesPanel({
   function toggle(id: string, active: boolean) {
     startTransition(async () => {
       await setFirmEmployeeActiveAction(firmId, id, active);
+      router.refresh();
+    });
+  }
+
+  function assignRole(id: string, roleKey: string) {
+    startTransition(async () => {
+      await setFirmEmployeeRoleAction(firmId, id, roleKey);
       router.refresh();
     });
   }
@@ -127,14 +138,30 @@ export function EmployeesPanel({
                     {e.source !== 'manual' && ` · ${e.source}`}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => toggle(e.id, inactive)}
-                  disabled={pending}
-                  className="shrink-0 text-[12px] underline text-ink-700 dark:text-cream-100/85 hover:text-forest-900 dark:hover:text-cream-100"
-                >
-                  {inactive ? 'Reactivate' : 'Deactivate'}
-                </button>
+                <div className="shrink-0 flex items-center gap-3">
+                  <select
+                    value={e.roleKey ?? ''}
+                    onChange={(ev) => assignRole(e.id, ev.target.value)}
+                    disabled={pending || inactive}
+                    aria-label={`Role for ${e.displayName || e.email}`}
+                    className="text-[12px] rounded-md bg-transparent ring-1 ring-ink-200 dark:ring-forest-700/40 px-2 py-1 text-ink-700 dark:text-cream-100/85 disabled:opacity-50"
+                  >
+                    <option value="">Default access</option>
+                    {roles.map((r) => (
+                      <option key={r.key} value={r.key}>
+                        {r.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => toggle(e.id, inactive)}
+                    disabled={pending}
+                    className="text-[12px] underline text-ink-700 dark:text-cream-100/85 hover:text-forest-900 dark:hover:text-cream-100"
+                  >
+                    {inactive ? 'Reactivate' : 'Deactivate'}
+                  </button>
+                </div>
               </li>
             );
           })}

@@ -16,10 +16,13 @@ export function IntakeThread({
   intakeId,
   messages,
   viewerRole,
+  readOnly = false,
 }: {
   intakeId: string;
   messages: ThreadMessage[];
   viewerRole: 'employee' | 'legal';
+  /** Hide the composer (role lacks the messaging capability). */
+  readOnly?: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -84,35 +87,42 @@ export function IntakeThread({
         </ul>
       )}
 
-      <div className="space-y-2 pt-1">
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          rows={3}
-          placeholder={
-            viewerRole === 'employee'
-              ? 'Message legal about this request...'
-              : 'Reply to the requester...'
-          }
-          className="input resize-y"
-          disabled={pending}
-        />
-        {error && (
-          <p className="text-[12px] text-rose-600 dark:text-rose-300">
-            {error}
-          </p>
-        )}
-        <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={send}
-            disabled={pending || !text.trim()}
-            className="btn-primary"
-          >
-            {pending ? 'Sending...' : 'Send'}
-          </button>
+      {readOnly ? (
+        <p className="text-[12px] italic text-ink-500 dark:text-cream-100/55 pt-1">
+          Messaging legal isn&rsquo;t enabled for your role. Ask your
+          administrator if you need it.
+        </p>
+      ) : (
+        <div className="space-y-2 pt-1">
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            rows={3}
+            placeholder={
+              viewerRole === 'employee'
+                ? 'Message legal about this request...'
+                : 'Reply to the requester...'
+            }
+            className="input resize-y"
+            disabled={pending}
+          />
+          {error && (
+            <p className="text-[12px] text-rose-600 dark:text-rose-300">
+              {error}
+            </p>
+          )}
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={send}
+              disabled={pending || !text.trim()}
+              className="btn-primary"
+            >
+              {pending ? 'Sending...' : 'Send'}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
     </section>
   );
 }

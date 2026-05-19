@@ -192,6 +192,7 @@ export default async function PortalRequestPage({
         intakeId={intake.id}
         messages={thread}
         viewerRole="employee"
+        readOnly={!persona.entitlements.includes('requests.message')}
       />
     </div>
   );

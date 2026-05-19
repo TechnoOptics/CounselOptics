@@ -64,12 +64,38 @@ export async function postIntakeThreadMessageAction(
     role = 'employee';
     const { data: emp } = await admin
       .from('firm_employees')
-      .select('display_name, email')
+      .select('display_name, email, role_key')
       .eq('firm_id', intake.firm_id)
       .eq('user_id', user.id)
       .maybeSingle();
-    const e = emp as { display_name?: string; email?: string } | null;
+    const e = emp as {
+      display_name?: string;
+      email?: string;
+      role_key?: string | null;
+    } | null;
     name = e?.display_name || e?.email || name;
+    // Enforce the messaging entitlement server-side - hiding the
+    // composer in the UI is not security.
+    const { data: firmRow } = await admin
+      .from('firms')
+      .select('metadata')
+      .eq('id', intake.firm_id)
+      .maybeSingle();
+    const { readPortalRoles, resolveEntitlements } = await import(
+      './portal-features'
+    );
+    const ent = resolveEntitlements(
+      e?.role_key ?? null,
+      readPortalRoles(
+        (firmRow as { metadata?: unknown } | null)?.metadata,
+      ),
+    );
+    if (!ent.includes('requests.message')) {
+      return {
+        ok: false,
+        error: 'Messaging is not enabled for your role.',
+      };
+    }
   } else {
     const { data: mem } = await admin
       .from('firm_members')

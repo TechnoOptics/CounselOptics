@@ -2,11 +2,19 @@
 
 import crypto from 'node:crypto';
 import { revalidatePath } from 'next/cache';
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
 import { createServerSupabase, getCurrentUser, requireUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
 import { sendEmail } from './email';
 import type { FirmRole, FirmSigningStatus, FirmType } from './firm-types';
 import { FIRM_ROLES, FIRM_TYPES } from './firm-types';
+import {
+  readPortalRoles,
+  sanitizeFeatures,
+  type PortalRole,
+} from './portal-features';
+import { PORTAL_PREVIEW_COOKIE } from './persona';
 
 /**
  * Server actions powering the law-firm perspective.
@@ -466,6 +474,7 @@ export type FirmEmployeeListItem = {
   department: string | null;
   source: string;
   linked: boolean;
+  roleKey: string | null;
   deactivatedAt: string | null;
   createdAt: string;
 };
@@ -532,7 +541,7 @@ export async function listFirmEmployeesAction(
   const { data } = await admin
     .from('firm_employees')
     .select(
-      'id, email, display_name, department, source, user_id, deactivated_at, created_at',
+      'id, email, display_name, department, source, user_id, role_key, deactivated_at, created_at',
     )
     .eq('firm_id', firmId)
     .order('created_at', { ascending: false })
@@ -544,6 +553,7 @@ export async function listFirmEmployeesAction(
     department: string | null;
     source: string;
     user_id: string | null;
+    role_key: string | null;
     deactivated_at: string | null;
     created_at: string;
   }>).map((r) => ({
@@ -553,6 +563,7 @@ export async function listFirmEmployeesAction(
     department: r.department,
     source: r.source,
     linked: r.user_id !== null,
+    roleKey: r.role_key ?? null,
     deactivatedAt: r.deactivated_at,
     createdAt: r.created_at,
   }));
@@ -577,6 +588,161 @@ export async function setFirmEmployeeActiveAction(
   if (error) return { ok: false, error: error.message };
   revalidatePath('/counsel/team');
   return { ok: true };
+}
+
+// =====================================================================
+// Portal roles / groups + employee-portal preview
+// =====================================================================
+//
+// Roles are named feature bundles stored in firms.metadata.portalRoles
+// (no schema). An employee is assigned one via firm_employees.role_key.
+// resolveEntitlements() (lib/portal-features) turns that into the
+// portal's effective capabilities. Preview lets an owner/admin see
+// the portal as a role without a second account.
+
+function slugifyRoleKey(name: string): string {
+  return (
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '')
+      .slice(0, 40) || `role-${Date.now().toString(36)}`
+  );
+}
+
+async function readFirmMetadata(
+  firmId: string,
+): Promise<Record<string, unknown>> {
+  const admin = createAdminSupabase();
+  if (!admin) return {};
+  const { data } = await admin
+    .from('firms')
+    .select('metadata')
+    .eq('id', firmId)
+    .maybeSingle();
+  return (
+    ((data as { metadata?: Record<string, unknown> } | null)?.metadata) ??
+    {}
+  );
+}
+
+export async function listPortalRolesAction(
+  firmId: string,
+): Promise<PortalRole[]> {
+  if (!(await callerIsFirmAdmin(firmId))) return [];
+  return readPortalRoles(await readFirmMetadata(firmId));
+}
+
+export async function savePortalRoleAction(
+  firmId: string,
+  formData: FormData,
+): Promise<{ ok: boolean; error?: string }> {
+  await requireUser();
+  if (!(await callerIsFirmAdmin(firmId))) {
+    return { ok: false, error: 'Only an owner or admin can manage roles.' };
+  }
+  const name = String(formData.get('name') ?? '').trim();
+  if (!name) return { ok: false, error: 'Give the role a name.' };
+  // Editing keeps the original key; new roles slugify the name.
+  const existingKey = String(formData.get('key') ?? '').trim();
+  const key = existingKey || slugifyRoleKey(name);
+  const features = sanitizeFeatures(formData.getAll('feature'));
+
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server not configured.' };
+  const metadata = await readFirmMetadata(firmId);
+  const roles = readPortalRoles(metadata);
+  const next = roles.filter((r) => r.key !== key);
+  next.push({ key, name, features });
+  const { error } = await admin
+    .from('firms')
+    .update({
+      metadata: { ...metadata, portalRoles: next },
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', firmId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath('/counsel/team');
+  return { ok: true };
+}
+
+export async function deletePortalRoleAction(
+  firmId: string,
+  key: string,
+): Promise<{ ok: boolean; error?: string }> {
+  await requireUser();
+  if (!(await callerIsFirmAdmin(firmId))) {
+    return { ok: false, error: 'Only an owner or admin can manage roles.' };
+  }
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server not configured.' };
+  const metadata = await readFirmMetadata(firmId);
+  const roles = readPortalRoles(metadata).filter((r) => r.key !== key);
+  const { error } = await admin
+    .from('firms')
+    .update({
+      metadata: { ...metadata, portalRoles: roles },
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', firmId);
+  if (error) return { ok: false, error: error.message };
+  // Unassign anyone who had it (they fall back to default access).
+  await admin
+    .from('firm_employees')
+    .update({ role_key: null })
+    .eq('firm_id', firmId)
+    .eq('role_key', key);
+  revalidatePath('/counsel/team');
+  return { ok: true };
+}
+
+export async function setFirmEmployeeRoleAction(
+  firmId: string,
+  employeeId: string,
+  roleKey: string,
+): Promise<{ ok: boolean; error?: string }> {
+  await requireUser();
+  if (!(await callerIsFirmAdmin(firmId))) {
+    return { ok: false, error: 'Only an owner or admin can do that.' };
+  }
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server not configured.' };
+  const { error } = await admin
+    .from('firm_employees')
+    .update({ role_key: roleKey || null })
+    .eq('id', employeeId)
+    .eq('firm_id', firmId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath('/counsel/team');
+  return { ok: true };
+}
+
+// --- Employee-portal preview (owner/admin only) ----------------------
+
+export async function enterPortalPreviewAction(
+  firmId: string,
+  roleKey: string,
+): Promise<void> {
+  await requireUser();
+  if (!(await callerIsFirmAdmin(firmId))) {
+    redirect('/counsel');
+  }
+  cookies().set(
+    PORTAL_PREVIEW_COOKIE,
+    JSON.stringify({ firmId, roleKey: roleKey || '' }),
+    {
+      httpOnly: true,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60, // 1h - a preview, not a session
+    },
+  );
+  redirect('/portal');
+}
+
+export async function exitPortalPreviewAction(): Promise<void> {
+  cookies().delete(PORTAL_PREVIEW_COOKIE);
+  redirect('/counsel');
 }
 
 // =====================================================================

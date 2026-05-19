@@ -1,3 +1,4 @@
+import { cookies } from 'next/headers';
 import { getCurrentUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
 import {
@@ -6,31 +7,44 @@ import {
   listMyFirms,
 } from './firm-storage';
 import type { Firm, FirmEmployee, FirmMember } from './firm-types';
+import {
+  readPortalRoles,
+  resolveEntitlements,
+  type PortalFeature,
+} from './portal-features';
 
 /**
  * Resolve the signed-in user's workspace persona.
  *
- * One axis on top of FirmRole, NOT a new column:
- *
- *  - `admin`    : firm_members row, role owner|admin -> full Counsel
- *                 app + tenant settings.
+ *  - `admin`    : firm_members row, role owner|admin -> full Counsel.
  *  - `legal`    : firm_members row, any other role  -> full Counsel.
- *  - `employee` : NO firm_members row, but a firm_employees row ->
- *                 the scoped /portal/* surface only.
- *  - `none`     : neither -> no access.
+ *  - `employee` : NO firm_members row but a firm_employees row, OR an
+ *                 owner/admin in PREVIEW mode -> scoped /portal only.
+ *  - `none`     : neither.
  *
- * Legal membership always wins: if a person is on the legal team they
- * get the full app even if they also have an employee row. This is
- * the single chokepoint both /counsel and /portal gate on, so an
- * employee can never reach /counsel/* (there is no firm_members row
- * for them) and a legal user landing on /portal is sent to /counsel.
+ * Legal membership always wins EXCEPT when the user is an owner/admin
+ * who explicitly entered employee-portal preview (a cookie they set
+ * via a gated action). Preview never reduces their real privileges
+ * and never exposes another employee's data - the portal pages still
+ * scope every query to the signed-in user.
  *
  * See docs/ENTERPRISE_WORKSPACE.md.
  */
+export const PORTAL_PREVIEW_COOKIE = 'adv_portal_preview';
+
 export type WorkspacePersona =
   | { kind: 'none' }
   | { kind: 'legal' | 'admin'; firm: Firm; membership: FirmMember }
-  | { kind: 'employee'; firm: Firm; employee: FirmEmployee };
+  | {
+      kind: 'employee';
+      firm: Firm;
+      employee: FirmEmployee;
+      entitlements: PortalFeature[];
+      /** True when an owner/admin is previewing the portal. */
+      preview?: boolean;
+      /** Role name being previewed (for the banner). */
+      previewRoleName?: string;
+    };
 
 type EmployeeRow = {
   id: string;
@@ -43,6 +57,7 @@ type EmployeeRow = {
   external_id: string | null;
   deactivated_at: string | null;
   created_at: string;
+  role_key?: string | null;
 };
 
 function employeeFromRow(r: EmployeeRow): FirmEmployee {
@@ -61,13 +76,66 @@ function employeeFromRow(r: EmployeeRow): FirmEmployee {
   };
 }
 
+function readPreviewCookie(): { firmId: string; roleKey: string } | null {
+  try {
+    const raw = cookies().get(PORTAL_PREVIEW_COOKIE)?.value;
+    if (!raw) return null;
+    const o = JSON.parse(raw) as { firmId?: string; roleKey?: string };
+    if (!o.firmId) return null;
+    return { firmId: o.firmId, roleKey: String(o.roleKey ?? '') };
+  } catch {
+    return null;
+  }
+}
+
 export async function getWorkspacePersona(): Promise<WorkspacePersona> {
   const user = await getCurrentUser();
   if (!user) return { kind: 'none' };
 
-  // Legal team takes precedence. Mirror the counsel layout's
-  // resolution: prefer the active firm, else the first membership.
   const myFirms = await listMyFirms();
+
+  // Preview mode: an owner/admin chose to see the employee portal.
+  // Only honoured for a firm they actually own/admin, so it can
+  // never be an escalation (employee <= legal). Checked BEFORE the
+  // legal short-circuit so /portal renders for them.
+  const preview = readPreviewCookie();
+  if (preview && myFirms.length > 0) {
+    const m = myFirms.find(
+      (f) =>
+        f.firm.id === preview.firmId &&
+        (f.membership.role === 'owner' ||
+          f.membership.role === 'admin'),
+    );
+    if (m) {
+      const roles = readPortalRoles(m.firm.metadata);
+      const role = preview.roleKey
+        ? roles.find((r) => r.key === preview.roleKey)
+        : undefined;
+      const who =
+        m.membership.displayName || user.email || 'Preview';
+      return {
+        kind: 'employee',
+        firm: m.firm,
+        employee: {
+          id: 'preview',
+          firmId: m.firm.id,
+          userId: user.id,
+          email: user.email ?? '',
+          displayName: `${who} (preview)`,
+          department: null,
+          source: 'manual',
+          externalId: null,
+          deactivatedAt: null,
+          createdAt: new Date().toISOString(),
+        },
+        entitlements: resolveEntitlements(preview.roleKey || null, roles),
+        preview: true,
+        previewRoleName: role ? role.name : 'Default access',
+      };
+    }
+  }
+
+  // Legal team takes precedence.
   if (myFirms.length > 0) {
     const active = (await getActiveFirmContext()) ?? myFirms[0];
     const isAdmin =
@@ -80,16 +148,10 @@ export async function getWorkspacePersona(): Promise<WorkspacePersona> {
     };
   }
 
-  // Not on any legal team. Are they a directory-synced / admin-added
-  // employee? Admin client because (a) a row may still be unlinked
-  // (user_id null - added by email before the person ever signed in,
-  // so the self-select RLS policy can't see it yet) and (b) listing
-  // is service-role per the design doc. The query stays pinned to
-  // THIS user (id or email), so nothing else is reachable.
+  // Not on any legal team. Directory-synced / admin-added employee?
   try {
     const admin = createAdminSupabase();
     if (admin) {
-      // 1. Already linked to this user_id.
       let row: EmployeeRow | null = null;
       {
         const { data } = await admin
@@ -102,8 +164,6 @@ export async function getWorkspacePersona(): Promise<WorkspacePersona> {
           .maybeSingle();
         row = (data as EmployeeRow | null) ?? null;
       }
-      // 2. Not linked yet: match by email and backfill user_id so
-      //    every subsequent load is the fast path above.
       if (!row && user.email) {
         const { data } = await admin
           .from('firm_employees')
@@ -127,13 +187,20 @@ export async function getWorkspacePersona(): Promise<WorkspacePersona> {
       if (row) {
         const employee = employeeFromRow(row);
         const firm = await getFirmById(employee.firmId);
-        if (firm) return { kind: 'employee', firm, employee };
+        if (firm) {
+          const roles = readPortalRoles(firm.metadata);
+          return {
+            kind: 'employee',
+            firm,
+            employee,
+            entitlements: resolveEntitlements(row.role_key ?? null, roles),
+          };
+        }
       }
     }
   } catch {
     // Table not migrated yet, or transient failure. Degrade to
-    // 'none' so the portal shows a clean "no access" state instead
-    // of a 500.
+    // 'none' so the portal shows a clean "no access" state.
   }
 
   return { kind: 'none' };

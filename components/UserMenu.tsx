@@ -19,6 +19,13 @@ export async function UserMenu() {
 
   const user = await getCurrentUser();
   if (!user) {
+    // Already on the auth screen (which shows the OAuth options)?
+    // A "Sign in" button in the header that points back to the page
+    // you're on is dead weight - hide it there.
+    const pathname = headers().get('x-pathname') ?? '';
+    if (pathname === '/sign-in' || pathname.startsWith('/sign-in')) {
+      return null;
+    }
     return (
       <Link
         href="/sign-in"
