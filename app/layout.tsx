@@ -168,7 +168,16 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const pathname = headers().get('x-pathname') ?? '';
   const isCounselMode = pathname === '/counsel' || pathname.startsWith('/counsel/');
   const isHqMode = pathname === '/admin' || pathname.startsWith('/admin/');
-  const isShellMode = isCounselMode || isHqMode;
+  // The Enterprise client/employee Hub and its branded sign-in/join
+  // gateway render their OWN black-and-gold shell - the consumer
+  // marketing header, sidebar, and footer must never wrap them, or it
+  // reads as the wrong app with a white box around it.
+  const isHubMode =
+    pathname === '/portal' ||
+    pathname.startsWith('/portal/') ||
+    pathname === '/join' ||
+    pathname.startsWith('/join/');
+  const isShellMode = isCounselMode || isHqMode || isHubMode;
 
   // App-mode = the user is doing actual case work, where the in-app
   // sidebar (New case / Cases / Shared with me / Find counsel /

@@ -1,24 +1,26 @@
 import { headers } from 'next/headers';
 import Link from 'next/link';
 import { getFirmBySlug } from '@/lib/firm-storage';
+import { getCurrentUser } from '@/lib/supabase/server';
+import { SignInButtons } from '@/app/sign-in/sign-in-buttons';
 import { JoinForm } from './join-form';
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
-  title: 'Join your workspace · Advottic',
+  title: 'Sign in to your workspace · Advottic',
   description:
-    'Create your account to reach your organization’s legal team, file requests, and track everything in one place.',
+    'Sign in or request access to your organization’s secure legal hub.',
+  robots: { index: false, follow: true },
 };
 
 /**
- * Public, classy account-request landing for the Enterprise edition.
- *
- * Resolves the organization from ?firm=<slug> or the tenant
- * subdomain so the page can greet "Join Zinpro" with the firm's own
- * brand. Internal (work-domain) emails are provisioned immediately;
- * everyone else is queued for the legal team to approve. The form
- * never creates an auth account itself - the person signs themselves
- * in with the normal magic link afterwards.
+ * The Enterprise client/employee gateway - a standalone, firm-branded
+ * sign-in + request-access screen, deliberately separate from the
+ * consumer advottic.com/sign-in. Resolves the org from ?firm=<slug>
+ * or the tenant subdomain so the person always sees their own brand
+ * (logo + name + accent) and knows they're in the right place. The
+ * consumer header/footer is suppressed for /join in app/layout.tsx,
+ * so this is the whole screen - no white box, no other-app chrome.
  */
 function slugFromHost(host: string | null): string | null {
   if (!host) return null;
@@ -35,17 +37,24 @@ function slugFromHost(host: string | null): string | null {
 export default async function JoinPage({
   searchParams,
 }: {
-  searchParams?: { firm?: string };
+  searchParams?: { firm?: string; mode?: string };
 }) {
   const h = headers();
   const qpFirm = (searchParams?.firm ?? '').trim().toLowerCase();
   const hostSlug = slugFromHost(h.get('host'));
   const slug = qpFirm || hostSlug || '';
+  const mode = searchParams?.mode === 'join' ? 'join' : 'signin';
 
   const firm = slug ? await getFirmBySlug(slug) : null;
   const firmName = firm?.name ?? null;
   const logoUrl = firm?.logoUrl ?? null;
   const accent = firm?.accentColor ?? '#d5bb7e';
+
+  const user = await getCurrentUser();
+  const nextParam = `/portal`;
+  const signinHref = `/join${slug ? `?firm=${slug}` : ''}`;
+  const joinHref = `/join?${slug ? `firm=${slug}&` : ''}mode=join`;
+  const switchHref = signinHref;
 
   return (
     <div className="dark counsel-shell min-h-screen flex flex-col text-cream-100">
@@ -109,38 +118,96 @@ export default async function JoinPage({
                 </li>
               ))}
             </ul>
-
-            <p className="text-[12px] text-cream-100/45">
-              Already have access?{' '}
-              <Link
-                href="/sign-in?next=/portal"
-                className="underline text-gold-300 hover:text-gold-200"
-              >
-                Sign in
-              </Link>
-            </p>
           </div>
 
-          {/* Right: the request card */}
+          {/* Right: the auth card */}
           <div className="popup-panel p-7 sm:p-8 space-y-5">
             <div>
-              <p className="eyebrow text-cream-100/55">Create your account</p>
+              <p className="eyebrow text-cream-100/55">
+                {firmName ? `${firmName} · Secure access` : 'Secure access'}
+              </p>
               <h2 className="font-display text-2xl text-cream-100 mt-1">
-                {firmName ? `Join ${firmName}` : 'Request access'}
+                {mode === 'join'
+                  ? firmName
+                    ? `Join ${firmName}`
+                    : 'Request access'
+                  : firmName
+                    ? `Sign in to ${firmName}`
+                    : 'Sign in'}
               </h2>
               <p className="text-[12.5px] text-cream-100/60 mt-1.5 leading-relaxed">
-                Use your work email. Team members are set up instantly;
-                outside collaborators are approved by the legal team
-                first.
+                {mode === 'join'
+                  ? 'Use your work email. Team members are set up instantly; outside collaborators are approved by the legal team first.'
+                  : `Use the email ${
+                      firmName ? `${firmName} ` : ''
+                    }set you up with. We'll send a one-time code - no password to remember.`}
               </p>
             </div>
-            <JoinForm
-              defaultSlug={slug}
-              firmName={firmName}
-              lockedSlug={Boolean(firm)}
-            />
+
+            {user ? (
+              <div className="space-y-3">
+                <div className="rounded-xl p-4 ring-1 ring-forest-700/40 bg-forest-900/40">
+                  <p className="text-[11px] uppercase tracking-[0.16em] text-cream-100/45">
+                    Signed in as
+                  </p>
+                  <p className="text-sm font-medium text-cream-100 mt-0.5 truncate">
+                    {user.email}
+                  </p>
+                </div>
+                <Link
+                  href="/portal"
+                  className="btn w-full bg-gold-400 hover:bg-gold-300 text-forest-950 font-semibold justify-center"
+                >
+                  Continue to your workspace
+                </Link>
+                <form action="/auth/sign-out" method="post">
+                  <input
+                    type="hidden"
+                    name="next"
+                    value={switchHref}
+                  />
+                  <button
+                    type="submit"
+                    className="btn w-full text-cream-100/60 hover:text-cream-100 hover:bg-cream-100/5 justify-center text-[13px]"
+                  >
+                    Use a different account
+                  </button>
+                </form>
+              </div>
+            ) : mode === 'join' ? (
+              <>
+                <JoinForm
+                  defaultSlug={slug}
+                  firmName={firmName}
+                  lockedSlug={Boolean(firm)}
+                />
+                <p className="text-[12px] text-cream-100/55 text-center">
+                  Already have access?{' '}
+                  <Link
+                    href={signinHref}
+                    className="underline text-gold-300 hover:text-gold-200"
+                  >
+                    Sign in
+                  </Link>
+                </p>
+              </>
+            ) : (
+              <>
+                <SignInButtons next={nextParam} />
+                <p className="text-[12px] text-cream-100/55 text-center pt-1">
+                  New here?{' '}
+                  <Link
+                    href={joinHref}
+                    className="underline text-gold-300 hover:text-gold-200"
+                  >
+                    Request access
+                  </Link>
+                </p>
+              </>
+            )}
+
             <p className="text-[11px] text-cream-100/40 leading-relaxed">
-              By continuing you agree to Advottic&rsquo;s{' '}
+              Protected by Advottic. By continuing you agree to the{' '}
               <Link href="/terms" className="underline hover:text-cream-100/70">
                 Terms
               </Link>{' '}
