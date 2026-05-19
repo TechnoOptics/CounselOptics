@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { getWorkspacePersona } from '@/lib/persona';
@@ -7,20 +8,24 @@ import { exitPortalPreviewAction } from '@/lib/firm-actions';
 export const dynamic = 'force-dynamic';
 
 /**
- * Employee portal shell. The deliberately small surface for non-legal
- * employees of an enterprise tenant: file a request, see your own
- * requests, run Advottic Review. Nothing else.
+ * The Enterprise client / employee Hub shell.
  *
- * Gating (single chokepoint - see lib/persona.ts):
+ * A classy black-and-gold workspace for everyone who is NOT on the
+ * legal team: in-house staff and approved outside collaborators. Left
+ * rail, calm header, personalized dashboard. Same persona chokepoint
+ * as before (lib/persona.ts) - only the chrome is elevated:
  *   - signed out            -> /sign-in?next=/portal
- *   - legal / admin persona -> /counsel  (they get the full app; the
- *     portal is not for them)
- *   - employee persona      -> render
- *   - none                  -> a calm "no access yet" card, never a 500
- *
- * Visual: same dark counsel-shell as /counsel so the org reads one
- * brand, but with its own minimal header and NO CounselSidebar.
+ *   - legal / admin persona -> /counsel
+ *   - employee persona      -> render the Hub
+ *   - none                  -> a calm "request access" card
  */
+type NavItem = {
+  href: string;
+  label: string;
+  hint: string;
+  soon?: boolean;
+};
+
 export default async function PortalLayout({
   children,
 }: {
@@ -30,7 +35,7 @@ export default async function PortalLayout({
     return (
       <div className="max-w-xl mx-auto card p-8 mt-10">
         <h1 className="font-display text-2xl text-forest-900 dark:text-cream-100">
-          Portal is not available
+          Hub is not available
         </h1>
         <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2">
           Auth is not configured on this deployment.
@@ -56,154 +61,270 @@ export default async function PortalLayout({
             No workspace yet
           </h1>
           <p className="text-sm text-cream-100/70 leading-relaxed">
-            Your account is not connected to an organization&rsquo;s
-            legal workspace. Ask your administrator to add you, then
-            sign in again.
+            Your account isn&rsquo;t connected to an organization&rsquo;s
+            legal workspace yet.
           </p>
-          <form action="/auth/sign-out" method="post" className="pt-2">
-            <button
-              type="submit"
-              className="btn text-cream-100/75 hover:text-cream-100 hover:bg-cream-100/5"
+          <div className="flex flex-col gap-2 pt-1">
+            <Link
+              href="/join"
+              className="btn bg-gold-400 hover:bg-gold-300 text-forest-950 font-semibold justify-center"
             >
-              Sign out
-            </button>
-          </form>
+              Request access
+            </Link>
+            <form action="/auth/sign-out" method="post">
+              <button
+                type="submit"
+                className="btn w-full text-cream-100/70 hover:text-cream-100 hover:bg-cream-100/5 justify-center"
+              >
+                Sign out
+              </button>
+            </form>
+          </div>
         </div>
       </div>
     );
   }
 
-  // Narrow to the employee variant. The branches above have handled
-  // every other kind (none -> card, legal/admin -> /counsel); this
-  // guard makes that exhaustive for the type checker too.
   if (persona.kind !== 'employee') redirect('/portal');
   const { firm, employee } = persona;
   const who = employee.displayName || employee.email;
-  const can = (f: 'requests.create' | 'review') =>
+  const firstName = (employee.displayName || employee.email || 'there')
+    .split(/[\s@.]/)[0]
+    .replace(/^./, (c) => c.toUpperCase());
+  const can = (f: 'requests.create' | 'requests.message' | 'review') =>
     persona.entitlements.includes(f);
-  // Full white-label (own logo + "hide Advottic logo" in settings):
-  // the portal drops every Advottic brand reference.
   const ownBrand =
     Boolean(firm.logoUrl) &&
     (firm.metadata as Record<string, unknown> | undefined)
       ?.hideAdvotticLogo === true;
   const reviewLabel = ownBrand ? 'Document review' : 'Advottic Review';
 
+  const pathname = headers().get('x-pathname') ?? '/portal';
+
+  const primary: NavItem[] = [
+    { href: '/portal', label: 'Home', hint: 'Your dashboard' },
+    { href: '/portal/requests', label: 'My requests', hint: 'Track everything' },
+  ];
+  if (can('requests.create')) {
+    primary.push({
+      href: '/portal/new',
+      label: 'New request',
+      hint: 'Ask legal',
+    });
+  }
+  if (can('review')) {
+    primary.push({
+      href: '/review-my-document',
+      label: reviewLabel,
+      hint: 'AI document insight',
+    });
+  }
+  // Roadmap items - shown so the Hub reads complete; wired next.
+  const soon: NavItem[] = [
+    { href: '#', label: 'Documents', hint: 'Upload + versions', soon: true },
+    { href: '#', label: 'Calendar', hint: 'Your meetings', soon: true },
+    { href: '#', label: 'Trainings', hint: 'Assigned by legal', soon: true },
+    {
+      href: '#',
+      label: 'Profile',
+      hint: 'Reminders + notifications',
+      soon: true,
+    },
+  ];
+
+  const NavLink = ({ item }: { item: NavItem }) => {
+    if (item.soon) {
+      return (
+        <div
+          className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-cream-100/35 cursor-default select-none"
+          title="Coming soon"
+        >
+          <span className="text-[13.5px]">{item.label}</span>
+          <span className="text-[9px] uppercase tracking-[0.14em] px-1.5 py-0.5 rounded bg-cream-100/5 ring-1 ring-cream-100/10">
+            Soon
+          </span>
+        </div>
+      );
+    }
+    const active =
+      pathname === item.href ||
+      (item.href !== '/portal' && pathname.startsWith(`${item.href}/`));
+    return (
+      <Link
+        href={item.href}
+        className={`block px-3 py-2 rounded-lg transition-colors ${
+          active
+            ? 'bg-cream-100/[0.08] text-cream-100 ring-1 ring-cream-100/10'
+            : 'text-cream-100/70 hover:text-cream-100 hover:bg-cream-100/5'
+        }`}
+      >
+        <span className="text-[13.5px] font-medium">{item.label}</span>
+        <span className="block text-[11px] text-cream-100/40">
+          {item.hint}
+        </span>
+      </Link>
+    );
+  };
+
   return (
     <div
-      className="dark counsel-shell min-h-screen flex flex-col text-cream-100"
+      className="dark counsel-shell min-h-screen flex text-cream-100"
       style={
         { ['--firm-accent' as string]: firm.accentColor } as React.CSSProperties
       }
     >
-      <header className="border-b border-forest-700/40 bg-forest-950/80 backdrop-blur sticky top-0 z-30">
-        <div className="mx-auto max-w-none px-4 sm:px-6 lg:px-10 py-3 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2.5 min-w-0">
+      {/* Left rail */}
+      <aside className="hidden md:flex w-64 shrink-0 flex-col border-r border-forest-700/40 bg-forest-950/70 backdrop-blur sticky top-0 h-screen">
+        <div className="px-5 py-5 flex items-center gap-2.5 border-b border-forest-700/30">
+          {firm.logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={firm.logoUrl}
+              alt={firm.name}
+              className="h-8 w-8 rounded-lg object-cover ring-1 ring-cream-100/15 flex-none"
+            />
+          ) : (
+            <span
+              className="h-8 w-8 rounded-lg flex-none inline-flex items-center justify-center text-black text-[13px] font-bold"
+              style={{ backgroundColor: firm.accentColor }}
+              aria-hidden
+            >
+              {firm.name.slice(0, 1).toUpperCase()}
+            </span>
+          )}
+          <div className="min-w-0">
+            <p className="text-[13px] font-semibold text-cream-100 truncate">
+              {firm.name}
+            </p>
+            <p className="text-[10.5px] uppercase tracking-[0.16em] text-cream-100/40">
+              Client hub
+            </p>
+          </div>
+        </div>
+
+        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
+          {primary.map((i) => (
+            <NavLink key={i.href + i.label} item={i} />
+          ))}
+          <div className="pt-4 mt-3 border-t border-forest-700/30">
+            <p className="px-3 pb-1 text-[10px] uppercase tracking-[0.18em] text-cream-100/30">
+              Coming soon
+            </p>
+            {soon.map((i) => (
+              <NavLink key={i.label} item={i} />
+            ))}
+          </div>
+        </nav>
+
+        <div className="px-3 py-4 border-t border-forest-700/30">
+          <form action="/auth/sign-out" method="post">
+            <button
+              type="submit"
+              className="w-full text-left px-3 py-2 rounded-lg text-[12.5px] text-cream-100/55 hover:text-cream-100 hover:bg-cream-100/5 transition-colors"
+              title={`Signed in as ${who}`}
+            >
+              Sign out
+              <span className="block text-[10.5px] text-cream-100/35 truncate">
+                {who}
+              </span>
+            </button>
+          </form>
+        </div>
+      </aside>
+
+      {/* Main column */}
+      <div className="flex-1 min-w-0 flex flex-col">
+        {/* Mobile top bar */}
+        <header className="md:hidden border-b border-forest-700/40 bg-forest-950/80 backdrop-blur sticky top-0 z-30 px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2 min-w-0">
             {firm.logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={firm.logoUrl}
                 alt={firm.name}
-                className="h-7 w-7 rounded-md object-cover ring-1 ring-cream-100/15 flex-none"
+                className="h-7 w-7 rounded-md object-cover ring-1 ring-cream-100/15"
               />
             ) : (
               <span
-                className="h-7 w-7 rounded-md flex-none inline-flex items-center justify-center text-white text-[12px] font-bold"
+                className="h-7 w-7 rounded-md inline-flex items-center justify-center text-black text-[12px] font-bold"
                 style={{ backgroundColor: firm.accentColor }}
                 aria-hidden
               >
                 {firm.name.slice(0, 1).toUpperCase()}
               </span>
             )}
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-cream-100 truncate">
-                {firm.name}
-              </p>
-              <p className="text-[11px] text-cream-100/55 truncate">
-                Employee portal
-              </p>
-            </div>
+            <span className="text-sm font-semibold truncate">
+              {firm.name}
+            </span>
           </div>
-          <nav className="flex items-center gap-1.5 sm:gap-2 text-[13px]">
-            <Link
-              href="/portal"
-              className="px-2.5 py-1.5 rounded-md text-cream-100/80 hover:text-cream-100 hover:bg-cream-100/5 transition-colors"
-            >
-              My requests
-            </Link>
-            {can('requests.create') && (
+          <nav className="flex items-center gap-1 text-[12px]">
+            {primary.map((i) => (
               <Link
-                href="/portal/new"
-                className="px-2.5 py-1.5 rounded-md text-cream-100/80 hover:text-cream-100 hover:bg-cream-100/5 transition-colors"
+                key={i.href + i.label}
+                href={i.href}
+                className="px-2 py-1 rounded text-cream-100/75 hover:text-cream-100 hover:bg-cream-100/5"
               >
-                New request
+                {i.label}
               </Link>
-            )}
-            {can('review') && (
-              <Link
-                href="/review-my-document"
-                className="px-2.5 py-1.5 rounded-md text-cream-100/80 hover:text-cream-100 hover:bg-cream-100/5 transition-colors"
-              >
-                {reviewLabel}
-              </Link>
-            )}
+            ))}
             <form action="/auth/sign-out" method="post">
               <button
                 type="submit"
-                className="px-2.5 py-1.5 rounded-md text-cream-100/55 hover:text-cream-100 hover:bg-cream-100/5 transition-colors"
-                title={`Signed in as ${who}`}
+                className="px-2 py-1 rounded text-cream-100/50 hover:text-cream-100"
               >
-                Sign out
+                Out
               </button>
             </form>
           </nav>
-        </div>
-      </header>
+        </header>
 
-      {persona.preview && (
-        <div className="bg-gold-500/15 border-b border-gold-500/30 text-gold-100">
-          <div className="mx-auto max-w-none px-4 sm:px-6 lg:px-10 py-2 flex flex-wrap items-center justify-between gap-2 text-[13px]">
-            <span>
-              Previewing the employee portal as{' '}
-              <strong>{persona.previewRoleName}</strong> - this is
-              exactly what employees in that role see.
-            </span>
-            <form action={exitPortalPreviewAction}>
-              <button
-                type="submit"
-                className="underline font-semibold hover:opacity-80"
-              >
-                Exit preview
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      <main className="flex-1 w-full max-w-none mx-auto px-4 sm:px-6 lg:px-10 py-6 sm:py-8">
-        {children}
-      </main>
-
-      <footer className="border-t border-forest-700/40 bg-forest-950/80 backdrop-blur">
-        <div className="mx-auto max-w-none px-4 sm:px-6 lg:px-10 py-4 text-[11px] text-cream-100/55 flex flex-wrap items-center justify-between gap-2">
-          <p>
-            {ownBrand ? (
-              <span className="font-semibold text-cream-100">
-                {firm.name}
+        {persona.preview && (
+          <div className="bg-gold-500/15 border-b border-gold-500/30 text-gold-100">
+            <div className="px-4 sm:px-8 py-2 flex flex-wrap items-center justify-between gap-2 text-[13px]">
+              <span>
+                Previewing the hub as{' '}
+                <strong>{persona.previewRoleName}</strong> - exactly what
+                this role sees.
               </span>
-            ) : (
-              <>
+              <form action={exitPortalPreviewAction}>
+                <button
+                  type="submit"
+                  className="underline font-semibold hover:opacity-80"
+                >
+                  Exit preview
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        <main
+          className="flex-1 w-full px-4 sm:px-8 lg:px-12 py-7 sm:py-9"
+          data-first-name={firstName}
+        >
+          {children}
+        </main>
+
+        <footer className="border-t border-forest-700/40 bg-forest-950/70 backdrop-blur">
+          <div className="px-4 sm:px-8 lg:px-12 py-3.5 text-[11px] text-cream-100/45 flex flex-wrap items-center justify-between gap-2">
+            <p>
+              {ownBrand ? (
                 <span className="font-semibold text-cream-100">
-                  Advottic
-                </span>{' '}
-                &middot; {firm.name}
-              </>
-            )}{' '}
-            employee portal
-          </p>
-          <p>Signed in as {who}</p>
-        </div>
-      </footer>
+                  {firm.name}
+                </span>
+              ) : (
+                <>
+                  <span className="font-semibold text-cream-100">
+                    {firm.name}
+                  </span>{' '}
+                  · Powered by Advottic
+                </>
+              )}
+            </p>
+            <p>Signed in as {who}</p>
+          </div>
+        </footer>
+      </div>
     </div>
   );
 }
