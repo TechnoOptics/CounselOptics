@@ -21,11 +21,24 @@ export async function sendEmail(input: {
   html: string;
   text?: string;
   replyTo?: string;
+  /**
+   * Override the sender display name (the address stays the verified
+   * invites@advottic.com so DKIM/DMARC still align). Lets transactional
+   * mail read as the firm, e.g. "Zinpro Legal <invites@advottic.com>".
+   */
+  fromName?: string;
 }): Promise<EmailResult> {
   const apiKey = process.env.RESEND_API_KEY?.trim();
   if (!apiKey) return { ok: false, error: 'RESEND_API_KEY not configured.' };
 
-  const from = process.env.RESEND_FROM?.trim() || DEFAULT_FROM;
+  const baseFrom = process.env.RESEND_FROM?.trim() || DEFAULT_FROM;
+  let from = baseFrom;
+  if (input.fromName && input.fromName.trim()) {
+    const addr = (baseFrom.match(/<([^>]+)>/)?.[1] || baseFrom).trim();
+    // Strip characters that would break the RFC 5322 display-name.
+    const safeName = input.fromName.replace(/["\r\n<>]/g, '').trim();
+    from = `${safeName} <${addr}>`;
+  }
 
   try {
     const res = await fetch('https://api.resend.com/emails', {
@@ -114,33 +127,62 @@ export function buildMeetingInviteEmailHtml(input: {
   providerLabel: string;
   joinUrl: string;
   addToCalendarUrl: string;
+  /** The firm's brand name, e.g. "Zinpro Legal". Falls back to Advottic. */
+  firmName?: string;
+  /** The firm's uploaded logo (public URL). Rendered in the header if set. */
+  logoUrl?: string | null;
 }): string {
+  const brand = (input.firmName || 'Advottic').trim() || 'Advottic';
+  const year = new Date().getFullYear();
+  // Black + gold enterprise theme. The header shows the firm's logo
+  // when one is set, otherwise the firm name as a gold wordmark.
+  const header = input.logoUrl
+    ? `<img src="${escapeAttribute(input.logoUrl)}" alt="${escapeAttribute(
+        brand,
+      )}" height="40" style="display:block;max-height:40px;width:auto;border:0;outline:none;text-decoration:none;" />`
+    : `<p style="margin:0;color:#e8c878;font-size:18px;letter-spacing:0.16em;text-transform:uppercase;font-weight:700;">${escapeHtml(
+        brand,
+      )}</p>`;
   return `<!doctype html>
-<html><body style="margin:0;padding:0;background:#f5edd6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif;color:#0f2d24;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5edd6;padding:32px 16px;">
+<html><body style="margin:0;padding:0;background:#0a0a0b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif;color:#1a1a1a;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0a0a0b;padding:32px 16px;">
     <tr><td align="center">
-      <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 8px 24px -4px rgba(15,45,36,0.10);">
-        <tr><td style="background:linear-gradient(135deg,#0f2d24 0%,#173b30 60%,#23362f 100%);padding:24px 32px;">
-          <p style="margin:0;color:#d5bb7e;font-size:11px;letter-spacing:0.28em;text-transform:uppercase;font-weight:600;">Advottic</p>
-          <p style="margin:6px 0 0;color:#fbf7e9;font-size:18px;font-weight:600;">You're invited to a meeting</p>
+      <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 8px 28px -4px rgba(0,0,0,0.45);border:1px solid #1c1c1e;">
+        <tr><td style="background:#0b0b0c;padding:26px 32px;border-bottom:2px solid #e8c878;">
+          ${header}
+          <p style="margin:10px 0 0;color:#f4f0e6;font-size:18px;font-weight:600;">You&rsquo;re invited to a meeting</p>
         </td></tr>
         <tr><td style="padding:28px 32px 8px;">
-          <h1 style="margin:0 0 12px;color:#0f2d24;font-size:22px;line-height:1.2;font-weight:600;letter-spacing:-0.01em;">${escapeHtml(input.topic)}</h1>
-          <p style="margin:0 0 6px;color:#3f3f46;font-size:14.5px;line-height:1.55;"><strong>When:</strong> ${escapeHtml(input.whenText)} (${input.durationMin} min)</p>
-          <p style="margin:0 0 20px;color:#3f3f46;font-size:14.5px;line-height:1.55;"><strong>Where:</strong> ${escapeHtml(input.providerLabel)} &middot; organized by ${escapeHtml(input.organizerName)}</p>
+          <h1 style="margin:0 0 14px;color:#0b0b0c;font-size:22px;line-height:1.2;font-weight:700;letter-spacing:-0.01em;">${escapeHtml(
+            input.topic,
+          )}</h1>
+          <p style="margin:0 0 6px;color:#3f3f46;font-size:14.5px;line-height:1.55;"><strong>When:</strong> ${escapeHtml(
+            input.whenText,
+          )} (${input.durationMin} min)</p>
+          <p style="margin:0 0 22px;color:#3f3f46;font-size:14.5px;line-height:1.55;"><strong>Where:</strong> ${escapeHtml(
+            input.providerLabel,
+          )} &middot; organized by ${escapeHtml(input.organizerName)}</p>
           <p style="margin:0 0 14px;">
-            <a href="${escapeAttribute(input.joinUrl)}" style="display:inline-block;background:#0f2d24;color:#fbf7e9;text-decoration:none;padding:12px 22px;border-radius:10px;font-weight:600;font-size:14px;letter-spacing:-0.005em;">Join the meeting</a>
+            <a href="${escapeAttribute(
+              input.joinUrl,
+            )}" style="display:inline-block;background:#0b0b0c;color:#e8c878;text-decoration:none;padding:13px 24px;border-radius:10px;font-weight:700;font-size:14px;letter-spacing:-0.005em;">Join the meeting</a>
           </p>
           <p style="margin:0 0 24px;">
-            <a href="${escapeAttribute(input.addToCalendarUrl)}" style="display:inline-block;color:#0f2d24;text-decoration:none;padding:10px 18px;border:1px solid #0f2d24;border-radius:10px;font-weight:600;font-size:13px;">Add to calendar</a>
+            <a href="${escapeAttribute(
+              input.addToCalendarUrl,
+            )}" style="display:inline-block;color:#0b0b0c;text-decoration:none;padding:11px 20px;border:1px solid #c9a24a;border-radius:10px;font-weight:600;font-size:13px;">Add to calendar</a>
           </p>
           <p style="margin:0 0 8px;color:#71717a;font-size:12px;line-height:1.55;">Or paste this link into your browser:</p>
-          <p style="margin:0 0 24px;word-break:break-all;color:#52525b;font-size:11.5px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;">${escapeHtml(input.joinUrl)}</p>
-          <p style="margin:0;color:#a1a1aa;font-size:11.5px;line-height:1.55;">If you weren't expecting this invite, you can ignore the email.</p>
+          <p style="margin:0 0 24px;word-break:break-all;color:#52525b;font-size:11.5px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;">${escapeHtml(
+            input.joinUrl,
+          )}</p>
+          <p style="margin:0;color:#a1a1aa;font-size:11.5px;line-height:1.55;">If you weren&rsquo;t expecting this invite, you can ignore the email.</p>
         </td></tr>
         <tr><td style="padding:0 32px 28px;">
           <hr style="border:none;border-top:1px solid #e4e4e7;margin:0 0 12px;" />
-          <p style="margin:0;color:#a1a1aa;font-size:11px;letter-spacing:0.04em;">© ${new Date().getFullYear()} Advottic LLC. All rights reserved.</p>
+          <p style="margin:0;color:#a1a1aa;font-size:11px;letter-spacing:0.04em;">© ${year} ${escapeHtml(
+            brand,
+          )} &middot; Powered by Advottic</p>
         </td></tr>
       </table>
     </td></tr>

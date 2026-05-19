@@ -1248,10 +1248,10 @@ export async function scheduleStandaloneMeetingAction(
     /* calendar persistence is best-effort */
   }
 
-  // Send a branded invite to every attendee. Microsoft Graph already
-  // emails Outlook attendees for Teams events; this guarantees Zoom
-  // invitees + any non-Outlook recipient also get a proper invite
-  // with a one-tap add-to-calendar.
+  // Send the single, firm-branded invite to every attendee. The
+  // provider event is created WITHOUT attendees (see firm-meetings),
+  // so this is the only invitation that goes out - branded with the
+  // firm's name + logo, from the firm.
   const { data: mem } = await admin
     .from('firm_members')
     .select('display_name')
@@ -1262,6 +1262,29 @@ export async function scheduleStandaloneMeetingAction(
     (mem as { display_name?: string } | null)?.display_name ||
     user.email ||
     'Advottic';
+  // Firm identity for the invite branding + sender name.
+  const { data: firmRow } = await admin
+    .from('firms')
+    .select('name, metadata, logo_url')
+    .eq('id', firmId)
+    .maybeSingle();
+  const fr = firmRow as {
+    name?: string;
+    metadata?: Record<string, unknown> | null;
+    logo_url?: string | null;
+  } | null;
+  // Prefer a real custom brand name, but the brandName field ships
+  // defaulted to "Advottic Enterprise" - that's a generic product
+  // label, not the organization. When it's unset or still an Advottic
+  // default, identify the invite by the firm's own name (e.g.
+  // "Zinpro") so it reads as coming from the organization.
+  const rawBrand = String((fr?.metadata ?? {}).brandName ?? '').trim();
+  const isAdvotticDefault = /^advottic(\s|$)/i.test(rawBrand);
+  const firmName =
+    (rawBrand && !isAdvotticDefault ? rawBrand : '') ||
+    (fr?.name ?? '').trim() ||
+    'Advottic';
+  const firmLogoUrl = fr?.logo_url ?? null;
   const providerLabel =
     result.provider === 'microsoft' ? 'Microsoft Teams' : 'Zoom';
   const whenText = new Date(startMs).toLocaleString(undefined, {
@@ -1287,15 +1310,18 @@ export async function scheduleStandaloneMeetingAction(
     providerLabel,
     joinUrl: result.joinUrl,
     addToCalendarUrl,
+    firmName,
+    logoUrl: firmLogoUrl,
   });
   let invited = 0;
   await Promise.all(
     [...attendees].map(async (to) => {
       const r = await sendEmail({
         to,
-        subject: `Invitation: ${topic} - ${whenText}`,
+        subject: `${firmName}: ${topic} - ${whenText}`,
         html,
         replyTo: user.email ?? undefined,
+        fromName: firmName,
       });
       if (r.ok) invited += 1;
     }),

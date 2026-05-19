@@ -244,16 +244,20 @@ async function createProviderMeeting(
             Authorization: `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
           },
+          // Deliberately NO `attendees`: Microsoft Graph auto-emails a
+          // generic Outlook invite (from the organizer mailbox, e.g.
+          // "Techno Optics") the moment an event is created with
+          // attendees - there is no suppress flag on /me/events. We
+          // want a single, firm-branded invite, so the event is just
+          // the organizer's Teams block and Advottic sends the one
+          // branded email (with the join link + add-to-calendar) to
+          // everyone instead.
           body: JSON.stringify({
             subject: opts.topic,
             start: { dateTime: opts.startISO, timeZone: 'UTC' },
             end: { dateTime: endISO, timeZone: 'UTC' },
             isOnlineMeeting: true,
             onlineMeetingProvider: 'teamsForBusiness',
-            attendees: opts.attendees.map((address) => ({
-              emailAddress: { address },
-              type: 'required',
-            })),
           }),
         },
       );
