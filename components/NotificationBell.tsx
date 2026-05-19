@@ -9,6 +9,7 @@ import {
 } from '@/lib/actions';
 import type { AppNotification } from '@/lib/notifications';
 import { PushOptIn } from './PushOptIn';
+import { ensurePushSubscribed } from '@/lib/push-client';
 
 /**
  * Bell icon + dropdown for in-app notifications. Mounted once in the
@@ -33,6 +34,16 @@ export function NotificationBell({
   const [unread, setUnread] = useState<number>(initialUnread);
   const [, startTransition] = useTransition();
   const wrapperRef = useRef<HTMLDivElement | null>(null);
+
+  // Notifications-on-by-default: the bell is mounted once for every
+  // signed-in user, so this is the right place to silently re-subscribe
+  // this device to push whenever permission was already granted. No
+  // prompt is shown (silent mode) - it just means a user who enabled
+  // notifications once stays subscribed across sessions and devices
+  // without having to find the Enable button again.
+  useEffect(() => {
+    void ensurePushSubscribed(false);
+  }, []);
 
   // Poll for new notifications. Tighter cadence while the panel is
   // open so the user sees changes appear; lighter cadence while

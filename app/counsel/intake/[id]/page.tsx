@@ -51,11 +51,29 @@ export default async function IntakeDetailPage({
       matchedAgainst: string;
       severity: string;
     }> | null;
+    intake_answers: Record<string, unknown> | null;
     created_at: string;
   };
   if (intake.firm_id !== ctx.firm.id) notFound();
 
   const tone = STATUS_TONE[intake.status] ?? STATUS_TONE.in_progress;
+
+  // In-house metadata captured by the typed intake form. Stored in the
+  // schema-less intake_answers JSON column so it renders without a
+  // migration. Only the fields that were actually filled are shown.
+  const ans = (intake.intake_answers ?? {}) as Record<string, unknown>;
+  const meta: Array<{ label: string; value: string }> = (
+    [
+      ['Request type', 'request_type'],
+      ['Submitted by', 'submitted_by'],
+      ['Priority', 'priority'],
+      ['Confidentiality', 'confidentiality'],
+      ['Due by', 'due_by'],
+      ['Expiry', 'expiry'],
+    ] as const
+  )
+    .map(([label, key]) => ({ label, value: String(ans[key] ?? '').trim() }))
+    .filter((m) => m.value.length > 0);
 
   return (
     <div className="space-y-6 animate-fade-up">
@@ -87,6 +105,24 @@ export default async function IntakeDetailPage({
           {intake.status.replace(/_/g, ' ')}
         </span>
       </header>
+
+      {meta.length > 0 && (
+        <section className="card p-5">
+          <p className="eyebrow mb-3">Request details</p>
+          <dl className="grid sm:grid-cols-3 gap-x-4 gap-y-3">
+            {meta.map((m) => (
+              <div key={m.label}>
+                <dt className="text-[10px] uppercase tracking-[0.16em] font-semibold text-ink-400 dark:text-cream-100/40 mb-0.5">
+                  {m.label}
+                </dt>
+                <dd className="text-[13px] text-ink-800 dark:text-cream-100/85">
+                  {m.value}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      )}
 
       <section className="card p-5 grid sm:grid-cols-2 gap-3">
         <div>

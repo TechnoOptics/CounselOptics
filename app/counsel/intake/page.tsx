@@ -50,16 +50,21 @@ export default async function CounselIntakePage() {
       <header>
         <p className="eyebrow mb-1">Counsel · intake</p>
         <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          Matter intake
+          Intake
         </h1>
         <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-          Capture client + opposing parties, run a conflict check across
-          your prior matters and existing client list, then promote the
-          intake to a real matter once the check passes.
+          One entry point for everything legal handles: outside-client
+          matters, contracts, internal reviews, document safekeeping,
+          trademark/IP, NDAs, compliance, and more. Pick a request type,
+          capture the parties, and the conflict check runs across your
+          prior matters and client list.
         </p>
       </header>
 
-      <CreateIntakeForm firmId={ctx.firm.id} />
+      <CreateIntakeForm
+        firmId={ctx.firm.id}
+        defaultSubmittedBy={ctx.membership.displayName ?? ctx.membership.email ?? ''}
+      />
 
       <section className="space-y-3">
         <h2 className="font-display text-lg font-medium text-forest-900 dark:text-cream-100">

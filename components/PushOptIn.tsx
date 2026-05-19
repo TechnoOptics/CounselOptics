@@ -1,11 +1,17 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { ensurePushSubscribed } from '@/lib/push-client';
 
 /**
  * Compact opt-in for browser push notifications. Drops in anywhere
  * on the consumer side; renders as a small button when permission
  * is "default", silent when "denied" or already-subscribed.
+ *
+ * On mount it calls the shared helper in silent mode: if the browser
+ * already has permission it subscribes WITHOUT a prompt (this is what
+ * keeps notifications on by default across sessions/devices). The
+ * button only appears when permission still needs to be requested.
  *
  * Server side requires NEXT_PUBLIC_VAPID_PUBLIC_KEY + VAPID_PRIVATE_KEY.
  * The button silently no-ops when the public key is missing.
@@ -16,63 +22,29 @@ export function PushOptIn() {
   >('idle');
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-      setState('unsupported');
-      return;
-    }
-    if (!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY) {
-      setState('noenv');
-      return;
-    }
-    if (Notification.permission === 'denied') {
-      setState('denied');
-      return;
-    }
-    // Check existing subscription.
+    let cancelled = false;
     (async () => {
-      const reg = await navigator.serviceWorker
-        .getRegistration('/sw-push.js')
-        .catch(() => null);
-      if (reg) {
-        const sub = await reg.pushManager.getSubscription();
-        if (sub) setState('subscribed');
-      }
+      const res = await ensurePushSubscribed(false);
+      if (cancelled) return;
+      if (res === 'subscribed') setState('subscribed');
+      else if (res === 'denied') setState('denied');
+      else if (res === 'unsupported') setState('unsupported');
+      else if (res === 'noenv') setState('noenv');
+      else setState('idle'); // needs-permission / error
     })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   async function subscribe() {
     setState('subscribing');
-    try {
-      const perm = await Notification.requestPermission();
-      if (perm !== 'granted') {
-        setState(perm === 'denied' ? 'denied' : 'idle');
-        return;
-      }
-      const reg = await navigator.serviceWorker.register('/sw-push.js');
-      const keyBytes = urlBase64ToUint8Array(
-        process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? '',
-      );
-      const sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: keyBytes.buffer.slice(
-          keyBytes.byteOffset,
-          keyBytes.byteOffset + keyBytes.byteLength,
-        ) as ArrayBuffer,
-      });
-      const json = sub.toJSON();
-      await fetch('/api/push/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          endpoint: json.endpoint,
-          keys: json.keys,
-        }),
-      });
-      setState('subscribed');
-    } catch {
-      setState('idle');
-    }
+    const res = await ensurePushSubscribed(true);
+    if (res === 'subscribed') setState('subscribed');
+    else if (res === 'denied') setState('denied');
+    else if (res === 'unsupported') setState('unsupported');
+    else if (res === 'noenv') setState('noenv');
+    else setState('idle');
   }
 
   if (state === 'unsupported' || state === 'noenv') return null;
@@ -102,13 +74,4 @@ export function PushOptIn() {
       {state === 'subscribing' ? 'Subscribing...' : 'Enable browser notifications'}
     </button>
   );
-}
-
-function urlBase64ToUint8Array(base64: string): Uint8Array {
-  const padding = '='.repeat((4 - (base64.length % 4)) % 4);
-  const b64 = (base64 + padding).replace(/-/g, '+').replace(/_/g, '/');
-  const raw = typeof window !== 'undefined' ? window.atob(b64) : '';
-  const out = new Uint8Array(raw.length);
-  for (let i = 0; i < raw.length; i += 1) out[i] = raw.charCodeAt(i);
-  return out;
 }
