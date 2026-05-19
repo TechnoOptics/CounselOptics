@@ -72,18 +72,34 @@ export async function runDiscoveryJobAction(
   const [{ data: members }, { data: clients }] = await Promise.all([
     admin
       .from('firm_members')
-      .select('display_name, email')
+      .select('user_id, display_name')
       .eq('firm_id', job.firm_id),
     admin
       .from('firm_clients')
       .select('display_name')
       .eq('firm_id', job.firm_id),
   ]);
-  const attorneyNames = ((members ?? []) as Array<{
+  // firm_members has NO email column - the address lives on the auth
+  // user. Resolve each member's email via the admin auth API so the
+  // classifier's privilege + mention heuristics can still match
+  // attorney email addresses appearing in documents. Each lookup is
+  // isolated so one failure can't break the batch.
+  const memberRows = (members ?? []) as Array<{
+    user_id: string;
     display_name: string | null;
-    email: string | null;
-  }>)
-    .flatMap((m) => [m.display_name, m.email].filter(Boolean) as string[])
+  }>;
+  const memberEmails = await Promise.all(
+    memberRows.map(async (m) => {
+      try {
+        const { data: au } = await admin.auth.admin.getUserById(m.user_id);
+        return au?.user?.email ?? null;
+      } catch {
+        return null;
+      }
+    }),
+  );
+  const attorneyNames = memberRows
+    .flatMap((m, i) => [m.display_name, memberEmails[i]].filter(Boolean) as string[])
     .map(String);
   const executiveNames = ((clients ?? []) as Array<{
     display_name: string | null;

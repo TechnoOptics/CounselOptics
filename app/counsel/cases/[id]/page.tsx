@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { createServerSupabase } from '@/lib/supabase/server';
+import { createAdminSupabase } from '@/lib/supabase/admin';
 import { getOrCreateMatterChannelAction } from '@/lib/firm-actions';
 import { listOpenTimer } from '@/lib/time-tracking';
 import { listTrustTransactions } from '@/lib/trust-accounting-queries';
@@ -558,7 +559,7 @@ async function MatterChatSection({
       .limit(80),
     supabase
       .from('firm_members')
-      .select('user_id, display_name, email')
+      .select('user_id, display_name')
       .eq('firm_id', firmId),
   ]);
   const initialMessages: FirmMessage[] = (messageRows ?? []).map(
@@ -573,11 +574,34 @@ async function MatterChatSection({
       deletedAt: (r.deleted_at as string | null) ?? null,
     }),
   );
-  const authors = (memberRows ?? []).map((r: Record<string, unknown>) => ({
+  // firm_members has NO email column - the address lives on the auth
+  // user. Hydrate emails via the admin client so the chat panel can
+  // fall back to an address when a member has no display name. Best-
+  // effort: if the admin client is unavailable the emails stay null.
+  const baseAuthors = (memberRows ?? []).map((r: Record<string, unknown>) => ({
     userId: r.user_id as string,
     displayName: (r.display_name as string | null) ?? null,
-    email: (r.email as string | null) ?? null,
+    email: null as string | null,
   }));
+  let authors = baseAuthors;
+  const admin = createAdminSupabase();
+  if (admin && baseAuthors.length > 0) {
+    try {
+      const { data: usersList } = await admin.auth.admin.listUsers({
+        perPage: 200,
+      });
+      const emailById = new Map<string, string | null>();
+      for (const u of usersList?.users ?? []) {
+        emailById.set(u.id, u.email ?? null);
+      }
+      authors = baseAuthors.map((a) => ({
+        ...a,
+        email: emailById.get(a.userId) ?? null,
+      }));
+    } catch {
+      /* email hydration is best-effort; names still render */
+    }
+  }
 
   return (
     <MatterChatPanel

@@ -1924,7 +1924,7 @@ export async function sendFirmMessageAction(
         .maybeSingle(),
       admin
         .from('firm_members')
-        .select('display_name, email')
+        .select('display_name')
         .eq('user_id', user.id)
         .maybeSingle(),
     ]);
@@ -1938,8 +1938,8 @@ export async function sendFirmMessageAction(
           case_id: string | null;
         }
       | null;
-    const sender = (senderRow as { display_name: string | null; email: string | null } | null) ?? null;
-    const senderName = sender?.display_name ?? sender?.email ?? user.email ?? 'A teammate';
+    const sender = (senderRow as { display_name: string | null } | null) ?? null;
+    const senderName = sender?.display_name ?? user.email ?? 'A teammate';
 
     if (channel) {
       // Run @-mentions and webhook fan-out concurrently. Both rely on
@@ -2051,16 +2051,33 @@ async function fanoutMentionNotifications(args: {
 
   const { data: firmMembers } = await admin
     .from('firm_members')
-    .select('user_id, display_name, email, role')
+    .select('user_id, display_name, role')
     .eq('firm_id', channel.firm_id);
 
-  const candidates = ((firmMembers ?? []) as Array<{
+  const baseCandidates = ((firmMembers ?? []) as Array<{
     user_id: string;
     display_name: string | null;
-    email: string | null;
     role: string;
   }>).filter(
     (m) => channelUserIds.has(m.user_id) && m.user_id !== senderUserId,
+  );
+
+  // firm_members has NO email column - the address lives on the auth
+  // user. Resolve each candidate's email via the admin auth API so
+  // both @handle-by-email-localpart matching and the email fan-out
+  // still work. Each lookup is isolated so one failure can't drop the
+  // rest of the batch.
+  const candidates = await Promise.all(
+    baseCandidates.map(async (m) => {
+      let email: string | null = null;
+      try {
+        const { data: au } = await admin.auth.admin.getUserById(m.user_id);
+        email = au?.user?.email ?? null;
+      } catch {
+        /* per-member email best-effort */
+      }
+      return { ...m, email };
+    }),
   );
 
   // Build the matched-user list and dedupe by user_id so a single
