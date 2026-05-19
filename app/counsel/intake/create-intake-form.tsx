@@ -1,9 +1,13 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { createMatterIntakeAction } from '@/lib/conflict-check';
-import { uploadIntakeFilesAction } from '@/lib/intake-uploads';
+import {
+  uploadIntakeFilesAction,
+  reviewIntakeAttachmentAction,
+} from '@/lib/intake-uploads';
+import type { DocScorecard } from '@/lib/doc-review';
 import { VoiceDictateButton } from '@/components/VoiceDictateButton';
 
 /**
@@ -99,6 +103,25 @@ export function CreateIntakeForm({
   const [related, setRelated] = useState<string[]>(['']);
   const [summary, setSummary] = useState('');
   const [fileNames, setFileNames] = useState<string[]>([]);
+  const formRef = useRef<HTMLFormElement>(null);
+  const [reviewing, setReviewing] = useState(false);
+  const [scorecard, setScorecard] = useState<DocScorecard | null>(null);
+  const [reviewErr, setReviewErr] = useState<string | null>(null);
+
+  function runReview() {
+    if (!formRef.current) return;
+    setReviewErr(null);
+    setScorecard(null);
+    setReviewing(true);
+    const fd = new FormData(formRef.current);
+    fd.set('requestType', requestType);
+    startTransition(async () => {
+      const res = await reviewIntakeAttachmentAction(firmId, fd);
+      setReviewing(false);
+      if (res.ok && res.scorecard) setScorecard(res.scorecard);
+      else setReviewErr(res.error ?? 'Could not review the document.');
+    });
+  }
 
   const mode: Mode =
     REQUEST_TYPES.find((r) => r.value === requestType)?.mode ?? 'client';
@@ -159,6 +182,30 @@ export function CreateIntakeForm({
     //    so the conflict check still has every name it needs.
     if (links.length > 0) intakeAnswers.links = links;
 
+    // Advottic Review gate: a document was attached, so it must be
+    // reviewed and grade C or higher before this can be submitted.
+    const filesAttached = formData
+      .getAll('attachments')
+      .some(
+        (f) =>
+          typeof f === 'object' && f !== null && (f as File).size > 0,
+      );
+    if (filesAttached) {
+      if (!scorecard) {
+        setError(
+          'Run Advottic Review on your attached document before submitting.',
+        );
+        return;
+      }
+      if (!scorecard.passes) {
+        setError(
+          `This document graded ${scorecard.grade}. Apply the suggested revisions and re-run the review - a C or higher is required to submit.`,
+        );
+        return;
+      }
+      intakeAnswers.review = scorecard;
+    }
+
     startTransition(async () => {
       // Upload any attached documents first (verified server-side,
       // service-role storage so employees aren't RLS-blocked).
@@ -200,7 +247,7 @@ export function CreateIntakeForm({
   }
 
   return (
-    <form action={submit} className="card p-5 sm:p-6 space-y-5">
+    <form ref={formRef} action={submit} className="card p-5 sm:p-6 space-y-5">
       <p className="eyebrow">New intake</p>
 
       <label className="block">
@@ -431,30 +478,76 @@ export function CreateIntakeForm({
         />
       </label>
 
-      <label className="block">
-        <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-          Attach documents{' '}
-          <span className="text-ink-500 dark:text-cream-100/55 font-normal">
-            (optional, up to 8 files / 25 MB each)
+      <div className="space-y-3 rounded-xl ring-1 ring-ink-200 dark:ring-forest-700/40 p-4">
+        <label className="block">
+          <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+            Attach documents{' '}
+            <span className="text-ink-500 dark:text-cream-100/55 font-normal">
+              (optional, up to 8 files / 25 MB each)
+            </span>
           </span>
-        </span>
-        <input
-          name="attachments"
-          type="file"
-          multiple
-          onChange={(e) =>
-            setFileNames(
-              Array.from(e.target.files ?? []).map((f) => f.name),
-            )
-          }
-          className="block w-full text-sm text-ink-700 dark:text-cream-100/80 file:mr-3 file:rounded-lg file:border-0 file:bg-gold-400 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-forest-950 hover:file:bg-gold-300"
-        />
+          <input
+            name="attachments"
+            type="file"
+            multiple
+            onChange={(e) => {
+              setFileNames(
+                Array.from(e.target.files ?? []).map((f) => f.name),
+              );
+              // A new file invalidates any prior review.
+              setScorecard(null);
+              setReviewErr(null);
+            }}
+            className="block w-full text-sm text-ink-700 dark:text-cream-100/80 file:mr-3 file:rounded-lg file:border-0 file:bg-gold-400 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-forest-950 hover:file:bg-gold-300"
+          />
+          {fileNames.length > 0 && (
+            <span className="block text-[11.5px] text-ink-600 dark:text-cream-100/65 mt-1.5">
+              {fileNames.join(', ')}
+            </span>
+          )}
+        </label>
+
         {fileNames.length > 0 && (
-          <span className="block text-[11.5px] text-ink-600 dark:text-cream-100/65 mt-1.5">
-            {fileNames.join(', ')}
-          </span>
+          <>
+            <p className="text-[12px] text-ink-600 dark:text-cream-100/65 leading-relaxed">
+              Attached contracts must pass{' '}
+              <strong>Advottic Review</strong> (grade C or higher)
+              before this can be submitted. Review checks bias,
+              vulnerabilities, and how it squares with the relevant
+              state&rsquo;s law, and suggests fixes.
+            </p>
+            <details className="text-[12px] text-ink-500 dark:text-cream-100/55">
+              <summary className="cursor-pointer select-none">
+                Scanned file unreadable? Paste the contract text
+              </summary>
+              <textarea
+                name="reviewText"
+                rows={3}
+                className="input mt-2"
+                placeholder="Optional fallback - paste the contract text if the file can't be read automatically."
+              />
+            </details>
+            <button
+              type="button"
+              onClick={runReview}
+              disabled={reviewing || pending}
+              className="btn bg-gold-400 hover:bg-gold-300 text-forest-950 font-semibold disabled:opacity-60"
+            >
+              {reviewing
+                ? 'Reviewing…'
+                : scorecard
+                  ? 'Re-run Advottic Review'
+                  : 'Run Advottic Review'}
+            </button>
+            {reviewErr && (
+              <p className="rounded-lg border border-rose-200 dark:border-rose-700/40 bg-rose-50 dark:bg-rose-950/30 px-3 py-2 text-[13px] text-rose-800 dark:text-rose-200">
+                {reviewErr}
+              </p>
+            )}
+            {scorecard && <Scorecard s={scorecard} />}
+          </>
         )}
-      </label>
+      </div>
 
       {/*
         Live error region. aria-live="polite" so screen readers
@@ -525,6 +618,115 @@ function PartyList({
       >
         Add another
       </button>
+    </div>
+  );
+}
+
+const GRADE_STYLE: Record<string, string> = {
+  A: 'bg-emerald-500 text-white',
+  B: 'bg-emerald-600 text-white',
+  C: 'bg-amber-500 text-forest-950',
+  D: 'bg-rose-500 text-white',
+  F: 'bg-rose-700 text-white',
+};
+
+function Scorecard({ s }: { s: DocScorecard }) {
+  return (
+    <div
+      className={`rounded-xl p-4 space-y-3 ring-1 ${
+        s.passes
+          ? 'ring-emerald-300/60 dark:ring-emerald-700/40 bg-emerald-50/60 dark:bg-emerald-950/20'
+          : 'ring-rose-300/60 dark:ring-rose-700/40 bg-rose-50/60 dark:bg-rose-950/20'
+      }`}
+    >
+      <div className="flex items-center gap-3">
+        <span
+          className={`inline-flex h-11 w-11 items-center justify-center rounded-xl font-display text-2xl font-bold ${
+            GRADE_STYLE[s.grade] ?? 'bg-ink-500 text-white'
+          }`}
+        >
+          {s.grade}
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-forest-900 dark:text-cream-100">
+            Advottic Review {s.passes ? '· Cleared to submit' : '· Blocked'}
+          </p>
+          <p className="text-[12px] text-ink-600 dark:text-cream-100/65 leading-snug">
+            {s.passes
+              ? 'Grade C or higher. You can submit this request.'
+              : 'Below the C threshold. Apply the changes below and re-run.'}
+          </p>
+        </div>
+      </div>
+
+      <p className="text-[13px] text-ink-700 dark:text-cream-100/80 leading-relaxed">
+        {s.summary}
+      </p>
+
+      <div>
+        <div className="flex items-center justify-between text-[11.5px] text-ink-600 dark:text-cream-100/65 mb-1">
+          <span>Bias: {s.biasToward}</span>
+          <span className="font-mono">{s.biasScore}/100</span>
+        </div>
+        <div className="h-2 rounded-full bg-ink-200 dark:bg-forest-800 overflow-hidden">
+          <div
+            className={`h-full rounded-full ${
+              s.biasScore < 34
+                ? 'bg-emerald-500'
+                : s.biasScore < 67
+                  ? 'bg-amber-500'
+                  : 'bg-rose-500'
+            }`}
+            style={{ width: `${s.biasScore}%` }}
+          />
+        </div>
+      </div>
+
+      {s.vulnerabilities.length > 0 && (
+        <div>
+          <p className="text-[12px] font-semibold text-forest-900 dark:text-cream-100 mb-1">
+            Vulnerabilities
+          </p>
+          <ul className="space-y-1">
+            {s.vulnerabilities.map((v, i) => (
+              <li
+                key={i}
+                className="text-[12.5px] text-ink-700 dark:text-cream-100/75 flex gap-2"
+              >
+                <span className="text-rose-500">•</span>
+                <span>{v}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div>
+        <p className="text-[12px] font-semibold text-forest-900 dark:text-cream-100 mb-1">
+          State-law relevance
+        </p>
+        <p className="text-[12.5px] text-ink-700 dark:text-cream-100/75 leading-relaxed">
+          {s.stateLawNotes}
+        </p>
+      </div>
+
+      {s.suggestedRevisions.length > 0 && (
+        <div>
+          <p className="text-[12px] font-semibold text-forest-900 dark:text-cream-100 mb-1">
+            Suggested revisions
+          </p>
+          <ol className="space-y-1 list-decimal pl-4">
+            {s.suggestedRevisions.map((v, i) => (
+              <li
+                key={i}
+                className="text-[12.5px] text-ink-700 dark:text-cream-100/75"
+              >
+                {v}
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
     </div>
   );
 }

@@ -2,6 +2,11 @@
 
 import { getCurrentUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
+import {
+  extractFileText,
+  scoreDocument,
+  type DocScorecard,
+} from './doc-review';
 
 export type IntakeAttachment = {
   name: string;
@@ -95,4 +100,93 @@ export async function uploadIntakeFilesAction(
     });
   }
   return { ok: true, files };
+}
+
+/**
+ * Run an attached document through Advottic Review and return a
+ * scorecard. The employee intake form calls this before submit and
+ * gates the form on the resulting grade (C or higher passes).
+ */
+export async function reviewIntakeAttachmentAction(
+  firmId: string,
+  formData: FormData,
+): Promise<{ ok: boolean; error?: string; scorecard?: DocScorecard; fileName?: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: 'Sign in first.' };
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Service unavailable.' };
+
+  const [{ data: mem }, { data: emp }] = await Promise.all([
+    admin
+      .from('firm_members')
+      .select('id')
+      .eq('firm_id', firmId)
+      .eq('user_id', user.id)
+      .maybeSingle(),
+    admin
+      .from('firm_employees')
+      .select('id')
+      .eq('firm_id', firmId)
+      .eq('user_id', user.id)
+      .is('deactivated_at', null)
+      .maybeSingle(),
+  ]);
+  if (!mem && !emp) {
+    return { ok: false, error: 'You do not have access to this firm.' };
+  }
+
+  const raw = formData.getAll('attachments');
+  const file = raw.find(
+    (f): f is File =>
+      typeof f === 'object' && f !== null && 'size' in f && (f as File).size > 0,
+  );
+  const pasted = String(formData.get('reviewText') ?? '').trim();
+
+  let text = pasted;
+  let fileName: string | undefined;
+  if (file) {
+    fileName = file.name;
+    if (file.size > MAX_BYTES) {
+      return { ok: false, error: 'That file is over 25 MB to review.' };
+    }
+    const ext = await extractFileText(file);
+    if (ext.text.trim().length >= 120) {
+      text = ext.text;
+    } else if (!pasted) {
+      return {
+        ok: false,
+        error:
+          ext.error ??
+          'Could not read enough text from that file. Upload a PDF, Word, or text file, or paste the contract text.',
+      };
+    }
+  }
+  if (text.trim().length < 120) {
+    return {
+      ok: false,
+      error: 'Attach a document or paste the contract text to review it.',
+    };
+  }
+
+  const { data: firmRow } = await admin
+    .from('firms')
+    .select('name, jurisdictions, practice_areas')
+    .eq('id', firmId)
+    .maybeSingle();
+  const fr = firmRow as {
+    name?: string;
+    jurisdictions?: string[] | null;
+    practice_areas?: string[] | null;
+  } | null;
+
+  const result = await scoreDocument({
+    text,
+    matterType: String(formData.get('requestType') ?? '') || null,
+    state: String(formData.get('state') ?? '') || null,
+    firmName: fr?.name ?? null,
+    jurisdictions: fr?.jurisdictions ?? [],
+    practiceAreas: fr?.practice_areas ?? [],
+  });
+  if ('error' in result) return { ok: false, error: result.error };
+  return { ok: true, scorecard: result, fileName };
 }
