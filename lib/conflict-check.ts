@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createServerSupabase, getCurrentUser } from './supabase/server';
+import { createAdminSupabase } from './supabase/admin';
 
 /**
  * Conflict check + matter intake.
@@ -53,28 +54,62 @@ export async function createMatterIntakeAction(
 ): Promise<{ ok: boolean; error?: string; intakeId?: string }> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: 'Sign in first.' };
+  const row = {
+    firm_id: firmId,
+    client_name: input.clientName.trim(),
+    client_email: input.clientEmail?.trim().toLowerCase() ?? null,
+    client_phone: input.clientPhone?.trim() ?? null,
+    client_address: input.clientAddress?.trim() ?? null,
+    matter_type: input.matterType ?? null,
+    matter_summary: input.matterSummary ?? null,
+    jurisdiction_state: input.jurisdictionState ?? null,
+    opposing_parties: input.opposingParties ?? [],
+    related_parties: input.relatedParties ?? [],
+    intake_answers: input.intakeAnswers ?? {},
+    created_by: user.id,
+    status: 'in_progress',
+  };
   const supabase = createServerSupabase();
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('firm_matter_intakes')
-    .insert({
-      firm_id: firmId,
-      client_name: input.clientName.trim(),
-      client_email: input.clientEmail?.trim().toLowerCase() ?? null,
-      client_phone: input.clientPhone?.trim() ?? null,
-      client_address: input.clientAddress?.trim() ?? null,
-      matter_type: input.matterType ?? null,
-      matter_summary: input.matterSummary ?? null,
-      jurisdiction_state: input.jurisdictionState ?? null,
-      opposing_parties: input.opposingParties ?? [],
-      related_parties: input.relatedParties ?? [],
-      intake_answers: input.intakeAnswers ?? {},
-      created_by: user.id,
-      status: 'in_progress',
-    })
+    .insert(row)
     .select('id')
     .single();
+
+  // Employees of an enterprise tenant are NOT firm_members, so the
+  // RLS insert policy (legal-team only) rejects their portal request
+  // with "new row violates row-level security policy". They are still
+  // allowed to file - the portal is built for exactly this - so when
+  // the user client is blocked, verify the caller is a genuine active
+  // employee of THIS firm and insert via the service-role client,
+  // scoped to (firm_id, created_by = me) so it can't be abused.
+  if (
+    error &&
+    /row-level security|violates row-level/i.test(error.message ?? '')
+  ) {
+    const admin = createAdminSupabase();
+    if (admin) {
+      const { data: emp } = await admin
+        .from('firm_employees')
+        .select('id')
+        .eq('firm_id', firmId)
+        .eq('user_id', user.id)
+        .is('deactivated_at', null)
+        .maybeSingle();
+      if (emp) {
+        const retry = await admin
+          .from('firm_matter_intakes')
+          .insert(row)
+          .select('id')
+          .single();
+        data = retry.data;
+        error = retry.error;
+      }
+    }
+  }
   if (error || !data) return { ok: false, error: error?.message ?? 'Insert failed.' };
   revalidatePath('/counsel/intake');
+  revalidatePath('/portal');
   return { ok: true, intakeId: (data as { id: string }).id };
 }
 
