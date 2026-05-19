@@ -131,6 +131,14 @@ dependencies {
     // receiver is needed.
     implementation 'androidx.work:work-runtime-ktx:2.9.1'
 
+    // Phase 4: QR device-link. ZXing core is a pure-Java QR encoder
+    // (no Android dep); we render the BitMatrix to a Compose Canvas
+    // ourselves. The watch then syncs DIRECTLY over HTTPS
+    // (HttpURLConnection + org.json - no extra networking dep) to the
+    // existing /api/v1/cases, sidestepping the Wearable Data Layer's
+    // cross-package signing-cert requirement entirely.
+    implementation 'com.google.zxing:core:3.5.3'
+
     // Unit tests for the pure logic (JSON parsers, countdown/tier
     // math, formatters). The real org.json is on the unit-test
     // classpath so the parsers run for real on the JVM instead of

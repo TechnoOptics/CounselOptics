@@ -63,7 +63,9 @@ import androidx.wear.compose.material.Vignette
 import androidx.wear.compose.material.VignettePosition
 import androidx.wear.remote.interactions.RemoteActivityHelper
 import com.google.android.gms.wearable.Wearable
+import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.net.URLEncoder
 
 /**
@@ -116,6 +118,19 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         summary.value = SummaryStore.read(this)
+        // Direct-API sync: if the watch is linked (has an adv_ token),
+        // pull fresh cases over HTTPS - no Wearable Data Layer, so it
+        // works regardless of how the phone/watch apps are signed. A
+        // dead token (401) clears itself and the UI shows "Link a
+        // watch" again.
+        val tok = WatchLinkStore.token(this)
+        if (tok != null) {
+            lifecycleScope.launch {
+                val rc = WatchApi.refreshSummary(this@MainActivity, tok)
+                if (rc == 401) WatchLinkStore.clear(this@MainActivity)
+                summary.value = SummaryStore.read(this@MainActivity)
+            }
+        }
     }
 }
 
@@ -353,6 +368,9 @@ fun WearApp(summary: SummaryStore.Summary) {
     // requests it the first time, and capture only opens once granted
     // so a decline simply does nothing.
     var voiceActive by remember { mutableStateOf(false) }
+    // QR device-link overlay (direct-API sync, no Data Layer).
+    var linkActive by remember { mutableStateOf(false) }
+    val isLinked = remember { WatchLinkStore.token(context) != null }
     val micPermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted -> if (granted) voiceActive = true }
@@ -854,28 +872,11 @@ fun WearApp(summary: SummaryStore.Summary) {
                                     .padding(top = 8.dp),
                             )
                         }
-                    } else {
+                    } else if (isLinked) {
                         item {
-                            val (msg, tint) = when (phoneLink) {
-                                "connected" ->
-                                    "Phone connected. Open Advottic " +
-                                        "on your phone to sync your " +
-                                        "cases." to Cream
-                                "disconnected" ->
-                                    "Phone not connected. Check " +
-                                        "Bluetooth and the Galaxy " +
-                                        "Wearable pairing." to Rose
-                                "checking" ->
-                                    "Checking your phone…" to
-                                        Cream.copy(alpha = 0.6f)
-                                else ->
-                                    "Open Advottic on your phone to " +
-                                        "see your cases here." to
-                                        Cream.copy(alpha = 0.65f)
-                            }
                             Text(
-                                text = msg,
-                                color = tint,
+                                text = "Syncing your cases…",
+                                color = Cream.copy(alpha = 0.7f),
                                 style = MaterialTheme.typography.caption1,
                                 textAlign = TextAlign.Center,
                                 modifier = Modifier.padding(
@@ -883,6 +884,44 @@ fun WearApp(summary: SummaryStore.Summary) {
                                     start = 10.dp,
                                     end = 10.dp,
                                 ),
+                            )
+                        }
+                    } else {
+                        item {
+                            Text(
+                                text = "Link this watch to your " +
+                                    "Advottic account to see your " +
+                                    "cases here.",
+                                color = Cream.copy(alpha = 0.7f),
+                                style = MaterialTheme.typography.caption1,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(
+                                    top = 10.dp,
+                                    start = 12.dp,
+                                    end = 12.dp,
+                                ),
+                            )
+                        }
+                        item {
+                            Chip(
+                                onClick = {
+                                    buzz()
+                                    linkActive = true
+                                },
+                                label = {
+                                    Text(
+                                        "Link a watch",
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                },
+                                colors = ChipDefaults.chipColors(
+                                    backgroundColor = GoldDeep,
+                                    contentColor = Forest,
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 12.dp),
                             )
                         }
                     }
@@ -909,6 +948,9 @@ fun WearApp(summary: SummaryStore.Summary) {
                     },
                     onDismiss = { voiceActive = false },
                 )
+            }
+            if (linkActive) {
+                LinkScreen(onClose = { linkActive = false })
             }
         }
     }
