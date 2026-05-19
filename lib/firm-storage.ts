@@ -784,6 +784,78 @@ export async function listChannelsForUser(firmId: string): Promise<FirmChannel[]
   );
 }
 
+/**
+ * Make sure the firm has a shared "legal-team" channel that EVERY
+ * firm member is in, and re-sync membership so newly added teammates
+ * can chat immediately. Without this a fresh firm lands on an empty
+ * chat, and createFirmChannelAction only adds the creator - so the
+ * legal department could never actually talk to each other. Runs on
+ * every chat page load (idempotent, service-role for cross-user
+ * member rows). Returns the channel id, or null if unavailable.
+ */
+export async function ensureFirmTeamChannel(
+  firmId: string,
+  createdBy: string,
+): Promise<string | null> {
+  const admin = createAdminSupabase();
+  if (!admin) return null;
+  try {
+    let channelId: string | null = null;
+    const { data: existing } = await admin
+      .from('firm_channels')
+      .select('id')
+      .eq('firm_id', firmId)
+      .eq('is_default', true)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (existing) channelId = (existing as { id: string }).id;
+    if (!channelId) {
+      const { data: created, error } = await admin
+        .from('firm_channels')
+        .insert({
+          firm_id: firmId,
+          name: 'legal-team',
+          topic: 'Firm-wide channel for the legal team',
+          kind: 'channel',
+          is_default: true,
+          created_by: createdBy,
+        })
+        .select('id')
+        .single();
+      if (error || !created) return null;
+      channelId = (created as { id: string }).id;
+    }
+    // Resync: every firm member should be a channel member.
+    const { data: mem } = await admin
+      .from('firm_members')
+      .select('user_id')
+      .eq('firm_id', firmId);
+    const memberIds = new Set(
+      ((mem ?? []) as Array<{ user_id: string | null }>)
+        .map((m) => m.user_id)
+        .filter((u): u is string => Boolean(u)),
+    );
+    const { data: cur } = await admin
+      .from('firm_channel_members')
+      .select('user_id')
+      .eq('channel_id', channelId);
+    const have = new Set(
+      ((cur ?? []) as Array<{ user_id: string }>).map((m) => m.user_id),
+    );
+    const channel = channelId;
+    const toAdd = [...memberIds]
+      .filter((id) => !have.has(id))
+      .map((uid) => ({ channel_id: channel, user_id: uid }));
+    if (toAdd.length) {
+      await admin.from('firm_channel_members').insert(toAdd);
+    }
+    return channelId;
+  } catch {
+    return null;
+  }
+}
+
 export async function listMessages(
   channelId: string,
   limit = 50,

@@ -1,5 +1,9 @@
 import { redirect } from 'next/navigation';
-import { getActiveFirmContext, listChannelsForUser } from '@/lib/firm-storage';
+import {
+  getActiveFirmContext,
+  listChannelsForUser,
+  ensureFirmTeamChannel,
+} from '@/lib/firm-storage';
 import { ChatShell } from './chat-shell';
 
 export const dynamic = 'force-dynamic';
@@ -8,6 +12,10 @@ export const metadata = { title: 'Chat · Counsel' };
 export default async function CounselChatPage() {
   const ctx = await getActiveFirmContext();
   if (!ctx) redirect('/counsel');
+  // Guarantee a shared team channel everyone on the legal team is in
+  // (and pull in any members added since they last opened chat) so
+  // the department can actually communicate out of the box.
+  await ensureFirmTeamChannel(ctx.firm.id, ctx.membership.userId);
   const channels = await listChannelsForUser(ctx.firm.id);
 
   return (
