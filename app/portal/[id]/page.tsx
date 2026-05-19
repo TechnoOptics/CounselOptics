@@ -6,6 +6,7 @@ import { getWorkspacePersona } from '@/lib/persona';
 import { IntakeThread, } from '@/components/IntakeThread';
 import { ReviewScorecard } from '@/components/ReviewScorecard';
 import type { DocScorecard } from '@/lib/doc-review';
+import { Tabs, type TabDef } from '@/components/Tabs';
 import type { ThreadMessage } from '@/lib/intake-thread';
 
 export const dynamic = 'force-dynamic';
@@ -181,46 +182,78 @@ export default async function PortalRequestPage({
         </ol>
       </section>
 
-      {meta.length > 0 && (
-        <section className="card p-5">
-          <p className="eyebrow mb-3">Request details</p>
-          <dl className="grid sm:grid-cols-3 gap-x-4 gap-y-3">
-            {meta.map((m) => (
-              <div key={m.label}>
-                <dt className="text-[10px] uppercase tracking-[0.16em] font-semibold text-cream-100/40 mb-0.5">
-                  {m.label}
-                </dt>
-                <dd className="text-[13px] text-cream-100/85">{m.value}</dd>
-              </div>
-            ))}
-          </dl>
-        </section>
-      )}
-
-      {intake.matter_summary && (
-        <section className="card p-5">
-          <p className="eyebrow text-[10px] mb-1">What you submitted</p>
-          <p className="text-[13px] text-cream-100/85 leading-relaxed whitespace-pre-wrap">
-            {intake.matter_summary}
-          </p>
-        </section>
-      )}
-
-      {ans.review != null &&
-      typeof ans.review === 'object' &&
-      'grade' in (ans.review as object) ? (
-        <ReviewScorecard
-          data={ans.review as DocScorecard}
-          audience="employee"
-        />
-      ) : null}
-
-      <IntakeThread
-        intakeId={intake.id}
-        messages={thread}
-        viewerRole="employee"
-        readOnly={!persona.entitlements.includes('requests.message')}
-        mentionables={mentionables}
+      <Tabs
+        storageKey={`portal-request-${intake.id}`}
+        tabs={(() => {
+          const hasReview =
+            ans.review != null &&
+            typeof ans.review === 'object' &&
+            'grade' in (ans.review as object);
+          const tabs: TabDef[] = [
+            {
+              id: 'overview',
+              label: 'Overview',
+              content: (
+                <div className="space-y-6">
+                  {meta.length > 0 && (
+                    <section className="card p-5">
+                      <p className="eyebrow mb-3">Request details</p>
+                      <dl className="grid sm:grid-cols-3 gap-x-4 gap-y-3">
+                        {meta.map((m) => (
+                          <div key={m.label}>
+                            <dt className="text-[10px] uppercase tracking-[0.16em] font-semibold text-cream-100/40 mb-0.5">
+                              {m.label}
+                            </dt>
+                            <dd className="text-[13px] text-cream-100/85">
+                              {m.value}
+                            </dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </section>
+                  )}
+                  {intake.matter_summary && (
+                    <section className="card p-5">
+                      <p className="eyebrow text-[10px] mb-1">
+                        What you submitted
+                      </p>
+                      <p className="text-[13px] text-cream-100/85 leading-relaxed whitespace-pre-wrap">
+                        {intake.matter_summary}
+                      </p>
+                    </section>
+                  )}
+                </div>
+              ),
+            },
+          ];
+          if (hasReview) {
+            tabs.push({
+              id: 'review',
+              label: 'Review',
+              content: (
+                <ReviewScorecard
+                  data={ans.review as DocScorecard}
+                  audience="employee"
+                />
+              ),
+            });
+          }
+          tabs.push({
+            id: 'messages',
+            label: 'Messages',
+            badge: thread.length > 0 ? thread.length : undefined,
+            content: (
+              <IntakeThread
+                intakeId={intake.id}
+                messages={thread}
+                viewerRole="employee"
+                readOnly={!persona.entitlements.includes('requests.message')}
+                mentionables={mentionables}
+              />
+            ),
+          });
+          return tabs;
+        })()}
       />
     </div>
   );

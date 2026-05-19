@@ -15,6 +15,7 @@ import { RequestActions } from './request-actions';
 import { AnalyzeStudio } from '@/app/counsel/analyze/analyze-studio';
 import { ReviewScorecard } from '@/components/ReviewScorecard';
 import type { DocScorecard } from '@/lib/doc-review';
+import { Tabs, type TabDef } from '@/components/Tabs';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Intake · Counsel' };
@@ -160,134 +161,178 @@ export default async function IntakeDetailPage({
         />
       </div>
 
-      {meta.length > 0 && (
-        <section className="card p-5">
-          <p className="eyebrow mb-3">Request details</p>
-          <dl className="grid sm:grid-cols-3 gap-x-4 gap-y-3">
-            {meta.map((m) => (
-              <div key={m.label}>
-                <dt className="text-[10px] uppercase tracking-[0.16em] font-semibold text-ink-400 dark:text-cream-100/40 mb-0.5">
-                  {m.label}
-                </dt>
-                <dd className="text-[13px] text-ink-800 dark:text-cream-100/85">
-                  {m.value}
-                </dd>
+      <Tabs
+        storageKey={`counsel-intake-${intake.id}`}
+        tabs={(() => {
+          const hasReview =
+            ans.review != null &&
+            typeof ans.review === 'object' &&
+            'grade' in (ans.review as object);
+          const overview: TabDef = {
+            id: 'overview',
+            label: 'Overview',
+            content: (
+              <div className="space-y-6">
+                {meta.length > 0 && (
+                  <section className="card p-5">
+                    <p className="eyebrow mb-3">Request details</p>
+                    <dl className="grid sm:grid-cols-3 gap-x-4 gap-y-3">
+                      {meta.map((m) => (
+                        <div key={m.label}>
+                          <dt className="text-[10px] uppercase tracking-[0.16em] font-semibold text-ink-400 dark:text-cream-100/40 mb-0.5">
+                            {m.label}
+                          </dt>
+                          <dd className="text-[13px] text-ink-800 dark:text-cream-100/85">
+                            {m.value}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </section>
+                )}
+
+                <section className="card p-5 grid sm:grid-cols-2 gap-3">
+                  <div>
+                    <p className="eyebrow text-[10px] mb-1">Email</p>
+                    <p className="text-[13px]">
+                      {intake.client_email ? (
+                        <a
+                          href={`mailto:${intake.client_email}`}
+                          className="underline"
+                        >
+                          {intake.client_email}
+                        </a>
+                      ) : (
+                        <span className="italic text-ink-500 dark:text-cream-100/55">
+                          Not set
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="eyebrow text-[10px] mb-1">Phone</p>
+                    <p className="text-[13px]">
+                      {intake.client_phone ?? (
+                        <span className="italic text-ink-500 dark:text-cream-100/55">
+                          Not set
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <p className="eyebrow text-[10px] mb-1">
+                      Matter summary
+                    </p>
+                    <p className="text-[13px] text-ink-700 dark:text-cream-100/85 leading-relaxed whitespace-pre-wrap">
+                      {intake.matter_summary ?? '(none)'}
+                    </p>
+                  </div>
+                </section>
+
+                <section className="grid sm:grid-cols-2 gap-3">
+                  <div className="card p-4">
+                    <p className="eyebrow mb-2">Opposing parties</p>
+                    {intake.opposing_parties.length === 0 ? (
+                      <p className="text-[13px] italic text-ink-500 dark:text-cream-100/55">
+                        None listed.
+                      </p>
+                    ) : (
+                      <ul className="space-y-1 text-[13px]">
+                        {intake.opposing_parties.map((p) => (
+                          <li key={p}>{p}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  <div className="card p-4">
+                    <p className="eyebrow mb-2">Related parties</p>
+                    {intake.related_parties.length === 0 ? (
+                      <p className="text-[13px] italic text-ink-500 dark:text-cream-100/55">
+                        None listed.
+                      </p>
+                    ) : (
+                      <ul className="space-y-1 text-[13px]">
+                        {intake.related_parties.map((p) => (
+                          <li key={p}>{p}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </section>
+
+                <ConflictCheckPanel
+                  firmId={ctx.firm.id}
+                  intakeId={intake.id}
+                  status={intake.status}
+                  results={intake.conflict_results}
+                  notes={intake.conflict_check_notes}
+                />
+
+                <RequestActions
+                  firmId={ctx.firm.id}
+                  intakeId={intake.id}
+                  currentReminder={String(ans.reminder_at ?? '')}
+                />
               </div>
-            ))}
-          </dl>
-        </section>
-      )}
-
-      <section className="card p-5 grid sm:grid-cols-2 gap-3">
-        <div>
-          <p className="eyebrow text-[10px] mb-1">Email</p>
-          <p className="text-[13px]">
-            {intake.client_email ? (
-              <a href={`mailto:${intake.client_email}`} className="underline">
-                {intake.client_email}
-              </a>
-            ) : (
-              <span className="italic text-ink-500 dark:text-cream-100/55">
-                Not set
-              </span>
-            )}
-          </p>
-        </div>
-        <div>
-          <p className="eyebrow text-[10px] mb-1">Phone</p>
-          <p className="text-[13px]">
-            {intake.client_phone ?? (
-              <span className="italic text-ink-500 dark:text-cream-100/55">
-                Not set
-              </span>
-            )}
-          </p>
-        </div>
-        <div className="sm:col-span-2">
-          <p className="eyebrow text-[10px] mb-1">Matter summary</p>
-          <p className="text-[13px] text-ink-700 dark:text-cream-100/85 leading-relaxed whitespace-pre-wrap">
-            {intake.matter_summary ?? '(none)'}
-          </p>
-        </div>
-      </section>
-
-      <section className="grid sm:grid-cols-2 gap-3">
-        <div className="card p-4">
-          <p className="eyebrow mb-2">Opposing parties</p>
-          {intake.opposing_parties.length === 0 ? (
-            <p className="text-[13px] italic text-ink-500 dark:text-cream-100/55">
-              None listed.
-            </p>
-          ) : (
-            <ul className="space-y-1 text-[13px]">
-              {intake.opposing_parties.map((p) => (
-                <li key={p}>{p}</li>
-              ))}
-            </ul>
-          )}
-        </div>
-        <div className="card p-4">
-          <p className="eyebrow mb-2">Related parties</p>
-          {intake.related_parties.length === 0 ? (
-            <p className="text-[13px] italic text-ink-500 dark:text-cream-100/55">
-              None listed.
-            </p>
-          ) : (
-            <ul className="space-y-1 text-[13px]">
-              {intake.related_parties.map((p) => (
-                <li key={p}>{p}</li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </section>
-
-      <ConflictCheckPanel
-        firmId={ctx.firm.id}
-        intakeId={intake.id}
-        status={intake.status}
-        results={intake.conflict_results}
-        notes={intake.conflict_check_notes}
-      />
-
-      <RequestActions
-        firmId={ctx.firm.id}
-        intakeId={intake.id}
-        currentReminder={String(ans.reminder_at ?? '')}
-      />
-
-      {ans.review != null &&
-      typeof ans.review === 'object' &&
-      'grade' in (ans.review as object) ? (
-        <ReviewScorecard
-          data={ans.review as DocScorecard}
-          audience="legal"
-        />
-      ) : null}
-
-      <div className="space-y-2">
-        <p className="eyebrow">Analyze the submission</p>
-        <p className="text-[12px] text-ink-500 dark:text-cream-100/55 -mt-1">
-          Run an AI breakdown of what the submitted document/contract
-          means, how the law applies, its bias, and the risky clauses.
-        </p>
-        <AnalyzeStudio
-          embedded
-          initialText={String(intake.matter_summary ?? '')}
-        />
-      </div>
-
-      <ScheduleMeetingPanel
-        firmId={ctx.firm.id}
-        intakeId={intake.id}
-        defaultTitle={`Advottic: ${intake.client_name}`}
-      />
-
-      <IntakeThread
-        intakeId={intake.id}
-        messages={thread}
-        viewerRole="legal"
-        mentionables={mentionables}
+            ),
+          };
+          const tabs: TabDef[] = [overview];
+          if (hasReview) {
+            tabs.push({
+              id: 'review',
+              label: 'Review',
+              content: (
+                <ReviewScorecard
+                  data={ans.review as DocScorecard}
+                  audience="legal"
+                />
+              ),
+            });
+          }
+          tabs.push({
+            id: 'analyze',
+            label: 'Analyze',
+            content: (
+              <div className="space-y-2">
+                <p className="eyebrow">Analyze the submission</p>
+                <p className="text-[12px] text-ink-500 dark:text-cream-100/55 -mt-1">
+                  Run an AI breakdown of what the submitted document /
+                  contract means, how the law applies, its bias, and
+                  the risky clauses.
+                </p>
+                <AnalyzeStudio
+                  embedded
+                  initialText={String(intake.matter_summary ?? '')}
+                />
+              </div>
+            ),
+          });
+          tabs.push({
+            id: 'meeting',
+            label: 'Meeting',
+            content: (
+              <ScheduleMeetingPanel
+                firmId={ctx.firm.id}
+                intakeId={intake.id}
+                defaultTitle={`Advottic: ${intake.client_name}`}
+              />
+            ),
+          });
+          tabs.push({
+            id: 'messages',
+            label: 'Messages',
+            badge: thread.length > 0 ? thread.length : undefined,
+            content: (
+              <IntakeThread
+                intakeId={intake.id}
+                messages={thread}
+                viewerRole="legal"
+                mentionables={mentionables}
+              />
+            ),
+          });
+          return tabs;
+        })()}
       />
     </div>
   );
