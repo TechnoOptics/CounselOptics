@@ -3,6 +3,8 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { createMatterIntakeAction } from '@/lib/conflict-check';
+import { uploadIntakeFilesAction } from '@/lib/intake-uploads';
+import { VoiceDictateButton } from '@/components/VoiceDictateButton';
 
 /**
  * Generic typed intake.
@@ -95,6 +97,8 @@ export function CreateIntakeForm({
   const [requestType, setRequestType] = useState(availableTypes[0].value);
   const [opposing, setOpposing] = useState<string[]>(['']);
   const [related, setRelated] = useState<string[]>(['']);
+  const [summary, setSummary] = useState('');
+  const [fileNames, setFileNames] = useState<string[]>([]);
 
   const mode: Mode =
     REQUEST_TYPES.find((r) => r.value === requestType)?.mode ?? 'client';
@@ -117,8 +121,12 @@ export function CreateIntakeForm({
 
     const jurisdictionState =
       String(formData.get('state') ?? '').trim() || null;
-    const matterSummary =
-      String(formData.get('matterSummary') ?? '').trim() || null;
+    const matterSummary = summary.trim() || null;
+    const links = String(formData.get('links') ?? '')
+      .split(/[\n,\s]+/)
+      .map((s) => s.trim())
+      .filter((s) => /^https?:\/\//i.test(s))
+      .slice(0, 20);
 
     let clientEmail: string | null = null;
     let clientPhone: string | null = null;
@@ -149,7 +157,24 @@ export function CreateIntakeForm({
     //  - in-house mode: opposing = counterparty/other side (vendor,
     //    employee, contracting party), related = employees involved
     //    so the conflict check still has every name it needs.
+    if (links.length > 0) intakeAnswers.links = links;
+
     startTransition(async () => {
+      // Upload any attached documents first (verified server-side,
+      // service-role storage so employees aren't RLS-blocked).
+      const hasFiles = formData
+        .getAll('attachments')
+        .some((f) => typeof f === 'object' && f !== null && (f as File).size > 0);
+      if (hasFiles) {
+        const up = await uploadIntakeFilesAction(firmId, formData);
+        if (!up.ok) {
+          setError(up.error ?? 'Could not upload your files.');
+          return;
+        }
+        if (up.files && up.files.length > 0) {
+          intakeAnswers.attachments = up.files;
+        }
+      }
       const res = await createMatterIntakeAction(firmId, {
         clientName: subject,
         clientEmail,
@@ -272,12 +297,17 @@ export function CreateIntakeForm({
               </span>
               <input name="dueBy" type="date" className="input" />
             </label>
-            <label className="block">
-              <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-                Expiry / valid until
-              </span>
-              <input name="expiry" type="date" className="input" />
-            </label>
+            {!employeeMode && (
+              <label className="block">
+                <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+                  Expiry / valid until
+                </span>
+                <input name="expiry" type="date" className="input" />
+                <span className="block text-[11.5px] text-ink-500 dark:text-cream-100/55 mt-1">
+                  Set by legal once the document/term is known.
+                </span>
+              </label>
+            )}
             <label className="block">
               <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
                 Confidentiality
@@ -361,20 +391,69 @@ export function CreateIntakeForm({
         onChange={setRelated}
       />
 
-      <label className="block">
-        <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-          {inhouse ? 'Details / desired outcome' : 'Matter summary'}
-        </span>
+      <div className="block">
+        <div className="flex items-center justify-between gap-2 mb-1.5">
+          <span className="block text-sm font-medium text-forest-900 dark:text-cream-100">
+            {inhouse ? 'Details / desired outcome' : 'Matter summary'}
+          </span>
+          <VoiceDictateButton
+            onTranscript={(seg) =>
+              setSummary((p) => (p ? `${p} ${seg.trim()}` : seg.trim()))
+            }
+          />
+        </div>
         <textarea
           name="matterSummary"
-          rows={3}
+          rows={4}
           className="input"
+          value={summary}
+          onChange={(e) => setSummary(e.target.value)}
           placeholder={
             inhouse
-              ? 'What you need from legal, any background, and what a good outcome looks like.'
+              ? 'Type or tap Dictate. What you need from legal, any background, and what a good outcome looks like.'
               : 'Brief description of what the client is asking for and any deadlines.'
           }
         />
+      </div>
+
+      <label className="block">
+        <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+          Reference links{' '}
+          <span className="text-ink-500 dark:text-cream-100/55 font-normal">
+            (optional)
+          </span>
+        </span>
+        <textarea
+          name="links"
+          rows={2}
+          className="input"
+          placeholder="Paste any relevant URLs - one per line (SharePoint, Drive, a contract link, a ticket...)"
+        />
+      </label>
+
+      <label className="block">
+        <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+          Attach documents{' '}
+          <span className="text-ink-500 dark:text-cream-100/55 font-normal">
+            (optional, up to 8 files / 25 MB each)
+          </span>
+        </span>
+        <input
+          name="attachments"
+          type="file"
+          multiple
+          onChange={(e) =>
+            setFileNames(
+              Array.from(e.target.files ?? []).map((f) => f.name),
+            )
+          }
+          className="block w-full text-sm text-ink-700 dark:text-cream-100/80 file:mr-3 file:rounded-lg file:border-0 file:bg-gold-400 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-forest-950 hover:file:bg-gold-300"
+        />
+        {fileNames.length > 0 && (
+          <span className="block text-[11.5px] text-ink-600 dark:text-cream-100/65 mt-1.5">
+            {fileNames.join(', ')}
+          </span>
+        )}
       </label>
 
       {/*

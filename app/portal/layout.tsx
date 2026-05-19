@@ -119,16 +119,14 @@ export default async function PortalLayout({
       hint: 'AI document insight',
     });
   }
-  // Roadmap items - shown so the Hub reads complete; wired next.
-  const soon: NavItem[] = [
-    { href: '#', label: 'Documents', hint: 'Upload + versions', soon: true },
-    { href: '#', label: 'Calendar', hint: 'Your meetings', soon: true },
-    { href: '#', label: 'Trainings', hint: 'Assigned by legal', soon: true },
+  const workspace: NavItem[] = [
+    { href: '/portal/documents', label: 'Documents', hint: 'Your files' },
+    { href: '/portal/calendar', label: 'Calendar', hint: 'Your meetings' },
+    { href: '/portal/trainings', label: 'Trainings', hint: 'Assigned by legal' },
     {
-      href: '#',
+      href: '/portal/profile',
       label: 'Profile',
       hint: 'Reminders + notifications',
-      soon: true,
     },
   ];
 
@@ -210,9 +208,9 @@ export default async function PortalLayout({
           ))}
           <div className="pt-4 mt-3 border-t border-forest-700/30">
             <p className="px-3 pb-1 text-[10px] uppercase tracking-[0.18em] text-cream-100/30">
-              Coming soon
+              Workspace
             </p>
-            {soon.map((i) => (
+            {workspace.map((i) => (
               <NavLink key={i.label} item={i} />
             ))}
           </div>
