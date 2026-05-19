@@ -150,10 +150,32 @@ body {
 html {
   min-height: 100vh;
   min-height: 100dvh;
+  /* Bigger, easier-to-read global type scale. Tailwind sizes text
+     AND spacing in rem, so lifting the root font-size scales the
+     whole app uniformly (text, padding, gaps) from one line.
+     18px = +12.5% vs the 16px browser default. Fully reversible:
+     change this one value. The input rule elsewhere uses
+     max(16px, ...) so iOS still never zoom-jumps on focus. */
+  font-size: 18px;
 }
 body {
   min-height: 100vh;
   min-height: 100dvh;
+}
+
+/* Fill the horizontal space. The app frame (header/main/footer)
+   widens in layout.tsx; this lifts the per-PAGE reading caps too so
+   pages actually use the width. Scoped to `main` + the page-root
+   pattern (`.mx-auto` together with a max-w cap) so genuinely
+   narrow UI - modal cards, callouts - that use max-w without being
+   a centered page root is left alone. ~96rem keeps long-form text
+   from sprawling past a comfortable measure on ultrawide displays. */
+main .mx-auto.max-w-xl,
+main .mx-auto.max-w-2xl,
+main .mx-auto.max-w-3xl,
+main .mx-auto.max-w-4xl,
+main .mx-auto.max-w-5xl {
+  max-width: 96rem;
 }
 
 /* Atmospheric body - subtle grid + warm gold veil + cool forest accent */
