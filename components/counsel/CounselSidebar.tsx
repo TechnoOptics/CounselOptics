@@ -1,59 +1,29 @@
 import Link from 'next/link';
 import type { Firm, FirmMember } from '@/lib/firm-types';
 import { isCounselItemActive, tenantHref } from '@/lib/counsel-routing';
+import { applyMenuConfig, readMenuConfig } from '@/lib/menu-config';
 
-type NavItem = {
-  href: string;
-  label: string;
-  icon: React.ReactNode;
-  hint: string;
+// Icons stay here (React) keyed by href; the menu DATA + the firm's
+// hide/rename/reorder customization live in lib/menu-config.ts so the
+// settings editor and this server-rendered rail share one source of
+// truth. Unknown href -> a neutral default glyph.
+const ICONS: Record<string, React.ReactNode> = {
+  '/counsel': <DashIcon />,
+  '/counsel/intake': <UserIcon />,
+  '/counsel/cases': <CaseIcon />,
+  '/counsel/documents': <DocIcon />,
+  '/counsel/contracts': <DocIcon />,
+  '/counsel/signing': <SignIcon />,
+  '/counsel/clients': <UserIcon />,
+  '/counsel/team': <UsersIcon />,
+  '/counsel/chat': <ChatIcon />,
+  '/counsel/meetings': <CalIcon />,
+  '/counsel/leads': <UsersIcon />,
+  '/counsel/referrals': <UsersIcon />,
+  '/counsel/time': <DashIcon />,
+  '/counsel/billing': <SignIcon />,
+  '/counsel/trust': <SignIcon />,
 };
-
-// Grouped into related segments so the rail reads as
-// "Overview / Matters / People / Growth / Finance" instead of one
-// 15-item wall. Order within a group is most-used first.
-const SECTIONS: Array<{ section: string; items: NavItem[] }> = [
-  {
-    section: 'Overview',
-    items: [
-      { href: '/counsel', label: 'Dashboard', icon: <DashIcon />, hint: 'Overview' },
-    ],
-  },
-  {
-    section: 'Matters',
-    items: [
-      { href: '/counsel/intake', label: 'Intake', icon: <UserIcon />, hint: 'New request + conflict check' },
-      { href: '/counsel/cases', label: 'Cases', icon: <CaseIcon />, hint: 'All firm matters' },
-      { href: '/counsel/documents', label: 'Documents', icon: <DocIcon />, hint: 'Case-linked vault' },
-      { href: '/counsel/contracts', label: 'Contracts', icon: <DocIcon />, hint: 'Repo + Bella review' },
-      { href: '/counsel/signing', label: 'Signing', icon: <SignIcon />, hint: 'E-sign requests' },
-    ],
-  },
-  {
-    section: 'People',
-    items: [
-      { href: '/counsel/clients', label: 'Clients', icon: <UserIcon />, hint: 'Roster + invites' },
-      { href: '/counsel/team', label: 'Team', icon: <UsersIcon />, hint: 'Members + roles' },
-      { href: '/counsel/chat', label: 'Chat', icon: <ChatIcon />, hint: 'Channels + DMs' },
-      { href: '/counsel/meetings', label: 'Meetings', icon: <CalIcon />, hint: 'Calendar' },
-    ],
-  },
-  {
-    section: 'Growth',
-    items: [
-      { href: '/counsel/leads', label: 'Leads', icon: <UsersIcon />, hint: 'Inbound from /find-counsel' },
-      { href: '/counsel/referrals', label: 'Referrals', icon: <UsersIcon />, hint: 'Co-counsel + fee splits' },
-    ],
-  },
-  {
-    section: 'Finance',
-    items: [
-      { href: '/counsel/time', label: 'Time', icon: <DashIcon />, hint: 'Time entries' },
-      { href: '/counsel/billing', label: 'Billing', icon: <SignIcon />, hint: 'Invoices' },
-      { href: '/counsel/trust', label: 'Trust', icon: <SignIcon />, hint: 'IOLTA ledger' },
-    ],
-  },
-];
 
 // `isCounselItemActive` and `tenantHref` live in lib/counsel-routing.ts
 // so the URL logic can be unit-tested without bundling React. The
@@ -88,12 +58,15 @@ export function CounselSidebar({
    */
   tenantMode?: boolean;
 }) {
+  // Per-firm customization (hide / rename / reorder). Falls back to
+  // the full default menu when the firm has not customized anything.
+  const sections = applyMenuConfig(readMenuConfig(firm.metadata));
   return (
     <nav className="card p-3 sticky top-24 space-y-0.5">
       <p className="text-[10px] uppercase tracking-[0.2em] font-semibold text-ink-500 dark:text-cream-100/55 px-2 pt-1 pb-2">
         {firm.name}
       </p>
-      {SECTIONS.map((sec) => (
+      {sections.map((sec) => (
         <div key={sec.section} className="pb-1">
           <p className="text-[10px] uppercase tracking-[0.16em] font-semibold text-ink-400 dark:text-cream-100/40 px-2 pt-3 pb-1">
             {sec.section}
@@ -126,7 +99,7 @@ export function CounselSidebar({
               style={{ backgroundColor: firm.accentColor, opacity: active ? 1 : 0.85 }}
               aria-hidden
             >
-              {item.icon}
+              {ICONS[item.href] ?? <DocIcon />}
             </span>
             <span className="flex-1">{item.label}</span>
             <span className="text-[10px] text-ink-400 dark:text-cream-100/45">{item.hint}</span>

@@ -1,8 +1,10 @@
 import { redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { listFirmWebhooksAction } from '@/lib/firm-actions';
+import { readMenuConfig } from '@/lib/menu-config';
 import { SettingsForm } from './settings-form';
 import { WebhookManager } from './webhook-manager';
+import { MenuCustomizer } from './menu-customizer';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Firm settings · Counsel' };
@@ -39,6 +41,10 @@ export default async function CounselSettingsPage() {
             (ctx.firm.metadata as Record<string, unknown> | null)
               ?.hideAdvotticLogo === true,
         }}
+      />
+      <MenuCustomizer
+        firmId={ctx.firm.id}
+        initial={readMenuConfig(ctx.firm.metadata)}
       />
       <section className="space-y-3 pt-2 border-t border-ink-200 dark:border-forest-700/40">
         <header>

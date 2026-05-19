@@ -15,6 +15,7 @@ import {
   type PortalRole,
 } from './portal-features';
 import { PORTAL_PREVIEW_COOKIE } from './persona';
+import { readMenuConfig, type MenuConfig } from './menu-config';
 
 /**
  * Server actions powering the law-firm perspective.
@@ -743,6 +744,59 @@ export async function enterPortalPreviewAction(
 export async function exitPortalPreviewAction(): Promise<void> {
   cookies().delete(PORTAL_PREVIEW_COOKIE);
   redirect('/counsel');
+}
+
+// =====================================================================
+// Counsel sidebar customization (hide / rename / reorder)
+// =====================================================================
+
+export async function saveMenuConfigAction(
+  firmId: string,
+  config: MenuConfig,
+): Promise<{ ok: boolean; error?: string }> {
+  await requireUser();
+  if (!(await callerIsFirmAdmin(firmId))) {
+    return { ok: false, error: 'Only an owner or admin can edit the menu.' };
+  }
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server not configured.' };
+  // Sanitize through the same defensive parser the sidebar uses, so
+  // a hand-crafted payload can never inject unknown hrefs/sections.
+  const clean = readMenuConfig({ menuConfig: config });
+  const metadata = await readFirmMetadata(firmId);
+  const { error } = await admin
+    .from('firms')
+    .update({
+      metadata: { ...metadata, menuConfig: clean },
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', firmId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath('/counsel', 'layout');
+  revalidatePath('/counsel/settings');
+  return { ok: true };
+}
+
+export async function resetMenuConfigAction(
+  firmId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  await requireUser();
+  if (!(await callerIsFirmAdmin(firmId))) {
+    return { ok: false, error: 'Only an owner or admin can edit the menu.' };
+  }
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server not configured.' };
+  const metadata = await readFirmMetadata(firmId);
+  const next = { ...metadata };
+  delete (next as Record<string, unknown>).menuConfig;
+  const { error } = await admin
+    .from('firms')
+    .update({ metadata: next, updated_at: new Date().toISOString() })
+    .eq('id', firmId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath('/counsel', 'layout');
+  revalidatePath('/counsel/settings');
+  return { ok: true };
 }
 
 // =====================================================================
