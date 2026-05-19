@@ -90,6 +90,22 @@ export default async function PortalRequestPage({
     ? (ans.thread as ThreadMessage[])
     : [];
 
+  // Let the employee @mention a specific person on the legal team.
+  const { data: memRows } = await admin
+    .from('firm_members')
+    .select('user_id, display_name')
+    .eq('firm_id', persona.firm.id)
+    .limit(100);
+  const mentionables = ((memRows ?? []) as Array<{
+    user_id: string | null;
+    display_name: string | null;
+  }>)
+    .filter((m) => m.user_id)
+    .map((m) => ({
+      id: m.user_id as string,
+      name: m.display_name || 'Legal',
+    }));
+
   return (
     <div className="space-y-6 animate-fade-up">
       <p className="text-sm">
@@ -193,6 +209,7 @@ export default async function PortalRequestPage({
         messages={thread}
         viewerRole="employee"
         readOnly={!persona.entitlements.includes('requests.message')}
+        mentionables={mentionables}
       />
     </div>
   );

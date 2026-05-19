@@ -16,6 +16,10 @@ import {
 } from './portal-features';
 import { PORTAL_PREVIEW_COOKIE } from './persona';
 import { readMenuConfig, type MenuConfig } from './menu-config';
+import {
+  readRequestFolders,
+  slugifyFolderKey,
+} from './request-folders';
 
 /**
  * Server actions powering the law-firm perspective.
@@ -480,6 +484,20 @@ export type FirmEmployeeListItem = {
   createdAt: string;
 };
 
+/** True if the signed-in user is ANY member of `firmId` (legal team). */
+async function callerIsFirmMember(firmId: string): Promise<boolean> {
+  const user = await getCurrentUser();
+  if (!user) return false;
+  const supabase = createServerSupabase();
+  const { data } = await supabase
+    .from('firm_members')
+    .select('id')
+    .eq('firm_id', firmId)
+    .eq('user_id', user.id)
+    .maybeSingle();
+  return Boolean(data);
+}
+
 /** True only if the signed-in user is owner/admin of `firmId`. */
 async function callerIsFirmAdmin(firmId: string): Promise<boolean> {
   const user = await getCurrentUser();
@@ -796,6 +814,103 @@ export async function resetMenuConfigAction(
   if (error) return { ok: false, error: error.message };
   revalidatePath('/counsel', 'layout');
   revalidatePath('/counsel/settings');
+  return { ok: true };
+}
+
+// =====================================================================
+// Request folders / segmentation
+// =====================================================================
+
+export async function saveRequestFolderAction(
+  firmId: string,
+  formData: FormData,
+): Promise<{ ok: boolean; error?: string }> {
+  await requireUser();
+  if (!(await callerIsFirmAdmin(firmId))) {
+    return { ok: false, error: 'Only an owner or admin can manage folders.' };
+  }
+  const name = String(formData.get('name') ?? '').trim();
+  if (!name) return { ok: false, error: 'Name the folder.' };
+  const existingKey = String(formData.get('key') ?? '').trim();
+  const key = existingKey || slugifyFolderKey(name);
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server not configured.' };
+  const metadata = await readFirmMetadata(firmId);
+  const folders = readRequestFolders(metadata).filter((f) => f.key !== key);
+  folders.push({ key, name });
+  const { error } = await admin
+    .from('firms')
+    .update({
+      metadata: { ...metadata, requestFolders: folders },
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', firmId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath('/counsel/intake');
+  return { ok: true };
+}
+
+export async function deleteRequestFolderAction(
+  firmId: string,
+  key: string,
+): Promise<{ ok: boolean; error?: string }> {
+  await requireUser();
+  if (!(await callerIsFirmAdmin(firmId))) {
+    return { ok: false, error: 'Only an owner or admin can manage folders.' };
+  }
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server not configured.' };
+  const metadata = await readFirmMetadata(firmId);
+  const folders = readRequestFolders(metadata).filter((f) => f.key !== key);
+  const { error } = await admin
+    .from('firms')
+    .update({
+      metadata: { ...metadata, requestFolders: folders },
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', firmId);
+  if (error) return { ok: false, error: error.message };
+  // Intakes that pointed here simply read back as "Unfiled" (the
+  // lookup misses) - no bulk JSON rewrite needed.
+  revalidatePath('/counsel/intake');
+  return { ok: true };
+}
+
+export async function setIntakeFolderAction(
+  firmId: string,
+  intakeId: string,
+  folderKey: string,
+): Promise<{ ok: boolean; error?: string }> {
+  await requireUser();
+  // Any legal-team member can file/triage a request, not just admins.
+  if (!(await callerIsFirmMember(firmId))) {
+    return { ok: false, error: 'You do not have access to this firm.' };
+  }
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server not configured.' };
+  const { data: row } = await admin
+    .from('firm_matter_intakes')
+    .select('intake_answers, firm_id')
+    .eq('id', intakeId)
+    .maybeSingle();
+  const r = row as {
+    intake_answers: Record<string, unknown> | null;
+    firm_id: string;
+  } | null;
+  if (!r || r.firm_id !== firmId) {
+    return { ok: false, error: 'Request not found.' };
+  }
+  const answers = { ...(r.intake_answers ?? {}), folder: folderKey || '' };
+  const { error } = await admin
+    .from('firm_matter_intakes')
+    .update({
+      intake_answers: answers,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', intakeId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath('/counsel/intake');
+  revalidatePath(`/counsel/intake/${intakeId}`);
   return { ok: true };
 }
 

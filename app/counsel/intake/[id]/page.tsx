@@ -1,10 +1,15 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { getActiveFirmContext } from '@/lib/firm-storage';
+import { getActiveFirmContext, listFirmMembers } from '@/lib/firm-storage';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { ConflictCheckPanel } from './conflict-check-panel';
 import { IntakeThread } from '@/components/IntakeThread';
 import type { ThreadMessage } from '@/lib/intake-thread';
+import {
+  readRequestFolders,
+  readIntakeFolder,
+} from '@/lib/request-folders';
+import { FolderPicker } from './folder-picker';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Intake · Counsel' };
@@ -54,6 +59,7 @@ export default async function IntakeDetailPage({
       severity: string;
     }> | null;
     intake_answers: Record<string, unknown> | null;
+    created_by: string | null;
     created_at: string;
   };
   if (intake.firm_id !== ctx.firm.id) notFound();
@@ -64,6 +70,8 @@ export default async function IntakeDetailPage({
   // schema-less intake_answers JSON column so it renders without a
   // migration. Only the fields that were actually filled are shown.
   const ans = (intake.intake_answers ?? {}) as Record<string, unknown>;
+  const requestFolders = readRequestFolders(ctx.firm.metadata);
+  const currentFolder = readIntakeFolder(intake.intake_answers);
   const meta: Array<{ label: string; value: string }> = (
     [
       ['Request type', 'request_type'],
@@ -83,6 +91,22 @@ export default async function IntakeDetailPage({
   const thread: ThreadMessage[] = Array.isArray(ans.thread)
     ? (ans.thread as ThreadMessage[])
     : [];
+
+  // @mention pool: every legal-team member + the requester.
+  const members = await listFirmMembers(ctx.firm.id).catch(() => []);
+  const mDedupe = new Map<string, string>();
+  for (const mem of members) {
+    if (mem.userId) {
+      mDedupe.set(
+        mem.userId,
+        mem.displayName || mem.email || 'Member',
+      );
+    }
+  }
+  if (intake.created_by && isEmployeeReq) {
+    mDedupe.set(intake.created_by, submittedBy || 'Requester');
+  }
+  const mentionables = [...mDedupe].map(([id, name]) => ({ id, name }));
 
   return (
     <div className="space-y-6 animate-fade-up">
@@ -121,6 +145,15 @@ export default async function IntakeDetailPage({
           {intake.status.replace(/_/g, ' ')}
         </span>
       </header>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <FolderPicker
+          firmId={ctx.firm.id}
+          intakeId={intake.id}
+          current={currentFolder}
+          folders={requestFolders}
+        />
+      </div>
 
       {meta.length > 0 && (
         <section className="card p-5">
@@ -216,6 +249,7 @@ export default async function IntakeDetailPage({
         intakeId={intake.id}
         messages={thread}
         viewerRole="legal"
+        mentionables={mentionables}
       />
     </div>
   );

@@ -9,6 +9,7 @@ import { applyMenuConfig, readMenuConfig } from '@/lib/menu-config';
 // truth. Unknown href -> a neutral default glyph.
 const ICONS: Record<string, React.ReactNode> = {
   '/counsel': <DashIcon />,
+  '/counsel/aid': <SparkIcon />,
   '/counsel/intake': <UserIcon />,
   '/counsel/cases': <CaseIcon />,
   '/counsel/documents': <DocIcon />,
@@ -162,6 +163,13 @@ function DashIcon() {
       <rect x="14" y="3" width="7" height="5" rx="1" />
       <rect x="14" y="12" width="7" height="9" rx="1" />
       <rect x="3" y="16" width="7" height="5" rx="1" />
+    </svg>
+  );
+}
+function SparkIcon() {
+  return (
+    <svg {...SVG}>
+      <path d="M12 3l1.8 5L19 9.8 14 12l-2 5-2-5-5-2.2L10 8z" />
     </svg>
   );
 }

@@ -19,7 +19,10 @@ export type MenuSection = { section: string; items: MenuItem[] };
 export const DEFAULT_MENU: MenuSection[] = [
   {
     section: 'Overview',
-    items: [{ href: '/counsel', label: 'Dashboard', hint: 'Overview' }],
+    items: [
+      { href: '/counsel', label: 'Dashboard', hint: 'Overview' },
+      { href: '/counsel/aid', label: 'Advottic Aid', hint: 'Ask about cases + law' },
+    ],
   },
   {
     section: 'Matters',

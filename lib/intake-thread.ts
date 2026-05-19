@@ -33,6 +33,7 @@ export type ThreadMessage = {
 export async function postIntakeThreadMessageAction(
   intakeId: string,
   text: string,
+  mentions: string[] = [],
 ): Promise<{ ok: boolean; error?: string }> {
   const body = text.trim();
   if (!body) return { ok: false, error: 'Write a message first.' };
@@ -137,13 +138,11 @@ export async function postIntakeThreadMessageAction(
     .eq('id', intakeId);
   if (error) return { ok: false, error: error.message };
 
-  // Close the loop. When legal replies, ping the employee who filed
-  // it so they actually come back and see the answer (this is what
-  // makes the thread a real two-way channel, not a black hole).
-  // Best-effort - a notification miss never fails the post.
-  if (role === 'legal' && intake.created_by) {
-    try {
-      const { createNotification } = await import('./notifications');
+  // Notifications are best-effort - a miss never fails the post.
+  try {
+    const { createNotification } = await import('./notifications');
+    // Close the loop: when legal replies, ping the requester.
+    if (role === 'legal' && intake.created_by) {
       await createNotification({
         userId: intake.created_by,
         type: 'system',
@@ -152,9 +151,28 @@ export async function postIntakeThreadMessageAction(
         link: `/portal/${intakeId}`,
         actorUserId: user.id,
       });
-    } catch {
-      /* notifications are best-effort */
     }
+    // @mentions: ping each mentioned person. Route their link to the
+    // surface they actually use - the requester gets /portal, the
+    // legal team gets /counsel.
+    const targets = [...new Set(mentions)].filter(
+      (uid) => uid && uid !== user.id,
+    );
+    for (const uid of targets) {
+      const toPortal = uid === intake.created_by;
+      await createNotification({
+        userId: uid,
+        type: 'system',
+        title: `${name} mentioned you in a request`,
+        body: body.length > 140 ? `${body.slice(0, 137)}...` : body,
+        link: toPortal
+          ? `/portal/${intakeId}`
+          : `/counsel/intake/${intakeId}`,
+        actorUserId: user.id,
+      });
+    }
+  } catch {
+    /* notifications are best-effort */
   }
 
   revalidatePath(`/portal/${intakeId}`);
