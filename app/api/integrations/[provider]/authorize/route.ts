@@ -97,7 +97,10 @@ export async function GET(
     secure: true,
     sameSite: 'lax',
     path: '/',
-    maxAge: 600, // 10 min
+    // 30 min: a single-use random nonce, so widening the window does
+    // not weaken CSRF protection, but it survives slow MFA / account
+    // picking / consent (10 min was too tight in practice).
+    maxAge: 1800,
     ...(cookieDomain ? { domain: cookieDomain } : {}),
   });
   return res;
