@@ -29,6 +29,8 @@ export const DEFAULT_MENU: MenuSection[] = [
     section: 'Matters',
     items: [
       { href: '/counsel/intake', label: 'Intake', hint: 'New request + conflict check' },
+      { href: '/counsel/templates', label: 'Templates', hint: 'Branded document drafting' },
+      { href: '/counsel/analyze', label: 'Analyze', hint: 'Contract breakdown + risk' },
       { href: '/counsel/cases', label: 'Cases', hint: 'All firm matters' },
       { href: '/counsel/documents', label: 'Documents', hint: 'Case-linked vault' },
       { href: '/counsel/contracts', label: 'Contracts', hint: 'Repo + Bella review' },

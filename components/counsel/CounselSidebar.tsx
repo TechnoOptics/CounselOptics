@@ -12,6 +12,8 @@ const ICONS: Record<string, React.ReactNode> = {
   '/counsel/aid': <SparkIcon />,
   '/counsel/calendar': <CalIcon />,
   '/counsel/intake': <UserIcon />,
+  '/counsel/templates': <DocIcon />,
+  '/counsel/analyze': <MagnifyIcon />,
   '/counsel/cases': <CaseIcon />,
   '/counsel/documents': <DocIcon />,
   '/counsel/contracts': <DocIcon />,
@@ -171,6 +173,14 @@ function SparkIcon() {
   return (
     <svg {...SVG}>
       <path d="M12 3l1.8 5L19 9.8 14 12l-2 5-2-5-5-2.2L10 8z" />
+    </svg>
+  );
+}
+function MagnifyIcon() {
+  return (
+    <svg {...SVG}>
+      <circle cx="11" cy="11" r="7" />
+      <path d="M21 21l-4.3-4.3" />
     </svg>
   );
 }

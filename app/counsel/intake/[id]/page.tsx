@@ -12,6 +12,7 @@ import {
 import { FolderPicker } from './folder-picker';
 import { ScheduleMeetingPanel } from './schedule-meeting';
 import { RequestActions } from './request-actions';
+import { AnalyzeStudio } from '@/app/counsel/analyze/analyze-studio';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Intake · Counsel' };
@@ -252,6 +253,18 @@ export default async function IntakeDetailPage({
         intakeId={intake.id}
         currentReminder={String(ans.reminder_at ?? '')}
       />
+
+      <div className="space-y-2">
+        <p className="eyebrow">Analyze the submission</p>
+        <p className="text-[12px] text-ink-500 dark:text-cream-100/55 -mt-1">
+          Run an AI breakdown of what the submitted document/contract
+          means, how the law applies, its bias, and the risky clauses.
+        </p>
+        <AnalyzeStudio
+          embedded
+          initialText={String(intake.matter_summary ?? '')}
+        />
+      </div>
 
       <ScheduleMeetingPanel
         firmId={ctx.firm.id}
