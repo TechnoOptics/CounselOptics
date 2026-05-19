@@ -10,6 +10,7 @@ import { applyMenuConfig, readMenuConfig } from '@/lib/menu-config';
 const ICONS: Record<string, React.ReactNode> = {
   '/counsel': <DashIcon />,
   '/counsel/aid': <SparkIcon />,
+  '/counsel/calendar': <CalIcon />,
   '/counsel/intake': <UserIcon />,
   '/counsel/cases': <CaseIcon />,
   '/counsel/documents': <DocIcon />,

@@ -48,6 +48,15 @@ export function CounselHeader({
     (firm?.metadata as Record<string, unknown> | undefined)
       ?.hideAdvotticLogo === true;
   const brandFirst = tenantMode || ownBrand;
+  // Per-firm product label (default "Advottic Enterprise"). The chip
+  // next to the wordmark shows the short form ("Enterprise").
+  const brandName =
+    String(
+      (firm?.metadata as Record<string, unknown> | undefined)
+        ?.brandName ?? '',
+    ).trim() || 'Advottic Enterprise';
+  const brandChip =
+    brandName.replace(/^advottic\s+/i, '').trim() || brandName;
   return (
     // pt-[env(safe-area-inset-top)] extends the dark header background up
     // through the iOS notch / dynamic island and Android punch-hole on
@@ -103,7 +112,7 @@ export function CounselHeader({
             <Link
               href="/counsel"
               className="inline-flex items-center gap-2 min-w-0 group"
-              aria-label="Advottic Counsel home"
+              aria-label={`${brandName} home`}
             >
               <Image
                 src="/advottic-wordmark.png"
@@ -117,7 +126,7 @@ export function CounselHeader({
                 className="hidden sm:inline-block px-1.5 py-[1px] rounded text-[10px] font-semibold uppercase tracking-[0.2em] text-gold-300 ring-1 ring-gold-300/30"
                 aria-hidden
               >
-                Counsel
+                {brandChip}
               </span>
             </Link>
             <span className="hidden sm:inline-block h-5 w-px bg-cream-100/15" aria-hidden />

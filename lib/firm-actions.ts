@@ -233,31 +233,40 @@ export async function updateFirmAction(
   await requireUser();
   const name = String(formData.get('name') ?? '').trim();
   const accentColor = String(formData.get('accentColor') ?? '').trim();
-  const logoUrl = String(formData.get('logoUrl') ?? '').trim() || null;
   const jurisdictions = parseList(String(formData.get('jurisdictions') ?? ''));
   const practiceAreas = parseList(String(formData.get('practiceAreas') ?? ''));
-  // White-label toggle. Only meaningful with a logo of their own -
-  // we never let a firm blank out BOTH marks and ship a header with
-  // no identity at all, so the flag is forced off when logoUrl is
-  // empty (the UI also gates it, this is defense in depth).
-  const hideAdvotticLogo =
-    Boolean(logoUrl) && String(formData.get('hideAdvotticLogo') ?? '') === 'on';
+  const brandName =
+    String(formData.get('brandName') ?? '').trim().slice(0, 48) ||
+    'Advottic Enterprise';
+  const portalTagline = String(formData.get('portalTagline') ?? '')
+    .trim()
+    .slice(0, 160);
   if (!name) return { ok: false, error: 'Name is required.' };
   if (!/^#[0-9a-fA-F]{6}$/.test(accentColor)) {
     return { ok: false, error: 'Accent color must be a 7-character hex like #0f2d24.' };
   }
   const supabase = createServerSupabase();
-  // Merge into the loose metadata bag rather than clobbering it -
-  // onboarding stores firm-type answers in the same column.
+  // Logo is managed by the dedicated upload action now, so we read
+  // the firm's CURRENT logo here (don't clobber it) and gate the
+  // hide-Advottic-logo toggle on actually having one.
   const { data: existing } = await supabase
     .from('firms')
-    .select('metadata')
+    .select('metadata, logo_url')
     .eq('id', firmId)
     .maybeSingle();
+  const hasLogo = Boolean(
+    (existing as { logo_url?: string | null } | null)?.logo_url,
+  );
+  const hideAdvotticLogo =
+    hasLogo && String(formData.get('hideAdvotticLogo') ?? '') === 'on';
+  // Merge into the loose metadata bag rather than clobbering it -
+  // onboarding stores firm-type answers in the same column.
   const metadata = {
     ...(((existing as { metadata?: Record<string, unknown> } | null)
       ?.metadata) ?? {}),
     hideAdvotticLogo,
+    brandName,
+    portalTagline,
   };
   // RLS gates this - only owner/admin can update.
   const { error } = await supabase
@@ -265,7 +274,6 @@ export async function updateFirmAction(
     .update({
       name,
       accent_color: accentColor,
-      logo_url: logoUrl,
       jurisdictions,
       practice_areas: practiceAreas,
       metadata,
@@ -274,6 +282,99 @@ export async function updateFirmAction(
     .eq('id', firmId);
   if (error) return { ok: false, error: error.message };
   revalidatePath('/counsel');
+  revalidatePath('/counsel/settings');
+  return { ok: true };
+}
+
+const LOGO_MIME = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/jpg',
+  'image/webp',
+  'image/svg+xml',
+]);
+
+export async function uploadFirmLogoAction(
+  firmId: string,
+  formData: FormData,
+): Promise<{ ok: boolean; error?: string; url?: string }> {
+  await requireUser();
+  if (!(await callerIsFirmAdmin(firmId))) {
+    return { ok: false, error: 'Only an owner or admin can change the logo.' };
+  }
+  const file = formData.get('logo');
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false, error: 'Choose an image file.' };
+  }
+  if (file.size > 3 * 1024 * 1024) {
+    return { ok: false, error: 'Image must be under 3 MB.' };
+  }
+  if (!LOGO_MIME.has(file.type)) {
+    return {
+      ok: false,
+      error: 'Use a PNG, JPG, WebP, or SVG image.',
+    };
+  }
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server not configured.' };
+  const ext =
+    file.type === 'image/svg+xml'
+      ? 'svg'
+      : file.type === 'image/png'
+        ? 'png'
+        : file.type === 'image/webp'
+          ? 'webp'
+          : 'jpg';
+  const path = `${firmId}/logo-${Date.now()}.${ext}`;
+  const bytes = Buffer.from(await file.arrayBuffer());
+  const { error: upErr } = await admin.storage
+    .from('firm-branding')
+    .upload(path, bytes, { contentType: file.type, upsert: true });
+  if (upErr) return { ok: false, error: upErr.message };
+  const {
+    data: { publicUrl },
+  } = admin.storage.from('firm-branding').getPublicUrl(path);
+  const { error } = await admin
+    .from('firms')
+    .update({ logo_url: publicUrl, updated_at: new Date().toISOString() })
+    .eq('id', firmId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath('/counsel', 'layout');
+  revalidatePath('/counsel/settings');
+  return { ok: true, url: publicUrl };
+}
+
+export async function removeFirmLogoAction(
+  firmId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  await requireUser();
+  if (!(await callerIsFirmAdmin(firmId))) {
+    return { ok: false, error: 'Only an owner or admin can change the logo.' };
+  }
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server not configured.' };
+  // Clearing the logo also disables the white-label toggle (no logo
+  // = the header must keep the Advottic mark for identity).
+  const { data: cur } = await admin
+    .from('firms')
+    .select('metadata')
+    .eq('id', firmId)
+    .maybeSingle();
+  const md = {
+    ...(((cur as { metadata?: Record<string, unknown> } | null)
+      ?.metadata) ?? {}),
+    hideAdvotticLogo: false,
+  };
+  const { error } = await admin
+    .from('firms')
+    .update({
+      logo_url: null,
+      metadata: md,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', firmId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath('/counsel', 'layout');
   revalidatePath('/counsel/settings');
   return { ok: true };
 }
@@ -990,6 +1091,23 @@ export async function scheduleMeetingFromIntakeAction(
     attendees: [...attendees],
   });
   if (!result.ok) return { ok: false, error: result.error };
+
+  // Persist for the firm calendar (best-effort - the meeting itself
+  // is already created in Teams/Zoom + the requester's calendar).
+  try {
+    await admin.from('firm_meetings').insert({
+      firm_id: firmId,
+      intake_id: intakeId,
+      created_by: user.id,
+      provider: result.provider,
+      topic: title,
+      join_url: result.joinUrl,
+      start_at: new Date(startMs).toISOString(),
+      duration_min: durationMin,
+    });
+  } catch {
+    /* calendar persistence is best-effort */
+  }
 
   // Post the meeting into the request thread so it lives in the
   // conversation, and notify the requester.

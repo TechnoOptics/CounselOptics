@@ -158,7 +158,11 @@ export default async function CounselLayout({
         <div className="mx-auto max-w-none px-4 sm:px-6 lg:px-10 py-4 text-[11px] text-cream-100/55 flex flex-wrap items-center justify-between gap-2">
           <p>
             <span className="font-semibold text-cream-100">
-              Advottic Counsel
+              {String(
+                (active?.firm.metadata as
+                  | Record<string, unknown>
+                  | undefined)?.brandName ?? '',
+              ).trim() || 'Advottic Enterprise'}
             </span>{' '}
             &middot; Organizational legal workspace.
           </p>

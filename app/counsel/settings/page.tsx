@@ -40,6 +40,14 @@ export default async function CounselSettingsPage() {
           hideAdvotticLogo:
             (ctx.firm.metadata as Record<string, unknown> | null)
               ?.hideAdvotticLogo === true,
+          brandName: String(
+            (ctx.firm.metadata as Record<string, unknown> | null)
+              ?.brandName ?? '',
+          ),
+          portalTagline: String(
+            (ctx.firm.metadata as Record<string, unknown> | null)
+              ?.portalTagline ?? '',
+          ),
         }}
       />
       <MenuCustomizer

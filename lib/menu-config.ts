@@ -22,6 +22,7 @@ export const DEFAULT_MENU: MenuSection[] = [
     items: [
       { href: '/counsel', label: 'Dashboard', hint: 'Overview' },
       { href: '/counsel/aid', label: 'Advottic Aid', hint: 'Ask about cases + law' },
+      { href: '/counsel/calendar', label: 'Calendar', hint: 'Meetings + deadlines' },
     ],
   },
   {

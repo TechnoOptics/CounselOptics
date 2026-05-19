@@ -111,9 +111,25 @@ export async function GET(
   }
   if (!tokenRes.ok) {
     const body = await tokenRes.text().catch(() => '');
+    // Translate the common provider misconfigs into an instruction
+    // the admin can act on, instead of a raw OAuth dump.
+    let hint = '';
+    if (/AADSTS7000215/.test(body)) {
+      hint =
+        ' Fix: in Azure - Certificates & secrets, copy the secret VALUE (not the Secret ID) into the MICROSOFT_CLIENT_SECRET env var, then redeploy.';
+    } else if (/AADSTS700016|AADSTS90002|unauthorized_client/.test(body)) {
+      hint =
+        ' Fix: MICROSOFT_CLIENT_ID does not match an app registration on this tenant - check the Application (client) ID.';
+    } else if (/AADSTS50011|redirect_uri|redirect uri/i.test(body)) {
+      hint =
+        ' Fix: add this exact redirect URI to the Azure app registration (Authentication - Web).';
+    } else if (/invalid_client/i.test(body) && provider.id === 'zoom') {
+      hint =
+        ' Fix: check ZOOM_CLIENT_ID / ZOOM_CLIENT_SECRET match the Zoom OAuth app.';
+    }
     return redirectWithError(
       request,
-      `Token exchange returned ${tokenRes.status}. ${body.slice(0, 200)}`,
+      `Could not connect ${provider.label} (${tokenRes.status}).${hint || ' ' + body.slice(0, 160)}`,
     );
   }
   type TokenJson = {
