@@ -6,7 +6,7 @@ import {
   getProviderConfig,
   isProviderConfigured,
 } from '@/lib/integration-oauth';
-import { encryptToken } from '@/lib/integration-tokens';
+import { encryptTokenForDb } from '@/lib/integration-tokens';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 
 export const dynamic = 'force-dynamic';
@@ -229,12 +229,12 @@ export async function GET(
       'Service role not configured. Cannot store integration.',
     );
   }
-  let accessEnc: Buffer;
-  let refreshEnc: Buffer | null = null;
+  let accessEnc: string;
+  let refreshEnc: string | null = null;
   try {
-    accessEnc = encryptToken(tokens.access_token);
+    accessEnc = encryptTokenForDb(tokens.access_token);
     if (tokens.refresh_token) {
-      refreshEnc = encryptToken(tokens.refresh_token);
+      refreshEnc = encryptTokenForDb(tokens.refresh_token);
     }
   } catch (err) {
     return redirectWithError(

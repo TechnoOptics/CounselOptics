@@ -88,6 +88,22 @@ export function decryptToken(envelope: Buffer): string {
   );
 }
 
+/**
+ * Encrypt and return the value in Postgres `bytea` hex-input form
+ * (`\x<hex>`), safe to send through PostgREST / supabase-js into a
+ * bytea column.
+ *
+ * Why this exists: handing a raw Node Buffer to supabase-js
+ * `.insert()/.upsert()` JSON-serializes it as
+ * `{"type":"Buffer","data":[...]}` and that TEXT lands in the bytea
+ * column instead of the bytes - which then fails to decrypt. Sending
+ * the `\x<hex>` literal makes Postgres parse it back to the exact
+ * bytes, so the envelope round-trips intact.
+ */
+export function encryptTokenForDb(plaintext: string): string {
+  return '\\x' + encryptToken(plaintext).toString('hex');
+}
+
 /** True when INTEGRATION_ENCRYPTION_KEY is configured (and decodes to 32 bytes). */
 export function isIntegrationEncryptionConfigured(): boolean {
   try {

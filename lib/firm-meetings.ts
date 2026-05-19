@@ -11,7 +11,7 @@
 import { createAdminSupabase } from './supabase/admin';
 import {
   decryptToken,
-  encryptToken,
+  encryptTokenForDb,
   isIntegrationEncryptionConfigured,
 } from './integration-tokens';
 import { getProviderConfig } from './integration-oauth';
@@ -20,15 +20,46 @@ export type MeetingResult =
   | { ok: true; provider: 'microsoft' | 'zoom'; joinUrl: string }
   | { ok: false; error: string };
 
+// Rows written before the storage fix put the encrypted envelope into
+// the bytea column as the JSON text {"type":"Buffer","data":[...]} -
+// supabase-js serialized the Node Buffer. The real envelope bytes are
+// intact inside `data`, so unwrap that shape transparently. Correctly
+// written rows are `\x<hex>` whose first byte is the 0x01 version, not
+// `{`, so they pass straight through.
+function unwrapLegacyBufferJson(buf: Buffer): Buffer {
+  if (buf.length > 17 && buf[0] === 0x7b /* '{' */) {
+    const s = buf.toString('utf8');
+    if (s.startsWith('{"type":"Buffer"')) {
+      try {
+        const o = JSON.parse(s) as { data?: unknown };
+        if (Array.isArray(o.data)) return Buffer.from(o.data as number[]);
+      } catch {
+        /* fall through - treat as raw bytes */
+      }
+    }
+  }
+  return buf;
+}
+
 // PostgREST returns bytea as `\x<hex>`; older drivers as base64.
 function byteaToBuffer(v: unknown): Buffer | null {
   if (!v) return null;
-  if (Buffer.isBuffer(v)) return v;
-  if (v instanceof Uint8Array) return Buffer.from(v);
+  if (Buffer.isBuffer(v)) return unwrapLegacyBufferJson(v);
+  if (v instanceof Uint8Array) return unwrapLegacyBufferJson(Buffer.from(v));
+  if (
+    typeof v === 'object' &&
+    v !== null &&
+    (v as { type?: string }).type === 'Buffer' &&
+    Array.isArray((v as { data?: unknown }).data)
+  ) {
+    return Buffer.from((v as { data: number[] }).data);
+  }
   if (typeof v === 'string') {
-    if (v.startsWith('\\x')) return Buffer.from(v.slice(2), 'hex');
+    if (v.startsWith('\\x')) {
+      return unwrapLegacyBufferJson(Buffer.from(v.slice(2), 'hex'));
+    }
     try {
-      return Buffer.from(v, 'base64');
+      return unwrapLegacyBufferJson(Buffer.from(v, 'base64'));
     } catch {
       return null;
     }
@@ -150,13 +181,15 @@ async function getActiveIntegration(
         if (refreshed) {
           accessToken = refreshed.access;
           const patch: Record<string, unknown> = {
-            access_token_encrypted: encryptToken(refreshed.access),
+            access_token_encrypted: encryptTokenForDb(refreshed.access),
             expires_at: new Date(
               Date.now() + refreshed.expiresInSec * 1000,
             ).toISOString(),
           };
           if (refreshed.refresh) {
-            patch.refresh_token_encrypted = encryptToken(refreshed.refresh);
+            patch.refresh_token_encrypted = encryptTokenForDb(
+              refreshed.refresh,
+            );
           }
           await admin
             .from('firm_integrations')
