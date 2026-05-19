@@ -1467,27 +1467,23 @@ select:focus-visible,
   }
 }
 .ask-glow-rim {
+  /* A short, gentle arc of gold that orbits the box. The arc is
+     contained well inside the conic so the gradient doesn't bleed
+     through long stretches of the rim. */
   background: conic-gradient(
     from 0deg,
     rgba(213, 187, 126, 0) 0deg,
-    rgba(213, 187, 126, 0) 215deg,
-    rgba(232, 200, 120, 0.85) 270deg,
-    rgba(255, 232, 150, 1) 305deg,
-    rgba(232, 200, 120, 0.85) 340deg,
+    rgba(213, 187, 126, 0) 270deg,
+    rgba(232, 200, 120, 0.55) 295deg,
+    rgba(255, 230, 150, 0.95) 312deg,
+    rgba(232, 200, 120, 0.55) 329deg,
+    rgba(213, 187, 126, 0) 354deg,
     rgba(213, 187, 126, 0) 360deg
   );
-  animation: ask-glow-spin 4.5s linear infinite;
-  filter: blur(3px);
-}
-.ask-glow-rim::before {
-  content: '';
-  position: absolute;
-  inset: -14px;
-  border-radius: 1.75rem;
-  background: inherit;
-  filter: blur(22px);
-  opacity: 0.55;
-  pointer-events: none;
+  animation: ask-glow-spin 5s linear infinite;
+  filter: blur(2px);
+  /* Keep the bright arc tight near the rim - no oversized blurred
+     halo bleeding into the page below. */
 }
 @media (prefers-reduced-motion: reduce) {
   .ask-glow-rim {

@@ -87,7 +87,7 @@ export function AskAdvottic() {
           aria-hidden
           className="ask-glow-rim absolute inset-[-1.5px] rounded-2xl pointer-events-none"
         />
-        <div className="relative flex items-center gap-2 rounded-2xl bg-forest-900 ring-1 ring-forest-700/50 focus-within:ring-gold-500/60 px-4 py-3 transition-shadow">
+        <div className="relative flex items-center gap-2 rounded-2xl bg-forest-900 ring-1 ring-forest-700/50 focus-within:ring-gold-500/60 px-4 py-3 transition-shadow shadow-[0_0_28px_-12px_rgba(232,200,120,0.45)]">
           <SparkIcon />
           <input
             value={q}
