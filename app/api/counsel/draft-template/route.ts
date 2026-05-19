@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { streamBella } from '@/lib/bella';
+import { bellaGenerate } from '@/lib/bella';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { getTemplate, cleanLegalText } from '@/lib/legal-templates';
@@ -98,21 +98,21 @@ export async function POST(req: NextRequest) {
     .filter(Boolean)
     .join('\n');
 
+  const system = [
+    `You are senior in-house counsel at "${ctx.firm.name}", drafting`,
+    'the firm\'s own work product. Output ONLY the complete document',
+    'text: a Title, recitals, defined terms, numbered Sections, and a',
+    'signature block. No preface, no commentary, no questions, no',
+    'closing remarks. Never use an em-dash or en-dash (use commas,',
+    'colons, or separate sentences). No markdown, no asterisks, no',
+    'emoji, no "as an AI" phrasing. Formal, professional legal',
+    'English. Do not call any tools or save anything - just write the',
+    'document in full.',
+  ].join('\n');
+
   let raw = '';
   try {
-    for await (const chunk of streamBella({
-      mode: 'authed',
-      messages: [{ role: 'user', content: prompt }],
-      firmContext: {
-        firmName: ctx.firm.name,
-        jurisdictions: ctx.firm.jurisdictions,
-        practiceAreas: ctx.firm.practiceAreas,
-        role: ctx.membership.role,
-      },
-    })) {
-      raw += chunk;
-      if (raw.length > 24_000) break;
-    }
+    raw = await bellaGenerate({ system, prompt, maxTokens: 6000 });
   } catch (e) {
     return NextResponse.json(
       {

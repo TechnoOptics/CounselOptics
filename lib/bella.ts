@@ -215,6 +215,34 @@ function resolveApiKey(): string | undefined {
   return undefined;
 }
 
+/**
+ * One-shot, tool-less text generation. Unlike streamBella (an
+ * agentic loop whose authed mode is wired to SAVE drafts via the
+ * draft_document tool), this just returns the model's text - the
+ * right primitive for "generate a full document and hand it back".
+ */
+export async function bellaGenerate(opts: {
+  system: string;
+  prompt: string;
+  maxTokens?: number;
+}): Promise<string> {
+  const apiKey = resolveApiKey();
+  if (!apiKey) {
+    throw new Error('The server is missing an ANTHROPIC_API_KEY.');
+  }
+  const client = new Anthropic({ apiKey });
+  const res = await client.messages.create({
+    model: MODEL,
+    max_tokens: opts.maxTokens ?? 4096,
+    system: opts.system,
+    messages: [{ role: 'user', content: opts.prompt }],
+  });
+  return res.content
+    .map((b) => (b.type === 'text' ? b.text : ''))
+    .join('')
+    .trim();
+}
+
 export type BellaMessage = { role: 'user' | 'assistant'; content: string };
 export type BellaMode = 'authed' | 'public' | 'doc-review';
 
