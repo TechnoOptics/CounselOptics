@@ -111,6 +111,26 @@ export async function postIntakeThreadMessageAction(
     .eq('id', intakeId);
   if (error) return { ok: false, error: error.message };
 
+  // Close the loop. When legal replies, ping the employee who filed
+  // it so they actually come back and see the answer (this is what
+  // makes the thread a real two-way channel, not a black hole).
+  // Best-effort - a notification miss never fails the post.
+  if (role === 'legal' && intake.created_by) {
+    try {
+      const { createNotification } = await import('./notifications');
+      await createNotification({
+        userId: intake.created_by,
+        type: 'system',
+        title: 'Legal replied to your request',
+        body: body.length > 140 ? `${body.slice(0, 137)}...` : body,
+        link: `/portal/${intakeId}`,
+        actorUserId: user.id,
+      });
+    } catch {
+      /* notifications are best-effort */
+    }
+  }
+
   revalidatePath(`/portal/${intakeId}`);
   revalidatePath('/portal');
   revalidatePath(`/counsel/intake/${intakeId}`);
