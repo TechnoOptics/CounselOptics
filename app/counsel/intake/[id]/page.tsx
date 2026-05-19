@@ -3,6 +3,8 @@ import { notFound, redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { ConflictCheckPanel } from './conflict-check-panel';
+import { IntakeThread } from '@/components/IntakeThread';
+import type { ThreadMessage } from '@/lib/intake-thread';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Intake · Counsel' };
@@ -74,6 +76,13 @@ export default async function IntakeDetailPage({
   )
     .map(([label, key]) => ({ label, value: String(ans[key] ?? '').trim() }))
     .filter((m) => m.value.length > 0);
+  // An in-house employee request (filed from /portal) carries a
+  // submitted_by. Outside-client matters do not.
+  const submittedBy = String(ans.submitted_by ?? '').trim();
+  const isEmployeeReq = submittedBy.length > 0;
+  const thread: ThreadMessage[] = Array.isArray(ans.thread)
+    ? (ans.thread as ThreadMessage[])
+    : [];
 
   return (
     <div className="space-y-6 animate-fade-up">
@@ -88,10 +97,17 @@ export default async function IntakeDetailPage({
 
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <p className="eyebrow mb-1">Intake</p>
+          <p className="eyebrow mb-1">
+            {isEmployeeReq ? 'Employee request' : 'Intake'}
+          </p>
           <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100 break-words">
             {intake.client_name}
           </h1>
+          {isEmployeeReq && (
+            <span className="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-gold-500/15 ring-1 ring-gold-500/30 px-2.5 py-0.5 text-[11px] font-semibold text-gold-700 dark:text-gold-200">
+              In-house · submitted by {submittedBy}
+            </span>
+          )}
           <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-1 font-mono">
             {intake.matter_type ?? 'Matter type not set'}
             {intake.jurisdiction_state && ` · ${intake.jurisdiction_state}`}
@@ -194,6 +210,12 @@ export default async function IntakeDetailPage({
         status={intake.status}
         results={intake.conflict_results}
         notes={intake.conflict_check_notes}
+      />
+
+      <IntakeThread
+        intakeId={intake.id}
+        messages={thread}
+        viewerRole="legal"
       />
     </div>
   );

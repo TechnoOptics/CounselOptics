@@ -31,7 +31,7 @@ export default async function CounselIntakePage() {
   const { data: intakesRaw } = await supabase
     .from('firm_matter_intakes')
     .select(
-      'id, client_name, matter_type, jurisdiction_state, status, created_at',
+      'id, client_name, matter_type, jurisdiction_state, status, created_at, intake_answers',
     )
     .eq('firm_id', ctx.firm.id)
     .order('created_at', { ascending: false })
@@ -43,6 +43,7 @@ export default async function CounselIntakePage() {
     jurisdiction_state: string | null;
     status: string;
     created_at: string;
+    intake_answers: Record<string, unknown> | null;
   }>;
 
   return (
@@ -78,6 +79,15 @@ export default async function CounselIntakePage() {
           <ul className="space-y-2">
             {intakes.map((i) => {
               const tone = STATUS_TONE[i.status] ?? STATUS_TONE.in_progress;
+              const ans = (i.intake_answers ?? {}) as Record<
+                string,
+                unknown
+              >;
+              const isEmployeeReq =
+                String(ans.submitted_by ?? '').trim().length > 0;
+              const threadCount = Array.isArray(ans.thread)
+                ? (ans.thread as unknown[]).length
+                : 0;
               return (
                 <li
                   key={i.id}
@@ -85,8 +95,13 @@ export default async function CounselIntakePage() {
                 >
                   <Link href={`/counsel/intake/${i.id}`} className="block">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="font-semibold text-forest-900 dark:text-cream-100 truncate">
-                        {i.client_name}
+                      <p className="font-semibold text-forest-900 dark:text-cream-100 truncate flex items-center gap-2">
+                        <span className="truncate">{i.client_name}</span>
+                        {isEmployeeReq && (
+                          <span className="shrink-0 inline-flex items-center rounded-full bg-gold-500/15 ring-1 ring-gold-500/30 px-2 py-[1px] text-[10px] font-semibold uppercase tracking-[0.12em] text-gold-700 dark:text-gold-200">
+                            In-house
+                          </span>
+                        )}
                       </p>
                       <span
                         className={`shrink-0 inline-flex items-center px-1.5 py-[1px] rounded text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ${tone}`}
@@ -99,6 +114,8 @@ export default async function CounselIntakePage() {
                       {i.jurisdiction_state && ` · ${i.jurisdiction_state}`}
                       {' · '}
                       {new Date(i.created_at).toLocaleDateString()}
+                      {threadCount > 0 &&
+                        ` · ${threadCount} message${threadCount === 1 ? '' : 's'}`}
                     </p>
                   </Link>
                 </li>

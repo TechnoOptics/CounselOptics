@@ -9,6 +9,7 @@ import { BrandMark } from '@/components/BrandMark';
 import { BiometricEnrollPrompt } from '@/components/BiometricEnrollPrompt';
 import { PermissionsPrimer } from '@/components/PermissionsPrimer';
 import { WatchSync } from '@/components/WatchSync';
+import { WatchConnectCard } from '@/components/WatchConnectCard';
 
 export const dynamic = 'force-dynamic';
 
@@ -162,6 +163,7 @@ export default async function CasesPage({
           Camera/Location intentionally excluded until those features
           ship (no plugin = App Store rejection). */}
       <PermissionsPrimer />
+      <WatchConnectCard />
       {showWelcomeBack && (
         <div className="rounded-lg border border-gold-200 bg-cream-50 px-4 py-3 text-sm text-forest-900 animate-fade-in">
           <strong>Thanks for joining Advottic{profile?.displayName ? `, ${firstName(profile.displayName)}` : ''}!</strong>{' '}

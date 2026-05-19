@@ -117,28 +117,35 @@ export default async function PortalHomePage() {
               >;
               const due = String(ans.due_by ?? '').trim();
               const priority = String(ans.priority ?? '').trim();
+              const msgCount = Array.isArray(ans.thread)
+                ? (ans.thread as unknown[]).length
+                : 0;
               return (
-                <li
-                  key={r.id}
-                  className="popup-panel p-4 hover:bg-cream-100/[0.03] transition-colors"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-semibold text-cream-100 truncate">
-                      {r.client_name}
+                <li key={r.id}>
+                  <Link
+                    href={`/portal/${r.id}`}
+                    className="block popup-panel p-4 hover:bg-cream-100/[0.03] transition-colors"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-semibold text-cream-100 truncate">
+                        {r.client_name}
+                      </p>
+                      <span
+                        className={`shrink-0 inline-flex items-center px-1.5 py-[1px] rounded text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ${tone}`}
+                      >
+                        {label}
+                      </span>
+                    </div>
+                    <p className="text-[12px] text-cream-100/60 mt-1">
+                      {r.matter_type ?? 'Request'}
+                      {priority && ` · ${priority} priority`}
+                      {due && ` · due ${due}`}
+                      {' · '}
+                      {new Date(r.created_at).toLocaleDateString()}
+                      {msgCount > 0 &&
+                        ` · ${msgCount} message${msgCount === 1 ? '' : 's'}`}
                     </p>
-                    <span
-                      className={`shrink-0 inline-flex items-center px-1.5 py-[1px] rounded text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ${tone}`}
-                    >
-                      {label}
-                    </span>
-                  </div>
-                  <p className="text-[12px] text-cream-100/60 mt-1">
-                    {r.matter_type ?? 'Request'}
-                    {priority && ` · ${priority} priority`}
-                    {due && ` · due ${due}`}
-                    {' · '}
-                    {new Date(r.created_at).toLocaleDateString()}
-                  </p>
+                  </Link>
                 </li>
               );
             })}
