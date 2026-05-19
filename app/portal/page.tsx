@@ -73,20 +73,27 @@ export default async function PortalHomePage() {
         </p>
       </header>
 
-      <div className="flex flex-wrap gap-3">
-        <Link
-          href="/portal/new"
-          className="btn bg-gold-400 hover:bg-gold-300 text-forest-950 font-semibold"
-        >
-          New request
-        </Link>
-        <Link
-          href="/review-my-document"
-          className="btn ring-1 ring-forest-700/40 text-cream-100/85 hover:text-cream-100 hover:bg-cream-100/5"
-        >
-          Advottic Review
-        </Link>
-      </div>
+      {(persona.entitlements.includes('requests.create') ||
+        persona.entitlements.includes('review')) && (
+        <div className="flex flex-wrap gap-3">
+          {persona.entitlements.includes('requests.create') && (
+            <Link
+              href="/portal/new"
+              className="btn bg-gold-400 hover:bg-gold-300 text-forest-950 font-semibold"
+            >
+              New request
+            </Link>
+          )}
+          {persona.entitlements.includes('review') && (
+            <Link
+              href="/review-my-document"
+              className="btn ring-1 ring-forest-700/40 text-cream-100/85 hover:text-cream-100 hover:bg-cream-100/5"
+            >
+              Advottic Review
+            </Link>
+          )}
+        </div>
+      )}
 
       <section className="space-y-3">
         <h2 className="font-display text-lg font-medium text-cream-100">
@@ -95,14 +102,18 @@ export default async function PortalHomePage() {
         {requests.length === 0 ? (
           <div className="popup-panel p-6 text-center space-y-2">
             <p className="text-sm text-cream-100/70">
-              You haven&rsquo;t filed anything yet.
+              {persona.entitlements.includes('requests.create')
+                ? 'You haven’t filed anything yet.'
+                : 'Nothing here yet.'}
             </p>
-            <Link
-              href="/portal/new"
-              className="inline-block text-[13px] underline text-gold-300 hover:text-gold-200"
-            >
-              File your first request
-            </Link>
+            {persona.entitlements.includes('requests.create') && (
+              <Link
+                href="/portal/new"
+                className="inline-block text-[13px] underline text-gold-300 hover:text-gold-200"
+              >
+                File your first request
+              </Link>
+            )}
           </div>
         ) : (
           <ul className="space-y-2">
