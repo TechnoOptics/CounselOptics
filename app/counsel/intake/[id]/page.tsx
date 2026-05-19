@@ -13,6 +13,8 @@ import { FolderPicker } from './folder-picker';
 import { ScheduleMeetingPanel } from './schedule-meeting';
 import { RequestActions } from './request-actions';
 import { AnalyzeStudio } from '@/app/counsel/analyze/analyze-studio';
+import { ReviewScorecard } from '@/components/ReviewScorecard';
+import type { DocScorecard } from '@/lib/doc-review';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Intake · Counsel' };
@@ -253,6 +255,15 @@ export default async function IntakeDetailPage({
         intakeId={intake.id}
         currentReminder={String(ans.reminder_at ?? '')}
       />
+
+      {ans.review != null &&
+      typeof ans.review === 'object' &&
+      'grade' in (ans.review as object) ? (
+        <ReviewScorecard
+          data={ans.review as DocScorecard}
+          audience="legal"
+        />
+      ) : null}
 
       <div className="space-y-2">
         <p className="eyebrow">Analyze the submission</p>

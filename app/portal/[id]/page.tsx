@@ -4,6 +4,8 @@ import { getCurrentUser } from '@/lib/supabase/server';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { getWorkspacePersona } from '@/lib/persona';
 import { IntakeThread, } from '@/components/IntakeThread';
+import { ReviewScorecard } from '@/components/ReviewScorecard';
+import type { DocScorecard } from '@/lib/doc-review';
 import type { ThreadMessage } from '@/lib/intake-thread';
 
 export const dynamic = 'force-dynamic';
@@ -203,6 +205,15 @@ export default async function PortalRequestPage({
           </p>
         </section>
       )}
+
+      {ans.review != null &&
+      typeof ans.review === 'object' &&
+      'grade' in (ans.review as object) ? (
+        <ReviewScorecard
+          data={ans.review as DocScorecard}
+          audience="employee"
+        />
+      ) : null}
 
       <IntakeThread
         intakeId={intake.id}
