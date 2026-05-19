@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { stripBellaMarkdown } from '@/lib/bella-markdown';
+import { SafetyAdvisory } from '@/components/SafetyAdvisory';
 
 const MAX_CHARS = 30_000;
 
@@ -123,6 +124,12 @@ export function ReviewDocumentClient() {
           </button>
         </div>
       </div>
+
+      {/* Same on-device danger/medical-emergency detection used in the
+          case wizard. Someone pasting a threatening letter or typing
+          "he is hurting me right now" on this public page should see
+          real help (911 + region hotlines) before anything else. */}
+      <SafetyAdvisory text={text} />
 
       {error && (
         <div

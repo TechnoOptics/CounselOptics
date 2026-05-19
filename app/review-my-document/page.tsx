@@ -29,9 +29,17 @@ export default function ReviewMyDocumentPage() {
     <div className="max-w-3xl mx-auto space-y-8 animate-fade-up">
       <header className="text-center">
         <p className="eyebrow mb-3 justify-center">Free, no account</p>
-        <h1 className="font-display text-[40px] sm:text-[52px] font-medium tracking-[-0.02em] leading-[1.05] text-forest-900 dark:text-cream-100">
+        <h1 className="font-display text-[40px] sm:text-[52px] font-medium tracking-[-0.02em] leading-[1.15] text-forest-900 dark:text-cream-100">
           Paste the document.<br />
-          <span className="bg-gold-shine bg-clip-text text-transparent gold-pan italic">
+          {/*
+            inline-block + a touch of vertical padding: bg-clip-text
+            clips to the GLYPH box, so an italic gradient line with
+            tight leading was shearing the tops/descenders of letters
+            ("Advottic Review is cut"). The padding gives the clip box
+            room; inline-block keeps the gradient/animation contained
+            to the line.
+          */}
+          <span className="inline-block bg-gold-shine bg-clip-text text-transparent gold-pan italic py-[0.12em]">
             Get it in plain English.
           </span>
         </h1>

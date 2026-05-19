@@ -13,6 +13,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
+import { VoiceDictateButton } from './VoiceDictateButton';
 
 type Msg = { role: 'user' | 'assistant'; content: string };
 
@@ -218,6 +219,14 @@ export function OpposingCounsel({ caseId }: { caseId: string }) {
           placeholder="Answer as you would in the room. Enter to send."
           className="flex-1 resize-none rounded-xl border border-ink-200 focus:border-gold-400 focus:outline-none px-3 py-2 text-sm"
         />
+        <VoiceDictateButton
+          onTranscript={(segment) =>
+            setDraft((d) => {
+              const sep = d && !d.endsWith(' ') ? ' ' : '';
+              return (d + sep + segment).replace(/\s+/g, ' ').trimStart();
+            })
+          }
+        />
         <button
           type="button"
           onClick={answer}
@@ -227,6 +236,10 @@ export function OpposingCounsel({ caseId }: { caseId: string }) {
           Answer
         </button>
       </div>
+      <p className="text-[11px] text-ink-400 leading-relaxed">
+        Tip: tap <strong>Dictate</strong> and answer out loud, the way
+        you would in the room - speaking the answer is the practice.
+      </p>
       <p className="text-[11px] text-ink-400 leading-relaxed">
         Private practice and preparation - a role-play, not a real
         proceeding, and not legal advice.

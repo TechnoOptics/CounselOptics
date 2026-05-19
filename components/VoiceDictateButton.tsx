@@ -61,6 +61,13 @@ export function VoiceDictateButton({
   // ref; for the native path we stash a listener handle in here too,
   // which is why the type is intentionally broad.
   const webRecRef = useRef<SpeechRecognition | null>(null);
+  // Web SpeechRecognition (Chrome) auto-stops after a short silence
+  // and fires `onend`. Users read that as "dictation is broken - it
+  // won't let me keep talking". We keep a desired-state flag so
+  // `onend` can transparently restart the recognizer until the user
+  // actually presses Stop. Also lets cleanup tell a real stop from
+  // an auto-stop.
+  const wantWebRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -171,8 +178,20 @@ export function VoiceDictateButton({
   /**
    * Web path. Uses the browser's SpeechRecognition. Each finalised
    * phrase is appended as a delta, matching the native path.
+   *
+   * Two reliability fixes vs. the naive version:
+   *  1. getUserMedia permission pre-flight. webkitSpeechRecognition's
+   *     own permission prompt is flaky on some Chromium builds (it can
+   *     silently no-op or throw `not-allowed` with no prompt). Asking
+   *     for the mic explicitly first makes the grant deterministic and
+   *     gives a clear, actionable error when it is blocked. We release
+   *     the tracks immediately - the recognizer opens its own stream.
+   *  2. Auto-restart on `onend`. Chrome ends recognition after a few
+   *     seconds of silence; without this the user has to re-press the
+   *     button after every pause, which reads as "dictation doesn't
+   *     work". We restart until the user actually presses Stop.
    */
-  function startWeb() {
+  async function startWeb() {
     setError(null);
     const W = window as unknown as {
       SpeechRecognition?: typeof window.SpeechRecognition;
@@ -180,46 +199,101 @@ export function VoiceDictateButton({
     };
     const Ctor = W.SpeechRecognition || W.webkitSpeechRecognition;
     if (!Ctor) return;
-    const rec = new Ctor();
-    rec.lang = navigator.language || 'en-US';
-    rec.interimResults = false;
-    rec.continuous = true;
-    rec.onresult = (ev: SpeechRecognitionEvent) => {
-      let text = '';
-      for (let i = ev.resultIndex; i < ev.results.length; i++) {
-        const r = ev.results[i];
-        if (r.isFinal) text += r[0].transcript + ' ';
-      }
-      if (text) onTranscript(text);
-    };
-    rec.onerror = (ev: SpeechRecognitionErrorEvent) => {
-      if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') {
-        setError('Microphone access was blocked. Tap the lock icon and allow it.');
-      } else if (ev.error === 'no-speech') {
-        /* quiet stop on natural pauses */
-      } else {
-        setError(`Voice input stopped (${ev.error}).`);
-      }
-      setRecording(false);
-    };
-    rec.onend = () => setRecording(false);
+
+    // Permission pre-flight.
     try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+      });
+      stream.getTracks().forEach((t) => t.stop());
+    } catch {
+      setError(
+        'Microphone access was blocked. Click the lock icon in the address bar, allow the microphone, and try again.',
+      );
+      return;
+    }
+
+    wantWebRef.current = true;
+
+    const buildRec = (): SpeechRecognition => {
+      const rec = new Ctor();
+      rec.lang = navigator.language || 'en-US';
+      // interimResults so words appear while speaking (matches the
+      // native path), but only finals are emitted to the parent so
+      // the textarea never fills with provisional, re-written text.
+      rec.interimResults = true;
+      rec.continuous = true;
+      rec.onresult = (ev: SpeechRecognitionEvent) => {
+        let text = '';
+        for (let i = ev.resultIndex; i < ev.results.length; i++) {
+          const r = ev.results[i];
+          if (r.isFinal) text += r[0].transcript + ' ';
+        }
+        if (text) onTranscript(text);
+      };
+      rec.onerror = (ev: SpeechRecognitionErrorEvent) => {
+        if (
+          ev.error === 'not-allowed' ||
+          ev.error === 'service-not-allowed'
+        ) {
+          wantWebRef.current = false;
+          setError(
+            'Microphone access was blocked. Click the lock icon in the address bar and allow it.',
+          );
+          setRecording(false);
+        } else if (ev.error === 'no-speech' || ev.error === 'aborted') {
+          /* transient - onend will restart while the user wants it */
+        } else {
+          wantWebRef.current = false;
+          setError(`Voice input stopped (${ev.error}).`);
+          setRecording(false);
+        }
+      };
+      rec.onend = () => {
+        // Chrome auto-stops on silence. Restart unless the user
+        // pressed Stop (or a fatal error cleared the flag).
+        if (wantWebRef.current) {
+          try {
+            rec.start();
+          } catch {
+            // A failed restart (e.g. too rapid) - try a fresh
+            // instance once before giving up.
+            try {
+              const fresh = buildRec();
+              webRecRef.current = fresh;
+              fresh.start();
+            } catch {
+              wantWebRef.current = false;
+              setRecording(false);
+            }
+          }
+        } else {
+          setRecording(false);
+        }
+      };
+      return rec;
+    };
+
+    try {
+      const rec = buildRec();
       rec.start();
       webRecRef.current = rec;
       setRecording(true);
     } catch {
+      wantWebRef.current = false;
       setError('Could not start the microphone.');
     }
   }
 
   function stopWeb() {
+    wantWebRef.current = false;
     webRecRef.current?.stop();
     setRecording(false);
   }
 
   function start() {
     if (path === 'native') void startNative();
-    else if (path === 'web') startWeb();
+    else if (path === 'web') void startWeb();
   }
   function stop() {
     if (path === 'native') void stopNative();
@@ -232,7 +306,12 @@ export function VoiceDictateButton({
   useEffect(
     () => () => {
       if (path === 'native') void stopNative();
-      else if (path === 'web') webRecRef.current?.abort?.();
+      else if (path === 'web') {
+        // Clear desired-state FIRST so the recognizer's onend doesn't
+        // auto-restart into an unmounted component.
+        wantWebRef.current = false;
+        webRecRef.current?.abort?.();
+      }
     },
     [path],
   );

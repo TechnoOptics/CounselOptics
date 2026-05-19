@@ -371,6 +371,19 @@ fun WearApp(summary: SummaryStore.Summary) {
     // QR device-link overlay (direct-API sync, no Data Layer).
     var linkActive by remember { mutableStateOf(false) }
     val isLinked = remember { WatchLinkStore.token(context) != null }
+
+    // One-time pairing: if the watch is not linked AND nothing has
+    // synced, surface the QR immediately instead of making the user
+    // hunt for the "Link a watch" chip. Fires once per launch so that
+    // tapping to dismiss actually cancels (the chip stays as the
+    // manual fallback); once linked + data is present it never shows.
+    var autoLinkTried by remember { mutableStateOf(false) }
+    LaunchedEffect(isLinked, summary.hasData) {
+        if (!isLinked && !summary.hasData && !autoLinkTried) {
+            autoLinkTried = true
+            linkActive = true
+        }
+    }
     val micPermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted -> if (granted) voiceActive = true }
