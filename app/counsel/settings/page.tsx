@@ -35,6 +35,9 @@ export default async function CounselSettingsPage() {
           logoUrl: ctx.firm.logoUrl ?? '',
           jurisdictions: ctx.firm.jurisdictions,
           practiceAreas: ctx.firm.practiceAreas,
+          hideAdvotticLogo:
+            (ctx.firm.metadata as Record<string, unknown> | null)
+              ?.hideAdvotticLogo === true,
         }}
       />
       <section className="space-y-3 pt-2 border-t border-ink-200 dark:border-forest-700/40">

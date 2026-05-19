@@ -78,6 +78,13 @@ export default async function PortalLayout({
   if (persona.kind !== 'employee') redirect('/portal');
   const { firm, employee } = persona;
   const who = employee.displayName || employee.email;
+  // Full white-label (own logo + "hide Advottic logo" in settings):
+  // the portal drops every Advottic brand reference.
+  const ownBrand =
+    Boolean(firm.logoUrl) &&
+    (firm.metadata as Record<string, unknown> | undefined)
+      ?.hideAdvotticLogo === true;
+  const reviewLabel = ownBrand ? 'Document review' : 'Advottic Review';
 
   return (
     <div
@@ -89,13 +96,22 @@ export default async function PortalLayout({
       <header className="border-b border-forest-700/40 bg-forest-950/80 backdrop-blur sticky top-0 z-30">
         <div className="mx-auto max-w-none px-4 sm:px-6 lg:px-10 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-2.5 min-w-0">
-            <span
-              className="h-7 w-7 rounded-md flex-none inline-flex items-center justify-center text-white text-[12px] font-bold"
-              style={{ backgroundColor: firm.accentColor }}
-              aria-hidden
-            >
-              {firm.name.slice(0, 1).toUpperCase()}
-            </span>
+            {firm.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={firm.logoUrl}
+                alt={firm.name}
+                className="h-7 w-7 rounded-md object-cover ring-1 ring-cream-100/15 flex-none"
+              />
+            ) : (
+              <span
+                className="h-7 w-7 rounded-md flex-none inline-flex items-center justify-center text-white text-[12px] font-bold"
+                style={{ backgroundColor: firm.accentColor }}
+                aria-hidden
+              >
+                {firm.name.slice(0, 1).toUpperCase()}
+              </span>
+            )}
             <div className="min-w-0">
               <p className="text-sm font-semibold text-cream-100 truncate">
                 {firm.name}
@@ -122,7 +138,7 @@ export default async function PortalLayout({
               href="/review-my-document"
               className="px-2.5 py-1.5 rounded-md text-cream-100/80 hover:text-cream-100 hover:bg-cream-100/5 transition-colors"
             >
-              Advottic Review
+              {reviewLabel}
             </Link>
             <form action="/auth/sign-out" method="post">
               <button
@@ -144,8 +160,19 @@ export default async function PortalLayout({
       <footer className="border-t border-forest-700/40 bg-forest-950/80 backdrop-blur">
         <div className="mx-auto max-w-none px-4 sm:px-6 lg:px-10 py-4 text-[11px] text-cream-100/55 flex flex-wrap items-center justify-between gap-2">
           <p>
-            <span className="font-semibold text-cream-100">Advottic</span>{' '}
-            &middot; {firm.name} employee portal
+            {ownBrand ? (
+              <span className="font-semibold text-cream-100">
+                {firm.name}
+              </span>
+            ) : (
+              <>
+                <span className="font-semibold text-cream-100">
+                  Advottic
+                </span>{' '}
+                &middot; {firm.name}
+              </>
+            )}{' '}
+            employee portal
           </p>
           <p>Signed in as {who}</p>
         </div>

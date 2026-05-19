@@ -222,11 +222,29 @@ export async function updateFirmAction(
   const logoUrl = String(formData.get('logoUrl') ?? '').trim() || null;
   const jurisdictions = parseList(String(formData.get('jurisdictions') ?? ''));
   const practiceAreas = parseList(String(formData.get('practiceAreas') ?? ''));
+  // White-label toggle. Only meaningful with a logo of their own -
+  // we never let a firm blank out BOTH marks and ship a header with
+  // no identity at all, so the flag is forced off when logoUrl is
+  // empty (the UI also gates it, this is defense in depth).
+  const hideAdvotticLogo =
+    Boolean(logoUrl) && String(formData.get('hideAdvotticLogo') ?? '') === 'on';
   if (!name) return { ok: false, error: 'Name is required.' };
   if (!/^#[0-9a-fA-F]{6}$/.test(accentColor)) {
     return { ok: false, error: 'Accent color must be a 7-character hex like #0f2d24.' };
   }
   const supabase = createServerSupabase();
+  // Merge into the loose metadata bag rather than clobbering it -
+  // onboarding stores firm-type answers in the same column.
+  const { data: existing } = await supabase
+    .from('firms')
+    .select('metadata')
+    .eq('id', firmId)
+    .maybeSingle();
+  const metadata = {
+    ...(((existing as { metadata?: Record<string, unknown> } | null)
+      ?.metadata) ?? {}),
+    hideAdvotticLogo,
+  };
   // RLS gates this - only owner/admin can update.
   const { error } = await supabase
     .from('firms')
@@ -236,6 +254,7 @@ export async function updateFirmAction(
       logo_url: logoUrl,
       jurisdictions,
       practice_areas: practiceAreas,
+      metadata,
       updated_at: new Date().toISOString(),
     })
     .eq('id', firmId);

@@ -15,12 +15,19 @@ export function SettingsForm({
     logoUrl: string;
     jurisdictions: string[];
     practiceAreas: string[];
+    hideAdvotticLogo: boolean;
   };
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState(false);
+  // Live-track the logo field so the "hide Advottic logo" toggle can
+  // only be used once the firm actually has its own mark - we never
+  // ship a header with no identity at all.
+  const [hasLogo, setHasLogo] = useState(
+    Boolean(defaultValues.logoUrl.trim()),
+  );
 
   function submit(formData: FormData) {
     setError(null);
@@ -82,12 +89,42 @@ export function SettingsForm({
           id="logoUrl"
           name="logoUrl"
           defaultValue={defaultValues.logoUrl}
+          onChange={(e) => setHasLogo(Boolean(e.target.value.trim()))}
           className="input"
           maxLength={500}
           placeholder="https://your-cdn.example.com/logo.png"
           disabled={pending}
         />
       </div>
+
+      {/* White-label: drop the Advottic mark and lead with the firm's
+          own logo. Gated on having a logo so the header always has an
+          identity. */}
+      <label
+        className={`flex items-start gap-3 rounded-lg ring-1 p-3.5 transition-colors ${
+          hasLogo
+            ? 'ring-ink-200 dark:ring-forest-700/50'
+            : 'ring-ink-100 dark:ring-forest-700/30 opacity-60'
+        }`}
+      >
+        <input
+          type="checkbox"
+          name="hideAdvotticLogo"
+          defaultChecked={defaultValues.hideAdvotticLogo}
+          disabled={pending || !hasLogo}
+          className="mt-0.5 h-4 w-4 flex-none accent-gold-500"
+        />
+        <span>
+          <span className="block text-sm font-medium text-forest-900 dark:text-cream-100">
+            Use only our logo (hide the Advottic logo)
+          </span>
+          <span className="block text-[12px] text-ink-500 dark:text-cream-100/55 mt-0.5 leading-relaxed">
+            {hasLogo
+              ? 'The header and portal lead with your logo and name. The Advottic wordmark and "powered by" mark are removed for everyone in your workspace.'
+              : 'Add a logo URL above to enable full white-label branding.'}
+          </span>
+        </span>
+      </label>
       <div>
         <label className="label" htmlFor="jurisdictions">
           Jurisdictions{' '}

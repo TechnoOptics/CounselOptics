@@ -16,6 +16,24 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
+
+  /* Forest scale as space-separated RGB channels. These are the
+     EXACT original brand greens, so every `forest-*` Tailwind class
+     in the consumer app computes to a byte-identical color. The
+     enterprise shells override these vars (further down) to neutral
+     black, which recolors the entire scale - every bg / border /
+     ring / gradient stop / opacity variant - in one place. */
+  --forest-950: 10 31 25;   /* #0a1f19 */
+  --forest-900: 15 45 36;   /* #0F2D24 */
+  --forest-800: 23 59 48;   /* #173b30 */
+  --forest-700: 35 54 47;   /* #23362F */
+  --forest-600: 45 73 64;   /* #2d4940 */
+  --forest-500: 59 102 86;  /* #3B6656 */
+  --forest-400: 94 138 124; /* #5e8a7c */
+  --forest-300: 155 184 173;/* #9bb8ad */
+  --forest-200: 202 217 210;/* #cad9d2 */
+  --forest-100: 227 236 232;/* #e3ece8 */
+  --forest-50:  241 245 243;/* #f1f5f3 */
 }
 body {
   padding-left: var(--safe-left);
@@ -520,12 +538,95 @@ body > * {
    The `dark` class on the same element forces all Tailwind dark:
    variants in child components to fire regardless of the user's
    consumer theme. */
+/* ===================================================================
+   Enterprise = black, not green.
+
+   The whole enterprise product (Counsel, the employee /portal, and
+   the /enterprise marketing shell) is the same premium surface as
+   consumer Advottic - identical gradient geometry, gold accents,
+   shimmer, aurora, and gold veil - but the green base is swapped for
+   neutral black. Two layers do this with zero call-site churn:
+
+     1. Remap the forest-* design tokens to black channels of
+        matched luminance, so every Tailwind forest utility (bg,
+        border, ring, gradient stop, AND every /opacity variant)
+        recolors automatically.
+     2. Neutralize the few hard-coded green hexes in the dark-mode
+        repaint layer above, scoped to the enterprise shells only.
+
+   Consumer Advottic is untouched (its :root tokens stay green). */
+.counsel-shell,
+.enterprise-shell {
+  --forest-950: 8 8 8;
+  --forest-900: 18 18 18;
+  --forest-800: 26 26 26;
+  --forest-700: 33 33 33;
+  --forest-600: 45 45 45;
+  --forest-500: 64 64 64;
+  --forest-400: 92 92 92;
+  --forest-300: 140 140 140;
+  --forest-200: 200 200 200;
+  --forest-100: 230 230 230;
+  --forest-50: 244 244 244;
+}
+
+/* Scoped neutralization of the hard-coded green repaint hexes from
+   the dark-mode layer (those use literal #hex, so the token swap
+   above can't reach them). Same luminance, hue removed. */
+.counsel-shell .bg-white,
+.enterprise-shell .bg-white,
+.counsel-shell .bg-ink-100,
+.enterprise-shell .bg-ink-100,
+.counsel-shell .hover\:bg-white:hover,
+.enterprise-shell .hover\:bg-white:hover,
+.counsel-shell .hover\:bg-ink-100:hover,
+.enterprise-shell .hover\:bg-ink-100:hover { background-color: #1e1e1e; }
+.counsel-shell .bg-cream-50,
+.enterprise-shell .bg-cream-50,
+.counsel-shell .bg-forest-50,
+.enterprise-shell .bg-forest-50,
+.counsel-shell .hover\:bg-cream-50:hover,
+.enterprise-shell .hover\:bg-cream-50:hover,
+.counsel-shell .hover\:bg-forest-50:hover,
+.enterprise-shell .hover\:bg-forest-50:hover { background-color: #1a1a1a; }
+.counsel-shell .bg-cream-50\/40,
+.enterprise-shell .bg-cream-50\/40 { background-color: rgba(26, 26, 26, 0.4); }
+.counsel-shell .bg-cream-50\/50,
+.enterprise-shell .bg-cream-50\/50 { background-color: rgba(26, 26, 26, 0.5); }
+.counsel-shell .bg-cream-100,
+.enterprise-shell .bg-cream-100,
+.counsel-shell .bg-forest-100,
+.enterprise-shell .bg-forest-100,
+.counsel-shell .hover\:bg-cream-100:hover,
+.enterprise-shell .hover\:bg-cream-100:hover,
+.counsel-shell .hover\:bg-forest-100:hover,
+.enterprise-shell .hover\:bg-forest-100:hover { background-color: #242424; }
+.counsel-shell .bg-cream-200,
+.enterprise-shell .bg-cream-200 { background-color: #2c2c2c; }
+.counsel-shell .bg-ink-50,
+.enterprise-shell .bg-ink-50,
+.counsel-shell .hover\:bg-ink-50:hover,
+.enterprise-shell .hover\:bg-ink-50:hover { background-color: #141414; }
+.counsel-shell .bg-ink-50\/40,
+.enterprise-shell .bg-ink-50\/40 { background-color: rgba(20, 20, 20, 0.4); }
+.counsel-shell .bg-ink-50\/50,
+.enterprise-shell .bg-ink-50\/50 { background-color: rgba(20, 20, 20, 0.5); }
+/* Same-shade tile hairline: swap the dark-green glow for a neutral
+   one so a card on a band still separates. */
+.counsel-shell .bg-forest-900 > .card,
+.counsel-shell .bg-forest-950 > .card,
+.enterprise-shell .bg-forest-900 > .card,
+.enterprise-shell .bg-forest-950 > .card {
+  box-shadow: 0 0 0 1px rgba(213, 187, 126, 0.35),
+    0 8px 24px -4px rgba(0, 0, 0, 0.5);
+}
+
 .counsel-shell {
-  background-color: #050b09;
+  background-color: #050505;
   background-image:
     radial-gradient(ellipse at 18% 12%, rgba(213, 187, 126, 0.08), rgba(213, 187, 126, 0) 55%),
-    radial-gradient(ellipse at 88% 92%, rgba(15, 32, 26, 0.85), rgba(15, 32, 26, 0) 60%),
-    linear-gradient(180deg, #0a1f19 0%, #0a1714 55%, #050b09 100%);
+    radial-gradient(ellipse at 88% 92%, rgba(22, 22, 22, 0.85), rgba(22, 22, 22, 0) 60%),
+    linear-gradient(180deg, #0d0d0d 0%, #0a0a0a 55%, #050505 100%);
   background-attachment: fixed;
 }
 
@@ -533,7 +634,7 @@ body > * {
    with a soft luminous edge so they read as elevated cards instead
    of disappearing into the background. */
 .counsel-shell .card {
-  background-color: rgba(15, 32, 26, 0.62);
+  background-color: rgba(24, 24, 24, 0.62);
   border-color: rgba(213, 187, 126, 0.12);
   backdrop-filter: blur(6px);
 }
@@ -545,7 +646,7 @@ body > * {
 .counsel-shell .input,
 .counsel-shell select.input,
 .counsel-shell textarea.input {
-  background-color: rgba(10, 31, 25, 0.55);
+  background-color: rgba(14, 14, 14, 0.55);
   border-color: rgba(213, 187, 126, 0.18);
   color: rgb(245, 237, 214);
 }
@@ -554,7 +655,7 @@ body > * {
 }
 .counsel-shell .input:focus {
   border-color: rgba(213, 187, 126, 0.45);
-  background-color: rgba(10, 31, 25, 0.7);
+  background-color: rgba(18, 18, 18, 0.7);
 }
 
 /* Advottic HQ shell - the founder console that owns BOTH products.

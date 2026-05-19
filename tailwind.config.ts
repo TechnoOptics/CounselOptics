@@ -35,19 +35,27 @@ const config: Config = {
       },
       colors: {
         // Advottic brand - deep forest green base, warm gold accent.
+        //
+        // Driven by CSS custom properties (space-separated RGB
+        // channels) so the whole forest scale is themeable per shell
+        // WITHOUT touching call sites. :root in globals.css defines
+        // the green channels (consumer app is byte-identical), and
+        // .counsel-shell / .enterprise-shell remap them to neutral
+        // black so the enterprise product is black-on-gold with the
+        // exact same gradient depth, effects, and texture.
         forest: {
-          DEFAULT: '#0F2D24',
-          950: '#0a1f19',
-          900: '#0F2D24',
-          800: '#173b30',
-          700: '#23362F',
-          600: '#2d4940',
-          500: '#3B6656',
-          400: '#5e8a7c',
-          300: '#9bb8ad',
-          200: '#cad9d2',
-          100: '#e3ece8',
-          50: '#f1f5f3',
+          DEFAULT: 'rgb(var(--forest-900) / <alpha-value>)',
+          950: 'rgb(var(--forest-950) / <alpha-value>)',
+          900: 'rgb(var(--forest-900) / <alpha-value>)',
+          800: 'rgb(var(--forest-800) / <alpha-value>)',
+          700: 'rgb(var(--forest-700) / <alpha-value>)',
+          600: 'rgb(var(--forest-600) / <alpha-value>)',
+          500: 'rgb(var(--forest-500) / <alpha-value>)',
+          400: 'rgb(var(--forest-400) / <alpha-value>)',
+          300: 'rgb(var(--forest-300) / <alpha-value>)',
+          200: 'rgb(var(--forest-200) / <alpha-value>)',
+          100: 'rgb(var(--forest-100) / <alpha-value>)',
+          50: 'rgb(var(--forest-50) / <alpha-value>)',
         },
         gold: {
           // Softer champagne-leaning gold; less saturated than the previous

@@ -40,6 +40,14 @@ export function CounselHeader({
    */
   tenantMode?: boolean;
 }) {
+  // Full white-label: the firm uploaded its own logo AND opted to
+  // hide the Advottic mark in settings. We then lead with the firm's
+  // brand exactly like tenant mode and drop the "powered by" mark.
+  const ownBrand =
+    Boolean(firm?.logoUrl) &&
+    (firm?.metadata as Record<string, unknown> | undefined)
+      ?.hideAdvotticLogo === true;
+  const brandFirst = tenantMode || ownBrand;
   return (
     // pt-[env(safe-area-inset-top)] extends the dark header background up
     // through the iOS notch / dynamic island and Android punch-hole on
@@ -48,13 +56,13 @@ export function CounselHeader({
     // background bleeds through behind the camera area.
     <header className="bg-forest-950/95 backdrop-blur-md sticky top-0 z-30 pt-[env(safe-area-inset-top)]">
       <div className="mx-auto max-w-none px-4 sm:px-6 lg:px-10 py-3 flex items-center justify-between gap-3">
-        {tenantMode ? (
-          // Tenant mode: firm IS the brand because the URL bar shows
-          // <slug>.advottic.com. Big firm logo + name on the left, no
-          // firm switcher (URL pins the context).
+        {brandFirst ? (
+          // Firm IS the brand - either a <slug>.advottic.com tenant
+          // URL, or the firm turned on full white-label in settings.
+          // Big firm logo + name on the left, no Advottic mark.
           <div className="flex items-center gap-3 min-w-0">
             <Link
-              href="/"
+              href={tenantMode ? '/' : '/counsel'}
               className="inline-flex items-center gap-3 min-w-0 group"
               aria-label={`${firm?.name ?? 'Counsel'} home`}
             >
@@ -156,7 +164,7 @@ export function CounselHeader({
               opacity, on the right next to the user menu so the
               platform identity is acknowledged without competing with
               the firm's brand. */}
-          {tenantMode && (
+          {tenantMode && !ownBrand && (
             <Link
               href="https://advottic.com"
               className="hidden sm:inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] text-cream-100/45 hover:text-cream-100/75 transition-colors"
