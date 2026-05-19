@@ -2,27 +2,57 @@ import Link from 'next/link';
 import type { Firm, FirmMember } from '@/lib/firm-types';
 import { isCounselItemActive, tenantHref } from '@/lib/counsel-routing';
 
-const ITEMS: Array<{
+type NavItem = {
   href: string;
   label: string;
   icon: React.ReactNode;
   hint: string;
-}> = [
-  { href: '/counsel', label: 'Dashboard', icon: <DashIcon />, hint: 'Overview' },
-  { href: '/counsel/intake', label: 'Intake', icon: <UserIcon />, hint: 'New matter + conflict check' },
-  { href: '/counsel/cases', label: 'Cases', icon: <CaseIcon />, hint: 'All firm matters' },
-  { href: '/counsel/clients', label: 'Clients', icon: <UserIcon />, hint: 'Roster + invites' },
-  { href: '/counsel/team', label: 'Team', icon: <UsersIcon />, hint: 'Members + roles' },
-  { href: '/counsel/documents', label: 'Documents', icon: <DocIcon />, hint: 'Case-linked vault' },
-  { href: '/counsel/contracts', label: 'Contracts', icon: <DocIcon />, hint: 'Standalone contract repo + Bella review' },
-  { href: '/counsel/signing', label: 'Signing', icon: <SignIcon />, hint: 'E-sign requests' },
-  { href: '/counsel/chat', label: 'Chat', icon: <ChatIcon />, hint: 'Channels + DMs' },
-  { href: '/counsel/meetings', label: 'Meetings', icon: <CalIcon />, hint: 'Calendar' },
-  { href: '/counsel/leads', label: 'Leads', icon: <UsersIcon />, hint: 'Inbound from /find-counsel' },
-  { href: '/counsel/referrals', label: 'Referrals', icon: <UsersIcon />, hint: 'Co-counsel + fee splits' },
-  { href: '/counsel/time', label: 'Time', icon: <DashIcon />, hint: 'Time entries' },
-  { href: '/counsel/billing', label: 'Billing', icon: <SignIcon />, hint: 'Invoices' },
-  { href: '/counsel/trust', label: 'Trust', icon: <SignIcon />, hint: 'IOLTA ledger' },
+};
+
+// Grouped into related segments so the rail reads as
+// "Overview / Matters / People / Growth / Finance" instead of one
+// 15-item wall. Order within a group is most-used first.
+const SECTIONS: Array<{ section: string; items: NavItem[] }> = [
+  {
+    section: 'Overview',
+    items: [
+      { href: '/counsel', label: 'Dashboard', icon: <DashIcon />, hint: 'Overview' },
+    ],
+  },
+  {
+    section: 'Matters',
+    items: [
+      { href: '/counsel/intake', label: 'Intake', icon: <UserIcon />, hint: 'New request + conflict check' },
+      { href: '/counsel/cases', label: 'Cases', icon: <CaseIcon />, hint: 'All firm matters' },
+      { href: '/counsel/documents', label: 'Documents', icon: <DocIcon />, hint: 'Case-linked vault' },
+      { href: '/counsel/contracts', label: 'Contracts', icon: <DocIcon />, hint: 'Repo + Bella review' },
+      { href: '/counsel/signing', label: 'Signing', icon: <SignIcon />, hint: 'E-sign requests' },
+    ],
+  },
+  {
+    section: 'People',
+    items: [
+      { href: '/counsel/clients', label: 'Clients', icon: <UserIcon />, hint: 'Roster + invites' },
+      { href: '/counsel/team', label: 'Team', icon: <UsersIcon />, hint: 'Members + roles' },
+      { href: '/counsel/chat', label: 'Chat', icon: <ChatIcon />, hint: 'Channels + DMs' },
+      { href: '/counsel/meetings', label: 'Meetings', icon: <CalIcon />, hint: 'Calendar' },
+    ],
+  },
+  {
+    section: 'Growth',
+    items: [
+      { href: '/counsel/leads', label: 'Leads', icon: <UsersIcon />, hint: 'Inbound from /find-counsel' },
+      { href: '/counsel/referrals', label: 'Referrals', icon: <UsersIcon />, hint: 'Co-counsel + fee splits' },
+    ],
+  },
+  {
+    section: 'Finance',
+    items: [
+      { href: '/counsel/time', label: 'Time', icon: <DashIcon />, hint: 'Time entries' },
+      { href: '/counsel/billing', label: 'Billing', icon: <SignIcon />, hint: 'Invoices' },
+      { href: '/counsel/trust', label: 'Trust', icon: <SignIcon />, hint: 'IOLTA ledger' },
+    ],
+  },
 ];
 
 // `isCounselItemActive` and `tenantHref` live in lib/counsel-routing.ts
@@ -63,10 +93,15 @@ export function CounselSidebar({
       <p className="text-[10px] uppercase tracking-[0.2em] font-semibold text-ink-500 dark:text-cream-100/55 px-2 pt-1 pb-2">
         {firm.name}
       </p>
-      {ITEMS.map((item) => {
-        const active = isCounselItemActive(item.href, pathname);
-        const href = tenantHref(item.href, tenantMode);
-        return (
+      {SECTIONS.map((sec) => (
+        <div key={sec.section} className="pb-1">
+          <p className="text-[10px] uppercase tracking-[0.16em] font-semibold text-ink-400 dark:text-cream-100/40 px-2 pt-3 pb-1">
+            {sec.section}
+          </p>
+          {sec.items.map((item) => {
+            const active = isCounselItemActive(item.href, pathname);
+            const href = tenantHref(item.href, tenantMode);
+            return (
           // Audit V3 CR-28 / V5 CR-5+CR-28: prefetch={false} + the
           // tenantHref mapping together avoid the dead-click symptom.
           // The tenantHref keeps the click off the redirect entirely;
@@ -96,8 +131,10 @@ export function CounselSidebar({
             <span className="flex-1">{item.label}</span>
             <span className="text-[10px] text-ink-400 dark:text-cream-100/45">{item.hint}</span>
           </Link>
-        );
-      })}
+            );
+          })}
+        </div>
+      ))}
       {(membership.role === 'owner' || membership.role === 'admin') && (
         <>
           <div className="my-2 border-t border-ink-100 dark:border-forest-700/40" />
