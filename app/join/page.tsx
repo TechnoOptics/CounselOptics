@@ -64,11 +64,14 @@ export default async function JoinPage({
           <div className="space-y-7 max-w-xl">
             <div className="flex items-center gap-3">
               {logoUrl ? (
+                // Preserve the logo's true shape - many enterprise
+                // marks are rectangular. Scale to a fixed height, let
+                // width follow naturally, never crop or round it.
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={logoUrl}
                   alt={firmName ?? 'Logo'}
-                  className="h-11 w-11 rounded-xl object-cover ring-1 ring-cream-100/15"
+                  className="h-12 w-auto max-w-[200px] object-contain"
                 />
               ) : (
                 <span

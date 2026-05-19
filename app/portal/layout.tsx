@@ -177,11 +177,13 @@ export default async function PortalLayout({
       <aside className="hidden md:flex w-64 shrink-0 flex-col border-r border-forest-700/40 bg-forest-950/70 backdrop-blur sticky top-0 h-screen">
         <div className="px-5 py-5 flex items-center gap-2.5 border-b border-forest-700/30">
           {firm.logoUrl ? (
+            // Keep the firm mark's real shape (often rectangular):
+            // fixed height, natural width, never cropped or rounded.
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={firm.logoUrl}
               alt={firm.name}
-              className="h-8 w-8 rounded-lg object-cover ring-1 ring-cream-100/15 flex-none"
+              className="h-8 w-auto max-w-[150px] object-contain flex-none"
             />
           ) : (
             <span

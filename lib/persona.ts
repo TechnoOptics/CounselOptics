@@ -12,6 +12,7 @@ import {
   resolveEntitlements,
   type PortalFeature,
 } from './portal-features';
+import { emailDomain, firmInternalDomains } from './access-requests';
 
 /**
  * Resolve the signed-in user's workspace persona.
@@ -182,6 +183,73 @@ export async function getWorkspacePersona(): Promise<WorkspacePersona> {
             .eq('id', candidate.id);
           candidate.user_id = user.id;
           row = candidate;
+        }
+      }
+      // Domain auto-membership. If the firm marked their email
+      // domain as internal (firms.metadata.emailDomains), anyone on
+      // that domain IS an employee - no admin add, no /join request.
+      // This is what makes "same domain -> just signed in" true even
+      // when the person reached the app via the normal sign-in
+      // instead of the /join provisioning form.
+      if (!row && user.email) {
+        const domain = emailDomain(user.email);
+        if (domain) {
+          const { data: firmsData } = await admin
+            .from('firms')
+            .select('id, metadata, created_at')
+            .not('metadata->emailDomains', 'is', null)
+            .order('created_at', { ascending: true })
+            .limit(300);
+          const match = ((firmsData ?? []) as Array<{
+            id: string;
+            metadata: Record<string, unknown> | null;
+          }>).find((f) => {
+            const allowed = firmInternalDomains(f.metadata);
+            return allowed.some(
+              (d) => domain === d || domain.endsWith(`.${d}`),
+            );
+          });
+          if (match) {
+            // Provision (idempotent: a duplicate just means a
+            // concurrent request already created it - re-read it).
+            await admin
+              .from('firm_employees')
+              .insert({
+                firm_id: match.id,
+                user_id: user.id,
+                email: user.email.toLowerCase(),
+                display_name:
+                  (user.user_metadata?.full_name as string | undefined) ??
+                  (user.user_metadata?.name as string | undefined) ??
+                  null,
+                source: 'manual',
+                role_key: null,
+              })
+              .then(
+                () => undefined,
+                () => undefined,
+              );
+            const { data: provisioned } = await admin
+              .from('firm_employees')
+              .select('*')
+              .eq('firm_id', match.id)
+              .is('deactivated_at', null)
+              .ilike('email', user.email)
+              .order('created_at', { ascending: true })
+              .limit(1)
+              .maybeSingle();
+            const pr = (provisioned as EmployeeRow | null) ?? null;
+            if (pr) {
+              if (!pr.user_id) {
+                await admin
+                  .from('firm_employees')
+                  .update({ user_id: user.id })
+                  .eq('id', pr.id);
+                pr.user_id = user.id;
+              }
+              row = pr;
+            }
+          }
         }
       }
       if (row) {
