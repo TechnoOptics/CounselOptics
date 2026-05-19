@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import {
   getActiveFirmContext,
@@ -11,27 +10,38 @@ import {
   listMyFirms,
   listFirmCases,
 } from '@/lib/firm-storage';
+import { createServerSupabase, getCurrentUser } from '@/lib/supabase/server';
 import { FIRM_ROLE_LABEL } from '@/lib/firm-types';
+import { AskAdvottic } from '@/components/counsel/AskAdvottic';
+import { DashboardCustomizer } from '@/components/counsel/DashboardCustomizer';
+import {
+  DashboardTileRenderer,
+  type DashboardTileData,
+} from '@/components/counsel/CounselDashboardTiles';
+import { getCounselDashboardConfig } from '@/lib/counsel-dashboard';
 
 export const dynamic = 'force-dynamic';
 
 // Audit V5 CR-51: the counsel root used to inherit the consumer
-// title template ("Advottic - Build your case") because no per-page
-// metadata existed and Next.js falls back to the root layout. Firms
-// landing on the dashboard saw a consumer marketing tagline in the
-// browser tab, which read as a broken brand on the firm side. The
-// absolute title shipped here also bypasses the root template
-// suffix so the tab reads cleanly on the firm portal.
+// title template. Absolute title here bypasses the root template
+// suffix so the firm portal tab reads cleanly.
 export const metadata: Metadata = {
   title: { absolute: 'Dashboard · Advottic Counsel' },
   description:
-    'Your firm cockpit: matters, clients, signing, billing, trust ledger.',
+    "Your firm cockpit: pick the tiles that matter to you, hide the rest.",
 };
 
 /**
- * /counsel - firm-side dashboard. Shows the membership at a glance
- * (role, joined-at), counts for the major sections, and a row of
- * "what to do next" prompts.
+ * /counsel - firm-side dashboard.
+ *
+ * Layout (top to bottom):
+ *   1. Welcome banner ("Welcome to {firmName}") - always shown.
+ *   2. Ask Advottic search bar - always shown.
+ *   3. User-selected tiles - default is Action center + Assigned to
+ *      me. The "Customize" button in the header lets the user pick
+ *      any combination of tiles from the catalog in
+ *      lib/counsel-dashboard.ts. Preferences persist in
+ *      profiles.dashboard_preferences.
  *
  * If the signed-in user has no firms yet, redirect to the onboarding
  * wizard. The layout already handles the not-signed-in case.
@@ -42,24 +52,40 @@ export default async function CounselDashboard() {
   const ctx = (await getActiveFirmContext()) ?? myFirms[0];
   if (!ctx) redirect('/counsel/onboarding');
 
-  const [clients, invitations, members, documents, signing, cases] = await Promise.all([
+  const user = await getCurrentUser();
+  // Layout already redirects when there's no user, so this is just
+  // a type narrowing rail.
+  if (!user) redirect('/sign-in?next=/counsel');
+
+  const supabase = createServerSupabase();
+  const [
+    clients,
+    invitations,
+    members,
+    documents,
+    signing,
+    cases,
+    profileRow,
+  ] = await Promise.all([
     listFirmClients(ctx.firm.id),
     listFirmInvitations(ctx.firm.id),
     listFirmMembers(ctx.firm.id),
     listFirmDocuments(ctx.firm.id),
     listFirmSigningRequests(ctx.firm.id),
     listFirmCases(ctx.firm.id),
+    supabase
+      .from('profiles')
+      .select('dashboard_preferences')
+      .eq('id', user.id)
+      .maybeSingle()
+      .then((r) => r.data),
   ]);
 
-  const pendingSigning = signing.filter((s) => s.status === 'sent' || s.status === 'partial');
-  // Audit W20 V3 CR-29: the Cases tile used to render a hardcoded
-  // em-dash placeholder ('—', which the audit's text scrape read as
-  // an underscore) because listFirmCases wasn't being fetched here.
-  // The Cases route itself was already loading the real data, so the
-  // tile was the only spot reporting "no data" for an end-user who
-  // actually had four open matters. Now we count statuses that map
-  // to "currently in flight" - draft is excluded, archived/closed
-  // are excluded, the rest count as open + active.
+  const enabled = getCounselDashboardConfig(profileRow?.dashboard_preferences);
+  const isAdmin =
+    ctx.membership.role === 'owner' || ctx.membership.role === 'admin';
+
+  // Counts (mirror the old fixed grid).
   const openCaseStatuses = new Set([
     'open',
     'under_review',
@@ -67,181 +93,238 @@ export default async function CounselDashboard() {
     'export_ready',
   ]);
   const openActiveCases = cases.filter((c) => openCaseStatuses.has(c.status));
-  const totalCases = cases.length;
+  const pendingSigning = signing.filter(
+    (s) => s.status === 'sent' || s.status === 'partial',
+  );
+  const clientsActive = clients.filter((c) => c.status === 'active');
+
+  // Intake lanes. Match the laneOf logic in IntakeInbox: "engaged" /
+  // "accepted" -> Accepted, "rejected" -> Closed, "in_review" -> In
+  // review, everything else -> Needs attention.
+  const sinceMs = Date.now() - 24 * 60 * 60 * 1000;
+  const { data: intakeRows } = await supabase
+    .from('firm_matter_intakes')
+    .select(
+      'id, client_name, matter_type, status, created_at, intake_answers',
+    )
+    .eq('firm_id', ctx.firm.id)
+    .order('created_at', { ascending: false })
+    .limit(200);
+  type IntakeRow = {
+    id: string;
+    client_name: string | null;
+    matter_type: string | null;
+    status: string;
+    created_at: string;
+    intake_answers: Record<string, unknown> | null;
+  };
+  const intakes = (intakeRows ?? []) as IntakeRow[];
+  const lanes = { needsAttention: 0, inReview: 0, accepted: 0, closed: 0 };
+  let newToday = 0;
+  for (const i of intakes) {
+    if (i.status === 'engaged' || i.status === 'accepted') {
+      lanes.accepted += 1;
+    } else if (i.status === 'rejected') {
+      lanes.closed += 1;
+    } else if (i.status === 'in_review') {
+      lanes.inReview += 1;
+    } else {
+      lanes.needsAttention += 1;
+    }
+    if (new Date(i.created_at).getTime() >= sinceMs) newToday += 1;
+  }
+  const recentNew = intakes.slice(0, 5).map((i) => ({
+    id: i.id,
+    clientName: i.client_name ?? 'Unnamed matter',
+    matterType: i.matter_type,
+    createdAt: i.created_at,
+    isInternal:
+      String((i.intake_answers ?? {}).submitted_by ?? '').trim().length > 0,
+  }));
+
+  // Assigned to me: clients where primary attorney == me, plus
+  // cases linked to those clients via cases.client_id. The cases
+  // table doesn't carry an explicit assignee, so client linkage is
+  // the source of truth for "your work" - which matches how the
+  // rest of the workspace already attributes matters.
+  const myClients = clients.filter(
+    (c) => c.primaryAttorneyId === user.id,
+  );
+  const myClientUserIds = new Set(myClients.map((c) => c.userId));
+  // cases.user_id is the case owner (the consumer / client user
+  // who started the case). Linking back to firm_clients.userId
+  // gives us "this case belongs to my client."
+  type CaseRowMin = {
+    id: string;
+    title: string;
+    status: string;
+    user_id: string | null;
+  };
+  const { data: caseRowsForClients } = await supabase
+    .from('cases')
+    .select('id, title, status, user_id')
+    .eq('firm_id', ctx.firm.id);
+  const myCases = ((caseRowsForClients ?? []) as CaseRowMin[]).filter(
+    (c) => c.user_id && myClientUserIds.has(c.user_id),
+  );
+
+  // Signing requests the current user created that are still out.
+  const mySigningOpen = signing.filter(
+    (s) =>
+      s.requestedBy === user.id &&
+      (s.status === 'sent' || s.status === 'partial'),
+  );
+  const docById = new Map(documents.map((d) => [d.id, d.name] as const));
+  const mineAwaiting = mySigningOpen.slice(0, 10).map((s) => ({
+    id: s.id,
+    documentTitle: docById.get(s.documentId) ?? null,
+    createdAt: s.createdAt,
+  }));
+
+  // Upcoming meetings (next 14 days, top 5).
+  const horizon = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const upperMeetings = new Date(
+    Date.now() + 14 * 24 * 60 * 60 * 1000,
+  ).toISOString();
+  const { data: meetingRows } = await supabase
+    .from('firm_meetings')
+    .select('id, topic, provider, start_at, join_url')
+    .eq('firm_id', ctx.firm.id)
+    .gte('start_at', horizon)
+    .lte('start_at', upperMeetings)
+    .order('start_at', { ascending: true })
+    .limit(5);
+  const meetings = ((meetingRows ?? []) as Array<{
+    id: string;
+    topic: string;
+    provider: string;
+    start_at: string;
+    join_url: string | null;
+  }>).map((m) => ({
+    id: m.id,
+    topic: m.topic,
+    provider: m.provider,
+    startAt: m.start_at,
+    joinUrl: m.join_url,
+  }));
+
+  // Deadlines (open, due next 30 days, top 5).
+  const upperDeadlines = new Date(
+    Date.now() + 30 * 24 * 60 * 60 * 1000,
+  ).toISOString();
+  const { data: dlRows } = await supabase
+    .from('case_deadlines')
+    .select('id, title, kind, due_at')
+    .eq('firm_id', ctx.firm.id)
+    .is('completed_at', null)
+    .gte('due_at', horizon)
+    .lte('due_at', upperDeadlines)
+    .order('due_at', { ascending: true })
+    .limit(5);
+  const deadlines = ((dlRows ?? []) as Array<{
+    id: string;
+    title: string;
+    kind: string;
+    due_at: string;
+  }>).map((d) => ({
+    id: d.id,
+    title: d.title,
+    kind: d.kind,
+    dueAt: d.due_at,
+  }));
+
+  const recentUploads = documents.slice(0, 5).map((d) => ({
+    id: d.id,
+    title: d.name,
+    uploadedAt: d.uploadedAt,
+  }));
+
+  const data: DashboardTileData = {
+    firmId: ctx.firm.id,
+    firmName: ctx.firm.name,
+    accent: ctx.firm.accentColor,
+    userId: user.id,
+    userDisplayName:
+      ctx.membership.displayName ?? ctx.membership.email ?? 'there',
+    isAdmin,
+    counts: {
+      casesOpen: openActiveCases.length,
+      casesTotal: cases.length,
+      clients: clients.length,
+      clientsActive: clientsActive.length,
+      members: members.length,
+      invitations: invitations.length,
+      documents: documents.length,
+      signingPending: pendingSigning.length,
+    },
+    intake: {
+      needsAttention: lanes.needsAttention,
+      inReview: lanes.inReview,
+      accepted: lanes.accepted,
+      closed: lanes.closed,
+      newToday,
+      recentNew,
+    },
+    assigned: {
+      cases: myCases.slice(0, 10).map((c) => ({
+        id: c.id,
+        title: c.title,
+        status: c.status,
+      })),
+      clients: myClients.slice(0, 10).map((c) => ({
+        id: c.id,
+        displayName: c.displayName ?? c.email ?? 'Unnamed client',
+        status: c.status,
+      })),
+    },
+    signing: { mineAwaiting },
+    meetings,
+    deadlines,
+    recentUploads,
+  };
 
   return (
-    <div className="space-y-8 animate-fade-up">
-      <header>
-        <p className="eyebrow mb-2">Counsel</p>
-        <h1 className="font-display text-3xl sm:text-4xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          Welcome to {ctx.firm.name}.
-        </h1>
-        <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 max-w-2xl leading-relaxed">
-          You&rsquo;re signed in as {ctx.membership.displayName ?? ctx.membership.email ?? 'a team member'}{' '}
-          ({FIRM_ROLE_LABEL[ctx.membership.role].toLowerCase()}). Pick a section below or use the sidebar.
-        </p>
+    <div className="space-y-6 animate-fade-up">
+      {/* Welcome - always at the top. */}
+      <header className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="min-w-0">
+          <p className="eyebrow mb-2">Counsel</p>
+          <h1 className="font-display text-3xl sm:text-4xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
+            Welcome to {ctx.firm.name}.
+          </h1>
+          <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 max-w-2xl leading-relaxed">
+            You&rsquo;re signed in as{' '}
+            {ctx.membership.displayName ??
+              ctx.membership.email ??
+              'a team member'}{' '}
+            ({FIRM_ROLE_LABEL[ctx.membership.role].toLowerCase()}). Pick
+            the tiles that matter to you - hide the rest.
+          </p>
+        </div>
+        <DashboardCustomizer initialEnabled={enabled} isAdmin={isAdmin} />
       </header>
 
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Tile
-          href="/counsel/cases"
-          eyebrow="Cases"
-          headline={`${openActiveCases.length} open + active`}
-          metric={
-            totalCases === 0
-              ? 'No matters yet'
-              : `${totalCases} total · ${totalCases - openActiveCases.length} closed / archived`
-          }
-          body="Cases shared with the firm appear here. Use the personal view to start a new case, then attach the firm to it."
-          accent={ctx.firm.accentColor}
-        />
-        <Tile
-          href="/counsel/clients"
-          eyebrow="Clients"
-          headline={String(clients.length)}
-          metric={`${clients.filter((c) => c.status === 'active').length} active`}
-          body="Invite a client by email. They get an Advottic account and stay linked to your firm."
-          accent={ctx.firm.accentColor}
-        />
-        <Tile
-          href="/counsel/team"
-          eyebrow="Team"
-          headline={`${members.length} member${members.length === 1 ? '' : 's'}`}
-          metric={
-            invitations.length > 0
-              ? `${invitations.length} pending invite${invitations.length === 1 ? '' : 's'}`
-              : 'No pending invites'
-          }
-          body="Add admins, attorneys, paralegals, and staff. Roles control what each person can do."
-          accent={ctx.firm.accentColor}
-        />
-        <Tile
-          href="/counsel/documents"
-          eyebrow="Documents"
-          headline={String(documents.length)}
-          metric="Versioned"
-          body="Upload contracts, motions, evidence packets. Tag and link to a case or client."
-          accent={ctx.firm.accentColor}
-        />
-        <Tile
-          href="/counsel/signing"
-          eyebrow="Signing"
-          headline={String(pendingSigning.length)}
-          metric="awaiting signature"
-          body="UETA-aligned: 2-step intent capture, tamper-evident audit chain, SHA-256 document hash. Jurisdictional document-class fit stays with counsel."
-          accent={ctx.firm.accentColor}
-        />
-        <Tile
-          href="/counsel/chat"
-          eyebrow="Team chat"
-          headline="Channels + DMs"
-          metric="Realtime"
-          body="Real-time via Supabase WebSockets. Messages, edits and deletes propagate in ~100ms; a 60-second heartbeat refetch covers any dropped event."
-          accent={ctx.firm.accentColor}
-        />
-        <Tile
-          href="/counsel/meetings"
-          eyebrow="Meetings"
-          headline="Calendar"
-          metric="MS 365 + Zoom"
-          body="Connect Microsoft 365 calendar or Zoom from /counsel/meetings. Tokens encrypted at rest; scheduling-from-case ships next."
-          accent={ctx.firm.accentColor}
-        />
-        <Tile
-          href="/counsel/settings"
-          eyebrow="Firm settings"
-          headline="Brand + scope"
-          metric="Owner / admin"
-          body="Update logo, accent color, jurisdictions, practice areas, and the firm name."
-          accent={ctx.firm.accentColor}
-        />
-      </section>
+      {/* Ask Advottic - immediately below the welcome. */}
+      <AskAdvottic />
 
-      {/*
-        Audit W20 V3 CR-18 + CR-36: this panel used to surface
-        engineering-release-note language ("UETA-aligned 2-step intent
-        capture", "tamper-evident SHA-256 audit chain", "real-time via
-        Supabase WebSockets", "AES-256-GCM encrypted"). That copy was
-        right for HQ staff reading the Operator memo on /admin, but
-        wrong for a firm Owner who logged into Counsel expecting
-        "what changed for my firm this week." Now: each bullet is
-        firm-facing ("your team", "your matters") and the
-        implementation-detail prose moved to a staff-only changelog
-        surface. The dashboard reads as a feature recap, not a
-        runbook excerpt.
-      */}
-      <section className="card p-5 sm:p-6 ring-1 ring-emerald-300/30 dark:ring-emerald-500/25 bg-emerald-50/30 dark:bg-emerald-950/15">
-        <p className="eyebrow mb-2">Your firm on Advottic</p>
-        <h2 className="font-display text-lg sm:text-xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          What your team can do today
-        </h2>
-        <ul className="mt-3 grid gap-2 text-sm sm:grid-cols-2 text-ink-700 dark:text-cream-100/80 leading-relaxed">
-          <li>
-            <strong>Sign documents inside the vault</strong>. Engagement
-            letters, retainers, releases - every signature is captured
-            with a verifiable audit trail you can hand to opposing counsel
-            without flinching.
-          </li>
-          <li>
-            <strong>Talk to your team in real time</strong>. Channels for
-            firm-wide topics, group DMs for the team on a specific
-            matter, and 1:1 conversations with role-scoped access.
-          </li>
-          <li>
-            <strong>Schedule with Microsoft 365 + Zoom</strong>. Connect
-            once from <Link href="/counsel/meetings" className="underline">Meetings</Link>;
-            calendars and meeting links flow into every matter room.
-          </li>
-          <li>
-            <strong>Ask Bella for a citation</strong>. Bella pulls real
-            federal + state opinions from CourtListener so your team can
-            verify, not just trust.
-          </li>
-        </ul>
-      </section>
-    </div>
-  );
-}
-
-function Tile({
-  href,
-  eyebrow,
-  headline,
-  metric,
-  body,
-  accent,
-  warning,
-}: {
-  href: string;
-  eyebrow: string;
-  headline: string;
-  metric: string;
-  body: string;
-  accent: string;
-  warning?: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className="card p-5 hover:shadow-card-hover hover:-translate-y-0.5 transition-all group block"
-    >
-      <p className="text-[10px] uppercase tracking-[0.22em] font-semibold" style={{ color: accent }}>
-        {eyebrow}
-      </p>
-      <p className="font-display text-2xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100 mt-1">
-        {headline}
-      </p>
-      <p className="text-[11px] text-ink-500 dark:text-cream-100/55 mt-0.5 font-mono uppercase tracking-wider">
-        {metric}
-      </p>
-      <p className="text-[13px] text-ink-600 dark:text-cream-100/70 mt-2.5 leading-relaxed">
-        {body}
-      </p>
-      {warning && (
-        <p className="text-[11px] text-amber-800 dark:text-amber-200 mt-2.5 leading-relaxed">
-          {warning}
-        </p>
+      {/* User-selected tiles. Empty state gives a hint about the
+          customizer when the user has hidden everything. */}
+      {enabled.length === 0 ? (
+        <div className="card p-6 text-center">
+          <p className="text-[13px] text-cream-100/65 leading-relaxed">
+            Your dashboard is empty. Click{' '}
+            <strong>Customize dashboard</strong> up top to add tiles -
+            action center, assigned to me, cases, clients, meetings,
+            and more.
+          </p>
+        </div>
+      ) : (
+        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {enabled.map((id) => (
+            <DashboardTileRenderer key={id} id={id} data={data} />
+          ))}
+        </section>
       )}
-    </Link>
+    </div>
   );
 }

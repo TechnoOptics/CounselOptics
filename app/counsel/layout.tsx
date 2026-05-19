@@ -154,7 +154,12 @@ export default async function CounselLayout({
           </aside>
         ) : null}
         <main className="flex-1 min-w-0">
-          {active ? <AskAdvottic /> : null}
+          {/* The Ask Advottic bar normally sits at the top of every
+              Counsel page. The dashboard at /counsel renders its own
+              welcome banner above the Ask bar and then handles its
+              own ordering, so we skip rendering it from the layout
+              for that one route. */}
+          {active && pathname !== '/counsel' ? <AskAdvottic /> : null}
           {children}
         </main>
       </div>
