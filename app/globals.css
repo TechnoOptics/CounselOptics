@@ -1473,9 +1473,9 @@ select:focus-visible,
   padding: 1px;
   background: linear-gradient(
     135deg,
-    rgba(213, 187, 126, 0.35) 0%,
-    rgba(245, 237, 214, 0.55) 50%,
-    rgba(213, 187, 126, 0.35) 100%
+    rgba(213, 187, 126, 0.4) 0%,
+    rgba(245, 237, 214, 0.7) 50%,
+    rgba(213, 187, 126, 0.4) 100%
   );
   -webkit-mask:
     linear-gradient(#000 0 0) content-box,
@@ -1483,44 +1483,61 @@ select:focus-visible,
   -webkit-mask-composite: xor;
   mask-composite: exclude;
   pointer-events: none;
+  /* Gentle breathing pulse on the gold border - the whole rim
+     brightens and dims softly, no moving light, just calm
+     ambient gold. */
+  animation: ask-border-pulse 3.6s ease-in-out infinite;
 }
-@keyframes ask-perimeter-shimmer {
-  to {
-    offset-distance: 100%;
+@keyframes ask-border-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
   }
 }
-/* A small, round gold glow point that travels along the EXACT
- * rounded-rectangle path of the bar (offset-path: inset(0 round 1rem)
- * matches the bar's border-radius), so the corners are followed
- * perfectly - no rectangular pill ends sticking out at the curves.
- * offset-rotate: 0deg keeps it a circle at every position. The radial
- * gradient + screen blend gives the soft "marble of light" feel.
- */
-.ask-shimmer-dot {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 14px;
-  height: 14px;
-  margin: -7px;
-  border-radius: 999px;
-  background: radial-gradient(
-    circle,
-    rgba(255, 240, 180, 0.95) 0%,
-    rgba(232, 200, 120, 0.55) 45%,
-    rgba(232, 200, 120, 0) 100%
-  );
-  filter: blur(1.5px);
-  offset-path: inset(0 round 1rem);
-  offset-distance: 0%;
-  offset-rotate: 0deg;
-  animation: ask-perimeter-shimmer 7s linear infinite;
-  pointer-events: none;
-  mix-blend-mode: screen;
+
+/* Twinkle for the two stars in front of "Ask Advottic anything". They
+ * pulse out of phase so the icon reads as alive. */
+@keyframes ask-spark-twinkle {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(0.82);
+    opacity: 0.55;
+  }
 }
+@keyframes ask-spark-twinkle-alt {
+  0%,
+  100% {
+    transform: scale(0.8);
+    opacity: 0.45;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 1;
+  }
+}
+.ask-spark-primary,
+.ask-spark-accent {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.ask-spark-primary {
+  animation: ask-spark-twinkle 2.6s ease-in-out infinite;
+}
+.ask-spark-accent {
+  animation: ask-spark-twinkle-alt 2.6s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .ask-shimmer-dot {
+  .ask-frame::before,
+  .ask-spark-primary,
+  .ask-spark-accent {
     animation: none;
-    opacity: 0;
   }
 }

@@ -79,11 +79,10 @@ export function AskAdvottic() {
         }}
         className="relative"
       >
-        {/* Gold border with a sheen that travels around the
-            perimeter - same motion family as the gold shimmer under
-            the page header, bent into a closed rectangle. */}
+        {/* Gentle gold border that breathes (no moving light). The
+            SparkIcon stars in front of the placeholder twinkle out
+            of phase to add a touch of life. */}
         <div className="ask-frame relative flex items-center gap-2 rounded-2xl bg-forest-900/70 px-4 py-3 transition-shadow overflow-visible">
-          <span aria-hidden className="ask-shimmer-dot" />
           <SparkIcon />
           <input
             value={q}
@@ -172,13 +171,14 @@ function SparkIcon() {
       aria-hidden
     >
       <path
+        className="ask-spark-primary"
         d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8L12 3z"
         fill="currentColor"
       />
       <path
+        className="ask-spark-accent"
         d="M19 14l.9 2.3 2.3.9-2.3.9L19 20.4l-.9-2.3-2.3-.9 2.3-.9L19 14z"
         fill="currentColor"
-        opacity="0.6"
       />
     </svg>
   );
