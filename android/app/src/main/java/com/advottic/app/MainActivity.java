@@ -1,6 +1,8 @@
 package com.advottic.app;
 
 import android.os.Bundle;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
@@ -14,5 +16,17 @@ public class MainActivity extends BridgeActivity {
         // overwrite it, so the registration persists across CI.
         registerPlugin(AdvotticWatchPlugin.class);
         super.onCreate(savedInstanceState);
+
+        // White status-bar icons. targetSdk 36 enforces edge-to-edge,
+        // which makes the theme's android:windowLightStatusBar /
+        // statusBarColor inert - the appearance MUST be set
+        // programmatically. false => light (white) status-bar
+        // content, to sit on the dark forest header. After
+        // super.onCreate so the Capacitor BridgeActivity window
+        // exists.
+        WindowInsetsControllerCompat insets =
+            WindowCompat.getInsetsController(
+                getWindow(), getWindow().getDecorView());
+        insets.setAppearanceLightStatusBars(false);
     }
 }
