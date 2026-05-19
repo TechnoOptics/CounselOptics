@@ -77,9 +77,17 @@ export function AskAdvottic() {
           e.preventDefault();
           ask(q);
         }}
-        className="relative"
+        className="relative isolate"
       >
-        <div className="flex items-center gap-2 rounded-2xl bg-forest-900/60 ring-1 ring-forest-700/50 focus-within:ring-gold-500/50 px-4 py-3 transition-shadow">
+        {/* Rotating golden glow rim. The inner bar is opaque so the
+            conic gradient only peeks at the edges; ::before carries a
+            heavily-blurred copy that traces a halo just outside the
+            box too. */}
+        <div
+          aria-hidden
+          className="ask-glow-rim absolute inset-[-1.5px] rounded-2xl pointer-events-none"
+        />
+        <div className="relative flex items-center gap-2 rounded-2xl bg-forest-900 ring-1 ring-forest-700/50 focus-within:ring-gold-500/60 px-4 py-3 transition-shadow">
           <SparkIcon />
           <input
             value={q}

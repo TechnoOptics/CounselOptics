@@ -1451,3 +1451,46 @@ select:focus-visible,
     margin-right: 1px;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * Ask Advottic: rotating golden glow rim.
+ *
+ * A conic-gradient that rotates around the bar's perimeter; the inner box
+ * keeps an opaque background so only the rim shows the gradient, and the
+ * ::before pseudo carries a much-blurred copy that traces a halo just
+ * outside the box too. Both rotate together so the gold "marches" around
+ * the edge and the soft glow drifts with it. Respects reduced-motion.
+ * ------------------------------------------------------------------------- */
+@keyframes ask-glow-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.ask-glow-rim {
+  background: conic-gradient(
+    from 0deg,
+    rgba(213, 187, 126, 0) 0deg,
+    rgba(213, 187, 126, 0) 215deg,
+    rgba(232, 200, 120, 0.85) 270deg,
+    rgba(255, 232, 150, 1) 305deg,
+    rgba(232, 200, 120, 0.85) 340deg,
+    rgba(213, 187, 126, 0) 360deg
+  );
+  animation: ask-glow-spin 4.5s linear infinite;
+  filter: blur(3px);
+}
+.ask-glow-rim::before {
+  content: '';
+  position: absolute;
+  inset: -14px;
+  border-radius: 1.75rem;
+  background: inherit;
+  filter: blur(22px);
+  opacity: 0.55;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ask-glow-rim {
+    animation: none;
+  }
+}
