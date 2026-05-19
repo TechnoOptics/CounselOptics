@@ -5,8 +5,10 @@ import {
   listFirmMembers,
 } from '@/lib/firm-storage';
 import { FIRM_ROLES, FIRM_ROLE_LABEL, FIRM_ROLE_DESCRIPTION } from '@/lib/firm-types';
+import { listFirmEmployeesAction } from '@/lib/firm-actions';
 import { InviteMemberForm } from './invite-form';
 import { TeamMemberRow } from './member-row';
+import { EmployeesPanel } from './employees-panel';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Team · Counsel' };
@@ -20,6 +22,9 @@ export default async function CounselTeamPage() {
   ]);
 
   const canManage = ctx.membership.role === 'owner' || ctx.membership.role === 'admin';
+  const employees = canManage
+    ? await listFirmEmployeesAction(ctx.firm.id)
+    : [];
 
   return (
     <div className="space-y-6 animate-fade-up">
@@ -64,6 +69,10 @@ export default async function CounselTeamPage() {
           </tbody>
         </table>
       </section>
+
+      {canManage && (
+        <EmployeesPanel firmId={ctx.firm.id} initial={employees} />
+      )}
 
       {invitations.length > 0 && (
         <section className="card p-5 sm:p-6">

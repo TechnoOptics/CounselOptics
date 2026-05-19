@@ -63,6 +63,8 @@ const STATES = [
 export function CreateIntakeForm({
   firmId,
   defaultSubmittedBy = '',
+  employeeMode = false,
+  redirectBase = '/counsel/intake',
 }: {
   firmId: string;
   /**
@@ -72,17 +74,32 @@ export function CreateIntakeForm({
    * files on someone else's behalf.
    */
   defaultSubmittedBy?: string;
+  /**
+   * Employee-portal mode. Outside-client matters are removed (an
+   * employee never files those), and "Submitted by" is locked to the
+   * signed-in employee. The legal team still sees the full picker.
+   */
+  employeeMode?: boolean;
+  /**
+   * Where to send the user after a successful create. The employee
+   * portal has no /counsel access, so it routes back to /portal.
+   */
+  redirectBase?: string;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [requestType, setRequestType] = useState(REQUEST_TYPES[0].value);
+  const availableTypes = employeeMode
+    ? REQUEST_TYPES.filter((r) => r.mode === 'inhouse')
+    : REQUEST_TYPES;
+  const [requestType, setRequestType] = useState(availableTypes[0].value);
   const [opposing, setOpposing] = useState<string[]>(['']);
   const [related, setRelated] = useState<string[]>(['']);
 
   const mode: Mode =
     REQUEST_TYPES.find((r) => r.value === requestType)?.mode ?? 'client';
-  const inhouse = mode === 'inhouse';
+  // In employee mode every request is an in-house request, period.
+  const inhouse = employeeMode || mode === 'inhouse';
 
   function submit(formData: FormData) {
     setError(null);
@@ -145,7 +162,12 @@ export function CreateIntakeForm({
         intakeAnswers,
       });
       if (res.ok && res.intakeId) {
-        router.push(`/counsel/intake/${res.intakeId}`);
+        // Legal lands on the conflict-check detail page; an employee
+        // has no detail route (and no business seeing it), so they go
+        // back to their request list.
+        router.push(
+          employeeMode ? redirectBase : `${redirectBase}/${res.intakeId}`,
+        );
       } else {
         setError(res.error ?? 'Could not create intake.');
       }
@@ -170,7 +192,7 @@ export function CreateIntakeForm({
           value={requestType}
           onChange={(e) => setRequestType(e.target.value)}
         >
-          {REQUEST_TYPES.map((r) => (
+          {availableTypes.map((r) => (
             <option key={r.value} value={r.value}>
               {r.label}
             </option>
@@ -222,8 +244,15 @@ export function CreateIntakeForm({
                 name="submittedBy"
                 className="input"
                 defaultValue={defaultSubmittedBy}
+                readOnly={employeeMode}
+                aria-readonly={employeeMode || undefined}
                 placeholder="Who is filing this request"
               />
+              {employeeMode && (
+                <span className="block text-[11.5px] text-ink-500 dark:text-cream-100/55 mt-1">
+                  Filed as you. Legal will see who submitted this.
+                </span>
+              )}
             </label>
             <label className="block">
               <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">

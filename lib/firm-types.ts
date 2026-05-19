@@ -127,6 +127,25 @@ export type FirmMember = {
   joinedAt: string;
 };
 
+/**
+ * A non-legal employee of an enterprise tenant. Deliberately NOT a
+ * FirmMember (that implies a legal-team seat + the full Counsel app).
+ * Employees only ever reach the scoped /portal/* surface. See
+ * docs/ENTERPRISE_WORKSPACE.md and supabase/fixes/2026-05-18-firm-employees.sql.
+ */
+export type FirmEmployee = {
+  id: string;
+  firmId: string;
+  userId: string | null;
+  email: string;
+  displayName: string | null;
+  department: string | null;
+  source: 'manual' | 'azure' | 'google';
+  externalId: string | null;
+  deactivatedAt: string | null;
+  createdAt: string;
+};
+
 export type FirmInvitation = {
   id: string;
   firmId: string;

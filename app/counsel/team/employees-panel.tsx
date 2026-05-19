@@ -1,0 +1,145 @@
+'use client';
+
+import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import {
+  addFirmEmployeeAction,
+  setFirmEmployeeActiveAction,
+  type FirmEmployeeListItem,
+} from '@/lib/firm-actions';
+
+/**
+ * Owner/admin panel: the non-legal employees who get the scoped
+ * /portal surface (not the full Counsel app). Tier 2 - manual add.
+ * Tier 3 replaces this with Entra/Google directory sync (see
+ * docs/ENTERPRISE_WORKSPACE.md); the table below stays the same.
+ */
+export function EmployeesPanel({
+  firmId,
+  initial,
+}: {
+  firmId: string;
+  initial: FirmEmployeeListItem[];
+}) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const [ok, setOk] = useState(false);
+
+  function add(formData: FormData) {
+    setError(null);
+    setOk(false);
+    startTransition(async () => {
+      const res = await addFirmEmployeeAction(firmId, formData);
+      if (res.ok) {
+        setOk(true);
+        router.refresh();
+      } else {
+        setError(res.error ?? 'Could not add employee.');
+      }
+    });
+  }
+
+  function toggle(id: string, active: boolean) {
+    startTransition(async () => {
+      await setFirmEmployeeActiveAction(firmId, id, active);
+      router.refresh();
+    });
+  }
+
+  return (
+    <section className="card p-5 sm:p-6 space-y-4">
+      <div>
+        <p className="eyebrow">Employees</p>
+        <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-1 max-w-2xl leading-relaxed">
+          People here get the employee portal only - file requests to
+          legal, track their own, run Advottic Review. They never see
+          cases, clients, or the rest of Counsel.
+        </p>
+      </div>
+
+      <form action={add} className="grid sm:grid-cols-4 gap-3">
+        <input
+          name="email"
+          type="email"
+          required
+          placeholder="employee@company.com"
+          className="input sm:col-span-2"
+          disabled={pending}
+        />
+        <input
+          name="displayName"
+          placeholder="Name (optional)"
+          className="input"
+          disabled={pending}
+        />
+        <input
+          name="department"
+          placeholder="Dept (optional)"
+          className="input"
+          disabled={pending}
+        />
+        <div className="sm:col-span-4 flex items-center justify-between gap-3">
+          <p className="text-[11px] text-ink-500 dark:text-cream-100/55">
+            They get portal access the next time they sign in with this
+            email.
+          </p>
+          <button type="submit" className="btn-primary" disabled={pending}>
+            {pending ? 'Saving...' : 'Add employee'}
+          </button>
+        </div>
+        {error && (
+          <p className="sm:col-span-4 rounded-lg border border-rose-200 dark:border-rose-700/40 bg-rose-50 dark:bg-rose-950/30 px-3 py-2 text-sm text-rose-800 dark:text-rose-200">
+            {error}
+          </p>
+        )}
+        {ok && (
+          <p className="sm:col-span-4 rounded-lg border border-emerald-200 dark:border-emerald-700/40 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-2 text-sm text-emerald-900 dark:text-emerald-100">
+            Saved.
+          </p>
+        )}
+      </form>
+
+      {initial.length > 0 && (
+        <ul className="divide-y divide-ink-100 dark:divide-forest-700/40">
+          {initial.map((e) => {
+            const inactive = e.deactivatedAt !== null;
+            return (
+              <li
+                key={e.id}
+                className="flex items-center justify-between gap-3 py-2.5 text-sm"
+              >
+                <div className="min-w-0">
+                  <p
+                    className={`font-medium truncate ${
+                      inactive
+                        ? 'text-ink-400 dark:text-cream-100/40 line-through'
+                        : 'text-ink-900 dark:text-cream-100'
+                    }`}
+                  >
+                    {e.displayName || e.email}
+                  </p>
+                  <p className="text-[12px] text-ink-500 dark:text-cream-100/55 truncate">
+                    {e.email}
+                    {e.department && ` · ${e.department}`}
+                    {' · '}
+                    {e.linked ? 'active account' : 'not signed in yet'}
+                    {e.source !== 'manual' && ` · ${e.source}`}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => toggle(e.id, inactive)}
+                  disabled={pending}
+                  className="shrink-0 text-[12px] underline text-ink-700 dark:text-cream-100/85 hover:text-forest-900 dark:hover:text-cream-100"
+                >
+                  {inactive ? 'Reactivate' : 'Deactivate'}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
+}

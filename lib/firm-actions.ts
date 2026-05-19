@@ -431,6 +431,136 @@ export async function updateFirmMemberRoleAction(
 }
 
 // =====================================================================
+// Enterprise employees (the non-legal /portal population)
+// =====================================================================
+//
+// firm_employees has RLS with NO write policy and only a self-select
+// policy (see supabase/fixes/2026-05-18-firm-employees.sql), so every
+// action here MUST (a) gate the caller as owner/admin by hand and
+// (b) use the service-role client to write. See
+// docs/ENTERPRISE_WORKSPACE.md.
+
+export type FirmEmployeeListItem = {
+  id: string;
+  email: string;
+  displayName: string | null;
+  department: string | null;
+  source: string;
+  linked: boolean;
+  deactivatedAt: string | null;
+  createdAt: string;
+};
+
+/** True only if the signed-in user is owner/admin of `firmId`. */
+async function callerIsFirmAdmin(firmId: string): Promise<boolean> {
+  const user = await getCurrentUser();
+  if (!user) return false;
+  const supabase = createServerSupabase();
+  const { data } = await supabase
+    .from('firm_members')
+    .select('role')
+    .eq('firm_id', firmId)
+    .eq('user_id', user.id)
+    .maybeSingle();
+  const role = (data as { role?: string } | null)?.role;
+  return role === 'owner' || role === 'admin';
+}
+
+export async function addFirmEmployeeAction(
+  firmId: string,
+  formData: FormData,
+): Promise<{ ok: boolean; error?: string }> {
+  await requireUser();
+  if (!(await callerIsFirmAdmin(firmId))) {
+    return { ok: false, error: 'Only an owner or admin can add employees.' };
+  }
+  const email = String(formData.get('email') ?? '')
+    .trim()
+    .toLowerCase();
+  const displayName = String(formData.get('displayName') ?? '').trim() || null;
+  const department = String(formData.get('department') ?? '').trim() || null;
+  if (!email || !email.includes('@')) {
+    return { ok: false, error: 'Enter a valid email.' };
+  }
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server not configured.' };
+  // Upsert on (firm_id, email): re-adding a deactivated person
+  // reactivates them rather than erroring on the unique constraint.
+  const { error } = await admin
+    .from('firm_employees')
+    .upsert(
+      {
+        firm_id: firmId,
+        email,
+        display_name: displayName,
+        department,
+        source: 'manual',
+        deactivated_at: null,
+      },
+      { onConflict: 'firm_id,email' },
+    );
+  if (error) return { ok: false, error: error.message };
+  revalidatePath('/counsel/team');
+  return { ok: true };
+}
+
+export async function listFirmEmployeesAction(
+  firmId: string,
+): Promise<FirmEmployeeListItem[]> {
+  if (!(await callerIsFirmAdmin(firmId))) return [];
+  const admin = createAdminSupabase();
+  if (!admin) return [];
+  const { data } = await admin
+    .from('firm_employees')
+    .select(
+      'id, email, display_name, department, source, user_id, deactivated_at, created_at',
+    )
+    .eq('firm_id', firmId)
+    .order('created_at', { ascending: false })
+    .limit(500);
+  return ((data ?? []) as Array<{
+    id: string;
+    email: string;
+    display_name: string | null;
+    department: string | null;
+    source: string;
+    user_id: string | null;
+    deactivated_at: string | null;
+    created_at: string;
+  }>).map((r) => ({
+    id: r.id,
+    email: r.email,
+    displayName: r.display_name,
+    department: r.department,
+    source: r.source,
+    linked: r.user_id !== null,
+    deactivatedAt: r.deactivated_at,
+    createdAt: r.created_at,
+  }));
+}
+
+export async function setFirmEmployeeActiveAction(
+  firmId: string,
+  employeeId: string,
+  active: boolean,
+): Promise<{ ok: boolean; error?: string }> {
+  await requireUser();
+  if (!(await callerIsFirmAdmin(firmId))) {
+    return { ok: false, error: 'Only an owner or admin can do that.' };
+  }
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server not configured.' };
+  const { error } = await admin
+    .from('firm_employees')
+    .update({ deactivated_at: active ? null : new Date().toISOString() })
+    .eq('id', employeeId)
+    .eq('firm_id', firmId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath('/counsel/team');
+  return { ok: true };
+}
+
+// =====================================================================
 // Clients
 // =====================================================================
 
