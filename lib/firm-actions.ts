@@ -20,6 +20,7 @@ import {
   readRequestFolders,
   slugifyFolderKey,
 } from './request-folders';
+import { scheduleFirmMeeting } from './firm-meetings';
 
 /**
  * Server actions powering the law-firm perspective.
@@ -874,6 +875,176 @@ export async function deleteRequestFolderAction(
   // lookup misses) - no bulk JSON rewrite needed.
   revalidatePath('/counsel/intake');
   return { ok: true };
+}
+
+export async function setIntakeReminderAction(
+  firmId: string,
+  intakeId: string,
+  reminderISO: string,
+): Promise<{ ok: boolean; error?: string }> {
+  await requireUser();
+  if (!(await callerIsFirmMember(firmId))) {
+    return { ok: false, error: 'You do not have access to this firm.' };
+  }
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server not configured.' };
+  const { data: row } = await admin
+    .from('firm_matter_intakes')
+    .select('intake_answers, firm_id')
+    .eq('id', intakeId)
+    .maybeSingle();
+  const r = row as {
+    intake_answers: Record<string, unknown> | null;
+    firm_id: string;
+  } | null;
+  if (!r || r.firm_id !== firmId) {
+    return { ok: false, error: 'Request not found.' };
+  }
+  const ans = { ...(r.intake_answers ?? {}) };
+  if (reminderISO) {
+    const ms = Date.parse(reminderISO);
+    if (Number.isNaN(ms)) return { ok: false, error: 'Invalid date.' };
+    ans.reminder_at = new Date(ms).toISOString();
+    ans.reminder_fired = false;
+  } else {
+    delete ans.reminder_at;
+    delete ans.reminder_fired;
+  }
+  const { error } = await admin
+    .from('firm_matter_intakes')
+    .update({ intake_answers: ans, updated_at: new Date().toISOString() })
+    .eq('id', intakeId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/counsel/intake/${intakeId}`);
+  return { ok: true };
+}
+
+// =====================================================================
+// Schedule a Teams/Zoom meeting from a request
+// =====================================================================
+
+export async function scheduleMeetingFromIntakeAction(
+  firmId: string,
+  intakeId: string,
+  formData: FormData,
+): Promise<{ ok: boolean; error?: string; joinUrl?: string }> {
+  const user = await requireUser();
+  if (!(await callerIsFirmMember(firmId))) {
+    return { ok: false, error: 'You do not have access to this firm.' };
+  }
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server not configured.' };
+
+  const startISO = String(formData.get('startISO') ?? '').trim();
+  const durationMin = Math.min(
+    240,
+    Math.max(15, Number(formData.get('durationMin') ?? 30) || 30),
+  );
+  const startMs = Date.parse(startISO);
+  if (!startISO || Number.isNaN(startMs)) {
+    return { ok: false, error: 'Pick a valid date and time.' };
+  }
+  if (startMs < Date.now() - 60_000) {
+    return { ok: false, error: 'Pick a time in the future.' };
+  }
+
+  const { data: row } = await admin
+    .from('firm_matter_intakes')
+    .select('firm_id, created_by, client_name, intake_answers')
+    .eq('id', intakeId)
+    .maybeSingle();
+  const intake = row as {
+    firm_id: string;
+    created_by: string | null;
+    client_name: string;
+    intake_answers: Record<string, unknown> | null;
+  } | null;
+  if (!intake || intake.firm_id !== firmId) {
+    return { ok: false, error: 'Request not found.' };
+  }
+
+  const title =
+    String(formData.get('title') ?? '').trim() ||
+    `Advottic: ${intake.client_name}`;
+  const attendees = new Set<string>();
+  String(formData.get('attendees') ?? '')
+    .split(/[,;\s]+/)
+    .map((s) => s.trim())
+    .filter((s) => s.includes('@'))
+    .forEach((a) => attendees.add(a.toLowerCase()));
+  if (intake.created_by) {
+    const { data: emp } = await admin
+      .from('firm_employees')
+      .select('email')
+      .eq('firm_id', firmId)
+      .eq('user_id', intake.created_by)
+      .maybeSingle();
+    const e = emp as { email?: string } | null;
+    if (e?.email) attendees.add(e.email.toLowerCase());
+  }
+
+  const result = await scheduleFirmMeeting(firmId, {
+    topic: title,
+    startISO: new Date(startMs).toISOString(),
+    durationMin,
+    attendees: [...attendees],
+  });
+  if (!result.ok) return { ok: false, error: result.error };
+
+  // Post the meeting into the request thread so it lives in the
+  // conversation, and notify the requester.
+  const { data: mem } = await admin
+    .from('firm_members')
+    .select('display_name')
+    .eq('firm_id', firmId)
+    .eq('user_id', user.id)
+    .maybeSingle();
+  const byName =
+    (mem as { display_name?: string } | null)?.display_name || 'Legal';
+  const when = new Date(startMs).toLocaleString();
+  const providerLabel =
+    result.provider === 'microsoft' ? 'Microsoft Teams' : 'Zoom';
+  const answers = (intake.intake_answers ?? {}) as Record<string, unknown>;
+  const thread = Array.isArray(answers.thread)
+    ? (answers.thread as unknown[])
+    : [];
+  const msg = {
+    id:
+      globalThis.crypto?.randomUUID?.() ??
+      `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    byUserId: user.id,
+    name: byName,
+    role: 'legal' as const,
+    at: new Date().toISOString(),
+    text: `📅 ${providerLabel} meeting scheduled for ${when} (${durationMin} min).\nJoin: ${result.joinUrl}`,
+  };
+  await admin
+    .from('firm_matter_intakes')
+    .update({
+      intake_answers: { ...answers, thread: [...thread, msg] },
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', intakeId);
+
+  if (intake.created_by) {
+    try {
+      const { createNotification } = await import('./notifications');
+      await createNotification({
+        userId: intake.created_by,
+        type: 'meeting_scheduled',
+        title: `${providerLabel} meeting scheduled`,
+        body: `${when} - join link is in your request.`,
+        link: `/portal/${intakeId}`,
+        actorUserId: user.id,
+      });
+    } catch {
+      /* best-effort */
+    }
+  }
+
+  revalidatePath(`/counsel/intake/${intakeId}`);
+  revalidatePath(`/portal/${intakeId}`);
+  return { ok: true, joinUrl: result.joinUrl };
 }
 
 export async function setIntakeFolderAction(

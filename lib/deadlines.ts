@@ -97,5 +97,70 @@ export async function sweepDeadlineAlerts(): Promise<{
     fired += 1;
   }
 
-  return { scanned: rows.length, fired };
+  // --- Request / contract reminders ----------------------------------
+  // Intakes carry an optional intake_answers.reminder_at (set from the
+  // request detail). When it comes due we notify the requester + the
+  // legal team once, then flag intake_answers.reminder_fired so it
+  // never double-fires. No schema - same JSON pattern as the thread.
+  let intakeScanned = 0;
+  try {
+    const { data: ir } = await admin
+      .from('firm_matter_intakes')
+      .select('id, firm_id, created_by, client_name, intake_answers')
+      .not('intake_answers->>reminder_at', 'is', null)
+      .limit(500);
+    const intakes = (ir ?? []) as Array<{
+      id: string;
+      firm_id: string;
+      created_by: string | null;
+      client_name: string;
+      intake_answers: Record<string, unknown> | null;
+    }>;
+    intakeScanned = intakes.length;
+    const { createNotification } = await import('./notifications');
+    for (const it of intakes) {
+      const ans = (it.intake_answers ?? {}) as Record<string, unknown>;
+      const at = Date.parse(String(ans.reminder_at ?? ''));
+      if (Number.isNaN(at) || ans.reminder_fired === true) continue;
+      if (at > now) continue; // not due yet
+      await admin
+        .from('firm_matter_intakes')
+        .update({
+          intake_answers: { ...ans, reminder_fired: true },
+        })
+        .eq('id', it.id);
+      const title = `Reminder: ${it.client_name}`;
+      const body = `This request/contract was flagged as due ${new Date(
+        at,
+      ).toLocaleDateString()}.`;
+      if (it.created_by) {
+        await createNotification({
+          userId: it.created_by,
+          type: 'system',
+          title,
+          body,
+          link: `/portal/${it.id}`,
+        });
+      }
+      const { data: members } = await admin
+        .from('firm_members')
+        .select('user_id')
+        .eq('firm_id', it.firm_id)
+        .in('role', ['owner', 'admin', 'attorney', 'paralegal']);
+      for (const m of (members ?? []) as Array<{ user_id: string }>) {
+        await createNotification({
+          userId: m.user_id,
+          type: 'system',
+          title,
+          body,
+          link: `/counsel/intake/${it.id}`,
+        });
+      }
+      fired += 1;
+    }
+  } catch {
+    /* reminder sweep is best-effort; never break the deadline cron */
+  }
+
+  return { scanned: rows.length + intakeScanned, fired };
 }

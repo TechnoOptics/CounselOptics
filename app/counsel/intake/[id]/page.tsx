@@ -10,6 +10,8 @@ import {
   readIntakeFolder,
 } from '@/lib/request-folders';
 import { FolderPicker } from './folder-picker';
+import { ScheduleMeetingPanel } from './schedule-meeting';
+import { RequestActions } from './request-actions';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Intake · Counsel' };
@@ -243,6 +245,18 @@ export default async function IntakeDetailPage({
         status={intake.status}
         results={intake.conflict_results}
         notes={intake.conflict_check_notes}
+      />
+
+      <RequestActions
+        firmId={ctx.firm.id}
+        intakeId={intake.id}
+        currentReminder={String(ans.reminder_at ?? '')}
+      />
+
+      <ScheduleMeetingPanel
+        firmId={ctx.firm.id}
+        intakeId={intake.id}
+        defaultTitle={`Advottic: ${intake.client_name}`}
       />
 
       <IntakeThread
