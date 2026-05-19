@@ -36,11 +36,32 @@ export type ProviderConfig = {
   profileUrl: string;
 };
 
+/**
+ * Microsoft Entra authority tenant segment.
+ *
+ * The `/common` (multi-tenant) endpoint is rejected with AADSTS50194
+ * for any app registered single-tenant - and even after an app is
+ * flipped to multi-tenant, Entra's signInAudience change is
+ * eventually-consistent and keeps throwing 50194 on the token leg for
+ * several minutes while it propagates. Pinning the authority to the
+ * firm's own tenant removes that dependency entirely (deterministic,
+ * works the instant the deploy is live) and is tighter security for an
+ * in-house tool: only this tenant's work/school accounts can use the
+ * app, regardless of the app's multi-tenant flag.
+ *
+ * Override per environment with MICROSOFT_TENANT_ID (accepts the tenant
+ * GUID, the *.onmicrosoft.com domain, or any verified custom domain).
+ * Defaults to the Techno Optics tenant's verified domain so the flow
+ * works on redeploy with no new Vercel env var.
+ */
+const MICROSOFT_TENANT =
+  process.env.MICROSOFT_TENANT_ID?.trim() || 'technooptics.com';
+
 export const MICROSOFT_CONFIG: ProviderConfig = {
   id: 'microsoft',
   label: 'Microsoft 365',
-  authorizeUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
-  tokenUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+  authorizeUrl: `https://login.microsoftonline.com/${MICROSOFT_TENANT}/oauth2/v2.0/authorize`,
+  tokenUrl: `https://login.microsoftonline.com/${MICROSOFT_TENANT}/oauth2/v2.0/token`,
   // offline_access = receive a refresh_token. Calendars.ReadWrite covers
   // listing + creating events. User.Read fills the "connected as" UI.
   scopes: ['offline_access', 'User.Read', 'Calendars.ReadWrite'],
