@@ -140,37 +140,48 @@ export async function requestWorkspaceAccessAction(
     };
   }
 
-  // Notify the firm's owners/admins (in-app + email).
+  // Notify the firm's owners/admins (in-app + email). firm_members
+  // has NO email column - the address lives on the auth user - so we
+  // resolve each admin's email via the admin auth API. Each step is
+  // independently best-effort so one failure can't silence the rest.
   try {
     const { data: admins } = await admin
       .from('firm_members')
-      .select('user_id, email, display_name, role')
+      .select('user_id, display_name, role')
       .eq('firm_id', firm.id)
       .in('role', ['owner', 'admin']);
     const link = '/counsel/access';
-    for (const a of (admins ?? []) as Array<{
-      user_id: string;
-      email: string | null;
-      display_name: string | null;
-    }>) {
+    const html = `<p>${escape(fullName)} (${escape(
+      email,
+    )}) requested access to <strong>${escape(
+      firm.name,
+    )}</strong>.</p><p>Review and approve or decline it here: <a href="${siteOrigin()}/counsel/access">${siteOrigin()}/counsel/access</a></p>`;
+    for (const a of (admins ?? []) as Array<{ user_id: string }>) {
       await createNotification({
         userId: a.user_id,
         type: 'system',
         title: 'New access request',
         body: `${fullName} (${email}) requested access to ${firm.name}.`,
         link,
-      });
-      if (a.email) {
-        await sendEmail({
-          to: a.email,
-          subject: `Access request: ${fullName} - ${firm.name}`,
-          fromName: firm.name,
-          html: `<p>${escape(fullName)} (${escape(
-            email,
-          )}) requested access to <strong>${escape(
-            firm.name,
-          )}</strong>.</p><p>Review and approve or decline it here: <a href="${siteOrigin()}/counsel/access">${siteOrigin()}/counsel/access</a></p>`,
-        });
+      }).then(
+        () => undefined,
+        () => undefined,
+      );
+      try {
+        const { data: au } = await admin.auth.admin.getUserById(
+          a.user_id,
+        );
+        const to = au?.user?.email;
+        if (to) {
+          await sendEmail({
+            to,
+            subject: `Access request: ${fullName} - ${firm.name}`,
+            fromName: firm.name,
+            html,
+          });
+        }
+      } catch {
+        /* per-admin email best-effort */
       }
     }
   } catch {
