@@ -27,6 +27,12 @@ const ITEMS: NavItem[] = [
   { id: '/cases/new', label: 'New case', href: '/cases/new', icon: PlusIcon },
   { id: '/cases', label: 'Cases', href: '/cases', prefix: '/cases', icon: CasesIcon },
   { id: '/cases?filter=shared', label: 'Shared with me', href: '/cases?filter=shared', filter: 'shared', icon: ShareIcon },
+  // Action Center: hub for the four time-sensitive tools (War Room,
+  // Deadline Radar, Decode a Document, Safe Witness). Placed near
+  // the top because what's on it is "what needs me right now."
+  // The standalone pages still work at their original URLs; this is
+  // just the front door.
+  { id: '/action-center', label: 'Action center', href: '/action-center', prefix: '/action-center', icon: ActionCenterIcon },
   { id: '/find-counsel', label: 'Find counsel', href: '/find-counsel', prefix: '/find-counsel', icon: ScalesIcon },
   { id: '/file-exhibits', label: 'File exhibits', href: '/file-exhibits', prefix: '/file-exhibits', icon: FileIcon },
   { id: '/public-defender', label: 'Public defender', href: '/public-defender', prefix: '/public-defender', icon: GavelIcon },
@@ -535,6 +541,23 @@ function GavelIcon() {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+    </svg>
+  );
+}
+
+function ActionCenterIcon() {
+  // A radar burst: concentric arcs over a centered dot. Reads as
+  // "things happening right now / urgency tracker" - matches what
+  // the Action Center is for.
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 12v0M8.5 12a3.5 3.5 0 0 1 7 0M5 12a7 7 0 0 1 14 0"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      <circle cx="12" cy="12" r="1.4" fill="currentColor" />
     </svg>
   );
 }

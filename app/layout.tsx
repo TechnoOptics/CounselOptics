@@ -205,6 +205,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     '/decoder',
     '/safe',
     '/war-room',
+    // Action Center: hub for the four time-sensitive tools above
+    // (war-room, deadlines, decoder, safe). Lives in the consumer
+    // app shell so the sidebar renders alongside it.
+    '/action-center',
   ];
   const isAppRoute =
     pathname !== '' &&
