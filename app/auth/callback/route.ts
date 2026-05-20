@@ -149,13 +149,25 @@ export async function GET(request: NextRequest) {
       const raw = error.message ?? '';
       let friendly = raw;
       if (/code verifier|pkce|state.*mismatch/i.test(raw)) {
+        // The link was clicked in a different browser context than
+        // the one that requested it (email client opened it in
+        // Chrome instead of Opera, mobile mail app launched a new
+        // in-app browser, Opera VPN routed differently, etc.). The
+        // SAME-BROWSER 6-digit OTP path always works because no
+        // cookie crosses contexts - point the user at that field
+        // explicitly, since the previous "open fresh window" advice
+        // failed for them often enough that we now treat OTP as
+        // the recommended fix.
         friendly =
-          'Sign-in started on one window and finished on another, or your browser cleared the temporary sign-in cookie. Open https://advottic.com/sign-in fresh in the same window and try again.';
+          "We can't finish here because the magic link opened in a different browser than the one you started in. Go back to the same browser you requested sign-in from, then type the 6-digit code from that same email into the field - that always works, even across browsers and devices.";
       } else if (/unable to exchange external code|invalid client/i.test(raw)) {
         friendly =
-          'The sign-in provider rejected the response. This is usually a temporary provider-side issue. Try again in a moment, or use a different provider (email magic link works without provider setup). If this keeps happening, email support@advottic.com.';
+          'The sign-in provider rejected the response. This is usually a temporary provider-side issue. Try again in a moment, or use the email + 6-digit code path below (magic link works without any provider). If this keeps happening, email support@advottic.com.';
       }
-      return redirectWithError(url, next, friendly);
+      // Tag the redirect with a reason so the sign-in page can render
+      // a richer "use the 6-digit code" hint panel instead of just
+      // the error string.
+      return redirectWithError(url, next, friendly, 'pkce');
     }
   } catch (err) {
     console.error('[auth/callback] exchangeCodeForSession threw', err);
@@ -193,10 +205,20 @@ export async function GET(request: NextRequest) {
   return successResponse;
 }
 
-function redirectWithError(requestUrl: URL, next: string, message: string) {
+function redirectWithError(
+  requestUrl: URL,
+  next: string,
+  message: string,
+  reason?: string,
+) {
   const dest = new URL('/sign-in', requestUrl.origin);
   dest.searchParams.set('error', encodeURIComponent(message));
   dest.searchParams.set('next', next);
+  // Optional structured reason (e.g. "pkce") so the sign-in page can
+  // surface a dedicated panel instead of just rendering the error
+  // string. Free-form so we can extend it without coordinating both
+  // sides at once.
+  if (reason) dest.searchParams.set('reason', reason);
   return NextResponse.redirect(dest);
 }
 

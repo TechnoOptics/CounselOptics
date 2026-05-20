@@ -661,10 +661,21 @@ export function SignInButtons({ next }: { next: string }) {
         </form>
       ) : (
         <form onSubmit={verifyEmailCode} className="space-y-2">
-          <p className="rounded-lg border border-forest-200 bg-cream-50 px-3 py-2 text-xs text-forest-900 leading-relaxed">
-            We sent a 6-digit code to <strong>{emailSent}</strong>. Type it below to sign in
-            here, or click the link in the email - either works.
-          </p>
+          <div className="rounded-lg border border-forest-200 bg-cream-50 px-3 py-2.5 text-xs text-forest-900 leading-relaxed">
+            <p className="font-semibold text-forest-900 mb-1">
+              Check your inbox at <strong>{emailSent}</strong>
+            </p>
+            <p>
+              Look for the <strong>6-digit code</strong> in the email
+              body and type it below.{' '}
+              <span className="text-amber-700">
+                Don&rsquo;t click the link in the email
+              </span>{' '}
+              - that opens a different browser tab and loses the
+              sign-in. The code works no matter which browser sent
+              the request.
+            </p>
+          </div>
           <input
             type="text"
             required
@@ -682,6 +693,7 @@ export function SignInButtons({ next }: { next: string }) {
             maxLength={6}
             minLength={6}
             pattern="\d{6}"
+            autoFocus
           />
           <button
             type="submit"
@@ -689,7 +701,7 @@ export function SignInButtons({ next }: { next: string }) {
             className="btn-primary w-full"
           >
             {pending === 'email' ? <Spinner /> : <MailIcon />}
-            Sign in
+            Sign in with code
           </button>
           <button
             type="button"

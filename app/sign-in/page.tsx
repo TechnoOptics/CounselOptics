@@ -161,10 +161,22 @@ function sanitizeNext(raw: string | undefined): string {
 export default async function SignInPage({
   searchParams,
 }: {
-  searchParams?: { next?: string; error?: string; switch?: string };
+  searchParams?: {
+    next?: string;
+    error?: string;
+    switch?: string;
+    reason?: string;
+  };
 }) {
   const next = sanitizeNext(searchParams?.next);
   const subdomainBanner = bannerForNext(next);
+  // `reason=pkce` lights up the "use the 6-digit code instead"
+  // banner. The /auth/callback route sets this when it can't find
+  // the PKCE verifier cookie - usually because the user clicked
+  // the magic link in an email client that opened a different
+  // browser than the one that started the flow. The fix is
+  // ALWAYS to use the OTP code that came in the same email.
+  const pkceFailure = searchParams?.reason === 'pkce';
   // `?switch=1` (or `?switch=true`) means: the user landed here on
   // purpose to change accounts. Don't auto-bounce them onto whatever
   // session this browser already has - instead, show the "you're
@@ -234,10 +246,42 @@ export default async function SignInPage({
             )}
         </p>
 
-        {searchParams?.error && (
+        {searchParams?.error && !pkceFailure && (
           <p className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 mb-4">
             {decodeURIComponent(searchParams.error)}
           </p>
+        )}
+        {pkceFailure && (
+          // The magic link opened in a different browser context
+          // than the one that started the flow - the cookie holding
+          // the PKCE verifier is in a different cookie jar than the
+          // callback ran in. Same email already contains a 6-digit
+          // code that works in ANY browser - guide the user there.
+          <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-4 text-sm text-amber-900 mb-4">
+            <p className="font-semibold mb-1.5 flex items-center gap-2">
+              <span
+                aria-hidden
+                className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-200 text-[12px] font-bold"
+              >
+                !
+              </span>
+              Magic link opened in a different browser
+            </p>
+            <p className="leading-relaxed mb-2">
+              The email magic link only works if you click it in the
+              same browser you requested sign-in from. Email apps
+              often launch links in a new browser they prefer (Gmail
+              -&gt; Chrome, Outlook -&gt; Edge), which is why the
+              cookie didn&rsquo;t carry over.
+            </p>
+            <p className="leading-relaxed">
+              <strong>The fix:</strong> request a fresh sign-in below.
+              When the email arrives, look for the{' '}
+              <strong>6-digit code</strong> in the SAME email and type
+              it into the field that appears - that works no matter
+              which browser you started in.
+            </p>
+          </div>
         )}
 
         {switching && user && (
