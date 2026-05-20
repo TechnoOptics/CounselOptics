@@ -291,6 +291,23 @@ export type BellaMessage = { role: 'user' | 'assistant'; content: string };
 export type BellaMode = 'authed' | 'public' | 'doc-review';
 
 /**
+ * Escape the SQL LIKE wildcards (% and _) in a user-supplied search
+ * needle so a query like "DATA_RETENTION_AND_DISPOSAL_POLICY.pdf"
+ * matches that exact filename instead of being read as "DATA<any
+ * char>RETENTION<any char>..." or - in our earlier buggy version -
+ * having the underscores stripped entirely so the search needle
+ * collapsed to "DATARETENTIONANDDISPOSALPOLICY.pdf" and matched
+ * nothing. Wrap the result in your own outer % to allow partial
+ * matches; the escapes only neutralize wildcards inside the needle.
+ */
+function escLikeNeedle(s: string): string {
+  return s
+    .replace(/\\/g, '\\\\')
+    .replace(/%/g, '\\%')
+    .replace(/_/g, '\\_');
+}
+
+/**
  * Which portal initiated this Bella turn. The route validates this
  * before passing it through; tools use it to scope data access so a
  * user's consumer-side cases never leak into a firm session and vice
@@ -1301,7 +1318,7 @@ async function executeTool(
       q = q.is('firm_id', null);
     }
     if (query.length > 0) {
-      const safe = query.replace(/[%_]/g, '');
+      const safe = escLikeNeedle(query);
       const pattern = `%${safe}%`;
       // ilike across the user-facing text columns. RLS already scopes
       // results to ones the user can see (own + collaborator).
@@ -2556,7 +2573,7 @@ async function loadDocuments(
   if (clientUserId) q = q.eq('client_user_id', clientUserId);
   if (status) q = q.eq('status', status);
   if (query.length > 0) {
-    const safe = query.replace(/[%_]/g, '');
+    const safe = escLikeNeedle(query);
     q = q.ilike('name', `%${safe}%`);
   }
   const { data, error } = await q;
@@ -2762,7 +2779,7 @@ async function loadTrustTransactions(
     .limit(limit);
   if (accountId) q = q.eq('account_id', accountId);
   if (clientLabel) {
-    const safe = clientLabel.replace(/[%_]/g, '');
+    const safe = escLikeNeedle(clientLabel);
     q = q.ilike('client_label', `%${safe}%`);
   }
   const { data, error } = await q;
@@ -2955,7 +2972,7 @@ async function runGlobalSearch(
   if (!supabase) return { ok: false, error: 'Service role not configured.' };
   const queryRaw = String(input.query ?? '').trim();
   if (!queryRaw) return { ok: false, error: 'query is required.' };
-  const safe = queryRaw.replace(/[%_]/g, '');
+  const safe = escLikeNeedle(queryRaw);
   const pattern = `%${safe}%`;
   const limit = Math.min(20, Math.max(1, Number(input.limit) || 5));
 
