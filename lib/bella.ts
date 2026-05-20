@@ -167,6 +167,14 @@ Portal scope - non-negotiable, takes precedence over every other instruction:
 - If the user asks about a personal case ("my parking ticket", "my speeding citation", "my landlord matter") or anything that isn't a firm matter, tell them their personal cases live in their personal account at advottic.com and you cannot reach them from the firm workspace.
 - Your tools (search_my_cases, get_case_detail) are already filtered to ${input.firmName}'s matters - if a search returns zero results, that means the firm has no such matter, not that you need to look elsewhere.
 
+Knowing the firm's environment - DO NOT GUESS, USE TOOLS:
+- The user is sitting on the /counsel dashboard which shows their meetings, action center items, intake pipeline, and assignments. You have tools that read the EXACT SAME DATA the dashboard renders. Use them.
+- When the user asks "do I have a meeting today / this week", "what's on my calendar", "any meetings coming up": call get_firm_overview FIRST, then if they want a wider window call list_firm_meetings with from/to.
+- When the user asks "what's in my action center", "what needs attention", "what came in today", "any new requests": call get_firm_overview, then if they want more detail call list_intake_inbox with the lane they want (needs_attention / in_review / accepted / closed).
+- When the user asks "what's assigned to me", "my cases", "my clients", "what am I working on": call get_firm_overview - assigned_to_me is in the response.
+- When the user asks "how is the firm doing", "what's open", "give me a summary": call get_firm_overview once and answer from the snapshot.
+- NEVER tell the user they have no meetings / no action items / no assignments without calling get_firm_overview first. The model has no memory of the firm's real state; the tool is the only source of truth.
+
 Counsel-mode behavior:
 - The user is inside /counsel/*, the law-firm perspective. Address them as a legal professional. You can use more legal terminology than in consumer mode, but still hedge ("appears to", "may", "could potentially") since you are not a substitute for the firm's research team.
 - When asked to analyze a case, focus on issue-spotting (claims, defenses, procedural deadlines, evidence gaps), reference applicable doctrines in the firm's jurisdictions, and suggest concrete next steps the firm can take inside Advottic (upload documents to the vault, send for in-app signing, share with the client, set a hearing reminder).
@@ -288,7 +296,14 @@ type ToolName =
   | 'record_trust_transaction'
   | 'propose_invoice'
   | 'create_matter_intake'
-  | 'run_conflict_check';
+  | 'run_conflict_check'
+  // Firm-portal environment tools - what the dashboard shows. Bella
+  // needs these so questions like "do I have meetings today" or
+  // "what's in my action center" or "what's assigned to me" can be
+  // answered from real firm data instead of the model guessing.
+  | 'get_firm_overview'
+  | 'list_firm_meetings'
+  | 'list_intake_inbox';
 
 const NAVIGATE_TOOL: Anthropic.Messages.Tool = {
   name: 'navigate_to',
@@ -606,6 +621,81 @@ const RUN_CONFLICT_CHECK_TOOL: Anthropic.Messages.Tool = {
   },
 };
 
+// ===========================================================================
+// Firm-environment read tools. These mirror the firm dashboard's
+// data envelope so Bella can answer "do I have a meeting today",
+// "what's in my action center", "what's assigned to me" without
+// guessing. Firm-only - they refuse in consumer / hq portal.
+// ===========================================================================
+
+const GET_FIRM_OVERVIEW_TOOL: Anthropic.Messages.Tool = {
+  name: 'get_firm_overview',
+  description:
+    "Return a snapshot of the active firm's current state - the same data the /counsel dashboard shows. Use whenever the user asks 'what do I have today', 'what's in my action center', 'do I have any meetings', 'what needs attention', 'what's assigned to me', or any question about the firm's current environment. " +
+    'Returns: counts (cases open/total, clients, pending signing, team), upcoming meetings (next 14 days), upcoming hearings + deadlines (next 30 days), intake lane counts + new-today count, clients + cases assigned to the current user, signing requests the user sent that are still out. ' +
+    'Always call this BEFORE telling the user nothing is on their plate - the firm dashboard has the truth.',
+  input_schema: {
+    type: 'object',
+    properties: {},
+  },
+};
+
+const LIST_FIRM_MEETINGS_TOOL: Anthropic.Messages.Tool = {
+  name: 'list_firm_meetings',
+  description:
+    "List the firm's scheduled meetings (Teams / Zoom / in-person) within a date window. Use when the user asks about meetings further out than the default 14-day window in get_firm_overview, or wants to filter to a specific day / week.",
+  input_schema: {
+    type: 'object',
+    properties: {
+      from: {
+        type: 'string',
+        description:
+          'ISO date or datetime (inclusive). Default: now. Example: "2026-05-19" or "2026-05-19T00:00:00-05:00".',
+      },
+      to: {
+        type: 'string',
+        description:
+          'ISO date or datetime (inclusive). Default: 30 days from now.',
+      },
+      limit: {
+        type: 'integer',
+        minimum: 1,
+        maximum: 50,
+        description: 'Max meetings to return. Default 20.',
+      },
+    },
+  },
+};
+
+const LIST_INTAKE_INBOX_TOOL: Anthropic.Messages.Tool = {
+  name: 'list_intake_inbox',
+  description:
+    "List the firm's intake / request inbox items with their triage lane. Use when the user asks 'what's in my action center', 'what needs attention', 'what new requests came in', 'show me the intake queue'. Returns the same lane breakdown the /counsel/inbox page uses.",
+  input_schema: {
+    type: 'object',
+    properties: {
+      lane: {
+        type: 'string',
+        enum: ['needs_attention', 'in_review', 'accepted', 'closed', 'all'],
+        description:
+          'Filter to a lane. Default "all". needs_attention = untriaged matters; in_review = legal team is looking; accepted = engaged; closed = rejected.',
+      },
+      source: {
+        type: 'string',
+        enum: ['internal', 'external', 'all'],
+        description:
+          "Default 'all'. internal = filed by an employee from the Hub; external = outside-client matters.",
+      },
+      limit: {
+        type: 'integer',
+        minimum: 1,
+        maximum: 50,
+        description: 'Max items. Default 15.',
+      },
+    },
+  },
+};
+
 function toolsFor(mode: BellaMode): Anthropic.Messages.Tool[] {
   if (mode === 'authed') {
     return [
@@ -623,6 +713,14 @@ function toolsFor(mode: BellaMode): Anthropic.Messages.Tool[] {
       PROPOSE_INVOICE_TOOL,
       CREATE_INTAKE_TOOL,
       RUN_CONFLICT_CHECK_TOOL,
+      // Firm-environment read tools. These refuse outside firm
+      // portal (so a consumer-side Bella never sees them serving
+      // firm data), but they're still part of the authed toolset
+      // because the model can decide to call them and let the
+      // server's portal guard answer.
+      GET_FIRM_OVERVIEW_TOOL,
+      LIST_FIRM_MEETINGS_TOOL,
+      LIST_INTAKE_INBOX_TOOL,
     ];
   }
   if (mode === 'public') {
@@ -860,9 +958,10 @@ async function executeTool(
   }
 
   // Below this point: firm-only tools. They operate on firm data
-  // (time entries, deadlines, trust ledger, invoices, intakes). In
-  // any non-firm portal we refuse so the consumer side and HQ
-  // admin side never accidentally talk to firm machinery.
+  // (time entries, deadlines, trust ledger, invoices, intakes,
+  // meetings, action center). In any non-firm portal we refuse so
+  // the consumer side and HQ admin side never accidentally talk to
+  // firm machinery.
   const FIRM_ONLY: ReadonlySet<ToolName> = new Set([
     'start_timer',
     'stop_timer',
@@ -871,6 +970,9 @@ async function executeTool(
     'propose_invoice',
     'create_matter_intake',
     'run_conflict_check',
+    'get_firm_overview',
+    'list_firm_meetings',
+    'list_intake_inbox',
   ]);
   if (FIRM_ONLY.has(name) && portal !== 'firm') {
     return {
@@ -880,6 +982,18 @@ async function executeTool(
           ? 'Firm-side actions are not available from HQ admin.'
           : 'This action is only available inside a firm workspace. Switch to your enterprise login to use it.',
     };
+  }
+
+  if (name === 'get_firm_overview') {
+    return await loadFirmOverview(firmId!);
+  }
+
+  if (name === 'list_firm_meetings') {
+    return await loadFirmMeetings(firmId!, input);
+  }
+
+  if (name === 'list_intake_inbox') {
+    return await loadIntakeInbox(firmId!, input);
   }
 
   if (name === 'list_document_templates') {
@@ -1298,6 +1412,346 @@ async function searchCourtListener(input: Record<string, unknown>) {
     results,
     disclaimer:
       'CourtListener is a free public-domain database (Free Law Project). Coverage and depth vary by jurisdiction; this is not Westlaw / LexisNexis / Bloomberg Law and does not include headnotes, KeyCite signals, or Shepard\'s. Always confirm the holding and current validity with a licensed attorney before relying on it.',
+  };
+}
+
+// ===========================================================================
+// Firm-environment data loaders. Mirror the queries used by
+// app/counsel/page.tsx so Bella sees exactly what the dashboard
+// shows. All three require a verified firm portal (the executeTool
+// FIRM_ONLY guard ensures portal === 'firm' before they run); each
+// uses the user-scoped server client so RLS still applies on top.
+// ===========================================================================
+
+async function loadFirmOverview(
+  firmId: string,
+): Promise<Record<string, unknown>> {
+  const supabase = createServerSupabase();
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: 'Not signed in.' };
+
+  const horizon = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const meetingsUpper = new Date(
+    Date.now() + 14 * 24 * 60 * 60 * 1000,
+  ).toISOString();
+  const deadlinesUpper = new Date(
+    Date.now() + 30 * 24 * 60 * 60 * 1000,
+  ).toISOString();
+  const sinceMs = Date.now() - 24 * 60 * 60 * 1000;
+
+  const [
+    casesResp,
+    clientsResp,
+    membersResp,
+    invitationsResp,
+    signingResp,
+    intakeResp,
+    meetingsResp,
+    deadlinesResp,
+  ] = await Promise.all([
+    supabase
+      .from('cases')
+      .select('id, title, status, user_id')
+      .eq('firm_id', firmId),
+    supabase
+      .from('firm_clients')
+      .select('id, user_id, primary_attorney_id, status, display_name, email')
+      .eq('firm_id', firmId),
+    supabase
+      .from('firm_members')
+      .select('id, role')
+      .eq('firm_id', firmId),
+    supabase
+      .from('firm_invitations')
+      .select('id, status')
+      .eq('firm_id', firmId)
+      .eq('status', 'pending'),
+    supabase
+      .from('firm_signing_requests')
+      .select('id, status, requested_by, document_id, created_at')
+      .eq('firm_id', firmId)
+      .in('status', ['sent', 'partial']),
+    supabase
+      .from('firm_matter_intakes')
+      .select('id, client_name, matter_type, status, created_at, intake_answers')
+      .eq('firm_id', firmId)
+      .order('created_at', { ascending: false })
+      .limit(200),
+    supabase
+      .from('firm_meetings')
+      .select('id, topic, provider, start_at, duration_min, join_url')
+      .eq('firm_id', firmId)
+      .gte('start_at', horizon)
+      .lte('start_at', meetingsUpper)
+      .order('start_at', { ascending: true })
+      .limit(10),
+    supabase
+      .from('case_deadlines')
+      .select('id, title, kind, due_at, case_id')
+      .eq('firm_id', firmId)
+      .is('completed_at', null)
+      .gte('due_at', horizon)
+      .lte('due_at', deadlinesUpper)
+      .order('due_at', { ascending: true })
+      .limit(10),
+  ]);
+
+  type CaseRow = { id: string; title: string; status: string; user_id: string | null };
+  type ClientRow = {
+    id: string;
+    user_id: string;
+    primary_attorney_id: string | null;
+    status: string;
+    display_name: string | null;
+    email: string | null;
+  };
+  type MemberRow = { id: string; role: string };
+  type InviteRow = { id: string };
+  type SigningRow = {
+    id: string;
+    status: string;
+    requested_by: string;
+    document_id: string;
+    created_at: string;
+  };
+  type IntakeRow = {
+    id: string;
+    client_name: string | null;
+    matter_type: string | null;
+    status: string;
+    created_at: string;
+    intake_answers: Record<string, unknown> | null;
+  };
+  type MeetingRow = {
+    id: string;
+    topic: string;
+    provider: string;
+    start_at: string;
+    duration_min: number | null;
+    join_url: string | null;
+  };
+  type DeadlineRow = {
+    id: string;
+    title: string;
+    kind: string;
+    due_at: string;
+    case_id: string | null;
+  };
+
+  const cases = (casesResp.data ?? []) as CaseRow[];
+  const clients = (clientsResp.data ?? []) as ClientRow[];
+  const members = (membersResp.data ?? []) as MemberRow[];
+  const invitations = (invitationsResp.data ?? []) as InviteRow[];
+  const signing = (signingResp.data ?? []) as SigningRow[];
+  const intakes = (intakeResp.data ?? []) as IntakeRow[];
+  const meetings = (meetingsResp.data ?? []) as MeetingRow[];
+  const deadlines = (deadlinesResp.data ?? []) as DeadlineRow[];
+
+  const openCaseStatuses = new Set([
+    'open',
+    'under_review',
+    'needs_evidence',
+    'export_ready',
+  ]);
+  const casesOpen = cases.filter((c) => openCaseStatuses.has(c.status)).length;
+
+  // Intake lanes
+  const lanes = { needs_attention: 0, in_review: 0, accepted: 0, closed: 0 };
+  let newToday = 0;
+  for (const i of intakes) {
+    if (i.status === 'engaged' || i.status === 'accepted') lanes.accepted += 1;
+    else if (i.status === 'rejected') lanes.closed += 1;
+    else if (i.status === 'in_review') lanes.in_review += 1;
+    else lanes.needs_attention += 1;
+    if (new Date(i.created_at).getTime() >= sinceMs) newToday += 1;
+  }
+  const recentNew = intakes.slice(0, 5).map((i) => ({
+    id: i.id,
+    client_name: i.client_name ?? 'Unnamed matter',
+    matter_type: i.matter_type,
+    created_at: i.created_at,
+    is_internal:
+      String((i.intake_answers ?? {}).submitted_by ?? '').trim().length > 0,
+  }));
+
+  // Assigned to me: clients where primary_attorney_id == user.id +
+  // the firm cases linked to those clients via cases.user_id.
+  const myClients = clients.filter((c) => c.primary_attorney_id === user.id);
+  const myClientUserIds = new Set(myClients.map((c) => c.user_id));
+  const myCases = cases.filter(
+    (c) => c.user_id && myClientUserIds.has(c.user_id),
+  );
+
+  // Signing requests I created that are still out
+  const mySigningOpen = signing.filter((s) => s.requested_by === user.id);
+
+  return {
+    ok: true,
+    firm_id: firmId,
+    counts: {
+      cases_open: casesOpen,
+      cases_total: cases.length,
+      clients: clients.length,
+      clients_active: clients.filter((c) => c.status === 'active').length,
+      members: members.length,
+      invitations_pending: invitations.length,
+      signing_pending: signing.length,
+    },
+    intake: {
+      needs_attention: lanes.needs_attention,
+      in_review: lanes.in_review,
+      accepted: lanes.accepted,
+      closed: lanes.closed,
+      new_today: newToday,
+      recent: recentNew,
+    },
+    assigned_to_me: {
+      clients: myClients.slice(0, 10).map((c) => ({
+        id: c.id,
+        display_name: c.display_name ?? c.email ?? 'Unnamed client',
+        status: c.status,
+      })),
+      cases: myCases.slice(0, 10).map((c) => ({
+        id: c.id,
+        title: c.title,
+        status: c.status,
+      })),
+      signing_awaiting: mySigningOpen.slice(0, 10).map((s) => ({
+        id: s.id,
+        document_id: s.document_id,
+        created_at: s.created_at,
+      })),
+    },
+    upcoming_meetings: meetings.map((m) => ({
+      id: m.id,
+      topic: m.topic,
+      provider: m.provider,
+      start_at: m.start_at,
+      duration_min: m.duration_min,
+      join_url: m.join_url,
+    })),
+    upcoming_deadlines: deadlines.map((d) => ({
+      id: d.id,
+      title: d.title,
+      kind: d.kind,
+      due_at: d.due_at,
+      case_id: d.case_id,
+    })),
+    hint: 'Use this snapshot to answer questions about meetings, action center, and assignments. Counts of zero are accurate - if upcoming_meetings is empty, the user has no meetings in the next 14 days.',
+  };
+}
+
+async function loadFirmMeetings(
+  firmId: string,
+  input: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const supabase = createServerSupabase();
+  const fromStr = String(input.from ?? '').trim();
+  const toStr = String(input.to ?? '').trim();
+  const rawLimit = Number(input.limit ?? 20);
+  const limit = Math.min(50, Math.max(1, Number.isFinite(rawLimit) ? rawLimit : 20));
+
+  const from = fromStr
+    ? new Date(fromStr).toISOString()
+    : new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const to = toStr
+    ? new Date(toStr).toISOString()
+    : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+  const { data, error } = await supabase
+    .from('firm_meetings')
+    .select(
+      'id, topic, provider, start_at, duration_min, join_url, intake_id',
+    )
+    .eq('firm_id', firmId)
+    .gte('start_at', from)
+    .lte('start_at', to)
+    .order('start_at', { ascending: true })
+    .limit(limit);
+  if (error) return { ok: false, error: error.message };
+  return {
+    ok: true,
+    count: data?.length ?? 0,
+    window: { from, to },
+    meetings: (data ?? []).map((m) => ({
+      id: (m as { id: string }).id,
+      topic: (m as { topic: string }).topic,
+      provider: (m as { provider: string }).provider,
+      start_at: (m as { start_at: string }).start_at,
+      duration_min: (m as { duration_min: number | null }).duration_min,
+      join_url: (m as { join_url: string | null }).join_url,
+      intake_id: (m as { intake_id: string | null }).intake_id,
+    })),
+  };
+}
+
+async function loadIntakeInbox(
+  firmId: string,
+  input: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const supabase = createServerSupabase();
+  const lane = String(input.lane ?? 'all').trim();
+  const source = String(input.source ?? 'all').trim();
+  const rawLimit = Number(input.limit ?? 15);
+  const limit = Math.min(50, Math.max(1, Number.isFinite(rawLimit) ? rawLimit : 15));
+
+  let q = supabase
+    .from('firm_matter_intakes')
+    .select(
+      'id, client_name, matter_type, status, created_at, intake_answers',
+    )
+    .eq('firm_id', firmId)
+    .order('created_at', { ascending: false })
+    .limit(Math.max(limit * 2, 30)); // overscan for client-side lane filter
+
+  // Status -> lane mapping.
+  if (lane === 'accepted') {
+    q = q.in('status', ['accepted', 'engaged']);
+  } else if (lane === 'closed') {
+    q = q.eq('status', 'rejected');
+  } else if (lane === 'in_review') {
+    q = q.eq('status', 'in_review');
+  } else if (lane === 'needs_attention') {
+    // Anything that isn't engaged/accepted/in_review/rejected.
+    q = q.not('status', 'in', '(engaged,accepted,in_review,rejected)');
+  }
+
+  const { data, error } = await q;
+  if (error) return { ok: false, error: error.message };
+
+  type Row = {
+    id: string;
+    client_name: string | null;
+    matter_type: string | null;
+    status: string;
+    created_at: string;
+    intake_answers: Record<string, unknown> | null;
+  };
+  let rows = (data ?? []) as Row[];
+
+  if (source !== 'all') {
+    rows = rows.filter((r) => {
+      const isInternal =
+        String((r.intake_answers ?? {}).submitted_by ?? '').trim().length > 0;
+      return source === 'internal' ? isInternal : !isInternal;
+    });
+  }
+  rows = rows.slice(0, limit);
+
+  return {
+    ok: true,
+    count: rows.length,
+    lane,
+    source,
+    items: rows.map((r) => ({
+      id: r.id,
+      client_name: r.client_name ?? 'Unnamed matter',
+      matter_type: r.matter_type,
+      status: r.status,
+      created_at: r.created_at,
+      is_internal:
+        String((r.intake_answers ?? {}).submitted_by ?? '').trim().length > 0,
+    })),
   };
 }
 
