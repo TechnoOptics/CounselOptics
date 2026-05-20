@@ -540,19 +540,24 @@ export async function updateProfileAction(formData: FormData) {
 }
 
 /**
- * Set (or clear) the Safe Witness contact email - the person the
- * Safe Witness flow alerts when the user triggers it on their
- * wrist. Stored on profiles.safe_contact_email; null disables the
- * feature.
+ * Set (or clear) the Safe Witness configuration - the contact
+ * email, an optional PIN the contact knows you'd include in any
+ * genuine alert, and an optional message that opens the alert
+ * email body. All three are stored on `profiles`; an empty
+ * contact_email disables the feature regardless of PIN / message.
  */
-export async function updateSafeContactEmailAction(
+export async function updateSafeWitnessConfigAction(
   formData: FormData,
-): Promise<{ ok: true; email: string | null } | { ok: false; error: string }> {
+): Promise<
+  | { ok: true; email: string | null; pin: string | null; message: string | null }
+  | { ok: false; error: string }
+> {
   if (!usingSupabase()) return { ok: false, error: 'Supabase is not configured.' };
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: 'Not signed in.' };
-  const raw = String(formData.get('safeContactEmail') ?? '').trim();
-  const email = raw.length === 0 ? null : raw.toLowerCase();
+
+  const emailRaw = String(formData.get('safeContactEmail') ?? '').trim();
+  const email = emailRaw.length === 0 ? null : emailRaw.toLowerCase();
   if (email !== null) {
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
       return { ok: false, error: 'Enter a valid email address.' };
@@ -561,15 +566,45 @@ export async function updateSafeContactEmailAction(
       return { ok: false, error: 'Email is too long.' };
     }
   }
+
+  const pinRaw = String(formData.get('safeWitnessPin') ?? '').trim();
+  const pin = pinRaw.length === 0 ? null : pinRaw;
+  if (pin !== null && pin.length > 64) {
+    return { ok: false, error: 'PIN is too long (64 chars max).' };
+  }
+
+  const messageRaw = String(formData.get('safeWitnessMessage') ?? '').trim();
+  const message = messageRaw.length === 0 ? null : messageRaw;
+  if (message !== null && message.length > 500) {
+    return { ok: false, error: 'Message is too long (500 chars max).' };
+  }
+
   const { createServerSupabase } = await import('./supabase/server');
   const supabase = createServerSupabase();
   const { error } = await supabase
     .from('profiles')
-    .update({ safe_contact_email: email })
+    .update({
+      safe_contact_email: email,
+      safe_witness_pin: pin,
+      safe_witness_message: message,
+    })
     .eq('id', user.id);
   if (error) return { ok: false, error: error.message };
   revalidatePath('/profile');
-  return { ok: true, email };
+  return { ok: true, email, pin, message };
+}
+
+/**
+ * Back-compat alias for the prior call site that only set the
+ * email field. Existing form submissions keep working until they
+ * upgrade to the multi-field updater.
+ */
+export async function updateSafeContactEmailAction(
+  formData: FormData,
+): Promise<{ ok: true; email: string | null } | { ok: false; error: string }> {
+  const res = await updateSafeWitnessConfigAction(formData);
+  if (!res.ok) return res;
+  return { ok: true, email: res.email };
 }
 
 export async function updateHearingAction(

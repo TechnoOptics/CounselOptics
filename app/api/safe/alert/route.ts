@@ -80,16 +80,26 @@ export async function POST(req: NextRequest) {
   const [profileResp, userResp] = await Promise.all([
     admin
       .from('profiles')
-      .select('safe_contact_email, display_name')
+      .select(
+        'safe_contact_email, safe_witness_pin, safe_witness_message, display_name',
+      )
       .eq('id', userId)
       .maybeSingle(),
     admin.auth.admin.getUserById(userId),
   ]);
-  const contact = (
-    profileResp.data as
-      | { safe_contact_email: string | null; display_name: string | null }
-      | null
-  )?.safe_contact_email?.trim();
+  const profileRow = profileResp.data as
+    | {
+        safe_contact_email: string | null;
+        safe_witness_pin: string | null;
+        safe_witness_message: string | null;
+        display_name: string | null;
+      }
+    | null;
+  const contact = profileRow?.safe_contact_email?.trim();
+  const userPin = profileRow?.safe_witness_pin?.trim() || null;
+  const userMessage =
+    profileRow?.safe_witness_message?.trim() ||
+    'Safe mode activated. I need you. Please send help.';
   if (!contact) {
     return NextResponse.json(
       {
@@ -112,7 +122,11 @@ export async function POST(req: NextRequest) {
       : watcherEmail || 'an Advottic user';
 
   const firedAt = new Date();
-  const metadata: Record<string, unknown> = { note };
+  const metadata: Record<string, unknown> = {
+    note,
+    message: userMessage,
+    pin_included: userPin !== null,
+  };
   if (typeof body.lat === 'number' && typeof body.lng === 'number') {
     metadata.lat = body.lat;
     metadata.lng = body.lng;
@@ -160,15 +174,39 @@ export async function POST(req: NextRequest) {
 <div style="font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background: #0B1F19; color: #FBF7E9;">
   <div style="text-align: center; padding-bottom: 16px; border-bottom: 1px solid rgba(230, 206, 147, 0.25);">
     <p style="margin: 0; font-size: 12px; letter-spacing: 3px; text-transform: uppercase; color: #E5816B; font-weight: 600;">Safe Witness Alert</p>
-    <h1 style="margin: 8px 0 0; font-size: 24px; color: #E6CE93; font-weight: 600;">${watcherLabel} triggered Safe Witness</h1>
+    <h1 style="margin: 8px 0 0; font-size: 24px; color: #E6CE93; font-weight: 600;">${watcherLabel}</h1>
   </div>
-  <div style="padding: 20px 0;">
-    <p style="margin: 0 0 12px; line-height: 1.55;">
-      You are listed as the Safe Witness contact for this Advottic
-      account. This alert was triggered from ${source === 'watch' ? 'their Wear OS watch' : source === 'mobile' ? 'their phone' : 'the web'} at:
+
+  <!-- The user's message is the loudest thing in the email - this
+       is what they want their contact to read first. Big, gold,
+       centered, never wrapped in noise. -->
+  <div style="text-align: center; padding: 24px 12px; background: rgba(229, 129, 107, 0.08); border-radius: 12px; margin: 20px 0;">
+    <p style="margin: 0; font-size: 19px; line-height: 1.4; color: #FBF7E9; font-weight: 500;">
+      ${escapeHtml(userMessage)}
     </p>
+  </div>
+
+  ${
+    userPin
+      ? `<div style="text-align: center; padding: 14px 0; margin: 0 0 20px;">
+           <p style="margin: 0 0 6px; font-size: 10px; letter-spacing: 3px; text-transform: uppercase; color: rgba(251, 247, 233, 0.55);">Verification PIN (the code they pre-shared with you)</p>
+           <p style="margin: 0; font-family: 'SFMono-Regular', Menlo, monospace; font-size: 28px; letter-spacing: 6px; color: #E6CE93; font-weight: 700;">
+             ${escapeHtml(userPin)}
+           </p>
+           <p style="margin: 6px 0 0; font-size: 11px; color: rgba(251, 247, 233, 0.55);">
+             If this matches what ${watcherLabel.split(' (')[0]} told you in advance, this alert is genuine.
+           </p>
+         </div>`
+      : ''
+  }
+
+  <div style="padding: 0 0 20px;">
+    <p style="margin: 16px 0 6px; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: rgba(251, 247, 233, 0.55);">Fired at</p>
     <p style="margin: 0 0 16px; font-family: 'SFMono-Regular', Menlo, monospace; font-size: 15px; color: #E6CE93;">
       ${tsHuman}
+    </p>
+    <p style="margin: 0 0 16px; line-height: 1.55; color: rgba(251, 247, 233, 0.75);">
+      Triggered from <strong>${source === 'watch' ? 'their Wear OS watch' : source === 'mobile' ? 'their phone' : 'the web'}</strong>. The watch button has to be PRESSED AND HELD for four full seconds to fire - this isn't an accidental tap.
     </p>
     ${
       transcription
@@ -176,11 +214,11 @@ export async function POST(req: NextRequest) {
            <blockquote style="margin: 0 0 16px; padding: 12px 16px; background: rgba(251, 247, 233, 0.06); border-left: 3px solid #E6CE93; border-radius: 4px; font-size: 14px; line-height: 1.55; color: #FBF7E9;">
              ${escapeHtml(transcription)}
            </blockquote>`
-        : '<p style="margin: 0 0 16px; line-height: 1.55; color: rgba(251, 247, 233, 0.7);"><em>No voice transcription captured.</em></p>'
+        : ''
     }
     ${
       note
-        ? `<p style="margin: 16px 0 6px; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: rgba(251, 247, 233, 0.55);">Note</p>
+        ? `<p style="margin: 16px 0 6px; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: rgba(251, 247, 233, 0.55);">Additional note</p>
            <p style="margin: 0 0 16px; line-height: 1.55;">${escapeHtml(note)}</p>`
         : ''
     }
@@ -191,16 +229,14 @@ export async function POST(req: NextRequest) {
         : ''
     }
   </div>
+
   <div style="padding-top: 16px; border-top: 1px solid rgba(230, 206, 147, 0.25); font-size: 12px; color: rgba(251, 247, 233, 0.6); line-height: 1.55;">
     <p style="margin: 0 0 8px;">
-      Safe Witness is a feature in Advottic that lets a user discreetly
-      notify someone they trust when they feel unsafe. Receiving this
-      email means ${watcherLabel.split(' (')[0]} chose you as that contact
-      and just triggered it.
+      <strong style="color: #FBF7E9;">What to do next:</strong> call ${watcherLabel.split(' (')[0]} right now. If they don't pick up, the next step depends on what you know about their situation - their last known location, who they were with, or whether you need to escalate to local emergency services (in the US: 911).
     </p>
     <p style="margin: 0;">
-      If you weren't expecting this email or it looks like a mistake,
-      reach out to them directly to confirm everything is OK.
+      Safe Witness is a feature in Advottic that lets a user discreetly
+      notify someone they trust when they feel unsafe. You were chosen as that contact.
     </p>
   </div>
 </div>`;

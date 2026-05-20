@@ -33,18 +33,32 @@ export default async function ProfilePage() {
 
   const profile = await getProfile().catch(() => null);
 
-  // Safe Witness contact email lives on profiles but isn't part of
-  // the Profile DTO yet. Fetch directly so we can render the
-  // current value in the Devices section without a schema change
-  // on the existing Profile type.
+  // Safe Witness configuration (contact + PIN + message) lives on
+  // profiles but isn't part of the Profile DTO yet. Fetch the
+  // three columns directly so we can render the current values
+  // in the Devices section without a schema change on the
+  // existing Profile type.
   const supabase = createServerSupabase();
-  const safeContactRow = await supabase
+  const safeWitnessRow = await supabase
     .from('profiles')
-    .select('safe_contact_email')
+    .select('safe_contact_email, safe_witness_pin, safe_witness_message')
     .eq('id', user.id)
     .maybeSingle()
-    .then((r) => r.data as { safe_contact_email: string | null } | null);
-  const safeContactEmail = safeContactRow?.safe_contact_email ?? null;
+    .then(
+      (r) =>
+        r.data as
+          | {
+              safe_contact_email: string | null;
+              safe_witness_pin: string | null;
+              safe_witness_message: string | null;
+            }
+          | null,
+    );
+  const safeWitnessConfig = {
+    email: safeWitnessRow?.safe_contact_email ?? null,
+    pin: safeWitnessRow?.safe_witness_pin ?? null,
+    message: safeWitnessRow?.safe_witness_message ?? null,
+  };
   // Consent is now handled by the layout's popup modal; do not redirect.
 
   const fallbackName =
@@ -314,7 +328,7 @@ export default async function ProfilePage() {
             on your watch. The email lands instantly with a timestamp
             and any voice transcription. Leave blank to disable.
           </p>
-          <SafeContactForm initial={safeContactEmail} />
+          <SafeContactForm initial={safeWitnessConfig} />
         </div>
         <Link
           href="/pair-watch"
