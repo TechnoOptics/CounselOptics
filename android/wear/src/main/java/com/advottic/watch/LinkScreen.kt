@@ -153,19 +153,24 @@ fun LinkScreen(onClose: () -> Unit) {
                             modifier = Modifier.size(132.dp),
                         )
                     }
+                    // Show the same 4-character code prefix the phone
+                    // page renders so the user can verify the two
+                    // screens are paired with the same code. Mirrors
+                    // the Google TV / Apple TV pairing pattern.
+                    val codeHint = code.take(4).uppercase()
                     Text(
-                        text = "Scan with your phone",
+                        text = codeHint,
                         color = Gold,
                         fontWeight = FontWeight.Bold,
-                        letterSpacing = 2.sp,
-                        style = MaterialTheme.typography.caption1,
+                        letterSpacing = 4.sp,
+                        style = MaterialTheme.typography.title3,
                         textAlign = TextAlign.Center,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 12.dp),
+                            .padding(top = 8.dp),
                     )
                     Text(
-                        text = "Sign in, then tap \"Link this watch\".",
+                        text = "Scan, sign in, then tap the gold button on your phone.",
                         color = Cream.copy(alpha = 0.75f),
                         style = MaterialTheme.typography.caption2,
                         textAlign = TextAlign.Center,
