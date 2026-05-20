@@ -16,6 +16,35 @@ export const dynamic = 'force-dynamic';
  *
  * No body required.
  */
+/**
+ * Generate a fresh 6-digit pair_code that isn't already claimed by
+ * another active (pending) row. The unique partial index on the
+ * column enforces uniqueness atomically; we just retry a few times
+ * on the rare collision. After ~10 attempts the population of
+ * concurrent active codes would have to be absurdly large for the
+ * loop to fail - return null in that case and the caller decides
+ * how to surface it.
+ */
+async function freshPairCode(
+  admin: NonNullable<ReturnType<typeof createAdminSupabase>>,
+): Promise<string | null> {
+  for (let i = 0; i < 10; i++) {
+    // 6-digit zero-padded number, e.g. "048291". Uniformly random
+    // across 1_000_000 buckets so collisions during normal load are
+    // exceptionally rare.
+    const n = crypto.randomInt(0, 1_000_000);
+    const candidate = String(n).padStart(6, '0');
+    const { data } = await admin
+      .from('watch_link_codes')
+      .select('pair_code')
+      .eq('pair_code', candidate)
+      .eq('status', 'pending')
+      .maybeSingle();
+    if (!data) return candidate;
+  }
+  return null;
+}
+
 export async function POST(req: NextRequest) {
   const admin = createAdminSupabase();
   if (!admin) {
@@ -28,9 +57,20 @@ export async function POST(req: NextRequest) {
   const code = crypto.randomBytes(24).toString('base64url');
   const ttlSec = 600; // 10 minutes
   const expiresAt = new Date(Date.now() + ttlSec * 1000).toISOString();
+  const pairCode = await freshPairCode(admin);
+  if (!pairCode) {
+    return NextResponse.json(
+      {
+        error:
+          'Could not allocate a pairing code (too many active codes). Try again in a few seconds.',
+      },
+      { status: 503 },
+    );
+  }
 
   const { error } = await admin.from('watch_link_codes').insert({
     code,
+    pair_code: pairCode,
     status: 'pending',
     expires_at: expiresAt,
   });
@@ -46,6 +86,7 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     code,
+    pairCode,
     verifyUrl: `${base}/link-watch?code=${encodeURIComponent(code)}`,
     pollIntervalMs: 4000,
     expiresInSec: ttlSec,

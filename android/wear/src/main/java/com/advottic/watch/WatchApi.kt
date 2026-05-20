@@ -33,6 +33,12 @@ object WatchApi {
 
     data class LinkStart(
         val code: String,
+        /** Human-typeable 6-digit code shown next to the QR. The user
+         *  types this into the phone app's /pair-watch page; the
+         *  server then mints a token and the watch's normal poll
+         *  picks it up. Falls back to empty string when the server
+         *  doesn't return it (older deploy / future schema drift). */
+        val pairCode: String,
         val verifyUrl: String,
         val pollIntervalMs: Long,
     )
@@ -58,8 +64,9 @@ object WatchApi {
         val o = postJson("/api/watch/link/start", "{}") ?: return@withContext null
         val code = o.optString("code", "")
         val url = o.optString("verifyUrl", "")
+        val pair = o.optString("pairCode", "")
         if (code.isBlank() || url.isBlank()) return@withContext null
-        LinkStart(code, url, o.optLong("pollIntervalMs", 4000L))
+        LinkStart(code, pair, url, o.optLong("pollIntervalMs", 4000L))
     }
 
     /** "pending" | "approved" | "expired" | "not_found" | "consumed" | "error". */

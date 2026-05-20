@@ -60,6 +60,10 @@ fun LinkScreen(onClose: () -> Unit) {
     var phase by remember { mutableStateOf("loading") }
     var verifyUrl by remember { mutableStateOf("") }
     var code by remember { mutableStateOf("") }
+    /** 6-digit human-typeable pairing code. The user reads it off
+     *  the watch and types it into the phone app's /pair-watch page;
+     *  the phone is already signed in so no PKCE roundtrip happens. */
+    var pairCode by remember { mutableStateOf("") }
     var pollMs by remember { mutableStateOf(4000L) }
     var msg by remember { mutableStateOf("") }
 
@@ -71,6 +75,7 @@ fun LinkScreen(onClose: () -> Unit) {
             return@LaunchedEffect
         }
         code = start.code
+        pairCode = start.pairCode
         verifyUrl = start.verifyUrl
         pollMs = start.pollIntervalMs.coerceIn(2000L, 10000L)
         phase = "show"
@@ -153,43 +158,69 @@ fun LinkScreen(onClose: () -> Unit) {
         ) {
             when (phase) {
                 "show" -> {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color.White)
-                            .padding(8.dp),
-                    ) {
-                        QrCode(
-                            content = verifyUrl,
-                            sizePx = 320,
-                            modifier = Modifier.size(132.dp),
-                        )
-                    }
-                    // Show the same 4-character code prefix the phone
-                    // page renders so the user can verify the two
-                    // screens are paired with the same code. Mirrors
-                    // the Google TV / Apple TV pairing pattern.
-                    val codeHint = code.take(4).uppercase()
+                    // PRIMARY path: 6-digit pair code. The phone app
+                    // (under Profile -> Pair watch) accepts this and
+                    // uses the user's existing phone session - no
+                    // second sign-in, no QR scanning, no PKCE round-
+                    // trip. Largest, most prominent element here.
                     Text(
-                        text = codeHint,
+                        text = "Type this on your phone",
+                        color = Cream.copy(alpha = 0.6f),
+                        letterSpacing = 2.sp,
+                        style = MaterialTheme.typography.caption2,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    val pretty = if (pairCode.length == 6) {
+                        "${pairCode.substring(0, 3)}  ${pairCode.substring(3)}"
+                    } else {
+                        pairCode
+                    }
+                    Text(
+                        text = if (pairCode.isNotBlank()) pretty else "------",
                         color = Gold,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 4.sp,
-                        style = MaterialTheme.typography.title3,
+                        style = MaterialTheme.typography.display3,
                         textAlign = TextAlign.Center,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 8.dp),
+                            .padding(top = 4.dp, bottom = 6.dp),
                     )
                     Text(
-                        text = "Scan, sign in, then tap the gold button on your phone.",
-                        color = Cream.copy(alpha = 0.75f),
+                        text = "Open Advottic on your phone -> Profile -> Pair Wear OS watch.",
+                        color = Cream.copy(alpha = 0.7f),
                         style = MaterialTheme.typography.caption2,
                         textAlign = TextAlign.Center,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 4.dp),
+                            .padding(horizontal = 6.dp),
                     )
+                    // Fallback QR for the desktop or no-app path.
+                    // Smaller now since the primary path is the
+                    // 6-digit code above.
+                    Text(
+                        text = "OR SCAN",
+                        color = Cream.copy(alpha = 0.4f),
+                        letterSpacing = 3.sp,
+                        style = MaterialTheme.typography.caption2,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 18.dp, bottom = 6.dp),
+                    )
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color.White)
+                            .padding(6.dp),
+                    ) {
+                        QrCode(
+                            content = verifyUrl,
+                            sizePx = 320,
+                            modifier = Modifier.size(110.dp),
+                        )
+                    }
                 }
                 "linked" -> Text(
                     text = "Watch linked",
