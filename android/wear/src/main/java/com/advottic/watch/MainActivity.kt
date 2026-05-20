@@ -1066,6 +1066,15 @@ fun WearApp(summary: SummaryStore.Summary) {
                                             )
                                         }
                                         scope.launch {
+                                            // v3-safety: get the best fix we
+                                            // can in 15s and pass accuracy
+                                            // through so the server can warn
+                                            // the contact if the dot's
+                                            // approximate. A wrong-by-800m
+                                            // pin is worse than no pin in
+                                            // an emergency, so we'd rather
+                                            // send "approximate" honestly
+                                            // than confident-but-wrong.
                                             val fix = if (LocationCapture.hasPermission(context)) {
                                                 LocationCapture.get(context)
                                             } else null
@@ -1075,6 +1084,8 @@ fun WearApp(summary: SummaryStore.Summary) {
                                                     "the Wear OS watch.",
                                                 lat = fix?.lat,
                                                 lng = fix?.lng,
+                                                accuracyM = fix?.accuracyM,
+                                                locationTimedOut = fix?.timedOut ?: false,
                                             )
                                         }
                                     }

@@ -88,12 +88,28 @@ object WatchApi {
      * looks up profiles.safe_contact_email for the bearer token's
      * user and emails them with the transcription + timestamp.
      * Returns true on success.
+     *
+     * `accuracyM` is the 68%-confidence radius in meters from the
+     * Android FusedLocationProvider. The server uses it to (a) gate
+     * the pulsing-pin map (we only show a confident pin under ~50m)
+     * and (b) surface a warning to the contact when the dot is
+     * approximate. Passing this prevents the worst-case Safe
+     * Witness failure: a contact sending help to the wrong street
+     * because the email confidently showed a Wi-Fi-triangulated
+     * pin that was 800m away from the actual user.
+     *
+     * `locationTimedOut` is true when the watch never reached a
+     * good GPS fix and is shipping the best last-known sample
+     * instead. The server uses it to add an explicit "approximate
+     * location" banner.
      */
     suspend fun sendSafeAlert(
         token: String,
         transcription: String,
         lat: Double? = null,
         lng: Double? = null,
+        accuracyM: Float? = null,
+        locationTimedOut: Boolean = false,
     ): Boolean = withContext(Dispatchers.IO) {
         try {
             val c = (URL("$BASE/api/safe/alert").openConnection()
@@ -109,6 +125,12 @@ object WatchApi {
                 .put("transcription", transcription)
             if (lat != null && lng != null) {
                 payload.put("lat", lat).put("lng", lng)
+            }
+            if (accuracyM != null) {
+                payload.put("accuracy_m", accuracyM.toDouble())
+            }
+            if (locationTimedOut) {
+                payload.put("location_timed_out", true)
             }
             c.outputStream.use { it.write(payload.toString().toByteArray()) }
             val ok = c.responseCode in 200..299

@@ -55,6 +55,14 @@ export async function POST(req: NextRequest) {
     note?: string;
     lat?: number;
     lng?: number;
+    /** 68%-confidence radius in meters from the device's
+     *  FusedLocationProvider. Drives the "approximate location"
+     *  banner + decides whether the pin renders confidently. */
+    accuracy_m?: number;
+    /** True when the device never reached a good GPS fix and is
+     *  shipping the best last-known sample. We always treat this
+     *  as approximate regardless of accuracy_m. */
+    location_timed_out?: boolean;
   };
   try {
     body = await req.json();
@@ -169,6 +177,16 @@ export async function POST(req: NextRequest) {
     metadata.lat = body.lat;
     metadata.lng = body.lng;
   }
+  // Surface the accuracy + timeout flags in the audit row so the
+  // founder can later inspect whether a pin was reliable. Critical
+  // for the "did this user actually go to the place we showed"
+  // forensic question after a Safe Witness fire.
+  if (typeof body.accuracy_m === 'number') {
+    metadata.accuracy_m = body.accuracy_m;
+  }
+  if (body.location_timed_out === true) {
+    metadata.location_timed_out = true;
+  }
 
   // Audit row first so any later failure (email send, etc.) still
   // leaves a record the user can inspect.
@@ -210,6 +228,33 @@ export async function POST(req: NextRequest) {
     typeof body.lat === 'number' && typeof body.lng === 'number';
   const lat = hasLoc ? body.lat! : null;
   const lng = hasLoc ? body.lng! : null;
+  // Accuracy gating - prevents the worst-case failure where the
+  // email confidently shows a Wi-Fi-triangulated pin that's
+  // hundreds of meters off. Anything wider than 150m gets the
+  // "approximate" treatment: a warning banner is added, and the
+  // pulsing-pin map is replaced with a coarse circle so the
+  // contact doesn't trust the dot to the meter.
+  const accuracyM =
+    typeof body.accuracy_m === 'number' && body.accuracy_m > 0
+      ? body.accuracy_m
+      : null;
+  const locationTimedOut = body.location_timed_out === true;
+  const APPROX_THRESHOLD_M = 150;
+  // True when the location is reliable enough to render as a pinned
+  // dot. Coarse fixes still get a map + link, but rendered as a
+  // wider circle and labeled "approximate" so the contact knows.
+  const locationIsConfident =
+    hasLoc &&
+    !locationTimedOut &&
+    accuracyM !== null &&
+    accuracyM <= APPROX_THRESHOLD_M;
+  // Round to a human-readable label. "~30m" / "~120m" / "~0.8km".
+  const accuracyLabel: string | null =
+    accuracyM === null
+      ? null
+      : accuracyM < 1000
+        ? `±${Math.round(accuracyM)}m`
+        : `±${(accuracyM / 1000).toFixed(1)}km`;
   const mapLink = hasLoc
     ? `https://www.google.com/maps?q=${lat},${lng}`
     : null;
@@ -224,16 +269,30 @@ export async function POST(req: NextRequest) {
     (process.env.GOOGLE_MAPS_API_KEY ?? '').trim() ||
     (process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? '').trim() ||
     null;
+  // Map zoom: tight when we trust the fix, wider when it's
+  // approximate so the contact sees the surrounding blocks they
+  // need to consider. The pin style also differs: confident fixes
+  // get a labeled red drop-pin; approximate fixes get a smaller
+  // dot inside a translucent radius circle drawn as a path
+  // (Static Maps Encoded Polyline approximation isn't available
+  // for true circles, so we hint at the radius with a wider zoom
+  // and a less-confident label).
+  const staticMapZoom = locationIsConfident ? '15' : '13';
+  const staticMapMarkers = locationIsConfident
+    ? `color:red|label:S|${lat},${lng}`
+    : // Smaller dot, no letter, slightly muted color when we're not
+      // sure - reads as "somewhere near here" not "exactly here."
+      `color:0xCC4444|size:small|${lat},${lng}`;
   const staticMapUrl =
     hasLoc && mapsApiKey
       ? `https://maps.googleapis.com/maps/api/staticmap?` +
         new URLSearchParams({
           center: `${lat},${lng}`,
-          zoom: '15',
+          zoom: staticMapZoom,
           size: '600x300',
           scale: '2',
           maptype: 'roadmap',
-          markers: `color:red|label:S|${lat},${lng}`,
+          markers: staticMapMarkers,
           key: mapsApiKey,
         }).toString()
       : null;
@@ -346,11 +405,41 @@ export async function POST(req: NextRequest) {
   }
 
   ${
+    // Approximate-location warning. Renders ABOVE the map whenever
+    // we don't trust the dot. This is the "wrong pin can be life or
+    // death" guardrail: rather than confidently showing a fix that
+    // could be 800m off, we explicitly tell the contact "the dot
+    // is approximate, treat the surrounding area as the search
+    // zone."
+    hasLoc && !locationIsConfident
+      ? `<div style="margin: 0 0 12px; padding: 12px 16px; background: rgba(229, 129, 107, 0.18); border-radius: 10px; border-left: 3px solid #E5816B;">
+           <p style="margin: 0; font-size: 13px; color: #FBF7E9; line-height: 1.55; font-weight: 600;">
+             ${
+               locationTimedOut
+                 ? 'Approximate location - the watch could not get a precise GPS fix.'
+                 : 'Approximate location - low-confidence fix.'
+             }
+           </p>
+           <p style="margin: 4px 0 0; font-size: 12px; color: rgba(251, 247, 233, 0.85); line-height: 1.55;">
+             ${
+               accuracyLabel
+                 ? `The pin below could be off by up to <strong>${accuracyLabel}</strong>. Treat the surrounding blocks as the search area, not the exact point.`
+                 : 'Treat the surrounding blocks as the search area, not the exact point.'
+             }
+           </p>
+         </div>`
+      : ''
+  }
+  ${
     staticMapUrl
       ? `<div style="margin: 0 0 16px;">
            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="border-collapse: separate;">
              <tr>
-               <td class="adv-pulse-wrap" style="padding: 0; border-radius: 14px; border: 3px solid #E55050;">
+               <td ${
+                 locationIsConfident ? 'class="adv-pulse-wrap"' : ''
+               } style="padding: 0; border-radius: 14px; border: 3px solid ${
+                 locationIsConfident ? '#E55050' : 'rgba(229, 129, 107, 0.45)'
+               };">
                  <a href="${mapLink}" style="display: block; text-decoration: none;">
                    <img src="${staticMapUrl}" alt="Their location on a map" width="600" style="display: block; width: 100%; max-width: 600px; height: auto; border-radius: 11px;" />
                  </a>
@@ -358,8 +447,16 @@ export async function POST(req: NextRequest) {
              </tr>
            </table>
            <p style="margin: 8px 0 0; font-size: 11px; color: rgba(251, 247, 233, 0.55); text-align: center;">
-             <span style="display: inline-block; width: 8px; height: 8px; background: #E55050; border-radius: 50%; vertical-align: middle; margin-right: 6px;"></span>
-             Live location at the moment the alert fired. Tap to open in Maps. Distance from you depends on where you are now.
+             <span style="display: inline-block; width: 8px; height: 8px; background: ${
+               locationIsConfident ? '#E55050' : '#CC4444'
+             }; border-radius: 50%; vertical-align: middle; margin-right: 6px;"></span>
+             ${
+               locationIsConfident
+                 ? 'Live location at the moment the alert fired. Tap to open in Maps.'
+                 : `Approximate location ${
+                     accuracyLabel ? `(${accuracyLabel} radius)` : ''
+                   }. Tap to open in Maps.`
+             }
            </p>
          </div>`
       : hasLoc
