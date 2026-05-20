@@ -10,7 +10,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -123,6 +125,7 @@ fun LinkScreen(onClose: () -> Unit) {
     }
 
     val noRipple = remember { MutableInteractionSource() }
+    val scroll = rememberScrollState()
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -137,7 +140,16 @@ fun LinkScreen(onClose: () -> Unit) {
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.fillMaxWidth(0.82f),
+            modifier = Modifier
+                .fillMaxWidth(0.82f)
+                // Round-watch screens are tall enough for the QR alone
+                // but not for QR + code hint + instructions. Wrap the
+                // column in a vertical scroller and pad top + bottom
+                // generously so the curved bezel never clips the
+                // edges of the content. The scroll is gesture-driven;
+                // the surrounding Box still catches tap-to-cancel.
+                .verticalScroll(scroll)
+                .padding(vertical = 28.dp),
         ) {
             when (phase) {
                 "show" -> {

@@ -17,6 +17,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -492,6 +493,18 @@ fun WearApp(summary: SummaryStore.Summary) {
                         .fillMaxSize()
                         .alpha(appear),
                     horizontalAlignment = Alignment.CenterHorizontally,
+                    // Round-watch face: without explicit contentPadding
+                    // the first item starts flush with the top bezel
+                    // (clipped) and the last item gets stuck at the
+                    // bottom bezel where the curve hides half of it.
+                    // 36dp top makes room for TimeText + the curve at
+                    // 12 o'clock; 96dp bottom lets the final chip
+                    // (Safe Witness / Courtroom mode) scroll up far
+                    // enough to read in full at the equator.
+                    contentPadding = PaddingValues(
+                        top = 36.dp,
+                        bottom = 96.dp,
+                    ),
                 ) {
                     // Wordmark
                     item {
