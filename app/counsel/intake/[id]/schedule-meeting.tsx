@@ -135,10 +135,10 @@ export function ScheduleMeetingPanel({
                 <>
                   {' '}
                   <a
-                    href="/counsel/meetings"
+                    href="/counsel/calendar"
                     className="underline font-semibold"
                   >
-                    Open Meetings
+                    Open Calendar
                   </a>
                 </>
               )}

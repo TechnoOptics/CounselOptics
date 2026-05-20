@@ -285,8 +285,13 @@ export async function GET(
   const finalBase = isAllowedOrigin(parsedState.origin)
     ? parsedState.origin!
     : requestOrigin;
+  // Meetings + Calendar merged in W20: send the user back to the
+  // unified calendar surface where the connector panel + the agenda
+  // live together. /counsel/meetings is kept as a redirect shim
+  // (app/counsel/meetings/page.tsx) so the toast querystring still
+  // resolves even if a stale link points there.
   const res = NextResponse.redirect(
-    new URL(`/counsel/meetings?connected=${provider.id}`, finalBase),
+    new URL(`/counsel/calendar?connected=${provider.id}`, finalBase),
   );
   // Clear the state cookie - it's been spent. Match the domain
   // attribute used at /authorize so the browser actually drops it.
@@ -303,7 +308,9 @@ export async function GET(
 }
 
 function redirectWithError(req: NextRequest, message: string) {
-  const dest = new URL('/counsel/meetings', req.url);
+  // See comment on the success path above - /counsel/calendar is the
+  // post-W20 home for both the agenda and the connectors.
+  const dest = new URL('/counsel/calendar', req.url);
   dest.searchParams.set('integration_error', message);
   return NextResponse.redirect(dest);
 }

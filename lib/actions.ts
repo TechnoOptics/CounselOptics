@@ -1047,6 +1047,10 @@ export async function disconnectFirmIntegrationAction(
     if (updateErr) {
       return { ok: false, error: updateErr.message };
     }
+    // /counsel/meetings is now a redirect shim to /counsel/calendar
+    // (Meetings + Calendar merged). Revalidate the new home so the
+    // connectors panel re-renders with the disconnected state.
+    revalidatePath('/counsel/calendar');
     revalidatePath('/counsel/meetings');
     return { ok: true };
   } catch (err) {

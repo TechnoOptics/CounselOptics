@@ -1,7 +1,8 @@
 /**
  * Create a Teams (Microsoft 365) or Zoom meeting using a firm's
- * already-connected integration. Connect lives in /counsel/meetings
- * (OAuth); this is the missing "actually schedule one" half.
+ * already-connected integration. Connect lives in /counsel/calendar
+ * (OAuth, formerly the standalone /counsel/meetings page); this is
+ * the missing "actually schedule one" half.
  *
  * Tokens are AES-GCM encrypted in firm_integrations (see
  * lib/integration-tokens.ts). Access tokens are short-lived (~1h) so

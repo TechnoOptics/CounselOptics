@@ -22,7 +22,7 @@ export const DEFAULT_MENU: MenuSection[] = [
     items: [
       { href: '/counsel', label: 'Dashboard', hint: 'Overview' },
       { href: '/counsel/aid', label: 'Advottic Aid', hint: 'Ask about cases + law' },
-      { href: '/counsel/calendar', label: 'Calendar', hint: 'Meetings + deadlines' },
+      { href: '/counsel/calendar', label: 'Calendar', hint: 'Meetings, deadlines + integrations' },
     ],
   },
   {
@@ -45,7 +45,6 @@ export const DEFAULT_MENU: MenuSection[] = [
       { href: '/counsel/access', label: 'Access requests', hint: 'Approve external sign-ups' },
       { href: '/counsel/team', label: 'Team', hint: 'Members + roles' },
       { href: '/counsel/chat', label: 'Chat', hint: 'Channels + DMs' },
-      { href: '/counsel/meetings', label: 'Meetings', hint: 'Calendar' },
     ],
   },
   {

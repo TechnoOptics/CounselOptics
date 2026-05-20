@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { MeetingScheduler } from './MeetingScheduler';
+import { MeetingConnectors } from '@/components/counsel/MeetingConnectors';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Calendar · Counsel' };
@@ -23,7 +24,14 @@ const KIND_TONE: Record<AgendaItem['kind'], string> = {
     'bg-ink-100 dark:bg-forest-800/50 text-ink-700 dark:text-cream-100/85 ring-ink-200 dark:ring-forest-700/40',
 };
 
-export default async function CounselCalendarPage() {
+export default async function CounselCalendarPage({
+  searchParams,
+}: {
+  // The OAuth callback redirects here with ?connected=microsoft (or
+  // zoom) on success and ?integration_error=... on failure. We
+  // hand both to the connectors panel for the toast.
+  searchParams?: { connected?: string; integration_error?: string };
+}) {
   const ctx = await getActiveFirmContext();
   if (!ctx) redirect('/counsel');
   const admin = createAdminSupabase();
@@ -205,6 +213,17 @@ export default async function CounselCalendarPage() {
           ))}
         </div>
       )}
+
+      {/* Calendar + meeting providers (Microsoft 365, Zoom). Lived on
+          its own page at /counsel/meetings before W20; merged here so
+          a firm has one calendar surface instead of two. Placed at
+          the bottom because it's a setup surface - the active agenda
+          deserves the top of the page. */}
+      <MeetingConnectors
+        firmId={firmId}
+        connected={searchParams?.connected}
+        integrationError={searchParams?.integration_error}
+      />
     </div>
   );
 }

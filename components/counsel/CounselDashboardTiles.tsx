@@ -450,7 +450,7 @@ function QuickActionsTile({ data }: { data: DashboardTileData }) {
   const actions = [
     { href: '/counsel/cases/new', label: 'New case' },
     { href: '/counsel/intake', label: 'New intake' },
-    { href: '/counsel/meetings', label: 'Schedule meeting' },
+    { href: '/counsel/calendar', label: 'Schedule meeting' },
     { href: '/counsel/documents', label: 'Upload document' },
   ];
   return (
@@ -486,13 +486,13 @@ function MeetingsTile({ data }: { data: DashboardTileData }) {
           ? 'Nothing on the calendar'
           : `Next ${Math.min(data.meetings.length, 5)}`
       }
-      href="/counsel/meetings"
+      href="/counsel/calendar"
       accent={data.accent}
       span={2}
     >
       {data.meetings.length === 0 ? (
         <p className="text-[12.5px] text-cream-100/60 mt-2 leading-relaxed">
-          Connect Microsoft 365 or Zoom from Meetings to see your
+          Connect Microsoft 365 or Zoom from Calendar to see your
           schedule here.
         </p>
       ) : (
