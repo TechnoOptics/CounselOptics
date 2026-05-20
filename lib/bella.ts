@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { createServerSupabase, getCurrentUser } from './supabase/server';
+import { createAdminSupabase } from './supabase/admin';
 
 const MODEL = 'claude-sonnet-4-6';
 
@@ -1426,9 +1427,23 @@ async function searchCourtListener(input: Record<string, unknown>) {
 async function loadFirmOverview(
   firmId: string,
 ): Promise<Record<string, unknown>> {
-  const supabase = createServerSupabase();
+  // Use the admin (service role) client for these reads. The
+  // user-scoped client is filtered by RLS, and several firm-side
+  // tables either have no member-select policy (firm_meetings) or
+  // are admin-only-select (firm_invitations). That made Bella
+  // confidently report "no meetings" while the calendar page,
+  // which uses the admin client, showed the same firm had two on
+  // the agenda. The firmId we get here is already validated at the
+  // route layer (portal='firm' requires the user to be a member of
+  // this firm), so the admin client is safe - we are not bypassing
+  // a scope check, we are matching the existing pattern that every
+  // server-rendered firm page uses.
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: 'Not signed in.' };
+  const supabase = createAdminSupabase();
+  if (!supabase) {
+    return { ok: false, error: 'Service role not configured on this deployment.' };
+  }
 
   const horizon = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   const meetingsUpper = new Date(
@@ -1645,7 +1660,13 @@ async function loadFirmMeetings(
   firmId: string,
   input: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-  const supabase = createServerSupabase();
+  // Admin client - see comment on loadFirmOverview. firm_meetings
+  // has no RLS member-select policy, so the user-scoped client
+  // returns zero rows.
+  const supabase = createAdminSupabase();
+  if (!supabase) {
+    return { ok: false, error: 'Service role not configured on this deployment.' };
+  }
   const fromStr = String(input.from ?? '').trim();
   const toStr = String(input.to ?? '').trim();
   const rawLimit = Number(input.limit ?? 20);
@@ -1689,7 +1710,12 @@ async function loadIntakeInbox(
   firmId: string,
   input: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-  const supabase = createServerSupabase();
+  // Admin client - see comment on loadFirmOverview. Consistent
+  // with how the /counsel/inbox page already reads this table.
+  const supabase = createAdminSupabase();
+  if (!supabase) {
+    return { ok: false, error: 'Service role not configured on this deployment.' };
+  }
   const lane = String(input.lane ?? 'all').trim();
   const source = String(input.source ?? 'all').trim();
   const rawLimit = Number(input.limit ?? 15);
