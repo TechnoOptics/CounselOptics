@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { cleanLegalText } from '@/lib/legal-templates';
 
 /**
@@ -9,36 +9,99 @@ import { cleanLegalText } from '@/lib/legal-templates';
  * case, a clause, a client, a meeting, a prior matter. It streams
  * the answer from the same firm-aware engine that powers Advottic
  * Aid (/api/bella with firmMode), whose tools reach case law, the
- * firm's cases, and prior intakes.
+ * firm's cases, intakes, signing, billing, trust, etc.
+ *
+ * Behaviour:
+ *   - Submitting clears the input box immediately so the user can
+ *     keep typing while the answer streams.
+ *   - The question becomes the title of its own answer block; the
+ *     panel below the bar accumulates a running thread of Q -> A
+ *     turns from this session, newest at the bottom.
+ *   - The full message history is sent to /api/bella so a follow-up
+ *     question ("and what about for that client?") has context.
+ *   - The Clear button wipes the conversation.
  */
+type Turn = {
+  question: string;
+  answer: string;
+  error: string | null;
+  /** True while this turn's stream is still arriving. */
+  busy: boolean;
+};
+
 export function AskAdvottic() {
   const [q, setQ] = useState('');
-  const [answer, setAnswer] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [open, setOpen] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [turns, setTurns] = useState<Turn[]>([]);
   const abortRef = useRef<AbortController | null>(null);
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  // Whether any turn is mid-stream. Used to disable the submit
+  // button and to gate certain UI affordances.
+  const busy = turns.some((t) => t.busy);
+
+  // Auto-scroll the answer panel during streaming, but only when the
+  // user is already near the bottom - if they have scrolled up to
+  // re-read an earlier answer we don't yank them back down.
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const nearBottom =
+      el.scrollHeight - el.scrollTop - el.clientHeight < 96;
+    if (nearBottom) el.scrollTop = el.scrollHeight;
+  }, [turns]);
+
+  function patchLast(updater: (t: Turn) => Turn) {
+    setTurns((prev) => {
+      if (prev.length === 0) return prev;
+      const next = prev.slice();
+      next[next.length - 1] = updater(next[next.length - 1]!);
+      return next;
+    });
+  }
 
   async function ask(question: string) {
     const text = question.trim();
     if (!text || busy) return;
-    setOpen(true);
-    setBusy(true);
-    setError(null);
-    setAnswer('');
+
+    // Snapshot the conversation BEFORE we append the new turn so
+    // the API payload is exactly what the user has seen so far
+    // (question + answer pairs).
+    const history = turns;
+
+    // Clear the input immediately so the user can type their next
+    // question while this one is still streaming.
+    setQ('');
+    setTurns((prev) => [
+      ...prev,
+      { question: text, answer: '', error: null, busy: true },
+    ]);
+    // Re-focus the box so the user can keep typing without
+    // clicking back in.
+    requestAnimationFrame(() => inputRef.current?.focus());
+
     abortRef.current?.abort();
     const ctrl = new AbortController();
     abortRef.current = ctrl;
+
     try {
+      const messages = [
+        ...history.flatMap((t) => [
+          { role: 'user' as const, content: t.question },
+          { role: 'assistant' as const, content: t.answer },
+        ]),
+        { role: 'user' as const, content: text },
+      ];
+
       const res = await fetch('/api/bella', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: [{ role: 'user', content: text }],
-          // Explicit portal scope - the server validates this against
-          // the user's actual firm context and refuses if they don't
-          // belong to a firm, so personal cases never leak into the
-          // enterprise workspace.
+          messages,
+          // Explicit portal scope - the server validates this
+          // against the user's actual firm context and refuses if
+          // they don't belong to a firm, so personal cases never
+          // leak into the enterprise workspace.
           portal: 'firm',
           firmMode: true,
         }),
@@ -54,18 +117,28 @@ export function AskAdvottic() {
         const { done, value } = await reader.read();
         if (done) break;
         acc += dec.decode(value, { stream: true });
-        setAnswer(cleanLegalText(acc));
+        const cleaned = cleanLegalText(acc);
+        patchLast((t) => ({ ...t, answer: cleaned }));
       }
+      patchLast((t) => ({ ...t, busy: false }));
     } catch (err) {
       if ((err as { name?: string }).name === 'AbortError') return;
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'Could not reach Advottic. Try again.',
-      );
-    } finally {
-      setBusy(false);
+      patchLast((t) => ({
+        ...t,
+        busy: false,
+        error:
+          err instanceof Error
+            ? err.message
+            : 'Could not reach Advottic. Try again.',
+      }));
     }
+  }
+
+  function clearConversation() {
+    abortRef.current?.abort();
+    setTurns([]);
+    setQ('');
+    requestAnimationFrame(() => inputRef.current?.focus());
   }
 
   const SUGGESTIONS = [
@@ -90,23 +163,24 @@ export function AskAdvottic() {
         <div className="ask-frame relative flex items-center gap-2 rounded-2xl bg-forest-900/70 px-4 py-3 transition-shadow overflow-visible">
           <SparkIcon />
           <input
+            ref={inputRef}
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Ask Advottic anything - a law, a case, a clause, a client, a meeting…"
+            placeholder={
+              turns.length > 0
+                ? 'Ask a follow-up…'
+                : 'Ask Advottic anything - a law, a case, a clause, a client, a meeting…'
+            }
             className="flex-1 bg-transparent outline-none text-[15px] text-cream-100 placeholder:text-cream-100/40"
             aria-label="Ask Advottic"
+            autoComplete="off"
           />
-          {answer || error ? (
+          {turns.length > 0 ? (
             <button
               type="button"
-              onClick={() => {
-                setOpen(false);
-                setAnswer('');
-                setError(null);
-                setQ('');
-                abortRef.current?.abort();
-              }}
+              onClick={clearConversation}
               className="text-[12px] text-cream-100/50 hover:text-cream-100 px-2"
+              title="Clear the conversation"
             >
               Clear
             </button>
@@ -121,16 +195,13 @@ export function AskAdvottic() {
         </div>
       </form>
 
-      {!open && (
+      {turns.length === 0 && (
         <div className="mt-2 flex flex-wrap gap-1.5">
           {SUGGESTIONS.map((s) => (
             <button
               key={s}
               type="button"
-              onClick={() => {
-                setQ(s);
-                ask(s);
-              }}
+              onClick={() => ask(s)}
               className="text-[11.5px] rounded-full bg-forest-900/50 ring-1 ring-forest-700/40 px-2.5 py-1 text-cream-100/65 hover:text-cream-100 hover:ring-gold-500/40 transition-colors"
             >
               {s}
@@ -139,23 +210,41 @@ export function AskAdvottic() {
         </div>
       )}
 
-      {open && (
-        <div className="mt-3 card p-5 max-h-[60vh] overflow-y-auto">
-          {error ? (
-            <p className="text-[13px] text-rose-300">{error}</p>
-          ) : answer ? (
-            <div className="text-[13.5px] leading-relaxed text-cream-100/90 whitespace-pre-wrap">
-              {answer}
-              {busy && (
-                <span className="inline-block w-2 h-4 align-text-bottom ml-0.5 bg-gold-400/70 animate-pulse" />
+      {turns.length > 0 && (
+        <div
+          ref={scrollerRef}
+          className="mt-3 card p-5 max-h-[60vh] overflow-y-auto"
+        >
+          {turns.map((turn, i) => (
+            <div
+              key={i}
+              className={
+                i === 0
+                  ? ''
+                  : 'mt-5 pt-5 border-t border-forest-700/30'
+              }
+            >
+              {/* The question becomes the title of its own answer block. */}
+              <p className="font-display text-[15.5px] font-semibold tracking-[-0.005em] text-forest-900 dark:text-cream-100 mb-2 leading-snug">
+                {turn.question}
+              </p>
+              {turn.error ? (
+                <p className="text-[13px] text-rose-300">{turn.error}</p>
+              ) : turn.answer ? (
+                <div className="text-[13.5px] leading-relaxed text-cream-100/90 whitespace-pre-wrap">
+                  {turn.answer}
+                  {turn.busy && (
+                    <span className="inline-block w-2 h-4 align-text-bottom ml-0.5 bg-gold-400/70 animate-pulse" />
+                  )}
+                </div>
+              ) : (
+                <p className="text-[13px] text-cream-100/55">
+                  Searching your firm&rsquo;s environment…
+                </p>
               )}
             </div>
-          ) : (
-            <p className="text-[13px] text-cream-100/55">
-              Searching your firm&rsquo;s environment…
-            </p>
-          )}
-          <p className="mt-4 pt-3 border-t border-forest-700/40 text-[11px] text-cream-100/40">
+          ))}
+          <p className="mt-5 pt-3 border-t border-forest-700/40 text-[11px] text-cream-100/40">
             Advottic can be wrong - verify anything load-bearing. Not
             legal advice.
           </p>
