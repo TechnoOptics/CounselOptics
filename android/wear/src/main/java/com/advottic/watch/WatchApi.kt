@@ -84,6 +84,67 @@ object WatchApi {
     }
 
     /**
+     * POST /api/safe/alert - trigger the Safe Witness flow. Server
+     * looks up profiles.safe_contact_email for the bearer token's
+     * user and emails them with the transcription + timestamp.
+     * Returns true on success.
+     */
+    suspend fun sendSafeAlert(
+        token: String,
+        transcription: String,
+    ): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val c = (URL("$BASE/api/safe/alert").openConnection()
+                as HttpURLConnection)
+            c.requestMethod = "POST"
+            c.connectTimeout = TIMEOUT_MS
+            c.readTimeout = TIMEOUT_MS
+            c.doOutput = true
+            c.setRequestProperty("Authorization", "Bearer $token")
+            c.setRequestProperty("Content-Type", "application/json")
+            val payload = JSONObject()
+                .put("source", "watch")
+                .put("transcription", transcription)
+            c.outputStream.use { it.write(payload.toString().toByteArray()) }
+            val ok = c.responseCode in 200..299
+            c.disconnect()
+            ok
+        } catch (_: Throwable) {
+            false
+        }
+    }
+
+    /**
+     * POST /api/voice-notes - persist a voice-note transcription
+     * to the signed-in user's drafts. v1 saves text only; audio
+     * bytes upload is a follow-up. Returns true on success.
+     */
+    suspend fun saveVoiceNote(
+        token: String,
+        transcription: String,
+        caseId: String?,
+    ): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val c = (URL("$BASE/api/voice-notes").openConnection()
+                as HttpURLConnection)
+            c.requestMethod = "POST"
+            c.connectTimeout = TIMEOUT_MS
+            c.readTimeout = TIMEOUT_MS
+            c.doOutput = true
+            c.setRequestProperty("Authorization", "Bearer $token")
+            c.setRequestProperty("Content-Type", "application/json")
+            val payload = JSONObject().put("transcription", transcription)
+            if (!caseId.isNullOrBlank()) payload.put("case_id", caseId)
+            c.outputStream.use { it.write(payload.toString().toByteArray()) }
+            val ok = c.responseCode in 200..299
+            c.disconnect()
+            ok
+        } catch (_: Throwable) {
+            false
+        }
+    }
+
+    /**
      * GET /api/v1/cases with the bearer token, mapped into
      * SummaryStore. Returns true on success. 401 -> token dead
      * (caller should clear it and re-link).
@@ -139,11 +200,17 @@ object WatchApi {
         var latestUpdated = Long.MIN_VALUE
 
         data class H(val at: Long, val title: String)
+        data class OC(val id: String, val title: String, val status: String, val upd: Long)
         val upcoming = ArrayList<H>()
         val actions = ArrayList<Pair<String, Boolean>>()
+        // Full list of open cases so the watch can render a
+        // scrollable list with click-to-open-on-phone. Sorted by
+        // updated_at desc below.
+        val openCases = ArrayList<OC>()
 
         for (i in 0 until cases.length()) {
             val k = cases.optJSONObject(i) ?: continue
+            val id = k.optString("id", "")
             val title = k.optString("title", "")
             val status = k.optString("status", "").lowercase()
             val closed = status.contains("clos") || status.contains("archiv")
@@ -153,10 +220,13 @@ object WatchApi {
             if (upd > latestUpdated) {
                 latestUpdated = upd
                 latestTitle = title
-                latestCaseId = k.optString("id", "")
+                latestCaseId = id
             }
             if (upd > 0L && now - upd <= 24L * 3600_000L && !closed) {
                 actions.add("Recent update: $title" to false)
+            }
+            if (!closed && id.isNotBlank()) {
+                openCases.add(OC(id, title, status, upd))
             }
 
             val hAt = parseIso(k.optString("hearing_at", ""))
@@ -168,6 +238,7 @@ object WatchApi {
                 }
             }
         }
+        openCases.sortByDescending { it.upd }
 
         upcoming.sortBy { it.at }
         val top = upcoming.take(5)
@@ -181,6 +252,18 @@ object WatchApi {
                 JSONObject().put("text", it.first).put("urgent", it.second),
             )
         }
+        // Cap the scrollable cases list at 10 entries - past that the
+        // user is better off opening the phone. Most-recently-updated
+        // first.
+        val openJson = JSONArray()
+        openCases.take(10).forEach {
+            openJson.put(
+                JSONObject()
+                    .put("id", it.id)
+                    .put("title", it.title)
+                    .put("status", it.status),
+            )
+        }
 
         SummaryStore.save(
             ctx,
@@ -191,6 +274,7 @@ object WatchApi {
             nextHearingTitle = top.firstOrNull()?.title ?: "",
             upcomingJson = upJson.toString(),
             actionsJson = actJson.toString(),
+            openCasesJson = openJson.toString(),
         )
     }
 }

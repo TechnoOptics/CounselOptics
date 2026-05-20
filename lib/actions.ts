@@ -539,6 +539,39 @@ export async function updateProfileAction(formData: FormData) {
   revalidatePath('/');
 }
 
+/**
+ * Set (or clear) the Safe Witness contact email - the person the
+ * Safe Witness flow alerts when the user triggers it on their
+ * wrist. Stored on profiles.safe_contact_email; null disables the
+ * feature.
+ */
+export async function updateSafeContactEmailAction(
+  formData: FormData,
+): Promise<{ ok: true; email: string | null } | { ok: false; error: string }> {
+  if (!usingSupabase()) return { ok: false, error: 'Supabase is not configured.' };
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: 'Not signed in.' };
+  const raw = String(formData.get('safeContactEmail') ?? '').trim();
+  const email = raw.length === 0 ? null : raw.toLowerCase();
+  if (email !== null) {
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      return { ok: false, error: 'Enter a valid email address.' };
+    }
+    if (email.length > 254) {
+      return { ok: false, error: 'Email is too long.' };
+    }
+  }
+  const { createServerSupabase } = await import('./supabase/server');
+  const supabase = createServerSupabase();
+  const { error } = await supabase
+    .from('profiles')
+    .update({ safe_contact_email: email })
+    .eq('id', user.id);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath('/profile');
+  return { ok: true, email };
+}
+
 export async function updateHearingAction(
   caseId: string,
   input: { hearingAt: string | null; hearingLocation: string; hearingNotes: string },

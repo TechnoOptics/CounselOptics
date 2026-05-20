@@ -1,8 +1,9 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
+import { getCurrentUser, isSupabaseConfigured, createServerSupabase } from '@/lib/supabase/server';
 import { getProfile } from '@/lib/storage';
 import { updateProfileAction } from '@/lib/actions';
+import { SafeContactForm } from './safe-contact-form';
 import { AccountActions } from './account-actions';
 import { AvatarUpload } from './avatar-upload';
 import { ThemePicker } from '@/components/ThemePicker';
@@ -31,6 +32,19 @@ export default async function ProfilePage() {
   if (!user) redirect('/sign-in?next=/profile');
 
   const profile = await getProfile().catch(() => null);
+
+  // Safe Witness contact email lives on profiles but isn't part of
+  // the Profile DTO yet. Fetch directly so we can render the
+  // current value in the Devices section without a schema change
+  // on the existing Profile type.
+  const supabase = createServerSupabase();
+  const safeContactRow = await supabase
+    .from('profiles')
+    .select('safe_contact_email')
+    .eq('id', user.id)
+    .maybeSingle()
+    .then((r) => r.data as { safe_contact_email: string | null } | null);
+  const safeContactEmail = safeContactRow?.safe_contact_email ?? null;
   // Consent is now handled by the layout's popup modal; do not redirect.
 
   const fallbackName =
@@ -265,6 +279,42 @@ export default async function ProfilePage() {
             Pair a Wear OS watch so your next hearing, action center,
             and docket appear on your wrist.
           </p>
+        </div>
+        {/* Safe Witness contact. The Wear OS Safe Witness button
+            and the /safe web page both alert this email. Plain text
+            email - we deliberately don't surface the address publicly
+            or ask the contact to sign up so the friction stays low
+            for a feature that's about being able to discreetly call
+            for help. */}
+        <div className="rounded-lg ring-1 ring-rose-200 dark:ring-rose-700/40 bg-rose-50/30 dark:bg-rose-950/15 p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <span
+              aria-hidden
+              className="inline-flex h-7 w-7 items-center justify-center rounded bg-rose-500/15 text-rose-600 dark:text-rose-300"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M12 2l3 7h7l-5.5 4.5L18.5 22 12 17.5 5.5 22l2-8.5L2 9h7z" />
+              </svg>
+            </span>
+            <p className="font-display text-base text-forest-900 dark:text-cream-100">
+              Safe Witness contact
+            </p>
+          </div>
+          <p className="text-[12.5px] text-ink-600 dark:text-cream-100/70 leading-snug mb-3">
+            One person Advottic emails when you trigger Safe Witness
+            on your watch. The email lands instantly with a timestamp
+            and any voice transcription. Leave blank to disable.
+          </p>
+          <SafeContactForm initial={safeContactEmail} />
         </div>
         <Link
           href="/pair-watch"

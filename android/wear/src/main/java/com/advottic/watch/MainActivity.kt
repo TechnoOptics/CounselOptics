@@ -15,6 +15,10 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -24,6 +28,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.roundToInt
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
@@ -31,7 +39,10 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.isActive
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -346,6 +357,12 @@ private fun ScrollBezel(
 fun WearApp(summary: SummaryStore.Summary) {
     val context = LocalContext.current
     val haptics = LocalHapticFeedback.current
+    // Composable-scoped coroutine scope for the on-screen
+    // action launches (voice-note vault save, Safe Witness fire,
+    // etc.). The activity's lifecycleScope is reachable only from
+    // outside @Composable since the receiver type is the Activity
+    // itself, not Context.
+    val scope = rememberCoroutineScope()
 
     // Courtroom Mode: while the quiet window is open, chip haptics
     // are suppressed (a buzzing wrist in court is the hazard) and the
@@ -764,6 +781,58 @@ fun WearApp(summary: SummaryStore.Summary) {
                                 )
                             }
                         }
+                        // Scrollable list of all open cases. Tap any
+                        // row to open that specific case on the phone.
+                        // Only shown when there's more than one open
+                        // case (the single-case state is already
+                        // covered by Open on phone above + the latest
+                        // title in the header).
+                        val openList = summary.openCases()
+                        if (openList.size > 1) {
+                            item {
+                                Text(
+                                    text = "YOUR CASES",
+                                    color = Gold,
+                                    letterSpacing = 3.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.caption2,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 12.dp),
+                                )
+                            }
+                            // ScalingLazyColumn item-per-case so each
+                            // row scales independently on the bezel
+                            // (instead of one big Column that scales
+                            // as a single block and clips at the
+                            // edges).
+                            openList.forEach { oc ->
+                                item {
+                                    Chip(
+                                        onClick = {
+                                            buzz()
+                                            openCaseOnPhone(context, oc.id)
+                                        },
+                                        label = {
+                                            Text(
+                                                text = oc.title,
+                                                textAlign = TextAlign.Center,
+                                                modifier = Modifier.fillMaxWidth(),
+                                                maxLines = 2,
+                                            )
+                                        },
+                                        colors = ChipDefaults.chipColors(
+                                            backgroundColor = Color(0xFF10271F),
+                                            contentColor = Cream,
+                                        ),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(top = 6.dp),
+                                    )
+                                }
+                            }
+                        }
                         item {
                             Chip(
                                 onClick = {
@@ -887,29 +956,46 @@ fun WearApp(summary: SummaryStore.Summary) {
                                     .padding(top = 8.dp),
                             )
                         }
+                        // Courtroom checklist - only when courtroom
+                        // mode is on. A glanceable list of reminders
+                        // (etiquette + procedural prompts) plus the
+                        // case-relevant info the user is most likely
+                        // to need silently mid-hearing. Designed to
+                        // be read in 1-2 seconds without scrolling.
+                        if (quiet) {
+                            item {
+                                CourtroomChecklistCard(
+                                    nextHearingTitle = summary.nextHearingTitle,
+                                    nextHearingAt = summary.nextHearingAt,
+                                    latestTitle = summary.latestTitle,
+                                )
+                            }
+                        }
                         item {
-                            Chip(
-                                onClick = {
-                                    buzz()
-                                    handOffToPhone(
-                                        context,
-                                        "https://advottic.com/safe",
-                                    )
+                            // Safe Witness - press AND HOLD for 4
+                            // seconds to fire. The press-hold gesture
+                            // is on purpose: an accidental tap
+                            // would otherwise alert someone with no
+                            // emergency on the watcher's end.
+                            SafeWitnessHoldButton(
+                                quiet = quiet,
+                                onConfirm = {
+                                    val tok = WatchLinkStore.token(context)
+                                    if (tok == null) {
+                                        handOffToPhone(
+                                            context,
+                                            "https://advottic.com/safe",
+                                        )
+                                    } else {
+                                        scope.launch {
+                                            WatchApi.sendSafeAlert(
+                                                tok,
+                                                "Safe Witness triggered from " +
+                                                    "the Wear OS watch.",
+                                            )
+                                        }
+                                    }
                                 },
-                                label = {
-                                    Text(
-                                        "Safe Witness",
-                                        textAlign = TextAlign.Center,
-                                        modifier = Modifier.fillMaxWidth(),
-                                    )
-                                },
-                                colors = ChipDefaults.chipColors(
-                                    backgroundColor = Rose,
-                                    contentColor = Forest,
-                                ),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 8.dp),
                             )
                         }
                     } else if (isLinked) {
@@ -979,10 +1065,29 @@ fun WearApp(summary: SummaryStore.Summary) {
                 VoiceCaptureOverlay(
                     onResult = { spoken ->
                         if (spoken.isNotBlank()) {
+                            // Hand off to the phone for the live note URL
+                            // (existing behavior).
                             handOffToPhone(
                                 context,
                                 noteUrl(summary.latestCaseId, spoken),
                             )
+                            // Persist to the user's vault as a voice
+                            // note draft so the transcription is
+                            // searchable + editable later from the
+                            // phone /inbox/drafts page. Best-effort:
+                            // network failure here doesn't block the
+                            // phone hand-off above.
+                            val tok = WatchLinkStore.token(context)
+                            if (tok != null) {
+                                scope.launch {
+                                    WatchApi.saveVoiceNote(
+                                        tok,
+                                        spoken,
+                                        summary.latestCaseId
+                                            .ifBlank { null },
+                                    )
+                                }
+                            }
                         }
                         voiceActive = false
                     },
@@ -991,6 +1096,251 @@ fun WearApp(summary: SummaryStore.Summary) {
             }
             if (linkActive) {
                 LinkScreen(onClose = { linkActive = false })
+            }
+        }
+    }
+}
+
+/**
+ * Press-and-hold confirm button for Safe Witness. The user has to
+ * keep the wrist tap pressed for SAFE_HOLD_MS (4 seconds) before the
+ * alert fires - an accidental tap doesn't trigger an email to their
+ * safe contact. The button fills with gold from left to right while
+ * held; releasing before the fill completes cancels.
+ *
+ * On completion the on-screen state flips to "Alerting..." for
+ * ~1.2s then resets to idle - long enough that the user sees their
+ * action was registered without leaving the button stuck in a
+ * "did it work?" middle state.
+ *
+ * Three states + their dressing:
+ *   IDLE: deep rose with "Hold to alert Safe Witness".
+ *   HOLDING: gold progress fill expanding behind the rose; the
+ *            label switches to "Holding... let go to cancel".
+ *   FIRED:   solid gold flash + "Safe Witness alerted" for 1.2s.
+ *
+ * Backed off when [quiet] is true so a long-press doesn't fire in
+ * the middle of a hearing while the watch is in Courtroom mode -
+ * the button still renders but greyed out + tap-suppressed.
+ */
+@Composable
+private fun SafeWitnessHoldButton(
+    quiet: Boolean,
+    onConfirm: () -> Unit,
+) {
+    val haptics = LocalHapticFeedback.current
+    val scope = rememberCoroutineScope()
+    var progress by remember { mutableStateOf(0f) }
+    var firing by remember { mutableStateOf(false) }
+    val animatedProgress by animateFloatAsState(
+        targetValue = progress,
+        animationSpec = tween(durationMillis = 80),
+        label = "safe-hold",
+    )
+
+    LaunchedEffect(firing) {
+        if (firing) {
+            // Brief confirmation window. UX feels weird if the button
+            // resets the moment the request returns - leave the
+            // "alerted" face up just long enough to be read.
+            delay(1200)
+            firing = false
+            progress = 0f
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp)
+            .height(48.dp)
+            .clip(RoundedCornerShape(24.dp))
+            .background(
+                if (firing) {
+                    Color(0xFF1A4A36) // calm green - "alert sent"
+                } else {
+                    Rose.copy(alpha = if (quiet) 0.4f else 1f)
+                },
+            )
+            .then(
+                if (quiet || firing) {
+                    Modifier
+                } else {
+                    // Press-and-hold detection. The Compose
+                    // awaitPointerEventScope is a RESTRICTED suspend
+                    // scope - we can't call withTimeout inside it.
+                    // The clean pattern is: spawn a parallel
+                    // coroutine (via rememberCoroutineScope above)
+                    // to tick progress + decide when to fire, and
+                    // keep the gesture handler narrow - only press
+                    // + release detection. Cancellation of the
+                    // parallel job on release cleanly resets the
+                    // animation.
+                    Modifier.pointerInput(Unit) {
+                        awaitEachGesture {
+                            awaitFirstDown(requireUnconsumed = false)
+                            haptics.performHapticFeedback(
+                                HapticFeedbackType.LongPress,
+                            )
+                            val tickJob: Job = scope.launch {
+                                val start = System.currentTimeMillis()
+                                while (isActive) {
+                                    val elapsed = System.currentTimeMillis() - start
+                                    progress = (elapsed.toFloat() / SAFE_HOLD_MS)
+                                        .coerceIn(0f, 1f)
+                                    if (elapsed >= SAFE_HOLD_MS) {
+                                        haptics.performHapticFeedback(
+                                            HapticFeedbackType.LongPress,
+                                        )
+                                        firing = true
+                                        progress = 1f
+                                        onConfirm()
+                                        break
+                                    }
+                                    delay(40)
+                                }
+                            }
+                            // Block here until the user lifts (or
+                            // gesture is cancelled by the OS).
+                            waitForUpOrCancellation()
+                            tickJob.cancel()
+                            // If we never reached the firing state,
+                            // the user released early - reset.
+                            if (!firing) progress = 0f
+                        }
+                    }
+                },
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        // Gold fill from left as the user holds. We draw it behind
+        // the label so the label stays legible the whole time.
+        if (!firing) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(animatedProgress)
+                    .height(48.dp)
+                    .background(Gold.copy(alpha = 0.85f)),
+            )
+        }
+        Text(
+            text = when {
+                firing -> "Alert sent"
+                progress > 0.02f -> "Holding..."
+                quiet -> "Locked in courtroom mode"
+                else -> "Hold to alert Safe Witness"
+            },
+            color = if (firing) Cream else Forest,
+            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.button,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 12.dp),
+        )
+    }
+}
+
+/** 4-second press-and-hold threshold for Safe Witness. */
+private const val SAFE_HOLD_MS = 4000L
+
+/**
+ * Glanceable courtroom checklist shown while Courtroom mode is on.
+ * Reads in under 2 seconds without scrolling. Contents:
+ *   - 3 etiquette reminders (silent phone, "Your Honor", stand)
+ *   - The next hearing (so the user can confirm "yes, this is the
+ *     one I'm in" without unlocking the phone)
+ *   - The most-recently-updated case title (the working matter)
+ *
+ * Held to a thin rose-tinted card so it visually belongs with the
+ * Courtroom mode chip below; never competes with the gold HEARING
+ * card up top.
+ */
+@Composable
+private fun CourtroomChecklistCard(
+    nextHearingTitle: String,
+    nextHearingAt: Long,
+    latestTitle: String,
+) {
+    val timeLabel = if (nextHearingAt > 0L) {
+        try {
+            val d = java.util.Date(nextHearingAt)
+            java.text.SimpleDateFormat(
+                "EEE h:mm a",
+                java.util.Locale.getDefault(),
+            ).format(d)
+        } catch (_: Throwable) {
+            ""
+        }
+    } else {
+        ""
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 12.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color(0x33E5816B)) // very faint rose tint
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+    ) {
+        Text(
+            text = "COURTROOM CHECKLIST",
+            color = Rose,
+            letterSpacing = 3.sp,
+            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.caption2,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        // Etiquette reminders - the ones a litigator's checklist
+        // always opens with.
+        val bullets = listOf(
+            "Phone silent - this watch too",
+            "Stand when judge addresses you",
+            "\"Your Honor\" - never \"Judge\"",
+            "Speak when spoken to; objections are exceptions",
+        )
+        bullets.forEach { line ->
+            Text(
+                text = "• $line",
+                color = Cream.copy(alpha = 0.92f),
+                style = MaterialTheme.typography.caption1,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 6.dp),
+            )
+        }
+        // What you're here for, in case nerves blank the memory.
+        if (nextHearingTitle.isNotBlank() || latestTitle.isNotBlank()) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "ON DOCKET",
+                color = Gold,
+                letterSpacing = 2.sp,
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.caption2,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            val showTitle = nextHearingTitle.ifBlank { latestTitle }
+            Text(
+                text = showTitle,
+                color = Cream,
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.caption1,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 2.dp),
+            )
+            if (timeLabel.isNotBlank()) {
+                Text(
+                    text = timeLabel,
+                    color = Cream.copy(alpha = 0.7f),
+                    style = MaterialTheme.typography.caption2,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 1.dp),
+                )
             }
         }
     }

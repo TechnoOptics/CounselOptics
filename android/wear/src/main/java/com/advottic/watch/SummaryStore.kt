@@ -18,6 +18,9 @@ object SummaryStore {
     /** One Action Center item: what to do, and whether it is urgent. */
     data class Action(val text: String, val urgent: Boolean)
 
+    /** A single open case the user can tap to open on the phone. */
+    data class OpenCase(val id: String, val title: String, val status: String)
+
     data class Summary(
         val openCount: Int,
         val latestTitle: String,
@@ -39,12 +42,40 @@ object SummaryStore {
          * the same reason as upcomingJson; parse with [actions].
          */
         val actionsJson: String = "",
+        /**
+         * JSON array string of open cases the user can tap to open
+         * on the phone (`[{"id":"...","title":"...","status":"..."}]`,
+         * most-recently-updated first, capped at 10). Raw for the
+         * same reason; parse with [openCases].
+         */
+        val openCasesJson: String = "",
     ) {
         /** Parsed docket, soonest first. Never throws: bad/empty -> []. */
         fun upcoming(): List<Hearing> = parseUpcoming(upcomingJson)
 
         /** Parsed Action Center, urgent first. Never throws. */
         fun actions(): List<Action> = parseActions(actionsJson)
+
+        /** Parsed open cases list, most-recent first. Never throws. */
+        fun openCases(): List<OpenCase> = parseOpenCases(openCasesJson)
+    }
+
+    fun parseOpenCases(json: String): List<OpenCase> {
+        if (json.isBlank()) return emptyList()
+        return try {
+            val arr = JSONArray(json)
+            buildList {
+                for (i in 0 until arr.length()) {
+                    val o = arr.optJSONObject(i) ?: continue
+                    val id = o.optString("id", "")
+                    val title = o.optString("title", "")
+                    if (id.isBlank() || title.isBlank()) continue
+                    add(OpenCase(id, title, o.optString("status", "")))
+                }
+            }
+        } catch (_: Throwable) {
+            emptyList()
+        }
     }
 
     fun parseActions(json: String): List<Action> {
@@ -90,6 +121,7 @@ object SummaryStore {
         nextHearingTitle: String = "",
         upcomingJson: String = "",
         actionsJson: String = "",
+        openCasesJson: String = "",
     ) {
         ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE)
             .edit()
@@ -100,6 +132,7 @@ object SummaryStore {
             .putString("nextHearingTitle", nextHearingTitle)
             .putString("upcomingJson", upcomingJson)
             .putString("actionsJson", actionsJson)
+            .putString("openCasesJson", openCasesJson)
             .putBoolean("hasData", true)
             // Battery saver: track when the last sync landed so
             // MainActivity.onResume can throttle the watch's
@@ -138,6 +171,7 @@ object SummaryStore {
             nextHearingTitle = p.getString("nextHearingTitle", "") ?: "",
             upcomingJson = p.getString("upcomingJson", "") ?: "",
             actionsJson = p.getString("actionsJson", "") ?: "",
+            openCasesJson = p.getString("openCasesJson", "") ?: "",
         )
     }
 
