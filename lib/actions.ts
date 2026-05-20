@@ -607,6 +607,98 @@ export async function updateSafeContactEmailAction(
   return { ok: true, email: res.email };
 }
 
+/**
+ * Multi-contact Safe Witness: add a new contact row. Either email
+ * or phone (or both) is required; the DB CHECK enforces this too.
+ * Phone is stored in E.164 - we don't try to format it, we reject
+ * non-E.164 input so the SMS layer can blindly trust the value.
+ */
+export async function addSafeWitnessContactAction(
+  formData: FormData,
+): Promise<
+  | {
+      ok: true;
+      contact: {
+        id: string;
+        display_name: string | null;
+        email: string | null;
+        phone: string | null;
+      };
+    }
+  | { ok: false; error: string }
+> {
+  if (!usingSupabase()) return { ok: false, error: 'Supabase is not configured.' };
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: 'Not signed in.' };
+
+  const name = String(formData.get('displayName') ?? '').trim().slice(0, 80) || null;
+  const emailRaw = String(formData.get('email') ?? '').trim();
+  const email = emailRaw.length === 0 ? null : emailRaw.toLowerCase();
+  if (email !== null && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    return { ok: false, error: 'Enter a valid email address.' };
+  }
+  if (email !== null && email.length > 254) {
+    return { ok: false, error: 'Email is too long.' };
+  }
+  const phoneRaw = String(formData.get('phone') ?? '').trim();
+  const phone = phoneRaw.length === 0 ? null : phoneRaw;
+  if (phone !== null) {
+    // E.164: + followed by 1-15 digits, first digit 1-9.
+    if (!/^\+[1-9]\d{1,14}$/.test(phone)) {
+      return {
+        ok: false,
+        error:
+          'Phone must be in international format starting with +, e.g. +14155551234',
+      };
+    }
+  }
+  if (email === null && phone === null) {
+    return { ok: false, error: 'Add an email, a phone, or both.' };
+  }
+
+  const { createServerSupabase } = await import('./supabase/server');
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from('safe_witness_contacts')
+    .insert({
+      user_id: user.id,
+      display_name: name,
+      email,
+      phone,
+    })
+    .select('id, display_name, email, phone')
+    .maybeSingle();
+  if (error) return { ok: false, error: error.message };
+  revalidatePath('/profile');
+  return {
+    ok: true,
+    contact: data as {
+      id: string;
+      display_name: string | null;
+      email: string | null;
+      phone: string | null;
+    },
+  };
+}
+
+export async function deleteSafeWitnessContactAction(
+  contactId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!usingSupabase()) return { ok: false, error: 'Supabase is not configured.' };
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: 'Not signed in.' };
+  const { createServerSupabase } = await import('./supabase/server');
+  const supabase = createServerSupabase();
+  const { error } = await supabase
+    .from('safe_witness_contacts')
+    .delete()
+    .eq('id', contactId)
+    .eq('user_id', user.id);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath('/profile');
+  return { ok: true };
+}
+
 export async function updateHearingAction(
   caseId: string,
   input: { hearingAt: string | null; hearingLocation: string; hearingNotes: string },

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { verifyApiToken, tokenHasScope } from '@/lib/api-tokens';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { sendEmail } from '@/lib/email';
+import { sendSms, isSmsConfigured } from '@/lib/sms';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -77,7 +78,7 @@ export async function POST(req: NextRequest) {
 
   // Resolve the safe contact + the user's email for the message
   // body.
-  const [profileResp, userResp] = await Promise.all([
+  const [profileResp, userResp, contactsResp] = await Promise.all([
     admin
       .from('profiles')
       .select(
@@ -86,6 +87,11 @@ export async function POST(req: NextRequest) {
       .eq('id', userId)
       .maybeSingle(),
     admin.auth.admin.getUserById(userId),
+    admin
+      .from('safe_witness_contacts')
+      .select('id, display_name, email, phone')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: true }),
   ]);
   const profileRow = profileResp.data as
     | {
@@ -95,20 +101,48 @@ export async function POST(req: NextRequest) {
         display_name: string | null;
       }
     | null;
-  const contact = profileRow?.safe_contact_email?.trim();
   const userPin = profileRow?.safe_witness_pin?.trim() || null;
   const userMessage =
     profileRow?.safe_witness_message?.trim() ||
     'Safe mode activated. I need you. Please send help.';
-  if (!contact) {
+
+  // Multi-contact: prefer the new safe_witness_contacts table. Fall
+  // back to the legacy single safe_contact_email if the table is
+  // empty (covers users who configured before the migration but
+  // didn't yet re-save through the new UI).
+  type ContactRow = {
+    id: string;
+    display_name: string | null;
+    email: string | null;
+    phone: string | null;
+  };
+  let contacts = (contactsResp.data as ContactRow[] | null) ?? [];
+  if (contacts.length === 0 && profileRow?.safe_contact_email) {
+    contacts = [
+      {
+        id: 'legacy',
+        display_name: null,
+        email: profileRow.safe_contact_email,
+        phone: null,
+      },
+    ];
+  }
+  // Require at least one routable channel across the whole list.
+  // A contact row without email AND without phone is filtered out
+  // by the DB CHECK, so this just guards against an empty list.
+  const routableContacts = contacts.filter((c) => c.email || c.phone);
+  if (routableContacts.length === 0) {
     return NextResponse.json(
       {
         error:
-          'No safe contact configured. Add one at /profile under Safe Witness, then try again.',
+          'No safe contacts configured. Add at least one at /profile under Safe Witness, then try again.',
       },
       { status: 400 },
     );
   }
+  // Keep the existing audit-row's contact_email column populated
+  // (primary email if any) for back-compat with old read paths.
+  const contact = routableContacts.find((c) => c.email)?.email ?? '(sms-only)';
   const watcherEmail = userResp.data?.user?.email ?? null;
   const watcherName =
     ((profileResp.data as { display_name?: string } | null)?.display_name
@@ -240,23 +274,112 @@ export async function POST(req: NextRequest) {
     </p>
   </div>
 </div>`;
-  const emailResp = await sendEmail({
-    to: contact,
-    subject: `Safe Witness alert from ${watcherLabel.split(' (')[0]}`,
-    html,
-    fromName: 'Advottic Safe Witness',
-  });
+  // Fan out: every contact gets the alert via every channel they
+  // listed. Email AND SMS go out concurrently per contact via
+  // Promise.allSettled so a single failure (Twilio rate limit, a
+  // typo'd phone) never blocks the rest of the deliveries.
+  //
+  // The SMS body is a single 1-2 sentence version of the alert so
+  // it fits in one or two segments. Email carries the full HTML.
+  const watcherFirstName = watcherLabel.split(' (')[0];
+  const smsBody = [
+    'Advottic Safe Witness:',
+    `${watcherFirstName} - ${userMessage}`,
+    userPin ? `PIN: ${userPin}` : null,
+    `Fired ${tsHuman}.`,
+    mapLink ? `Location: ${mapLink}` : null,
+  ]
+    .filter(Boolean)
+    .join(' ');
 
-  // Update the audit row with delivery result. Best-effort - we never
-  // 500 a Safe Witness alert just because the audit-row update
-  // failed.
+  type Dispatch =
+    | {
+        kind: 'email';
+        to: string;
+        contactName: string | null;
+        ok: boolean;
+        error?: string;
+      }
+    | {
+        kind: 'sms';
+        to: string;
+        contactName: string | null;
+        ok: boolean;
+        error?: string;
+      };
+  const dispatches: Dispatch[] = [];
+  const tasks: Promise<void>[] = [];
+
+  for (const c of routableContacts) {
+    if (c.email) {
+      tasks.push(
+        sendEmail({
+          to: c.email,
+          subject: `Safe Witness alert from ${watcherFirstName}`,
+          html,
+          fromName: 'Advottic Safe Witness',
+        }).then((r) => {
+          dispatches.push({
+            kind: 'email',
+            to: c.email!,
+            contactName: c.display_name,
+            ok: r.ok,
+            error: r.ok ? undefined : r.error,
+          });
+        }),
+      );
+    }
+    if (c.phone) {
+      tasks.push(
+        sendSms({ to: c.phone, body: smsBody }).then((r) => {
+          dispatches.push({
+            kind: 'sms',
+            to: c.phone!,
+            contactName: c.display_name,
+            ok: r.ok,
+            // 'sms-not-configured' is a deployment state, not a
+            // delivery failure - surface it distinctly so the
+            // caller can degrade the UI without alarming the user.
+            error: r.ok ? undefined : r.error,
+          });
+        }),
+      );
+    }
+  }
+  await Promise.allSettled(tasks);
+
+  const anyEmail = dispatches.some((d) => d.kind === 'email');
+  const anyEmailOk = dispatches.some((d) => d.kind === 'email' && d.ok);
+  const anySmsAttempted = dispatches.some((d) => d.kind === 'sms');
+  const anySmsOk = dispatches.some((d) => d.kind === 'sms' && d.ok);
+  const allFailed = dispatches.length > 0 && dispatches.every((d) => !d.ok);
+
+  // Update the audit row with the dispatch results. Best-effort -
+  // we never 500 a Safe Witness alert just because the audit-row
+  // update failed.
   if (alertId) {
     try {
       await admin
         .from('safe_witness_alerts')
         .update({
-          email_sent: emailResp.ok,
-          email_error: emailResp.ok ? null : emailResp.error ?? 'unknown',
+          // Existing columns: email_sent reflects whether ANY email
+          // succeeded; email_error captures the first failure
+          // if all failed.
+          email_sent: anyEmailOk,
+          email_error: anyEmailOk
+            ? null
+            : dispatches.find((d) => !d.ok)?.error ?? null,
+          metadata: {
+            ...metadata,
+            dispatches: dispatches.map((d) => ({
+              kind: d.kind,
+              to: d.to,
+              contact_name: d.contactName,
+              ok: d.ok,
+              error: d.error ?? null,
+            })),
+            sms_configured: isSmsConfigured(),
+          },
         })
         .eq('id', alertId);
     } catch {
@@ -264,16 +387,27 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  if (!emailResp.ok) {
+  if (allFailed) {
     return NextResponse.json(
       {
         ok: false,
-        error: `Could not send the alert email: ${emailResp.error}`,
+        error: `Could not reach any contact. Failures: ${dispatches
+          .map((d) => `${d.kind}:${d.error}`)
+          .join(' | ')}`,
       },
       { status: 502 },
     );
   }
-  return NextResponse.json({ ok: true, contact, alert_id: alertId ?? null });
+  return NextResponse.json({
+    ok: true,
+    alert_id: alertId ?? null,
+    contacts_alerted: routableContacts.length,
+    email_dispatched: anyEmail,
+    email_ok: anyEmailOk,
+    sms_attempted: anySmsAttempted,
+    sms_ok: anySmsOk,
+    sms_configured: isSmsConfigured(),
+  });
 }
 
 function escapeHtml(s: string): string {

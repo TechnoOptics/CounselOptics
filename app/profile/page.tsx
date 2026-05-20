@@ -3,7 +3,8 @@ import { redirect } from 'next/navigation';
 import { getCurrentUser, isSupabaseConfigured, createServerSupabase } from '@/lib/supabase/server';
 import { getProfile } from '@/lib/storage';
 import { updateProfileAction } from '@/lib/actions';
-import { SafeContactForm } from './safe-contact-form';
+import { SafeContactForm, type SafeWitnessContactRow } from './safe-contact-form';
+import { isSmsConfigured } from '@/lib/sms';
 import { AccountActions } from './account-actions';
 import { AvatarUpload } from './avatar-upload';
 import { ThemePicker } from '@/components/ThemePicker';
@@ -55,10 +56,21 @@ export default async function ProfilePage() {
           | null,
     );
   const safeWitnessConfig = {
-    email: safeWitnessRow?.safe_contact_email ?? null,
     pin: safeWitnessRow?.safe_witness_pin ?? null,
     message: safeWitnessRow?.safe_witness_message ?? null,
   };
+  // Multi-contact list - replaces the legacy single-email field.
+  // The migration backfilled any existing safe_contact_email into
+  // this table so users don't lose their previous config.
+  const safeWitnessContactsRaw = await supabase
+    .from('safe_witness_contacts')
+    .select('id, display_name, email, phone')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: true })
+    .then((r) => r.data ?? []);
+  const safeWitnessContacts: SafeWitnessContactRow[] =
+    safeWitnessContactsRaw as SafeWitnessContactRow[];
+  const smsConfigured = isSmsConfigured();
   // Consent is now handled by the layout's popup modal; do not redirect.
 
   const fallbackName =
@@ -328,7 +340,11 @@ export default async function ProfilePage() {
             on your watch. The email lands instantly with a timestamp
             and any voice transcription. Leave blank to disable.
           </p>
-          <SafeContactForm initial={safeWitnessConfig} />
+          <SafeContactForm
+            initial={safeWitnessConfig}
+            contacts={safeWitnessContacts}
+            smsConfigured={smsConfigured}
+          />
         </div>
         <Link
           href="/pair-watch"
