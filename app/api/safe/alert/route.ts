@@ -199,10 +199,62 @@ export async function POST(req: NextRequest) {
     minute: '2-digit',
     timeZoneName: 'short',
   });
-  const mapLink =
-    typeof body.lat === 'number' && typeof body.lng === 'number'
-      ? `https://www.google.com/maps?q=${body.lat},${body.lng}`
+  // Location pack: every URL the email/SMS can offer in one place.
+  // If we don't have lat/lng, everything but Call 911 becomes null
+  // and the email gracefully skips those rows.
+  const hasLoc =
+    typeof body.lat === 'number' && typeof body.lng === 'number';
+  const lat = hasLoc ? body.lat! : null;
+  const lng = hasLoc ? body.lng! : null;
+  const mapLink = hasLoc
+    ? `https://www.google.com/maps?q=${lat},${lng}`
+    : null;
+  const directionsLink = hasLoc
+    ? `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`
+    : null;
+  // Static Map image for the email body. Server-only env var
+  // preferred; falls back to the public Maps key if present.
+  // When neither is set, the map image is omitted; all the other
+  // links still work (they don't require an API key).
+  const mapsApiKey =
+    (process.env.GOOGLE_MAPS_API_KEY ?? '').trim() ||
+    (process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? '').trim() ||
+    null;
+  const staticMapUrl =
+    hasLoc && mapsApiKey
+      ? `https://maps.googleapis.com/maps/api/staticmap?` +
+        new URLSearchParams({
+          center: `${lat},${lng}`,
+          zoom: '15',
+          size: '600x300',
+          scale: '2',
+          maptype: 'roadmap',
+          markers: `color:red|label:S|${lat},${lng}`,
+          key: mapsApiKey,
+        }).toString()
       : null;
+  // Mailto link that pre-fills a fresh email so the contact can
+  // forward the alert to family / police / a second responder in
+  // one tap. Body cap kept short - long mailto bodies break in
+  // Gmail iOS.
+  const shareSubject = encodeURIComponent(
+    `Safe Witness alert: ${watcherLabel.split(' (')[0]}`,
+  );
+  const shareBody = encodeURIComponent(
+    [
+      `${watcherLabel.split(' (')[0]} just triggered an Advottic Safe Witness alert.`,
+      '',
+      userMessage,
+      '',
+      tsHuman,
+      mapLink ? `Location: ${mapLink}` : null,
+      'Forward this to anyone who needs to know.',
+    ]
+      .filter(Boolean)
+      .join('\n'),
+  );
+  const shareLink = `mailto:?subject=${shareSubject}&body=${shareBody}`;
+  const call911Link = 'tel:911';
 
   const html = `
 <div style="font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background: #0B1F19; color: #FBF7E9;">
@@ -234,6 +286,56 @@ export async function POST(req: NextRequest) {
       : ''
   }
 
+  ${
+    staticMapUrl
+      ? `<div style="margin: 0 0 16px;">
+           <a href="${mapLink}" style="display: block; text-decoration: none;">
+             <img src="${staticMapUrl}" alt="Their location on a map" width="600" style="display: block; width: 100%; max-width: 600px; height: auto; border-radius: 12px; border: 1px solid rgba(230, 206, 147, 0.25);" />
+           </a>
+           <p style="margin: 6px 0 0; font-size: 11px; color: rgba(251, 247, 233, 0.45); text-align: center;">
+             Marker shows their location at the moment the alert fired.
+           </p>
+         </div>`
+      : hasLoc
+        ? `<p style="margin: 0 0 16px; font-size: 12px; color: rgba(251, 247, 233, 0.55);">
+             Map preview disabled (operator: set GOOGLE_MAPS_API_KEY to enable). Use the View Location button below.
+           </p>`
+        : ''
+  }
+
+  <!-- Action buttons. Table-based so every email client (Outlook
+       included) renders them as full-width tappable rectangles
+       instead of inline links. Two rows of two on mobile, single
+       wide row on desktop. -->
+  <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0 0 20px;">
+    <tr>
+      <td width="50%" style="padding: 4px;">
+        <a href="${call911Link}" style="display: block; padding: 14px 8px; background: #E5816B; color: #FBF7E9; text-align: center; text-decoration: none; border-radius: 10px; font-weight: 700; font-size: 14px; letter-spacing: 0.5px;">
+          Call 911
+        </a>
+      </td>
+      <td width="50%" style="padding: 4px;">
+        ${
+          directionsLink
+            ? `<a href="${directionsLink}" style="display: block; padding: 14px 8px; background: #E6CE93; color: #0B1F19; text-align: center; text-decoration: none; border-radius: 10px; font-weight: 700; font-size: 14px; letter-spacing: 0.5px;">Get directions</a>`
+            : `<span style="display: block; padding: 14px 8px; background: rgba(230, 206, 147, 0.15); color: rgba(251, 247, 233, 0.4); text-align: center; border-radius: 10px; font-weight: 600; font-size: 13px;">No location captured</span>`
+        }
+      </td>
+    </tr>
+    <tr>
+      <td width="50%" style="padding: 4px;">
+        ${
+          mapLink
+            ? `<a href="${mapLink}" style="display: block; padding: 14px 8px; background: rgba(230, 206, 147, 0.15); color: #E6CE93; text-align: center; text-decoration: none; border-radius: 10px; font-weight: 600; font-size: 13px;">View location</a>`
+            : `<span style="display: block; padding: 14px 8px; background: rgba(230, 206, 147, 0.05); color: rgba(251, 247, 233, 0.3); text-align: center; border-radius: 10px; font-weight: 600; font-size: 13px;">View location</span>`
+        }
+      </td>
+      <td width="50%" style="padding: 4px;">
+        <a href="${shareLink}" style="display: block; padding: 14px 8px; background: rgba(230, 206, 147, 0.15); color: #E6CE93; text-align: center; text-decoration: none; border-radius: 10px; font-weight: 600; font-size: 13px;">Share alert</a>
+      </td>
+    </tr>
+  </table>
+
   <div style="padding: 0 0 20px;">
     <p style="margin: 16px 0 6px; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: rgba(251, 247, 233, 0.55);">Fired at</p>
     <p style="margin: 0 0 16px; font-family: 'SFMono-Regular', Menlo, monospace; font-size: 15px; color: #E6CE93;">
@@ -256,12 +358,6 @@ export async function POST(req: NextRequest) {
            <p style="margin: 0 0 16px; line-height: 1.55;">${escapeHtml(note)}</p>`
         : ''
     }
-    ${
-      mapLink
-        ? `<p style="margin: 16px 0 6px; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: rgba(251, 247, 233, 0.55);">Location</p>
-           <p style="margin: 0 0 16px; line-height: 1.55;"><a href="${mapLink}" style="color: #E6CE93;">Open in Google Maps</a></p>`
-        : ''
-    }
   </div>
 
   <div style="padding-top: 16px; border-top: 1px solid rgba(230, 206, 147, 0.25); font-size: 12px; color: rgba(251, 247, 233, 0.6); line-height: 1.55;">
@@ -282,15 +378,20 @@ export async function POST(req: NextRequest) {
   // The SMS body is a single 1-2 sentence version of the alert so
   // it fits in one or two segments. Email carries the full HTML.
   const watcherFirstName = watcherLabel.split(' (')[0];
+  // SMS body: every link a contact needs in one tap. Newlines
+  // separate sections so each link is recognizable on iOS/Android.
+  // Twilio segments at 153 chars (GSM-7) - this typically spans
+  // 2-4 segments, which is acceptable for an emergency alert.
   const smsBody = [
-    'Advottic Safe Witness:',
-    `${watcherFirstName} - ${userMessage}`,
+    `ADVOTTIC SAFE WITNESS - ${watcherFirstName}`,
+    userMessage,
     userPin ? `PIN: ${userPin}` : null,
-    `Fired ${tsHuman}.`,
     mapLink ? `Location: ${mapLink}` : null,
+    directionsLink ? `Directions: ${directionsLink}` : null,
+    'Call 911: tel:911',
   ]
     .filter(Boolean)
-    .join(' ');
+    .join('\n');
 
   type Dispatch =
     | {

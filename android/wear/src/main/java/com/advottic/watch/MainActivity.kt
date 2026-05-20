@@ -460,6 +460,14 @@ fun WearApp(summary: SummaryStore.Summary) {
         ActivityResultContracts.RequestPermission(),
     ) { granted -> if (granted) voiceActive = true }
 
+    // Safe Witness location permission. We don't auto-launch
+    // capture on grant - the user will press-and-hold again. The
+    // grant just unblocks the LocationCapture.hasPermission()
+    // check inside onConfirm.
+    val locationPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { /* result handled by next LocationCapture.hasPermission() check */ }
+
     fun launchVoice() {
         val granted = ContextCompat.checkSelfPermission(
             context,
@@ -1026,6 +1034,15 @@ fun WearApp(summary: SummaryStore.Summary) {
                             // is on purpose: an accidental tap
                             // would otherwise alert someone with no
                             // emergency on the watcher's end.
+                            //
+                            // On fire we capture a one-shot location
+                            // (best-effort, 6s timeout) so the alert
+                            // email gets a map + turn-by-turn
+                            // directions. Permission is requested
+                            // from the location permission launcher
+                            // declared above; a decline means the
+                            // alert still goes out, just without a
+                            // map.
                             SafeWitnessHoldButton(
                                 quiet = quiet,
                                 onConfirm = {
@@ -1036,11 +1053,28 @@ fun WearApp(summary: SummaryStore.Summary) {
                                             "https://advottic.com/safe",
                                         )
                                     } else {
+                                        // Ask for permission if we
+                                        // don't have it; the alert
+                                        // still fires immediately
+                                        // (without location) so the
+                                        // user isn't stuck in a
+                                        // permission dialog while in
+                                        // distress.
+                                        if (!LocationCapture.hasPermission(context)) {
+                                            locationPermission.launch(
+                                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                            )
+                                        }
                                         scope.launch {
+                                            val fix = if (LocationCapture.hasPermission(context)) {
+                                                LocationCapture.get(context)
+                                            } else null
                                             WatchApi.sendSafeAlert(
                                                 tok,
                                                 "Safe Witness triggered from " +
                                                     "the Wear OS watch.",
+                                                lat = fix?.lat,
+                                                lng = fix?.lng,
                                             )
                                         }
                                     }

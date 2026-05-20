@@ -113,6 +113,12 @@ dependencies {
     // Data Layer client - declared now so Phase 2 (phone -> watch
     // payload) needs no dependency change, only code.
     implementation 'com.google.android.gms:play-services-wearable:18.2.0'
+    // Safe Witness location capture - one-shot lat/lng via
+    // FusedLocationProviderClient.getCurrentLocation(). Listed
+    // explicitly so the version is pinned even if play-services-
+    // wearable changes which Location version it transitively
+    // pulls.
+    implementation 'com.google.android.gms:play-services-location:21.3.0'
 
     // Phase 3c: watch-face Complication data source - the flagship
     // "your next hearing on your watch face, 24/7" surface. The -ktx

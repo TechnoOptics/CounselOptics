@@ -92,6 +92,8 @@ object WatchApi {
     suspend fun sendSafeAlert(
         token: String,
         transcription: String,
+        lat: Double? = null,
+        lng: Double? = null,
     ): Boolean = withContext(Dispatchers.IO) {
         try {
             val c = (URL("$BASE/api/safe/alert").openConnection()
@@ -105,6 +107,9 @@ object WatchApi {
             val payload = JSONObject()
                 .put("source", "watch")
                 .put("transcription", transcription)
+            if (lat != null && lng != null) {
+                payload.put("lat", lat).put("lng", lng)
+            }
             c.outputStream.use { it.write(payload.toString().toByteArray()) }
             val ok = c.responseCode in 200..299
             c.disconnect()

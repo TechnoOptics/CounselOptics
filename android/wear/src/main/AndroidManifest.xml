@@ -23,6 +23,15 @@
          gated on the grant so a decline simply does nothing. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
+    <!-- Safe Witness: include a one-shot last-known location with
+         every alert fire so the contact gets a map + turn-by-turn
+         directions. Runtime-requested on the first long-press; if
+         denied, the alert still fires (email + SMS), just without
+         the map block. The COARSE permission is the fallback
+         Wear OS sometimes grants when fine is rejected. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
     <!-- Branded adaptive icon: gold "A" monogram on the forest brand
          surface. Pure vector (no PNGs) so the module stays
          binary-asset-free while looking like the rest of the app. -->
