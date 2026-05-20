@@ -354,13 +354,26 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
         />
       )}
 
+      {/*
+        Case-detail top tabs - rebuilt around the user's actual goals.
+        Was 9-11 tabs (Story, Practice, Strength, Exhibits, Hearing,
+        Subject, Advottic Review, Sharing, Activity, Settings) plus a
+        4-tab strip nested inside Advottic Review. User complaint:
+        "tabs that have tabs felt like a maze."
+
+        New shape (4 groups, no nested tabs):
+          Case     = the case file: Story, Subject, Exhibits.
+          Analysis = AI + research outputs: Strength, Practice,
+                     Advottic Review (now one scrollable section).
+          Hearing  = standalone because urgency / countdown.
+          Manage   = admin: Sharing, Activity, Settings.
+
+        Witness viewers still get a leading "My statement" tab so they
+        land on their editor by default.
+      */}
       <Tabs
         storageKey={`case-tabs:${c.id}`}
         tabs={[
-          // Witness-only tab: their personal statement editor.
-          // Comes first so a witness lands on it by default when
-          // they open the case for the first time. Hidden to anyone
-          // who isn't the named witness on this case.
           ...(isWitness && myCollab
             ? [
                 {
@@ -378,118 +391,171 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
               ]
             : []),
           {
-            id: 'story',
-            label: 'Story',
-            content: <CaseStory caseId={c.id} items={storyItems} />,
-          },
-          {
-            id: 'practice',
-            label: 'Practice',
-            content: <OpposingCounsel caseId={c.id} />,
-          },
-          {
-            id: 'strength',
-            label: 'Strength',
-            content: <EvidenceHeatmap caseId={c.id} />,
-          },
-          {
-            id: 'exhibits',
-            label: 'Exhibits',
+            id: 'case',
+            label: 'Case',
             badge: exhibits.length || undefined,
             content: (
-              <section className="space-y-4">
-                <div className="flex items-end justify-between">
-                  <div>
-                    <h2 className="text-xl font-semibold tracking-tight text-ink-950">
-                      Exhibits
-                    </h2>
-                    <p className="text-sm text-ink-500 mt-0.5">
-                      {exhibits.length === 0
-                        ? 'Upload evidence to start building exhibits.'
-                        : `${exhibits.length} exhibit${exhibits.length === 1 ? '' : 's'}`}
-                    </p>
-                  </div>
-                </div>
+              <div className="space-y-10">
+                <CaseSection
+                  id="case-story"
+                  eyebrow="Story"
+                  title="Your case in chronological order"
+                  subtitle="Every key moment, fact, and exhibit on one timeline."
+                >
+                  <CaseStory caseId={c.id} items={storyItems} />
+                </CaseSection>
 
-                {canUpload ? (
-                  <div className="card p-6">
-                    <UploadForm caseId={c.id} />
-                  </div>
-                ) : (
-                  <div className="card p-6 text-sm text-ink-600">
-                    You have view-only access on this case. Ask the case owner to upgrade your
-                    role to <strong>Editor</strong> or <strong>Attorney</strong> if you need to
-                    add exhibits.
-                  </div>
-                )}
-
-                {exhibits.length > 0 && (
-                  <BellaPrompt
-                    title="Ask Bella to make sense of these exhibits"
-                    subtitle="She has full visibility into your case description and exhibit list. Plain English, hedged language, no legal advice."
-                    prompts={[
-                      'Summarize what these exhibits prove.',
-                      'Which exhibits look weakest and why?',
-                      'What evidence am I missing?',
-                    ]}
+                <CaseSection
+                  id="case-subject"
+                  eyebrow="Subject"
+                  title={`Who or what this case is about${
+                    c.subjectName ? `: ${c.subjectName}` : ''
+                  }`}
+                  subtitle="The person or organization on the other side of the matter. Fills auto-populate on cover packets and pleadings."
+                >
+                  <SubjectProfileView
+                    subjectName={c.subjectName}
+                    subjectType={c.subjectType}
+                    profile={c.subjectProfile ?? {}}
                   />
-                )}
+                </CaseSection>
 
-                {exhibits.length > 0 && (
-                  <ul className="card divide-y divide-ink-100">
-                    {exhibits.map((e) => (
-                      <li key={e.id} className="p-5">
-                        <div className="flex flex-wrap items-start gap-4">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2.5 mb-1">
-                              <span className="badge bg-ink-950 text-white font-mono tracking-wide">
-                                {e.label}
-                              </span>
-                              <span className="text-sm font-medium text-ink-950 truncate">
-                                {e.fileName}
-                              </span>
-                            </div>
-                            {e.description && (
-                              <p className="text-sm text-ink-700 mb-1.5 leading-relaxed">
-                                {e.description}
+                <CaseSection
+                  id="case-exhibits"
+                  eyebrow="Exhibits"
+                  title={
+                    exhibits.length === 0
+                      ? 'No exhibits yet'
+                      : `${exhibits.length} exhibit${
+                          exhibits.length === 1 ? '' : 's'
+                        }`
+                  }
+                  subtitle={
+                    exhibits.length === 0
+                      ? 'Upload evidence to start building exhibits.'
+                      : 'Each upload gets a stable label so you can cite it in filings.'
+                  }
+                >
+                  {canUpload ? (
+                    <div className="card p-6">
+                      <UploadForm caseId={c.id} />
+                    </div>
+                  ) : (
+                    <div className="card p-6 text-sm text-ink-600">
+                      You have view-only access on this case. Ask the
+                      case owner to upgrade your role to{' '}
+                      <strong>Editor</strong> or{' '}
+                      <strong>Attorney</strong> if you need to add
+                      exhibits.
+                    </div>
+                  )}
+
+                  {exhibits.length > 0 && (
+                    <BellaPrompt
+                      title="Ask Bella to make sense of these exhibits"
+                      subtitle="She has full visibility into your case description and exhibit list. Plain English, hedged language, no legal advice."
+                      prompts={[
+                        'Summarize what these exhibits prove.',
+                        'Which exhibits look weakest and why?',
+                        'What evidence am I missing?',
+                      ]}
+                    />
+                  )}
+
+                  {exhibits.length > 0 && (
+                    <ul className="card divide-y divide-ink-100">
+                      {exhibits.map((e) => (
+                        <li key={e.id} className="p-5">
+                          <div className="flex flex-wrap items-start gap-4">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2.5 mb-1">
+                                <span className="badge bg-ink-950 text-white font-mono tracking-wide">
+                                  {e.label}
+                                </span>
+                                <span className="text-sm font-medium text-ink-950 truncate">
+                                  {e.fileName}
+                                </span>
+                              </div>
+                              {e.description && (
+                                <p className="text-sm text-ink-700 mb-1.5 leading-relaxed">
+                                  {e.description}
+                                </p>
+                              )}
+                              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-500">
+                                {e.category && (
+                                  <span className="badge bg-ink-100 text-ink-700">
+                                    {e.category}
+                                  </span>
+                                )}
+                                {e.incidentDate && (
+                                  <span>
+                                    <span className="text-ink-400">Incident:</span>{' '}
+                                    {new Date(e.incidentDate).toLocaleDateString()}
+                                  </span>
+                                )}
+                                {e.source && (
+                                  <span>
+                                    <span className="text-ink-400">Source:</span>{' '}
+                                    {e.source}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs text-ink-500 mt-1">
+                                {e.fileType} · {formatBytes(e.fileSize)} · uploaded{' '}
+                                {new Date(e.uploadedAt).toLocaleString()}
                               </p>
-                            )}
-                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-500">
-                              {e.category && (
-                                <span className="badge bg-ink-100 text-ink-700">{e.category}</span>
-                              )}
-                              {e.incidentDate && (
-                                <span>
-                                  <span className="text-ink-400">Incident:</span>{' '}
-                                  {new Date(e.incidentDate).toLocaleDateString()}
-                                </span>
-                              )}
-                              {e.source && (
-                                <span>
-                                  <span className="text-ink-400">Source:</span> {e.source}
-                                </span>
-                              )}
                             </div>
-                            <p className="text-xs text-ink-500 mt-1">
-                              {e.fileType} · {formatBytes(e.fileSize)} · uploaded{' '}
-                              {new Date(e.uploadedAt).toLocaleString()}
-                            </p>
+                            <a
+                              href={`/api/files/${e.id}`}
+                              className="btn-secondary"
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              View
+                            </a>
                           </div>
-                          <a
-                            href={`/api/files/${e.id}`}
-                            className="btn-secondary"
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            View
-                          </a>
-                        </div>
-                        <ExhibitScan exhibit={e} />
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
+                          <ExhibitScan exhibit={e} />
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </CaseSection>
+              </div>
+            ),
+          },
+          {
+            id: 'analysis',
+            label: 'Analysis',
+            badge: review ? '✓' : undefined,
+            content: (
+              <div className="space-y-10">
+                <CaseSection
+                  id="analysis-strength"
+                  eyebrow="Strength"
+                  title="Where the case is strong, where it's weak"
+                  subtitle="Heatmap of how well your exhibits cover each issue."
+                >
+                  <EvidenceHeatmap caseId={c.id} />
+                </CaseSection>
+
+                <CaseSection
+                  id="analysis-practice"
+                  eyebrow="Practice"
+                  title="Anticipate the other side"
+                  subtitle="Profile opposing counsel's likely tactics from prior cases."
+                >
+                  <OpposingCounsel caseId={c.id} />
+                </CaseSection>
+
+                <CaseSection
+                  id="analysis-review"
+                  eyebrow="Advottic Review"
+                  title="AI read of your case"
+                  subtitle="Issue-spotting, evidence gaps, possible subpoena targets. Now one scroll instead of four sub-tabs."
+                >
+                  <ReviewPanel caseId={c.id} review={review} />
+                </CaseSection>
+              </div>
             ),
           },
           {
@@ -507,91 +573,135 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
             ),
           },
           {
-            id: 'subject',
-            label: 'Subject',
-            badge: subjectProfileFieldCount(c.subjectProfile) || undefined,
+            id: 'manage',
+            label: 'Manage',
+            badge:
+              usingSupabase() && (collaborators.length || activity.length)
+                ? collaborators.length + activity.length
+                : undefined,
             content: (
-              <SubjectProfileView
-                subjectName={c.subjectName}
-                subjectType={c.subjectType}
-                profile={c.subjectProfile ?? {}}
-              />
-            ),
-          },
-          {
-            id: 'review',
-            label: 'Advottic Review',
-            badge: review ? '✓' : undefined,
-            content: <ReviewPanel caseId={c.id} review={review} />,
-          },
-          ...(usingSupabase()
-            ? [
-                {
-                  id: 'sharing',
-                  label: 'Sharing',
-                  badge: collaborators.length || undefined,
-                  content: (
-                    <CollaboratorsPanel
-                      caseId={c.id}
-                      collaborators={collaborators}
-                      isOwner={isOwner}
-                    />
-                  ),
-                },
-                {
-                  id: 'activity',
-                  label: 'Activity',
-                  badge: activity.length || undefined,
-                  content: (
-                    <section className="space-y-4">
-                      <header>
-                        <h2 className="text-xl font-semibold tracking-tight text-ink-950 dark:text-cream-100">
-                          Case activity
-                        </h2>
-                        <p className="text-sm text-ink-500 dark:text-cream-100/55 mt-0.5">
-                          Every view, upload, and edit is logged here. The case owner is
-                          emailed for material changes (we batch related events within a few
-                          minutes so you do not get spammed).
-                        </p>
-                      </header>
-                      <ActivityList events={activity} />
-                    </section>
-                  ),
-                },
-              ]
-            : []),
-          {
-            id: 'settings',
-            label: 'Settings',
-            content: (
-              <div className="space-y-6">
-                <CloseCaseControl caseId={c.id} status={c.status} isOwner={isOwner} />
+              <div className="space-y-10">
+                {usingSupabase() && (
+                  <>
+                    <CaseSection
+                      id="manage-sharing"
+                      eyebrow="Sharing"
+                      title={
+                        collaborators.length === 0
+                          ? 'Only you have access'
+                          : `${collaborators.length} ${
+                              collaborators.length === 1
+                                ? 'collaborator'
+                                : 'collaborators'
+                            }`
+                      }
+                      subtitle="Invite an attorney, paralegal, or trusted witness. Per-role permissions: viewer, editor, attorney, witness."
+                    >
+                      <CollaboratorsPanel
+                        caseId={c.id}
+                        collaborators={collaborators}
+                        isOwner={isOwner}
+                      />
+                    </CaseSection>
 
-                {isOwner && (
-                  <section className="card border-rose-200 dark:border-rose-900/40 p-5 sm:p-6">
-                    <div className="flex flex-wrap items-start justify-between gap-4">
-                      <div className="min-w-0">
-                        <p className="text-[10px] uppercase tracking-[0.22em] font-semibold text-rose-700 dark:text-rose-200">
-                          Danger zone
-                        </p>
-                        <h3 className="font-display text-lg font-medium tracking-[-0.01em] text-ink-950 dark:text-cream-100 mt-1">
-                          Delete this case
-                        </h3>
-                        <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1.5 max-w-md leading-relaxed">
-                          Removes the case, every exhibit, every Advottic Review, and any
-                          collaborator access. This is permanent - the case cannot be recovered.
-                        </p>
-                      </div>
-                      <DeleteCaseButton caseId={c.id} caseTitle={c.title} />
-                    </div>
-                  </section>
+                    <CaseSection
+                      id="manage-activity"
+                      eyebrow="Activity"
+                      title="Audit trail"
+                      subtitle="Every view, upload, and edit is logged. The case owner is emailed for material changes (we batch related events within a few minutes so you don't get spammed)."
+                    >
+                      <ActivityList events={activity} />
+                    </CaseSection>
+                  </>
                 )}
+
+                <CaseSection
+                  id="manage-settings"
+                  eyebrow="Settings"
+                  title="Case lifecycle"
+                  subtitle="Close, reopen, or permanently delete this case."
+                >
+                  <CloseCaseControl
+                    caseId={c.id}
+                    status={c.status}
+                    isOwner={isOwner}
+                  />
+
+                  {isOwner && (
+                    <section className="card border-rose-200 dark:border-rose-900/40 p-5 sm:p-6 mt-6">
+                      <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <p className="text-[10px] uppercase tracking-[0.22em] font-semibold text-rose-700 dark:text-rose-200">
+                            Danger zone
+                          </p>
+                          <h3 className="font-display text-lg font-medium tracking-[-0.01em] text-ink-950 dark:text-cream-100 mt-1">
+                            Delete this case
+                          </h3>
+                          <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1.5 max-w-md leading-relaxed">
+                            Removes the case, every exhibit, every
+                            Advottic Review, and any collaborator
+                            access. This is permanent - the case cannot
+                            be recovered.
+                          </p>
+                        </div>
+                        <DeleteCaseButton
+                          caseId={c.id}
+                          caseTitle={c.title}
+                        />
+                      </div>
+                    </section>
+                  )}
+                </CaseSection>
               </div>
             ),
           },
         ]}
       />
     </div>
+  );
+}
+
+/**
+ * Section wrapper inside a merged tab. Replaces what used to be a
+ * top-level tab with an in-page heading + subtitle + scroll anchor,
+ * so each group tab reads as one scrollable page. The eyebrow on
+ * top echoes the old tab name to preserve user mental model
+ * (someone looking for "Subject" still sees "Subject" as a label,
+ * just inside Case instead of as its own tab).
+ *
+ * scroll-mt-20 leaves room for the Tabs strip when the user jumps
+ * via #anchor (e.g. from an external link or the URL hash).
+ */
+function CaseSection({
+  id,
+  eyebrow,
+  title,
+  subtitle,
+  children,
+}: {
+  id: string;
+  eyebrow: string;
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section id={id} className="space-y-4 scroll-mt-24">
+      <header className="space-y-1">
+        <p className="text-[10px] uppercase tracking-[0.22em] font-semibold text-gold-700 dark:text-gold-300">
+          {eyebrow}
+        </p>
+        <h2 className="font-display text-xl font-medium tracking-[-0.01em] text-ink-950 dark:text-cream-100">
+          {title}
+        </h2>
+        {subtitle && (
+          <p className="text-sm text-ink-500 dark:text-cream-100/55 leading-relaxed">
+            {subtitle}
+          </p>
+        )}
+      </header>
+      <div>{children}</div>
+    </section>
   );
 }
 

@@ -6,13 +6,16 @@ import type { AIReview } from '@/lib/types';
 import { BellaPrompt } from '@/components/BellaPrompt';
 import { CallALawyerCallout } from '@/components/CallALawyerCallout';
 
-type TabKey = 'overview' | 'facts' | 'evidence' | 'actions';
-
-const TABS: { key: TabKey; label: string }[] = [
-  { key: 'overview', label: 'Overview' },
-  { key: 'facts', label: 'Facts & issues' },
-  { key: 'evidence', label: 'Evidence & discovery' },
-  { key: 'actions', label: 'Next steps' },
+// Section anchors used by the in-page nav chip strip so the user
+// can jump down to any review section without scrolling past the
+// other three. These replace the old 4-tab "tabs inside the
+// Review tab" pattern (user complaint: "tabs that have tabs felt
+// like a maze").
+const SECTIONS: { id: string; label: string }[] = [
+  { id: 'review-overview', label: 'Overview' },
+  { id: 'review-facts', label: 'Facts & issues' },
+  { id: 'review-evidence', label: 'Evidence & discovery' },
+  { id: 'review-actions', label: 'Next steps' },
 ];
 
 export function ReviewPanel({
@@ -24,7 +27,6 @@ export function ReviewPanel({
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<TabKey>('overview');
 
   function trigger() {
     setError(null);
@@ -132,13 +134,24 @@ export function ReviewPanel({
             </div>
           )}
 
-          <Tabs current={tab} onChange={setTab} />
+          {/* In-page section nav. Anchor chips, not tabs - clicking
+              one scrolls the matching section into view rather than
+              hiding the others. The whole review reads as one
+              scrollable document. */}
+          <SectionNav />
 
-          <div className="p-6 md:p-7 space-y-5">
-            {tab === 'overview' && <Overview review={review} />}
-            {tab === 'facts' && <Facts review={review} />}
-            {tab === 'evidence' && <Evidence review={review} />}
-            {tab === 'actions' && <Actions review={review} />}
+          <div className="p-6 md:p-7 space-y-10">
+            <SectionHeading id="review-overview" label="Overview" />
+            <Overview review={review} />
+
+            <SectionHeading id="review-facts" label="Facts & issues" />
+            <Facts review={review} />
+
+            <SectionHeading id="review-evidence" label="Evidence & discovery" />
+            <Evidence review={review} />
+
+            <SectionHeading id="review-actions" label="Next steps" />
+            <Actions review={review} />
           </div>
 
           <div className="border-t border-ink-100 px-5 py-3 bg-ink-50/50">
@@ -178,76 +191,52 @@ export function ReviewPanel({
   );
 }
 
-function Tabs({ current, onChange }: { current: TabKey; onChange: (t: TabKey) => void }) {
-  // Two responsive shapes: native <select> on phones (every section
-  // visible from the closed state, no hidden horizontal scroll) and
-  // the original underline tablist at sm+. Mirrors the case-page
-  // Tabs treatment so the whole app reads as one mobile-aware UI.
-  const activeLabel = TABS.find((t) => t.key === current)?.label ?? '';
+/**
+ * Sticky chip-strip that lets the user jump to any review section
+ * via anchor scroll. Replaces the previous inner tab strip - now
+ * the four sections render in one long scroll, and this chip row
+ * is the discovery + jump surface.
+ *
+ * Sticks just under the case-page top tabs so it remains visible
+ * while the user scrolls through long reviews. Smooth scroll is
+ * the default browser behavior via `scrollIntoView` - no animation
+ * code needed.
+ */
+function SectionNav() {
   return (
-    <>
-      {/* MOBILE: dropdown selector, visible below sm. */}
-      <div className="sm:hidden p-3 bg-white dark:bg-forest-900 border-b border-ink-200 dark:border-forest-700/40">
-        <label htmlFor="review-tabs-mobile" className="sr-only">
-          Choose review section
-        </label>
-        <div className="relative">
-          <select
-            id="review-tabs-mobile"
-            value={current}
-            onChange={(e) => onChange(e.target.value as TabKey)}
-            aria-label="Case review sections"
-            className="appearance-none w-full rounded-xl border border-ink-200 dark:border-forest-700/50 bg-white dark:bg-forest-900 px-4 py-2.5 pr-10 text-sm font-medium text-forest-900 dark:text-cream-100 focus:outline-none focus:ring-2 focus:ring-gold-400/60"
-          >
-            {TABS.map((t) => (
-              <option key={t.key} value={t.key}>
-                {t.label}
-              </option>
-            ))}
-          </select>
-          <span
-            aria-hidden
-            className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-ink-500 dark:text-cream-100/55"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M6 9l6 6 6-6"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </span>
-        </div>
-        <p className="mt-2 text-[11px] uppercase tracking-[0.22em] font-semibold text-gold-700 dark:text-gold-300">
-          {activeLabel}
-        </p>
-      </div>
+    <nav
+      aria-label="Jump to review section"
+      className="sticky top-0 z-10 bg-white/95 dark:bg-forest-900/95 backdrop-blur border-b border-ink-200 dark:border-forest-700/40 px-3 sm:px-5 py-2 flex flex-wrap gap-2"
+    >
+      {SECTIONS.map((s) => (
+        <a
+          key={s.id}
+          href={`#${s.id}`}
+          className="inline-flex items-center px-3 py-1 rounded-full text-[12px] font-medium text-ink-700 dark:text-cream-100/75 bg-ink-50 dark:bg-forest-800/60 hover:bg-gold-100 hover:text-gold-900 dark:hover:bg-gold-900/30 dark:hover:text-gold-200 transition-colors"
+        >
+          {s.label}
+        </a>
+      ))}
+    </nav>
+  );
+}
 
-      {/* DESKTOP / TABLET: underline tablist. */}
-      <div
-        role="tablist"
-        aria-label="Case review sections"
-        className="hidden sm:flex items-stretch border-b border-ink-200 bg-white overflow-x-auto"
-      >
-        {TABS.map((t) => {
-          const active = t.key === current;
-          return (
-            <button
-              key={t.key}
-              role="tab"
-              aria-selected={active}
-              onClick={() => onChange(t.key)}
-              className={`tab ${active ? 'tab-active' : ''}`}
-            >
-              {t.label}
-              {active && <span aria-hidden className="tab-underline" />}
-            </button>
-          );
-        })}
-      </div>
-    </>
+/**
+ * Section heading + anchor target. The heading reads at h3 size so
+ * the visual hierarchy is "Advottic Review" h2 -> "Overview" h3 ->
+ * each Panel inside is h3/h4 from the existing components.
+ *
+ * scroll-mt offsets the sticky chip row's height so the heading
+ * doesn't get hidden under it when the anchor link jumps.
+ */
+function SectionHeading({ id, label }: { id: string; label: string }) {
+  return (
+    <h3
+      id={id}
+      className="text-[11px] uppercase tracking-[0.22em] font-semibold text-gold-700 dark:text-gold-300 scroll-mt-20"
+    >
+      {label}
+    </h3>
   );
 }
 
