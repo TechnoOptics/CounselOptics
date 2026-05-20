@@ -7,7 +7,12 @@ import { HqHeader } from '@/components/hq/HqHeader';
 
 export const dynamic = 'force-dynamic';
 
-type Perspective = 'overview' | 'consumer' | 'counsel' | 'operations';
+type Perspective =
+  | 'overview'
+  | 'consumer'
+  | 'counsel'
+  | 'operations'
+  | 'security';
 
 const CONSUMER_PATHS = new Set([
   '/admin/consumer',
@@ -28,14 +33,21 @@ const OPERATIONS_PATHS = new Set([
   '/admin/operations',
   '/admin/health',
   '/admin/crashes',
-  '/admin/security',
+]);
+// Security got promoted out of Operations so it's one click from
+// anywhere in HQ (founder asked for it after operations at the top).
+// Security Center is the high-level threat + posture dashboard;
+// Security pulse is the deeper raw event/probe view sitting under it.
+const SECURITY_PATHS = new Set([
   '/admin/security-center',
+  '/admin/security',
 ]);
 
 function detectPerspective(pathname: string): Perspective {
   if (pathname === '/admin') return 'overview';
   if (CONSUMER_PATHS.has(pathname) || pathname.startsWith('/admin/consumer/')) return 'consumer';
   if (COUNSEL_PATHS.has(pathname) || pathname.startsWith('/admin/counsel/')) return 'counsel';
+  if (SECURITY_PATHS.has(pathname)) return 'security';
   if (OPERATIONS_PATHS.has(pathname)) return 'operations';
   return 'overview';
 }
@@ -143,15 +155,22 @@ function PerspectiveSubnav({
             { href: '/admin/counsel-requests', label: 'Requests' },
             { href: '/admin/invitations', label: 'Invitations' },
           ]
-        : [
-            // V3 CR-20: URL slug now matches the visible "Operations"
-            // label. The /admin/health alias still works for any old
-            // bookmark or alert template that links to it.
-            { href: '/admin/operations', label: 'System health' },
-            { href: '/admin/security-center', label: 'Security Center' },
-            { href: '/admin/security', label: 'Security pulse' },
-            { href: '/admin/crashes', label: 'Crash reports' },
-          ];
+        : perspective === 'security'
+          ? [
+              { href: '/admin/security-center', label: 'Overview' },
+              { href: '/admin/security', label: 'Security pulse' },
+            ]
+          : [
+              // Operations no longer includes Security Center / pulse:
+              // they moved to their own top-level perspective so the
+              // founder finds them in one click from anywhere.
+              //
+              // V3 CR-20: URL slug now matches the visible "Operations"
+              // label. The /admin/health alias still works for any old
+              // bookmark or alert template that links to it.
+              { href: '/admin/operations', label: 'System health' },
+              { href: '/admin/crashes', label: 'Crash reports' },
+            ];
 
   return (
     <nav className="mb-6 flex flex-wrap gap-1 border-b border-white/5 -mx-1 pb-1">

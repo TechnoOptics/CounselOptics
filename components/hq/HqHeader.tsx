@@ -2,13 +2,22 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { UserMenu } from '@/components/UserMenu';
 
-type Perspective = 'overview' | 'consumer' | 'counsel' | 'operations';
+type Perspective =
+  | 'overview'
+  | 'consumer'
+  | 'counsel'
+  | 'operations'
+  | 'security';
 
 const CRUMBS: { id: Perspective; label: string; href: string }[] = [
   { id: 'overview', label: 'Overview', href: '/admin' },
   { id: 'consumer', label: 'Consumer', href: '/admin/consumer' },
   { id: 'counsel', label: 'Counsel', href: '/admin/counsel' },
   { id: 'operations', label: 'Operations', href: '/admin/health' },
+  // Promoted from a sub-tab under Operations to its own top-level
+  // entry so it lives one click from anywhere in HQ. Security Center
+  // is the founder's threat + posture cockpit and is checked daily.
+  { id: 'security', label: 'Security Center', href: '/admin/security-center' },
 ];
 
 /**
