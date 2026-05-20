@@ -33,6 +33,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import kotlin.math.roundToInt
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.derivedStateOf
@@ -41,6 +42,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.isActive
 import androidx.compose.ui.Alignment
@@ -364,6 +368,36 @@ fun WearApp(summary: SummaryStore.Summary) {
     // itself, not Context.
     val scope = rememberCoroutineScope()
 
+    // Battery: track whether the activity is in the RESUMED state
+    // so the on-screen tick loops below (courtroom-minute counter,
+    // billable-timer counter) can suspend when the user lowers
+    // their wrist / the screen turns off. Wear OS keeps the
+    // activity alive through ambient/screen-off, so an unguarded
+    // `while (...) delay(1000) { ... }` keeps spinning CPU at 1Hz
+    // for the entire window the user is in courtroom mode or the
+    // timer is running. Gating on RESUMED brings background cost
+    // to ~zero; when the wrist comes back up, the tick resumes
+    // and immediately re-syncs the displayed value.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var isResumed by remember {
+        mutableStateOf(
+            lifecycleOwner.lifecycle.currentState.isAtLeast(
+                Lifecycle.State.RESUMED,
+            ),
+        )
+    }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> isResumed = true
+                Lifecycle.Event.ON_PAUSE -> isResumed = false
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     // Courtroom Mode: while the quiet window is open, chip haptics
     // are suppressed (a buzzing wrist in court is the hazard) and the
     // imminent-hearing alert is held back (see HearingAlertNotifier).
@@ -376,7 +410,13 @@ fun WearApp(summary: SummaryStore.Summary) {
         mutableStateOf(System.currentTimeMillis())
     }
     val quiet = quietUntil > nowTick
-    LaunchedEffect(quietUntil) {
+    // Battery: tick only while the activity is RESUMED. When the
+    // user lowers their wrist mid-courtroom-mode, the screen turns
+    // off and isResumed flips to false - the loop exits and stops
+    // burning CPU. On the next wrist-up it re-fires and snaps the
+    // displayed value back to the current minute.
+    LaunchedEffect(quietUntil, isResumed) {
+        if (!isResumed) return@LaunchedEffect
         while (quietUntil > System.currentTimeMillis()) {
             nowTick = System.currentTimeMillis()
             delay(1000L)
@@ -447,7 +487,16 @@ fun WearApp(summary: SummaryStore.Summary) {
             },
         )
     }
-    LaunchedEffect(timerStart) {
+    // Battery: same lifecycle gate as the courtroom tick - if the
+    // screen is off the user can't see the seconds, so there's no
+    // reason to update them. On resume we snap back to current.
+    LaunchedEffect(timerStart, isResumed) {
+        if (!isResumed) return@LaunchedEffect
+        // Re-sync once on every resume in case time passed while
+        // the loop was paused.
+        if (timerStart > 0L) {
+            elapsedMs = System.currentTimeMillis() - timerStart
+        }
         while (timerStart > 0L) {
             elapsedMs = System.currentTimeMillis() - timerStart
             delay(1000L)

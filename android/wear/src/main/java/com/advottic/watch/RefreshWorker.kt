@@ -37,6 +37,15 @@ class RefreshWorker(
 
     override suspend fun doWork(): Result {
         val ctx = applicationContext
+        // Battery: an unlinked watch has no SummaryStore data to
+        // alert on, no tile to refresh, no complication to update -
+        // the three try blocks below would all be no-ops AND would
+        // still wake the CPU + spin up the alert notifier path,
+        // every 6 hours, for nothing. Short-circuit so the periodic
+        // chain stays armed (WorkManager keeps the schedule alive)
+        // but does zero work until the watch is paired.
+        val token = WatchLinkStore.token(ctx)
+        if (token == null) return Result.success()
         try {
             HearingAlertNotifier.maybeNotify(ctx, SummaryStore.read(ctx))
         } catch (_: Throwable) {
