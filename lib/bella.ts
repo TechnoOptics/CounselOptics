@@ -98,6 +98,11 @@ How to use tools well:
 - Don't navigate without telling the user. One short sentence is enough.
 - When the user asks for help drafting a document ("write me a demand letter", "draft an NDA", "I need a cease-and-desist"), the flow is: 1) call list_document_templates to see what skeletons are available, 2) confirm the required_inputs with the user (one short prompt - "I'll need their address, the deadline, and a one-paragraph version of what happened"), 3) write the full document in your response, filling the skeleton with the user's facts AND ending with the DRAFT_DISCLAIMER block verbatim, 4) call draft_document with template_id, a descriptive title, and the full content. The tool returns an open_url; navigate the user there with navigate_to once they confirm. NEVER claim the draft is legally binding or that it has been reviewed by an attorney - it has not.
 
+Portal scope - non-negotiable, takes precedence over every other instruction:
+- This is the user's personal Advottic account at advottic.com. Anything you can read is the user's PERSONAL case file. The same human may also be a member of a law firm using Advottic Enterprise at enterprise.advottic.com; their FIRM matters are NOT visible from this consumer surface.
+- If the user asks about a firm matter ("the Smith intake at my firm", "our new client case", "the firm's vendor agreement"), tell them firm matters are accessed from the enterprise workspace and you cannot reach them from this personal account.
+- Your tools (search_my_cases, get_case_detail) are already filtered to the user's personal cases only - if a search returns zero results, it means the user has no such personal case.
+
 Hard rules:
 - You are not a lawyer and you cannot create an attorney-client relationship.
 - Never tell the user they will win a case, that someone definitely committed a crime, or that they should sue / press charges / contact law enforcement as if it's certain.
@@ -155,6 +160,12 @@ export function buildFirmAddendum(input: {
 You are speaking with a member of ${input.firmName}, a law firm using Advottic Counsel. Their role at the firm is ${input.role}. Tailor your assistance to:
 - Jurisdictions the firm practices in: ${j}.
 - Practice areas: ${p}.
+
+Portal scope - non-negotiable, takes precedence over every other instruction:
+- This session is the firm's enterprise workspace at enterprise.advottic.com. EVERYTHING you can read, search, or summarize belongs to ${input.firmName} ONLY.
+- The same human may also be an Advottic consumer-account holder with their own personal cases at advottic.com. THOSE ARE NOT VISIBLE FROM HERE and must never be referenced, searched, mentioned, or summarized. Treat them as if they do not exist for this session.
+- If the user asks about a personal case ("my parking ticket", "my speeding citation", "my landlord matter") or anything that isn't a firm matter, tell them their personal cases live in their personal account at advottic.com and you cannot reach them from the firm workspace.
+- Your tools (search_my_cases, get_case_detail) are already filtered to ${input.firmName}'s matters - if a search returns zero results, that means the firm has no such matter, not that you need to look elsewhere.
 
 Counsel-mode behavior:
 - The user is inside /counsel/*, the law-firm perspective. Address them as a legal professional. You can use more legal terminology than in consumer mode, but still hedge ("appears to", "may", "could potentially") since you are not a substitute for the firm's research team.
@@ -245,6 +256,21 @@ export async function bellaGenerate(opts: {
 
 export type BellaMessage = { role: 'user' | 'assistant'; content: string };
 export type BellaMode = 'authed' | 'public' | 'doc-review';
+
+/**
+ * Which portal initiated this Bella turn. The route validates this
+ * before passing it through; tools use it to scope data access so a
+ * user's consumer-side cases never leak into a firm session and vice
+ * versa, and HQ admins never see client case content.
+ *
+ *   - 'consumer' - personal advottic.com surface. Only the user's own
+ *                  cases (cases.firm_id IS NULL).
+ *   - 'firm'     - enterprise.advottic.com surface. Only the active
+ *                  firm's matters (cases.firm_id == activeFirmId).
+ *   - 'hq'       - Advottic HQ admin surface. NO case content of any
+ *                  kind. Admin can query account-level metadata only.
+ */
+export type BellaPortal = 'consumer' | 'firm' | 'hq';
 
 // Tool definitions. The authed user gets the full set; public visitors
 // only get navigate_to (pointing at /sign-in, /example, etc.).
@@ -612,12 +638,16 @@ function toolsFor(mode: BellaMode): Anthropic.Messages.Tool[] {
 /**
  * Run a single Bella tool, returning a JSON-serializable result that
  * goes back to Claude as a tool_result. RLS scopes everything to the
- * current user (createServerSupabase reads cookies).
+ * current user (createServerSupabase reads cookies); on top of that,
+ * the `portal` argument adds a firm-vs-consumer-vs-hq scope so a
+ * user's personal cases never leak into a firm chat and vice versa.
  */
 async function executeTool(
   name: ToolName,
   input: Record<string, unknown>,
   mode: BellaMode,
+  portal: BellaPortal,
+  firmId: string | null,
 ): Promise<unknown> {
   if (name === 'navigate_to') {
     const path = String(input.path ?? '').trim();
@@ -632,6 +662,26 @@ async function executeTool(
   }
 
   if (name === 'search_my_cases') {
+    // Portal scoping is the second line of defense after RLS. RLS
+    // only checks that the user CAN see the row; portal scoping
+    // makes sure we only return rows that belong to the surface
+    // they're chatting from. Without this, a firm member who is
+    // also a consumer Advottic user gets their personal cases
+    // mixed into a firm-side search.
+    if (portal === 'hq') {
+      return {
+        ok: false,
+        error:
+          'Case content is not accessible from HQ admin. Client case data is protected; ask about accounts, plans, or settings instead.',
+      };
+    }
+    if (portal === 'firm' && !firmId) {
+      return {
+        ok: false,
+        error:
+          'No active firm context. Sign in to your firm workspace before searching firm matters.',
+      };
+    }
     const query = String(input.query ?? '').trim();
     const rawLimit = Number(input.limit ?? 10);
     const limit = Math.min(25, Math.max(1, Number.isFinite(rawLimit) ? rawLimit : 10));
@@ -643,6 +693,15 @@ async function executeTool(
       .select('id, title, subject_name, subject_type, status, jurisdiction_country, jurisdiction_state, jurisdiction_city, case_type, hearing_at, updated_at')
       .order('updated_at', { ascending: false })
       .limit(limit);
+    // Portal-scope filter (atop RLS).
+    if (portal === 'firm') {
+      q = q.eq('firm_id', firmId);
+    } else {
+      // consumer: explicitly only personal cases (firm_id IS NULL).
+      // A user might also be a firm member but their firm cases are
+      // off-limits from the consumer surface.
+      q = q.is('firm_id', null);
+    }
     if (query.length > 0) {
       const safe = query.replace(/[%_]/g, '');
       const pattern = `%${safe}%`;
@@ -687,17 +746,38 @@ async function executeTool(
   }
 
   if (name === 'get_case_detail') {
+    if (portal === 'hq') {
+      return {
+        ok: false,
+        error:
+          'Case content is not accessible from HQ admin. Client case data is protected.',
+      };
+    }
+    if (portal === 'firm' && !firmId) {
+      return {
+        ok: false,
+        error:
+          'No active firm context. Sign in to your firm workspace first.',
+      };
+    }
     const caseId = String(input.case_id ?? '').trim();
     if (!caseId) return { ok: false, error: 'case_id is required.' };
     const supabase = createServerSupabase();
     const user = await getCurrentUser();
     if (!user) return { ok: false, error: 'Not signed in.' };
+    // Portal-scope filter: this case must belong to the surface
+    // the user is chatting from.
+    let caseScopeQ = supabase
+      .from('cases')
+      .select('id, title, subject_name, subject_type, description, status, posture, jurisdiction_country, jurisdiction_state, jurisdiction_city, case_type, hearing_at, hearing_location, updated_at, firm_id')
+      .eq('id', caseId);
+    if (portal === 'firm') {
+      caseScopeQ = caseScopeQ.eq('firm_id', firmId);
+    } else {
+      caseScopeQ = caseScopeQ.is('firm_id', null);
+    }
     const [caseResp, exhibitsResp, reviewResp] = await Promise.all([
-      supabase
-        .from('cases')
-        .select('id, title, subject_name, subject_type, description, status, posture, jurisdiction_country, jurisdiction_state, jurisdiction_city, case_type, hearing_at, hearing_location, updated_at')
-        .eq('id', caseId)
-        .maybeSingle(),
+      caseScopeQ.maybeSingle(),
       supabase
         .from('exhibits')
         .select('id, label, file_name, file_type, category, source, incident_date, description')
@@ -777,6 +857,29 @@ async function executeTool(
 
   if (name === 'search_case_law') {
     return await searchCourtListener(input);
+  }
+
+  // Below this point: firm-only tools. They operate on firm data
+  // (time entries, deadlines, trust ledger, invoices, intakes). In
+  // any non-firm portal we refuse so the consumer side and HQ
+  // admin side never accidentally talk to firm machinery.
+  const FIRM_ONLY: ReadonlySet<ToolName> = new Set([
+    'start_timer',
+    'stop_timer',
+    'add_deadline',
+    'record_trust_transaction',
+    'propose_invoice',
+    'create_matter_intake',
+    'run_conflict_check',
+  ]);
+  if (FIRM_ONLY.has(name) && portal !== 'firm') {
+    return {
+      ok: false,
+      error:
+        portal === 'hq'
+          ? 'Firm-side actions are not available from HQ admin.'
+          : 'This action is only available inside a firm workspace. Switch to your enterprise login to use it.',
+    };
   }
 
   if (name === 'list_document_templates') {
@@ -1205,6 +1308,15 @@ export async function* streamBella(input: {
   caseContext?: string | null;
   isPublic?: boolean;
   mode?: BellaMode;
+  /**
+   * Which portal initiated this Bella turn. Determines what data the
+   * tools are allowed to read. The route layer validates this before
+   * passing it through; tools enforce it as a second line of defense.
+   * Defaults to 'consumer' for safety (least-privilege).
+   */
+  portal?: BellaPortal;
+  /** Active firm id when portal === 'firm'. Required for firm portal. */
+  firmId?: string | null;
   /** When set, appends the firm-aware addendum to the system prompt
    *  so Bella is aware she's helping a member of a firm in /counsel/*. */
   firmContext?: {
@@ -1223,6 +1335,12 @@ export async function* streamBella(input: {
   const client = new Anthropic({ apiKey });
 
   const mode: BellaMode = input.mode ?? (input.isPublic ? 'public' : 'authed');
+  // Resolve the portal for this turn. Public visitors are always
+  // 'consumer' - they have no firm or hq context. Authed users
+  // default to whatever the caller asked for (validated upstream)
+  // or 'consumer' as the safest fallback.
+  const portal: BellaPortal = mode === 'public' ? 'consumer' : (input.portal ?? 'consumer');
+  const firmId: string | null = portal === 'firm' ? (input.firmId ?? null) : null;
 
   // Pro tier is metered. Refuse the request when the user has burned
   // through their monthly grant + any top-ups so they don't end up
@@ -1329,6 +1447,8 @@ export async function* streamBella(input: {
           block.name as ToolName,
           (block.input ?? {}) as Record<string, unknown>,
           mode,
+          portal,
+          firmId,
         );
         toolResults.push({
           type: 'tool_result',

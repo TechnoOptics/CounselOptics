@@ -35,6 +35,11 @@ export function AskAdvottic() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: [{ role: 'user', content: text }],
+          // Explicit portal scope - the server validates this against
+          // the user's actual firm context and refuses if they don't
+          // belong to a firm, so personal cases never leak into the
+          // enterprise workspace.
+          portal: 'firm',
           firmMode: true,
         }),
         signal: ctrl.signal,

@@ -47,7 +47,10 @@ export function AidChat() {
       const res = await fetch('/api/bella', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: next, firmMode: true }),
+        // Explicit portal scope: this is the firm Aid panel and must
+        // only see firm data. The server validates against the
+        // active firm context.
+        body: JSON.stringify({ messages: next, portal: 'firm', firmMode: true }),
       });
       if (!res.ok || !res.body) {
         const e = await res

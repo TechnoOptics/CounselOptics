@@ -185,7 +185,10 @@ export function Bella({ signedIn = true }: { signedIn?: boolean }) {
       const res = await fetch('/api/bella', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: next, caseId }),
+        // Explicit portal scope: the consumer-side widget only sees
+        // the user's personal cases (firm_id IS NULL). Firm matters
+        // are accessed from the enterprise workspace, not here.
+        body: JSON.stringify({ messages: next, caseId, portal: 'consumer' }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: 'Bella is offline.' }));

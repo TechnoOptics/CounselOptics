@@ -1,7 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { streamBella, type BellaMessage } from '@/lib/bella';
+import { streamBella, type BellaMessage, type BellaPortal } from '@/lib/bella';
 import { getCase, listExhibits, getLatestReview } from '@/lib/storage';
-import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
+import {
+  getCurrentUser,
+  isCurrentUserAdmin,
+  isSupabaseConfigured,
+} from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -32,6 +36,70 @@ function rateLimit(ip: string): boolean {
   return true;
 }
 
+/**
+ * Resolve which portal this Bella turn belongs to, server-side. The
+ * client sends a hint; we VERIFY it against the actual session (firm
+ * membership / admin role) and refuse hard rather than silently
+ * downgrade so a misconfigured client can never spill data across
+ * surfaces.
+ *
+ * Returns either { portal, firmId } on success, or { error } when the
+ * requested portal is not legitimate for this user. Public (logged-
+ * out) visitors are always 'consumer'.
+ */
+async function resolvePortal(
+  hint: BellaPortal | undefined,
+  legacyFirmModeFlag: boolean,
+  referer: string,
+): Promise<
+  | { portal: BellaPortal; firmId: string | null }
+  | { error: string; status: number }
+> {
+  // The client can opt-in via:
+  //   portal: 'firm'  - new explicit field
+  //   firmMode: true  - legacy field, kept for back-compat with the
+  //                     Counsel surfaces shipped before the portal
+  //                     field existed
+  //   referer matches /counsel - last-resort detection so a missing
+  //                              flag still ends up on the right
+  //                              portal (was the only mechanism
+  //                              before; kept as a safety net).
+  const refererIsCounsel = referer.includes('/counsel');
+  const wantsFirm =
+    hint === 'firm' || legacyFirmModeFlag || refererIsCounsel;
+  const wantsHq = hint === 'hq';
+
+  if (wantsHq) {
+    const isAdmin = await isCurrentUserAdmin();
+    if (!isAdmin) {
+      return {
+        error: 'HQ admin chat is not available for this account.',
+        status: 403,
+      };
+    }
+    return { portal: 'hq', firmId: null };
+  }
+
+  if (wantsFirm) {
+    const { getActiveFirmContext } = await import('@/lib/firm-storage');
+    const ctx = await getActiveFirmContext().catch(() => null);
+    if (!ctx) {
+      // Firm portal was requested but the user has no firm. Refuse
+      // explicitly rather than silently downgrading to consumer
+      // mode - downgrading would expose the user's personal cases
+      // in a place where they asked for firm data.
+      return {
+        error:
+          "You're not signed in to a firm workspace. Open the enterprise login to chat about firm matters.",
+        status: 400,
+      };
+    }
+    return { portal: 'firm', firmId: ctx.firm.id };
+  }
+
+  return { portal: 'consumer', firmId: null };
+}
+
 export async function POST(req: NextRequest) {
   const ip = ipFrom(req);
   if (!rateLimit(ip)) {
@@ -51,7 +119,12 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  let payload: { messages?: BellaMessage[]; caseId?: string; firmMode?: boolean };
+  let payload: {
+    messages?: BellaMessage[];
+    caseId?: string;
+    firmMode?: boolean;
+    portal?: BellaPortal;
+  };
   try {
     payload = await req.json();
   } catch {
@@ -72,13 +145,47 @@ export async function POST(req: NextRequest) {
     }))
     .filter((m) => m.content.length > 0);
 
+  // Resolve portal scope before doing anything else. Public visitors
+  // are always consumer; logged-in users have to pass the validation
+  // for firm / hq before tools will serve them firm or hq data.
+  const referer = req.headers.get('referer') ?? '';
+  let portal: BellaPortal = 'consumer';
+  let firmId: string | null = null;
+  if (!isPublic) {
+    const resolved = await resolvePortal(
+      payload.portal,
+      Boolean(payload.firmMode),
+      referer,
+    );
+    if ('error' in resolved) {
+      return NextResponse.json(
+        { error: resolved.error },
+        { status: resolved.status },
+      );
+    }
+    portal = resolved.portal;
+    firmId = resolved.firmId;
+  }
+
   let caseContext: string | null = null;
   // Public-mode visitors don't get case context lookups - they can't have
-  // any case attached to them.
-  if (payload.caseId && !isPublic) {
+  // any case attached to them. Likewise, HQ admin mode never reads case
+  // bodies regardless of caseId.
+  if (payload.caseId && !isPublic && portal !== 'hq') {
     try {
       const c = await getCase(payload.caseId);
-      if (c) {
+      // Cross-portal spillage guard: a firm-portal session must NOT
+      // attach a consumer-side case, and a consumer-portal session
+      // must NOT attach a firm-side case. We check the case's
+      // firm_id field on the way in - lib/storage.getCase returns
+      // the case row but doesn't enforce scope itself.
+      const cAny = c as unknown as { firm_id?: string | null } | null;
+      const caseFirmId =
+        cAny && typeof cAny.firm_id === 'string' ? cAny.firm_id : null;
+      const inScope =
+        (portal === 'firm' && caseFirmId === firmId) ||
+        (portal === 'consumer' && caseFirmId === null);
+      if (c && inScope) {
         const [exhibits, review] = await Promise.all([
           listExhibits(c.id),
           getLatestReview(c.id),
@@ -109,32 +216,26 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Firm-mode addendum: when the request is initiated from inside
-  // /counsel/* (the client passes referer-based hint via payload.firmMode
-  // OR we look up the user's active firm), give Bella jurisdiction +
-  // practice-area context so issue-spotting is firm-relevant.
+  // Firm-mode addendum: when the request is initiated from inside the
+  // firm portal (validated above), give Bella jurisdiction + practice-
+  // area context so issue-spotting is firm-relevant.
   let firmContext: {
     firmName: string;
     jurisdictions: string[];
     practiceAreas: string[];
     role: string;
   } | null = null;
-  if (!isPublic) {
+  if (portal === 'firm') {
     try {
-      const referer = req.headers.get('referer') ?? '';
-      const fromCounsel =
-        referer.includes('/counsel') || Boolean(payload.firmMode);
-      if (fromCounsel) {
-        const { getActiveFirmContext } = await import('@/lib/firm-storage');
-        const ctx = await getActiveFirmContext();
-        if (ctx) {
-          firmContext = {
-            firmName: ctx.firm.name,
-            jurisdictions: ctx.firm.jurisdictions,
-            practiceAreas: ctx.firm.practiceAreas,
-            role: ctx.membership.role,
-          };
-        }
+      const { getActiveFirmContext } = await import('@/lib/firm-storage');
+      const ctx = await getActiveFirmContext();
+      if (ctx) {
+        firmContext = {
+          firmName: ctx.firm.name,
+          jurisdictions: ctx.firm.jurisdictions,
+          practiceAreas: ctx.firm.practiceAreas,
+          role: ctx.membership.role,
+        };
       }
     } catch {
       firmContext = null;
@@ -145,7 +246,14 @@ export async function POST(req: NextRequest) {
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        for await (const chunk of streamBella({ messages: sanitized, caseContext, isPublic, firmContext })) {
+        for await (const chunk of streamBella({
+          messages: sanitized,
+          caseContext,
+          isPublic,
+          firmContext,
+          portal,
+          firmId,
+        })) {
           controller.enqueue(encoder.encode(chunk));
         }
         controller.close();
