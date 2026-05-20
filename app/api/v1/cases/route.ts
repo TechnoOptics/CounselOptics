@@ -37,10 +37,17 @@ export async function GET(req: NextRequest) {
   );
   const offset = Math.max(0, Number(url.searchParams.get('offset') ?? 0));
 
+  // The cases table stores jurisdiction in three columns
+  // (country, state, city), not as a single `jurisdiction`
+  // column - selecting `jurisdiction` here used to 500 the request
+  // which left the watch's refreshSummary stuck on "Syncing your
+  // cases..." with no error surfaced. Select the real columns and
+  // synthesize a human-readable `jurisdiction` string for API
+  // consumers below.
   let query = admin
     .from('cases')
     .select(
-      'id, title, subject_name, subject_type, case_type, posture, status, jurisdiction, hearing_at, created_at, updated_at',
+      'id, title, subject_name, subject_type, case_type, posture, status, jurisdiction_country, jurisdiction_state, jurisdiction_city, hearing_at, created_at, updated_at',
       { count: 'exact' },
     )
     .order('updated_at', { ascending: false })
@@ -61,8 +68,49 @@ export async function GET(req: NextRequest) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  type Row = {
+    id: string;
+    title: string;
+    subject_name: string;
+    subject_type: string;
+    case_type: string;
+    posture: string;
+    status: string;
+    jurisdiction_country: string | null;
+    jurisdiction_state: string | null;
+    jurisdiction_city: string | null;
+    hearing_at: string | null;
+    created_at: string;
+    updated_at: string;
+  };
+  // Reconstruct `jurisdiction` (the field old API consumers + the
+  // wear app's mapAndSave both look for) from the three columns.
+  // City + state + country, comma-joined, blanks stripped.
+  const cases = ((data ?? []) as Row[]).map((r) => ({
+    id: r.id,
+    title: r.title,
+    subject_name: r.subject_name,
+    subject_type: r.subject_type,
+    case_type: r.case_type,
+    posture: r.posture,
+    status: r.status,
+    jurisdiction: [
+      r.jurisdiction_city,
+      r.jurisdiction_state,
+      r.jurisdiction_country,
+    ]
+      .filter(Boolean)
+      .join(', '),
+    jurisdiction_country: r.jurisdiction_country,
+    jurisdiction_state: r.jurisdiction_state,
+    jurisdiction_city: r.jurisdiction_city,
+    hearing_at: r.hearing_at,
+    created_at: r.created_at,
+    updated_at: r.updated_at,
+  }));
   return NextResponse.json({
-    cases: data ?? [],
+    cases,
     pagination: { total: count ?? 0, limit, offset },
   });
 }
