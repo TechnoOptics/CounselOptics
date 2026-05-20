@@ -20,6 +20,7 @@ import { SiteJsonLd } from '@/components/seo/JsonLd';
 import { NativeBackGesture } from '@/components/NativeBackGesture';
 import { WatchNoteInbox } from '@/components/WatchNoteInbox';
 import { ImpersonationBanner } from '@/components/ImpersonationBanner';
+import { NativeDeepLinkRouter } from '@/components/NativeDeepLinkRouter';
 import { BiometricSessionSync } from '@/components/BiometricSessionSync';
 import { DeviceFingerprintRecorder } from '@/components/DeviceFingerprintRecorder';
 import { FreshnessGuard } from '@/components/FreshnessGuard';
@@ -327,6 +328,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             sitelinks search box). Surfaces on every page so the
             knowledge panel + brand SERP carry consistent metadata. */}
         <SiteJsonLd />
+        {/* Global deep-link router (native Capacitor shell only).
+            When the OS routes an https://advottic.com URL into
+            the app - including hand-offs from the paired Wear OS
+            watch's RemoteActivityHelper - this listens, extracts
+            the path, and navigates the WebView there. On web it
+            renders nothing. */}
+        <NativeDeepLinkRouter />
         {/* Impersonation warning. Sticky top banner, rendered on
             every page (consumer + counsel + admin chrome) so an HQ
             operator who's used "Sign in as user" cannot forget they

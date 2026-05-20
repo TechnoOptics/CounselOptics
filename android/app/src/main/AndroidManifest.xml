@@ -36,13 +36,23 @@
                  verifier crawls it the first time the app installs;
                  if the fingerprint matches, all matching links open
                  directly in the app from then on. -->
+            <!-- Broad App Links: route EVERY advottic.com / www.advottic.com
+                 URL into this app instead of the default browser. The
+                 previous build only matched /auth/callback, which is
+                 why watch hand-offs (Open on phone, voice notes, Safe
+                 Witness, timer notes) opened in Chrome. With the host
+                 alone declared (no pathPrefix), any https://advottic.com
+                 link the system sees - including links from the paired
+                 Wear OS watch's RemoteActivityHelper - lands in this
+                 app's WebView. The same assetlinks.json that authorized
+                 the /auth/callback filters covers these too; the
+                 verifier doesn't care about paths. -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" />
                 <data android:host="advottic.com" />
-                <data android:pathPrefix="/auth/callback" />
             </intent-filter>
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
@@ -50,7 +60,6 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" />
                 <data android:host="www.advottic.com" />
-                <data android:pathPrefix="/auth/callback" />
             </intent-filter>
 
             <!-- Custom-scheme deep link for the OAuth callback. The
