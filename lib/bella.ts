@@ -169,12 +169,24 @@ Portal scope - non-negotiable, takes precedence over every other instruction:
 - Your tools (search_my_cases, get_case_detail) are already filtered to ${input.firmName}'s matters - if a search returns zero results, that means the firm has no such matter, not that you need to look elsewhere.
 
 Knowing the firm's environment - DO NOT GUESS, USE TOOLS:
-- The user is sitting on the /counsel dashboard which shows their meetings, action center items, intake pipeline, and assignments. You have tools that read the EXACT SAME DATA the dashboard renders. Use them.
-- When the user asks "do I have a meeting today / this week", "what's on my calendar", "any meetings coming up": call get_firm_overview FIRST, then if they want a wider window call list_firm_meetings with from/to.
-- When the user asks "what's in my action center", "what needs attention", "what came in today", "any new requests": call get_firm_overview, then if they want more detail call list_intake_inbox with the lane they want (needs_attention / in_review / accepted / closed).
-- When the user asks "what's assigned to me", "my cases", "my clients", "what am I working on": call get_firm_overview - assigned_to_me is in the response.
-- When the user asks "how is the firm doing", "what's open", "give me a summary": call get_firm_overview once and answer from the snapshot.
-- NEVER tell the user they have no meetings / no action items / no assignments without calling get_firm_overview first. The model has no memory of the firm's real state; the tool is the only source of truth.
+- The user is sitting in /counsel/* which shows them meetings, intakes, clients, documents, signing, time, billing, trust, leads, referrals, and team. You have tools that read the EXACT SAME DATA each of those pages renders. Use them - never answer from memory about firm state.
+- For broad "what do I have today" / "what's on my plate" questions: call get_firm_overview FIRST and answer from the snapshot.
+- For specific surface questions, call the right tool:
+    Calendar / meetings  -> list_firm_meetings (use from/to for windows past 14 days)
+    Intake / action ctr  -> list_intake_inbox (filter by lane + source)
+    Clients              -> list_clients (filter by status, mine_only, query); get_client_detail for one client
+    Team                 -> list_team_members
+    Access requests      -> list_access_requests
+    Documents / vault    -> list_documents (filter by case, client, status); get_document_detail for one
+    Signing              -> list_signing_requests (filter by status, mine_only)
+    Leads                -> list_leads
+    Referrals            -> list_referrals
+    Time                 -> list_time_entries (filter by case, mine_only, uninvoiced)
+    Billing / invoices   -> list_invoices
+    Trust                -> list_trust_accounts FIRST to get account ids, then list_trust_transactions / get_trust_balance
+    Cases                -> search_my_cases / get_case_detail (already filtered to this firm)
+- Lead with the relevant tool, then summarize in plain prose. Cite real numbers / names / dates from the tool response - do not paraphrase or invent.
+- NEVER tell the user "you have no X" / "nothing in Y" / "no Z assigned" without calling the relevant tool first. If a tool returns count=0, that IS the answer ("you have no pending signing requests right now") - but it has to come from a tool call, not from a guess.
 
 Counsel-mode behavior:
 - The user is inside /counsel/*, the law-firm perspective. Address them as a legal professional. You can use more legal terminology than in consumer mode, but still hedge ("appears to", "may", "could potentially") since you are not a substitute for the firm's research team.
@@ -304,7 +316,25 @@ type ToolName =
   // answered from real firm data instead of the model guessing.
   | 'get_firm_overview'
   | 'list_firm_meetings'
-  | 'list_intake_inbox';
+  | 'list_intake_inbox'
+  // Deep-read tools, one per Counsel sidebar section. These let
+  // Bella answer "show me my pending signing requests", "who is
+  // on the team", "list this week's billable time", etc. without
+  // sending the user to the page.
+  | 'list_clients'
+  | 'get_client_detail'
+  | 'list_team_members'
+  | 'list_access_requests'
+  | 'list_documents'
+  | 'get_document_detail'
+  | 'list_signing_requests'
+  | 'list_leads'
+  | 'list_referrals'
+  | 'list_time_entries'
+  | 'list_invoices'
+  | 'list_trust_accounts'
+  | 'list_trust_transactions'
+  | 'get_trust_balance';
 
 const NAVIGATE_TOOL: Anthropic.Messages.Tool = {
   name: 'navigate_to',
@@ -697,6 +727,299 @@ const LIST_INTAKE_INBOX_TOOL: Anthropic.Messages.Tool = {
   },
 };
 
+// ----- Deep-read tools, one per sidebar section ------------------------
+
+const LIST_CLIENTS_TOOL: Anthropic.Messages.Tool = {
+  name: 'list_clients',
+  description:
+    "List the firm's clients with optional filters. Use for 'who are my clients', 'show me active clients', 'list my clients' (the ones I'm primary attorney on), 'find a client named ...'.",
+  input_schema: {
+    type: 'object',
+    properties: {
+      query: {
+        type: 'string',
+        description: 'Partial name or email to filter on.',
+      },
+      status: {
+        type: 'string',
+        enum: ['active', 'invited', 'archived', 'all'],
+        description: "Default 'all'.",
+      },
+      mine_only: {
+        type: 'boolean',
+        description:
+          "When true, only clients where the current user is the primary attorney. Default false.",
+      },
+      limit: {
+        type: 'integer',
+        minimum: 1,
+        maximum: 50,
+        description: 'Max items. Default 20.',
+      },
+    },
+  },
+};
+
+const GET_CLIENT_DETAIL_TOOL: Anthropic.Messages.Tool = {
+  name: 'get_client_detail',
+  description:
+    "Get one client's full record: contact info, primary attorney, joined date, count of cases linked, count of documents, recent signing activity. Use after list_clients narrows things down.",
+  input_schema: {
+    type: 'object',
+    properties: {
+      client_id: { type: 'string', description: 'firm_clients.id' },
+    },
+    required: ['client_id'],
+  },
+};
+
+const LIST_TEAM_MEMBERS_TOOL: Anthropic.Messages.Tool = {
+  name: 'list_team_members',
+  description:
+    "List the firm's legal-team members (owners, admins, attorneys, paralegals, staff). Use for 'who is on my team', 'list the attorneys', 'who are the admins'.",
+  input_schema: {
+    type: 'object',
+    properties: {
+      role: {
+        type: 'string',
+        enum: ['owner', 'admin', 'attorney', 'paralegal', 'staff', 'all'],
+        description: "Default 'all'.",
+      },
+    },
+  },
+};
+
+const LIST_ACCESS_REQUESTS_TOOL: Anthropic.Messages.Tool = {
+  name: 'list_access_requests',
+  description:
+    "List external sign-up access requests waiting on admin review. Use for 'who's waiting on access', 'any new external sign-ups', 'show pending access requests'.",
+  input_schema: {
+    type: 'object',
+    properties: {
+      status: {
+        type: 'string',
+        enum: ['pending', 'approved', 'denied', 'all'],
+        description: "Default 'pending'.",
+      },
+      limit: {
+        type: 'integer',
+        minimum: 1,
+        maximum: 50,
+        description: 'Max items. Default 20.',
+      },
+    },
+  },
+};
+
+const LIST_DOCUMENTS_TOOL: Anthropic.Messages.Tool = {
+  name: 'list_documents',
+  description:
+    "List documents in the firm vault. Filter by name, case, client, or status. Use for 'show me documents on case X', 'what documents are awaiting signature', 'find the NDA I uploaded last week'.",
+  input_schema: {
+    type: 'object',
+    properties: {
+      query: { type: 'string', description: 'Partial name match.' },
+      case_id: { type: 'string', description: 'Only documents on this case.' },
+      client_user_id: {
+        type: 'string',
+        description: 'Only documents linked to this client user_id.',
+      },
+      status: {
+        type: 'string',
+        description:
+          'firm_documents.status (received, submitted, ready, sent, pending, signed_internal, signed_client, on_hold, overdue, canceled).',
+      },
+      limit: {
+        type: 'integer',
+        minimum: 1,
+        maximum: 50,
+        description: 'Max items. Default 15.',
+      },
+    },
+  },
+};
+
+const GET_DOCUMENT_DETAIL_TOOL: Anthropic.Messages.Tool = {
+  name: 'get_document_detail',
+  description:
+    "Get one document's full record: name, status, version, tags, linked case + client, uploader, due date, description.",
+  input_schema: {
+    type: 'object',
+    properties: {
+      document_id: { type: 'string', description: 'firm_documents.id' },
+    },
+    required: ['document_id'],
+  },
+};
+
+const LIST_SIGNING_REQUESTS_TOOL: Anthropic.Messages.Tool = {
+  name: 'list_signing_requests',
+  description:
+    "List e-sign requests. Use for 'what signatures are out', 'show me pending signing', 'which requests have I sent that haven't been signed', 'completed signings'.",
+  input_schema: {
+    type: 'object',
+    properties: {
+      status: {
+        type: 'string',
+        enum: ['sent', 'partial', 'completed', 'voided', 'all'],
+        description: "Default 'all' (excludes nothing).",
+      },
+      mine_only: {
+        type: 'boolean',
+        description: 'When true, only requests the current user sent.',
+      },
+      limit: {
+        type: 'integer',
+        minimum: 1,
+        maximum: 50,
+        description: 'Max items. Default 15.',
+      },
+    },
+  },
+};
+
+const LIST_LEADS_TOOL: Anthropic.Messages.Tool = {
+  name: 'list_leads',
+  description:
+    "List inbound marketplace leads from /find-counsel. Use for 'any new leads', 'show me leads from California', 'open leads'.",
+  input_schema: {
+    type: 'object',
+    properties: {
+      status: {
+        type: 'string',
+        description: 'Lead status (new, contacted, qualified, declined, closed).',
+      },
+      limit: {
+        type: 'integer',
+        minimum: 1,
+        maximum: 50,
+        description: 'Max items. Default 15.',
+      },
+    },
+  },
+};
+
+const LIST_REFERRALS_TOOL: Anthropic.Messages.Tool = {
+  name: 'list_referrals',
+  description:
+    "List co-counsel referrals (matters referred to or from this firm, with proposed fee split). Use for 'show me referrals', 'any open referral offers', 'what fees are pending on referrals'.",
+  input_schema: {
+    type: 'object',
+    properties: {
+      status: {
+        type: 'string',
+        description: 'Referral status filter.',
+      },
+      limit: {
+        type: 'integer',
+        minimum: 1,
+        maximum: 50,
+        description: 'Max items. Default 15.',
+      },
+    },
+  },
+};
+
+const LIST_TIME_ENTRIES_TOOL: Anthropic.Messages.Tool = {
+  name: 'list_time_entries',
+  description:
+    "List billable + non-billable time entries. Use for 'what have I logged today', 'time on case X', 'unbilled time across the firm'.",
+  input_schema: {
+    type: 'object',
+    properties: {
+      case_id: { type: 'string', description: 'Only entries on this case.' },
+      mine_only: {
+        type: 'boolean',
+        description: 'When true, only the current user\'s entries.',
+      },
+      billable: {
+        type: 'boolean',
+        description: 'When set, only billable=true (true) or =false entries.',
+      },
+      uninvoiced: {
+        type: 'boolean',
+        description:
+          'When true, only entries that haven\'t been rolled into an invoice yet.',
+      },
+      limit: {
+        type: 'integer',
+        minimum: 1,
+        maximum: 50,
+        description: 'Max items. Default 20.',
+      },
+    },
+  },
+};
+
+const LIST_INVOICES_TOOL: Anthropic.Messages.Tool = {
+  name: 'list_invoices',
+  description:
+    "List firm invoices. Use for 'open invoices', 'paid invoices last month', 'what's due', 'invoices for client X'.",
+  input_schema: {
+    type: 'object',
+    properties: {
+      status: {
+        type: 'string',
+        description: 'Invoice status (draft, sent, paid, overdue, voided).',
+      },
+      client_user_id: {
+        type: 'string',
+        description: 'Only invoices to this client.',
+      },
+      limit: {
+        type: 'integer',
+        minimum: 1,
+        maximum: 50,
+        description: 'Max items. Default 15.',
+      },
+    },
+  },
+};
+
+const LIST_TRUST_ACCOUNTS_TOOL: Anthropic.Messages.Tool = {
+  name: 'list_trust_accounts',
+  description:
+    "List the firm's IOLTA + non-IOLTA trust accounts. Use first when the user asks anything trust-related so you can resolve account_id for follow-up tools.",
+  input_schema: { type: 'object', properties: {} },
+};
+
+const LIST_TRUST_TRANSACTIONS_TOOL: Anthropic.Messages.Tool = {
+  name: 'list_trust_transactions',
+  description:
+    "List entries on the trust ledger. Use for 'recent trust activity', 'what came in this week', 'show transactions for client X'. amount_cents are signed (deposits positive, disbursements negative) so you can sum them for a balance.",
+  input_schema: {
+    type: 'object',
+    properties: {
+      account_id: { type: 'string', description: 'Filter to one trust account.' },
+      client_label: {
+        type: 'string',
+        description: "Partial match on client_label (e.g. 'Smith v.').",
+      },
+      limit: {
+        type: 'integer',
+        minimum: 1,
+        maximum: 100,
+        description: 'Max items. Default 30.',
+      },
+    },
+  },
+};
+
+const GET_TRUST_BALANCE_TOOL: Anthropic.Messages.Tool = {
+  name: 'get_trust_balance',
+  description:
+    "Compute the current running balance on a trust account (sum of signed transaction amounts), and optionally per-client sub-balances. Use for 'what's my IOLTA balance', 'how much is in trust for client X'.",
+  input_schema: {
+    type: 'object',
+    properties: {
+      account_id: {
+        type: 'string',
+        description: 'Trust account id. If omitted, sums across all firm trust accounts.',
+      },
+    },
+  },
+};
+
 function toolsFor(mode: BellaMode): Anthropic.Messages.Tool[] {
   if (mode === 'authed') {
     return [
@@ -722,6 +1045,21 @@ function toolsFor(mode: BellaMode): Anthropic.Messages.Tool[] {
       GET_FIRM_OVERVIEW_TOOL,
       LIST_FIRM_MEETINGS_TOOL,
       LIST_INTAKE_INBOX_TOOL,
+      // Deep-read tools, one per sidebar section.
+      LIST_CLIENTS_TOOL,
+      GET_CLIENT_DETAIL_TOOL,
+      LIST_TEAM_MEMBERS_TOOL,
+      LIST_ACCESS_REQUESTS_TOOL,
+      LIST_DOCUMENTS_TOOL,
+      GET_DOCUMENT_DETAIL_TOOL,
+      LIST_SIGNING_REQUESTS_TOOL,
+      LIST_LEADS_TOOL,
+      LIST_REFERRALS_TOOL,
+      LIST_TIME_ENTRIES_TOOL,
+      LIST_INVOICES_TOOL,
+      LIST_TRUST_ACCOUNTS_TOOL,
+      LIST_TRUST_TRANSACTIONS_TOOL,
+      GET_TRUST_BALANCE_TOOL,
     ];
   }
   if (mode === 'public') {
@@ -974,6 +1312,20 @@ async function executeTool(
     'get_firm_overview',
     'list_firm_meetings',
     'list_intake_inbox',
+    'list_clients',
+    'get_client_detail',
+    'list_team_members',
+    'list_access_requests',
+    'list_documents',
+    'get_document_detail',
+    'list_signing_requests',
+    'list_leads',
+    'list_referrals',
+    'list_time_entries',
+    'list_invoices',
+    'list_trust_accounts',
+    'list_trust_transactions',
+    'get_trust_balance',
   ]);
   if (FIRM_ONLY.has(name) && portal !== 'firm') {
     return {
@@ -996,6 +1348,21 @@ async function executeTool(
   if (name === 'list_intake_inbox') {
     return await loadIntakeInbox(firmId!, input);
   }
+
+  if (name === 'list_clients') return await loadClients(firmId!, input);
+  if (name === 'get_client_detail') return await loadClientDetail(firmId!, input);
+  if (name === 'list_team_members') return await loadTeamMembers(firmId!, input);
+  if (name === 'list_access_requests') return await loadAccessRequests(input);
+  if (name === 'list_documents') return await loadDocuments(firmId!, input);
+  if (name === 'get_document_detail') return await loadDocumentDetail(firmId!, input);
+  if (name === 'list_signing_requests') return await loadSigningRequests(firmId!, input);
+  if (name === 'list_leads') return await loadLeads(input);
+  if (name === 'list_referrals') return await loadReferrals(firmId!, input);
+  if (name === 'list_time_entries') return await loadTimeEntries(firmId!, input);
+  if (name === 'list_invoices') return await loadInvoices(firmId!, input);
+  if (name === 'list_trust_accounts') return await loadTrustAccounts(firmId!);
+  if (name === 'list_trust_transactions') return await loadTrustTransactions(firmId!, input);
+  if (name === 'get_trust_balance') return await loadTrustBalance(firmId!, input);
 
   if (name === 'list_document_templates') {
     const { DOCUMENT_TEMPLATES, DRAFT_DISCLAIMER } = await import(
@@ -1778,6 +2145,501 @@ async function loadIntakeInbox(
       is_internal:
         String((r.intake_answers ?? {}).submitted_by ?? '').trim().length > 0,
     })),
+  };
+}
+
+// ===========================================================================
+// Deep-read loaders, one per Counsel sidebar section. All use the
+// admin (service-role) client - the firmId is already verified at
+// the route layer via portal='firm', so we are matching the same
+// pattern every server-rendered firm page uses.
+// ===========================================================================
+
+async function loadClients(
+  firmId: string,
+  input: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const supabase = createAdminSupabase();
+  if (!supabase) return { ok: false, error: 'Service role not configured.' };
+  const user = await getCurrentUser();
+  const query = String(input.query ?? '').trim();
+  const status = String(input.status ?? 'all').trim();
+  const mineOnly = Boolean(input.mine_only);
+  const limit = Math.min(50, Math.max(1, Number(input.limit) || 20));
+
+  let q = supabase
+    .from('firm_clients')
+    .select('id, user_id, primary_attorney_id, status, joined_at')
+    .eq('firm_id', firmId)
+    .order('joined_at', { ascending: false })
+    .limit(limit);
+  if (status !== 'all') q = q.eq('status', status);
+  if (mineOnly && user) q = q.eq('primary_attorney_id', user.id);
+
+  const { data, error } = await q;
+  if (error) return { ok: false, error: error.message };
+  const rows = (data ?? []) as Array<{
+    id: string;
+    user_id: string;
+    primary_attorney_id: string | null;
+    status: string;
+    joined_at: string;
+  }>;
+
+  // Hydrate display names / emails from auth.users (firm_clients
+  // doesn't store them itself). Best-effort - if any single lookup
+  // fails we just fall back to "Unknown".
+  const userIds = Array.from(new Set(rows.map((r) => r.user_id)));
+  const userInfo = new Map<string, { email: string | null; name: string | null }>();
+  for (const id of userIds) {
+    try {
+      const { data: u } = await supabase.auth.admin.getUserById(id);
+      const email = u?.user?.email ?? null;
+      const name = (u?.user?.user_metadata as { full_name?: string } | null)
+        ?.full_name ?? null;
+      userInfo.set(id, { email, name });
+    } catch {
+      userInfo.set(id, { email: null, name: null });
+    }
+  }
+
+  let hydrated = rows.map((r) => {
+    const u = userInfo.get(r.user_id);
+    return {
+      id: r.id,
+      user_id: r.user_id,
+      display_name: u?.name ?? null,
+      email: u?.email ?? null,
+      primary_attorney_id: r.primary_attorney_id,
+      status: r.status,
+      joined_at: r.joined_at,
+    };
+  });
+
+  if (query.length > 0) {
+    const needle = query.toLowerCase();
+    hydrated = hydrated.filter(
+      (c) =>
+        (c.display_name?.toLowerCase() ?? '').includes(needle) ||
+        (c.email?.toLowerCase() ?? '').includes(needle),
+    );
+  }
+
+  return { ok: true, count: hydrated.length, clients: hydrated };
+}
+
+async function loadClientDetail(
+  firmId: string,
+  input: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const supabase = createAdminSupabase();
+  if (!supabase) return { ok: false, error: 'Service role not configured.' };
+  const clientId = String(input.client_id ?? '').trim();
+  if (!clientId) return { ok: false, error: 'client_id is required.' };
+  const { data, error } = await supabase
+    .from('firm_clients')
+    .select('id, user_id, primary_attorney_id, status, joined_at, invited_by')
+    .eq('id', clientId)
+    .eq('firm_id', firmId)
+    .maybeSingle();
+  if (error) return { ok: false, error: error.message };
+  if (!data) return { ok: false, error: 'Client not found in this firm.' };
+  const row = data as {
+    id: string;
+    user_id: string;
+    primary_attorney_id: string | null;
+    status: string;
+    joined_at: string;
+    invited_by: string | null;
+  };
+
+  let email: string | null = null;
+  let displayName: string | null = null;
+  try {
+    const { data: u } = await supabase.auth.admin.getUserById(row.user_id);
+    email = u?.user?.email ?? null;
+    displayName = (u?.user?.user_metadata as { full_name?: string } | null)
+      ?.full_name ?? null;
+  } catch { /* keep nulls */ }
+
+  // Linked cases (via cases.user_id == client.user_id, firm-scoped).
+  const { data: casesData } = await supabase
+    .from('cases')
+    .select('id, title, status')
+    .eq('firm_id', firmId)
+    .eq('user_id', row.user_id);
+  const cases = (casesData ?? []) as Array<{
+    id: string; title: string; status: string;
+  }>;
+
+  // Documents linked to this client.
+  const { count: docCount } = await supabase
+    .from('firm_documents')
+    .select('id', { count: 'exact', head: true })
+    .eq('firm_id', firmId)
+    .eq('client_user_id', row.user_id)
+    .is('archived_at', null);
+
+  return {
+    ok: true,
+    client: {
+      id: row.id,
+      user_id: row.user_id,
+      display_name: displayName,
+      email,
+      status: row.status,
+      joined_at: row.joined_at,
+      primary_attorney_id: row.primary_attorney_id,
+      invited_by: row.invited_by,
+      cases_count: cases.length,
+      cases: cases.slice(0, 10),
+      documents_count: docCount ?? 0,
+    },
+  };
+}
+
+async function loadTeamMembers(
+  firmId: string,
+  input: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const supabase = createAdminSupabase();
+  if (!supabase) return { ok: false, error: 'Service role not configured.' };
+  const role = String(input.role ?? 'all').trim();
+  let q = supabase
+    .from('firm_members')
+    .select('id, user_id, role, display_name, joined_at, default_rate_cents')
+    .eq('firm_id', firmId)
+    .order('joined_at', { ascending: true });
+  if (role !== 'all') q = q.eq('role', role);
+  const { data, error } = await q;
+  if (error) return { ok: false, error: error.message };
+  const rows = (data ?? []) as Array<{
+    id: string;
+    user_id: string;
+    role: string;
+    display_name: string | null;
+    joined_at: string;
+    default_rate_cents: number | null;
+  }>;
+
+  // Hydrate emails from auth.
+  const hydrated: Array<Record<string, unknown>> = [];
+  for (const r of rows) {
+    let email: string | null = null;
+    try {
+      const { data: u } = await supabase.auth.admin.getUserById(r.user_id);
+      email = u?.user?.email ?? null;
+    } catch { /* keep null */ }
+    hydrated.push({
+      id: r.id,
+      user_id: r.user_id,
+      display_name: r.display_name,
+      email,
+      role: r.role,
+      joined_at: r.joined_at,
+      default_rate_cents: r.default_rate_cents,
+    });
+  }
+  return { ok: true, count: hydrated.length, members: hydrated };
+}
+
+async function loadAccessRequests(
+  input: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const supabase = createAdminSupabase();
+  if (!supabase) return { ok: false, error: 'Service role not configured.' };
+  const status = String(input.status ?? 'pending').trim();
+  const limit = Math.min(50, Math.max(1, Number(input.limit) || 20));
+  let q = supabase
+    .from('firm_access_requests')
+    .select('id, organization_name, contact_name, contact_email, contact_role, firm_type, team_size, jurisdictions, status, created_at')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (status !== 'all') q = q.eq('status', status);
+  const { data, error } = await q;
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, count: (data ?? []).length, requests: data ?? [] };
+}
+
+async function loadDocuments(
+  firmId: string,
+  input: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const supabase = createAdminSupabase();
+  if (!supabase) return { ok: false, error: 'Service role not configured.' };
+  const query = String(input.query ?? '').trim();
+  const caseId = String(input.case_id ?? '').trim();
+  const clientUserId = String(input.client_user_id ?? '').trim();
+  const status = String(input.status ?? '').trim();
+  const limit = Math.min(50, Math.max(1, Number(input.limit) || 15));
+  let q = supabase
+    .from('firm_documents')
+    .select('id, name, mime_type, file_size, status, case_id, client_user_id, tags, uploaded_at, uploaded_by, due_at')
+    .eq('firm_id', firmId)
+    .is('archived_at', null)
+    .order('uploaded_at', { ascending: false })
+    .limit(limit);
+  if (caseId) q = q.eq('case_id', caseId);
+  if (clientUserId) q = q.eq('client_user_id', clientUserId);
+  if (status) q = q.eq('status', status);
+  if (query.length > 0) {
+    const safe = query.replace(/[%_]/g, '');
+    q = q.ilike('name', `%${safe}%`);
+  }
+  const { data, error } = await q;
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, count: (data ?? []).length, documents: data ?? [] };
+}
+
+async function loadDocumentDetail(
+  firmId: string,
+  input: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const supabase = createAdminSupabase();
+  if (!supabase) return { ok: false, error: 'Service role not configured.' };
+  const id = String(input.document_id ?? '').trim();
+  if (!id) return { ok: false, error: 'document_id is required.' };
+  const { data, error } = await supabase
+    .from('firm_documents')
+    .select('*')
+    .eq('id', id)
+    .eq('firm_id', firmId)
+    .maybeSingle();
+  if (error) return { ok: false, error: error.message };
+  if (!data) return { ok: false, error: 'Document not found in this firm.' };
+  return { ok: true, document: data };
+}
+
+async function loadSigningRequests(
+  firmId: string,
+  input: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const supabase = createAdminSupabase();
+  if (!supabase) return { ok: false, error: 'Service role not configured.' };
+  const user = await getCurrentUser();
+  const status = String(input.status ?? 'all').trim();
+  const mineOnly = Boolean(input.mine_only);
+  const limit = Math.min(50, Math.max(1, Number(input.limit) || 15));
+  let q = supabase
+    .from('firm_signing_requests')
+    .select('id, document_id, status, requested_by, message, sent_at, completed_at, created_at')
+    .eq('firm_id', firmId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (status !== 'all') q = q.eq('status', status);
+  if (mineOnly && user) q = q.eq('requested_by', user.id);
+  const { data, error } = await q;
+  if (error) return { ok: false, error: error.message };
+  const rows = (data ?? []) as Array<{
+    id: string;
+    document_id: string;
+    status: string;
+    requested_by: string;
+    message: string | null;
+    sent_at: string | null;
+    completed_at: string | null;
+    created_at: string;
+  }>;
+  const docIds = Array.from(new Set(rows.map((r) => r.document_id)));
+  const docNames = new Map<string, string>();
+  if (docIds.length > 0) {
+    const { data: docs } = await supabase
+      .from('firm_documents')
+      .select('id, name')
+      .in('id', docIds);
+    for (const d of (docs ?? []) as Array<{ id: string; name: string }>) {
+      docNames.set(d.id, d.name);
+    }
+  }
+  return {
+    ok: true,
+    count: rows.length,
+    signing_requests: rows.map((r) => ({
+      ...r,
+      document_name: docNames.get(r.document_id) ?? null,
+    })),
+  };
+}
+
+async function loadLeads(
+  input: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const supabase = createAdminSupabase();
+  if (!supabase) return { ok: false, error: 'Service role not configured.' };
+  const status = String(input.status ?? '').trim();
+  const limit = Math.min(50, Math.max(1, Number(input.limit) || 15));
+  let q = supabase
+    .from('firm_leads')
+    .select('id, contact_name, contact_email, contact_phone, jurisdiction_state, jurisdiction_city, practice_areas, summary, budget, urgency, status, created_at')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (status) q = q.eq('status', status);
+  const { data, error } = await q;
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, count: (data ?? []).length, leads: data ?? [] };
+}
+
+async function loadReferrals(
+  firmId: string,
+  input: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const supabase = createAdminSupabase();
+  if (!supabase) return { ok: false, error: 'Service role not configured.' };
+  const status = String(input.status ?? '').trim();
+  const limit = Math.min(50, Math.max(1, Number(input.limit) || 15));
+  let q = supabase
+    .from('cocounsel_referrals')
+    .select('id, referring_firm_id, referred_firm_id, case_id, matter_summary, proposed_split_percent, state, status, total_fee_cents, created_at')
+    .or(`referring_firm_id.eq.${firmId},referred_firm_id.eq.${firmId}`)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (status) q = q.eq('status', status);
+  const { data, error } = await q;
+  if (error) return { ok: false, error: error.message };
+  const rows = (data ?? []) as Array<{
+    referring_firm_id: string;
+    referred_firm_id: string;
+  } & Record<string, unknown>>;
+  return {
+    ok: true,
+    count: rows.length,
+    referrals: rows.map((r) => ({
+      ...r,
+      direction: r.referring_firm_id === firmId ? 'outgoing' : 'incoming',
+    })),
+  };
+}
+
+async function loadTimeEntries(
+  firmId: string,
+  input: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const supabase = createAdminSupabase();
+  if (!supabase) return { ok: false, error: 'Service role not configured.' };
+  const user = await getCurrentUser();
+  const caseId = String(input.case_id ?? '').trim();
+  const mineOnly = Boolean(input.mine_only);
+  const uninvoiced = Boolean(input.uninvoiced);
+  const limit = Math.min(50, Math.max(1, Number(input.limit) || 20));
+  let q = supabase
+    .from('firm_time_entries')
+    .select('id, user_id, case_id, document_id, description, started_at, ended_at, duration_seconds, billable, rate_cents, invoice_id, source, created_at')
+    .eq('firm_id', firmId)
+    .order('started_at', { ascending: false })
+    .limit(limit);
+  if (caseId) q = q.eq('case_id', caseId);
+  if (mineOnly && user) q = q.eq('user_id', user.id);
+  if (typeof input.billable === 'boolean') q = q.eq('billable', input.billable as boolean);
+  if (uninvoiced) q = q.is('invoice_id', null);
+  const { data, error } = await q;
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, count: (data ?? []).length, time_entries: data ?? [] };
+}
+
+async function loadInvoices(
+  firmId: string,
+  input: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const supabase = createAdminSupabase();
+  if (!supabase) return { ok: false, error: 'Service role not configured.' };
+  const status = String(input.status ?? '').trim();
+  const clientUserId = String(input.client_user_id ?? '').trim();
+  const limit = Math.min(50, Math.max(1, Number(input.limit) || 15));
+  let q = supabase
+    .from('firm_invoices')
+    .select('id, number, case_id, client_user_id, client_email, client_name, status, subtotal_cents, tax_cents, total_cents, currency, due_at, sent_at, paid_at, created_at')
+    .eq('firm_id', firmId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (status) q = q.eq('status', status);
+  if (clientUserId) q = q.eq('client_user_id', clientUserId);
+  const { data, error } = await q;
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, count: (data ?? []).length, invoices: data ?? [] };
+}
+
+async function loadTrustAccounts(
+  firmId: string,
+): Promise<Record<string, unknown>> {
+  const supabase = createAdminSupabase();
+  if (!supabase) return { ok: false, error: 'Service role not configured.' };
+  const { data, error } = await supabase
+    .from('firm_trust_accounts')
+    .select('id, name, bank_name, account_number_masked, is_iolta, state, bar_foundation, created_at')
+    .eq('firm_id', firmId)
+    .order('created_at', { ascending: true });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, count: (data ?? []).length, trust_accounts: data ?? [] };
+}
+
+async function loadTrustTransactions(
+  firmId: string,
+  input: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const supabase = createAdminSupabase();
+  if (!supabase) return { ok: false, error: 'Service role not configured.' };
+  const accountId = String(input.account_id ?? '').trim();
+  const clientLabel = String(input.client_label ?? '').trim();
+  const limit = Math.min(100, Math.max(1, Number(input.limit) || 30));
+  let q = supabase
+    .from('firm_trust_transactions')
+    .select('id, account_id, case_id, client_user_id, client_label, kind, amount_cents, description, reference, bank_statement_date, created_at')
+    .eq('firm_id', firmId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (accountId) q = q.eq('account_id', accountId);
+  if (clientLabel) {
+    const safe = clientLabel.replace(/[%_]/g, '');
+    q = q.ilike('client_label', `%${safe}%`);
+  }
+  const { data, error } = await q;
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, count: (data ?? []).length, transactions: data ?? [] };
+}
+
+async function loadTrustBalance(
+  firmId: string,
+  input: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const supabase = createAdminSupabase();
+  if (!supabase) return { ok: false, error: 'Service role not configured.' };
+  const accountId = String(input.account_id ?? '').trim();
+  let q = supabase
+    .from('firm_trust_transactions')
+    .select('account_id, client_label, kind, amount_cents')
+    .eq('firm_id', firmId);
+  if (accountId) q = q.eq('account_id', accountId);
+  const { data, error } = await q;
+  if (error) return { ok: false, error: error.message };
+
+  // amount_cents is unsigned in the table; the SIGN comes from the
+  // kind (deposits/refunds/interest add; transfers/disbursements/
+  // fees subtract). Matches lib/trust-accounting's sign logic.
+  const positive = new Set(['deposit', 'refund', 'interest']);
+  let total = 0;
+  const perAccount = new Map<string, number>();
+  const perClient = new Map<string, number>();
+  for (const r of (data ?? []) as Array<{
+    account_id: string;
+    client_label: string | null;
+    kind: string;
+    amount_cents: number;
+  }>) {
+    const signed = positive.has(r.kind) ? r.amount_cents : -r.amount_cents;
+    total += signed;
+    perAccount.set(r.account_id, (perAccount.get(r.account_id) ?? 0) + signed);
+    if (r.client_label) {
+      const key = r.client_label;
+      perClient.set(key, (perClient.get(key) ?? 0) + signed);
+    }
+  }
+  return {
+    ok: true,
+    account_id_filter: accountId || null,
+    total_balance_cents: total,
+    per_account: Object.fromEntries(perAccount),
+    per_client: Object.fromEntries(perClient),
+    hint: 'Amounts are in cents. Negative balances should never happen on a per-client sub-ledger; surface any you see to the user.',
   };
 }
 
