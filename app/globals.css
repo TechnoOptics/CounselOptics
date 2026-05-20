@@ -1534,10 +1534,51 @@ select:focus-visible,
   animation: ask-spark-twinkle-alt 2.6s ease-in-out infinite;
 }
 
+/* Premium gold gradient for the question titles that head each Q -> A
+ * block. Slowly sweeps the gradient stops across the text so the
+ * question reads as the headline of its answer block - distinct
+ * from the calm cream body underneath, but never busy. The animation
+ * shifts the gradient AND breathes the opacity together so the gold
+ * itself looks alive; a clipped background paints the text, which
+ * means italics + line breaks still wrap correctly.
+ */
+.ask-question-title {
+  background-image: linear-gradient(
+    115deg,
+    #c9a560 0%,
+    #e6ce93 25%,
+    #fbf2d4 50%,
+    #e6ce93 75%,
+    #c9a560 100%
+  );
+  background-size: 200% 200%;
+  background-position: 0% 50%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: ask-question-shimmer 5.2s ease-in-out infinite;
+  /* A faint gold drop-shadow so the gradient text still reads on the
+   * dark surface even when the gradient mid-stop is most transparent. */
+  filter: drop-shadow(0 0 1px rgba(213, 187, 126, 0.18));
+}
+@keyframes ask-question-shimmer {
+  0%,
+  100% {
+    background-position: 0% 50%;
+    opacity: 0.88;
+  }
+  50% {
+    background-position: 100% 50%;
+    opacity: 1;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ask-frame::before,
   .ask-spark-primary,
-  .ask-spark-accent {
+  .ask-spark-accent,
+  .ask-question-title {
     animation: none;
   }
 }

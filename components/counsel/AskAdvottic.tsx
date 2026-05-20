@@ -149,7 +149,11 @@ export function AskAdvottic() {
   ];
 
   return (
-    <div className="mb-6">
+    // `relative` so the absolutely-positioned answer panel below
+    // anchors to this wrapper. The panel overlays the content
+    // below (Customize button, tiles) instead of pushing them
+    // down on every new question.
+    <div className="mb-6 relative">
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -211,9 +215,13 @@ export function AskAdvottic() {
       )}
 
       {turns.length > 0 && (
+        // `absolute` so the answer panel floats over the content
+        // below (Customize button + tile grid) rather than pushing
+        // them down with every new question. shadow-2xl + a solid
+        // forest backdrop give it a clear floating-card feel.
         <div
           ref={scrollerRef}
-          className="mt-3 card p-5 max-h-[60vh] overflow-y-auto"
+          className="absolute left-0 right-0 top-full mt-3 z-30 card p-5 max-h-[60vh] overflow-y-auto bg-forest-900/95 backdrop-blur-md shadow-2xl shadow-forest-950/60 ring-1 ring-gold-500/15"
         >
           {turns.map((turn, i) => (
             <div
@@ -224,8 +232,10 @@ export function AskAdvottic() {
                   : 'mt-5 pt-5 border-t border-forest-700/30'
               }
             >
-              {/* The question becomes the title of its own answer block. */}
-              <p className="font-display text-[15.5px] font-semibold tracking-[-0.005em] text-forest-900 dark:text-cream-100 mb-2 leading-snug">
+              {/* The question becomes the title of its own answer block,
+                  rendered in a premium gold gradient that pulses slowly
+                  - distinct headline from the calm cream body below. */}
+              <p className="ask-question-title font-display text-[15.5px] font-semibold tracking-[-0.005em] mb-2 leading-snug">
                 {turn.question}
               </p>
               {turn.error ? (
