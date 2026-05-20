@@ -177,6 +177,14 @@ export default async function SignInPage({
   // browser than the one that started the flow. The fix is
   // ALWAYS to use the OTP code that came in the same email.
   const pkceFailure = searchParams?.reason === 'pkce';
+  // Watch-linking flow: the user scanned a QR on their Wear OS
+  // watch, landed on /link-watch?code=..., wasn't signed in, and
+  // got bounced here with the link-watch path stored as next.
+  // OAuth on mobile is unreliable for this scenario (the OAuth
+  // round-trip strips PKCE cookies on Opera mobile, Safari ITP,
+  // and most in-app browsers), so steer them to the email + 6-
+  // digit code path which works across every browser context.
+  const isWatchLink = next.startsWith('/link-watch');
   // `?switch=1` (or `?switch=true`) means: the user landed here on
   // purpose to change accounts. Don't auto-bounce them onto whatever
   // session this browser already has - instead, show the "you're
@@ -250,6 +258,26 @@ export default async function SignInPage({
           <p className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 mb-4">
             {decodeURIComponent(searchParams.error)}
           </p>
+        )}
+        {isWatchLink && !pkceFailure && (
+          // The user is here from /link-watch?code=.... Reinforce
+          // that sign-in is a SEPARATE step and that the email +
+          // 6-digit code path is the reliable one for mobile.
+          <div className="rounded-xl border border-gold-200 bg-gold-50/70 px-4 py-3.5 text-sm text-forest-900 mb-4">
+            <p className="font-semibold mb-1.5 flex items-center gap-2">
+              <span aria-hidden className="text-base">⌚</span>
+              Linking your watch
+            </p>
+            <p className="leading-relaxed">
+              Sign in below first - after that, you&rsquo;ll see a page
+              with a gold &ldquo;Link this watch&rdquo; button. On a
+              phone, use{' '}
+              <strong>Email me a sign-in code</strong> and type the
+              6-digit code from the email - OAuth often fails on
+              mobile because the OAuth round-trip strips the temp
+              cookie that pairing depends on.
+            </p>
+          </div>
         )}
         {pkceFailure && (
           // The magic link opened in a different browser context
