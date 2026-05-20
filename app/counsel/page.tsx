@@ -286,26 +286,30 @@ export default async function CounselDashboard() {
   return (
     <div className="space-y-6 animate-fade-up">
       {/* Welcome - always at the top. */}
-      <header className="flex items-start justify-between gap-4 flex-wrap">
-        <div className="min-w-0">
-          <p className="eyebrow mb-2">Counsel</p>
-          <h1 className="font-display text-3xl sm:text-4xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-            Welcome to {ctx.firm.name}.
-          </h1>
-          <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 max-w-2xl leading-relaxed">
-            You&rsquo;re signed in as{' '}
-            {ctx.membership.displayName ??
-              ctx.membership.email ??
-              'a team member'}{' '}
-            ({FIRM_ROLE_LABEL[ctx.membership.role].toLowerCase()}). Pick
-            the tiles that matter to you - hide the rest.
-          </p>
-        </div>
-        <DashboardCustomizer initialEnabled={enabled} isAdmin={isAdmin} />
+      <header>
+        <p className="eyebrow mb-2">Counsel</p>
+        <h1 className="font-display text-3xl sm:text-4xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
+          Welcome to {ctx.firm.name}.
+        </h1>
+        <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 max-w-2xl leading-relaxed">
+          You&rsquo;re signed in as{' '}
+          {ctx.membership.displayName ??
+            ctx.membership.email ??
+            'a team member'}{' '}
+          ({FIRM_ROLE_LABEL[ctx.membership.role].toLowerCase()}). Pick
+          the tiles that matter to you - hide the rest.
+        </p>
       </header>
 
       {/* Ask Advottic - immediately below the welcome. */}
       <AskAdvottic />
+
+      {/* Customize button - sits between the Ask bar (with its
+          suggestion chips) and the tile grid, so the user reads
+          welcome -> ask -> suggestions -> "what's on my board" -> tiles. */}
+      <div className="flex justify-end">
+        <DashboardCustomizer initialEnabled={enabled} isAdmin={isAdmin} />
+      </div>
 
       {/* User-selected tiles. Empty state gives a hint about the
           customizer when the user has hidden everything. */}
