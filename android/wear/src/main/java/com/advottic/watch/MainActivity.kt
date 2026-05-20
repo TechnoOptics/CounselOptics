@@ -123,14 +123,33 @@ class MainActivity : ComponentActivity() {
         // works regardless of how the phone/watch apps are signed. A
         // dead token (401) clears itself and the UI shows "Link a
         // watch" again.
+        //
+        // Battery saver: only fire when the cached sync is older than
+        // FRESHNESS_THRESHOLD_MS. The old build called this on EVERY
+        // foreground - even if the user wakes the watch ten times in
+        // a minute, each wake forced a fresh HTTPS GET and a Wi-Fi
+        // radio cycle. The cached glance is good enough until the
+        // data is meaningfully stale; the hourly RefreshWorker + the
+        // phone push pick up anything that drifts between visits.
         val tok = WatchLinkStore.token(this)
-        if (tok != null) {
+        if (tok != null && SummaryStore.isStale(this, FRESHNESS_THRESHOLD_MS)) {
             lifecycleScope.launch {
                 val rc = WatchApi.refreshSummary(this@MainActivity, tok)
                 if (rc == 401) WatchLinkStore.clear(this@MainActivity)
                 summary.value = SummaryStore.read(this@MainActivity)
             }
         }
+    }
+
+    companion object {
+        /**
+         * Foreground-sync throttle. The watch's Wi-Fi radio costs
+         * real battery to wake; we only re-fetch when the cached
+         * sync is at least this stale. 15 minutes is well below the
+         * cadence at which any case update is humanly meaningful and
+         * far above the rate at which a user opens the app.
+         */
+        private const val FRESHNESS_THRESHOLD_MS = 15L * 60_000L
     }
 }
 
@@ -372,18 +391,13 @@ fun WearApp(summary: SummaryStore.Summary) {
     var linkActive by remember { mutableStateOf(false) }
     val isLinked = remember { WatchLinkStore.token(context) != null }
 
-    // One-time pairing: if the watch is not linked AND nothing has
-    // synced, surface the QR immediately instead of making the user
-    // hunt for the "Link a watch" chip. Fires once per launch so that
-    // tapping to dismiss actually cancels (the chip stays as the
-    // manual fallback); once linked + data is present it never shows.
-    var autoLinkTried by remember { mutableStateOf(false) }
-    LaunchedEffect(isLinked, summary.hasData) {
-        if (!isLinked && !summary.hasData && !autoLinkTried) {
-            autoLinkTried = true
-            linkActive = true
-        }
-    }
+    // Pairing is now an explicit user action. The old build auto-
+    // opened the QR overlay on every cold launch when the watch
+    // wasn't linked yet - which silently polled the server every
+    // ~4s for ~30min in the background, hammering the Wi-Fi radio
+    // and burning battery even when the user had walked away. Now:
+    // the user has to tap the "Link a watch" chip to start a polling
+    // session, which gives clear consent to use the Wi-Fi radio.
     val micPermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted -> if (granted) voiceActive = true }

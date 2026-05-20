@@ -63,20 +63,29 @@ class RefreshWorker(
         private const val WORK = "advottic_refresh"
 
         /**
-         * Idempotently ensures the hourly refresh is scheduled. KEEP
-         * so re-calling on every launch never resets the cadence;
-         * WorkManager re-arms this across reboot on its own. Hourly is
-         * ample for a day/week-granularity countdown and is coalesced
-         * by the OS, so the battery cost is negligible.
+         * Idempotently ensures the periodic refresh is scheduled.
+         *
+         * Battery: this is a backstop, not the primary sync. The
+         * phone-side Data Layer push and the user opening the app
+         * (with a 15-min freshness throttle) are the real sources of
+         * fresh data; this only catches the case where a hearing
+         * silently crosses a tier threshold overnight with no phone
+         * push. 6 hours is ample for a day/week-granularity countdown
+         * and cuts the Wi-Fi radio touches from 24/day to 4/day.
+         *
+         * REPLACE policy is required because the previous build
+         * scheduled the same unique work at 1h cadence: KEEP would
+         * preserve that on upgrade. REPLACE re-arms the worker at
+         * the new 6h cadence the moment the user opens the app.
          */
         fun ensure(ctx: Context) {
             try {
                 val req = PeriodicWorkRequestBuilder<RefreshWorker>(
-                    1, TimeUnit.HOURS,
+                    6, TimeUnit.HOURS,
                 ).build()
                 WorkManager.getInstance(ctx).enqueueUniquePeriodicWork(
                     WORK,
-                    ExistingPeriodicWorkPolicy.KEEP,
+                    ExistingPeriodicWorkPolicy.REPLACE,
                     req,
                 )
             } catch (_: Throwable) {

@@ -37,6 +37,11 @@ private val Gold = Color(0xFFE6CE93)
 private val Cream = Color(0xFFFBF7E9)
 private val Rose = Color(0xFFE5816B)
 
+// LinkScreen polling caps. Total attempts and the point at which we
+// double the wait. See the comment block in the polling loop below.
+private const val MAX_POLLS = 40
+private const val RAMP_AFTER = 15
+
 /**
  * QR device-link overlay. Shows a QR the user scans with their phone
  * (-> /link-watch -> approve), polls until a read token is issued,
@@ -68,9 +73,25 @@ fun LinkScreen(onClose: () -> Unit) {
         pollMs = start.pollIntervalMs.coerceIn(2000L, 10000L)
         phase = "show"
 
-        // Poll until approved or the code lapses (~10 min server TTL).
-        repeat(180) {
-            delay(pollMs)
+        // Poll until approved or we hit the local cap.
+        //
+        // Battery: the old build polled at a flat ~4s interval for
+        // 180 attempts (~12 min flat, sometimes 30 with the slowest
+        // server interval). Each poll wakes the watch's Wi-Fi radio,
+        // which is the single biggest battery cost on a Wear OS
+        // device - opening the QR and walking away meant 100+
+        // Wi-Fi cycles in the background, often draining the watch
+        // a noticeable amount before the user noticed.
+        //
+        // Now: cap at MAX_POLLS (40) regardless of the server's
+        // suggested interval. After RAMP_AFTER polls we double the
+        // wait (e.g. 4s -> 8s) so a session left open burns even
+        // less. Total: at most ~5 min of polling per opened QR, then
+        // a hard timeout that asks the user to tap to restart.
+        val baseMs = pollMs
+        for (attempt in 1..MAX_POLLS) {
+            val wait = if (attempt <= RAMP_AFTER) baseMs else baseMs * 2L
+            delay(wait)
             if (phase != "show") return@LaunchedEffect
             val r = WatchApi.poll(code)
             when (r.status) {

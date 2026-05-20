@@ -101,7 +101,30 @@ object SummaryStore {
             .putString("upcomingJson", upcomingJson)
             .putString("actionsJson", actionsJson)
             .putBoolean("hasData", true)
+            // Battery saver: track when the last sync landed so
+            // MainActivity.onResume can throttle the watch's
+            // expensive Wi-Fi-radio-waking HTTPS pull to at most
+            // once per FRESHNESS_THRESHOLD_MS (see lastSyncAt /
+            // isStale). Phone-pushed Data Layer updates also bump
+            // this; both paths are valid "fresh data" events.
+            .putLong("lastSyncAt", System.currentTimeMillis())
             .apply()
+    }
+
+    /**
+     * How recently a sync (either phone push or direct HTTPS pull)
+     * landed. 0L means we have never synced. Used to decide whether
+     * onResume should wake the Wi-Fi radio for another GET.
+     */
+    fun lastSyncAt(ctx: Context): Long =
+        ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+            .getLong("lastSyncAt", 0L)
+
+    /** True when the cached sync is older than [maxAgeMs]. */
+    fun isStale(ctx: Context, maxAgeMs: Long): Boolean {
+        val last = lastSyncAt(ctx)
+        if (last <= 0L) return true
+        return System.currentTimeMillis() - last > maxAgeMs
     }
 
     fun read(ctx: Context): Summary {
