@@ -188,6 +188,18 @@ Knowing the firm's environment - DO NOT GUESS, USE TOOLS:
 - Lead with the relevant tool, then summarize in plain prose. Cite real numbers / names / dates from the tool response - do not paraphrase or invent.
 - NEVER tell the user "you have no X" / "nothing in Y" / "no Z assigned" without calling the relevant tool first. If a tool returns count=0, that IS the answer ("you have no pending signing requests right now") - but it has to come from a tool call, not from a guess.
 
+Agentic actions - YOU can DO things, not just answer:
+- "Pull up [document]" / "summarize this contract" / "what does this NDA say": call get_document_text or analyze_document with the document_id. If the user names a document by title and you don't know the id, call global_search first to resolve it.
+- "Review this contract" / "how good is this NDA for us" / "what are the vulnerabilities": call analyze_document. It returns an A-F grade, bias direction + score, vulnerabilities list, suggested revisions. Quote the grade and the top 2-3 vulnerabilities verbatim, then offer to draft revisions.
+- "Find everything about X" / "any matters mentioning Smith" / "show me all the Acme stuff": call global_search. It returns hits per type (cases, clients, documents, intakes). Summarize as a short list grouped by type; offer to drill into one with the right deep-read tool.
+- "Schedule a meeting with X" / "set up a call about Y": ALWAYS confirm the topic, date+time, duration, and attendee emails IN CHAT before calling schedule_meeting. Once confirmed, call it once; the tool sends a single firm-branded invite to every attendee. Tell the user it landed on the shared calendar.
+- "Reply to [the requester]" / "tell them we'll follow up next week" / "post a message on that intake": confirm the EXACT wording with the user first ("I'll post this on the Smith intake: '...' - sound good?"), then call post_intake_message. The requester will see what you post.
+- "Generate a report on X" / "give me a summary of Y across the firm" / "pull billable time this month": call generate_report with the right kind (cases_by_status, billable_time, intake_throughput, trust_balance_by_client, signing_pipeline, team_load). Render the result as a short prose summary plus a tidy text-only table the user can copy. PDF / email rendering is coming - for now the chat text IS the deliverable.
+- "Draft an NDA" / "write a demand letter" / "make me an engagement letter": follow the existing list_document_templates -> confirm inputs -> draft full text in your reply -> draft_document flow. Bella does not yet apply firm letterhead to the rendered PDF (coming next); be honest about that if the user asks.
+
+Confirmation gating - non-negotiable:
+- post_intake_message and schedule_meeting both PRODUCE OUTBOUND ARTIFACTS (a message a requester reads, an invite an attendee receives). NEVER call either without the user explicitly confirming the exact content in chat. "Yes go ahead", "post it", "schedule it" after you have shown them the proposed message / event details is the trigger - not a hint about what they want.
+
 Counsel-mode behavior:
 - The user is inside /counsel/*, the law-firm perspective. Address them as a legal professional. You can use more legal terminology than in consumer mode, but still hedge ("appears to", "may", "could potentially") since you are not a substitute for the firm's research team.
 - When asked to analyze a case, focus on issue-spotting (claims, defenses, procedural deadlines, evidence gaps), reference applicable doctrines in the firm's jurisdictions, and suggest concrete next steps the firm can take inside Advottic (upload documents to the vault, send for in-app signing, share with the client, set a hearing reminder).
@@ -334,7 +346,14 @@ type ToolName =
   | 'list_invoices'
   | 'list_trust_accounts'
   | 'list_trust_transactions'
-  | 'get_trust_balance';
+  | 'get_trust_balance'
+  // Tier 1 agentic tools - DO things on the firm's behalf, not just read.
+  | 'get_document_text'
+  | 'analyze_document'
+  | 'global_search'
+  | 'schedule_meeting'
+  | 'post_intake_message'
+  | 'generate_report';
 
 const NAVIGATE_TOOL: Anthropic.Messages.Tool = {
   name: 'navigate_to',
@@ -1020,6 +1039,141 @@ const GET_TRUST_BALANCE_TOOL: Anthropic.Messages.Tool = {
   },
 };
 
+// ----- Tier 1 agentic tools -------------------------------------------
+
+const GET_DOCUMENT_TEXT_TOOL: Anthropic.Messages.Tool = {
+  name: 'get_document_text',
+  description:
+    "Load a firm document and extract its plain text (PDF, DOCX, or text). Use to read a contract / motion / letter the user just asked about so you can summarize, quote, or analyze it. Returns the text plus the document's name, size, and tags. Cap on text length: the first ~30k chars are returned.",
+  input_schema: {
+    type: 'object',
+    properties: {
+      document_id: { type: 'string', description: 'firm_documents.id' },
+    },
+    required: ['document_id'],
+  },
+};
+
+const ANALYZE_DOCUMENT_TOOL: Anthropic.Messages.Tool = {
+  name: 'analyze_document',
+  description:
+    "Run a structured contract / document review on a firm document. Returns a scorecard: A-F grade, bias score 0-100 with direction, vulnerabilities list, state-law relevance, suggested revisions, plain summary. Use when the user asks 'review this NDA', 'how good is this contract', 'is this fair to us'. Calls scoreDocument internally - same engine the /counsel/analyze page uses.",
+  input_schema: {
+    type: 'object',
+    properties: {
+      document_id: { type: 'string', description: 'firm_documents.id' },
+      focus: {
+        type: 'string',
+        description: 'Optional focus area: "favorability_to_firm" | "risk_to_client" | "negotiation_leverage". Default "favorability_to_firm".',
+      },
+    },
+    required: ['document_id'],
+  },
+};
+
+const GLOBAL_SEARCH_TOOL: Anthropic.Messages.Tool = {
+  name: 'global_search',
+  description:
+    "Federated search across the firm: cases, clients, documents, intakes. Use when the user asks 'find everything related to X', 'show me all mentions of Smith', 'pull up anything about the vendor agreement'. Returns up to `limit` matches per type with id + a one-line label so follow-up tools (get_document_text, get_client_detail, get_case_detail) can drill in.",
+  input_schema: {
+    type: 'object',
+    properties: {
+      query: {
+        type: 'string',
+        description: 'Partial text. Required. ilike-matched against the user-facing fields of each type.',
+      },
+      limit: {
+        type: 'integer',
+        minimum: 1,
+        maximum: 20,
+        description: 'Max items per type. Default 5.',
+      },
+    },
+    required: ['query'],
+  },
+};
+
+const SCHEDULE_MEETING_TOOL: Anthropic.Messages.Tool = {
+  name: 'schedule_meeting',
+  description:
+    "Schedule a Teams or Zoom meeting on the firm's connected calendar + email a single firm-branded invite to attendees. ALWAYS confirm the topic, start time, duration, and attendee list with the user in chat before calling. Persists to firm_meetings so the shared /counsel/calendar reflects it.",
+  input_schema: {
+    type: 'object',
+    properties: {
+      topic: { type: 'string', description: 'Meeting title.' },
+      start_iso: {
+        type: 'string',
+        description: 'ISO-8601 datetime. Must be in the future.',
+      },
+      duration_min: {
+        type: 'integer',
+        minimum: 15,
+        maximum: 480,
+        description: 'Length in minutes. Default 30.',
+      },
+      attendee_emails: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'List of attendee email addresses. The organizer is added automatically.',
+      },
+      intake_id: {
+        type: 'string',
+        description: 'Optional intake to link this meeting to.',
+      },
+      provider: {
+        type: 'string',
+        enum: ['microsoft', 'zoom', 'auto'],
+        description: "Default 'auto' - picks Teams if connected, else Zoom.",
+      },
+    },
+    required: ['topic', 'start_iso'],
+  },
+};
+
+const POST_INTAKE_MESSAGE_TOOL: Anthropic.Messages.Tool = {
+  name: 'post_intake_message',
+  description:
+    "Post a message to an intake/request thread (the back-and-forth between the legal team and the requester). Use when the user asks Bella to reply, follow up, or message the requester. ALWAYS confirm the exact wording with the user before calling - this writes a visible message that the requester reads.",
+  input_schema: {
+    type: 'object',
+    properties: {
+      intake_id: { type: 'string', description: 'firm_matter_intakes.id' },
+      body: { type: 'string', description: 'Message body. Max 4000 chars.' },
+    },
+    required: ['intake_id', 'body'],
+  },
+};
+
+const GENERATE_REPORT_TOOL: Anthropic.Messages.Tool = {
+  name: 'generate_report',
+  description:
+    "Produce a structured snapshot the user can quote, screenshot, or extend into a PDF. Use for 'give me a report on X', 'pull together a summary of Y'. Returns the underlying numbers / rows so you (the model) can render them as prose + tables in the chat. Available report kinds: cases_by_status, billable_time, intake_throughput, trust_balance_by_client, signing_pipeline, team_load. PDF/email rendering is a follow-up feature; for now the report's text in your reply IS the deliverable.",
+  input_schema: {
+    type: 'object',
+    properties: {
+      kind: {
+        type: 'string',
+        enum: [
+          'cases_by_status',
+          'billable_time',
+          'intake_throughput',
+          'trust_balance_by_client',
+          'signing_pipeline',
+          'team_load',
+        ],
+        description: 'Which report to compute.',
+      },
+      window_days: {
+        type: 'integer',
+        minimum: 1,
+        maximum: 365,
+        description: "Look-back window in days. Default 30. Only used by reports that have a time dimension (billable_time, intake_throughput).",
+      },
+    },
+    required: ['kind'],
+  },
+};
+
 function toolsFor(mode: BellaMode): Anthropic.Messages.Tool[] {
   if (mode === 'authed') {
     return [
@@ -1060,6 +1214,13 @@ function toolsFor(mode: BellaMode): Anthropic.Messages.Tool[] {
       LIST_TRUST_ACCOUNTS_TOOL,
       LIST_TRUST_TRANSACTIONS_TOOL,
       GET_TRUST_BALANCE_TOOL,
+      // Tier 1 agentic - DO things.
+      GET_DOCUMENT_TEXT_TOOL,
+      ANALYZE_DOCUMENT_TOOL,
+      GLOBAL_SEARCH_TOOL,
+      SCHEDULE_MEETING_TOOL,
+      POST_INTAKE_MESSAGE_TOOL,
+      GENERATE_REPORT_TOOL,
     ];
   }
   if (mode === 'public') {
@@ -1326,6 +1487,12 @@ async function executeTool(
     'list_trust_accounts',
     'list_trust_transactions',
     'get_trust_balance',
+    'get_document_text',
+    'analyze_document',
+    'global_search',
+    'schedule_meeting',
+    'post_intake_message',
+    'generate_report',
   ]);
   if (FIRM_ONLY.has(name) && portal !== 'firm') {
     return {
@@ -1363,6 +1530,12 @@ async function executeTool(
   if (name === 'list_trust_accounts') return await loadTrustAccounts(firmId!);
   if (name === 'list_trust_transactions') return await loadTrustTransactions(firmId!, input);
   if (name === 'get_trust_balance') return await loadTrustBalance(firmId!, input);
+  if (name === 'get_document_text') return await loadDocumentText(firmId!, input);
+  if (name === 'analyze_document') return await runAnalyzeDocument(firmId!, input);
+  if (name === 'global_search') return await runGlobalSearch(firmId!, input);
+  if (name === 'schedule_meeting') return await runScheduleMeeting(firmId!, input);
+  if (name === 'post_intake_message') return await runPostIntakeMessage(firmId!, input);
+  if (name === 'generate_report') return await runGenerateReport(firmId!, input);
 
   if (name === 'list_document_templates') {
     const { DOCUMENT_TEMPLATES, DRAFT_DISCLAIMER } = await import(
@@ -2641,6 +2814,498 @@ async function loadTrustBalance(
     per_client: Object.fromEntries(perClient),
     hint: 'Amounts are in cents. Negative balances should never happen on a per-client sub-ledger; surface any you see to the user.',
   };
+}
+
+// ===========================================================================
+// Tier 1 agentic loaders. These DO things on the firm's behalf -
+// read a document, search across surfaces, schedule a meeting, post
+// a message, generate a report. All firm-only (FIRM_ONLY guard) and
+// service-role-write where required.
+// ===========================================================================
+
+const DOC_TEXT_MAX = 30_000;
+
+async function loadDocumentText(
+  firmId: string,
+  input: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const supabase = createAdminSupabase();
+  if (!supabase) return { ok: false, error: 'Service role not configured.' };
+  const id = String(input.document_id ?? '').trim();
+  if (!id) return { ok: false, error: 'document_id is required.' };
+  const { data: doc, error: docErr } = await supabase
+    .from('firm_documents')
+    .select('id, name, mime_type, file_path, file_size, tags, case_id, client_user_id')
+    .eq('id', id)
+    .eq('firm_id', firmId)
+    .maybeSingle();
+  if (docErr) return { ok: false, error: docErr.message };
+  if (!doc) return { ok: false, error: 'Document not found in this firm.' };
+  const d = doc as {
+    id: string;
+    name: string;
+    mime_type: string;
+    file_path: string;
+    file_size: number;
+    tags: string[] | null;
+    case_id: string | null;
+    client_user_id: string | null;
+  };
+
+  // Download from storage and route to the right extractor by mime.
+  const dl = await supabase.storage.from('firm-documents').download(d.file_path);
+  if (dl.error || !dl.data) {
+    return { ok: false, error: `Could not load file: ${dl.error?.message ?? 'unknown'}.` };
+  }
+  const ab = await dl.data.arrayBuffer();
+  const buf = Buffer.from(ab);
+  let text = '';
+  let kind = 'unknown';
+  try {
+    const name = d.name.toLowerCase();
+    const mime = (d.mime_type || '').toLowerCase();
+    if (name.endsWith('.pdf') || mime.includes('pdf')) {
+      const { getDocumentProxy, extractText } = await import('unpdf');
+      const pdf = await getDocumentProxy(new Uint8Array(buf));
+      const res = await extractText(pdf, { mergePages: true });
+      text = Array.isArray(res.text) ? res.text.join('\n') : String(res.text ?? '');
+      kind = 'pdf';
+    } else if (
+      name.endsWith('.docx') ||
+      mime.includes('officedocument.wordprocessing')
+    ) {
+      const mammoth = await import('mammoth');
+      const { value } = await mammoth.extractRawText({ buffer: buf });
+      text = value ?? '';
+      kind = 'docx';
+    } else if (mime.startsWith('text/') || name.endsWith('.txt')) {
+      text = buf.toString('utf8');
+      kind = 'text';
+    } else {
+      return {
+        ok: false,
+        error:
+          'Unsupported file type. Bella can only read PDF, DOCX, and text files.',
+      };
+    }
+  } catch (err) {
+    return {
+      ok: false,
+      error: `Could not extract text: ${err instanceof Error ? err.message : 'unknown'}.`,
+    };
+  }
+
+  const truncated = text.length > DOC_TEXT_MAX;
+  return {
+    ok: true,
+    document: {
+      id: d.id,
+      name: d.name,
+      mime_type: d.mime_type,
+      file_size: d.file_size,
+      tags: d.tags ?? [],
+      case_id: d.case_id,
+      client_user_id: d.client_user_id,
+    },
+    kind,
+    chars: text.length,
+    truncated,
+    text: truncated ? text.slice(0, DOC_TEXT_MAX) : text,
+  };
+}
+
+async function runAnalyzeDocument(
+  firmId: string,
+  input: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  // Load the text first - reuse loadDocumentText. Pass through any
+  // error so the model sees what went wrong.
+  const got = await loadDocumentText(firmId, input);
+  if (!got.ok) return got;
+  const text = String((got as { text?: string }).text ?? '');
+  if (text.trim().length === 0) {
+    return { ok: false, error: 'The document had no readable text.' };
+  }
+  const focus = String(input.focus ?? 'favorability_to_firm').trim();
+  try {
+    const { scoreDocument } = await import('./doc-review');
+    const card = await scoreDocument({
+      text,
+      matterType: focus,
+    });
+    return {
+      ok: true,
+      document: (got as { document?: unknown }).document,
+      focus,
+      scorecard: card,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      error: `Scoring failed: ${err instanceof Error ? err.message : 'unknown'}.`,
+    };
+  }
+}
+
+async function runGlobalSearch(
+  firmId: string,
+  input: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const supabase = createAdminSupabase();
+  if (!supabase) return { ok: false, error: 'Service role not configured.' };
+  const queryRaw = String(input.query ?? '').trim();
+  if (!queryRaw) return { ok: false, error: 'query is required.' };
+  const safe = queryRaw.replace(/[%_]/g, '');
+  const pattern = `%${safe}%`;
+  const limit = Math.min(20, Math.max(1, Number(input.limit) || 5));
+
+  // Cases
+  const { data: casesData } = await supabase
+    .from('cases')
+    .select('id, title, subject_name, status')
+    .eq('firm_id', firmId)
+    .or(`title.ilike.${pattern},subject_name.ilike.${pattern}`)
+    .limit(limit);
+  // Clients (search via auth users for the email/name; firm_clients
+  // is a join table with no text columns of its own, so we search
+  // firm_documents.client_user_id linkage too).
+  const { data: clientsData } = await supabase
+    .from('firm_clients')
+    .select('id, user_id, status')
+    .eq('firm_id', firmId)
+    .limit(50);
+  const clientRows = (clientsData ?? []) as Array<{
+    id: string; user_id: string; status: string;
+  }>;
+  const clientMatches: Array<{ id: string; user_id: string; status: string; label: string }> = [];
+  for (const c of clientRows) {
+    try {
+      const { data: u } = await supabase.auth.admin.getUserById(c.user_id);
+      const email = (u?.user?.email ?? '').toLowerCase();
+      const name = String(
+        (u?.user?.user_metadata as { full_name?: string } | null)?.full_name ?? '',
+      ).toLowerCase();
+      const needle = safe.toLowerCase();
+      if (email.includes(needle) || name.includes(needle)) {
+        clientMatches.push({
+          id: c.id,
+          user_id: c.user_id,
+          status: c.status,
+          label: u?.user?.email ?? c.user_id,
+        });
+        if (clientMatches.length >= limit) break;
+      }
+    } catch { /* skip */ }
+  }
+  // Documents
+  const { data: docsData } = await supabase
+    .from('firm_documents')
+    .select('id, name, status, case_id')
+    .eq('firm_id', firmId)
+    .is('archived_at', null)
+    .ilike('name', pattern)
+    .limit(limit);
+  // Intakes
+  const { data: intakesData } = await supabase
+    .from('firm_matter_intakes')
+    .select('id, client_name, matter_type, status, matter_summary')
+    .eq('firm_id', firmId)
+    .or(`client_name.ilike.${pattern},matter_type.ilike.${pattern},matter_summary.ilike.${pattern}`)
+    .limit(limit);
+
+  return {
+    ok: true,
+    query: queryRaw,
+    cases: casesData ?? [],
+    clients: clientMatches,
+    documents: docsData ?? [],
+    intakes: intakesData ?? [],
+    hint:
+      'Per-type top hits. Use get_case_detail / get_client_detail / get_document_text / list_intake_inbox for drill-down.',
+  };
+}
+
+async function runScheduleMeeting(
+  firmId: string,
+  input: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const supabase = createAdminSupabase();
+  if (!supabase) return { ok: false, error: 'Service role not configured.' };
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: 'Not signed in.' };
+  const topic = String(input.topic ?? '').trim() || 'Advottic meeting';
+  const startIso = String(input.start_iso ?? '').trim();
+  const startMs = Date.parse(startIso);
+  if (!startIso || Number.isNaN(startMs)) {
+    return { ok: false, error: 'start_iso must be a valid ISO datetime.' };
+  }
+  if (startMs < Date.now() - 60_000) {
+    return { ok: false, error: 'start_iso must be in the future.' };
+  }
+  const duration = Math.min(
+    480,
+    Math.max(15, Number(input.duration_min) || 30),
+  );
+  const attendeeList = Array.isArray(input.attendee_emails)
+    ? (input.attendee_emails as unknown[]).map(String)
+    : [];
+  const attendees = new Set<string>();
+  for (const a of attendeeList) {
+    const e = a.trim().toLowerCase();
+    if (e.includes('@') && e.length <= 254) attendees.add(e);
+  }
+  if (user.email) attendees.add(user.email.toLowerCase());
+  const intakeId = input.intake_id ? String(input.intake_id) : null;
+  const providerChoice = String(input.provider ?? 'auto').trim();
+  const provider: 'microsoft' | 'zoom' | undefined =
+    providerChoice === 'microsoft'
+      ? 'microsoft'
+      : providerChoice === 'zoom'
+        ? 'zoom'
+        : undefined;
+
+  const { scheduleFirmMeeting } = await import('./firm-meetings');
+  const result = await scheduleFirmMeeting(firmId, {
+    topic,
+    startISO: new Date(startMs).toISOString(),
+    durationMin: duration,
+    attendees: [...attendees],
+    provider,
+  });
+  if (!result.ok) return { ok: false, error: result.error };
+
+  // Persist for the shared /counsel/calendar.
+  try {
+    await supabase.from('firm_meetings').insert({
+      firm_id: firmId,
+      intake_id: intakeId,
+      created_by: user.id,
+      provider: result.provider,
+      topic,
+      join_url: result.joinUrl,
+      start_at: new Date(startMs).toISOString(),
+      duration_min: duration,
+    });
+  } catch { /* best-effort */ }
+
+  return {
+    ok: true,
+    topic,
+    start_at: new Date(startMs).toISOString(),
+    duration_min: duration,
+    provider: result.provider,
+    join_url: result.joinUrl,
+    attendees: [...attendees],
+    reminder:
+      'The provider-side event is created without attendees so a single firm-branded invite is sent from Advottic. Tell the user this; many calendars otherwise show two pings.',
+  };
+}
+
+async function runPostIntakeMessage(
+  firmId: string,
+  input: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const intakeId = String(input.intake_id ?? '').trim();
+  const body = String(input.body ?? '');
+  if (!intakeId) return { ok: false, error: 'intake_id is required.' };
+  if (!body.trim()) return { ok: false, error: 'body is required.' };
+  // Verify the intake belongs to the firm before delegating.
+  const supabase = createAdminSupabase();
+  if (!supabase) return { ok: false, error: 'Service role not configured.' };
+  const { data } = await supabase
+    .from('firm_matter_intakes')
+    .select('id, firm_id')
+    .eq('id', intakeId)
+    .maybeSingle();
+  if (!data || (data as { firm_id?: string }).firm_id !== firmId) {
+    return { ok: false, error: 'Intake not found in this firm.' };
+  }
+  const { postIntakeThreadMessageAction } = await import('./intake-thread');
+  const res = await postIntakeThreadMessageAction(intakeId, body);
+  if (!res.ok) return { ok: false, error: res.error ?? 'post failed' };
+  return {
+    ok: true,
+    intake_id: intakeId,
+    posted_chars: body.length,
+    reminder:
+      'The message is visible to the requester. Tell the user it has been posted and quote the body back briefly so they can confirm what was sent.',
+  };
+}
+
+async function runGenerateReport(
+  firmId: string,
+  input: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const supabase = createAdminSupabase();
+  if (!supabase) return { ok: false, error: 'Service role not configured.' };
+  const kind = String(input.kind ?? '').trim();
+  const windowDays = Math.min(365, Math.max(1, Number(input.window_days) || 30));
+  const sinceIso = new Date(
+    Date.now() - windowDays * 24 * 60 * 60 * 1000,
+  ).toISOString();
+
+  if (kind === 'cases_by_status') {
+    const { data } = await supabase
+      .from('cases')
+      .select('id, status')
+      .eq('firm_id', firmId);
+    const buckets: Record<string, number> = {};
+    for (const r of (data ?? []) as Array<{ status: string }>) {
+      buckets[r.status] = (buckets[r.status] ?? 0) + 1;
+    }
+    return {
+      ok: true, kind, generated_at: new Date().toISOString(),
+      total: (data ?? []).length, by_status: buckets,
+    };
+  }
+
+  if (kind === 'billable_time') {
+    const { data } = await supabase
+      .from('firm_time_entries')
+      .select('user_id, duration_seconds, billable, rate_cents, invoice_id, started_at')
+      .eq('firm_id', firmId)
+      .gte('started_at', sinceIso)
+      .order('started_at', { ascending: false });
+    const rows = (data ?? []) as Array<{
+      user_id: string;
+      duration_seconds: number | null;
+      billable: boolean;
+      rate_cents: number | null;
+      invoice_id: string | null;
+      started_at: string;
+    }>;
+    let totalSec = 0;
+    let billableSec = 0;
+    let billedSec = 0;
+    let unbilledCents = 0;
+    const perUser: Record<string, { seconds: number; cents: number }> = {};
+    for (const r of rows) {
+      const sec = r.duration_seconds ?? 0;
+      totalSec += sec;
+      if (r.billable) billableSec += sec;
+      if (r.invoice_id) billedSec += sec;
+      else if (r.billable) {
+        unbilledCents += Math.round((sec / 3600) * (r.rate_cents ?? 0));
+      }
+      const pu = perUser[r.user_id] ?? { seconds: 0, cents: 0 };
+      pu.seconds += sec;
+      if (r.billable && !r.invoice_id) {
+        pu.cents += Math.round((sec / 3600) * (r.rate_cents ?? 0));
+      }
+      perUser[r.user_id] = pu;
+    }
+    return {
+      ok: true, kind, window_days: windowDays, generated_at: new Date().toISOString(),
+      total_hours: +(totalSec / 3600).toFixed(2),
+      billable_hours: +(billableSec / 3600).toFixed(2),
+      billed_hours: +(billedSec / 3600).toFixed(2),
+      unbilled_amount_cents: unbilledCents,
+      per_user: Object.fromEntries(
+        Object.entries(perUser).map(([k, v]) => [
+          k,
+          { hours: +(v.seconds / 3600).toFixed(2), unbilled_cents: v.cents },
+        ]),
+      ),
+    };
+  }
+
+  if (kind === 'intake_throughput') {
+    const { data } = await supabase
+      .from('firm_matter_intakes')
+      .select('id, status, created_at')
+      .eq('firm_id', firmId)
+      .gte('created_at', sinceIso);
+    const rows = (data ?? []) as Array<{ status: string; created_at: string }>;
+    const buckets: Record<string, number> = {};
+    for (const r of rows) buckets[r.status] = (buckets[r.status] ?? 0) + 1;
+    return {
+      ok: true, kind, window_days: windowDays, generated_at: new Date().toISOString(),
+      total_new: rows.length, by_status: buckets,
+    };
+  }
+
+  if (kind === 'trust_balance_by_client') {
+    const { data } = await supabase
+      .from('firm_trust_transactions')
+      .select('client_label, kind, amount_cents')
+      .eq('firm_id', firmId);
+    const positive = new Set(['deposit', 'refund', 'interest']);
+    const perClient: Record<string, number> = {};
+    let total = 0;
+    for (const r of (data ?? []) as Array<{
+      client_label: string | null;
+      kind: string;
+      amount_cents: number;
+    }>) {
+      const signed = positive.has(r.kind) ? r.amount_cents : -r.amount_cents;
+      total += signed;
+      const k = r.client_label ?? '(no label)';
+      perClient[k] = (perClient[k] ?? 0) + signed;
+    }
+    return {
+      ok: true, kind, generated_at: new Date().toISOString(),
+      total_balance_cents: total, per_client: perClient,
+    };
+  }
+
+  if (kind === 'signing_pipeline') {
+    const { data } = await supabase
+      .from('firm_signing_requests')
+      .select('status, sent_at, completed_at')
+      .eq('firm_id', firmId);
+    const rows = (data ?? []) as Array<{
+      status: string; sent_at: string | null; completed_at: string | null;
+    }>;
+    const buckets: Record<string, number> = {};
+    for (const r of rows) buckets[r.status] = (buckets[r.status] ?? 0) + 1;
+    return {
+      ok: true, kind, generated_at: new Date().toISOString(),
+      total: rows.length, by_status: buckets,
+    };
+  }
+
+  if (kind === 'team_load') {
+    // Open cases attributed to clients per attorney.
+    const [members, clients, cases] = await Promise.all([
+      supabase.from('firm_members').select('user_id, role, display_name').eq('firm_id', firmId),
+      supabase.from('firm_clients').select('user_id, primary_attorney_id, status').eq('firm_id', firmId),
+      supabase.from('cases').select('user_id, status').eq('firm_id', firmId),
+    ]);
+    const mems = (members.data ?? []) as Array<{ user_id: string; role: string; display_name: string | null }>;
+    const cls = (clients.data ?? []) as Array<{ user_id: string; primary_attorney_id: string | null; status: string }>;
+    const cas = (cases.data ?? []) as Array<{ user_id: string; status: string }>;
+    const openStatuses = new Set(['open', 'under_review', 'needs_evidence', 'export_ready']);
+    const clientByOwner = new Map<string, string>();
+    for (const c of cls) {
+      if (c.primary_attorney_id) clientByOwner.set(c.user_id, c.primary_attorney_id);
+    }
+    const load = new Map<string, { clients: number; open_cases: number }>();
+    for (const m of mems) load.set(m.user_id, { clients: 0, open_cases: 0 });
+    for (const c of cls) {
+      if (!c.primary_attorney_id) continue;
+      const e = load.get(c.primary_attorney_id);
+      if (e) e.clients += 1;
+    }
+    for (const c of cas) {
+      if (!openStatuses.has(c.status)) continue;
+      const owner = clientByOwner.get(c.user_id);
+      if (!owner) continue;
+      const e = load.get(owner);
+      if (e) e.open_cases += 1;
+    }
+    return {
+      ok: true, kind, generated_at: new Date().toISOString(),
+      team: mems.map((m) => ({
+        user_id: m.user_id,
+        role: m.role,
+        display_name: m.display_name,
+        clients: load.get(m.user_id)?.clients ?? 0,
+        open_cases: load.get(m.user_id)?.open_cases ?? 0,
+      })),
+    };
+  }
+
+  return { ok: false, error: `Unknown report kind: ${kind}` };
 }
 
 const MAX_AGENT_TURNS = 5;
