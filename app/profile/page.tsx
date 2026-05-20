@@ -42,7 +42,7 @@ export default async function ProfilePage() {
   const supabase = createServerSupabase();
   const safeWitnessRow = await supabase
     .from('profiles')
-    .select('safe_contact_email, safe_witness_pin, safe_witness_message')
+    .select('safe_contact_email, safe_witness_pin, safe_witness_message, phone')
     .eq('id', user.id)
     .maybeSingle()
     .then(
@@ -52,12 +52,14 @@ export default async function ProfilePage() {
               safe_contact_email: string | null;
               safe_witness_pin: string | null;
               safe_witness_message: string | null;
+              phone: string | null;
             }
           | null,
     );
   const safeWitnessConfig = {
     pin: safeWitnessRow?.safe_witness_pin ?? null,
     message: safeWitnessRow?.safe_witness_message ?? null,
+    userPhone: safeWitnessRow?.phone ?? null,
   };
   // Multi-contact list - replaces the legacy single-email field.
   // The migration backfilled any existing safe_contact_email into

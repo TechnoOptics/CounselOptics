@@ -681,6 +681,38 @@ export async function addSafeWitnessContactAction(
   };
 }
 
+/**
+ * Save the user's own phone number to profiles.phone. Used by the
+ * Safe Witness alert email's "Call user" button so a contact can
+ * dial the user with one tap. Empty value clears the column,
+ * which removes the button from future alerts.
+ */
+export async function updateUserPhoneAction(
+  formData: FormData,
+): Promise<{ ok: true; phone: string | null } | { ok: false; error: string }> {
+  if (!usingSupabase()) return { ok: false, error: 'Supabase is not configured.' };
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: 'Not signed in.' };
+  const raw = String(formData.get('phone') ?? '').trim();
+  const phone = raw.length === 0 ? null : raw;
+  if (phone !== null && !/^\+[1-9]\d{1,14}$/.test(phone)) {
+    return {
+      ok: false,
+      error:
+        'Phone must be in international format starting with +, e.g. +14155551234',
+    };
+  }
+  const { createServerSupabase } = await import('./supabase/server');
+  const supabase = createServerSupabase();
+  const { error } = await supabase
+    .from('profiles')
+    .update({ phone })
+    .eq('id', user.id);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath('/profile');
+  return { ok: true, phone };
+}
+
 export async function deleteSafeWitnessContactAction(
   contactId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {

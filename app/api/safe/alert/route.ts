@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
     admin
       .from('profiles')
       .select(
-        'safe_contact_email, safe_witness_pin, safe_witness_message, display_name',
+        'safe_contact_email, safe_witness_pin, safe_witness_message, display_name, phone',
       )
       .eq('id', userId)
       .maybeSingle(),
@@ -99,12 +99,16 @@ export async function POST(req: NextRequest) {
         safe_witness_pin: string | null;
         safe_witness_message: string | null;
         display_name: string | null;
+        phone: string | null;
       }
     | null;
   const userPin = profileRow?.safe_witness_pin?.trim() || null;
   const userMessage =
     profileRow?.safe_witness_message?.trim() ||
     'Safe mode activated. I need you. Please send help.';
+  // User's own phone for the "Call user" button. Optional - the
+  // button is only rendered when this is set.
+  const userPhone = profileRow?.phone?.trim() || null;
 
   // Multi-contact: prefer the new safe_witness_contacts table. Fall
   // back to the legacy single safe_contact_email if the table is
@@ -255,13 +259,68 @@ export async function POST(req: NextRequest) {
   );
   const shareLink = `mailto:?subject=${shareSubject}&body=${shareBody}`;
   const call911Link = 'tel:911';
+  // One-tap dial to the user themselves. Many clients won't even
+  // render tel: links if the value is malformed, so check first.
+  const callUserLink =
+    userPhone && /^\+[1-9]\d{1,14}$/.test(userPhone)
+      ? `tel:${userPhone}`
+      : null;
+  // Pre-filled SMS to the user with a quick "I'm coming" so the
+  // contact can reach back instantly. Falls back to the same tel:
+  // link when no phone is set, so the button never breaks.
+  const smsUserLink = userPhone
+    ? `sms:${userPhone};?&body=${encodeURIComponent(
+        `Hi - got your Advottic Safe Witness alert. On my way / call me back.`,
+      )}`
+    : null;
+  // Maps searches for nearby emergency resources. Each opens the
+  // Google Maps app/web with the search pre-populated at the user's
+  // location.
+  const hospitalsLink = hasLoc
+    ? `https://www.google.com/maps/search/hospital/@${lat},${lng},15z`
+    : `https://www.google.com/maps/search/hospital`;
+  const policeLink = hasLoc
+    ? `https://www.google.com/maps/search/police+station/@${lat},${lng},15z`
+    : `https://www.google.com/maps/search/police+station`;
 
-  const html = `
+  // v3 enhancement: personalized per-contact greeting. Each contact
+  // in the fan-out gets a copy with their own name in the salutation.
+  // The rest of the email is shared, so we build it once and let the
+  // function inject the greeting line.
+  //
+  // We render a pulsing red ring AROUND the map image using a
+  // wrapper <td> with a CSS animation. Outlook + most email clients
+  // strip @keyframes, so we also paint a solid red border as the
+  // baseline. Clients that DO honor the animation (Apple Mail,
+  // Gmail web on Chromium, Thunderbird) get the pulse.
+  const watcherFirst = watcherLabel.split(' (')[0];
+  const buildEmailHtml = (contactName: string | null): string => `
 <div style="font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background: #0B1F19; color: #FBF7E9;">
+  <style>
+    @keyframes advPulse {
+      0%   { box-shadow: 0 0 0 0   rgba(229, 80, 80, 0.85); }
+      70%  { box-shadow: 0 0 0 14px rgba(229, 80, 80, 0); }
+      100% { box-shadow: 0 0 0 0   rgba(229, 80, 80, 0); }
+    }
+    .adv-pulse-wrap { animation: advPulse 1.6s ease-out infinite; }
+  </style>
   <div style="text-align: center; padding-bottom: 16px; border-bottom: 1px solid rgba(230, 206, 147, 0.25);">
     <p style="margin: 0; font-size: 12px; letter-spacing: 3px; text-transform: uppercase; color: #E5816B; font-weight: 600;">Safe Witness Alert</p>
     <h1 style="margin: 8px 0 0; font-size: 24px; color: #E6CE93; font-weight: 600;">${watcherLabel}</h1>
   </div>
+
+  ${
+    contactName
+      ? `<p style="margin: 18px 0 0; font-size: 15px; color: #FBF7E9; line-height: 1.5;">
+           Hi <strong style="color: #E6CE93;">${escapeHtml(contactName)}</strong>,
+         </p>
+         <p style="margin: 6px 0 0; font-size: 14px; color: rgba(251, 247, 233, 0.75); line-height: 1.5;">
+           ${escapeHtml(watcherFirst)} just triggered a Safe Witness alert and listed you as a trusted contact. Their message is below.
+         </p>`
+      : `<p style="margin: 18px 0 0; font-size: 14px; color: rgba(251, 247, 233, 0.75); line-height: 1.5;">
+           ${escapeHtml(watcherFirst)} just triggered a Safe Witness alert and listed you as a trusted contact. Their message is below.
+         </p>`
+  }
 
   <!-- The user's message is the loudest thing in the email - this
        is what they want their contact to read first. Big, gold,
@@ -280,7 +339,7 @@ export async function POST(req: NextRequest) {
              ${escapeHtml(userPin)}
            </p>
            <p style="margin: 6px 0 0; font-size: 11px; color: rgba(251, 247, 233, 0.55);">
-             If this matches what ${watcherLabel.split(' (')[0]} told you in advance, this alert is genuine.
+             If this matches what ${escapeHtml(watcherFirst)} told you in advance, this alert is genuine.
            </p>
          </div>`
       : ''
@@ -289,11 +348,18 @@ export async function POST(req: NextRequest) {
   ${
     staticMapUrl
       ? `<div style="margin: 0 0 16px;">
-           <a href="${mapLink}" style="display: block; text-decoration: none;">
-             <img src="${staticMapUrl}" alt="Their location on a map" width="600" style="display: block; width: 100%; max-width: 600px; height: auto; border-radius: 12px; border: 1px solid rgba(230, 206, 147, 0.25);" />
-           </a>
-           <p style="margin: 6px 0 0; font-size: 11px; color: rgba(251, 247, 233, 0.45); text-align: center;">
-             Marker shows their location at the moment the alert fired.
+           <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="border-collapse: separate;">
+             <tr>
+               <td class="adv-pulse-wrap" style="padding: 0; border-radius: 14px; border: 3px solid #E55050;">
+                 <a href="${mapLink}" style="display: block; text-decoration: none;">
+                   <img src="${staticMapUrl}" alt="Their location on a map" width="600" style="display: block; width: 100%; max-width: 600px; height: auto; border-radius: 11px;" />
+                 </a>
+               </td>
+             </tr>
+           </table>
+           <p style="margin: 8px 0 0; font-size: 11px; color: rgba(251, 247, 233, 0.55); text-align: center;">
+             <span style="display: inline-block; width: 8px; height: 8px; background: #E55050; border-radius: 50%; vertical-align: middle; margin-right: 6px;"></span>
+             Live location at the moment the alert fired. Tap to open in Maps. Distance from you depends on where you are now.
            </p>
          </div>`
       : hasLoc
@@ -303,10 +369,38 @@ export async function POST(req: NextRequest) {
         : ''
   }
 
-  <!-- Action buttons. Table-based so every email client (Outlook
+  <!-- Voice / video clip section. v3 ships the transcription;
+       audio + video bytes are a follow-up that requires
+       MediaRecorder + a foreground service on the watch. Until then,
+       we render the transcription as the recording-stand-in so the
+       contact can read what was said. -->
+  ${
+    transcription
+      ? `<div style="margin: 0 0 20px; padding: 14px 16px; background: rgba(230, 206, 147, 0.08); border-radius: 12px; border-left: 3px solid #E6CE93;">
+           <p style="margin: 0 0 6px; font-size: 10px; letter-spacing: 3px; text-transform: uppercase; color: rgba(251, 247, 233, 0.6);">
+             ${source === 'watch' ? 'Voice memo from their watch' : 'Voice memo'}
+           </p>
+           <p style="margin: 0; font-size: 14px; line-height: 1.55; color: #FBF7E9; font-style: italic;">
+             &ldquo;${escapeHtml(transcription)}&rdquo;
+           </p>
+           <p style="margin: 8px 0 0; font-size: 10.5px; color: rgba(251, 247, 233, 0.45); line-height: 1.4;">
+             Transcribed from a one-minute clip captured at the moment the button was held. Audio playback will appear here in a future build.
+           </p>
+         </div>`
+      : `<div style="margin: 0 0 20px; padding: 14px 16px; background: rgba(251, 247, 233, 0.04); border-radius: 12px; border-left: 3px solid rgba(230, 206, 147, 0.25);">
+           <p style="margin: 0; font-size: 12px; color: rgba(251, 247, 233, 0.6); line-height: 1.55;">
+             No voice memo accompanied this alert. ${escapeHtml(watcherFirst)} held the button silently or recording was unavailable.
+           </p>
+         </div>`
+  }
+
+  <!-- Quick-act buttons. Table-based so every email client (Outlook
        included) renders them as full-width tappable rectangles
-       instead of inline links. Two rows of two on mobile, single
-       wide row on desktop. -->
+       instead of inline links. Three rows of two: 911 + Directions
+       (most urgent), Call User + Text User (reach them), Hospitals
+       + Police (find help nearby). View + Share live in a final row
+       so the primary actions stay above the fold. -->
+  <p style="margin: 14px 0 8px; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: rgba(251, 247, 233, 0.55); text-align: center;">Quick actions</p>
   <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0 0 20px;">
     <tr>
       <td width="50%" style="padding: 4px;">
@@ -325,13 +419,37 @@ export async function POST(req: NextRequest) {
     <tr>
       <td width="50%" style="padding: 4px;">
         ${
+          callUserLink
+            ? `<a href="${callUserLink}" style="display: block; padding: 14px 8px; background: rgba(230, 206, 147, 0.18); color: #E6CE93; text-align: center; text-decoration: none; border-radius: 10px; font-weight: 700; font-size: 14px; letter-spacing: 0.3px;">Call ${escapeHtml(watcherFirst)}</a>`
+            : `<span style="display: block; padding: 14px 8px; background: rgba(230, 206, 147, 0.05); color: rgba(251, 247, 233, 0.3); text-align: center; border-radius: 10px; font-weight: 600; font-size: 12px;">No phone on file</span>`
+        }
+      </td>
+      <td width="50%" style="padding: 4px;">
+        ${
+          smsUserLink
+            ? `<a href="${smsUserLink}" style="display: block; padding: 14px 8px; background: rgba(230, 206, 147, 0.18); color: #E6CE93; text-align: center; text-decoration: none; border-radius: 10px; font-weight: 700; font-size: 14px; letter-spacing: 0.3px;">Text &ldquo;On my way&rdquo;</a>`
+            : `<span style="display: block; padding: 14px 8px; background: rgba(230, 206, 147, 0.05); color: rgba(251, 247, 233, 0.3); text-align: center; border-radius: 10px; font-weight: 600; font-size: 12px;">No phone on file</span>`
+        }
+      </td>
+    </tr>
+    <tr>
+      <td width="50%" style="padding: 4px;">
+        <a href="${hospitalsLink}" style="display: block; padding: 14px 8px; background: rgba(229, 129, 107, 0.15); color: #FBF7E9; text-align: center; text-decoration: none; border-radius: 10px; font-weight: 600; font-size: 13px;">Hospitals nearby</a>
+      </td>
+      <td width="50%" style="padding: 4px;">
+        <a href="${policeLink}" style="display: block; padding: 14px 8px; background: rgba(229, 129, 107, 0.15); color: #FBF7E9; text-align: center; text-decoration: none; border-radius: 10px; font-weight: 600; font-size: 13px;">Police nearby</a>
+      </td>
+    </tr>
+    <tr>
+      <td width="50%" style="padding: 4px;">
+        ${
           mapLink
-            ? `<a href="${mapLink}" style="display: block; padding: 14px 8px; background: rgba(230, 206, 147, 0.15); color: #E6CE93; text-align: center; text-decoration: none; border-radius: 10px; font-weight: 600; font-size: 13px;">View location</a>`
+            ? `<a href="${mapLink}" style="display: block; padding: 14px 8px; background: rgba(230, 206, 147, 0.10); color: #E6CE93; text-align: center; text-decoration: none; border-radius: 10px; font-weight: 600; font-size: 13px;">View location</a>`
             : `<span style="display: block; padding: 14px 8px; background: rgba(230, 206, 147, 0.05); color: rgba(251, 247, 233, 0.3); text-align: center; border-radius: 10px; font-weight: 600; font-size: 13px;">View location</span>`
         }
       </td>
       <td width="50%" style="padding: 4px;">
-        <a href="${shareLink}" style="display: block; padding: 14px 8px; background: rgba(230, 206, 147, 0.15); color: #E6CE93; text-align: center; text-decoration: none; border-radius: 10px; font-weight: 600; font-size: 13px;">Share alert</a>
+        <a href="${shareLink}" style="display: block; padding: 14px 8px; background: rgba(230, 206, 147, 0.10); color: #E6CE93; text-align: center; text-decoration: none; border-radius: 10px; font-weight: 600; font-size: 13px;">Forward alert</a>
       </td>
     </tr>
   </table>
@@ -342,16 +460,8 @@ export async function POST(req: NextRequest) {
       ${tsHuman}
     </p>
     <p style="margin: 0 0 16px; line-height: 1.55; color: rgba(251, 247, 233, 0.75);">
-      Triggered from <strong>${source === 'watch' ? 'their Wear OS watch' : source === 'mobile' ? 'their phone' : 'the web'}</strong>. The watch button has to be PRESSED AND HELD for four full seconds to fire - this isn't an accidental tap.
+      Triggered from <strong>${source === 'watch' ? 'their Wear OS watch' : source === 'mobile' ? 'their phone' : 'the web'}</strong>. The watch button has to be PRESSED AND HELD for four full seconds to fire, this isn't an accidental tap.
     </p>
-    ${
-      transcription
-        ? `<p style="margin: 16px 0 6px; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: rgba(251, 247, 233, 0.55);">Voice transcription</p>
-           <blockquote style="margin: 0 0 16px; padding: 12px 16px; background: rgba(251, 247, 233, 0.06); border-left: 3px solid #E6CE93; border-radius: 4px; font-size: 14px; line-height: 1.55; color: #FBF7E9;">
-             ${escapeHtml(transcription)}
-           </blockquote>`
-        : ''
-    }
     ${
       note
         ? `<p style="margin: 16px 0 6px; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: rgba(251, 247, 233, 0.55);">Additional note</p>
@@ -362,7 +472,11 @@ export async function POST(req: NextRequest) {
 
   <div style="padding-top: 16px; border-top: 1px solid rgba(230, 206, 147, 0.25); font-size: 12px; color: rgba(251, 247, 233, 0.6); line-height: 1.55;">
     <p style="margin: 0 0 8px;">
-      <strong style="color: #FBF7E9;">What to do next:</strong> call ${watcherLabel.split(' (')[0]} right now. If they don't pick up, the next step depends on what you know about their situation - their last known location, who they were with, or whether you need to escalate to local emergency services (in the US: 911).
+      <strong style="color: #FBF7E9;">What to do next:</strong> ${
+        callUserLink
+          ? `tap <strong>Call ${escapeHtml(watcherFirst)}</strong> above and reach them directly. If they don't pick up,`
+          : `call ${escapeHtml(watcherFirst)} right now. If they don't pick up,`
+      } the next step depends on what you know about their situation: their last known location, who they were with, or whether you need to escalate to local emergency services (in the US: 911).
     </p>
     <p style="margin: 0;">
       Safe Witness is a feature in Advottic that lets a user discreetly
@@ -373,21 +487,25 @@ export async function POST(req: NextRequest) {
   // Fan out: every contact gets the alert via every channel they
   // listed. Email AND SMS go out concurrently per contact via
   // Promise.allSettled so a single failure (Twilio rate limit, a
-  // typo'd phone) never blocks the rest of the deliveries.
+  // typo'd phone) never blocks the rest of the deliveries. The HTML
+  // is built PER contact so each one sees their own name.
   //
   // The SMS body is a single 1-2 sentence version of the alert so
   // it fits in one or two segments. Email carries the full HTML.
-  const watcherFirstName = watcherLabel.split(' (')[0];
+  const watcherFirstName = watcherFirst;
   // SMS body: every link a contact needs in one tap. Newlines
   // separate sections so each link is recognizable on iOS/Android.
-  // Twilio segments at 153 chars (GSM-7) - this typically spans
-  // 2-4 segments, which is acceptable for an emergency alert.
-  const smsBody = [
+  // Twilio segments at 153 chars (GSM-7), this typically spans
+  // 2-4 segments which is acceptable for an emergency alert.
+  // Per-contact greeting is added inside the loop below so the same
+  // base body can be reused.
+  const smsBodyBase = [
     `ADVOTTIC SAFE WITNESS - ${watcherFirstName}`,
     userMessage,
     userPin ? `PIN: ${userPin}` : null,
     mapLink ? `Location: ${mapLink}` : null,
     directionsLink ? `Directions: ${directionsLink}` : null,
+    callUserLink ? `Call ${watcherFirstName}: ${callUserLink}` : null,
     'Call 911: tel:911',
   ]
     .filter(Boolean)
@@ -412,12 +530,18 @@ export async function POST(req: NextRequest) {
   const tasks: Promise<void>[] = [];
 
   for (const c of routableContacts) {
+    // Per-contact personalization. HTML gets a "Hi <name>,"
+    // greeting; SMS gets a leading "Hi <name>" when we have one.
+    const perContactHtml = buildEmailHtml(c.display_name);
+    const smsBody = c.display_name
+      ? `Hi ${c.display_name} - ${smsBodyBase}`
+      : smsBodyBase;
     if (c.email) {
       tasks.push(
         sendEmail({
           to: c.email,
           subject: `Safe Witness alert from ${watcherFirstName}`,
-          html,
+          html: perContactHtml,
           fromName: 'Advottic Safe Witness',
         }).then((r) => {
           dispatches.push({
@@ -439,7 +563,7 @@ export async function POST(req: NextRequest) {
             contactName: c.display_name,
             ok: r.ok,
             // 'sms-not-configured' is a deployment state, not a
-            // delivery failure - surface it distinctly so the
+            // delivery failure, surface it distinctly so the
             // caller can degrade the UI without alarming the user.
             error: r.ok ? undefined : r.error,
           });

@@ -5,6 +5,7 @@ import {
   updateSafeWitnessConfigAction,
   addSafeWitnessContactAction,
   deleteSafeWitnessContactAction,
+  updateUserPhoneAction,
 } from '@/lib/actions';
 
 const DEFAULT_MESSAGE =
@@ -43,6 +44,10 @@ export function SafeContactForm({
   initial: {
     pin: string | null;
     message: string | null;
+    /** The user's OWN phone, used by the alert email's Call User
+     *  button so a contact can dial them in one tap. Empty means
+     *  no Call User button. */
+    userPhone: string | null;
   };
   contacts: SafeWitnessContactRow[];
   /** True if TWILIO_* env vars are set on the server. */
@@ -51,12 +56,14 @@ export function SafeContactForm({
   const [contacts, setContacts] = useState(initialContacts);
   const [pin, setPin] = useState(initial.pin ?? '');
   const [message, setMessage] = useState(initial.message ?? '');
+  const [userPhone, setUserPhone] = useState(initial.userPhone ?? '');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
 
   const [configPending, startConfigTransition] = useTransition();
   const [addPending, startAddTransition] = useTransition();
+  const [userPhonePending, startUserPhoneTransition] = useTransition();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<
     null | { kind: 'ok'; text: string } | { kind: 'error'; text: string }
@@ -103,6 +110,26 @@ export function SafeContactForm({
       setFeedback({
         kind: 'ok',
         text: `Added ${res.contact.display_name || res.contact.email || res.contact.phone}. Next Safe Witness press-and-hold alerts them.`,
+      });
+    });
+  }
+
+  function saveUserPhone(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setFeedback(null);
+    startUserPhoneTransition(async () => {
+      const fd = new FormData();
+      fd.set('phone', userPhone.trim());
+      const res = await updateUserPhoneAction(fd);
+      if (!res.ok) {
+        setFeedback({ kind: 'error', text: res.error });
+        return;
+      }
+      setFeedback({
+        kind: 'ok',
+        text: res.phone
+          ? 'Your phone saved. Future alerts include a one-tap Call button.'
+          : 'Your phone cleared. The Call button will no longer appear in alerts.',
       });
     });
   }
@@ -238,6 +265,37 @@ export function SafeContactForm({
           className="btn-primary text-[13px] px-4 py-2 disabled:opacity-50"
         >
           {addPending ? 'Adding…' : 'Add contact'}
+        </button>
+      </form>
+
+      {/* User's own phone - included in every alert as a one-tap
+          Call button so contacts can reach the user directly. */}
+      <form onSubmit={saveUserPhone} className="space-y-2 rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 p-3">
+        <p className="text-[10px] uppercase tracking-[0.2em] text-ink-500 dark:text-cream-100/55">
+          Your phone (for the Call button in alerts)
+        </p>
+        <input
+          type="tel"
+          value={userPhone}
+          onChange={(e) => setUserPhone(e.target.value)}
+          placeholder="+14155551234"
+          className="input text-[13px] font-mono"
+          disabled={userPhonePending}
+          autoComplete="off"
+          inputMode="tel"
+        />
+        <p className="text-[11px] text-ink-500 dark:text-cream-100/45 leading-relaxed">
+          When Safe Witness fires, the alert email shows a one-tap
+          Call button so your contact reaches you instantly. International
+          format (+ then country code then number). Leave empty to hide the
+          button.
+        </p>
+        <button
+          type="submit"
+          disabled={userPhonePending}
+          className="btn-secondary text-[13px] px-4 py-2 disabled:opacity-50"
+        >
+          {userPhonePending ? 'Saving…' : 'Save my phone'}
         </button>
       </form>
 
