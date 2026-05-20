@@ -23,6 +23,7 @@ export const DEFAULT_MENU: MenuSection[] = [
       { href: '/counsel', label: 'Dashboard', hint: 'Overview' },
       { href: '/counsel/aid', label: 'Advottic Aid', hint: 'Ask about cases + law' },
       { href: '/counsel/calendar', label: 'Calendar', hint: 'Meetings, deadlines + integrations' },
+      { href: '/counsel/import', label: 'Import data', hint: 'Migrate clients, cases + documents' },
     ],
   },
   {
