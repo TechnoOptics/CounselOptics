@@ -149,17 +149,35 @@ export async function GET(request: NextRequest) {
       const raw = error.message ?? '';
       let friendly = raw;
       if (/code verifier|pkce|state.*mismatch/i.test(raw)) {
-        // The link was clicked in a different browser context than
-        // the one that requested it (email client opened it in
-        // Chrome instead of Opera, mobile mail app launched a new
-        // in-app browser, Opera VPN routed differently, etc.). The
-        // SAME-BROWSER 6-digit OTP path always works because no
-        // cookie crosses contexts - point the user at that field
-        // explicitly, since the previous "open fresh window" advice
-        // failed for them often enough that we now treat OTP as
-        // the recommended fix.
-        friendly =
-          "We can't finish here because the magic link opened in a different browser than the one you started in. Go back to the same browser you requested sign-in from, then type the 6-digit code from that same email into the field - that always works, even across browsers and devices.";
+        // PKCE verifier cookie didn't survive the round-trip. Fires
+        // in two distinct scenarios:
+        //   (a) Magic-link email opened in a different browser than
+        //       the one that requested sign-in (Outlook -> Edge while
+        //       you're in Opera). The cookie sits with the requester.
+        //   (b) OAuth round-trip (Microsoft/Google/Apple) dropped the
+        //       cookie. Common causes in Opera: built-in VPN rotated
+        //       the exit IP between request and callback, Tracking
+        //       Protection stripped third-party cookies during the
+        //       provider redirect, or strict-cookie mode dropped it.
+        // We sniff the referrer to give per-case advice; if we can't
+        // tell, we list both possibilities.
+        const ref = request.headers.get('referer') ?? '';
+        const fromMicrosoft = /login\.microsoftonline\.com|login\.live\.com/i.test(ref);
+        const fromGoogle = /accounts\.google\.com/i.test(ref);
+        const fromApple = /appleid\.apple\.com/i.test(ref);
+        const fromOauthProvider = fromMicrosoft || fromGoogle || fromApple;
+        if (fromOauthProvider) {
+          const providerName = fromMicrosoft
+            ? 'Microsoft'
+            : fromGoogle
+              ? 'Google'
+              : 'Apple';
+          friendly =
+            `Sign-in with ${providerName} got back here, but the security cookie that started the flow was dropped along the way. This usually means a browser-level cookie or tracking block on the redirect - in Opera, the built-in VPN or Tracking Protection are the most common cause. Try: (1) turn off Opera's VPN for this site (click the VPN badge in the URL bar), (2) allow third-party cookies for advottic.com under Site settings, then sign in again. Or use the email + 6-digit code path below, which doesn't depend on any cookie surviving the round-trip.`;
+        } else {
+          friendly =
+            "We can't finish here because the security cookie didn't survive the round-trip. If you used an email sign-in link, it most likely opened in a different browser than the one you started in - go back to that browser. Either way, the easiest fix is to use the email + 6-digit code path below; it works across any browser or device.";
+        }
       } else if (/unable to exchange external code|invalid client/i.test(raw)) {
         friendly =
           'The sign-in provider rejected the response. This is usually a temporary provider-side issue. Try again in a moment, or use the email + 6-digit code path below (magic link works without any provider). If this keeps happening, email support@advottic.com.';
