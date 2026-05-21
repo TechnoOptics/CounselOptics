@@ -14,6 +14,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -27,6 +28,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -62,6 +64,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
@@ -580,18 +583,21 @@ fun WearApp(summary: SummaryStore.Summary) {
                         bottom = 96.dp,
                     ),
                 ) {
-                    // Wordmark
+                    // Wordmark - swapped from a bold "ADVOTTIC" text
+                    // header to the columned-pillar brand mark so the
+                    // app body matches the email + web + tile + app-
+                    // icon brand surfaces. The thin gold underline
+                    // remains as a visual anchor under the mark.
                     item {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
-                            Text(
-                                text = "ADVOTTIC",
-                                color = Gold,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 4.sp,
-                                style = MaterialTheme.typography.title3,
-                                textAlign = TextAlign.Center,
+                            Image(
+                                painter = painterResource(
+                                    id = R.drawable.advottic_mark,
+                                ),
+                                contentDescription = "Advottic",
+                                modifier = Modifier.size(40.dp),
                             )
                             Spacer(Modifier.height(6.dp))
                             Box(
