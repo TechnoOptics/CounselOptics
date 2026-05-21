@@ -101,6 +101,65 @@ export default function TermsPage() {
         </ul>
       </Section>
 
+      <Section title="SMS (Safe Witness) messages">
+        <p>
+          Advottic includes an opt-in personal-safety feature called{' '}
+          <strong>Safe Witness</strong>. When you press and hold the Safe
+          Witness button (on your Wear OS watch or in the web app),
+          Advottic sends a one-time SMS alert to each trusted contact
+          you have explicitly added inside your account at{' '}
+          <code className="font-mono text-[12.5px]">/profile</code>.
+        </p>
+        <ul className="list-disc list-outside pl-6 space-y-1 mt-2">
+          <li>
+            <strong>Message content</strong>: a short verification PIN
+            (the code you pre-shared with the contact), the message you
+            authored, your GPS location URL, and a tel:911 link.
+          </li>
+          <li>
+            <strong>Frequency</strong>: one message per contact per
+            press. No recurring or scheduled messaging. No marketing.
+          </li>
+          <li>
+            <strong>Message and data rates may apply</strong> per your
+            mobile carrier&rsquo;s terms.
+          </li>
+          <li>
+            <strong>HELP</strong>: reply HELP to any Safe Witness SMS
+            for support, or email{' '}
+            <a
+              href="mailto:contact@advottic.com"
+              className="underline hover:text-forest-700"
+            >
+              contact@advottic.com
+            </a>
+            .
+          </li>
+          <li>
+            <strong>STOP</strong>: reply STOP to any Safe Witness SMS to
+            opt out of all future messages from Advottic. You can also
+            stop messages immediately by removing the contact from the
+            sender&rsquo;s Safe Witness list at{' '}
+            <code className="font-mono text-[12.5px]">/profile</code>.
+          </li>
+          <li>
+            <strong>Carriers</strong> (AT&amp;T, Verizon, T-Mobile, etc.)
+            are not liable for delayed or undelivered messages.
+          </li>
+        </ul>
+        <p className="mt-2">
+          By adding a phone number to your Safe Witness contacts, you
+          confirm you have the contact&rsquo;s permission to receive
+          these alerts and agree to receive them yourself when an
+          Advottic user lists your number. See our{' '}
+          <a href="/privacy" className="underline hover:text-forest-700">
+            Privacy Policy
+          </a>{' '}
+          for how we handle phone numbers shared with Twilio (our SMS
+          provider).
+        </p>
+      </Section>
+
       <Section title="Disclaimers">
         <p>
           The service is provided &ldquo;as is&rdquo; without warranties of any kind. We do not

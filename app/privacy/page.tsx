@@ -103,11 +103,24 @@ export default function PrivacyPage() {
           </li>
           <li>
             <strong>Resend</strong> - transactional email delivery (sign-in
-            magic links, signing request notifications, billing receipts,
-            collaborator invites). We send Resend the recipient address, the
-            email subject and body, and the rendered HTML. We do not send
-            case content beyond what the user has explicitly chosen to share
-            via email (e.g., a signing request).
+            codes, signing request notifications, billing receipts,
+            collaborator invites, Safe Witness alert emails). We send
+            Resend the recipient address, the email subject and body, and
+            the rendered HTML. We do not send case content beyond what
+            the user has explicitly chosen to share via email (e.g., a
+            signing request).
+          </li>
+          <li>
+            <strong>Twilio</strong> - SMS delivery for Safe Witness alerts
+            only. When a user triggers Safe Witness, we send Twilio the
+            recipient phone number and the alert text (which includes a
+            short verification PIN the user pre-shared with the contact,
+            the user&rsquo;s GPS location URL, and a tel:911 link). Twilio
+            is not used for any marketing or recurring messaging. The
+            recipient must have been explicitly added to the user&rsquo;s
+            Safe Witness contacts list inside Advottic before any
+            message can be sent, and the user can remove the contact at
+            any time from /profile to revoke future messages.
           </li>
         </ul>
       </Section>
