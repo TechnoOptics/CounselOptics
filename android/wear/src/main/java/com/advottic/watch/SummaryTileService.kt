@@ -60,7 +60,17 @@ class SummaryTileService : TileService() {
         val col = LayoutElementBuilders.Column.Builder()
             .setWidth(DimensionBuilders.wrap())
             .setHeight(DimensionBuilders.wrap())
-            .addContent(text("ADVOTTIC", 14f, GoldDeep, bold = true))
+            // v3 brand surface: the gold-A wordmark replaces the
+            // bare "ADVOTTIC" text label so the tile reads visually
+            // the same as the email + web headers. The image resource
+            // is registered in onTileResourcesRequest below.
+            .addContent(
+                LayoutElementBuilders.Image.Builder()
+                    .setResourceId("advottic_mark")
+                    .setWidth(DimensionBuilders.dp(36f))
+                    .setHeight(DimensionBuilders.dp(36f))
+                    .build(),
+            )
 
         if (s.hasData) {
             if (s.nextHearingAt > 0L) {
@@ -149,6 +159,20 @@ class SummaryTileService : TileService() {
         Futures.immediateFuture(
             ResourceBuilders.Resources.Builder()
                 .setVersion(RES_VERSION)
+                // Brand mark resource referenced by the tile heading.
+                // ImageResource binds the "advottic_mark" id used in
+                // LayoutElementBuilders.Image above to the drawable
+                // we ship at res/drawable-nodpi/advottic_mark.png.
+                .addIdToImageMapping(
+                    "advottic_mark",
+                    ResourceBuilders.ImageResource.Builder()
+                        .setAndroidResourceByResId(
+                            ResourceBuilders.AndroidImageResourceByResId.Builder()
+                                .setResourceId(R.drawable.advottic_mark)
+                                .build(),
+                        )
+                        .build(),
+                )
                 .build(),
         )
 
@@ -175,7 +199,9 @@ class SummaryTileService : TileService() {
     }
 
     companion object {
-        // Bumped: layout/colours changed materially from v1.
-        private const val RES_VERSION = "2"
+        // Bumped: v3 swaps the "ADVOTTIC" text label for the
+        // columned-pillar brand mark image, which means the
+        // resources packet changed shape.
+        private const val RES_VERSION = "3"
     }
 }

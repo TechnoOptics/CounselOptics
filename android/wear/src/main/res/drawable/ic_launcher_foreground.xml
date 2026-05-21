@@ -1,24 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Adaptive-icon foreground: a clean gold "A" monogram, kept well
-     inside the circular Wear safe zone (centre ~52dp of the 108
-     canvas). Stroke-built so it stays crisp at every density and
-     adds zero binary assets. -->
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-    <path
-        android:pathData="M36,80 L54,28 L72,80"
-        android:strokeColor="#FFE6CE93"
-        android:strokeWidth="8"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:fillColor="#00000000" />
-    <path
-        android:pathData="M43,60 L65,60"
-        android:strokeColor="#FFE6CE93"
-        android:strokeWidth="8"
-        android:strokeLineCap="round"
-        android:fillColor="#00000000" />
-</vector>
+<!-- Adaptive-icon foreground: the proper Advottic pillar/columned
+     mark (advottic_mark.png) instead of the previous stroked "A"
+     monogram, so the watch's app-list icon matches the brand mark
+     used in the email + on the web.
+
+     Adaptive-icon math: the foreground drawable spans the full
+     108dp viewport, but the system's mask (circle on Wear, rounded
+     square on phones) clips everything outside the centre 66dp safe
+     zone. We <inset> the bitmap by ~21dp on each side (= (108-66)/2)
+     so the gold pillar artwork lands inside that safe zone in every
+     mask shape Wear / Android ships.
+
+     `gravity="fill"` on the inner bitmap stretches it to the inset
+     bounds while preserving aspect (the source PNG is roughly square
+     itself), so the pillar fills the safe zone tightly without
+     getting cropped at the edges. -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:insetLeft="21dp"
+    android:insetTop="21dp"
+    android:insetRight="21dp"
+    android:insetBottom="21dp">
+    <bitmap
+        android:src="@drawable/advottic_mark"
+        android:gravity="fill" />
+</inset>
