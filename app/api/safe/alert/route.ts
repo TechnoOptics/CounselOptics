@@ -221,6 +221,16 @@ export async function POST(req: NextRequest) {
     minute: '2-digit',
     timeZoneName: 'short',
   });
+  // Short clock-only form for inside the map caption, so the contact
+  // sees "Last known location at 5:34 AM CDT" without the date noise.
+  // Used to anchor the moving-target caveat: the longer it's been
+  // since this timestamp, the wider the search radius the contact
+  // should consider when responding.
+  const timeShort = firedAt.toLocaleString(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZoneName: 'short',
+  });
   // Location pack: every URL the email/SMS can offer in one place.
   // If we don't have lat/lng, everything but Call 911 becomes null
   // and the email gracefully skips those rows.
@@ -363,7 +373,18 @@ export async function POST(req: NextRequest) {
     }
     .adv-pulse-wrap { animation: advPulse 1.6s ease-out infinite; }
   </style>
-  <div style="text-align: center; padding-bottom: 16px; border-bottom: 1px solid rgba(230, 206, 147, 0.25);">
+  <!-- Advottic brand header. Logo first so the email is instantly
+       recognizable as Advottic in the recipient's inbox preview;
+       Safe Witness Alert eyebrow + watcher name follow underneath. -->
+  <div style="text-align: center; padding-bottom: 18px; margin-bottom: 6px; border-bottom: 1px solid rgba(230, 206, 147, 0.25);">
+    <a href="https://advottic.com" style="text-decoration: none; display: inline-block;">
+      <img
+        src="https://advottic.com/advottic-wordmark.png"
+        alt="Advottic"
+        width="180"
+        style="display: inline-block; width: 180px; max-width: 60%; height: auto; margin: 0 0 16px;"
+      />
+    </a>
     <p style="margin: 0; font-size: 12px; letter-spacing: 3px; text-transform: uppercase; color: #E5816B; font-weight: 600;">Safe Witness Alert</p>
     <h1 style="margin: 8px 0 0; font-size: 24px; color: #E6CE93; font-weight: 600;">${watcherLabel}</h1>
   </div>
@@ -452,17 +473,32 @@ export async function POST(req: NextRequest) {
              }; border-radius: 50%; vertical-align: middle; margin-right: 6px;"></span>
              ${
                locationIsConfident
-                 ? 'Live location at the moment the alert fired. Tap to open in Maps.'
+                 ? `Last known location at <strong>${escapeHtml(timeShort)}</strong>. Tap to open in Maps.`
                  : `Approximate location ${
                      accuracyLabel ? `(${accuracyLabel} radius)` : ''
-                   }. Tap to open in Maps.`
+                   } at <strong>${escapeHtml(timeShort)}</strong>. Tap to open in Maps.`
              }
+           </p>
+           <!-- Moving-target caveat: the pin is a single point in
+                time, captured the second the press fired. If
+                ${escapeHtml(watcherFirst)} is being moved (by car,
+                walking, etc.), the actual location now is somewhere
+                near this dot but not exactly on it. The longer it
+                takes you to read this email, the wider the search
+                radius. Treat the pin as a starting point. -->
+           <p style="margin: 6px 0 0; font-size: 11px; color: rgba(251, 247, 233, 0.55); text-align: center; font-style: italic;">
+             ${escapeHtml(watcherFirst)} could be moving. Use this dot as a starting point - the longer ago this alert fired, the wider the search radius.
            </p>
          </div>`
       : hasLoc
-        ? `<p style="margin: 0 0 16px; font-size: 12px; color: rgba(251, 247, 233, 0.55);">
-             Map preview disabled (operator: set GOOGLE_MAPS_API_KEY to enable). Use the View Location button below.
-           </p>`
+        ? `<div style="margin: 0 0 16px; padding: 14px 16px; background: rgba(251, 247, 233, 0.04); border-radius: 10px; border-left: 3px solid rgba(229, 129, 107, 0.45);">
+             <p style="margin: 0; font-size: 12.5px; color: rgba(251, 247, 233, 0.85); line-height: 1.55;">
+               Map preview unavailable right now. Tap <strong>View location</strong> below to open the coordinates in Maps - the pin works regardless.
+             </p>
+             <p style="margin: 6px 0 0; font-size: 11px; color: rgba(251, 247, 233, 0.55); line-height: 1.55;">
+               Last known location at <strong>${escapeHtml(timeShort)}</strong>. ${escapeHtml(watcherFirst)} could be moving - widen your search the longer this email has been sitting.
+             </p>
+           </div>`
         : ''
   }
 

@@ -146,14 +146,104 @@ export function SafeContactForm({
     setContacts((c) => c.filter((x) => x.id !== id));
   }
 
+  // Setup checklist: three things must be true before Safe Witness is
+  // fully usable - your own phone is saved (so contacts can dial you),
+  // at least one contact exists, and you've told that contact about
+  // the PIN. Surface a per-step amber-bordered checklist at the top
+  // so the user always knows what's left. Each row is clickable to
+  // scroll to the matching field.
+  const userPhoneOk = userPhone.trim().length > 0;
+  const contactsOk = contacts.length > 0;
+  const pinOk = pin.trim().length > 0;
+  const setupCompleteCount =
+    (userPhoneOk ? 1 : 0) + (contactsOk ? 1 : 0) + (pinOk ? 1 : 0);
+  const setupTotal = 3;
+  const setupFullyDone = setupCompleteCount === setupTotal;
+
   return (
     <div className="space-y-5">
-      {/* Empty-state callout - unmissable when nothing is configured. */}
-      {contacts.length === 0 && (
-        <div className="rounded-lg ring-1 ring-rose-300/60 dark:ring-rose-500/40 bg-rose-50/70 dark:bg-rose-950/30 p-3 text-[12.5px] text-rose-900 dark:text-rose-200 leading-relaxed">
-          <strong>Safe Witness is OFF.</strong> No contacts saved yet, so
-          pressing the watch button does nothing. Add at least one
-          contact below to enable it.
+      {/* User's own phone - moved to the top of the form because
+          step 1 of the checklist says to save it. The card gets a
+          rose attention-ring while the field is still empty (the
+          highest-priority missing piece). After saving it switches
+          to the same calm neutral ring as the rest of the form. */}
+      <form
+        onSubmit={saveUserPhone}
+        className={`space-y-2 rounded-lg ring-1 p-3 ${
+          userPhone.trim().length > 0
+            ? 'ring-ink-200 dark:ring-forest-700/40'
+            : 'ring-rose-300/70 dark:ring-rose-500/40 bg-rose-50/30 dark:bg-rose-950/15'
+        }`}
+      >
+        <p className="text-[10px] uppercase tracking-[0.2em] text-ink-500 dark:text-cream-100/55">
+          Step 1 - Your phone (so contacts can call you back)
+        </p>
+        <input
+          type="tel"
+          value={userPhone}
+          onChange={(e) => setUserPhone(e.target.value)}
+          placeholder="+14155551234"
+          className="input text-[13px] font-mono"
+          disabled={userPhonePending}
+          autoComplete="off"
+          inputMode="tel"
+        />
+        <p className="text-[11px] text-ink-500 dark:text-cream-100/45 leading-relaxed">
+          When Safe Witness fires, the alert email shows a one-tap
+          <strong> Call </strong>button so your contact reaches you
+          instantly. International format (+ then country code then
+          number). Leave empty to hide the button.
+        </p>
+        <button
+          type="submit"
+          disabled={userPhonePending}
+          className="btn-primary text-[13px] px-4 py-2 disabled:opacity-50"
+        >
+          {userPhonePending ? 'Saving…' : 'Save my phone'}
+        </button>
+      </form>
+
+      {/* Setup checklist - replaces the old single OFF banner.
+          Renders even when partially configured so the user can see
+          their progress and what's still missing. */}
+      {!setupFullyDone && (
+        <div className="rounded-lg ring-1 ring-rose-300/60 dark:ring-rose-500/40 bg-rose-50/70 dark:bg-rose-950/30 p-4 text-[13px] text-rose-900 dark:text-rose-200 leading-relaxed">
+          <p className="font-semibold mb-2">
+            Safe Witness setup ({setupCompleteCount} of {setupTotal})
+          </p>
+          <ul className="space-y-1.5 text-[12.5px]">
+            <li className="flex items-start gap-2">
+              <span aria-hidden className="font-mono mt-0.5">
+                {userPhoneOk ? '✓' : '○'}
+              </span>
+              <span className={userPhoneOk ? 'opacity-70' : ''}>
+                <strong>Save your own phone</strong> so the alert email
+                shows a one-tap Call button to you. Field is below in the
+                rose-bordered card.
+              </span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span aria-hidden className="font-mono mt-0.5">
+                {contactsOk ? '✓' : '○'}
+              </span>
+              <span className={contactsOk ? 'opacity-70' : ''}>
+                <strong>Add at least one trusted contact</strong> (email
+                or phone or both). Press-and-hold the watch button will
+                alert every contact on the list.
+              </span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span aria-hidden className="font-mono mt-0.5">
+                {pinOk ? '✓' : '○'}
+              </span>
+              <span className={pinOk ? 'opacity-70' : ''}>
+                <strong>Set a PIN and tell your contact</strong> what it
+                is - in person, by text, on paper. The PIN shows in the
+                alert so the contact can verify it&rsquo;s really from
+                you and not a phishing attempt.
+              </span>
+            </li>
+          </ul>
         </div>
       )}
 
@@ -265,37 +355,6 @@ export function SafeContactForm({
           className="btn-primary text-[13px] px-4 py-2 disabled:opacity-50"
         >
           {addPending ? 'Adding…' : 'Add contact'}
-        </button>
-      </form>
-
-      {/* User's own phone - included in every alert as a one-tap
-          Call button so contacts can reach the user directly. */}
-      <form onSubmit={saveUserPhone} className="space-y-2 rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 p-3">
-        <p className="text-[10px] uppercase tracking-[0.2em] text-ink-500 dark:text-cream-100/55">
-          Your phone (for the Call button in alerts)
-        </p>
-        <input
-          type="tel"
-          value={userPhone}
-          onChange={(e) => setUserPhone(e.target.value)}
-          placeholder="+14155551234"
-          className="input text-[13px] font-mono"
-          disabled={userPhonePending}
-          autoComplete="off"
-          inputMode="tel"
-        />
-        <p className="text-[11px] text-ink-500 dark:text-cream-100/45 leading-relaxed">
-          When Safe Witness fires, the alert email shows a one-tap
-          Call button so your contact reaches you instantly. International
-          format (+ then country code then number). Leave empty to hide the
-          button.
-        </p>
-        <button
-          type="submit"
-          disabled={userPhonePending}
-          className="btn-secondary text-[13px] px-4 py-2 disabled:opacity-50"
-        >
-          {userPhonePending ? 'Saving…' : 'Save my phone'}
         </button>
       </form>
 
