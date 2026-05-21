@@ -11,11 +11,17 @@ import { CallALawyerCallout } from '@/components/CallALawyerCallout';
 // other three. These replace the old 4-tab "tabs inside the
 // Review tab" pattern (user complaint: "tabs that have tabs felt
 // like a maze").
+//
+// Order matters: "Next steps" leads because that's the section
+// the user actually came here to read. Overview / Facts / Evidence
+// follow as supporting context. Earlier we put Overview first
+// (the AI's framing), which buried the actionable bullets behind
+// three sections of preamble.
 const SECTIONS: { id: string; label: string }[] = [
+  { id: 'review-actions', label: 'Next steps' },
   { id: 'review-overview', label: 'Overview' },
   { id: 'review-facts', label: 'Facts & issues' },
   { id: 'review-evidence', label: 'Evidence & discovery' },
-  { id: 'review-actions', label: 'Next steps' },
 ];
 
 export function ReviewPanel({
@@ -141,6 +147,9 @@ export function ReviewPanel({
           <SectionNav />
 
           <div className="p-6 md:p-7 space-y-10">
+            <SectionHeading id="review-actions" label="Next steps" />
+            <Actions review={review} />
+
             <SectionHeading id="review-overview" label="Overview" />
             <Overview review={review} />
 
@@ -149,9 +158,6 @@ export function ReviewPanel({
 
             <SectionHeading id="review-evidence" label="Evidence & discovery" />
             <Evidence review={review} />
-
-            <SectionHeading id="review-actions" label="Next steps" />
-            <Actions review={review} />
           </div>
 
           <div className="border-t border-ink-100 px-5 py-3 bg-ink-50/50">
