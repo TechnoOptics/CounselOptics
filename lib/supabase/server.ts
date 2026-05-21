@@ -52,14 +52,37 @@ export function createServerSupabase() {
   });
 }
 
-/** Returns the current authenticated user or null. */
+/** Returns the current authenticated user or null.
+ *
+ * Defensive try/catch: if Supabase's session-recovery throws (e.g.
+ * `Invalid UTF-8 sequence` from a corrupted cookie or a malformed
+ * refresh token), we treat the visitor as signed-out and let the
+ * page render rather than 500'ing the whole route. The middleware
+ * already does this; we now mirror it here so every server
+ * component that calls getCurrentUser() is equally resilient.
+ *
+ * Without this guard, an Edge-runtime decode failure inside
+ * `_recoverAndRefresh` cascades through every server component
+ * that reads the user, producing a site-wide "Application error:
+ * a server-side exception has occurred" page. May 2026 incident.
+ */
 export async function getCurrentUser() {
   if (!isSupabaseConfigured()) return null;
-  const supabase = createServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user;
+  try {
+    const supabase = createServerSupabase();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    return user;
+  } catch (err) {
+    // Surface the message to runtime logs without re-throwing.
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[server-supabase] getCurrentUser failed; treating as signed-out:',
+      err instanceof Error ? err.message : err,
+    );
+    return null;
+  }
 }
 
 /** Like getCurrentUser, but throws if no user - for server actions and protected routes. */
