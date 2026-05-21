@@ -373,16 +373,19 @@ export async function POST(req: NextRequest) {
     }
     .adv-pulse-wrap { animation: advPulse 1.6s ease-out infinite; }
   </style>
-  <!-- Advottic brand header. Logo first so the email is instantly
-       recognizable as Advottic in the recipient's inbox preview;
-       Safe Witness Alert eyebrow + watcher name follow underneath. -->
+  <!-- Advottic brand header. We use the same gold 'A' mark that the
+       Wear OS watch shows on its launcher + tile, so the recipient's
+       inbox preview reads as the same product their watcher just used
+       to fire the alert. The mark is square so we size it tight (72px)
+       rather than the wide wordmark we used in v4. -->
   <div style="text-align: center; padding-bottom: 18px; margin-bottom: 6px; border-bottom: 1px solid rgba(230, 206, 147, 0.25);">
     <a href="https://advottic.com" style="text-decoration: none; display: inline-block;">
       <img
-        src="https://advottic.com/advottic-wordmark.png"
+        src="https://advottic.com/advottic-mark.png"
         alt="Advottic"
-        width="180"
-        style="display: inline-block; width: 180px; max-width: 60%; height: auto; margin: 0 0 16px;"
+        width="72"
+        height="72"
+        style="display: inline-block; width: 72px; height: 72px; max-width: 72px; margin: 0 0 14px;"
       />
     </a>
     <p style="margin: 0; font-size: 12px; letter-spacing: 3px; text-transform: uppercase; color: #E5816B; font-weight: 600;">Safe Witness Alert</p>
@@ -612,7 +615,7 @@ export async function POST(req: NextRequest) {
       } the next step depends on what you know about their situation: their last known location, who they were with, or whether you need to escalate to local emergency services (in the US: 911).
     </p>
     <p style="margin: 0;">
-      Safe Witness is a feature in Advottic that lets a user discreetly
+      Safe Witness is a feature in <img src="https://advottic.com/advottic-mark.png" alt="Advottic" width="16" height="16" style="display: inline-block; width: 16px; height: 16px; vertical-align: -3px; margin: 0 1px;" /> that lets a user discreetly
       notify someone they trust when they feel unsafe. You were chosen as that contact.
     </p>
   </div>
