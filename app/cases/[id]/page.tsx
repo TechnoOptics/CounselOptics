@@ -26,7 +26,6 @@ import { BellaPrompt } from '@/components/BellaPrompt';
 import { DeleteCaseButton } from './delete-case-button';
 import { PresenceIndicator } from '@/components/PresenceIndicator';
 import { ViewTracker } from './view-tracker';
-import { NextStepsPill } from './next-steps-pill';
 import { listCaseAuditEvents } from '@/lib/activity';
 import { ActivityList } from './activity-list';
 import { CaseSearch, type SearchItem } from './case-search';
@@ -353,19 +352,6 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
           }}
           ctaLabel="Find counsel near you"
         />
-      )}
-
-      {/*
-        Next Steps pill. Sits between the call-a-lawyer callouts and
-        the top tabs so it's the first thing the user sees once they
-        scroll past the header. Surfaces Advottic Review's Next
-        steps (or a Run Review CTA) in a slide-over - users
-        previously got "stuck" on the Case tab without realizing
-        Analysis even existed. Hidden for witnesses since the
-        Review surface isn't theirs.
-      */}
-      {!isWitness && (
-        <NextStepsPill caseId={c.id} review={review} />
       )}
 
       {/*
