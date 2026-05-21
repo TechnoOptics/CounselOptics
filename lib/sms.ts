@@ -50,8 +50,24 @@ export async function sendSms(input: {
 
   // Twilio REST API: POST application/x-www-form-urlencoded with
   // Basic auth (sid:token base64).
+  //
+  // TWILIO_FROM can be either:
+  //   - a raw E.164 phone number (e.g. "+19528000086") -> sent via
+  //     the `From` parameter, which is fine for trial accounts but
+  //     gets carrier-rejected (warning 30034) for US A2P traffic
+  //     unless the number is independently registered.
+  //   - a Messaging Service SID (starts with "MG", followed by 32
+  //     hex chars) -> sent via `MessagingServiceSid`. This is the
+  //     A2P-compliant path: the service is linked to a registered
+  //     10DLC campaign, so US carriers (T-Mobile, AT&T, Verizon)
+  //     accept the message instead of dropping it.
+  // We auto-detect which form was supplied so the env can be flipped
+  // without a code change.
   const auth = Buffer.from(`${sid}:${token}`).toString('base64');
-  const form = new URLSearchParams({ From: from, To: to, Body: body });
+  const isMessagingServiceSid = /^MG[0-9a-f]{32}$/i.test(from);
+  const form = isMessagingServiceSid
+    ? new URLSearchParams({ MessagingServiceSid: from, To: to, Body: body })
+    : new URLSearchParams({ From: from, To: to, Body: body });
   try {
     const res = await fetch(
       `https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`,
