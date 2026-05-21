@@ -299,7 +299,12 @@ export async function POST(req: NextRequest) {
         new URLSearchParams({
           center: `${lat},${lng}`,
           zoom: staticMapZoom,
-          size: '600x300',
+          // v6: was 600x300, bumped to 640x440 after user feedback
+          // that the map was too compressed to actually read the
+          // streets around the pin. Aspect is now ~1.45:1 which is
+          // wide enough to span the email column and tall enough to
+          // show a meaningful block radius around the marker.
+          size: '640x440',
           scale: '2',
           maptype: 'roadmap',
           markers: staticMapMarkers,
@@ -376,20 +381,21 @@ export async function POST(req: NextRequest) {
   <!-- Advottic brand header. We use the same gold 'A' mark that the
        Wear OS watch shows on its launcher + tile, so the recipient's
        inbox preview reads as the same product their watcher just used
-       to fire the alert. The mark is square so we size it tight (72px)
-       rather than the wide wordmark we used in v4. -->
-  <div style="text-align: center; padding-bottom: 18px; margin-bottom: 6px; border-bottom: 1px solid rgba(230, 206, 147, 0.25);">
+       to fire the alert. v6: bumped from 72px to 128px after user
+       feedback that the mark was too quiet relative to the headline
+       under it. -->
+  <div style="text-align: center; padding-bottom: 22px; margin-bottom: 6px; border-bottom: 1px solid rgba(230, 206, 147, 0.25);">
     <a href="https://advottic.com" style="text-decoration: none; display: inline-block;">
       <img
         src="https://advottic.com/advottic-mark.png"
         alt="Advottic"
-        width="72"
-        height="72"
-        style="display: inline-block; width: 72px; height: 72px; max-width: 72px; margin: 0 0 14px;"
+        width="128"
+        height="128"
+        style="display: inline-block; width: 128px; height: 128px; max-width: 128px; margin: 0 0 16px;"
       />
     </a>
     <p style="margin: 0; font-size: 12px; letter-spacing: 3px; text-transform: uppercase; color: #E5816B; font-weight: 600;">Safe Witness Alert</p>
-    <h1 style="margin: 8px 0 0; font-size: 24px; color: #E6CE93; font-weight: 600;">${watcherLabel}</h1>
+    <h1 style="margin: 10px 0 0; font-size: 26px; color: #E6CE93; font-weight: 600;">${watcherLabel}</h1>
   </div>
 
   ${
