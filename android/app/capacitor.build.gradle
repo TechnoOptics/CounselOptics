@@ -13,8 +13,10 @@ dependencies {
     implementation project(':capacitor-community-speech-recognition')
     implementation project(':capacitor-app')
     implementation project(':capacitor-browser')
+    implementation project(':capacitor-camera')
     implementation project(':capacitor-device')
     implementation project(':capacitor-preferences')
+    implementation project(':capgo-capacitor-social-login')
 
 }
 

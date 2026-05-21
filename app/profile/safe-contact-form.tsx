@@ -162,6 +162,33 @@ export function SafeContactForm({
 
   return (
     <div className="space-y-5">
+      {/* SMS carrier-review banner. When Twilio is *configured* on
+          the server (smsConfigured=true) we still might be unable to
+          deliver SMS to US numbers because the A2P 10DLC campaign is
+          mid carrier review. Twilio's API accepts the request and
+          returns success (which is why our dispatch records read
+          'sms_ok: true'), but T-Mobile / AT&T / Verizon drop the
+          message with warning 30034. The banner sets the right
+          expectation so a new user doesn't think they configured the
+          feature wrong. Email + the on-watch press still work end-to-
+          end; only SMS is gated. Remove this block once Twilio flips
+          the campaign to Verified. */}
+      {smsConfigured && (
+        <div className="rounded-lg ring-1 ring-amber-300/70 dark:ring-amber-500/40 bg-amber-50/40 dark:bg-amber-950/20 p-3">
+          <p className="text-[10px] uppercase tracking-[0.2em] text-amber-700 dark:text-amber-300 mb-1">
+            Heads up - SMS pending carrier review
+          </p>
+          <p className="text-[12.5px] text-ink-700 dark:text-cream-100/80 leading-relaxed">
+            Email alerts deliver normally and the watch press fires
+            end-to-end. SMS to US numbers is currently held by the
+            carriers (T-Mobile, AT&amp;T, Verizon) while Twilio
+            finishes A2P 10DLC campaign approval - typically 1-3 days
+            after registration. Texts will start landing automatically
+            the moment the campaign is verified; no action needed on
+            your side.
+          </p>
+        </div>
+      )}
       {/* User's own phone - moved to the top of the form because
           step 1 of the checklist says to save it. The card gets a
           rose attention-ring while the field is still empty (the

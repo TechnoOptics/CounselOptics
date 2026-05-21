@@ -311,6 +311,22 @@ export async function POST(req: NextRequest) {
           key: mapsApiKey,
         }).toString()
       : null;
+  // Live tracker URL. Points at /safe/alert/<alert-id>, which is the
+  // browser page that pairs the static map in the email with the
+  // contact's own live position (via navigator.geolocation), updates
+  // the distance read-out as they move, and surfaces the same quick-
+  // action buttons. The URL contains an unguessable UUID so knowing
+  // the link IS the auth - the recipient does not need an Advottic
+  // account.
+  // We fall back to the apex site URL if NEXT_PUBLIC_SITE_URL is
+  // unset; this matters in dev where the host differs.
+  const siteUrlForLinks =
+    (process.env.NEXT_PUBLIC_SITE_URL ?? '').trim().replace(/\/+$/, '') ||
+    'https://advottic.com';
+  const trackerLink = alertId
+    ? `${siteUrlForLinks}/safe/alert/${alertId}`
+    : null;
+
   // Mailto link that pre-fills a fresh email so the contact can
   // forward the alert to family / police / a second responder in
   // one tap. Body cap kept short - long mailto bodies break in
@@ -470,7 +486,7 @@ export async function POST(req: NextRequest) {
                } style="padding: 0; border-radius: 14px; border: 3px solid ${
                  locationIsConfident ? '#E55050' : 'rgba(229, 129, 107, 0.45)'
                };">
-                 <a href="${mapLink}" style="display: block; text-decoration: none;">
+                 <a href="${trackerLink ?? mapLink}" style="display: block; text-decoration: none;">
                    <img src="${staticMapUrl}" alt="Their location on a map" width="600" style="display: block; width: 100%; max-width: 600px; height: auto; border-radius: 11px;" />
                  </a>
                </td>
@@ -482,10 +498,10 @@ export async function POST(req: NextRequest) {
              }; border-radius: 50%; vertical-align: middle; margin-right: 6px;"></span>
              ${
                locationIsConfident
-                 ? `Last known location at <strong>${escapeHtml(timeShort)}</strong>. Tap to open in Maps.`
+                 ? `Last known location at <strong>${escapeHtml(timeShort)}</strong>. Tap to open the live tracker.`
                  : `Approximate location ${
                      accuracyLabel ? `(${accuracyLabel} radius)` : ''
-                   } at <strong>${escapeHtml(timeShort)}</strong>. Tap to open in Maps.`
+                   } at <strong>${escapeHtml(timeShort)}</strong>. Tap to open the live tracker.`
              }
            </p>
            <!-- Moving-target caveat: the pin is a single point in
@@ -543,6 +559,22 @@ export async function POST(req: NextRequest) {
        + Police (find help nearby). View + Share live in a final row
        so the primary actions stay above the fold. -->
   <p style="margin: 14px 0 8px; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: rgba(251, 247, 233, 0.55); text-align: center;">Quick actions</p>
+  ${
+    trackerLink
+      ? `<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0 0 8px;">
+           <tr>
+             <td style="padding: 4px;">
+               <a href="${trackerLink}" style="display: block; padding: 16px 8px; background: #E6CE93; color: #0B1F19; text-align: center; text-decoration: none; border-radius: 10px; font-weight: 800; font-size: 15px; letter-spacing: 0.4px;">
+                 Open live tracker &rarr;
+               </a>
+               <p style="margin: 6px 0 0; font-size: 10.5px; color: rgba(251, 247, 233, 0.55); text-align: center; line-height: 1.5;">
+                 Shows ${escapeHtml(watcherFirst)}&rsquo;s last-known pin plus your own live position and the distance between you.
+               </p>
+             </td>
+           </tr>
+         </table>`
+      : ''
+  }
   <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 0 0 20px;">
     <tr>
       <td width="50%" style="padding: 4px;">

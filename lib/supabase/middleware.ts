@@ -419,7 +419,54 @@ export async function updateSession(request: NextRequest) {
     }
   } catch (err) {
     // Surfacing the message to Vercel runtime logs, not the user.
-    console.warn('[middleware] auth check failed; passing through:', err instanceof Error ? err.message : err);
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn('[middleware] auth check failed; passing through:', msg);
+
+    // Root-cause repair for the May 2026 'Invalid UTF-8 sequence in
+    // _recoverAndRefresh' incident. When Supabase's session-recovery
+    // throws a decode error, the cookie set on this browser is
+    // corrupt - typically from a chunked auth cookie where stale `.N`
+    // suffix chunks from a previous session mixed with fresh ones,
+    // making the concatenated base64 unparseable. The defensive
+    // try/catch above stops it from 500-ing the page, but the user
+    // is STILL stuck because every subsequent request sends the same
+    // bad cookies and the same throw happens.
+    //
+    // Fix: when the failure looks like a decode error, explicitly
+    // clear every Supabase auth cookie on this response so the
+    // browser starts fresh on the next request. The user gets bumped
+    // to a signed-out state (better than a hard error) and can
+    // re-authenticate cleanly. We are conservative about which errors
+    // qualify so a transient network blip doesn't log everyone out.
+    const looksLikeDecodeError =
+      msg.toLowerCase().includes('utf-8') ||
+      msg.toLowerCase().includes('invalid character') ||
+      msg.toLowerCase().includes('malformed') ||
+      msg.toLowerCase().includes('unexpected token');
+    if (looksLikeDecodeError) {
+      // Iterate all incoming cookies; any sb-*-auth-token (with or
+      // without a chunk-suffix .0/.1/.2/...) gets cleared on the
+      // response. We also clear pkce-verifier in case the OAuth
+      // handshake left a stale value behind.
+      for (const c of request.cookies.getAll()) {
+        const name = c.name;
+        const isSupabaseAuth =
+          /^sb-[^-]+-auth-token(\.\d+)?$/.test(name) ||
+          /^sb-[^-]+-auth-token-code-verifier$/.test(name);
+        if (isSupabaseAuth) {
+          response.cookies.set(name, '', {
+            expires: new Date(0),
+            path: '/',
+            ...(cookieDomainForHost(host)
+              ? { domain: cookieDomainForHost(host)! }
+              : {}),
+          });
+        }
+      }
+      console.warn(
+        '[middleware] cleared corrupt Supabase auth cookies after decode failure',
+      );
+    }
   }
 
   return response;

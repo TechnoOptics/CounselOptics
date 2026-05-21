@@ -1065,16 +1065,34 @@ fun WearApp(summary: SummaryStore.Summary) {
                                                 Manifest.permission.ACCESS_FINE_LOCATION,
                                             )
                                         }
-                                        scope.launch {
-                                            // v3-safety: get the best fix we
-                                            // can in 15s and pass accuracy
-                                            // through so the server can warn
-                                            // the contact if the dot's
-                                            // approximate. A wrong-by-800m
-                                            // pin is worse than no pin in
-                                            // an emergency, so we'd rather
-                                            // send "approximate" honestly
-                                            // than confident-but-wrong.
+                                        // v3-safety regression-fix (May 2026):
+                                        // launch on a PROCESS-bound scope, not
+                                        // the composable scope. Previously this
+                                        // was `scope.launch { ... }` where
+                                        // `scope = rememberCoroutineScope()` -
+                                        // that scope cancels when the composable
+                                        // leaves composition, which happens
+                                        // ~5-10s after the press as the Wear OS
+                                        // screen dims. With the old 15s GPS
+                                        // wait inside LocationCapture, the
+                                        // coroutine was always cancelled before
+                                        // WatchApi.sendSafeAlert ran. Result:
+                                        // visible press feedback on the wrist
+                                        // but zero POSTs to /api/safe/alert.
+                                        //
+                                        // GlobalScope is the right fit for an
+                                        // emergency fire-and-forget: the user
+                                        // has already received haptic
+                                        // confirmation; we just need the
+                                        // network call to complete regardless
+                                        // of UI lifecycle. Combined with the
+                                        // 5s LocationCapture timeout, the
+                                        // request lands well within any
+                                        // reasonable screen-on window.
+                                        @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
+                                        kotlinx.coroutines.GlobalScope.launch(
+                                            kotlinx.coroutines.Dispatchers.IO,
+                                        ) {
                                             val fix = if (LocationCapture.hasPermission(context)) {
                                                 LocationCapture.get(context)
                                             } else null

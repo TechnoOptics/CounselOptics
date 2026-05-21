@@ -83,6 +83,23 @@ object LocationCapture {
      * Best-effort fix within [timeoutMs]. Streams updates and keeps
      * the best one seen.
      *
+     * v3-safety regression-fix (May 2026): the previous default
+     * timeout of 15s was longer than the Wear OS screen-on window
+     * after the press-and-hold completes. The composable's
+     * rememberCoroutineScope() was tied to the displayed screen, so
+     * once the watch dimmed (~5-10s after the last interaction) the
+     * scope cancelled and the network call to /api/safe/alert never
+     * happened. Confirmed with Vercel logs: 0 POSTs to the alert
+     * endpoint despite a press that visually completed on the watch.
+     *
+     * Fix: drop the default to 5s. Combined with the post-press
+     * screen-on time, we have ~9s budget for GPS + HTTP. Most
+     * subsequent fixes arrive within 3-4s when GPS was warm from a
+     * prior request, and the server-side accuracy banner already
+     * surfaces "approximate location" when the fix is poor, so
+     * trading some accuracy for delivery reliability is the right
+     * call for an emergency feature.
+     *
      * @param timeoutMs hard upper bound; we always return by then.
      * @param goodEnoughAccuracyM stop early if a fix arrives within
      *   this radius. Default 25m which is "same building / same
@@ -90,7 +107,7 @@ object LocationCapture {
      */
     suspend fun get(
         ctx: Context,
-        timeoutMs: Long = 15_000L,
+        timeoutMs: Long = 5_000L,
         goodEnoughAccuracyM: Float = 25f,
     ): Fix? {
         if (!hasPermission(ctx)) return null

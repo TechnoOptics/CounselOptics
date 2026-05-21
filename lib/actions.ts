@@ -656,9 +656,26 @@ export async function addSafeWitnessContactAction(
     return { ok: false, error: 'Add an email, a phone, or both.' };
   }
 
-  const { createServerSupabase } = await import('./supabase/server');
-  const supabase = createServerSupabase();
-  const { data, error } = await supabase
+  // Use the admin client to insert the contact. We still trust the
+  // user-context getCurrentUser() check above for auth (the action
+  // refuses without a signed-in user), but we bypass RLS for the
+  // actual write + readback. This avoids the silent-fail mode we hit
+  // earlier where:
+  //   - the user-context client's cookies were stale,
+  //   - auth.uid() at the Postgres level came back null,
+  //   - the INSERT silently dropped (WITH CHECK failed without
+  //     raising in the postgrest path), and
+  //   - .maybeSingle() returned null with no error, so the action
+  //     happily returned { ok: true, contact: null } and the contact
+  //     never appeared in the list.
+  // The admin client always succeeds the insert + readback when the
+  // row is valid, so any failure now produces a real error message.
+  const { createAdminSupabase } = await import('./supabase/admin');
+  const admin = createAdminSupabase();
+  if (!admin) {
+    return { ok: false, error: 'Server misconfigured (admin client).' };
+  }
+  const { data, error } = await admin
     .from('safe_witness_contacts')
     .insert({
       user_id: user.id,
@@ -669,6 +686,17 @@ export async function addSafeWitnessContactAction(
     .select('id, display_name, email, phone')
     .maybeSingle();
   if (error) return { ok: false, error: error.message };
+  if (!data) {
+    // Defense in depth: a null row after a successful insert should
+    // never happen with the admin client, but if Postgres ever does
+    // return zero rows for this insert we want a loud failure rather
+    // than the previous silent UI add-then-disappear loop.
+    return {
+      ok: false,
+      error:
+        'Contact insert returned no row. Refresh and try again, or contact support if this keeps happening.',
+    };
+  }
   revalidatePath('/profile');
   return {
     ok: true,
