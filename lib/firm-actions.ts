@@ -379,6 +379,100 @@ export async function removeFirmLogoAction(
   return { ok: true };
 }
 
+// Letterhead is a separate asset from the small logo: it's the full-
+// width band painted across the top of any PDF Bella renders for the
+// firm (return address, phone, partner names, bar IDs, etc). Same
+// bucket as the logo since the access pattern is identical (publicly
+// readable so the PDF generator can fetch it without auth round-
+// trips), but the upload limit is bigger because letterheads are
+// usually high-resolution scans the firm wants printed at 300 DPI.
+const LETTERHEAD_MIME = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/jpg',
+  'image/webp',
+]);
+
+export async function uploadFirmLetterheadAction(
+  firmId: string,
+  formData: FormData,
+): Promise<{ ok: boolean; error?: string; url?: string }> {
+  await requireUser();
+  if (!(await callerIsFirmAdmin(firmId))) {
+    return {
+      ok: false,
+      error: 'Only an owner or admin can change the letterhead.',
+    };
+  }
+  const file = formData.get('letterhead');
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false, error: 'Choose an image file.' };
+  }
+  if (file.size > 8 * 1024 * 1024) {
+    return { ok: false, error: 'Image must be under 8 MB.' };
+  }
+  if (!LETTERHEAD_MIME.has(file.type)) {
+    // No SVG - pdf-lib can't embed SVG without a rasteriser step
+    // and we want the letterhead to render verbatim. The web PNG
+    // editor most lawyers have already produces a flat raster
+    // anyway.
+    return { ok: false, error: 'Use a PNG, JPG, or WebP image.' };
+  }
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server not configured.' };
+  const ext =
+    file.type === 'image/png'
+      ? 'png'
+      : file.type === 'image/webp'
+        ? 'webp'
+        : 'jpg';
+  const path = `${firmId}/letterhead-${Date.now()}.${ext}`;
+  const bytes = Buffer.from(await file.arrayBuffer());
+  const { error: upErr } = await admin.storage
+    .from('firm-branding')
+    .upload(path, bytes, { contentType: file.type, upsert: true });
+  if (upErr) return { ok: false, error: upErr.message };
+  const {
+    data: { publicUrl },
+  } = admin.storage.from('firm-branding').getPublicUrl(path);
+  const { error } = await admin
+    .from('firms')
+    .update({
+      letterhead_url: publicUrl,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', firmId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath('/counsel', 'layout');
+  revalidatePath('/counsel/settings');
+  return { ok: true, url: publicUrl };
+}
+
+export async function removeFirmLetterheadAction(
+  firmId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  await requireUser();
+  if (!(await callerIsFirmAdmin(firmId))) {
+    return {
+      ok: false,
+      error: 'Only an owner or admin can change the letterhead.',
+    };
+  }
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server not configured.' };
+  const { error } = await admin
+    .from('firms')
+    .update({
+      letterhead_url: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', firmId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath('/counsel', 'layout');
+  revalidatePath('/counsel/settings');
+  return { ok: true };
+}
+
 export async function setActiveFirmAction(
   firmId: string | null,
 ): Promise<{ ok: boolean; error?: string }> {

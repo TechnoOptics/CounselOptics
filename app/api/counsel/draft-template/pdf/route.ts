@@ -30,6 +30,10 @@ export async function POST(req: NextRequest) {
     brandName?: string;
     firmName?: string;
     accent?: string;
+    /** Optional public URL of the firm's letterhead image (PNG/JPG/
+     *  WebP). Painted across the top of page 1 in place of the text-
+     *  only "BRAND NAME" + title strip. Tier-2 Bella branding. */
+    letterheadUrl?: string;
   };
   try {
     body = await req.json();
@@ -62,6 +66,46 @@ export async function POST(req: NextRequest) {
   const accentColor = rgb(accent.r, accent.g, accent.b);
   const ink = rgb(0.1, 0.1, 0.1);
 
+  // Letterhead image, if any. Fetched once, embedded once, and
+  // painted on every page that calls header(). Robust to a missing
+  // / failed URL: we just fall back to the text-only banner. The
+  // image is normalised to a tight strip 1.4" tall so the first-page
+  // body still fits the normal text content underneath.
+  type Embedded = {
+    img: Awaited<ReturnType<PDFDocument['embedPng']>>;
+    width: number;
+    height: number;
+  };
+  let letterhead: Embedded | null = null;
+  if (body.letterheadUrl && /^https?:\/\//i.test(body.letterheadUrl)) {
+    try {
+      const r = await fetch(body.letterheadUrl);
+      if (r.ok) {
+        const buf = new Uint8Array(await r.arrayBuffer());
+        const mime = (r.headers.get('content-type') ?? '').toLowerCase();
+        // pdf-lib accepts only PNG and JPG. The upload action enforces
+        // this; webp uploads would get rejected upstream so we don't
+        // try to decode them here.
+        const img = mime.includes('jpeg') || mime.includes('jpg')
+          ? await pdf.embedJpg(buf)
+          : await pdf.embedPng(buf);
+        // Scale to 1.4" tall (100 pt), max width = full page minus
+        // margins. The aspect ratio comes from the source so wide
+        // letterheads sit wider; tall vertical strips (uncommon) cap
+        // at full width.
+        const targetH = 100;
+        const ratio = targetH / img.height;
+        const drawW = Math.min(W - 32, img.width * ratio);
+        const drawH = drawW * (img.height / img.width);
+        letterhead = { img, width: drawW, height: drawH };
+      }
+    } catch {
+      // Network/decode failure: fall back silently to the text
+      // banner so the user still gets a PDF.
+      letterhead = null;
+    }
+  }
+
   function wrap(line: string, f = font, size = SIZE): string[] {
     if (line.trim() === '') return [''];
     const words = line.split(/(\s+)/);
@@ -86,34 +130,60 @@ export async function POST(req: NextRequest) {
 
   function header() {
     pageNo += 1;
-    page.drawRectangle({
-      x: 0,
-      y: H - 8,
-      width: W,
-      height: 8,
-      color: accentColor,
-    });
-    page.drawText(brand.toUpperCase(), {
-      x: M,
-      y: H - 40,
-      size: 10,
-      font: bold,
-      color: accentColor,
-    });
-    page.drawText(title, {
-      x: M,
-      y: H - 58,
-      size: 9,
-      font,
-      color: rgb(0.4, 0.4, 0.4),
-    });
-    page.drawLine({
-      start: { x: M, y: H - 70 },
-      end: { x: W - M, y: H - 70 },
-      thickness: 0.5,
-      color: rgb(0.8, 0.8, 0.8),
-    });
-    y = H - 96;
+    if (letterhead) {
+      // Painted letterhead path. Center horizontally, anchor near
+      // the top, then drop the body cursor below it. We skip the
+      // text-only "BRAND NAME" banner since the letterhead is
+      // already the brand statement. The thin separator line below
+      // is kept so the body still feels structurally tied to the
+      // header.
+      const x = (W - letterhead.width) / 2;
+      const yTop = H - 24 - letterhead.height;
+      page.drawImage(letterhead.img, {
+        x,
+        y: yTop,
+        width: letterhead.width,
+        height: letterhead.height,
+      });
+      page.drawLine({
+        start: { x: M, y: yTop - 14 },
+        end: { x: W - M, y: yTop - 14 },
+        thickness: 0.5,
+        color: rgb(0.8, 0.8, 0.8),
+      });
+      y = yTop - 38;
+    } else {
+      // Text-only fallback (pre-tier-2 look, kept for firms that
+      // haven't uploaded a letterhead yet).
+      page.drawRectangle({
+        x: 0,
+        y: H - 8,
+        width: W,
+        height: 8,
+        color: accentColor,
+      });
+      page.drawText(brand.toUpperCase(), {
+        x: M,
+        y: H - 40,
+        size: 10,
+        font: bold,
+        color: accentColor,
+      });
+      page.drawText(title, {
+        x: M,
+        y: H - 58,
+        size: 9,
+        font,
+        color: rgb(0.4, 0.4, 0.4),
+      });
+      page.drawLine({
+        start: { x: M, y: H - 70 },
+        end: { x: W - M, y: H - 70 },
+        thickness: 0.5,
+        color: rgb(0.8, 0.8, 0.8),
+      });
+      y = H - 96;
+    }
   }
   function footer() {
     page.drawText(

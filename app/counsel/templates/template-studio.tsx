@@ -13,6 +13,8 @@ type Meta = {
   brandName: string;
   firmName: string;
   logoUrl: string | null;
+  /** Tier-2 letterhead URL; null = use the text-only header in PDFs. */
+  letterheadUrl: string | null;
   accent: string;
 };
 
@@ -54,6 +56,7 @@ export function TemplateStudio({ brand }: { brand: Meta }) {
         brandName: j.brandName,
         firmName: j.firmName,
         logoUrl: j.logoUrl,
+        letterheadUrl: j.letterheadUrl ?? null,
         accent: j.accent,
       });
     } catch {
@@ -75,6 +78,7 @@ export function TemplateStudio({ brand }: { brand: Meta }) {
           brandName: meta.brandName,
           firmName: meta.firmName,
           accent: meta.accent,
+          letterheadUrl: meta.letterheadUrl,
         }),
       });
       if (!res.ok) {

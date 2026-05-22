@@ -35,6 +35,7 @@ export default async function CounselSettingsPage() {
           name: ctx.firm.name,
           accentColor: ctx.firm.accentColor,
           logoUrl: ctx.firm.logoUrl ?? '',
+          letterheadUrl: ctx.firm.letterheadUrl ?? '',
           jurisdictions: ctx.firm.jurisdictions,
           practiceAreas: ctx.firm.practiceAreas,
           hideAdvotticLogo:

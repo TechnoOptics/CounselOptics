@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateFirmAction } from '@/lib/firm-actions';
 import { LogoUploader } from './logo-uploader';
+import { LetterheadUploader } from './letterhead-uploader';
 
 export function SettingsForm({
   firmId,
@@ -14,6 +15,7 @@ export function SettingsForm({
     name: string;
     accentColor: string;
     logoUrl: string;
+    letterheadUrl: string;
     jurisdictions: string[];
     practiceAreas: string[];
     hideAdvotticLogo: boolean;
@@ -46,6 +48,10 @@ export function SettingsForm({
   return (
     <div className="card p-6 space-y-6">
       <LogoUploader firmId={firmId} currentUrl={defaultValues.logoUrl} />
+      <LetterheadUploader
+        firmId={firmId}
+        currentUrl={defaultValues.letterheadUrl}
+      />
 
       <form action={submit} className="space-y-5">
         <div>

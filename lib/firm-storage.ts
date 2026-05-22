@@ -37,6 +37,7 @@ type FirmRow = {
   firm_type: 'individual' | 'firm' | 'corporate' | 'government' | 'legal_aid' | 'other';
   metadata: Record<string, unknown> | null;
   logo_url: string | null;
+  letterhead_url: string | null;
   accent_color: string;
   jurisdictions: string[];
   practice_areas: string[];
@@ -54,6 +55,7 @@ function firmFromRow(r: FirmRow): Firm {
     firmType: r.firm_type,
     metadata: (r.metadata ?? {}) as Firm['metadata'],
     logoUrl: r.logo_url,
+    letterheadUrl: r.letterhead_url,
     accentColor: r.accent_color,
     jurisdictions: r.jurisdictions ?? [],
     practiceAreas: r.practice_areas ?? [],

@@ -34,6 +34,7 @@ export default async function CounselTemplatesPage() {
           brandName,
           firmName: ctx.firm.name,
           logoUrl: ctx.firm.logoUrl ?? null,
+          letterheadUrl: ctx.firm.letterheadUrl ?? null,
           accent: ctx.firm.accentColor,
         }}
       />

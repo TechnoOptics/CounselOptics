@@ -137,6 +137,7 @@ export async function POST(req: NextRequest) {
     brandName,
     firmName: ctx.firm.name,
     logoUrl: ctx.firm.logoUrl ?? null,
+    letterheadUrl: ctx.firm.letterheadUrl ?? null,
     accent: ctx.firm.accentColor,
     generatedAt: new Date().toISOString(),
   });
