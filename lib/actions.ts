@@ -717,12 +717,17 @@ export async function addSafeWitnessContactAction(
  */
 export async function updateUserPhoneAction(
   formData: FormData,
-): Promise<{ ok: true; phone: string | null } | { ok: false; error: string }> {
+): Promise<
+  | { ok: true; phone: string | null; firstName: string | null }
+  | { ok: false; error: string }
+> {
   if (!usingSupabase()) return { ok: false, error: 'Supabase is not configured.' };
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: 'Not signed in.' };
-  const raw = String(formData.get('phone') ?? '').trim();
-  const phone = raw.length === 0 ? null : raw;
+
+  // Phone validation (E.164: + then country code then number).
+  const phoneRaw = String(formData.get('phone') ?? '').trim();
+  const phone = phoneRaw.length === 0 ? null : phoneRaw;
   if (phone !== null && !/^\+[1-9]\d{1,14}$/.test(phone)) {
     return {
       ok: false,
@@ -730,15 +735,23 @@ export async function updateUserPhoneAction(
         'Phone must be in international format starting with +, e.g. +14155551234',
     };
   }
+
+  // First name: short personal label used in Safe Witness alerts
+  // ("Call Abel" instead of "Call Advottic LLC"). Trimmed + capped at
+  // 40 chars; empty string clears the column (null) so the alert
+  // route falls back to display_name's first token.
+  const firstNameRaw = String(formData.get('firstName') ?? '').trim().slice(0, 40);
+  const firstName = firstNameRaw.length === 0 ? null : firstNameRaw;
+
   const { createServerSupabase } = await import('./supabase/server');
   const supabase = createServerSupabase();
   const { error } = await supabase
     .from('profiles')
-    .update({ phone })
+    .update({ phone, first_name: firstName })
     .eq('id', user.id);
   if (error) return { ok: false, error: error.message };
   revalidatePath('/profile');
-  return { ok: true, phone };
+  return { ok: true, phone, firstName };
 }
 
 export async function deleteSafeWitnessContactAction(

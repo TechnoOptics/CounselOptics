@@ -48,6 +48,12 @@ export function SafeContactForm({
      *  button so a contact can dial them in one tap. Empty means
      *  no Call User button. */
     userPhone: string | null;
+    /** Short personal first name read aloud in alerts ("Call Abel")
+     *  - separate from display_name so users whose display_name is
+     *  a company ("Advottic LLC") still get a person-shaped label
+     *  on outbound SMS/email. Empty falls back to display_name's
+     *  first token in the server. */
+    firstName: string | null;
   };
   contacts: SafeWitnessContactRow[];
   /** True if TWILIO_* env vars are set on the server. */
@@ -57,6 +63,7 @@ export function SafeContactForm({
   const [pin, setPin] = useState(initial.pin ?? '');
   const [message, setMessage] = useState(initial.message ?? '');
   const [userPhone, setUserPhone] = useState(initial.userPhone ?? '');
+  const [firstName, setFirstName] = useState(initial.firstName ?? '');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -120,17 +127,19 @@ export function SafeContactForm({
     startUserPhoneTransition(async () => {
       const fd = new FormData();
       fd.set('phone', userPhone.trim());
+      fd.set('firstName', firstName.trim());
       const res = await updateUserPhoneAction(fd);
       if (!res.ok) {
         setFeedback({ kind: 'error', text: res.error });
         return;
       }
-      setFeedback({
-        kind: 'ok',
-        text: res.phone
-          ? 'Your phone saved. Future alerts include a one-tap Call button.'
-          : 'Your phone cleared. The Call button will no longer appear in alerts.',
-      });
+      const phoneNote = res.phone
+        ? 'Phone saved - alerts include the one-tap Call button.'
+        : 'Phone cleared - the Call button is hidden.';
+      const nameNote = res.firstName
+        ? ` Your contacts will see "Call ${res.firstName}".`
+        : '';
+      setFeedback({ kind: 'ok', text: phoneNote + nameNote });
     });
   }
 
@@ -203,18 +212,47 @@ export function SafeContactForm({
         }`}
       >
         <p className="text-[10px] uppercase tracking-[0.2em] text-ink-500 dark:text-cream-100/55">
-          Step 1 - Your phone (so contacts can call you back)
+          Step 1 - About you (so contacts know who&rsquo;s calling)
         </p>
-        <input
-          type="tel"
-          value={userPhone}
-          onChange={(e) => setUserPhone(e.target.value)}
-          placeholder="+14155551234"
-          className="input text-[13px] font-mono"
-          disabled={userPhonePending}
-          autoComplete="off"
-          inputMode="tel"
-        />
+        {/* First name field. Optional but high-leverage: the SMS body
+            says "Call Abel" if it's set, "Call <display_name>" if not.
+            For users whose display_name is a company (e.g. "Advottic
+            LLC") this is the only way to make the SMS read like a
+            person reached out to them. */}
+        <label className="block">
+          <span className="block text-[11px] text-ink-500 dark:text-cream-100/55 mb-1">
+            First name
+          </span>
+          <input
+            type="text"
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+            placeholder="Abel"
+            className="input text-[13px]"
+            disabled={userPhonePending}
+            autoComplete="given-name"
+            maxLength={40}
+          />
+        </label>
+        <p className="text-[11px] text-ink-500 dark:text-cream-100/45 leading-relaxed">
+          Contacts will read &ldquo;Call <strong>{firstName.trim() || 'you'}</strong>&rdquo; in
+          their alert. Leave empty to fall back to your account name.
+        </p>
+        <label className="block pt-1">
+          <span className="block text-[11px] text-ink-500 dark:text-cream-100/55 mb-1">
+            Phone
+          </span>
+          <input
+            type="tel"
+            value={userPhone}
+            onChange={(e) => setUserPhone(e.target.value)}
+            placeholder="+14155551234"
+            className="input text-[13px] font-mono"
+            disabled={userPhonePending}
+            autoComplete="off"
+            inputMode="tel"
+          />
+        </label>
         <p className="text-[11px] text-ink-500 dark:text-cream-100/45 leading-relaxed">
           When Safe Witness fires, the alert email shows a one-tap
           <strong> Call </strong>button so your contact reaches you

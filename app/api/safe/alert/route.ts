@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
     admin
       .from('profiles')
       .select(
-        'safe_contact_email, safe_witness_pin, safe_witness_message, display_name, phone',
+        'safe_contact_email, safe_witness_pin, safe_witness_message, display_name, first_name, phone',
       )
       .eq('id', userId)
       .maybeSingle(),
@@ -107,6 +107,7 @@ export async function POST(req: NextRequest) {
         safe_witness_pin: string | null;
         safe_witness_message: string | null;
         display_name: string | null;
+        first_name: string | null;
         phone: string | null;
       }
     | null;
@@ -117,6 +118,13 @@ export async function POST(req: NextRequest) {
   // User's own phone for the "Call user" button. Optional - the
   // button is only rendered when this is set.
   const userPhone = profileRow?.phone?.trim() || null;
+  // Short, personal label used inside the SMS body and email
+  // greeting ("Call Abel", "Hi Friend - ADVOTTIC SAFE WITNESS -
+  // Abel"). Separate from display_name so users whose display_name
+  // is a company ("Advottic LLC") still get a human-sounding label
+  // on outbound alerts. Fallback chain: profiles.first_name ->
+  // first token of display_name -> email local-part -> 'a friend'.
+  const userFirstName = profileRow?.first_name?.trim() || null;
 
   // Multi-contact: prefer the new safe_witness_contacts table. Fall
   // back to the legacy single safe_contact_email if the table is
@@ -156,6 +164,14 @@ export async function POST(req: NextRequest) {
   // (primary email if any) for back-compat with old read paths.
   const contact = routableContacts.find((c) => c.email)?.email ?? '(sms-only)';
   const watcherEmail = userResp.data?.user?.email ?? null;
+  // watcherName is the LONG label that appears as the alert headline
+  // (e.g. the email's <h1>). It can legitimately be a company name
+  // ("Advottic LLC") because the headline answers "whose alert is
+  // this." For the more personal *first-name* references that read
+  // aloud in SMS and in body copy ("Call Abel", "Hi Sarah - ABEL has
+  // triggered a Safe Witness alert"), we use the dedicated
+  // userFirstName field, falling back to the long name's first token
+  // only when first_name isn't set.
   const watcherName =
     ((profileResp.data as { display_name?: string } | null)?.display_name
       ?? null) ||
@@ -383,7 +399,24 @@ export async function POST(req: NextRequest) {
   // strip @keyframes, so we also paint a solid red border as the
   // baseline. Clients that DO honor the animation (Apple Mail,
   // Gmail web on Chromium, Thunderbird) get the pulse.
-  const watcherFirst = watcherLabel.split(' (')[0];
+  // Personal short label. Order of preference:
+  //   1. profiles.first_name (explicitly set by user on /profile)
+  //   2. first token of display_name -> handles "Sarah Connor" style
+  //      but does NOT help users whose display_name is a company
+  //      (e.g. "Advottic LLC" -> we don't want "Call Advottic")
+  //   3. email local-part (last-resort human-ish string)
+  //   4. literal 'a friend'
+  // We only use option 2 when it looks like a personal first name
+  // (single token, not the entire label, and the label has a space
+  // separating first/last - companies usually don't).
+  const looksLikePersonalName =
+    watcherName !== null && watcherName.includes(' ');
+  const fallbackFirst = looksLikePersonalName
+    ? watcherName!.split(/\s+/)[0]
+    : watcherEmail
+      ? watcherEmail.split('@')[0]
+      : 'a friend';
+  const watcherFirst = userFirstName || fallbackFirst;
   const buildEmailHtml = (contactName: string | null): string => `
 <div style="font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background: #0B1F19; color: #FBF7E9;">
   <style>
