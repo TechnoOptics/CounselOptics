@@ -103,6 +103,19 @@ object WatchApi {
      * instead. The server uses it to add an explicit "approximate
      * location" banner.
      */
+    /**
+     * Result of firing a Safe Witness alert.
+     *
+     * [alertId] is the row UUID returned by the server. Audio capture
+     * uploads to /api/safe/audio reference this id; if the alert
+     * dispatch itself returns null we skip the audio upload entirely
+     * since there's nothing to attach it to.
+     */
+    data class SafeAlertResult(
+        val ok: Boolean,
+        val alertId: String?,
+    )
+
     suspend fun sendSafeAlert(
         token: String,
         transcription: String,
@@ -110,7 +123,7 @@ object WatchApi {
         lng: Double? = null,
         accuracyM: Float? = null,
         locationTimedOut: Boolean = false,
-    ): Boolean = withContext(Dispatchers.IO) {
+    ): SafeAlertResult = withContext(Dispatchers.IO) {
         try {
             val c = (URL("$BASE/api/safe/alert").openConnection()
                 as HttpURLConnection)
@@ -133,6 +146,82 @@ object WatchApi {
                 payload.put("location_timed_out", true)
             }
             c.outputStream.use { it.write(payload.toString().toByteArray()) }
+            val ok = c.responseCode in 200..299
+            // Drain the body either way - the alert_id is in the
+            // success response, and reading even the error stream
+            // helps Android close the socket cleanly.
+            val raw = (if (ok) c.inputStream else c.errorStream)
+                ?.bufferedReader()?.use { it.readText() } ?: ""
+            c.disconnect()
+            val alertId = if (ok && raw.isNotBlank()) {
+                runCatching { JSONObject(raw).optString("alert_id", "") }
+                    .getOrNull()
+                    ?.takeIf { it.isNotBlank() }
+            } else null
+            SafeAlertResult(ok = ok, alertId = alertId)
+        } catch (_: Throwable) {
+            SafeAlertResult(ok = false, alertId = null)
+        }
+    }
+
+    /**
+     * Upload a Safe Witness audio capture to /api/safe/audio.
+     *
+     * Multipart/form-data with two parts: a text alert_id and a
+     * binary 'audio' part. The watch's MediaRecorder writes M4A
+     * (audio/mp4), but we accept the caller's mime so non-AAC
+     * fallbacks (audio/webm if Wear OS adds support later) keep
+     * working.
+     *
+     * Best-effort: returns true on a 2xx response, false otherwise
+     * (including any exception). The press's email + SMS already
+     * went out via sendSafeAlert before this is called, so a failure
+     * here only means the contact won't have audio playback in the
+     * tracker - the alert itself is unaffected.
+     */
+    suspend fun uploadSafeAudio(
+        token: String,
+        alertId: String,
+        audioFile: java.io.File,
+        mime: String = "audio/mp4",
+    ): Boolean = withContext(Dispatchers.IO) {
+        if (!audioFile.exists() || audioFile.length() == 0L) return@withContext false
+        val boundary = "----AdvotticBoundary" + System.currentTimeMillis()
+        try {
+            val c = (URL("$BASE/api/safe/audio").openConnection()
+                as HttpURLConnection)
+            c.requestMethod = "POST"
+            c.connectTimeout = TIMEOUT_MS
+            // Allow more time for the upload itself - 60s is generous
+            // for a ~150 KB file but a flaky watch radio can easily
+            // double a normal request.
+            c.readTimeout = 60_000
+            c.doOutput = true
+            c.setRequestProperty("Authorization", "Bearer $token")
+            c.setRequestProperty(
+                "Content-Type",
+                "multipart/form-data; boundary=$boundary",
+            )
+            // Stream the body so we don't buffer the whole audio in
+            // RAM. The watch has plenty (Galaxy Watch 8 is 2 GB) but
+            // it's still better hygiene + avoids OOMs on cheaper
+            // wearables.
+            c.outputStream.use { out ->
+                val w = out.bufferedWriter(Charsets.UTF_8)
+                w.write("--$boundary\r\n")
+                w.write("Content-Disposition: form-data; name=\"alert_id\"\r\n\r\n")
+                w.write(alertId)
+                w.write("\r\n")
+                w.write("--$boundary\r\n")
+                w.write(
+                    "Content-Disposition: form-data; name=\"audio\"; filename=\"${audioFile.name}\"\r\n",
+                )
+                w.write("Content-Type: $mime\r\n\r\n")
+                w.flush()
+                audioFile.inputStream().use { it.copyTo(out) }
+                w.write("\r\n--$boundary--\r\n")
+                w.flush()
+            }
             val ok = c.responseCode in 200..299
             c.disconnect()
             ok

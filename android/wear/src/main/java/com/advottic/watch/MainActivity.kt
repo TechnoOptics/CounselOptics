@@ -83,6 +83,7 @@ import androidx.wear.compose.material.VignettePosition
 import androidx.wear.remote.interactions.RemoteActivityHelper
 import com.google.android.gms.wearable.Wearable
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.net.URLEncoder
@@ -1099,10 +1100,26 @@ fun WearApp(summary: SummaryStore.Summary) {
                                         kotlinx.coroutines.GlobalScope.launch(
                                             kotlinx.coroutines.Dispatchers.IO,
                                         ) {
+                                            // Kick off audio recording in
+                                            // parallel with location capture
+                                            // and the alert POST. The mic
+                                            // starts as early as physically
+                                            // possible so we capture what's
+                                            // happening at the moment of the
+                                            // press, not 5s later. record()
+                                            // blocks the coroutine for the
+                                            // full duration; we wrap it in an
+                                            // async so the alert POST can
+                                            // proceed independently.
+                                            val audioJob = async {
+                                                if (SafeAudioCapture.hasPermission(context)) {
+                                                    SafeAudioCapture.record(context, durationMs = 30_000L)
+                                                } else null
+                                            }
                                             val fix = if (LocationCapture.hasPermission(context)) {
                                                 LocationCapture.get(context)
                                             } else null
-                                            WatchApi.sendSafeAlert(
+                                            val alertResult = WatchApi.sendSafeAlert(
                                                 tok,
                                                 "Safe Witness triggered from " +
                                                     "the Wear OS watch.",
@@ -1111,6 +1128,35 @@ fun WearApp(summary: SummaryStore.Summary) {
                                                 accuracyM = fix?.accuracyM,
                                                 locationTimedOut = fix?.timedOut ?: false,
                                             )
+                                            // Wait for the recording to
+                                            // finish (capped at the
+                                            // SafeAudioCapture duration plus
+                                            // a small buffer), then upload
+                                            // if we have both an alertId and
+                                            // a usable file.
+                                            val audioFile = audioJob.await()
+                                            val alertId = alertResult.alertId
+                                            if (audioFile != null && alertId != null) {
+                                                WatchApi.uploadSafeAudio(
+                                                    tok,
+                                                    alertId,
+                                                    audioFile,
+                                                )
+                                                // Audio is uploaded - don't
+                                                // leave the temp file in
+                                                // cache. The cacheDir gets
+                                                // wiped by Android eventually
+                                                // anyway, but tidiness is
+                                                // free.
+                                                audioFile.delete()
+                                            } else if (audioFile != null) {
+                                                // Couldn't reach the server
+                                                // for an alertId; toss the
+                                                // recording rather than
+                                                // leaving a 150 KB file in
+                                                // cache.
+                                                audioFile.delete()
+                                            }
                                         }
                                     }
                                 },

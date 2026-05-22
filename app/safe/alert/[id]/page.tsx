@@ -82,6 +82,13 @@ export default async function SafeAlertPage({
       accuracy_m?: number;
       location_timed_out?: boolean;
       message?: string;
+      // Audio uploaded after the alert fired by the watch's
+      // MediaRecorder pass. Stored in the private safe-witness-audio
+      // bucket; we sign a 1-hour URL for playback below.
+      audio_path?: string;
+      audio_mime?: string;
+      audio_size?: number;
+      audio_uploaded_at?: string;
     } | null;
   };
   const watcherUserId = row.user_id;
@@ -114,6 +121,24 @@ export default async function SafeAlertPage({
   const locationTimedOut = meta.location_timed_out === true;
   const watcherMessage =
     meta.message ?? 'Safe mode activated. I need you. Please send help.';
+
+  // If the watch managed to upload an audio recording after the
+  // alert fired, sign a 1-hour URL for inline <audio> playback.
+  // Signing happens server-side so the bucket stays private; the
+  // recipient gets a time-limited URL good enough to play the clip
+  // in their browser. We don't pre-fetch the bytes because the page
+  // is server-rendered and the clip could be hundreds of KB.
+  let audioUrl: string | null = null;
+  let audioMime: string | null = null;
+  if (typeof meta.audio_path === 'string' && meta.audio_path.length > 0) {
+    const { data: signed } = await admin.storage
+      .from('safe-witness-audio')
+      .createSignedUrl(meta.audio_path, 60 * 60);
+    if (signed?.signedUrl) {
+      audioUrl = signed.signedUrl;
+      audioMime = (meta.audio_mime ?? 'audio/webm').toString();
+    }
+  }
 
   // Public Maps key is fine here - it's exposed to the browser
   // anyway. We keep the server-only key in the env for the email's
@@ -189,6 +214,36 @@ export default async function SafeAlertPage({
           firedAt={row.fired_at}
         />
 
+        {audioUrl && (
+          <section className="mt-5 rounded-xl bg-[#E6CE93]/8 border-l-[3px] border-[#E6CE93] p-4">
+            <p className="text-[10px] uppercase tracking-[0.3em] text-[#FBF7E9]/55 mb-2">
+              Voice recording from the watch
+            </p>
+            {/* Native HTML5 audio element. Most desktop + mobile
+                browsers render a usable control bar. We don't ship a
+                custom player because emergencies aren't the right
+                place to debug Audio API edge cases. The signed URL
+                is good for one hour from when this page rendered;
+                refreshing the page mints a new one. */}
+            <audio
+              controls
+              preload="metadata"
+              className="w-full"
+              style={{ accentColor: '#E6CE93' }}
+            >
+              <source src={audioUrl} type={audioMime ?? 'audio/webm'} />
+              Your browser can&rsquo;t play this audio.{' '}
+              <a href={audioUrl} className="underline text-[#E6CE93]">
+                Download the file
+              </a>{' '}
+              instead.
+            </audio>
+            <p className="mt-2 text-[11px] text-[#FBF7E9]/55 leading-snug">
+              Captured at the moment the watch button was held. Up to
+              one minute of audio.
+            </p>
+          </section>
+        )}
         {row.transcription && (
           <section className="mt-5 rounded-xl bg-[#E6CE93]/8 border-l-[3px] border-[#E6CE93] p-4">
             <p className="text-[10px] uppercase tracking-[0.3em] text-[#FBF7E9]/55 mb-1">
