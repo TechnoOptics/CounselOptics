@@ -182,27 +182,20 @@ export default async function CasesPage({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Link href="/war-room" className="btn-secondary">
-            War Room
-          </Link>
-          <Link href="/deadlines" className="btn-secondary">
-            Deadline Radar
-          </Link>
-          <Link href="/decoder" className="btn-secondary">
-            Decode a document
-          </Link>
+          {/* Cleaned up after user feedback (May 2026): War Room,
+              Deadline Radar, Decode a document, Speak your case, and
+              + New case all moved out of this row. They live in the
+              left sidebar (+ New case) and inside the Action Center
+              menu item (War Room / Deadline Radar / Decoder /
+              Safe Witness all hub there too). Safe Witness stays
+              here because emergency reach should always be one tap
+              from the cases dashboard - hiding it behind another
+              menu level would meaningfully delay an alert. */}
           <Link
             href="/safe"
             className="btn border border-rose-300 text-rose-700 hover:bg-rose-50 font-semibold"
           >
             Safe Witness
-          </Link>
-          <Link href="/cases/new/speak" className="btn-secondary">
-            Speak your case
-          </Link>
-          <Link href="/cases/new" className="btn-primary">
-            <PlusIcon />
-            New case
           </Link>
         </div>
       </div>

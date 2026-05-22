@@ -4,6 +4,7 @@ import { getCurrentUser, isSupabaseConfigured, createServerSupabase } from '@/li
 import { getProfile } from '@/lib/storage';
 import { updateProfileAction } from '@/lib/actions';
 import { SafeContactForm, type SafeWitnessContactRow } from './safe-contact-form';
+import { WatchPairCard, DevicesSectionHeader } from './watch-pair-card';
 import { isSmsConfigured } from '@/lib/sms';
 import { AccountActions } from './account-actions';
 import { AvatarUpload } from './avatar-upload';
@@ -302,16 +303,12 @@ export default async function ProfilePage() {
           in phone session sidesteps every one of those failure
           modes. */}
       <section className="card p-6 space-y-4">
-        <div>
-          <p className="eyebrow mb-2">Devices</p>
-          <h2 className="font-display text-xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-            Companion devices
-          </h2>
-          <p className="text-sm text-ink-500 dark:text-cream-100/55 mt-0.5">
-            Pair a Wear OS watch so your next hearing, action center,
-            and docket appear on your wrist.
-          </p>
-        </div>
+        {/* Header text adapts to whether we're inside the Capacitor
+            phone shell. Desktop browsers see 'Safety / Safe Witness'
+            (since the only visible feature there is the contact
+            form). Phone users see 'Devices / Companion devices'
+            because the watch pairing card is also visible. */}
+        <DevicesSectionHeader />
         {/* Safe Witness contact. The Wear OS Safe Witness button
             and the /safe web page both alert this email. Plain text
             email - we deliberately don't surface the address publicly
@@ -352,44 +349,11 @@ export default async function ProfilePage() {
             smsConfigured={smsConfigured}
           />
         </div>
-        <Link
-          href="/pair-watch"
-          className="rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 bg-white dark:bg-forest-900/40 hover:ring-forest-700 dark:hover:ring-gold-metal/40 transition-colors p-4 block"
-        >
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="font-display text-base text-forest-900 dark:text-cream-100">
-                Pair Wear OS watch
-              </p>
-              <p className="text-[12.5px] text-ink-600 dark:text-cream-100/70 mt-1 leading-snug">
-                Open Advottic on your watch, tap{' '}
-                <strong>Link a watch</strong>, then type the 6-digit
-                code it shows.
-              </p>
-            </div>
-            <span
-              aria-hidden
-              className="inline-flex h-10 w-10 flex-none items-center justify-center rounded-lg bg-forest-900/5 dark:bg-cream-100/5 text-forest-900 dark:text-cream-100"
-            >
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <rect x="6" y="6" width="12" height="12" rx="2" />
-                <path d="M9 6l1-3h4l1 3M9 18l1 3h4l1-3" />
-              </svg>
-            </span>
-          </div>
-          <p className="text-[12px] font-semibold text-forest-900 dark:text-cream-100 mt-3 inline-flex items-center gap-1">
-            Pair a watch <span aria-hidden>→</span>
-          </p>
-        </Link>
+        {/* Pair-watch link card. Client component that renders only
+            when we're inside the Android phone shell - desktop users
+            don't see a pair-by-QR / pair-by-code affordance because
+            there's no companion device to act on. */}
+        <WatchPairCard />
       </section>
 
       {/* Preferences card. Theme + language are stored on the profile so

@@ -22,12 +22,13 @@ export function WatchConnectCard() {
   const [dismissed, setDismissed] = useState(false);
 
   // Until the native query resolves we render nothing. On web the
-  // hook settles with nodeCount 0 + isWatch heuristics; we only want
-  // this card on a phone that actually has the plugin, so key off a
-  // resolved non-watch device. The plugin presence is implied by any
-  // non-zero nodeCount OR an explicit paired flag; when truly absent
-  // (web) all flags are false and we hide.
-  if (status.loading || status.isWatch) return null;
+  // hook settles with nodeCount 0 + isWatch heuristics.
+  // Render the card ONLY inside the Capacitor Android shell. Desktop
+  // browsers and mobile-web users can't pair a watch (no QR camera
+  // in the right place, no Play Store hand-off), so a 'Use Advottic
+  // on your watch' nudge there is pure noise. Suppressing it on
+  // desktop was an explicit user request in May 2026.
+  if (status.loading || status.isWatch || !status.isNativeShell) return null;
 
   const connected =
     status.watchAppInstalled && status.watchReachable;

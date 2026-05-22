@@ -27,6 +27,11 @@ export type WatchStatus = {
   /** A node advertises the Advottic watch-app capability. */
   watchAppInstalled: boolean;
   nodeCount: number;
+  /** True when this page is running inside the Capacitor native
+   *  Android shell (the phone app), false on desktop browsers and
+   *  mobile-web. Wear pairing only makes sense on a paired phone, so
+   *  any watch-related affordance gates on this. */
+  isNativeShell: boolean;
   /** Still resolving the native query. */
   loading: boolean;
 };
@@ -53,6 +58,7 @@ export function useWatchStatus(): WatchStatus {
   const [status, setStatus] = useState<WatchStatus>({
     isWatch: false,
     ...NO_WATCH,
+    isNativeShell: false,
     loading: true,
   });
 
@@ -66,12 +72,15 @@ export function useWatchStatus(): WatchStatus {
     (async () => {
       try {
         const { Capacitor, registerPlugin } = await import('@capacitor/core');
-        if (
-          !Capacitor.isNativePlatform() ||
-          Capacitor.getPlatform() !== 'android' ||
-          !Capacitor.isPluginAvailable('AdvotticWatch')
-        ) {
-          settle({ isWatch: isWearOS(), ...NO_WATCH });
+        // isNativeShell: are we running inside the Android phone app
+        // (Capacitor) at all. False on desktop browsers and mobile-
+        // web. Required for any UI that pairs/configures a watch -
+        // there's no point asking a desktop user to scan a QR.
+        const isNativeShell =
+          Capacitor.isNativePlatform() &&
+          Capacitor.getPlatform() === 'android';
+        if (!isNativeShell || !Capacitor.isPluginAvailable('AdvotticWatch')) {
+          settle({ isWatch: isWearOS(), ...NO_WATCH, isNativeShell });
           return;
         }
         const AdvotticWatch = registerPlugin<{
@@ -90,10 +99,11 @@ export function useWatchStatus(): WatchStatus {
           watchReachable: !!r.watchReachable,
           watchAppInstalled: !!r.watchAppInstalled,
           nodeCount: typeof r.nodeCount === 'number' ? r.nodeCount : 0,
+          isNativeShell,
         });
       } catch {
         // Old shell without the method, no Wear stack, etc.
-        settle({ isWatch: isWearOS(), ...NO_WATCH });
+        settle({ isWatch: isWearOS(), ...NO_WATCH, isNativeShell: false });
       }
     })();
 
