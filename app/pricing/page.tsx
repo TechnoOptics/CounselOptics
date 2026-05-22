@@ -54,10 +54,11 @@ const CONSUMER_TIERS: Tier[] = [
     price: '$0',
     cadence: 'forever',
     blurb:
-      'Try Bella, save one case, receive signing requests. No credit card.',
+      'Try Bella, save one case, get personal-safety alerts. No credit card.',
     features: [
       '1 case or contract (vault sized separately in GB)',
       '25K Bella tokens / month',
+      'Safe Witness: 1 trusted contact, web only, 3 alerts / month',
       'Receive e-signature requests as a signer',
       'Inbox notifications',
       'Browse the public lawyer directory',
@@ -70,11 +71,14 @@ const CONSUMER_TIERS: Tier[] = [
     price: '$19',
     cadence: '/ month',
     blurb:
-      'Everything you need to handle a legal matter on your own; or hand it off when it gets big.',
+      'Everything you need to handle a legal matter on your own, plus full Safe Witness with the Wear OS watch.',
     features: [
       '20 cases or contracts (shared budget; vault sized in GB)',
       '500K Bella tokens / month (~12 sessions)',
       'Bella drafts documents from 13+ templates',
+      'Safe Witness: up to 5 contacts, SMS + email, watch press, 30s audio capture, live tracker page with browser geolocation',
+      'Wear OS companion app (cases, deadlines, courtroom mode, Safe Witness)',
+      'Action Center hub: War Room, Deadline Radar, Decode a document, Safe Witness',
       'E-sign as recipient (always free)',
       '3 contract reviews / month with confidence rating',
       '5 e-sign requests / month',
@@ -96,10 +100,11 @@ const CONSUMER_TIERS: Tier[] = [
     price: '$29',
     cadence: '/ month',
     blurb:
-      'Family share, more storage, and a head start when you need real counsel.',
+      'Family share, more storage, Safe Witness for every family member, and a head start when you need real counsel.',
     features: [
       'Everything in Personal Pro, plus:',
-      'Family share for up to 4 members',
+      'Family share for up to 4 members - each gets their own Safe Witness',
+      'Safe Witness: up to 15 contacts per family member',
       '50 cases or contracts (shared budget across the family)',
       '1.5M Bella tokens / month (~37 sessions) - 3x Pro',
       '10 contract reviews / month',
@@ -126,8 +131,13 @@ const FIRM_TIERS: Tier[] = [
       '30 matters per attorney (matches typical solo caseload)',
       '2.5M Bella tokens / month',
       'Practice management: time, invoicing, IOLTA, intake, conflict check',
-      'Bella as a firm agent (operates the practice via tools)',
+      'Bella (tier 1): docs, search, schedule, meetings, intake, conflict check, time + invoice',
+      'Branded document drafting (13+ templates) with text-banner PDF header',
+      'Counsel calendar: meetings, deadlines, hearings, integrations',
+      'Send-to-sign with reminders + status tracking',
       'Court-form auto-fill (CA, NY, TX, FL, Federal)',
+      'CSV + bulk doc import from Clio / MyCase / PracticePanther',
+      'Action Center hub: War Room, Deadline Radar, Decode a document, Safe Witness',
       '25 GB document storage',
       '10 e-sign requests / month',
       'Extras: 50K tokens / matter / month past the cap',
@@ -140,15 +150,20 @@ const FIRM_TIERS: Tier[] = [
     price: '$99',
     cadence: '/ user / month',
     blurb:
-      'Most popular. Everything in Solo, plus the full marketplace, IOLTA, and a custom subdomain.',
+      'Most popular. Everything in Solo, plus letterhead PDFs, employee Hub, IOLTA, marketplace, and a custom subdomain.',
     features: [
       'Up to 25 users',
       '50 matters per attorney',
       '4M Bella tokens / month per seat (firm pool)',
+      'Bella (tier 2): firm letterhead painted on every generated PDF',
+      'Employee Hub: power-but-limited portal for non-attorney staff (requests, intakes, calendar, action items)',
+      'Roles & groups with progressive feature unlock',
+      'Customizable dashboard tiles (default + optional)',
       'IOLTA trust accounting with 3-way reconciliation',
       'Co-counsel referral network with fee-split tracking',
       'Marketplace lead boost (3x match rate)',
       'Custom firm subdomain (yourfirm.advottic.com)',
+      'Branded e-sign emails with your logo',
       '250 GB document storage',
       '100 e-sign requests / month',
       'Discovery document review (250 docs / mo)',
@@ -164,18 +179,19 @@ const FIRM_TIERS: Tier[] = [
     price: '$149',
     cadence: '/ user / month',
     blurb:
-      'Analytics, dedicated CSM, and Bella tuned to your firm.',
+      'Analytics, dedicated CSM, custom Bella training, and full white-label control of the sidebar.',
     features: [
       '26 - 100 users',
       'Everything in Small Firm, plus:',
       '100 matters per attorney',
       '6M Bella tokens / month per seat (firm pool)',
       'Advanced analytics (matter profitability, attorney ROI)',
+      'Enterprise menu customization (hide / rename / reorder the sidebar per role)',
       'Dedicated customer success manager',
       '1 TB document storage',
       '500 e-sign requests / month',
       'Discovery review (1,000 docs / mo)',
-      'Custom Bella training on firm drafting style',
+      'Custom Bella training on firm drafting style + voice',
       'SAML SSO',
       'Quarterly business review',
       'Extras: 30K tokens / matter / month past the cap',
@@ -198,7 +214,8 @@ const FIRM_TIERS: Tier[] = [
       'HIPAA Business Associate Agreement',
       '99.9% uptime SLA',
       'Dedicated infrastructure',
-      'White-label tenant subdomain',
+      'White-label tenant subdomain + full brand override',
+      'Multi-firm group billing (M&A scenarios)',
       'Sandbox + staging environments',
     ],
     cta: { label: 'Contact sales', href: '/counsel/request?tier=enterprise' },
@@ -214,12 +231,28 @@ const PRICING_FAQ: Array<{ q: string; a: string }> = [
     a: 'No. Free is genuinely free; we collect a card only when you start a paid trial.',
   },
   {
+    q: 'What is Safe Witness and is it really free?',
+    a: 'Safe Witness is a personal-safety feature. Press and hold the button on your Wear OS watch (or trigger it from the web) and a one-time alert with your verification PIN, location, a 30-second audio recording, and a tap-to-call link goes to every trusted contact you have configured. Free tier includes 1 contact, web only, 3 alerts per month. Personal Pro and up include up to 5 contacts (15 on Personal Plus per family member), the Wear OS watch press, SMS delivery, the audio capture, and the live-tracker page contacts open to see your moving position. We gate the volume, not the safety - a single alert from Free has the same email + map quality as a single alert from Personal Plus.',
+  },
+  {
+    q: 'Does the Wear OS app cost extra?',
+    a: 'No. The Advottic Wear OS app is included free with Personal Pro, Personal Plus, and every firm tier - install it from the Play Store on the watch and pair it via a 6-digit code in the phone app or by signing in on the watch web flow. Free tier does not include the watch press for Safe Witness, but it does let the watch show cases + the next hearing once we hit that milestone in the roadmap.',
+  },
+  {
     q: 'What counts as an "item"?',
     a: 'One case or one contract. They share a single budget across the tier - so 20 items could be 15 cases + 5 contracts, or 20 of either kind. The vault (your receipts and uploads) is sized separately in GB and does not consume the item budget. Sandbox / archived items do not count.',
   },
   {
     q: 'What happens if I go over my item limit?',
     a: 'Items past your tier cap silently consume Bella tokens from your monthly grant - 25K tokens per extra item per month on Personal Pro / Plus, 50K on Solo / Small Firm, 30K on Growing Firm. You see the line in your billing history, and if your balance runs low you can buy a Boost pack or upgrade tiers. There are no surprise card charges.',
+  },
+  {
+    q: 'What is the difference between Bella tier 1 and tier 2?',
+    a: 'Tier 1 (Solo): Bella drafts documents, runs reports, schedules meetings, posts intake messages, and operates the practice via the same tools you would use yourself. Tier 2 (Small Firm and up): everything in tier 1, plus your firm letterhead is painted across the top of every PDF Bella renders - so a Bella-generated demand letter or engagement letter walks out of the system looking exactly like one your partners would put on the wire. Upload the letterhead under /counsel/settings; nothing else to wire up.',
+  },
+  {
+    q: 'What is the Employee Hub on Small Firm?',
+    a: 'Small Firm and up includes the Employee Hub: a power-but-limited portal at /portal for non-attorney staff (paralegals, intake coordinators, billing clerks). They can submit requests, file intakes, see assigned action items, and reach the attorneys via the request thread - without exposing the full counsel sidebar (Trust accounting, Billing, Firm settings) that should stay attorney-only. Roles & groups gate what each employee sees; the Enterprise menu customization on Growing Firm lets you rename or hide whole sections per role.',
   },
   {
     q: 'What happens at the end of the 7-day trial?',
@@ -354,6 +387,14 @@ export default function PricingPage() {
           <Card title="Receipt vault storage">
             $0.10 / GB / month beyond bundle
           </Card>
+          <Card title="Safe Witness SMS beyond bundle">
+            $0.02 / SMS segment past 50 messages / mo. Free tier has 3 alerts
+            / mo, paid tiers are unlimited.
+          </Card>
+          <Card title="Wear OS companion app">
+            Included free with Personal Pro, Personal Plus, and every firm
+            tier. No add-on charge.
+          </Card>
           <Card title="Marketplace lead">
             Free for first match per matter, then $50-$99 per accepted lead
           </Card>
@@ -370,6 +411,22 @@ export default function PricingPage() {
         <Q
           q="Do I need a credit card on the Free tier?"
           a="No. Free is genuinely free; we collect a card only when you start a paid trial."
+        />
+        <Q
+          q="What is Safe Witness and is it really free?"
+          a="Safe Witness is a personal-safety feature. Press and hold the button on your Wear OS watch (or trigger it from the web) and a one-time alert with your verification PIN, location, a 30-second audio recording, and a tap-to-call link goes to every trusted contact you have configured. Free tier includes 1 contact, web only, 3 alerts per month. Personal Pro and up include up to 5 contacts (15 on Personal Plus per family member), the Wear OS watch press, SMS delivery, the audio capture, and the live-tracker page contacts open to see your moving position. We gate the volume, not the safety."
+        />
+        <Q
+          q="Does the Wear OS app cost extra?"
+          a="No. The Advottic Wear OS app is included free with Personal Pro, Personal Plus, and every firm tier - install it from the Play Store on the watch and pair it via a 6-digit code in the phone app."
+        />
+        <Q
+          q="What is the difference between Bella tier 1 and tier 2?"
+          a="Tier 1 (Solo): Bella drafts documents, runs reports, schedules meetings, posts intake messages, and operates the practice via tools. Tier 2 (Small Firm and up): everything in tier 1, plus your firm letterhead is painted across the top of every PDF Bella renders. Upload the letterhead under /counsel/settings; nothing else to wire up."
+        />
+        <Q
+          q="What is the Employee Hub on Small Firm?"
+          a="Small Firm and up includes the Employee Hub: a power-but-limited portal at /portal for non-attorney staff (paralegals, intake coordinators, billing clerks). They can submit requests, file intakes, see assigned action items, and reach the attorneys via the request thread - without exposing Trust accounting, Billing, or Firm settings. Roles & groups gate what each employee sees."
         />
         <Q
           q="What happens at the end of the 7-day trial?"
