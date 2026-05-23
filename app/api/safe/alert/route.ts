@@ -31,21 +31,33 @@ export const dynamic = 'force-dynamic';
  *      with email_sent + email_error.
  */
 export async function POST(req: NextRequest) {
-  const verified = await verifyApiToken(req.headers.get('authorization'));
-  if (!verified) {
-    return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
+  // Two auth paths. Bearer adv_ token (watch) OR Supabase session
+  // cookie (phone web view + desktop browser on /safe). Either way
+  // we resolve to a user_id; everything else in the endpoint is
+  // identical.
+  let userId: string | null = null;
+  const auth = req.headers.get('authorization');
+  if (auth) {
+    const verified = await verifyApiToken(auth);
+    if (!verified) {
+      return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
+    }
+    if (!tokenHasScope(verified, 'read')) {
+      return NextResponse.json(
+        { error: 'Token missing read scope.' },
+        { status: 403 },
+      );
+    }
+    userId = verified.userId;
+  } else {
+    const { getCurrentUser } = await import('@/lib/supabase/server');
+    const user = await getCurrentUser().catch(() => null);
+    userId = user?.id ?? null;
   }
-  if (!tokenHasScope(verified, 'read')) {
-    return NextResponse.json(
-      { error: 'Token missing read scope.' },
-      { status: 403 },
-    );
-  }
-  const userId = verified.userId;
   if (!userId) {
     return NextResponse.json(
-      { error: 'Safe Witness requires a user-bound token.' },
-      { status: 403 },
+      { error: 'Sign in or attach a bearer token to fire a Safe Witness alert.' },
+      { status: 401 },
     );
   }
 

@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { verifyApiToken, tokenHasScope } from '@/lib/api-tokens';
 import { createAdminSupabase } from '@/lib/supabase/admin';
+import { getCurrentUser } from '@/lib/supabase/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -9,41 +10,51 @@ export const dynamic = 'force-dynamic';
  * POST /api/safe/ping
  *
  * Append a live-tracking location update for an existing Safe Witness
- * alert. The watch fires this every 30s after the initial press (and
- * the web /safe page does too when the user is on a browser session)
- * so the recipient-facing /safe/alert/[id] tracker can redraw a moving
- * dot plus a breadcrumb trail.
+ * alert. The watch fires this every 30s after the initial press; the
+ * web /safe page (running either in the Capacitor Android shell or
+ * in a desktop browser) does the same once an alert is active. The
+ * recipient-facing /safe/alert/[id] tracker page polls these and
+ * redraws a moving dot plus a breadcrumb trail.
  *
  * Body: { alert_id: uuid, lat: number, lng: number, accuracy_m?:
  *         number, speed_mps?: number, heading_deg?: number,
  *         source?: 'watch' | 'mobile' | 'web' }
  *
- * Auth: same Bearer adv_ token used for /api/safe/alert. Watch
- * tokens are read-scoped; the 4-second press is the authorization
- * for everything that flows after. We additionally enforce that
- * the alert's user_id matches the token's user so a leaked token
- * for user A can't write pings against user B's alert.
+ * Auth: two paths. (1) Bearer adv_ token - what the watch uses. (2)
+ * Session cookie - what the phone + desktop web /safe page uses.
+ * Either way we resolve to a user_id and require it matches the
+ * alert's user_id so a token / session for user A can't write
+ * pings against user B's alert.
  *
  * Short-circuits when tracking_stopped_at is set on the alert -
- * returns 409 with {stopped:true} so the watch knows to halt its
- * 30s timer instead of trying again.
+ * returns 409 with {stopped:true} so the caller halts its 30s timer
+ * instead of trying again.
  */
 export async function POST(req: NextRequest) {
-  const verified = await verifyApiToken(req.headers.get('authorization'));
-  if (!verified) {
-    return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
+  // Bearer token path (watch).
+  let userId: string | null = null;
+  const auth = req.headers.get('authorization');
+  if (auth) {
+    const verified = await verifyApiToken(auth);
+    if (!verified) {
+      return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
+    }
+    if (!tokenHasScope(verified, 'read')) {
+      return NextResponse.json(
+        { error: 'Token missing read scope.' },
+        { status: 403 },
+      );
+    }
+    userId = verified.userId;
+  } else {
+    // Session-cookie path (phone web view + desktop browser).
+    const user = await getCurrentUser().catch(() => null);
+    userId = user?.id ?? null;
   }
-  if (!tokenHasScope(verified, 'read')) {
-    return NextResponse.json(
-      { error: 'Token missing read scope.' },
-      { status: 403 },
-    );
-  }
-  const userId = verified.userId;
   if (!userId) {
     return NextResponse.json(
-      { error: 'Live tracking requires a user-bound token.' },
-      { status: 403 },
+      { error: 'Sign in or attach a bearer token to send live-tracking pings.' },
+      { status: 401 },
     );
   }
 

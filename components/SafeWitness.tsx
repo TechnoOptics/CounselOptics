@@ -41,6 +41,15 @@ export function SafeWitness() {
   const elRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startedAtRef = useRef<string>('');
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  // Live-tracking ping loop. Once the alert fires successfully and
+  // the server returns an alert_id, we start a 30s setInterval that
+  // POSTs the latest browser-geolocation fix to /api/safe/ping. The
+  // recipient's tracker page then redraws a moving dot + breadcrumb
+  // trail. The loop runs open-ended (no auto-stop) and only halts
+  // when the user hits Stop, the page unmounts, or the server
+  // returns 409 stopped:true.
+  const alertIdRef = useRef<string | null>(null);
+  const pingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     try {
@@ -60,6 +69,78 @@ export function SafeWitness() {
       navigator.geolocation?.clearWatch(watchRef.current);
     if (cdRef.current) clearInterval(cdRef.current);
     if (elRef.current) clearInterval(elRef.current);
+    stopPingLoop();
+  }
+
+  /**
+   * Live-tracking ping loop. Posts the browser's latest geolocation
+   * fix to /api/safe/ping every 30 seconds so the recipient's
+   * tracker page can redraw a moving dot + breadcrumb trail. Auth
+   * piggybacks on the Supabase session cookie (the page already
+   * required sign-in to fire the alert).
+   *
+   * Mirrors what the watch does in MainActivity's Safe Witness press
+   * handler - both phone and watch can be running pings into the
+   * same alert_id, which gives the recipient redundant coverage if
+   * one device goes dark.
+   */
+  function startPingLoop(alertId: string) {
+    alertIdRef.current = alertId;
+    if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
+    const tick = async () => {
+      if (!alertIdRef.current) return;
+      const p = posRef.current;
+      // No fix yet - skip this tick, the watchPosition callback will
+      // populate posRef soon and the next tick will succeed.
+      if (!p) return;
+      try {
+        const r = await fetch('/api/safe/ping', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            alert_id: alertIdRef.current,
+            lat: p.lat,
+            lng: p.lng,
+            accuracy_m: p.acc,
+            source: 'web',
+          }),
+        });
+        // 409 means tracking was stopped (likely from the watch or
+        // a phone-side Stop). Halt the loop so we don't keep
+        // pounding the endpoint.
+        if (r.status === 409) {
+          stopPingLoop();
+        }
+      } catch {
+        // Network blip - next tick retries.
+      }
+    };
+    // Fire one immediately so the contact sees a fresh dot inside
+    // the first 30 seconds, then every 30s after that.
+    tick();
+    pingIntervalRef.current = setInterval(tick, 30_000);
+  }
+
+  function stopPingLoop() {
+    if (pingIntervalRef.current) {
+      clearInterval(pingIntervalRef.current);
+      pingIntervalRef.current = null;
+    }
+    // Best-effort server-side stop too. If the user just navigated
+    // away the request may not land, which is fine - the watch
+    // loop (if any) hits the same stop endpoint independently.
+    const id = alertIdRef.current;
+    if (id) {
+      fetch('/api/safe/stop', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ alert_id: id, source: 'web' }),
+        keepalive: true,
+      }).catch(() => {
+        /* ignore */
+      });
+      alertIdRef.current = null;
+    }
   }
 
   function saveContact() {
@@ -166,24 +247,41 @@ export function SafeWitness() {
     if (!contact) return;
     setStatus('Alerting your contact...');
     try {
-      const res = await fetch('/api/safe-alert', {
+      // Use the modern /api/safe/alert endpoint - same one the watch
+      // hits. Session-cookie auth path. It fans out via the multi-
+      // contact safe_witness_contacts list, sends email + SMS, and
+      // returns an alert_id we use to attach 30s live pings.
+      const res = await fetch('/api/safe/alert', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contactName: contact.name,
-          contactEmail: contact.email,
+          source: 'web',
+          note: `Safe Witness fired from web; primary contact ${contact.name} <${contact.email}>.`,
           lat: posRef.current?.lat,
           lng: posRef.current?.lng,
-          accuracy: posRef.current?.acc,
-          startedAt: startedAtRef.current,
+          accuracy_m: posRef.current?.acc,
         }),
       });
-      const j = await res.json().catch(() => ({}));
-      setStatus(
-        j.ok
-          ? `Alert sent to ${contact.name} with your live location.`
-          : `Alert may not have sent (${j.error || 'try again'}). Keep recording; call 911 if needed.`,
-      );
+      const j = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        alert_id?: string;
+        contacts_alerted?: number;
+        error?: string;
+      };
+      if (j.ok) {
+        setStatus(
+          j.contacts_alerted
+            ? `Alert sent to ${j.contacts_alerted} contact${j.contacts_alerted === 1 ? '' : 's'} with your live location. Pinging every 30s.`
+            : 'Alert sent with your live location. Pinging every 30s.',
+        );
+        if (j.alert_id) {
+          startPingLoop(j.alert_id);
+        }
+      } else {
+        setStatus(
+          `Alert may not have sent (${j.error || 'try again'}). Keep recording; call 911 if needed.`,
+        );
+      }
     } catch {
       setStatus('Network issue sending the alert. Recording continues.');
     }
