@@ -453,6 +453,15 @@ fun WearApp(summary: SummaryStore.Summary) {
     var linkActive by remember { mutableStateOf(false) }
     val isLinked = remember { WatchLinkStore.token(context) != null }
 
+    // Active Safe Witness live-tracking session. Non-null while the
+    // 30s ping loop is running (i.e. after sendSafeAlert returns an
+    // alertId and before the loop terminates on 409 stopped). Used
+    // by the small 'Stop tracking' chip rendered under the press
+    // button so the user can halt the broadcast from the wrist.
+    // Mutable from inside the GlobalScope coroutine via Compose's
+    // snapshot mechanism (mutableStateOf is thread-safe).
+    var trackingAlertId by remember { mutableStateOf<String?>(null) }
+
     // Pairing is now an explicit user action. The old build auto-
     // opened the QR overlay on every cold launch when the watch
     // wasn't linked yet - which silently polled the server every
@@ -1180,30 +1189,104 @@ fun WearApp(summary: SummaryStore.Summary) {
                                             if (alertId != null &&
                                                 LocationCapture.hasPermission(context)
                                             ) {
-                                                while (true) {
-                                                    kotlinx.coroutines.delay(30_000L)
-                                                    val pingFix = try {
-                                                        LocationCapture.get(
-                                                            context,
-                                                            timeoutMs = 8_000L,
+                                                // Surface the active session
+                                                // to the UI so the 'Stop
+                                                // tracking' chip appears.
+                                                trackingAlertId = alertId
+                                                try {
+                                                    while (true) {
+                                                        kotlinx.coroutines.delay(30_000L)
+                                                        val pingFix = try {
+                                                            LocationCapture.get(
+                                                                context,
+                                                                timeoutMs = 8_000L,
+                                                            )
+                                                        } catch (_: Throwable) {
+                                                            null
+                                                        } ?: continue
+                                                        val r = WatchApi.sendSafePing(
+                                                            tok,
+                                                            alertId,
+                                                            lat = pingFix.lat,
+                                                            lng = pingFix.lng,
+                                                            accuracyM = pingFix.accuracyM,
                                                         )
-                                                    } catch (_: Throwable) {
-                                                        null
-                                                    } ?: continue
-                                                    val r = WatchApi.sendSafePing(
-                                                        tok,
-                                                        alertId,
-                                                        lat = pingFix.lat,
-                                                        lng = pingFix.lng,
-                                                        accuracyM = pingFix.accuracyM,
-                                                    )
-                                                    if (r.stopped) break
+                                                        if (r.stopped) break
+                                                    }
+                                                } finally {
+                                                    // Loop ended (stopped
+                                                    // from server / GPS
+                                                    // died / coroutine
+                                                    // cancelled). Drop the
+                                                    // chip.
+                                                    trackingAlertId = null
                                                 }
                                             }
                                         }
                                     }
                                 },
                             )
+                        }
+                        // Wrist Stop-tracking chip. Visible only while
+                        // a Safe Witness ping loop is active. Tap calls
+                        // WatchApi.stopSafeTracking which flips
+                        // live_tracking=false server-side; the loop
+                        // itself sees the 409 on its next ping and
+                        // self-terminates (which then clears
+                        // trackingAlertId via the try/finally above
+                        // and the chip hides). Sized small so it
+                        // doesn't crowd the press button on round
+                        // watches; emerald accent to read as
+                        // "currently broadcasting."
+                        val tid = trackingAlertId
+                        if (tid != null) {
+                            item {
+                                Chip(
+                                    onClick = {
+                                        buzz()
+                                        val tok = WatchLinkStore.token(context)
+                                        if (tok != null) {
+                                            @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
+                                            kotlinx.coroutines.GlobalScope.launch(
+                                                kotlinx.coroutines.Dispatchers.IO,
+                                            ) {
+                                                WatchApi.stopSafeTracking(
+                                                    tok,
+                                                    tid,
+                                                )
+                                            }
+                                        }
+                                    },
+                                    label = {
+                                        Text(
+                                            "Stop tracking",
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier.fillMaxWidth(),
+                                            style = MaterialTheme.typography.caption1,
+                                        )
+                                    },
+                                    secondaryLabel = {
+                                        Text(
+                                            "Live · pinging every 30s",
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier.fillMaxWidth(),
+                                            color = Cream.copy(alpha = 0.65f),
+                                            style = MaterialTheme.typography.caption3,
+                                        )
+                                    },
+                                    colors = ChipDefaults.chipColors(
+                                        backgroundColor = ForestMid,
+                                        contentColor = Cream,
+                                    ),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(
+                                            top = 6.dp,
+                                            start = 16.dp,
+                                            end = 16.dp,
+                                        ),
+                                )
+                            }
                         }
                     } else if (isLinked) {
                         item {
