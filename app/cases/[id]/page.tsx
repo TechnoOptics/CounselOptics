@@ -391,9 +391,15 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
               ]
             : []),
           {
+            // User-requested IA (May 2026): the case tab is everything
+            // about the case itself except the evidence + the AI read.
+            // That means Story, Subject, Hearing (moved up from its
+            // own tab), Sharing, Activity, and the lifecycle/danger
+            // controls. Three top-level tabs total: Case / Exhibits /
+            // Advottic Review.
             id: 'case',
             label: 'Case',
-            badge: exhibits.length || undefined,
+            badge: hearingBadge(c.hearingAt),
             content: (
               <div className="space-y-10">
                 <CaseSection
@@ -421,7 +427,106 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
                 </CaseSection>
 
                 <CaseSection
-                  id="case-exhibits"
+                  id="case-hearing"
+                  eyebrow="Hearing"
+                  title={
+                    c.hearingAt
+                      ? 'Your next hearing'
+                      : 'No hearing set'
+                  }
+                  subtitle="Date, courtroom, packet, and prep checklist. Updates here sync to the watch and the home dashboard."
+                >
+                  <HearingPanel
+                    caseRecord={c}
+                    exhibits={exhibits}
+                    review={review}
+                    isOwner={isOwner}
+                    collaboratorCount={collaborators.length}
+                  />
+                </CaseSection>
+
+                {usingSupabase() && (
+                  <>
+                    <CaseSection
+                      id="case-sharing"
+                      eyebrow="Sharing"
+                      title={
+                        collaborators.length === 0
+                          ? 'Only you have access'
+                          : `${collaborators.length} ${
+                              collaborators.length === 1
+                                ? 'collaborator'
+                                : 'collaborators'
+                            }`
+                      }
+                      subtitle="Invite an attorney, paralegal, or trusted witness. Per-role permissions: viewer, editor, attorney, witness."
+                    >
+                      <CollaboratorsPanel
+                        caseId={c.id}
+                        collaborators={collaborators}
+                        isOwner={isOwner}
+                      />
+                    </CaseSection>
+
+                    <CaseSection
+                      id="case-activity"
+                      eyebrow="Activity"
+                      title="Audit trail"
+                      subtitle="Every view, upload, and edit is logged. The case owner is emailed for material changes (we batch related events within a few minutes so you don't get spammed)."
+                    >
+                      <ActivityList events={activity} />
+                    </CaseSection>
+                  </>
+                )}
+
+                <CaseSection
+                  id="case-settings"
+                  eyebrow="Settings"
+                  title="Case lifecycle"
+                  subtitle="Close, reopen, or permanently delete this case."
+                >
+                  <CloseCaseControl
+                    caseId={c.id}
+                    status={c.status}
+                    isOwner={isOwner}
+                  />
+
+                  {isOwner && (
+                    <section className="card border-rose-200 dark:border-rose-900/40 p-5 sm:p-6 mt-6">
+                      <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <p className="text-[10px] uppercase tracking-[0.22em] font-semibold text-rose-700 dark:text-rose-200">
+                            Danger zone
+                          </p>
+                          <h3 className="font-display text-lg font-medium tracking-[-0.01em] text-ink-950 dark:text-cream-100 mt-1">
+                            Delete this case
+                          </h3>
+                          <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1.5 max-w-md leading-relaxed">
+                            Removes the case, every exhibit, every
+                            Advottic Review, and any collaborator
+                            access. This is permanent - the case cannot
+                            be recovered.
+                          </p>
+                        </div>
+                        <DeleteCaseButton
+                          caseId={c.id}
+                          caseTitle={c.title}
+                        />
+                      </div>
+                    </section>
+                  )}
+                </CaseSection>
+              </div>
+            ),
+          },
+          {
+            id: 'exhibits',
+            label: 'Exhibits',
+            badge: exhibits.length || undefined,
+            content: (
+              <div className="space-y-10">
+                <CaseSection
+                  id="exhibits-upload"
                   eyebrow="Exhibits"
                   title={
                     exhibits.length === 0
@@ -524,13 +629,29 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
             ),
           },
           {
-            id: 'analysis',
-            label: 'Analysis',
+            // 'Advottic Review' is the AI read of the case: the
+            // headline review plus the supporting strength heatmap
+            // and opposing-counsel profile that used to sit under
+            // the broader 'Analysis' tab. All three are AI-generated
+            // analysis surfaces so grouping them under a single
+            // 'Advottic Review' label matches how users describe
+            // them ("did you check Advottic Review yet?").
+            id: 'advottic-review',
+            label: 'Advottic Review',
             badge: review ? '✓' : undefined,
             content: (
               <div className="space-y-10">
                 <CaseSection
-                  id="analysis-strength"
+                  id="review-summary"
+                  eyebrow="Advottic Review"
+                  title="AI read of your case"
+                  subtitle="Issue-spotting, evidence gaps, possible subpoena targets."
+                >
+                  <ReviewPanel caseId={c.id} review={review} />
+                </CaseSection>
+
+                <CaseSection
+                  id="review-strength"
                   eyebrow="Strength"
                   title="Where the case is strong, where it's weak"
                   subtitle="Heatmap of how well your exhibits cover each issue."
@@ -539,118 +660,12 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
                 </CaseSection>
 
                 <CaseSection
-                  id="analysis-practice"
+                  id="review-practice"
                   eyebrow="Practice"
                   title="Anticipate the other side"
                   subtitle="Profile opposing counsel's likely tactics from prior cases."
                 >
                   <OpposingCounsel caseId={c.id} />
-                </CaseSection>
-
-                <CaseSection
-                  id="analysis-review"
-                  eyebrow="Advottic Review"
-                  title="AI read of your case"
-                  subtitle="Issue-spotting, evidence gaps, possible subpoena targets. Now one scroll instead of four sub-tabs."
-                >
-                  <ReviewPanel caseId={c.id} review={review} />
-                </CaseSection>
-              </div>
-            ),
-          },
-          {
-            id: 'hearing',
-            label: 'Hearing',
-            badge: hearingBadge(c.hearingAt),
-            content: (
-              <HearingPanel
-                caseRecord={c}
-                exhibits={exhibits}
-                review={review}
-                isOwner={isOwner}
-                collaboratorCount={collaborators.length}
-              />
-            ),
-          },
-          {
-            id: 'manage',
-            label: 'Manage',
-            badge:
-              usingSupabase() && (collaborators.length || activity.length)
-                ? collaborators.length + activity.length
-                : undefined,
-            content: (
-              <div className="space-y-10">
-                {usingSupabase() && (
-                  <>
-                    <CaseSection
-                      id="manage-sharing"
-                      eyebrow="Sharing"
-                      title={
-                        collaborators.length === 0
-                          ? 'Only you have access'
-                          : `${collaborators.length} ${
-                              collaborators.length === 1
-                                ? 'collaborator'
-                                : 'collaborators'
-                            }`
-                      }
-                      subtitle="Invite an attorney, paralegal, or trusted witness. Per-role permissions: viewer, editor, attorney, witness."
-                    >
-                      <CollaboratorsPanel
-                        caseId={c.id}
-                        collaborators={collaborators}
-                        isOwner={isOwner}
-                      />
-                    </CaseSection>
-
-                    <CaseSection
-                      id="manage-activity"
-                      eyebrow="Activity"
-                      title="Audit trail"
-                      subtitle="Every view, upload, and edit is logged. The case owner is emailed for material changes (we batch related events within a few minutes so you don't get spammed)."
-                    >
-                      <ActivityList events={activity} />
-                    </CaseSection>
-                  </>
-                )}
-
-                <CaseSection
-                  id="manage-settings"
-                  eyebrow="Settings"
-                  title="Case lifecycle"
-                  subtitle="Close, reopen, or permanently delete this case."
-                >
-                  <CloseCaseControl
-                    caseId={c.id}
-                    status={c.status}
-                    isOwner={isOwner}
-                  />
-
-                  {isOwner && (
-                    <section className="card border-rose-200 dark:border-rose-900/40 p-5 sm:p-6 mt-6">
-                      <div className="flex flex-wrap items-start justify-between gap-4">
-                        <div className="min-w-0">
-                          <p className="text-[10px] uppercase tracking-[0.22em] font-semibold text-rose-700 dark:text-rose-200">
-                            Danger zone
-                          </p>
-                          <h3 className="font-display text-lg font-medium tracking-[-0.01em] text-ink-950 dark:text-cream-100 mt-1">
-                            Delete this case
-                          </h3>
-                          <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1.5 max-w-md leading-relaxed">
-                            Removes the case, every exhibit, every
-                            Advottic Review, and any collaborator
-                            access. This is permanent - the case cannot
-                            be recovered.
-                          </p>
-                        </div>
-                        <DeleteCaseButton
-                          caseId={c.id}
-                          caseTitle={c.title}
-                        />
-                      </div>
-                    </section>
-                  )}
                 </CaseSection>
               </div>
             ),
