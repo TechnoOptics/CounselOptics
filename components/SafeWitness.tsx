@@ -30,6 +30,11 @@ export function SafeWitness() {
   const [status, setStatus] = useState('');
   const [hash, setHash] = useState('');
   const [elapsed, setElapsed] = useState(0);
+  // Whether the 30s ping loop is currently active. Drives the
+  // 'Stop tracking' button visibility + label. Flipped on by
+  // startPingLoop() and off by stopPingLoop() / 409 stopped /
+  // teardown().
+  const [trackingActive, setTrackingActive] = useState(false);
 
   const streamRef = useRef<MediaStream | null>(null);
   const recRef = useRef<MediaRecorder | null>(null);
@@ -87,6 +92,7 @@ export function SafeWitness() {
   function startPingLoop(alertId: string) {
     alertIdRef.current = alertId;
     if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
+    setTrackingActive(true);
     const tick = async () => {
       if (!alertIdRef.current) return;
       const p = posRef.current;
@@ -107,9 +113,10 @@ export function SafeWitness() {
         });
         // 409 means tracking was stopped (likely from the watch or
         // a phone-side Stop). Halt the loop so we don't keep
-        // pounding the endpoint.
+        // pounding the endpoint. notifyServer=false because the
+        // server already knows - it's the one telling us.
         if (r.status === 409) {
-          stopPingLoop();
+          stopPingLoop({ notifyServer: false });
         }
       } catch {
         // Network blip - next tick retries.
@@ -121,16 +128,21 @@ export function SafeWitness() {
     pingIntervalRef.current = setInterval(tick, 30_000);
   }
 
-  function stopPingLoop() {
+  function stopPingLoop(opts: { notifyServer?: boolean } = {}) {
+    const { notifyServer = true } = opts;
     if (pingIntervalRef.current) {
       clearInterval(pingIntervalRef.current);
       pingIntervalRef.current = null;
     }
-    // Best-effort server-side stop too. If the user just navigated
-    // away the request may not land, which is fine - the watch
-    // loop (if any) hits the same stop endpoint independently.
+    setTrackingActive(false);
+    // Tell the server to flip live_tracking=false so any other
+    // device pinging the same alert (e.g. the watch) sees a 409 on
+    // its next tick and self-terminates. Best-effort: a navigate-
+    // away may not deliver, but the watch will time out on its
+    // own. Set notifyServer=false when the server is the one that
+    // told us to stop in the first place.
     const id = alertIdRef.current;
-    if (id) {
+    if (id && notifyServer) {
       fetch('/api/safe/stop', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -139,8 +151,8 @@ export function SafeWitness() {
       }).catch(() => {
         /* ignore */
       });
-      alertIdRef.current = null;
     }
+    alertIdRef.current = null;
   }
 
   function saveContact() {
@@ -450,6 +462,42 @@ export function SafeWitness() {
             Hide screen
           </button>
         </div>
+        {/* Live tracking indicator + dedicated Stop button. Distinct
+            from 'Stop & secure evidence' below because the user may
+            want to silence their moving dot ("I'm somewhere safe
+            now, stop broadcasting") WITHOUT ending the recording
+            that's still capturing the room around them. */}
+        {trackingActive ? (
+          <div className="mt-3 rounded-lg ring-1 ring-emerald-400/40 bg-emerald-500/10 p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <span
+                  aria-hidden
+                  className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse flex-none"
+                />
+                <p className="text-[12.5px] text-emerald-100 leading-snug">
+                  Live tracking on. Your contacts see your moving dot.
+                  Updates every 30 seconds.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => stopPingLoop()}
+                className="btn bg-cream-100/15 hover:bg-cream-100/25 text-cream-100 text-[12px] px-3 py-1.5 flex-none whitespace-nowrap"
+              >
+                Stop tracking
+              </button>
+            </div>
+          </div>
+        ) : alertIdRef.current === null && status ? (
+          // After fireAlert succeeded once and was then stopped,
+          // alertIdRef is cleared. Show a small confirmation so the
+          // user knows the broadcast stopped (recording continues).
+          <p className="mt-3 text-[12px] text-cream-100/60 italic">
+            Live tracking stopped. Recording continues until you hit
+            stop below.
+          </p>
+        ) : null}
         <button
           type="button"
           onClick={stopAll}
