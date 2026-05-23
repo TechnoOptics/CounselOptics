@@ -141,6 +141,42 @@ export async function POST(req: NextRequest) {
         // Legacy path: older topup-* SKUs without our metadata fall
         // through to the price-id map below for backwards compat.
         const sessionMeta = session.metadata ?? {};
+
+        // Gift subscription path: a gifter paid for someone else.
+        // metadata.product === 'gift_subscription' and metadata.gift_id
+        // points to a pending_payment row we created in /api/gift/checkout.
+        // We flip the row to paid_pending_claim, set paid_at +
+        // payment_intent_id, then send the recipient their redemption
+        // email so they can claim. The subscription itself does NOT
+        // get attached to the gifter's account - it sits idle until
+        // the recipient hits /gift/claim/[token].
+        if (
+          session.mode === 'payment' &&
+          sessionMeta.product === 'gift_subscription' &&
+          typeof sessionMeta.gift_id === 'string'
+        ) {
+          const { applyGiftPaid } = await import('@/lib/gift-server');
+          await applyGiftPaid({
+            giftId: sessionMeta.gift_id,
+            paymentIntentId:
+              typeof session.payment_intent === 'string'
+                ? session.payment_intent
+                : session.payment_intent?.id ?? null,
+            stripeSessionId: session.id,
+            amountCents: session.amount_total ?? null,
+          });
+          await notifyAdminOfRevenue({
+            kind: 'subscription_created',
+            email:
+              session.customer_details?.email ?? session.customer_email ?? null,
+            tierOrSize: `gift · ${sessionMeta.tier_slug ?? '?'} · ${sessionMeta.duration_months ?? '?'} mo`,
+            amountCents: session.amount_total ?? null,
+            customerId: customerId ?? null,
+            sessionId: session.id,
+          });
+          break;
+        }
+
         if (
           session.mode === 'payment' &&
           sessionMeta.product === 'token_topup' &&

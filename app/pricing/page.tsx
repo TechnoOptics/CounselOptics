@@ -343,6 +343,30 @@ export default function PricingPage() {
         </div>
       </section>
 
+      <section className="max-w-3xl mx-auto px-4 sm:px-6">
+        <div className="card p-5 sm:p-7 ring-2 ring-amber-300/60 dark:ring-amber-500/40 bg-gradient-to-br from-amber-50/40 to-transparent dark:from-amber-950/15">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-5">
+            <div className="flex-1 space-y-1.5">
+              <p className="text-[10px] uppercase tracking-[0.2em] text-amber-700 dark:text-amber-300 font-semibold">
+                Gift Advottic
+              </p>
+              <h3 className="font-display text-2xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
+                Buy it for someone you care about.
+              </h3>
+              <p className="text-[13.5px] text-ink-600 dark:text-cream-100/70 leading-relaxed">
+                Pay once. They get an email with a one-tap setup link.
+                Subscription activates on their account for the
+                duration you choose (1, 3, 6, or 12 months) and they
+                can upgrade or extend later from their billing page.
+              </p>
+            </div>
+            <Link href="/gift" className="btn-primary inline-flex shrink-0">
+              Send a gift &rarr;
+            </Link>
+          </div>
+        </div>
+      </section>
+
       <section className="max-w-3xl mx-auto px-4 sm:px-6 space-y-4">
         <h2 className="font-display text-2xl text-forest-900 dark:text-cream-100">
           Discounts
