@@ -21,15 +21,18 @@ import { useEffect, useState } from 'react';
  * once we ship continuous location reporting from the watch.
  */
 export function LiveTracker({
+  alertId,
   watcherFirstName,
-  watcherLat,
-  watcherLng,
+  watcherLat: initialWatcherLat,
+  watcherLng: initialWatcherLng,
   watcherPhone,
-  accuracyM,
+  accuracyM: initialAccuracyM,
   locationTimedOut,
   mapsApiKey,
   firedAt,
+  initialLiveTracking,
 }: {
+  alertId: string;
   watcherFirstName: string;
   watcherLat: number | null;
   watcherLng: number | null;
@@ -38,7 +41,98 @@ export function LiveTracker({
   locationTimedOut: boolean;
   mapsApiKey: string | null;
   firedAt: string;
+  initialLiveTracking: boolean;
 }) {
+  // Live-pin polling. The static map / static accuracy below are
+  // initial values from the alert row; as new pings stream in we
+  // override the active watcher position to the latest one and feed
+  // a breadcrumb trail (up to the last ~20 points) into the
+  // static-map polyline so the contact sees a path, not just a dot.
+  type Ping = {
+    lat: number;
+    lng: number;
+    accuracyM: number | null;
+    t: string; // ISO timestamp
+  };
+  const [pings, setPings] = useState<Ping[]>([]);
+  const [tracking, setTracking] = useState<{
+    live: boolean;
+    stoppedAt: string | null;
+  }>({ live: initialLiveTracking, stoppedAt: null });
+  // Latest server timestamp we've already pulled. Used as the since=
+  // param on subsequent polls so we transfer 0-2 rows in the steady
+  // state instead of the full trail every 5 seconds.
+  const [lastSeenT, setLastSeenT] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Don't bother polling once tracking is known-stopped; a manual
+    // refresh of the page is the right way to revisit a frozen
+    // trail.
+    if (!tracking.live) return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const sinceParam = lastSeenT
+          ? `?since=${encodeURIComponent(lastSeenT)}`
+          : '';
+        const r = await fetch(
+          `/api/safe/alert/${alertId}/positions${sinceParam}`,
+          { cache: 'no-store' },
+        );
+        if (!r.ok) return;
+        const j = (await r.json()) as {
+          pings: Array<{
+            lat: number;
+            lng: number;
+            accuracy_m: number | null;
+            t: string;
+          }>;
+          tracking: {
+            live: boolean;
+            stopped_at: string | null;
+          };
+        };
+        if (cancelled) return;
+        if (Array.isArray(j.pings) && j.pings.length > 0) {
+          setPings((prev) => {
+            const merged = [
+              ...prev,
+              ...j.pings.map((p) => ({
+                lat: p.lat,
+                lng: p.lng,
+                accuracyM: p.accuracy_m,
+                t: p.t,
+              })),
+            ];
+            // Cap at last 60 pings (~30 min @ 30s) so the static-map
+            // URL stays under the URL length cap and the polyline
+            // doesn't drown out the map at small zoom levels.
+            return merged.slice(-60);
+          });
+          setLastSeenT(j.pings[j.pings.length - 1]!.t);
+        }
+        if (j.tracking && j.tracking.live === false) {
+          setTracking({ live: false, stoppedAt: j.tracking.stopped_at });
+        }
+      } catch {
+        // Network blip is fine - we'll retry on the next interval.
+      }
+    };
+    // First fetch on mount + every 5s thereafter.
+    tick();
+    const id = setInterval(tick, 5_000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [alertId, lastSeenT, tracking.live]);
+
+  // Active watcher position: latest ping if any, otherwise the
+  // alert-fire location passed in as initial props.
+  const latestPing = pings[pings.length - 1] ?? null;
+  const watcherLat = latestPing?.lat ?? initialWatcherLat;
+  const watcherLng = latestPing?.lng ?? initialWatcherLng;
+  const accuracyM = latestPing?.accuracyM ?? initialAccuracyM;
   type ContactPos = {
     lat: number;
     lng: number;
@@ -87,6 +181,13 @@ export function LiveTracker({
 
   const hasWatcher = watcherLat !== null && watcherLng !== null;
 
+  // Seconds elapsed between an ISO timestamp and a wall-clock value
+  // (used for the "Last update Xs ago" caption on the live indicator).
+  function secondsSince(iso: string, nowMs: number): number {
+    const t = new Date(iso).getTime();
+    return Math.max(0, Math.floor((nowMs - t) / 1000));
+  }
+
   // Haversine distance in meters between two lat/lng pairs.
   function haversineMeters(
     aLat: number,
@@ -117,17 +218,31 @@ export function LiveTracker({
         ? `${Math.round(distanceM)} m`
         : `${(distanceM / 1000).toFixed(distanceM < 10_000 ? 2 : 1)} km`;
 
-  // Static-map URL: shows the watcher's pin alone before the contact
-  // grants permission, then ALSO shows the contact's pin + a line
-  // between the two once we have both. The Google Static Maps API
-  // accepts multiple `markers` params and an encoded polyline `path`.
+  // Static-map URL: shows the watcher's current pin (latest ping or
+  // alert-fire fallback), the breadcrumb trail of recent pings as a
+  // polyline, the contact's pin when they opt in, and a line between
+  // the contact and the watcher. Google Static Maps accepts multiple
+  // `markers` and `path` params.
   const staticMapUrl = (() => {
     if (!hasWatcher || !mapsApiKey) return null;
     const params = new URLSearchParams();
     params.set('size', '640x440');
     params.set('scale', '2');
     params.set('maptype', 'roadmap');
-    // Watcher marker - red, labeled S (for "subject")
+    // Breadcrumb trail: gold polyline through the last N pings.
+    // We only draw it when there are at least 2 points; below
+    // that there's nothing to "trail."
+    if (pings.length >= 2) {
+      const trail = pings
+        .slice(-30)
+        .map((p) => `${p.lat.toFixed(5)},${p.lng.toFixed(5)}`)
+        .join('|');
+      // Soft gold trail behind the live pin so the current pin still
+      // stands out. weight:3 reads as a line at all zooms.
+      params.append('path', `color:0xE6CE93BB|weight:3|${trail}`);
+    }
+    // Watcher marker - red, labeled S (for "subject"). This is the
+    // *current* position (latest ping or alert-fire fallback).
     params.append('markers', `color:red|label:S|${watcherLat},${watcherLng}`);
     if (contactPos) {
       // Contact marker - gold, labeled Y (for "you")
@@ -241,13 +356,41 @@ export function LiveTracker({
         </div>
       )}
 
-      <p className="mt-2 text-[11px] text-[#FBF7E9]/60 text-center italic">
-        {minutesSinceFired < 1
-          ? 'Just fired.'
-          : `Pin captured ${minutesSinceFired} ${minutesSinceFired === 1 ? 'minute' : 'minutes'} ago.`}{' '}
-        {watcherFirstName} could be moving - widen the search the longer
-        this has been sitting.
-      </p>
+      {/* Status line: when live tracking is on, anchor the freshness
+          to the latest ping. When it's stopped, fall back to the
+          original alert-fire time. */}
+      <div className="mt-2 text-center">
+        {tracking.live ? (
+          <p className="text-[11px] text-emerald-300 inline-flex items-center gap-1.5">
+            <span
+              aria-hidden
+              className="inline-block h-2 w-2 rounded-full bg-emerald-400 animate-pulse"
+            />
+            Live tracking on.
+            {latestPing
+              ? ` Last update ${
+                  secondsSince(latestPing.t, now) < 60
+                    ? 'just now'
+                    : `${Math.floor(secondsSince(latestPing.t, now) / 60)} min ago`
+                }.`
+              : ' Waiting for the next ping…'}
+          </p>
+        ) : (
+          <p className="text-[11px] text-[#FBF7E9]/60 italic">
+            Live tracking stopped
+            {tracking.stoppedAt
+              ? ` ${Math.max(0, Math.floor((now - new Date(tracking.stoppedAt).getTime()) / 60_000))} min ago`
+              : ''}
+            . Pin is the last known location -{' '}
+            {watcherFirstName} could be moving from there.
+          </p>
+        )}
+        {!tracking.live && minutesSinceFired >= 1 && (
+          <p className="mt-1 text-[11px] text-[#FBF7E9]/45">
+            Alert fired {minutesSinceFired} {minutesSinceFired === 1 ? 'minute' : 'minutes'} ago.
+          </p>
+        )}
+      </div>
 
       {/* Live-distance widget. Hidden until the contact opts in. */}
       <div className="mt-4 rounded-xl bg-[#FBF7E9]/5 p-4">

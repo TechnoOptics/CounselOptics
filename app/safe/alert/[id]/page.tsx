@@ -65,7 +65,9 @@ export default async function SafeAlertPage({
   //     just like they did in the email
   const { data: alertRow, error } = await admin
     .from('safe_witness_alerts')
-    .select('id, user_id, fired_at, transcription, metadata')
+    .select(
+      'id, user_id, fired_at, transcription, metadata, live_tracking, tracking_stopped_at',
+    )
     .eq('id', params.id)
     .maybeSingle();
   if (error || !alertRow) {
@@ -76,6 +78,8 @@ export default async function SafeAlertPage({
     user_id: string;
     fired_at: string;
     transcription: string | null;
+    live_tracking: boolean;
+    tracking_stopped_at: string | null;
     metadata: {
       lat?: number;
       lng?: number;
@@ -204,6 +208,7 @@ export default async function SafeAlertPage({
         )}
 
         <LiveTracker
+          alertId={row.id}
           watcherFirstName={watcherName.split(' ')[0]}
           watcherLat={lat}
           watcherLng={lng}
@@ -212,6 +217,9 @@ export default async function SafeAlertPage({
           locationTimedOut={locationTimedOut}
           mapsApiKey={mapsApiKey}
           firedAt={row.fired_at}
+          initialLiveTracking={
+            row.live_tracking !== false && !row.tracking_stopped_at
+          }
         />
 
         {audioUrl && (

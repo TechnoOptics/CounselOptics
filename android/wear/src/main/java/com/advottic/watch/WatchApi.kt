@@ -231,6 +231,91 @@ object WatchApi {
     }
 
     /**
+     * Result of a Safe Witness live-tracking ping.
+     *
+     * [ok] true on a 2xx response. [stopped] true when the server
+     * returns 409 with {stopped: true} - means the watcher (or
+     * someone else with the token) has stopped tracking and the
+     * watch should halt its 30s timer instead of pinging forever.
+     */
+    data class SafePingResult(val ok: Boolean, val stopped: Boolean)
+
+    /**
+     * POST /api/safe/ping - append a live-tracking position to an
+     * existing Safe Witness alert. Called by the watch in a 30s
+     * loop after the initial /api/safe/alert succeeds. Best-effort;
+     * one failed ping is fine, the next 30s tick will retry.
+     */
+    suspend fun sendSafePing(
+        token: String,
+        alertId: String,
+        lat: Double,
+        lng: Double,
+        accuracyM: Float? = null,
+        speedMps: Float? = null,
+        headingDeg: Float? = null,
+    ): SafePingResult = withContext(Dispatchers.IO) {
+        try {
+            val c = (URL("$BASE/api/safe/ping").openConnection()
+                as HttpURLConnection)
+            c.requestMethod = "POST"
+            c.connectTimeout = TIMEOUT_MS
+            c.readTimeout = TIMEOUT_MS
+            c.doOutput = true
+            c.setRequestProperty("Authorization", "Bearer $token")
+            c.setRequestProperty("Content-Type", "application/json")
+            val payload = JSONObject()
+                .put("alert_id", alertId)
+                .put("lat", lat)
+                .put("lng", lng)
+                .put("source", "watch")
+            if (accuracyM != null) payload.put("accuracy_m", accuracyM.toDouble())
+            if (speedMps != null) payload.put("speed_mps", speedMps.toDouble())
+            if (headingDeg != null) payload.put("heading_deg", headingDeg.toDouble())
+            c.outputStream.use { it.write(payload.toString().toByteArray()) }
+            val code = c.responseCode
+            c.disconnect()
+            val stopped = code == 409
+            SafePingResult(ok = code in 200..299, stopped = stopped)
+        } catch (_: Throwable) {
+            SafePingResult(ok = false, stopped = false)
+        }
+    }
+
+    /**
+     * POST /api/safe/stop - tell the server to halt live tracking
+     * for this alert. Idempotent. Returns true on a 2xx response.
+     *
+     * Called from the watch's "Stop tracking" affordance, or from
+     * the phone app's mirror UI. Server then 409s any further pings
+     * so the watch's 30s loop self-terminates.
+     */
+    suspend fun stopSafeTracking(
+        token: String,
+        alertId: String,
+    ): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val c = (URL("$BASE/api/safe/stop").openConnection()
+                as HttpURLConnection)
+            c.requestMethod = "POST"
+            c.connectTimeout = TIMEOUT_MS
+            c.readTimeout = TIMEOUT_MS
+            c.doOutput = true
+            c.setRequestProperty("Authorization", "Bearer $token")
+            c.setRequestProperty("Content-Type", "application/json")
+            val payload = JSONObject()
+                .put("alert_id", alertId)
+                .put("source", "watch")
+            c.outputStream.use { it.write(payload.toString().toByteArray()) }
+            val ok = c.responseCode in 200..299
+            c.disconnect()
+            ok
+        } catch (_: Throwable) {
+            false
+        }
+    }
+
+    /**
      * POST /api/voice-notes - persist a voice-note transcription
      * to the signed-in user's drafts. v1 saves text only; audio
      * bytes upload is a follow-up. Returns true on success.

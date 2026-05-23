@@ -1157,6 +1157,49 @@ fun WearApp(summary: SummaryStore.Summary) {
                                                 // cache.
                                                 audioFile.delete()
                                             }
+
+                                            // Live-tracking ping loop. Once
+                                            // the initial alert has been
+                                            // accepted and we have an
+                                            // alertId, ping the server with
+                                            // a fresh location every 30s
+                                            // so the contact's tracker page
+                                            // can redraw a moving dot + a
+                                            // breadcrumb trail. We loop
+                                            // until either:
+                                            //   (a) /api/safe/ping returns
+                                            //       409 stopped, meaning
+                                            //       the watcher / web hit
+                                            //       Stop, OR
+                                            //   (b) Location permission is
+                                            //       revoked / GPS dies.
+                                            // There's no auto-stop; the
+                                            // user explicitly opted into
+                                            // open-ended tracking when they
+                                            // pressed and held the button.
+                                            if (alertId != null &&
+                                                LocationCapture.hasPermission(context)
+                                            ) {
+                                                while (true) {
+                                                    kotlinx.coroutines.delay(30_000L)
+                                                    val pingFix = try {
+                                                        LocationCapture.get(
+                                                            context,
+                                                            timeoutMs = 8_000L,
+                                                        )
+                                                    } catch (_: Throwable) {
+                                                        null
+                                                    } ?: continue
+                                                    val r = WatchApi.sendSafePing(
+                                                        tok,
+                                                        alertId,
+                                                        lat = pingFix.lat,
+                                                        lng = pingFix.lng,
+                                                        accuracyM = pingFix.accuracyM,
+                                                    )
+                                                    if (r.stopped) break
+                                                }
+                                            }
                                         }
                                     }
                                 },
