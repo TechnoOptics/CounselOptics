@@ -19,6 +19,7 @@ import { CrashReporter } from '@/components/CrashReporter';
 import { SiteJsonLd } from '@/components/seo/JsonLd';
 import { NativeBackGesture } from '@/components/NativeBackGesture';
 import { WatchNoteInbox } from '@/components/WatchNoteInbox';
+import { DistressOverlay } from '@/components/DistressOverlay';
 import { ImpersonationBanner } from '@/components/ImpersonationBanner';
 import { NativeDeepLinkRouter } from '@/components/NativeDeepLinkRouter';
 import { BiometricSessionSync } from '@/components/BiometricSessionSync';
@@ -456,6 +457,15 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             watch (advottic.com/cases/<id>?note=...) for the user to
             review/copy, then strip the param. Inert without it. */}
         {signedIn && <WatchNoteInbox />}
+        {/* Surfaces the red distress overlay anywhere a wired text
+            input or transcription detects a high-confidence danger
+            phrase. Always mounted (cheap when idle) so any client
+            component can dispatch the global 'distress:detected'
+            event without coordinating mount order. Logged-out
+            visitors don't see it because the overlay only fires
+            from authenticated surfaces (Bella, Decoder, voice
+            transcripts on /safe / case pages). */}
+        {signedIn && <DistressOverlay />}
         {/* Native shells: keep the biometric-stored refresh token in
             sync as Supabase rotates tokens. No-op on web. */}
         <BiometricSessionSync />

@@ -156,7 +156,22 @@ export function Decoder() {
       <div className="flex items-center gap-3">
         <button
           type="button"
-          onClick={busy ? () => abortRef.current?.abort() : decode}
+          onClick={
+            busy
+              ? () => abortRef.current?.abort()
+              : () => {
+                  // Same distress-detect-on-submit pattern as
+                  // Bella: scan the pasted text once at decode
+                  // time so users pasting transcripts of their own
+                  // events get the overlay (with full opt-in
+                  // controls) rather than a silent decode.
+                  import('@/lib/distress-detector').then((m) => {
+                    const match = m.detectDistress(text);
+                    if (match) m.emitDistress(match);
+                  });
+                  decode();
+                }
+          }
           disabled={!busy && text.trim().length < 20}
           className={`btn ${
             busy

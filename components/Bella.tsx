@@ -417,6 +417,16 @@ export function Bella({ signedIn = true }: { signedIn?: boolean }) {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
+                // Distress-detector check on the *submitted* text -
+                // we run on submit rather than on every keystroke so
+                // the user gets one shot to dismiss + re-send rather
+                // than a panic overlay flashing while they type.
+                // The send() still fires regardless; the overlay
+                // surfaces on top in parallel.
+                import('@/lib/distress-detector').then((m) => {
+                  const match = m.detectDistress(input);
+                  if (match) m.emitDistress(match);
+                });
                 send();
               }}
               className="border-t border-ink-200 dark:border-forest-700/60 p-3 bg-white dark:bg-forest-900"
@@ -428,6 +438,10 @@ export function Bella({ signedIn = true }: { signedIn?: boolean }) {
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
+                      import('@/lib/distress-detector').then((m) => {
+                        const match = m.detectDistress(input);
+                        if (match) m.emitDistress(match);
+                      });
                       send();
                     }
                   }}
