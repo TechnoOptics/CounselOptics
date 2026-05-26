@@ -75,12 +75,18 @@ export async function POST(req: NextRequest) {
   form.set('BusinessName', 'Techno Optics LLC (Advottic)');
   form.set('BusinessWebsite', 'https://advottic.com');
   form.set('NotificationEmail', 'contact@advottic.com');
-  form.set('UseCaseCategories', '2FA'); // Twilio TF taxonomy: 2FA, ACCOUNT_NOTIFICATIONS, CUSTOMER_CARE, DELIVERY_NOTIFICATIONS, FRAUD_ALERT, HIGHER_EDUCATION, MARKETING, POLLING_VOTING, PUBLIC_SERVICE_ANNOUNCEMENT, SECURITY_ALERT
-  // We register under 2FA + SECURITY_ALERT - the safety-PIN
-  // verification number is the 2FA pattern, and the alert itself is
-  // a security alert. TF supports multiple use-case categories so
-  // we list both.
-  form.append('UseCaseCategories', 'SECURITY_ALERT');
+  // Twilio TF taxonomy (verified from API 400 error response):
+  //   TWO_FACTOR_AUTHENTICATION, ACCOUNT_NOTIFICATIONS, CUSTOMER_CARE,
+  //   CHARITY_NONPROFIT, DELIVERY_NOTIFICATIONS, FRAUD_ALERT_MESSAGING,
+  //   EVENTS, HIGHER_EDUCATION, K12, MARKETING,
+  //   POLLING_AND_VOTING_NON_POLITICAL, POLITICAL_ELECTION_CAMPAIGNS,
+  //   PUBLIC_SERVICE_ANNOUNCEMENT, SECURITY_ALERT
+  // Twilio's TF endpoint accepts a SINGLE category. Safe Witness is
+  // most precisely a SECURITY_ALERT (imminent-physical-danger
+  // notification to trusted contacts). The pre-shared PIN inside
+  // each alert is verification-flavored but not the primary use
+  // case.
+  form.set('UseCaseCategories', 'SECURITY_ALERT');
   form.set(
     'UseCaseSummary',
     [
