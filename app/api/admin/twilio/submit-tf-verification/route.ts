@@ -145,6 +145,9 @@ export async function POST(req: NextRequest) {
   form.set('BusinessType', 'PRIVATE_PROFIT');
   form.set('BusinessRegistrationNumber', ein);
   form.set('BusinessRegistrationAuthority', 'EIN');
+  // Twilio's TF endpoint also requires the registration's country.
+  // For an EIN issued by the US IRS this is always US.
+  form.set('BusinessRegistrationCountry', 'US');
   form.set('BusinessIndustry', 'TECHNOLOGY');
   // We don't sell embedded direct lending; we DO send embedded
   // phone numbers (tel:911 and tel:<user phone>) + embedded links
