@@ -5,9 +5,11 @@
  * a 20% prepay discount that mirrors the annual discount surfaced on
  * /pricing, so a gifter buying a year doesn't pay more than a
  * recipient who self-subscribes annually would.
+ *
+ * NO node imports in this file. It's imported by client components
+ * (app/gift/gift-form.tsx). Server-only helpers (e.g. token
+ * generation, which needs node:crypto) live in lib/gift-server.ts.
  */
-
-import crypto from 'node:crypto';
 
 export type GiftTierSlug =
   | 'pro'
@@ -111,15 +113,6 @@ export function formatDollars(cents: number): string {
 
 export function getGiftTier(slug: string): GiftTier | null {
   return GIFT_TIERS.find((t) => t.slug === slug) ?? null;
-}
-
-/**
- * Generate a redemption token: 32 random bytes, base64url-encoded.
- * 256 bits of entropy - more than enough that a brute-force scan of
- * the /gift/claim/[token] route space isn't a practical threat.
- */
-export function generateRedemptionToken(): string {
-  return crypto.randomBytes(32).toString('base64url');
 }
 
 /**

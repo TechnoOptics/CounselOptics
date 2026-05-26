@@ -10,9 +10,20 @@
  */
 import 'server-only';
 
+import crypto from 'node:crypto';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { sendEmail } from '@/lib/email';
 import { GIFT_TIERS, formatDollars } from '@/lib/gift';
+
+/**
+ * Generate a redemption token: 32 random bytes, base64url-encoded.
+ * 256 bits of entropy - more than enough that a brute-force scan of
+ * the /gift/claim/[token] route space isn't a practical threat.
+ * Server-only because node:crypto cannot be bundled for the browser.
+ */
+export function generateRedemptionToken(): string {
+  return crypto.randomBytes(32).toString('base64url');
+}
 
 const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://advottic.com';

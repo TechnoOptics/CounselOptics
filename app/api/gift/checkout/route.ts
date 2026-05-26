@@ -6,10 +6,10 @@ import {
   GIFT_TIERS,
   GIFT_DURATIONS,
   giftAmountCents,
-  generateRedemptionToken,
   type GiftTierSlug,
   type GiftDuration,
 } from '@/lib/gift';
+import { generateRedemptionToken } from '@/lib/gift-server';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
