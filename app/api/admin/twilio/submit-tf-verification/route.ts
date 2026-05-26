@@ -130,16 +130,18 @@ export async function POST(req: NextRequest) {
   form.set('BusinessStateProvinceRegion', 'MN');
   form.set('BusinessPostalCode', '55435');
   form.set('BusinessCountry', 'US');
-  // Business entity type + LLC registration. Twilio requires these
-  // when BusinessType is anything other than SOLE_PROPRIETOR.
-  // BusinessRegistrationAuthority for a Minnesota LLC is "MN SOS"
-  // (Minnesota Secretary of State). BusinessRegistrationNumber is
-  // the EIN provided in the request body.
+  // Business entity type + registration. Twilio's TF endpoint
+  // uses BusinessRegistrationAuthority to enumerate the *type* of
+  // identifier (EIN, VAT, CBN, etc.) and BusinessRegistrationNumber
+  // for the actual identifier value. Verified from API 400 error:
+  //   "form field BusinessRegistrationAuthority must be one of
+  //    [EIN, CBN, CRN, PROVINCIAL_NUMBER, VAT, ACN, ABN, BRN,
+  //     SIREN, SIRET, NZBN, USt-IdNr, CIF, NIF, CNPJ, UID, NEQ,
+  //     OTHER]"
+  // For a US LLC the authority is EIN.
   form.set('BusinessType', 'LIMITED_LIABILITY_CORPORATION');
   form.set('BusinessRegistrationNumber', ein);
-  form.set('BusinessRegistrationIdentifier', 'EIN');
-  form.set('BusinessRegistrationAuthority', 'MN SOS');
-  form.set('BusinessRegistrationCountry', 'US');
+  form.set('BusinessRegistrationAuthority', 'EIN');
   form.set('BusinessIndustry', 'TECHNOLOGY');
   // We don't sell embedded direct lending; we DO send embedded
   // phone numbers (tel:911 and tel:<user phone>) + embedded links
