@@ -139,7 +139,10 @@ export async function POST(req: NextRequest) {
   //     SIREN, SIRET, NZBN, USt-IdNr, CIF, NIF, CNPJ, UID, NEQ,
   //     OTHER]"
   // For a US LLC the authority is EIN.
-  form.set('BusinessType', 'LIMITED_LIABILITY_CORPORATION');
+  // Twilio TF BusinessType enum (verified from API 400):
+  //   [PRIVATE_PROFIT, PUBLIC_PROFIT, SOLE_PROPRIETOR, NON_PROFIT, GOVERNMENT]
+  // A Minnesota LLC owned by individuals is PRIVATE_PROFIT.
+  form.set('BusinessType', 'PRIVATE_PROFIT');
   form.set('BusinessRegistrationNumber', ein);
   form.set('BusinessRegistrationAuthority', 'EIN');
   form.set('BusinessIndustry', 'TECHNOLOGY');
