@@ -87,15 +87,11 @@ export async function POST(req: NextRequest) {
   // each alert is verification-flavored but not the primary use
   // case.
   form.set('UseCaseCategories', 'SECURITY_ALERT');
+  // UseCaseSummary has a 500-char limit (verified from Twilio API
+  // rejection 'Invalid use case summary'). Tight phrasing only.
   form.set(
     'UseCaseSummary',
-    [
-      "Advottic Safe Witness is a personal-safety feature inside the Advottic legal-prep web app and its Wear OS companion.",
-      "When a user holds the Safe Witness button on their watch for four seconds (or taps + holds the equivalent web button), the server sends a one-time SMS alert to each trusted contact the user has explicitly added inside their account at /profile.",
-      "The message contains a pre-shared verification PIN (acts as a 2FA-style proof that the alert is genuine), the user's GPS location, and quick links to call 911, get directions, and reach the watcher directly.",
-      "Contacts must be added by the user inside the app before any message can be sent. Each press fires at most one message per contact. No recurring messaging, no marketing, only user-initiated emergency alerts.",
-      "Privacy: https://advottic.com/privacy.  Terms: https://advottic.com/terms.",
-    ].join(' '),
+    "Advottic Safe Witness sends a one-time emergency SMS to each trusted contact a user pre-saves in their account at advottic.com/profile. Triggered only when the user holds the Safe Witness button on their Wear OS watch for 4 seconds, or the equivalent web button. Message contains a pre-shared verification PIN, GPS location, and a link to call 911. No recurring sends, no marketing, only user-initiated emergency alerts.",
   );
   form.set(
     'ProductionMessageSample',
