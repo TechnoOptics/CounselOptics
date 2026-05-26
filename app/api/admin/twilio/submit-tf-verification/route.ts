@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let body: { phone_number_sid?: string } = {};
+  let body: { phone_number_sid?: string; ein?: string } = {};
   try {
     body = await req.json();
   } catch {
@@ -64,6 +64,16 @@ export async function POST(req: NextRequest) {
   if (!pnSid || !pnSid.startsWith('PN')) {
     return NextResponse.json(
       { error: 'phone_number_sid (PN...) required.' },
+      { status: 400 },
+    );
+  }
+  // EIN required because the business is registered as an LLC (per
+  // the Trust Hub Customer Profile). Twilio refuses TF verification
+  // without it.
+  const ein = body.ein?.trim().replace(/[-\s]/g, '') ?? '';
+  if (!/^\d{9}$/.test(ein)) {
+    return NextResponse.json(
+      { error: 'EIN must be 9 digits (e.g. 12-3456789).' },
       { status: 400 },
     );
   }
@@ -120,6 +130,17 @@ export async function POST(req: NextRequest) {
   form.set('BusinessStateProvinceRegion', 'MN');
   form.set('BusinessPostalCode', '55435');
   form.set('BusinessCountry', 'US');
+  // Business entity type + LLC registration. Twilio requires these
+  // when BusinessType is anything other than SOLE_PROPRIETOR.
+  // BusinessRegistrationAuthority for a Minnesota LLC is "MN SOS"
+  // (Minnesota Secretary of State). BusinessRegistrationNumber is
+  // the EIN provided in the request body.
+  form.set('BusinessType', 'LIMITED_LIABILITY_CORPORATION');
+  form.set('BusinessRegistrationNumber', ein);
+  form.set('BusinessRegistrationIdentifier', 'EIN');
+  form.set('BusinessRegistrationAuthority', 'MN SOS');
+  form.set('BusinessRegistrationCountry', 'US');
+  form.set('BusinessIndustry', 'TECHNOLOGY');
   // We don't sell embedded direct lending; we DO send embedded
   // phone numbers (tel:911 and tel:<user phone>) + embedded links
   // (Maps + Directions). Twilio gates on these specifically.
