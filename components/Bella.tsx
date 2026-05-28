@@ -434,7 +434,20 @@ export function Bella({ signedIn = true }: { signedIn?: boolean }) {
               <div className="flex items-end gap-2">
                 <textarea
                   value={input}
-                  onChange={(e) => setInput(e.target.value)}
+                  onChange={(e) => {
+                    setInput(e.target.value);
+                    // Mid-typing distress check: fires as Bella sees
+                    // the user's draft, not just on submit. We import
+                    // dynamically so the distress phrase table isn't
+                    // bundled into Bella's initial JS. The detector
+                    // is idempotent + the overlay self-suppresses
+                    // the same phrase for 5 minutes after dismissal,
+                    // so re-running on every keystroke is fine.
+                    import('@/lib/distress-detector').then((m) => {
+                      const match = m.detectDistress(e.target.value);
+                      if (match) m.emitDistress(match);
+                    });
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();

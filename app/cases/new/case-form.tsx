@@ -1,12 +1,18 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useFormState, useFormStatus } from 'react-dom';
 import { createCaseAction, type CreateCaseResult } from '@/lib/actions';
 import { CASE_TYPES, type SubjectType } from '@/lib/types';
 import { FormLoadingOverlay } from '@/components/LoadingOverlay';
 import { SafetyAdvisory } from '@/components/SafetyAdvisory';
+import {
+  PlaceAutocomplete,
+  type AutocompletePlace,
+} from '@/components/PlaceAutocomplete';
+import { DictationButton } from '@/components/DictationButton';
+import { EvidencePicker } from '@/components/EvidencePicker';
 
 const SUBJECT_TYPE_OPTIONS: { value: SubjectType; label: string }[] = [
   { value: 'person', label: 'Person' },
@@ -117,6 +123,19 @@ export function NewCaseForm() {
   const [subjectType, setSubjectType] = useState<SubjectType>('person');
   const [showSubjectDetails, setShowSubjectDetails] = useState(false);
   const [description, setDescription] = useState('');
+  // Track the picked jurisdiction so the hearing-location autocomplete
+  // can bias suggestions toward courts in the right region. Only the
+  // country/state lat-lng (the geometry of the chosen place) drives
+  // the bias; we don't strictly restrict so the user can still pick
+  // a court a few counties over.
+  const [jurisdictionPlace, setJurisdictionPlace] =
+    useState<AutocompletePlace | null>(null);
+  // Picked structured values for the country/state/city fields, so
+  // narrowing dropdowns can cascade. Empty when the user free-typed.
+  const [jurisdictionCountryCode, setJurisdictionCountryCode] = useState<string | null>(null);
+  const [jurisdictionStateCode, setJurisdictionStateCode] = useState<string | null>(null);
+  const descriptionRef = useRef<HTMLTextAreaElement | null>(null);
+  const hearingNotesRef = useRef<HTMLTextAreaElement | null>(null);
   const [state, formAction] = useFormState<CreateCaseResult | null, FormData>(
     createCaseAction,
     null,
@@ -139,7 +158,7 @@ export function NewCaseForm() {
       )}
       <div>
         <label className="label">Your posture in this matter</label>
-        <div className="grid gap-2 md:grid-cols-2">
+        <div className="grid gap-2 md:grid-cols-3">
           <label className="flex items-start gap-3 rounded-lg border border-ink-200 bg-white p-3.5 cursor-pointer hover:bg-ink-50/40 has-[:checked]:border-ink-900 has-[:checked]:bg-ink-50">
             <input
               type="radio"
@@ -163,6 +182,25 @@ export function NewCaseForm() {
               </span>
               <span className="text-xs text-ink-500 block mt-0.5">
                 Someone is taking action against you - preparing a response.
+              </span>
+            </span>
+          </label>
+          {/* New: "Just tracking" posture - for users who haven't
+              committed to a side yet. Common at the start of every
+              real-world matter: someone is gathering evidence, taking
+              notes, dating events, and only later decides whether to
+              file. The downstream case detail page treats this the
+              same as 'claimant' for UI affordances but the DB stores
+              the distinct value so we don't mislabel evidence as
+              "complaint material" until they do file. */}
+          <label className="flex items-start gap-3 rounded-lg border border-ink-200 bg-white p-3.5 cursor-pointer hover:bg-ink-50/40 has-[:checked]:border-ink-900 has-[:checked]:bg-ink-50">
+            <input type="radio" name="posture" value="tracking" className="mt-1" />
+            <span>
+              <span className="font-medium text-ink-950 block text-sm">
+                Just tracking
+              </span>
+              <span className="text-xs text-ink-500 block mt-0.5">
+                Building a file - not yet a plaintiff or defendant. You're gathering evidence and dating events while you decide what to do.
               </span>
             </span>
           </label>
@@ -275,11 +313,61 @@ export function NewCaseForm() {
       </div>
 
       <div>
-        <label className="label">Jurisdiction</label>
+        <label className="label">Where does this case sit?</label>
+        <p className="text-xs text-ink-500 mb-2 leading-snug">
+          Start typing - we look up real countries, states, and cities so
+          your jurisdiction is consistent and the court suggestions below
+          stay relevant.
+        </p>
         <div className="grid md:grid-cols-3 gap-3">
-          <input name="country" required placeholder="Country (required)" className="input" />
-          <input name="state" placeholder="State / province" className="input" />
-          <input name="city" placeholder="City / county" className="input" />
+          <PlaceAutocomplete
+            name="country"
+            required
+            placeholder="Country (required)"
+            className="input"
+            types={['country']}
+            onPlace={(p) => {
+              setJurisdictionCountryCode(p.country_code);
+              // Picking a new country resets the state code below so
+              // the State field doesn't keep a stale value (e.g. MN
+              // when the user just switched to Canada).
+              setJurisdictionStateCode(null);
+              setJurisdictionPlace(p);
+            }}
+            fallbackHint="Type your country and hit tab."
+          />
+          <PlaceAutocomplete
+            name="state"
+            placeholder="State / province"
+            className="input"
+            types={['administrative_area_level_1']}
+            countryRestrictions={
+              jurisdictionCountryCode ? [jurisdictionCountryCode] : undefined
+            }
+            onPlace={(p) => {
+              setJurisdictionStateCode(p.administrative_area_level_1_code);
+              // The state place has lat/lng, which we use to bias
+              // the court-location autocomplete further down.
+              setJurisdictionPlace(p);
+            }}
+            fallbackHint="Type your state or province and hit tab."
+          />
+          <PlaceAutocomplete
+            name="city"
+            placeholder="City / county"
+            className="input"
+            types={['(cities)']}
+            countryRestrictions={
+              jurisdictionCountryCode ? [jurisdictionCountryCode] : undefined
+            }
+            onPlace={(p) => {
+              // Locality result is preferred but counties (admin
+              // level 2) also come through. Either way we pick up a
+              // tighter lat/lng for the court bias.
+              setJurisdictionPlace(p);
+            }}
+            fallbackHint="Type the city or county where the matter sits."
+          />
         </div>
       </div>
 
@@ -297,14 +385,26 @@ export function NewCaseForm() {
       </div>
 
       <div>
-        <label className="label" htmlFor="description">
-          Description / context
-        </label>
+        <div className="flex items-center justify-between gap-2 mb-1">
+          <label className="label !mb-0" htmlFor="description">
+            Description / context
+          </label>
+          {/* Dictation tied to the description textarea by id. The
+              button captures the mic, streams interim Web Speech API
+              results into the textarea at the cursor, and fires the
+              normal onChange so SafetyAdvisory mid-typing detection
+              continues to work. */}
+          <DictationButton
+            targetRef={descriptionRef}
+            title="Click then speak. The transcription will type into the description box at the cursor."
+          />
+        </div>
         <textarea
           id="description"
           name="description"
+          ref={descriptionRef}
           rows={5}
-          placeholder="Brief summary of what happened and why you're opening this file."
+          placeholder="Brief summary of what happened and why you're opening this file. Click the Dictate button to speak it instead."
           className="input resize-y"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
@@ -338,21 +438,44 @@ export function NewCaseForm() {
             <label className="label" htmlFor="hearingLocation">
               Location
             </label>
-            <input
-              id="hearingLocation"
+            {/* Court / hearing location. Biased to the jurisdiction
+                picked above (lat/lng of the chosen state or city) so
+                the user gets local courts at the top of the list -
+                Hennepin County District Court before Hennepin
+                Healthcare. types=['establishment'] keeps us in
+                buildings, not bare addresses. Falls back to free
+                text on any Places error. */}
+            <PlaceAutocomplete
               name="hearingLocation"
-              placeholder="Court name, courtroom, address"
-              maxLength={400}
+              placeholder="Search for the court or courtroom address"
               className="input"
+              types={['establishment']}
+              countryRestrictions={
+                jurisdictionCountryCode ? [jurisdictionCountryCode] : undefined
+              }
+              locationBiasLatLng={
+                jurisdictionPlace?.lat != null && jurisdictionPlace?.lng != null
+                  ? { lat: jurisdictionPlace.lat, lng: jurisdictionPlace.lng }
+                  : undefined
+              }
+              locationBiasRadiusM={75_000}
+              fallbackHint="Type the court name. Maps suggestions appear under your jurisdiction."
             />
           </div>
           <div className="md:col-span-2">
-            <label className="label" htmlFor="hearingNotes">
-              Notes (judge, case number, deadlines)
-            </label>
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <label className="label !mb-0" htmlFor="hearingNotes">
+                Notes (judge, case number, deadlines)
+              </label>
+              <DictationButton
+                targetRef={hearingNotesRef}
+                title="Dictate hearing notes - useful right after a docket call."
+              />
+            </div>
             <textarea
               id="hearingNotes"
               name="hearingNotes"
+              ref={hearingNotesRef}
               rows={2}
               maxLength={2000}
               className="input resize-y"
@@ -361,6 +484,19 @@ export function NewCaseForm() {
           </div>
         </div>
       </div>
+
+      {/* Evidence picker: pull existing exhibits from the user's
+          Vault or Contracts and tag them onto this case at creation
+          time. Saves the "create case then re-upload everything"
+          friction that's killed real users on the existing flow.
+          Component is fully self-contained: fetches vault + contract
+          items via /api/cases/new-evidence, renders chip list, and
+          serializes selected ids into a hidden form field for the
+          createCaseAction to consume. */}
+      <EvidencePicker
+        hiddenFieldName="attachedItems"
+        helperText="Add documents, photos, or contracts you already have - we'll attach them to this case as exhibits."
+      />
 
       <div className="flex items-center justify-end gap-3 pt-2">
         <Link href="/cases" className="btn-secondary">
