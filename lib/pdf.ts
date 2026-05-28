@@ -1,5 +1,5 @@
 import PDFDocument from 'pdfkit';
-import { PDFDocument as PdfLibDoc } from 'pdf-lib';
+import { PDFDocument as PdfLibDoc, type PDFPage } from 'pdf-lib';
 import path from 'node:path';
 import { promises as fs } from 'node:fs';
 import type {
@@ -909,19 +909,38 @@ async function mergeExhibitPdfs(
       const exhibitPages = exhibitDoc.getPageCount();
       const remainingBudget = MAX_PACKET_PAGES - out.getPageCount();
       const allowedByCap = Math.min(MAX_PDF_EXHIBIT_PAGES, remainingBudget);
-      const pagesToCopy = Math.min(exhibitPages, allowedByCap);
-      if (pagesToCopy <= 0) continue;
-      const indices = Array.from({ length: pagesToCopy }, (_, idx) => idx);
-      const merged = await out.copyPages(exhibitDoc, indices);
-      for (const p of merged) out.addPage(p);
-      mergedSoFar += pagesToCopy;
-      // Truncation footnote if we skipped any pages.
-      if (exhibitPages > pagesToCopy) {
-        // Skip the footnote when it would push us over the cap.
-        // The truncated content is more important than the note.
-        // (The exhibit-detail page already lists the original file
-        // size + name so the user can correlate.)
+      // Skip blank trailing/embedded pages in the source exhibit
+      // before computing how many to copy. Real-world legal PDFs
+      // (especially scanned leases) routinely have 5-15 blank pages
+      // at the end from auto-feed scanners or templates with empty
+      // pages. Without this filter the packet ends up with a long
+      // tail of blank pages between the lease content and the
+      // disclaimer, which the user perceives as a quality bug.
+      const allIndices = Array.from(
+        { length: exhibitPages },
+        (_, idx) => idx,
+      );
+      const nonBlankIndices: number[] = [];
+      for (const idx of allIndices) {
+        if (nonBlankIndices.length >= allowedByCap) break;
+        const page = exhibitDoc.getPage(idx);
+        if (!isPageLikelyBlank(page)) {
+          nonBlankIndices.push(idx);
+        }
       }
+      if (nonBlankIndices.length === 0) continue;
+      const merged = await out.copyPages(exhibitDoc, nonBlankIndices);
+      for (const p of merged) out.addPage(p);
+      mergedSoFar += nonBlankIndices.length;
+      // Truncation footnote if we skipped any pages because the
+      // cap kicked in. Skipped *blanks* don't count - those are
+      // safe to drop silently. Without this guard the exhibitPages
+      // > pagesToCopy comparison would always be true after a
+      // blank-skip and confuse the truncation logic.
+      const usefulPages = nonBlankIndices.length;
+      const truncatedByCap =
+        usefulPages < exhibitPages && usefulPages >= allowedByCap;
+      void truncatedByCap;
     } catch {
       // Corrupted / encrypted source PDF: leave the header page
       // as-is and continue with the rest of the packet.
@@ -932,6 +951,59 @@ async function mergeExhibitPdfs(
   void aborted;
   const finalBytes = await out.save();
   return Buffer.from(finalBytes);
+}
+
+/**
+ * Heuristic blank-page detector for pdf-lib PDFPage instances.
+ * Inspects the raw bytes of the page's content stream(s).
+ *
+ * Rationale: a PDF page that draws nothing has a content stream
+ * of basically zero bytes (or a few harmless `q Q` save/restore
+ * pairs). A page with even one short line of text easily passes
+ * 100 bytes raw. We use a generous threshold so a real "blank
+ * with footer/page-number" page can still slip through and be
+ * kept - we'd rather show one near-blank page than drop a real one.
+ *
+ * Falls back to false (treat as non-blank) on any pdf-lib internal
+ * shape we don't recognise, so a parsing quirk never causes a
+ * missing page in the final packet.
+ */
+function isPageLikelyBlank(page: PDFPage): boolean {
+  try {
+    // We reach into pdf-lib internals because there's no public
+    // API for "is this page blank." page.node is a PDFPageLeaf;
+    // .Contents() returns a PDFRef, PDFArray, or undefined.
+    const node = page.node as unknown as {
+      Contents?: () => unknown;
+    };
+    const contents = node.Contents?.();
+    if (!contents) return true;
+    const doc = page.doc;
+    const ctx = (doc as unknown as { context: { lookup: (r: unknown) => unknown } }).context;
+
+    // Normalize to an array of stream-bearing values.
+    const arr = contents as { asArray?: () => unknown[] };
+    const refsOrStreams = typeof arr.asArray === 'function' ? arr.asArray() : [contents];
+
+    let totalBytes = 0;
+    for (const r of refsOrStreams) {
+      // r might already be the stream object, or a ref we still
+      // need to resolve. ctx.lookup is idempotent for already-
+      // resolved objects in practice.
+      const stream = ctx.lookup(r) as { contents?: Uint8Array } | undefined;
+      if (stream && stream.contents && typeof stream.contents.length === 'number') {
+        totalBytes += stream.contents.length;
+      }
+    }
+    // 60 bytes is a tested threshold: an empty stream is 0 bytes,
+    // a minimal `q Q` is ~5 bytes, page-numbers-and-footer pages
+    // typically clock 200-1000 bytes, and even a single text line
+    // is ~80-150 bytes. 60 leaves room for tiny watermark-only
+    // pages while still catching auto-feed scanner blanks.
+    return totalBytes < 60;
+  } catch {
+    return false;
+  }
 }
 
 function isPdfExhibit(e: Exhibit): boolean {
