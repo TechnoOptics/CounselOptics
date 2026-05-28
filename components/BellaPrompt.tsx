@@ -27,7 +27,11 @@ export function BellaPrompt({
   return (
     <div className="card-ai p-5 sm:p-6 relative overflow-hidden">
       <div className="flex items-start gap-3">
-        <span className="aurora flex-none">
+        {/* rounded-full on the aurora wrapper so the box-shadow halo
+            traces the same circle as the BellaB disc inside.
+            Without it, the halo was a tight square around a round
+            logo which read as off. */}
+        <span className="aurora flex-none rounded-full">
           <BellaB size={22} />
         </span>
         <div className="min-w-0 flex-1">

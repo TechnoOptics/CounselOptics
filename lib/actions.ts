@@ -349,13 +349,71 @@ export async function rescanExhibitAction(exhibitId: string) {
   await assertAuthIfSupabase();
   const exhibit = await getExhibitById(exhibitId);
   if (!exhibit) throw new Error('Exhibit not found.');
+  // Three early failure modes that were silently swallowed before:
+  //   (1) ANTHROPIC_API_KEY missing on the server -> scanDocument
+  //       returns isDemo=true with a "demo response" placeholder,
+  //       which renders fine but does nothing useful for the user.
+  //   (2) getExhibitFileBuffer fails (RLS, stale path, deleted
+  //       object) and returns null -> threw a generic "could not
+  //       read" with no diagnostic.
+  //   (3) MIME type missing / octet-stream -> scanDocument bails
+  //       early with an unhelpful "cannot be auto-scanned" line.
+  // All three now surface informative errors the UI shows verbatim.
+  const apiKeyPresent =
+    Boolean(process.env.ANTHROPIC_API_KEY?.trim()) ||
+    Boolean(process.env.CLAUDE_API_KEY?.trim());
+  if (!apiKeyPresent) {
+    throw new Error(
+      "AI scanning isn't configured on this deployment. Operator: set ANTHROPIC_API_KEY in Vercel env.",
+    );
+  }
   const buf = await getExhibitFileBuffer(exhibit);
-  if (!buf) throw new Error('Could not read the underlying file.');
+  if (!buf || buf.byteLength === 0) {
+    throw new Error(
+      `Could not read the file (${exhibit.fileName}). It may have been deleted from storage, or your session has expired - try refreshing.`,
+    );
+  }
+  const lowerName = exhibit.fileName.toLowerCase();
+  const isPdf = exhibit.fileType === 'application/pdf' || lowerName.endsWith('.pdf');
+  const isImage = (exhibit.fileType || '').toLowerCase().startsWith('image/') ||
+    /\.(png|jpe?g|webp|gif)$/.test(lowerName);
+  if (!isPdf && !isImage) {
+    throw new Error(
+      `Scan only supports images and PDFs. Got "${exhibit.fileType || 'unknown type'}" - for audio/video use Transcribe.`,
+    );
+  }
+  // Normalize the MIME so files uploaded without an explicit
+  // content-type (some browsers send octet-stream) still reach the
+  // right Claude vision pipeline.
+  let mediaType: string;
+  if (isPdf) {
+    mediaType = 'application/pdf';
+  } else if (/\.png$/.test(lowerName)) {
+    mediaType = 'image/png';
+  } else if (/\.jpe?g$/.test(lowerName)) {
+    mediaType = 'image/jpeg';
+  } else if (/\.webp$/.test(lowerName)) {
+    mediaType = 'image/webp';
+  } else if (/\.gif$/.test(lowerName)) {
+    mediaType = 'image/gif';
+  } else {
+    mediaType = exhibit.fileType || 'image/png';
+  }
   const scan = await scanDocument({
     fileBuffer: buf,
-    mediaType: exhibit.fileType || 'application/octet-stream',
+    mediaType,
     fileName: exhibit.fileName,
   });
+  // If the scan came back as a demo (no real key during runtime) or
+  // unsupported, surface that clearly rather than saving a "Demo
+  // response" string the user has to figure out.
+  if (scan.isDemo || scan.modelUsed === 'unsupported' || scan.modelUsed === 'demo') {
+    throw new Error(
+      scan.summary?.includes('not actually scanned')
+        ? 'Scan unavailable right now: the AI provider returned a demo response. Try again in a moment.'
+        : scan.summary || 'Scan unavailable for this file.',
+    );
+  }
   await saveExhibitScan(exhibitId, scan);
   revalidatePath(`/cases/${exhibit.caseId}`);
 }
