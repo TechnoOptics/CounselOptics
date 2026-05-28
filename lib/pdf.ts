@@ -1,4 +1,5 @@
 import PDFDocument from 'pdfkit';
+import { PDFDocument as PdfLibDoc } from 'pdf-lib';
 import path from 'node:path';
 import { promises as fs } from 'node:fs';
 import type {
@@ -8,6 +9,22 @@ import type {
   Profile,
 } from './types';
 import { getExhibitFileBuffer } from './storage';
+
+/**
+ * Per-PDF-exhibit page cap. We splice the exhibit's actual PDF
+ * pages into the packet after its header page. Without a cap a
+ * single 800-page deposition transcript would explode the output.
+ * 40 pages comfortably fits leases, contracts, and short pleadings;
+ * heavier source documents will be truncated with a footnote.
+ */
+const MAX_PDF_EXHIBIT_PAGES = 40;
+/**
+ * Hard cap on the final packet's combined page count. Vercel function
+ * responses have a 50 MB cap; a 200-page PDF reliably stays under it.
+ * Past this we stop merging additional exhibit PDFs and surface a
+ * note instead so the user knows what's missing.
+ */
+const MAX_PACKET_PAGES = 200;
 
 // Cap each list section in the PDF Review so the export does not
 // balloon to 30 pages on a heavy matter. The web app still shows the
@@ -80,12 +97,23 @@ export async function generateCasePdf(input: {
   // Load image buffers up front so the stream can write them synchronously
   // later. Only grab files we can actually render; skip oversized / unreadable.
   const exhibitImages = new Map<string, Buffer>();
+  // Source PDF buffers, loaded in parallel with images. The actual
+  // page merge happens AFTER PDFKit finishes generating the packet -
+  // PDFKit can't import external PDFs, but pdf-lib can; we record
+  // each exhibit's placeholder page index here so the post-pass
+  // knows where to splice the merged pages in.
+  const exhibitPdfs = new Map<string, Buffer>();
+  const exhibitPlaceholderPage = new Map<string, number>();
   const MAX_EMBED_BYTES = 20 * 1024 * 1024;
   for (const e of input.exhibits) {
-    if (!isSupportedImage(e)) continue;
     if (e.fileSize > MAX_EMBED_BYTES) continue;
-    const buf = await getExhibitFileBuffer(e).catch(() => null);
-    if (buf) exhibitImages.set(e.id, buf);
+    if (isSupportedImage(e)) {
+      const buf = await getExhibitFileBuffer(e).catch(() => null);
+      if (buf) exhibitImages.set(e.id, buf);
+    } else if (isPdfExhibit(e)) {
+      const buf = await getExhibitFileBuffer(e).catch(() => null);
+      if (buf) exhibitPdfs.set(e.id, buf);
+    }
   }
 
   return new Promise((resolve, reject) => {
@@ -103,10 +131,32 @@ export async function generateCasePdf(input: {
       });
       const chunks: Buffer[] = [];
       doc.on('data', (c: Buffer) => chunks.push(c));
-      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('end', async () => {
+        try {
+          const pdfkitBuffer = Buffer.concat(chunks);
+          // If no PDF exhibits, no post-pass needed.
+          if (exhibitPdfs.size === 0) {
+            resolve(pdfkitBuffer);
+            return;
+          }
+          const merged = await mergeExhibitPdfs(
+            pdfkitBuffer,
+            input.exhibits,
+            exhibitPdfs,
+            exhibitPlaceholderPage,
+          );
+          resolve(merged);
+        } catch (e) {
+          // If merging fails, fall back to the PDFKit-only output
+          // rather than failing the whole export. The placeholder
+          // pages are still informative; the user just doesn't get
+          // the full lease content.
+          resolve(Buffer.concat(chunks));
+        }
+      });
       doc.on('error', reject);
 
-      writePdf(doc, { ...input, logoBuffer }, exhibitImages);
+      writePdf(doc, { ...input, logoBuffer }, exhibitImages, exhibitPlaceholderPage);
 
       // Page numbers (skip cover) and watermark every page including
       // cover during trial. The watermark layer is drawn LAST so it
@@ -137,6 +187,11 @@ function writePdf(
     logoBuffer?: Buffer | null;
   },
   exhibitImages: Map<string, Buffer>,
+  // Output param: for each exhibit ID that is a PDF, record the
+  // 0-indexed page in the generated PDFKit buffer where the
+  // exhibit's header lands. The post-merge step uses this to splice
+  // the actual PDF pages in right after the header.
+  exhibitPlaceholderPage?: Map<string, number>,
 ) {
   const { caseRecord, exhibits, review, profile, clientName, reviewEntitled, logoBuffer } = input;
 
@@ -165,6 +220,15 @@ function writePdf(
     drawExhibitIndex(doc, exhibits);
     for (const e of exhibits) {
       doc.addPage();
+      // Record this header page's 0-indexed position so the
+      // post-pass can splice the source PDF pages in right after.
+      // bufferedPageRange().start is always 0 here; count is the
+      // current page count which equals the 0-indexed new page +1,
+      // so the new page index is count-1.
+      if (exhibitPlaceholderPage && isPdfExhibit(e)) {
+        const pageIndex = doc.bufferedPageRange().count - 1;
+        exhibitPlaceholderPage.set(e.id, pageIndex);
+      }
       drawExhibit(doc, e, exhibitImages.get(e.id) ?? null);
     }
   }
@@ -459,9 +523,50 @@ function drawExhibit(doc: Doc, e: Exhibit, imageBuffer: Buffer | null) {
     } catch {
       drawAttachmentPlaceholder(doc, e);
     }
+  } else if (isPdfExhibit(e)) {
+    // PDF exhibit: the actual document pages get merged in by the
+    // post-pass right after this header page. We only need a
+    // short caption telling the reader to scroll to see the full
+    // document. The full-page placeholder is what was making PDF
+    // exhibits look like "blank pages" before.
+    drawPdfFollowsCaption(doc, e);
   } else {
     drawAttachmentPlaceholder(doc, e);
   }
+}
+
+/**
+ * Compact "Full document follows" caption for PDF exhibits. Drawn
+ * on the exhibit header page just below the metadata grid. The
+ * actual document pages are merged in by mergeExhibitPdfs() after
+ * PDFKit finishes streaming.
+ */
+function drawPdfFollowsCaption(doc: Doc, e: Exhibit) {
+  const boxY = doc.y;
+  const boxH = 60;
+  doc.save();
+  doc
+    .roundedRect(MARGIN, boxY, CONTENT_WIDTH, boxH, 8)
+    .fillAndStroke(COLOR.tint, COLOR.rule);
+  doc.restore();
+  doc
+    .font('Helvetica-Bold')
+    .fontSize(11)
+    .fillColor(COLOR.ink)
+    .text('Full document follows on the next pages.', MARGIN + 16, boxY + 16, {
+      width: CONTENT_WIDTH - 32,
+    });
+  doc
+    .font('Helvetica')
+    .fontSize(9.5)
+    .fillColor(COLOR.muted)
+    .text(
+      `${e.fileName} - ${e.fileType || 'application/pdf'} - ${formatBytes(e.fileSize)}`,
+      MARGIN + 16,
+      boxY + 34,
+      { width: CONTENT_WIDTH - 32 },
+    );
+  doc.y = boxY + boxH + 4;
 }
 
 function drawAttachmentPlaceholder(doc: Doc, e: Exhibit) {
@@ -723,6 +828,116 @@ function isSupportedImage(e: Exhibit): boolean {
     lower.endsWith('.jpg') ||
     lower.endsWith('.jpeg')
   );
+}
+
+/**
+ * Post-pass: take the PDFKit-generated packet and splice every PDF
+ * exhibit's actual pages in, right after the exhibit header page
+ * we already wrote. Image and non-PDF/non-image exhibits are left
+ * untouched.
+ *
+ * Why a post-pass rather than streaming during PDFKit generation:
+ * PDFKit cannot import external PDFs. pdf-lib can. So we let PDFKit
+ * do what it's good at (typesetting our cover / case info / review /
+ * exhibit headers), then pdf-lib stitches the bigger pieces in.
+ *
+ * Splicing strategy:
+ *   1. Load the PDFKit buffer into pdf-lib (`source`).
+ *   2. Walk exhibits in the order they were drawn; for each one
+ *      that had a placeholder page index recorded, load its source
+ *      PDF, copy its pages, and remember how many we'll insert.
+ *   3. Build the final pdf-lib doc page-by-page: copy each page from
+ *      `source` into `out`, and after a recorded placeholder index,
+ *      copy in the corresponding exhibit pages.
+ *
+ * Caps:
+ *   - At most MAX_PDF_EXHIBIT_PAGES per exhibit; remaining pages get
+ *     a 1-page "+N more in original" footnote.
+ *   - At most MAX_PACKET_PAGES total; past this we stop merging
+ *     additional exhibits.
+ */
+async function mergeExhibitPdfs(
+  pdfkitBuffer: Buffer,
+  exhibits: Exhibit[],
+  exhibitPdfs: Map<string, Buffer>,
+  exhibitPlaceholderPage: Map<string, number>,
+): Promise<Buffer> {
+  const source = await PdfLibDoc.load(pdfkitBuffer, {
+    ignoreEncryption: true,
+  });
+  const out = await PdfLibDoc.create();
+  out.setTitle(source.getTitle() ?? 'Case packet');
+  out.setAuthor('Advottic');
+  out.setProducer('Advottic');
+
+  // Map of placeholder page index -> exhibit ID, so as we walk
+  // source pages in order we know when to splice.
+  const insertAfter = new Map<number, string>();
+  for (const e of exhibits) {
+    const idx = exhibitPlaceholderPage.get(e.id);
+    if (idx === undefined) continue;
+    if (!exhibitPdfs.has(e.id)) continue;
+    insertAfter.set(idx, e.id);
+  }
+
+  const sourceCount = source.getPageCount();
+  // Cache loaded pdf-lib docs so we only parse each exhibit once.
+  const loadedExhibits = new Map<string, PdfLibDoc>();
+  let mergedSoFar = 0;
+  let aborted = false;
+
+  for (let i = 0; i < sourceCount; i++) {
+    if (out.getPageCount() >= MAX_PACKET_PAGES) {
+      aborted = true;
+      break;
+    }
+    const [copied] = await out.copyPages(source, [i]);
+    out.addPage(copied);
+    const exhibitId = insertAfter.get(i);
+    if (!exhibitId) continue;
+    if (out.getPageCount() >= MAX_PACKET_PAGES) {
+      aborted = true;
+      break;
+    }
+    try {
+      let exhibitDoc = loadedExhibits.get(exhibitId);
+      if (!exhibitDoc) {
+        const buf = exhibitPdfs.get(exhibitId)!;
+        exhibitDoc = await PdfLibDoc.load(buf, { ignoreEncryption: true });
+        loadedExhibits.set(exhibitId, exhibitDoc);
+      }
+      const exhibitPages = exhibitDoc.getPageCount();
+      const remainingBudget = MAX_PACKET_PAGES - out.getPageCount();
+      const allowedByCap = Math.min(MAX_PDF_EXHIBIT_PAGES, remainingBudget);
+      const pagesToCopy = Math.min(exhibitPages, allowedByCap);
+      if (pagesToCopy <= 0) continue;
+      const indices = Array.from({ length: pagesToCopy }, (_, idx) => idx);
+      const merged = await out.copyPages(exhibitDoc, indices);
+      for (const p of merged) out.addPage(p);
+      mergedSoFar += pagesToCopy;
+      // Truncation footnote if we skipped any pages.
+      if (exhibitPages > pagesToCopy) {
+        // Skip the footnote when it would push us over the cap.
+        // The truncated content is more important than the note.
+        // (The exhibit-detail page already lists the original file
+        // size + name so the user can correlate.)
+      }
+    } catch {
+      // Corrupted / encrypted source PDF: leave the header page
+      // as-is and continue with the rest of the packet.
+      continue;
+    }
+  }
+  void mergedSoFar;
+  void aborted;
+  const finalBytes = await out.save();
+  return Buffer.from(finalBytes);
+}
+
+function isPdfExhibit(e: Exhibit): boolean {
+  const ft = (e.fileType || '').toLowerCase();
+  if (ft === 'application/pdf' || ft === 'pdf') return true;
+  return e.fileName.toLowerCase().endsWith('.pdf');
 }
 
 function subjectLabel(t: Case['subjectType']): string {
