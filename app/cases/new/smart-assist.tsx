@@ -7,6 +7,11 @@ import { createCaseAction, suggestCaseTypeAction, type CreateCaseResult } from '
 import { CASE_TYPES, type SubjectType } from '@/lib/types';
 import { FormLoadingOverlay } from '@/components/LoadingOverlay';
 import { SafetyAdvisory } from '@/components/SafetyAdvisory';
+import {
+  PlaceAutocomplete,
+  type AutocompletePlace,
+} from '@/components/PlaceAutocomplete';
+import { EvidencePicker } from '@/components/EvidencePicker';
 import { VoiceDictateButton } from '@/components/VoiceDictateButton';
 
 /**
@@ -43,7 +48,20 @@ type Step = {
 };
 
 type WizardState = {
-  posture: 'claimant' | 'defendant';
+  posture: 'claimant' | 'defendant' | 'tracking';
+  /** ISO 3166-1 alpha-2 of the picked country, used to scope the
+   *  state + city autocomplete results. Empty when the user has
+   *  free-typed instead of picking a suggestion. */
+  countryCode: string;
+  /** Lat/lng of the most-specific jurisdiction the user has picked,
+   *  used to bias the hearing-location autocomplete to nearby courts. */
+  jurisdictionLat: number | null;
+  jurisdictionLng: number | null;
+  /** JSON-serialized list of {id, source} pairs picked in the
+   *  Evidence step. createCaseAction reads this from the form to
+   *  attach existing vault / contract items as exhibits at create
+   *  time. Hidden form field, not a real visible input. */
+  attachedItems: string;
   title: string;
   subjectName: string;
   subjectType: SubjectType;
@@ -76,6 +94,10 @@ type WizardState = {
 
 const initial: WizardState = {
   posture: 'claimant',
+  countryCode: '',
+  jurisdictionLat: null,
+  jurisdictionLng: null,
+  attachedItems: '[]',
   title: '',
   subjectName: '',
   subjectType: 'person',
@@ -111,7 +133,7 @@ const STEPS: Step[] = [
     description: 'This shapes how Bella and Advottic Review frame everything they suggest.',
     isValid: () => true,
     render: (s, u) => (
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid gap-3 md:grid-cols-3">
         <PostureCard
           active={s.posture === 'claimant'}
           title="Claimant / plaintiff"
@@ -123,6 +145,16 @@ const STEPS: Step[] = [
           title="Defendant / respondent"
           body="Someone is taking action against you - preparing a response."
           onClick={() => u({ posture: 'defendant' })}
+        />
+        {/* "Just tracking" - pre-filing. Users who haven't decided
+            to file. Maps to a distinct DB value so we don't label
+            their evidence as 'complaint material' before they
+            choose to file. */}
+        <PostureCard
+          active={s.posture === 'tracking'}
+          title="Just tracking"
+          body="Building a file - not yet a plaintiff or defendant. Gathering evidence and dating events while you decide what to do."
+          onClick={() => u({ posture: 'tracking' })}
         />
       </div>
     ),
@@ -180,29 +212,63 @@ const STEPS: Step[] = [
   {
     id: 'jurisdiction',
     title: 'Where does the case sit?',
-    description: 'Country is required. State and city help Advottic Review reach for the right rules.',
+    description: 'Start typing - we look up real countries, states, and cities so the suggestions stay consistent and the court list later in the wizard is biased to your region.',
     isValid: (s) => s.country.trim().length > 0,
     render: (s, u) => (
       <div className="grid gap-3">
-        <input
-          autoFocus
-          value={s.country}
-          onChange={(e) => u({ country: e.target.value })}
+        <PlaceAutocomplete
           placeholder="Country (required)"
           className="input"
+          types={['country']}
+          defaultValue={s.country}
+          onChange={(v) => u({ country: v })}
+          onPlace={(p: AutocompletePlace) => {
+            u({
+              country: p.formatted_address || p.country || '',
+              countryCode: p.country_code ?? '',
+              // Picking a new country invalidates the state + city
+              // values - they may have been from a different
+              // country. Clear so the user re-picks them.
+              state: '',
+              city: '',
+              jurisdictionLat: p.lat,
+              jurisdictionLng: p.lng,
+            });
+          }}
+          fallbackHint="Type your country and hit tab."
         />
         <div className="grid grid-cols-2 gap-3">
-          <input
-            value={s.state}
-            onChange={(e) => u({ state: e.target.value })}
+          <PlaceAutocomplete
             placeholder="State / province"
             className="input"
+            types={['administrative_area_level_1']}
+            countryRestrictions={s.countryCode ? [s.countryCode] : undefined}
+            defaultValue={s.state}
+            onChange={(v) => u({ state: v })}
+            onPlace={(p) => {
+              u({
+                state: p.formatted_address || p.administrative_area_level_1 || '',
+                jurisdictionLat: p.lat,
+                jurisdictionLng: p.lng,
+              });
+            }}
+            fallbackHint="Type your state or province."
           />
-          <input
-            value={s.city}
-            onChange={(e) => u({ city: e.target.value })}
+          <PlaceAutocomplete
             placeholder="City / county"
             className="input"
+            types={['(cities)']}
+            countryRestrictions={s.countryCode ? [s.countryCode] : undefined}
+            defaultValue={s.city}
+            onChange={(v) => u({ city: v })}
+            onPlace={(p) => {
+              u({
+                city: p.formatted_address || p.locality || p.administrative_area_level_2 || '',
+                jurisdictionLat: p.lat,
+                jurisdictionLng: p.lng,
+              });
+            }}
+            fallbackHint="Type the city or county where the matter sits."
           />
         </div>
       </div>
@@ -304,7 +370,32 @@ const STEPS: Step[] = [
               <label className="block text-[11px] uppercase tracking-[0.18em] font-semibold text-ink-500 dark:text-cream-100/55 mb-1">
                 {labelize(f.name)}
               </label>
-              {f.name === 'address' || f.name === 'notes' ? (
+              {f.name === 'address' ? (
+                // Subject address: Google Places autocomplete biased
+                // to the jurisdiction. Falls back to plain textarea
+                // on Maps load failure; either way the value lands
+                // in subj_address for the createCaseAction.
+                <PlaceAutocomplete
+                  placeholder={f.placeholder}
+                  className="input"
+                  types={['address']}
+                  countryRestrictions={s.countryCode ? [s.countryCode] : undefined}
+                  locationBiasLatLng={
+                    s.jurisdictionLat != null && s.jurisdictionLng != null
+                      ? { lat: s.jurisdictionLat, lng: s.jurisdictionLng }
+                      : undefined
+                  }
+                  locationBiasRadiusM={75_000}
+                  defaultValue={(s as unknown as Record<string, string>)[`subj_${f.name}`] ?? ''}
+                  onChange={(v) => u({ [`subj_${f.name}`]: v } as Partial<WizardState>)}
+                  onPlace={(p) =>
+                    u({
+                      [`subj_${f.name}`]: p.formatted_address || '',
+                    } as Partial<WizardState>)
+                  }
+                  fallbackHint="Type the address - we look up the rest from Google."
+                />
+              ) : f.name === 'notes' ? (
                 <textarea
                   rows={2}
                   value={(s as unknown as Record<string, string>)[`subj_${f.name}`] ?? ''}
@@ -327,6 +418,27 @@ const STEPS: Step[] = [
     },
   },
   {
+    id: 'evidence',
+    title: 'Pull in evidence you already have?',
+    description: 'Attach existing items from your vault or contracts library so you do not have to re-upload anything.',
+    optional: true,
+    isValid: () => true,
+    render: () => (
+      // EvidencePicker manages its own state internally and serializes
+      // the selection into a hidden form field named "attachedItems".
+      // The outer form auto-collects every WizardState key so the
+      // server action just reads it like any other form field. We
+      // don't need to read it back into WizardState while the user
+      // navigates between steps because the EvidencePicker uses its
+      // own selected-set ref - swap to a controlled prop only if a
+      // step jump back ever drops state (not currently the case).
+      <EvidencePicker
+        hiddenFieldName="attachedItems"
+        helperText="Documents, photos, or contracts you already uploaded - we'll attach them as exhibits on this case."
+      />
+    ),
+  },
+  {
     id: 'hearing',
     title: 'Have a hearing or deadline coming up?',
     description: 'Add it now and we will surface a countdown and a pre-hearing checklist on the case page.',
@@ -346,11 +458,26 @@ const STEPS: Step[] = [
           </div>
           <div>
             <label className="label">Location</label>
-            <input
-              value={s.hearingLocation}
-              onChange={(e) => u({ hearingLocation: e.target.value })}
-              placeholder="Court name, courtroom"
+            {/* Court / hearing location, biased to whichever
+                jurisdiction the user picked above (lat/lng of
+                their state or city). 75 km radius keeps suggestions
+                local without forcing strict bounds - they can still
+                pick a court a few counties over. */}
+            <PlaceAutocomplete
+              placeholder="Search for the court or courtroom"
               className="input"
+              types={['establishment']}
+              countryRestrictions={s.countryCode ? [s.countryCode] : undefined}
+              locationBiasLatLng={
+                s.jurisdictionLat != null && s.jurisdictionLng != null
+                  ? { lat: s.jurisdictionLat, lng: s.jurisdictionLng }
+                  : undefined
+              }
+              locationBiasRadiusM={75_000}
+              defaultValue={s.hearingLocation}
+              onChange={(v) => u({ hearingLocation: v })}
+              onPlace={(p) => u({ hearingLocation: p.formatted_address || '' })}
+              fallbackHint="Type the court name."
             />
           </div>
         </div>
@@ -375,7 +502,16 @@ const STEPS: Step[] = [
     render: (s) => (
       <div className="space-y-2 text-sm">
         <ReviewLine label="Title" value={s.title} />
-        <ReviewLine label="Posture" value={s.posture === 'claimant' ? 'Claimant / plaintiff' : 'Defendant / respondent'} />
+        <ReviewLine
+          label="Posture"
+          value={
+            s.posture === 'claimant'
+              ? 'Claimant / plaintiff'
+              : s.posture === 'defendant'
+                ? 'Defendant / respondent'
+                : 'Just tracking'
+          }
+        />
         <ReviewLine label="Subject" value={`${s.subjectName} (${s.subjectType})`} />
         <ReviewLine
           label="Jurisdiction"
