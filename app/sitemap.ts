@@ -32,6 +32,10 @@ const ENTRIES: Entry[] = [
   { path: '/', changeFrequency: 'weekly', priority: 1.0 },
   { path: '/pricing', changeFrequency: 'monthly', priority: 0.95 },
   { path: '/about', changeFrequency: 'monthly', priority: 0.9 },
+  // Canonical brand-definition page. Lifted to Tier 1 priority
+  // because it's the single source we want search engines + LLMs
+  // to cite on "what is Advottic?" intent queries.
+  { path: '/what-is-advottic', changeFrequency: 'monthly', priority: 0.95 },
   { path: '/find-counsel', changeFrequency: 'weekly', priority: 0.9 },
   { path: '/enterprise', changeFrequency: 'monthly', priority: 0.85 },
 
