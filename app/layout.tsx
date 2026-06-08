@@ -513,6 +513,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <Link href="/glossary" className="hover:text-forest-900 dark:hover:text-cream-100 block">Glossary</Link>
                 <Link href="/guides" className="hover:text-forest-900 dark:hover:text-cream-100 block">Guides</Link>
                 <Link href="/templates" className="hover:text-forest-900 dark:hover:text-cream-100 block">Free templates</Link>
+                <Link href="/tools/statute-of-limitations" className="hover:text-forest-900 dark:hover:text-cream-100 block">SOL checker</Link>
                 <Link href="/changelog" className="hover:text-forest-900 dark:hover:text-cream-100 block">Changelog</Link>
                 <Link href="/press" className="hover:text-forest-900 dark:hover:text-cream-100 block">Press kit</Link>
                 <Link href="/feedback" className="hover:text-forest-900 dark:hover:text-cream-100 block">Send feedback</Link>

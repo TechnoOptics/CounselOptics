@@ -68,6 +68,14 @@ const ENTRIES: Entry[] = [
   { path: '/templates/cease-and-desist', changeFrequency: 'monthly', priority: 0.8 },
   { path: '/templates/lease-termination-notice', changeFrequency: 'monthly', priority: 0.8 },
   { path: '/templates/security-deposit-demand', changeFrequency: 'monthly', priority: 0.8 },
+  // Free interactive tools. The statute-of-limitations checker
+  // targets a SERP that PI firms pay $30-$120 CPC for; owning
+  // it organically is worth a lot.
+  { path: '/tools', changeFrequency: 'monthly', priority: 0.8 },
+  { path: '/tools/statute-of-limitations', changeFrequency: 'monthly', priority: 0.9 },
+  // Press releases - dated, NewsArticle-tagged, eligible for
+  // Google News + Top Stories on legal-tech queries.
+  { path: '/press/2026-06-08-templates-open-source', changeFrequency: 'yearly', priority: 0.7 },
   // Changelog - freshness signal. Crawlers prioritize recently-
   // updated content; a weekly-updated changelog is the cheapest
   // way to look alive without spamming the sitemap.

@@ -74,6 +74,10 @@ const CORNERSTONES: ReadonlyArray<string> = [
   `${SITE_URL}/templates/cease-and-desist`,
   `${SITE_URL}/templates/lease-termination-notice`,
   `${SITE_URL}/templates/security-deposit-demand`,
+  // Round-5 interactive tool + press release
+  `${SITE_URL}/tools`,
+  `${SITE_URL}/tools/statute-of-limitations`,
+  `${SITE_URL}/press/2026-06-08-templates-open-source`,
 ];
 
 export async function POST(req: NextRequest) {
