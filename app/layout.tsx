@@ -179,7 +179,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     pathname.startsWith('/portal/') ||
     pathname === '/join' ||
     pathname.startsWith('/join/');
-  const isShellMode = isCounselMode || isHqMode || isHubMode;
+  // Embeddable widget paths render in iframes on third-party sites.
+  // They must strip ALL Advottic chrome (header, footer, sidebar,
+  // banners) so the host site's frame is the only visible chrome.
+  // Each /embed/* path renders its own page-level shell.
+  const isEmbedMode =
+    pathname === '/embed' || pathname.startsWith('/embed/');
+  const isShellMode = isCounselMode || isHqMode || isHubMode || isEmbedMode;
 
   // App-mode = the user is doing actual case work, where the in-app
   // sidebar (New case / Cases / Shared with me / Find counsel /
@@ -514,6 +520,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <Link href="/guides" className="hover:text-forest-900 dark:hover:text-cream-100 block">Guides</Link>
                 <Link href="/templates" className="hover:text-forest-900 dark:hover:text-cream-100 block">Free templates</Link>
                 <Link href="/tools/statute-of-limitations" className="hover:text-forest-900 dark:hover:text-cream-100 block">SOL checker</Link>
+                <Link href="/open-data" className="hover:text-forest-900 dark:hover:text-cream-100 block">Open data</Link>
                 <Link href="/changelog" className="hover:text-forest-900 dark:hover:text-cream-100 block">Changelog</Link>
                 <Link href="/press" className="hover:text-forest-900 dark:hover:text-cream-100 block">Press kit</Link>
                 <Link href="/feedback" className="hover:text-forest-900 dark:hover:text-cream-100 block">Send feedback</Link>

@@ -108,7 +108,29 @@ const nextConfig = {
     ],
   },
   async headers() {
+    // Embed widgets must be frameable from third-party sites - that
+    // is the whole point. Strip X-Frame-Options and relax the
+    // frame-ancestors CSP for /embed/* only. Every other path keeps
+    // the locked-down headers.
+    const EMBED_SECURITY_HEADERS = SECURITY_HEADERS.filter(
+      (h) => h.key !== 'X-Frame-Options',
+    ).map((h) => {
+      if (h.key === 'Content-Security-Policy-Report-Only') {
+        return {
+          ...h,
+          value: h.value.replace(
+            "frame-ancestors 'none'",
+            "frame-ancestors *",
+          ),
+        };
+      }
+      return h;
+    });
     return [
+      {
+        source: '/embed/:path*',
+        headers: EMBED_SECURITY_HEADERS,
+      },
       {
         source: '/:path*',
         headers: SECURITY_HEADERS,

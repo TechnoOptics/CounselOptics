@@ -78,6 +78,12 @@ const CORNERSTONES: ReadonlyArray<string> = [
   `${SITE_URL}/tools`,
   `${SITE_URL}/tools/statute-of-limitations`,
   `${SITE_URL}/press/2026-06-08-templates-open-source`,
+  // Round-6 compounders: embed, data catalog, founder
+  `${SITE_URL}/tools/statute-of-limitations/embed`,
+  `${SITE_URL}/open-data`,
+  `${SITE_URL}/open-data/statute-of-limitations.json`,
+  `${SITE_URL}/open-data/templates.json`,
+  `${SITE_URL}/people/abel-mehari`,
 ];
 
 export async function POST(req: NextRequest) {
