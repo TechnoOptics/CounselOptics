@@ -67,6 +67,13 @@ const CORNERSTONES: ReadonlyArray<string> = [
   `${SITE_URL}/guides/my-landlord-is-evicting-me`,
   `${SITE_URL}/guides/im-being-sued-for-credit-card-debt`,
   `${SITE_URL}/guides/i-need-help-domestic-violence`,
+  // Round-5 templates library
+  `${SITE_URL}/templates`,
+  `${SITE_URL}/templates/demand-letter`,
+  `${SITE_URL}/templates/nda`,
+  `${SITE_URL}/templates/cease-and-desist`,
+  `${SITE_URL}/templates/lease-termination-notice`,
+  `${SITE_URL}/templates/security-deposit-demand`,
 ];
 
 export async function POST(req: NextRequest) {

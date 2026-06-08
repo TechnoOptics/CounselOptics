@@ -59,6 +59,15 @@ const ENTRIES: Entry[] = [
   { path: '/guides/my-landlord-is-evicting-me', changeFrequency: 'monthly', priority: 0.8 },
   { path: '/guides/im-being-sued-for-credit-card-debt', changeFrequency: 'monthly', priority: 0.8 },
   { path: '/guides/i-need-help-domestic-violence', changeFrequency: 'monthly', priority: 0.85 },
+  // Free legal templates - the biggest backlink magnet in legal
+  // tech. Legal aid orgs, freelancer blogs, and tenant-rights
+  // nonprofits link to these.
+  { path: '/templates', changeFrequency: 'monthly', priority: 0.85 },
+  { path: '/templates/demand-letter', changeFrequency: 'monthly', priority: 0.8 },
+  { path: '/templates/nda', changeFrequency: 'monthly', priority: 0.8 },
+  { path: '/templates/cease-and-desist', changeFrequency: 'monthly', priority: 0.8 },
+  { path: '/templates/lease-termination-notice', changeFrequency: 'monthly', priority: 0.8 },
+  { path: '/templates/security-deposit-demand', changeFrequency: 'monthly', priority: 0.8 },
   // Changelog - freshness signal. Crawlers prioritize recently-
   // updated content; a weekly-updated changelog is the cheapest
   // way to look alive without spamming the sitemap.
