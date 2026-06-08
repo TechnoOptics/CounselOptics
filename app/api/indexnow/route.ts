@@ -60,6 +60,13 @@ const CORNERSTONES: ReadonlyArray<string> = [
   `${SITE_URL}/glossary/deadline-radar`,
   `${SITE_URL}/glossary/advottic-aid`,
   `${SITE_URL}/glossary/iolta`,
+  // Round-4 high-intent guides
+  `${SITE_URL}/guides`,
+  `${SITE_URL}/guides/i-was-served-with-a-lawsuit`,
+  `${SITE_URL}/guides/how-long-do-i-have-to-sue`,
+  `${SITE_URL}/guides/my-landlord-is-evicting-me`,
+  `${SITE_URL}/guides/im-being-sued-for-credit-card-debt`,
+  `${SITE_URL}/guides/i-need-help-domestic-violence`,
 ];
 
 export async function POST(req: NextRequest) {

@@ -50,6 +50,15 @@ const ENTRIES: Entry[] = [
   { path: '/glossary/deadline-radar', changeFrequency: 'monthly', priority: 0.75 },
   { path: '/glossary/advottic-aid', changeFrequency: 'monthly', priority: 0.75 },
   { path: '/glossary/iolta', changeFrequency: 'monthly', priority: 0.7 },
+  // High-intent legal-prep guides. Each targets a specific search
+  // query lawyers' marketing teams have been buying. Index at 0.85,
+  // each guide at 0.8 because the intent-to-conversion path is real.
+  { path: '/guides', changeFrequency: 'monthly', priority: 0.85 },
+  { path: '/guides/i-was-served-with-a-lawsuit', changeFrequency: 'monthly', priority: 0.8 },
+  { path: '/guides/how-long-do-i-have-to-sue', changeFrequency: 'monthly', priority: 0.8 },
+  { path: '/guides/my-landlord-is-evicting-me', changeFrequency: 'monthly', priority: 0.8 },
+  { path: '/guides/im-being-sued-for-credit-card-debt', changeFrequency: 'monthly', priority: 0.8 },
+  { path: '/guides/i-need-help-domestic-violence', changeFrequency: 'monthly', priority: 0.85 },
   // Changelog - freshness signal. Crawlers prioritize recently-
   // updated content; a weekly-updated changelog is the cheapest
   // way to look alive without spamming the sitemap.

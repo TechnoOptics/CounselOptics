@@ -511,6 +511,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                     PageRank into them. */}
                 <Link href="/what-is-advottic" className="hover:text-forest-900 dark:hover:text-cream-100 block">What is Advottic?</Link>
                 <Link href="/glossary" className="hover:text-forest-900 dark:hover:text-cream-100 block">Glossary</Link>
+                <Link href="/guides" className="hover:text-forest-900 dark:hover:text-cream-100 block">Guides</Link>
                 <Link href="/changelog" className="hover:text-forest-900 dark:hover:text-cream-100 block">Changelog</Link>
                 <Link href="/press" className="hover:text-forest-900 dark:hover:text-cream-100 block">Press kit</Link>
                 <Link href="/feedback" className="hover:text-forest-900 dark:hover:text-cream-100 block">Send feedback</Link>
