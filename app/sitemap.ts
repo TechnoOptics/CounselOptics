@@ -44,6 +44,12 @@ const ENTRIES: Entry[] = [
   { path: '/glossary/advottic-counsel', changeFrequency: 'monthly', priority: 0.8 },
   { path: '/glossary/advottic-review', changeFrequency: 'monthly', priority: 0.8 },
   { path: '/glossary/techno-optics', changeFrequency: 'monthly', priority: 0.7 },
+  { path: '/glossary/action-center', changeFrequency: 'monthly', priority: 0.75 },
+  { path: '/glossary/decoder', changeFrequency: 'monthly', priority: 0.75 },
+  { path: '/glossary/war-room', changeFrequency: 'monthly', priority: 0.75 },
+  { path: '/glossary/deadline-radar', changeFrequency: 'monthly', priority: 0.75 },
+  { path: '/glossary/advottic-aid', changeFrequency: 'monthly', priority: 0.75 },
+  { path: '/glossary/iolta', changeFrequency: 'monthly', priority: 0.7 },
   // Changelog - freshness signal. Crawlers prioritize recently-
   // updated content; a weekly-updated changelog is the cheapest
   // way to look alive without spamming the sitemap.

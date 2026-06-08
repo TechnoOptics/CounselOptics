@@ -30,26 +30,54 @@ const CATEGORY_LABELS: Record<string, { label: string; tone: string }> = {
 };
 
 export default function ChangelogPage() {
+  // Two JSON-LD nodes in one @graph: an ItemList for the page as a
+  // whole, plus an Article per entry so each shipped feature is an
+  // independently-citable creative work. AI tools that prefer to
+  // cite a specific update ("Advottic shipped Safe Witness live
+  // tracking on 2026-05-22") can lift the Article URL directly
+  // instead of the whole changelog page.
   const itemListJsonLd = {
     '@context': 'https://schema.org',
-    '@type': 'ItemList',
-    '@id': 'https://advottic.com/changelog#list',
-    name: 'Advottic changelog',
-    url: 'https://advottic.com/changelog',
-    itemListElement: CHANGELOG.map((c, i) => ({
-      '@type': 'ListItem',
-      position: i + 1,
-      item: {
-        '@type': 'CreativeWork',
+    '@graph': [
+      {
+        '@type': 'ItemList',
+        '@id': 'https://advottic.com/changelog#list',
+        name: 'Advottic changelog',
+        url: 'https://advottic.com/changelog',
+        itemListElement: CHANGELOG.map((c, i) => ({
+          '@type': 'ListItem',
+          position: i + 1,
+          item: { '@id': `https://advottic.com/changelog#${c.slug}` },
+        })),
+      },
+      ...CHANGELOG.map((c) => ({
+        '@type': 'Article',
         '@id': `https://advottic.com/changelog#${c.slug}`,
-        name: c.title,
+        headline: c.title,
         description: c.summary,
         datePublished: c.date,
+        dateModified: c.date,
         url: c.link
           ? `https://advottic.com${c.link}`
           : `https://advottic.com/changelog#${c.slug}`,
-      },
-    })),
+        author: {
+          '@type': 'Organization',
+          name: 'Advottic',
+          url: 'https://advottic.com/',
+        },
+        publisher: {
+          '@type': 'Organization',
+          name: 'Advottic',
+          url: 'https://advottic.com/',
+          logo: {
+            '@type': 'ImageObject',
+            url: 'https://advottic.com/advottic-mark.png',
+          },
+        },
+        articleSection: c.category,
+        isPartOf: { '@id': 'https://advottic.com/changelog#list' },
+      })),
+    ],
   };
 
   return (

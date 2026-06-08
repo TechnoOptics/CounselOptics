@@ -53,6 +53,13 @@ const CORNERSTONES: ReadonlyArray<string> = [
   `${SITE_URL}/feed.xml`,
   `${SITE_URL}/atom.xml`,
   `${SITE_URL}/sitemap-images.xml`,
+  // Round-3 brand entities
+  `${SITE_URL}/glossary/action-center`,
+  `${SITE_URL}/glossary/decoder`,
+  `${SITE_URL}/glossary/war-room`,
+  `${SITE_URL}/glossary/deadline-radar`,
+  `${SITE_URL}/glossary/advottic-aid`,
+  `${SITE_URL}/glossary/iolta`,
 ];
 
 export async function POST(req: NextRequest) {

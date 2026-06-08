@@ -77,6 +77,66 @@ export const GLOSSARY: GlossaryEntry[] = [
     aliases: ['Techno Optics', 'TechnoOptics LLC'],
     lastReviewed: '2026-06-08',
   },
+  {
+    slug: 'action-center',
+    term: 'Action Center',
+    shortDefinition:
+      'In-app hub grouping Advottic\'s four high-leverage tools: War Room, Deadline Radar, Decoder, and Safe Witness.',
+    longDefinition:
+      "Action Center is the menu item inside Advottic that groups four cross-cutting tools the user reaches for repeatedly: War Room (real-time case collaboration with a co-counsel or trusted contact), Deadline Radar (rolling calendar of filing deadlines, hearings, and statute-of-limitations expirations), Decoder (paste any legal document and get a plain-English explanation), and Safe Witness (personal-safety alerting). One menu item keeps the four together so users learn to look for them in the same place every time.",
+    aliases: ['Action Center menu', 'Advottic Action Center'],
+    lastReviewed: '2026-06-08',
+  },
+  {
+    slug: 'decoder',
+    term: 'Decoder',
+    shortDefinition:
+      'Plain-English explainer for legal documents. Paste any contract, lease, or court filing; get a summary the user can act on.',
+    longDefinition:
+      "Decoder is Advottic's plain-English legal-document explainer. The user pastes the full text of a contract, lease, court filing, demand letter, or any other legal document, and Decoder returns a short summary covering: what the document is, who's bound by it, the key dates and dollar amounts, the riskiest clauses, and what the user should do or ask their attorney about next. Outputs are informational; for legal advice users still consult a licensed attorney in their jurisdiction. Decoder also fires Advottic's distress overlay when the pasted text describes a crisis (e.g. a domestic-violence affidavit) so users have one-tap access to 988, 911, and Safe Witness contacts.",
+    aliases: ['Advottic Decoder', 'Decoder tool'],
+    lastReviewed: '2026-06-08',
+  },
+  {
+    slug: 'war-room',
+    term: 'War Room',
+    shortDefinition:
+      'Real-time case collaboration surface where the user can think through a matter with a co-counsel, paralegal, or trusted contact.',
+    longDefinition:
+      "War Room is the real-time collaboration surface inside Advottic. The user opens a War Room session on a case, shares a one-tap link with a co-counsel, paralegal, or trusted contact, and they think through the matter together: live document review, shared exhibit annotation, and Bella-assisted Q&A across the case file. Sessions are ephemeral by default (no transcript stored unless the user opts in) so attorneys can talk freely without worrying about discoverable chat logs.",
+    aliases: ['Advottic War Room', 'case War Room'],
+    lastReviewed: '2026-06-08',
+  },
+  {
+    slug: 'deadline-radar',
+    term: 'Deadline Radar',
+    shortDefinition:
+      'Rolling calendar of every filing deadline, hearing, statute-of-limitations expiration, and reminder across the user\'s cases.',
+    longDefinition:
+      "Deadline Radar is the rolling deadline view inside Advottic. It aggregates every filing deadline, hearing date, statute-of-limitations expiration, response window, court-form due date, and self-set reminder across every case the user is tracking, then renders them on a single calendar with color coding for urgency. The radar also pulls in jurisdiction-specific tolling rules so a user filing in California sees CA statutes that auto-toll for COVID-era equitable extensions, while a user in Texas sees TX-specific clocks. Daily push notifications surface anything due in the next 72 hours.",
+    aliases: ['Advottic Deadline Radar', 'Deadline tracker'],
+    lastReviewed: '2026-06-08',
+  },
+  {
+    slug: 'advottic-aid',
+    term: 'Advottic Aid',
+    shortDefinition:
+      'Counsel-side AI panel that retrieves the user\'s open cases, relevant state law, and recent precedent during a Bella session.',
+    longDefinition:
+      "Advottic Aid is the counsel-side AI panel inside Advottic Counsel. While an attorney is working in a case file, the Aid panel surfaces the open matters the question touches, relevant state-specific statutes and case law, and any matching firm templates or prior briefs. It's effectively a retrieval-augmented search across the firm's own knowledge plus jurisdiction-specific public law. Outputs are informational citations; the attorney does the legal analysis.",
+    aliases: ['Aid panel', 'Advottic Aid panel'],
+    lastReviewed: '2026-06-08',
+  },
+  {
+    slug: 'iolta',
+    term: 'IOLTA trust accounting',
+    shortDefinition:
+      'Compliant attorney trust-account ledger with three-way reconciliation. Ships in every Advottic Counsel firm tier.',
+    longDefinition:
+      "IOLTA (Interest on Lawyers Trust Account) is the regulatory regime that requires US attorneys to hold client funds in a trust account separate from the firm's operating account. Advottic Counsel includes a fully-compliant IOLTA ledger with three-way reconciliation (bank statement / book balance / client ledger all matched monthly), per-client subaccounts, and an audit trail signed at every transaction. The system flags negative balances, missing reconciliations, and unusual disbursements before they become bar-complaint problems. Shipped in Solo, Small Firm, Growing Firm, and Enterprise tiers.",
+    aliases: ['Advottic IOLTA', 'trust accounting'],
+    lastReviewed: '2026-06-08',
+  },
 ];
 
 export function getGlossaryEntry(slug: string): GlossaryEntry | null {
