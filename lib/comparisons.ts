@@ -580,4 +580,180 @@ export const COMPARISONS: Comparison[] = [
       },
     ],
   },
+
+  {
+    slug: 'legalzoom',
+    competitorName: 'LegalZoom',
+    competitorCompany: 'LegalZoom.com, Inc.',
+    category: 'Full-stack platform',
+    reviewedAt: '2026-06-08',
+    description:
+      'Honest side-by-side: Advottic vs LegalZoom. Consumer legal services compared on pricing, AI, and breadth. Updated June 2026.',
+    keywords: [
+      'legalzoom alternative',
+      'legalzoom vs advottic',
+      'advottic vs legalzoom',
+      'best legalzoom alternative',
+      'legalzoom competitors',
+      'cheaper than legalzoom',
+    ],
+    hook: [
+      'LegalZoom is a 25-year-old document factory. They built a business turning routine forms (LLC formation, simple wills, basic NDAs) into a checkout flow. That is real value for one transaction.',
+      'Advottic is a different product: a place to organize an entire matter, draft documents with an AI assistant that reads them with you, and walk into court (or a lawyer) prepared. If you need one form, LegalZoom is the right call. If you have a problem, we are the right call.',
+    ],
+    features: [
+      { label: 'Free legal templates (no signup)', advottic: 'Yes', competitor: 'No - paywall or signup gate' },
+      { label: 'AI legal assistant', advottic: 'Bella, included', competitor: 'Limited / not core' },
+      { label: 'Case organization (timeline, exhibits, packet export)', advottic: 'Yes', competitor: 'No' },
+      { label: 'Statute of limitations checker', advottic: 'Yes, free', competitor: 'No' },
+      { label: 'Court deadline calculator', advottic: 'Yes, free', competitor: 'No' },
+      { label: 'Personal safety alerts (Safe Witness)', advottic: 'Yes, with watch app', competitor: 'No' },
+      { label: 'LLC / business formation', advottic: 'Not offered', competitor: 'Yes (their core product)' },
+      { label: 'Will + estate planning forms', advottic: 'Not offered', competitor: 'Yes' },
+      { label: 'Attorney directory', advottic: 'Find Counsel marketplace', competitor: 'Attorney network add-on subscription' },
+      { label: 'Free tier', advottic: 'Yes, no credit card', competitor: 'No' },
+      { label: 'iOS + Android apps', advottic: 'Yes', competitor: 'Limited' },
+      { label: 'Smartwatch (Wear OS) app', advottic: 'Yes', competitor: 'No' },
+    ],
+    advotticWins: [
+      {
+        heading: 'You have a legal problem, not a form to fill out',
+        body: 'LegalZoom is form-first: pick the form, pay, fill the fields, download the PDF. Advottic is matter-first: organize the problem, gather the evidence, talk to Bella about what you have, draft the right document for the right step. If you got served, evicted, harassed, or stiffed, our flow is the one built for you.',
+      },
+      {
+        heading: 'You want free, not freemium',
+        body: 'Advottic templates are free with no email gate, no signup, no upsell modal. LegalZoom puts most documents behind a paid plan. If the only thing standing between you and a demand letter is $50, Advottic is the right call.',
+      },
+      {
+        heading: 'You want an AI that reads your case, not a search box',
+        body: 'Bella reads the documents you upload, knows the dates in your timeline, references the controlling statute in your state, and drafts the next step. LegalZoom is moving toward AI but the core remains a form catalog.',
+      },
+    ],
+    competitorWins: [
+      {
+        heading: 'You need to form an LLC or corporation',
+        body: 'Business formation is what LegalZoom was built for. Their flow handles state filings, EIN application, registered agent service, and ongoing compliance reminders. We do not offer business formation. Use LegalZoom for that.',
+      },
+      {
+        heading: 'You need a simple will or estate plan today',
+        body: 'LegalZoom offers will and trust packages at $89-$179 with attorney review available. Our consumer product does not include will drafting. If estate planning is the only thing you need, LegalZoom or a local estate attorney is the right call.',
+      },
+      {
+        heading: 'You want a national brand name',
+        body: 'LegalZoom has 25 years of brand recognition and a directly-employed attorney network. If your priority is name recognition over product depth, that matters.',
+      },
+    ],
+    pricing: {
+      advottic: 'Free (templates + tools) / $19/mo (Personal Plus) / $39/mo (Personal Pro)',
+      competitor: '$249 (single legal forms) / $39.99/mo (Legal Advantage subscription) / per-service pricing',
+      sourceUrl: 'https://www.legalzoom.com/personal/legal-plans',
+      sourceLabel: 'LegalZoom public pricing pages, reviewed June 2026',
+    },
+    faq: [
+      {
+        q: 'Is Advottic cheaper than LegalZoom?',
+        a: 'For matters where both work, yes. Advottic templates and tools are free; Personal Plus is $19/mo with unlimited document drafting and Bella. LegalZoom charges per document for most consumer forms. The break-even for an active user is one document.',
+      },
+      {
+        q: 'Can Advottic form an LLC for me?',
+        a: 'No. Business formation is not part of our consumer product today. LegalZoom, Northwest Registered Agent, or your state Secretary of State portal are the right paths for LLC formation.',
+      },
+      {
+        q: 'Is Advottic a law firm?',
+        a: 'No. We are an AI-powered legal platform. We do not give legal advice and our AI assistant Bella does not represent users. For licensed legal advice we connect users to attorneys through Find Counsel.',
+      },
+      {
+        q: 'Can Advottic help with eviction or being sued?',
+        a: 'Yes, this is the kind of problem we were built for. The guides at /guides cover the most common consumer situations, the templates at /templates draft the responses, and Bella helps reason through your case.',
+      },
+    ],
+  },
+
+  {
+    slug: 'rocket-lawyer',
+    competitorName: 'Rocket Lawyer',
+    competitorCompany: 'Rocket Lawyer Incorporated',
+    category: 'Full-stack platform',
+    reviewedAt: '2026-06-08',
+    description:
+      'Honest side-by-side: Advottic vs Rocket Lawyer. Consumer legal services compared on pricing, AI, and case-handling depth. Updated June 2026.',
+    keywords: [
+      'rocket lawyer alternative',
+      'rocket lawyer vs advottic',
+      'advottic vs rocket lawyer',
+      'best rocket lawyer alternative',
+      'rocket lawyer competitors',
+      'cheaper than rocket lawyer',
+    ],
+    hook: [
+      'Rocket Lawyer is a subscription document service with an attorney-call-back add-on. It is a 25-year-old product that does a fine job of generating common forms.',
+      'Advottic is a different layer of product: matter organization, an AI assistant that reads your documents, free interactive tools (statute of limitations checker, court deadline calculator), and templates that are actually free with no email gate.',
+    ],
+    features: [
+      { label: 'Free legal templates (no signup, no email)', advottic: 'Yes', competitor: 'No - 7-day trial then $39.99/mo' },
+      { label: 'AI legal assistant', advottic: 'Bella, included at every paid tier', competitor: 'Rocket Copilot, included in Premium' },
+      { label: 'Statute of limitations checker', advottic: 'Yes, free', competitor: 'No' },
+      { label: 'Court deadline calculator', advottic: 'Yes, free', competitor: 'No' },
+      { label: 'Case timeline + exhibits + packet export', advottic: 'Yes', competitor: 'Not as a structured flow' },
+      { label: 'Attorney consultation', advottic: 'Find Counsel marketplace (per-engagement)', competitor: 'Included in Premium ($39.99/mo)' },
+      { label: 'Business formation', advottic: 'Not offered', competitor: 'Yes' },
+      { label: 'Will + estate planning', advottic: 'Not offered', competitor: 'Yes' },
+      { label: 'Personal safety alerts (Safe Witness)', advottic: 'Yes, phone + watch', competitor: 'No' },
+      { label: 'iOS + Android apps', advottic: 'Yes', competitor: 'Yes' },
+      { label: 'Smartwatch (Wear OS) app', advottic: 'Yes', competitor: 'No' },
+      { label: 'Open dataset / API for the data', advottic: 'Yes, CC BY 4.0', competitor: 'No' },
+    ],
+    advotticWins: [
+      {
+        heading: 'You want free without a 7-day trial',
+        body: 'Rocket Lawyer\'s "free" templates require a 7-day trial that auto-converts to $39.99/mo if you forget to cancel. Advottic templates and tools are free, full stop. No card on file. No reminder needed.',
+      },
+      {
+        heading: 'You want an AI that handles your case',
+        body: 'Bella reads the documents you upload, knows your timeline, references the controlling statute, and drafts the next step. The product is built around organizing one matter end-to-end, not generating one form at a time.',
+      },
+      {
+        heading: 'You want personal-safety features',
+        body: 'Advottic Safe Witness lets you hold a button on phone or watch to send your live location and emergency contact info to designated people. We do not know any other consumer legal platform that ships this. If your matter involves a stalker, abusive ex, or court appearance you are nervous about, this matters.',
+      },
+    ],
+    competitorWins: [
+      {
+        heading: 'You want attorney consultation bundled in',
+        body: 'Rocket Lawyer Premium ($39.99/mo) includes 30-minute attorney consultations on new matters. We connect users to attorneys via Find Counsel as a marketplace, not as a subscription benefit. If you value a-la-carte attorney calls without per-engagement fees, Rocket Lawyer\'s structure is friendlier.',
+      },
+      {
+        heading: 'You need to form a business',
+        body: 'Rocket Lawyer handles LLC and corporation formation. We do not. If business formation is your immediate need, use them or a registered-agent service.',
+      },
+      {
+        heading: 'You need a basic will today',
+        body: 'Rocket Lawyer includes wills in their Premium plan. Our consumer product does not include estate planning forms. If your only need is a simple will, Rocket Lawyer or a local estate attorney is the right call.',
+      },
+    ],
+    pricing: {
+      advottic: 'Free (templates + tools) / $19/mo (Personal Plus) / $39/mo (Personal Pro)',
+      competitor: 'Free 7-day trial / $39.99/mo (Premium) / per-document pricing for non-members',
+      sourceUrl: 'https://www.rocketlawyer.com/legal-services/legal-plans',
+      sourceLabel: 'Rocket Lawyer public pricing pages, reviewed June 2026',
+    },
+    faq: [
+      {
+        q: 'Is Advottic free, or is there a hidden trial?',
+        a: 'No trial. Templates, statute-of-limitations checker, court deadline calculator, glossary, guides, and open datasets are free with no card on file and no email gate. Paid plans are optional and unlock document drafting limits and Bella usage.',
+      },
+      {
+        q: 'Does Advottic include attorney consultations?',
+        a: 'Not as a subscription benefit. We run a two-sided marketplace at Find Counsel where users post briefs and matching attorneys respond. Consultations are arranged directly between user and attorney. If you want bundled attorney calls every month, Rocket Lawyer Premium is a better fit.',
+      },
+      {
+        q: 'Can Bella give me legal advice like a Rocket Lawyer attorney can?',
+        a: 'No. Bella is an AI assistant, not a licensed attorney. She drafts documents, explains documents, and helps you organize your case. Licensed legal advice still comes from an attorney, accessed via Find Counsel.',
+      },
+      {
+        q: 'How do Advottic and Rocket Lawyer compare on AI?',
+        a: 'Rocket Copilot is closer to a smart search and document-fill tool. Bella reads the documents you upload, references the controlling statute in your state, draws on your timeline, and drafts contextual responses. Both are good; Bella is more matter-aware.',
+      },
+    ],
+  },
 ];

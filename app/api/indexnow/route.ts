@@ -85,6 +85,9 @@ const CORNERSTONES: ReadonlyArray<string> = [
   `${SITE_URL}/open-data/statute-of-limitations.json`,
   `${SITE_URL}/open-data/templates.json`,
   `${SITE_URL}/people/abel-muchai`,
+  // New consumer-side comparison pages (highest commercial intent SERPs)
+  `${SITE_URL}/compare/legalzoom`,
+  `${SITE_URL}/compare/rocket-lawyer`,
 ];
 
 export async function POST(req: NextRequest) {
