@@ -81,6 +81,7 @@ export function SiteJsonLd() {
           addressCountry: 'US',
         },
         sameAs: [
+          'https://www.wikidata.org/wiki/Q140132010',
           'https://twitter.com/advottic',
           'https://www.linkedin.com/company/advottic',
           'https://github.com/TechnoOptics',

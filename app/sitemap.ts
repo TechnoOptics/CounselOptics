@@ -79,7 +79,7 @@ const ENTRIES: Entry[] = [
   // Round-6 compounders
   { path: '/tools/statute-of-limitations/embed', changeFrequency: 'monthly', priority: 0.7 },
   { path: '/open-data', changeFrequency: 'monthly', priority: 0.75 },
-  { path: '/people/abel-mehari', changeFrequency: 'yearly', priority: 0.7 },
+  { path: '/people/abel-muchai', changeFrequency: 'yearly', priority: 0.7 },
   // Changelog - freshness signal. Crawlers prioritize recently-
   // updated content; a weekly-updated changelog is the cheapest
   // way to look alive without spamming the sitemap.

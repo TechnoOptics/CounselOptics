@@ -155,7 +155,7 @@ export default function TemplatesPressReleasePage() {
         <p>
           &ldquo;The status quo for free legal templates is a
           form, an email gate, and an upsell,&rdquo; said Abel
-          Mehari, founder of Techno Optics LLC. &ldquo;That
+          Muchai, founder of Techno Optics LLC. &ldquo;That
           friction means a tenant trying to write a return-
           deposit letter at 11pm closes the tab. We are removing
           the friction. The templates are good, they are free,

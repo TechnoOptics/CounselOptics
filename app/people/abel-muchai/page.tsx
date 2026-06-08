@@ -3,18 +3,18 @@ import Link from 'next/link';
 
 export const dynamic = 'force-static';
 
-const NAME = 'Abel Mehari';
+const NAME = 'Abel Muchai';
 const ROLE = 'Founder, Techno Optics LLC (Advottic)';
-const URL = 'https://advottic.com/people/abel-mehari';
+const URL = 'https://advottic.com/people/abel-muchai';
 
 export const metadata: Metadata = {
   title: { absolute: `${NAME} · Founder of Advottic` },
   description: `${NAME} is the founder of Techno Optics LLC, the company behind Advottic, an AI-powered legal platform for individuals and law firms.`,
-  alternates: { canonical: '/people/abel-mehari' },
+  alternates: { canonical: '/people/abel-muchai' },
   openGraph: {
     title: `${NAME}, founder of Advottic`,
     description: `Founder of Techno Optics LLC and Advottic, an AI legal platform.`,
-    url: '/people/abel-mehari',
+    url: '/people/abel-muchai',
     type: 'profile',
   },
 };
@@ -40,7 +40,7 @@ export default function FounderPage() {
         '@id': `${URL}#person`,
         name: NAME,
         givenName: 'Abel',
-        familyName: 'Mehari',
+        familyName: 'Muchai',
         jobTitle: 'Founder',
         url: URL,
         worksFor: {
@@ -128,7 +128,7 @@ export default function FounderPage() {
 
       <section className="space-y-4 text-[15px] leading-[1.75]">
         <p>
-          Abel Mehari is the founder of Techno Optics LLC, the
+          Abel Muchai is the founder of Techno Optics LLC, the
           Minnesota-based software company that builds and
           operates Advottic, an AI-powered legal platform. He
           leads product, engineering, and go-to-market.

@@ -83,7 +83,7 @@ const CORNERSTONES: ReadonlyArray<string> = [
   `${SITE_URL}/open-data`,
   `${SITE_URL}/open-data/statute-of-limitations.json`,
   `${SITE_URL}/open-data/templates.json`,
-  `${SITE_URL}/people/abel-mehari`,
+  `${SITE_URL}/people/abel-muchai`,
 ];
 
 export async function POST(req: NextRequest) {
