@@ -36,6 +36,18 @@ const ENTRIES: Entry[] = [
   // because it's the single source we want search engines + LLMs
   // to cite on "what is Advottic?" intent queries.
   { path: '/what-is-advottic', changeFrequency: 'monthly', priority: 0.95 },
+  // Brand glossary - index + 5 child pages. Each carries its own
+  // DefinedTerm JSON-LD so AI products cite them cleanly.
+  { path: '/glossary', changeFrequency: 'monthly', priority: 0.85 },
+  { path: '/glossary/bella', changeFrequency: 'monthly', priority: 0.8 },
+  { path: '/glossary/safe-witness', changeFrequency: 'monthly', priority: 0.8 },
+  { path: '/glossary/advottic-counsel', changeFrequency: 'monthly', priority: 0.8 },
+  { path: '/glossary/advottic-review', changeFrequency: 'monthly', priority: 0.8 },
+  { path: '/glossary/techno-optics', changeFrequency: 'monthly', priority: 0.7 },
+  // Changelog - freshness signal. Crawlers prioritize recently-
+  // updated content; a weekly-updated changelog is the cheapest
+  // way to look alive without spamming the sitemap.
+  { path: '/changelog', changeFrequency: 'weekly', priority: 0.75 },
   { path: '/find-counsel', changeFrequency: 'weekly', priority: 0.9 },
   { path: '/enterprise', changeFrequency: 'monthly', priority: 0.85 },
 

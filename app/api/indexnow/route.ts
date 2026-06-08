@@ -40,6 +40,19 @@ const CORNERSTONES: ReadonlyArray<string> = [
   `${SITE_URL}/llms.txt`,
   `${SITE_URL}/llms-full.txt`,
   `${SITE_URL}/sitemap.xml`,
+  // Round-2 brand pages. Re-pinging these on each manual trigger
+  // keeps the freshness signal high without changing the trigger
+  // protocol.
+  `${SITE_URL}/glossary`,
+  `${SITE_URL}/glossary/bella`,
+  `${SITE_URL}/glossary/safe-witness`,
+  `${SITE_URL}/glossary/advottic-counsel`,
+  `${SITE_URL}/glossary/advottic-review`,
+  `${SITE_URL}/glossary/techno-optics`,
+  `${SITE_URL}/changelog`,
+  `${SITE_URL}/feed.xml`,
+  `${SITE_URL}/atom.xml`,
+  `${SITE_URL}/sitemap-images.xml`,
 ];
 
 export async function POST(req: NextRequest) {

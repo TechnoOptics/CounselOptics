@@ -504,6 +504,15 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <Link href="/review-my-document" className="hover:text-forest-900 dark:hover:text-cream-100 block">Review my document</Link>
                 <Link href="/pricing" className="hover:text-forest-900 dark:hover:text-cream-100 block">Pricing</Link>
                 <Link href="/about" className="hover:text-forest-900 dark:hover:text-cream-100 block">About Advottic</Link>
+                {/* Brand-page links. /what-is-advottic + /glossary +
+                    /changelog + /press carry our canonical brand
+                    facts, AI-citable JSON-LD, and freshness signal.
+                    Linking from every page footer distributes
+                    PageRank into them. */}
+                <Link href="/what-is-advottic" className="hover:text-forest-900 dark:hover:text-cream-100 block">What is Advottic?</Link>
+                <Link href="/glossary" className="hover:text-forest-900 dark:hover:text-cream-100 block">Glossary</Link>
+                <Link href="/changelog" className="hover:text-forest-900 dark:hover:text-cream-100 block">Changelog</Link>
+                <Link href="/press" className="hover:text-forest-900 dark:hover:text-cream-100 block">Press kit</Link>
                 <Link href="/feedback" className="hover:text-forest-900 dark:hover:text-cream-100 block">Send feedback</Link>
                 <Link href="/welcome" className="hover:text-forest-900 dark:hover:text-cream-100 block">Share Advottic</Link>
                 <Link href="/billing" className="hover:text-forest-900 dark:hover:text-cream-100 block">Billing</Link>
