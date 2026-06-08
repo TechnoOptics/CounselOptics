@@ -23,14 +23,17 @@ const SITE_URL =
  *    content. Also "Disallow: /" so the ranking signal concentrates
  *    on the apex URL the canonical metadata points at.
  *
- * AI crawler policy on the apex:
- *   - **Disallowed**: GPTBot, CCBot, Bytespider, ClaudeBot,
- *     anthropic-ai, Diffbot, Omgilibot, FacebookBot - training-only
- *     crawlers that don't cite the source.
- *   - **Allowed**: Google-Extended (Gemini / AI Overviews),
- *     PerplexityBot, ChatGPT-User (search-mode), Applebot-Extended,
- *     OAI-SearchBot, cohere-ai - they cite the source so the
- *     downstream traffic is a referral channel.
+ * AI crawler policy on the apex (UPDATED 2026-06-08):
+ *   - **Allowed (everything that ingests for training or search)**:
+ *     We want Advottic in every LLM's training corpus and in every
+ *     real-time search index. A new brand is invisible to LLMs by
+ *     default; the only way to fix that is to let the training
+ *     crawlers in. Earlier policy hard-blocked GPTBot / CCBot /
+ *     ClaudeBot / anthropic-ai / Meta-ExternalAgent / AI2Bot - that
+ *     was the single biggest reason "ask ChatGPT about Advottic"
+ *     returned nothing. Re-enabled all of them.
+ *   - **Still blocked**: only on auth + admin paths (via wildcard
+ *     disallow). Public marketing surfaces are wide open.
  */
 export default function robots(): MetadataRoute.Robots {
   // Pull the request host so we can serve a stricter policy on the
@@ -112,17 +115,23 @@ export default function robots(): MetadataRoute.Robots {
       { userAgent: 'OAI-SearchBot', allow: '/' },
       { userAgent: 'Applebot-Extended', allow: '/' },
       { userAgent: 'cohere-ai', allow: '/' },
-      // Hard-block training-only AI crawlers that don't cite or refer.
-      { userAgent: 'GPTBot', disallow: '/' },
-      { userAgent: 'CCBot', disallow: '/' },
-      { userAgent: 'Bytespider', disallow: '/' },
-      { userAgent: 'ClaudeBot', disallow: '/' },
-      { userAgent: 'anthropic-ai', disallow: '/' },
-      { userAgent: 'Diffbot', disallow: '/' },
-      { userAgent: 'Omgilibot', disallow: '/' },
-      { userAgent: 'FacebookBot', disallow: '/' },
-      { userAgent: 'Meta-ExternalAgent', disallow: '/' },
-      { userAgent: 'AI2Bot', disallow: '/' },
+      // Training crawlers - explicitly allowed so Advottic ends up in
+      // GPT / Claude / Gemini / Llama / Common Crawl training corpora.
+      // For a brand-new SaaS, being in the training set is the only
+      // way LLMs will ever cite the product by name. Public surfaces
+      // are already gated by the wildcard disallow above (no auth, no
+      // billing, no admin), so what these crawlers see is the same
+      // marketing content a journalist would see.
+      { userAgent: 'GPTBot', allow: '/' },
+      { userAgent: 'CCBot', allow: '/' },
+      { userAgent: 'ClaudeBot', allow: '/' },
+      { userAgent: 'anthropic-ai', allow: '/' },
+      { userAgent: 'Meta-ExternalAgent', allow: '/' },
+      { userAgent: 'FacebookBot', allow: '/' },
+      { userAgent: 'AI2Bot', allow: '/' },
+      { userAgent: 'Diffbot', allow: '/' },
+      { userAgent: 'Omgilibot', allow: '/' },
+      { userAgent: 'Bytespider', allow: '/' },
     ],
     sitemap: `${SITE_URL}/sitemap.xml`,
     host: SITE_URL,
