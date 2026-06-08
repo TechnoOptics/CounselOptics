@@ -16,6 +16,13 @@ const TOOLS: Array<{
       'Pick a state and a claim type. Get the deadline to file in plain English. 50 states + DC, 9 claim categories.',
     eyebrow: 'Deadlines',
   },
+  {
+    href: '/tools/court-deadline-calculator',
+    title: 'Court deadline calculator',
+    oneLine:
+      'Compute answer, appeal, discovery, and motion deadlines from any event date. Federal and state rules. Rolls weekends.',
+    eyebrow: 'Deadlines',
+  },
 ];
 
 export const metadata: Metadata = {

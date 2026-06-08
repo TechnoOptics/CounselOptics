@@ -129,19 +129,47 @@ export default function DataIndexPage() {
 
       <section className="space-y-3">
         <h2 className="font-display text-2xl text-forest-900 dark:text-cream-100">
+          On GitHub
+        </h2>
+        <p className="text-[15px] leading-relaxed">
+          Same datasets are mirrored to a public GitHub repo
+          with Python and Node usage examples:{' '}
+          <a
+            href="https://github.com/TechnoOptics/legal-data"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline font-medium"
+          >
+            github.com/TechnoOptics/legal-data
+          </a>
+          . Issues and pull requests welcome.
+        </p>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="font-display text-2xl text-forest-900 dark:text-cream-100">
           Want to contribute?
         </h2>
         <p className="text-[15px] leading-relaxed">
-          If you spot an outdated figure or want to suggest a
-          new dataset (eviction rules by city, small-claims fee
-          schedules, attorney-fee shifting statutes), email{' '}
+          File an issue on{' '}
+          <a
+            href="https://github.com/TechnoOptics/legal-data/issues"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline"
+          >
+            GitHub
+          </a>{' '}
+          or email{' '}
           <a
             href="mailto:data@advottic.com"
             className="underline"
           >
             data@advottic.com
-          </a>
-          . Reviewed monthly.
+          </a>{' '}
+          for broader dataset requests (eviction rules by city,
+          small-claims fee schedules, attorney-fee shifting
+          statutes). Reviewed monthly.
         </p>
       </section>
 

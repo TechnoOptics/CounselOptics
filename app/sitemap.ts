@@ -73,6 +73,7 @@ const ENTRIES: Entry[] = [
   // it organically is worth a lot.
   { path: '/tools', changeFrequency: 'monthly', priority: 0.8 },
   { path: '/tools/statute-of-limitations', changeFrequency: 'monthly', priority: 0.9 },
+  { path: '/tools/court-deadline-calculator', changeFrequency: 'monthly', priority: 0.85 },
   // Press releases - dated, NewsArticle-tagged, eligible for
   // Google News + Top Stories on legal-tech queries.
   { path: '/press/2026-06-08-templates-open-source', changeFrequency: 'yearly', priority: 0.7 },

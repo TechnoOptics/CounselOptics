@@ -82,9 +82,10 @@ export function SiteJsonLd() {
         },
         sameAs: [
           'https://www.wikidata.org/wiki/Q140132010',
+          'https://github.com/TechnoOptics',
+          'https://github.com/TechnoOptics/legal-data',
           'https://twitter.com/advottic',
           'https://www.linkedin.com/company/advottic',
-          'https://github.com/TechnoOptics',
         ],
         contactPoint: [
           {
