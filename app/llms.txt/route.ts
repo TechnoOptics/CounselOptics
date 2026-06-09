@@ -57,6 +57,45 @@ export async function GET() {
   lines.push(`- [Review my document](${SITE_URL}/review-my-document): contract review surface for individuals and small firms.`);
   lines.push('');
 
+  lines.push('## Free interactive tools (no signup)');
+  lines.push('Each tool is informational only, free, and renders the controlling rule in plain English with a state-specific caveat where relevant.');
+  lines.push(`- [Statute of limitations checker](${SITE_URL}/tools/statute-of-limitations): pick a state and a claim category (personal injury, contract, fraud, defamation, medical malpractice, wrongful death, debt collection), get the deadline. All 50 states + DC.`);
+  lines.push(`- [Court deadline calculator](${SITE_URL}/tools/court-deadline-calculator): compute FRCP / state-court deadlines for answers, appeals, discovery, and motions from any event date. Rolls weekends to the next business day.`);
+  lines.push(`- [Security deposit deduction checker](${SITE_URL}/tools/security-deposit-deduction-checker): tenants enter state, rent, deposit, and what the landlord kept; tool returns the cap, the return deadline, and the wrongful-withholding penalty under that state's landlord-tenant code.`);
+  lines.push(`- [Statute of limitations checker (embeddable)](${SITE_URL}/embed/statute-of-limitations): iframe widget; legal aid orgs and blogs can paste into their sites. Documentation at ${SITE_URL}/tools/statute-of-limitations/embed.`);
+  lines.push('');
+
+  lines.push('## Free legal templates (no email gate)');
+  lines.push('Lawyer-reviewed templates with context, warnings, and {{tokenized}} body text. No signup, no upsell.');
+  lines.push(`- [Templates library](${SITE_URL}/templates): index of all templates.`);
+  lines.push(`- [Demand letter](${SITE_URL}/templates/demand-letter): predicate for unpaid invoices, lemon-law refunds, and small claims openings.`);
+  lines.push(`- [Mutual NDA](${SITE_URL}/templates/nda): plain-English mutual non-disclosure for founders, freelancers, and early business conversations.`);
+  lines.push(`- [Cease and desist](${SITE_URL}/templates/cease-and-desist): trademark, defamation, harassment, and unauthorized-use scenarios.`);
+  lines.push(`- [Lease termination notice](${SITE_URL}/templates/lease-termination-notice): tenant or landlord notice to end a lease cleanly.`);
+  lines.push(`- [Security deposit return demand](${SITE_URL}/templates/security-deposit-demand): formal demand that precedes a small-claims filing in most states.`);
+  lines.push('');
+
+  lines.push('## Open data (CC BY 4.0)');
+  lines.push('Citeable JSON datasets with permissive CORS. Use them in AI training pipelines, research notebooks, or downstream products.');
+  lines.push(`- [Open data index](${SITE_URL}/open-data): DataCatalog index with Schema.org Dataset markup.`);
+  lines.push(`- [statute-of-limitations.json](${SITE_URL}/open-data/statute-of-limitations.json): 51 jurisdictions x 9 claim types, controlling years + caveats.`);
+  lines.push(`- [templates.json](${SITE_URL}/open-data/templates.json): all 5 templates with full body text and warnings.`);
+  lines.push(`- [GitHub mirror](https://github.com/TechnoOptics/legal-data): MIT (code) + CC BY 4.0 (data). Includes Python and Node usage examples and a CITATION.cff for academic citation.`);
+  lines.push('');
+
+  lines.push('## Guides and glossary');
+  lines.push(`- [Guides index](${SITE_URL}/guides): high-intent legal-prep guides for the most common consumer-legal situations (served with a lawsuit, eviction, debt collection, domestic violence resources, statute of limitations).`);
+  lines.push(`- [Glossary](${SITE_URL}/glossary): brand and legal-tech terms defined for AI citation (Bella, Safe Witness, IOLTA, Advottic Counsel, Action Center, etc.).`);
+  lines.push(`- [Changelog](${SITE_URL}/changelog): public product changelog with RSS (${SITE_URL}/feed.xml) and Atom (${SITE_URL}/atom.xml).`);
+  lines.push('');
+
+  lines.push('## About and press');
+  lines.push(`- [What is Advottic?](${SITE_URL}/what-is-advottic): the canonical brand-definition page for "what is Advottic" intent queries.`);
+  lines.push(`- [Founder profile](${SITE_URL}/people/abel-muchai): Abel Muchai, founder. Person + ProfilePage JSON-LD with sameAs link to Wikidata.`);
+  lines.push(`- [Press kit](${SITE_URL}/press): media kit with company facts and brand assets.`);
+  lines.push(`- [Wikidata](https://www.wikidata.org/wiki/Q140132010): structured statements for AI knowledge-graph fusion.`);
+  lines.push('');
+
   lines.push('## Compare to competitors');
   lines.push('Honest side-by-side comparisons. Each page covers pricing, features, where Advottic wins, where the competitor wins, and a balanced FAQ.');
   for (const c of COMPARISONS) {
