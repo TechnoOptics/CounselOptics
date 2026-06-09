@@ -23,6 +23,13 @@ const TOOLS: Array<{
       'Compute answer, appeal, discovery, and motion deadlines from any event date. Federal and state rules. Rolls weekends.',
     eyebrow: 'Deadlines',
   },
+  {
+    href: '/tools/security-deposit-deduction-checker',
+    title: 'Security deposit deduction checker',
+    oneLine:
+      'Tenants: pick your state, enter your rent and deposit, and see what the landlord can legally keep, the return deadline, and the penalty if they wrongfully withhold.',
+    eyebrow: 'Tenant rights',
+  },
 ];
 
 export const metadata: Metadata = {

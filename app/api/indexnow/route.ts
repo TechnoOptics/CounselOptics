@@ -78,6 +78,7 @@ const CORNERSTONES: ReadonlyArray<string> = [
   `${SITE_URL}/tools`,
   `${SITE_URL}/tools/statute-of-limitations`,
   `${SITE_URL}/tools/court-deadline-calculator`,
+  `${SITE_URL}/tools/security-deposit-deduction-checker`,
   `${SITE_URL}/press/2026-06-08-templates-open-source`,
   // Round-6 compounders: embed, data catalog, founder
   `${SITE_URL}/tools/statute-of-limitations/embed`,
