@@ -73,8 +73,22 @@ android {
         // the :wear module. play-services-wearable added to :app.
         // Phone-side functional change -> new build; codes stay
         // unique across both stores.
-        versionCode 15
-        versionName "1.0.12"
+        // v1.0.12 (code 15): consumer-tools surface refresh. Web app
+        // shipped /templates (5 free templates), /tools/statute-of-
+        // limitations (50-state checker), /tools/court-deadline-
+        // calculator, /tools/security-deposit-deduction-checker, plus
+        // /open-data, /people/abel-muchai, and 2 consumer comparison
+        // pages (LegalZoom + Rocket Lawyer). All accessible inside the
+        // remote-URL WebView; bump keeps store version codes unique +
+        // updates the "What's New" section so Play + TestFlight
+        // testers see the new surfaces highlighted.
+        // v1.0.13 (code 16): Round 5-9 web shipping checkpoint. No
+        // native Android changes; the bump promotes both stores to
+        // "Open Testing" eligibility so the public TestFlight link +
+        // the public Play Console testing URL are populated against a
+        // build that reflects the latest consumer-facing surfaces.
+        versionCode 16
+        versionName "1.0.13"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
