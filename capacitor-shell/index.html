@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Advottic</title>
+<!--
+  Capacitor webDir stub.
+
+  The Advottic native shells are remote-URL wrappers: server.url in
+  capacitor.config.ts points the WebView at https://advottic.com, so
+  nothing in webDir is served at runtime. Before this stub existed,
+  webDir was '.next' and `cap sync` copied the ENTIRE Next.js build
+  output (~589 MB raw, ~130 MB compressed) into every APK/AAB/IPA as
+  dead weight.
+
+  This single file is the whole webDir now. It renders only in the
+  pathological case where Capacitor falls back to local assets (a
+  broken server.url config), in which case it forwards to the live
+  site.
+-->
+<style>
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: #0c1f17; /* forest-950 */
+    color: #f5efe2;      /* cream-100 */
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .wrap { text-align: center; padding: 24px; }
+  .mark {
+    width: 72px; height: 72px; margin: 0 auto 20px;
+    border-radius: 18px;
+    background: linear-gradient(135deg, #c9a14f, #e6c878);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 40px; font-weight: 700; color: #0c1f17;
+  }
+  p { font-size: 15px; opacity: .8; margin: 0 0 18px; }
+  a {
+    color: #e6c878; text-decoration: none; font-weight: 600;
+    border: 1px solid rgba(230, 200, 120, .4);
+    border-radius: 10px; padding: 10px 22px; display: inline-block;
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="mark">A</div>
+    <p>Connecting to Advottic&hellip;</p>
+    <a href="https://advottic.com">Open Advottic</a>
+  </div>
+  <script>
+    // Belt-and-suspenders: if this stub ever renders, hand off to the
+    // live site after a beat (gives the link above a chance to paint).
+    setTimeout(function () { window.location.replace('https://advottic.com'); }, 1200);
+  </script>
+</body>
+</html>

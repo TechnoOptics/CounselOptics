@@ -30,9 +30,12 @@ const config: CapacitorConfig = {
   appId: 'com.advottic.app',
   appName: 'Advottic',
   // webDir is required by the CLI but unused at runtime when server.url
-  // is set. Keep it pointing at .next/build artifacts so `npx cap sync`
-  // doesn't complain.
-  webDir: '.next',
+  // is set. It used to point at '.next', which made `cap sync` copy the
+  // ENTIRE Next.js build output (~589 MB raw, ~130 MB compressed) into
+  // every APK/AAB/IPA as dead weight the remote-URL WebView never reads.
+  // capacitor-shell/ is a single branded fallback page instead; shipping
+  // only it cuts the Android app from ~137 MB to single-digit MB.
+  webDir: 'capacitor-shell',
   server: {
     url: 'https://advottic.com',
     cleartext: false,
