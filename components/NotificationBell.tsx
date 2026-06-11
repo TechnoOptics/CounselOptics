@@ -138,7 +138,7 @@ export function NotificationBell({
           // Mobile: pin to viewport with 8px margins so the panel
           // never overflows on narrow screens. Desktop: anchor
           // under the bell with the original 360px column.
-          className="fixed inset-x-2 top-[calc(env(safe-area-inset-top)+3.5rem)] sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 sm:mt-2 sm:w-[360px] max-h-[70vh] overflow-y-auto rounded-2xl border border-ink-200 dark:border-forest-700/40 bg-white dark:bg-forest-950 shadow-card-hover z-50 animate-fade-up"
+          className="fixed inset-x-2 top-[calc(var(--safe-top)+3.5rem)] sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 sm:mt-2 sm:w-[360px] max-h-[70vh] overflow-y-auto rounded-2xl border border-ink-200 dark:border-forest-700/40 bg-white dark:bg-forest-950 shadow-card-hover z-50 animate-fade-up"
         >
           <div className="flex items-center justify-between px-4 py-3 border-b border-ink-100 dark:border-forest-800/60">
             <p className="text-sm font-semibold text-forest-900 dark:text-cream-100">

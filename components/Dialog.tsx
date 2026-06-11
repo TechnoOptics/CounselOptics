@@ -134,8 +134,8 @@ export function Dialog({
       <div
         className="min-h-full flex items-center justify-center px-4 py-4"
         style={{
-          paddingTop: 'max(1rem, env(safe-area-inset-top))',
-          paddingBottom: 'max(1rem, env(safe-area-inset-bottom))',
+          paddingTop: 'max(1rem, var(--safe-top))',
+          paddingBottom: 'max(1rem, var(--safe-bottom))',
         }}
       >
         <div

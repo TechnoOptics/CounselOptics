@@ -338,7 +338,7 @@ export function CourtroomMode({
       </div>
 
       {/* Discreet speaking timer - fixed bottom bar */}
-      <div className="fixed inset-x-0 bottom-0 bg-forest-950/95 backdrop-blur border-t border-cream-100/10 px-5 py-3 pb-[calc(env(safe-area-inset-bottom)+12px)] flex items-center justify-between">
+      <div className="fixed inset-x-0 bottom-0 bg-forest-950/95 backdrop-blur border-t border-cream-100/10 px-5 py-3 pb-[calc(var(--safe-bottom)+12px)] flex items-center justify-between">
         <span className="tabular-nums text-2xl font-semibold tracking-tight">
           {mm}:{ss}
         </span>

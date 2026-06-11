@@ -87,6 +87,18 @@ const config: CapacitorConfig = {
     // (Capacitor reads them at native build time, not from this config).
     // Keep them at 24 / 36 respectively - documented above. Both align
     // with the current Google Play submission window.
+    //
+    // Edge-to-edge note (v1.0.14). targetSdk 36 means Android 15+
+    // FORCES edge-to-edge: the WebView draws behind the status bar.
+    // Capacitor 8's built-in SystemBars plugin (auto-registered in
+    // Bridge.java) handles the insets - it either passes window
+    // insets through so env(safe-area-inset-*) resolves, or injects
+    // --safe-area-inset-* CSS variables onto <html>. The web app
+    // consumes BOTH via the --safe-* tokens in app/globals.css, so
+    // the header starts below the status bar on every combination
+    // of OS + WebView version. Do not add adjustMarginsForEdgeToEdge
+    // here - that was the Capacitor 7.1 mechanism and does not exist
+    // in Capacitor 8.
   },
   plugins: {
     SplashScreen: {
@@ -97,9 +109,15 @@ const config: CapacitorConfig = {
       androidScaleType: 'CENTER_CROP',
       showSpinner: false,
     },
-    StatusBar: {
+    // Capacitor 8 replaced the standalone @capacitor/status-bar
+    // plugin with a built-in SystemBars core plugin (the old
+    // `StatusBar` config key here was dead - the plugin was never
+    // installed). style DARK = dark bars = WHITE status-bar icons,
+    // which is what the forest-950 header needs; the default
+    // (DEFAULT) follows the SYSTEM light/dark theme, so a light-mode
+    // phone got near-invisible dark icons on our dark green strip.
+    SystemBars: {
       style: 'DARK',
-      backgroundColor: '#0F2D24',
     },
   },
 };

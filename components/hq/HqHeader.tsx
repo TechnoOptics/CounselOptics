@@ -33,12 +33,14 @@ export function HqHeader({
   pathname: string;
 }) {
   return (
-    // pt-[env(safe-area-inset-top)] extends the dark header background up
+    // pt-[var(--safe-top)] extends the dark header background up
     // through the iOS notch / dynamic island and Android punch-hole on
     // mobile. With viewport-fit=cover (set globally), the page renders
     // under those cutouts, so without this padding the body's lighter
-    // background bleeds through behind the camera area.
-    <header className="sticky top-0 z-20 bg-[#0a1714]/90 backdrop-blur pt-[env(safe-area-inset-top)]">
+    // background bleeds through behind the camera area. var(--safe-top)
+    // (not raw env()) so Android 15+ edge-to-edge also resolves - see
+    // globals.css.
+    <header className="sticky top-0 z-20 bg-[#0a1714]/90 backdrop-blur pt-[var(--safe-top)]">
       <div className="px-6 sm:px-10 lg:px-16 py-3 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
           <Link

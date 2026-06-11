@@ -205,7 +205,7 @@ export function TourModal({ visible }: { visible: boolean }) {
         {/* Progress dots. On mobile we keep them inside the safe-area
             with a bit more margin so the home-bar gesture doesn't eat
             them. Desktop sits absolute against the card border. */}
-        <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5 pb-[env(safe-area-inset-bottom)]">
+        <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5 pb-[var(--safe-bottom)]">
           {STEPS.map((_, i) => (
             <button
               key={i}

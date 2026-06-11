@@ -58,12 +58,14 @@ export function CounselHeader({
   const brandChip =
     brandName.replace(/^advottic\s+/i, '').trim() || brandName;
   return (
-    // pt-[env(safe-area-inset-top)] extends the dark header background up
+    // pt-[var(--safe-top)] extends the dark header background up
     // through the iOS notch / dynamic island and Android punch-hole on
     // mobile. With viewport-fit=cover (set globally), the page renders
     // under those cutouts, so without this padding the body's lighter
-    // background bleeds through behind the camera area.
-    <header className="bg-forest-950/95 backdrop-blur-md sticky top-0 z-30 pt-[env(safe-area-inset-top)]">
+    // background bleeds through behind the camera area. var(--safe-top)
+    // (not raw env()) so Android 15+ edge-to-edge also resolves - see
+    // globals.css.
+    <header className="bg-forest-950/95 backdrop-blur-md sticky top-0 z-30 pt-[var(--safe-top)]">
       <div className="mx-auto max-w-none px-4 sm:px-6 lg:px-10 py-3 flex items-center justify-between gap-3">
         {brandFirst ? (
           // Firm IS the brand - either a <slug>.advottic.com tenant

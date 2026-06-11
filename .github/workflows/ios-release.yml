@@ -240,6 +240,29 @@ jobs:
           npx cap add ios
           npx cap sync ios
 
+      - name: Generate iOS app icon + splash from assets/
+        # The ios/ project is regenerated fresh every run, which left
+        # Capacitor's TEMPLATE placeholder AppIcon in the bundle -
+        # that's why TestFlight and the App Store Connect app list
+        # showed a blank wireframe tile instead of the gold-A mark.
+        # The repo already carries the source art in assets/
+        # (icon-only.png, icon-foreground/background, splash,
+        # splash-dark) and @capacitor/assets in devDependencies; run
+        # it for iOS only (Android launcher icons are committed under
+        # android/app/src/main/res and need no generation). Fails
+        # LOUDLY if no AppIcon PNG materializes so we never silently
+        # ship the placeholder again.
+        run: |
+          npx @capacitor/assets generate --ios
+          ICONSET=ios/App/App/Assets.xcassets/AppIcon.appiconset
+          COUNT=$(ls "$ICONSET"/*.png 2>/dev/null | wc -l | tr -d ' ')
+          if [ "$COUNT" -lt 1 ]; then
+            echo "::error::@capacitor/assets produced no PNGs in $ICONSET - placeholder icon would ship"
+            exit 1
+          fi
+          echo "Generated $COUNT AppIcon PNG(s)"
+          ls -la "$ICONSET"
+
       - name: Patch AppDelegate (premium webview - no rubber-band + swipe-back)
         # Two native WKWebView tweaks Capacitor's config cannot express:
         #   1. scrollView.bounces = false  -> kills the iOS elastic

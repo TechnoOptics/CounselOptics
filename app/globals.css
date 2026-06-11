@@ -12,10 +12,24 @@
    nothing sits under the notch / bottom indicator. The .safe-pad-* classes
    are available wherever a section needs to honor a single edge. */
 :root {
-  --safe-top: env(safe-area-inset-top, 0px);
-  --safe-bottom: env(safe-area-inset-bottom, 0px);
-  --safe-left: env(safe-area-inset-left, 0px);
-  --safe-right: env(safe-area-inset-right, 0px);
+  /* Each --safe-* takes the LARGER of two sources:
+     (a) env(safe-area-inset-*) - resolved natively by iOS WKWebView
+         (viewport-fit=cover) and by Android WebViews new enough to
+         pass window insets through to CSS;
+     (b) --safe-area-inset-* - custom properties injected at runtime
+         onto <html> by Capacitor 8's built-in SystemBars plugin on
+         Android 15+, where targetSdk 36 FORCES edge-to-edge and
+         older WebViews report env() as 0. Without source (b) the
+         site header rendered behind the status-bar clock /
+         punch-hole on Android 15/16 and content slid beneath the
+         status bar while scrolling.
+     On desktop web both sources resolve to 0px, so this is a no-op.
+     ALWAYS consume var(--safe-top) etc. in components - never use
+     env(safe-area-inset-*) directly, or Android loses the inset. */
+  --safe-top: max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px));
+  --safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px));
+  --safe-left: max(env(safe-area-inset-left, 0px), var(--safe-area-inset-left, 0px));
+  --safe-right: max(env(safe-area-inset-right, 0px), var(--safe-area-inset-right, 0px));
 
   /* Forest scale as space-separated RGB channels. These are the
      EXACT original brand greens, so every `forest-*` Tailwind class

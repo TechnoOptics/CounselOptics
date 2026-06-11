@@ -87,8 +87,19 @@ android {
         // "Open Testing" eligibility so the public TestFlight link +
         // the public Play Console testing URL are populated against a
         // build that reflects the latest consumer-facing surfaces.
-        versionCode 16
-        versionName "1.0.13"
+        // v1.0.14 (code 17): (1) iOS app icon - CI now runs
+        // @capacitor/assets generate --ios after regenerating ios/,
+        // so TestFlight + the App Store tile finally show the gold-A
+        // mark instead of Capacitor's placeholder. (2) Android
+        // status-bar overlap - capacitor.config.ts sets
+        // adjustMarginsForEdgeToEdge:'auto' so on Android 15+
+        // (edge-to-edge forced by targetSdk 36) the WebView is
+        // natively inset below the status bar; the header now starts
+        // under the clock instead of behind it and stays locked while
+        // scrolling. Native changes on both platforms -> new build;
+        // codes stay unique across both stores.
+        versionCode 17
+        versionName "1.0.14"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

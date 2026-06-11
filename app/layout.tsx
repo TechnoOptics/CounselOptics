@@ -362,7 +362,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         {!isShellMode && (
           <>
             <header className="sticky top-0 z-20">
-              <div className="relative z-30 bg-forest-950/95 backdrop-blur-md pt-[env(safe-area-inset-top)]">
+              {/* pt-[var(--safe-top)] (NOT raw env()) keeps the header
+                  content below the iOS notch AND the Android 15+
+                  status bar - see the --safe-top definition in
+                  globals.css for why env() alone fails on Android. */}
+              <div className="relative z-30 bg-forest-950/95 backdrop-blur-md pt-[var(--safe-top)]">
                 <div className="mx-auto max-w-none px-4 sm:px-6 lg:px-10 py-3 flex items-center justify-between">
                   <Link
                     href={signedIn ? '/cases' : '/'}
