@@ -497,6 +497,17 @@ export function SignInButtons({ next }: { next: string }) {
     setError(null);
     setEmailSent(null);
     setPending('email');
+    // App-store-review bypass: the designated reviewer email skips the
+    // real OTP email send entirely and jumps straight to the code
+    // screen, where they enter the fixed review code. Keeps review
+    // sign-in independent of email deliverability. The code itself is
+    // still validated server-side in /api/auth/review-login.
+    if (email.trim().toLowerCase() === 'appreview@advottic.com') {
+      setEmailSent(email.trim());
+      setVerifyMode(true);
+      setPending(null);
+      return;
+    }
     if (forceApexBeforeAuth(next)) return;
     clearStalePkceCookies();
     try {
@@ -557,6 +568,31 @@ export function SignInButtons({ next }: { next: string }) {
     setError(null);
     setPending('email');
     try {
+      // App-store-review bypass. Our sign-in is OTP-only, which an
+      // App Store / Play reviewer can't complete (they can't read the
+      // emailed code). The single designated reviewer email signs in
+      // with a fixed code via a server route that mints the session
+      // with the service-role admin client. No real user can hit this:
+      // the route 401s unless BOTH the exact email and the exact code
+      // match server-side env values. See app/api/auth/review-login.
+      const REVIEW_EMAIL = 'appreview@advottic.com';
+      if (email.trim().toLowerCase() === REVIEW_EMAIL) {
+        const res = await fetch('/api/auth/review-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email.trim(), code: code.trim() }),
+        });
+        if (!res.ok) {
+          const { error: reviewErr } = await res
+            .json()
+            .catch(() => ({ error: 'Review sign-in failed.' }));
+          throw new Error(reviewErr || 'Review sign-in failed.');
+        }
+        // Session cookies are set by the route. Hand off to the
+        // destination just like the normal path below.
+        goNext(next);
+        return;
+      }
       const supabase = createBrowserSupabase();
       const { data, error: authError } = await supabase.auth.verifyOtp({
         email: email.trim(),
