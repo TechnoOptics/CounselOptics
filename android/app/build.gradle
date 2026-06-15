@@ -98,8 +98,18 @@ android {
         // under the clock instead of behind it and stays locked while
         // scrolling. Native changes on both platforms -> new build;
         // codes stay unique across both stores.
-        versionCode 17
-        versionName "1.0.14"
+        // v1.0.15 (code 18): Data-safety compliance. Google rejected
+        // code 17 twice over "Device or other IDs" - its scanner
+        // detected the Advertising ID via the AD_ID +
+        // ACCESS_ADSERVICES_* permissions that Google Play Services /
+        // Firebase auto-merge in. Advottic shows no ads and never
+        // reads the advertising ID, so AndroidManifest.xml now
+        // removes those permissions with tools:node="remove". The app
+        // genuinely can't touch the advertising ID, so the scanner
+        // stops flagging it. Manifest change -> new build; codes stay
+        // unique across both stores.
+        versionCode 18
+        versionName "1.0.15"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
