@@ -219,7 +219,10 @@ jobs:
           plist_str NSCameraUsageDescription "Photograph documents, citations, and exhibits to add them directly to your case file. Photos stay private to your account."
           plist_str NSPhotoLibraryUsageDescription "Attach existing photos as case exhibits. Advottic only reads the photos you explicitly choose."
           plist_str NSPhotoLibraryAddUsageDescription "Save your case packet PDF to your photo library so you can share or print it."
-          plist_str NSUserTrackingUsageDescription "Advottic does not track you across other apps and websites and never will. This permission is reserved for future use."
+          # NSUserTrackingUsageDescription deliberately stripped (not set):
+          # its presence makes App Store Connect HARD-BLOCK publishing the
+          # "no tracking" App Privacy label. Advottic makes no ATT call.
+          /usr/libexec/PlistBuddy -c "Delete :NSUserTrackingUsageDescription" "$INFO_PLIST" 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Delete :ITSAppUsesNonExemptEncryption" "$INFO_PLIST" 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" "$INFO_PLIST"
           /usr/libexec/PlistBuddy -c "Delete :CFBundleURLTypes" "$INFO_PLIST" 2>/dev/null || true

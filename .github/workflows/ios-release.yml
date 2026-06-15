@@ -388,7 +388,21 @@ jobs:
           plist_str NSCameraUsageDescription "Photograph documents, citations, and exhibits to add them directly to your case file. Photos stay private to your account."
           plist_str NSPhotoLibraryUsageDescription "Attach existing photos as case exhibits. Advottic only reads the photos you explicitly choose."
           plist_str NSPhotoLibraryAddUsageDescription "Save your case packet PDF to your photo library so you can share or print it."
-          plist_str NSUserTrackingUsageDescription "Advottic does not track you across other apps and websites and never will. This permission is reserved for future use."
+
+          # NSUserTrackingUsageDescription is deliberately NOT set and is
+          # actively stripped here. Advottic makes no AppTrackingTransparency
+          # call and declares "No, we do not use ... for tracking purposes"
+          # on every one of the 12 data types in the App Privacy nutrition
+          # label. When this key is present, App Store Connect treats the
+          # binary as declaring tracking intent and HARD-BLOCKS publishing
+          # the privacy labels ("you must indicate which data types are
+          # tracking users") - and the Publish button greys out. That is the
+          # exact mirror of the Android AD_ID rejection: deleting the key
+          # (rather than declaring fake tracking) keeps the label honest and
+          # unblocks the 1.0 submission. ios/ is regenerated fresh each run
+          # (rm -rf ios) so this normally no-ops, but the Delete is kept as
+          # a guard in case Capacitor or a plugin re-introduces it.
+          /usr/libexec/PlistBuddy -c "Delete :NSUserTrackingUsageDescription" "$INFO_PLIST" 2>/dev/null || true
 
           # Export compliance, declared in Info.plist so App Store
           # Connect NEVER shows the "Missing Compliance" prompt again.
@@ -422,10 +436,19 @@ jobs:
           /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$INFO_PLIST"
           /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$INFO_PLIST"
           /usr/libexec/PlistBuddy -c "Print :CFBundleURLTypes" "$INFO_PLIST"
-          for k in NSFaceIDUsageDescription NSMicrophoneUsageDescription NSSpeechRecognitionUsageDescription NSCameraUsageDescription NSPhotoLibraryUsageDescription NSPhotoLibraryAddUsageDescription NSUserTrackingUsageDescription; do
+          for k in NSFaceIDUsageDescription NSMicrophoneUsageDescription NSSpeechRecognitionUsageDescription NSCameraUsageDescription NSPhotoLibraryUsageDescription NSPhotoLibraryAddUsageDescription; do
             printf '  %s = ' "$k"
             /usr/libexec/PlistBuddy -c "Print :$k" "$INFO_PLIST"
           done
+          # Assert NSUserTrackingUsageDescription is ABSENT so the App
+          # Privacy "no tracking" nutrition label stays publishable (its
+          # presence greys out the Publish button). Fail the build if
+          # anything re-introduced the key.
+          if /usr/libexec/PlistBuddy -c "Print :NSUserTrackingUsageDescription" "$INFO_PLIST" >/dev/null 2>&1; then
+            echo "::error::NSUserTrackingUsageDescription is present in Info.plist; it must be absent (Advottic does not track users). Remove it before release."
+            exit 1
+          fi
+          echo "  NSUserTrackingUsageDescription = (absent, as required)"
 
       - name: Add Sign in with Apple + Associated Domains entitlements
         # Two entitlements, both required for auth to work natively:
