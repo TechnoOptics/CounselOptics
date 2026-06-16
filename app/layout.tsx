@@ -17,6 +17,8 @@ import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
 import { ThemeBoot } from '@/components/ThemeBoot';
 import { CrashReporter } from '@/components/CrashReporter';
 import { SiteJsonLd } from '@/components/seo/JsonLd';
+import { GetTheApp } from '@/components/GetTheApp';
+import { APP_STORE_ID, IOS_APP_LIVE } from '@/lib/app-links';
 import { NativeBackGesture } from '@/components/NativeBackGesture';
 import { WatchNoteInbox } from '@/components/WatchNoteInbox';
 import { DistressOverlay } from '@/components/DistressOverlay';
@@ -86,6 +88,10 @@ export const metadata: Metadata = {
     statusBarStyle: 'black-translucent',
     title: 'Advottic',
   },
+  // iOS Safari smart app banner ("Download Advottic on the App Store").
+  // Only emitted once the App Store version is live (NEXT_PUBLIC_IOS_APP_LIVE)
+  // so we never advertise an app that 404s.
+  ...(IOS_APP_LIVE ? { itunes: { appId: APP_STORE_ID } } : {}),
   formatDetection: { telephone: false },
   alternates: {
     canonical: '/',
@@ -490,6 +496,22 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         {!isShellMode && (
         <footer className="border-t border-ink-200 bg-white dark:bg-forest-950 dark:border-forest-700/40">
           <div className="mx-auto max-w-none px-4 sm:px-6 lg:px-10 py-6 sm:py-8 text-[11px] text-ink-500 dark:text-cream-100/55">
+            {/* Get-the-app row: real <a> links to the store listings so
+                a brand search can surface the install option, and so
+                visitors can download from any page. Google Play is live;
+                the App Store badge appears automatically once iOS is
+                live (NEXT_PUBLIC_IOS_APP_LIVE - see lib/app-links). */}
+            <div className="pb-6 mb-6 border-b border-ink-100 dark:border-forest-700/40 flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <p className="font-semibold text-forest-900 dark:text-cream-100 tracking-[0.05em] uppercase text-[10px]">
+                  Get the Advottic app
+                </p>
+                <p className="mt-0.5 text-[11px]">
+                  Your cases, legal tools, and Safe Alert, on your phone.
+                </p>
+              </div>
+              <GetTheApp />
+            </div>
             <div className="grid gap-6 sm:gap-8 grid-cols-2 md:grid-cols-4">
               <div className="space-y-1.5 col-span-2 md:col-span-1">
                 <p className="font-semibold text-forest-900 dark:text-cream-100 tracking-[0.05em] uppercase text-[10px]">

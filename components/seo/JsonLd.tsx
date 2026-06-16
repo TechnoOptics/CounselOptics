@@ -21,6 +21,8 @@
  * that doesn't appear on the page.
  */
 
+import { STORE_URLS } from '@/lib/app-links';
+
 const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
   (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://advottic.com');
@@ -90,6 +92,11 @@ export function SiteJsonLd() {
           'https://github.com/TechnoOptics/legal-data',
           'https://twitter.com/advottic',
           'https://www.linkedin.com/company/advottic',
+          // App-store listings so a brand search can surface the
+          // install option (Google Play live; the App Store URL joins
+          // automatically once the iOS version is live - see
+          // lib/app-links).
+          ...STORE_URLS,
         ],
         contactPoint: [
           {
@@ -179,6 +186,11 @@ export function AppJsonLd({
       'AI-powered legal platform with case management, contract review, e-signature, and document drafting for individuals and law firms.',
     url: SITE_URL,
     image: `${SITE_URL}/icon-512.png`,
+    // Where to install the native apps - lets a brand SERP show the
+    // download/install action. Google Play now; the App Store URL is
+    // appended automatically once the iOS version is live.
+    downloadUrl: STORE_URLS,
+    installUrl: STORE_URLS,
     offers: [
       {
         '@type': 'Offer',
