@@ -1,5 +1,11 @@
 import { ImageResponse } from 'next/og';
 
+const SITE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
+  (process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : 'https://advottic.com');
+
 export const runtime = 'edge';
 export const alt = 'What Advottic is, and isn’t';
 export const size = { width: 1200, height: 630 };
@@ -31,6 +37,15 @@ export default async function Image() {
           ].join(', '),
         }}
       >
+        {/* Real gold pillar mark so the shared card carries the logo. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={`${SITE_URL}/advottic-mark.png`}
+          width={66}
+          height={71}
+          alt="Advottic"
+          style={{ marginBottom: 22 }}
+        />
         <div
           style={{
             fontSize: 22,
@@ -45,6 +60,12 @@ export default async function Image() {
         </div>
         <div
           style={{
+            // Satori needs display:flex on any node with >1 child;
+            // without it the OG image 500s and no card renders.
+            display: 'flex',
+            flexWrap: 'wrap',
+            justifyContent: 'center',
+            gap: '0.25em',
             fontSize: 84,
             fontWeight: 600,
             letterSpacing: '-0.02em',
@@ -53,7 +74,7 @@ export default async function Image() {
             marginBottom: 32,
           }}
         >
-          Advottic prepares.{' '}
+          Advottic prepares.
           <span
             style={{
               background:
@@ -64,7 +85,7 @@ export default async function Image() {
             }}
           >
             An attorney advises.
-          </span>{' '}
+          </span>
           You decide.
         </div>
         <div style={{ fontSize: 26, opacity: 0.78, maxWidth: 980, lineHeight: 1.35 }}>

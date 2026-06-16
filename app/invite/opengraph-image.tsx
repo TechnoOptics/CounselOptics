@@ -1,5 +1,11 @@
 import { ImageResponse } from 'next/og';
 
+const SITE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
+  (process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : 'https://advottic.com');
+
 export const runtime = 'edge';
 export const alt = 'A personal invitation from Abel · Advottic';
 export const size = { width: 1200, height: 630 };
@@ -41,12 +47,24 @@ export default async function Image() {
             color: '#d5bb7e',
           }}
         >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={`${SITE_URL}/advottic-mark.png`}
+            width={40}
+            height={43}
+            alt="Advottic"
+          />
           A personal invitation
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           <div
             style={{
+              // Satori needs display:flex on a node with >1 child or
+              // the whole OG image 500s; gap stands in for the space.
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: '0.25em',
               fontSize: 88,
               fontWeight: 600,
               letterSpacing: '-0.02em',
@@ -54,7 +72,7 @@ export default async function Image() {
               fontFamily: 'serif',
             }}
           >
-            Hi, I&rsquo;m{' '}
+            Hi, I&rsquo;m
             <span
               style={{
                 background:

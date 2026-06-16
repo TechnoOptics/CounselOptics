@@ -59,11 +59,15 @@ export function SiteJsonLd() {
         alternateName: ['Advottic Inc', 'Techno Optics LLC'],
         legalName: 'Techno Optics LLC',
         url: SITE_URL,
+        // Google Knowledge Panel + AI crawlers use this as the brand
+        // logo. It must be a roughly SQUARE image with truthful
+        // dimensions - a wide wordmark gets ignored. Point at the
+        // 512x512 gold-mark tile (same icon the app stores + PWA use).
         logo: {
           '@type': 'ImageObject',
-          url: `${SITE_URL}/advottic-wordmark.png`,
+          url: `${SITE_URL}/icon-512.png`,
           width: 512,
-          height: 128,
+          height: 512,
         },
         image: `${SITE_URL}/opengraph-image`,
         description:
@@ -174,7 +178,7 @@ export function AppJsonLd({
     description:
       'AI-powered legal platform with case management, contract review, e-signature, and document drafting for individuals and law firms.',
     url: SITE_URL,
-    image: `${SITE_URL}/advottic-wordmark.png`,
+    image: `${SITE_URL}/icon-512.png`,
     offers: [
       {
         '@type': 'Offer',
@@ -308,7 +312,7 @@ export function ArticleJsonLd({
     '@type': 'Article',
     headline: title,
     description,
-    image: imageUrl ? [imageUrl] : [`${SITE_URL}/advottic-wordmark.png`],
+    image: imageUrl ? [imageUrl] : [`${SITE_URL}/opengraph-image`],
     datePublished: publishedAt,
     dateModified: updatedAt ?? publishedAt,
     author: { '@type': 'Person', name: authorName },
@@ -317,7 +321,9 @@ export function ArticleJsonLd({
       name: 'Advottic',
       logo: {
         '@type': 'ImageObject',
-        url: `${SITE_URL}/advottic-wordmark.png`,
+        url: `${SITE_URL}/icon-512.png`,
+        width: 512,
+        height: 512,
       },
     },
     mainEntityOfPage: {

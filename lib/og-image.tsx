@@ -10,6 +10,15 @@
 
 import { ImageResponse } from 'next/og';
 
+// Absolute origin so Satori can fetch the real brand mark PNG to
+// composite into the card. Every per-page social/AI preview uses this
+// helper, so they all carry the actual gold pillar logo.
+const SITE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
+  (process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : 'https://advottic.com');
+
 /**
  * Standard OG canvas: forest gradient background, gold halo at top
  * right, deep-midnight pool at bottom left, brand bar + headline +
@@ -57,34 +66,15 @@ export function renderOgImage(opts: {
             color: '#d5bb7e',
           }}
         >
-          <div
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: 999,
-              border: '2px solid rgba(213,187,126,0.65)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontFamily: 'serif',
-              fontSize: 26,
-              fontWeight: 700,
-              backgroundImage:
-                'linear-gradient(180deg, #1f4839 0%, #0f2d24 100%)',
-            }}
-          >
-            <span
-              style={{
-                background:
-                  'linear-gradient(135deg, #f3e1ad, #d5bb7e 50%, #b89853)',
-                backgroundClip: 'text',
-                color: 'transparent',
-                lineHeight: 1,
-              }}
-            >
-              A
-            </span>
-          </div>
+          {/* Real gold pillar mark so every per-page link/AI preview
+              shows the actual Advottic logo, not a CSS letter. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={`${SITE_URL}/advottic-mark.png`}
+            width={42}
+            height={45}
+            alt="Advottic"
+          />
           {eyebrow}
         </div>
 

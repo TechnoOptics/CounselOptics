@@ -15,6 +15,16 @@ export const alt = 'Advottic · Walk into court prepared';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
+// Absolute origin so Satori can fetch the real brand mark PNG and
+// composite it into the card. Link unfurlers (iMessage, Slack, X,
+// LinkedIn) and several AI answer cards render this OG image, so it
+// should carry the actual gold pillar mark, not a CSS letter.
+const SITE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
+  (process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : 'https://advottic.com');
+
 export default async function Image() {
   return new ImageResponse(
     (
@@ -47,34 +57,15 @@ export default async function Image() {
             color: '#d5bb7e',
           }}
         >
-          <div
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: 999,
-              border: '2px solid rgba(213,187,126,0.65)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontFamily: 'serif',
-              fontSize: 26,
-              fontWeight: 700,
-              backgroundImage:
-                'linear-gradient(180deg, #1f4839 0%, #0f2d24 100%)',
-            }}
-          >
-            <span
-              style={{
-                background:
-                  'linear-gradient(135deg, #f3e1ad, #d5bb7e 50%, #b89853)',
-                backgroundClip: 'text',
-                color: 'transparent',
-                lineHeight: 1,
-              }}
-            >
-              A
-            </span>
-          </div>
+          {/* Real gold pillar mark so link previews + AI answer cards
+              show the actual Advottic logo, not a CSS letter. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={`${SITE_URL}/advottic-mark.png`}
+            width={42}
+            height={45}
+            alt="Advottic"
+          />
           Advottic
         </div>
 
@@ -82,6 +73,16 @@ export default async function Image() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           <div
             style={{
+              // Satori requires display:flex on any node with >1 child
+              // (here: the text + the gold "prepared." span). Without
+              // it the whole OG image 500s and no social/AI card image
+              // renders at all. flexWrap keeps it reading as one line.
+              display: 'flex',
+              flexWrap: 'wrap',
+              // gap stands in for the space between the two flex items
+              // ("Walk into court" + "prepared."), which flex would
+              // otherwise trim.
+              gap: '0.25em',
               fontSize: 84,
               fontWeight: 600,
               letterSpacing: '-0.02em',

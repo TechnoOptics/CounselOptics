@@ -101,7 +101,15 @@ const jsonLd = {
       legalName: 'Techno Optics LLC',
       alternateName: ['Advottic AI', 'Advottic Legal', 'Advottic Counsel'],
       url: 'https://advottic.com/',
-      logo: 'https://advottic.com/advottic-mark.png',
+      // Square brand logo with truthful dimensions, matching the
+      // sitewide Organization node (same @id) so Google sees one
+      // consistent logo signal, not two competing images.
+      logo: {
+        '@type': 'ImageObject',
+        url: 'https://advottic.com/icon-512.png',
+        width: 512,
+        height: 512,
+      },
       foundingDate: '2025',
       foundingLocation: {
         '@type': 'Place',
