@@ -13,6 +13,7 @@ import { LanguagePicker } from '@/components/LanguagePicker';
 import { InstallAppButton } from '@/components/InstallAppButton';
 import { ShareAppButton } from '@/components/ShareAppButton';
 import { BiometricSettings } from '@/components/BiometricSettings';
+import { AppExclusiveFeatures } from '@/components/AppExclusiveFeatures';
 import { REPRESENTATION_LABEL, type RepresentationStatus } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -355,6 +356,13 @@ export default async function ProfilePage() {
             there's no companion device to act on. */}
         <WatchPairCard />
       </section>
+
+      {/* App-exclusive features. In the native app this confirms the
+          device-only capabilities are live; on the web it's the
+          "get the app" shop window for every mobile-gated feature
+          (the agreed web fallback) and the visible native value that
+          satisfies App Store Guideline 4.2. */}
+      <AppExclusiveFeatures />
 
       {/* Preferences card. Theme + language are stored on the profile so
           they carry across devices. Install button uses the PWA prompt. */}
