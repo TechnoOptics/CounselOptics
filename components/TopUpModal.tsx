@@ -103,6 +103,7 @@ export function TopUpModal({
                   type="button"
                   onClick={() => buy(p)}
                   disabled={pending !== null}
+                  data-hide-on-ios
                   className={p.recommended ? 'btn-primary text-sm' : 'btn-secondary text-sm'}
                 >
                   {pending === p.id ? 'Redirecting...' : `Buy ${p.label}`}

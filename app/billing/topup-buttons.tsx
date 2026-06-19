@@ -49,6 +49,7 @@ export function TopUpButtons() {
             type="button"
             onClick={() => buy(o.size)}
             disabled={pending !== null}
+            data-hide-on-ios
             className="card p-4 text-left transition-all hover:-translate-y-0.5 hover:ring-2 hover:ring-gold-400/50 disabled:opacity-60 disabled:cursor-wait"
           >
             <p className="text-[10px] uppercase tracking-[0.22em] font-semibold text-gold-700 dark:text-gold-300">

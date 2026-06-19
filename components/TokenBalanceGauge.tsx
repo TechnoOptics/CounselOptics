@@ -77,6 +77,7 @@ export function TokenBalanceGauge({
       <button
         type="button"
         onClick={() => setOpen(true)}
+        data-hide-on-ios
         className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-md ring-1 transition-colors ${tone}`}
         title={`${snap.combined.toLocaleString()} Bella tokens left of ${grant.toLocaleString()} this period`}
       >

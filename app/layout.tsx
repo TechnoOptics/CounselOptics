@@ -18,6 +18,7 @@ import { ThemeBoot } from '@/components/ThemeBoot';
 import { CrashReporter } from '@/components/CrashReporter';
 import { SiteJsonLd } from '@/components/seo/JsonLd';
 import { GetTheApp } from '@/components/GetTheApp';
+import { NativePlatformBoot } from '@/components/NativePlatformBoot';
 import { APP_STORE_ID, IOS_APP_LIVE } from '@/lib/app-links';
 import { NativeBackGesture } from '@/components/NativeBackGesture';
 import { WatchNoteInbox } from '@/components/WatchNoteInbox';
@@ -339,6 +340,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     >
       <head>
         <ThemeBoot serverTheme={serverTheme} />
+        {/* Tags <html> with is-native-app / is-ios-app before paint so
+            cross-platform refs (e.g. Google Play badge) and non-IAP
+            purchase paths can be CSS-hidden inside the apps - App Store
+            Guidelines 2.3.10 and 3.1.1. */}
+        <NativePlatformBoot />
       </head>
       <body className="min-h-screen flex flex-col font-sans">
         {/* Site-wide structured data: Organization + WebSite (with
@@ -501,7 +507,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 visitors can download from any page. Google Play is live;
                 the App Store badge appears automatically once iOS is
                 live (NEXT_PUBLIC_IOS_APP_LIVE - see lib/app-links). */}
-            <div className="pb-6 mb-6 border-b border-ink-100 dark:border-forest-700/40 flex flex-wrap items-center justify-between gap-4">
+            <div
+              data-hide-in-app
+              className="pb-6 mb-6 border-b border-ink-100 dark:border-forest-700/40 flex flex-wrap items-center justify-between gap-4"
+            >
               <div>
                 <p className="font-semibold text-forest-900 dark:text-cream-100 tracking-[0.05em] uppercase text-[10px]">
                   Get the Advottic app
@@ -534,7 +543,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <Link href="/public-defender" className="hover:text-forest-900 dark:hover:text-cream-100 block">Public defender</Link>
                 <Link href="/file-exhibits" className="hover:text-forest-900 dark:hover:text-cream-100 block">File exhibits</Link>
                 <Link href="/review-my-document" className="hover:text-forest-900 dark:hover:text-cream-100 block">Review my document</Link>
-                <Link href="/pricing" className="hover:text-forest-900 dark:hover:text-cream-100 block">Pricing</Link>
+                <Link href="/pricing" data-hide-on-ios className="hover:text-forest-900 dark:hover:text-cream-100 block">Pricing</Link>
                 <Link href="/about" className="hover:text-forest-900 dark:hover:text-cream-100 block">About Advottic</Link>
                 {/* Brand-page links. /what-is-advottic + /glossary +
                     /changelog + /press carry our canonical brand
@@ -551,7 +560,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <Link href="/press" className="hover:text-forest-900 dark:hover:text-cream-100 block">Press kit</Link>
                 <Link href="/feedback" className="hover:text-forest-900 dark:hover:text-cream-100 block">Send feedback</Link>
                 <Link href="/welcome" className="hover:text-forest-900 dark:hover:text-cream-100 block">Share Advottic</Link>
-                <Link href="/billing" className="hover:text-forest-900 dark:hover:text-cream-100 block">Billing</Link>
+                <Link href="/billing" data-hide-on-ios className="hover:text-forest-900 dark:hover:text-cream-100 block">Billing</Link>
               </FooterCol>
               <FooterCol title="Legal">
                 <Link href="/terms" className="hover:text-forest-900 dark:hover:text-cream-100 block">Terms</Link>

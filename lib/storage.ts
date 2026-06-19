@@ -1467,6 +1467,11 @@ function subscriptionFromRow(r: SubscriptionRow): Subscription {
 const COMP_EMAILS: ReadonlySet<string> = new Set([
   'contact@technooptics.com',
   'contact@advottic.com',
+  // App Store / Play review sandbox account. Comped so the reviewer
+  // always has full Pro access and never hits the trial paywall or a
+  // Stripe checkout (App Store Guideline 3.1.1 - no non-IAP purchase
+  // path is ever presented to the reviewer).
+  'appreview@advottic.com',
 ]);
 
 function isCompEmail(email: string | null | undefined): boolean {

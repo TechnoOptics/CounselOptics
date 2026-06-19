@@ -162,6 +162,7 @@ export function TierCard({
           type="button"
           onClick={startCheckout}
           disabled={!stripeReady || pending}
+          data-hide-on-ios
           className={
             isHighlighted
               ? 'btn bg-gold-metal text-forest-950 hover:brightness-110 shadow-gold-glow font-semibold w-full'

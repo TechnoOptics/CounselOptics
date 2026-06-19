@@ -104,9 +104,14 @@ export function UserMenuClient(props: UserMenuProps) {
                 to the consumer side from counsel / HQ. */}
             {!props.isCounselMode && (
               <>
-                <MenuLink href="/billing" onClick={() => setOpen(false)}>
-                  Billing & subscription
-                </MenuLink>
+                {/* Billing leads to Stripe checkout - hidden inside the
+                    iOS app (App Store Guideline 3.1.1). The wrapper gets
+                    the gate so the whole menu row vanishes on iOS only. */}
+                <div data-hide-on-ios>
+                  <MenuLink href="/billing" onClick={() => setOpen(false)}>
+                    Billing & subscription
+                  </MenuLink>
+                </div>
                 <MenuLink href="/cases" onClick={() => setOpen(false)}>
                   My cases
                 </MenuLink>

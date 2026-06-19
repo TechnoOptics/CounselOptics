@@ -20,6 +20,10 @@ type NavItem = {
   prefix?: string;
   // Filter param to match against searchParams.filter (used by "Shared with me").
   filter?: string;
+  // When true, hide this item inside the iOS app (App Store Guideline
+  // 3.1.1 - no non-Apple purchase entry points). The CSS rule in
+  // globals.css (.is-ios-app [data-hide-on-ios]) removes it on iOS only.
+  hideOnIos?: boolean;
   icon: () => React.ReactElement;
 };
 
@@ -38,7 +42,7 @@ const ITEMS: NavItem[] = [
   { id: '/public-defender', label: 'Public defender', href: '/public-defender', prefix: '/public-defender', icon: GavelIcon },
   { id: '/contracts', label: 'Contracts', href: '/contracts', prefix: '/contracts', icon: FileIcon },
   { id: '/vault', label: 'Vault', href: '/vault', prefix: '/vault', icon: FileIcon },
-  { id: '/billing', label: 'Billing', href: '/billing', prefix: '/billing', icon: CardIcon },
+  { id: '/billing', label: 'Billing', href: '/billing', prefix: '/billing', hideOnIos: true, icon: CardIcon },
 ];
 
 function useActive() {
@@ -248,6 +252,7 @@ export function Sidebar({
                 <Link
                   key={item.id}
                   href={item.href}
+                  {...(item.hideOnIos ? { 'data-hide-on-ios': true } : {})}
                   aria-current={active ? 'page' : undefined}
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
                     active
@@ -414,7 +419,7 @@ export function MobileNav({
             {visibleItems.map((item) => {
               const active = isActive(item);
               return (
-                <li key={item.id}>
+                <li key={item.id} {...(item.hideOnIos ? { 'data-hide-on-ios': true } : {})}>
                   <Link
                     href={item.href}
                     role="menuitem"

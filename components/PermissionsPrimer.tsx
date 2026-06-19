@@ -154,11 +154,6 @@ export function PermissionsPrimer() {
     setTimeout(() => setPhase('hidden'), 1400);
   }
 
-  async function handleSkip() {
-    await markPrimed();
-    setPhase('hidden');
-  }
-
   if (phase === 'hidden') return null;
 
   return (
@@ -246,23 +241,18 @@ export function PermissionsPrimer() {
         )}
 
         {(phase === 'asking' || phase === 'working') && (
-          <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end pt-1">
-            <button
-              type="button"
-              onClick={handleSkip}
-              disabled={phase === 'working'}
-              className="btn text-cream-100/75 hover:text-cream-100 hover:bg-cream-100/5"
-            >
-              Not now
-            </button>
+          <div className="flex flex-col gap-2 pt-1">
             <button
               type="button"
               onClick={handleEnable}
               disabled={phase === 'working'}
-              className="btn bg-gold-400 hover:bg-gold-300 text-forest-950 font-semibold"
+              className="btn bg-gold-400 hover:bg-gold-300 text-forest-950 font-semibold w-full"
             >
-              Enable
+              Continue
             </button>
+            <p className="text-[11px] text-ink-500 dark:text-cream-100/55 text-center">
+              You&#x2019;ll choose what to allow or deny on the next screen.
+            </p>
           </div>
         )}
       </div>

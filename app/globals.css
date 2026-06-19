@@ -58,6 +58,21 @@ body {
 .safe-mb-bottom { margin-bottom: var(--safe-bottom); }
 
 /*
+  Native-app platform gating. NativePlatformBoot tags <html> with
+  is-native-app / is-ios-app / is-android-app before first paint;
+  these rules hide content that must not appear inside the apps:
+    - data-hide-in-app: cross-platform "get the app" / store badges
+      (App Store Guideline 2.3.10 - no other-platform references).
+    - data-hide-on-ios: paid-upgrade / external-purchase paths in the
+      iOS app (Guideline 3.1.1 - digital goods must use In-App
+      Purchase; we hide the non-IAP paths rather than link out).
+  Flash-free because the class is set synchronously in <head>.
+*/
+.is-native-app [data-hide-in-app] { display: none !important; }
+.is-ios-app [data-hide-on-ios] { display: none !important; }
+.is-android-app [data-hide-on-android] { display: none !important; }
+
+/*
   Skip-when-offscreen utility. Per Week-1 audit (item #1), the marketing
   page's FCP was 3.6 s because the browser was painting the entire
   ~7,100 px scroll height synchronously. `content-visibility: auto` lets

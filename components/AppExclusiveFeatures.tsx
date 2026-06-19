@@ -83,9 +83,13 @@ const FEATURES: Feature[] = [
 ];
 
 export function AppExclusiveFeatures({ className = '' }: { className?: string }) {
-  const { ready, isNative, platform } = useIsNativeApp();
+  const { ready, isNative } = useIsNativeApp();
   const inApp = ready && isNative;
-  const features = FEATURES.filter((f) => !(ready && f.hideOn === platform));
+  // Render every feature, but tag platform-specific ones with the
+  // data-hide-on-* attributes so NativePlatformBoot's CSS hides them
+  // flash-free inside the wrong app (e.g. "Wear OS" must not show in
+  // the iOS app - App Store Guideline 2.3.10).
+  const features = FEATURES;
 
   return (
     <section
@@ -105,6 +109,8 @@ export function AppExclusiveFeatures({ className = '' }: { className?: string })
         {features.map((f) => (
           <li
             key={f.title}
+            data-hide-on-ios={f.hideOn === 'ios' ? '' : undefined}
+            data-hide-on-android={f.hideOn === 'android' ? '' : undefined}
             className="flex gap-3 rounded-xl bg-forest-900/[0.03] dark:bg-cream-100/[0.03] p-3.5"
           >
             <span

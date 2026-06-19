@@ -360,7 +360,7 @@ export default function PricingPage() {
                 can upgrade or extend later from their billing page.
               </p>
             </div>
-            <Link href="/gift" className="btn-primary inline-flex shrink-0">
+            <Link href="/gift" data-hide-on-ios className="btn-primary inline-flex shrink-0">
               Send a gift &rarr;
             </Link>
           </div>
@@ -531,6 +531,7 @@ function TierCard({ tier }: { tier: Tier }) {
       </ul>
       <Link
         href={tier.cta.href}
+        data-hide-on-ios
         className={tier.emphasized ? 'btn-primary text-sm' : 'btn-secondary text-sm'}
       >
         {tier.cta.label}

@@ -297,7 +297,7 @@ export function GiftForm({
       {error && (
         <p className="text-[12.5px] text-rose-700 dark:text-rose-300">{error}</p>
       )}
-      <button type="submit" className="btn-primary w-full" disabled={busy}>
+      <button type="submit" data-hide-on-ios className="btn-primary w-full" disabled={busy}>
         {busy ? 'Redirecting to checkout…' : `Continue to checkout`}
       </button>
       <p className="text-[11.5px] text-ink-500 dark:text-cream-100/55 leading-snug text-center">

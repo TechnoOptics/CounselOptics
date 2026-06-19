@@ -39,7 +39,9 @@ export function GetTheApp({ className = '' }: { className?: string }) {
   const badge =
     'inline-flex items-center gap-2.5 rounded-xl bg-forest-950 text-cream-100 px-4 py-2.5 ring-1 ring-cream-100/15 hover:ring-gold-300/50 hover:bg-forest-900 transition-colors';
   return (
-    <div className={`flex flex-wrap items-center gap-3 ${className}`}>
+    // Hidden inside the native apps - showing a store badge (esp.
+    // Google Play) in the iOS app violates App Store Guideline 2.3.10.
+    <div data-hide-in-app className={`flex flex-wrap items-center gap-3 ${className}`}>
       {APP_STORE_URL && (
         <a
           href={APP_STORE_URL}
