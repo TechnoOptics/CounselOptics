@@ -2,6 +2,9 @@
 
 import { useState } from 'react';
 import { TIER_FEATURES, TIER_LABEL, type Tier } from '@/lib/types';
+import { useIsNativeApp } from '@/components/useIsNativeApp';
+import { tierHasIosProduct } from '@/lib/iap';
+import { createBrowserSupabase } from '@/lib/supabase/client';
 
 const TIER_TAGLINE: Record<Tier, string> = {
   basic: 'Get organized.',
@@ -81,6 +84,41 @@ export function TierCard({
   const isCurrent = isActive && currentTier === tier;
   const isHighlighted = tier === 'standard';
 
+  // Inside the iOS app, paid plans must be sold through Apple In-App
+  // Purchase (Guideline 3.1.1), not Stripe. `useIap` is true only for
+  // paid tiers that have an App Store product; the free `basic` tier
+  // has none, so its button is simply hidden on iOS.
+  const { ready, platform } = useIsNativeApp();
+  const useIap = ready && platform === 'ios' && tierHasIosProduct(tier);
+  const hideButtonOnIos =
+    ready && platform === 'ios' && !tierHasIosProduct(tier);
+
+  async function startIapPurchase() {
+    setPending(true);
+    setError(null);
+    try {
+      const supabase = createBrowserSupabase();
+      const { data } = await supabase.auth.getSession();
+      const userId = data.session?.user.id;
+      if (!userId) throw new Error('Please sign in before subscribing.');
+      const { purchaseTier } = await import('@/lib/iap');
+      const res = await purchaseTier(tier, userId);
+      if (res.cancelled) {
+        setPending(false);
+        return;
+      }
+      // Record the entitlement server-side (authoritative read from
+      // RevenueCat), then reflect the unlocked plan.
+      await fetch('/api/iap/sync', { method: 'POST' }).catch(() => {});
+      window.location.reload();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Could not complete the purchase.',
+      );
+      setPending(false);
+    }
+  }
+
   async function startCheckout() {
     if (!stripeReady) return;
     setPending(true);
@@ -157,12 +195,11 @@ export function TierCard({
           <CheckIcon />
           Your current plan
         </button>
-      ) : (
+      ) : hideButtonOnIos ? null : (
         <button
           type="button"
-          onClick={startCheckout}
-          disabled={!stripeReady || pending}
-          data-hide-on-ios
+          onClick={useIap ? startIapPurchase : startCheckout}
+          disabled={useIap ? pending : !stripeReady || pending}
           className={
             isHighlighted
               ? 'btn bg-gold-metal text-forest-950 hover:brightness-110 shadow-gold-glow font-semibold w-full'
@@ -179,7 +216,9 @@ export function TierCard({
           }
         >
           {pending
-            ? 'Opening Stripe...'
+            ? useIap
+              ? 'Opening App Store...'
+              : 'Opening Stripe...'
             : isActive
               ? `Switch to ${TIER_LABEL[tier]}`
               : `Start ${TIER_LABEL[tier]}`}
