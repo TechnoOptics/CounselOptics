@@ -21,7 +21,8 @@ import type { Tier } from '@/lib/types';
 /** Apple product id -> our consumer tier. Mirror of IOS_PRODUCT_BY_TIER. */
 const TIER_BY_IOS_PRODUCT: Record<string, Tier> = {
   'com.advottic.app.standard.monthly': 'standard',
-  'com.advottic.app.pro.monthly': 'pro',
+  // Pro reuses the repurposed ASC draft id (see IOS_PRODUCT_BY_TIER in lib/iap.ts).
+  'com.advottic.app.personal_pro.monthly': 'pro',
 };
 
 export function tierFromIosProduct(productId: string | null | undefined): Tier | null {

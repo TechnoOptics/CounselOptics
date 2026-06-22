@@ -32,7 +32,11 @@ import type { Tier } from '@/lib/types';
  */
 export const IOS_PRODUCT_BY_TIER: Partial<Record<Tier, string>> = {
   standard: 'com.advottic.app.standard.monthly',
-  pro: 'com.advottic.app.pro.monthly',
+  // The Pro product reuses the App Store Connect id `personal_pro.monthly`
+  // (the original draft, repurposed) - it maps to the "Personal Pro" tier
+  // shown on the pricing page, so the id is on-brand. Product ids are
+  // immutable in ASC, so the code matches the store rather than the reverse.
+  pro: 'com.advottic.app.personal_pro.monthly',
 };
 
 export function tierHasIosProduct(tier: Tier): boolean {
