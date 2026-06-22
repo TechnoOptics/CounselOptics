@@ -125,9 +125,9 @@ export function TrialBanner({
 
   if (isExpired) {
     return (
-      // Hidden in the iOS app: directing users to Stripe checkout is a
-      // non-IAP purchase path (App Store Guideline 3.1.1).
-      <div data-hide-on-ios className="fixed left-3 right-3 sm:left-auto sm:right-6 bottom-20 sm:bottom-24 sm:max-w-md z-[55]">
+      // Visible on iOS too: "Subscribe" routes to /billing, which sells
+      // subscriptions via Apple In-App Purchase there (Guideline 3.1.1).
+      <div className="fixed left-3 right-3 sm:left-auto sm:right-6 bottom-20 sm:bottom-24 sm:max-w-md z-[55]">
         <div
           role="status"
           className="trial-banner-glow rounded-xl bg-forest-950 text-cream-100 ring-1 ring-rose-300/40 shadow-card-hover px-4 py-3 flex items-center gap-3 backdrop-blur"

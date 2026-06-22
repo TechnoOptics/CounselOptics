@@ -14,6 +14,7 @@ import { TIER_FEATURES, TIER_LABEL, type Tier } from '@/lib/types';
 import { TierCard } from './tier-card';
 import { ManageButton } from './billing-actions';
 import { TopUpButtons } from './topup-buttons';
+import { RestorePurchases } from '@/components/RestorePurchases';
 import { countItemsForUser, calculateOverage } from '@/lib/item-limits';
 import { type TierSlug } from '@/lib/token-packages';
 
@@ -219,10 +220,15 @@ export default async function BillingPage({
           )}
         </div>
         {isActive && (
-          <ManageButton
-            stripeReady={stripeReady}
-            hasCustomer={Boolean(sub?.stripeCustomerId)}
-          />
+          // The Stripe customer portal is irrelevant to an Apple IAP
+          // subscriber (they manage in Settings -> Apple ID), so hide it
+          // inside the iOS app; the Restore card below covers iOS.
+          <span data-hide-on-ios>
+            <ManageButton
+              stripeReady={stripeReady}
+              hasCustomer={Boolean(sub?.stripeCustomerId)}
+            />
+          </span>
         )}
       </div>
 
@@ -248,7 +254,7 @@ export default async function BillingPage({
           users see an upgrade nudge that explains what top-ups are
           for. The Pro path lives inside the section below; this is
           just navigation. */}
-      <div className="flex flex-wrap items-baseline justify-between gap-3 rounded-2xl border border-gold-300/40 bg-gradient-to-br from-cream-50 to-white dark:from-forest-900 dark:to-forest-950 p-4 sm:p-5 ring-1 ring-gold-400/20">
+      <div data-hide-on-ios className="flex flex-wrap items-baseline justify-between gap-3 rounded-2xl border border-gold-300/40 bg-gradient-to-br from-cream-50 to-white dark:from-forest-900 dark:to-forest-950 p-4 sm:p-5 ring-1 ring-gold-400/20">
         <div className="min-w-0">
           <p className="eyebrow mb-1 text-gold-700 dark:text-gold-300">
             Tokens
@@ -287,6 +293,11 @@ export default async function BillingPage({
           />
         ))}
       </div>
+
+      {/* iOS-only: Apple-required Restore Purchases + a note that the
+          subscription is billed/managed through the Apple ID. Renders
+          null on web/Android (those use the Stripe portal above). */}
+      <RestorePurchases userId={user.id} />
 
       {/* Items-used gauge. Shows for every signed-in user; surfaces
           how close the account is to the tier cap and (when over) how

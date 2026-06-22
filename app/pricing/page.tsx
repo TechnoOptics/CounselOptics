@@ -531,7 +531,6 @@ function TierCard({ tier }: { tier: Tier }) {
       </ul>
       <Link
         href={tier.cta.href}
-        data-hide-on-ios
         className={tier.emphasized ? 'btn-primary text-sm' : 'btn-secondary text-sm'}
       >
         {tier.cta.label}

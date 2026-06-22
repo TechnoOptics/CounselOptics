@@ -108,8 +108,19 @@ android {
         // genuinely can't touch the advertising ID, so the scanner
         // stops flagging it. Manifest change -> new build; codes stay
         // unique across both stores.
-        versionCode 18
-        versionName "1.0.15"
+        // v1.0.16 (code 19): Apple In-App Purchase (Guideline 3.1.1).
+        // Adds @revenuecat/purchases-capacitor so iOS subscriptions are
+        // sold through Apple StoreKit (RevenueCat bridge) instead of
+        // Stripe. `cap sync ios` resolves the SPM package into the
+        // freshly generated ios/ at build time, and xcodebuild's
+        // -resolvePackageDependencies pulls it at archive time - no
+        // workflow change needed. The web app gates the Subscribe button
+        // to the Apple purchase sheet on iOS and re-exposes the
+        // subscription nav (Stripe-only token top-ups + gifting stay
+        // hidden). New native plugin -> new build; codes stay unique
+        // across both stores.
+        versionCode 19
+        versionName "1.0.16"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

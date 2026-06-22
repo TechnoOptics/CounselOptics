@@ -104,14 +104,12 @@ export function UserMenuClient(props: UserMenuProps) {
                 to the consumer side from counsel / HQ. */}
             {!props.isCounselMode && (
               <>
-                {/* Billing leads to Stripe checkout - hidden inside the
-                    iOS app (App Store Guideline 3.1.1). The wrapper gets
-                    the gate so the whole menu row vanishes on iOS only. */}
-                <div data-hide-on-ios>
-                  <MenuLink href="/billing" onClick={() => setOpen(false)}>
-                    Billing & subscription
-                  </MenuLink>
-                </div>
+                {/* Billing is reachable on iOS: subscriptions are sold
+                    through Apple In-App Purchase there (Guideline 3.1.1),
+                    so this row is no longer gated. */}
+                <MenuLink href="/billing" onClick={() => setOpen(false)}>
+                  Billing & subscription
+                </MenuLink>
                 <MenuLink href="/cases" onClick={() => setOpen(false)}>
                   My cases
                 </MenuLink>

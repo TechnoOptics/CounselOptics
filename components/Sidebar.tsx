@@ -42,7 +42,7 @@ const ITEMS: NavItem[] = [
   { id: '/public-defender', label: 'Public defender', href: '/public-defender', prefix: '/public-defender', icon: GavelIcon },
   { id: '/contracts', label: 'Contracts', href: '/contracts', prefix: '/contracts', icon: FileIcon },
   { id: '/vault', label: 'Vault', href: '/vault', prefix: '/vault', icon: FileIcon },
-  { id: '/billing', label: 'Billing', href: '/billing', prefix: '/billing', hideOnIos: true, icon: CardIcon },
+  { id: '/billing', label: 'Billing', href: '/billing', prefix: '/billing', icon: CardIcon },
 ];
 
 function useActive() {
