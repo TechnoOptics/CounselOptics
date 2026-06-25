@@ -45,7 +45,9 @@ export function SearchPalette() {
   // Open via Cmd/Ctrl-K or "/"
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      const cmdK = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k';
+      // Guard e.key: some WebView / hardware-keyboard keydown events
+      // deliver it undefined, and key.toLowerCase() would throw.
+      const cmdK = (e.metaKey || e.ctrlKey) && e.key?.toLowerCase() === 'k';
       const slash =
         e.key === '/' &&
         !(document.activeElement instanceof HTMLInputElement) &&

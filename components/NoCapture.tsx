@@ -42,6 +42,13 @@ export function NoCapture() {
 
     const onKeyDown = (e: KeyboardEvent) => {
       const key = e.key;
+      // `e.key` is normally always a string, but some WebView / hardware
+      // keyboard / IME keydown events (seen in the iOS WKWebView) deliver
+      // it undefined. Calling .toLowerCase() on that threw an uncaught
+      // "Cannot read properties of undefined (reading 'toLowerCase')" -
+      // harmless in a handler, but it was the app's most frequent crash
+      // report, so guard it.
+      if (typeof key !== 'string') return;
       const lower = key.toLowerCase();
       const cmd = e.metaKey || e.ctrlKey;
       // Save / print / Save-as.

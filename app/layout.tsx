@@ -19,6 +19,7 @@ import { CrashReporter } from '@/components/CrashReporter';
 import { SiteJsonLd } from '@/components/seo/JsonLd';
 import { GetTheApp } from '@/components/GetTheApp';
 import { NativePlatformBoot } from '@/components/NativePlatformBoot';
+import { SafeMount } from '@/components/SafeMount';
 import { APP_STORE_ID, IOS_APP_LIVE } from '@/lib/app-links';
 import { NativeBackGesture } from '@/components/NativeBackGesture';
 import { WatchNoteInbox } from '@/components/WatchNoteInbox';
@@ -357,7 +358,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             watch's RemoteActivityHelper - this listens, extracts
             the path, and navigates the WebView there. On web it
             renders nothing. */}
-        <NativeDeepLinkRouter />
+        <SafeMount label="deeplink">
+          <NativeDeepLinkRouter />
+        </SafeMount>
         {/* Impersonation warning. Sticky top banner, rendered on
             every page (consumer + counsel + admin chrome) so an HQ
             operator who's used "Sign in as user" cannot forget they
@@ -467,6 +470,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             tier={trial.tier}
           />
         )}
+        {/* Non-essential always-mounted helpers (native bridges, capture
+            deterrents, watch inbox, distress overlay, freshness guard).
+            Wrapped so a throw in any of them - including React #419's
+            "client-render the entire root" recovery inside the iOS
+            WebView - is contained to this subtree and renders null,
+            instead of unmounting the whole app to a blank screen
+            (App Store 2.1 "blank page on launch"). */}
+        <SafeMount label="helpers">
         <NoCapture />
         {signedIn && <TraceWatermark email={userEmail} />}
         <ServiceWorkerRegister />
@@ -499,6 +510,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <FreshnessGuard
           initialSha={(process.env.VERCEL_GIT_COMMIT_SHA ?? 'dev').slice(0, 12)}
         />
+        </SafeMount>
         {!isShellMode && (
         <footer className="border-t border-ink-200 bg-white dark:bg-forest-950 dark:border-forest-700/40">
           <div className="mx-auto max-w-none px-4 sm:px-6 lg:px-10 py-6 sm:py-8 text-[11px] text-ink-500 dark:text-cream-100/55">
