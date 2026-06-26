@@ -19,6 +19,7 @@ import { CrashReporter } from '@/components/CrashReporter';
 import { SiteJsonLd } from '@/components/seo/JsonLd';
 import { GetTheApp } from '@/components/GetTheApp';
 import { NativePlatformBoot } from '@/components/NativePlatformBoot';
+import { BlankScreenWatchdog } from '@/components/BlankScreenWatchdog';
 import { SafeMount } from '@/components/SafeMount';
 import { APP_STORE_ID, IOS_APP_LIVE } from '@/lib/app-links';
 import { NativeBackGesture } from '@/components/NativeBackGesture';
@@ -346,6 +347,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             purchase paths can be CSS-hidden inside the apps - App Store
             Guidelines 2.3.10 and 3.1.1. */}
         <NativePlatformBoot />
+        {/* Native-shell self-heal for the App Store 2.1 "blank page on
+            launch" rejection: if the WebView never paints (a #419
+            hydration re-render stalled on a null Suspense fallback, or a
+            chunk that failed to execute in WebKit - neither throws, so
+            global-error.tsx can't catch it), reload up to twice and then
+            show a branded Reload screen. Inline so it runs even if the
+            React bundle never executes. No-op on the open web. */}
+        <BlankScreenWatchdog />
       </head>
       <body className="min-h-screen flex flex-col font-sans">
         {/* Site-wide structured data: Organization + WebSite (with
