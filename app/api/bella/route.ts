@@ -124,6 +124,7 @@ export async function POST(req: NextRequest) {
     caseId?: string;
     firmMode?: boolean;
     portal?: BellaPortal;
+    attachment?: unknown;
   };
   try {
     payload = await req.json();
@@ -144,6 +145,40 @@ export async function POST(req: NextRequest) {
       content: typeof m.content === 'string' ? m.content.slice(0, 4000) : '',
     }))
     .filter((m) => m.content.length > 0);
+
+  // Optional file the user attached this turn, already normalized by
+  // /api/bella/attach (text extracted server-side, or a base64 image).
+  type BellaAttachment =
+    | { kind: 'text'; name: string; text: string }
+    | { kind: 'image'; name: string; mediaType: string; data: string };
+  let attachment: BellaAttachment | null = null;
+  const rawAtt = payload.attachment;
+  if (rawAtt && typeof rawAtt === 'object') {
+    const a = rawAtt as Record<string, unknown>;
+    const name =
+      typeof a.name === 'string' && a.name.trim()
+        ? a.name.slice(0, 200)
+        : 'attachment';
+    if (a.kind === 'text' && typeof a.text === 'string') {
+      const text = a.text.slice(0, 20000);
+      if (text.trim()) attachment = { kind: 'text', name, text };
+    } else if (
+      a.kind === 'image' &&
+      typeof a.data === 'string' &&
+      typeof a.mediaType === 'string' &&
+      ['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(
+        a.mediaType,
+      ) &&
+      a.data.length <= 10_000_000 // ~7 MB decoded
+    ) {
+      attachment = {
+        kind: 'image',
+        name,
+        mediaType: a.mediaType,
+        data: a.data,
+      };
+    }
+  }
 
   // Resolve portal scope before doing anything else. Public visitors
   // are always consumer; logged-in users have to pass the validation
@@ -253,6 +288,7 @@ export async function POST(req: NextRequest) {
           firmContext,
           portal,
           firmId,
+          attachment,
         })) {
           controller.enqueue(encoder.encode(chunk));
         }

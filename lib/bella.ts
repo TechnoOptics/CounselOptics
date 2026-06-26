@@ -3349,6 +3349,15 @@ export async function* streamBella(input: {
     practiceAreas: string[];
     role: string;
   } | null;
+  /**
+   * A file the user attached this turn. A document is folded into the
+   * latest user message as extracted text; an image is attached as a
+   * vision content block so Bella can read it directly.
+   */
+  attachment?:
+    | { kind: 'text'; name: string; text: string }
+    | { kind: 'image'; name: string; mediaType: string; data: string }
+    | null;
 }): AsyncGenerator<string, void, unknown> {
   const apiKey = resolveApiKey();
   if (!apiKey) {
@@ -3417,7 +3426,56 @@ export async function* streamBella(input: {
   // messages and append assistant tool_use turns + user tool_result turns.
   const conversation: Anthropic.Messages.MessageParam[] = input.messages
     .slice(-12)
-    .map((m) => ({ role: m.role, content: m.content }));
+    .map(
+      (m) =>
+        ({ role: m.role, content: m.content }) as Anthropic.Messages.MessageParam,
+    );
+
+  // Fold an attachment into the most recent user turn so Bella can read
+  // it. A document becomes extracted text appended to the message; an
+  // image becomes a vision content block alongside the user's text.
+  const att = input.attachment;
+  if (att) {
+    for (let i = conversation.length - 1; i >= 0; i--) {
+      if (conversation[i].role !== 'user') continue;
+      const typed =
+        typeof conversation[i].content === 'string'
+          ? (conversation[i].content as string)
+          : '';
+      if (att.kind === 'text' && att.text.trim()) {
+        conversation[i] = {
+          role: 'user',
+          content:
+            `${typed}\n\n[The user attached a file named "${att.name}". Its text content follows.]\n"""\n${att.text.slice(0, 16000)}\n"""`.trim(),
+        };
+      } else if (att.kind === 'image') {
+        conversation[i] = {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text:
+                typed ||
+                `The user attached an image named "${att.name}". Please read it and help with it.`,
+            },
+            {
+              type: 'image',
+              source: {
+                type: 'base64',
+                media_type: att.mediaType as
+                  | 'image/jpeg'
+                  | 'image/png'
+                  | 'image/gif'
+                  | 'image/webp',
+                data: att.data,
+              },
+            },
+          ],
+        };
+      }
+      break;
+    }
+  }
 
   // Sum input + output across every turn so we can deduct Pro
   // tokens once at the end (Bella often loops via tool_use).

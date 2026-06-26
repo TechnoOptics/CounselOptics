@@ -25,7 +25,12 @@ function stripNavMarkers(s: string): { clean: string; paths: string[] } {
   return { clean, paths };
 }
 
-type Message = { role: 'user' | 'assistant'; content: string };
+type Message = {
+  role: 'user' | 'assistant';
+  content: string;
+  /** Name of a file attached to this turn, shown as a chip in the bubble. */
+  attachmentName?: string;
+};
 
 const STORAGE_KEY = 'bella-conversation';
 
@@ -34,6 +39,19 @@ export function Bella({ signedIn = true }: { signedIn?: boolean }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
+  // A file the user attached for Bella to read this turn. `pendingFile`
+  // drives the chip in the composer; `processedAttachmentRef` holds the
+  // normalized payload (extracted text, or a base64 image) returned by
+  // /api/bella/attach until it is sent with the next message.
+  const [pendingFile, setPendingFile] = useState<{ name: string } | null>(null);
+  const [attaching, setAttaching] = useState(false);
+  const [attachError, setAttachError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const processedAttachmentRef = useRef<
+    | { kind: 'text'; name: string; text: string }
+    | { kind: 'image'; name: string; mediaType: string; data: string }
+    | null
+  >(null);
   // The SSE stream from /api/bella accumulates into `streamBuffer` as
   // chunks arrive. The visible assistant message in `messages[last]`
   // catches up to this buffer one or more characters at a time on a
@@ -168,10 +186,21 @@ export function Bella({ signedIn = true }: { signedIn?: boolean }) {
 
   async function send() {
     const text = input.trim();
-    if (!text || streaming) return;
-    const next = [...messages, { role: 'user' as const, content: text }];
+    const att = processedAttachmentRef.current;
+    if ((!text && !att) || streaming) return;
+    const userText =
+      text || 'Please take a look at the attached file and help me with it.';
+    const next: Message[] = [
+      ...messages,
+      { role: 'user', content: userText, attachmentName: pendingFile?.name },
+    ];
     setMessages(next);
     setInput('');
+    // The attachment travels with this one request; clear it from the
+    // composer so it isn't sent again on the next message.
+    processedAttachmentRef.current = null;
+    setPendingFile(null);
+    setAttachError(null);
     setStreaming(true);
 
     const placeholderIndex = next.length;
@@ -188,7 +217,12 @@ export function Bella({ signedIn = true }: { signedIn?: boolean }) {
         // Explicit portal scope: the consumer-side widget only sees
         // the user's personal cases (firm_id IS NULL). Firm matters
         // are accessed from the enterprise workspace, not here.
-        body: JSON.stringify({ messages: next, caseId, portal: 'consumer' }),
+        body: JSON.stringify({
+          messages: next,
+          caseId,
+          portal: 'consumer',
+          ...(att ? { attachment: att } : {}),
+        }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: 'Bella is offline.' }));
@@ -256,6 +290,40 @@ export function Bella({ signedIn = true }: { signedIn?: boolean }) {
     } finally {
       setStreaming(false);
     }
+  }
+
+  async function handleFilePick(file: File | null | undefined) {
+    if (!file) return;
+    setAttachError(null);
+    setAttaching(true);
+    try {
+      const fd = new FormData();
+      fd.set('file', file);
+      const res = await fetch('/api/bella/attach', { method: 'POST', body: fd });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data) {
+        setAttachError(
+          (data && data.error) || 'I could not read that file. Please try another one.',
+        );
+        return;
+      }
+      processedAttachmentRef.current = data;
+      setPendingFile({ name: data.name || file.name });
+    } catch {
+      setAttachError(
+        'Could not upload that file. Please check your connection and try again.',
+      );
+    } finally {
+      setAttaching(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
+
+  function clearAttachment() {
+    processedAttachmentRef.current = null;
+    setPendingFile(null);
+    setAttachError(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
   function reset() {
@@ -395,7 +463,12 @@ export function Bella({ signedIn = true }: { signedIn?: boolean }) {
                 />
               )}
               {messages.map((m, i) => (
-                <Bubble key={i} role={m.role} content={m.content} />
+                <Bubble
+                  key={i}
+                  role={m.role}
+                  content={m.content}
+                  attachmentName={m.attachmentName}
+                />
               ))}
               {/* "Bella is thinking" bubble. Shows when we are waiting on
                   the first SSE byte (no content yet on the placeholder
@@ -431,7 +504,50 @@ export function Bella({ signedIn = true }: { signedIn?: boolean }) {
               }}
               className="border-t border-ink-200 dark:border-forest-700/60 p-3 bg-white dark:bg-forest-900"
             >
+              {(pendingFile || attaching || attachError) && (
+                <div className="mb-2 flex items-center gap-2 text-xs">
+                  {attaching ? (
+                    <span className="inline-flex items-center gap-1.5 text-ink-500 dark:text-cream-100/60">
+                      <Spinner /> Reading your file…
+                    </span>
+                  ) : attachError ? (
+                    <span className="text-rose-700 dark:text-rose-300">
+                      {attachError}
+                    </span>
+                  ) : pendingFile ? (
+                    <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-forest-50 px-2.5 py-1 text-forest-900 ring-1 ring-forest-200 dark:bg-forest-800/60 dark:text-cream-100 dark:ring-forest-700/60">
+                      <ClipIcon />
+                      <span className="truncate">{pendingFile.name}</span>
+                      <button
+                        type="button"
+                        onClick={clearAttachment}
+                        aria-label="Remove attachment"
+                        className="ml-0.5 text-ink-400 hover:text-ink-700 dark:hover:text-cream-100"
+                      >
+                        <CloseIcon />
+                      </button>
+                    </span>
+                  ) : null}
+                </div>
+              )}
               <div className="flex items-end gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.doc,.docx,.txt,.rtf,image/*"
+                  className="hidden"
+                  onChange={(e) => handleFilePick(e.target.files?.[0])}
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={attaching || streaming}
+                  aria-label="Attach a document or image"
+                  title="Attach a document, PDF, or image"
+                  className="flex-none rounded-lg border border-ink-200 p-2.5 text-ink-500 transition-colors hover:border-forest-700 hover:text-forest-900 disabled:opacity-40 dark:border-forest-700/60 dark:text-cream-100/70 dark:hover:text-cream-100"
+                >
+                  <ClipIcon />
+                </button>
                 <textarea
                   value={input}
                   onChange={(e) => {
@@ -464,7 +580,7 @@ export function Bella({ signedIn = true }: { signedIn?: boolean }) {
                 />
                 <button
                   type="submit"
-                  disabled={streaming || !input.trim()}
+                  disabled={streaming || (!input.trim() && !pendingFile)}
                   className="btn-primary"
                   aria-label="Send"
                 >
@@ -483,11 +599,25 @@ export function Bella({ signedIn = true }: { signedIn?: boolean }) {
   );
 }
 
-function Bubble({ role, content }: { role: Message['role']; content: string }) {
+function Bubble({
+  role,
+  content,
+  attachmentName,
+}: {
+  role: Message['role'];
+  content: string;
+  attachmentName?: string;
+}) {
   if (role === 'user') {
     return (
       <div className="flex justify-end">
         <div className="max-w-[85%] rounded-2xl rounded-tr-md px-3.5 py-2 bg-forest-900 text-white text-sm leading-relaxed whitespace-pre-wrap">
+          {attachmentName && (
+            <span className="mb-1 flex items-center gap-1.5 text-[11px] text-cream-200/80">
+              <ClipIcon />
+              <span className="truncate">{attachmentName}</span>
+            </span>
+          )}
           {content}
         </div>
       </div>
@@ -643,6 +773,20 @@ function CloseIcon() {
         stroke="currentColor"
         strokeWidth="2"
         strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function ClipIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M21 11.5l-8.6 8.6a5 5 0 01-7.1-7.1l8.6-8.6a3.3 3.3 0 014.7 4.7l-8.5 8.5a1.6 1.6 0 01-2.3-2.3l7.8-7.8"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </svg>
   );
