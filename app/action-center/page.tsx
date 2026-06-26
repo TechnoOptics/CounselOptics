@@ -180,7 +180,11 @@ function ToolCard({ title, href, tagline, stat, cta, tone, attention, icon }: Hu
       ? 'bg-rose-600 hover:bg-rose-700 text-white'
       : tone === 'amber'
         ? 'bg-amber-500 hover:bg-amber-600 text-ink-950'
-        : 'bg-forest-900 hover:bg-forest-800 text-cream-100';
+        : // text-white (not text-cream-100): the globals.css legibility guard
+        // `html:not(.dark) .card > .text-cream-100` force-darkens cream text
+        // inside light cards, which would make this dark-green button's label
+        // invisible. text-white is not matched by that guard.
+        'bg-forest-900 hover:bg-forest-800 text-white';
   return (
     <Link
       href={href}
