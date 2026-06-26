@@ -162,6 +162,7 @@ export default async function IntakeDetailPage({
       </div>
 
       <Tabs
+        swipe
         storageKey={`counsel-intake-${intake.id}`}
         tabs={(() => {
           const hasReview =

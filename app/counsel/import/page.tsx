@@ -67,7 +67,7 @@ export default async function CounselImportPage() {
           the right attorney.
         </p>
       </header>
-      <Tabs tabs={tabs} storageKey="counsel-import-tab" />
+      <Tabs swipe tabs={tabs} storageKey="counsel-import-tab" />
     </div>
   );
 }

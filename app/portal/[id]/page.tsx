@@ -183,6 +183,7 @@ export default async function PortalRequestPage({
       </section>
 
       <Tabs
+        swipe
         storageKey={`portal-request-${intake.id}`}
         tabs={(() => {
           const hasReview =

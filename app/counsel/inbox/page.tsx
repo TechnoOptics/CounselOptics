@@ -99,7 +99,7 @@ export default async function CounselInboxPage() {
         </p>
       </header>
 
-      <Tabs storageKey="counsel-inbox" tabs={tabs} />
+      <Tabs swipe storageKey="counsel-inbox" tabs={tabs} />
     </div>
   );
 }
