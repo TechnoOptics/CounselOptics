@@ -250,8 +250,9 @@ function ReviewCarousel({ review }: { review: AIReview }) {
       <div
         ref={trackRef}
         onScroll={onScroll}
+        data-hswipe
         style={height ? { height } : undefined}
-        className="flex snap-x snap-mandatory overflow-x-auto overflow-y-hidden scroll-smooth transition-[height] duration-200 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="flex snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain scroll-smooth transition-[height] duration-200 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {slides.map((s) => (
           <section

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export type TabDef = {
   id: string;
@@ -22,12 +22,18 @@ export type TabDef = {
 export function Tabs({
   tabs,
   storageKey,
+  swipe = false,
 }: {
   tabs: TabDef[];
   /** If set, last-active tab is remembered in sessionStorage. */
   storageKey?: string;
+  /** When true, the panels become a swipeable card deck on touch
+   *  devices (flick left/right to change section) with a dot
+   *  indicator. The dropdown/tablist nav stays for explicit choice. */
+  swipe?: boolean;
 }) {
   const [active, setActive] = useState<string>(() => tabs[0]?.id ?? '');
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
 
   // Restore from sessionStorage / hash on mount.
   useEffect(() => {
@@ -54,7 +60,37 @@ export function Tabs({
     }
   }, [active, storageKey]);
 
-  const activeTab = tabs.find((t) => t.id === active) ?? tabs[0];
+  const activeIndex = Math.max(0, tabs.findIndex((t) => t.id === active));
+  const activeTab = tabs[activeIndex] ?? tabs[0];
+
+  function step(delta: number) {
+    const i = Math.min(tabs.length - 1, Math.max(0, activeIndex + delta));
+    if (tabs[i]) setActive(tabs[i].id);
+  }
+
+  // Touch flick to move between sections. Bail when the gesture starts
+  // inside a nested horizontal scroller (e.g. the Advottic Review
+  // carousel, marked data-hswipe) so the two swipe areas don't fight.
+  function onTouchStart(e: React.TouchEvent) {
+    if ((e.target as Element).closest?.('[data-hswipe]')) {
+      touchStart.current = null;
+      return;
+    }
+    const t = e.touches[0];
+    touchStart.current = { x: t.clientX, y: t.clientY };
+  }
+  function onTouchEnd(e: React.TouchEvent) {
+    const start = touchStart.current;
+    touchStart.current = null;
+    if (!start) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - start.x;
+    const dy = t.clientY - start.y;
+    // Horizontal intent only - vertical scrolls must not change tab.
+    if (Math.abs(dx) > 56 && Math.abs(dx) > Math.abs(dy) * 1.4) {
+      step(dx < 0 ? 1 : -1);
+    }
+  }
 
   return (
     <div>
@@ -107,6 +143,11 @@ export function Tabs({
             {activeTab.label}
           </p>
         )}
+        {swipe && tabs.length > 1 && (
+          <p className="mt-1 text-[11px] text-ink-400 dark:text-cream-100/45">
+            Swipe left or right to move between sections.
+          </p>
+        )}
       </div>
 
       {/* DESKTOP / TABLET: underline tablist. Visible at sm+. */}
@@ -146,7 +187,11 @@ export function Tabs({
         })}
       </div>
 
-      <div className="pt-6">
+      <div
+        className="pt-6"
+        onTouchStart={swipe ? onTouchStart : undefined}
+        onTouchEnd={swipe ? onTouchEnd : undefined}
+      >
         {tabs.map((t) => (
           <div
             key={t.id}
@@ -160,6 +205,24 @@ export function Tabs({
           </div>
         ))}
       </div>
+
+      {swipe && tabs.length > 1 && (
+        <div className="mt-6 flex justify-center gap-2" aria-hidden>
+          {tabs.map((t, i) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setActive(t.id)}
+              aria-label={`Go to ${t.label}`}
+              className={`h-1.5 rounded-full transition-all ${
+                i === activeIndex
+                  ? 'w-6 bg-forest-900 dark:bg-gold-metal'
+                  : 'w-1.5 bg-ink-300 dark:bg-forest-700 hover:bg-ink-400'
+              }`}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

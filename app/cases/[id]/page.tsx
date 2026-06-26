@@ -372,6 +372,7 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
         land on their editor by default.
       */}
       <Tabs
+        swipe
         storageKey={`case-tabs:${c.id}`}
         tabs={[
           ...(isWitness && myCollab
