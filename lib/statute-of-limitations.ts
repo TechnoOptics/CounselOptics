@@ -84,14 +84,14 @@ export const CLAIM_TYPES: ClaimType[] = [
       'Someone damaged your real estate, vehicle, or other property. Covers vandalism, accidents, and trespass.',
     examples: [
       'A neighbor cut down trees on my property',
-      'Someone crashed into my fence and won&rsquo;t pay',
+      'Someone crashed into my fence and won’t pay',
     ],
   },
   {
     id: 'fraud',
     label: 'Fraud',
     description:
-      'Someone misled you on purpose and you lost money or property because of it. Most states pause the clock until you discovered the fraud (the &ldquo;discovery rule&rdquo;).',
+      'Someone misled you on purpose and you lost money or property because of it. Most states pause the clock until you discovered the fraud (the “discovery rule”).',
     examples: [
       'A seller lied about a major defect',
       'A financial advisor stole from my account',
@@ -121,7 +121,7 @@ export const CLAIM_TYPES: ClaimType[] = [
     id: 'wrongful-death',
     label: 'Wrongful death',
     description:
-      'A family member died because of someone else&rsquo;s negligence or intentional act. The clock usually starts at the date of death, not the date of the underlying incident.',
+      'A family member died because of someone else’s negligence or intentional act. The clock usually starts at the date of death, not the date of the underlying incident.',
     examples: [
       'A family member died in a car accident',
       'A loved one died from medical malpractice',
@@ -131,10 +131,10 @@ export const CLAIM_TYPES: ClaimType[] = [
     id: 'debt-collection',
     label: 'Debt collection (written)',
     description:
-      'How long a creditor has to sue you on a written debt: credit card, personal loan, judgment renewal. Once the SOL runs, the debt becomes &ldquo;time-barred&rdquo; and the creditor cannot win a lawsuit, though they can still ask you to pay.',
+      'How long a creditor has to sue you on a written debt: credit card, personal loan, judgment renewal. Once the SOL runs, the debt becomes “time-barred” and the creditor cannot win a lawsuit, though they can still ask you to pay.',
     examples: [
       'Can a collector still sue me on this old credit card?',
-      'How old does a debt have to be before it&rsquo;s time-barred?',
+      'How old does a debt have to be before it’s time-barred?',
     ],
   },
 ];

@@ -300,13 +300,22 @@ export function SafeWitness() {
   }
 
   function stopAll() {
-    try {
-      recRef.current?.state !== 'inactive' && recRef.current?.stop();
-    } catch {
-      /* ignore */
+    // Only a live stop() fires onstop -> finalize() -> review. If the
+    // recorder is missing or already inactive, that path never runs, so
+    // advance to review ourselves. (Previous code left the user stranded
+    // on the recording screen when the recorder was already inactive.)
+    const rec = recRef.current;
+    let willFinalize = false;
+    if (rec && rec.state !== 'inactive') {
+      try {
+        rec.stop();
+        willFinalize = true;
+      } catch {
+        /* ignore */
+      }
     }
     teardown();
-    if (!recRef.current) {
+    if (!willFinalize) {
       setPhase('review');
     }
   }
