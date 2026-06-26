@@ -2,6 +2,9 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getCurrentUser, isSupabaseConfigured, createServerSupabase } from '@/lib/supabase/server';
 import { RECEIPT_CATEGORIES } from '@/lib/contract-types';
+import { ShowMore } from '@/components/ShowMore';
+import { FolderBar } from '@/components/FolderBar';
+import { MoveToFolder } from '@/components/MoveToFolder';
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
@@ -32,21 +35,33 @@ function fmtBytes(n: number | null) {
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 
-export default async function VaultPage() {
+export default async function VaultPage({
+  searchParams,
+}: {
+  searchParams: { folder?: string };
+}) {
   if (!isSupabaseConfigured()) redirect('/sign-in');
   const user = await getCurrentUser();
   if (!user) redirect('/sign-in?next=/vault');
 
   const supabase = createServerSupabase();
-  const { data } = await supabase
-    .from('user_receipts')
-    .select(
-      'id, label, category, description, occurred_at, source, tags, file_size, mime_type, created_at',
-    )
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: false })
-    .limit(500);
-  const receipts = (data ?? []) as Array<{
+  const [{ data }, { data: folderData }] = await Promise.all([
+    supabase
+      .from('user_receipts')
+      .select(
+        'id, label, category, description, occurred_at, source, tags, file_size, mime_type, created_at, folder_id',
+      )
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(500),
+    supabase
+      .from('vault_folders')
+      .select('id, name')
+      .eq('user_id', user.id)
+      .eq('kind', 'vault')
+      .order('created_at', { ascending: true }),
+  ]);
+  const allReceipts = (data ?? []) as Array<{
     id: string;
     label: string;
     category: string;
@@ -57,13 +72,26 @@ export default async function VaultPage() {
     file_size: number | null;
     mime_type: string | null;
     created_at: string;
+    folder_id: string | null;
   }>;
+  const folders = (folderData ?? []) as Array<{ id: string; name: string }>;
+  const folderList = folders.map((f) => ({
+    ...f,
+    count: allReceipts.filter((r) => r.folder_id === f.id).length,
+  }));
+  const activeFolderId =
+    searchParams?.folder && folders.some((f) => f.id === searchParams.folder)
+      ? searchParams.folder
+      : null;
+  const receipts = activeFolderId
+    ? allReceipts.filter((r) => r.folder_id === activeFolderId)
+    : allReceipts;
 
-  const counts = receipts.reduce<Record<string, number>>((acc, r) => {
+  const counts = allReceipts.reduce<Record<string, number>>((acc, r) => {
     acc[r.category] = (acc[r.category] ?? 0) + 1;
     return acc;
   }, {});
-  const totalBytes = receipts.reduce((s, r) => s + (r.file_size ?? 0), 0);
+  const totalBytes = allReceipts.reduce((s, r) => s + (r.file_size ?? 0), 0);
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 animate-fade-up">
@@ -84,8 +112,17 @@ export default async function VaultPage() {
         </Link>
       </header>
 
+      {allReceipts.length > 0 && (
+        <FolderBar
+          kind="vault"
+          folders={folderList}
+          activeFolderId={activeFolderId}
+          basePath="/vault"
+        />
+      )}
+
       <section className="grid gap-3 sm:grid-cols-3">
-        <Stat label="In vault" value={String(receipts.length)} />
+        <Stat label="In vault" value={String(allReceipts.length)} />
         <Stat label="Used" value={fmtBytes(totalBytes)} />
         <Stat
           label="Categories"
@@ -93,7 +130,7 @@ export default async function VaultPage() {
         />
       </section>
 
-      {receipts.length === 0 ? (
+      {allReceipts.length === 0 ? (
         <div className="card p-8 text-center">
           <p className="font-display text-2xl text-forest-900 dark:text-cream-100">
             Empty vault.
@@ -109,6 +146,7 @@ export default async function VaultPage() {
         </div>
       ) : (
         <ul className="space-y-2">
+          <ShowMore initial={3} noun="receipts">
           {receipts.map((r) => {
             const cat = RECEIPT_CATEGORIES.find((c) => c.id === r.category);
             const tone = CATEGORY_TONE[r.category] ?? CATEGORY_TONE.other;
@@ -151,9 +189,20 @@ export default async function VaultPage() {
                     ))}
                   </div>
                 )}
+                {folders.length > 0 && (
+                  <div className="pt-1">
+                    <MoveToFolder
+                      kind="vault"
+                      itemId={r.id}
+                      folders={folders}
+                      currentFolderId={r.folder_id}
+                    />
+                  </div>
+                )}
               </li>
             );
           })}
+          </ShowMore>
         </ul>
       )}
     </div>

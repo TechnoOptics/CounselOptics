@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { listNotifications } from '@/lib/notifications';
 import { PushOptIn } from '@/components/PushOptIn';
+import { ShowMore } from '@/components/ShowMore';
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
@@ -121,9 +122,11 @@ export default async function InboxPage() {
           {read.length > 0 && (
             <Section title="Earlier">
               <ul className="space-y-2 opacity-80">
+                <ShowMore initial={3} noun="notifications">
                 {read.map((n) => (
                   <Item key={n.id} n={n} />
                 ))}
+                </ShowMore>
               </ul>
             </Section>
           )}

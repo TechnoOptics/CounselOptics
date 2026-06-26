@@ -15,6 +15,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
+import { ShowMore } from '@/components/ShowMore';
 
 export type StoryItem = {
   id: string;
@@ -184,6 +185,7 @@ export function CaseStory({
             aria-hidden
             className="absolute left-[7px] top-1 bottom-1 w-px bg-gradient-to-b from-gold-400/70 via-forest-400/50 to-forest-200"
           />
+          <ShowMore initial={3}>
           {sorted.map((it, idx) => {
             const accent =
               (it.category && CATEGORY_ACCENT[it.category]) ||
@@ -233,6 +235,7 @@ export function CaseStory({
               </li>
             );
           })}
+          </ShowMore>
         </ol>
       )}
 

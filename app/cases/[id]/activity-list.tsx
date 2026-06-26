@@ -1,4 +1,5 @@
 import type { AuditEvent, CaseEventType } from '@/lib/activity';
+import { ShowMore } from '@/components/ShowMore';
 
 const EVENT_LABEL: Record<CaseEventType, string> = {
   case_created: 'created the case',
@@ -42,6 +43,7 @@ export function ActivityList({ events }: { events: AuditEvent[] }) {
   }
   return (
     <ul className="space-y-2">
+      <ShowMore initial={3} noun="updates">
       {events.map((e) => (
         <li
           key={e.id}
@@ -67,6 +69,7 @@ export function ActivityList({ events }: { events: AuditEvent[] }) {
           </div>
         </li>
       ))}
+      </ShowMore>
     </ul>
   );
 }

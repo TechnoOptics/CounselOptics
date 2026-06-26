@@ -2,6 +2,9 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getCurrentUser, isSupabaseConfigured, createServerSupabase } from '@/lib/supabase/server';
 import { getContractType } from '@/lib/contract-types';
+import { ShowMore } from '@/components/ShowMore';
+import { FolderBar } from '@/components/FolderBar';
+import { MoveToFolder } from '@/components/MoveToFolder';
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
@@ -34,21 +37,33 @@ function confidenceTone(score: number | null) {
   return 'text-rose-700 dark:text-rose-300';
 }
 
-export default async function ContractsListPage() {
+export default async function ContractsListPage({
+  searchParams,
+}: {
+  searchParams: { folder?: string };
+}) {
   if (!isSupabaseConfigured()) redirect('/sign-in');
   const user = await getCurrentUser();
   if (!user) redirect('/sign-in?next=/contracts');
 
   const supabase = createServerSupabase();
-  const { data } = await supabase
-    .from('user_contracts')
-    .select(
-      'id, name, contract_type, custom_type, status, signed_at, expiry_at, review_confidence, reviewed_at, created_at',
-    )
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: false })
-    .limit(200);
-  const rows = (data ?? []) as Array<{
+  const [{ data }, { data: folderData }] = await Promise.all([
+    supabase
+      .from('user_contracts')
+      .select(
+        'id, name, contract_type, custom_type, status, signed_at, expiry_at, review_confidence, reviewed_at, created_at, folder_id',
+      )
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(200),
+    supabase
+      .from('vault_folders')
+      .select('id, name')
+      .eq('user_id', user.id)
+      .eq('kind', 'contract')
+      .order('created_at', { ascending: true }),
+  ]);
+  const allRows = (data ?? []) as Array<{
     id: string;
     name: string;
     contract_type: string;
@@ -59,9 +74,22 @@ export default async function ContractsListPage() {
     review_confidence: number | null;
     reviewed_at: string | null;
     created_at: string;
+    folder_id: string | null;
   }>;
+  const folders = (folderData ?? []) as Array<{ id: string; name: string }>;
+  const folderList = folders.map((f) => ({
+    ...f,
+    count: allRows.filter((r) => r.folder_id === f.id).length,
+  }));
+  const activeFolderId =
+    searchParams?.folder && folders.some((f) => f.id === searchParams.folder)
+      ? searchParams.folder
+      : null;
+  const rows = activeFolderId
+    ? allRows.filter((r) => r.folder_id === activeFolderId)
+    : allRows;
 
-  const expiringSoon = rows.filter(
+  const expiringSoon = allRows.filter(
     (r) =>
       r.expiry_at &&
       Date.parse(r.expiry_at) > Date.now() &&
@@ -87,11 +115,20 @@ export default async function ContractsListPage() {
         </Link>
       </header>
 
+      {allRows.length > 0 && (
+        <FolderBar
+          kind="contract"
+          folders={folderList}
+          activeFolderId={activeFolderId}
+          basePath="/contracts"
+        />
+      )}
+
       <section className="grid gap-3 sm:grid-cols-3">
-        <Stat label="In library" value={String(rows.length)} />
+        <Stat label="In library" value={String(allRows.length)} />
         <Stat
           label="Reviewed"
-          value={String(rows.filter((r) => r.reviewed_at).length)}
+          value={String(allRows.filter((r) => r.reviewed_at).length)}
           tone="emerald"
         />
         <Stat
@@ -101,7 +138,7 @@ export default async function ContractsListPage() {
         />
       </section>
 
-      {rows.length === 0 ? (
+      {allRows.length === 0 ? (
         <div className="card p-8 text-center">
           <p className="font-display text-2xl text-forest-900 dark:text-cream-100">
             Nothing stored yet.
@@ -116,6 +153,7 @@ export default async function ContractsListPage() {
         </div>
       ) : (
         <ul className="space-y-2">
+          <ShowMore initial={3} noun="contracts">
           {rows.map((r) => {
             const type = getContractType(r.contract_type);
             const tone = STATUS_TONE[r.status] ?? STATUS_TONE.stored;
@@ -150,9 +188,20 @@ export default async function ContractsListPage() {
                     </p>
                   )}
                 </Link>
+                {folders.length > 0 && (
+                  <div className="mt-2 flex justify-end border-t border-ink-100 pt-2 dark:border-forest-700/40">
+                    <MoveToFolder
+                      kind="contract"
+                      itemId={r.id}
+                      folders={folders}
+                      currentFolderId={r.folder_id}
+                    />
+                  </div>
+                )}
               </li>
             );
           })}
+          </ShowMore>
         </ul>
       )}
     </div>
