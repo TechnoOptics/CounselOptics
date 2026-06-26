@@ -5,17 +5,12 @@ import { useState } from 'react';
 /**
  * Collapsible footer column.
  *
- * On phones the link list is collapsed by default (tap the heading to
- * expand) so a long section like "Product" doesn't stretch the footer
- * down the whole page. On md+ it renders as a static, always-open
- * column: the toggle is disabled and the content is forced visible via
- * `md:block`, so the desktop layout is unchanged.
- *
- * We use a button + `hidden md:block` rather than <details> on purpose:
- * <details> cannot be reliably "closed on mobile, open on desktop" with
- * CSS across browsers (Chrome's newer ::details-content model ignores a
- * display override on the children), which left the old version stuck
- * open on every viewport.
+ * The link list is collapsed by default on every viewport — the footer
+ * shows just the clickable section headings (with a + that rotates to ×),
+ * and selecting one expands its links in place. This keeps the footer
+ * compact on desktop and mobile alike instead of dumping a long section
+ * like "Product" down the page. The links stay in the DOM (hidden via
+ * CSS) so they remain crawlable.
  */
 export function FooterCol({
   title,
@@ -32,23 +27,21 @@ export function FooterCol({
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="flex w-full items-center justify-between py-1 text-left md:cursor-default md:pointer-events-none"
+        className="flex w-full items-center justify-between py-1 text-left"
       >
         <span className="font-semibold text-forest-900 dark:text-cream-100 tracking-[0.05em] uppercase text-[10px]">
           {title}
         </span>
         <span
           aria-hidden
-          className={`md:hidden text-ink-400 dark:text-cream-100/55 text-[14px] font-mono leading-none transition-transform ${
+          className={`text-ink-400 dark:text-cream-100/55 text-[14px] font-mono leading-none transition-transform ${
             open ? 'rotate-45' : ''
           }`}
         >
           +
         </span>
       </button>
-      <div
-        className={`${open ? 'block' : 'hidden'} md:block space-y-1 mt-2 md:mt-1.5`}
-      >
+      <div className={`${open ? 'block' : 'hidden'} space-y-1 mt-2`}>
         {children}
       </div>
     </div>
