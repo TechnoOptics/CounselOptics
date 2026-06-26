@@ -1,22 +1,10 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { runReviewAction } from '@/lib/actions';
 import type { AIReview } from '@/lib/types';
 import { BellaPrompt } from '@/components/BellaPrompt';
 import { CallALawyerCallout } from '@/components/CallALawyerCallout';
-
-// Section anchors used by the in-page nav chip strip so the user
-// can jump down to any review section without scrolling past the
-// other three. These replace the old 4-tab "tabs inside the
-// Review tab" pattern (user complaint: "tabs that have tabs felt
-// like a maze").
-const SECTIONS: { id: string; label: string }[] = [
-  { id: 'review-overview', label: 'Overview' },
-  { id: 'review-facts', label: 'Facts & issues' },
-  { id: 'review-evidence', label: 'Evidence & discovery' },
-  { id: 'review-actions', label: 'Next steps' },
-];
 
 export function ReviewPanel({
   caseId,
@@ -125,40 +113,7 @@ export function ReviewPanel({
         </div>
       )}
 
-      {review && (
-        <div className="card overflow-hidden">
-          {review.isDemo && (
-            <div className="border-b border-amber-200 bg-amber-50/70 px-5 py-2.5 text-xs text-amber-900">
-              Demo response - set <code className="font-mono">ANTHROPIC_API_KEY</code> in{' '}
-              <code className="font-mono">.env.local</code> to enable the full analysis.
-            </div>
-          )}
-
-          {/* In-page section nav. Anchor chips, not tabs - clicking
-              one scrolls the matching section into view rather than
-              hiding the others. The whole review reads as one
-              scrollable document. */}
-          <SectionNav />
-
-          <div className="p-6 md:p-7 space-y-10">
-            <SectionHeading id="review-overview" label="Overview" />
-            <Overview review={review} />
-
-            <SectionHeading id="review-facts" label="Facts & issues" />
-            <Facts review={review} />
-
-            <SectionHeading id="review-evidence" label="Evidence & discovery" />
-            <Evidence review={review} />
-
-            <SectionHeading id="review-actions" label="Next steps" />
-            <Actions review={review} />
-          </div>
-
-          <div className="border-t border-ink-100 px-5 py-3 bg-ink-50/50">
-            <p className="text-[11px] leading-relaxed text-ink-500">{review.disclaimer}</p>
-          </div>
-        </div>
-      )}
+      {review && <ReviewCarousel review={review} />}
 
       {/* Once the review is done, plant a quiet "this is a good
           moment to loop in counsel" callout. The review just gave
@@ -192,51 +147,162 @@ export function ReviewPanel({
 }
 
 /**
- * Sticky chip-strip that lets the user jump to any review section
- * via anchor scroll. Replaces the previous inner tab strip - now
- * the four sections render in one long scroll, and this chip row
- * is the discovery + jump surface.
- *
- * Sticks just under the case-page top tabs so it remains visible
- * while the user scrolls through long reviews. Smooth scroll is
- * the default browser behavior via `scrollIntoView` - no animation
- * code needed.
+ * Swipeable card carousel for the four review sections. Replaces the old
+ * nested-tab / one-long-scroll layout (user feedback: "tabs in tabs is
+ * messy, and it's too much scrolling"). Each section is a full-width card
+ * the user swipes left/right between - native horizontal scroll-snap on
+ * touch, plus section pills, a position counter, prev/next arrows, and
+ * dots for pointer users. Only one section shows at a time, so vertical
+ * scrolling is minimal and there's no tab-inside-a-tab. The card height
+ * eases to fit the active section.
  */
-function SectionNav() {
+function ReviewCarousel({ review }: { review: AIReview }) {
+  const slides: { label: string; body: React.ReactNode }[] = [
+    { label: 'Overview', body: <Overview review={review} /> },
+    { label: 'Facts & issues', body: <Facts review={review} /> },
+    { label: 'Evidence & discovery', body: <Evidence review={review} /> },
+    { label: 'Next steps', body: <Actions review={review} /> },
+  ];
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [active, setActive] = useState(0);
+  const [height, setHeight] = useState<number | undefined>(undefined);
+
+  // Ease the card's height to the visible section so a short section
+  // doesn't leave a tall, empty card.
+  useEffect(() => {
+    const track = trackRef.current;
+    if (!track) return;
+    const measure = () => {
+      const el = track.children[active] as HTMLElement | undefined;
+      if (el) setHeight(el.offsetHeight);
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [active]);
+
+  function goTo(i: number) {
+    const next = Math.max(0, Math.min(slides.length - 1, i));
+    const track = trackRef.current;
+    if (track) track.scrollTo({ left: next * track.clientWidth, behavior: 'smooth' });
+    setActive(next);
+  }
+
+  function onScroll() {
+    const track = trackRef.current;
+    if (!track) return;
+    const i = Math.round(track.scrollLeft / Math.max(1, track.clientWidth));
+    setActive((prev) => (prev === i ? prev : i));
+  }
+
   return (
-    <nav
-      aria-label="Jump to review section"
-      className="sticky top-0 z-10 bg-white/95 dark:bg-forest-900/95 backdrop-blur border-b border-ink-200 dark:border-forest-700/40 px-3 sm:px-5 py-2 flex flex-wrap gap-2"
-    >
-      {SECTIONS.map((s) => (
-        <a
-          key={s.id}
-          href={`#${s.id}`}
-          className="inline-flex items-center px-3 py-1 rounded-full text-[12px] font-medium text-ink-700 dark:text-cream-100/75 bg-ink-50 dark:bg-forest-800/60 hover:bg-gold-100 hover:text-gold-900 dark:hover:bg-gold-900/30 dark:hover:text-gold-200 transition-colors"
-        >
-          {s.label}
-        </a>
-      ))}
-    </nav>
+    <div className="card overflow-hidden">
+      {review.isDemo && (
+        <div className="border-b border-amber-200 bg-amber-50/70 px-5 py-2.5 text-xs text-amber-900">
+          Demo response - set <code className="font-mono">ANTHROPIC_API_KEY</code> in{' '}
+          <code className="font-mono">.env.local</code> to enable the full analysis.
+        </div>
+      )}
+
+      <div className="flex items-center gap-2 border-b border-ink-200 dark:border-forest-700/40 px-3 sm:px-5 py-2">
+        <div className="flex flex-1 flex-wrap gap-1.5">
+          {slides.map((s, i) => (
+            <button
+              key={s.label}
+              type="button"
+              onClick={() => goTo(i)}
+              aria-current={i === active}
+              className={`inline-flex items-center rounded-full px-3 py-1 text-[12px] font-medium transition-colors ${
+                i === active
+                  ? 'bg-forest-900 text-white dark:bg-gold-metal dark:text-forest-950'
+                  : 'bg-ink-50 text-ink-600 hover:text-forest-900 dark:bg-forest-800/60 dark:text-cream-100/70 dark:hover:text-cream-100'
+              }`}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-none items-center gap-1">
+          <button
+            type="button"
+            onClick={() => goTo(active - 1)}
+            disabled={active === 0}
+            aria-label="Previous section"
+            className="grid h-7 w-7 place-items-center rounded-full text-ink-600 hover:bg-ink-100 disabled:opacity-30 dark:text-cream-100/70 dark:hover:bg-forest-800"
+          >
+            <Chevron dir="left" />
+          </button>
+          <span className="w-9 text-center text-[11px] tabular-nums text-ink-400 dark:text-cream-100/55">
+            {active + 1} / {slides.length}
+          </span>
+          <button
+            type="button"
+            onClick={() => goTo(active + 1)}
+            disabled={active === slides.length - 1}
+            aria-label="Next section"
+            className="grid h-7 w-7 place-items-center rounded-full text-ink-600 hover:bg-ink-100 disabled:opacity-30 dark:text-cream-100/70 dark:hover:bg-forest-800"
+          >
+            <Chevron dir="right" />
+          </button>
+        </div>
+      </div>
+
+      <div
+        ref={trackRef}
+        onScroll={onScroll}
+        style={height ? { height } : undefined}
+        className="flex snap-x snap-mandatory overflow-x-auto overflow-y-hidden scroll-smooth transition-[height] duration-200 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {slides.map((s) => (
+          <section
+            key={s.label}
+            aria-label={s.label}
+            className="w-full shrink-0 self-start snap-start space-y-5 p-6 md:p-7"
+          >
+            <h3 className="text-[11px] uppercase tracking-[0.22em] font-semibold text-gold-700 dark:text-gold-300">
+              {s.label}
+            </h3>
+            {s.body}
+          </section>
+        ))}
+      </div>
+
+      <div className="flex justify-center gap-1.5 py-3">
+        {slides.map((s, i) => (
+          <button
+            key={s.label}
+            type="button"
+            onClick={() => goTo(i)}
+            aria-label={`Go to ${s.label}`}
+            className={`h-1.5 rounded-full transition-all ${
+              i === active
+                ? 'w-5 bg-forest-900 dark:bg-gold-metal'
+                : 'w-1.5 bg-ink-300 dark:bg-forest-700'
+            }`}
+          />
+        ))}
+      </div>
+
+      <div className="border-t border-ink-100 dark:border-forest-700/40 bg-ink-50/50 px-5 py-3 dark:bg-forest-900/40">
+        <p className="text-[11px] leading-relaxed text-ink-500 dark:text-cream-100/55">
+          {review.disclaimer}
+        </p>
+      </div>
+    </div>
   );
 }
 
-/**
- * Section heading + anchor target. The heading reads at h3 size so
- * the visual hierarchy is "Advottic Review" h2 -> "Overview" h3 ->
- * each Panel inside is h3/h4 from the existing components.
- *
- * scroll-mt offsets the sticky chip row's height so the heading
- * doesn't get hidden under it when the anchor link jumps.
- */
-function SectionHeading({ id, label }: { id: string; label: string }) {
+function Chevron({ dir }: { dir: 'left' | 'right' }) {
   return (
-    <h3
-      id={id}
-      className="text-[11px] uppercase tracking-[0.22em] font-semibold text-gold-700 dark:text-gold-300 scroll-mt-20"
-    >
-      {label}
-    </h3>
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d={dir === 'left' ? 'M15 6l-6 6 6 6' : 'M9 6l6 6-6 6'}
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 
