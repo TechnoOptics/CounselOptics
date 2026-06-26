@@ -115,14 +115,12 @@ export default async function ContractsListPage({
         </Link>
       </header>
 
-      {allRows.length > 0 && (
-        <FolderBar
-          kind="contract"
-          folders={folderList}
-          activeFolderId={activeFolderId}
-          basePath="/contracts"
-        />
-      )}
+      <FolderBar
+        kind="contract"
+        folders={folderList}
+        activeFolderId={activeFolderId}
+        basePath="/contracts"
+      />
 
       <section className="grid gap-3 sm:grid-cols-3">
         <Stat label="In library" value={String(allRows.length)} />

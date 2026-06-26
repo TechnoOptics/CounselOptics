@@ -112,14 +112,12 @@ export default async function VaultPage({
         </Link>
       </header>
 
-      {allReceipts.length > 0 && (
-        <FolderBar
-          kind="vault"
-          folders={folderList}
-          activeFolderId={activeFolderId}
-          basePath="/vault"
-        />
-      )}
+      <FolderBar
+        kind="vault"
+        folders={folderList}
+        activeFolderId={activeFolderId}
+        basePath="/vault"
+      />
 
       <section className="grid gap-3 sm:grid-cols-3">
         <Stat label="In vault" value={String(allReceipts.length)} />
