@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { streamBella } from '@/lib/bella';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -10,24 +11,12 @@ export const runtime = 'nodejs';
 // you must DO, and the exact deadlines. Streams text; same transport
 // contract as /api/bella.
 
-const RATE = new Map<string, { count: number; reset: number }>();
-function rateLimit(ip: string): boolean {
-  const now = Date.now();
-  const e = RATE.get(ip);
-  if (!e || e.reset < now) {
-    RATE.set(ip, { count: 1, reset: now + 60_000 });
-    return true;
-  }
-  e.count += 1;
-  return e.count <= 12;
-}
-
 export async function POST(req: NextRequest) {
   const ip =
     req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
     req.headers.get('x-real-ip') ||
     'unknown';
-  if (!rateLimit(ip)) {
+  if (!(await checkRateLimit(`decode:${ip}`, { limit: 12, windowSeconds: 60 }))) {
     return NextResponse.json(
       { error: 'One at a time - give it a moment.' },
       { status: 429 },

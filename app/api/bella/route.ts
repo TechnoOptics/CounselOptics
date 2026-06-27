@@ -6,15 +6,10 @@ import {
   isCurrentUserAdmin,
   isSupabaseConfigured,
 } from '@/lib/supabase/server';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-
-// Very simple in-memory rate limit per IP. Survives the lifetime of the
-// serverless function instance, which is good enough as a basic guard.
-const RATE: Map<string, { count: number; reset: number }> = new Map();
-const RATE_LIMIT = 30; // requests
-const WINDOW_MS = 60_000; // per minute
 
 function ipFrom(req: NextRequest): string {
   return (
@@ -22,18 +17,6 @@ function ipFrom(req: NextRequest): string {
     req.headers.get('x-real-ip') ||
     'unknown'
   );
-}
-
-function rateLimit(ip: string): boolean {
-  const now = Date.now();
-  const entry = RATE.get(ip);
-  if (!entry || entry.reset < now) {
-    RATE.set(ip, { count: 1, reset: now + WINDOW_MS });
-    return true;
-  }
-  entry.count += 1;
-  if (entry.count > RATE_LIMIT) return false;
-  return true;
 }
 
 /**
@@ -102,7 +85,7 @@ async function resolvePortal(
 
 export async function POST(req: NextRequest) {
   const ip = ipFrom(req);
-  if (!rateLimit(ip)) {
+  if (!(await checkRateLimit(`bella:${ip}`, { limit: 30, windowSeconds: 60 }))) {
     return NextResponse.json({ error: 'Slow down - too many messages.' }, { status: 429 });
   }
 
