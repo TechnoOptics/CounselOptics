@@ -7,6 +7,22 @@ export const dynamic = 'force-dynamic';
 
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
 
+// Per-IP rate limit. Attachments are heavier than a chat turn (we parse
+// PDFs / Word docs), so this is tighter than the decoder's limit. Mirrors
+// the inline limiter in /api/decode. NOTE: in-memory = per serverless
+// instance; the shared-store upgrade is tracked as a separate task.
+const RATE = new Map<string, { count: number; reset: number }>();
+function rateLimit(ip: string): boolean {
+  const now = Date.now();
+  const e = RATE.get(ip);
+  if (!e || e.reset < now) {
+    RATE.set(ip, { count: 1, reset: now + 60_000 });
+    return true;
+  }
+  e.count += 1;
+  return e.count <= 8;
+}
+
 type ImageMediaType = 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
 
 /**
@@ -19,6 +35,17 @@ type ImageMediaType = 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
  * situations, so errors stay calm and tell them exactly what to try next.
  */
 export async function POST(req: NextRequest) {
+  const ip =
+    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    req.headers.get('x-real-ip') ||
+    'unknown';
+  if (!rateLimit(ip)) {
+    return NextResponse.json(
+      { error: 'Just a moment — please wait before attaching another file.' },
+      { status: 429 },
+    );
+  }
+
   let form: FormData;
   try {
     form = await req.formData();
