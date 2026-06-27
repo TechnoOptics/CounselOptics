@@ -6,7 +6,12 @@ import {
   SMALL_CLAIMS_REVIEWED_AT,
   type StateSmallClaims,
 } from '@/lib/state-small-claims';
-import { BreadcrumbJsonLd, LegalServiceStateJsonLd } from '@/components/seo/JsonLd';
+import {
+  BreadcrumbJsonLd,
+  FaqJsonLd,
+  HowToJsonLd,
+  LegalServiceStateJsonLd,
+} from '@/components/seo/JsonLd';
 
 /**
  * Programmatic per-state small-claims page. One route, 50 pages
@@ -74,6 +79,13 @@ export default function StateSmallClaimsPage({ params }: Props) {
   // internal-link graph that Google rewards.
   const neighbors = neighborsFor(s);
 
+  // The FAQ is built from the same data shown in the at-a-glance
+  // table and the process section, so the FAQPage schema stays in
+  // sync with visible content (Google requires the Q&A to appear on
+  // the page). These are the four questions people actually type
+  // before filing: how much, what it costs, lawyers, appeals.
+  const faqs = faqsFor(s);
+
   return (
     <article className="max-w-3xl mx-auto px-4 sm:px-6 space-y-12 pb-20 animate-fade-up">
       <BreadcrumbJsonLd
@@ -93,6 +105,21 @@ export default function StateSmallClaimsPage({ params }: Props) {
         stateSlug={s.slug}
         filingFeeRange={s.filingFee}
         monetaryCap={s.monetaryLimit.toLocaleString()}
+      />
+      {/* FAQPage schema for the "Common questions" section below. Each
+          Q/A maps to a fact people search before filing, which makes
+          the page eligible for the expandable Q+A SERP treatment on
+          "small claims [state]" queries. */}
+      <FaqJsonLd questions={faqs.map((f) => ({ q: f.question, a: f.answer }))} />
+      {/* HowTo schema mirroring the visible "5-step process" section, so
+          the page is eligible for the expandable step-by-step SERP
+          treatment on "how to file small claims in [state]" queries.
+          slug yields /resources/states/<state>/small-claims as the url. */}
+      <HowToJsonLd
+        title={`How to file a small claims case in ${s.name}`}
+        description={`A plain-English, five-step guide to filing a small claims case in ${s.name}: demand letter, filing, serving the defendant, hearing prep, and collecting your judgment.`}
+        steps={stepsFor(s)}
+        slug={`states/${s.slug}/small-claims`}
       />
 
       <nav
@@ -234,6 +261,27 @@ export default function StateSmallClaimsPage({ params }: Props) {
         )}
       </section>
 
+      <section className="space-y-4">
+        <h2 className="font-display text-[24px] sm:text-[28px] font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
+          Common questions about {s.name} small claims
+        </h2>
+        <div className="space-y-3">
+          {faqs.map((f) => (
+            <details
+              key={f.question}
+              className="rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 bg-cream-50/30 dark:bg-forest-900/40 p-4"
+            >
+              <summary className="font-medium text-forest-900 dark:text-cream-100 cursor-pointer text-[15px]">
+                {f.question}
+              </summary>
+              <p className="mt-2 text-[14.5px] leading-relaxed text-ink-700 dark:text-cream-100/80">
+                {f.answer}
+              </p>
+            </details>
+          ))}
+        </div>
+      </section>
+
       <aside className="rounded-xl ring-2 ring-gold-metal/60 dark:ring-amber-500/40 bg-gradient-to-b from-amber-50/40 to-transparent dark:from-amber-950/20 p-6 sm:p-8 space-y-4">
         <p className="eyebrow">Ready to file?</p>
         <p className="font-display text-xl sm:text-2xl text-forest-900 dark:text-cream-100 leading-tight">
@@ -340,6 +388,77 @@ function Fact({ label, value }: { label: string; value: string }) {
       </dd>
     </div>
   );
+}
+
+/**
+ * Build the per-state FAQ from the same data shown elsewhere on the
+ * page. Every answer is reassuring, plain-English, and traceable to a
+ * field in the data file, so the FAQPage schema never claims anything
+ * the visible page does not. Order = how-much, cost, lawyers, appeals.
+ */
+function faqsFor(s: StateSmallClaims): Array<{ question: string; answer: string }> {
+  const limit = `$${s.monetaryLimit.toLocaleString()}`;
+  const court = s.courtName.toLowerCase();
+
+  const appealAnswer =
+    s.appealWindowDays === 0
+      ? `In most cases ${s.name} does not allow an appeal from a small claims judgment, so the decision is usually final. Because of that, it is worth preparing your evidence carefully before the hearing.`
+      : `You generally have ${s.appealWindowDays} days after the judgment is entered to file an appeal in ${s.name}. Check the paperwork the court gives you for the exact deadline and where to file.`;
+
+  return [
+    {
+      question: `How much can I sue for in ${s.name} small claims court?`,
+      answer: `${s.name} small claims court handles claims up to ${limit}. If your claim is worth more, you can still use small claims by agreeing to drop the amount above the limit, or you can file in regular civil court instead.`,
+    },
+    {
+      question: `How much does it cost to file a small claims case in ${s.name}?`,
+      answer: `The filing fee in ${s.name} is typically ${s.filingFee}, paid at the ${court}. If paying the fee would be a hardship, most courts let you ask for a fee waiver.`,
+    },
+    {
+      question: `Can a lawyer represent me in ${s.name} small claims court?`,
+      answer: `${s.attorneysNote} Either way, most people handle small claims on their own — the process is designed to be used without a lawyer.`,
+    },
+    {
+      question: `How long do I have to appeal a small claims decision in ${s.name}?`,
+      answer: appealAnswer,
+    },
+    {
+      question: `Do I need a lawyer to file a small claims case in ${s.name}?`,
+      answer: `No. Small claims court in ${s.name} is built for people representing themselves. You bring your documents, explain what happened in plain terms, and the judge decides. Organizing your evidence ahead of time is the most useful step you can take.`,
+    },
+  ];
+}
+
+/**
+ * Build the HowTo steps from the same five-step process shown on the
+ * page, so the HowTo schema never describes a step the reader can't
+ * see. Plain, reassuring language — people read this before their
+ * first time in court.
+ */
+function stepsFor(s: StateSmallClaims): Array<{ name: string; text: string }> {
+  const court = s.courtName.toLowerCase();
+  return [
+    {
+      name: 'Send a demand letter',
+      text: `Ask for what you are owed in writing before you file. Many ${s.name} courts expect proof that you tried to resolve it first, and a clear demand letter often settles the matter without a hearing.`,
+    },
+    {
+      name: 'File your claim',
+      text: `Pay the ${s.filingFee} filing fee at the ${court}. The clerk gives you a case number and a hearing date. If the fee would be a hardship, most courts let you request a fee waiver.`,
+    },
+    {
+      name: 'Serve the defendant',
+      text: `${s.name} usually requires service by the sheriff, a process server, or certified mail with return receipt. You generally cannot hand-deliver the papers yourself.`,
+    },
+    {
+      name: 'Prepare for the hearing',
+      text: `Bring three copies of every document, a one-page timeline of what happened, your demand letter with proof of service, and an itemized list of what you are owed.`,
+    },
+    {
+      name: 'Collect your judgment',
+      text: `Winning is a piece of paper until you collect. In ${s.name}, collection happens through wage garnishment, a bank levy, or a property lien — a separate step that can take a few months.`,
+    },
+  ];
 }
 
 /**

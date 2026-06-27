@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { STATES_SMALL_CLAIMS } from '@/lib/state-small-claims';
-import { BreadcrumbJsonLd } from '@/components/seo/JsonLd';
+import { BreadcrumbJsonLd, ItemListJsonLd } from '@/components/seo/JsonLd';
 
 export const metadata = {
   title: 'Small claims court by state - limits, fees, and process',
@@ -24,6 +24,16 @@ export default function StatesHubPage() {
           { name: 'Resources', href: '/resources' },
           { name: 'States', href: '/resources/states' },
         ]}
+      />
+      {/* ItemList tells Google this hub is a curated list of all 50 state
+          guides, which unlocks the carousel SERP treatment for
+          navigational "small claims by state" queries. */}
+      <ItemListJsonLd
+        listName="Small claims court by state"
+        items={STATES_SMALL_CLAIMS.map((s) => ({
+          name: `${s.name} small claims`,
+          href: `/resources/states/${s.slug}/small-claims`,
+        }))}
       />
       <header className="text-center space-y-4 max-w-3xl mx-auto pt-4 sm:pt-8 px-4">
         <p className="eyebrow justify-center">By state</p>
