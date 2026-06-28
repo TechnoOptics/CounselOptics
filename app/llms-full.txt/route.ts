@@ -72,7 +72,7 @@ Both sides share the same auth, the same Bella AI assistant, and the same audit 
 | Counsel - Solo | $59/seat/month | Single attorney + 1 staff |
 | Counsel - Small Firm | $99/seat/month | Up to 25 users |
 | Counsel - Growing Firm | $149/seat/month | Up to 100 users |
-| Enterprise | From $1,800/month | 100+ users, SSO, BAA, custom residency |
+| Enterprise | From $1,800/month | 100+ users, SSO, BAA, residency on request |
 
 Annual prepay gives 20% off any paid tier. Bar-association members get 15% off Counsel tiers. Law students get 50% off personal tiers. Legal aid + nonprofits get 75% off, capped at 5 seats.
 
@@ -123,7 +123,7 @@ Annual prepay gives 20% off any paid tier. Bar-association members get 15% off C
 
 - Matter management, intake inbox, calendar with deadlines + hearings, IOLTA trust accounting with 3-way reconciliation, e-signature requests, court-form auto-fill (CA, NY, TX, FL, Federal).
 - Custom subdomain (yourfirm.advottic.com) on Small Firm tier and up.
-- SAML SSO + SCIM on Enterprise.
+- SAML SSO on Enterprise (SCIM provisioning on the roadmap).
 
 ### Gift Advottic
 
