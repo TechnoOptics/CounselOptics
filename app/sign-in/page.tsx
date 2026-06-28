@@ -5,6 +5,7 @@ import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { SignInButtons } from './sign-in-buttons';
 import { BrandMark } from '@/components/BrandMark';
 import { BiometricUnlockGate } from '@/components/BiometricUnlockGate';
+import { SsoSignIn } from '@/components/SsoSignIn';
 
 export const dynamic = 'force-dynamic';
 
@@ -367,6 +368,8 @@ export default async function SignInPage({
         <BiometricUnlockGate next={next}>
           <SignInButtons next={next} />
         </BiometricUnlockGate>
+
+        <SsoSignIn />
 
         {/*
           Audit W20 V3 CR-12: the disclaimer below used to render the
