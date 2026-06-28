@@ -644,7 +644,16 @@ function Shell({
             : 'bg-gradient-to-b from-forest-950 via-forest-900 to-forest-950'
         } text-cream-100`}
       >
-        <main className="mx-auto max-w-md px-6 py-10 pb-16">{children}</main>
+        {/* role=region (not <main>): this overlay is portaled outside the
+            layout's <main>, so it needs its own landmark, but a second
+            <main> would be a duplicate-landmark violation. */}
+        <div
+          role="region"
+          aria-label="Safe Witness"
+          className="mx-auto max-w-md px-6 py-10 pb-16"
+        >
+          {children}
+        </div>
       </div>
     </PopupPortal>
   );
