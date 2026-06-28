@@ -175,7 +175,7 @@ export default async function CounselCalendarPage({
         <div className="space-y-6">
           {[...groups.entries()].map(([day, dayItems]) => (
             <section key={day} className="space-y-2">
-              <p className="text-[11px] uppercase tracking-[0.16em] font-semibold text-ink-400 dark:text-cream-100/45">
+              <p className="text-[11px] uppercase tracking-[0.16em] font-semibold text-ink-500 dark:text-cream-100/70">
                 {day}
               </p>
               <ul className="space-y-2">

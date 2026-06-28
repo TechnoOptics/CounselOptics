@@ -93,7 +93,7 @@ export function CaseSearch({ items }: { items: SearchItem[] }) {
           onFocus={() => setOpen(true)}
           className="flex-1 bg-transparent text-sm outline-none placeholder:text-ink-400 dark:placeholder:text-cream-100/45 text-ink-950 dark:text-cream-100"
         />
-        <kbd className="hidden md:inline-flex items-center text-[10px] font-mono uppercase tracking-wider text-ink-400 dark:text-cream-100/45 border border-ink-200 dark:border-forest-700/60 rounded px-1.5 py-0.5">
+        <kbd className="hidden md:inline-flex items-center text-[10px] font-mono uppercase tracking-wider text-ink-500 dark:text-cream-100/70 border border-ink-200 dark:border-forest-700/60 rounded px-1.5 py-0.5">
           ⌘K
         </kbd>
       </div>

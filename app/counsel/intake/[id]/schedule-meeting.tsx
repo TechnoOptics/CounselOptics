@@ -115,7 +115,7 @@ export function ScheduleMeetingPanel({
             <label className="block sm:col-span-2">
               <span className="block text-[12px] font-medium text-forest-900 dark:text-cream-100 mb-1">
                 Extra attendees{' '}
-                <span className="text-ink-400 dark:text-cream-100/45">
+                <span className="text-ink-500 dark:text-cream-100/70">
                   (emails, comma-separated - the requester is added
                   automatically)
                 </span>

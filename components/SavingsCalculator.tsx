@@ -297,7 +297,7 @@ export function SavingsCalculator() {
               {result.advotticTier.name} ·{' '}
               {USD.format(result.advotticTier.pricePerUserMonth)}/seat/mo
             </p>
-            <p className="text-[11px] text-ink-400 dark:text-cream-100/45 mt-0.5">
+            <p className="text-[11px] text-ink-500 dark:text-cream-100/70 mt-0.5">
               Includes {result.advotticTier.mattersPerAttorney} matters /
               attorney. Extras metered in Bella tokens.
             </p>

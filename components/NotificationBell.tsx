@@ -160,7 +160,7 @@ export function NotificationBell({
               <p className="text-sm text-ink-500 dark:text-cream-100/55">
                 No notifications yet.
               </p>
-              <p className="text-[11px] text-ink-400 dark:text-cream-100/45 mt-1">
+              <p className="text-[11px] text-ink-500 dark:text-cream-100/70 mt-1">
                 You&apos;ll see updates here when collaborators add to your case or your review
                 completes.
               </p>
@@ -193,7 +193,7 @@ export function NotificationBell({
                             {n.body}
                           </p>
                         )}
-                        <p className="text-[10px] text-ink-400 dark:text-cream-100/45 mt-1 tabular-nums">
+                        <p className="text-[10px] text-ink-500 dark:text-cream-100/70 mt-1 tabular-nums">
                           {timeAgo(n.createdAt)}
                         </p>
                       </div>
@@ -207,7 +207,7 @@ export function NotificationBell({
                       handleDelete(n.id);
                     }}
                     aria-label="Dismiss"
-                    className="absolute top-3 right-3 inline-flex h-6 w-6 items-center justify-center rounded-full text-ink-400 hover:text-ink-700 dark:text-cream-100/45 dark:hover:text-cream-100 hover:bg-ink-100 dark:hover:bg-forest-800/60"
+                    className="absolute top-3 right-3 inline-flex h-6 w-6 items-center justify-center rounded-full text-ink-500 hover:text-ink-700 dark:text-cream-100/70 dark:hover:text-cream-100 hover:bg-ink-100 dark:hover:bg-forest-800/60"
                   >
                     <CloseIcon />
                   </button>

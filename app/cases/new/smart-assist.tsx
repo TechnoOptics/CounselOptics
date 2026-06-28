@@ -840,7 +840,7 @@ function ReviewLine({ label, value }: { label: string; value: string }) {
       <span className="text-[10px] uppercase tracking-[0.2em] font-semibold text-gold-700 dark:text-gold-300 w-28 flex-none">
         {label}
       </span>
-      <span className="text-ink-900 dark:text-cream-100 break-words">{value || <span className="italic text-ink-400 dark:text-cream-100/45">not set</span>}</span>
+      <span className="text-ink-900 dark:text-cream-100 break-words">{value || <span className="italic text-ink-500 dark:text-cream-100/70">not set</span>}</span>
     </div>
   );
 }

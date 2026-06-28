@@ -153,7 +153,7 @@ export default async function StatusPage() {
         </ul>
       </section>
 
-      <p className="text-[11px] text-ink-400 dark:text-cream-100/45 font-mono">
+      <p className="text-[11px] text-ink-500 dark:text-cream-100/70 font-mono">
         Last probed {live ? new Date().toISOString() : 'never'} ·{' '}
         {live ? `${live.totalLatencyMs} ms total` : ''}
       </p>

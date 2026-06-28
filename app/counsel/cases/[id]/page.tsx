@@ -307,7 +307,7 @@ export default async function CounselCaseDetailPage({
                     <p
                       className={`text-[13px] font-semibold truncate ${
                         d.completed_at
-                          ? 'line-through text-ink-400 dark:text-cream-100/45'
+                          ? 'line-through text-ink-500 dark:text-cream-100/70'
                           : 'text-forest-900 dark:text-cream-100'
                       }`}
                     >

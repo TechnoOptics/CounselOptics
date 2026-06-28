@@ -158,7 +158,7 @@ export function TourModal({ visible }: { visible: boolean }) {
         </div>
         <div className="px-5 sm:px-6 py-4 sm:py-5 pb-8">
           <p className="text-sm text-ink-700 dark:text-cream-100/85 leading-relaxed">{current.body}</p>
-          <p className="text-[11px] text-ink-400 dark:text-cream-100/45 mt-3 sm:hidden">
+          <p className="text-[11px] text-ink-500 dark:text-cream-100/70 mt-3 sm:hidden">
             Swipe left or right to move between steps
           </p>
           <div className="flex items-center justify-between mt-5 gap-2">

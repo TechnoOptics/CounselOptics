@@ -178,7 +178,7 @@ function Cards({
               <p className="text-[12.5px] text-ink-600 dark:text-cream-100/75 line-clamp-2 leading-snug">
                 {r.matter_summary}
               </p>
-              <div className="flex items-center justify-between text-[11px] text-ink-400 dark:text-cream-100/45 font-mono tabular-nums pt-1 border-t border-ink-100 dark:border-forest-800/40">
+              <div className="flex items-center justify-between text-[11px] text-ink-500 dark:text-cream-100/70 font-mono tabular-nums pt-1 border-t border-ink-100 dark:border-forest-800/40">
                 <span>{new Date(r.created_at).toLocaleDateString()}</span>
                 <span>Split {r.proposed_split_percent}%</span>
               </div>

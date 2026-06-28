@@ -102,7 +102,7 @@ export function UploadDocumentForm({
           <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
             Attach to case{' '}
             {cases.length === 0 && (
-              <span className="text-ink-400 dark:text-cream-100/45 font-normal">
+              <span className="text-ink-500 dark:text-cream-100/70 font-normal">
                 (no cases yet - create one in the Cases tab)
               </span>
             )}
@@ -150,7 +150,7 @@ export function UploadDocumentForm({
           <label className="block">
             <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
               Description{' '}
-              <span className="text-ink-400 dark:text-cream-100/45 font-normal">
+              <span className="text-ink-500 dark:text-cream-100/70 font-normal">
                 (context, scope, what this is for)
               </span>
             </span>
@@ -165,7 +165,7 @@ export function UploadDocumentForm({
             <label className="block">
               <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
                 Tags{' '}
-                <span className="text-ink-400 dark:text-cream-100/45 font-normal">
+                <span className="text-ink-500 dark:text-cream-100/70 font-normal">
                   (comma-separated)
                 </span>
               </span>

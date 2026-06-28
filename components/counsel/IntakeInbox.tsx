@@ -146,7 +146,7 @@ export function IntakeInbox({
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {lanes.map((l) => (
           <div key={l} className="card p-3.5">
-            <p className="text-[11px] uppercase tracking-[0.16em] text-ink-400 dark:text-cream-100/45">
+            <p className="text-[11px] uppercase tracking-[0.16em] text-ink-500 dark:text-cream-100/70">
               {LANE_META[l].name}
             </p>
             <p className="font-display text-2xl text-forest-900 dark:text-cream-100 mt-1">
@@ -162,7 +162,7 @@ export function IntakeInbox({
         return (
           <div key={l} className="space-y-2">
             <div className="flex items-baseline gap-2">
-              <p className="text-[11px] uppercase tracking-[0.16em] font-semibold text-ink-400 dark:text-cream-100/45">
+              <p className="text-[11px] uppercase tracking-[0.16em] font-semibold text-ink-500 dark:text-cream-100/70">
                 {LANE_META[l].name}{' '}
                 <span className="text-ink-300 dark:text-cream-100/30">
                   ({items.length})

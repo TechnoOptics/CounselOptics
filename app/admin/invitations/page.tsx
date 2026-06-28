@@ -114,7 +114,7 @@ function GrantCard({ g }: { g: Awaited<ReturnType<typeof adminListGrants>>[numbe
           {g.inviteNote}
         </p>
       )}
-      <p className="text-[11px] text-ink-400 dark:text-cream-100/45 font-mono tabular-nums">
+      <p className="text-[11px] text-ink-500 dark:text-cream-100/70 font-mono tabular-nums">
         Sent {new Date(g.grantedAt).toLocaleString()}
         {g.acceptedAt
           ? ` · Redeemed ${new Date(g.acceptedAt).toLocaleString()}`

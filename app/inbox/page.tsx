@@ -176,7 +176,7 @@ function Item({
             {n.body}
           </p>
         )}
-        <p className="text-[10.5px] text-ink-400 dark:text-cream-100/45 mt-1.5 font-mono tabular-nums">
+        <p className="text-[10.5px] text-ink-500 dark:text-cream-100/70 mt-1.5 font-mono tabular-nums">
           {new Date(n.createdAt).toLocaleString()}
         </p>
       </div>

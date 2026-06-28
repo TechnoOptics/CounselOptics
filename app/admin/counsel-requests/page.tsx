@@ -161,7 +161,7 @@ function RequestCard({ req }: { req: RequestRow }) {
             Internal note: {req.review_note}
           </p>
         )}
-        <p className="text-[11px] text-ink-400 dark:text-cream-100/45 font-mono tabular-nums mt-2">
+        <p className="text-[11px] text-ink-500 dark:text-cream-100/70 font-mono tabular-nums mt-2">
           Submitted {new Date(req.created_at).toLocaleString()}
           {req.reviewed_at && ` · Reviewed ${new Date(req.reviewed_at).toLocaleString()}`}
         </p>

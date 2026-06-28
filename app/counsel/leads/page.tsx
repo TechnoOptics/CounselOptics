@@ -128,7 +128,7 @@ function LeadCard({
         <p className="text-[12.5px] text-ink-600 dark:text-cream-100/75 line-clamp-2 leading-snug">
           {lead.summary}
         </p>
-        <div className="flex items-center justify-between text-[11px] text-ink-400 dark:text-cream-100/45 font-mono tabular-nums pt-1 border-t border-ink-100 dark:border-forest-800/40">
+        <div className="flex items-center justify-between text-[11px] text-ink-500 dark:text-cream-100/70 font-mono tabular-nums pt-1 border-t border-ink-100 dark:border-forest-800/40">
           <span>{new Date(lead.createdAt).toLocaleString()}</span>
           {lead.firmResponse && (
             <span className="text-emerald-700 dark:text-emerald-300 font-semibold uppercase tracking-wider text-[10px]">

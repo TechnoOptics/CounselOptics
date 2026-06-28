@@ -272,7 +272,7 @@ function Hero({
               <dd className="mt-1 font-display text-2xl sm:text-[28px] font-medium tabular-nums text-forest-900 dark:text-cream-100">
                 Daily
               </dd>
-              <p className="text-[11px] text-ink-500 dark:text-cream-100/55 mt-0.5">a few minutes is plenty</p>
+              <dd className="text-[11px] text-ink-500 dark:text-cream-100/55 mt-0.5">a few minutes is plenty</dd>
             </div>
             <div>
               <dt className="text-[10px] uppercase tracking-[0.22em] font-semibold text-forest-700 dark:text-gold-300">
@@ -281,7 +281,7 @@ function Hero({
               <dd className="mt-1 font-display text-2xl sm:text-[28px] font-medium tabular-nums text-forest-900 dark:text-cream-100">
                 A → Z+
               </dd>
-              <p className="text-[11px] text-ink-500 dark:text-cream-100/55 mt-0.5">auto-numbered as you go</p>
+              <dd className="text-[11px] text-ink-500 dark:text-cream-100/55 mt-0.5">auto-numbered as you go</dd>
             </div>
             <div>
               <dt className="text-[10px] uppercase tracking-[0.22em] font-semibold text-forest-700 dark:text-gold-300">
@@ -290,7 +290,7 @@ function Hero({
               <dd className="mt-1 font-display text-2xl sm:text-[28px] font-medium tabular-nums text-forest-900 dark:text-cream-100">
                 Yours
               </dd>
-              <p className="text-[11px] text-ink-500 dark:text-cream-100/55 mt-0.5">encrypted and exportable</p>
+              <dd className="text-[11px] text-ink-500 dark:text-cream-100/55 mt-0.5">encrypted and exportable</dd>
             </div>
           </dl>
         </div>

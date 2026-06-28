@@ -144,7 +144,7 @@ export function Tabs({
           </p>
         )}
         {swipe && tabs.length > 1 && (
-          <p className="mt-1 text-[11px] text-ink-400 dark:text-cream-100/45">
+          <p className="mt-1 text-[11px] text-ink-500 dark:text-cream-100/70">
             Swipe left or right to move between sections.
           </p>
         )}

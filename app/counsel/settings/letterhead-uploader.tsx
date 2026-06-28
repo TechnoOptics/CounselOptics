@@ -58,7 +58,7 @@ export function LetterheadUploader({
     <div>
       <p className="label">
         Letterhead{' '}
-        <span className="text-ink-400 dark:text-cream-100/45 font-normal">
+        <span className="text-ink-500 dark:text-cream-100/70 font-normal">
           (PNG, JPG, or WebP - max 8 MB; painted across the top of PDFs Bella renders)
         </span>
       </p>

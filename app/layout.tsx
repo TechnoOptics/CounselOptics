@@ -606,7 +606,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <p className="font-mono tracking-tight">
                 © {new Date().getFullYear()} Advottic LLC. All rights reserved.
               </p>
-              <p className="text-ink-400 dark:text-cream-100/45">
+              <p className="text-ink-500 dark:text-cream-100/70">
                 Powered by{' '}
                 <a
                   href="https://technooptics.com"
@@ -618,7 +618,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 </a>
               </p>
             </div>
-            <p className="mt-3 text-[10px] leading-relaxed text-ink-400 dark:text-cream-100/45 max-w-3xl">
+            <p className="mt-3 text-[10px] leading-relaxed text-ink-500 dark:text-cream-100/70 max-w-3xl">
               Advottic is a service of Techno Optics LLC. Advottic Review and Bella generate
               informational content automatically; outputs may be incomplete, outdated, or
               wrong and are not legal advice. Always consult a licensed attorney in your

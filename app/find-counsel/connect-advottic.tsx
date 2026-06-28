@@ -164,7 +164,7 @@ export function ConnectAdvotticForm() {
       <fieldset>
         <legend className="text-sm font-medium text-forest-900 dark:text-cream-100 mb-2">
           What kind of matter?{' '}
-          <span className="text-ink-400 dark:text-cream-100/45 font-normal">
+          <span className="text-ink-500 dark:text-cream-100/70 font-normal">
             (pick one or more)
           </span>
         </legend>

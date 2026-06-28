@@ -72,7 +72,7 @@ export function SettingsForm({
         <div>
           <label className="label" htmlFor="brandName">
             Product name{' '}
-            <span className="text-ink-400 dark:text-cream-100/45 font-normal">
+            <span className="text-ink-500 dark:text-cream-100/70 font-normal">
               (shown in the header + footer)
             </span>
           </label>
@@ -90,7 +90,7 @@ export function SettingsForm({
         <div>
           <label className="label" htmlFor="portalTagline">
             Employee portal tagline{' '}
-            <span className="text-ink-400 dark:text-cream-100/45 font-normal">
+            <span className="text-ink-500 dark:text-cream-100/70 font-normal">
               (optional)
             </span>
           </label>
@@ -159,7 +159,7 @@ export function SettingsForm({
         <div>
           <label className="label" htmlFor="jurisdictions">
             Jurisdictions{' '}
-            <span className="text-ink-400 dark:text-cream-100/45 font-normal">
+            <span className="text-ink-500 dark:text-cream-100/70 font-normal">
               (comma-separated)
             </span>
           </label>
@@ -174,7 +174,7 @@ export function SettingsForm({
         <div>
           <label className="label" htmlFor="practiceAreas">
             Practice areas{' '}
-            <span className="text-ink-400 dark:text-cream-100/45 font-normal">
+            <span className="text-ink-500 dark:text-cream-100/70 font-normal">
               (comma-separated)
             </span>
           </label>

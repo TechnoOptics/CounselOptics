@@ -108,7 +108,7 @@ export function AnalyzeStudio({
           className="input resize-y font-mono text-[12.5px]"
         />
         <div className="flex items-center justify-between gap-2">
-          <span className="text-[11px] text-ink-400 dark:text-cream-100/45">
+          <span className="text-[11px] text-ink-500 dark:text-cream-100/70">
             {text.length.toLocaleString()} chars · stays on your firm
             workspace
           </span>
@@ -142,7 +142,7 @@ export function AnalyzeStudio({
           </p>
         )}
         {out && (
-          <p className="text-[11px] text-ink-400 dark:text-cream-100/45 mt-3">
+          <p className="text-[11px] text-ink-500 dark:text-cream-100/70 mt-3">
             Analysis for licensed counsel, not advice to a consumer.
           </p>
         )}

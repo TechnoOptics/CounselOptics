@@ -105,7 +105,7 @@ export function ContractUploadForm({
       <label className="block">
         <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
           File{' '}
-          <span className="text-ink-400 dark:text-cream-100/45 font-normal">
+          <span className="text-ink-500 dark:text-cream-100/70 font-normal">
             (optional - up to 50 MB)
           </span>
         </span>
@@ -131,7 +131,7 @@ export function ContractUploadForm({
         <label className="block">
           <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
             Parties{' '}
-            <span className="text-ink-400 dark:text-cream-100/45 font-normal">
+            <span className="text-ink-500 dark:text-cream-100/70 font-normal">
               (comma-separated)
             </span>
           </span>
@@ -168,7 +168,7 @@ export function ContractUploadForm({
       <label className="block">
         <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
           Tags{' '}
-          <span className="text-ink-400 dark:text-cream-100/45 font-normal">
+          <span className="text-ink-500 dark:text-cream-100/70 font-normal">
             (comma-separated)
           </span>
         </span>

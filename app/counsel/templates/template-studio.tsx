@@ -198,7 +198,7 @@ export function TemplateStudio({ brand }: { brand: Meta }) {
             {busy ? 'Drafting...' : 'Generate document'}
           </button>
         )}
-        <p className="text-[11px] text-ink-400 dark:text-cream-100/45 leading-relaxed">
+        <p className="text-[11px] text-ink-500 dark:text-cream-100/70 leading-relaxed">
           Drafted as your firm&rsquo;s work product. A licensed
           attorney should review before it is signed or filed.
         </p>

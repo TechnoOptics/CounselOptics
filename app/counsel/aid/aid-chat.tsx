@@ -186,7 +186,7 @@ export function AidChat() {
             {busy ? '...' : 'Ask'}
           </button>
         </form>
-        <p className="text-[11px] text-ink-400 dark:text-cream-100/45 mt-2">
+        <p className="text-[11px] text-ink-500 dark:text-cream-100/70 mt-2">
           Research assistance, not legal advice. Verify citations
           before relying on them.
         </p>

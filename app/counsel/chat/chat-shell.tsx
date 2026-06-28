@@ -290,7 +290,7 @@ export function ChatShell({
                 >
                   {m.body}
                 </p>
-                <p className="text-[10px] text-ink-400 dark:text-cream-100/45 mt-0.5 font-mono tabular-nums">
+                <p className="text-[10px] text-ink-500 dark:text-cream-100/70 mt-0.5 font-mono tabular-nums">
                   {new Date(m.createdAt).toLocaleTimeString([], {
                     hour: 'numeric',
                     minute: '2-digit',

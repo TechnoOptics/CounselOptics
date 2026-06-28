@@ -227,7 +227,7 @@ export default async function CounselDocumentsPage({
                       ))}
                     </div>
                   )}
-                  <div className="flex items-center justify-between text-[11px] text-ink-400 dark:text-cream-100/45 font-mono tabular-nums pt-1 border-t border-ink-100 dark:border-forest-800/40">
+                  <div className="flex items-center justify-between text-[11px] text-ink-500 dark:text-cream-100/70 font-mono tabular-nums pt-1 border-t border-ink-100 dark:border-forest-800/40">
                     <span>{new Date(d.uploadedAt).toLocaleDateString()}</span>
                     {d.dueAt && (
                       <span

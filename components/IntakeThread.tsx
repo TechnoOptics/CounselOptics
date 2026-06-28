@@ -159,7 +159,7 @@ export function IntakeThread({
         <div className="space-y-2 pt-1">
           {mentionables.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[11px] text-ink-400 dark:text-cream-100/45 uppercase tracking-[0.14em]">
+              <span className="text-[11px] text-ink-500 dark:text-cream-100/70 uppercase tracking-[0.14em]">
                 Mention
               </span>
               {mentionables.slice(0, 12).map((m) => (

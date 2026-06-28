@@ -171,7 +171,7 @@ function DocCard({
           <p className="text-[12px] text-ink-600 dark:text-cream-100/70 truncate">
             From <strong>{doc.firmName}</strong>
             {doc.requestSentAt && (
-              <span className="text-ink-400 dark:text-cream-100/45">
+              <span className="text-ink-500 dark:text-cream-100/70">
                 {' · '}
                 {new Date(doc.requestSentAt).toLocaleDateString()}
               </span>

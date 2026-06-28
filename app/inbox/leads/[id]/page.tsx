@@ -119,7 +119,7 @@ export default async function ConsumerLeadResponsesPage({
         <p className="text-[13.5px] text-ink-700 dark:text-cream-100/85 leading-relaxed whitespace-pre-wrap">
           {lead.summary}
         </p>
-        <p className="text-[11px] text-ink-400 dark:text-cream-100/45 font-mono pt-1">
+        <p className="text-[11px] text-ink-500 dark:text-cream-100/70 font-mono pt-1">
           Submitted {new Date(lead.created_at).toLocaleString()}
         </p>
       </section>

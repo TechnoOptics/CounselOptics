@@ -120,7 +120,7 @@ export function CounselSidebar({
               {ICONS[item.href] ?? <DocIcon />}
             </span>
             <span className="flex-1">{item.label}</span>
-            <span className="text-[10px] text-ink-400 dark:text-cream-100/45">{item.hint}</span>
+            <span className="text-[10px] text-ink-500 dark:text-cream-100/70">{item.hint}</span>
           </Link>
             );
           })}

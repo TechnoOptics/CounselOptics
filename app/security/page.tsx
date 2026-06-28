@@ -29,7 +29,7 @@ export default function SecurityPage() {
           treats it that way. Every section below describes what we do today, in plain
           language, and what we're working toward.
         </p>
-        <p className="text-xs text-ink-400 dark:text-cream-100/45 mt-4 font-mono">
+        <p className="text-xs text-ink-500 dark:text-cream-100/70 mt-4 font-mono">
           Last reviewed: 2026-04-25
         </p>
       </header>

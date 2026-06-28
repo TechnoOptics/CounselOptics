@@ -152,7 +152,7 @@ export default function AffiliatePage() {
               <ul className="space-y-1.5 text-[12.5px] text-ink-600 dark:text-cream-100/65 leading-relaxed pt-1 border-t border-ink-100 dark:border-forest-700/40">
                 {t.notes.map((n, i) => (
                   <li key={i} className="flex gap-1.5">
-                    <span aria-hidden className="text-forest-700 dark:text-cream-100/45">·</span>
+                    <span aria-hidden className="text-forest-700 dark:text-cream-100/70">·</span>
                     <span>{n}</span>
                   </li>
                 ))}

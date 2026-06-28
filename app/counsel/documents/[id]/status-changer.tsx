@@ -126,7 +126,7 @@ export function DocumentStatusChanger({
                 {error}
               </p>
             )}
-            <p className="px-2.5 py-1 text-[10px] text-ink-400 dark:text-cream-100/45 border-t border-ink-100 dark:border-forest-800/40 mt-1 pt-2 font-mono">
+            <p className="px-2.5 py-1 text-[10px] text-ink-500 dark:text-cream-100/70 border-t border-ink-100 dark:border-forest-800/40 mt-1 pt-2 font-mono">
               Last moved {new Date(statusUpdatedAt).toLocaleString()}
             </p>
           </div>

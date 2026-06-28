@@ -204,6 +204,9 @@ export function TestimonialMarquee() {
           scheduleResume();
         }}
         className="marquee-mask flex gap-4 py-4 overflow-x-auto overflow-y-hidden no-scrollbar cursor-grab active:cursor-grabbing"
+        tabIndex={0}
+        role="region"
+        aria-label="Customer testimonials"
         style={{ scrollSnapType: 'x proximity' }}
       >
         {items.map((t, i) => (

@@ -234,7 +234,7 @@ export function SafeContactForm({
             maxLength={40}
           />
         </label>
-        <p className="text-[11px] text-ink-500 dark:text-cream-100/45 leading-relaxed">
+        <p className="text-[11px] text-ink-500 dark:text-cream-100/70 leading-relaxed">
           Contacts will read &ldquo;Call <strong>{firstName.trim() || 'you'}</strong>&rdquo; in
           their alert. Leave empty to fall back to your account name.
         </p>
@@ -253,7 +253,7 @@ export function SafeContactForm({
             inputMode="tel"
           />
         </label>
-        <p className="text-[11px] text-ink-500 dark:text-cream-100/45 leading-relaxed">
+        <p className="text-[11px] text-ink-500 dark:text-cream-100/70 leading-relaxed">
           When Safe Witness fires, the alert email shows a one-tap
           <strong> Call </strong>button so your contact reaches you
           instantly. International format (+ then country code then
@@ -334,7 +334,7 @@ export function SafeContactForm({
                     <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[12px] text-ink-600 dark:text-cream-100/70">
                       {c.email && (
                         <span>
-                          <span className="text-ink-400 dark:text-cream-100/45">
+                          <span className="text-ink-500 dark:text-cream-100/70">
                             email:
                           </span>{' '}
                           <span className="font-mono">{c.email}</span>
@@ -342,7 +342,7 @@ export function SafeContactForm({
                       )}
                       {c.phone && (
                         <span>
-                          <span className="text-ink-400 dark:text-cream-100/45">
+                          <span className="text-ink-500 dark:text-cream-100/70">
                             SMS:
                           </span>{' '}
                           <span className="font-mono">{c.phone}</span>
@@ -401,7 +401,7 @@ export function SafeContactForm({
             inputMode="tel"
           />
         </div>
-        <p className="text-[11px] text-ink-500 dark:text-cream-100/45 leading-relaxed">
+        <p className="text-[11px] text-ink-500 dark:text-cream-100/70 leading-relaxed">
           At least one of email or phone. Phone must be international
           format (+ then country code then number).{' '}
           {!smsConfigured && (
@@ -443,7 +443,7 @@ export function SafeContactForm({
             inputMode="numeric"
             maxLength={64}
           />
-          <span className="block text-[11px] text-ink-500 dark:text-cream-100/45 mt-1 leading-relaxed">
+          <span className="block text-[11px] text-ink-500 dark:text-cream-100/70 mt-1 leading-relaxed">
             A code you&rsquo;ve told your contact in person. Shows in
             every alert so they can verify it&rsquo;s really from you.
           </span>
@@ -461,7 +461,7 @@ export function SafeContactForm({
             disabled={configPending}
             maxLength={500}
           />
-          <span className="block text-[11px] text-ink-500 dark:text-cream-100/45 mt-1 leading-relaxed">
+          <span className="block text-[11px] text-ink-500 dark:text-cream-100/70 mt-1 leading-relaxed">
             Default: &ldquo;{DEFAULT_MESSAGE}&rdquo;
           </span>
         </label>

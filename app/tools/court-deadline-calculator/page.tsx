@@ -53,6 +53,49 @@ export default function CourtDeadlineCalculatorPage() {
       url: 'https://advottic.com/',
     },
   };
+  // Each Q/A mirrors a fact stated in the visible sections below
+  // (the deadline types the tool covers, the FRCP/state 30-day answer
+  // window, and the next-business-day weekend convention) so the
+  // FAQPage schema stays in sync with the page content.
+  const faq = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    '@id': `${URL}#faq`,
+    mainEntity: [
+      {
+        '@type': 'Question',
+        name: 'How is the answer deadline calculated?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'The answer deadline is counted forward from the date you were served. Under the Federal Rules of Civil Procedure the window is 21 days; most state courts (including CA, NY, TX, FL, and IL) use a 30-day window. Pick the event and rule set and the calculator does the date math for you.',
+        },
+      },
+      {
+        '@type': 'Question',
+        name: 'Do weekends and holidays count toward the deadline?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'Every day is counted, but if the final day lands on a Saturday, Sunday, or court holiday, the deadline rolls forward to the next business day. This is the standard next-business-day convention most courts follow. The calculator applies it automatically when you choose to roll weekends.',
+        },
+      },
+      {
+        '@type': 'Question',
+        name: 'What deadlines can this calculator compute?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'It computes answer and response deadlines, appeal windows, discovery cutoffs, and statute-of-limitations dates, measured from any event you enter such as the date you were served, the hearing date, or the date judgment was entered.',
+        },
+      },
+      {
+        '@type': 'Question',
+        name: 'Is this a substitute for checking my local court rules?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'No. The calculator uses the standard federal and state windows, but local rules, the method of service, and court holidays can shorten or extend any deadline. Treat the result as a starting point and confirm the date against your court\'s local rules or a licensed attorney before relying on it.',
+        },
+      },
+    ],
+  };
   const breadcrumb = {
     '@context': 'https://schema.org',
     '@type': 'BreadcrumbList',
@@ -84,6 +127,10 @@ export default function CourtDeadlineCalculatorPage() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(webApp) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faq) }}
       />
       <script
         type="application/ld+json"
@@ -138,6 +185,27 @@ export default function CourtDeadlineCalculatorPage() {
           Sunday rolls to Monday, and a backward count from a
           weekend rolls back to Friday.
         </p>
+      </section>
+
+      <section className="space-y-4 pt-2 border-t border-ink-200 dark:border-forest-700/40">
+        <h2 className="font-display text-2xl text-forest-900 dark:text-cream-100">
+          Common questions
+        </h2>
+        <div className="space-y-3">
+          {faq.mainEntity.map((qa) => (
+            <details
+              key={qa.name}
+              className="rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 p-4"
+            >
+              <summary className="font-medium text-forest-900 dark:text-cream-100 cursor-pointer text-[15px]">
+                {qa.name}
+              </summary>
+              <p className="mt-2 text-[14px] leading-relaxed text-ink-700 dark:text-cream-100/80">
+                {qa.acceptedAnswer.text}
+              </p>
+            </details>
+          ))}
+        </div>
       </section>
 
       <section className="pt-4 border-t border-ink-200 dark:border-forest-700/60 text-[12.5px] text-ink-600 dark:text-cream-100/65 space-y-2">

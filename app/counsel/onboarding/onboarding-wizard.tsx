@@ -305,7 +305,7 @@ export function OnboardingWizard({
           <div>
             <label className="label" htmlFor="firm-slug">
               URL slug{' '}
-              <span className="text-ink-400 dark:text-cream-100/45 font-normal">
+              <span className="text-ink-500 dark:text-cream-100/70 font-normal">
                 (optional - we&rsquo;ll generate one from the name if blank)
               </span>
             </label>
@@ -349,7 +349,7 @@ export function OnboardingWizard({
                 <label className="block">
                   <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
                     Bar number{' '}
-                    <span className="text-ink-400 dark:text-cream-100/45 font-normal">
+                    <span className="text-ink-500 dark:text-cream-100/70 font-normal">
                       (optional)
                     </span>
                   </span>
@@ -364,7 +364,7 @@ export function OnboardingWizard({
                 <label className="block">
                   <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
                     Year admitted to practice{' '}
-                    <span className="text-ink-400 dark:text-cream-100/45 font-normal">
+                    <span className="text-ink-500 dark:text-cream-100/70 font-normal">
                       (optional)
                     </span>
                   </span>
@@ -408,7 +408,7 @@ export function OnboardingWizard({
               <label className="block">
                 <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
                   Founded year{' '}
-                  <span className="text-ink-400 dark:text-cream-100/45 font-normal">
+                  <span className="text-ink-500 dark:text-cream-100/70 font-normal">
                     (optional)
                   </span>
                 </span>
@@ -529,7 +529,7 @@ export function OnboardingWizard({
               <label className="block">
                 <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
                   Population served{' '}
-                  <span className="text-ink-400 dark:text-cream-100/45 font-normal">
+                  <span className="text-ink-500 dark:text-cream-100/70 font-normal">
                     (optional)
                   </span>
                 </span>
@@ -544,7 +544,7 @@ export function OnboardingWizard({
               <label className="block">
                 <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
                   Funding source{' '}
-                  <span className="text-ink-400 dark:text-cream-100/45 font-normal">
+                  <span className="text-ink-500 dark:text-cream-100/70 font-normal">
                     (optional)
                   </span>
                 </span>
@@ -636,7 +636,7 @@ export function OnboardingWizard({
           <div>
             <label className="label" htmlFor="logo-url">
               Logo URL{' '}
-              <span className="text-ink-400 dark:text-cream-100/45 font-normal">
+              <span className="text-ink-500 dark:text-cream-100/70 font-normal">
                 (optional - upload comes in firm settings)
               </span>
             </label>
