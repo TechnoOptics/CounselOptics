@@ -6,6 +6,8 @@ import { createAdminSupabase } from './supabase/admin';
 import { getFirmBySlug } from './firm-storage';
 import { createNotification } from './notifications';
 import { sendEmail } from './email';
+import { headers } from 'next/headers';
+import { checkRateLimit } from './rate-limit';
 import {
   classifyEmail,
   isValidEmail,
@@ -50,6 +52,22 @@ export async function requestWorkspaceAccessAction(
   }
   if (!firmSlug) {
     return { ok: false, error: 'Choose your organization.' };
+  }
+
+  // This action is unauthenticated and emails the firm's admins, so cap
+  // it per IP to prevent it being used to spam a firm's owners.
+  const ip =
+    headers().get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+  if (
+    !(await checkRateLimit(`access-request:${ip}`, {
+      limit: 5,
+      windowSeconds: 600,
+    }))
+  ) {
+    return {
+      ok: false,
+      error: 'Too many requests right now. Please try again in a few minutes.',
+    };
   }
 
   const firm = await getFirmBySlug(firmSlug);
