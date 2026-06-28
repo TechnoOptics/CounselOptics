@@ -34,12 +34,18 @@ export const runtime = 'nodejs';
  * review before merge.
  */
 export async function GET(request: NextRequest) {
+  // Fail closed: if no secret is configured, refuse rather than run the
+  // probes (which call Stripe/Resend/Bella) for anyone. An unset secret
+  // must never leave this endpoint open.
   const cronSecret = process.env.CRON_SECRET?.trim();
-  if (cronSecret) {
-    const auth = request.headers.get('authorization') ?? '';
-    if (auth !== `Bearer ${cronSecret}`) {
-      return new NextResponse('Forbidden', { status: 403 });
-    }
+  if (!cronSecret) {
+    return new NextResponse('Server misconfigured: CRON_SECRET is not set', {
+      status: 503,
+    });
+  }
+  const auth = request.headers.get('authorization') ?? '';
+  if (auth !== `Bearer ${cronSecret}`) {
+    return new NextResponse('Forbidden', { status: 403 });
   }
 
   const startedAt = Date.now();

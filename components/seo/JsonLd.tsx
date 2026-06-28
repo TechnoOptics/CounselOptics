@@ -28,11 +28,15 @@ const SITE_URL =
   (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://advottic.com');
 
 function emit(payload: unknown) {
+  // Escape "<" so a "</script>" sequence in any field can never break out of
+  // this inline JSON-LD <script>. Data here is curated today; this is
+  // defense-in-depth. "<" is valid JSON and parsers/validators decode it back.
+  const json = JSON.stringify(payload)
+    .replace(/</g, '\\u003c');
   return (
     <script
       type="application/ld+json"
-      // JSON.stringify is safe; no user input flows in here.
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(payload) }}
+      dangerouslySetInnerHTML={{ __html: json }}
     />
   );
 }
