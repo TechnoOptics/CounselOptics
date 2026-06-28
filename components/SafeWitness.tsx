@@ -365,12 +365,14 @@ export function SafeWitness() {
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
             placeholder="Contact name"
+            aria-label="Contact name"
             className="w-full rounded-xl bg-forest-950/60 ring-1 ring-cream-100/15 focus:ring-gold-400 focus:outline-none px-3 py-2.5 text-sm text-cream-100 placeholder:text-cream-100/35"
           />
           <input
             value={form.email}
             onChange={(e) => setForm({ ...form, email: e.target.value })}
             placeholder="Contact email"
+            aria-label="Contact email"
             inputMode="email"
             className="w-full rounded-xl bg-forest-950/60 ring-1 ring-cream-100/15 focus:ring-gold-400 focus:outline-none px-3 py-2.5 text-sm text-cream-100 placeholder:text-cream-100/35"
           />
