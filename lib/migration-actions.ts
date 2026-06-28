@@ -64,20 +64,10 @@ export async function importMigrationBundleAction(
 
       // Fold history + notes into the description so the migrated context
       // is visible even though they aren't first-class timeline rows yet.
+      // History becomes real timeline events below (with preserved dates),
+      // so it is not folded into the description. Notes stay in-record.
       const parts: string[] = [];
       if (c.description?.trim()) parts.push(c.description.trim());
-      if (c.history?.length) {
-        parts.push(
-          `History (migrated from ${bundle.source}):\n` +
-            c.history
-              .map(
-                (h) =>
-                  `- ${h.at || ''}${h.actor ? ` ${h.actor}` : ''}: ${h.event}` +
-                  (h.detail ? ` — ${h.detail}` : ''),
-              )
-              .join('\n'),
-        );
-      }
       if (c.notes?.length) {
         parts.push(
           'Notes:\n' +
@@ -148,6 +138,28 @@ export async function importMigrationBundleAction(
         } catch {
           /* skip a single attachment, keep importing the rest */
         }
+      }
+
+      // History → real timeline entries, preserving each original date.
+      if (c.history?.length) {
+        const rows = c.history.map((h) => ({
+          case_id: caseId,
+          actor_display_name: h.actor || bundle.source,
+          event_type: 'imported',
+          metadata: {
+            summary: h.detail ? `${h.event} — ${h.detail}` : h.event,
+            source: bundle.source,
+          },
+          ...(safeIso(h.at)
+            ? { created_at: safeIso(h.at) as string }
+            : createdAt
+              ? { created_at: createdAt }
+              : {}),
+        }));
+        await admin.from('audit_events').insert(rows).then(
+          () => undefined,
+          () => undefined,
+        );
       }
 
       await logCaseEvent({ caseId, eventType: 'case_created' }).catch(() => {});

@@ -24,7 +24,8 @@ export type CaseEventType =
   | 'hearing_updated'
   | 'collaborator_invited'
   | 'collaborator_removed'
-  | 'witness_statement_updated';
+  | 'witness_statement_updated'
+  | 'imported';
 
 const COOLDOWN_MS: Partial<Record<CaseEventType, number>> = {
   // Views are super noisy - only email at most once per 4 hours per
@@ -42,6 +43,8 @@ const COOLDOWN_MS: Partial<Record<CaseEventType, number>> = {
   witness_statement_updated: 5 * 60 * 1000,
   case_created: 0,
   case_deleted: 0,
+  // Migration backfill is bulk + historical; never email about it.
+  imported: Number.POSITIVE_INFINITY,
 };
 
 const EVENT_LABEL: Record<CaseEventType, string> = {
@@ -56,6 +59,7 @@ const EVENT_LABEL: Record<CaseEventType, string> = {
   collaborator_invited: 'invited a collaborator',
   collaborator_removed: 'removed a collaborator',
   witness_statement_updated: 'updated their witness statement',
+  imported: 'imported a record',
 };
 
 /**
