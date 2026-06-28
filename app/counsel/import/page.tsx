@@ -67,6 +67,12 @@ export default async function CounselImportPage() {
           the right attorney.
         </p>
       </header>
+      <a
+        href="/counsel/import/migrate"
+        className="inline-flex items-center gap-1.5 rounded-lg bg-forest-900 text-white dark:bg-gold-metal dark:text-forest-950 px-3.5 py-2 text-sm font-medium hover:brightness-110"
+      >
+        Migrate everything from another platform →
+      </a>
       <Tabs swipe tabs={tabs} storageKey="counsel-import-tab" />
     </div>
   );
