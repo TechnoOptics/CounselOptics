@@ -75,6 +75,25 @@ export default async function CounselSettingsPage() {
           initialWebhooks={webhooksResult.webhooks ?? []}
         />
       </section>
+      <section className="space-y-3 pt-2 border-t border-ink-200 dark:border-forest-700/40">
+        <header>
+          <p className="eyebrow mb-1">Enterprise</p>
+          <h2 className="font-display text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
+            Single sign-on and automatic provisioning
+          </h2>
+          <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
+            Connect your identity provider so people are added and removed
+            automatically as they join or leave, and sign in with your
+            organization&rsquo;s credentials.
+          </p>
+        </header>
+        <a
+          href="/counsel/settings/scim"
+          className="inline-flex items-center gap-2 rounded-lg border border-ink-200 px-4 py-2 text-sm font-medium text-forest-900 transition hover:bg-ink-50 dark:border-forest-700/40 dark:text-cream-100 dark:hover:bg-forest-900/40"
+        >
+          Set up SCIM provisioning
+        </a>
+      </section>
     </div>
   );
 }
