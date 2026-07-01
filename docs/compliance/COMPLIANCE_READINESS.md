@@ -121,7 +121,7 @@ Advottic is a **Business Associate** (it processes PHI on behalf of covered-enti
 | Emergency access | 🟡 | Service-role admin path exists; document procedure |
 | **Automatic logoff** §164.312(a)(2)(iii) | ❌ | No idle/absolute session timeout |
 | Encryption/decryption §164.312(a)(2)(iv) | ✅ | AES-256 at rest, TLS in transit |
-| **Audit controls** §164.312(b) | 🟡 | Append-only logs exist; **no login/export/PHI-view events, no IP capture** |
+| **Audit controls** §164.312(b) | 🟡→ | Append-only logs; **now capturing login / export / deletion / role-change / (de)activation with IP + UA** in `security_events`. Remaining: PHI-*view* logging + IP on case-scoped `audit_events` |
 | Integrity §164.312(c) | ✅/🟡 | Hash-chained e-sign ledger; extend integrity checks to PHI records |
 | **Person/entity authentication** §164.312(d) | 🟡 | Strong identity; **MFA missing** |
 | Transmission security §164.312(e) | ✅/🟡 | TLS everywhere **except Safe Witness geolocation over SMS** (Twilio) |
@@ -145,7 +145,7 @@ Advottic is a **Business Associate** (it processes PHI on behalf of covered-enti
 6. ✅ **Safe Witness transmission fixed** — SMS now links to the secure tracker (opaque UUID) instead of raw GPS + plaintext PIN; offline `tel:` 911/call links retained. *(Done 2026-07-01)*
 
 **P1 — audit-readiness hardening**
-7. Extend **audit logging**: capture login/logout + failures, data exports, permission/role changes, PHI/exhibit views; add `ip_address` + `user_agent` to `audit_events`. *(Code)*
+7. 🟡 Extend **audit logging** — ✅ shipped: **login**, **data export**, **account deletion**, **role change**, and **employee (de)activation** now write to the append-only `security_events` table with IP + user-agent via `lib/security-audit.ts` (routine events auto-acknowledged so they don't flood triage). **Remaining:** PHI/exhibit *view* logging and adding `ip_address`/`user_agent` to the case-scoped `audit_events`. *(Code)*
 8. Add **PHI tagging** (`contains_phi` flag on cases/exhibits) + minimum-necessary access notes; segregate PHI-view audit. *(Code + schema)*
 9. Bring **live DB schema into version control** (dump `firms`, `firm_members`, `audit_events`, etc. into `schema.sql`/migrations) — resolves the CC8.1 / A.8.9 change-management gap. *(Code)*
 10. Add **data-retention schedule** + soft-delete/purge jobs; reconcile HIPAA 6-year audit retention vs. GDPR/CCPA erasure (see note below). *(Code + policy)*

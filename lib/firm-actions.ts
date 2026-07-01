@@ -2,13 +2,14 @@
 
 import crypto from 'node:crypto';
 import { revalidatePath } from 'next/cache';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { createServerSupabase, getCurrentUser, requireUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
 import { sendEmail, buildMeetingInviteEmailHtml } from './email';
 import type { FirmRole, FirmSigningStatus, FirmType } from './firm-types';
 import { FIRM_ROLES, FIRM_TYPES } from './firm-types';
+import { logSecurityEvent } from './security-audit';
 import {
   readPortalRoles,
   sanitizeFeatures,
@@ -654,6 +655,27 @@ export async function updateFirmMemberRoleAction(
     .eq('firm_id', firmId)
     .eq('user_id', memberUserId);
   if (error) return { ok: false, error: error.message };
+  // Audit the permission change (HIPAA 164.308(a)(4) access management).
+  try {
+    const h = headers();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    await logSecurityEvent({
+      kind: 'role_changed',
+      userId: user?.id ?? null,
+      ip: (h.get('x-forwarded-for') ?? '').split(',')[0]?.trim() || null,
+      userAgent: h.get('user-agent'),
+      details: {
+        firm_id: firmId,
+        target_user_id: memberUserId,
+        new_role: newRole,
+        actor_email: user?.email ?? null,
+      },
+    });
+  } catch {
+    /* best-effort audit */
+  }
   revalidatePath('/counsel/team');
   return { ok: true };
 }
@@ -789,7 +811,7 @@ export async function setFirmEmployeeActiveAction(
   employeeId: string,
   active: boolean,
 ): Promise<{ ok: boolean; error?: string }> {
-  await requireUser();
+  const actor = await requireUser();
   if (!(await callerIsFirmAdmin(firmId))) {
     return { ok: false, error: 'Only an owner or admin can do that.' };
   }
@@ -801,6 +823,19 @@ export async function setFirmEmployeeActiveAction(
     .eq('id', employeeId)
     .eq('firm_id', firmId);
   if (error) return { ok: false, error: error.message };
+  // Audit provisioning changes (HIPAA 164.308(a)(3) workforce security).
+  try {
+    const h = headers();
+    await logSecurityEvent({
+      kind: 'employee_deactivated',
+      userId: (actor as { id?: string } | null)?.id ?? null,
+      ip: (h.get('x-forwarded-for') ?? '').split(',')[0]?.trim() || null,
+      userAgent: h.get('user-agent'),
+      details: { firm_id: firmId, employee_id: employeeId, active },
+    });
+  } catch {
+    /* best-effort audit */
+  }
   revalidatePath('/counsel/team');
   return { ok: true };
 }

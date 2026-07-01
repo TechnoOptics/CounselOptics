@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser, isSupabaseConfigured, createServerSupabase } from '@/lib/supabase/server';
 import { getProfile, getCurrentSubscription } from '@/lib/storage';
+import { logSecurityEvent, requestMeta } from '@/lib/security-audit';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-export async function GET() {
+export async function GET(req: Request) {
   if (!isSupabaseConfigured()) {
     return NextResponse.json({ error: 'Auth is not configured.' }, { status: 503 });
   }
@@ -55,6 +56,21 @@ export async function GET() {
       'For questions or to request other formats, email contact@advottic.com.',
     ],
   };
+
+  // Audit the data export (HIPAA 164.312(b) / GDPR access record).
+  const { ip, userAgent, url } = requestMeta(req);
+  await logSecurityEvent({
+    kind: 'data_exported',
+    userId: user.id,
+    ip,
+    userAgent,
+    url,
+    details: {
+      email: user.email,
+      cases: (casesResp.data ?? []).length,
+      exhibits: (exhibitsResp.data ?? []).length,
+    },
+  });
 
   const filename = `advottic-export-${user.id.slice(0, 8)}-${new Date().toISOString().slice(0, 10)}.json`;
   return new NextResponse(JSON.stringify(payload, null, 2), {

@@ -11,7 +11,7 @@ Scoring: Likelihood (L) × Impact (I), each 1–3. Risk = L×I (1–9). Treat �
 | R3 | Backup/DR untested (availability) | 2 | 3 | 6 | PITR + annual restore drill | P0-5 | Owner/Eng | Open |
 | R4 | No automatic logoff | 2 | 2 | 4 | Idle + absolute timeout | P0-4 | Eng | Open |
 | R5 | PHI in Safe Witness SMS body | 1 | 1 | 1 | RESOLVED: SMS links to secure tracker; raw GPS + PIN removed | P0-6 | Eng | **Closed 2026-07-01** |
-| R6 | Audit-log coverage gaps (login/export/PHI view) | 2 | 2 | 4 | Expand audit events + IP | P1-7 | Eng | Open |
+| R6 | Audit-log coverage gaps (login/export/PHI view) | 1 | 2 | 2 | Login/export/deletion/role-change/(de)activation now logged w/ IP+UA; PHI-view + audit_events IP remain | P1-7 | Eng | In progress |
 | R7 | Schema/IaC drift (change mgmt) | 2 | 2 | 4 | DB schema into VCS | P1-9 | Eng | Open |
 | R8 | Over-broad `is_admin` flag | 2 | 2 | 4 | Minimize holders; quarterly review | — | Sec | Open |
 | R9 | No malware scan on uploads | 2 | 2 | 4 | Add scanning | P2-15 | Eng | Open |

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { getSupabaseUrl, getSupabaseAnonKey } from '@/lib/supabase/server';
 import { cookieDomainForHost } from '@/lib/supabase/cookie-domain';
+import { logSecurityEvent, requestMeta } from '@/lib/security-audit';
 
 export const dynamic = 'force-dynamic';
 
@@ -215,6 +216,16 @@ export async function GET(request: NextRequest) {
           "Your account is blocked or inactive. If you believe this is a mistake, reach out to contact@advottic.com.",
         );
       }
+      // Audit a successful sign-in (HIPAA 164.312(b) access logging).
+      const meta = requestMeta(request);
+      await logSecurityEvent({
+        kind: 'login',
+        userId: user.id,
+        ip: meta.ip,
+        userAgent: meta.userAgent,
+        url: meta.url,
+        details: { email: user.email },
+      });
     }
   } catch (blockErr) {
     console.error('[auth/callback] block-list check failed (continuing)', blockErr);

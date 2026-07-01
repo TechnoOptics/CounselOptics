@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { createAdminSupabase } from '@/lib/supabase/admin';
+import { logSecurityEvent, requestMeta } from '@/lib/security-audit';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -71,6 +72,21 @@ export async function POST(req: NextRequest) {
   if (deleteErr) {
     return NextResponse.json({ error: deleteErr.message }, { status: 500 });
   }
+
+  // Audit the deletion. The user row is now gone (security_events.user_id
+  // FK is ON DELETE SET NULL), so record identity in `details` instead of
+  // the user_id column to avoid a dangling reference.
+  const meta = requestMeta(req);
+  await logSecurityEvent({
+    kind: 'account_deleted',
+    // 'info' = audit record, auto-acknowledged so routine deletions don't
+    // flood the security-pulse triage queue (which counts unacknowledged).
+    userId: null,
+    ip: meta.ip,
+    userAgent: meta.userAgent,
+    url: meta.url,
+    details: { deleted_user_id: user.id, email: user.email },
+  });
 
   // Sign the user out on the same response by clearing every supabase
   // auth cookie. The auth.users row is gone, but their browser still
