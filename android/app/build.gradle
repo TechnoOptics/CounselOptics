@@ -119,7 +119,7 @@ android {
         // subscription nav (Stripe-only token top-ups + gifting stay
         // hidden). New native plugin -> new build; codes stay unique
         // across both stores.
-        versionCode 19
+        versionCode 20
         versionName "1.0.16"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
