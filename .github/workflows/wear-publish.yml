@@ -62,7 +62,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Require the Play service account secret
         # Fail FAST with a precise instruction if the one-time
