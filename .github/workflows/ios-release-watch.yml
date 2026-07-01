@@ -396,7 +396,7 @@ jobs:
 
       - name: Upload IPA artifact
         if: ${{ inputs.upload_to_testflight }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: advottic-ipa-watch
           path: ${{ env.IPA_PATH }}

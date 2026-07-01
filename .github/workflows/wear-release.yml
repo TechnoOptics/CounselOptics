@@ -189,7 +189,7 @@ jobs:
           echo "5. Launch **Advottic** from the watch app list. Add the Tile (swipe left from the face) and the complication (long-press the face -> Customize)." >> $GITHUB_STEP_SUMMARY
 
       - name: Upload Wear AAB artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: advottic-watch-aab
           path: android/wear/build/outputs/bundle/release/wear-release.aab
@@ -197,7 +197,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload sideloadable Wear APK artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: advottic-watch-apk
           path: android/wear/build/outputs/apk/release/*.apk

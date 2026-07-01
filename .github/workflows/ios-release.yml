@@ -657,7 +657,7 @@ jobs:
           echo "IPA_PATH=$IPA" >> $GITHUB_ENV
 
       - name: Upload IPA artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: advottic-ipa
           path: ${{ env.IPA_PATH }}

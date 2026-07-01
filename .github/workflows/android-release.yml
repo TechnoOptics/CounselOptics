@@ -215,7 +215,7 @@ jobs:
           echo "Install on the watch-paired phone: \`adb install -r app-release.apk\`, then open Advottic -> Cases to push to the watch." >> $GITHUB_STEP_SUMMARY
 
       - name: Upload AAB artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: advottic-aab
           # The artifact name + path produce a single-file zip:
@@ -227,7 +227,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload sideloadable APK artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: advottic-apk
           path: android/app/build/outputs/apk/release/*.apk
