@@ -21,7 +21,19 @@
  * purchase paths) out of the iOS app, without a new binary - the
  * gating lives in the remote web app the WebView loads.
  */
-const BOOT = `(function(){try{var c=window.Capacitor;if(c&&typeof c.isNativePlatform==='function'&&c.isNativePlatform()){var p=(typeof c.getPlatform==='function'&&c.getPlatform())||'';var d=document.documentElement;d.classList.add('is-native-app');if(p==='ios')d.classList.add('is-ios-app');if(p==='android')d.classList.add('is-android-app');}}catch(e){}})();`;
+// Resilient detection. The Capacitor bridge (`window.Capacitor`) is
+// usually present at head-parse, but on some Android WebViews it (or
+// getPlatform()) isn't ready the instant this runs. The original
+// one-shot version then never tagged <html>, so a store badge could
+// show permanently inside the ALREADY-INSTALLED Android app (whose
+// older build predates the `AdvotticApp/android` UA token, so the
+// server-side path in layout.tsx can't help it either). We now retry
+// until the bridge answers. We gate strictly on getPlatform()/platform
+// being 'ios' or 'android' - never 'web' - so this can't misfire on the
+// open web. Worst case inside the app is a sub-second badge flash
+// before the class lands; fresh builds with the UA token still hide it
+// server-side with no flash.
+const BOOT = `(function(){function a(){try{var c=window.Capacitor;var p=c&&((typeof c.getPlatform==='function'&&c.getPlatform())||c.platform);if(p==='ios'||p==='android'){var d=document.documentElement;d.classList.add('is-native-app');d.classList.add(p==='ios'?'is-ios-app':'is-android-app');return true;}}catch(e){}return false;}if(a())return;var n=0,id=setInterval(function(){if(a()||++n>60)clearInterval(id);},50);try{document.addEventListener('deviceready',a,{once:true});}catch(e){}})();`;
 
 export function NativePlatformBoot() {
   return <script dangerouslySetInnerHTML={{ __html: BOOT }} />;
