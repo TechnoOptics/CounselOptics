@@ -86,7 +86,7 @@ jobs:
           java-version: '21'
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
         with:
           # compile-sdk 36 + build-tools 36 match android/variables.gradle.
           # The action also installs the platform-tools and required
