@@ -16,7 +16,7 @@
 |---|---|---|---|---|
 | Vercel | Every request | Whatever is processed server-side | TLS; ephemeral compute | **Required** |
 | Anthropic (Claude) | Bella / Advottic Review | Case text, exhibit text, queries | TLS; zero-retention terms | **Required** |
-| Twilio | Safe Witness alert | Phone #, alert text, **GPS link**, PIN | TLS to Twilio; **SMS body itself not encrypted** | **Required** |
+| Twilio | Safe Witness alert | Phone #, alert text, secure tracker link (opaque UUID) | TLS to Twilio; **raw GPS + PIN no longer in SMS body** (fixed 2026-07-01) | **Required** |
 | Resend | Transactional email | Recipient email, message body | TLS | **Required** |
 
 ## Where PHI leaves the system
@@ -25,7 +25,7 @@
 
 ## Trust boundaries & key risks
 1. **App ↔ Anthropic** — PHI leaves to a third party for AI; mitigated by zero-retention terms, must be covered by BAA.
-2. **App ↔ Twilio SMS** — GPS/health context in the SMS body is the weakest transmission link (see SRA R5); remediate by sending an authenticated link instead of raw data.
+2. **App ↔ Twilio SMS** — *(resolved 2026-07-01)* the SMS now sends a secure tracker link (unguessable UUID) instead of raw GPS coordinates + plaintext PIN; offline `tel:` 911/call links retained. Residual: the link still reveals location to whoever holds the SMS — accepted as necessary for the emergency function, and server-side revocable/expirable.
 3. **Consumer ↔ Firm isolation** — enforced at the Bella tool layer + RLS; PHI in one portal is not visible to the other.
 
 ## Diagram (textual)

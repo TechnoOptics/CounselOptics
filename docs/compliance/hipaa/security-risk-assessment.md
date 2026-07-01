@@ -27,7 +27,7 @@ See [PHI data-flow map](phi-data-flow.md). PHI at rest lives only in Supabase; i
 | R2 | Stolen credentials | Passwordless + SSO | **Med** — no MFA | Implement MFA (P0-3) |
 | R3 | Unattended session on shared device | — | **Med** | Automatic logoff (P0-4) |
 | R4 | No BAA with subprocessor handling PHI | — | **High** | Execute BAAs (P0-1) |
-| R5 | PHI leaked via Safe Witness SMS | PIN pre-shared; TLS to Twilio | **Med** — GPS + text in SMS body | Send authenticated link, not raw data (P0-6) |
+| R5 | PHI leaked via Safe Witness SMS | **RESOLVED** — SMS now links to the secure tracker (opaque UUID); raw GPS + plaintext PIN removed from the SMS body; TLS to Twilio | Low | Done (2026-07-01). tel: 911/call links retained for offline contacts |
 | R6 | Data loss / outage | Supabase managed backups (defaults) | **High** — untested, no RPO/RTO | PITR + DR drill (P0-5) |
 | R7 | Insufficient audit trail of PHI access | Append-only case-activity log | **Med** — no view/export/login events, no IP | Expand audit logging (P1-7) |
 | R8 | AI processor trains on PHI | Zero-retention commercial terms (documented) | Low | Confirm in BAA; keep evidence |

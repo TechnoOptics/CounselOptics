@@ -718,12 +718,20 @@ export async function POST(req: NextRequest) {
   // 2-4 segments which is acceptable for an emergency alert.
   // Per-contact greeting is added inside the loop below so the same
   // base body can be reused.
+  // Transmission-security hardening (HIPAA 164.312(e)): the SMS no longer
+  // embeds exact GPS coordinates or the plaintext verification PIN. It links
+  // to the secure live-tracker page instead (an unguessable per-alert UUID),
+  // which shows the live map, the PIN, directions, and call buttons - the
+  // same primary CTA the email already uses, and a richer emergency view
+  // than a static pin. Offline-capable tel: links (call the user, call 911)
+  // stay in the body so a contact with no data connection can still act.
+  // Falls back to the raw maps link only if the tracker URL couldn't be
+  // built (e.g. the audit row insert returned no id).
+  const smsLocationLink = trackerLink ?? mapLink;
   const smsBodyBase = [
     `ADVOTTIC SAFE WITNESS - ${watcherFirstName}`,
     userMessage,
-    userPin ? `PIN: ${userPin}` : null,
-    mapLink ? `Location: ${mapLink}` : null,
-    directionsLink ? `Directions: ${directionsLink}` : null,
+    smsLocationLink ? `Live location + details: ${smsLocationLink}` : null,
     callUserLink ? `Call ${watcherFirstName}: ${callUserLink}` : null,
     'Call 911: tel:911',
   ]

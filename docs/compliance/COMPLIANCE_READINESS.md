@@ -139,10 +139,10 @@ Advottic is a **Business Associate** (it processes PHI on behalf of covered-enti
 **P0 — do before representing HIPAA compliance or signing an enterprise BAA**
 1. 🔒 Execute **BAAs** with every PHI subprocessor (Supabase, Vercel, Anthropic, Twilio, Resend) and upgrade Supabase/Vercel to HIPAA-eligible plans. *(Legal/owner)*
 2. 🔒 Name a **Security Official** and adopt the drafted policy set. *(Owner)*
-3. ❌→ Implement **MFA** (TOTP/WebAuthn), enforced at least for firm admins + HQ. *(Code — medium)*
-4. ❌→ Implement **automatic logoff** (idle + absolute session timeout) and re-auth for sensitive actions (deletion, export, admin impersonation). *(Code — medium)*
+3. 🟡 **MFA** — ✅ opt-in TOTP enrollment shipped (Profile → Two-factor authentication). **Remaining:** sign-in-time AAL2 enforcement for firm admins + HQ, after on-device validation of the enroll/verify loop. *(Code — medium)*
+4. ✅ **Automatic logoff** shipped — 30-min idle timeout + 60s warning + 12h absolute cap (`components/IdleLogout.tsx`, mounted in root layout). *Remaining:* re-auth prompt for sensitive actions (deletion, export, admin impersonation). *(Code — small)*
 5. ❌→ Define + test **backup/DR**: enable Supabase PITR, document RPO/RTO, run one restore drill. *(Infra/owner — small)*
-6. 🟡→ Fix **Safe Witness transmission**: stop sending raw geolocation in SMS body; send an authenticated link instead. *(Code — small)*
+6. ✅ **Safe Witness transmission fixed** — SMS now links to the secure tracker (opaque UUID) instead of raw GPS + plaintext PIN; offline `tel:` 911/call links retained. *(Done 2026-07-01)*
 
 **P1 — audit-readiness hardening**
 7. Extend **audit logging**: capture login/logout + failures, data exports, permission/role changes, PHI/exhibit views; add `ip_address` + `user_agent` to `audit_events`. *(Code)*
