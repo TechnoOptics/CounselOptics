@@ -1,0 +1,32 @@
+# Continuous dependency vulnerability scan (SOC 2 CC7.1 / ISO 27001 A.8.8 /
+# HIPAA 164.308(a)(1)). Runs on every push + PR and weekly. Fails the build
+# only on HIGH/CRITICAL advisories so a stray low/moderate transitive dep
+# doesn't block shipping; the weekly run surfaces the rest for triage.
+name: Security audit
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '0 6 * * 1' # Mondays 06:00 UTC
+
+permissions:
+  contents: read
+
+jobs:
+  npm-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install (no scripts, lockfile-faithful)
+        run: npm ci --ignore-scripts
+      - name: Audit (fail on high/critical)
+        run: npm audit --audit-level=high
+      - name: Full advisory report (non-blocking, for the run log)
+        if: always()
+        run: npm audit --json || true

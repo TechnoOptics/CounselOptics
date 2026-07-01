@@ -1,0 +1,24 @@
+# Dependabot keeps dependencies patched, which is evidence for:
+#   SOC 2 CC7.1 (vulnerability management) / ISO 27001 A.8.8 (technical
+#   vulnerabilities) / HIPAA 164.308(a)(1)(ii)(B) (risk management).
+# Weekly PRs, grouped so review stays manageable. Security updates from
+# GitHub's advisory database are opened immediately regardless of schedule.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      production-minor-patch:
+        applies-to: version-updates
+        update-types: [minor, patch]
+    labels: [dependencies]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    labels: [dependencies, ci]

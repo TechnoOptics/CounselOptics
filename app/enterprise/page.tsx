@@ -1241,8 +1241,8 @@ function Compliance() {
     },
     {
       eyebrow: 'Posture',
-      title: 'SOC 2 Type II controls in place',
-      body: 'Annual third-party audit. Vulnerability scanning, penetration testing, vendor due diligence. Documentation available under NDA.',
+      title: 'Security controls built to the SOC 2 criteria',
+      body: 'Our controls are designed against the SOC 2 Trust Services Criteria, with formal Type II attestation on our roadmap. Vendor due diligence and our current security documentation are available under NDA.',
     },
     {
       eyebrow: 'Privilege',

@@ -133,12 +133,11 @@ Annual prepay gives 20% off any paid tier. Bar-association members get 15% off C
 
 ## Trust + safety
 
-- Encryption in transit (TLS) and at rest.
-- MFA enforcement on all paid tiers.
-- Signed audit log on every signature and AI action; exportable.
-- No sale of user data; no training on customer data.
-- BAA available for Enterprise tiers.
-- SOC 2 path in progress.
+- Encryption in transit (TLS 1.2+) and at rest (AES-256).
+- Tamper-evident, hash-chained audit log on e-signatures; case-activity audit log for key actions. MFA and single sign-on available for enterprise; broader MFA enforcement is on the roadmap.
+- No sale of user data; no training on customer data (zero-retention commercial terms with our AI processor).
+- HIPAA Business Associate Agreement for Enterprise on request (subject to onboarding due diligence).
+- SOC 2 path in progress; formal attestation on the roadmap.
 - All sensitive Safe Witness actions require explicit physical confirmation - a 4-second press-and-hold on the watch, a 2-second hold in the web overlay - before any external contact is notified.
 
 ## Founders + company

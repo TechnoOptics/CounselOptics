@@ -46,7 +46,7 @@ export async function GET() {
   lines.push(`- [Pricing](${SITE_URL}/pricing): six subscription tiers from $0 (Free) through $1,800/mo (Enterprise) for individuals, families, solo attorneys, and growing firms.`);
   lines.push(`- [Enterprise / Counsel](${SITE_URL}/enterprise): firm-side workspace with SSO, audit logs, branded intake, in-portal e-signing, and per-matter rooms.`);
   lines.push(`- [About Advottic](${SITE_URL}/about): mission, the boundary we keep between "case organization" and "legal advice", and who we're built for.`);
-  lines.push(`- [Security posture](${SITE_URL}/security): SOC 2 path, encryption at rest + in transit, MFA enforcement, audit logging, data residency, BAA availability.`);
+  lines.push(`- [Security posture](${SITE_URL}/security): SOC 2 path, encryption at rest + in transit, audit logging, RLS access control; MFA and data-residency options on the roadmap.`);
   lines.push(`- [Status](${SITE_URL}/status): live system status across auth, database, AI inference, e-sign, and file storage.`);
   lines.push('');
 

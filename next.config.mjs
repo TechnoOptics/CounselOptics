@@ -46,9 +46,11 @@ const CSP = [
 ].join('; ');
 
 const SECURITY_HEADERS = [
-  // Browsers will only connect over HTTPS for the next ~6 months once they've
-  // seen this header. Safe because Vercel always serves TLS.
-  { key: 'Strict-Transport-Security', value: 'max-age=15552000; includeSubDomains' },
+  // Browsers will only connect over HTTPS for the next year once they've
+  // seen this header. Safe because Vercel always serves TLS. 1-year max-age
+  // is the SOC 2 / HSTS-preload-eligible baseline; add `; preload` and submit
+  // to hstspreload.org only after confirming every subdomain is HTTPS-only.
+  { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
   // Disallow framing - defense against clickjacking.
   { key: 'X-Frame-Options', value: 'DENY' },
   // Disable MIME sniffing.
