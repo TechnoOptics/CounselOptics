@@ -77,8 +77,8 @@ export function WatchConnectCard() {
           {!minimal && (
             <ol className="mt-2 space-y-1 text-[13px] text-ink-700 dark:text-cream-100/80 list-decimal pl-5 leading-relaxed">
               <li>
-                Install <strong>Advottic</strong> from the Play Store on
-                the watch{pairedNoApp ? ' (it is paired already)' : ''}.
+                Install <strong>Advottic</strong> on your Wear OS
+                watch{pairedNoApp ? ' (it is paired already)' : ''}.
               </li>
               <li>
                 Open it - it shows a QR code automatically the first

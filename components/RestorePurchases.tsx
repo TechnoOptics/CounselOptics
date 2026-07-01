@@ -54,6 +54,25 @@ export function RestorePurchases({ userId }: { userId: string }) {
           Manage or cancel them in Settings &rarr; your name &rarr;
           Subscriptions. Already subscribed on another device? Restore it here.
         </p>
+        {/* Apple Guideline 3.1.2 point-of-sale disclosure: the paywall
+            must state that the subscription auto-renews, the terms, and
+            link to the EULA + Privacy Policy. The tier cards above show
+            the title, monthly length, and price. */}
+        <p className="mt-2 text-[12px] text-ink-500 dark:text-cream-100/60 leading-relaxed">
+          Advottic plans are auto-renewable subscriptions. Payment is charged to
+          your Apple ID at confirmation of purchase. The subscription renews
+          automatically for the same period, at the price shown above, unless
+          canceled at least 24 hours before the current period ends.
+        </p>
+        <p className="mt-1 text-[12px]">
+          <a className="underline text-ink-600 dark:text-cream-100/70" href="/terms">
+            Terms of Use (EULA)
+          </a>{' '}
+          &middot;{' '}
+          <a className="underline text-ink-600 dark:text-cream-100/70" href="/privacy">
+            Privacy Policy
+          </a>
+        </p>
       </div>
       <button
         type="button"

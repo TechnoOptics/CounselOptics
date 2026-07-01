@@ -236,7 +236,7 @@ const PRICING_FAQ: Array<{ q: string; a: string }> = [
   },
   {
     q: 'Does the Wear OS app cost extra?',
-    a: 'No. The Advottic Wear OS app is included free with Personal Pro, Personal Plus, and every firm tier - install it from the Play Store on the watch and pair it via a 6-digit code in the phone app or by signing in on the watch web flow. Free tier does not include the watch press for Safe Witness, but it does let the watch show cases + the next hearing once we hit that milestone in the roadmap.',
+    a: 'No. The Advottic Wear OS app is included free with Personal Pro, Personal Plus, and every firm tier - install it on your Wear OS watch and pair it via a 6-digit code in the phone app or by signing in on the watch web flow. Free tier does not include the watch press for Safe Witness, but it does let the watch show cases + the next hearing once we hit that milestone in the roadmap.',
   },
   {
     q: 'What counts as an "item"?',
@@ -442,7 +442,7 @@ export default function PricingPage() {
         />
         <Q
           q="Does the Wear OS app cost extra?"
-          a="No. The Advottic Wear OS app is included free with Personal Pro, Personal Plus, and every firm tier - install it from the Play Store on the watch and pair it via a 6-digit code in the phone app."
+          a="No. The Advottic Wear OS app is included free with Personal Pro, Personal Plus, and every firm tier - install it on your Wear OS watch and pair it via a 6-digit code in the phone app."
         />
         <Q
           q="What is the difference between Bella tier 1 and tier 2?"

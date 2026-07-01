@@ -326,13 +326,20 @@ export default async function BillingPage({
       )}
 
       <div className="text-xs text-ink-500 leading-relaxed">
-        Payments are processed by Stripe. Advottic never sees your card data.{' '}
+        {/* The Stripe line is accurate on web/Android but false and
+            disallowed inside the iOS app (Apple IAP, no external
+            processor references - Guideline 3.1.1), so it is hidden on
+            iOS. The Terms of Use (EULA) + Privacy Policy links stay
+            visible everywhere so the iOS paywall meets 3.1.2. */}
+        <span data-hide-on-ios>
+          Payments are processed by Stripe. Advottic never sees your card data.{' '}
+        </span>
         <Link className="underline" href="/privacy">
-          Privacy
+          Privacy Policy
         </Link>{' '}
         ·{' '}
         <Link className="underline" href="/terms">
-          Terms
+          Terms of Use (EULA)
         </Link>
       </div>
     </div>

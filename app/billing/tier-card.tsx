@@ -217,7 +217,7 @@ export function TierCard({
         >
           {pending
             ? useIap
-              ? 'Opening App Store...'
+              ? 'Starting purchase...'
               : 'Opening Stripe...'
             : isActive
               ? `Switch to ${TIER_LABEL[tier]}`
