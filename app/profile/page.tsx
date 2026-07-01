@@ -7,6 +7,7 @@ import { SafeContactForm, type SafeWitnessContactRow } from './safe-contact-form
 import { WatchPairCard, DevicesSectionHeader } from './watch-pair-card';
 import { isSmsConfigured } from '@/lib/sms';
 import { AccountActions } from './account-actions';
+import { MfaSettings } from './mfa-settings';
 import { AvatarUpload } from './avatar-upload';
 import { ThemePicker } from '@/components/ThemePicker';
 import { LanguagePicker } from '@/components/LanguagePicker';
@@ -400,6 +401,8 @@ export default async function ProfilePage() {
           <ShareAppButton variant="secondary" />
         </div>
       </section>
+
+      <MfaSettings />
 
       <AccountActions />
     </div>

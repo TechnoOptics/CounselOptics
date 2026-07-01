@@ -16,6 +16,7 @@ import { Sidebar, MobileNav } from '@/components/Sidebar';
 import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
 import { ThemeBoot } from '@/components/ThemeBoot';
 import { CrashReporter } from '@/components/CrashReporter';
+import { IdleLogout } from '@/components/IdleLogout';
 import { SiteJsonLd } from '@/components/seo/JsonLd';
 import { GetTheApp } from '@/components/GetTheApp';
 import { FooterCol } from '@/components/FooterCol';
@@ -373,6 +374,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             sitelinks search box). Surfaces on every page so the
             knowledge panel + brand SERP carry consistent metadata. */}
         <SiteJsonLd />
+        {/* Automatic logoff on inactivity (HIPAA 164.312(a)(2)(iii)).
+            No-ops for signed-out visitors. */}
+        <IdleLogout />
         {/* Global deep-link router (native Capacitor shell only).
             When the OS routes an https://advottic.com URL into
             the app - including hand-offs from the paired Wear OS

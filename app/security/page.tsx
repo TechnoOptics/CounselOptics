@@ -111,8 +111,9 @@ export default function SecurityPage() {
         </SubSection>
         <SubSection title="Multi-factor authentication">
           TOTP-based two-factor authentication via the standard authenticator apps (1Password,
-          Authy, Google Authenticator) is on the near-term roadmap. We do not, and will not,
-          offer SMS-based 2FA: SIM-swap attacks make it materially weaker than TOTP.
+          Authy, Google Authenticator) is available now &mdash; turn it on from your profile
+          settings. We do not, and will not, offer SMS-based 2FA: SIM-swap attacks make it
+          materially weaker than TOTP.
         </SubSection>
         <SubSection title="Suspicious activity">
           Unusual sign-in attempts trigger an email notification. You can sign out of every
