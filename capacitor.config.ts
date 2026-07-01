@@ -44,6 +44,16 @@ const config: CapacitorConfig = {
   ios: {
     contentInset: 'automatic',
     backgroundColor: '#0F2D24',
+    // Append a stable token to the WKWebView User-Agent so the server
+    // (app/layout.tsx via lib/platform nativePlatformFromUserAgent) can
+    // detect the iOS app deterministically on the first byte and hide
+    // cross-platform refs (the Google Play badge) + non-IAP purchase
+    // paths - App Store Guidelines 2.3.10 / 3.1.1. The client
+    // window.Capacitor bridge raced at head-parse time on this
+    // remote-URL WebView and let the Google Play badge through review
+    // (2.3.10 reject, 2026-06-29). Keep the token in exact sync with
+    // NATIVE_UA_TOKEN in lib/platform.ts.
+    appendUserAgent: 'AdvotticApp/ios',
     // iOS deployment target = 14.0 (Capacitor 8's published minimum).
     // Not a CapacitorConfig field - it's set inside the generated
     // Xcode project:
@@ -86,6 +96,10 @@ const config: CapacitorConfig = {
   android: {
     backgroundColor: '#0F2D24',
     allowMixedContent: false,
+    // Mirror of the iOS UA token (see above) so the server can detect
+    // the Android app too. Keep in sync with NATIVE_UA_TOKEN in
+    // lib/platform.ts.
+    appendUserAgent: 'AdvotticApp/android',
     // minSdkVersion + targetSdkVersion live in android/variables.gradle
     // (Capacitor reads them at native build time, not from this config).
     // Keep them at 24 / 36 respectively - documented above. Both align

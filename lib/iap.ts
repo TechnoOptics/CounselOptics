@@ -45,6 +45,36 @@ export function tierHasIosProduct(tier: Tier): boolean {
 
 let configuredFor: string | null = null;
 
+/**
+ * Reject if a native StoreKit/RevenueCat call doesn't settle in time.
+ *
+ * App Review rejected build 19 under Guideline 2.1(b) because tapping
+ * Subscribe "loaded indefinitely": the StoreKit product request never
+ * returned (this happens when the Paid Apps Agreement isn't active or
+ * the products aren't fetchable), so the button sat on "Opening App
+ * Store..." forever. Wrapping the pre-purchase native calls in a
+ * timeout guarantees the UI always resolves to a clear error instead of
+ * spinning. The purchase sheet itself is NOT wrapped - once Apple's
+ * sheet is up the user may legitimately take minutes.
+ */
+function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), ms);
+    p.then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(timer);
+        reject(e);
+      },
+    );
+  });
+}
+
+const STOREKIT_TIMEOUT_MS = 15000;
+
 async function loadPurchases() {
   const mod = await import('@revenuecat/purchases-capacitor');
   return mod.Purchases;
@@ -62,10 +92,18 @@ async function ensureConfigured(userId: string) {
     throw new Error('In-app purchase is not configured yet.');
   }
   if (configuredFor === null) {
-    await Purchases.configure({ apiKey, appUserID: userId });
+    await withTimeout(
+      Purchases.configure({ apiKey, appUserID: userId }),
+      STOREKIT_TIMEOUT_MS,
+      "Couldn't reach the App Store. Please check your connection and try again.",
+    );
     configuredFor = userId;
   } else if (configuredFor !== userId) {
-    await Purchases.logIn({ appUserID: userId });
+    await withTimeout(
+      Purchases.logIn({ appUserID: userId }),
+      STOREKIT_TIMEOUT_MS,
+      "Couldn't reach the App Store. Please check your connection and try again.",
+    );
     configuredFor = userId;
   }
   return Purchases;
@@ -101,9 +139,11 @@ export async function purchaseTier(
     throw new Error('This plan is not available as an in-app purchase.');
   }
   const Purchases = await ensureConfigured(userId);
-  const { products } = await Purchases.getProducts({
-    productIdentifiers: [productId],
-  });
+  const { products } = await withTimeout(
+    Purchases.getProducts({ productIdentifiers: [productId] }),
+    STOREKIT_TIMEOUT_MS,
+    "The App Store isn't responding right now. Please try again in a moment.",
+  );
   const product = products?.[0];
   if (!product) {
     throw new Error('This plan is not available in the App Store right now.');

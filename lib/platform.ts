@@ -47,3 +47,44 @@ export function isIOSApp(): boolean {
 export function isAndroidApp(): boolean {
   return getNativePlatform() === 'android';
 }
+
+/**
+ * Server-safe native detection from a User-Agent string.
+ *
+ * The native shells append a token to the WebView User-Agent via
+ * capacitor.config.ts (`ios.appendUserAgent` / `android.appendUserAgent`),
+ * so the server can gate cross-platform references (the Google Play
+ * badge) and non-IAP purchase paths DETERMINISTICALLY on the first byte
+ * of HTML - without depending on the client `window.Capacitor` bridge
+ * being present at head-parse time, which raced on the remote-URL
+ * WebView and let the Google Play badge slip through App Review
+ * (Guideline 2.3.10 reject, submission 2026-06-29).
+ *
+ * Keep these tokens in exact sync with capacitor.config.ts.
+ */
+export const NATIVE_UA_TOKEN = {
+  ios: 'AdvotticApp/ios',
+  android: 'AdvotticApp/android',
+} as const;
+
+export function nativePlatformFromUserAgent(
+  ua: string | null | undefined,
+): NativePlatform {
+  if (!ua) return 'web';
+  if (ua.includes(NATIVE_UA_TOKEN.ios)) return 'ios';
+  if (ua.includes(NATIVE_UA_TOKEN.android)) return 'android';
+  return 'web';
+}
+
+/**
+ * `<html>` class string for server-rendered native gating. Mirrors the
+ * classes the client NativePlatformBoot script adds, so the CSS rules in
+ * globals.css (`.is-native-app [data-hide-in-app]`, `.is-ios-app
+ * [data-hide-on-ios]`) apply from the very first render inside the apps.
+ * Empty string on the open web.
+ */
+export function nativeHtmlClass(platform: NativePlatform): string {
+  if (platform === 'ios') return 'is-native-app is-ios-app';
+  if (platform === 'android') return 'is-native-app is-android-app';
+  return '';
+}

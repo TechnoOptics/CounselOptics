@@ -20,6 +20,7 @@ import { SiteJsonLd } from '@/components/seo/JsonLd';
 import { GetTheApp } from '@/components/GetTheApp';
 import { FooterCol } from '@/components/FooterCol';
 import { NativePlatformBoot } from '@/components/NativePlatformBoot';
+import { nativePlatformFromUserAgent, nativeHtmlClass } from '@/lib/platform';
 import { BlankScreenWatchdog } from '@/components/BlankScreenWatchdog';
 import { SafeMount } from '@/components/SafeMount';
 import { APP_STORE_ID, IOS_APP_LIVE } from '@/lib/app-links';
@@ -335,10 +336,20 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       ])
     : [[], 0];
 
+  // Server-side native gating: the iOS/Android shells append a UA token
+  // (capacitor.config.ts), so we can hide cross-platform refs (Google
+  // Play badge) and non-IAP paths from the FIRST byte - no dependence on
+  // the client Capacitor bridge, which raced and let the Google Play
+  // badge through App Review (Guideline 2.3.10). NativePlatformBoot stays
+  // as a client-side backstop for in-app navigation + older builds.
+  const nativeClass = nativeHtmlClass(
+    nativePlatformFromUserAgent(headers().get('user-agent')),
+  );
+
   return (
     <html
       lang={serverLanguage ?? 'en'}
-      className={`${sans.variable} ${wordmark.variable} ${display.variable}`}
+      className={`${sans.variable} ${wordmark.variable} ${display.variable} ${nativeClass}`.trim()}
       suppressHydrationWarning
     >
       <head>
