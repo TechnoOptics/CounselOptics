@@ -120,6 +120,7 @@ export type WitnessSubmission = {
   evidenceFileSize: number | null;
   testimonialText: string | null;
   status: WitnessSubmissionStatus;
+  purgeScheduledAt: string | null;
   createdAt: string;
 };
 

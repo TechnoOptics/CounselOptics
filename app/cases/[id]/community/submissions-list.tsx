@@ -100,6 +100,14 @@ function SubmissionRow({ caseId, submission }: { caseId: string; submission: Wit
         </div>
       </div>
 
+      {status === 'pending_purge' && submission.purgeScheduledAt && (
+        <p className="text-xs text-amber-800 dark:text-amber-200 mt-1">
+          ID photo and signature will be permanently deleted{' '}
+          {new Date(new Date(submission.purgeScheduledAt).getTime() + 48 * 60 * 60 * 1000).toLocaleString()}{' '}
+          unless the page is reopened before then.
+        </p>
+      )}
+
       {submission.mailingAddress && (
         <p className="text-xs text-ink-500 dark:text-cream-100/55 mt-1">
           {submission.mailingAddress.street}, {submission.mailingAddress.city},{' '}

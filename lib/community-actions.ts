@@ -5,6 +5,7 @@ import { createServerSupabase, getCurrentUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
 import { getCurrentSubscription, getProfile } from './storage';
 import { tierSlugFromPriceId } from './stripe';
+import { appendWitnessEvent } from './witness-audit';
 import {
   generateCaseNumber,
   generateSlug,
@@ -403,6 +404,16 @@ export async function unpublishCommunityCaseAction(
  * here - once Letters of Support ship, this is where the 48h
  * pending_purge scheduling gets added rather than deleting synchronously.
  */
+/**
+ * Closing stops public visibility immediately (get_public_community_case
+ * only returns 'published' rows) but does NOT delete ID/signature images
+ * synchronously - it schedules them for deletion 48h out via
+ * purge_scheduled_at, so an accidental or premature close can still be
+ * undone with reopenCommunityCaseAction before the purge cron
+ * (lib/community-retention.ts) actually removes anything. This is what
+ * enforces the "kept until manually closed" retention decision - see
+ * that module's doc comment for the full rationale.
+ */
 export async function closeCommunityCaseAction(
   communityCaseId: string,
   caseId: string,
@@ -420,10 +431,68 @@ export async function closeCommunityCaseAction(
       .update({ status: 'closed', closed_at: new Date().toISOString() })
       .eq('id', communityCaseId);
     if (error) return { ok: false, error: error.message };
+
+    const nowIso = new Date().toISOString();
+    const { data: toSchedule } = await supabase
+      .from('witness_submissions')
+      .select('id')
+      .eq('community_case_id', communityCaseId)
+      .eq('kind', 'letter_of_support')
+      .is('purge_scheduled_at', null)
+      .neq('status', 'purged');
+    if (toSchedule && toSchedule.length > 0) {
+      const ids = toSchedule.map((r) => (r as { id: string }).id);
+      await supabase
+        .from('witness_submissions')
+        .update({ status: 'pending_purge', purge_scheduled_at: nowIso })
+        .in('id', ids);
+      const admin = createAdminSupabase();
+      if (admin) {
+        for (const id of ids) {
+          await appendWitnessEvent(admin, { submissionId: id, eventType: 'purge_scheduled' });
+        }
+      }
+    }
+
     revalidatePath(`/cases/${caseId}/community`);
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Could not close page.' };
+  }
+}
+
+/**
+ * Undoes a close within the 48h grace period: reopens the public page
+ * and cancels the scheduled purge for any submission the cron hasn't
+ * already processed (status='purged' rows are left alone - that
+ * deletion already happened and can't be undone). Reverts pending
+ * letters to 'reviewed' rather than trying to remember their exact
+ * pre-close status, since the organizer closing and reopening a page
+ * once already implies they've looked at what's in it.
+ */
+export async function reopenCommunityCaseAction(
+  communityCaseId: string,
+  caseId: string,
+): Promise<CommunityActionResult> {
+  try {
+    await assertOrganizerEligible();
+    const supabase = createServerSupabase();
+    const { error } = await supabase
+      .from('community_cases')
+      .update({ status: 'published', closed_at: null })
+      .eq('id', communityCaseId);
+    if (error) return { ok: false, error: error.message };
+
+    await supabase
+      .from('witness_submissions')
+      .update({ status: 'reviewed', purge_scheduled_at: null })
+      .eq('community_case_id', communityCaseId)
+      .eq('status', 'pending_purge');
+
+    revalidatePath(`/cases/${caseId}/community`);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not reopen page.' };
   }
 }
 
@@ -445,6 +514,7 @@ function rowToWitnessSubmission(row: Record<string, unknown>): WitnessSubmission
     evidenceFileSize: (row.evidence_file_size as number) ?? null,
     testimonialText: (row.testimonial_text as string) ?? null,
     status: row.status as WitnessSubmission['status'],
+    purgeScheduledAt: (row.purge_scheduled_at as string) ?? null,
     createdAt: row.created_at as string,
   };
 }

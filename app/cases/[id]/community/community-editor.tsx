@@ -7,6 +7,7 @@ import {
   createCommunityCaseAction,
   publishCommunityCaseAction,
   removeCommunityLinkAction,
+  reopenCommunityCaseAction,
   unpublishCommunityCaseAction,
   updateCommunityCaseAction,
   uploadCommunityBannerAction,
@@ -120,6 +121,9 @@ export function CommunityEditor({
           )}
           {communityCase.status !== 'closed' && (
             <CloseButton communityCaseId={communityCase.id} caseId={caseId} />
+          )}
+          {communityCase.status === 'closed' && (
+            <ReopenButton communityCaseId={communityCase.id} caseId={caseId} />
           )}
         </div>
       </div>
@@ -398,30 +402,62 @@ function CloseButton({ communityCaseId, caseId }: { communityCaseId: string; cas
   }
 
   return (
+    <div className="w-full max-w-sm space-y-2">
+      <p className="text-xs text-amber-800 dark:text-amber-200">
+        Closing takes the page offline immediately. ID photos and signatures on any Letters of
+        Support will be permanently deleted in 48 hours - letter text, names, and addresses are
+        kept. You can reopen and cancel the deletion any time before then.
+      </p>
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder='Type "close"'
+          className="input w-32"
+        />
+        <button
+          type="button"
+          className="btn-secondary"
+          disabled={pending}
+          onClick={() => {
+            setError(null);
+            const formData = new FormData();
+            formData.set('confirm', value);
+            startTransition(async () => {
+              const result = await closeCommunityCaseAction(communityCaseId, caseId, formData);
+              if (!result.ok) setError(result.error ?? 'Could not close.');
+              else setConfirming(false);
+            });
+          }}
+        >
+          {pending ? 'Closing…' : 'Confirm close'}
+        </button>
+      </div>
+      {error && <p className="text-xs text-rose-700 dark:text-rose-300">{error}</p>}
+    </div>
+  );
+}
+
+function ReopenButton({ communityCaseId, caseId }: { communityCaseId: string; caseId: string }) {
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  return (
     <div className="flex items-center gap-2">
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        placeholder='Type "close"'
-        className="input w-32"
-      />
       <button
         type="button"
         className="btn-secondary"
         disabled={pending}
-        onClick={() => {
-          setError(null);
-          const formData = new FormData();
-          formData.set('confirm', value);
+        onClick={() =>
           startTransition(async () => {
-            const result = await closeCommunityCaseAction(communityCaseId, caseId, formData);
-            if (!result.ok) setError(result.error ?? 'Could not close.');
-            else setConfirming(false);
-          });
-        }}
+            setError(null);
+            const result = await reopenCommunityCaseAction(communityCaseId, caseId);
+            if (!result.ok) setError(result.error ?? 'Could not reopen.');
+          })
+        }
       >
-        {pending ? 'Closing…' : 'Confirm close'}
+        {pending ? 'Reopening…' : 'Reopen page'}
       </button>
       {error && <p className="text-xs text-rose-700 dark:text-rose-300">{error}</p>}
     </div>
