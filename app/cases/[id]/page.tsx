@@ -477,6 +477,19 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
                     >
                       <ActivityList events={activity} />
                     </CaseSection>
+
+                    {isOwner && (
+                      <CaseSection
+                        id="case-community"
+                        eyebrow="Community"
+                        title="Community Case page"
+                        subtitle="Publish a shareable public page so the community can rally support and submit evidence to your attorney. Submissions are always private."
+                      >
+                        <Link href={`/cases/${c.id}/community`} className="btn-secondary">
+                          Manage Community Case page
+                        </Link>
+                      </CaseSection>
+                    )}
                   </>
                 )}
 

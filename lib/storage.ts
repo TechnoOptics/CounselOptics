@@ -100,6 +100,8 @@ type ProfileRow = {
   tour_completed_at: string | null;
   theme: 'light' | 'dark' | 'system' | null;
   language: string | null;
+  phone_number: string | null;
+  phone_verified_at: string | null;
   updated_at: string;
 };
 
@@ -202,6 +204,8 @@ function profileFromRow(r: ProfileRow): Profile {
     tourCompletedAt: r.tour_completed_at ?? null,
     theme: r.theme ?? 'light',
     language: r.language ?? null,
+    phoneNumber: r.phone_number ?? null,
+    phoneVerifiedAt: r.phone_verified_at ?? null,
     menuPreferences: parseMenuPreferences(
       (r as unknown as { menu_preferences?: unknown }).menu_preferences,
     ),

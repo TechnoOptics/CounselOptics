@@ -6,6 +6,8 @@ import { updateProfileAction } from '@/lib/actions';
 import { SafeContactForm, type SafeWitnessContactRow } from './safe-contact-form';
 import { WatchPairCard, DevicesSectionHeader } from './watch-pair-card';
 import { isSmsConfigured } from '@/lib/sms';
+import { isPhoneVerifyConfigured } from '@/lib/phone-verify';
+import { PhoneVerifyForm } from './phone-verify-form';
 import { AccountActions } from './account-actions';
 import { MfaSettings } from './mfa-settings';
 import { AvatarUpload } from './avatar-upload';
@@ -80,6 +82,7 @@ export default async function ProfilePage() {
   const safeWitnessContacts: SafeWitnessContactRow[] =
     safeWitnessContactsRaw as SafeWitnessContactRow[];
   const smsConfigured = isSmsConfigured();
+  const phoneVerifyConfigured = isPhoneVerifyConfigured();
   // Consent is now handled by the layout's popup modal; do not redirect.
 
   const fallbackName =
@@ -351,6 +354,11 @@ export default async function ProfilePage() {
             smsConfigured={smsConfigured}
           />
         </div>
+        <PhoneVerifyForm
+          verifiedPhone={profile?.phoneNumber ?? null}
+          verifiedAt={profile?.phoneVerifiedAt ?? null}
+          configured={phoneVerifyConfigured}
+        />
         {/* Pair-watch link card. Client component that renders only
             when we're inside the Android phone shell - desktop users
             don't see a pair-by-QR / pair-by-code affordance because

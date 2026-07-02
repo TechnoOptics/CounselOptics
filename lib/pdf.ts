@@ -8,6 +8,7 @@ import type {
   Exhibit,
   Profile,
 } from './types';
+import type { CommunityExportData } from './community-types';
 import { getExhibitFileBuffer } from './storage';
 
 /**
@@ -1060,4 +1061,234 @@ function formatBytes(n: number): string {
 
 function truncate(s: string, max: number): string {
   return s.length > max ? s.slice(0, max - 1) + '…' : s;
+}
+
+// ----------------------- Community Case export -----------------------
+
+/**
+ * Bundles a Community Case's public-facing summary plus every witness
+ * submission (evidence/testimonial in v1; Letters of Support will extend
+ * this once that slice ships) into one PDF for the case's attorney.
+ * Reuses the same low-level primitives as generateCasePdf (section,
+ * drawMetaGrid, drawFooter, etc.) rather than a parallel layout system.
+ *
+ * The cover page identifies the organizer (name, email, account age) -
+ * this is a deliberate anti-fraud measure, not an incidental detail: it's
+ * the artifact that lets an attorney (or a fraud investigation, if it
+ * ever comes to that) trace a page back to a real, email-verified
+ * Advottic account. It is never shown on the public page itself.
+ */
+export async function generateCommunitySubmissionsPdf(
+  input: CommunityExportData,
+): Promise<Buffer> {
+  const logoBuffer = await loadLogoBuffer();
+
+  return new Promise((resolve, reject) => {
+    try {
+      const doc = new PDFDocument({
+        size: PAGE_SIZE,
+        margin: MARGIN,
+        autoFirstPage: true,
+        bufferPages: true,
+        info: {
+          Title: `${input.communityCase.displayName} - Community Case packet`,
+          Author: 'Advottic',
+          Subject: 'Community Case submissions packet',
+        },
+      });
+      const chunks: Buffer[] = [];
+      doc.on('data', (c: Buffer) => chunks.push(c));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+
+      drawCommunityCoverPage(doc, input, logoBuffer);
+
+      for (const s of input.submissions) {
+        doc.addPage();
+        drawWitnessSubmission(doc, s);
+      }
+
+      doc.addPage();
+      drawDisclaimer(doc);
+
+      const range = doc.bufferedPageRange();
+      for (let i = 0; i < range.count; i++) {
+        doc.switchToPage(range.start + i);
+        if (i > 0) drawFooter(doc, i, range.count - 1, input.communityCase.displayName);
+      }
+
+      doc.end();
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
+function drawCommunityCoverPage(
+  doc: Doc,
+  input: CommunityExportData,
+  logoBuffer: Buffer | null,
+) {
+  resetToContentTop(doc);
+  if (logoBuffer) {
+    try {
+      doc.image(logoBuffer, MARGIN, doc.y, { width: 28 });
+    } catch {
+      /* best-effort */
+    }
+  }
+  doc.y += logoBuffer ? 40 : 0;
+
+  doc.font('Helvetica-Bold').fontSize(9).fillColor(COLOR.muted).text('COMMUNITY CASE PACKET', MARGIN, doc.y, {
+    characterSpacing: 2,
+  });
+  gap(doc, 6);
+  doc.font('Helvetica-Bold').fontSize(26).fillColor(COLOR.ink).text(input.communityCase.displayName, MARGIN, doc.y, {
+    width: CONTENT_WIDTH,
+  });
+  gap(doc, 16);
+
+  drawMetaGrid(doc, [
+    ['CASE NUMBER', input.communityCase.caseNumber],
+    ['STATUS', input.communityCase.status],
+    ['EXPORTED', fmtDateTime(new Date().toISOString())],
+    ['LETTERS OF SUPPORT', String(input.communityCase.letterCount)],
+    ['EVIDENCE / TESTIMONIALS', String(input.communityCase.evidenceCount)],
+  ]);
+  gap(doc, 20);
+
+  if (input.communityCase.publicSummary) {
+    subsection(doc, "Organizer's public summary");
+    body(doc, input.communityCase.publicSummary);
+    gap(doc, 16);
+  }
+
+  // Organizer identity block - see the function doc comment for why this
+  // is not optional. Confidential; never rendered on the public page.
+  doc
+    .save()
+    .roundedRect(MARGIN, doc.y, CONTENT_WIDTH, 76, 6)
+    .fillAndStroke('#fafafa', COLOR.rule)
+    .restore();
+  const boxTop = doc.y + 12;
+  doc.y = boxTop;
+  doc
+    .font('Helvetica-Bold')
+    .fontSize(8.5)
+    .fillColor(COLOR.muted)
+    .text('ORGANIZER (VERIFIED ADVOTTIC ACCOUNT) - FOR YOUR RECORDS ONLY', MARGIN + 14, doc.y, {
+      characterSpacing: 1.2,
+    });
+  gap(doc, 6);
+  doc.x = MARGIN + 14;
+  doc
+    .font('Helvetica')
+    .fontSize(11)
+    .fillColor(COLOR.ink)
+    .text(
+      `${input.organizer.name} · ${input.organizer.email}${
+        input.organizer.accountCreatedAt
+          ? ` · account created ${fmtDate(input.organizer.accountCreatedAt)}`
+          : ''
+      }`,
+      MARGIN + 14,
+      doc.y,
+      { width: CONTENT_WIDTH - 28 },
+    );
+  doc.y = boxTop + 76 - 12 + 12;
+}
+
+function drawWitnessSubmission(
+  doc: Doc,
+  s: CommunityExportData['submissions'][number],
+) {
+  resetToContentTop(doc);
+  doc
+    .font('Helvetica-Bold')
+    .fontSize(9)
+    .fillColor(COLOR.muted)
+    .text('SUBMISSION - CONFIDENTIAL, NOT FOR PUBLIC DISTRIBUTION', MARGIN, doc.y, {
+      characterSpacing: 1.2,
+    });
+  gap(doc, 6);
+  doc
+    .font('Helvetica-Bold')
+    .fontSize(20)
+    .fillColor(COLOR.ink)
+    .text(s.fullName || 'Anonymous submitter', MARGIN, doc.y, { width: CONTENT_WIDTH });
+  gap(doc, 10);
+
+  if (s.kind === 'letter_of_support') {
+    const addr = s.mailingAddress;
+    drawMetaGrid(doc, [
+      ['SUBMITTED', fmtDateTime(s.createdAt)],
+      ['TYPE', 'Letter of Support'],
+      ['MAILING ADDRESS', addr ? `${addr.street}, ${addr.city}, ${addr.state} ${addr.zip}` : null],
+    ]);
+    gap(doc, 14);
+
+    if (s.letterBody) {
+      subsection(doc, 'Letter');
+      body(doc, s.letterBody);
+      gap(doc, 16);
+    }
+
+    if (s.signatureBuffer) {
+      subsection(doc, 'Signature');
+      try {
+        doc.image(s.signatureBuffer, MARGIN, doc.y, { fit: [280, 100] });
+        doc.y += 108;
+      } catch {
+        /* best-effort */
+      }
+      gap(doc, 10);
+    }
+
+    for (const [label, buf] of [
+      ['ID - front', s.idFrontBuffer],
+      ['ID - back', s.idBackBuffer],
+    ] as const) {
+      if (!buf) continue;
+      if (doc.y > PAGE_HEIGHT - MARGIN - 220) doc.addPage();
+      subsection(doc, label);
+      try {
+        doc.image(buf, MARGIN, doc.y, { fit: [CONTENT_WIDTH, 240], align: 'center' });
+        doc.y += 248;
+      } catch {
+        /* best-effort */
+      }
+      gap(doc, 10);
+    }
+    return;
+  }
+
+  drawMetaGrid(doc, [
+    ['SUBMITTED', fmtDateTime(s.createdAt)],
+    ['ATTACHMENT', s.evidenceFileName ?? null],
+    ['FILE SIZE', s.evidenceFileSize ? formatBytes(s.evidenceFileSize) : null],
+  ]);
+  gap(doc, 14);
+
+  if (s.testimonialText) {
+    subsection(doc, 'Testimonial');
+    body(doc, s.testimonialText);
+    gap(doc, 16);
+  }
+
+  if (s.imageBuffer) {
+    try {
+      const maxW = CONTENT_WIDTH;
+      const availableH = PAGE_HEIGHT - MARGIN - 40 - doc.y;
+      const fitH = Math.max(160, Math.min(availableH, 480));
+      doc.image(s.imageBuffer, MARGIN, doc.y, { fit: [maxW, fitH], align: 'center' });
+    } catch {
+      /* best-effort - the metadata above still identifies the file */
+    }
+  } else if (s.evidenceFileName && s.evidenceFileType === 'application/pdf') {
+    doc
+      .font('Helvetica-Oblique')
+      .fontSize(10)
+      .fillColor(COLOR.muted)
+      .text('PDF attachment - available separately in the case file.', MARGIN, doc.y);
+  }
 }

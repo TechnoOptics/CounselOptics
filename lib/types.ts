@@ -230,6 +230,11 @@ export type Profile = {
   tourCompletedAt?: string | null;
   theme?: ThemePref;
   language?: string | null;
+  /** Set only after a successful Twilio Verify OTP check - see
+   * lib/phone-verify.ts. Distinct from the self-reported, unverified
+   * `phone` column Safe Witness uses for its "Call User" button. */
+  phoneNumber?: string | null;
+  phoneVerifiedAt?: string | null;
   /** Per-portal sidebar customization. See lib/menu-prefs.ts. */
   menuPreferences?: AllMenuPreferences;
   updatedAt: string;
