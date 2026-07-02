@@ -108,6 +108,9 @@ export default async function HomePage() {
         <BellaShowcase />
       </div>
       <div className="cv-auto">
+        <CommunityCaseShowcase />
+      </div>
+      <div className="cv-auto">
         <TestimonialMarquee />
       </div>
       <div className="cv-auto">
@@ -901,6 +904,105 @@ function BellaShowcase() {
         </div>
       </div>
     </section>
+  );
+}
+
+// Community Case showcase - real product screenshots (not a JSX mock,
+// unlike BellaShowcase's chat panel) since this is a newer, less
+// familiar feature that benefits from showing the actual UI. Images
+// live in public/marketing/ - see the CommunityCasePreview doc comment
+// for how they were captured.
+function CommunityCaseShowcase() {
+  return (
+    <section className="relative">
+      <div className="rounded-3xl bg-white ring-1 ring-ink-200 dark:bg-forest-900/40 dark:ring-forest-700/40 px-6 sm:px-10 py-10 sm:py-14 relative overflow-hidden">
+        <div className="grid gap-10 lg:grid-cols-12 lg:gap-14 items-center relative">
+          <div className="lg:col-span-6 lg:order-2">
+            <p className="inline-flex items-center gap-2 text-[10px] tracking-[0.28em] uppercase font-semibold text-gold-600 dark:text-gold-300">
+              <span className="inline-block h-px w-8 bg-gold-500 dark:bg-gold-400" />
+              Community Case pages
+            </p>
+            <h2 className="mt-4 font-display text-3xl sm:text-[44px] font-medium tracking-[-0.02em] leading-[1.05] text-forest-900 dark:text-cream-100">
+              A place for your community{' '}
+              <span className="bg-gold-shine bg-clip-text text-transparent gold-pan italic">
+                to show up.
+              </span>
+            </h2>
+            <p className="mt-4 text-ink-700 dark:text-cream-100/85 leading-relaxed max-w-xl">
+              Publish a shareable page for an ongoing case - the bond amount, the hearing date,
+              whatever you&apos;d like people to know - and let the community help two ways: a
+              signed Letter of Support for the attorney, or evidence and testimonials shared
+              privately. Fundraising links point straight to your own GoFundMe, Cash App, or
+              Zelle; Advottic never touches the money.
+            </p>
+            <ul className="mt-6 space-y-2 text-sm text-ink-700 dark:text-cream-100/85">
+              <BellaBullet>
+                <strong>One shareable page</strong> with the bond amount, hearing date, and
+                whatever else you want the community to know.
+              </BellaBullet>
+              <BellaBullet>
+                <strong>Two ways to help</strong> - a signed Letter of Support, or evidence and
+                testimonials submitted privately.
+              </BellaBullet>
+              <BellaBullet>
+                <strong>Funding links, not fundraising</strong> - GoFundMe, Cash App, or Zelle,
+                straight to your own accounts.
+              </BellaBullet>
+              <BellaBullet>
+                <strong>Nothing public until you choose</strong> - every submission goes straight
+                to you and your attorney, exportable as one packet.
+              </BellaBullet>
+            </ul>
+            <Link href="/cases" className="btn-secondary mt-6 inline-flex">
+              Start a Community Case page
+            </Link>
+          </div>
+
+          <div className="lg:col-span-6 lg:order-1">
+            <CommunityCasePreview />
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Real screenshots of the actual Community Case public page and Letter
+ * of Support flow (captured via a headless Chromium against a temporary,
+ * clearly-labeled demo record, not a real case - the record was deleted
+ * immediately after capture). Layered the same way ProductPreview's mock
+ * cards are on the hero: a larger "back" card and a smaller rotated
+ * "front" card, but with genuine UI instead of a redrawn mock, since
+ * this feature is new enough that showing the real thing matters more
+ * than a stylized approximation.
+ */
+function CommunityCasePreview() {
+  return (
+    <div className="relative aspect-[4/5] sm:aspect-[5/6] lg:aspect-[4/5]">
+      <div
+        aria-hidden
+        className="absolute -inset-6 rounded-[3rem] opacity-50 blur-3xl pointer-events-none"
+        style={{
+          background:
+            'radial-gradient(60% 50% at 40% 35%, rgba(213,187,126,0.4), transparent 70%)',
+        }}
+      />
+      <img
+        src="/marketing/community-case-page.png"
+        alt="A published Community Case page showing the bond amount, fundraising links, and how the community can help"
+        className="absolute left-0 top-0 w-[86%] rounded-2xl ring-1 ring-forest-700/20 shadow-card-hover object-cover object-top"
+        style={{ aspectRatio: '1400 / 915' }}
+        loading="lazy"
+      />
+      <img
+        src="/marketing/community-case-letter.png"
+        alt="The Letter of Support flow, showing a typed and drawn signature step"
+        className="absolute right-0 bottom-0 w-[62%] rotate-[-2deg] rounded-2xl ring-1 ring-forest-700/30 shadow-card-hover object-cover object-top hidden sm:block"
+        style={{ aspectRatio: '1400 / 660' }}
+        loading="lazy"
+      />
+    </div>
   );
 }
 
