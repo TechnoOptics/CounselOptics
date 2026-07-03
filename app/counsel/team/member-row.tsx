@@ -178,7 +178,7 @@ export function TeamMemberRow({
             type="button"
             onClick={remove}
             disabled={pending}
-            className="text-[12px] text-rose-700 dark:text-rose-300 hover:underline"
+            className="inline-flex items-center justify-center min-h-[40px] px-3 rounded-md text-[12px] text-rose-700 dark:text-rose-300 ring-1 ring-rose-200 dark:ring-rose-900/40 hover:bg-rose-50 dark:hover:bg-rose-950/30 disabled:opacity-50"
           >
             {isMe ? 'Leave' : 'Remove'}
           </button>

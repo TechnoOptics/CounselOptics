@@ -207,7 +207,7 @@ export function ChatShell({
   }
 
   return (
-    <div className="grid md:grid-cols-[240px,1fr] gap-4 h-[70vh]">
+    <div className="grid md:grid-cols-[240px,1fr] gap-4 h-[70dvh]">
       <aside className="card p-3 overflow-y-auto">
         <div className="flex items-center justify-between mb-2">
           <p className="eyebrow">Channels</p>
@@ -305,7 +305,7 @@ export function ChatShell({
             e.preventDefault();
             send();
           }}
-          className="border-t border-ink-100 dark:border-forest-700/40 p-2 flex items-end gap-2"
+          className="border-t border-ink-100 dark:border-forest-700/40 p-2 pb-[calc(0.5rem+var(--safe-bottom))] flex items-end gap-2"
         >
           <textarea
             value={draft}

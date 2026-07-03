@@ -284,7 +284,7 @@ function ArrowBtn({
       disabled={disabled}
       aria-label={label}
       title={label}
-      className="h-6 w-6 inline-flex items-center justify-center rounded ring-1 ring-ink-200 dark:ring-forest-700/40 text-ink-600 dark:text-cream-100/70 disabled:opacity-30 hover:bg-cream-50 dark:hover:bg-forest-800/50"
+      className="h-10 w-10 inline-flex items-center justify-center rounded ring-1 ring-ink-200 dark:ring-forest-700/40 text-ink-600 dark:text-cream-100/70 disabled:opacity-30 hover:bg-cream-50 dark:hover:bg-forest-800/50"
     >
       <svg
         width="11"

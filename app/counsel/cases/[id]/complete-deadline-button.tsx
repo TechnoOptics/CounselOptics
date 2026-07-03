@@ -17,7 +17,7 @@ export function CompleteDeadlineButton({ deadlineId }: { deadlineId: string }) {
         });
       }}
       disabled={pending}
-      className="text-[11px] underline text-emerald-700 dark:text-emerald-300"
+      className="inline-flex items-center min-h-[40px] px-3 rounded-md text-[11px] text-emerald-700 dark:text-emerald-300 ring-1 ring-emerald-200 dark:ring-emerald-900/40 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 disabled:opacity-50"
     >
       {pending ? '...' : 'Complete'}
     </button>

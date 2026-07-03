@@ -157,7 +157,7 @@ export function EmployeesPanel({
                     type="button"
                     onClick={() => toggle(e.id, inactive)}
                     disabled={pending}
-                    className="text-[12px] underline text-ink-700 dark:text-cream-100/85 hover:text-forest-900 dark:hover:text-cream-100"
+                    className="inline-flex items-center min-h-[40px] px-2.5 rounded-md text-[12px] text-ink-700 dark:text-cream-100/85 ring-1 ring-ink-200 dark:ring-forest-700/40 hover:bg-cream-50 dark:hover:bg-forest-800/30 disabled:opacity-50"
                   >
                     {inactive ? 'Reactivate' : 'Deactivate'}
                   </button>

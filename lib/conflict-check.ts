@@ -22,10 +22,14 @@ import { createAdminSupabase } from './supabase/admin';
  *   4. cleared intakes can be promoted to a real matter (case row +
  *      engagement letter prefilled by Bella).
  *
- * The check is a name-based fuzzy match on every party. False
- * positives are expected (common names) and operators clear them
- * with a written waiver in conflict_check_notes - the audit trail
- * stays.
+ * The check is a normalized name match on every party (see namesMatch
+ * below): lowercase + punctuation-stripped substring overlap in either
+ * direction, plus reordered-token matching. It is deliberately
+ * recall-oriented - false positives from common names are expected and
+ * operators clear them with a written waiver in conflict_check_notes
+ * (the audit trail stays). It is NOT phonetic or edit-distance fuzzy:
+ * it will still miss typos ("Jon" vs "John") and nicknames ("Bob" vs
+ * "Robert"), which is why a human still reviews every intake.
  */
 
 export type ConflictHit = {
@@ -118,9 +122,12 @@ export async function createMatterIntakeAction(
 
 /**
  * Search firm_clients + prior matter intakes for any name match.
- * Uses Postgres ilike for substring matching on each party. The
- * normalize step strips punctuation + lowercases so "ACME, Inc." and
- * "acme inc" both match.
+ * Matching runs in application code via namesMatch(): normalized
+ * (lowercase, punctuation-stripped) substring overlap in either
+ * direction plus reordered-token matching, so "ACME, Inc." matches
+ * "acme inc" and "Smith, John" matches "John Smith". Recall-oriented
+ * by design; see the module docstring for what it deliberately does
+ * not catch.
  */
 export async function runConflictCheckAction(
   firmId: string,
@@ -170,12 +177,13 @@ export async function runConflictCheckAction(
     email: string | null;
   }>;
   for (const party of allParties) {
-    const norm = normalizeName(party);
     for (const c of clientList) {
-      const nameMatch =
-        c.display_name && normalizeName(c.display_name).includes(norm);
+      const nameMatch = c.display_name && namesMatch(party, c.display_name);
+      // Exact email match only when the party string is itself an email.
       const emailMatch =
-        c.email && c.email.toLowerCase().includes(norm.toLowerCase());
+        c.email &&
+        party.includes('@') &&
+        c.email.toLowerCase() === party.trim().toLowerCase();
       if (nameMatch || emailMatch) {
         hits.push({
           source: 'existing_client',
@@ -206,13 +214,12 @@ export async function runConflictCheckAction(
     matter_type: string | null;
   }>;
   for (const party of allParties) {
-    const norm = normalizeName(party);
     for (const p of prior) {
       const inOpposing = (p.opposing_parties ?? []).some((q) =>
-        normalizeName(q).includes(norm) || norm.includes(normalizeName(q)),
+        namesMatch(party, q),
       );
       const inRelated = (p.related_parties ?? []).some((q) =>
-        normalizeName(q).includes(norm) || norm.includes(normalizeName(q)),
+        namesMatch(party, q),
       );
       if (inOpposing) {
         hits.push({
@@ -253,6 +260,31 @@ export async function runConflictCheckAction(
 
 function normalizeName(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * True when two party names plausibly refer to the same entity.
+ * Normalized, and recall-oriented on purpose:
+ *   1. Substring overlap in either direction - "john smith" matches
+ *      "john smith jr" and "acme" matches "acme inc".
+ *   2. Reordered-token match - every token of the shorter name appears
+ *      in the longer, so "smith, john" matches "john smith". Requires
+ *      at least two tokens so a single shared common word (e.g. "inc")
+ *      doesn't trip a match on its own.
+ * Deliberately not phonetic / edit-distance, so typos and nicknames
+ * still fall to human review.
+ */
+function namesMatch(a: string, b: string): boolean {
+  const na = normalizeName(a);
+  const nb = normalizeName(b);
+  if (!na || !nb) return false;
+  if (na.includes(nb) || nb.includes(na)) return true;
+  const ta = na.split(' ').filter(Boolean);
+  const tb = nb.split(' ').filter(Boolean);
+  const [short, long] = ta.length <= tb.length ? [ta, tb] : [tb, ta];
+  if (short.length < 2) return false;
+  const longSet = new Set(long);
+  return short.every((t) => longSet.has(t));
 }
 
 export async function clearConflictAction(

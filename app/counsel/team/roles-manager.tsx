@@ -122,12 +122,12 @@ export function RolesManager({
                 <p className="font-semibold text-forest-900 dark:text-cream-100">
                   {r.name}
                 </p>
-                <div className="flex items-center gap-3 text-[12px]">
+                <div className="flex items-center gap-1.5 text-[12px]">
                   <button
                     type="button"
                     onClick={() => preview(r.key)}
                     disabled={pending}
-                    className="underline text-gold-700 dark:text-gold-200 hover:opacity-80"
+                    className="inline-flex items-center min-h-[40px] px-2.5 rounded-md text-gold-700 dark:text-gold-200 hover:bg-gold-500/10 disabled:opacity-50"
                   >
                     Preview as this
                   </button>
@@ -135,7 +135,7 @@ export function RolesManager({
                     type="button"
                     onClick={() => loadForEdit(r)}
                     disabled={pending}
-                    className="underline text-ink-700 dark:text-cream-100/85"
+                    className="inline-flex items-center min-h-[40px] px-2.5 rounded-md text-ink-700 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/30 disabled:opacity-50"
                   >
                     Edit
                   </button>
@@ -143,7 +143,7 @@ export function RolesManager({
                     type="button"
                     onClick={() => remove(r.key)}
                     disabled={pending}
-                    className="underline text-rose-600 dark:text-rose-300"
+                    className="inline-flex items-center min-h-[40px] px-2.5 rounded-md text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/30 disabled:opacity-50"
                   >
                     Delete
                   </button>

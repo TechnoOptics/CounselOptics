@@ -221,7 +221,7 @@ export function AskAdvottic() {
         // forest backdrop give it a clear floating-card feel.
         <div
           ref={scrollerRef}
-          className="absolute left-0 right-0 top-full mt-3 z-30 card p-5 max-h-[60vh] overflow-y-auto bg-forest-900/95 backdrop-blur-md shadow-2xl shadow-forest-950/60 ring-1 ring-gold-500/15"
+          className="absolute left-0 right-0 top-full mt-3 z-30 card p-5 max-h-[60dvh] overflow-y-auto bg-forest-900/95 backdrop-blur-md shadow-2xl shadow-forest-950/60 ring-1 ring-gold-500/15"
         >
           {turns.map((turn, i) => (
             <div

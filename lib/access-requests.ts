@@ -47,6 +47,41 @@ export function emailDomain(email: string): string {
   return at === -1 ? '' : email.slice(at + 1).trim().toLowerCase();
 }
 
+/**
+ * Public webmail / consumer mailbox domains that must NEVER count as a
+ * firm's "internal" domain. Auto-membership provisions anyone on an
+ * internal domain into the firm with no invite (lib/persona.ts), so if
+ * a firm (or a future self-serve settings UI) ever set "gmail.com" as
+ * internal, every Gmail user on earth would silently become an employee
+ * of that firm. Filter these out defensively at the single chokepoint.
+ */
+const PUBLIC_WEBMAIL_DOMAINS = new Set([
+  'gmail.com',
+  'googlemail.com',
+  'outlook.com',
+  'hotmail.com',
+  'live.com',
+  'msn.com',
+  'yahoo.com',
+  'ymail.com',
+  'icloud.com',
+  'me.com',
+  'mac.com',
+  'aol.com',
+  'proton.me',
+  'protonmail.com',
+  'pm.me',
+  'gmx.com',
+  'mail.com',
+  'zoho.com',
+  'yandex.com',
+  'fastmail.com',
+  'hey.com',
+  'qq.com',
+  '163.com',
+  '126.com',
+]);
+
 /** Read the firm's configured internal email domains. */
 export function firmInternalDomains(
   metadata: Record<string, unknown> | null | undefined,
@@ -67,7 +102,12 @@ export function firmInternalDomains(
         .replace(/^https?:\/\//, '')
         .replace(/\/.*$/, ''),
     )
-    .filter((d) => d.includes('.') && d.length <= 253);
+    .filter(
+      (d) =>
+        d.includes('.') &&
+        d.length <= 253 &&
+        !PUBLIC_WEBMAIL_DOMAINS.has(d),
+    );
 }
 
 /**

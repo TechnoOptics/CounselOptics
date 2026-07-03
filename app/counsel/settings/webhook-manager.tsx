@@ -122,7 +122,7 @@ export function WebhookManager({
                         type="button"
                         onClick={() => onDelete(w.id)}
                         disabled={pending}
-                        className="rounded-md bg-rose-600 text-white px-2.5 py-1 hover:bg-rose-700 disabled:opacity-50"
+                        className="rounded-md bg-rose-600 text-white inline-flex items-center min-h-[40px] px-3 hover:bg-rose-700 disabled:opacity-50"
                       >
                         Confirm delete
                       </button>
@@ -130,7 +130,7 @@ export function WebhookManager({
                         type="button"
                         onClick={() => setConfirmingId(null)}
                         disabled={pending}
-                        className="rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-2.5 py-1 hover:bg-cream-50 dark:hover:bg-forest-800/30 disabled:opacity-50"
+                        className="rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 inline-flex items-center min-h-[40px] px-3 hover:bg-cream-50 dark:hover:bg-forest-800/30 disabled:opacity-50"
                       >
                         Cancel
                       </button>
@@ -141,7 +141,7 @@ export function WebhookManager({
                         type="button"
                         onClick={() => onToggle(w.id, !w.isActive)}
                         disabled={pending}
-                        className="rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-2.5 py-1 hover:bg-cream-50 dark:hover:bg-forest-800/30 disabled:opacity-50"
+                        className="rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 inline-flex items-center min-h-[40px] px-3 hover:bg-cream-50 dark:hover:bg-forest-800/30 disabled:opacity-50"
                       >
                         {w.isActive ? 'Pause' : 'Resume'}
                       </button>
@@ -149,7 +149,7 @@ export function WebhookManager({
                         type="button"
                         onClick={() => setConfirmingId(w.id)}
                         disabled={pending}
-                        className="rounded-md ring-1 ring-rose-200 dark:ring-rose-900/40 text-rose-700 dark:text-rose-300 px-2.5 py-1 hover:bg-rose-50 dark:hover:bg-rose-950/30 disabled:opacity-50"
+                        className="rounded-md ring-1 ring-rose-200 dark:ring-rose-900/40 text-rose-700 dark:text-rose-300 inline-flex items-center min-h-[40px] px-3 hover:bg-rose-50 dark:hover:bg-rose-950/30 disabled:opacity-50"
                       >
                         Delete
                       </button>

@@ -44,8 +44,8 @@ export default async function CounselTeamPage() {
 
       {canManage && <InviteMemberForm firmId={ctx.firm.id} />}
 
-      <section className="card overflow-hidden">
-        <table className="w-full text-sm">
+      <section className="card overflow-x-auto">
+        <table className="w-full min-w-[560px] text-sm">
           <thead className="bg-cream-50 dark:bg-forest-900/60 text-ink-700 dark:text-cream-100/85 text-left">
             <tr>
               <th className="font-semibold px-4 py-2.5">Name</th>

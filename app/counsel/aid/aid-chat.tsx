@@ -94,7 +94,7 @@ export function AidChat() {
   }
 
   return (
-    <div className="card flex flex-col" style={{ height: '72vh' }}>
+    <div className="card flex flex-col" style={{ height: '72dvh' }}>
       <div
         ref={scrollRef}
         className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4"
@@ -156,7 +156,7 @@ export function AidChat() {
           ))
         )}
       </div>
-      <div className="border-t border-ink-200 dark:border-forest-700/40 p-3 sm:p-4">
+      <div className="border-t border-ink-200 dark:border-forest-700/40 p-3 sm:p-4 pb-[calc(0.75rem+var(--safe-bottom))] sm:pb-[calc(1rem+var(--safe-bottom))]">
         <form
           onSubmit={(e) => {
             e.preventDefault();
