@@ -75,9 +75,40 @@ function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> 
 
 const STOREKIT_TIMEOUT_MS = 15000;
 
+/**
+ * Re-throw with a `[step]` prefix so a caught error's displayed message
+ * pinpoints which native call failed - "The string did not match the
+ * expected pattern" on its own could come from configure(), getProducts(),
+ * or purchaseStoreProduct(), and each has a different likely cause
+ * (bad API key format, bad product id, bad receipt/StoreKit response).
+ *
+ * Takes a THUNK, not a pre-built promise: `Purchases.configure(...)` is a
+ * Capacitor bridge call that can throw SYNCHRONOUSLY (argument validation
+ * before it ever returns a promise). `tagStep('x', somePromise)` would
+ * evaluate `somePromise` eagerly, before this function's body - and
+ * therefore before any `.catch()` exists to catch it - so a synchronous
+ * throw would bypass the tag entirely (this is exactly what happened on
+ * the first attempt: the untagged message came through unchanged).
+ * Wrapping the call inside `Promise.resolve().then(fn)` forces even a
+ * synchronous throw through the promise machinery, where `.catch()` can
+ * actually see it.
+ */
+function tagStep<T>(step: string, fn: () => Promise<T>): Promise<T> {
+  return Promise.resolve()
+    .then(fn)
+    .catch((err) => {
+      const message = err instanceof Error ? err.message : String(err);
+      const tagged = new Error(`[${step}] ${message}`);
+      if (err instanceof Error) tagged.stack = err.stack;
+      throw tagged;
+    });
+}
+
 async function loadPurchases() {
-  const mod = await import('@revenuecat/purchases-capacitor');
-  return mod.Purchases;
+  return tagStep('loadPlugin', async () => {
+    const mod = await import('@revenuecat/purchases-capacitor');
+    return mod.Purchases;
+  });
 }
 
 /**
@@ -85,24 +116,6 @@ async function loadPurchases() {
  * with a new user id re-identifies via logIn so the receipt is attached
  * to the right account.
  */
-/**
- * Re-throw with a `[step]` prefix so a caught error's displayed message
- * pinpoints which native call failed - "The string did not match the
- * expected pattern" on its own could come from configure(), getProducts(),
- * or purchaseStoreProduct(), and each has a different likely cause
- * (bad API key format, bad product id, bad receipt/StoreKit response).
- * Temporary diagnostic aid while chasing the 2.1(b) rejection - safe to
- * leave in permanently since it only changes error text, never behavior.
- */
-function tagStep<T>(step: string, p: Promise<T>): Promise<T> {
-  return p.catch((err) => {
-    const message = err instanceof Error ? err.message : String(err);
-    const tagged = new Error(`[${step}] ${message}`);
-    if (err instanceof Error) tagged.stack = err.stack;
-    throw tagged;
-  });
-}
-
 async function ensureConfigured(userId: string) {
   const Purchases = await loadPurchases();
   const apiKey = process.env.NEXT_PUBLIC_REVENUECAT_IOS_KEY?.trim();
@@ -110,8 +123,7 @@ async function ensureConfigured(userId: string) {
     throw new Error('In-app purchase is not configured yet.');
   }
   if (configuredFor === null) {
-    await tagStep(
-      'configure',
+    await tagStep('configure', () =>
       withTimeout(
         Purchases.configure({ apiKey, appUserID: userId }),
         STOREKIT_TIMEOUT_MS,
@@ -120,8 +132,7 @@ async function ensureConfigured(userId: string) {
     );
     configuredFor = userId;
   } else if (configuredFor !== userId) {
-    await tagStep(
-      'logIn',
+    await tagStep('logIn', () =>
       withTimeout(
         Purchases.logIn({ appUserID: userId }),
         STOREKIT_TIMEOUT_MS,
@@ -163,8 +174,7 @@ export async function purchaseTier(
     throw new Error('This plan is not available as an in-app purchase.');
   }
   const Purchases = await ensureConfigured(userId);
-  const { products } = await tagStep(
-    'getProducts',
+  const { products } = await tagStep('getProducts', () =>
     withTimeout(
       Purchases.getProducts({ productIdentifiers: [productId] }),
       STOREKIT_TIMEOUT_MS,
