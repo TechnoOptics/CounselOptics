@@ -121,6 +121,7 @@ export default async function PortalLayout({
       label: 'Profile',
       hint: 'Reminders + notifications',
     },
+    { href: '/portal/help', label: 'Help', hint: 'Contact Advottic' },
   ];
 
   return (

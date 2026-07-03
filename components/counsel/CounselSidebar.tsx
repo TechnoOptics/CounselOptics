@@ -32,6 +32,7 @@ const ICONS: Record<string, React.ReactNode> = {
   '/counsel/time': <DashIcon />,
   '/counsel/billing': <SignIcon />,
   '/counsel/trust': <SignIcon />,
+  '/counsel/help': <ChatIcon />,
 };
 
 // `isCounselItemActive` and `tenantHref` live in lib/counsel-routing.ts

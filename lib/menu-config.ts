@@ -64,6 +64,12 @@ export const DEFAULT_MENU: MenuSection[] = [
       { href: '/counsel/trust', label: 'Trust', hint: 'IOLTA ledger' },
     ],
   },
+  {
+    section: 'Support',
+    items: [
+      { href: '/counsel/help', label: 'Help & support', hint: 'Contact Advottic' },
+    ],
+  },
 ];
 
 export type MenuConfig = {
