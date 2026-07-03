@@ -12,6 +12,7 @@ import { applyMenuConfig, readMenuConfig } from '@/lib/menu-config';
 // truth. Unknown href -> a neutral default glyph.
 const ICONS: Record<string, React.ReactNode> = {
   '/counsel': <DashIcon />,
+  '/counsel/analytics': <DashIcon />,
   '/counsel/aid': <SparkIcon />,
   '/counsel/calendar': <CalIcon />,
   '/counsel/import': <ImportIcon />,
