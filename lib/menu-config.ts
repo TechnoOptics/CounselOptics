@@ -34,6 +34,7 @@ export const DEFAULT_MENU: MenuSection[] = [
       { href: '/counsel/templates', label: 'Templates', hint: 'Branded document drafting' },
       { href: '/counsel/analyze', label: 'Analyze', hint: 'Contract breakdown + risk' },
       { href: '/counsel/cases', label: 'Cases', hint: 'All firm matters' },
+      { href: '/counsel/projects', label: 'Projects', hint: 'Folders, notes + files' },
       { href: '/counsel/documents', label: 'Documents', hint: 'Case-linked vault' },
       { href: '/counsel/contracts', label: 'Contracts', hint: 'Repo + Bella review' },
       { href: '/counsel/signing', label: 'Signing', hint: 'E-sign requests' },
