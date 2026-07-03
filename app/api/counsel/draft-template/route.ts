@@ -1,23 +1,12 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { bellaGenerate } from '@/lib/bella';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
-import { getActiveFirmContext } from '@/lib/firm-storage';
+import { getActiveFirmContext, isFirmSubscriptionActive } from '@/lib/firm-storage';
 import { getTemplate, cleanLegalText } from '@/lib/legal-templates';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-
-const RATE = new Map<string, { n: number; t: number }>();
-function limited(k: string): boolean {
-  const now = Date.now();
-  const e = RATE.get(k);
-  if (!e || e.t < now) {
-    RATE.set(k, { n: 1, t: now + 60_000 });
-    return false;
-  }
-  e.n += 1;
-  return e.n > 6;
-}
 
 export async function POST(req: NextRequest) {
   if (!isSupabaseConfigured()) {
@@ -27,7 +16,11 @@ export async function POST(req: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: 'Sign in first.' }, { status: 401 });
   }
-  if (limited(user.id)) {
+  const allowed = await checkRateLimit(`counsel-draft-template:${user.id}`, {
+    limit: 6,
+    windowSeconds: 60,
+  });
+  if (!allowed) {
     return NextResponse.json(
       { error: 'One document at a time - try again in a moment.' },
       { status: 429 },
@@ -38,6 +31,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { error: 'No active firm.' },
       { status: 403 },
+    );
+  }
+  if (!(await isFirmSubscriptionActive(ctx.firm))) {
+    return NextResponse.json(
+      { error: "This firm's subscription is inactive. Ask the firm owner to update billing." },
+      { status: 402 },
     );
   }
 

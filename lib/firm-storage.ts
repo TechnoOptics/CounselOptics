@@ -361,6 +361,29 @@ export async function getActiveFirmContext(): Promise<FirmContext | null> {
   };
 }
 
+/**
+ * A firm has no billing entity of its own - "the firm's plan" really
+ * means its creator's personal subscription (see the comment on
+ * assertOrganizerEligible in lib/community-actions.ts, which checks
+ * this same thing for Community Case eligibility). getActiveFirmContext
+ * only verifies the caller is a MEMBER of the firm, never that the
+ * subscription funding it is actually still active - so a firm whose
+ * creator's subscription lapsed or was canceled could otherwise keep
+ * using AI routes indefinitely. Callers that meter real cost per call
+ * (counsel/analyze, counsel/draft-template) should check this too.
+ *
+ * Deliberately scoped to just those AI routes rather than folded into
+ * getActiveFirmContext itself - blocking ALL portal access (team,
+ * documents, clients) the instant a subscription lapses is a separate
+ * product decision this doesn't make unilaterally.
+ */
+export async function isFirmSubscriptionActive(firm: Firm): Promise<boolean> {
+  if (!firm.createdBy) return false;
+  const { getSubscriptionForUser } = await import('./storage');
+  const sub = await getSubscriptionForUser(firm.createdBy).catch(() => null);
+  return sub?.status === 'active' || sub?.status === 'trialing';
+}
+
 export async function getFirmBySlug(slug: string): Promise<Firm | null> {
   const supabase = createServerSupabase();
   const { data } = await supabase
