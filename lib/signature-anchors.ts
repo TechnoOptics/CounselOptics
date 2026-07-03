@@ -237,8 +237,13 @@ async function findTextSignatureAnchors(
   const out: SignaturePlacement[] = [];
   const pages = pdf.getPages();
   const decoder = new TextDecoder('latin1');
+  // Signature-line labels only. Deliberately NOT "Name:" / "Date:" -
+  // those are adjacent fields, not places to drop the signature PNG,
+  // and the content-stream scan can't recover a reliable x/y for them
+  // anyway (see the module header). Widened with the common real-world
+  // variants "/s/", "Authorized signature", and "Signature of".
   const ANCHOR_RE =
-    /(\bSignature\s*:|\bSign\s+here\b|\bSigned\s+by\b|_{6,}|-{8,}|\bX\s*_{3,})/i;
+    /(\bSignature\s*(of\b|:)|\bAuthorized\s+signature\b|\bSign\s+here\b|\bSigned\s+by\b|\/s\/|_{6,}|-{8,}|\bX\s*_{3,})/i;
 
   for (let i = 0; i < pages.length; i++) {
     const page = pages[i];

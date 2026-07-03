@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStepAnchor } from '@/lib/use-step-anchor';
 
-type Mode = 'draw' | 'type';
+type Mode = 'draw' | 'type' | 'upload';
 type Step = 'disclosure' | 'capture' | 'done';
 
 /**
@@ -133,6 +133,46 @@ export function SignatureCapture({
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     setHasInk(false);
     setTyped(signerName ?? '');
+  }
+
+  // Upload / attach an existing signature image. The file is drawn onto
+  // the same canvas the draw/type modes use, so the submit path (which
+  // reads canvas.toDataURL) is unchanged. We fit-inside without cropping
+  // and, for opaque photos of a signature on paper, the PNG carries
+  // whatever the signer supplied - the firm reviews the executed doc.
+  function onUploadFile(file: File | null) {
+    setError(null);
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setError('Choose an image file (PNG, JPG, or similar).');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError('That image is over the 5 MB limit.');
+      return;
+    }
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const w = canvas.width / (window.devicePixelRatio || 1);
+      const h = canvas.height / (window.devicePixelRatio || 1);
+      ctx.clearRect(0, 0, w, h);
+      const scale = Math.min(w / img.width, h / img.height);
+      const drawW = img.width * scale;
+      const drawH = img.height * scale;
+      ctx.drawImage(img, (w - drawW) / 2, (h - drawH) / 2, drawW, drawH);
+      setHasInk(true);
+      URL.revokeObjectURL(url);
+    };
+    img.onerror = () => {
+      setError('Could not read that image. Try a different file.');
+      URL.revokeObjectURL(url);
+    };
+    img.src = url;
   }
 
   function advanceFromDisclosure() {
@@ -338,6 +378,16 @@ export function SignatureCapture({
           >
             Type
           </button>
+          <button
+            type="button"
+            onClick={() => {
+              setMode('upload');
+              clear();
+            }}
+            className={`px-3 py-1.5 ${mode === 'upload' ? 'bg-forest-900 text-white dark:bg-gold-metal dark:text-forest-950' : 'text-ink-700 dark:text-cream-100/85'}`}
+          >
+            Upload
+          </button>
         </div>
       </div>
 
@@ -349,6 +399,17 @@ export function SignatureCapture({
           className="input"
           maxLength={80}
         />
+      )}
+
+      {mode === 'upload' && (
+        <label className="flex items-center gap-3 text-[13px] text-ink-700 dark:text-cream-100/80">
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            onChange={(e) => onUploadFile(e.currentTarget.files?.[0] ?? null)}
+            className="block w-full text-[12px] file:mr-3 file:min-h-[40px] file:rounded-md file:border-0 file:bg-forest-900 file:px-3 file:text-white dark:file:bg-gold-metal dark:file:text-forest-950"
+          />
+        </label>
       )}
 
       <div className="rounded-lg border-2 border-dashed border-ink-300 dark:border-forest-700/60 bg-white dark:bg-forest-950 p-1">
@@ -367,7 +428,11 @@ export function SignatureCapture({
           Clear
         </button>
         <span className="text-[11px] text-ink-500 dark:text-cream-100/55">
-          {mode === 'draw' ? 'Draw with your finger or mouse' : 'Choose a font-rendered signature'}
+          {mode === 'draw'
+            ? 'Draw with your finger, mouse, or trackpad'
+            : mode === 'type'
+              ? 'A font-rendered cursive signature'
+              : 'Attach an image of your signature'}
         </span>
       </div>
 
