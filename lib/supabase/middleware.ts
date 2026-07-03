@@ -14,6 +14,18 @@ import { getFirmBySubdomain, RESERVED_SUBDOMAINS } from '@/lib/firm-cache';
 const TENANT_SUBDOMAINS_ENABLED =
   (process.env.NEXT_PUBLIC_TENANT_SUBDOMAINS ?? '').trim() === '1';
 
+/**
+ * Sign-in-time AAL2 (step-up MFA) enforcement. OFF by default on
+ * purpose: app/profile/mfa-settings.tsx's enrollment flow is additive
+ * and opt-in and cannot lock anyone out, but THIS check can - a bug
+ * here would block every protected route for every signed-in user,
+ * not just ones who enrolled 2FA. Flip to "1" only after validating
+ * the enroll -> sign-out -> sign-in -> step-up round trip on a real
+ * device. Server-only (no NEXT_PUBLIC_ prefix) since this check runs
+ * exclusively here in middleware.
+ */
+const MFA_AAL2_ENFORCEMENT = (process.env.MFA_AAL2_ENFORCEMENT ?? '').trim() === '1';
+
 // /welcome was historically auth-protected as a post-sign-in landing page;
 // the new /welcome is a public install + sign-in page used as the share-app
 // destination, so it must NOT require auth. Authenticated visitors get
@@ -416,6 +428,28 @@ export async function updateSession(request: NextRequest) {
           : effectivePath;
       signInUrl.searchParams.set('next', nextValue);
       return applySeoHeaders(NextResponse.redirect(signInUrl));
+    }
+
+    // Step-up (AAL2) enforcement - see the MFA_AAL2_ENFORCEMENT comment
+    // above. Only runs once we already know a real session exists
+    // (needsAuth && user), and only for protected routes - /verify-mfa
+    // itself is not in PROTECTED_PREFIXES, so it can never redirect to
+    // itself. A user with no MFA factor enrolled has
+    // currentLevel === nextLevel always, so this is a no-op for the
+    // overwhelming majority of sessions today (enrollment is opt-in).
+    if (MFA_AAL2_ENFORCEMENT && needsAuth && user) {
+      try {
+        const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+        if (aal && aal.nextLevel === 'aal2' && aal.currentLevel !== 'aal2') {
+          const verifyUrl = request.nextUrl.clone();
+          verifyUrl.pathname = '/verify-mfa';
+          verifyUrl.search = '';
+          verifyUrl.searchParams.set('next', effectivePath);
+          return applySeoHeaders(NextResponse.redirect(verifyUrl));
+        }
+      } catch {
+        // Never block access because the AAL check itself failed.
+      }
     }
   } catch (err) {
     // Surfacing the message to Vercel runtime logs, not the user.
