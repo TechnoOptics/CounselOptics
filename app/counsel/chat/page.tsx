@@ -19,17 +19,19 @@ export default async function CounselChatPage() {
   const channels = await listChannelsForUser(ctx.firm.id);
 
   return (
-    <div className="space-y-4 animate-fade-up">
-      <header>
+    <div className="flex flex-col gap-4 animate-fade-up h-[calc(100dvh-9.5rem)] min-h-[28rem]">
+      <header className="flex-none">
         <p className="eyebrow mb-1">Chat</p>
-        <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
+        <h1 className="font-display text-2xl sm:text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
           Team conversations
         </h1>
-        <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-1">
+        <p className="hidden sm:block text-[12px] text-ink-500 dark:text-cream-100/55 mt-1">
           Real-time via Supabase WebSockets. Messages, edits, and deletes propagate in ~100ms; a 60-second heartbeat refetch covers any dropped event.
         </p>
       </header>
-      <ChatShell firmId={ctx.firm.id} initialChannels={channels} userId={ctx.membership.userId} />
+      <div className="flex-1 min-h-0">
+        <ChatShell firmId={ctx.firm.id} initialChannels={channels} userId={ctx.membership.userId} />
+      </div>
     </div>
   );
 }

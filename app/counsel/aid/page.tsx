@@ -14,20 +14,27 @@ export default async function CounselAidPage() {
       : 'your jurisdictions';
 
   return (
-    <div className="space-y-6 animate-fade-up">
-      <header>
+    // Fill the available viewport so the chat sits on one screen: the
+    // header takes its natural height and the chat flexes to fill the
+    // rest (only the message list inside scrolls). The calc offsets the
+    // counsel header, footer, and layout padding. min-h keeps it usable
+    // on very short screens (where the page may scroll, which is fine).
+    <div className="flex flex-col gap-4 animate-fade-up h-[calc(100dvh-9.5rem)] min-h-[28rem]">
+      <header className="flex-none">
         <p className="eyebrow mb-1">Counsel · Advottic Aid</p>
-        <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
+        <h1 className="font-display text-2xl sm:text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
           Advottic Aid
         </h1>
-        <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
+        <p className="hidden sm:block text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
           Ask questions about your matters and get answers grounded in
           real case law for <strong>{where}</strong>, plus instant
           retrieval of your firm&rsquo;s past items. Powered by Bella
           with live CourtListener case-law search.
         </p>
       </header>
-      <AidChat />
+      <div className="flex-1 min-h-0">
+        <AidChat />
+      </div>
     </div>
   );
 }

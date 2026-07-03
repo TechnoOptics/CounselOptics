@@ -207,7 +207,7 @@ export function ChatShell({
   }
 
   return (
-    <div className="grid md:grid-cols-[240px,1fr] gap-4 h-[70dvh]">
+    <div className="grid md:grid-cols-[240px,1fr] gap-4 h-full min-h-0">
       <aside className="card p-3 overflow-y-auto">
         <div className="flex items-center justify-between mb-2">
           <p className="eyebrow">Channels</p>

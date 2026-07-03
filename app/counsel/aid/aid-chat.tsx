@@ -94,7 +94,7 @@ export function AidChat() {
   }
 
   return (
-    <div className="card flex flex-col" style={{ height: '72dvh' }}>
+    <div className="card flex flex-col h-full min-h-0">
       <div
         ref={scrollRef}
         className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4"
