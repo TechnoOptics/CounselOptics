@@ -190,6 +190,145 @@ export function buildMeetingInviteEmailHtml(input: {
 </body></html>`;
 }
 
+/**
+ * Branded "please sign this document" email. Enterprise black + gold
+ * theme, led by the firm's logo (or gold wordmark), so mail sent on a
+ * firm's behalf reads as the firm - not a generic Advottic notice.
+ * Pairs with buildSigningCodeEmailHtml: for external signers we send
+ * this (the link) plus a separate code email, and the signer needs
+ * both to open the document.
+ */
+export function buildSigningRequestEmailHtml(input: {
+  firmName: string;
+  logoUrl?: string | null;
+  senderName: string;
+  documentName: string;
+  message?: string | null;
+  link: string;
+  /** True when a separate code email is also being sent. */
+  codeSeparately?: boolean;
+}): string {
+  const brand = (input.firmName || 'Advottic').trim() || 'Advottic';
+  const year = new Date().getFullYear();
+  const header = input.logoUrl
+    ? `<img src="${escapeAttribute(input.logoUrl)}" alt="${escapeAttribute(
+        brand,
+      )}" height="40" style="display:block;max-height:40px;width:auto;border:0;outline:none;text-decoration:none;" />`
+    : `<p style="margin:0;color:#e8c878;font-size:18px;letter-spacing:0.16em;text-transform:uppercase;font-weight:700;">${escapeHtml(
+        brand,
+      )}</p>`;
+  const messageBlock = input.message
+    ? `<div style="margin:0 0 20px;padding:14px 16px;background:#faf7ef;border-left:3px solid #c9a24a;border-radius:4px;">
+         <p style="margin:0;color:#3f3f46;font-size:13.5px;line-height:1.55;font-style:italic;">&ldquo;${escapeHtml(
+           input.message,
+         )}&rdquo;</p>
+       </div>`
+    : '';
+  const codeNote = input.codeSeparately
+    ? `<p style="margin:0 0 8px;color:#71717a;font-size:12.5px;line-height:1.55;">For your security, we&rsquo;ve sent a one-time access code to this same address in a separate email. You&rsquo;ll enter it to open the document.</p>`
+    : `<p style="margin:0 0 8px;color:#71717a;font-size:12.5px;line-height:1.55;">This link is single-use and opens the document inside Advottic - it never leaves the app.</p>`;
+  return `<!doctype html>
+<html><body style="margin:0;padding:0;background:#0a0a0b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif;color:#1a1a1a;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0a0a0b;padding:32px 16px;">
+    <tr><td align="center">
+      <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 8px 28px -4px rgba(0,0,0,0.45);border:1px solid #1c1c1e;">
+        <tr><td style="background:#0b0b0c;padding:26px 32px;border-bottom:2px solid #e8c878;">
+          ${header}
+          <p style="margin:10px 0 0;color:#f4f0e6;font-size:18px;font-weight:600;">A document needs your signature</p>
+        </td></tr>
+        <tr><td style="padding:28px 32px 8px;">
+          <h1 style="margin:0 0 12px;color:#0b0b0c;font-size:22px;line-height:1.2;font-weight:700;letter-spacing:-0.01em;">${escapeHtml(
+            input.documentName,
+          )}</h1>
+          <p style="margin:0 0 18px;color:#3f3f46;font-size:14.5px;line-height:1.55;">${escapeHtml(
+            input.senderName,
+          )} at ${escapeHtml(
+    brand,
+  )} has asked you to review and sign a document.</p>
+          ${messageBlock}
+          <p style="margin:0 0 22px;">
+            <a href="${escapeAttribute(
+              input.link,
+            )}" style="display:inline-block;background:#0b0b0c;color:#e8c878;text-decoration:none;padding:13px 26px;border-radius:10px;font-weight:700;font-size:14px;letter-spacing:-0.005em;">Review &amp; sign</a>
+          </p>
+          ${codeNote}
+          <p style="margin:0 0 22px;word-break:break-all;color:#52525b;font-size:11.5px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;">${escapeHtml(
+            input.link,
+          )}</p>
+          <p style="margin:0;color:#a1a1aa;font-size:11.5px;line-height:1.55;">If you weren&rsquo;t expecting this, you can ignore this email and nothing will be signed.</p>
+        </td></tr>
+        <tr><td style="padding:0 32px 28px;">
+          <hr style="border:none;border-top:1px solid #e4e4e7;margin:0 0 12px;" />
+          <p style="margin:0;color:#a1a1aa;font-size:11px;letter-spacing:0.04em;">© ${year} ${escapeHtml(
+    brand,
+  )} &middot; Powered by Advottic</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
+/**
+ * Branded one-time access-code email. Sent alongside (but separately
+ * from) the sign-link email to external signers, so opening the
+ * document requires control of the mailbox - a forwarded link alone
+ * won't do. The code is large and centered for easy transcription.
+ */
+export function buildSigningCodeEmailHtml(input: {
+  firmName: string;
+  logoUrl?: string | null;
+  documentName: string;
+  code: string;
+}): string {
+  const brand = (input.firmName || 'Advottic').trim() || 'Advottic';
+  const year = new Date().getFullYear();
+  const header = input.logoUrl
+    ? `<img src="${escapeAttribute(input.logoUrl)}" alt="${escapeAttribute(
+        brand,
+      )}" height="36" style="display:block;max-height:36px;width:auto;border:0;outline:none;text-decoration:none;" />`
+    : `<p style="margin:0;color:#e8c878;font-size:16px;letter-spacing:0.16em;text-transform:uppercase;font-weight:700;">${escapeHtml(
+        brand,
+      )}</p>`;
+  // Space the code so it's readable at a glance: "ABC 123".
+  const spaced =
+    input.code.length === 6
+      ? `${input.code.slice(0, 3)} ${input.code.slice(3)}`
+      : input.code;
+  return `<!doctype html>
+<html><body style="margin:0;padding:0;background:#0a0a0b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif;color:#1a1a1a;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0a0a0b;padding:32px 16px;">
+    <tr><td align="center">
+      <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 8px 28px -4px rgba(0,0,0,0.45);border:1px solid #1c1c1e;">
+        <tr><td style="background:#0b0b0c;padding:24px 32px;border-bottom:2px solid #e8c878;">
+          ${header}
+          <p style="margin:10px 0 0;color:#f4f0e6;font-size:17px;font-weight:600;">Your access code</p>
+        </td></tr>
+        <tr><td style="padding:28px 32px 8px;">
+          <p style="margin:0 0 18px;color:#3f3f46;font-size:14.5px;line-height:1.55;">Enter this code to open &ldquo;<strong>${escapeHtml(
+            input.documentName,
+          )}</strong>&rdquo; for signature. It works once, on the sign page from your other email.</p>
+          <div style="margin:0 0 20px;text-align:center;">
+            <span style="display:inline-block;padding:14px 28px;background:#faf7ef;border:1px solid #e6d9b6;border-radius:12px;color:#0b0b0c;font-size:30px;font-weight:700;letter-spacing:0.28em;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;">${escapeHtml(
+              spaced,
+            )}</span>
+          </div>
+          <p style="margin:0;color:#a1a1aa;font-size:11.5px;line-height:1.55;">Never share this code. ${escapeHtml(
+            brand,
+          )} will never ask for it by phone. If you weren&rsquo;t expecting it, you can ignore this email.</p>
+        </td></tr>
+        <tr><td style="padding:16px 32px 28px;">
+          <hr style="border:none;border-top:1px solid #e4e4e7;margin:0 0 12px;" />
+          <p style="margin:0;color:#a1a1aa;font-size:11px;letter-spacing:0.04em;">© ${year} ${escapeHtml(
+    brand,
+  )} &middot; Powered by Advottic</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, '&amp;')

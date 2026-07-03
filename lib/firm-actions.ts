@@ -6,7 +6,12 @@ import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { createServerSupabase, getCurrentUser, requireUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
-import { sendEmail, buildMeetingInviteEmailHtml } from './email';
+import {
+  sendEmail,
+  buildMeetingInviteEmailHtml,
+  buildSigningRequestEmailHtml,
+  buildSigningCodeEmailHtml,
+} from './email';
 import type { FirmRole, FirmSigningStatus, FirmType } from './firm-types';
 import { FIRM_ROLES, FIRM_TYPES } from './firm-types';
 import { logSecurityEvent } from './security-audit';
@@ -45,6 +50,23 @@ function slugify(input: string): string {
 
 function newToken(bytes = 32): string {
   return crypto.randomBytes(bytes).toString('base64url');
+}
+
+/**
+ * A 6-character one-time access code for external signers (#5), drawn
+ * from an unambiguous alphabet (no 0/O/1/I/L, no vowels to avoid
+ * accidental words) so it's easy to read off a phone and hard to
+ * mistype. Generated with crypto.randomInt for uniform, unbiased
+ * selection. The plaintext is emailed to the signer; only its
+ * SHA-256 hash is persisted.
+ */
+const ACCESS_CODE_ALPHABET = 'BCDFGHJKMNPQRSTVWXYZ23456789';
+function newAccessCode(len = 6): string {
+  let out = '';
+  for (let i = 0; i < len; i++) {
+    out += ACCESS_CODE_ALPHABET[crypto.randomInt(ACCESS_CODE_ALPHABET.length)];
+  }
+  return out;
 }
 
 // =====================================================================
@@ -2114,47 +2136,55 @@ export async function createSigningRequestAction(
   // Lazy-load the notifications producer so this action stays cheap
   // when notifications are no-ops (eg. Supabase not configured in dev).
   const { createNotification } = await import('./notifications');
+  const { sha256 } = await import('./esign-audit');
+
+  // Firm brand for the outgoing mail, so signing emails read as the
+  // firm ("Zinpro Legal") rather than a generic Advottic notice. The
+  // address stays the verified sender for DKIM/DMARC (see sendEmail),
+  // only the display name + template branding change.
+  const { data: firmRow } = await admin
+    .from('firms')
+    .select('name, logo_url')
+    .eq('id', firmId)
+    .maybeSingle();
+  const firmName =
+    ((firmRow as { name?: string } | null)?.name ?? 'Advottic').trim() ||
+    'Advottic';
+  const firmLogo =
+    (firmRow as { logo_url?: string | null } | null)?.logo_url ?? null;
+  // Sender display name for the email body.
+  const { data: senderMember } = await admin
+    .from('firm_members')
+    .select('display_name')
+    .eq('firm_id', firmId)
+    .eq('user_id', user.id)
+    .maybeSingle();
+  const senderName =
+    ((senderMember as { display_name?: string | null } | null)?.display_name ||
+      '').trim() ||
+    (user.email ? user.email.split('@')[0] : '') ||
+    'A team member';
+  const baseUrl =
+    process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://advottic.com';
 
   for (const signer of placedSigners) {
-    const token = newToken(32);
-    await admin.from('firm_signatures').insert({
-      signing_request_id: requestId,
-      signer_email: signer.email.trim().toLowerCase(),
-      signer_name: signer.name?.trim() || null,
-      token,
-      // Placement comes from signature-anchors.ts. When the caller
-      // provided explicit coordinates these are echoed back; when
-      // they didn't, the values either map to a detected anchor
-      // (AcroForm field / text-pattern match) or to the appended
-      // fallback box at the bottom of the page.
-      position_page: signer.placement.positionPage,
-      position_x: signer.placement.positionX,
-      position_y: signer.placement.positionY,
-    });
-    const url =
-      (process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://advottic.com') +
-      `/sign/${token}`;
+    const normalizedEmail = signer.email.trim().toLowerCase();
 
-    // If the signer is already an Advottic user, drop a notification
-    // in their inbox so they discover the request without relying on
-    // email delivery. The old implementation called listUsers({page:1,
-    // perPage:50}) which only scanned the first 50 users in the
-    // project - any signer past that boundary silently went
-    // un-notified (reviewer caught this). Resolve by email directly
-    // against profiles where we already have the FK, then fall back
-    // to looking up auth.users by email if no profile exists yet.
+    // Resolve the signer to an Advottic user (if any) so we can (a)
+    // drop an in-app notification and (b) decide whether they're an
+    // INTERNAL signer (a member/employee of THIS firm). Internal
+    // signers are already authenticated and the document also lands in
+    // their portal, so they get the branded link only. EXTERNAL signers
+    // get a second, one-time access code they must enter before the
+    // document is shown - so a forwarded link alone can't open it.
+    let signerUserId: string | null = null;
     try {
-      const normalizedEmail = signer.email.trim().toLowerCase();
-      // Profiles is the cheapest path: it has email + id + an index.
       const { data: prof } = await admin
         .from('profiles')
         .select('id')
         .eq('email', normalizedEmail)
         .maybeSingle();
-      let signerUserId: string | null =
-        (prof as { id?: string } | null)?.id ?? null;
-      // Some users sign up via OAuth where profile.email isn't set
-      // yet; fall back to auth.users for the cold-start case.
+      signerUserId = (prof as { id?: string } | null)?.id ?? null;
       if (!signerUserId) {
         const { data: au } = await admin
           .schema('auth')
@@ -2164,25 +2194,125 @@ export async function createSigningRequestAction(
           .maybeSingle();
         signerUserId = (au as { id?: string } | null)?.id ?? null;
       }
-      if (signerUserId) {
+    } catch {
+      /* resolution is best-effort */
+    }
+
+    let internal = false;
+    if (signerUserId) {
+      try {
+        const { data: mem } = await admin
+          .from('firm_members')
+          .select('id')
+          .eq('firm_id', firmId)
+          .eq('user_id', signerUserId)
+          .maybeSingle();
+        if (mem) internal = true;
+        if (!internal) {
+          const { data: emp } = await admin
+            .from('firm_employees')
+            .select('id')
+            .eq('firm_id', firmId)
+            .eq('user_id', signerUserId)
+            .is('deactivated_at', null)
+            .maybeSingle();
+          if (emp) internal = true;
+        }
+      } catch {
+        /* classification failure -> treat as external (stricter) */
+      }
+    }
+
+    const isExternal = !internal;
+    // Generate the one-time code for external signers up front; store
+    // only its hash. Plaintext lives just long enough to email it.
+    const accessCode = isExternal ? newAccessCode() : null;
+
+    const token = newToken(32);
+    const { data: sigRow } = await admin
+      .from('firm_signatures')
+      .insert({
+        signing_request_id: requestId,
+        signer_email: normalizedEmail,
+        signer_name: signer.name?.trim() || null,
+        token,
+        // Placement comes from signature-anchors.ts. When the caller
+        // provided explicit coordinates these are echoed back; when
+        // they didn't, the values either map to a detected anchor
+        // (AcroForm field / text-pattern match) or to the appended
+        // fallback box at the bottom of the page.
+        position_page: signer.placement.positionPage,
+        position_x: signer.placement.positionX,
+        position_y: signer.placement.positionY,
+        access_code_hash: accessCode ? sha256(accessCode) : null,
+      })
+      .select('id')
+      .single();
+    const signatureId = (sigRow as { id?: string } | null)?.id ?? null;
+
+    const url = `${baseUrl}/sign/${token}`;
+
+    if (signerUserId) {
+      try {
         await createNotification({
           userId: signerUserId,
           type: 'signing_request_received',
           title: `Signature requested: ${docName}`,
-          body: `${user.email ?? 'A firm member'} sent you "${docName}" for signature.`,
+          body: `${senderName} sent you "${docName}" for signature.`,
           link: `/sign/${token}`,
         });
+      } catch {
+        /* notifications are best-effort */
       }
-    } catch {
-      /* notifications are best-effort */
     }
 
+    // Email 1: the branded sign link.
     await sendEmail({
       to: signer.email,
-      subject: `Signature requested: ${docName}`,
-      html: `<p>${escapeHtml(user.email ?? 'A team member')} requested your signature on "<strong>${escapeHtml(docName)}</strong>".</p><p><a href="${escapeHtml(url)}">Review and sign in Advottic</a> (the link stays inside the app, the document never leaves).</p><p>This link is single-use.</p>`,
-      text: `${user.email ?? 'A team member'} requested your signature on "${docName}".\n\nReview and sign in Advottic (the link stays inside the app, the document never leaves):\n${url}\n\nThis link is single-use.`,
+      fromName: firmName,
+      subject: `${firmName}: signature requested — ${docName}`,
+      html: buildSigningRequestEmailHtml({
+        firmName,
+        logoUrl: firmLogo,
+        senderName,
+        documentName: docName,
+        message,
+        link: url,
+        codeSeparately: isExternal,
+      }),
+      text:
+        `${senderName} at ${firmName} requested your signature on "${docName}".\n\n` +
+        `Review and sign (the document stays inside Advottic):\n${url}\n\n` +
+        (isExternal
+          ? 'For your security, a one-time access code was sent to this address in a separate email. Enter it to open the document.\n'
+          : 'This link is single-use.\n'),
     }).catch(() => {});
+
+    // Email 2 (external only): the one-time access code.
+    if (isExternal && accessCode) {
+      await sendEmail({
+        to: signer.email,
+        fromName: firmName,
+        subject: `${firmName}: your access code — ${docName}`,
+        html: buildSigningCodeEmailHtml({
+          firmName,
+          logoUrl: firmLogo,
+          documentName: docName,
+          code: accessCode,
+        }),
+        text:
+          `Your one-time access code for "${docName}" is: ${accessCode}\n\n` +
+          'Enter it on the sign page from your other email to open the document. Never share this code.',
+      }).catch(() => {});
+      if (signatureId) {
+        await appendSignatureEvent(admin, {
+          signingRequestId: requestId,
+          signatureId,
+          eventType: 'access_code_sent',
+          signerEmail: normalizedEmail,
+        }).catch(() => {});
+      }
+    }
   }
   revalidatePath('/counsel/signing');
   return { ok: true, requestId };

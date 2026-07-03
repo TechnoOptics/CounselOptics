@@ -6,6 +6,7 @@ import { createAdminSupabase } from '@/lib/supabase/admin';
 import { appendSignatureEvent } from '@/lib/esign-audit';
 import { SignatureCapture } from './signature-capture';
 import { SignerResponse } from './signer-response';
+import { AccessCodeGate } from './access-code-gate';
 
 export const dynamic = 'force-dynamic';
 
@@ -121,6 +122,20 @@ export default async function SignPage({ params }: { params: { token: string } }
           </p>
         </div>
       </div>
+    );
+  }
+
+  // One-time access-code gate (#5). External signers receive a code in
+  // a separate email; until it's entered, the document is not shown.
+  // Internal signers have no code (accessCodeRequired is false), so
+  // they fall straight through.
+  if (signature.accessCodeRequired && !signature.accessVerifiedAt) {
+    return (
+      <AccessCodeGate
+        token={signature.token}
+        firmName={firm.name}
+        documentName={document.name}
+      />
     );
   }
 

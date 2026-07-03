@@ -119,6 +119,18 @@ export default async function SigningRequestDetail({
                 ) : (
                   <span className="text-[12px] text-amber-700 dark:text-amber-300">
                     Awaiting signature
+                    {sig.accessCodeRequired &&
+                      (sig.accessVerifiedAt ? (
+                        <span className="text-ink-500 dark:text-cream-100/45">
+                          {' '}
+                          · code verified
+                        </span>
+                      ) : (
+                        <span className="text-ink-500 dark:text-cream-100/45">
+                          {' '}
+                          · code sent
+                        </span>
+                      ))}
                   </span>
                 )}
                 {!sig.signedAt &&

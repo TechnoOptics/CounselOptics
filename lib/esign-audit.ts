@@ -31,6 +31,11 @@ export type SignatureEventType =
   | 'rejected'
   | 'changes_requested'
   | 'reminder_sent'
+  // One-time access-code gate (#5). A code is emailed separately from
+  // the sign link to external signers; entering it unlocks the token.
+  | 'access_code_sent'
+  | 'access_verified'
+  | 'access_denied'
   // Final-render lifecycle (lib/signature-render.ts). Emitted after
   // the request flips to 'completed' so a reviewer can tell whether
   // an executed PDF was successfully produced, and how many of the
@@ -238,7 +243,10 @@ export async function verifySignatureChain(
   return { ok: true, events: rows.length };
 }
 
-/** Compute SHA-256 of a Buffer. Used for document_sha256. */
-export function sha256(buffer: Buffer): string {
-  return crypto.createHash('sha256').update(buffer).digest('hex');
+/**
+ * Compute SHA-256 (hex) of a Buffer or string. Used for
+ * document_sha256 and for hashing signer access codes (#5).
+ */
+export function sha256(input: Buffer | string): string {
+  return crypto.createHash('sha256').update(input).digest('hex');
 }

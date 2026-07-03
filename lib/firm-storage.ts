@@ -226,6 +226,9 @@ type FirmSignatureRow = {
   response: 'rejected' | 'changes_requested' | null;
   response_note: string | null;
   responded_at: string | null;
+  access_code_hash: string | null;
+  access_code_verified_at: string | null;
+  access_attempts: number | null;
 };
 
 function signatureFromRow(r: FirmSignatureRow): FirmSignature {
@@ -248,6 +251,10 @@ function signatureFromRow(r: FirmSignatureRow): FirmSignature {
     response: r.response ?? null,
     responseNote: r.response_note ?? null,
     respondedAt: r.responded_at ?? null,
+    // Never surface the hash - only whether a code gate applies and
+    // whether it's been cleared.
+    accessCodeRequired: Boolean(r.access_code_hash),
+    accessVerifiedAt: r.access_code_verified_at ?? null,
   };
 }
 

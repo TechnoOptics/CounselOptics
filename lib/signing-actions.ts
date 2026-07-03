@@ -3,8 +3,9 @@
 import { revalidatePath } from 'next/cache';
 import { getActiveFirmContext } from './firm-storage';
 import { createAdminSupabase } from './supabase/admin';
-import { appendSignatureEvent } from './esign-audit';
+import { appendSignatureEvent, sha256 } from './esign-audit';
 import { createNotification } from './notifications';
+import { checkRateLimit } from './rate-limit';
 
 /**
  * Signing lifecycle actions beyond the happy-path sign flow:
@@ -80,6 +81,109 @@ export async function recallSigningRequestAction(
 
   revalidatePath('/counsel/signing');
   revalidatePath(`/counsel/signing/${requestId}`);
+  return { ok: true };
+}
+
+/**
+ * Verify the one-time access code an external signer received in a
+ * separate email (#5). Token-scoped + unauthenticated (the sign page
+ * is public). On success the code is consumed - access_code_verified_at
+ * is stamped - and the token is unlocked so the document renders. The
+ * short code is protected two ways: a per-token rate limit and a hard
+ * per-signature attempt cap that locks the code after too many misses.
+ */
+const MAX_ACCESS_ATTEMPTS = 8;
+
+export async function verifyAccessCodeAction(
+  token: string,
+  code: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Service unavailable.' };
+
+  const cleaned = (code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (cleaned.length < 4) {
+    return { ok: false, error: 'Enter the code from your email.' };
+  }
+
+  // Blunt scripted brute force across many tokens/IPs.
+  const allowed = await checkRateLimit(`sign-code:${token}`, {
+    limit: 10,
+    windowSeconds: 600,
+  });
+  if (!allowed) {
+    return {
+      ok: false,
+      error: 'Too many attempts. Wait a few minutes and try again.',
+    };
+  }
+
+  const { data: sigRow } = await admin
+    .from('firm_signatures')
+    .select(
+      'id, signing_request_id, signer_email, signed_at, access_code_hash, access_code_verified_at, access_attempts',
+    )
+    .eq('token', token)
+    .maybeSingle();
+  const sig = sigRow as {
+    id: string;
+    signing_request_id: string;
+    signer_email: string;
+    signed_at: string | null;
+    access_code_hash: string | null;
+    access_code_verified_at: string | null;
+    access_attempts: number | null;
+  } | null;
+  if (!sig) return { ok: false, error: 'Sign link not found.' };
+  // No gate, or already unlocked -> nothing to do.
+  if (!sig.access_code_hash) return { ok: true };
+  if (sig.access_code_verified_at) return { ok: true };
+  if (sig.signed_at) {
+    return { ok: false, error: 'This document was already signed.' };
+  }
+  const attempts = sig.access_attempts ?? 0;
+  if (attempts >= MAX_ACCESS_ATTEMPTS) {
+    return {
+      ok: false,
+      error:
+        'This code is locked after too many tries. Ask the firm to resend the request.',
+    };
+  }
+
+  if (sha256(cleaned) !== sig.access_code_hash) {
+    const next = attempts + 1;
+    await admin
+      .from('firm_signatures')
+      .update({ access_attempts: next })
+      .eq('id', sig.id);
+    await appendSignatureEvent(admin, {
+      signingRequestId: sig.signing_request_id,
+      signatureId: sig.id,
+      eventType: 'access_denied',
+      signerEmail: sig.signer_email,
+    }).catch(() => undefined);
+    const left = Math.max(0, MAX_ACCESS_ATTEMPTS - next);
+    return {
+      ok: false,
+      error:
+        left > 0
+          ? `That code didn't match. ${left} ${left === 1 ? 'try' : 'tries'} left.`
+          : 'This code is now locked. Ask the firm to resend the request.',
+    };
+  }
+
+  await admin
+    .from('firm_signatures')
+    .update({ access_code_verified_at: new Date().toISOString() })
+    .eq('id', sig.id);
+  await appendSignatureEvent(admin, {
+    signingRequestId: sig.signing_request_id,
+    signatureId: sig.id,
+    eventType: 'access_verified',
+    signerEmail: sig.signer_email,
+  }).catch(() => undefined);
+
+  revalidatePath(`/sign/${token}`);
   return { ok: true };
 }
 

@@ -342,6 +342,15 @@ export type FirmSignature = {
   response: 'rejected' | 'changes_requested' | null;
   responseNote: string | null;
   respondedAt: string | null;
+  /**
+   * True when an external signer must enter a one-time access code
+   * (emailed separately) before the document is shown. The code hash
+   * itself is never surfaced - only whether a code is required and
+   * whether it has already been entered.
+   */
+  accessCodeRequired: boolean;
+  /** When the access code was entered (consumed). Null until then. */
+  accessVerifiedAt: string | null;
 };
 
 // ---------- Chat ----------

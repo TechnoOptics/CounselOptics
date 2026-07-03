@@ -63,12 +63,14 @@ export function CreateSigningRequestForm({
     <section className="card p-5 sm:p-6 space-y-4">
       <p className="eyebrow">Send for signature</p>
       <p className="text-[11px] text-ink-500 dark:text-cream-100/55 leading-relaxed">
-        Each signer gets a single-use link that opens the document inside
-        Advottic. The signer steps through a UETA-aligned electronic-records
-        disclosure before reaching the signature pad, and every action lands
-        in a tamper-evident audit chain. Jurisdictional fit (which document
-        classes can be signed electronically in your state) stays with your
-        counsel.
+        Each signer gets a branded, single-use link that opens the document
+        inside Advottic. Outside signers also receive a one-time access code
+        in a separate email and must enter it before the document is shown -
+        so a forwarded link alone can&rsquo;t open it. People on your team see
+        it in their portal without a code. Every signer steps through a
+        UETA-aligned electronic-records disclosure before the signature pad,
+        and every action lands in a tamper-evident audit chain. Jurisdictional
+        fit stays with your counsel.
       </p>
       <ul className="space-y-2">
         {signers.map((s, i) => (
@@ -134,7 +136,8 @@ export function CreateSigningRequestForm({
       )}
       {ok && (
         <p className="rounded-lg border border-emerald-200 dark:border-emerald-700/40 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-2 text-sm text-emerald-900 dark:text-emerald-100">
-          Signing request sent. Each signer received an email with their link.
+          Signing request sent. Each signer received a branded link; outside
+          signers also got a one-time access code in a separate email.
         </p>
       )}
     </section>
