@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { createAdminSupabase, isServiceRoleConfigured } from '@/lib/supabase/admin';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 /**
  * POST /api/newsletter/subscribe
@@ -22,7 +23,19 @@ export const dynamic = 'force-dynamic';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  const ip =
+    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    req.headers.get('x-real-ip') ||
+    'unknown';
+  const allowed = await checkRateLimit(`newsletter:subscribe:${ip}`, {
+    limit: 10,
+    windowSeconds: 60 * 60,
+  });
+  if (!allowed) {
+    return NextResponse.json({ error: 'rate_limited' }, { status: 429 });
+  }
+
   let body: { email?: string; source?: string };
   try {
     body = await req.json();

@@ -6,6 +6,7 @@ import {
   getSupabaseUrl,
 } from '@/lib/supabase/server';
 import { cookieDomainForHost } from '@/lib/supabase/cookie-domain';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -43,6 +44,23 @@ const REVIEW_EMAIL =
 const REVIEW_CODE = process.env.REVIEW_LOGIN_CODE?.trim() || '478213';
 
 export async function POST(req: NextRequest) {
+  // A fixed, env-rotatable code is inherently brute-forceable if left
+  // unthrottled - rate limit by IP before checking credentials at all.
+  const ip =
+    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    req.headers.get('x-real-ip') ||
+    'unknown';
+  const allowed = await checkRateLimit(`auth:review-login:${ip}`, {
+    limit: 5,
+    windowSeconds: 15 * 60,
+  });
+  if (!allowed) {
+    return NextResponse.json(
+      { error: 'Too many attempts. Please try again later.' },
+      { status: 429 },
+    );
+  }
+
   let body: { email?: string; code?: string } = {};
   try {
     body = await req.json();

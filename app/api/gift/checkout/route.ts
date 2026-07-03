@@ -10,6 +10,7 @@ import {
   type GiftDuration,
 } from '@/lib/gift';
 import { generateRedemptionToken } from '@/lib/gift-server';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -41,6 +42,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { error: 'Stripe is not configured on the server.' },
       { status: 503 },
+    );
+  }
+
+  // Unauthenticated guests can reach this route, and it creates a real
+  // Stripe Checkout Session per call - rate limit before doing any work.
+  const ip =
+    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    req.headers.get('x-real-ip') ||
+    'unknown';
+  const allowed = await checkRateLimit(`gift:checkout:${ip}`, {
+    limit: 5,
+    windowSeconds: 60 * 60,
+  });
+  if (!allowed) {
+    return NextResponse.json(
+      { error: 'Too many attempts. Please try again later.' },
+      { status: 429 },
     );
   }
 
