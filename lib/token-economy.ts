@@ -182,6 +182,13 @@ export type DebitContext = {
  * heavy-using attorney inside a small firm productive even after
  * their nominal share of the pool is gone.
  *
+ * Each step calls a single atomic Postgres function (debit_firm_token_pool
+ * / debit_user_token_balance, see supabase/fixes/2026-07-03-atomic-token-debits.sql)
+ * that reads-under-lock, floors at 0, and writes in one statement - a
+ * previous version did a separate SELECT then an unconditional UPDATE
+ * from application code, which let two concurrent debits against the
+ * same row both read the same starting balance and both "succeed".
+ *
  * Floors at 0 on both sides - we never let a balance go negative.
  * Callers should check `getCombinedTokenBalance()` BEFORE the
  * Anthropic call and refuse the request if the combined balance is
@@ -209,25 +216,17 @@ export async function debitTokens(
 
   // Step 1: hit the firm pool first when applicable.
   if (ctx.firmId) {
-    const { data: firmRow } = await admin
-      .from('firms')
-      .select('token_pool_balance')
-      .eq('id', ctx.firmId)
-      .maybeSingle();
-    const firmCurrent = (firmRow as { token_pool_balance?: number } | null)
-      ?.token_pool_balance ?? 0;
-    if (firmCurrent > 0) {
-      const fromFirm = Math.min(firmCurrent, remaining);
-      const newFirm = firmCurrent - fromFirm;
+    const { data: firmResult, error: firmErr } = await admin
+      .rpc('debit_firm_token_pool', { p_firm_id: ctx.firmId, p_amount: remaining })
+      .single();
+    const { new_balance: newFirm, amount_debited: fromFirm } =
+      (firmResult as { new_balance: number; amount_debited: number } | null) ?? {
+        new_balance: 0,
+        amount_debited: 0,
+      };
+    firmAfter = newFirm;
+    if (!firmErr && fromFirm > 0) {
       remaining -= fromFirm;
-      firmAfter = newFirm;
-      await admin
-        .from('firms')
-        .update({
-          token_pool_balance: newFirm,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', ctx.firmId);
       await admin.from('token_ledger').insert({
         user_id: ctx.userId,
         firm_id: ctx.firmId,
@@ -236,32 +235,25 @@ export async function debitTokens(
         balance_after: newFirm,
         metadata: { ...(ctx.metadata ?? {}), source: 'firm_pool' },
       });
-    } else {
-      firmAfter = 0;
     }
   }
 
-  // Step 2: hit the user balance for whatever is left.
+  // Step 2: hit the user balance for whatever is left. Skip the call
+  // entirely (rather than pass p_amount=0) when the firm pool already
+  // covered it - a no-op debit would still touch profiles.updated_at.
   let userAfter = 0;
   if (remaining > 0) {
-    const { data: userRow } = await admin
-      .from('profiles')
-      .select('token_balance')
-      .eq('id', ctx.userId)
-      .maybeSingle();
-    const userCurrent = (userRow as { token_balance?: number } | null)
-      ?.token_balance ?? 0;
-    const fromUser = Math.min(userCurrent, remaining);
-    userAfter = userCurrent - fromUser;
-    remaining -= fromUser;
-    if (fromUser > 0) {
-      await admin
-        .from('profiles')
-        .update({
-          token_balance: userAfter,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', ctx.userId);
+    const { data: userResult, error: userErr } = await admin
+      .rpc('debit_user_token_balance', { p_user_id: ctx.userId, p_amount: remaining })
+      .single();
+    const { new_balance, amount_debited: fromUser } =
+      (userResult as { new_balance: number; amount_debited: number } | null) ?? {
+        new_balance: 0,
+        amount_debited: 0,
+      };
+    userAfter = new_balance;
+    if (!userErr && fromUser > 0) {
+      remaining -= fromUser;
       await admin.from('token_ledger').insert({
         user_id: ctx.userId,
         firm_id: ctx.firmId ?? null,
@@ -272,12 +264,12 @@ export async function debitTokens(
       });
     }
   } else {
-    const { data: userRow } = await admin
+    const { data: profileRow } = await admin
       .from('profiles')
       .select('token_balance')
       .eq('id', ctx.userId)
       .maybeSingle();
-    userAfter = (userRow as { token_balance?: number } | null)?.token_balance ?? 0;
+    userAfter = (profileRow as { token_balance?: number } | null)?.token_balance ?? 0;
   }
 
   const insufficient = remaining > 0;
