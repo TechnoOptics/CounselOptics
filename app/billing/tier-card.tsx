@@ -5,6 +5,7 @@ import { TIER_FEATURES, TIER_LABEL, type Tier } from '@/lib/types';
 import { useIsNativeApp } from '@/components/useIsNativeApp';
 import { tierHasIosProduct } from '@/lib/iap';
 import { createBrowserSupabase } from '@/lib/supabase/client';
+import type { NativePlatform } from '@/lib/platform';
 
 const TIER_TAGLINE: Record<Tier, string> = {
   basic: 'Get organized.',
@@ -71,11 +72,33 @@ export function TierCard({
   currentTier,
   isActive,
   stripeReady,
+  serverPlatform,
 }: {
   tier: Tier;
   currentTier: Tier | null;
   isActive: boolean;
   stripeReady: boolean;
+  /**
+   * Server-rendered, UA-derived platform (see nativePlatformFromUserAgent
+   * in lib/platform.ts) - the AUTHORITATIVE signal for whether this is
+   * the iOS app, correct on the very first paint.
+   *
+   * Root cause of the 5th App Store rejection (2.1(b), 2026-07-02):
+   * this component previously decided IAP-vs-Stripe SOLELY from
+   * useIsNativeApp(), which resolves `window.Capacitor` in a client
+   * useEffect that runs once with no retry. On the remote-URL WebView
+   * that check can run before the native bridge finishes injecting -
+   * the EXACT race already diagnosed and fixed server-side for the
+   * 2.3.10 Google-Play-badge rejection (see app/layout.tsx), but never
+   * applied here. When it loses the race, `platform` resolves to 'web'
+   * for a real iOS session, so the Subscribe button silently wires
+   * itself to startCheckout() (Stripe) instead of startIapPurchase()
+   * (Apple IAP) - explaining both "tapped Subscribe, it just hangs"
+   * (a Stripe checkout call/redirect inside a review sandbox that
+   * doesn't behave like production) AND RevenueCat showing zero SDK
+   * connections ever (configure() is never even called in that path).
+   */
+  serverPlatform: NativePlatform;
 }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -88,10 +111,16 @@ export function TierCard({
   // Purchase (Guideline 3.1.1), not Stripe. `useIap` is true only for
   // paid tiers that have an App Store product; the free `basic` tier
   // has none, so its button is simply hidden on iOS.
+  //
+  // isIOS is server-authoritative OR client-confirmed - the OR means a
+  // wrong/racy client read can never turn a real iOS session into a
+  // Stripe one (the server UA check can't lose that race), while a
+  // client-side positive still counts in the rare case a proxy strips
+  // or rewrites the User-Agent header before it reaches the server.
   const { ready, platform } = useIsNativeApp();
-  const useIap = ready && platform === 'ios' && tierHasIosProduct(tier);
-  const hideButtonOnIos =
-    ready && platform === 'ios' && !tierHasIosProduct(tier);
+  const isIOS = serverPlatform === 'ios' || (ready && platform === 'ios');
+  const useIap = isIOS && tierHasIosProduct(tier);
+  const hideButtonOnIos = isIOS && !tierHasIosProduct(tier);
 
   async function startIapPurchase() {
     setPending(true);

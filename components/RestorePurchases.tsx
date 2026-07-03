@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useIsNativeApp } from '@/components/useIsNativeApp';
+import type { NativePlatform } from '@/lib/platform';
 
 /**
  * Apple-required "Restore Purchases" control, shown only inside the iOS
@@ -13,13 +14,27 @@ import { useIsNativeApp } from '@/components/useIsNativeApp';
  *
  * On web + Android this returns null - those platforms use Stripe, which
  * has its own customer portal.
+ *
+ * `serverPlatform` (see TierCard for the full rationale) is the
+ * authoritative, non-racy signal: relying solely on the client
+ * useIsNativeApp() bridge check meant a lost race on the remote-URL
+ * WebView could hide this ENTIRE block - including the Apple-required
+ * auto-renewal disclosure and EULA/Privacy links, not just the restore
+ * button - from a real iOS session.
  */
-export function RestorePurchases({ userId }: { userId: string }) {
+export function RestorePurchases({
+  userId,
+  serverPlatform,
+}: {
+  userId: string;
+  serverPlatform: NativePlatform;
+}) {
   const { ready, platform } = useIsNativeApp();
   const [pending, setPending] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
-  if (!ready || platform !== 'ios') return null;
+  const isIOS = serverPlatform === 'ios' || (ready && platform === 'ios');
+  if (!isIOS) return null;
 
   async function restore() {
     setPending(true);

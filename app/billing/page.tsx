@@ -1,6 +1,8 @@
 import Link from 'next/link';
+import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
+import { nativePlatformFromUserAgent } from '@/lib/platform';
 import {
   getCurrentSubscription,
   getProfile,
@@ -73,6 +75,11 @@ export default async function BillingPage({
 
   const sub = await getCurrentSubscription();
   const stripeReady = isStripeConfigured();
+  // Deterministic, server-side "is this the iOS app" signal for the
+  // IAP-vs-Stripe branch below - see the note on TierCard's
+  // `serverPlatform` prop for why this replaces relying solely on the
+  // client-side window.Capacitor bridge check.
+  const serverPlatform = nativePlatformFromUserAgent(headers().get('user-agent'));
   const rawStatus = sub?.status ?? 'inactive';
   const currentTier: Tier | null = sub?.tier ?? null;
 
@@ -290,6 +297,7 @@ export default async function BillingPage({
             currentTier={currentTier}
             isActive={isActive}
             stripeReady={stripeReady}
+            serverPlatform={serverPlatform}
           />
         ))}
       </div>
@@ -297,7 +305,7 @@ export default async function BillingPage({
       {/* iOS-only: Apple-required Restore Purchases + a note that the
           subscription is billed/managed through the Apple ID. Renders
           null on web/Android (those use the Stripe portal above). */}
-      <RestorePurchases userId={user.id} />
+      <RestorePurchases userId={user.id} serverPlatform={serverPlatform} />
 
       {/* Items-used gauge. Shows for every signed-in user; surfaces
           how close the account is to the tier cap and (when over) how
