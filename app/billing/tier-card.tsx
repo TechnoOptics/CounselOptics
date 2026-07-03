@@ -271,16 +271,6 @@ export function TierCard({
           {error}
         </p>
       )}
-      {/* TEMP diagnostic readout for the 2.1(b) investigation - shows
-          exactly what the IAP-vs-Stripe branch resolved to, since two
-          rounds of error tagging in startIapPurchase/startCheckout
-          produced byte-identical untagged text, which could only mean
-          the button state itself needs to be inspected directly.
-          Remove once the rejection is resolved. */}
-      <p className="mt-2 text-[10px] text-ink-400 font-mono">
-        dbg: serverPlatform={serverPlatform} clientReady={String(ready)} clientPlatform={platform} isIOS=
-        {String(isIOS)} useIap={String(useIap)}
-      </p>
     </div>
   );
 }
