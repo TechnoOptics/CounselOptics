@@ -101,6 +101,14 @@ const CORNERSTONES: ReadonlyArray<string> = [
   `${SITE_URL}/es/guias/ayuda-violencia-domestica`,
   `${SITE_URL}/es/plantillas`,
   `${SITE_URL}/es/plantillas/carta-de-demanda`,
+  // Round-9: remaining Spanish guides + templates
+  `${SITE_URL}/es/guias/me-demandaron-que-hago`,
+  `${SITE_URL}/es/guias/cuanto-tiempo-tengo-para-demandar`,
+  `${SITE_URL}/es/guias/me-demandan-por-deuda-de-tarjeta-de-credito`,
+  `${SITE_URL}/es/plantillas/acuerdo-de-confidencialidad`,
+  `${SITE_URL}/es/plantillas/carta-de-cese-y-desista`,
+  `${SITE_URL}/es/plantillas/aviso-de-terminacion-de-arrendamiento`,
+  `${SITE_URL}/es/plantillas/demanda-de-deposito-de-seguridad`,
 ];
 
 export async function POST(req: NextRequest) {
