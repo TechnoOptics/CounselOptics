@@ -4,8 +4,10 @@ import { revalidatePath } from 'next/cache';
 import crypto from 'node:crypto';
 import { createServerSupabase, getCurrentUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
-import { getCurrentSubscription, getProfile } from './storage';
+import { getCurrentSubscription, getProfile, getSubscriptionForUser } from './storage';
+import { listMyFirms } from './firm-storage';
 import { tierSlugFromPriceId } from './stripe';
+import type { Subscription } from './types';
 import { appendWitnessEvent } from './witness-audit';
 import {
   generateCaseNumber,
@@ -29,14 +31,33 @@ export type CommunityActionResult = { ok: boolean; error?: string; slug?: string
  * comp-account signal below. */
 const ELIGIBLE_TIER_SLUGS = new Set(['pro_plus', 'growing_firm', 'enterprise']);
 
+/** True if a subscription is active/trialing at Personal Plus or above
+ * (or Growing Firm or above for firm tiers). Shared by the caller's-own-
+ * subscription check and the firm-membership fallback below, so the two
+ * paths can never silently drift apart on what "eligible" means. */
+function subscriptionMeetsEligibleTier(subscription: Subscription | null): boolean {
+  const isActive = subscription?.status === 'active' || subscription?.status === 'trialing';
+  if (!isActive) return false;
+  // Comp accounts (founder/support/QA) carry priceId: null, tier: 'pro' -
+  // treat that specific combination as eligible without consulting
+  // tierSlugFromPriceId (which only resolves real Stripe price IDs).
+  const isCompProGrant = subscription?.priceId == null && subscription?.tier === 'pro';
+  if (isCompProGrant) return true;
+  const slug = tierSlugFromPriceId(subscription?.priceId ?? null);
+  return slug !== null && ELIGIBLE_TIER_SLUGS.has(slug);
+}
+
 /**
- * Organizer eligibility: signed in, verified email, an active/trialing
- * subscription at Personal Plus or above (or Growing Firm or above for
- * firms), and a verified phone number. Checks the CALLER'S OWN
- * subscription - firms have no separate firm-level tier field in the
- * data model today (a multi-seat firm's non-owner employees won't pass
- * this unless they personally hold a qualifying subscription). Never
- * trust a client-side check alone - this re-verifies server-side
+ * Organizer eligibility: signed in, verified email, a verified phone
+ * number, and an active/trialing subscription at Personal Plus or above
+ * - either the CALLER'S OWN subscription, or (multi-seat firms) any
+ * firm they belong to whose CREATOR holds a Growing Firm+ subscription.
+ * Firms have no firm-level tier field of their own in the data model -
+ * a firm's plan is really its creator's personal subscription - so a
+ * firm member other than the creator/owner is checked by looking up
+ * that subscription on their behalf via the service-role client
+ * (getSubscriptionForUser), never by trusting anything the client sent.
+ * Never trust a client-side check alone - this re-verifies server-side
  * regardless of what the UI already showed.
  */
 async function assertOrganizerEligible() {
@@ -47,13 +68,28 @@ async function assertOrganizerEligible() {
   }
 
   const [subscription, profile] = await Promise.all([getCurrentSubscription(), getProfile()]);
-  const isActive = subscription?.status === 'active' || subscription?.status === 'trialing';
-  // Comp accounts (founder/support/QA) carry priceId: null, tier: 'pro' -
-  // treat that specific combination as eligible without consulting
-  // tierSlugFromPriceId (which only resolves real Stripe price IDs).
-  const isCompProGrant = subscription?.priceId == null && subscription?.tier === 'pro';
-  const slug = tierSlugFromPriceId(subscription?.priceId ?? null);
-  const hasEligibleTier = isActive && (isCompProGrant || (slug !== null && ELIGIBLE_TIER_SLUGS.has(slug)));
+  let hasEligibleTier = subscriptionMeetsEligibleTier(subscription);
+
+  if (!hasEligibleTier) {
+    // Fall back to checking each firm this user belongs to. A firm's
+    // "plan" is its creator's own subscription (no firm-level billing
+    // entity exists), so a Growing Firm+ subscription held by the firm
+    // creator qualifies every member of that firm, not just the
+    // creator themselves.
+    const memberships = await listMyFirms();
+    const creatorIds = Array.from(
+      new Set(
+        memberships
+          .map((m) => m.firm.createdBy)
+          .filter((id): id is string => Boolean(id) && id !== user.id),
+      ),
+    );
+    const creatorSubscriptions = await Promise.all(
+      creatorIds.map((id) => getSubscriptionForUser(id).catch(() => null)),
+    );
+    hasEligibleTier = creatorSubscriptions.some((sub) => subscriptionMeetsEligibleTier(sub));
+  }
+
   if (!hasEligibleTier) {
     throw new Error(
       'Creating a Community Case page requires a Personal Plus plan or above (Growing Firm or above for firm accounts).',

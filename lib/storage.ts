@@ -1527,6 +1527,34 @@ export async function getCurrentSubscription(): Promise<Subscription | null> {
   return data ? subscriptionFromRow(data as SubscriptionRow) : null;
 }
 
+/**
+ * Read an ARBITRARY user's subscription, not just the signed-in caller's.
+ * Firm billing has no firm-level entity of its own (see lib/firm-types.ts) -
+ * a firm's plan is really its creator's personal subscription - so the
+ * multi-seat Community Case eligibility gate needs to check a firm
+ * creator's subscription on behalf of a different, currently-signed-in
+ * member. RLS on `subscriptions` only allows reading your own row, so this
+ * goes through the service-role client; callers are responsible for
+ * scoping how this result is used (never expose it directly to the
+ * requesting user beyond a boolean eligibility check).
+ */
+export async function getSubscriptionForUser(userId: string): Promise<Subscription | null> {
+  if (!usingSupabase()) return null;
+  const admin = createAdminSupabase();
+  if (!admin) return null;
+  const { data: authUser } = await admin.auth.admin.getUserById(userId);
+  if (authUser?.user?.email && isCompEmail(authUser.user.email)) {
+    return compSubscription(userId);
+  }
+  const { data, error } = await admin
+    .from('subscriptions')
+    .select('*')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? subscriptionFromRow(data as SubscriptionRow) : null;
+}
+
 /** Service-role helper: upsert a subscription row from a Stripe webhook. */
 export async function upsertSubscriptionFromStripe(input: {
   userId: string;
