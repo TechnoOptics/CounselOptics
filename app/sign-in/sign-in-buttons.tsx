@@ -440,17 +440,37 @@ export function SignInButtons({ next }: { next: string }) {
         // number: >=10 uses the working custom scheme; older builds
         // fall back to the previous https redirect (imperfect handoff,
         // but no hard "invalid link" failure) until they update.
-        let nativeRedirectTo = oauthOptions.redirectTo;
+        // Default to the modern custom-scheme handoff. The gate was
+        // originally "start on https, upgrade to custom-scheme once we
+        // can PROVE build >= 10" - but that means ANY App.getInfo()
+        // failure (transient plugin hiccup, etc.) silently re-opens the
+        // exact "stranded in the browser sheet" bug this code exists to
+        // prevent, with zero visibility. Build 10 shipped in May 2024;
+        // every real-world install today is build 20+, so "we couldn't
+        // determine the build number" is far more likely to be a
+        // modern install having a bad moment than an actual legacy one.
+        // Flip the default: assume modern, only fall back to https on a
+        // CONFIRMED old build number.
+        let nativeRedirectTo = `com.advottic.app://auth/callback?next=${encodeURIComponent(
+          next,
+        )}`;
         try {
           const info = await App.getInfo();
           const buildNum = parseInt(info.build, 10);
-          if (Number.isFinite(buildNum) && buildNum >= 10) {
-            nativeRedirectTo = `com.advottic.app://auth/callback?next=${encodeURIComponent(
-              next,
-            )}`;
+          if (Number.isFinite(buildNum) && buildNum < 10) {
+            // Confirmed genuinely old build - it never registered the
+            // custom scheme (iOS CFBundleURLSchemes / Android
+            // intent-filter landed in versionCode 10), so using it
+            // would show a hard "Safari cannot open the page because
+            // the link is invalid" error. Fall back to the imperfect
+            // but non-fatal https redirect until the user updates.
+            nativeRedirectTo = oauthOptions.redirectTo;
           }
-        } catch {
-          // App.getInfo unavailable - stay on the https redirect.
+        } catch (err) {
+          console.warn(
+            '[sign-in] App.getInfo() failed while checking the native build number; assuming a modern build and using the custom-scheme OAuth redirect.',
+            err,
+          );
         }
         const { data, error: authError } = await supabase.auth.signInWithOAuth({
           provider,
