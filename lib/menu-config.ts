@@ -43,6 +43,7 @@ export const DEFAULT_MENU: MenuSection[] = [
     section: 'People',
     items: [
       { href: '/counsel/clients', label: 'Clients', hint: 'Roster + invites' },
+      { href: '/counsel/employees', label: 'Employees', hint: 'Directory of all users' },
       { href: '/counsel/access', label: 'Access requests', hint: 'Approve external sign-ups' },
       { href: '/counsel/team', label: 'Team', hint: 'Members + roles' },
       { href: '/counsel/chat', label: 'Chat', hint: 'Channels + DMs' },

@@ -943,6 +943,48 @@ export async function listFirmEmployeesAction(
   }));
 }
 
+/**
+ * Read-only employee directory, visible to any legal-team member (not
+ * just admins - the management panel's write actions stay admin-gated
+ * separately). Powers the /counsel/employees directory page.
+ */
+export async function listFirmEmployeeDirectory(
+  firmId: string,
+): Promise<FirmEmployeeListItem[]> {
+  if (!(await callerIsFirmMember(firmId))) return [];
+  const admin = createAdminSupabase();
+  if (!admin) return [];
+  const { data } = await admin
+    .from('firm_employees')
+    .select(
+      'id, email, display_name, department, source, user_id, role_key, deactivated_at, created_at',
+    )
+    .eq('firm_id', firmId)
+    .order('display_name', { ascending: true, nullsFirst: false })
+    .limit(1000);
+  return ((data ?? []) as Array<{
+    id: string;
+    email: string;
+    display_name: string | null;
+    department: string | null;
+    source: string;
+    user_id: string | null;
+    role_key: string | null;
+    deactivated_at: string | null;
+    created_at: string;
+  }>).map((r) => ({
+    id: r.id,
+    email: r.email,
+    displayName: r.display_name,
+    department: r.department,
+    source: r.source,
+    linked: r.user_id !== null,
+    roleKey: r.role_key ?? null,
+    deactivatedAt: r.deactivated_at,
+    createdAt: r.created_at,
+  }));
+}
+
 export async function setFirmEmployeeActiveAction(
   firmId: string,
   employeeId: string,

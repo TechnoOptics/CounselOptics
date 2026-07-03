@@ -23,6 +23,7 @@ const ICONS: Record<string, React.ReactNode> = {
   '/counsel/contracts': <DocIcon />,
   '/counsel/signing': <SignIcon />,
   '/counsel/clients': <UserIcon />,
+  '/counsel/employees': <UsersIcon />,
   '/counsel/team': <UsersIcon />,
   '/counsel/chat': <ChatIcon />,
   '/counsel/meetings': <CalIcon />,

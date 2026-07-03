@@ -1,0 +1,137 @@
+import { redirect } from 'next/navigation';
+import { getActiveFirmContext } from '@/lib/firm-storage';
+import { listFirmEmployeeDirectory } from '@/lib/firm-actions';
+import { readPortalRoles } from '@/lib/portal-features';
+
+export const dynamic = 'force-dynamic';
+export const metadata = { title: 'Employees · Counsel' };
+
+const SOURCE_LABEL: Record<string, string> = {
+  manual: 'Added manually',
+  azure: 'Microsoft directory',
+  google: 'Google directory',
+};
+
+/**
+ * Read-only directory of every person attached to the firm's employee
+ * portal - the non-legal staff (and any guest/collaborator accounts)
+ * who get the scoped /portal surface. Distinct from Team (the legal
+ * members) and from the Team page's management panel: this is just the
+ * list, visible to the whole legal team.
+ */
+export default async function CounselEmployeesPage() {
+  const ctx = await getActiveFirmContext();
+  if (!ctx) redirect('/counsel');
+
+  const employees = await listFirmEmployeeDirectory(ctx.firm.id);
+  const roles = readPortalRoles(ctx.firm.metadata);
+  const roleName = (key: string | null) =>
+    key ? roles.find((r) => r.key === key)?.name ?? key : 'Default access';
+
+  const active = employees.filter((e) => !e.deactivatedAt).length;
+  const deactivated = employees.length - active;
+
+  return (
+    <div className="space-y-6 animate-fade-up">
+      <header>
+        <p className="eyebrow mb-1">People</p>
+        <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
+          Employees
+        </h1>
+        <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
+          Everyone with an employee-portal account at {ctx.firm.name} -
+          staff, contractors, and any guest accounts. To add, deactivate,
+          or change a role, an owner or admin uses the Team page.
+        </p>
+      </header>
+
+      {employees.length === 0 ? (
+        <p className="card p-6 text-[13px] text-ink-500 dark:text-cream-100/55 italic">
+          No employee accounts yet. Owners and admins can add people, or
+          connect a directory, from the Team page.
+        </p>
+      ) : (
+        <>
+          <div className="flex flex-wrap gap-2 text-[12px]">
+            <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 ring-1 ring-ink-200 dark:ring-forest-700/40 text-ink-700 dark:text-cream-100/80">
+              <strong className="font-semibold text-forest-900 dark:text-cream-100">
+                {employees.length}
+              </strong>{' '}
+              total
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 ring-1 ring-emerald-200 dark:ring-emerald-800/40 bg-emerald-50/60 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-200">
+              <strong className="font-semibold">{active}</strong> active
+            </span>
+            {deactivated > 0 && (
+              <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 ring-1 ring-ink-200 dark:ring-forest-700/40 text-ink-600 dark:text-cream-100/60">
+                <strong className="font-semibold">{deactivated}</strong>{' '}
+                deactivated
+              </span>
+            )}
+          </div>
+
+          <div className="card overflow-x-auto">
+            <table className="w-full min-w-[640px] text-sm">
+              <thead className="bg-cream-50 dark:bg-forest-900/60 text-ink-700 dark:text-cream-100/85 text-left">
+                <tr>
+                  <th className="font-semibold px-4 py-2.5">Name</th>
+                  <th className="font-semibold px-4 py-2.5">Email</th>
+                  <th className="font-semibold px-4 py-2.5">Department</th>
+                  <th className="font-semibold px-4 py-2.5">Access</th>
+                  <th className="font-semibold px-4 py-2.5">Source</th>
+                  <th className="font-semibold px-4 py-2.5">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-ink-100 dark:divide-forest-700/40">
+                {employees.map((e) => {
+                  const inactive = Boolean(e.deactivatedAt);
+                  return (
+                    <tr
+                      key={e.id}
+                      className={inactive ? 'opacity-60' : undefined}
+                    >
+                      <td className="px-4 py-2.5 font-medium text-forest-900 dark:text-cream-100">
+                        {e.displayName || '—'}
+                        {!e.linked && (
+                          <span
+                            className="ml-2 align-middle text-[10px] uppercase tracking-[0.12em] text-ink-400 dark:text-cream-100/40"
+                            title="Invited but has not signed in yet"
+                          >
+                            Pending
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5 text-ink-600 dark:text-cream-100/70 font-mono text-[12px]">
+                        {e.email}
+                      </td>
+                      <td className="px-4 py-2.5 text-ink-600 dark:text-cream-100/70">
+                        {e.department || '—'}
+                      </td>
+                      <td className="px-4 py-2.5 text-ink-600 dark:text-cream-100/70">
+                        {roleName(e.roleKey)}
+                      </td>
+                      <td className="px-4 py-2.5 text-ink-500 dark:text-cream-100/55 text-[12px]">
+                        {SOURCE_LABEL[e.source] ?? e.source}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <span
+                          className={`inline-flex items-center px-2 py-[2px] rounded text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ${
+                            inactive
+                              ? 'bg-ink-100 dark:bg-forest-800/50 text-ink-600 dark:text-cream-100/55 ring-ink-200 dark:ring-forest-700/40'
+                              : 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-200 ring-emerald-200 dark:ring-emerald-700/40'
+                          }`}
+                        >
+                          {inactive ? 'Deactivated' : 'Active'}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
