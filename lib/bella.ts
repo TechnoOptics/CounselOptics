@@ -3375,10 +3375,37 @@ export async function* streamBella(input: {
   const portal: BellaPortal = mode === 'public' ? 'consumer' : (input.portal ?? 'consumer');
   const firmId: string | null = portal === 'firm' ? (input.firmId ?? null) : null;
 
+  // Consumer-tier feature gate. Firm-portal and HQ-portal calls (which
+  // pass firmContext, or resolve portal !== 'consumer') are excluded -
+  // their entitlement is firm membership, not a personal subscription,
+  // and is checked separately at the route layer. `authed` + `consumer`
+  // with no firmContext is genuinely a personal-plan user, and
+  // TIER_FEATURES.basic.bella = false means Free-tier accounts should
+  // not reach the model at all - previously nothing here checked that;
+  // only Pro's token BALANCE was gated below, so Basic and Standard
+  // both got unlimited access regardless of the tier flag.
+  if (mode === 'authed' && portal === 'consumer' && !input.firmContext) {
+    try {
+      const { getCurrentSubscription, getEffectiveTrialState } = await import('./storage');
+      const { hasFeature, isFullAccessTrial } = await import('./tier');
+      const [sub, trialState] = await Promise.all([
+        getCurrentSubscription(),
+        getEffectiveTrialState(),
+      ]);
+      if (!hasFeature(sub, 'bella') && !isFullAccessTrial(trialState)) {
+        yield "Bella is part of the Standard and Pro plans. Upgrade from your /billing page to chat with her.";
+        return;
+      }
+    } catch {
+      // never block a request because the entitlement read failed
+    }
+  }
+
   // Pro tier is metered. Refuse the request when the user has burned
   // through their monthly grant + any top-ups so they don't end up
-  // with a runaway bill. Basic, Standard, public, and doc-review modes
-  // bypass the gate entirely.
+  // with a runaway bill. Basic (blocked above), Standard, public, and
+  // doc-review modes bypass the balance gate entirely - Standard is a
+  // flat rate by design; Pro alone meters usage against a monthly grant.
   if (mode === 'authed') {
     try {
       const { getProTokenGate } = await import('./storage');
@@ -3389,6 +3416,32 @@ export async function* streamBella(input: {
       }
     } catch {
       // never block a request because the gate read failed
+    }
+  }
+
+  // Firm-pool tiers (Small Firm / Growing / Enterprise) meter usage
+  // against a shared pool (see lib/token-economy.ts) but, unlike Pro's
+  // balance above, nothing previously checked it before the call -
+  // meterBellaTurn() only debits AFTER the response is generated and
+  // never inspects its own `insufficient` result, so an exhausted firm
+  // could keep generating responses indefinitely. Combined with the
+  // debit-then-generate ordering (money already spent on Anthropic's
+  // side regardless), this is the actual pre-call floor: refuse once
+  // the pool is confirmed empty, before spending more against it.
+  if (mode === 'authed' && firmId) {
+    try {
+      const { getCurrentUser } = await import('./supabase/server');
+      const { getCombinedTokenBalance } = await import('./token-economy');
+      const user = await getCurrentUser();
+      if (user) {
+        const balance = await getCombinedTokenBalance({ userId: user.id, firmId });
+        if (balance.combined <= 0) {
+          yield "Your firm has used up its Bella tokens for this billing period. Top up from your firm's billing page and I'll be right back.";
+          return;
+        }
+      }
+    } catch {
+      // never block a request because the balance read failed
     }
   }
 
