@@ -39,6 +39,12 @@ ios/App/Podfile.lock
 ios/DerivedData/
 ios/.symlinks/
 
+# Local-only Xcode simulator build output (xcodebuild -derivedDataPath),
+# used to run the app in Simulator for store-screenshot capture. Never
+# committed - it's multi-GB build product, fully reproducible via
+# .github/workflows/ios-release.yml.
+build_sim/
+
 # Native signing material - never commit
 *.keystore
 *.jks

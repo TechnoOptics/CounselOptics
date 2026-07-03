@@ -17,6 +17,7 @@ dependencies {
     implementation project(':capacitor-device')
     implementation project(':capacitor-preferences')
     implementation project(':capgo-capacitor-social-login')
+    implementation project(':revenuecat-purchases-capacitor')
 
 }
 
