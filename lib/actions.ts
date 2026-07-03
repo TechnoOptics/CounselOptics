@@ -35,6 +35,7 @@ import {
 import { classifyCaseType, runReview, scanDocument, transcribeMedia } from './ai';
 import { createServerSupabase, getCurrentUser, isCurrentUserAdmin, isSupabaseConfigured } from './supabase/server';
 import { logCaseEvent } from './activity';
+import { caseLimit, hasFeature, isFullAccessTrial } from './tier';
 import type { MenuPortal } from './menu-prefs';
 import {
   CASE_TYPES,
@@ -128,6 +129,7 @@ export async function createCaseAction(
     // had their 7 days and didn't subscribe - they keep read access
     // to existing cases + find-counsel, but new case creation is
     // blocked until they subscribe.
+    let isTrialExempt = false;
     try {
       const state = await getEffectiveTrialState();
       if (state.mode === 'expired') {
@@ -137,8 +139,42 @@ export async function createCaseAction(
             'Your free trial has ended. Open /billing to subscribe, then create your case.',
         };
       }
+      isTrialExempt = isFullAccessTrial(state);
     } catch {
       // never block creation on a state-lookup failure
+    }
+
+    // Per-tier case cap (TIER_FEATURES.caseLimit - basic/free: 1,
+    // standard: 20, pro: 50). This was defined but never enforced
+    // anywhere: the banner in app/cases/new/page.tsx warned a user at
+    // their cap, but createCaseAction itself never checked it, so the
+    // warning didn't correspond to an actual block. Trial users get
+    // full access regardless of their nominal tier, matching every
+    // other feature gate's trial-exemption behavior.
+    if (!isTrialExempt) {
+      try {
+        const user = await getCurrentUser();
+        if (user) {
+          const sub = await getCurrentSubscription();
+          const limit = caseLimit(sub);
+          if (limit !== null) {
+            const supabase = createServerSupabase();
+            const { count } = await supabase
+              .from('cases')
+              .select('id', { count: 'exact', head: true })
+              .eq('sandbox', false)
+              .neq('status', 'archived');
+            if ((count ?? 0) >= limit) {
+              return {
+                ok: false,
+                error: `You've reached your plan's limit of ${limit} case${limit === 1 ? '' : 's'}. Upgrade from /billing, or archive an existing case to make room.`,
+              };
+            }
+          }
+        }
+      } catch {
+        // never block creation on a limit-lookup failure
+      }
     }
 
     const validSubjectTypes: SubjectType[] = ['person', 'business', 'matter', 'state', 'entity'];
@@ -439,6 +475,23 @@ export async function transcribeExhibitAction(exhibitId: string) {
 
 export async function inviteCollaboratorAction(caseId: string, formData: FormData) {
   await assertAuthIfSupabase();
+  // Collaborator sharing is Pro-only (TIER_FEATURES.collaborators) -
+  // previously only case ownership was checked here (and in the
+  // client-side collaborators panel), so any signed-in owner on any
+  // tier could invite collaborators regardless of the feature flag.
+  // Trial users get full access, matching every other feature gate.
+  try {
+    const state = await getEffectiveTrialState();
+    if (!isFullAccessTrial(state)) {
+      const sub = await getCurrentSubscription();
+      if (!hasFeature(sub, 'collaborators')) {
+        throw new Error('Inviting collaborators requires the Pro plan. Upgrade from /billing.');
+      }
+    }
+  } catch (err) {
+    if (err instanceof Error && err.message.startsWith('Inviting collaborators')) throw err;
+    // never block on a state/subscription lookup failure
+  }
   const email = String(formData.get('email') ?? '').trim().toLowerCase();
   const roleRaw = String(formData.get('role') ?? 'viewer');
   if (!email || !email.includes('@')) {
