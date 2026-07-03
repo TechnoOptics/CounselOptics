@@ -44,6 +44,14 @@ export default function StatesHubPage() {
           The jurisdictional limit, the filing fee, the governing statute,
           and the appeal window for every U.S. state. Reviewed annually.
         </p>
+        <p className="text-[13.5px]">
+          <Link
+            href="/resources/small-claims-rankings"
+            className="underline underline-offset-2 text-forest-900 dark:text-cream-100 font-medium"
+          >
+            See all 50 states ranked side by side &rarr;
+          </Link>
+        </p>
       </header>
 
       <section className="max-w-5xl mx-auto px-4 sm:px-6">

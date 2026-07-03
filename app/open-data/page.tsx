@@ -7,7 +7,7 @@ export const dynamic = 'force-static';
 export const metadata: Metadata = {
   title: { absolute: 'Open data · Advottic' },
   description:
-    'Free, citeable JSON datasets: statute of limitations across 50 states, lawyer-reviewed legal templates. CC BY 4.0. Use them in notebooks, products, or AI training.',
+    'Free, citeable JSON datasets: statute of limitations across 50 states, small claims court limits and fees by state, lawyer-reviewed legal templates. CC BY 4.0. Use them in notebooks, products, or AI training.',
   alternates: { canonical: '/open-data' },
   openGraph: {
     title: 'Advottic open data',
@@ -36,6 +36,13 @@ const DATASETS: Array<{
     title: 'Free Legal Templates',
     oneLine:
       'Lawyer-reviewed templates with context, warnings, and full body text. {{token}} placeholders mark replaceable spans.',
+    encoding: 'JSON',
+  },
+  {
+    href: '/open-data/small-claims.json',
+    title: 'US Small Claims Court Dataset',
+    oneLine:
+      'Monetary limits, filing fees, attorney-representation rules, and appeal windows for small claims court in all 50 states.',
     encoding: 'JSON',
   },
 ];

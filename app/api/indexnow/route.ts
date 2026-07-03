@@ -89,6 +89,10 @@ const CORNERSTONES: ReadonlyArray<string> = [
   // New consumer-side comparison pages (highest commercial intent SERPs)
   `${SITE_URL}/compare/legalzoom`,
   `${SITE_URL}/compare/rocket-lawyer`,
+  // Round-7 national comparison asset + open dataset
+  `${SITE_URL}/resources/small-claims-rankings`,
+  `${SITE_URL}/open-data/small-claims.json`,
+  `${SITE_URL}/press/2026-07-03-small-claims-rankings`,
 ];
 
 export async function POST(req: NextRequest) {

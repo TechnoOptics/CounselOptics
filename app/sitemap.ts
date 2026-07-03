@@ -91,6 +91,11 @@ const ENTRIES: Entry[] = [
 
   // Tier 2: SEO workhorses
   { path: '/resources', changeFrequency: 'weekly', priority: 0.8 },
+  // Flagship comparative asset - the highest-value page in the small
+  // claims content set because it's the one a reporter or LLM cites
+  // for cross-state comparison questions instead of one state at a time.
+  { path: '/resources/small-claims-rankings', changeFrequency: 'monthly', priority: 0.85 },
+  { path: '/press/2026-07-03-small-claims-rankings', changeFrequency: 'yearly', priority: 0.7 },
   { path: '/review-my-document', changeFrequency: 'monthly', priority: 0.8 },
   { path: '/file-exhibits', changeFrequency: 'monthly', priority: 0.75 },
   { path: '/public-defender', changeFrequency: 'monthly', priority: 0.8 },

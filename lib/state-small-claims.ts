@@ -86,7 +86,7 @@ export const STATES_SMALL_CLAIMS: StateSmallClaims[] = [
   { slug: 'rhode-island', name: 'Rhode Island', abbr: 'RI', monetaryLimit: 5000, filingFee: '$55-$80', courtName: 'Small Claims Court', statute: 'R.I. Gen. Laws § 10-16-1', attorneysAllowed: 'Yes', attorneysNote: 'Attorneys may represent parties.', appealWindowDays: 2, notes: 'Two-day appeal window is the shortest in the country.' },
   { slug: 'south-carolina', name: 'South Carolina', abbr: 'SC', monetaryLimit: 7500, filingFee: '$80', courtName: 'Magistrate Court', statute: 'S.C. Code § 22-3-10', attorneysAllowed: 'Yes', attorneysNote: 'Attorneys may represent parties.', appealWindowDays: 30 },
   { slug: 'south-dakota', name: 'South Dakota', abbr: 'SD', monetaryLimit: 12000, filingFee: '$30-$50', courtName: 'Small Claims Court', statute: 'SDCL § 15-39-45', attorneysAllowed: 'Yes', attorneysNote: 'Attorneys may represent parties.', appealWindowDays: 0, notes: 'No appeals from small claims.' },
-  { slug: 'tennessee', name: 'Tennessee', abbr: 'TN', monetaryLimit: 25000, filingFee: '$100-$200', courtName: 'General Sessions Court', statute: 'T.C.A. § 16-15-501', attorneysAllowed: 'Yes', attorneysNote: 'Attorneys may represent parties.', appealWindowDays: 10, notes: 'Highest small-claims limit in the country.' },
+  { slug: 'tennessee', name: 'Tennessee', abbr: 'TN', monetaryLimit: 25000, filingFee: '$100-$200', courtName: 'General Sessions Court', statute: 'T.C.A. § 16-15-501', attorneysAllowed: 'Yes', attorneysNote: 'Attorneys may represent parties.', appealWindowDays: 10, notes: 'Tied with Delaware for the highest small-claims limit in the country.' },
   { slug: 'texas', name: 'Texas', abbr: 'TX', monetaryLimit: 20000, filingFee: '$54-$103', courtName: 'Justice Court (Small Claims Docket)', statute: 'Tex. R. Civ. P. 500-507', attorneysAllowed: 'Yes', attorneysNote: 'Attorneys may represent parties.', appealWindowDays: 21 },
   { slug: 'utah', name: 'Utah', abbr: 'UT', monetaryLimit: 15000, filingFee: '$60-$185', courtName: 'Small Claims Court', statute: 'Utah Code § 78A-8-102', attorneysAllowed: 'Yes', attorneysNote: 'Attorneys may represent parties.', appealWindowDays: 30 },
   { slug: 'vermont', name: 'Vermont', abbr: 'VT', monetaryLimit: 5000, filingFee: '$65-$90', courtName: 'Small Claims Court', statute: '12 V.S.A. § 5531', attorneysAllowed: 'Yes', attorneysNote: 'Attorneys may represent parties.', appealWindowDays: 30 },
@@ -102,4 +102,55 @@ export const SMALL_CLAIMS_REVIEWED_AT = '2026-05-11';
 
 export function getStateSmallClaims(slug: string): StateSmallClaims | null {
   return STATES_SMALL_CLAIMS.find((s) => s.slug === slug) ?? null;
+}
+
+/** Lowest dollar figure in a fee range string like "$50-$95" or "$95". */
+export function filingFeeFloor(fee: string): number {
+  const match = fee.match(/\d+/);
+  return match ? Number(match[0]) : 0;
+}
+
+/**
+ * Powers /resources/small-claims-rankings. Computed from the same
+ * dataset as the per-state pages, so the rankings page and the
+ * state pages can never drift out of sync.
+ */
+export function getSmallClaimsRankings() {
+  const byLimitDesc = [...STATES_SMALL_CLAIMS].sort(
+    (a, b) => b.monetaryLimit - a.monetaryLimit,
+  );
+  const byFeeAsc = [...STATES_SMALL_CLAIMS].sort(
+    (a, b) => filingFeeFloor(a.filingFee) - filingFeeFloor(b.filingFee),
+  );
+  const highestLimit = byLimitDesc.slice(0, 10);
+  const lowestLimit = [...byLimitDesc].reverse().slice(0, 10);
+  const cheapestFiling = byFeeAsc.slice(0, 10);
+  const priciestFiling = [...byFeeAsc].reverse().slice(0, 10);
+  const noAttorneys = STATES_SMALL_CLAIMS.filter(
+    (s) => s.attorneysAllowed === 'No',
+  );
+  const noAppeal = STATES_SMALL_CLAIMS.filter((s) => s.appealWindowDays === 0);
+  const shortestAppealWindow = STATES_SMALL_CLAIMS.filter(
+    (s) => s.appealWindowDays > 0,
+  ).sort((a, b) => a.appealWindowDays - b.appealWindowDays);
+
+  return {
+    byLimitDesc,
+    highestLimit,
+    lowestLimit,
+    cheapestFiling,
+    priciestFiling,
+    noAttorneys,
+    noAppeal,
+    shortestAppealWindow: shortestAppealWindow.slice(0, 5),
+    nationalMedianLimit: median(STATES_SMALL_CLAIMS.map((s) => s.monetaryLimit)),
+  };
+}
+
+function median(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0
+    ? (sorted[mid - 1] + sorted[mid]) / 2
+    : sorted[mid];
 }
