@@ -2,11 +2,12 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import { getCase } from '@/lib/storage';
-import { getCurrentUser } from '@/lib/supabase/server';
+import { createServerSupabase, getCurrentUser } from '@/lib/supabase/server';
 import { storageUnavailable } from '@/lib/setup-status';
 import {
   getCommunityCaseForCase,
   listCommunityCaseLinks,
+  listCommunityGalleryImages,
   listWitnessSubmissions,
 } from '@/lib/community-actions';
 import { CommunityEditor } from './community-editor';
@@ -39,12 +40,20 @@ export default async function CommunityCaseAdminPage({
   }
 
   const communityCase = await getCommunityCaseForCase(c.id);
-  const [links, submissions] = communityCase
+  const [links, submissions, galleryImages] = communityCase
     ? await Promise.all([
         listCommunityCaseLinks(communityCase.id),
         listWitnessSubmissions(communityCase.id),
+        listCommunityGalleryImages(communityCase.id),
       ])
-    : [[], []];
+    : [[], [], []];
+
+  const supabase = createServerSupabase();
+  const images = galleryImages.map((img) => ({
+    id: img.id,
+    caption: img.caption,
+    url: supabase.storage.from('community-public').getPublicUrl(img.storagePath).data.publicUrl,
+  }));
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-8">
@@ -65,7 +74,7 @@ export default async function CommunityCaseAdminPage({
         </p>
       </div>
 
-      <CommunityEditor caseId={c.id} communityCase={communityCase} links={links} />
+      <CommunityEditor caseId={c.id} communityCase={communityCase} links={links} images={images} />
 
       {communityCase && (
         <SubmissionsList caseId={c.id} communityCaseId={communityCase.id} submissions={submissions} />

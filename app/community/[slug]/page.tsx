@@ -5,6 +5,7 @@ import { createServerSupabase, isSupabaseConfigured } from '@/lib/supabase/serve
 import {
   COMMUNITY_CASE_LINK_PLATFORM_LABEL,
   type PublicCommunityCase,
+  type PublicCommunityCaseImage,
   type PublicCommunityCaseLink,
 } from '@/lib/community-types';
 
@@ -13,9 +14,10 @@ export const dynamic = 'force-dynamic';
 async function getPublicPage(slug: string) {
   if (!isSupabaseConfigured()) return null;
   const supabase = createServerSupabase();
-  const [{ data: pageRows }, { data: linkRows }] = await Promise.all([
+  const [{ data: pageRows }, { data: linkRows }, { data: imageRows }] = await Promise.all([
     supabase.rpc('get_public_community_case', { _slug: slug }),
     supabase.rpc('get_public_community_case_links', { _slug: slug }),
+    supabase.rpc('get_public_community_case_images', { _slug: slug }),
   ]);
   const page = (pageRows as Array<Record<string, unknown>> | null)?.[0];
   if (!page) return null;
@@ -49,7 +51,19 @@ async function getPublicPage(slug: string) {
       .getPublicUrl(communityCase.bannerImagePath);
     bannerUrl = data?.publicUrl ?? null;
   }
-  return { communityCase, links, bannerUrl };
+  const galleryImages: Array<PublicCommunityCaseImage & { url: string }> = (
+    (imageRows as Array<Record<string, unknown>>) ?? []
+  ).map((row) => {
+    const storagePath = row.storage_path as string;
+    const { data } = supabase.storage.from('community-public').getPublicUrl(storagePath);
+    return {
+      storagePath,
+      caption: (row.caption as string) ?? null,
+      sortOrder: (row.sort_order as number) ?? 0,
+      url: data?.publicUrl ?? '',
+    };
+  });
+  return { communityCase, links, bannerUrl, galleryImages };
 }
 
 export async function generateMetadata({
@@ -84,7 +98,7 @@ export default async function CommunityCasePublicPage({
 }) {
   const data = await getPublicPage(params.slug);
   if (!data) notFound();
-  const { communityCase: cc, links, bannerUrl } = data;
+  const { communityCase: cc, links, bannerUrl, galleryImages } = data;
   const isClosed = cc.status === 'closed';
 
   return (
@@ -123,6 +137,21 @@ export default async function CommunityCasePublicPage({
             </p>
           )}
         </div>
+
+        {galleryImages.length > 0 && (
+          <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1">
+            {galleryImages.map((img, i) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={i}
+                src={img.url}
+                alt={img.caption ?? ''}
+                title={img.caption ?? undefined}
+                className="h-28 w-28 flex-none object-cover rounded-xl border border-ink-200 dark:border-forest-700/40"
+              />
+            ))}
+          </div>
+        )}
 
         {(cc.bondAmountCents !== null || cc.hearingDisplayOverride) && (
           <div className="card p-5 sm:p-6 grid grid-cols-2 gap-6">

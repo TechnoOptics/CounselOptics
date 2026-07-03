@@ -64,6 +64,20 @@ export type CommunityCaseLink = {
   sortOrder: number;
 };
 
+export type CommunityCaseImage = {
+  id: string;
+  communityCaseId: string;
+  storagePath: string;
+  caption: string | null;
+  sortOrder: number;
+};
+
+export type PublicCommunityCaseImage = {
+  storagePath: string;
+  caption: string | null;
+  sortOrder: number;
+};
+
 /** The narrow, public-safe shape returned by get_public_community_case(). */
 export type PublicCommunityCase = {
   caseNumber: string;

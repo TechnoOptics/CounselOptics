@@ -2,10 +2,12 @@
 
 import { useRef, useState, useTransition } from 'react';
 import {
+  addCommunityGalleryImageAction,
   addCommunityLinkAction,
   closeCommunityCaseAction,
   createCommunityCaseAction,
   publishCommunityCaseAction,
+  removeCommunityGalleryImageAction,
   removeCommunityLinkAction,
   reopenCommunityCaseAction,
   unpublishCommunityCaseAction,
@@ -19,14 +21,18 @@ import {
   type CommunityCaseLinkPlatform,
 } from '@/lib/community-types';
 
+type GalleryImageView = { id: string; caption: string | null; url: string };
+
 export function CommunityEditor({
   caseId,
   communityCase,
   links,
+  images,
 }: {
   caseId: string;
   communityCase: CommunityCase | null;
   links: CommunityCaseLink[];
+  images: GalleryImageView[];
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -137,6 +143,7 @@ export function CommunityEditor({
 
       <EditDetailsForm caseId={caseId} communityCase={communityCase} />
       <BannerUpload caseId={caseId} communityCase={communityCase} />
+      <GalleryEditor caseId={caseId} communityCaseId={communityCase.id} images={images} />
       <LinksEditor caseId={caseId} communityCaseId={communityCase.id} links={links} />
     </div>
   );
@@ -257,6 +264,88 @@ function BannerUpload({ caseId, communityCase }: { caseId: string; communityCase
         {pending ? 'Uploading…' : communityCase.bannerImagePath ? 'Replace banner' : 'Upload banner'}
       </button>
     </form>
+  );
+}
+
+const MAX_GALLERY_IMAGES = 12;
+
+function GalleryEditor({
+  caseId,
+  communityCaseId,
+  images,
+}: {
+  caseId: string;
+  communityCaseId: string;
+  images: GalleryImageView[];
+}) {
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  return (
+    <div className="card p-5 sm:p-6 space-y-4">
+      <p className="eyebrow">Photo gallery</p>
+      {images.length > 0 && (
+        <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+          {images.map((img) => (
+            <div key={img.id} className="relative group">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={img.url}
+                alt={img.caption ?? ''}
+                className="w-full aspect-square object-cover rounded-lg border border-ink-200 dark:border-forest-700/40"
+              />
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => {
+                  setError(null);
+                  startTransition(async () => {
+                    const result = await removeCommunityGalleryImageAction(img.id, caseId);
+                    if (!result.ok) setError(result.error ?? 'Could not remove image.');
+                  });
+                }}
+                className="absolute top-1 right-1 rounded-full bg-forest-950/80 text-white w-6 h-6 text-xs leading-none opacity-0 group-hover:opacity-100 transition-opacity"
+                aria-label="Remove image"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      {images.length < MAX_GALLERY_IMAGES ? (
+        <form
+          ref={formRef}
+          action={(formData) => {
+            setError(null);
+            startTransition(async () => {
+              const result = await addCommunityGalleryImageAction(communityCaseId, caseId, formData);
+              if (!result.ok) setError(result.error ?? 'Could not upload.');
+              else formRef.current?.reset();
+            });
+          }}
+          className="flex flex-wrap items-center gap-3"
+        >
+          <input type="file" name="file" accept="image/*" className="input flex-1 min-w-[160px]" required />
+          <input
+            type="text"
+            name="caption"
+            placeholder="Caption (optional)"
+            maxLength={200}
+            className="input flex-1 min-w-[160px]"
+          />
+          <button type="submit" className="btn-secondary" disabled={pending}>
+            {pending ? 'Uploading…' : 'Add photo'}
+          </button>
+        </form>
+      ) : (
+        <p className="text-xs text-ink-500 dark:text-cream-100/55">
+          You&apos;ve reached the {MAX_GALLERY_IMAGES}-photo limit. Remove one to add another.
+        </p>
+      )}
+      {error && <p className="text-sm text-rose-700 dark:text-rose-300">{error}</p>}
+    </div>
   );
 }
 

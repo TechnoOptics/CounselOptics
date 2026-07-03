@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import crypto from 'node:crypto';
 import { createServerSupabase, getCurrentUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
 import { getCurrentSubscription, getProfile } from './storage';
@@ -10,6 +11,7 @@ import {
   generateCaseNumber,
   generateSlug,
   type CommunityCase,
+  type CommunityCaseImage,
   type CommunityCaseLink,
   type CommunityCaseLinkPlatform,
   type MailingAddress,
@@ -300,6 +302,113 @@ export async function uploadCommunityBannerAction(
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Could not upload image.' };
   }
+}
+
+const MAX_GALLERY_IMAGES = 12;
+
+/** Additional photos beyond the single banner - same public
+ * `community-public` bucket and upload-safety posture as
+ * uploadCommunityBannerAction (these are images the organizer chose to
+ * publish, not private witness material). */
+export async function addCommunityGalleryImageAction(
+  communityCaseId: string,
+  caseId: string,
+  formData: FormData,
+): Promise<CommunityActionResult> {
+  try {
+    await assertOrganizerEligible();
+    const file = formData.get('file');
+    if (!(file instanceof File) || file.size === 0) {
+      return { ok: false, error: 'Please choose an image.' };
+    }
+    const MAX_GALLERY_IMAGE_BYTES = 10 * 1024 * 1024;
+    if (file.size > MAX_GALLERY_IMAGE_BYTES) {
+      return { ok: false, error: 'Image is larger than the 10MB limit.' };
+    }
+    const supabase = createServerSupabase();
+    const { count } = await supabase
+      .from('community_case_images')
+      .select('id', { count: 'exact', head: true })
+      .eq('community_case_id', communityCaseId);
+    if ((count ?? 0) >= MAX_GALLERY_IMAGES) {
+      return { ok: false, error: `You can add up to ${MAX_GALLERY_IMAGES} photos.` };
+    }
+
+    const admin = createAdminSupabase();
+    if (!admin) return { ok: false, error: 'Storage is not configured on the server.' };
+
+    const imageId = crypto.randomUUID();
+    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const path = `${communityCaseId}/gallery/${imageId}.${ext || 'jpg'}`;
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const { error: uploadErr } = await admin.storage
+      .from('community-public')
+      .upload(path, buffer, { contentType: file.type || 'image/jpeg', upsert: false });
+    if (uploadErr) return { ok: false, error: uploadErr.message };
+
+    const caption = String(formData.get('caption') ?? '').trim();
+    const { error } = await supabase.from('community_case_images').insert({
+      id: imageId,
+      community_case_id: communityCaseId,
+      storage_path: path,
+      caption: caption || null,
+      sort_order: count ?? 0,
+    });
+    if (error) return { ok: false, error: error.message };
+
+    revalidatePath(`/cases/${caseId}/community`);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not upload image.' };
+  }
+}
+
+export async function removeCommunityGalleryImageAction(
+  imageId: string,
+  caseId: string,
+): Promise<CommunityActionResult> {
+  try {
+    await assertOrganizerEligible();
+    const supabase = createServerSupabase();
+    const { data: row } = await supabase
+      .from('community_case_images')
+      .select('storage_path')
+      .eq('id', imageId)
+      .maybeSingle();
+    const path = (row as { storage_path: string } | null)?.storage_path;
+
+    const { error } = await supabase.from('community_case_images').delete().eq('id', imageId);
+    if (error) return { ok: false, error: error.message };
+
+    if (path) {
+      const admin = createAdminSupabase();
+      if (admin) await admin.storage.from('community-public').remove([path]);
+    }
+
+    revalidatePath(`/cases/${caseId}/community`);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not remove image.' };
+  }
+}
+
+export async function listCommunityGalleryImages(
+  communityCaseId: string,
+): Promise<CommunityCaseImage[]> {
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase
+    .from('community_case_images')
+    .select('*')
+    .eq('community_case_id', communityCaseId)
+    .order('sort_order', { ascending: true });
+  if (error || !data) return [];
+  return (data as Array<Record<string, unknown>>).map((row) => ({
+    id: row.id as string,
+    communityCaseId: row.community_case_id as string,
+    storagePath: row.storage_path as string,
+    caption: (row.caption as string) ?? null,
+    sortOrder: (row.sort_order as number) ?? 0,
+  }));
 }
 
 export async function addCommunityLinkAction(
