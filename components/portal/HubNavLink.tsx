@@ -82,9 +82,6 @@ export function HubNavLink({
       }`}
     >
       <span className="text-[13.5px] font-medium">{item.label}</span>
-      <span className="block text-[11px] text-cream-100/40">
-        {item.hint}
-      </span>
     </Link>
   );
 }

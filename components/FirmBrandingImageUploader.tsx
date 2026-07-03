@@ -46,11 +46,69 @@ export function FirmBrandingImageUploader({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
+  // Dimension spec by variant. A logo can be square or a wide wordmark;
+  // a letterhead is wider still. We shrink-to-fit at render time, so the
+  // point of validation is to reject images that are too small to stay
+  // crisp, absurdly large, or so extreme in one dimension that they
+  // won't read - never to crop.
+  const spec =
+    variant === 'square'
+      ? { minW: 48, minH: 48, maxW: 2400, maxH: 2400, maxAspect: 6, maxBytes: 5 * 1024 * 1024 }
+      : { minW: 200, minH: 40, maxW: 4000, maxH: 2400, maxAspect: 24, maxBytes: 8 * 1024 * 1024 };
+
+  function validateImage(file: File): Promise<string | null> {
+    return new Promise((resolve) => {
+      if (file.size > spec.maxBytes) {
+        resolve(
+          `That file is ${(file.size / 1024 / 1024).toFixed(1)} MB, over the ${Math.round(
+            spec.maxBytes / 1024 / 1024,
+          )} MB limit. Please use a smaller file.`,
+        );
+        return;
+      }
+      const url = URL.createObjectURL(file);
+      const img = new window.Image();
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const w = img.naturalWidth;
+        const h = img.naturalHeight;
+        if (!w || !h) {
+          resolve('That file could not be read as an image.');
+        } else if (w < spec.minW || h < spec.minH) {
+          resolve(
+            `That image is only ${w}×${h}px. Use at least ${spec.minW}×${spec.minH}px so it stays crisp.`,
+          );
+        } else if (w > spec.maxW || h > spec.maxH) {
+          resolve(
+            `That image is ${w}×${h}px, larger than the ${spec.maxW}×${spec.maxH}px maximum. Please resize it down.`,
+          );
+        } else if (Math.max(w / h, h / w) > spec.maxAspect) {
+          resolve(
+            `That image is too ${w >= h ? 'wide' : 'tall'} (${w}×${h}px) to display cleanly. Keep the aspect ratio within ${spec.maxAspect}:1.`,
+          );
+        } else {
+          resolve(null);
+        }
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve('That file could not be read as an image.');
+      };
+      img.src = url;
+    });
+  }
+
   function onPick(file: File) {
     setError(null);
-    const fd = new FormData();
-    fd.set(fieldName, file);
     startTransition(async () => {
+      const dimError = await validateImage(file);
+      if (dimError) {
+        setError(dimError);
+        if (inputRef.current) inputRef.current.value = '';
+        return;
+      }
+      const fd = new FormData();
+      fd.set(fieldName, file);
       const res = await uploadAction(firmId, fd);
       if (res.ok) {
         if (inputRef.current) inputRef.current.value = '';

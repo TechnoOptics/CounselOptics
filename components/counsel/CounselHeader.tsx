@@ -78,12 +78,13 @@ export function CounselHeader({
               aria-label={`${firm?.name ?? 'Counsel'} home`}
             >
               {firm?.logoUrl ? (
-                <Image
+                // Wordmarks are usually rectangular: fixed height, natural
+                // width, capped so a wide logo shrinks to fit and is never
+                // cropped. eslint-disable-next-line @next/next/no-img-element
+                <img
                   src={firm.logoUrl}
                   alt=""
-                  width={36}
-                  height={36}
-                  className="h-9 w-9 rounded-md object-cover ring-1 ring-forest-700/60 flex-none"
+                  className="h-9 w-auto max-w-[150px] object-contain flex-none"
                 />
               ) : (
                 <span
@@ -134,12 +135,11 @@ export function CounselHeader({
             <span className="hidden sm:inline-block h-5 w-px bg-cream-100/15" aria-hidden />
             <div className="flex items-center gap-2 min-w-0">
               {firm?.logoUrl ? (
-                <Image
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
                   src={firm.logoUrl}
                   alt=""
-                  width={28}
-                  height={28}
-                  className="h-7 w-7 rounded-md object-cover ring-1 ring-forest-700/60 flex-none"
+                  className="h-7 w-auto max-w-[120px] object-contain flex-none"
                 />
               ) : (
                 <span

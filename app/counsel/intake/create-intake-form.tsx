@@ -417,11 +417,11 @@ export function CreateIntakeForm({
       </div>
 
       <PartyList
-        label={inhouse ? 'Counterparty / other side' : 'Opposing parties'}
+        label={inhouse ? 'Counterparty / other side' : 'Other parties'}
         hint={
           inhouse
             ? 'The vendor, contracting party, or other side - whoever this request is against or with.'
-            : 'The other side of the dispute (counterparty, defendant, complainant).'
+            : 'The other parties involved (counterparty, defendant, complainant, or other side).'
         }
         values={opposing}
         onChange={setOpposing}

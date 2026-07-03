@@ -232,7 +232,7 @@ export default async function IntakeDetailPage({
 
                 <section className="grid sm:grid-cols-2 gap-3">
                   <div className="card p-4">
-                    <p className="eyebrow mb-2">Opposing parties</p>
+                    <p className="eyebrow mb-2">Other parties</p>
                     {intake.opposing_parties.length === 0 ? (
                       <p className="text-[13px] italic text-ink-500 dark:text-cream-100/55">
                         None listed.

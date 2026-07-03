@@ -201,7 +201,7 @@ export default async function PortalLayout({
               <img
                 src={firm.logoUrl}
                 alt={firm.name}
-                className="h-7 w-7 rounded-md object-cover ring-1 ring-cream-100/15"
+                className="h-7 w-auto max-w-[120px] object-contain"
               />
             ) : (
               <span
