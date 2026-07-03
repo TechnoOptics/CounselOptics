@@ -27,6 +27,9 @@ export type SignatureEventType =
   | 'signed'
   | 'completed'
   | 'canceled'
+  | 'recalled'
+  | 'rejected'
+  | 'changes_requested'
   | 'reminder_sent'
   // Final-render lifecycle (lib/signature-render.ts). Emitted after
   // the request flips to 'completed' so a reviewer can tell whether

@@ -288,14 +288,18 @@ export type FirmSigningStatus =
   | 'sent'
   | 'partial'
   | 'completed'
-  | 'canceled';
+  | 'canceled'
+  | 'rejected'
+  | 'changes_requested';
 
 export const FIRM_SIGNING_STATUS_LABEL: Record<FirmSigningStatus, string> = {
   draft: 'Draft',
   sent: 'Awaiting signatures',
   partial: 'Partially signed',
   completed: 'Completed',
-  canceled: 'Canceled',
+  canceled: 'Recalled',
+  rejected: 'Rejected',
+  changes_requested: 'Changes requested',
 };
 
 export type FirmSigningRequest = {
@@ -334,6 +338,10 @@ export type FirmSignature = {
   signatureImagePath: string | null;
   auditHash: string | null;
   createdAt: string;
+  /** Signer declined to sign: 'rejected' or 'changes_requested'. */
+  response: 'rejected' | 'changes_requested' | null;
+  responseNote: string | null;
+  respondedAt: string | null;
 };
 
 // ---------- Chat ----------

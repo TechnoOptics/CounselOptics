@@ -5,6 +5,7 @@ import { getSignatureByToken } from '@/lib/firm-storage';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { appendSignatureEvent } from '@/lib/esign-audit';
 import { SignatureCapture } from './signature-capture';
+import { SignerResponse } from './signer-response';
 
 export const dynamic = 'force-dynamic';
 
@@ -85,12 +86,38 @@ export default async function SignPage({ params }: { params: { token: string } }
     return (
       <div className="min-h-screen flex items-center justify-center bg-cream-50 dark:bg-forest-950 px-4">
         <div className="max-w-lg w-full card p-8 text-center">
-          <p className="eyebrow mb-2 justify-center">Request canceled</p>
+          <p className="eyebrow mb-2 justify-center">Request recalled</p>
           <h1 className="font-display text-2xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-            This signing request was canceled.
+            This signing request was recalled.
           </h1>
           <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 leading-relaxed">
-            Reach out to the firm if you think this is a mistake.
+            The document is no longer available to sign. Reach out to {firm.name} if
+            you think this is a mistake.
+          </p>
+        </div>
+      </div>
+    );
+  }
+  // The signer already declined or asked for changes on this link, or
+  // someone did on the shared request - put the page on hold until the
+  // firm sends a fresh version.
+  if (
+    signature.response ||
+    request.status === 'rejected' ||
+    request.status === 'changes_requested'
+  ) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-cream-50 dark:bg-forest-950 px-4">
+        <div className="max-w-lg w-full card p-8 text-center">
+          <p className="eyebrow mb-2 justify-center">On hold</p>
+          <h1 className="font-display text-2xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
+            {signature.response === 'rejected'
+              ? 'You declined to sign this document.'
+              : 'This document is on hold pending changes.'}
+          </h1>
+          <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 leading-relaxed">
+            {firm.name} has been notified. If a revised version is sent, you&rsquo;ll
+            get a new link.
           </p>
         </div>
       </div>
@@ -155,6 +182,8 @@ export default async function SignPage({ params }: { params: { token: string } }
           documentName={document.name}
           firmName={firm.name}
         />
+
+        <SignerResponse token={signature.token} firmName={firm.name} />
       </main>
 
       <footer className="border-t border-ink-200 dark:border-forest-700/40 bg-white dark:bg-forest-950 mt-12">

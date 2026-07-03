@@ -223,6 +223,9 @@ type FirmSignatureRow = {
   signature_image_path: string | null;
   audit_hash: string | null;
   created_at: string;
+  response: 'rejected' | 'changes_requested' | null;
+  response_note: string | null;
+  responded_at: string | null;
 };
 
 function signatureFromRow(r: FirmSignatureRow): FirmSignature {
@@ -242,6 +245,9 @@ function signatureFromRow(r: FirmSignatureRow): FirmSignature {
     signatureImagePath: r.signature_image_path,
     auditHash: r.audit_hash,
     createdAt: r.created_at,
+    response: r.response ?? null,
+    responseNote: r.response_note ?? null,
+    respondedAt: r.responded_at ?? null,
   };
 }
 
@@ -715,6 +721,58 @@ export async function listFirmSigningRequests(firmId: string): Promise<FirmSigni
     .order('created_at', { ascending: false });
   if (!data) return [];
   return (data as FirmSigningRequestRow[]).map(signingRequestFromRow);
+}
+
+export type FirmSigningRequestSummary = FirmSigningRequest & {
+  recipients: string[];
+  signedCount: number;
+  totalSigners: number;
+};
+
+/**
+ * Signing requests plus a per-request signer summary (who it was sent
+ * to, how many signed) - one extra batched query, aggregated in JS.
+ * Powers the signing list's at-a-glance recipient + progress column.
+ */
+export async function listFirmSigningRequestsWithSummary(
+  firmId: string,
+): Promise<FirmSigningRequestSummary[]> {
+  const requests = await listFirmSigningRequests(firmId);
+  if (requests.length === 0) return [];
+  const supabase = createServerSupabase();
+  const { data: sigs } = await supabase
+    .from('firm_signatures')
+    .select('signing_request_id, signer_name, signer_email, signed_at')
+    .in(
+      'signing_request_id',
+      requests.map((r) => r.id),
+    );
+  const byReq = new Map<
+    string,
+    { recipients: string[]; signed: number; total: number }
+  >();
+  for (const s of (sigs ?? []) as Array<{
+    signing_request_id: string;
+    signer_name: string | null;
+    signer_email: string;
+    signed_at: string | null;
+  }>) {
+    const entry =
+      byReq.get(s.signing_request_id) ?? { recipients: [], signed: 0, total: 0 };
+    entry.recipients.push(s.signer_name || s.signer_email);
+    entry.total += 1;
+    if (s.signed_at) entry.signed += 1;
+    byReq.set(s.signing_request_id, entry);
+  }
+  return requests.map((r) => {
+    const e = byReq.get(r.id);
+    return {
+      ...r,
+      recipients: e?.recipients ?? [],
+      signedCount: e?.signed ?? 0,
+      totalSigners: e?.total ?? 0,
+    };
+  });
 }
 
 export async function getFirmSigningRequestWithSignatures(

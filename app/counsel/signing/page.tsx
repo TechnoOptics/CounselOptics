@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import {
   getActiveFirmContext,
-  listFirmSigningRequests,
+  listFirmSigningRequestsWithSummary,
 } from '@/lib/firm-storage';
 import { FIRM_SIGNING_STATUS_LABEL } from '@/lib/firm-types';
 
@@ -12,7 +12,7 @@ export const metadata = { title: 'Signing · Counsel' };
 export default async function CounselSigningPage() {
   const ctx = await getActiveFirmContext();
   if (!ctx) redirect('/counsel');
-  const requests = await listFirmSigningRequests(ctx.firm.id);
+  const requests = await listFirmSigningRequestsWithSummary(ctx.firm.id);
 
   return (
     <div className="space-y-6 animate-fade-up">
@@ -60,10 +60,16 @@ export default async function CounselSigningPage() {
               >
                 <div className="min-w-0">
                   <p className="font-semibold text-forest-900 dark:text-cream-100 truncate">
-                    Request #{req.id.slice(0, 8)}
+                    {req.recipients.length > 0
+                      ? req.recipients.join(', ')
+                      : `Request #${req.id.slice(0, 8)}`}
                   </p>
                   <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-0.5">
-                    Created {new Date(req.createdAt).toLocaleString()}
+                    {req.sentAt
+                      ? `Sent ${new Date(req.sentAt).toLocaleDateString()}`
+                      : `Created ${new Date(req.createdAt).toLocaleDateString()}`}
+                    {req.totalSigners > 0 &&
+                      ` · ${req.signedCount} of ${req.totalSigners} signed`}
                   </p>
                 </div>
                 <span

@@ -8,6 +8,7 @@ import {
   getFirmSigningRequestWithSignatures,
 } from '@/lib/firm-storage';
 import { FIRM_SIGNING_STATUS_LABEL } from '@/lib/firm-types';
+import { RecallButton } from './recall-button';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,10 +47,34 @@ export default async function SigningRequestDetail({
               : 'not yet'}
           </p>
         </div>
-        <span className="badge bg-ink-100 dark:bg-forest-800/60 text-ink-700 dark:text-cream-100/85 text-[10px] tracking-wider">
-          {FIRM_SIGNING_STATUS_LABEL[data.request.status].toUpperCase()}
-        </span>
+        <div className="flex flex-col items-end gap-2">
+          <span className="badge bg-ink-100 dark:bg-forest-800/60 text-ink-700 dark:text-cream-100/85 text-[10px] tracking-wider">
+            {FIRM_SIGNING_STATUS_LABEL[data.request.status].toUpperCase()}
+          </span>
+          {data.request.status !== 'completed' &&
+            data.request.status !== 'canceled' && (
+              <RecallButton requestId={data.request.id} />
+            )}
+        </div>
       </header>
+
+      {(data.request.status === 'rejected' ||
+        data.request.status === 'changes_requested' ||
+        data.request.status === 'canceled') && (
+        <div
+          className={`card p-4 text-sm ${
+            data.request.status === 'canceled'
+              ? 'ring-1 ring-ink-200 dark:ring-forest-700/40 text-ink-700 dark:text-cream-100/80'
+              : 'ring-1 ring-amber-300/50 dark:ring-amber-600/30 bg-amber-50/50 dark:bg-amber-950/15 text-amber-900 dark:text-amber-200'
+          }`}
+        >
+          {data.request.status === 'canceled'
+            ? 'You recalled this request. Its sign links no longer work. Send a new request from Documents when the document is ready.'
+            : data.request.status === 'rejected'
+              ? 'A signer declined to sign. Review their note below, rework the document, and send a fresh request.'
+              : 'A signer requested changes. Review their note below, update the document, and send a fresh request.'}
+        </div>
+      )}
 
       {data.request.message && (
         <p className="card p-4 text-sm text-ink-700 dark:text-cream-100/80 italic leading-relaxed">
@@ -78,19 +103,41 @@ export default async function SigningRequestDetail({
                   <span className="text-[12px] font-mono text-emerald-700 dark:text-emerald-300 tabular-nums">
                     Signed {new Date(sig.signedAt).toLocaleString()}
                   </span>
+                ) : sig.response ? (
+                  <span
+                    className={`text-[12px] font-medium ${
+                      sig.response === 'rejected'
+                        ? 'text-rose-700 dark:text-rose-300'
+                        : 'text-amber-700 dark:text-amber-300'
+                    }`}
+                  >
+                    {sig.response === 'rejected' ? 'Declined' : 'Requested changes'}
+                    {sig.respondedAt
+                      ? ` · ${new Date(sig.respondedAt).toLocaleDateString()}`
+                      : ''}
+                  </span>
                 ) : (
                   <span className="text-[12px] text-amber-700 dark:text-amber-300">
                     Awaiting signature
                   </span>
                 )}
-                {!sig.signedAt && (
-                  <p className="mt-0.5">
-                    <ExternalLink
-                      href={`${SITE_URL}/sign/${sig.token}`}
-                      className="text-[11px] underline text-forest-900 dark:text-cream-100"
-                    >
-                      Open sign link
-                    </ExternalLink>
+                {!sig.signedAt &&
+                  !sig.response &&
+                  data.request.status !== 'canceled' &&
+                  data.request.status !== 'rejected' &&
+                  data.request.status !== 'changes_requested' && (
+                    <p className="mt-0.5">
+                      <ExternalLink
+                        href={`${SITE_URL}/sign/${sig.token}`}
+                        className="text-[11px] underline text-forest-900 dark:text-cream-100"
+                      >
+                        Open sign link
+                      </ExternalLink>
+                    </p>
+                  )}
+                {sig.responseNote && (
+                  <p className="mt-1 text-[12px] text-ink-600 dark:text-cream-100/70 italic max-w-[42ch]">
+                    &ldquo;{sig.responseNote}&rdquo;
                   </p>
                 )}
               </div>
