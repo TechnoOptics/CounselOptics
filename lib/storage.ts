@@ -485,15 +485,39 @@ export async function updateCaseStatus(caseId: string, status: CaseStatus): Prom
  * RLS (cases_delete_own) ensures only the owner can execute this. Throws
  * if the caller is not the owner or if the row doesn't exist.
  */
+/**
+ * Recursively deletes every object under `prefix` in `bucket`. Supabase
+ * Storage's list() is non-recursive and represents subfolders as
+ * entries with no `id` - descend into those, delete everything else in
+ * one batch per level. Best-effort by design (caller decides whether a
+ * failure here should block anything).
+ */
+async function deleteStorageFolder(
+  admin: NonNullable<ReturnType<typeof createAdminSupabase>>,
+  bucket: string,
+  prefix: string,
+): Promise<void> {
+  const { data: entries } = await admin.storage.from(bucket).list(prefix, { limit: 1000 });
+  if (!entries || entries.length === 0) return;
+  const files = entries.filter((e) => e.id !== null).map((e) => `${prefix}/${e.name}`);
+  const folders = entries.filter((e) => e.id === null).map((e) => `${prefix}/${e.name}`);
+  if (files.length > 0) {
+    await admin.storage.from(bucket).remove(files);
+  }
+  for (const folder of folders) {
+    await deleteStorageFolder(admin, bucket, folder);
+  }
+}
+
 export async function deleteCase(caseId: string): Promise<void> {
   if (usingSupabase()) {
     const user = await getCurrentUser();
     if (!user) throw new Error('Not signed in.');
     const supabase = createServerSupabase();
 
-    // Best-effort: remove the case's storage folder before the row goes
-    // away. We use the admin client (service role) so it can list and
-    // delete objects regardless of bucket-level policy.
+    // Best-effort: remove the case's storage folders before the row
+    // goes away. We use the admin client (service role) so it can list
+    // and delete objects regardless of bucket-level policy.
     const admin = createAdminSupabase();
     if (admin) {
       const folder = `${user.id}/${caseId}`;
@@ -508,6 +532,32 @@ export async function deleteCase(caseId: string): Promise<void> {
       } catch {
         // Don't block deletion if storage cleanup fails - the row delete
         // is the load-bearing part. Orphaned files can be reaped later.
+      }
+
+      // Community Case storage. The DB rows (community_cases,
+      // witness_submissions, etc.) cascade away via ON DELETE CASCADE
+      // when the case row is deleted below, but Supabase Storage
+      // objects aren't governed by that FK - ID photos, signatures,
+      // evidence files, and gallery images would otherwise sit in
+      // storage indefinitely with no DB row pointing at them. This
+      // matters more than ordinary orphaned files given the retention
+      // obligations already tracked for this feature (see
+      // docs/compliance/policies/risk-register.md, R13/R10).
+      try {
+        const { data: ccRow } = await admin
+          .from('community_cases')
+          .select('id')
+          .eq('case_id', caseId)
+          .maybeSingle();
+        const communityCaseId = (ccRow as { id: string } | null)?.id;
+        await Promise.all([
+          deleteStorageFolder(admin, 'community-submissions', caseId),
+          communityCaseId
+            ? deleteStorageFolder(admin, 'community-public', communityCaseId)
+            : Promise.resolve(),
+        ]);
+      } catch {
+        // Same posture as the exhibits cleanup above - best-effort.
       }
     }
 
