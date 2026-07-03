@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { ExternalLink } from '@/components/ExternalLink';
 import { JURISDICTIONS, type Jurisdiction } from '@/lib/jurisdictions';
 import { FileExhibitsPicker } from './picker';
 
@@ -156,33 +157,27 @@ export default function FileExhibitsPage() {
                   {j.formats}
                 </p>
                 <div className="pt-1.5 flex flex-wrap gap-3 text-[12.5px]">
-                  <a
+                  <ExternalLink
                     href={j.portalUrl}
-                    target="_blank"
-                    rel="noreferrer noopener nofollow"
                     className="underline text-forest-900 dark:text-cream-100 hover:text-forest-700"
                   >
                     Open e-filing portal →
-                  </a>
+                  </ExternalLink>
                   {j.feeWaiver?.url && (
-                    <a
+                    <ExternalLink
                       href={j.feeWaiver.url}
-                      target="_blank"
-                      rel="noreferrer noopener nofollow"
                       className="underline text-ink-600 dark:text-cream-100/70 hover:text-forest-700"
                     >
                       Fee waiver
-                    </a>
+                    </ExternalLink>
                   )}
                   {j.selfHelpUrl && (
-                    <a
+                    <ExternalLink
                       href={j.selfHelpUrl}
-                      target="_blank"
-                      rel="noreferrer noopener nofollow"
                       className="underline text-ink-600 dark:text-cream-100/70 hover:text-forest-700"
                     >
                       Self-help
-                    </a>
+                    </ExternalLink>
                   )}
                 </div>
               </article>
@@ -225,14 +220,12 @@ function FederalCard({ jurisdiction: j }: { jurisdiction: typeof JURISDICTIONS[n
             {j.courtName}
           </h2>
         </div>
-        <a
+        <ExternalLink
           href={j.portalUrl}
-          target="_blank"
-          rel="noreferrer noopener"
           className="btn-secondary text-[13px]"
         >
           Open PACER / CM/ECF
-        </a>
+        </ExternalLink>
       </div>
       <p className="text-sm text-ink-700 dark:text-cream-100/80 leading-relaxed">{j.summary}</p>
       <dl className="grid gap-3 sm:grid-cols-2 text-sm">
@@ -243,14 +236,12 @@ function FederalCard({ jurisdiction: j }: { jurisdiction: typeof JURISDICTIONS[n
             label="Fee waiver"
             value={
               j.feeWaiver.url ? (
-                <a
+                <ExternalLink
                   href={j.feeWaiver.url}
-                  target="_blank"
-                  rel="noreferrer noopener"
                   className="underline text-forest-900 dark:text-cream-100 hover:text-forest-700"
                 >
                   {j.feeWaiver.label}
-                </a>
+                </ExternalLink>
               ) : (
                 j.feeWaiver.label
               )
@@ -261,14 +252,12 @@ function FederalCard({ jurisdiction: j }: { jurisdiction: typeof JURISDICTIONS[n
           <Field
             label="Self help"
             value={
-              <a
+              <ExternalLink
                 href={j.selfHelpUrl}
-                target="_blank"
-                rel="noreferrer noopener"
                 className="underline text-forest-900 dark:text-cream-100 hover:text-forest-700"
               >
                 Federal courts pro se resources
-              </a>
+              </ExternalLink>
             }
           />
         )}

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { Jurisdiction } from '@/lib/jurisdictions';
 import { STATE_CENTROIDS, haversineKm } from '@/lib/state-centroids';
+import { ExternalLink } from '@/components/ExternalLink';
 
 const PRO_SE_LABELS: Record<Jurisdiction['proSeAllowed'], string> = {
   yes: 'Pro se filing supported',
@@ -225,33 +226,27 @@ function Detail({ jurisdiction: j }: { jurisdiction: Jurisdiction }) {
       <p className="text-sm text-ink-700 dark:text-cream-100/80 leading-relaxed">{j.summary}</p>
 
       <div className="flex flex-wrap items-center gap-2">
-        <a
+        <ExternalLink
           href={j.portalUrl}
-          target="_blank"
-          rel="noreferrer noopener"
           className="btn bg-forest-900 text-cream-100 hover:bg-forest-800 shadow-brand-glow font-semibold px-4 py-2 text-[13px]"
         >
           Open the e-filing portal
-        </a>
+        </ExternalLink>
         {j.selfHelpUrl && (
-          <a
+          <ExternalLink
             href={j.selfHelpUrl}
-            target="_blank"
-            rel="noreferrer noopener"
             className="btn-secondary text-[13px] px-4 py-2"
           >
             Self-help center
-          </a>
+          </ExternalLink>
         )}
         {j.feeWaiver?.url && (
-          <a
+          <ExternalLink
             href={j.feeWaiver.url}
-            target="_blank"
-            rel="noreferrer noopener"
             className="btn-secondary text-[13px] px-4 py-2"
           >
             Fee waiver form
-          </a>
+          </ExternalLink>
         )}
       </div>
 

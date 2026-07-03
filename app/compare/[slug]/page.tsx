@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { ExternalLink } from '@/components/ExternalLink';
 import { COMPARISONS, type Comparison } from '@/lib/comparisons';
 import {
   BreadcrumbJsonLd,
@@ -192,14 +193,12 @@ export default function ComparePage({ params }: Props) {
         {c.pricing.sourceUrl && (
           <p className="text-[11px] text-ink-500 dark:text-cream-100/55 pt-2 border-t border-ink-100 dark:border-forest-700/40">
             Source:{' '}
-            <a
+            <ExternalLink
               href={c.pricing.sourceUrl}
-              target="_blank"
-              rel="noopener noreferrer"
               className="underline underline-offset-2"
             >
               {c.pricing.sourceLabel ?? c.pricing.sourceUrl}
-            </a>
+            </ExternalLink>
           </p>
         )}
       </section>

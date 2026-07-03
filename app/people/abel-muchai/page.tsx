@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { ExternalLink } from '@/components/ExternalLink';
 
 export const dynamic = 'force-static';
 
@@ -181,14 +182,12 @@ export default function FounderPage() {
         <ul className="space-y-2 text-[14.5px]">
           <li>
             Wikidata:{' '}
-            <a
+            <ExternalLink
               href="https://www.wikidata.org/wiki/Q140132010"
-              target="_blank"
-              rel="noopener noreferrer"
               className="underline"
             >
               Q140132010 (Advottic)
-            </a>
+            </ExternalLink>
           </li>
           <li>
             Press kit:{' '}

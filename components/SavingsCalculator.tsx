@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import { ExternalLink } from '@/components/ExternalLink';
 
 /**
  * Interactive savings calculator. Lives on /pricing between the
@@ -361,14 +362,12 @@ export function SavingsCalculator() {
                 <span className="font-sans">{t.name}</span>{' '}
                 {USD.format(t.pricePerUserMonth)}/seat/mo &mdash;{' '}
                 {t.sourceUrl ? (
-                  <a
+                  <ExternalLink
                     href={t.sourceUrl}
-                    target="_blank"
-                    rel="noreferrer"
                     className="underline underline-offset-2 hover:text-forest-900 dark:hover:text-cream-100 break-all"
                   >
                     {t.sourceUrl.replace(/^https?:\/\//, '')}
-                  </a>
+                  </ExternalLink>
                 ) : (
                   <span className="italic">
                     industry-reported (vendor does not publish list pricing)

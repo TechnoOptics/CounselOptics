@@ -15,6 +15,7 @@ import { ConsentModal } from '@/components/ConsentModal';
 import { Sidebar, MobileNav } from '@/components/Sidebar';
 import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
 import { ThemeBoot } from '@/components/ThemeBoot';
+import { ExternalLink } from '@/components/ExternalLink';
 import { CrashReporter } from '@/components/CrashReporter';
 import { IdleLogout } from '@/components/IdleLogout';
 import { SiteJsonLd } from '@/components/seo/JsonLd';
@@ -623,14 +624,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               </p>
               <p className="text-ink-500 dark:text-cream-100/70">
                 Powered by{' '}
-                <a
+                <ExternalLink
                   href="https://technooptics.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
                   className="font-semibold text-forest-900 dark:text-cream-100 underline-offset-2 hover:underline hover:text-gold-700 dark:hover:text-gold-300 transition-colors"
                 >
                   Techno Optics LLC
-                </a>
+                </ExternalLink>
               </p>
             </div>
             <p className="mt-3 text-[10px] leading-relaxed text-ink-500 dark:text-cream-100/70 max-w-3xl">

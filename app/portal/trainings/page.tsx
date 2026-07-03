@@ -3,6 +3,7 @@ import { getCurrentUser } from '@/lib/supabase/server';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { getWorkspacePersona } from '@/lib/persona';
 import { LocaleTime } from '@/components/LocaleTime';
+import { ExternalLink } from '@/components/ExternalLink';
 import { CompleteTrainingButton } from './complete-button';
 
 export const dynamic = 'force-dynamic';
@@ -104,14 +105,12 @@ export default async function HubTrainingsPage() {
                       </div>
                       <div className="flex flex-col items-end gap-2 shrink-0">
                         {a.url && (
-                          <a
+                          <ExternalLink
                             href={a.url}
-                            target="_blank"
-                            rel="noreferrer"
                             className="btn text-[12px] ring-1 ring-gold-500/40 text-gold-200 hover:bg-gold-500/10"
                           >
                             Open
-                          </a>
+                          </ExternalLink>
                         )}
                         <CompleteTrainingButton assignmentId={a.id} />
                       </div>

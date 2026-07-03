@@ -6,6 +6,7 @@ import { hasSafetyCue } from '@/lib/safety';
 import { hasDecisionCue } from '@/lib/decision-cues';
 import { SafetyAdvisory } from '@/components/SafetyAdvisory';
 import { CallALawyerCallout } from '@/components/CallALawyerCallout';
+import { ExternalLink } from '@/components/ExternalLink';
 // Canonical Bella sanitiser. Aliased to the historical local name
 // so call sites below don't change. See lib/bella-markdown.ts for
 // the audit P1-2 history.
@@ -653,15 +654,13 @@ function RenderRich({ text }: { text: string }) {
       const md = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(tok);
       if (md) {
         parts.push(
-          <a
+          <ExternalLink
             key={`l${i++}`}
             href={md[2]}
-            target="_blank"
-            rel="noreferrer"
             className="text-forest-900 underline underline-offset-2 hover:text-forest-700"
           >
             {md[1]}
-          </a>,
+          </ExternalLink>,
         );
       } else {
         parts.push(tok);
@@ -675,15 +674,13 @@ function RenderRich({ text }: { text: string }) {
     } else {
       // bare URL
       parts.push(
-        <a
+        <ExternalLink
           key={`u${i++}`}
           href={tok}
-          target="_blank"
-          rel="noreferrer"
           className="text-forest-900 underline underline-offset-2 hover:text-forest-700 break-all"
         >
           {tok}
-        </a>,
+        </ExternalLink>,
       );
     }
     last = start + tok.length;

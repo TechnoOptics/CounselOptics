@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { ExternalLink } from '@/components/ExternalLink';
 
 export const dynamic = 'force-static';
 
@@ -134,14 +135,12 @@ export default function DataIndexPage() {
         <p className="text-[15px] leading-relaxed">
           Same datasets are mirrored to a public GitHub repo
           with Python and Node usage examples:{' '}
-          <a
+          <ExternalLink
             href="https://github.com/TechnoOptics/legal-data"
-            target="_blank"
-            rel="noopener noreferrer"
             className="underline font-medium"
           >
             github.com/TechnoOptics/legal-data
-          </a>
+          </ExternalLink>
           . Issues and pull requests welcome.
         </p>
       </section>
@@ -152,14 +151,12 @@ export default function DataIndexPage() {
         </h2>
         <p className="text-[15px] leading-relaxed">
           File an issue on{' '}
-          <a
+          <ExternalLink
             href="https://github.com/TechnoOptics/legal-data/issues"
-            target="_blank"
-            rel="noopener noreferrer"
             className="underline"
           >
             GitHub
-          </a>{' '}
+          </ExternalLink>{' '}
           or email{' '}
           <a
             href="mailto:data@advottic.com"

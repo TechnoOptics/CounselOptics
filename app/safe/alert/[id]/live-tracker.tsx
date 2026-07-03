@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { ExternalLink } from '@/components/ExternalLink';
 
 /**
  * LiveTracker - client component for /safe/alert/[id].
@@ -325,25 +326,23 @@ export function LiveTracker({
       )}
 
       {staticMapUrl && mapLink ? (
-        <a href={mapLink} target="_blank" rel="noreferrer" className="block">
+        <ExternalLink href={mapLink} className="block">
           <img
             src={staticMapUrl}
             alt={`${watcherFirstName}'s last known location`}
             className="w-full rounded-xl border-[3px] border-[#E5816B] block"
           />
-        </a>
+        </ExternalLink>
       ) : hasWatcher ? (
         <div className="p-4 rounded-xl bg-[#FBF7E9]/5 border border-[#E6CE93]/25">
           <p className="text-[13px]">
             Map preview unavailable. Tap{' '}
-            <a
+            <ExternalLink
               href={mapLink ?? '#'}
               className="underline text-[#E6CE93]"
-              target="_blank"
-              rel="noreferrer"
             >
               View location
-            </a>{' '}
+            </ExternalLink>{' '}
             to open in Maps.
           </p>
         </div>
@@ -449,14 +448,12 @@ export function LiveTracker({
           Call 911
         </a>
         {directionsLink ? (
-          <a
+          <ExternalLink
             href={directionsLink}
-            target="_blank"
-            rel="noreferrer"
             className="block text-center px-3 py-3 rounded-lg bg-[#E6CE93] text-[#0B1F19] font-bold text-[14px]"
           >
             Get directions
-          </a>
+          </ExternalLink>
         ) : (
           <span className="block text-center px-3 py-3 rounded-lg bg-[#E6CE93]/15 text-[#FBF7E9]/40 text-[12px]">
             No location
@@ -474,31 +471,25 @@ export function LiveTracker({
             No phone on file
           </span>
         )}
-        <a
+        <ExternalLink
           href={hospitalsLink}
-          target="_blank"
-          rel="noreferrer"
           className="block text-center px-3 py-3 rounded-lg bg-[#E5816B]/15 text-[#FBF7E9] font-semibold text-[13px]"
         >
           Hospitals nearby
-        </a>
-        <a
+        </ExternalLink>
+        <ExternalLink
           href={policeLink}
-          target="_blank"
-          rel="noreferrer"
           className="block text-center px-3 py-3 rounded-lg bg-[#E5816B]/15 text-[#FBF7E9] font-semibold text-[13px]"
         >
           Police nearby
-        </a>
+        </ExternalLink>
         {mapLink && (
-          <a
+          <ExternalLink
             href={mapLink}
-            target="_blank"
-            rel="noreferrer"
             className="block text-center px-3 py-3 rounded-lg bg-[#E6CE93]/10 text-[#E6CE93] font-semibold text-[13px]"
           >
             View location
-          </a>
+          </ExternalLink>
         )}
       </div>
     </div>

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { ExternalLink } from '@/components/ExternalLink';
 import { scheduleStandaloneMeetingAction } from '@/lib/firm-actions';
 
 /**
@@ -199,14 +200,12 @@ export function MeetingScheduler({
               </p>
               <p className="break-all">
                 Join link:{' '}
-                <a
+                <ExternalLink
                   href={result.joinUrl}
-                  target="_blank"
-                  rel="noreferrer"
                   className="underline font-semibold"
                 >
                   {result.joinUrl}
-                </a>
+                </ExternalLink>
               </p>
             </div>
           )}

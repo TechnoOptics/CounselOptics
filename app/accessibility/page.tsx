@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { ExternalLink } from '@/components/ExternalLink';
 
 export const metadata = {
   title: 'Accessibility',
@@ -76,14 +77,12 @@ export default function AccessibilityPage() {
               +1 (925) 300-1600
             </a>{' '}
             (
-            <a
+            <ExternalLink
               className="underline"
               href="https://wa.me/19253001600"
-              target="_blank"
-              rel="noreferrer"
             >
               open on WhatsApp
-            </a>
+            </ExternalLink>
             ).
           </li>
           <li>

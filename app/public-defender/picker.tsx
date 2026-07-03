@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import type { PublicDefenderRecord } from '@/lib/public-defenders';
+import { ExternalLink } from '@/components/ExternalLink';
 
 export function PublicDefenderPicker({ records }: { records: PublicDefenderRecord[] }) {
   const [code, setCode] = useState('');
@@ -119,23 +120,19 @@ function Detail({ record: r }: { record: PublicDefenderRecord }) {
       <p className="text-sm text-ink-700 dark:text-cream-100/80 leading-relaxed">{r.summary}</p>
 
       <div className="flex flex-wrap items-center gap-2">
-        <a
+        <ExternalLink
           href={r.pdOffice.url}
-          target="_blank"
-          rel="noreferrer noopener"
           className="btn bg-forest-900 text-cream-100 hover:bg-forest-800 shadow-brand-glow font-semibold px-4 py-2 text-[13px]"
         >
           Public defender office
-        </a>
+        </ExternalLink>
         {r.appellateOffice && (
-          <a
+          <ExternalLink
             href={r.appellateOffice.url}
-            target="_blank"
-            rel="noreferrer noopener"
             className="btn-secondary text-[13px] px-4 py-2"
           >
             {r.appellateOffice.name}
-          </a>
+          </ExternalLink>
         )}
         {r.pdOffice.phone && (
           <a
@@ -171,14 +168,12 @@ function Detail({ record: r }: { record: PublicDefenderRecord }) {
           <ul className="text-[13.5px] text-ink-700 dark:text-cream-100/80 space-y-1.5">
             {r.civilLegalAid.map((c, i) => (
               <li key={i}>
-                <a
+                <ExternalLink
                   href={c.url}
-                  target="_blank"
-                  rel="noreferrer noopener"
                   className="underline text-forest-900 dark:text-cream-100 hover:text-forest-700"
                 >
                   {c.name}
-                </a>
+                </ExternalLink>
               </li>
             ))}
           </ul>

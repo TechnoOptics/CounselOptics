@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { ExternalLink } from '@/components/ExternalLink';
 import { scheduleMeetingFromIntakeAction } from '@/lib/firm-actions';
 
 /**
@@ -147,14 +148,12 @@ export function ScheduleMeetingPanel({
           {joinUrl && (
             <p className="rounded-lg border border-emerald-200 dark:border-emerald-700/40 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-2 text-[13px] text-emerald-900 dark:text-emerald-100">
               Scheduled. Join link posted to the thread:{' '}
-              <a
+              <ExternalLink
                 href={joinUrl}
-                target="_blank"
-                rel="noreferrer"
                 className="underline font-semibold break-all"
               >
                 {joinUrl}
-              </a>
+              </ExternalLink>
             </p>
           )}
           <div className="flex justify-end gap-2">

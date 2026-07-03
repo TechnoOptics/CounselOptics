@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { ExternalLink } from '@/components/ExternalLink';
 
 type Coords = { lat: number; lng: number };
 type Mode = 'idle' | 'asking' | 'denied' | 'unsupported' | 'manual' | 'ready' | 'error';
@@ -188,14 +189,12 @@ export function FindCounselClient() {
           {fullMapsUrl && (
             <p className="text-sm text-ink-600">
               Listings come from{' '}
-              <a
+              <ExternalLink
                 href={fullMapsUrl}
-                target="_blank"
-                rel="noreferrer"
                 className="underline text-forest-900 hover:text-forest-700"
               >
                 Google Maps - open the full results
-              </a>{' '}
+              </ExternalLink>{' '}
               for reviews, hours, contact details, and directions.
             </p>
           )}

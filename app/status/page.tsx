@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import { ExternalLink } from '@/components/ExternalLink';
 import { adminGetLiveHealth } from '@/lib/hq-storage';
 
 export const dynamic = 'force-dynamic';
@@ -62,14 +62,12 @@ export default async function StatusPage() {
           Live readout. Each component is probed when this page loads, with
           an additional hourly synthetic check. Incidents are posted on the
           banner above and on{' '}
-          <Link
+          <ExternalLink
             href="https://twitter.com/advottic"
             className="underline"
-            target="_blank"
-            rel="noreferrer"
           >
             @advottic
-          </Link>
+          </ExternalLink>
           .
         </p>
       </header>

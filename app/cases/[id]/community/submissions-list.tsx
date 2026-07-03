@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { getWitnessFileSignedUrl, markSubmissionReviewedAction } from '@/lib/community-actions';
 import type { WitnessSubmission } from '@/lib/community-types';
+import { ExternalLink } from '@/components/ExternalLink';
 
 export function SubmissionsList({
   caseId,
@@ -129,9 +130,9 @@ function SubmissionRow({ caseId, submission }: { caseId: string; submission: Wit
       {submission.evidenceFilePath && (
         <div className="mt-3">
           {fileUrl ? (
-            <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="btn-secondary text-xs">
+            <ExternalLink href={fileUrl} className="btn-secondary text-xs">
               Open {submission.evidenceFileName || 'file'}
-            </a>
+            </ExternalLink>
           ) : (
             <button
               type="button"
@@ -224,9 +225,9 @@ function FileRevealButton({
   const [pending, startTransition] = useTransition();
   if (url) {
     return (
-      <a href={url} target="_blank" rel="noopener noreferrer" className="btn-secondary text-xs">
+      <ExternalLink href={url} className="btn-secondary text-xs">
         Open {label}
-      </a>
+      </ExternalLink>
     );
   }
   return (

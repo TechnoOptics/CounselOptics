@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { ExternalLink } from '@/components/ExternalLink';
 
 type Message = { role: 'user' | 'assistant'; content: string };
 
@@ -169,15 +170,13 @@ function RenderRich({ text }: { text: string }) {
       );
     } else {
       parts.push(
-        <a
+        <ExternalLink
           key={`u${i++}`}
           href={tok}
-          target="_blank"
-          rel="noreferrer"
           className="text-forest-900 underline underline-offset-2 break-all"
         >
           {tok}
-        </a>,
+        </ExternalLink>,
       );
     }
     last = start + tok.length;

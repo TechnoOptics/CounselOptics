@@ -4,6 +4,7 @@ import { getCurrentUser } from '@/lib/supabase/server';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { getWorkspacePersona } from '@/lib/persona';
 import { LocaleTime } from '@/components/LocaleTime';
+import { ExternalLink } from '@/components/ExternalLink';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Home · Hub' };
@@ -267,14 +268,12 @@ export default async function PortalDashboardPage() {
                         <LocaleTime iso={m.start_at} mode="datetime" />
                       </p>
                     </div>
-                    <a
+                    <ExternalLink
                       href={m.join_url}
-                      target="_blank"
-                      rel="noreferrer"
                       className="shrink-0 btn text-[12px] ring-1 ring-gold-500/40 text-gold-200 hover:bg-gold-500/10"
                     >
                       Join
-                    </a>
+                    </ExternalLink>
                   </li>
                 ))}
                 {dueSoon.slice(0, 4).map(({ r, due }) => (

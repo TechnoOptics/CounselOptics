@@ -7,6 +7,7 @@ import {
 } from '@/lib/integration-oauth';
 import { isIntegrationEncryptionConfigured } from '@/lib/integration-tokens';
 import { createAdminSupabase } from '@/lib/supabase/admin';
+import { ExternalLink } from '@/components/ExternalLink';
 import { DisconnectButton } from '@/app/counsel/meetings/disconnect-button';
 
 type Connection = {
@@ -215,14 +216,12 @@ function ConnectorCard({
       {!credentialsConfigured && (
         <p className="text-[11px] text-ink-500 dark:text-cream-100/55 mt-2 leading-relaxed">
           Operator setup:{' '}
-          <a
+          <ExternalLink
             href={docsHref}
-            target="_blank"
-            rel="noreferrer"
             className="underline hover:text-forest-900 dark:hover:text-cream-100"
           >
             register the app
-          </a>
+          </ExternalLink>
           , then set{' '}
           <code className="font-mono">{config.clientIdEnv}</code> +{' '}
           <code className="font-mono">{config.clientSecretEnv}</code>{' '}

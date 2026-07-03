@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { createServerSupabase } from '@/lib/supabase/server';
+import { ExternalLink } from '@/components/ExternalLink';
 import { MarkPaidButton } from './mark-paid-button';
 
 export const dynamic = 'force-dynamic';
@@ -209,14 +210,12 @@ export default async function CounselBillingPage() {
                       {fmtCents(i.total_cents)}
                     </p>
                     {i.status === 'sent' && i.stripe_payment_link && (
-                      <a
+                      <ExternalLink
                         href={i.stripe_payment_link}
-                        target="_blank"
-                        rel="noreferrer"
                         className="text-[11px] underline text-forest-900 dark:text-cream-100"
                       >
                         Pay link
-                      </a>
+                      </ExternalLink>
                     )}
                     {i.status !== 'paid' && i.status !== 'void' && (
                       <MarkPaidButton invoiceId={i.id} />

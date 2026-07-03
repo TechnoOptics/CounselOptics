@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { ExternalLink } from '@/components/ExternalLink';
 import { PUBLIC_DEFENDERS } from '@/lib/public-defenders';
 import { PublicDefenderPicker } from './picker';
 
@@ -161,14 +162,12 @@ export default function PublicDefenderPage() {
                   {r.summary}
                 </p>
                 <div className="pt-1 flex flex-wrap gap-x-4 gap-y-1 text-[12.5px]">
-                  <a
+                  <ExternalLink
                     href={r.pdOffice.url}
-                    target="_blank"
-                    rel="noreferrer noopener nofollow"
                     className="underline text-forest-900 dark:text-cream-100 hover:text-forest-700"
                   >
                     Public defender office →
-                  </a>
+                  </ExternalLink>
                   {r.pdOffice.phone && (
                     <a
                       href={`tel:${r.pdOffice.phone.replace(/[^+\d]/g, '')}`}
@@ -186,14 +185,12 @@ export default function PublicDefenderPage() {
                     <ul className="space-y-0.5">
                       {r.civilLegalAid.map((org) => (
                         <li key={org.url}>
-                          <a
+                          <ExternalLink
                             href={org.url}
-                            target="_blank"
-                            rel="noreferrer noopener nofollow"
                             className="underline text-ink-700 dark:text-cream-100/75 hover:text-forest-700"
                           >
                             {org.name}
-                          </a>
+                          </ExternalLink>
                         </li>
                       ))}
                     </ul>

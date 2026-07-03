@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { getCurrentUser } from '@/lib/supabase/server';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { getWorkspacePersona } from '@/lib/persona';
+import { ExternalLink } from '@/components/ExternalLink';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Documents · Hub' };
@@ -108,14 +109,12 @@ export default async function HubDocumentsPage() {
                 </p>
               </div>
               {d.url ? (
-                <a
+                <ExternalLink
                   href={d.url}
-                  target="_blank"
-                  rel="noreferrer"
                   className="shrink-0 btn text-[12px] ring-1 ring-gold-500/40 text-gold-200 hover:bg-gold-500/10"
                 >
                   Download
-                </a>
+                </ExternalLink>
               ) : (
                 <span className="shrink-0 text-[11px] text-cream-100/40">
                   unavailable

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { ExternalLink } from '@/components/ExternalLink';
 
 /**
  * Lightweight Cal.com inline scheduler. Renders the booking iframe at the
@@ -59,14 +60,12 @@ export function CalEmbed({ link }: { link?: string }) {
           </p>
           <p className="font-display text-lg font-medium mt-0.5">Book a 15-minute intro</p>
         </div>
-        <a
+        <ExternalLink
           href={`https://cal.com/${calLink}`}
-          target="_blank"
-          rel="noreferrer"
           className="text-[11px] text-cream-100/70 hover:text-cream-100 underline-offset-2 hover:underline"
         >
           Open in new tab
-        </a>
+        </ExternalLink>
       </div>
       <iframe
         src={src}
