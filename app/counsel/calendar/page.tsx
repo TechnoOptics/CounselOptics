@@ -1,29 +1,16 @@
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { MeetingScheduler } from './MeetingScheduler';
 import { MeetingConnectors } from '@/components/counsel/MeetingConnectors';
-import { ExternalLink } from '@/components/ExternalLink';
+import { CalendarBoard, type BoardEvent } from './calendar-board';
+import {
+  fetchMicrosoftCalendarEvents,
+  isCalendarSyncConfigured,
+} from '@/lib/calendar-sync';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Calendar · Counsel' };
-
-type AgendaItem = {
-  at: number;
-  kind: 'meeting' | 'deadline' | 'reminder';
-  title: string;
-  sub: string;
-  href: string;
-};
-
-const KIND_TONE: Record<AgendaItem['kind'], string> = {
-  meeting: 'bg-gold-500/15 text-gold-700 dark:text-gold-200 ring-gold-500/30',
-  deadline:
-    'bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-200 ring-rose-200 dark:ring-rose-700/40',
-  reminder:
-    'bg-ink-100 dark:bg-forest-800/50 text-ink-700 dark:text-cream-100/85 ring-ink-200 dark:ring-forest-700/40',
-};
 
 export default async function CounselCalendarPage({
   searchParams,
@@ -38,10 +25,15 @@ export default async function CounselCalendarPage({
   const admin = createAdminSupabase();
   const firmId = ctx.firm.id;
   const now = Date.now();
-  const horizon = new Date(now - 24 * 3600_000).toISOString();
+  // Widen the window vs. the old agenda so month navigation has data
+  // on both sides: ~45 days back, ~120 days forward.
+  const windowStart = now - 45 * 24 * 3600_000;
+  const windowEnd = now + 120 * 24 * 3600_000;
+  const horizon = new Date(windowStart).toISOString();
 
-  const items: AgendaItem[] = [];
+  const items: BoardEvent[] = [];
   const connected: Array<'microsoft' | 'zoom'> = [];
+  const isExternal = (href: string) => /^https?:\/\//i.test(href);
 
   if (admin) {
     // Which meeting providers are actually connected (drives the
@@ -77,12 +69,16 @@ export default async function CounselCalendarPage({
       duration_min: number;
       join_url: string;
     }>) {
+      const mHref = m.intake_id
+        ? `/counsel/intake/${m.intake_id}`
+        : m.join_url;
       items.push({
         at: Date.parse(m.start_at),
         kind: 'meeting',
         title: m.topic,
         sub: `${m.provider === 'microsoft' ? 'Teams' : 'Zoom'} · ${m.duration_min} min`,
-        href: m.intake_id ? `/counsel/intake/${m.intake_id}` : m.join_url,
+        href: mHref,
+        external: isExternal(mHref),
       });
     }
 
@@ -107,6 +103,7 @@ export default async function CounselCalendarPage({
         title: d.title,
         sub: d.kind.replace(/_/g, ' '),
         href: `/counsel/cases/${d.case_id}`,
+        external: false,
       });
     }
 
@@ -132,24 +129,36 @@ export default async function CounselCalendarPage({
         title: r.client_name,
         sub: 'Request / contract due',
         href: `/counsel/intake/${r.id}`,
+        external: false,
+      });
+    }
+  }
+
+  // Pull the connected Microsoft 365 (Outlook) calendar in. Best-effort:
+  // returns [] when Microsoft isn't configured or connected, so the
+  // calendar still renders the in-app items.
+  const syncOn = isCalendarSyncConfigured();
+  const hasMicrosoft = connected.includes('microsoft');
+  if (syncOn && hasMicrosoft) {
+    const synced = await fetchMicrosoftCalendarEvents(
+      firmId,
+      windowStart,
+      windowEnd,
+    );
+    for (const s of synced) {
+      items.push({
+        at: s.at,
+        endAt: s.endAt,
+        kind: 'synced',
+        title: s.title,
+        sub: s.location || 'Outlook',
+        href: s.joinUrl || '#',
+        external: Boolean(s.joinUrl),
       });
     }
   }
 
   items.sort((a, b) => a.at - b.at);
-
-  // Group by calendar day.
-  const groups = new Map<string, AgendaItem[]>();
-  for (const it of items) {
-    const key = new Date(it.at).toLocaleDateString(undefined, {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)!.push(it);
-  }
 
   return (
     <div className="space-y-6 animate-fade-up">
@@ -159,82 +168,17 @@ export default async function CounselCalendarPage({
           Calendar
         </h1>
         <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-          Everything the legal team needs to be ready for: scheduled
-          Teams/Zoom meetings, case deadlines and hearings, and
-          request/contract reminders - one agenda.
+          One calendar for everything the legal team needs to be ready for:
+          scheduled Teams/Zoom meetings, case deadlines and hearings,
+          request/contract reminders
+          {hasMicrosoft ? ', and your connected Outlook events' : ''}. Switch
+          between month and agenda views.
         </p>
       </header>
 
       <MeetingScheduler firmId={firmId} connected={connected} />
 
-      {items.length === 0 ? (
-        <p className="card p-6 text-[13px] text-ink-500 dark:text-cream-100/55 italic">
-          Nothing on the calendar yet. Use &ldquo;Schedule
-          meeting&rdquo; above, or add a deadline on a case.
-        </p>
-      ) : (
-        <div className="space-y-6">
-          {[...groups.entries()].map(([day, dayItems]) => (
-            <section key={day} className="space-y-2">
-              <p className="text-[11px] uppercase tracking-[0.16em] font-semibold text-ink-500 dark:text-cream-100/70">
-                {day}
-              </p>
-              <ul className="space-y-2">
-                {dayItems.map((it, i) => {
-                  // A meeting without a linked intake points straight at
-                  // the provider's external join URL; everything else is
-                  // an in-app route. External URLs must open via
-                  // ExternalLink so they work inside the native WebView.
-                  const isExternal = /^https?:\/\//i.test(it.href);
-                  const inner = (
-                    <>
-                      <div className="min-w-0">
-                        <p className="font-semibold text-forest-900 dark:text-cream-100 truncate">
-                          {it.title}
-                        </p>
-                        <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-0.5">
-                          {new Date(it.at).toLocaleTimeString([], {
-                            hour: 'numeric',
-                            minute: '2-digit',
-                          })}{' '}
-                          · {it.sub}
-                        </p>
-                      </div>
-                      <span
-                        className={`shrink-0 inline-flex items-center px-2 py-[2px] rounded text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ${KIND_TONE[it.kind]}`}
-                      >
-                        {it.kind}
-                      </span>
-                    </>
-                  );
-                  return (
-                    <li
-                      key={`${day}-${i}`}
-                      className="card p-4 hover:shadow-card-hover transition-all"
-                    >
-                      {isExternal ? (
-                        <ExternalLink
-                          href={it.href}
-                          className="flex items-center justify-between gap-3"
-                        >
-                          {inner}
-                        </ExternalLink>
-                      ) : (
-                        <Link
-                          href={it.href}
-                          className="flex items-center justify-between gap-3"
-                        >
-                          {inner}
-                        </Link>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
-          ))}
-        </div>
-      )}
+      <CalendarBoard events={items} hasSync={syncOn && hasMicrosoft} />
 
       {/* Calendar + meeting providers (Microsoft 365, Zoom). Lived on
           its own page at /counsel/meetings before W20; merged here so

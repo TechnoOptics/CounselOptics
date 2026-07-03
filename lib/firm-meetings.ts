@@ -222,6 +222,21 @@ async function getActiveIntegration(
   return { provider, accessToken };
 }
 
+/**
+ * Resolve a usable Microsoft Graph access token for the firm's
+ * connected Microsoft 365 account (refreshing if stale), or null when
+ * Microsoft isn't connected / configured. Used by the calendar sync
+ * (#7) to read the connected account's Outlook events into the app's
+ * calendar. Returns only the token so callers never touch the
+ * encrypted-token plumbing.
+ */
+export async function getMicrosoftAccessToken(
+  firmId: string,
+): Promise<string | null> {
+  const r = await getActiveIntegration(firmId, 'microsoft');
+  return 'accessToken' in r ? r.accessToken : null;
+}
+
 async function createProviderMeeting(
   provider: Provider,
   accessToken: string,
