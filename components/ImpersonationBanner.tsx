@@ -147,7 +147,10 @@ export function ImpersonationBanner({
       role="alert"
       className="fixed inset-x-0 top-0 z-[100] bg-rose-700 text-white shadow-lg ring-1 ring-rose-900/40"
     >
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 py-2 flex flex-wrap items-center justify-between gap-3 text-[13px]">
+      <div
+        className="mx-auto max-w-7xl px-4 sm:px-6 py-2 flex flex-wrap items-center justify-between gap-3 text-[13px]"
+        style={{ paddingTop: 'calc(0.5rem + var(--safe-top))' }}
+      >
         <p className="leading-snug">
           <strong className="font-semibold">Impersonating user.</strong>{' '}
           {targetEmail ? (

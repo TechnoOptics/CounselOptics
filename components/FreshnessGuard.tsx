@@ -80,7 +80,7 @@ export function FreshnessGuard({ initialSha }: { initialSha: string }) {
   if (!updateAvailable) return null;
 
   return (
-    <div className="fixed left-3 right-3 sm:left-auto sm:right-6 top-3 sm:top-6 sm:max-w-sm z-[60] animate-fade-up">
+    <div className="fixed left-[calc(0.75rem+var(--safe-left))] right-[calc(0.75rem+var(--safe-right))] sm:left-auto sm:right-[calc(1.5rem+var(--safe-right))] top-[calc(0.75rem+var(--safe-top))] sm:top-[calc(1.5rem+var(--safe-top))] sm:max-w-sm z-[60] animate-fade-up">
       <div
         role="status"
         className="rounded-xl bg-forest-950 text-cream-100 ring-1 ring-gold-300/40 shadow-card-hover px-4 py-3 flex items-center gap-3 backdrop-blur"

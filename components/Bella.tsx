@@ -349,7 +349,7 @@ export function Bella({ signedIn = true }: { signedIn?: boolean }) {
         <button
           onClick={() => setOpen(true)}
           aria-label="Open Bella, the legal assistant"
-          className={`fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-30 ${
+          className={`fixed bottom-[calc(1rem+var(--safe-bottom))] right-[calc(1rem+var(--safe-right))] sm:bottom-[calc(1.5rem+var(--safe-bottom))] sm:right-[calc(1.5rem+var(--safe-right))] z-30 ${
             isOnNewCase ? 'hidden sm:inline-flex' : 'inline-flex'
           } items-center gap-2 brand-mark text-cream-200 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-full shadow-brand-glow hover:scale-[1.02] transition-transform animate-fade-in aurora ring-1 ring-gold-400/30`}
         >

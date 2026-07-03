@@ -161,7 +161,7 @@ export function CookieBanner() {
         type="button"
         onClick={() => setExpanded(true)}
         aria-label="Cookie preferences"
-        className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:bottom-6 sm:w-auto z-[55] cookie-pill inline-flex items-center justify-center gap-3 rounded-full bg-forest-950/95 dark:bg-forest-900 text-cream-100 px-4 py-3 ring-1 ring-gold-400/40 shadow-card-hover backdrop-blur"
+        className="fixed bottom-[calc(1rem+var(--safe-bottom))] left-[calc(1rem+var(--safe-left))] right-[calc(1rem+var(--safe-right))] sm:left-auto sm:right-[calc(1.5rem+var(--safe-right))] sm:bottom-[calc(1.5rem+var(--safe-bottom))] sm:w-auto z-[55] cookie-pill inline-flex items-center justify-center gap-3 rounded-full bg-forest-950/95 dark:bg-forest-900 text-cream-100 px-4 py-3 ring-1 ring-gold-400/40 shadow-card-hover backdrop-blur"
       >
         <span aria-hidden className="inline-block h-2 w-2 rounded-full bg-gold-400" />
         <span className="text-[12px] font-medium tracking-tight">
