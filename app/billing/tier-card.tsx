@@ -169,7 +169,13 @@ export function TierCard({
       if (!res.ok || !data.url) throw new Error(data.error || 'Could not start checkout.');
       window.location.assign(data.url);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not start checkout.');
+      // Diagnostic tag: if this path's prefix is what shows up in the
+      // Simulator instead of startIapPurchase's [card:...] tag, it
+      // proves the button never called the IAP path at all - isIOS
+      // resolved false, meaning the server-authoritative UA detection
+      // (or the client fallback) isn't engaging in this build.
+      const message = err instanceof Error ? err.message : 'Could not start checkout.';
+      setError(`[stripeCheckout] ${message}`);
       setPending(false);
     }
   }
@@ -265,6 +271,16 @@ export function TierCard({
           {error}
         </p>
       )}
+      {/* TEMP diagnostic readout for the 2.1(b) investigation - shows
+          exactly what the IAP-vs-Stripe branch resolved to, since two
+          rounds of error tagging in startIapPurchase/startCheckout
+          produced byte-identical untagged text, which could only mean
+          the button state itself needs to be inspected directly.
+          Remove once the rejection is resolved. */}
+      <p className="mt-2 text-[10px] text-ink-400 font-mono">
+        dbg: serverPlatform={serverPlatform} clientReady={String(ready)} clientPlatform={platform} isIOS=
+        {String(isIOS)} useIap={String(useIap)}
+      </p>
     </div>
   );
 }
