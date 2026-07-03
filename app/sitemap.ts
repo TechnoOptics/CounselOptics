@@ -3,6 +3,8 @@ import { headers } from 'next/headers';
 import { ARTICLES } from '@/lib/articles';
 import { COMPARISONS } from '@/lib/comparisons';
 import { STATES_SMALL_CLAIMS } from '@/lib/state-small-claims';
+import { ES_GUIDES } from '@/lib/es-guides';
+import { ES_TEMPLATES } from '@/lib/es-templates';
 
 /**
  * Public sitemap. Lists every URL we want indexed by Google /
@@ -96,6 +98,13 @@ const ENTRIES: Entry[] = [
   // for cross-state comparison questions instead of one state at a time.
   { path: '/resources/small-claims-rankings', changeFrequency: 'monthly', priority: 0.85 },
   { path: '/press/2026-07-03-small-claims-rankings', changeFrequency: 'yearly', priority: 0.7 },
+  // Spanish-language content set. Content-only translation (the
+  // product itself is English-only), targeting the underserved US
+  // Hispanic/LatAm search + LLM-citation surface.
+  { path: '/es', changeFrequency: 'monthly', priority: 0.85 },
+  { path: '/es/que-es-advottic', changeFrequency: 'monthly', priority: 0.85 },
+  { path: '/es/guias', changeFrequency: 'monthly', priority: 0.75 },
+  { path: '/es/plantillas', changeFrequency: 'monthly', priority: 0.75 },
   { path: '/review-my-document', changeFrequency: 'monthly', priority: 0.8 },
   { path: '/file-exhibits', changeFrequency: 'monthly', priority: 0.75 },
   { path: '/public-defender', changeFrequency: 'monthly', priority: 0.8 },
@@ -166,5 +175,24 @@ export default function sitemap(): MetadataRoute.Sitemap {
     changeFrequency: 'yearly' as const,
     priority: 0.6,
   }));
-  return [...baseEntries, ...articleEntries, ...compareEntries, ...stateEntries];
+  const esGuideEntries: MetadataRoute.Sitemap = ES_GUIDES.map((g) => ({
+    url: `${SITE_URL}/es/guias/${g.slug}`,
+    lastModified: new Date(g.lastReviewed),
+    changeFrequency: 'monthly' as const,
+    priority: 0.7,
+  }));
+  const esTemplateEntries: MetadataRoute.Sitemap = ES_TEMPLATES.map((t) => ({
+    url: `${SITE_URL}/es/plantillas/${t.slug}`,
+    lastModified: new Date(t.lastReviewed),
+    changeFrequency: 'monthly' as const,
+    priority: 0.7,
+  }));
+  return [
+    ...baseEntries,
+    ...articleEntries,
+    ...compareEntries,
+    ...stateEntries,
+    ...esGuideEntries,
+    ...esTemplateEntries,
+  ];
 }

@@ -6,7 +6,10 @@ export const metadata: Metadata = {
   title: { absolute: 'Legal-prep guides · Advottic' },
   description:
     'Plain-English answers to specific legal-prep questions: what to do when served with a lawsuit, statute-of-limitations basics, eviction defense, credit-card debt defense, domestic-violence safety planning.',
-  alternates: { canonical: '/guides' },
+  alternates: {
+    canonical: '/guides',
+    languages: { 'en-US': '/guides', 'es-US': '/es/guias' },
+  },
   openGraph: {
     title: 'Advottic legal-prep guides',
     description:

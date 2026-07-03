@@ -93,6 +93,14 @@ const CORNERSTONES: ReadonlyArray<string> = [
   `${SITE_URL}/resources/small-claims-rankings`,
   `${SITE_URL}/open-data/small-claims.json`,
   `${SITE_URL}/press/2026-07-03-small-claims-rankings`,
+  // Round-8 Spanish-language content set
+  `${SITE_URL}/es`,
+  `${SITE_URL}/es/que-es-advottic`,
+  `${SITE_URL}/es/guias`,
+  `${SITE_URL}/es/guias/mi-arrendador-me-esta-desalojando`,
+  `${SITE_URL}/es/guias/ayuda-violencia-domestica`,
+  `${SITE_URL}/es/plantillas`,
+  `${SITE_URL}/es/plantillas/carta-de-demanda`,
 ];
 
 export async function POST(req: NextRequest) {

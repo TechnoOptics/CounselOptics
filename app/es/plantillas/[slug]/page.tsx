@@ -1,14 +1,13 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { TEMPLATES, getTemplate } from '@/lib/templates';
-import { ES_TEMPLATES } from '@/lib/es-templates';
+import { ES_TEMPLATES, getEsTemplate } from '@/lib/es-templates';
 
 export const dynamic = 'force-static';
 export const dynamicParams = false;
 
 export async function generateStaticParams() {
-  return TEMPLATES.map((t) => ({ slug: t.slug }));
+  return ES_TEMPLATES.map((t) => ({ slug: t.slug }));
 }
 
 export async function generateMetadata({
@@ -16,38 +15,37 @@ export async function generateMetadata({
 }: {
   params: { slug: string };
 }): Promise<Metadata> {
-  const t = getTemplate(params.slug);
+  const t = getEsTemplate(params.slug);
   if (!t) return {};
-  const esCounterpart = ES_TEMPLATES.find((et) => et.enSlug === t.slug);
   return {
     title: { absolute: `${t.title} · Advottic` },
     description: t.oneLine,
     alternates: {
-      canonical: `/templates/${t.slug}`,
-      languages: esCounterpart
-        ? { 'en-US': `/templates/${t.slug}`, 'es-US': `/es/plantillas/${esCounterpart.slug}` }
-        : undefined,
+      canonical: `/es/plantillas/${t.slug}`,
+      languages: {
+        'en-US': `/templates/${t.enSlug}`,
+        'es-US': `/es/plantillas/${t.slug}`,
+      },
     },
     keywords: t.keywords,
     openGraph: {
       title: t.title,
       description: t.oneLine,
-      url: `/templates/${t.slug}`,
+      url: `/es/plantillas/${t.slug}`,
       type: 'article',
     },
   };
 }
 
-export default function TemplatePage({
+export default function EsTemplatePage({
   params,
 }: {
   params: { slug: string };
 }) {
-  const t = getTemplate(params.slug);
+  const t = getEsTemplate(params.slug);
   if (!t) notFound();
-  const esCounterpart = ES_TEMPLATES.find((et) => et.enSlug === t.slug);
 
-  const url = `https://advottic.com/templates/${t.slug}`;
+  const url = `https://advottic.com/es/plantillas/${t.slug}`;
   const jsonLd = {
     '@context': 'https://schema.org',
     '@graph': [
@@ -59,44 +57,23 @@ export default function TemplatePage({
         datePublished: t.lastReviewed,
         dateModified: t.lastReviewed,
         url,
+        inLanguage: 'es',
         articleSection: t.category,
-        author: {
-          '@type': 'Organization',
-          name: 'Advottic',
-          url: 'https://advottic.com/',
-        },
+        author: { '@type': 'Organization', name: 'Advottic', url: 'https://advottic.com/' },
         publisher: {
           '@type': 'Organization',
           name: 'Advottic',
           url: 'https://advottic.com/',
-          logo: {
-            '@type': 'ImageObject',
-            url: 'https://advottic.com/advottic-mark.png',
-          },
+          logo: { '@type': 'ImageObject', url: 'https://advottic.com/advottic-mark.png' },
         },
       },
       {
         '@type': 'BreadcrumbList',
         '@id': `${url}#breadcrumbs`,
         itemListElement: [
-          {
-            '@type': 'ListItem',
-            position: 1,
-            name: 'Advottic',
-            item: 'https://advottic.com/',
-          },
-          {
-            '@type': 'ListItem',
-            position: 2,
-            name: 'Templates',
-            item: 'https://advottic.com/templates',
-          },
-          {
-            '@type': 'ListItem',
-            position: 3,
-            name: t.title,
-            item: url,
-          },
+          { '@type': 'ListItem', position: 1, name: 'Advottic', item: 'https://advottic.com/' },
+          { '@type': 'ListItem', position: 2, name: 'Plantillas', item: 'https://advottic.com/es/plantillas' },
+          { '@type': 'ListItem', position: 3, name: t.title, item: url },
         ],
       },
     ],
@@ -114,8 +91,8 @@ export default function TemplatePage({
           Advottic
         </Link>
         {' / '}
-        <Link href="/templates" className="underline hover:no-underline">
-          Templates
+        <Link href="/es/plantillas" className="underline hover:no-underline">
+          Plantillas
         </Link>
         {' / '}
         <span className="text-ink-700 dark:text-cream-100/80">{t.category}</span>
@@ -133,14 +110,14 @@ export default function TemplatePage({
 
       <section className="space-y-3">
         <h2 className="text-xl font-semibold text-forest-900 dark:text-cream-100">
-          How to use this template
+          Cómo usar esta plantilla
         </h2>
         <p className="text-[15px] leading-relaxed">{t.context}</p>
       </section>
 
       <section className="space-y-3">
         <h2 className="text-xl font-semibold text-forest-900 dark:text-cream-100">
-          Before you send
+          Antes de enviarla
         </h2>
         <ul className="list-disc list-outside pl-6 space-y-1.5 text-[14.5px]">
           {t.warnings.map((w) => (
@@ -151,11 +128,12 @@ export default function TemplatePage({
 
       <section className="space-y-3">
         <h2 className="text-xl font-semibold text-forest-900 dark:text-cream-100">
-          Template
+          Plantilla
         </h2>
         <p className="text-[13px] text-ink-600 dark:text-cream-100/65">
-          Replace every {'{{token}}'} with your own information.
-          Print, copy, or paste into a document. No signup needed.
+          Reemplaza cada {'{{marcador}}'} con tu propia información.
+          Imprime, copia o pega en un documento. No necesitas
+          registrarte.
         </p>
         <div className="rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 bg-cream-50/40 dark:bg-forest-900/40 p-5">
           <pre className="text-[12.5px] leading-relaxed whitespace-pre-wrap font-mono text-ink-800 dark:text-cream-100/85">
@@ -166,26 +144,21 @@ export default function TemplatePage({
 
       <section className="pt-4 border-t border-ink-200 dark:border-forest-700/60 text-[12.5px] text-ink-600 dark:text-cream-100/65 space-y-2">
         <p>
-          Last reviewed: {t.lastReviewed}. This template is
-          informational only and is not legal advice. Consult a
-          licensed attorney in your jurisdiction before sending.
+          Última revisión: {t.lastReviewed}. Esta plantilla es solo
+          informativa y no constituye asesoría legal. Consulta a un
+          abogado con licencia en tu jurisdicción antes de enviarla.
         </p>
         <p>
-          More templates:{' '}
-          <Link href="/templates" className="underline">
-            advottic.com/templates
+          Más plantillas:{' '}
+          <Link href="/es/plantillas" className="underline">
+            advottic.com/es/plantillas
+          </Link>
+          {' · '}
+          Read in English:{' '}
+          <Link href={`/templates/${t.enSlug}`} className="underline">
+            advottic.com/templates/{t.enSlug}
           </Link>
           .
-          {esCounterpart && (
-            <>
-              {' '}
-              Leer en español:{' '}
-              <Link href={`/es/plantillas/${esCounterpart.slug}`} className="underline">
-                advottic.com/es/plantillas/{esCounterpart.slug}
-              </Link>
-              .
-            </>
-          )}
         </p>
       </section>
     </article>

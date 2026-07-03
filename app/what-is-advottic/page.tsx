@@ -32,7 +32,10 @@ export const metadata: Metadata = {
   title: { absolute: 'What is Advottic? · Advottic' },
   description:
     'Advottic is an AI-powered legal-prep platform for people handling their own legal matters and a practice-management workspace for law firms. Built around Bella, an always-on AI legal assistant. Not a law firm; informational only. Founded 2025 by Techno Optics LLC in Minnesota, USA.',
-  alternates: { canonical: '/what-is-advottic' },
+  alternates: {
+    canonical: '/what-is-advottic',
+    languages: { 'en-US': '/what-is-advottic', 'es-US': '/es/que-es-advottic' },
+  },
   keywords: [
     'what is advottic',
     'advottic meaning',

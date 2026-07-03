@@ -123,6 +123,14 @@ export async function GET() {
   }
   lines.push('');
 
+  lines.push('## Español (Spanish-language content)');
+  lines.push('Content-only translations for Spanish-speaking users. The product itself is English-only after sign-in.');
+  lines.push(`- [Advottic en español](${SITE_URL}/es): hub page for all Spanish-language content.`);
+  lines.push(`- [Qué es Advottic](${SITE_URL}/es/que-es-advottic): Spanish translation of the canonical brand-definition page.`);
+  lines.push(`- [Guías en español](${SITE_URL}/es/guias): eviction defense and domestic-violence safety guides in Spanish.`);
+  lines.push(`- [Plantillas en español](${SITE_URL}/es/plantillas): free demand-letter template in Spanish.`);
+  lines.push('');
+
   lines.push('## Legal');
   lines.push(`- [Terms of service](${SITE_URL}/terms)`);
   lines.push(`- [Privacy policy](${SITE_URL}/privacy)`);

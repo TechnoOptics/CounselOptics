@@ -1,38 +1,42 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { TEMPLATES } from '@/lib/templates';
+import { ES_TEMPLATES } from '@/lib/es-templates';
+
+export const dynamic = 'force-static';
 
 export const metadata: Metadata = {
-  title: { absolute: 'Free legal templates · Advottic' },
+  title: { absolute: 'Plantillas legales gratis en español · Advottic' },
   description:
-    'Free, lawyer-reviewed legal templates: demand letter, NDA, cease and desist, lease termination notice, security deposit return demand. No signup, no email gate.',
+    'Plantillas legales gratuitas en español, revisadas por abogados: carta de demanda y más. Sin registro, sin dar tu correo electrónico.',
   alternates: {
-    canonical: '/templates',
+    canonical: '/es/plantillas',
     languages: { 'en-US': '/templates', 'es-US': '/es/plantillas' },
   },
   openGraph: {
-    title: 'Advottic free legal templates',
+    title: 'Plantillas legales gratis de Advottic en español',
     description:
-      'Lawyer-reviewed, copy-and-edit-ready templates. No signup. No email gate.',
-    url: '/templates',
+      'Plantillas listas para copiar y editar, revisadas por abogados. Sin registro.',
+    url: '/es/plantillas',
     type: 'article',
   },
 };
 
-export default function TemplatesIndexPage() {
+export default function EsTemplatesIndexPage() {
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'CollectionPage',
-    '@id': 'https://advottic.com/templates#page',
-    name: 'Advottic free legal templates',
-    url: 'https://advottic.com/templates',
-    hasPart: TEMPLATES.map((t) => ({
+    '@id': 'https://advottic.com/es/plantillas#page',
+    name: 'Plantillas legales gratis de Advottic en español',
+    url: 'https://advottic.com/es/plantillas',
+    inLanguage: 'es',
+    hasPart: ES_TEMPLATES.map((t) => ({
       '@type': 'Article',
-      '@id': `https://advottic.com/templates/${t.slug}#article`,
+      '@id': `https://advottic.com/es/plantillas/${t.slug}#article`,
       headline: t.title,
       description: t.oneLine,
-      url: `https://advottic.com/templates/${t.slug}`,
+      url: `https://advottic.com/es/plantillas/${t.slug}`,
       datePublished: t.lastReviewed,
+      inLanguage: 'es',
     })),
   };
   return (
@@ -42,41 +46,34 @@ export default function TemplatesIndexPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
       <header className="space-y-2">
-        <p className="eyebrow">Templates</p>
+        <p className="eyebrow">Plantillas en español</p>
         <h1 className="font-display text-[40px] sm:text-[52px] font-medium tracking-[-0.02em] leading-[1.05] text-forest-900 dark:text-cream-100">
-          Free legal templates. No email gate.
+          Plantillas legales gratis. Sin dar tu correo.
         </h1>
         <p className="text-base text-ink-600 dark:text-cream-100/70 max-w-2xl">
-          Each template is lawyer-reviewed, copy-and-edit-ready, and
-          shipped with the warnings that matter (jurisdiction quirks,
-          notarization, deadlines).
+          Cada plantilla está revisada por abogados, lista para
+          copiar y editar, e incluye las advertencias que importan.
         </p>
       </header>
 
       <ul className="space-y-5">
-        {TEMPLATES.map((t) => (
-          <li
-            key={t.slug}
-            className="border-l-2 border-gold-metal/40 pl-5 py-1"
-          >
+        {ES_TEMPLATES.map((t) => (
+          <li key={t.slug} className="border-l-2 border-gold-metal/40 pl-5 py-1">
             <p className="text-[11px] uppercase tracking-[0.2em] text-ink-500 dark:text-cream-100/55 font-semibold mb-1">
               {t.category}
             </p>
             <h2 className="font-display text-2xl text-forest-900 dark:text-cream-100 mb-1">
-              <Link
-                href={`/templates/${t.slug}`}
-                className="hover:underline"
-              >
+              <Link href={`/es/plantillas/${t.slug}`} className="hover:underline">
                 {t.title}
               </Link>
             </h2>
             <p className="text-[14.5px] text-ink-700 dark:text-cream-100/80">
               {t.oneLine}{' '}
               <Link
-                href={`/templates/${t.slug}`}
+                href={`/es/plantillas/${t.slug}`}
                 className="underline text-forest-900 dark:text-cream-100 font-medium"
               >
-                Get the template &rarr;
+                Ver la plantilla &rarr;
               </Link>
             </p>
           </li>
@@ -85,9 +82,16 @@ export default function TemplatesIndexPage() {
 
       <section className="pt-4 border-t border-ink-200 dark:border-forest-700/60 text-[13px] text-ink-600 dark:text-cream-100/65">
         <p>
-          These templates are informational only and are not legal
-          advice. Consult a licensed attorney in your jurisdiction
-          before sending anything important.
+          Estas plantillas son solo informativas y no constituyen
+          asesoría legal. Consulta a un abogado con licencia en tu
+          jurisdicción antes de enviar algo importante.
+        </p>
+        <p className="mt-2">
+          Read in English:{' '}
+          <Link href="/templates" className="underline">
+            advottic.com/templates
+          </Link>
+          .
         </p>
       </section>
     </article>

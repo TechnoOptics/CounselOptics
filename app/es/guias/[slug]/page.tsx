@@ -1,14 +1,13 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { GUIDES, getGuide } from '@/lib/guides';
-import { ES_GUIDES } from '@/lib/es-guides';
+import { ES_GUIDES, getEsGuide } from '@/lib/es-guides';
 
 export const dynamic = 'force-static';
 export const dynamicParams = false;
 
 export async function generateStaticParams() {
-  return GUIDES.map((g) => ({ slug: g.slug }));
+  return ES_GUIDES.map((g) => ({ slug: g.slug }));
 }
 
 export async function generateMetadata({
@@ -16,38 +15,37 @@ export async function generateMetadata({
 }: {
   params: { slug: string };
 }): Promise<Metadata> {
-  const g = getGuide(params.slug);
+  const g = getEsGuide(params.slug);
   if (!g) return {};
-  const esCounterpart = ES_GUIDES.find((eg) => eg.enSlug === g.slug);
   return {
     title: { absolute: `${g.title} · Advottic` },
     description: g.oneLine,
     alternates: {
-      canonical: `/guides/${g.slug}`,
-      languages: esCounterpart
-        ? { 'en-US': `/guides/${g.slug}`, 'es-US': `/es/guias/${esCounterpart.slug}` }
-        : undefined,
+      canonical: `/es/guias/${g.slug}`,
+      languages: {
+        'en-US': `/guides/${g.enSlug}`,
+        'es-US': `/es/guias/${g.slug}`,
+      },
     },
     keywords: g.keywords,
     openGraph: {
       title: g.title,
       description: g.oneLine,
-      url: `/guides/${g.slug}`,
+      url: `/es/guias/${g.slug}`,
       type: 'article',
     },
   };
 }
 
-export default function GuidePage({
+export default function EsGuidePage({
   params,
 }: {
   params: { slug: string };
 }) {
-  const g = getGuide(params.slug);
+  const g = getEsGuide(params.slug);
   if (!g) notFound();
-  const esCounterpart = ES_GUIDES.find((eg) => eg.enSlug === g.slug);
 
-  const url = `https://advottic.com/guides/${g.slug}`;
+  const url = `https://advottic.com/es/guias/${g.slug}`;
   const jsonLd = {
     '@context': 'https://schema.org',
     '@graph': [
@@ -59,20 +57,14 @@ export default function GuidePage({
         datePublished: g.lastReviewed,
         dateModified: g.lastReviewed,
         url,
+        inLanguage: 'es',
         articleSection: g.category,
-        author: {
-          '@type': 'Organization',
-          name: 'Advottic',
-          url: 'https://advottic.com/',
-        },
+        author: { '@type': 'Organization', name: 'Advottic', url: 'https://advottic.com/' },
         publisher: {
           '@type': 'Organization',
           name: 'Advottic',
           url: 'https://advottic.com/',
-          logo: {
-            '@type': 'ImageObject',
-            url: 'https://advottic.com/advottic-mark.png',
-          },
+          logo: { '@type': 'ImageObject', url: 'https://advottic.com/advottic-mark.png' },
         },
       },
       {
@@ -80,6 +72,7 @@ export default function GuidePage({
         '@id': `${url}#howto`,
         name: g.title,
         description: g.oneLine,
+        inLanguage: 'es',
         step: g.steps.map((s, i) => ({
           '@type': 'HowToStep',
           position: i + 1,
@@ -93,34 +86,16 @@ export default function GuidePage({
         mainEntity: g.faqs.map((f) => ({
           '@type': 'Question',
           name: f.question,
-          acceptedAnswer: {
-            '@type': 'Answer',
-            text: f.answer,
-          },
+          acceptedAnswer: { '@type': 'Answer', text: f.answer },
         })),
       },
       {
         '@type': 'BreadcrumbList',
         '@id': `${url}#breadcrumbs`,
         itemListElement: [
-          {
-            '@type': 'ListItem',
-            position: 1,
-            name: 'Advottic',
-            item: 'https://advottic.com/',
-          },
-          {
-            '@type': 'ListItem',
-            position: 2,
-            name: 'Guides',
-            item: 'https://advottic.com/guides',
-          },
-          {
-            '@type': 'ListItem',
-            position: 3,
-            name: g.title,
-            item: url,
-          },
+          { '@type': 'ListItem', position: 1, name: 'Advottic', item: 'https://advottic.com/' },
+          { '@type': 'ListItem', position: 2, name: 'Guías', item: 'https://advottic.com/es/guias' },
+          { '@type': 'ListItem', position: 3, name: g.title, item: url },
         ],
       },
     ],
@@ -138,8 +113,8 @@ export default function GuidePage({
           Advottic
         </Link>
         {' / '}
-        <Link href="/guides" className="underline hover:no-underline">
-          Guides
+        <Link href="/es/guias" className="underline hover:no-underline">
+          Guías
         </Link>
         {' / '}
         <span className="text-ink-700 dark:text-cream-100/80">{g.category}</span>
@@ -148,36 +123,37 @@ export default function GuidePage({
       {g.crisis && (
         <div className="rounded-xl bg-rose-500/10 ring-1 ring-rose-400/40 p-4 space-y-2">
           <p className="text-[11px] uppercase tracking-[0.2em] text-rose-300 font-semibold">
-            Crisis resources
+            Recursos de emergencia
           </p>
           <ul className="text-[14px] text-rose-100/90 space-y-1.5">
             <li>
-              <strong className="text-cream-100">Emergency:</strong>{' '}
+              <strong className="text-cream-100">Emergencia:</strong>{' '}
               <a href="tel:911" className="underline">
                 911
               </a>
             </li>
             <li>
               <strong className="text-cream-100">
-                National Domestic Violence Hotline:
+                Línea Nacional de Violencia Doméstica:
               </strong>{' '}
               <a href="tel:18007997233" className="underline">
                 1-800-799-7233
               </a>{' '}
-              · text START to 88788
+              · envía START al 88788 · en español
             </li>
             <li>
               <strong className="text-cream-100">
-                988 Suicide &amp; Crisis Lifeline:
+                Línea 988 de Crisis y Suicidio:
               </strong>{' '}
               <a href="tel:988" className="underline">
-                call or text 988
-              </a>
+                llama o envía un mensaje al 988
+              </a>{' '}
+              (marca 2 para español)
             </li>
             <li>
               <strong className="text-cream-100">Crisis Text Line:</strong>{' '}
-              text HOME to{' '}
-              <a href="sms:741741&body=HOME" className="underline">
+              envía HOLA al{' '}
+              <a href="sms:741741&body=HOLA" className="underline">
                 741741
               </a>
             </li>
@@ -205,13 +181,13 @@ export default function GuidePage({
 
       <section className="space-y-4">
         <h2 className="text-2xl font-semibold text-forest-900 dark:text-cream-100">
-          What to do
+          Qué hacer
         </h2>
         <ol className="space-y-5 list-none">
           {g.steps.map((s, i) => (
             <li key={i} className="border-l-2 border-gold-metal/40 pl-5">
               <p className="text-[10px] uppercase tracking-[0.25em] text-ink-500 dark:text-cream-100/55 font-semibold mb-1">
-                Step {i + 1}
+                Paso {i + 1}
               </p>
               <h3 className="font-semibold text-forest-900 dark:text-cream-100 text-[16px] mb-1">
                 {s.title}
@@ -224,7 +200,7 @@ export default function GuidePage({
 
       <section className="space-y-4">
         <h2 className="text-2xl font-semibold text-forest-900 dark:text-cream-100">
-          Common questions
+          Preguntas frecuentes
         </h2>
         <div className="space-y-4">
           {g.faqs.map((f, i) => (
@@ -245,26 +221,22 @@ export default function GuidePage({
 
       <section className="pt-4 border-t border-ink-200 dark:border-forest-700/60 text-[12.5px] text-ink-600 dark:text-cream-100/65 space-y-2">
         <p>
-          Last reviewed: {g.lastReviewed}. This guide is informational
-          only and is not legal advice. Consult a licensed attorney in
-          your jurisdiction before acting on any of the above.
+          Última revisión: {g.lastReviewed}. Esta guía es solo
+          informativa y no constituye asesoría legal. Consulta a un
+          abogado con licencia en tu jurisdicción antes de actuar
+          según lo aquí descrito.
         </p>
         <p>
-          More guides:{' '}
-          <Link href="/guides" className="underline">
-            advottic.com/guides
+          Más guías:{' '}
+          <Link href="/es/guias" className="underline">
+            advottic.com/es/guias
+          </Link>
+          {' · '}
+          Read in English:{' '}
+          <Link href={`/guides/${g.enSlug}`} className="underline">
+            advottic.com/guides/{g.enSlug}
           </Link>
           .
-          {esCounterpart && (
-            <>
-              {' '}
-              Leer en español:{' '}
-              <Link href={`/es/guias/${esCounterpart.slug}`} className="underline">
-                advottic.com/es/guias/{esCounterpart.slug}
-              </Link>
-              .
-            </>
-          )}
         </p>
       </section>
     </article>
