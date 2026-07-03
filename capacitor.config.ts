@@ -8,8 +8,11 @@ import type { CapacitorConfig } from '@capacitor/cli';
  * app uses server components, server actions, and dynamic API routes),
  * the native shell loads the live website inside a webview. The shell
  * itself remains tiny - we ship signed app-store binaries that wrap
- * advottic.com with native-only sugar (camera plugin, push notifications,
- * biometrics, file picker).
+ * advottic.com with native-only sugar (camera plugin, biometrics, file
+ * picker). Push notifications are NOT one of these yet - the site uses
+ * standard Web Push (VAPID, see lib/push-client.ts), not a native
+ * @capacitor/push-notifications integration; don't advertise push as
+ * app-exclusive until that changes.
  *
  * Version posture (2026-05-14):
  *

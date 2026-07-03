@@ -72,7 +72,6 @@ Advottic is more than our website - several features run only in the app, on the
 
 - Face ID / Touch ID sign-in (Settings > Biometric sign-in) - native biometric unlock, not available in a browser.
 - One-tap Safe Alert with live GPS (Action Center > Safe Witness, or the watch) - press-and-hold sends a trusted contact your location and keeps streaming it with continuous background GPS, which a website cannot do.
-- Instant push notifications for hearing reminders, deadlines, and Safe Witness updates.
 - Camera exhibit capture - photograph documents straight into a case, auto-dated from the photo.
 - On-device voice notes & dictation (speech recognition).
 - Wear OS companion (Android) - fire Safe Alert and capture voice notes from the wrist.

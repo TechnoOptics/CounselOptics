@@ -54,13 +54,6 @@ const FEATURES: Feature[] = [
     ),
   },
   {
-    title: 'Instant push alerts',
-    desc: 'Hearing reminders, deadline radar, and Safe Witness updates arrive the moment they happen - not next time you open a tab.',
-    icon: (
-      <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0" />
-    ),
-  },
-  {
     title: 'Scan exhibits with your camera',
     desc: 'Capture documents and evidence with the camera straight into a case, auto-dated from the photo.',
     icon: (
