@@ -125,25 +125,32 @@ export function TierCard({
   async function startIapPurchase() {
     setPending(true);
     setError(null);
+    // Diagnostic aid for the 2.1(b) rejection: tagStep() in lib/iap.ts
+    // didn't change the surfaced error at all across two deploys, which
+    // means the failure may be happening BEFORE purchaseTier() is ever
+    // called - this tracks which step we actually reached.
+    let step = 'getSession';
     try {
       const supabase = createBrowserSupabase();
       const { data } = await supabase.auth.getSession();
       const userId = data.session?.user.id;
       if (!userId) throw new Error('Please sign in before subscribing.');
+      step = 'importIap';
       const { purchaseTier } = await import('@/lib/iap');
+      step = 'purchaseTier';
       const res = await purchaseTier(tier, userId);
       if (res.cancelled) {
         setPending(false);
         return;
       }
+      step = 'sync';
       // Record the entitlement server-side (authoritative read from
       // RevenueCat), then reflect the unlocked plan.
       await fetch('/api/iap/sync', { method: 'POST' }).catch(() => {});
       window.location.reload();
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Could not complete the purchase.',
-      );
+      const message = err instanceof Error ? err.message : 'Could not complete the purchase.';
+      setError(`[card:${step}] ${message}`);
       setPending(false);
     }
   }
