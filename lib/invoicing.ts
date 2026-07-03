@@ -162,9 +162,17 @@ export async function buildDraftInvoiceAction(
   }
   const invoiceId = (inv as { id: string }).id;
 
-  // Stamp each entry with the invoice_id.
+  // Stamp each entry with the invoice_id. The subtotal above was
+  // computed from every billable entry on the case (across all
+  // attorneys), so stamp that same set - via the admin client, because
+  // the self-scoped RLS write policy (user_id = auth.uid()) would only
+  // mark the caller's own entries, leaving colleagues' billed time
+  // un-stamped and re-invoiceable. The caller was already verified as
+  // an owner/admin/attorney of this firm, and the ids come from a
+  // firm-scoped, billable, not-yet-invoiced query, so this is safe.
+  // Falls back to the RLS client if the service role isn't configured.
   const ids = entries.map((e) => e.id);
-  await supabase
+  await (admin ?? supabase)
     .from('firm_time_entries')
     .update({ invoice_id: invoiceId })
     .in('id', ids);

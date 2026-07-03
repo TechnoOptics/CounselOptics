@@ -79,13 +79,12 @@ create policy firm_invoices_member_write
 -- ---------------------------------------------------------------------
 -- firm_time_entries
 -- ---------------------------------------------------------------------
--- Note (audit follow-up, not yet enforced): once an entry is stamped
--- with invoice_id it should become immutable so a sent invoice's
--- supporting record can't silently change. The write policy below is
--- the current live behavior (a member edits their own entries); a
--- future migration should add `... and invoice_id is null` to the
--- USING clause once the invoice-stamp path is confirmed to run as the
--- entry's owner.
+-- An entry is immutable once invoiced: the write policy's USING clause
+-- requires invoice_id IS NULL, so a member can only edit/delete an
+-- entry while it is not yet on an invoice. WITH CHECK stays
+-- unconstrained on invoice_id so buildDraftInvoiceAction's stamp
+-- (null -> set) still works. See
+-- 2026-07-03-time-entry-invoice-immutability.sql.
 create table if not exists firm_time_entries (
   id uuid primary key default gen_random_uuid(),
   firm_id uuid not null references firms(id) on delete cascade,
@@ -130,6 +129,7 @@ create policy firm_time_entries_self_write
   on firm_time_entries for all to authenticated
   using (
     user_id = auth.uid()
+    and invoice_id is null
     and exists (
       select 1 from firm_members
       where firm_members.firm_id = firm_time_entries.firm_id
