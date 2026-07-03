@@ -5,11 +5,16 @@ import { useRouter } from 'next/navigation';
 import {
   removeFirmMemberAction,
   updateFirmMemberRoleAction,
+  transferFirmOwnershipAction,
 } from '@/lib/firm-actions';
 import type { FirmMember, FirmRole } from '@/lib/firm-types';
 import { FIRM_ROLES, FIRM_ROLE_LABEL } from '@/lib/firm-types';
 
-const EDITABLE_ROLES: FirmRole[] = FIRM_ROLES;
+// 'owner' is excluded here on purpose: it can only change via
+// transferFirmOwnershipAction (below), which keeps firms.created_by in
+// sync. Selecting it from this generic dropdown would just be rejected
+// server-side, so don't offer it as a target for someone else's role.
+const EDITABLE_ROLES: FirmRole[] = FIRM_ROLES.filter((r) => r !== 'owner');
 
 export function TeamMemberRow({
   member,
@@ -17,24 +22,48 @@ export function TeamMemberRow({
   canManage,
   isMe,
   isLastOwner,
+  otherMembers,
 }: {
   member: FirmMember;
   firmId: string;
   canManage: boolean;
   isMe: boolean;
   isLastOwner: boolean;
+  otherMembers: FirmMember[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [role, setRole] = useState<FirmRole>(member.role);
   const [error, setError] = useState<string | null>(null);
+  const [showTransfer, setShowTransfer] = useState(false);
+  const [transferTarget, setTransferTarget] = useState('');
+
+  function transferOwnership() {
+    if (!transferTarget) {
+      setError('Pick who should become the new owner.');
+      return;
+    }
+    const target = otherMembers.find((m) => m.userId === transferTarget);
+    if (
+      !confirm(
+        `Make ${target?.displayName ?? target?.email ?? 'this person'} the firm owner? You'll be moved to Admin.`,
+      )
+    ) {
+      return;
+    }
+    setError(null);
+    startTransition(async () => {
+      const res = await transferFirmOwnershipAction(firmId, transferTarget);
+      if (!res.ok) setError(res.error ?? 'Could not transfer ownership.');
+      else {
+        setShowTransfer(false);
+        router.refresh();
+      }
+    });
+  }
 
   function changeRole(newRole: FirmRole) {
     if (newRole === role) return;
-    if (member.role === 'owner' && isLastOwner && newRole !== 'owner') {
-      setError('Promote another owner first - a firm needs at least one owner.');
-      return;
-    }
     setError(null);
     setRole(newRole);
     startTransition(async () => {
@@ -84,11 +113,48 @@ export function TeamMemberRow({
         {member.email ?? '-'}
       </td>
       <td className="px-4 py-2.5">
-        {canManage ? (
+        {member.role === 'owner' ? (
+          <div>
+            <span className="text-ink-700 dark:text-cream-100/80">{FIRM_ROLE_LABEL.owner}</span>
+            {isMe && (
+              <button
+                type="button"
+                onClick={() => setShowTransfer((v) => !v)}
+                className="block text-[11px] text-forest-700 dark:text-gold-400 hover:underline mt-0.5"
+              >
+                Transfer ownership…
+              </button>
+            )}
+            {isMe && showTransfer && (
+              <div className="mt-1.5 flex items-center gap-1.5">
+                <select
+                  value={transferTarget}
+                  onChange={(e) => setTransferTarget(e.target.value)}
+                  className="input py-1 text-[12px]"
+                >
+                  <option value="">Choose new owner…</option>
+                  {otherMembers.map((m) => (
+                    <option key={m.userId} value={m.userId}>
+                      {m.displayName ?? m.email ?? m.userId}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={transferOwnership}
+                  disabled={pending || !transferTarget}
+                  className="text-[12px] btn-secondary py-1 px-2"
+                >
+                  Confirm
+                </button>
+              </div>
+            )}
+          </div>
+        ) : canManage ? (
           <select
             value={role}
             onChange={(e) => changeRole(e.target.value as FirmRole)}
-            disabled={pending || (member.role === 'owner' && isLastOwner && !isMe)}
+            disabled={pending}
             className="input py-1 text-sm"
           >
             {EDITABLE_ROLES.map((r) => (

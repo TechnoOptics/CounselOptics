@@ -67,6 +67,7 @@ export default async function CounselTeamPage() {
                   m.role === 'owner' &&
                   members.filter((x) => x.role === 'owner').length === 1
                 }
+                otherMembers={members.filter((x) => x.userId !== m.userId)}
               />
             ))}
           </tbody>

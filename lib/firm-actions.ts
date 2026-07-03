@@ -632,12 +632,122 @@ export async function removeFirmMemberAction(
   memberUserId: string,
 ): Promise<{ ok: boolean; error?: string }> {
   const supabase = createServerSupabase();
+  // The firm's `created_by` is the paying subscriber every other
+  // member's entitlement resolves against (see assertOrganizerEligible
+  // in lib/community-actions.ts and getSubscriptionForUser). RLS allows
+  // an owner/admin to remove any member including the owner, and the
+  // owner to remove themselves - either path used to leave `created_by`
+  // pointing at someone no longer in the firm, with no way to reassign
+  // it. Block it here; ownership must move via transferFirmOwnershipAction
+  // first, which keeps `created_by` and the 'owner' role in sync.
+  const { data: memberRow } = await supabase
+    .from('firm_members')
+    .select('role')
+    .eq('firm_id', firmId)
+    .eq('user_id', memberUserId)
+    .maybeSingle();
+  if ((memberRow as { role: FirmRole } | null)?.role === 'owner') {
+    return {
+      ok: false,
+      error:
+        'This person owns the firm and can’t be removed. Transfer ownership to another member first.',
+    };
+  }
   const { error } = await supabase
     .from('firm_members')
     .delete()
     .eq('firm_id', firmId)
     .eq('user_id', memberUserId);
   if (error) return { ok: false, error: error.message };
+  revalidatePath('/counsel/team');
+  return { ok: true };
+}
+
+/**
+ * Transfers firm ownership (billing identity) from the current owner to
+ * another existing firm member. This is the only sanctioned way
+ * `firms.created_by` changes after firm creation - keeps it and the
+ * 'owner' `firm_members.role` in sync so removeFirmMemberAction's guard
+ * above and every subscription-resolution call site stay correct.
+ *
+ * Only the CURRENT owner may initiate a transfer (not just any admin) -
+ * this is a billing-identity change, not a routine role edit.
+ */
+export async function transferFirmOwnershipAction(
+  firmId: string,
+  newOwnerUserId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const supabase = createServerSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Not signed in.' };
+  if (user.id === newOwnerUserId) {
+    return { ok: false, error: 'You already own this firm.' };
+  }
+
+  const { data: callerRow } = await supabase
+    .from('firm_members')
+    .select('role')
+    .eq('firm_id', firmId)
+    .eq('user_id', user.id)
+    .maybeSingle();
+  if ((callerRow as { role: FirmRole } | null)?.role !== 'owner') {
+    return { ok: false, error: 'Only the current firm owner can transfer ownership.' };
+  }
+
+  const admin = createAdminSupabase();
+  if (!admin) {
+    return { ok: false, error: 'Server is missing SUPABASE_SERVICE_ROLE_KEY.' };
+  }
+  const { data: targetRow } = await admin
+    .from('firm_members')
+    .select('user_id')
+    .eq('firm_id', firmId)
+    .eq('user_id', newOwnerUserId)
+    .maybeSingle();
+  if (!targetRow) {
+    return { ok: false, error: 'That person is not a member of this firm.' };
+  }
+
+  const { error: firmErr } = await admin
+    .from('firms')
+    .update({ created_by: newOwnerUserId })
+    .eq('id', firmId);
+  if (firmErr) return { ok: false, error: firmErr.message };
+
+  const { error: demoteErr } = await admin
+    .from('firm_members')
+    .update({ role: 'admin' as FirmRole })
+    .eq('firm_id', firmId)
+    .eq('user_id', user.id);
+  if (demoteErr) return { ok: false, error: demoteErr.message };
+
+  const { error: promoteErr } = await admin
+    .from('firm_members')
+    .update({ role: 'owner' as FirmRole })
+    .eq('firm_id', firmId)
+    .eq('user_id', newOwnerUserId);
+  if (promoteErr) return { ok: false, error: promoteErr.message };
+
+  try {
+    const h = headers();
+    await logSecurityEvent({
+      kind: 'role_changed',
+      userId: user.id,
+      ip: (h.get('x-forwarded-for') ?? '').split(',')[0]?.trim() || null,
+      userAgent: h.get('user-agent'),
+      details: {
+        firm_id: firmId,
+        event: 'ownership_transferred',
+        previous_owner_id: user.id,
+        new_owner_id: newOwnerUserId,
+      },
+    });
+  } catch {
+    /* best-effort audit */
+  }
+
   revalidatePath('/counsel/team');
   return { ok: true };
 }
@@ -649,6 +759,27 @@ export async function updateFirmMemberRoleAction(
 ): Promise<{ ok: boolean; error?: string }> {
   if (!FIRM_ROLES.includes(newRole)) return { ok: false, error: 'Invalid role.' };
   const supabase = createServerSupabase();
+  // 'owner' is tied to firms.created_by (the paying subscriber) and may
+  // only change via transferFirmOwnershipAction, which keeps both in
+  // sync. Reject both directions here: granting 'owner' through this
+  // generic editor would create a second owner without touching
+  // created_by, and demoting the current owner away from 'owner' would
+  // leave created_by pointing at someone no longer marked as owner.
+  if (newRole === 'owner') {
+    return { ok: false, error: 'Use "Transfer ownership" to change the firm owner.' };
+  }
+  const { data: currentRow } = await supabase
+    .from('firm_members')
+    .select('role')
+    .eq('firm_id', firmId)
+    .eq('user_id', memberUserId)
+    .maybeSingle();
+  if ((currentRow as { role: FirmRole } | null)?.role === 'owner') {
+    return {
+      ok: false,
+      error: 'This person owns the firm. Transfer ownership to someone else before changing their role.',
+    };
+  }
   const { error } = await supabase
     .from('firm_members')
     .update({ role: newRole })
