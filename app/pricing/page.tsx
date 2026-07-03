@@ -6,6 +6,7 @@ import {
 } from '@/components/seo/JsonLd';
 import { TechTrustStrip } from '@/components/TechTrustStrip';
 import { SavingsCalculator } from '@/components/SavingsCalculator';
+import { FIRM_TIER_PRICING, formatFirmTierPrice } from '@/lib/firm-pricing';
 
 export const metadata = {
   // Audit CR-46: previous title was 'Pricing - Advottic' which the
@@ -122,7 +123,7 @@ const FIRM_TIERS: Tier[] = [
   {
     id: 'solo',
     name: 'Solo',
-    price: '$59',
+    price: formatFirmTierPrice(FIRM_TIER_PRICING.solo),
     cadence: '/ user / month',
     blurb:
       'Single attorney + 1 staff. Everything you need to run a practice; ~$200 / mo cheaper than Clio + DocuSign + Spellbook.',
@@ -147,7 +148,7 @@ const FIRM_TIERS: Tier[] = [
   {
     id: 'firm',
     name: 'Small Firm',
-    price: '$99',
+    price: formatFirmTierPrice(FIRM_TIER_PRICING.small_firm),
     cadence: '/ user / month',
     blurb:
       'Most popular. Everything in Solo, plus letterhead PDFs, employee Hub, IOLTA, marketplace, and a custom subdomain.',
@@ -176,7 +177,7 @@ const FIRM_TIERS: Tier[] = [
   {
     id: 'growing',
     name: 'Growing Firm',
-    price: '$149',
+    price: formatFirmTierPrice(FIRM_TIER_PRICING.growing_firm),
     cadence: '/ user / month',
     blurb:
       'Analytics, dedicated CSM, custom Bella training, and full white-label control of the sidebar.',
@@ -201,7 +202,7 @@ const FIRM_TIERS: Tier[] = [
   {
     id: 'enterprise',
     name: 'Enterprise',
-    price: 'From $1,800',
+    price: formatFirmTierPrice(FIRM_TIER_PRICING.enterprise),
     cadence: '/ month',
     blurb:
       '100+ users, SSO, data residency on request, HIPAA BAA, 99.9% SLA. Final price scales with seats, residency, support tier, and SLA.',

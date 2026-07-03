@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ExternalLink } from '@/components/ExternalLink';
+import { FIRM_TIER_PRICING } from '@/lib/firm-pricing';
 
 /**
  * Interactive savings calculator. Lives on /pricing between the
@@ -115,35 +116,32 @@ const TOOLS: Tool[] = [
   },
 ];
 
-/** Advottic Counsel tiers - keep in sync with /pricing TIERS. The
- *  itemLimit is the matters-per-attorney floor; overage is metered in
- *  Bella tokens at the rate documented in /pricing. */
-const ADVOTTIC_TIERS = [
-  {
-    name: 'Counsel Solo',
-    pricePerUserMonth: 59,
-    maxAttorneys: 1,
-    mattersPerAttorney: 30,
-  },
-  {
-    name: 'Counsel Small Firm',
-    pricePerUserMonth: 99,
-    maxAttorneys: 25,
-    mattersPerAttorney: 50,
-  },
-  {
-    name: 'Counsel Growing Firm',
-    pricePerUserMonth: 149,
-    maxAttorneys: 100,
-    mattersPerAttorney: 100,
-  },
-];
+/** Advottic Counsel tiers, sourced from lib/firm-pricing.ts (also used
+ *  by /pricing) rather than a second hand-copied set of the same
+ *  numbers. Deliberately caps at Growing Firm - see pickAdvotticTier.
+ *  pricePerUserMonth/maxAttorneys are asserted non-null: true for
+ *  solo/small_firm/growing_firm by construction (only Enterprise, not
+ *  included here, uses `null` for negotiated pricing). */
+const ADVOTTIC_TIERS = (['solo', 'small_firm', 'growing_firm'] as const).map((id) => {
+  const t = FIRM_TIER_PRICING[id];
+  return {
+    name: `Counsel ${t.name}`,
+    pricePerUserMonth: t.pricePerUserMonth!,
+    maxAttorneys: t.maxAttorneys!,
+    mattersPerAttorney: t.mattersPerAttorney!,
+  };
+});
 
 function pickAdvotticTier(attorneys: number) {
   // The wider band wins; an attorney count past the floor of the
   // next tier is treated as that next tier (firms grow into seats).
-  if (attorneys <= 1) return ADVOTTIC_TIERS[0];
-  if (attorneys <= 25) return ADVOTTIC_TIERS[1];
+  // Caps at Growing Firm - Enterprise is negotiated per-seat pricing,
+  // not a simple multiplication, so this calculator (and the manual
+  // attorney-count input's 500 ceiling) intentionally doesn't model
+  // it; a 200-attorney estimate here is a deliberately conservative
+  // Growing Firm number, not an Enterprise quote.
+  if (attorneys <= FIRM_TIER_PRICING.solo.maxAttorneys!) return ADVOTTIC_TIERS[0];
+  if (attorneys <= FIRM_TIER_PRICING.small_firm.maxAttorneys!) return ADVOTTIC_TIERS[1];
   return ADVOTTIC_TIERS[2];
 }
 
