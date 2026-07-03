@@ -22,6 +22,7 @@ type FeatureKey =
   | 'exhibits'
   | 'review'
   | 'bella'
+  | 'safe-witness'
   | 'signing'
   | 'vault'
   | 'efile'
@@ -83,6 +84,17 @@ const FEATURES: Feature[] = [
     linkLabel: 'Meet Bella',
     icon: ChatIcon,
     tone: 'gold',
+  },
+  {
+    key: 'safe-witness',
+    title: 'Safe Witness',
+    tagline: 'One press sends your location to someone who cares.',
+    description:
+      'Press and hold - on the app or your Wear OS watch - and Advottic sends a one-time alert with your live location to the trusted contacts you have chosen, plus a one-tap way to call 911. Your location keeps updating until you say you are safe. No monitoring, no listening in - just a fast, private way to let someone know where you are when it matters.',
+    link: '/safe',
+    linkLabel: 'Set up Safe Witness',
+    icon: PulseLocationIcon,
+    tone: 'emerald',
   },
   {
     key: 'signing',
@@ -150,7 +162,7 @@ export function FeatureGallery() {
       <header className="text-center max-w-2xl mx-auto">
         <p className="eyebrow justify-center mb-3">What Advottic actually does</p>
         <h2 className="font-display text-3xl sm:text-[44px] font-medium tracking-[-0.02em] leading-[1.05] text-forest-900 dark:text-cream-100">
-          Nine quiet tools that <span className="bg-gold-shine bg-clip-text text-transparent gold-pan italic">make the work easier.</span>
+          Quiet tools that <span className="bg-gold-shine bg-clip-text text-transparent gold-pan italic">make the work easier.</span>
         </h2>
         <p className="text-sm sm:text-base text-ink-600 dark:text-cream-100/70 mt-3 leading-relaxed">
           Tap any tile to see how it works. Or skip the tour and start a case file - everything below is one tap away once you sign up.
@@ -323,6 +335,27 @@ function ChatIcon() {
         strokeLinejoin="round"
       />
       <path d="M8 10h8M8 13h5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function PulseLocationIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 21s-6.5-5.3-6.5-11A6.5 6.5 0 0 1 18.5 10c0 5.7-6.5 11-6.5 11z"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="10" r="2.4" stroke="currentColor" strokeWidth="1.7" />
+      <path
+        d="M2.5 10h2.3M19.2 10h2.3"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        opacity="0.6"
+      />
     </svg>
   );
 }

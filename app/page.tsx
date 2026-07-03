@@ -40,6 +40,12 @@ export const metadata: Metadata = {
     'evidence management for litigants',
     'attorney intake prep',
     'legal case organization software',
+    'AI legal assistant',
+    'legal case management software',
+    'case building tool',
+    'personal safety alert app',
+    'Bella AI assistant',
+    'Safe Witness personal safety',
   ],
 };
 
@@ -165,6 +171,22 @@ function HomeStructuredData() {
     {
       q: 'Is there a free trial?',
       a: 'Yes - 7 days on every paid tier, no credit card required. Trial-period exports are watermarked so they are obvious draft outputs, not final deliverables.',
+    },
+    {
+      q: 'What is Bella, and is she a real AI legal assistant?',
+      a: 'Bella is Advottic’s built-in AI assistant. She summarizes your case file, drafts documents from templates, and answers plain-English questions about your matter, always telling you which tool she used to get an answer. She is a research and organizing aid, not a lawyer, and never replaces legal advice.',
+    },
+    {
+      q: 'Does Advottic do case management, or just personal case prep?',
+      a: 'Both. Individuals use Advottic to build and organize a single case: evidence, exhibits, hearing dates, and a document trail. Law firms run full case management on Advottic Counsel: matters, intake, calendaring, trust accounting, e-signature, and AI-assisted drafting across every open file.',
+    },
+    {
+      q: 'What does "case building" mean on Advottic?',
+      a: 'Case building is the day-to-day work of turning scattered evidence into a coherent record: adding facts as they happen, auto-numbering exhibits as you upload them, and tracking dates and sources, so by the time you need it, your case file already reads like a clean packet, not a shoebox of screenshots.',
+    },
+    {
+      q: 'What is Safe Witness?',
+      a: 'Safe Witness is Advottic’s personal-safety feature. A press-and-hold, on the app or a paired Wear OS watch, sends a one-time alert with your live location to the trusted contacts you have chosen, plus a one-tap way to call 911. It requires your explicit action every time; nothing runs in the background without you triggering it.',
     },
   ];
   return (
@@ -744,6 +766,22 @@ function Faq() {
     {
       q: 'What happens when I close a case?',
       a: 'It moves into your closed cases, stays searchable, and your packet export stays accessible. We do not delete anything unless you ask us to.',
+    },
+    {
+      q: 'What is Bella, and is she a real AI legal assistant?',
+      a: 'Bella is Advottic’s built-in AI assistant. She summarizes your case file, drafts documents from templates, and answers plain-English questions about your matter, always telling you which tool she used to get an answer. She is a research and organizing aid, not a lawyer, and never replaces legal advice.',
+    },
+    {
+      q: 'Does Advottic do case management, or just personal case prep?',
+      a: 'Both. On your own, you use Advottic to build and organize a single case: evidence, exhibits, hearing dates, a document trail. Law firms run full case management on Advottic Counsel: matters, intake, calendaring, trust accounting, e-signature, and AI-assisted drafting across every open file.',
+    },
+    {
+      q: 'What does "case building" mean on Advottic?',
+      a: 'It is the day-to-day work of turning scattered evidence into a coherent record: adding facts as they happen, auto-numbering exhibits as you upload them, tracking dates and sources. By the time you need it, your case file already reads like a clean packet, not a shoebox of screenshots.',
+    },
+    {
+      q: 'What is Safe Witness?',
+      a: 'Advottic’s personal-safety feature. A press-and-hold, on the app or a paired Wear OS watch, sends a one-time alert with your live location to the trusted contacts you have chosen, plus a one-tap way to call 911. It requires your explicit action every time - nothing runs in the background without you triggering it.',
     },
   ];
   return (

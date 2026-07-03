@@ -37,7 +37,7 @@ export async function GET() {
   lines.push('# Advottic');
   lines.push('');
   lines.push(
-    '> AI-powered legal platform. Self-represented individuals organize evidence, prepare hearings, and draft documents with Bella (an always-on AI legal assistant). Law firms run case management, contract review, and e-signature on Advottic Counsel. Calm, audited, encrypted. Not a law firm; not legal advice.',
+    '> AI-powered legal platform. Self-represented individuals build their case (organize evidence, prepare hearings, draft documents) with Bella, an always-on AI legal assistant, and can trigger Safe Witness for personal-safety alerting. Law firms run case management, contract review, and e-signature on Advottic Counsel. Calm, audited, encrypted. Not a law firm; not legal advice.',
   );
   lines.push('');
 
@@ -51,6 +51,10 @@ export async function GET() {
   lines.push('');
 
   lines.push('## Features');
+  lines.push(`- [Bella](${SITE_URL}/glossary/bella): Advottic's always-on AI legal assistant. Summarizes case files, drafts documents from 13+ templates, answers plain-English legal-prep questions, and always discloses which tool she called to get an answer.`);
+  lines.push(`- Case management: individuals organize a single matter end to end (facts, exhibits, hearing dates, document trail); law firms run full practice case management on Advottic Counsel (matters, intake, calendaring, IOLTA trust accounting, e-signature) across every open file.`);
+  lines.push(`- Case building: the ongoing work of turning scattered evidence into a coherent, presentable record - auto-numbered exhibits, dated entries, and a clean packet export, built up over time rather than assembled the night before a hearing.`);
+  lines.push(`- [Safe Witness](${SITE_URL}/glossary/safe-witness): personal-safety alerting feature. A press-and-hold (app or Wear OS watch) sends a one-time SMS/email alert with live location to trusted contacts, plus a one-tap 911 call link.`);
   lines.push(`- [Find counsel](${SITE_URL}/find-counsel): public attorney directory with verification badges; users contact attorneys directly.`);
   lines.push(`- [File exhibits](${SITE_URL}/file-exhibits): organize court exhibits, auto-number them, and ship to your attorney.`);
   lines.push(`- [Public defender info](${SITE_URL}/public-defender): right-to-counsel reminder and how to request a public defender for criminal matters.`);
