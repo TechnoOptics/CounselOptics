@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { streamBella } from '@/lib/bella';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -25,25 +26,14 @@ const CASE_TYPES = [
 ];
 const SUBJECT_TYPES = ['person', 'business', 'matter', 'state', 'entity'];
 
-const RATE = new Map<string, { count: number; reset: number }>();
-function rateLimit(k: string): boolean {
-  const now = Date.now();
-  const e = RATE.get(k);
-  if (!e || e.reset < now) {
-    RATE.set(k, { count: 1, reset: now + 60_000 });
-    return true;
-  }
-  e.count += 1;
-  return e.count <= 8;
-}
-
 export async function POST(req: NextRequest) {
   if (!isSupabaseConfigured())
     return NextResponse.json({ error: 'Not available.' }, { status: 400 });
   const user = await getCurrentUser();
   if (!user)
     return NextResponse.json({ error: 'Sign in first.' }, { status: 401 });
-  if (!rateLimit(user.id))
+  const allowed = await checkRateLimit(`intake:${user.id}`, { limit: 8, windowSeconds: 60 });
+  if (!allowed)
     return NextResponse.json({ error: 'One at a time, please.' }, { status: 429 });
 
   let body: { text?: string };

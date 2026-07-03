@@ -3,6 +3,7 @@ import { streamBella } from '@/lib/bella';
 import { getCase, listExhibits } from '@/lib/storage';
 import { listCaseAuditEvents } from '@/lib/activity';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -12,24 +13,17 @@ export const runtime = 'nodejs';
 // of a written declaration / affidavit. Streams plain text, same
 // transport contract as /api/bella.
 
-const RATE = new Map<string, { count: number; reset: number }>();
-function rateLimit(ip: string): boolean {
-  const now = Date.now();
-  const e = RATE.get(ip);
-  if (!e || e.reset < now) {
-    RATE.set(ip, { count: 1, reset: now + 60_000 });
-    return true;
-  }
-  e.count += 1;
-  return e.count <= 8; // narrative generation is heavier; cap tighter
-}
-
 export async function POST(req: NextRequest) {
   const ip =
     req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
     req.headers.get('x-real-ip') ||
     'unknown';
-  if (!rateLimit(ip)) {
+  // Narrative generation is heavier; cap tighter than /api/bella.
+  const allowed = await checkRateLimit(`case-story:${ip}`, {
+    limit: 8,
+    windowSeconds: 60,
+  });
+  if (!allowed) {
     return NextResponse.json(
       { error: 'Give it a moment - composing a story is heavy work.' },
       { status: 429 },

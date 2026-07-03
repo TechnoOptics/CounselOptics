@@ -1,14 +1,12 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { streamBella } from '@/lib/bella';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-// Same in-memory rate limit pattern as /api/bella, deliberately
-// stricter since this endpoint is unauthed and longer-payload.
-const RATE: Map<string, { count: number; reset: number }> = new Map();
-const RATE_LIMIT = 8;
-const WINDOW_MS = 60_000;
+// Deliberately stricter than /api/bella since this endpoint is
+// unauthed and longer-payload.
 const MAX_DOC_CHARS = 30_000;
 
 function ipFrom(req: NextRequest): string {
@@ -19,21 +17,13 @@ function ipFrom(req: NextRequest): string {
   );
 }
 
-function rateLimit(ip: string): boolean {
-  const now = Date.now();
-  const entry = RATE.get(ip);
-  if (!entry || entry.reset < now) {
-    RATE.set(ip, { count: 1, reset: now + WINDOW_MS });
-    return true;
-  }
-  entry.count += 1;
-  if (entry.count > RATE_LIMIT) return false;
-  return true;
-}
-
 export async function POST(req: NextRequest) {
   const ip = ipFrom(req);
-  if (!rateLimit(ip)) {
+  const allowed = await checkRateLimit(`review-document:${ip}`, {
+    limit: 8,
+    windowSeconds: 60,
+  });
+  if (!allowed) {
     return NextResponse.json(
       { error: 'Slow down - try again in a minute.' },
       { status: 429 },

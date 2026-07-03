@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { streamBella, type BellaMessage } from '@/lib/bella';
 import { getCase, listExhibits, getLatestReview } from '@/lib/storage';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -10,18 +11,6 @@ export const runtime = 'nodejs';
 // role-plays opposing counsel (and the judge) to pressure-test the
 // litigant's answers before the real thing. Streams text; same
 // transport contract as /api/bella.
-
-const RATE = new Map<string, { count: number; reset: number }>();
-function rateLimit(ip: string): boolean {
-  const now = Date.now();
-  const e = RATE.get(ip);
-  if (!e || e.reset < now) {
-    RATE.set(ip, { count: 1, reset: now + 60_000 });
-    return true;
-  }
-  e.count += 1;
-  return e.count <= 20;
-}
 
 const DIRECTIVE = [
   '=== ROLE-PLAY DIRECTIVE (highest priority) ===',
@@ -55,7 +44,11 @@ export async function POST(req: NextRequest) {
     req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
     req.headers.get('x-real-ip') ||
     'unknown';
-  if (!rateLimit(ip)) {
+  const allowed = await checkRateLimit(`opposing-counsel:${ip}`, {
+    limit: 20,
+    windowSeconds: 60,
+  });
+  if (!allowed) {
     return NextResponse.json(
       { error: 'Take a breath - too many rounds too fast.' },
       { status: 429 },

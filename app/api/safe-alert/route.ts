@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { sendEmail } from '@/lib/email';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -12,18 +13,6 @@ export const runtime = 'nodejs';
 // (off-device preservation). It deliberately does NOT contact law
 // enforcement - that stays an explicit one-tap action by the user.
 
-const RATE = new Map<string, { count: number; reset: number }>();
-function rateLimit(key: string): boolean {
-  const now = Date.now();
-  const e = RATE.get(key);
-  if (!e || e.reset < now) {
-    RATE.set(key, { count: 1, reset: now + 5 * 60_000 });
-    return true;
-  }
-  e.count += 1;
-  return e.count <= 6; // a few re-sends in an incident are fine
-}
-
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export async function POST(req: NextRequest) {
@@ -34,7 +23,14 @@ export async function POST(req: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: 'Sign in to use Safe Witness.' }, { status: 401 });
   }
-  if (!rateLimit(user.id)) {
+  // A few re-sends in an incident are fine. checkRateLimit fails OPEN
+  // on a store error, same as everywhere else - never let a rate-limit
+  // backend hiccup block an emergency alert.
+  const allowed = await checkRateLimit(`safe-alert:${user.id}`, {
+    limit: 6,
+    windowSeconds: 5 * 60,
+  });
+  if (!allowed) {
     return NextResponse.json(
       { error: 'Alert already sent moments ago.' },
       { status: 429 },

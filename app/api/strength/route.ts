@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { streamBella } from '@/lib/bella';
 import { getCase, listExhibits } from '@/lib/storage';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -11,18 +12,6 @@ export const runtime = 'nodejs';
 // litigant's actual exhibits support each, with the single most
 // useful thing to add next. Returns strict JSON (collected from the
 // streaming transport) so the UI can draw a real heatmap.
-
-const RATE = new Map<string, { count: number; reset: number }>();
-function rateLimit(k: string): boolean {
-  const now = Date.now();
-  const e = RATE.get(k);
-  if (!e || e.reset < now) {
-    RATE.set(k, { count: 1, reset: now + 60_000 });
-    return true;
-  }
-  e.count += 1;
-  return e.count <= 6;
-}
 
 type Element = {
   name: string;
@@ -38,7 +27,8 @@ export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user)
     return NextResponse.json({ error: 'Sign in first.' }, { status: 401 });
-  if (!rateLimit(user.id))
+  const allowed = await checkRateLimit(`strength:${user.id}`, { limit: 6, windowSeconds: 60 });
+  if (!allowed)
     return NextResponse.json(
       { error: 'Give the analysis a moment between runs.' },
       { status: 429 },
