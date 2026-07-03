@@ -27,42 +27,41 @@ export async function recordTrustTransactionAction(
 ): Promise<{ ok: boolean; error?: string; transactionId?: string }> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: 'Sign in first.' };
-  if (input.amountCents <= 0) {
-    return { ok: false, error: 'Amount must be positive (sign is derived from kind).' };
-  }
-  const supabase = createServerSupabase();
-  const { data: member } = await supabase
-    .from('firm_members')
-    .select('role')
-    .eq('firm_id', firmId)
-    .eq('user_id', user.id)
-    .maybeSingle();
-  if (!member) return { ok: false, error: 'You are not a member of that firm.' };
-  if (
-    !['owner', 'admin', 'attorney', 'paralegal'].includes(
-      (member as { role: string }).role,
-    )
-  ) {
-    return { ok: false, error: 'Your role cannot post trust transactions.' };
+  // Reject NaN / Infinity / fractional cents here: `NaN <= 0` is false,
+  // so a bare `<= 0` check would let a malformed amount through and get
+  // stored as a garbage value.
+  if (!Number.isInteger(input.amountCents) || input.amountCents <= 0) {
+    return {
+      ok: false,
+      error: 'Amount must be a positive whole number of cents.',
+    };
   }
 
-  const { data, error } = await supabase
-    .from('firm_trust_transactions')
-    .insert({
-      firm_id: firmId,
-      account_id: accountId,
-      case_id: input.caseId ?? null,
-      client_user_id: input.clientUserId ?? null,
-      client_label: input.clientLabel,
-      kind: input.kind,
-      amount_cents: input.amountCents,
-      description: input.description ?? null,
-      reference: input.reference ?? null,
-      created_by: user.id,
-    })
-    .select('id')
-    .single();
-  if (error || !data) return { ok: false, error: error?.message ?? 'Insert failed.' };
+  // Post through the atomic RPC: it re-verifies membership + role,
+  // takes a per-account lock, and refuses any transaction that would
+  // drive the client's trust balance negative. Authorization and the
+  // balance guard live together in one serialized transaction so two
+  // concurrent disbursements can't both pass a stale balance check.
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase.rpc('post_trust_transaction', {
+    p_firm_id: firmId,
+    p_account_id: accountId,
+    p_case_id: input.caseId ?? null,
+    p_client_user_id: input.clientUserId ?? null,
+    p_client_label: input.clientLabel,
+    p_kind: input.kind,
+    p_amount_cents: input.amountCents,
+    p_description: input.description ?? null,
+    p_reference: input.reference ?? null,
+  });
+  if (error) {
+    // Surface the balance-guard message in plain language; leave other
+    // Postgres errors as-is for the operator to see.
+    const msg = /insufficient trust balance/i.test(error.message)
+      ? "That would overdraw the client's trust balance. Check the ledger before disbursing."
+      : error.message;
+    return { ok: false, error: msg };
+  }
   revalidatePath('/counsel/trust');
-  return { ok: true, transactionId: (data as { id: string }).id };
+  return { ok: true, transactionId: data as string };
 }

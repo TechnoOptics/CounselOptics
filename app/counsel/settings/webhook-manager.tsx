@@ -18,7 +18,8 @@ import {
  *   - Toggle active / inactive: posts to setFirmWebhookActiveAction;
  *     updates the local row in-place so the UI feels instant. A router
  *     refresh follows so any other tab sees the change.
- *   - Delete: posts to deleteFirmWebhookAction with a single confirm.
+ *   - Delete: an inline two-step confirm (no native confirm() dialog,
+ *     which the Capacitor WebView suppresses), then deleteFirmWebhookAction.
  *
  * The form-state is intentionally kept simple. Server-side validation
  * (URL scheme, vendor URL pattern, etc.) is the source of truth - this
@@ -36,6 +37,11 @@ export function WebhookManager({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(initialWebhooks.length === 0);
+  // Inline two-step delete confirm. The native confirm() dialog is
+  // suppressed / inconsistently styled inside the Capacitor WebView, so
+  // a Delete tap could silently no-op on a phone. This mirrors the
+  // inline-confirm pattern used by the meeting DisconnectButton.
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
 
   function onAdd(formData: FormData) {
     setError(null);
@@ -61,9 +67,7 @@ export function WebhookManager({
   }
 
   function onDelete(id: string) {
-    if (!confirm('Delete this webhook? No further messages will fan out.')) {
-      return;
-    }
+    setConfirmingId(null);
     setWebhooks((prev) => prev.filter((w) => w.id !== id));
     startTransition(async () => {
       await deleteFirmWebhookAction(id);
@@ -112,22 +116,45 @@ export function WebhookManager({
                   </p>
                 </div>
                 <div className="flex items-center gap-2 text-[12px] shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => onToggle(w.id, !w.isActive)}
-                    disabled={pending}
-                    className="rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-2.5 py-1 hover:bg-cream-50 dark:hover:bg-forest-800/30 disabled:opacity-50"
-                  >
-                    {w.isActive ? 'Pause' : 'Resume'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onDelete(w.id)}
-                    disabled={pending}
-                    className="rounded-md ring-1 ring-rose-200 dark:ring-rose-900/40 text-rose-700 dark:text-rose-300 px-2.5 py-1 hover:bg-rose-50 dark:hover:bg-rose-950/30 disabled:opacity-50"
-                  >
-                    Delete
-                  </button>
+                  {confirmingId === w.id ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => onDelete(w.id)}
+                        disabled={pending}
+                        className="rounded-md bg-rose-600 text-white px-2.5 py-1 hover:bg-rose-700 disabled:opacity-50"
+                      >
+                        Confirm delete
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmingId(null)}
+                        disabled={pending}
+                        className="rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-2.5 py-1 hover:bg-cream-50 dark:hover:bg-forest-800/30 disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => onToggle(w.id, !w.isActive)}
+                        disabled={pending}
+                        className="rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-2.5 py-1 hover:bg-cream-50 dark:hover:bg-forest-800/30 disabled:opacity-50"
+                      >
+                        {w.isActive ? 'Pause' : 'Resume'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmingId(w.id)}
+                        disabled={pending}
+                        className="rounded-md ring-1 ring-rose-200 dark:ring-rose-900/40 text-rose-700 dark:text-rose-300 px-2.5 py-1 hover:bg-rose-50 dark:hover:bg-rose-950/30 disabled:opacity-50"
+                      >
+                        Delete
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
               <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-ink-500 dark:text-cream-100/55">

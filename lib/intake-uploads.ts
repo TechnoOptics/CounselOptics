@@ -2,6 +2,7 @@
 
 import { getCurrentUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
+import { authorizeFirmActor } from './portal-entitlements';
 import {
   extractFileText,
   scoreDocument,
@@ -44,25 +45,17 @@ export async function uploadIntakeFilesAction(
   const admin = createAdminSupabase();
   if (!admin) return { ok: false, error: 'Service unavailable.' };
 
-  // Authorize: legal member OR active employee of this firm.
-  const [{ data: mem }, { data: emp }] = await Promise.all([
-    admin
-      .from('firm_members')
-      .select('id')
-      .eq('firm_id', firmId)
-      .eq('user_id', user.id)
-      .maybeSingle(),
-    admin
-      .from('firm_employees')
-      .select('id')
-      .eq('firm_id', firmId)
-      .eq('user_id', user.id)
-      .is('deactivated_at', null)
-      .maybeSingle(),
-  ]);
-  if (!mem && !emp) {
-    return { ok: false, error: 'You do not have access to this firm.' };
-  }
+  // Authorize: legal member, or an active employee whose role can file
+  // requests. Uploading attachments is part of filing, so it shares the
+  // requests.create entitlement - hiding the form in the UI is not a
+  // server-side gate on its own.
+  const auth = await authorizeFirmActor(
+    admin,
+    firmId,
+    user.id,
+    'requests.create',
+  );
+  if (!auth.ok) return { ok: false, error: auth.error };
 
   const raw = formData.getAll('attachments');
   const blobs = raw.filter(
@@ -116,24 +109,19 @@ export async function reviewIntakeAttachmentAction(
   const admin = createAdminSupabase();
   if (!admin) return { ok: false, error: 'Service unavailable.' };
 
-  const [{ data: mem }, { data: emp }] = await Promise.all([
-    admin
-      .from('firm_members')
-      .select('id')
-      .eq('firm_id', firmId)
-      .eq('user_id', user.id)
-      .maybeSingle(),
-    admin
-      .from('firm_employees')
-      .select('id')
-      .eq('firm_id', firmId)
-      .eq('user_id', user.id)
-      .is('deactivated_at', null)
-      .maybeSingle(),
-  ]);
-  if (!mem && !emp) {
-    return { ok: false, error: 'You do not have access to this firm.' };
-  }
+  // This is the in-flow quality gate on an intake attachment (a costed
+  // AI call), not the standalone Review tool - the intake form requires
+  // a passing grade before a request with an attachment can be filed.
+  // So it shares the requests.create entitlement: a view-only employee
+  // who can't file at all must not be able to spend AI calls here, but
+  // any role that can legitimately file requests can run it.
+  const auth = await authorizeFirmActor(
+    admin,
+    firmId,
+    user.id,
+    'requests.create',
+  );
+  if (!auth.ok) return { ok: false, error: auth.error };
 
   const raw = formData.getAll('attachments');
   const file = raw.find(

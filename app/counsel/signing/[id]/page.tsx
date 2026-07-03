@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
+import { ExternalLink } from '@/components/ExternalLink';
 import {
   getActiveFirmContext,
   getFirmDocument,
@@ -84,14 +85,12 @@ export default async function SigningRequestDetail({
                 )}
                 {!sig.signedAt && (
                   <p className="mt-0.5">
-                    <a
+                    <ExternalLink
                       href={`${SITE_URL}/sign/${sig.token}`}
                       className="text-[11px] underline text-forest-900 dark:text-cream-100"
-                      target="_blank"
-                      rel="noreferrer"
                     >
                       Open sign link
-                    </a>
+                    </ExternalLink>
                   </p>
                 )}
               </div>

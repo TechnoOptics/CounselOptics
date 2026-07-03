@@ -89,22 +89,25 @@ export async function createMatterIntakeAction(
   ) {
     const admin = createAdminSupabase();
     if (admin) {
-      const { data: emp } = await admin
-        .from('firm_employees')
+      // Enforce the request-creation entitlement server-side - the
+      // portal hides "New request" for roles without it, but that is
+      // UI only. A view-only employee must not be able to file by
+      // calling this action directly.
+      const { authorizeFirmActor } = await import('./portal-entitlements');
+      const auth = await authorizeFirmActor(
+        admin,
+        firmId,
+        user.id,
+        'requests.create',
+      );
+      if (!auth.ok) return { ok: false, error: auth.error };
+      const retry = await admin
+        .from('firm_matter_intakes')
+        .insert(row)
         .select('id')
-        .eq('firm_id', firmId)
-        .eq('user_id', user.id)
-        .is('deactivated_at', null)
-        .maybeSingle();
-      if (emp) {
-        const retry = await admin
-          .from('firm_matter_intakes')
-          .insert(row)
-          .select('id')
-          .single();
-        data = retry.data;
-        error = retry.error;
-      }
+        .single();
+      data = retry.data;
+      error = retry.error;
     }
   }
   if (error || !data) return { ok: false, error: error?.message ?? 'Insert failed.' };

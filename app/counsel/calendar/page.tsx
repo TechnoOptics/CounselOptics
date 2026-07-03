@@ -4,6 +4,7 @@ import { getActiveFirmContext } from '@/lib/firm-storage';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { MeetingScheduler } from './MeetingScheduler';
 import { MeetingConnectors } from '@/components/counsel/MeetingConnectors';
+import { ExternalLink } from '@/components/ExternalLink';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Calendar · Counsel' };
@@ -179,15 +180,14 @@ export default async function CounselCalendarPage({
                 {day}
               </p>
               <ul className="space-y-2">
-                {dayItems.map((it, i) => (
-                  <li
-                    key={`${day}-${i}`}
-                    className="card p-4 hover:shadow-card-hover transition-all"
-                  >
-                    <Link
-                      href={it.href}
-                      className="flex items-center justify-between gap-3"
-                    >
+                {dayItems.map((it, i) => {
+                  // A meeting without a linked intake points straight at
+                  // the provider's external join URL; everything else is
+                  // an in-app route. External URLs must open via
+                  // ExternalLink so they work inside the native WebView.
+                  const isExternal = /^https?:\/\//i.test(it.href);
+                  const inner = (
+                    <>
                       <div className="min-w-0">
                         <p className="font-semibold text-forest-900 dark:text-cream-100 truncate">
                           {it.title}
@@ -205,9 +205,31 @@ export default async function CounselCalendarPage({
                       >
                         {it.kind}
                       </span>
-                    </Link>
-                  </li>
-                ))}
+                    </>
+                  );
+                  return (
+                    <li
+                      key={`${day}-${i}`}
+                      className="card p-4 hover:shadow-card-hover transition-all"
+                    >
+                      {isExternal ? (
+                        <ExternalLink
+                          href={it.href}
+                          className="flex items-center justify-between gap-3"
+                        >
+                          {inner}
+                        </ExternalLink>
+                      ) : (
+                        <Link
+                          href={it.href}
+                          className="flex items-center justify-between gap-3"
+                        >
+                          {inner}
+                        </Link>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             </section>
           ))}

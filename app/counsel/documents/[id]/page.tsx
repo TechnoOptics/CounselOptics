@@ -8,6 +8,7 @@ import {
 } from '@/lib/firm-storage';
 import { CreateSigningRequestForm } from './signing-form';
 import { DocumentStatusChanger } from './status-changer';
+import { ExternalLink } from '@/components/ExternalLink';
 
 export const dynamic = 'force-dynamic';
 
@@ -156,15 +157,13 @@ export default async function FirmDocumentDetail({
             className="w-full h-[70vh] border-0 bg-ink-50 dark:bg-forest-950"
           />
           <div className="p-3 flex items-center justify-end">
-            <a
+            <ExternalLink
               href={signedUrl}
-              target="_blank"
-              rel="noreferrer"
               className="btn-secondary text-sm"
               download={doc.name}
             >
               Download
-            </a>
+            </ExternalLink>
           </div>
         </section>
       )}

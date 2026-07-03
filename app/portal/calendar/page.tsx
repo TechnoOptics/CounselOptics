@@ -3,6 +3,7 @@ import { getCurrentUser } from '@/lib/supabase/server';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { getWorkspacePersona } from '@/lib/persona';
 import { LocaleTime } from '@/components/LocaleTime';
+import { ExternalLink } from '@/components/ExternalLink';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Calendar · Hub' };
@@ -106,20 +107,22 @@ export default async function HubCalendarPage() {
                   {it.sub} · <LocaleTime iso={new Date(it.at).toISOString()} mode="datetime" />
                 </p>
               </div>
-              {it.href && (
-                <a
-                  href={it.href}
-                  target={it.kind === 'meeting' ? '_blank' : undefined}
-                  rel="noreferrer"
-                  className={`shrink-0 btn text-[12px] ${
-                    it.kind === 'meeting'
-                      ? 'ring-1 ring-gold-500/40 text-gold-200 hover:bg-gold-500/10'
-                      : 'text-cream-100/70 hover:text-cream-100 hover:bg-cream-100/5'
-                  }`}
-                >
-                  {it.kind === 'meeting' ? 'Join' : 'Open'}
-                </a>
-              )}
+              {it.href &&
+                (it.kind === 'meeting' ? (
+                  <ExternalLink
+                    href={it.href}
+                    className="shrink-0 btn text-[12px] ring-1 ring-gold-500/40 text-gold-200 hover:bg-gold-500/10"
+                  >
+                    Join
+                  </ExternalLink>
+                ) : (
+                  <a
+                    href={it.href}
+                    className="shrink-0 btn text-[12px] text-cream-100/70 hover:text-cream-100 hover:bg-cream-100/5"
+                  >
+                    Open
+                  </a>
+                ))}
             </li>
           ))}
         </ul>
