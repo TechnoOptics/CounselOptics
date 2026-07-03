@@ -18,6 +18,7 @@ const ICONS: Record<string, React.ReactNode> = {
   '/counsel/import': <ImportIcon />,
   '/counsel/intake': <UserIcon />,
   '/counsel/templates': <DocIcon />,
+  '/counsel/letters': <MailIcon />,
   '/counsel/analyze': <MagnifyIcon />,
   '/counsel/cases': <CaseIcon />,
   '/counsel/documents': <DocIcon />,
@@ -255,6 +256,14 @@ function CalIcon() {
     <svg {...SVG}>
       <rect x="3" y="5" width="18" height="16" rx="2" />
       <path d="M3 10h18M8 3v4M16 3v4" />
+    </svg>
+  );
+}
+function MailIcon() {
+  return (
+    <svg {...SVG}>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="M4 7l8 6 8-6" />
     </svg>
   );
 }

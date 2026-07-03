@@ -16,6 +16,7 @@ import {
   WidthType,
 } from 'docx';
 import type { CommunityExportData } from './community-types';
+import type { ClosingLine } from './letter-compose';
 
 /**
  * Word export of a Community Case's submissions, mirroring the structure
@@ -272,4 +273,139 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// =====================================================================
+// Letter export (#13)
+// =====================================================================
+
+export type LetterDocxInput = {
+  firmName: string;
+  /** Optional sub-line under the firm name: address, jurisdictions, etc. */
+  contactLine?: string | null;
+  /** Firm accent, hex with or without leading '#'. */
+  accentHex?: string | null;
+  /** Optional bold document title under the letterhead. */
+  title?: string | null;
+  /** The letter body (salutation through closing paragraph). */
+  body: string;
+  /** Structured closing block from lib/letter-compose. */
+  closing: ClosingLine[];
+};
+
+/**
+ * Word (.docx) export of a generated letter (#13). Word letters use a
+ * typographic letterhead (firm name in the accent color + a contact
+ * sub-line + a rule) rather than an embedded raster - it's editable,
+ * deterministic, and avoids image-dimension math. The PDF export
+ * renders the uploaded letterhead image instead, so a firm gets both:
+ * an editable Word original and a pixel-branded PDF.
+ */
+export async function generateLetterDocx(
+  input: LetterDocxInput,
+): Promise<Buffer> {
+  const accent = (input.accentHex || '#0f2d24').replace(/^#/, '').slice(0, 6);
+  const children: Array<Paragraph | Table> = [];
+
+  // Typographic letterhead.
+  children.push(
+    new Paragraph({
+      spacing: { after: 40 },
+      children: [
+        new TextRun({ text: input.firmName, bold: true, size: 30, color: accent }),
+      ],
+    }),
+  );
+  if (input.contactLine && input.contactLine.trim()) {
+    children.push(
+      new Paragraph({
+        spacing: { after: 120 },
+        border: {
+          bottom: { style: BorderStyle.SINGLE, size: 6, color: accent, space: 6 },
+        },
+        children: [
+          new TextRun({ text: input.contactLine.trim(), size: 18, color: '52525B' }),
+        ],
+      }),
+    );
+  } else {
+    children.push(
+      new Paragraph({
+        spacing: { after: 120 },
+        border: {
+          bottom: { style: BorderStyle.SINGLE, size: 6, color: accent, space: 6 },
+        },
+        children: [new TextRun({ text: '', size: 2 })],
+      }),
+    );
+  }
+
+  if (input.title && input.title.trim()) {
+    children.push(
+      new Paragraph({
+        spacing: { before: 120, after: 120 },
+        children: [new TextRun({ text: input.title.trim(), bold: true, size: 26 })],
+      }),
+    );
+  }
+
+  // Body: blank lines become spacers, everything else a paragraph.
+  for (const line of input.body.split('\n')) {
+    if (line.trim() === '') {
+      children.push(spacer());
+    } else {
+      children.push(
+        new Paragraph({ spacing: { after: 80 }, children: [new TextRun({ text: line })] }),
+      );
+    }
+  }
+
+  // Closing block.
+  children.push(spacer());
+  for (const cl of input.closing) {
+    if (cl.kind === 'blank') {
+      children.push(spacer());
+    } else if (cl.kind === 'rule') {
+      // A signing line: a short paragraph with a bottom border.
+      children.push(
+        new Paragraph({
+          spacing: { before: 60, after: 20 },
+          border: {
+            bottom: { style: BorderStyle.SINGLE, size: 6, color: '111111', space: 1 },
+          },
+          children: [new TextRun({ text: '', size: 2 })],
+        }),
+      );
+    } else if (cl.kind === 'strong') {
+      children.push(
+        new Paragraph({ children: [new TextRun({ text: cl.text, bold: true })] }),
+      );
+    } else {
+      children.push(new Paragraph({ children: [new TextRun({ text: cl.text })] }));
+    }
+  }
+
+  const doc = new Document({
+    sections: [
+      {
+        properties: {},
+        footers: {
+          default: new Footer({
+            children: [
+              new Paragraph({
+                alignment: AlignmentType.CENTER,
+                children: [
+                  new TextRun({ text: input.firmName + '  ·  ', size: 14, color: '9CA3AF' }),
+                  new TextRun({ children: [PageNumber.CURRENT], size: 14, color: '9CA3AF' }),
+                ],
+              }),
+            ],
+          }),
+        },
+        children,
+      },
+    ],
+  });
+
+  return Packer.toBuffer(doc);
 }

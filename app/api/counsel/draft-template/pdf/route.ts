@@ -34,6 +34,10 @@ export async function POST(req: NextRequest) {
      *  WebP). Painted across the top of page 1 in place of the text-
      *  only "BRAND NAME" + title strip. Tier-2 Bella branding. */
     letterheadUrl?: string;
+    /** Optional public URL of the firm's logo. When no letterhead is
+     *  set, Advottic synthesizes a letterhead from the logo + brand
+     *  name (#13 "Advottic can customize one using their logo"). */
+    logoUrl?: string;
   };
   try {
     body = await req.json();
@@ -106,6 +110,35 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // No uploaded letterhead? Synthesize one from the firm's logo (#13).
+  // The logo is drawn small at the top-left with the brand name beside
+  // it, over the accent rule - a clean "generated letterhead".
+  let logo: Embedded | null = null;
+  if (!letterhead && body.logoUrl && /^https?:\/\//i.test(body.logoUrl)) {
+    try {
+      const r = await fetch(body.logoUrl);
+      if (r.ok) {
+        const buf = new Uint8Array(await r.arrayBuffer());
+        const mime = (r.headers.get('content-type') ?? '').toLowerCase();
+        // pdf-lib decodes PNG + JPG only; SVG/WebP logos fall through
+        // to the text banner.
+        if (mime.includes('png') || mime.includes('jpeg') || mime.includes('jpg')) {
+          const img =
+            mime.includes('jpeg') || mime.includes('jpg')
+              ? await pdf.embedJpg(buf)
+              : await pdf.embedPng(buf);
+          const targetH = 36;
+          const ratio = targetH / img.height;
+          const drawW = Math.min(180, img.width * ratio);
+          const drawH = drawW * (img.height / img.width);
+          logo = { img, width: drawW, height: drawH };
+        }
+      }
+    } catch {
+      logo = null;
+    }
+  }
+
   function wrap(line: string, f = font, size = SIZE): string[] {
     if (line.trim() === '') return [''];
     const words = line.split(/(\s+)/);
@@ -152,6 +185,37 @@ export async function POST(req: NextRequest) {
         color: rgb(0.8, 0.8, 0.8),
       });
       y = yTop - 38;
+    } else if (logo) {
+      // Synthesized letterhead from the firm's logo (#13). Accent bar,
+      // logo at top-left, brand name to its right, then the rule.
+      page.drawRectangle({
+        x: 0,
+        y: H - 8,
+        width: W,
+        height: 8,
+        color: accentColor,
+      });
+      const logoY = H - 30 - logo.height;
+      page.drawImage(logo.img, {
+        x: M,
+        y: logoY,
+        width: logo.width,
+        height: logo.height,
+      });
+      page.drawText(brand, {
+        x: M + logo.width + 12,
+        y: logoY + logo.height / 2 - 5,
+        size: 13,
+        font: bold,
+        color: accentColor,
+      });
+      page.drawLine({
+        start: { x: M, y: logoY - 12 },
+        end: { x: W - M, y: logoY - 12 },
+        thickness: 0.5,
+        color: rgb(0.8, 0.8, 0.8),
+      });
+      y = logoY - 34;
     } else {
       // Text-only fallback (pre-tier-2 look, kept for firms that
       // haven't uploaded a letterhead yet).

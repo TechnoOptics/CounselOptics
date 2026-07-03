@@ -452,11 +452,19 @@ export default async function CounselCaseDetailPage({
       )}
 
       {/* Documents on this case */}
-      {docs.length > 0 && (
-        <section className="space-y-3">
+      <section className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
           <h2 className="font-display text-lg font-medium text-forest-900 dark:text-cream-100">
             Documents
           </h2>
+          <Link
+            href={`/counsel/letters?caseId=${params.id}`}
+            className="text-[12px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-3 py-1.5 text-ink-700 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/40"
+          >
+            Draft a letter
+          </Link>
+        </div>
+        {docs.length > 0 ? (
           <ul className="space-y-1.5">
             {docs.map((d) => (
               <li
@@ -475,8 +483,16 @@ export default async function CounselCaseDetailPage({
               </li>
             ))}
           </ul>
-        </section>
-      )}
+        ) : (
+          <p className="text-[13px] text-ink-500 dark:text-cream-100/55">
+            No documents yet. Draft a letter or upload one from{' '}
+            <Link href="/counsel/documents" className="underline">
+              Documents
+            </Link>
+            .
+          </p>
+        )}
+      </section>
     </div>
   );
 }
