@@ -105,6 +105,19 @@
          is a runtime permission (the plugin requests it on first use). -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
+    <!-- Safe Witness distress alert (components/DistressOverlay.tsx) calls
+         the browser's navigator.geolocation API (not a Capacitor plugin) to
+         attach a live location to the alert sent to the user's emergency
+         contact. Android WebView gates that API on the HOST APP's declared
+         manifest permissions before it will even show its own geolocation
+         prompt - without these, the call silently resolves with no
+         position (the code already degrades gracefully and still sends the
+         alert), quietly defeating the one thing this safety feature is
+         for. Both are runtime permissions; the WebView requests them on
+         first use. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
     <!-- Strip the Advertising ID + Privacy-Sandbox ad-services
          permissions that Google Play Services / Firebase auto-merge
          into the manifest. Advottic shows NO ads and never reads the
