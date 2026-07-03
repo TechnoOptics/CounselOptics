@@ -5,9 +5,12 @@ import { createServerSupabase } from '@/lib/supabase/server';
 import {
   reconcileTrustAccount,
   listTrustTransactions,
+  getReconciliationWorkspace,
+  listTrustReconciliations,
 } from '@/lib/trust-accounting-queries';
 import { CreateAccountForm } from './create-account-form';
 import { RecordTransactionForm } from './record-transaction-form';
+import { ReconcileForm } from './reconcile-form';
 
 export const dynamic = 'force-dynamic';
 // Audit W20 V3 CR-27: title template applies once at layout level.
@@ -84,12 +87,12 @@ export default async function CounselTrustPage({
               upload step when it ships.
             */}
             IOLTA-style ledger of every dollar held for a client. Every state
-            bar requires per-matter ledgers and per-client statements, and a
-            regular reconciliation against your bank statement. Advottic tracks
-            the book side - per-matter and per-client balances - so you always
-            know what should be on deposit; you reconcile that against your
-            actual bank statement each period. Add your first trust account
-            below to start.
+            bar requires per-matter ledgers, per-client statements, and a
+            regular reconciliation against your bank statement. Advottic keeps
+            the book side - per-matter and per-client balances - and gives you
+            a reconciliation tool: enter your statement&rsquo;s ending balance,
+            check off what has cleared, and it confirms the two agree. Add your
+            first trust account below to start.
           </p>
         </header>
         <CreateAccountForm firmId={ctx.firm.id} />
@@ -107,6 +110,14 @@ export default async function CounselTrustPage({
   const transactions = await listTrustTransactions(ctx.firm.id, {
     accountId: account.id,
   });
+  const reconWorkspace = await getReconciliationWorkspace(
+    ctx.firm.id,
+    account.id,
+  );
+  const pastReconciliations = await listTrustReconciliations(
+    ctx.firm.id,
+    account.id,
+  );
 
   return (
     <div className="space-y-8 animate-fade-up">
@@ -213,6 +224,71 @@ export default async function CounselTrustPage({
 
       {/* Record a new transaction */}
       <RecordTransactionForm firmId={ctx.firm.id} accountId={account.id} />
+
+      {/* Bank-statement reconciliation */}
+      <ReconcileForm
+        firmId={ctx.firm.id}
+        accountId={account.id}
+        reconciledBaseCents={reconWorkspace.reconciledBaseCents}
+        bookBalanceCents={recon.bookBalanceCents}
+        unreconciled={reconWorkspace.unreconciled}
+      />
+
+      {pastReconciliations.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="font-display text-lg font-medium text-forest-900 dark:text-cream-100">
+            Reconciliation history
+          </h2>
+          <div className="card overflow-x-auto">
+            <table className="w-full min-w-[520px] text-[13px]">
+              <thead className="bg-cream-50 dark:bg-forest-900/60 text-ink-700 dark:text-cream-100/85 text-left">
+                <tr>
+                  <th className="font-semibold px-4 py-2.5">Statement date</th>
+                  <th className="font-semibold px-4 py-2.5 text-right">Bank</th>
+                  <th className="font-semibold px-4 py-2.5 text-right">Cleared</th>
+                  <th className="font-semibold px-4 py-2.5 text-right">Difference</th>
+                  <th className="font-semibold px-4 py-2.5">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-ink-100 dark:divide-forest-700/40">
+                {pastReconciliations.map((r) => (
+                  <tr key={r.id}>
+                    <td className="px-4 py-2.5 text-forest-900 dark:text-cream-100">
+                      {new Date(r.statementDate).toLocaleDateString()}
+                    </td>
+                    <td className="px-4 py-2.5 text-right font-mono tabular-nums">
+                      {fmtCents(r.bankBalanceCents)}
+                    </td>
+                    <td className="px-4 py-2.5 text-right font-mono tabular-nums">
+                      {fmtCents(r.reconciledBalanceCents)}
+                    </td>
+                    <td
+                      className={`px-4 py-2.5 text-right font-mono tabular-nums ${
+                        r.differenceCents === 0
+                          ? 'text-ink-500 dark:text-cream-100/55'
+                          : 'text-amber-700 dark:text-amber-300'
+                      }`}
+                    >
+                      {fmtCents(r.differenceCents)}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <span
+                        className={`inline-flex items-center px-2 py-[2px] rounded text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ${
+                          r.status === 'balanced'
+                            ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-200 ring-emerald-200 dark:ring-emerald-700/40'
+                            : 'bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200 ring-amber-200 dark:ring-amber-700/40'
+                        }`}
+                      >
+                        {r.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       {/* Transactions ledger */}
       <section className="space-y-3">

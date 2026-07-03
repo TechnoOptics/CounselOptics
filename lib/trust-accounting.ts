@@ -65,3 +65,46 @@ export async function recordTrustTransactionAction(
   revalidatePath('/counsel/trust');
   return { ok: true, transactionId: data as string };
 }
+
+/**
+ * Record a bank-statement reconciliation: mark the checked-off
+ * transactions as cleared and store the three figures (bank ending
+ * balance, book balance, reconciled balance). Runs through the
+ * create_trust_reconciliation RPC, which re-verifies membership/role,
+ * locks the account, and stamps the cleared transactions atomically.
+ */
+export async function createTrustReconciliationAction(
+  firmId: string,
+  accountId: string,
+  input: {
+    statementDate: string;
+    bankBalanceCents: number;
+    transactionIds: string[];
+    note?: string | null;
+  },
+): Promise<{ ok: boolean; error?: string; reconciliationId?: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: 'Sign in first.' };
+  if (!input.statementDate || Number.isNaN(Date.parse(input.statementDate))) {
+    return { ok: false, error: 'Enter a valid statement date.' };
+  }
+  if (!Number.isInteger(input.bankBalanceCents)) {
+    return {
+      ok: false,
+      error: 'Bank ending balance must be a whole number of cents.',
+    };
+  }
+
+  const supabase = createServerSupabase();
+  const { data, error } = await supabase.rpc('create_trust_reconciliation', {
+    p_firm_id: firmId,
+    p_account_id: accountId,
+    p_statement_date: input.statementDate,
+    p_bank_balance_cents: input.bankBalanceCents,
+    p_transaction_ids: input.transactionIds ?? [],
+    p_note: input.note ?? null,
+  });
+  if (error) return { ok: false, error: error.message };
+  revalidatePath('/counsel/trust');
+  return { ok: true, reconciliationId: data as string };
+}

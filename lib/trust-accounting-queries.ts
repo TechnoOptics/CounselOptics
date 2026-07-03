@@ -152,3 +152,111 @@ export async function reconcileTrustAccount(
     unreconciledCount,
   };
 }
+
+export type UnreconciledEntry = {
+  id: string;
+  kind: TrustTxKind;
+  clientLabel: string;
+  /** Signed cents: positive increases the trust balance, negative decreases. */
+  signedCents: number;
+  description: string | null;
+  createdAt: string;
+};
+
+/**
+ * Data for the reconciliation form: the not-yet-cleared transactions
+ * (each with its signed amount, so the client can total the ones the
+ * operator checks off) plus the balance already cleared in prior
+ * reconciliations (the base the newly-checked items add to).
+ */
+export async function getReconciliationWorkspace(
+  firmId: string,
+  accountId: string,
+): Promise<{
+  reconciledBaseCents: number;
+  unreconciled: UnreconciledEntry[];
+}> {
+  const supabase = createServerSupabase();
+  const { data } = await supabase
+    .from('firm_trust_transactions')
+    .select('id, client_label, kind, amount_cents, description, reconciled_at, created_at')
+    .eq('firm_id', firmId)
+    .eq('account_id', accountId)
+    .order('created_at', { ascending: true });
+  const rows = (data ?? []) as Array<{
+    id: string;
+    client_label: string;
+    kind: TrustTxKind;
+    amount_cents: number;
+    description: string | null;
+    reconciled_at: string | null;
+    created_at: string;
+  }>;
+  let reconciledBaseCents = 0;
+  const unreconciled: UnreconciledEntry[] = [];
+  for (const r of rows) {
+    const sign = POSITIVE_KINDS.has(r.kind) && r.kind !== 'correction' ? 1 : -1;
+    const signedCents = sign * r.amount_cents;
+    if (r.reconciled_at) {
+      reconciledBaseCents += signedCents;
+    } else {
+      unreconciled.push({
+        id: r.id,
+        kind: r.kind,
+        clientLabel: r.client_label,
+        signedCents,
+        description: r.description,
+        createdAt: r.created_at,
+      });
+    }
+  }
+  return { reconciledBaseCents, unreconciled };
+}
+
+export type TrustReconciliation = {
+  id: string;
+  statementDate: string;
+  bankBalanceCents: number;
+  bookBalanceCents: number;
+  reconciledBalanceCents: number;
+  differenceCents: number;
+  status: 'balanced' | 'unbalanced';
+  note: string | null;
+  createdAt: string;
+};
+
+/** Past reconciliations for an account, newest statement first. */
+export async function listTrustReconciliations(
+  firmId: string,
+  accountId: string,
+): Promise<TrustReconciliation[]> {
+  const supabase = createServerSupabase();
+  const { data } = await supabase
+    .from('firm_trust_reconciliations')
+    .select('*')
+    .eq('firm_id', firmId)
+    .eq('account_id', accountId)
+    .order('statement_date', { ascending: false })
+    .limit(24);
+  return ((data ?? []) as Array<{
+    id: string;
+    statement_date: string;
+    bank_balance_cents: number;
+    book_balance_cents: number;
+    reconciled_balance_cents: number;
+    difference_cents: number;
+    status: 'balanced' | 'unbalanced';
+    note: string | null;
+    created_at: string;
+  }>).map((r) => ({
+    id: r.id,
+    statementDate: r.statement_date,
+    bankBalanceCents: r.bank_balance_cents,
+    bookBalanceCents: r.book_balance_cents,
+    reconciledBalanceCents: r.reconciled_balance_cents,
+    differenceCents: r.difference_cents,
+    status: r.status,
+    note: r.note,
+    createdAt: r.created_at,
+  }));
+}
