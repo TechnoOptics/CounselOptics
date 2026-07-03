@@ -1151,14 +1151,19 @@ export async function setFirmEmployeeRoleAction(
 export async function enterPortalPreviewAction(
   firmId: string,
   roleKey: string,
+  // 'employee' (default) previews the in-house Hub with the given
+  // portal role; 'vendor' previews the external-collaborator view.
+  // Optional + defaulted so existing 2-arg callers keep working.
+  mode: 'employee' | 'vendor' = 'employee',
 ): Promise<void> {
   await requireUser();
   if (!(await callerIsFirmAdmin(firmId))) {
     redirect('/counsel');
   }
+  const safeMode = mode === 'vendor' ? 'vendor' : 'employee';
   cookies().set(
     PORTAL_PREVIEW_COOKIE,
-    JSON.stringify({ firmId, roleKey: roleKey || '' }),
+    JSON.stringify({ firmId, roleKey: roleKey || '', mode: safeMode }),
     {
       httpOnly: true,
       sameSite: 'lax',

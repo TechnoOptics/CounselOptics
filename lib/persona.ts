@@ -10,6 +10,7 @@ import type { Firm, FirmEmployee, FirmMember } from './firm-types';
 import {
   readPortalRoles,
   resolveEntitlements,
+  VENDOR_PREVIEW_FEATURES,
   type PortalFeature,
 } from './portal-features';
 import { emailDomain, firmInternalDomains } from './access-requests';
@@ -45,6 +46,15 @@ export type WorkspacePersona =
       preview?: boolean;
       /** Role name being previewed (for the banner). */
       previewRoleName?: string;
+      /**
+       * True when the previewed persona is an EXTERNAL collaborator
+       * (vendor / counterparty / outside party) rather than an
+       * in-house employee. Only ever set in preview mode. The portal
+       * chrome uses it to relabel "Client hub" -> "Vendor workspace"
+       * and drop internal-only nav (trainings) so the owner sees what
+       * an outside party would actually see.
+       */
+      external?: boolean;
     };
 
 type EmployeeRow = {
@@ -77,13 +87,29 @@ function employeeFromRow(r: EmployeeRow): FirmEmployee {
   };
 }
 
-function readPreviewCookie(): { firmId: string; roleKey: string } | null {
+export type PreviewMode = 'employee' | 'vendor';
+
+function readPreviewCookie(): {
+  firmId: string;
+  roleKey: string;
+  mode: PreviewMode;
+} | null {
   try {
     const raw = cookies().get(PORTAL_PREVIEW_COOKIE)?.value;
     if (!raw) return null;
-    const o = JSON.parse(raw) as { firmId?: string; roleKey?: string };
+    const o = JSON.parse(raw) as {
+      firmId?: string;
+      roleKey?: string;
+      mode?: string;
+    };
     if (!o.firmId) return null;
-    return { firmId: o.firmId, roleKey: String(o.roleKey ?? '') };
+    return {
+      firmId: o.firmId,
+      roleKey: String(o.roleKey ?? ''),
+      // Legacy cookies (pre-vendor-preview) have no `mode`; treat them
+      // as the employee preview they were.
+      mode: o.mode === 'vendor' ? 'vendor' : 'employee',
+    };
   } catch {
     return null;
   }
@@ -109,11 +135,23 @@ export async function getWorkspacePersona(): Promise<WorkspacePersona> {
     );
     if (m) {
       const roles = readPortalRoles(m.firm.metadata);
+      const isVendor = preview.mode === 'vendor';
       const role = preview.roleKey
         ? roles.find((r) => r.key === preview.roleKey)
         : undefined;
       const who =
         m.membership.displayName || user.email || 'Preview';
+      // Vendor preview uses the fixed external-collaborator entitlement
+      // set and ignores portal roles (those are for employees); the
+      // employee preview resolves the chosen role like a real employee.
+      const entitlements = isVendor
+        ? [...VENDOR_PREVIEW_FEATURES]
+        : resolveEntitlements(preview.roleKey || null, roles);
+      const previewRoleName = isVendor
+        ? 'External vendor'
+        : role
+          ? role.name
+          : 'Default access';
       return {
         kind: 'employee',
         firm: m.firm,
@@ -122,16 +160,19 @@ export async function getWorkspacePersona(): Promise<WorkspacePersona> {
           firmId: m.firm.id,
           userId: user.id,
           email: user.email ?? '',
-          displayName: `${who} (preview)`,
-          department: null,
+          displayName: isVendor
+            ? 'External vendor (preview)'
+            : `${who} (preview)`,
+          department: isVendor ? 'External' : null,
           source: 'manual',
           externalId: null,
           deactivatedAt: null,
           createdAt: new Date().toISOString(),
         },
-        entitlements: resolveEntitlements(preview.roleKey || null, roles),
+        entitlements,
         preview: true,
-        previewRoleName: role ? role.name : 'Default access',
+        previewRoleName,
+        external: isVendor,
       };
     }
   }

@@ -65,6 +65,20 @@ export const DEFAULT_FEATURES: PortalFeature[] = [
 // never lock a person out of seeing their own requests.
 const ALWAYS: PortalFeature[] = ['requests.view'];
 
+// An external collaborator (vendor / counterparty / outside party) is
+// NOT an in-house employee: they receive documents to review or sign
+// and can message legal about them, but they don't file internal
+// intake requests the way staff do. This is the entitlement set used
+// by the owner/admin "preview as external vendor" test profile so the
+// previewed hub visibly differs from the employee one (no "New
+// request"). Kept here alongside the other capability sets so the
+// portal, the persona resolver, and the preview banner share it.
+export const VENDOR_PREVIEW_FEATURES: PortalFeature[] = [
+  'requests.view',
+  'requests.message',
+  'review',
+];
+
 export type PortalRole = {
   key: string;
   name: string;

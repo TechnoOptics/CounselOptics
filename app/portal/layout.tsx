@@ -82,6 +82,11 @@ export default async function PortalLayout({
 
   if (persona.kind !== 'employee') redirect('/portal');
   const { firm, employee } = persona;
+  // External-vendor preview: an outside collaborator, not in-house
+  // staff. Relabel the workspace and drop internal-only surfaces
+  // (company trainings) so the owner sees what a vendor really sees.
+  const isExternal = persona.preview === true && persona.external === true;
+  const railKicker = isExternal ? 'Vendor access' : 'Client hub';
   const who = employee.displayName || employee.email;
   const firstName = (employee.displayName || employee.email || 'there')
     .split(/[\s@.]/)[0]
@@ -115,7 +120,16 @@ export default async function PortalLayout({
   const workspace: NavItem[] = [
     { href: '/portal/documents', label: 'Documents', hint: 'Your files' },
     { href: '/portal/calendar', label: 'Calendar', hint: 'Your meetings' },
-    { href: '/portal/trainings', label: 'Trainings', hint: 'Assigned by legal' },
+    // Company trainings are for in-house staff, not outside vendors.
+    ...(isExternal
+      ? []
+      : [
+          {
+            href: '/portal/trainings',
+            label: 'Trainings',
+            hint: 'Assigned by legal',
+          },
+        ]),
     {
       href: '/portal/profile',
       label: 'Profile',
@@ -157,7 +171,7 @@ export default async function PortalLayout({
               {firm.name}
             </p>
             <p className="text-[10.5px] uppercase tracking-[0.16em] text-cream-100/40">
-              Client hub
+              {railKicker}
             </p>
           </div>
         </div>

@@ -3,6 +3,7 @@ import Image from 'next/image';
 import type { Firm, FirmMember } from '@/lib/firm-types';
 import { FIRM_ROLE_LABEL } from '@/lib/firm-types';
 import { CounselFirmSwitcher } from './CounselFirmSwitcher';
+import { PersonaSwitcher } from './PersonaSwitcher';
 import { UserMenu } from '@/components/UserMenu';
 import { TokenBalanceGauge } from '@/components/TokenBalanceGauge';
 
@@ -162,6 +163,15 @@ export function CounselHeader({
           </div>
         )}
         <div className="flex items-center gap-2">
+          {/* "View as" preview switcher - owner/admin only. Lets the
+              firm's admin see the employee Hub and the external-vendor
+              view without a second account. Never shown to regular
+              staff, so it's not an access-control surface. */}
+          {firm &&
+            (membership?.role === 'owner' ||
+              membership?.role === 'admin') && (
+              <PersonaSwitcher firmId={firm.id} />
+            )}
           {/* Firm switcher only in shared-portal mode. On a tenant
               subdomain the URL pins the firm and the switcher is
               suppressed even when the user belongs to multiple firms. */}
