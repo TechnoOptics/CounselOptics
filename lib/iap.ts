@@ -85,6 +85,24 @@ async function loadPurchases() {
  * with a new user id re-identifies via logIn so the receipt is attached
  * to the right account.
  */
+/**
+ * Re-throw with a `[step]` prefix so a caught error's displayed message
+ * pinpoints which native call failed - "The string did not match the
+ * expected pattern" on its own could come from configure(), getProducts(),
+ * or purchaseStoreProduct(), and each has a different likely cause
+ * (bad API key format, bad product id, bad receipt/StoreKit response).
+ * Temporary diagnostic aid while chasing the 2.1(b) rejection - safe to
+ * leave in permanently since it only changes error text, never behavior.
+ */
+function tagStep<T>(step: string, p: Promise<T>): Promise<T> {
+  return p.catch((err) => {
+    const message = err instanceof Error ? err.message : String(err);
+    const tagged = new Error(`[${step}] ${message}`);
+    if (err instanceof Error) tagged.stack = err.stack;
+    throw tagged;
+  });
+}
+
 async function ensureConfigured(userId: string) {
   const Purchases = await loadPurchases();
   const apiKey = process.env.NEXT_PUBLIC_REVENUECAT_IOS_KEY?.trim();
@@ -92,17 +110,23 @@ async function ensureConfigured(userId: string) {
     throw new Error('In-app purchase is not configured yet.');
   }
   if (configuredFor === null) {
-    await withTimeout(
-      Purchases.configure({ apiKey, appUserID: userId }),
-      STOREKIT_TIMEOUT_MS,
-      "Couldn't reach the App Store. Please check your connection and try again.",
+    await tagStep(
+      'configure',
+      withTimeout(
+        Purchases.configure({ apiKey, appUserID: userId }),
+        STOREKIT_TIMEOUT_MS,
+        "Couldn't reach the App Store. Please check your connection and try again.",
+      ),
     );
     configuredFor = userId;
   } else if (configuredFor !== userId) {
-    await withTimeout(
-      Purchases.logIn({ appUserID: userId }),
-      STOREKIT_TIMEOUT_MS,
-      "Couldn't reach the App Store. Please check your connection and try again.",
+    await tagStep(
+      'logIn',
+      withTimeout(
+        Purchases.logIn({ appUserID: userId }),
+        STOREKIT_TIMEOUT_MS,
+        "Couldn't reach the App Store. Please check your connection and try again.",
+      ),
     );
     configuredFor = userId;
   }
@@ -139,10 +163,13 @@ export async function purchaseTier(
     throw new Error('This plan is not available as an in-app purchase.');
   }
   const Purchases = await ensureConfigured(userId);
-  const { products } = await withTimeout(
-    Purchases.getProducts({ productIdentifiers: [productId] }),
-    STOREKIT_TIMEOUT_MS,
-    "The App Store isn't responding right now. Please try again in a moment.",
+  const { products } = await tagStep(
+    'getProducts',
+    withTimeout(
+      Purchases.getProducts({ productIdentifiers: [productId] }),
+      STOREKIT_TIMEOUT_MS,
+      "The App Store isn't responding right now. Please try again in a moment.",
+    ),
   );
   const product = products?.[0];
   if (!product) {
@@ -156,7 +183,9 @@ export async function purchaseTier(
     if ((err as { userCancelled?: boolean })?.userCancelled) {
       return { active: false, cancelled: true };
     }
-    throw err;
+    throw err instanceof Error
+      ? Object.assign(new Error(`[purchaseStoreProduct] ${err.message}`), { stack: err.stack })
+      : err;
   }
 }
 
