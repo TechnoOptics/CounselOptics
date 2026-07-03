@@ -128,6 +128,13 @@ export function CommunityEditor({
         </div>
       </div>
 
+      {communityCase.duplicateWarning && (
+        <div className="rounded-lg border border-amber-200 dark:border-amber-700/40 bg-amber-50 dark:bg-amber-950/30 px-4 py-3 text-sm text-amber-900 dark:text-amber-200">
+          <p className="font-semibold mb-0.5">Possible duplicate</p>
+          <p>{communityCase.duplicateWarning}</p>
+        </div>
+      )}
+
       <EditDetailsForm caseId={caseId} communityCase={communityCase} />
       <BannerUpload caseId={caseId} communityCase={communityCase} />
       <LinksEditor caseId={caseId} communityCaseId={communityCase.id} links={links} />

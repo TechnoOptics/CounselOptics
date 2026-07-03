@@ -65,6 +65,28 @@ async function assertOrganizerEligible() {
   return user;
 }
 
+/**
+ * Soft duplicate/impersonation signal - see the migration comment in
+ * supabase/fixes/2026-07-02-community-duplicate-detection.sql. Never
+ * throws or blocks creation; a lookup failure (e.g. RPC not yet applied
+ * in a given environment) just means no warning gets attached.
+ */
+async function findDuplicateWarning(
+  supabase: ReturnType<typeof createServerSupabase>,
+  displayName: string,
+): Promise<string | null> {
+  try {
+    const { data } = await supabase.rpc('find_similar_community_case', {
+      _display_name: displayName,
+    });
+    const match = (data as Array<{ case_number: string; display_name: string; score: number }> | null)?.[0];
+    if (!match) return null;
+    return `This name is similar to an existing case (${match.case_number}: "${match.display_name}"). If that's not the same matter, no action needed.`;
+  } catch {
+    return null;
+  }
+}
+
 function rowToCommunityCase(row: Record<string, unknown>): CommunityCase {
   return {
     id: row.id as string,
@@ -81,6 +103,7 @@ function rowToCommunityCase(row: Record<string, unknown>): CommunityCase {
     searchIndexable: Boolean(row.search_indexable),
     letterCount: (row.letter_count as number) ?? 0,
     evidenceCount: (row.evidence_count as number) ?? 0,
+    duplicateWarning: (row.duplicate_warning as string) ?? null,
     publishedAt: (row.published_at as string) ?? null,
     closedAt: (row.closed_at as string) ?? null,
     createdAt: row.created_at as string,
@@ -152,6 +175,14 @@ export async function createCommunityCaseAction(
 
     const supabase = createServerSupabase();
 
+    // Soft duplicate/impersonation signal: a close trigram match against
+    // an existing published/closed case's display name. Never blocks
+    // creation - a note for the organizer/attorney of the NEW page to
+    // read, since a false positive (two unrelated "Maria Torres" cases)
+    // is more likely than not for common names, and the whole point is a
+    // human decides, not an automatic rejection.
+    const duplicateWarning = await findDuplicateWarning(supabase, displayName);
+
     // Generate a case number + slug, retrying on the astronomically rare
     // unique-constraint collision rather than pre-checking existence
     // (avoids a check-then-insert race).
@@ -171,6 +202,7 @@ export async function createCommunityCaseAction(
           bond_amount_cents: bondAmountCents,
           hearing_display_override: hearingDisplayOverride || null,
           status: 'draft',
+          duplicate_warning: duplicateWarning,
         })
         .select('slug')
         .single();
@@ -304,6 +336,16 @@ export async function addCommunityLinkAction(
         parsed = new URL(url);
       } catch {
         return { ok: false, error: 'That link does not look like a valid URL.' };
+      }
+      // http(s) only, for every platform including 'other' - this link is
+      // rendered as a real <a href> on the public page
+      // (app/community/[slug]/page.tsx), and `new URL()` happily parses
+      // schemes like javascript: or data: (hostname comes back empty,
+      // which only the platform-specific domain checks below would have
+      // caught - 'other' has no domain check at all, so without this it
+      // would be a stored-XSS path for any organizer account).
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        return { ok: false, error: 'Links must start with http:// or https://.' };
       }
       const expectedHost: Partial<Record<CommunityCaseLinkPlatform, RegExp>> = {
         gofundme: /(^|\.)gofundme\.com$/i,

@@ -43,6 +43,11 @@ export type CommunityCase = {
   searchIndexable: boolean;
   letterCount: number;
   evidenceCount: number;
+  /** Soft duplicate/impersonation signal - set at creation time when the
+   * display name is a close trigram match to an existing published case.
+   * Organizer/attorney-only; never shown on the public page. Not a block,
+   * just a "someone should look at this" note. */
+  duplicateWarning: string | null;
   publishedAt: string | null;
   closedAt: string | null;
   createdAt: string;
