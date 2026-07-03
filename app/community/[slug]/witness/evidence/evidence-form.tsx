@@ -1,6 +1,9 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { TurnstileWidget } from '@/components/turnstile-widget';
+
+const TURNSTILE_CONFIGURED = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
 
 /**
  * Public, unauthenticated evidence/testimonial submission form. Posts
@@ -14,6 +17,7 @@ export function EvidenceForm({ slug }: { slug: string }) {
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [fileLabel, setFileLabel] = useState('');
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -22,6 +26,7 @@ export function EvidenceForm({ slug }: { slug: string }) {
     setPending(true);
     try {
       const formData = new FormData(e.currentTarget);
+      formData.set('turnstileToken', turnstileToken ?? '');
       const res = await fetch(`/api/community/${slug}/witness/evidence`, {
         method: 'POST',
         body: formData,
@@ -33,6 +38,7 @@ export function EvidenceForm({ slug }: { slug: string }) {
       setDone(true);
       formRef.current?.reset();
       setFileLabel('');
+      setTurnstileToken(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not submit. Please try again.');
     } finally {
@@ -136,9 +142,15 @@ export function EvidenceForm({ slug }: { slug: string }) {
         </p>
       </div>
 
+      <TurnstileWidget onToken={setTurnstileToken} />
+
       {error && <p className="text-sm text-rose-700 dark:text-rose-300">{error}</p>}
 
-      <button type="submit" className="btn-primary w-full justify-center" disabled={pending}>
+      <button
+        type="submit"
+        className="btn-primary w-full justify-center"
+        disabled={pending || (TURNSTILE_CONFIGURED && !turnstileToken)}
+      >
         {pending ? 'Submitting…' : 'Submit privately'}
       </button>
       <p className="text-xs text-ink-500 dark:text-cream-100/55 text-center leading-relaxed">

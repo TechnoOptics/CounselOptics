@@ -2,6 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useStepAnchor } from '@/lib/use-step-anchor';
+import { TurnstileWidget } from '@/components/turnstile-widget';
+
+const TURNSTILE_CONFIGURED = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
 
 type Mode = 'draw' | 'type';
 type Step = 'compose' | 'disclosure' | 'sign' | 'id' | 'done';
@@ -52,6 +55,7 @@ export function LetterForm({ slug }: { slug: string }) {
   // ID-step state.
   const [idFront, setIdFront] = useState<File | null>(null);
   const [idBack, setIdBack] = useState<File | null>(null);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
 
   useEffect(() => {
     if (step !== 'sign') return;
@@ -189,6 +193,10 @@ export function LetterForm({ slug }: { slug: string }) {
       setError('Your signature was lost - please go back and sign again.');
       return;
     }
+    if (TURNSTILE_CONFIGURED && !turnstileToken) {
+      setError('Please complete the verification challenge before submitting.');
+      return;
+    }
     setError(null);
     setSubmitting(true);
     try {
@@ -205,6 +213,7 @@ export function LetterForm({ slug }: { slug: string }) {
       formData.set('intentAffirmedAt', new Date().toISOString());
       formData.set('idFront', idFront);
       formData.set('idBack', idBack);
+      formData.set('turnstileToken', turnstileToken ?? '');
 
       const res = await fetch(`/api/community/${slug}/witness/letter`, {
         method: 'POST',
@@ -470,13 +479,20 @@ export function LetterForm({ slug }: { slug: string }) {
       <IdCapture label="Front of ID" file={idFront} onChange={setIdFront} />
       <IdCapture label="Back of ID" file={idBack} onChange={setIdBack} />
 
+      <TurnstileWidget onToken={setTurnstileToken} />
+
       {error && <p className="text-sm text-rose-700 dark:text-rose-300">{error}</p>}
 
       <div className="flex items-center justify-between">
         <button type="button" onClick={() => setStep('sign')} className="btn-ghost text-sm">
           Back
         </button>
-        <button type="button" onClick={submit} disabled={submitting || !idFront || !idBack} className="btn-primary">
+        <button
+          type="button"
+          onClick={submit}
+          disabled={submitting || !idFront || !idBack || (TURNSTILE_CONFIGURED && !turnstileToken)}
+          className="btn-primary"
+        >
           {submitting ? 'Submitting…' : 'Submit letter'}
         </button>
       </div>

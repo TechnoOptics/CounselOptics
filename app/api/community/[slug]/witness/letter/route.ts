@@ -4,6 +4,7 @@ import { createAdminSupabase } from '@/lib/supabase/admin';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { validateIdPhoto } from '@/lib/upload-safety';
 import { appendWitnessEvent } from '@/lib/witness-audit';
+import { verifyTurnstileToken } from '@/lib/turnstile';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -99,6 +100,14 @@ export async function POST(
     formData = await req.formData();
   } catch {
     return NextResponse.json({ error: 'Invalid form submission.' }, { status: 400 });
+  }
+
+  const turnstileCheck = await verifyTurnstileToken(
+    String(formData.get('turnstileToken') ?? ''),
+    ip,
+  );
+  if (!turnstileCheck.ok) {
+    return NextResponse.json({ error: turnstileCheck.error }, { status: 400 });
   }
 
   const fullName = String(formData.get('fullName') ?? '').trim();
