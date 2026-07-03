@@ -1469,7 +1469,10 @@ function subscriptionFromRow(r: SubscriptionRow): Subscription {
  * write needed.
  */
 const COMP_EMAILS: ReadonlySet<string> = new Set([
-  'contact@technooptics.com',
+  // TEMPORARILY removed to test the Apple IAP fix end-to-end in the iOS
+  // Simulator (comp accounts never see a Subscribe button) - see
+  // commit 93e7880. MUST be restored before this deploys long-term.
+  // 'contact@technooptics.com',
   'contact@advottic.com',
   // App Store / Play review sandbox account. Comped so the reviewer
   // always has full Pro access and never hits the trial paywall or a
