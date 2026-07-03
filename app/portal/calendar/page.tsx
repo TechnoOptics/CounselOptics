@@ -4,6 +4,7 @@ import { createAdminSupabase } from '@/lib/supabase/admin';
 import { getWorkspacePersona } from '@/lib/persona';
 import { LocaleTime } from '@/components/LocaleTime';
 import { ExternalLink } from '@/components/ExternalLink';
+import { parseDueBy, isDueCurrent } from '@/lib/portal-due';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Calendar · Hub' };
@@ -34,10 +35,8 @@ export default async function HubCalendarPage() {
     const now = Date.now();
     for (const r of rows) {
       if (r.status === 'rejected') continue;
-      const due = Date.parse(
-        String((r.intake_answers ?? {}).due_by ?? '').trim(),
-      );
-      if (!Number.isNaN(due) && due >= now - 86_400_000) {
+      const due = parseDueBy(r.intake_answers);
+      if (due !== null && isDueCurrent(due, now)) {
         items.push({
           at: due,
           kind: 'due',

@@ -5,6 +5,7 @@ import { createAdminSupabase } from '@/lib/supabase/admin';
 import { getWorkspacePersona } from '@/lib/persona';
 import { LocaleTime } from '@/components/LocaleTime';
 import { ExternalLink } from '@/components/ExternalLink';
+import { parseDueBy, isDueCurrent } from '@/lib/portal-due';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Home · Hub' };
@@ -72,20 +73,13 @@ export default async function PortalDashboardPage() {
     const last = t[t.length - 1] as { role?: string };
     return last?.role ?? null;
   };
-  const dueOf = (r: IntakeRow): number | null => {
-    const v = String((r.intake_answers ?? {}).due_by ?? '').trim();
-    if (!v) return null;
-    const ms = Date.parse(v);
-    return Number.isNaN(ms) ? null : ms;
-  };
-
   const active = intakes.filter((r) => ACTIVE(r.status));
   const awaitingYou = active.filter((r) => lastRole(r) === 'legal');
   const dueSoon = active
-    .map((r) => ({ r, due: dueOf(r) }))
+    .map((r) => ({ r, due: parseDueBy(r.intake_answers) }))
     .filter(
       (x): x is { r: IntakeRow; due: number } =>
-        x.due !== null && x.due >= now - 86_400_000,
+        x.due !== null && isDueCurrent(x.due, now),
     )
     .sort((a, b) => a.due - b.due);
   const upcomingMeetings = meetings.filter(

@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState, useTransition } from 'react';
+import { useState, useTransition } from 'react';
+import { Dialog } from '@/components/Dialog';
 import {
   COUNSEL_TILES,
   COUNSEL_TILE_CATEGORIES,
@@ -32,27 +33,6 @@ export function DashboardCustomizer({
   const [enabled, setEnabled] = useState<CounselTileId[]>(initialEnabled);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const dialogRef = useRef<HTMLDivElement | null>(null);
-
-  // Close on Escape + click-outside, classic popover behavior.
-  useEffect(() => {
-    if (!open) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false);
-    }
-    function onClick(e: MouseEvent) {
-      if (!dialogRef.current) return;
-      if (e.target instanceof Node && !dialogRef.current.contains(e.target)) {
-        setOpen(false);
-      }
-    }
-    window.addEventListener('keydown', onKey);
-    window.addEventListener('mousedown', onClick);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      window.removeEventListener('mousedown', onClick);
-    };
-  }, [open]);
 
   const visibleCatalog = COUNSEL_TILES.filter(
     (t) => isAdmin || !t.adminOnly,
@@ -110,12 +90,12 @@ export function DashboardCustomizer({
       </button>
 
       {open && (
-        <div
-          ref={dialogRef}
-          role="dialog"
-          aria-label="Customize dashboard"
-          className="absolute right-0 top-full mt-2 z-30 w-[min(28rem,calc(100vw-2rem))] card p-4 shadow-2xl ring-1 ring-cream-100/10 max-h-[70vh] overflow-y-auto"
+        <Dialog
+          onClose={() => setOpen(false)}
+          ariaLabel="Customize dashboard"
+          size="sm"
         >
+          <div className="p-4">
           <div className="flex items-start justify-between gap-3 pb-3 border-b border-forest-700/40">
             <div>
               <p className="font-display text-base font-medium text-cream-100">
@@ -282,7 +262,8 @@ export function DashboardCustomizer({
               </button>
             </div>
           </div>
-        </div>
+          </div>
+        </Dialog>
       )}
     </div>
   );

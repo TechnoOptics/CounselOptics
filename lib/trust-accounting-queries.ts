@@ -42,7 +42,7 @@ export type TrustTransaction = {
 
 export async function listTrustTransactions(
   firmId: string,
-  filter?: { caseId?: string; clientUserId?: string },
+  filter?: { caseId?: string; clientUserId?: string; accountId?: string },
 ): Promise<TrustTransaction[]> {
   const supabase = createServerSupabase();
   let q = supabase
@@ -50,6 +50,7 @@ export async function listTrustTransactions(
     .select('*')
     .eq('firm_id', firmId)
     .order('created_at', { ascending: false });
+  if (filter?.accountId) q = q.eq('account_id', filter.accountId);
   if (filter?.caseId) q = q.eq('case_id', filter.caseId);
   if (filter?.clientUserId) q = q.eq('client_user_id', filter.clientUserId);
   const { data } = await q;

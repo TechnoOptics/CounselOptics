@@ -518,8 +518,14 @@ export async function inviteFirmMemberAction(
   if (!FIRM_ROLES.includes(role) || role === 'owner') {
     return { ok: false, error: 'Invalid role.' };
   }
+  // Defense in depth: the firm_invitations RLS insert policy already
+  // requires an owner/admin, but check in-code too so authorization
+  // never rests on a single (untracked) policy - and so we return a
+  // clean error instead of a raw RLS violation.
+  if (!(await callerIsFirmAdmin(firmId))) {
+    return { ok: false, error: 'Only firm owners and admins can invite members.' };
+  }
   const supabase = createServerSupabase();
-  // RLS gates the insert: only owner/admin can write.
   const token = newToken(32);
   const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
   const { data: firm } = await supabase

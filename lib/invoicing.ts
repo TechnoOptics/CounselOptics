@@ -36,6 +36,31 @@ export type InvoiceLine = {
   amountCents: number;
 };
 
+/**
+ * Confirm the caller is a posting-role member (owner/admin/attorney)
+ * of the given firm. Defense in depth alongside firm_invoices RLS, so
+ * invoice mutations don't rely on a single (untracked) policy.
+ */
+async function assertInvoicePoster(
+  supabase: ReturnType<typeof createServerSupabase>,
+  firmId: string,
+  userId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { data: member } = await supabase
+    .from('firm_members')
+    .select('role')
+    .eq('firm_id', firmId)
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (!member) return { ok: false, error: 'You are not a member of that firm.' };
+  if (
+    !['owner', 'admin', 'attorney'].includes((member as { role: string }).role)
+  ) {
+    return { ok: false, error: 'Your role cannot manage invoices.' };
+  }
+  return { ok: true };
+}
+
 export async function buildDraftInvoiceAction(
   firmId: string,
   caseId: string,
@@ -178,6 +203,12 @@ export async function sendInvoiceAction(
     currency: string;
     status: string;
   };
+  // Defense in depth: the firm_invoices RLS write policy already
+  // requires an owner/admin/attorney member of this firm, but don't
+  // rely on RLS alone - check membership + role in-code too, matching
+  // buildDraftInvoiceAction.
+  const sendAuth = await assertInvoicePoster(supabase, invoice.firm_id, user.id);
+  if (!sendAuth.ok) return sendAuth;
   if (invoice.status !== 'draft') {
     return { ok: false, error: 'Only draft invoices can be sent.' };
   }
@@ -261,6 +292,8 @@ export async function markInvoicePaidAction(
     number: string;
     total_cents: number;
   };
+  const paidAuth = await assertInvoicePoster(supabase, invoice.firm_id, user.id);
+  if (!paidAuth.ok) return paidAuth;
   if (invoice.status === 'paid') return { ok: true };
 
   await supabase

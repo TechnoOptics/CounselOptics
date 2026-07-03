@@ -32,6 +32,12 @@ export default async function HubDocumentsPage() {
       .eq('created_by', user.id)
       .order('created_at', { ascending: false })
       .limit(100);
+    // Flatten every attachment across every request first, then sign
+    // all paths in ONE storage call. The old per-attachment await made
+    // this page's latency scale linearly with the employee's document
+    // count (an N+1 round-trip per file).
+    const entries: Array<{ att: Att; requestId: string; requestName: string }> =
+      [];
     for (const r of (data ?? []) as Array<{
       id: string;
       client_name: string;
@@ -41,23 +47,35 @@ export default async function HubDocumentsPage() {
       if (!Array.isArray(atts)) continue;
       for (const a of atts as Att[]) {
         if (!a?.path) continue;
-        let url: string | null = null;
-        try {
-          const { data: signed } = await admin.storage
-            .from('firm-documents')
-            .createSignedUrl(a.path, 60 * 30);
-          url = signed?.signedUrl ?? null;
-        } catch {
-          url = null;
-        }
-        docs.push({
-          name: a.name || 'Document',
-          url,
-          requestId: r.id,
-          requestName: r.client_name,
-          size: a.size,
-        });
+        entries.push({ att: a, requestId: r.id, requestName: r.client_name });
       }
+    }
+
+    const urlByPath = new Map<string, string>();
+    if (entries.length > 0) {
+      try {
+        const { data: signed } = await admin.storage
+          .from('firm-documents')
+          .createSignedUrls(
+            entries.map((e) => e.att.path),
+            60 * 30,
+          );
+        for (const s of signed ?? []) {
+          if (s.path && s.signedUrl) urlByPath.set(s.path, s.signedUrl);
+        }
+      } catch {
+        /* leave urls null - the row still renders without a link */
+      }
+    }
+
+    for (const e of entries) {
+      docs.push({
+        name: e.att.name || 'Document',
+        url: urlByPath.get(e.att.path) ?? null,
+        requestId: e.requestId,
+        requestName: e.requestName,
+        size: e.att.size,
+      });
     }
   }
 

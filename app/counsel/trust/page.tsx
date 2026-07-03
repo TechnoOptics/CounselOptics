@@ -39,7 +39,11 @@ function fmtCents(cents: number) {
   });
 }
 
-export default async function CounselTrustPage() {
+export default async function CounselTrustPage({
+  searchParams,
+}: {
+  searchParams?: { account?: string };
+}) {
   const ctx = await getActiveFirmContext();
   if (!ctx) redirect('/counsel');
   const supabase = createServerSupabase();
@@ -80,10 +84,12 @@ export default async function CounselTrustPage() {
               upload step when it ships.
             */}
             IOLTA-style ledger of every dollar held for a client. Every state
-            bar requires per-matter ledgers, three-way reconciliation between
-            your matter ledger, your firm&rsquo;s general ledger, and the bank
-            statement you upload monthly, plus per-client statements. Add
-            your first trust account below to start.
+            bar requires per-matter ledgers and per-client statements, and a
+            regular reconciliation against your bank statement. Advottic tracks
+            the book side - per-matter and per-client balances - so you always
+            know what should be on deposit; you reconcile that against your
+            actual bank statement each period. Add your first trust account
+            below to start.
           </p>
         </header>
         <CreateAccountForm firmId={ctx.firm.id} />
@@ -91,10 +97,16 @@ export default async function CounselTrustPage() {
     );
   }
 
-  // Pick the first account for the dashboard view (most firms have one).
-  const account = accounts[0];
+  // Select the account from the URL (?account=), defaulting to the
+  // first. Everything below - reconciliation and the ledger - is scoped
+  // to this one account so a multi-account firm never sees one account's
+  // header over another account's numbers.
+  const account =
+    accounts.find((a) => a.id === searchParams?.account) ?? accounts[0];
   const recon = await reconcileTrustAccount(ctx.firm.id, account.id);
-  const transactions = await listTrustTransactions(ctx.firm.id);
+  const transactions = await listTrustTransactions(ctx.firm.id, {
+    accountId: account.id,
+  });
 
   return (
     <div className="space-y-8 animate-fade-up">
@@ -111,11 +123,25 @@ export default async function CounselTrustPage() {
           </p>
         </div>
         {accounts.length > 1 && (
-          <p className="text-[11.5px] text-ink-500 dark:text-cream-100/55">
-            {accounts.length - 1} additional account
-            {accounts.length === 2 ? '' : 's'} - add UI for multiple accounts
-            in a follow-up.
-          </p>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {accounts.map((a) => {
+              const active = a.id === account.id;
+              return (
+                <Link
+                  key={a.id}
+                  href={`/counsel/trust?account=${a.id}`}
+                  aria-current={active ? 'page' : undefined}
+                  className={`inline-flex items-center min-h-[36px] px-3 rounded-lg text-[12px] font-medium ring-1 transition-colors ${
+                    active
+                      ? 'bg-forest-900 text-cream-100 ring-forest-900 dark:bg-cream-100 dark:text-forest-950 dark:ring-cream-100'
+                      : 'text-ink-600 dark:text-cream-100/70 ring-ink-200 dark:ring-forest-700/40 hover:bg-cream-50 dark:hover:bg-forest-800/30'
+                  }`}
+                >
+                  {a.name}
+                </Link>
+              );
+            })}
+          </div>
         )}
       </header>
 
