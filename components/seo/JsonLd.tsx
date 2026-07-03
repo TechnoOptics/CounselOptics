@@ -212,11 +212,11 @@ export function AppJsonLd({
       {
         '@type': 'Offer',
         name: 'Personal Plus',
-        price: '39',
+        price: '29',
         priceCurrency: 'USD',
         priceSpecification: {
           '@type': 'UnitPriceSpecification',
-          price: '39',
+          price: '29',
           priceCurrency: 'USD',
           unitText: 'MONTH',
         },
