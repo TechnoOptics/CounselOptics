@@ -148,10 +148,15 @@ export function CalendarBoard({
             Today
           </button>
         </div>
-        <div className="inline-flex rounded-md ring-1 ring-ink-200 dark:ring-forest-700/60 overflow-hidden text-[12px]">
+        <div
+          className="inline-flex rounded-md ring-1 ring-ink-200 dark:ring-forest-700/60 overflow-hidden text-[12px]"
+          role="group"
+          aria-label="Calendar view"
+        >
           <button
             type="button"
             onClick={() => setView('month')}
+            aria-pressed={view === 'month'}
             className={`px-3 py-1.5 ${view === 'month' ? 'bg-forest-900 text-white dark:bg-gold-metal dark:text-forest-950' : 'text-ink-700 dark:text-cream-100/85'}`}
           >
             Month
@@ -159,6 +164,7 @@ export function CalendarBoard({
           <button
             type="button"
             onClick={() => setView('agenda')}
+            aria-pressed={view === 'agenda'}
             className={`px-3 py-1.5 ${view === 'agenda' ? 'bg-forest-900 text-white dark:bg-gold-metal dark:text-forest-950' : 'text-ink-700 dark:text-cream-100/85'}`}
           >
             Agenda

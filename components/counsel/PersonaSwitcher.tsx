@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { enterPortalPreviewAction } from '@/lib/firm-actions';
 
 /**
@@ -25,6 +25,16 @@ import { enterPortalPreviewAction } from '@/lib/firm-actions';
 export function PersonaSwitcher({ firmId }: { firmId: string }) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
+
+  // Close the menu on Escape (keyboard a11y for the popup).
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open]);
 
   function preview(mode: 'employee' | 'vendor') {
     setOpen(false);
