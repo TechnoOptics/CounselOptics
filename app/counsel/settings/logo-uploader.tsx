@@ -2,6 +2,7 @@
 
 import { uploadFirmLogoAction, removeFirmLogoAction } from '@/lib/firm-actions';
 import { FirmBrandingImageUploader } from '@/components/FirmBrandingImageUploader';
+import { useT } from '@/components/i18n/LocaleProvider';
 
 /**
  * Upload the firm's logo (PNG/JPG/WebP/SVG, <=3MB) to the public
@@ -15,6 +16,7 @@ export function LogoUploader({
   firmId: string;
   currentUrl: string;
 }) {
+  const t = useT();
   return (
     <FirmBrandingImageUploader
       firmId={firmId}
@@ -23,10 +25,10 @@ export function LogoUploader({
       uploadAction={uploadFirmLogoAction}
       removeAction={removeFirmLogoAction}
       accept="image/png,image/jpeg,image/webp,image/svg+xml"
-      sizeLabel="PNG, JPG, WebP, or SVG - max 3 MB"
-      label="Logo"
-      alt="Firm logo"
-      emptyLabel="None"
+      sizeLabel={t('PNG, JPG, WebP, or SVG - max 3 MB')}
+      label={t('Logo')}
+      alt={t('Firm logo')}
+      emptyLabel={t('None')}
       variant="square"
     />
   );

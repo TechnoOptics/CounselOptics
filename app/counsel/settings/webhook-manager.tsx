@@ -8,6 +8,7 @@ import {
   setFirmWebhookActiveAction,
   type FirmWebhookConfig,
 } from '@/lib/firm-actions';
+import { T, useT } from '@/components/i18n/LocaleProvider';
 
 /**
  * Outbound-webhook manager for the firm settings page.
@@ -32,6 +33,7 @@ export function WebhookManager({
   firmId: string;
   initialWebhooks: FirmWebhookConfig[];
 }) {
+  const t = useT();
   const router = useRouter();
   const [webhooks, setWebhooks] = useState(initialWebhooks);
   const [pending, startTransition] = useTransition();
@@ -48,7 +50,7 @@ export function WebhookManager({
     startTransition(async () => {
       const res = await createFirmWebhookAction(firmId, formData);
       if (!res.ok) {
-        setError(res.error ?? 'Could not save webhook.');
+        setError(res.error ?? t('Could not save webhook.'));
         return;
       }
       router.refresh();
@@ -79,7 +81,7 @@ export function WebhookManager({
     <div className="space-y-4">
       {webhooks.length === 0 && !showAdd && (
         <p className="text-sm text-ink-600 dark:text-cream-100/65 italic">
-          No outbound webhooks yet.
+          <T>No outbound webhooks yet.</T>
         </p>
       )}
 
@@ -108,7 +110,7 @@ export function WebhookManager({
                           : 'bg-ink-100 text-ink-600 dark:bg-forest-800/50 dark:text-cream-100/55'
                       }`}
                     >
-                      {w.isActive ? 'Active' : 'Paused'}
+                      {w.isActive ? <T>Active</T> : <T>Paused</T>}
                     </span>
                   </div>
                   <p className="font-mono text-[11.5px] text-ink-500 dark:text-cream-100/55 mt-1 break-all">
@@ -124,7 +126,7 @@ export function WebhookManager({
                         disabled={pending}
                         className="rounded-md bg-rose-600 text-white inline-flex items-center min-h-[40px] px-3 hover:bg-rose-700 disabled:opacity-50"
                       >
-                        Confirm delete
+                        <T>Confirm delete</T>
                       </button>
                       <button
                         type="button"
@@ -132,7 +134,7 @@ export function WebhookManager({
                         disabled={pending}
                         className="rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 inline-flex items-center min-h-[40px] px-3 hover:bg-cream-50 dark:hover:bg-forest-800/30 disabled:opacity-50"
                       >
-                        Cancel
+                        <T>Cancel</T>
                       </button>
                     </>
                   ) : (
@@ -143,7 +145,7 @@ export function WebhookManager({
                         disabled={pending}
                         className="rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 inline-flex items-center min-h-[40px] px-3 hover:bg-cream-50 dark:hover:bg-forest-800/30 disabled:opacity-50"
                       >
-                        {w.isActive ? 'Pause' : 'Resume'}
+                        {w.isActive ? <T>Pause</T> : <T>Resume</T>}
                       </button>
                       <button
                         type="button"
@@ -151,7 +153,7 @@ export function WebhookManager({
                         disabled={pending}
                         className="rounded-md ring-1 ring-rose-200 dark:ring-rose-900/40 text-rose-700 dark:text-rose-300 inline-flex items-center min-h-[40px] px-3 hover:bg-rose-50 dark:hover:bg-rose-950/30 disabled:opacity-50"
                       >
-                        Delete
+                        <T>Delete</T>
                       </button>
                     </>
                   )}
@@ -159,23 +161,27 @@ export function WebhookManager({
               </div>
               <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-ink-500 dark:text-cream-100/55">
                 <span>
-                  Body echo:{' '}
+                  <T>Body echo:</T>{' '}
                   <span className="font-semibold text-ink-700 dark:text-cream-100/85">
-                    {w.includeBody ? 'Full message' : 'Metadata only'}
+                    {w.includeBody ? <T>Full message</T> : <T>Metadata only</T>}
                   </span>
                 </span>
                 {w.channelFilter && (
                   <span>
-                    Scope:{' '}
+                    <T>Scope:</T>{' '}
                     <span className="font-mono">
-                      channel {w.channelFilter.slice(0, 8)}…
+                      <T>channel</T> {w.channelFilter.slice(0, 8)}…
                     </span>
                   </span>
                 )}
-                {!w.channelFilter && <span>Scope: All channels</span>}
+                {!w.channelFilter && (
+                  <span>
+                    <T>Scope:</T> <T>All channels</T>
+                  </span>
+                )}
                 {w.lastFiredAt && (
                   <span>
-                    Last fired:{' '}
+                    <T>Last fired:</T>{' '}
                     {new Date(w.lastFiredAt).toLocaleString('en-US')}
                   </span>
                 )}
@@ -199,7 +205,7 @@ export function WebhookManager({
           }}
           className="btn-secondary text-sm"
         >
-          + Add webhook
+          + <T>Add webhook</T>
         </button>
       )}
 
@@ -211,26 +217,28 @@ export function WebhookManager({
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="text-sm space-y-1">
               <span className="font-semibold text-forest-900 dark:text-cream-100">
-                Where does it post?
+                <T>Where does it post?</T>
               </span>
               <select
                 name="kind"
                 required
                 className="block w-full rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 bg-white dark:bg-forest-950/60 px-2.5 py-1.5 text-sm"
               >
-                <option value="slack">Slack (Incoming Webhook)</option>
-                <option value="teams">Microsoft Teams (Incoming Webhook)</option>
-                <option value="generic">Generic JSON endpoint</option>
+                <option value="slack"><T>Slack (Incoming Webhook)</T></option>
+                <option value="teams">
+                  <T>Microsoft Teams (Incoming Webhook)</T>
+                </option>
+                <option value="generic"><T>Generic JSON endpoint</T></option>
               </select>
             </label>
             <label className="text-sm space-y-1">
               <span className="font-semibold text-forest-900 dark:text-cream-100">
-                Label (optional)
+                <T>Label (optional)</T>
               </span>
               <input
                 name="label"
                 type="text"
-                placeholder="e.g. #legal-ops Slack"
+                placeholder={t('e.g. #legal-ops Slack')}
                 maxLength={60}
                 className="block w-full rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 bg-white dark:bg-forest-950/60 px-2.5 py-1.5 text-sm"
               />
@@ -238,7 +246,7 @@ export function WebhookManager({
           </div>
           <label className="text-sm space-y-1 block">
             <span className="font-semibold text-forest-900 dark:text-cream-100">
-              Webhook URL (https://&hellip;)
+              <T>Webhook URL (https://&hellip;)</T>
             </span>
             <input
               name="url"
@@ -248,8 +256,10 @@ export function WebhookManager({
               className="block w-full rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 bg-white dark:bg-forest-950/60 px-2.5 py-1.5 text-sm font-mono"
             />
             <span className="block text-[11px] text-ink-500 dark:text-cream-100/55">
-              Slack: Apps &rarr; Incoming Webhooks &rarr; Add to Workspace.
-              Teams: Channel &rarr; Connectors &rarr; Incoming Webhook.
+              <T>
+                Slack: Apps &rarr; Incoming Webhooks &rarr; Add to Workspace.
+                Teams: Channel &rarr; Connectors &rarr; Incoming Webhook.
+              </T>
             </span>
           </label>
           <label className="text-sm inline-flex items-center gap-2">
@@ -259,8 +269,10 @@ export function WebhookManager({
               className="h-4 w-4 rounded ring-1 ring-ink-200"
             />
             <span>
-              Include full message body (leave off for privileged-content
-              channels)
+              <T>
+                Include full message body (leave off for privileged-content
+                channels)
+              </T>
             </span>
           </label>
           {error && (
@@ -274,7 +286,7 @@ export function WebhookManager({
               disabled={pending}
               className="btn-primary text-sm"
             >
-              {pending ? 'Saving…' : 'Save webhook'}
+              {pending ? <T>Saving…</T> : <T>Save webhook</T>}
             </button>
             <button
               type="button"
@@ -284,7 +296,7 @@ export function WebhookManager({
               }}
               className="btn-ghost text-sm"
             >
-              Cancel
+              <T>Cancel</T>
             </button>
           </div>
         </form>

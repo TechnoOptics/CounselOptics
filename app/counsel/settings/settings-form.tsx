@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { updateFirmAction } from '@/lib/firm-actions';
 import { LogoUploader } from './logo-uploader';
 import { LetterheadUploader } from './letterhead-uploader';
+import { T, useT } from '@/components/i18n/LocaleProvider';
 
 export function SettingsForm({
   firmId,
@@ -23,6 +24,7 @@ export function SettingsForm({
     portalTagline: string;
   };
 }) {
+  const t = useT();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -40,7 +42,7 @@ export function SettingsForm({
         setOk(true);
         router.refresh();
       } else {
-        setError(res.error ?? 'Could not save.');
+        setError(res.error ?? t('Could not save.'));
       }
     });
   }
@@ -56,7 +58,7 @@ export function SettingsForm({
       <form action={submit} className="space-y-5">
         <div>
           <label className="label" htmlFor="name">
-            Firm name
+            <T>Firm name</T>
           </label>
           <input
             id="name"
@@ -71,9 +73,9 @@ export function SettingsForm({
 
         <div>
           <label className="label" htmlFor="brandName">
-            Product name{' '}
+            <T>Product name</T>{' '}
             <span className="text-ink-500 dark:text-cream-100/70 font-normal">
-              (shown in the header + footer)
+              <T>(shown in the header + footer)</T>
             </span>
           </label>
           <input
@@ -89,9 +91,9 @@ export function SettingsForm({
 
         <div>
           <label className="label" htmlFor="portalTagline">
-            Employee portal tagline{' '}
+            <T>Employee portal tagline</T>{' '}
             <span className="text-ink-500 dark:text-cream-100/70 font-normal">
-              (optional)
+              <T>(optional)</T>
             </span>
           </label>
           <input
@@ -100,7 +102,7 @@ export function SettingsForm({
             defaultValue={defaultValues.portalTagline}
             className="input"
             maxLength={160}
-            placeholder="How can legal help you today?"
+            placeholder={t('How can legal help you today?')}
             disabled={pending}
           />
         </div>
@@ -108,7 +110,7 @@ export function SettingsForm({
         <div className="grid sm:grid-cols-[1fr,auto] gap-3 items-end">
           <div>
             <label className="label" htmlFor="accentColor">
-              Accent color (hex)
+              <T>Accent color (hex)</T>
             </label>
             <input
               id="accentColor"
@@ -146,21 +148,27 @@ export function SettingsForm({
           />
           <span>
             <span className="block text-sm font-medium text-forest-900 dark:text-cream-100">
-              Use only our logo (hide the Advottic logo)
+              <T>Use only our logo (hide the Advottic logo)</T>
             </span>
             <span className="block text-[12px] text-ink-500 dark:text-cream-100/55 mt-0.5 leading-relaxed">
-              {hasLogo
-                ? 'The header and portal lead with your logo and name. The Advottic wordmark and "powered by" mark are removed for everyone in your workspace.'
-                : 'Upload a logo above to enable full white-label branding.'}
+              {hasLogo ? (
+                <T>
+                  The header and portal lead with your logo and name. The
+                  Advottic wordmark and &quot;powered by&quot; mark are removed
+                  for everyone in your workspace.
+                </T>
+              ) : (
+                <T>Upload a logo above to enable full white-label branding.</T>
+              )}
             </span>
           </span>
         </label>
 
         <div>
           <label className="label" htmlFor="jurisdictions">
-            Jurisdictions{' '}
+            <T>Jurisdictions</T>{' '}
             <span className="text-ink-500 dark:text-cream-100/70 font-normal">
-              (comma-separated)
+              <T>(comma-separated)</T>
             </span>
           </label>
           <input
@@ -173,9 +181,9 @@ export function SettingsForm({
         </div>
         <div>
           <label className="label" htmlFor="practiceAreas">
-            Practice areas{' '}
+            <T>Practice areas</T>{' '}
             <span className="text-ink-500 dark:text-cream-100/70 font-normal">
-              (comma-separated)
+              <T>(comma-separated)</T>
             </span>
           </label>
           <input
@@ -188,7 +196,7 @@ export function SettingsForm({
         </div>
         <div className="flex justify-end gap-2 pt-2">
           <button type="submit" className="btn-primary" disabled={pending}>
-            {pending ? 'Saving...' : 'Save changes'}
+            {pending ? <T>Saving...</T> : <T>Save changes</T>}
           </button>
         </div>
         {error && (
@@ -198,7 +206,7 @@ export function SettingsForm({
         )}
         {ok && (
           <p className="rounded-lg border border-emerald-200 dark:border-emerald-700/40 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-2 text-sm text-emerald-900 dark:text-emerald-100">
-            Saved.
+            <T>Saved.</T>
           </p>
         )}
       </form>

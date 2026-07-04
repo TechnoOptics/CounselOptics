@@ -11,6 +11,7 @@ import {
   EMPTY_MENU_CONFIG,
   type MenuConfig,
 } from '@/lib/menu-config';
+import { T, useT } from '@/components/i18n/LocaleProvider';
 
 /**
  * Owner/admin: tailor the Counsel sidebar to this org - hide items
@@ -25,6 +26,7 @@ export function MenuCustomizer({
   firmId: string;
   initial: MenuConfig;
 }) {
+  const t = useT();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [cfg, setCfg] = useState<MenuConfig>(initial);
@@ -123,7 +125,7 @@ export function MenuCustomizer({
         setOk(true);
         router.refresh();
       } else {
-        setError(res.error ?? 'Could not save the menu.');
+        setError(res.error ?? t('Could not save the menu.'));
       }
     });
   }
@@ -136,7 +138,7 @@ export function MenuCustomizer({
         setOk(true);
         router.refresh();
       } else {
-        setError(res.error ?? 'Could not reset.');
+        setError(res.error ?? t('Could not reset.'));
       }
     });
   }
@@ -144,15 +146,17 @@ export function MenuCustomizer({
   return (
     <section className="card p-6 space-y-4">
       <div>
-        <p className="eyebrow mb-1">Menu &amp; navigation</p>
+        <p className="eyebrow mb-1"><T>Menu &amp; navigation</T></p>
         <h2 className="font-display text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
-          Tailor the sidebar to your team
+          <T>Tailor the sidebar to your team</T>
         </h2>
         <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-          Hide what you don&rsquo;t use, rename items to your own
-          terms, and reorder items or whole sections. Changes apply to
-          everyone on the legal team. (Firm settings always stays
-          visible so you can get back here.)
+          <T>
+            Hide what you don&rsquo;t use, rename items to your own terms, and
+            reorder items or whole sections. Changes apply to everyone on the
+            legal team. (Firm settings always stays visible so you can get back
+            here.)
+          </T>
         </p>
       </div>
 
@@ -240,7 +244,7 @@ export function MenuCustomizer({
       )}
       {ok && (
         <p className="rounded-lg border border-emerald-200 dark:border-emerald-700/40 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-2 text-sm text-emerald-900 dark:text-emerald-100">
-          Saved. The sidebar updates for everyone on the next load.
+          <T>Saved. The sidebar updates for everyone on the next load.</T>
         </p>
       )}
 
@@ -251,7 +255,7 @@ export function MenuCustomizer({
           disabled={pending}
           className="text-[12px] underline text-ink-600 dark:text-cream-100/70"
         >
-          Reset to default
+          <T>Reset to default</T>
         </button>
         <button
           type="button"
@@ -259,7 +263,7 @@ export function MenuCustomizer({
           disabled={pending}
           className="btn-primary"
         >
-          {pending ? 'Saving...' : 'Save menu'}
+          {pending ? <T>Saving...</T> : <T>Save menu</T>}
         </button>
       </div>
     </section>
