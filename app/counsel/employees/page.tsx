@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { listFirmEmployeeDirectory } from '@/lib/firm-actions';
 import { readPortalRoles } from '@/lib/portal-features';
+import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Employees · Counsel' };
@@ -34,21 +35,25 @@ export default async function CounselEmployeesPage() {
   return (
     <div className="space-y-6 animate-fade-up">
       <header>
-        <p className="eyebrow mb-1">People</p>
+        <p className="eyebrow mb-1"><T>People</T></p>
         <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          Employees
+          <T>Employees</T>
         </h1>
         <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-          Everyone with an employee-portal account at {ctx.firm.name} -
-          staff, contractors, and any guest accounts. To add, deactivate,
-          or change a role, an owner or admin uses the Team page.
+          <T>Everyone with an employee-portal account at</T> {ctx.firm.name}{' '}
+          <T>
+            - staff, contractors, and any guest accounts. To add, deactivate,
+            or change a role, an owner or admin uses the Team page.
+          </T>
         </p>
       </header>
 
       {employees.length === 0 ? (
         <p className="card p-6 text-[13px] text-ink-500 dark:text-cream-100/55 italic">
-          No employee accounts yet. Owners and admins can add people, or
-          connect a directory, from the Team page.
+          <T>
+            No employee accounts yet. Owners and admins can add people, or
+            connect a directory, from the Team page.
+          </T>
         </p>
       ) : (
         <>
@@ -57,15 +62,15 @@ export default async function CounselEmployeesPage() {
               <strong className="font-semibold text-forest-900 dark:text-cream-100">
                 {employees.length}
               </strong>{' '}
-              total
+              <T>total</T>
             </span>
             <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 ring-1 ring-emerald-200 dark:ring-emerald-800/40 bg-emerald-50/60 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-200">
-              <strong className="font-semibold">{active}</strong> active
+              <strong className="font-semibold">{active}</strong> <T>active</T>
             </span>
             {deactivated > 0 && (
               <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 ring-1 ring-ink-200 dark:ring-forest-700/40 text-ink-600 dark:text-cream-100/60">
                 <strong className="font-semibold">{deactivated}</strong>{' '}
-                deactivated
+                <T>deactivated</T>
               </span>
             )}
           </div>
@@ -74,12 +79,12 @@ export default async function CounselEmployeesPage() {
             <table className="w-full min-w-[640px] text-sm">
               <thead className="bg-cream-50 dark:bg-forest-900/60 text-ink-700 dark:text-cream-100/85 text-left">
                 <tr>
-                  <th className="font-semibold px-4 py-2.5">Name</th>
-                  <th className="font-semibold px-4 py-2.5">Email</th>
-                  <th className="font-semibold px-4 py-2.5">Department</th>
-                  <th className="font-semibold px-4 py-2.5">Access</th>
-                  <th className="font-semibold px-4 py-2.5">Source</th>
-                  <th className="font-semibold px-4 py-2.5">Status</th>
+                  <th className="font-semibold px-4 py-2.5"><T>Name</T></th>
+                  <th className="font-semibold px-4 py-2.5"><T>Email</T></th>
+                  <th className="font-semibold px-4 py-2.5"><T>Department</T></th>
+                  <th className="font-semibold px-4 py-2.5"><T>Access</T></th>
+                  <th className="font-semibold px-4 py-2.5"><T>Source</T></th>
+                  <th className="font-semibold px-4 py-2.5"><T>Status</T></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-ink-100 dark:divide-forest-700/40">
@@ -97,7 +102,7 @@ export default async function CounselEmployeesPage() {
                             className="ml-2 align-middle text-[10px] uppercase tracking-[0.12em] text-ink-400 dark:text-cream-100/40"
                             title="Invited but has not signed in yet"
                           >
-                            Pending
+                            <T>Pending</T>
                           </span>
                         )}
                       </td>
@@ -121,7 +126,7 @@ export default async function CounselEmployeesPage() {
                               : 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-200 ring-emerald-200 dark:ring-emerald-700/40'
                           }`}
                         >
-                          {inactive ? 'Deactivated' : 'Active'}
+                          {inactive ? <T>Deactivated</T> : <T>Active</T>}
                         </span>
                       </td>
                     </tr>

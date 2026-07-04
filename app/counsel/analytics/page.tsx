@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { getFirmAnalytics, type StatusCount, type MonthPoint } from '@/lib/counsel-analytics';
+import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Analytics · Counsel' };
@@ -51,13 +52,16 @@ export default async function CounselAnalyticsPage() {
   return (
     <div className="space-y-8 animate-fade-up">
       <header>
-        <p className="eyebrow mb-1">Analytics</p>
+        <p className="eyebrow mb-1"><T>Analytics</T></p>
         <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          Firm dashboard
+          <T>Firm dashboard</T>
         </h1>
         <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-          How {ctx.firm.name} is tracking across requests, signing,
-          matters, meetings, and money. Live from your own data.
+          <T>How</T> {ctx.firm.name}{' '}
+          <T>
+            is tracking across requests, signing, matters, meetings, and
+            money. Live from your own data.
+          </T>
         </p>
       </header>
 
@@ -132,7 +136,7 @@ function Kpi({
   const body = (
     <div className="card p-4 h-full">
       <p className="text-[10.5px] uppercase tracking-[0.14em] text-ink-500 dark:text-cream-100/55">
-        {l}
+        <T>{l}</T>
       </p>
       <p className={`mt-1 font-display text-2xl sm:text-[28px] leading-none ${accent}`}>{value}</p>
       <p className="mt-1.5 text-[11.5px] text-ink-500 dark:text-cream-100/55">{sub}</p>
@@ -151,7 +155,7 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
   return (
     <div className="card p-4 sm:p-5">
       <h2 className="text-[11px] uppercase tracking-[0.16em] font-semibold text-ink-500 dark:text-cream-100/55 mb-4">
-        {title}
+        <T>{title}</T>
       </h2>
       {children}
     </div>
@@ -184,7 +188,7 @@ function StatusBars({ data, total }: { data: StatusCount[]; total: number }) {
   if (total === 0) {
     return (
       <p className="text-[12.5px] text-ink-400 dark:text-cream-100/40 italic py-6">
-        Nothing yet — this fills in as you use Advottic.
+        <T>Nothing yet — this fills in as you use Advottic.</T>
       </p>
     );
   }
@@ -217,7 +221,7 @@ function MoneyStat({ label: l, value, accent }: { label: string; value: string; 
   return (
     <div className="card p-4">
       <p className="text-[10.5px] uppercase tracking-[0.14em] text-ink-500 dark:text-cream-100/55">
-        {l}
+        <T>{l}</T>
       </p>
       <p
         className={`mt-1 font-mono tabular-nums text-xl font-semibold ${

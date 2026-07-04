@@ -4,6 +4,7 @@ import { getActiveFirmContext } from '@/lib/firm-storage';
 import { readRequestFolders } from '@/lib/request-folders';
 import { CreateIntakeForm } from './create-intake-form';
 import { RequestFoldersManager } from './request-folders-manager';
+import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'New intake · Counsel' };
@@ -23,24 +24,26 @@ export default async function CounselIntakePage() {
   return (
     <div className="space-y-8 animate-fade-up">
       <header>
-        <p className="eyebrow mb-1">Counsel · intake</p>
+        <p className="eyebrow mb-1"><T>Counsel · intake</T></p>
         <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          New intake
+          <T>New intake</T>
         </h1>
         <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-          Open a new request for everything legal handles - outside-
-          client matters, contracts, internal reviews, document
-          safekeeping, trademark/IP, NDAs, compliance, and more. Pick
-          a request type, capture the parties, and the conflict check
-          runs across your prior matters and client list.
+          <T>
+            Open a new request for everything legal handles - outside-
+            client matters, contracts, internal reviews, document
+            safekeeping, trademark/IP, NDAs, compliance, and more. Pick
+            a request type, capture the parties, and the conflict check
+            runs across your prior matters and client list.
+          </T>
         </p>
         <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-2">
-          Looking for incoming requests?{' '}
+          <T>Looking for incoming requests?</T>{' '}
           <Link
             href="/counsel/inbox"
             className="underline text-forest-900 dark:text-cream-100 font-semibold"
           >
-            Open the Request inbox &rarr;
+            <T>Open the Request inbox &rarr;</T>
           </Link>
         </p>
       </header>

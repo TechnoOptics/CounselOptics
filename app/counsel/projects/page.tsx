@@ -4,6 +4,7 @@ import { getActiveFirmContext } from '@/lib/firm-storage';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { listFirmProjects } from '@/lib/projects-actions';
 import { NewProjectForm } from './new-project-form';
+import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Projects · Counsel' };
@@ -50,25 +51,27 @@ export default async function CounselProjectsPage({
       {caseId && (
         <div className="card p-3 flex flex-wrap items-center justify-between gap-2 ring-1 ring-forest-900/10 dark:ring-cream-100/10 bg-cream-50/40 dark:bg-forest-800/30">
           <p className="text-[13px] text-ink-700 dark:text-cream-100/85">
-            Showing projects for{' '}
-            <strong>{caseTitle ?? 'this matter'}</strong>. New projects here
-            attach to it.
+            <T>Showing projects for</T>{' '}
+            <strong>{caseTitle ?? 'this matter'}</strong>.{' '}
+            <T>New projects here attach to it.</T>
           </p>
           <Link href="/counsel/projects" className="text-[12px] underline">
-            All projects
+            <T>All projects</T>
           </Link>
         </div>
       )}
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="eyebrow mb-1">Projects</p>
+          <p className="eyebrow mb-1"><T>Projects</T></p>
           <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-            Projects &amp; folders
+            <T>Projects &amp; folders</T>
           </h1>
           <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-            Keep related notes and documents together. Create folders
-            inside a project, drop things in, and archive what you want
-            out of the way but not gone.
+            <T>
+              Keep related notes and documents together. Create folders
+              inside a project, drop things in, and archive what you want
+              out of the way but not gone.
+            </T>
           </p>
         </div>
         <NewProjectForm firmId={ctx.firm.id} caseId={caseId} />
@@ -76,8 +79,10 @@ export default async function CounselProjectsPage({
 
       {active.length === 0 && archived.length === 0 ? (
         <p className="card p-6 text-[13px] text-ink-500 dark:text-cream-100/55 italic">
-          No projects yet. Create one to start organizing folders, notes,
-          and documents.
+          <T>
+            No projects yet. Create one to start organizing folders, notes,
+            and documents.
+          </T>
         </p>
       ) : (
         <>
@@ -98,7 +103,7 @@ export default async function CounselProjectsPage({
                       </p>
                     )}
                     <p className="text-[11px] text-ink-400 dark:text-cream-100/40 mt-2 font-mono">
-                      Updated {new Date(p.updatedAt).toLocaleDateString()}
+                      <T>Updated</T> {new Date(p.updatedAt).toLocaleDateString()}
                     </p>
                   </Link>
                 </li>
@@ -109,7 +114,7 @@ export default async function CounselProjectsPage({
           {archived.length > 0 && (
             <section className="space-y-2">
               <h2 className="text-[11px] uppercase tracking-[0.16em] font-semibold text-ink-500 dark:text-cream-100/55">
-                Archived ({archived.length})
+                <T>Archived</T> ({archived.length})
               </h2>
               <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {archived.map((p) => (
@@ -122,7 +127,7 @@ export default async function CounselProjectsPage({
                         {p.name}
                       </p>
                       <p className="text-[11px] text-ink-400 dark:text-cream-100/40 mt-2 font-mono">
-                        Archived
+                        <T>Archived</T>
                       </p>
                     </Link>
                   </li>

@@ -11,6 +11,7 @@ import { InviteMemberForm } from './invite-form';
 import { TeamMemberRow } from './member-row';
 import { EmployeesPanel } from './employees-panel';
 import { RolesManager } from './roles-manager';
+import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Team · Counsel' };
@@ -32,13 +33,15 @@ export default async function CounselTeamPage() {
   return (
     <div className="space-y-6 animate-fade-up">
       <header>
-        <p className="eyebrow mb-1">Team</p>
+        <p className="eyebrow mb-1"><T>Team</T></p>
         <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          Members & roles
+          <T>Members & roles</T>
         </h1>
         <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-          Roles control what each person can do across cases, documents, signing, and
-          chat.
+          <T>
+            Roles control what each person can do across cases, documents,
+            signing, and chat.
+          </T>
         </p>
       </header>
 
@@ -48,10 +51,10 @@ export default async function CounselTeamPage() {
         <table className="w-full min-w-[560px] text-sm">
           <thead className="bg-cream-50 dark:bg-forest-900/60 text-ink-700 dark:text-cream-100/85 text-left">
             <tr>
-              <th className="font-semibold px-4 py-2.5">Name</th>
-              <th className="font-semibold px-4 py-2.5">Email</th>
-              <th className="font-semibold px-4 py-2.5">Role</th>
-              <th className="font-semibold px-4 py-2.5">Joined</th>
+              <th className="font-semibold px-4 py-2.5"><T>Name</T></th>
+              <th className="font-semibold px-4 py-2.5"><T>Email</T></th>
+              <th className="font-semibold px-4 py-2.5"><T>Role</T></th>
+              <th className="font-semibold px-4 py-2.5"><T>Joined</T></th>
               <th className="font-semibold px-4 py-2.5"></th>
             </tr>
           </thead>
@@ -88,7 +91,7 @@ export default async function CounselTeamPage() {
 
       {invitations.length > 0 && (
         <section className="card p-5 sm:p-6">
-          <p className="eyebrow mb-2">Pending invitations</p>
+          <p className="eyebrow mb-2"><T>Pending invitations</T></p>
           <ul className="space-y-1.5">
             {invitations.map((inv) => (
               <li
@@ -97,7 +100,8 @@ export default async function CounselTeamPage() {
               >
                 <span className="text-ink-900 dark:text-cream-100">{inv.email}</span>
                 <span className="text-[12px] text-ink-500 dark:text-cream-100/55">
-                  Invited as {FIRM_ROLE_LABEL[inv.role].toLowerCase()} &middot; expires{' '}
+                  <T>Invited as</T> {FIRM_ROLE_LABEL[inv.role].toLowerCase()}{' '}
+                  &middot; <T>expires</T>{' '}
                   {new Date(inv.expiresAt).toLocaleDateString()}
                 </span>
               </li>
@@ -108,7 +112,7 @@ export default async function CounselTeamPage() {
 
       <details className="text-[12px] text-ink-500 dark:text-cream-100/55">
         <summary className="cursor-pointer font-semibold text-forest-900 dark:text-cream-100">
-          What each role can do
+          <T>What each role can do</T>
         </summary>
         <ul className="mt-3 space-y-2">
           {FIRM_ROLES.map((r) => (
@@ -116,7 +120,7 @@ export default async function CounselTeamPage() {
               <strong className="text-ink-900 dark:text-cream-100">
                 {FIRM_ROLE_LABEL[r]}:
               </strong>{' '}
-              {FIRM_ROLE_DESCRIPTION[r]}
+              <T>{FIRM_ROLE_DESCRIPTION[r]}</T>
             </li>
           ))}
         </ul>
