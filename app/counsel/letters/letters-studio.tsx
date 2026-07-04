@@ -10,6 +10,7 @@ import {
   type LetterOptions,
 } from '@/lib/letter-compose';
 import { saveLetterToCaseAction } from '@/lib/letters-actions';
+import { useT } from '@/components/i18n/LocaleProvider';
 
 type Brand = {
   firmName: string;
@@ -38,6 +39,7 @@ export function LettersStudio({
   cases: CaseOption[];
   initialCaseId?: string;
 }) {
+  const t = useT();
   const router = useRouter();
   const [prompt, setPrompt] = useState('');
   const [recipient, setRecipient] = useState('');
@@ -271,20 +273,20 @@ export function LettersStudio({
             placeholder="Date"
           />
           <div className="flex flex-wrap gap-1.5">
-            {TOGGLES.map((t) => (
+            {TOGGLES.map((tg) => (
               <button
-                key={t.key}
+                key={tg.key}
                 type="button"
-                onClick={() => toggle(t.key)}
-                aria-pressed={options[t.key]}
+                onClick={() => toggle(tg.key)}
+                aria-pressed={options[tg.key]}
                 className={`text-[12px] rounded-full px-2.5 py-1 ring-1 transition-colors ${
-                  options[t.key]
+                  options[tg.key]
                     ? 'bg-gold-500/20 ring-gold-500/40 text-gold-700 dark:text-gold-200'
                     : 'ring-ink-200 dark:ring-forest-700/40 text-ink-600 dark:text-cream-100/60'
                 }`}
               >
-                {options[t.key] ? '✓ ' : ''}
-                {t.label}
+                {options[tg.key] ? '✓ ' : ''}
+                {tg.label}
               </button>
             ))}
           </div>
@@ -379,7 +381,7 @@ export function LettersStudio({
                   onChange={(e) => setBody(e.target.value)}
                   rows={Math.min(28, Math.max(10, body.split('\n').length + 2))}
                   className="w-full resize-y font-serif text-[13.5px] leading-[1.7] text-[#1a1a1a] outline-none border-0 focus:ring-0 p-0 bg-transparent"
-                  aria-label="Letter body (editable)"
+                  aria-label={t('Letter body (editable)')}
                 />
                 <pre className="whitespace-pre-wrap font-serif text-[13.5px] leading-[1.7] text-[#1a1a1a] mt-2 pt-3 border-t border-[#ece8dd]">
                   {closingText}

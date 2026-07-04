@@ -5,6 +5,7 @@ import {
   importMigrationBundleAction,
   type MigrationResult,
 } from '@/lib/migration-actions';
+import { useT } from '@/components/i18n/LocaleProvider';
 
 /**
  * "Migrate from another platform" panel. Two ways in:
@@ -14,6 +15,7 @@ import {
  * Both call the same firm-scoped ingest, which preserves original dates.
  */
 export function MigrateClient() {
+  const t = useT();
   const [mode, setMode] = useState<'json' | 'servicenow'>('json');
   const [json, setJson] = useState('');
   const [sn, setSn] = useState({
@@ -85,7 +87,7 @@ export function MigrateClient() {
             type="file"
             accept=".json,application/json"
             onChange={onFile}
-            aria-label="Choose a JSON bundle file"
+            aria-label={t('Choose a JSON bundle file')}
             className="block text-sm text-ink-600 dark:text-cream-100/70"
           />
           <textarea
@@ -93,7 +95,7 @@ export function MigrateClient() {
             onChange={(e) => setJson(e.target.value)}
             rows={10}
             placeholder='{ "source": "Clio", "cases": [ { "title": "...", "openedAt": "2024-03-01", "attachments": [...], "history": [...] } ] }'
-            aria-label="Migration bundle JSON"
+            aria-label={t('Migration bundle JSON')}
             className={`${inputClass} font-mono text-[12px]`}
           />
           <button
@@ -116,14 +118,14 @@ export function MigrateClient() {
             value={sn.instanceUrl}
             onChange={(e) => setSn({ ...sn, instanceUrl: e.target.value })}
             placeholder="https://your-instance.service-now.com"
-            aria-label="ServiceNow instance URL"
+            aria-label={t('ServiceNow instance URL')}
             className={inputClass}
           />
           <input
             value={sn.token}
             onChange={(e) => setSn({ ...sn, token: e.target.value })}
             placeholder="API token (or 'Basic …')"
-            aria-label="ServiceNow API token"
+            aria-label={t('ServiceNow API token')}
             type="password"
             className={inputClass}
           />
@@ -132,14 +134,14 @@ export function MigrateClient() {
               value={sn.table}
               onChange={(e) => setSn({ ...sn, table: e.target.value })}
               placeholder="Table (e.g. incident)"
-              aria-label="ServiceNow table"
+              aria-label={t('ServiceNow table')}
               className={inputClass}
             />
             <input
               value={sn.query}
               onChange={(e) => setSn({ ...sn, query: e.target.value })}
               placeholder="Optional filter (sysparm_query)"
-              aria-label="ServiceNow query filter"
+              aria-label={t('ServiceNow query filter')}
               className={inputClass}
             />
           </div>

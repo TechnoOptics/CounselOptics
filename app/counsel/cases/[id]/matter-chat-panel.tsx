@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { sendFirmMessageAction } from '@/lib/firm-actions';
 import { createBrowserSupabase } from '@/lib/supabase/client';
+import { useT } from '@/components/i18n/LocaleProvider';
 import type { FirmMessage } from '@/lib/firm-types';
 
 /**
@@ -32,6 +33,7 @@ export function MatterChatPanel({
   authors: Author[];
   currentUserId: string;
 }) {
+  const t = useT();
   const authorIndex = new Map(authors.map((a) => [a.userId, a]));
   const [messages, setMessages] = useState<FirmMessage[]>(initialMessages);
   const [draft, setDraft] = useState('');
@@ -162,7 +164,7 @@ export function MatterChatPanel({
           <button
             type="submit"
             disabled={pending || !draft.trim()}
-            aria-label="Send"
+            aria-label={t('Send')}
             className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-gold-metal text-forest-950 disabled:opacity-50 shadow-sm"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>

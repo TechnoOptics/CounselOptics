@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import type { Firm } from '@/lib/firm-types';
 import type { MenuSection } from '@/lib/menu-config';
 import { isCounselItemActive, tenantHref } from '@/lib/counsel-routing';
+import { useT } from '@/components/i18n/LocaleProvider';
 
 /**
  * Mobile navigation for the Counsel workspace.
@@ -29,6 +30,7 @@ export function CounselMobileNav({
   tenantMode?: boolean;
   canSettings?: boolean;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const pathname = usePathname() ?? '';
 
@@ -53,7 +55,7 @@ export function CounselMobileNav({
         type="button"
         onClick={() => setOpen(true)}
         className="inline-flex h-10 w-10 items-center justify-center rounded-md text-cream-100/85 hover:bg-cream-100/10 ring-1 ring-cream-100/10"
-        aria-label="Open menu"
+        aria-label={t('Open menu')}
         aria-haspopup="dialog"
         aria-expanded={open}
       >
@@ -63,10 +65,10 @@ export function CounselMobileNav({
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label="Navigation">
+        <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label={t('Navigation')}>
           <button
             type="button"
-            aria-label="Close menu"
+            aria-label={t('Close menu')}
             onClick={() => setOpen(false)}
             className="absolute inset-0 bg-forest-950/70 backdrop-blur-sm"
           />
@@ -81,7 +83,7 @@ export function CounselMobileNav({
                 type="button"
                 onClick={() => setOpen(false)}
                 className="inline-flex h-9 w-9 items-center justify-center rounded-md text-cream-100/70 hover:bg-cream-100/10"
-                aria-label="Close menu"
+                aria-label={t('Close menu')}
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
                   <path d="M6 6l12 12M18 6L6 18" />

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { cleanLegalText } from '@/lib/legal-templates';
+import { useT } from '@/components/i18n/LocaleProvider';
 
 /**
  * The big "Ask Advottic" bar at the top of the Counsel workspace.
@@ -30,6 +31,7 @@ type Turn = {
 };
 
 export function AskAdvottic() {
+  const t = useT();
   const [q, setQ] = useState('');
   const [turns, setTurns] = useState<Turn[]>([]);
   const abortRef = useRef<AbortController | null>(null);
@@ -176,7 +178,7 @@ export function AskAdvottic() {
                 : 'Ask Advottic anything - a law, a case, a clause, a client, a meeting…'
             }
             className="flex-1 bg-transparent outline-none text-[15px] text-cream-100 placeholder:text-cream-100/60"
-            aria-label="Ask Advottic"
+            aria-label={t('Ask Advottic')}
             autoComplete="off"
           />
           {turns.length > 0 ? (
@@ -184,7 +186,7 @@ export function AskAdvottic() {
               type="button"
               onClick={clearConversation}
               className="text-[12px] text-cream-100/50 hover:text-cream-100 px-2"
-              title="Clear the conversation"
+              title={t('Clear the conversation')}
             >
               Clear
             </button>

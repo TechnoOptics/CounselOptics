@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from 'react';
 import { enterPortalPreviewAction } from '@/lib/firm-actions';
+import { useT } from '@/components/i18n/LocaleProvider';
 
 /**
  * Owner/admin-only "view as" switcher.
@@ -23,6 +24,7 @@ import { enterPortalPreviewAction } from '@/lib/firm-actions';
  * surface for regular staff.
  */
 export function PersonaSwitcher({ firmId }: { firmId: string }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
@@ -53,7 +55,7 @@ export function PersonaSwitcher({ firmId }: { firmId: string }) {
         className="inline-flex items-center gap-1.5 min-h-[36px] text-[12.5px] text-cream-100/80 hover:text-cream-100 px-2.5 py-1.5 rounded-md hover:bg-cream-100/5 ring-1 ring-cream-100/10 transition-colors disabled:opacity-60"
         aria-haspopup="menu"
         aria-expanded={open}
-        title="Preview what your employees and vendors see"
+        title={t('Preview what your employees and vendors see')}
       >
         <EyeIcon />
         <span className="hidden sm:inline font-medium">View as</span>

@@ -7,6 +7,7 @@ import {
   sendFirmMessageAction,
 } from '@/lib/firm-actions';
 import { createBrowserSupabase } from '@/lib/supabase/client';
+import { useT } from '@/components/i18n/LocaleProvider';
 import type { FirmChannel, FirmMessage } from '@/lib/firm-types';
 
 // Heartbeat refetch interval - the Realtime channel covers the live
@@ -39,6 +40,7 @@ export function ChatShell({
   initialChannels: FirmChannel[];
   userId: string;
 }) {
+  const t = useT();
   const router = useRouter();
   const [channels, setChannels] = useState<FirmChannel[]>(initialChannels);
   const [activeId, setActiveId] = useState<string | null>(
@@ -326,7 +328,7 @@ export function ChatShell({
             type="submit"
             disabled={pending || !draft.trim() || !activeId}
             className="btn-primary"
-            aria-label="Send"
+            aria-label={t('Send')}
           >
             Send
           </button>

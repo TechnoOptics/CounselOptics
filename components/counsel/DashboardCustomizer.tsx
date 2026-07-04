@@ -9,6 +9,7 @@ import {
   type CounselTileId,
 } from '@/lib/counsel-dashboard';
 import { updateCounselDashboardPreferencesAction } from '@/lib/dashboard-actions';
+import { useT } from '@/components/i18n/LocaleProvider';
 
 /**
  * "Customize" affordance in the dashboard header. Opens a panel
@@ -29,6 +30,7 @@ export function DashboardCustomizer({
   /** Admin-only tiles are hidden from non-admins in the picker. */
   isAdmin: boolean;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [enabled, setEnabled] = useState<CounselTileId[]>(initialEnabled);
   const [pending, startTransition] = useTransition();
@@ -111,7 +113,7 @@ export function DashboardCustomizer({
               type="button"
               onClick={() => setOpen(false)}
               className="text-cream-100/55 hover:text-cream-100 text-lg leading-none px-1"
-              aria-label="Close"
+              aria-label={t('Close')}
             >
               x
             </button>

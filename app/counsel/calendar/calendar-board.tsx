@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ExternalLink } from '@/components/ExternalLink';
+import { useT } from '@/components/i18n/LocaleProvider';
 
 export type BoardEvent = {
   at: number;
@@ -55,6 +56,7 @@ export function CalendarBoard({
   events: BoardEvent[];
   hasSync: boolean;
 }) {
+  const t = useT();
   const [view, setView] = useState<'month' | 'agenda'>('month');
   // `cursor` is local midnight of the first day of the visible month.
   const [cursor, setCursor] = useState<number>(() => {
@@ -125,7 +127,7 @@ export function CalendarBoard({
             type="button"
             onClick={() => shiftMonth(-1)}
             className="h-9 w-9 inline-flex items-center justify-center rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 text-ink-700 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/40"
-            aria-label="Previous month"
+            aria-label={t('Previous month')}
           >
             ‹
           </button>
@@ -133,7 +135,7 @@ export function CalendarBoard({
             type="button"
             onClick={() => shiftMonth(1)}
             className="h-9 w-9 inline-flex items-center justify-center rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 text-ink-700 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/40"
-            aria-label="Next month"
+            aria-label={t('Next month')}
           >
             ›
           </button>
@@ -151,7 +153,7 @@ export function CalendarBoard({
         <div
           className="inline-flex rounded-md ring-1 ring-ink-200 dark:ring-forest-700/60 overflow-hidden text-[12px]"
           role="group"
-          aria-label="Calendar view"
+          aria-label={t('Calendar view')}
         >
           <button
             type="button"
