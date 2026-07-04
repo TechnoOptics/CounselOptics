@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getActiveFirmContext } from '@/lib/firm-storage';
+import { createServerSupabase } from '@/lib/supabase/server';
 import { listFirmProjects } from '@/lib/projects-actions';
 import { NewProjectForm } from './new-project-form';
 
@@ -11,16 +12,53 @@ export const metadata = { title: 'Projects · Counsel' };
  * Firm projects list. A project is a named workspace of folders holding
  * notes and documents - anything the firm wants to keep together and
  * retrieve later (an onboarding, a policy review, a research binder).
+ *
+ * With ?caseId=, the page scopes to one case: it filters the list to
+ * that case's projects and new ones created here attach to it (the
+ * in-context entry from the case page, Product H3).
  */
-export default async function CounselProjectsPage() {
+export default async function CounselProjectsPage({
+  searchParams,
+}: {
+  searchParams?: { caseId?: string };
+}) {
   const ctx = await getActiveFirmContext();
   if (!ctx) redirect('/counsel');
-  const projects = await listFirmProjects(ctx.firm.id);
+  const caseId = searchParams?.caseId?.trim() || null;
+
+  let caseTitle: string | null = null;
+  if (caseId) {
+    const supabase = createServerSupabase();
+    const { data } = await supabase
+      .from('cases')
+      .select('title')
+      .eq('id', caseId)
+      .eq('firm_id', ctx.firm.id)
+      .maybeSingle();
+    caseTitle = (data as { title?: string } | null)?.title ?? null;
+  }
+
+  const allProjects = await listFirmProjects(ctx.firm.id);
+  const projects = caseId
+    ? allProjects.filter((p) => p.caseId === caseId)
+    : allProjects;
   const active = projects.filter((p) => p.status === 'active');
   const archived = projects.filter((p) => p.status === 'archived');
 
   return (
     <div className="space-y-6 animate-fade-up">
+      {caseId && (
+        <div className="card p-3 flex flex-wrap items-center justify-between gap-2 ring-1 ring-forest-900/10 dark:ring-cream-100/10 bg-cream-50/40 dark:bg-forest-800/30">
+          <p className="text-[13px] text-ink-700 dark:text-cream-100/85">
+            Showing projects for{' '}
+            <strong>{caseTitle ?? 'this matter'}</strong>. New projects here
+            attach to it.
+          </p>
+          <Link href="/counsel/projects" className="text-[12px] underline">
+            All projects
+          </Link>
+        </div>
+      )}
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="eyebrow mb-1">Projects</p>
@@ -33,7 +71,7 @@ export default async function CounselProjectsPage() {
             out of the way but not gone.
           </p>
         </div>
-        <NewProjectForm firmId={ctx.firm.id} />
+        <NewProjectForm firmId={ctx.firm.id} caseId={caseId} />
       </header>
 
       {active.length === 0 && archived.length === 0 ? (

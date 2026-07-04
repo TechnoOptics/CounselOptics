@@ -27,6 +27,7 @@ type ProjectRow = {
   name: string;
   description: string | null;
   status: 'active' | 'archived';
+  case_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -58,6 +59,7 @@ function toProject(r: ProjectRow): Project {
     name: r.name,
     description: r.description,
     status: r.status,
+    caseId: r.case_id ?? null,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -125,19 +127,32 @@ export async function getProjectDetail(
 
 export async function createProjectAction(
   firmId: string,
-  input: { name: string; description?: string | null },
+  input: { name: string; description?: string | null; caseId?: string | null },
 ): Promise<{ ok: boolean; error?: string; projectId?: string }> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: 'Sign in first.' };
   const name = input.name.trim();
   if (!name) return { ok: false, error: 'Give the project a name.' };
   const supabase = createServerSupabase();
+  // Only attach the case when it belongs to this firm, so a stray/forged
+  // caseId can't link a project to another firm's matter.
+  let caseId: string | null = null;
+  if (input.caseId) {
+    const { data: kase } = await supabase
+      .from('cases')
+      .select('id')
+      .eq('id', input.caseId)
+      .eq('firm_id', firmId)
+      .maybeSingle();
+    if (kase) caseId = input.caseId;
+  }
   const { data, error } = await supabase
     .from('firm_projects')
     .insert({
       firm_id: firmId,
       name: name.slice(0, 200),
       description: input.description?.trim() || null,
+      case_id: caseId,
       created_by: user.id,
     })
     .select('id')

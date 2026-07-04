@@ -4,7 +4,14 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { createProjectAction } from '@/lib/projects-actions';
 
-export function NewProjectForm({ firmId }: { firmId: string }) {
+export function NewProjectForm({
+  firmId,
+  caseId = null,
+}: {
+  firmId: string;
+  /** When set, the new project is attached to this case. */
+  caseId?: string | null;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -15,7 +22,7 @@ export function NewProjectForm({ firmId }: { firmId: string }) {
     const name = String(formData.get('name') ?? '').trim();
     const description = String(formData.get('description') ?? '').trim();
     startTransition(async () => {
-      const res = await createProjectAction(firmId, { name, description });
+      const res = await createProjectAction(firmId, { name, description, caseId });
       if (res.ok && res.projectId) {
         router.push(`/counsel/projects/${res.projectId}`);
       } else {

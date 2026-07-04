@@ -457,12 +457,20 @@ export default async function CounselCaseDetailPage({
           <h2 className="font-display text-lg font-medium text-forest-900 dark:text-cream-100">
             Documents
           </h2>
-          <Link
-            href={`/counsel/letters?caseId=${params.id}`}
-            className="text-[12px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-3 py-1.5 text-ink-700 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/40"
-          >
-            Draft a letter
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/counsel/projects?caseId=${params.id}`}
+              className="text-[12px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-3 py-1.5 text-ink-700 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/40"
+            >
+              Projects
+            </Link>
+            <Link
+              href={`/counsel/letters?caseId=${params.id}`}
+              className="text-[12px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-3 py-1.5 text-ink-700 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/40"
+            >
+              Draft a letter
+            </Link>
+          </div>
         </div>
         {docs.length > 0 ? (
           <ul className="space-y-1.5">

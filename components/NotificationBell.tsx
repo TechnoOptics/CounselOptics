@@ -68,15 +68,23 @@ export function NotificationBell({
     return () => clearInterval(t);
   }, [open]);
 
-  // Click-outside-to-close
+  // Click-outside- and Escape-to-close (a11y: keyboard users need a way
+  // to dismiss the panel without a pointer).
   useEffect(() => {
     if (!open) return;
     function handle(ev: MouseEvent) {
       if (!wrapperRef.current) return;
       if (!wrapperRef.current.contains(ev.target as Node)) setOpen(false);
     }
+    function onKey(ev: KeyboardEvent) {
+      if (ev.key === 'Escape') setOpen(false);
+    }
     document.addEventListener('mousedown', handle);
-    return () => document.removeEventListener('mousedown', handle);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', handle);
+      window.removeEventListener('keydown', onKey);
+    };
   }, [open]);
 
   function handleItemClick(n: AppNotification) {

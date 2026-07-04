@@ -134,7 +134,16 @@ export function composeLetterText(
   closer: LetterCloser,
 ): string {
   const closing = closingLinesToText(buildClosingLines(options, closer));
-  return `${body.trim()}\n\n\n${closing}`;
+  return `${body.trim()}\n\n\n${closing}\n\n\n${LETTER_DRAFT_NOTICE}`;
 }
+
+/**
+ * A short, travels-with-the-file caveat appended to every exported
+ * letter (PDF + Word). The on-screen studio already warns "an attorney
+ * should review", but once the file leaves the app that context is
+ * gone - the artifact needs to carry its own notice. (Audit Content M3.)
+ */
+export const LETTER_DRAFT_NOTICE =
+  'Draft prepared with Advottic. Review by a licensed attorney is recommended before this letter is sent or filed.';
 
 export { SIGNING_RULE };

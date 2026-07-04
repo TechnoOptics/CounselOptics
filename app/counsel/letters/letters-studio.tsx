@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   DEFAULT_LETTER_OPTIONS,
+  LETTER_DRAFT_NOTICE,
   buildClosingLines,
   closingLinesToText,
   type LetterOptions,
@@ -67,7 +68,11 @@ export function LettersStudio({
     dateText: dateText || null,
   };
   const closingText = closingLinesToText(buildClosingLines(options, closer));
-  const composed = body ? `${body.trim()}\n\n\n${closingText}` : '';
+  // The exported PDF carries the draft notice so the caveat travels with
+  // the file, not just the on-screen studio. (Audit Content M3.)
+  const composed = body
+    ? `${body.trim()}\n\n\n${closingText}\n\n\n${LETTER_DRAFT_NOTICE}`
+    : '';
 
   function toggle(key: keyof LetterOptions) {
     setOptions((o) => ({ ...o, [key]: !o[key] }));

@@ -6,6 +6,8 @@ export type Project = {
   name: string;
   description: string | null;
   status: ProjectStatus;
+  /** Optional link to the case this project belongs to. */
+  caseId: string | null;
   createdAt: string;
   updatedAt: string;
 };

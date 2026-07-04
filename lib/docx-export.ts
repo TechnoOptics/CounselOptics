@@ -399,6 +399,19 @@ export async function generateLetterDocx(
                   new TextRun({ children: [PageNumber.CURRENT], size: 14, color: '9CA3AF' }),
                 ],
               }),
+              // Travels-with-the-file draft caveat (audit Content M3).
+              new Paragraph({
+                alignment: AlignmentType.CENTER,
+                spacing: { before: 40 },
+                children: [
+                  new TextRun({
+                    text: 'Draft prepared with Advottic. Review by a licensed attorney is recommended before this letter is sent or filed.',
+                    italics: true,
+                    size: 13,
+                    color: '9CA3AF',
+                  }),
+                ],
+              }),
             ],
           }),
         },

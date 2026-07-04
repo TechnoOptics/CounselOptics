@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useCallback, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateFirmDocumentAction } from '@/lib/firm-actions';
+import { useDismissable } from '@/components/hooks/useDismissable';
 import {
   FIRM_DOCUMENT_STATUSES,
   FIRM_DOCUMENT_STATUS_LABEL,
@@ -55,6 +56,8 @@ export function DocumentStatusChanger({
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const close = useCallback(() => setOpen(false), []);
+  const boxRef = useDismissable<HTMLDivElement>(open, close);
 
   function pick(next: FirmDocumentStatus) {
     if (next === currentStatus) {
@@ -78,25 +81,23 @@ export function DocumentStatusChanger({
   const tone = toneOf(currentStatus);
 
   return (
-    <div className="relative inline-block">
+    <div className="relative inline-block" ref={boxRef}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         disabled={pending}
+        aria-haspopup="menu"
+        aria-expanded={open}
         className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md ring-1 text-[12px] font-semibold uppercase tracking-[0.12em] transition-colors ${TONE_CLASSES[tone]} disabled:opacity-50`}
       >
         {FIRM_DOCUMENT_STATUS_LABEL[currentStatus]}
         <span aria-hidden className="text-[9px]">▾</span>
       </button>
       {open && (
-        <>
-          <button
-            type="button"
-            aria-label="Close"
-            className="fixed inset-0 z-30 cursor-default"
-            onClick={() => setOpen(false)}
-          />
-          <div className="absolute z-40 mt-2 w-72 right-0 sm:left-0 sm:right-auto rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 bg-white dark:bg-forest-900 shadow-xl p-2 space-y-0.5">
+          <div
+            role="menu"
+            className="absolute z-40 mt-2 w-72 right-0 sm:left-0 sm:right-auto rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 bg-white dark:bg-forest-900 shadow-xl p-2 space-y-0.5"
+          >
             {FIRM_DOCUMENT_STATUSES.map((s) => {
               const t = toneOf(s);
               const active = s === currentStatus;
@@ -130,7 +131,6 @@ export function DocumentStatusChanger({
               Last moved {new Date(statusUpdatedAt).toLocaleString()}
             </p>
           </div>
-        </>
       )}
     </div>
   );
