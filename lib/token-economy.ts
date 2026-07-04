@@ -213,6 +213,10 @@ export async function debitTokens(
 
   let remaining = Math.round(amount);
   let firmAfter: number | null = null;
+  // Track what we actually took from each source so an insufficient
+  // turn can be made all-or-nothing (refund the partial take below).
+  let debitedFromFirm = 0;
+  let debitedFromUser = 0;
 
   // Step 1: hit the firm pool first when applicable.
   if (ctx.firmId) {
@@ -227,6 +231,7 @@ export async function debitTokens(
     firmAfter = newFirm;
     if (!firmErr && fromFirm > 0) {
       remaining -= fromFirm;
+      debitedFromFirm = fromFirm;
       await admin.from('token_ledger').insert({
         user_id: ctx.userId,
         firm_id: ctx.firmId,
@@ -254,6 +259,7 @@ export async function debitTokens(
     userAfter = new_balance;
     if (!userErr && fromUser > 0) {
       remaining -= fromUser;
+      debitedFromUser = fromUser;
       await admin.from('token_ledger').insert({
         user_id: ctx.userId,
         firm_id: ctx.firmId ?? null,
@@ -273,12 +279,107 @@ export async function debitTokens(
   }
 
   const insufficient = remaining > 0;
+
+  // All-or-nothing: if the combined balance couldn't cover the turn but
+  // we already took a partial amount (e.g. drained the firm pool, then
+  // came up short on the personal balance under concurrency), put it
+  // back. Otherwise the user is charged for a turn the app then refuses.
+  if (insufficient && (debitedFromFirm > 0 || debitedFromUser > 0)) {
+    const restored = await creditBack(
+      admin,
+      ctx,
+      debitedFromFirm,
+      debitedFromUser,
+      `${ctx.reason}_refund_insufficient`,
+    );
+    if (restored.firmAfter !== null) firmAfter = restored.firmAfter;
+    if (restored.userAfter !== null) userAfter = restored.userAfter;
+  }
+
   return {
     ok: !insufficient,
     firmPoolBalance: firmAfter,
     userBalance: userAfter,
     insufficient,
   };
+}
+
+/**
+ * Put tokens back into the firm pool and/or the user's balance, with a
+ * matching positive `token_ledger` entry so the trail nets out. Uses
+ * the atomic credit_* RPCs (FOR UPDATE), the mirror of the debit path.
+ * Crediting a missing row is a no-op.
+ */
+async function creditBack(
+  admin: NonNullable<ReturnType<typeof createAdminSupabase>>,
+  ctx: DebitContext,
+  toFirm: number,
+  toUser: number,
+  reason: string,
+): Promise<{ firmAfter: number | null; userAfter: number | null }> {
+  let firmAfter: number | null = null;
+  let userAfter: number | null = null;
+  if (ctx.firmId && toFirm > 0) {
+    const { data } = await admin.rpc('credit_firm_token_pool', {
+      p_firm_id: ctx.firmId,
+      p_amount: toFirm,
+    });
+    firmAfter = typeof data === 'number' ? data : null;
+    await admin.from('token_ledger').insert({
+      user_id: ctx.userId,
+      firm_id: ctx.firmId,
+      delta: toFirm,
+      reason,
+      balance_after: firmAfter,
+      metadata: { ...(ctx.metadata ?? {}), source: 'firm_pool', refund: true },
+    });
+  }
+  if (toUser > 0) {
+    const { data } = await admin.rpc('credit_user_token_balance', {
+      p_user_id: ctx.userId,
+      p_amount: toUser,
+    });
+    userAfter = typeof data === 'number' ? data : null;
+    await admin.from('token_ledger').insert({
+      user_id: ctx.userId,
+      firm_id: ctx.firmId ?? null,
+      delta: toUser,
+      reason,
+      balance_after: userAfter,
+      metadata: { ...(ctx.metadata ?? {}), source: 'user_balance', refund: true },
+    });
+  }
+  return { firmAfter, userAfter };
+}
+
+/**
+ * Refund a previously-debited amount for a turn that failed AFTER the
+ * debit (e.g. the Anthropic/Bella call threw or timed out). Refunds to
+ * the firm pool first, then the user - the same precedence the debit
+ * took, so tokens return roughly where they came from. `amount` is the
+ * total to put back; callers that know the exact split can pass it.
+ */
+export async function refundTokens(
+  ctx: DebitContext,
+  amount: number,
+  split?: { toFirm?: number; toUser?: number },
+): Promise<{ firmPoolBalance: number | null; userBalance: number | null }> {
+  const admin = createAdminSupabase();
+  if (!admin || amount <= 0) {
+    return { firmPoolBalance: null, userBalance: null };
+  }
+  const total = Math.round(amount);
+  const toFirm = split?.toFirm != null ? Math.round(split.toFirm) : ctx.firmId ? total : 0;
+  const toUser =
+    split?.toUser != null ? Math.round(split.toUser) : Math.max(0, total - toFirm);
+  const { firmAfter, userAfter } = await creditBack(
+    admin,
+    ctx,
+    toFirm,
+    toUser,
+    `${ctx.reason}_refund`,
+  );
+  return { firmPoolBalance: firmAfter, userBalance: userAfter };
 }
 
 /**

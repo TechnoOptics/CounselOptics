@@ -643,6 +643,18 @@ export async function addExhibit(input: {
     const storagePath = `${user.id}/${input.caseId}/${id}${ext}`;
 
     const buf = Buffer.from(await input.file.arrayBuffer());
+    // Magic-byte screen: block HTML/SVG/executables + content-confusion
+    // (e.g. a renamed .svg declared as application/pdf) before the bytes
+    // land in storage. (Audit 2026-07-03, H3.)
+    {
+      const { screenAuthenticatedUpload } = await import('./upload-safety');
+      const screen = screenAuthenticatedUpload(
+        buf,
+        input.file.type || null,
+        50 * 1024 * 1024,
+      );
+      if (!screen.ok) throw new Error(screen.reason);
+    }
     const { error: uploadErr } = await supabase.storage
       .from(EXHIBITS_BUCKET)
       .upload(storagePath, buf, {

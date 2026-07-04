@@ -106,10 +106,13 @@ export async function verifyAccessCodeAction(
     return { ok: false, error: 'Enter the code from your email.' };
   }
 
-  // Blunt scripted brute force across many tokens/IPs.
+  // Blunt scripted brute force across many tokens/IPs. Fail CLOSED:
+  // this guards a signing access code, so a store error must not become
+  // an uncapped guessing bypass.
   const allowed = await checkRateLimit(`sign-code:${token}`, {
     limit: 10,
     windowSeconds: 600,
+    failClosed: true,
   });
   if (!allowed) {
     return {

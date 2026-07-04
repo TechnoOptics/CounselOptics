@@ -1823,6 +1823,18 @@ export async function uploadFirmDocumentAction(
   const safeName = file.name.replace(/[^a-zA-Z0-9.\-_ ]/g, '').slice(0, 100);
   const filePath = `${firmId}/${id}/${safeName}`;
   const buffer = Buffer.from(await file.arrayBuffer());
+  // Magic-byte screen: block HTML/SVG/executables + content-confusion
+  // before the bytes land in the private firm-documents bucket.
+  // (Audit 2026-07-03, H3.)
+  {
+    const { screenAuthenticatedUpload } = await import('./upload-safety');
+    const screen = screenAuthenticatedUpload(
+      buffer,
+      file.type || null,
+      50 * 1024 * 1024,
+    );
+    if (!screen.ok) return { ok: false, error: screen.reason };
+  }
   const { error: uploadErr } = await supabase.storage
     .from('firm-documents')
     .upload(filePath, buffer, {
@@ -1948,6 +1960,29 @@ export async function createSigningRequestAction(
   const admin = createAdminSupabase();
   if (!admin) return { ok: false, error: 'Server is missing SUPABASE_SERVICE_ROLE_KEY.' };
 
+  // AUTHZ (IDOR guard): everything below runs on the service-role admin
+  // client (RLS-bypassing) - it downloads, hashes, appends to, and
+  // mutates the target document. So we MUST verify the caller belongs
+  // to firmId with a role allowed to send for signature BEFORE any of
+  // that, or a member of firm A could pass firm B's firmId/documentId
+  // and act on firm B's document. (Audit 2026-07-03, H1.)
+  {
+    const { data: mem } = await supabase
+      .from('firm_members')
+      .select('role')
+      .eq('firm_id', firmId)
+      .eq('user_id', user.id)
+      .maybeSingle();
+    const role = (mem as { role?: string } | null)?.role;
+    const POSTING_ROLES = ['owner', 'admin', 'attorney', 'paralegal'];
+    if (!role || !POSTING_ROLES.includes(role)) {
+      return {
+        ok: false,
+        error: 'You do not have permission to send this document for signature.',
+      };
+    }
+  }
+
   // Compute SHA-256 of the document at the moment the request is
   // created so the audit trail can prove the bytes the signers
   // consented to match the bytes the firm later relies on. We pull
@@ -1965,9 +2000,14 @@ export async function createSigningRequestAction(
   // those original bytes, not the appended copy).
   const { data: doc } = await admin
     .from('firm_documents')
-    .select('name, file_path, signable_file_path')
+    .select('name, file_path, signable_file_path, firm_id')
     .eq('id', documentId)
     .maybeSingle();
+  // The document must belong to the firm the caller is authorized for -
+  // otherwise the guard above (scoped to firmId) means nothing.
+  if (!doc || (doc as { firm_id?: string }).firm_id !== firmId) {
+    return { ok: false, error: 'Document not found for this firm.' };
+  }
   const docName = (doc as { name?: string } | null)?.name ?? 'Document';
   const docPath = (doc as { file_path?: string } | null)?.file_path ?? null;
   let documentSha256: string | null = null;

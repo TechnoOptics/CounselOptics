@@ -50,9 +50,12 @@ export async function POST(req: NextRequest) {
     req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
     req.headers.get('x-real-ip') ||
     'unknown';
+  // Fail CLOSED: this is an auth code gate, so a store error must not
+  // hand out an uncapped guessing window.
   const allowed = await checkRateLimit(`auth:review-login:${ip}`, {
     limit: 5,
     windowSeconds: 15 * 60,
+    failClosed: true,
   });
   if (!allowed) {
     return NextResponse.json(

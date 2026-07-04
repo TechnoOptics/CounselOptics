@@ -126,4 +126,82 @@ export function validateIdPhoto(buf: Buffer): UploadSafetyResult {
   return { ok: true, kind: match.kind, mimeType: match.mimeType };
 }
 
+/**
+ * Screen an AUTHENTICATED upload (firm documents, case exhibits).
+ *
+ * These come from a signed-in, billed user, so unlike the public
+ * community path they may legitimately be many document types (PDF,
+ * images, Word/Excel/PowerPoint, text). We therefore don't impose the
+ * tiny community allowlist. Instead we do the two things that actually
+ * matter for a private bucket served through signed URLs:
+ *
+ *   1. BLOCK actively-dangerous content regardless of the declared
+ *      Content-Type: HTML/SVG/XML-script (stored-XSS when a signed URL
+ *      is opened inline) and executables. A renamed `evil.svg` uploaded
+ *      as `application/pdf` is caught here.
+ *   2. CATCH content-confusion: when the client declares an image or a
+ *      PDF, the bytes must actually be that (magic-byte match), and PDFs
+ *      are scanned for auto-run JavaScript/OpenAction.
+ *
+ * Anything else (Office formats, plain text, CSV) is allowed through -
+ * it has already cleared the dangerous-content screen. Returns
+ * `{ ok: true }` when safe, `{ ok: false, reason }` otherwise.
+ */
+export function screenAuthenticatedUpload(
+  buf: Buffer,
+  declaredMime: string | null,
+  maxBytes: number,
+): { ok: true } | { ok: false; reason: string } {
+  if (buf.length === 0) return { ok: false, reason: 'File is empty.' };
+  if (buf.length > maxBytes) {
+    return {
+      ok: false,
+      reason: `File is larger than the ${Math.round(maxBytes / (1024 * 1024))}MB limit.`,
+    };
+  }
+
+  // 1) Dangerous content, by actual bytes.
+  const head = buf.toString('latin1', 0, 512).trimStart();
+  if (/^<(!doctype html|html|script|svg|\?xml)/i.test(head)) {
+    return { ok: false, reason: 'HTML/SVG content is not an accepted document type.' };
+  }
+  const isMZ = buf.length >= 2 && buf[0] === 0x4d && buf[1] === 0x5a; // PE/.exe/.dll
+  const isELF =
+    buf.length >= 4 &&
+    buf[0] === 0x7f &&
+    buf[1] === 0x45 &&
+    buf[2] === 0x4c &&
+    buf[3] === 0x46;
+  const isShebang = buf.length >= 2 && buf[0] === 0x23 && buf[1] === 0x21; // #!
+  if (isMZ || isELF || isShebang) {
+    return { ok: false, reason: 'Executable files are not accepted.' };
+  }
+
+  // 2) Content-confusion checks for the types clients most often spoof.
+  const mime = (declaredMime ?? '').toLowerCase();
+  if (mime.startsWith('image/')) {
+    const isImage = SIGNATURES.filter((s) => s.kind === 'image').some((s) =>
+      s.matches(buf),
+    );
+    const isHeic =
+      buf.length >= 12 &&
+      buf.toString('ascii', 4, 8) === 'ftyp' &&
+      /heic|heif|mif1|hevc/i.test(buf.toString('ascii', 8, 12));
+    if (!isImage && !isHeic) {
+      return { ok: false, reason: 'This file is not a valid image.' };
+    }
+  }
+  if (mime === 'application/pdf') {
+    if (!(buf.length >= 5 && buf.toString('ascii', 0, 5) === '%PDF-')) {
+      return { ok: false, reason: 'This file is not a valid PDF.' };
+    }
+    const scan = buf.toString('latin1', 0, Math.min(buf.length, 2_000_000));
+    if (/\/JavaScript|\/JS\b|\/OpenAction/.test(scan)) {
+      return { ok: false, reason: 'This PDF could not be accepted for security reasons.' };
+    }
+  }
+
+  return { ok: true };
+}
+
 export { MAX_EVIDENCE_BYTES, MAX_ID_PHOTO_BYTES };
