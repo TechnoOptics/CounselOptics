@@ -94,6 +94,29 @@ export default async function CounselSettingsPage() {
           Set up SSO &amp; provisioning
         </a>
       </section>
+
+      <section className="space-y-3 pt-2 border-t border-ink-200 dark:border-forest-700/40">
+        <header>
+          <p className="eyebrow mb-1">Data export &amp; backup</p>
+          <h2 className="font-display text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
+            Keep your own copy
+          </h2>
+          <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
+            Download a portable JSON archive of {ctx.firm.name}&rsquo;s
+            operational data (matters, clients, people, documents metadata,
+            billing, trust ledger, projects) to store on your own servers. The
+            archive excludes secrets and document file bytes. Scheduled backups
+            straight to your own data warehouse or bucket are available on
+            request.
+          </p>
+        </header>
+        <a
+          href="/api/counsel/firm-export"
+          className="inline-flex items-center gap-2 rounded-lg bg-forest-900 text-white dark:bg-gold-metal dark:text-forest-950 px-4 py-2 text-sm font-medium transition hover:brightness-110"
+        >
+          Download data archive (JSON)
+        </a>
+      </section>
     </div>
   );
 }
