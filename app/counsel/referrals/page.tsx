@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { createServerSupabase } from '@/lib/supabase/server';
+import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Co-counsel referrals · Counsel' };
@@ -74,33 +75,45 @@ export default async function CocounselReferralsPage() {
     <div className="space-y-8 animate-fade-up">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="eyebrow mb-1">Counsel · referrals</p>
+          <p className="eyebrow mb-1"><T>Counsel · referrals</T></p>
           <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-            Co-counsel referrals
+            <T>Co-counsel referrals</T>
           </h1>
           <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-            Refer a matter to another firm with an agreed fee split, or
+            <T>Refer a matter to another firm with an agreed fee split, or
             accept a referral from a firm that&rsquo;s out of its depth.
             Client consent in writing is required by Model Rule 1.5(e) and
-            most state analogues; the audit trail is captured on each row.
+            most state analogues; the audit trail is captured on each row.</T>
           </p>
         </div>
         <Link href="/counsel/referrals/new" className="btn-primary">
-          Propose a referral
+          <T>Propose a referral</T>
         </Link>
       </header>
 
-      <Section title={`Inbound (${inbound.length})`}>
+      <Section
+        title={
+          <>
+            <T>Inbound</T> ({inbound.length})
+          </>
+        }
+      >
         {inbound.length === 0 ? (
-          <Empty msg="No inbound referrals yet." />
+          <Empty msg={<T>No inbound referrals yet.</T>} />
         ) : (
           <Cards rows={inbound} firmMap={firmMap} viewerSide="inbound" />
         )}
       </Section>
 
-      <Section title={`Outbound (${outbound.length})`}>
+      <Section
+        title={
+          <>
+            <T>Outbound</T> ({outbound.length})
+          </>
+        }
+      >
         {outbound.length === 0 ? (
-          <Empty msg="You haven't referred anything out yet." />
+          <Empty msg={<T>You haven't referred anything out yet.</T>} />
         ) : (
           <Cards rows={outbound} firmMap={firmMap} viewerSide="outbound" />
         )}
@@ -113,7 +126,7 @@ function Section({
   title,
   children,
 }: {
-  title: string;
+  title: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -126,7 +139,7 @@ function Section({
   );
 }
 
-function Empty({ msg }: { msg: string }) {
+function Empty({ msg }: { msg: React.ReactNode }) {
   return (
     <p className="card p-5 text-[13px] text-ink-500 dark:text-cream-100/55 italic">
       {msg}
@@ -167,7 +180,7 @@ function Cards({
             <Link href={`/counsel/referrals/${r.id}`} className="block space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <p className="font-semibold text-forest-900 dark:text-cream-100 truncate">
-                  {viewerSide === 'inbound' ? 'From ' : 'To '} {otherName} · {r.state}
+                  {viewerSide === 'inbound' ? <T>From</T> : <T>To</T>} {otherName} · {r.state}
                 </p>
                 <span
                   className={`shrink-0 inline-flex items-center px-1.5 py-[1px] rounded text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ${tone}`}
@@ -180,7 +193,7 @@ function Cards({
               </p>
               <div className="flex items-center justify-between text-[11px] text-ink-500 dark:text-cream-100/70 font-mono tabular-nums pt-1 border-t border-ink-100 dark:border-forest-800/40">
                 <span>{new Date(r.created_at).toLocaleDateString()}</span>
-                <span>Split {r.proposed_split_percent}%</span>
+                <span><T>Split</T> {r.proposed_split_percent}%</span>
               </div>
             </Link>
           </li>

@@ -5,6 +5,7 @@ import { createServerSupabase } from '@/lib/supabase/server';
 import { readRequestFolders } from '@/lib/request-folders';
 import { IntakeInbox, type InboxIntake } from '@/components/counsel/IntakeInbox';
 import { Tabs, type TabDef } from '@/components/Tabs';
+import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Request inbox · Counsel' };
@@ -80,20 +81,20 @@ export default async function CounselInboxPage() {
   return (
     <div className="space-y-6 animate-fade-up">
       <header>
-        <p className="eyebrow mb-1">Counsel</p>
+        <p className="eyebrow mb-1"><T>Counsel</T></p>
         <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          Request inbox
+          <T>Request inbox</T>
         </h1>
         <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-          Where everything lands. <strong>Internal</strong> is what
-          employees filed from the Hub.{' '}
-          <strong>External</strong> is outside-client matters and
-          anything not employee-filed. Need to create one yourself?{' '}
+          <T>Where everything lands.</T> <strong><T>Internal</T></strong> <T>is what
+          employees filed from the Hub.</T>{' '}
+          <strong><T>External</T></strong> <T>is outside-client matters and
+          anything not employee-filed. Need to create one yourself?</T>{' '}
           <Link
             href="/counsel/intake"
             className="underline text-forest-900 dark:text-cream-100"
           >
-            New intake
+            <T>New intake</T>
           </Link>
           .
         </p>
