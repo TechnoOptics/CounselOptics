@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { CounselTileId } from '@/lib/counsel-dashboard';
+import { T } from '@/components/i18n/LocaleProvider';
 
 /**
  * Read-only data envelope the dashboard page hydrates and passes to
@@ -101,8 +102,8 @@ export function DashboardTileRenderer({
       return <SimpleCountTile
         href="/counsel/cases"
         eyebrow="Cases"
-        headline={`${data.counts.casesOpen} open`}
-        metric={`${data.counts.casesTotal} total`}
+        headline={<>{data.counts.casesOpen} <T>open</T></>}
+        metric={<>{data.counts.casesTotal} <T>total</T></>}
         body="Cases shared with the firm. Open + active matters at the top."
         accent={data.accent}
       />;
@@ -111,7 +112,7 @@ export function DashboardTileRenderer({
         href="/counsel/clients"
         eyebrow="Clients"
         headline={String(data.counts.clients)}
-        metric={`${data.counts.clientsActive} active`}
+        metric={<>{data.counts.clientsActive} <T>active</T></>}
         body="Invite a client and they stay linked to your firm."
         accent={data.accent}
       />;
@@ -119,11 +120,18 @@ export function DashboardTileRenderer({
       return <SimpleCountTile
         href="/counsel/team"
         eyebrow="Team"
-        headline={`${data.counts.members} member${data.counts.members === 1 ? '' : 's'}`}
+        headline={
+          <>
+            {data.counts.members}{' '}
+            <T>{data.counts.members === 1 ? 'member' : 'members'}</T>
+          </>
+        }
         metric={
-          data.counts.invitations > 0
-            ? `${data.counts.invitations} pending`
-            : 'No pending invites'
+          data.counts.invitations > 0 ? (
+            <>{data.counts.invitations} <T>pending</T></>
+          ) : (
+            <T>No pending invites</T>
+          )
         }
         body="Admins, attorneys, paralegals, staff."
         accent={data.accent}
@@ -133,7 +141,7 @@ export function DashboardTileRenderer({
         href="/counsel/documents"
         eyebrow="Documents"
         headline={String(data.counts.documents)}
-        metric="Versioned"
+        metric={<T>Versioned</T>}
         body="Contracts, motions, evidence packets."
         accent={data.accent}
       />;
@@ -142,7 +150,7 @@ export function DashboardTileRenderer({
         href="/counsel/signing"
         eyebrow="Signing"
         headline={String(data.counts.signingPending)}
-        metric="awaiting signature"
+        metric={<T>awaiting signature</T>}
         body="UETA-aligned, tamper-evident audit chain."
         accent={data.accent}
       />;
@@ -154,8 +162,8 @@ export function DashboardTileRenderer({
       return <SimpleCountTile
         href="/counsel/chat"
         eyebrow="Team chat"
-        headline="Channels + DMs"
-        metric="Realtime"
+        headline={<T>Channels + DMs</T>}
+        metric={<T>Realtime</T>}
         body="Channels for firm-wide topics, group DMs per matter, 1:1s."
         accent={data.accent}
       />;
@@ -164,8 +172,8 @@ export function DashboardTileRenderer({
       return <SimpleCountTile
         href="/counsel/settings"
         eyebrow="Firm settings"
-        headline="Brand + scope"
-        metric="Owner / admin"
+        headline={<T>Brand + scope</T>}
+        metric={<T>Owner / admin</T>}
         body="Logo, accent color, jurisdictions, practice areas."
         accent={data.accent}
       />;
@@ -185,7 +193,7 @@ function TileFrame({
   children,
 }: {
   eyebrow: string;
-  title: string;
+  title: React.ReactNode;
   href?: string;
   span?: 1 | 2 | 4;
   accent: string;
@@ -204,10 +212,10 @@ function TileFrame({
           className="text-[10px] uppercase tracking-[0.22em] font-semibold"
           style={{ color: accent }}
         >
-          {eyebrow}
+          <T>{eyebrow}</T>
         </p>
         {href ? (
-          <span className="text-[11px] text-cream-100/60">View</span>
+          <span className="text-[11px] text-cream-100/60"><T>View</T></span>
         ) : null}
       </div>
       <p className="font-display text-lg font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
@@ -236,8 +244,8 @@ function SimpleCountTile({
 }: {
   href: string;
   eyebrow: string;
-  headline: string;
-  metric: string;
+  headline: React.ReactNode;
+  metric: React.ReactNode;
   body: string;
   accent: string;
 }) {
@@ -250,7 +258,7 @@ function SimpleCountTile({
         className="text-[10px] uppercase tracking-[0.22em] font-semibold"
         style={{ color: accent }}
       >
-        {eyebrow}
+        <T>{eyebrow}</T>
       </p>
       <p className="font-display text-2xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100 mt-1">
         {headline}
@@ -259,7 +267,7 @@ function SimpleCountTile({
         {metric}
       </p>
       <p className="text-[13px] text-ink-600 dark:text-cream-100/70 mt-2.5 leading-relaxed">
-        {body}
+        <T>{body}</T>
       </p>
     </Link>
   );
@@ -311,17 +319,28 @@ function ActionCenterTile({ data }: { data: DashboardTileData }) {
     <TileFrame
       eyebrow="Action center"
       title={
-        items.length === 0
-          ? 'All clear'
-          : `${items.length} thing${items.length === 1 ? '' : 's'} need a human`
+        items.length === 0 ? (
+          <T>All clear</T>
+        ) : (
+          <>
+            {items.length}{' '}
+            <T>
+              {items.length === 1
+                ? 'thing needs a human'
+                : 'things need a human'}
+            </T>
+          </>
+        )
       }
       accent={data.accent}
       span={4}
     >
       {items.length === 0 ? (
         <p className="text-[13px] text-ink-600 dark:text-cream-100/70 mt-2 leading-relaxed">
-          Nothing waiting on you right now. New requests, signing
-          chase-ups, and pending invitations will surface here.
+          <T>
+            Nothing waiting on you right now. New requests, signing
+            chase-ups, and pending invitations will surface here.
+          </T>
         </p>
       ) : (
         <ul className="mt-3 space-y-2">
@@ -337,11 +356,11 @@ function ActionCenterTile({ data }: { data: DashboardTileData }) {
                     {it.label}
                   </span>
                   <span className="block text-[11.5px] text-cream-100/65 leading-relaxed">
-                    {it.detail}
+                    <T>{it.detail}</T>
                   </span>
                 </span>
                 <span className="text-[11px] text-cream-100/55 mt-1">
-                  Open
+                  <T>Open</T>
                 </span>
               </Link>
             </li>
@@ -362,27 +381,36 @@ function AssignedToMeTile({ data }: { data: DashboardTileData }) {
     <TileFrame
       eyebrow="Assigned to me"
       title={
-        total === 0
-          ? 'Nothing assigned yet'
-          : `${total} thing${total === 1 ? '' : 's'} in your name`
+        total === 0 ? (
+          <T>Nothing assigned yet</T>
+        ) : (
+          <>
+            {total}{' '}
+            <T>
+              {total === 1 ? 'thing in your name' : 'things in your name'}
+            </T>
+          </>
+        )
       }
       accent={data.accent}
       span={4}
     >
       {total === 0 ? (
         <p className="text-[13px] text-ink-600 dark:text-cream-100/70 mt-2 leading-relaxed">
-          When you're set as the primary attorney on a client or case,
-          it'll show up here for quick access.
+          <T>
+            When you're set as the primary attorney on a client or case,
+            it'll show up here for quick access.
+          </T>
         </p>
       ) : (
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <div>
             <p className="text-[10px] uppercase tracking-[0.18em] text-cream-100/60 mb-1">
-              Your clients ({clientCount})
+              <T>Your clients</T> ({clientCount})
             </p>
             {clientCount === 0 ? (
               <p className="text-[12px] text-cream-100/55">
-                No primary-attorney clients.
+                <T>No primary-attorney clients.</T>
               </p>
             ) : (
               <ul className="space-y-1">
@@ -401,7 +429,7 @@ function AssignedToMeTile({ data }: { data: DashboardTileData }) {
                 ))}
                 {clientCount > 5 && (
                   <li className="text-[11px] text-cream-100/60 px-2 pt-0.5">
-                    +{clientCount - 5} more
+                    +{clientCount - 5} <T>more</T>
                   </li>
                 )}
               </ul>
@@ -409,11 +437,11 @@ function AssignedToMeTile({ data }: { data: DashboardTileData }) {
           </div>
           <div>
             <p className="text-[10px] uppercase tracking-[0.18em] text-cream-100/60 mb-1">
-              Your cases ({caseCount})
+              <T>Your cases</T> ({caseCount})
             </p>
             {caseCount === 0 ? (
               <p className="text-[12px] text-cream-100/55">
-                No cases tied to your clients yet.
+                <T>No cases tied to your clients yet.</T>
               </p>
             ) : (
               <ul className="space-y-1">
@@ -432,7 +460,7 @@ function AssignedToMeTile({ data }: { data: DashboardTileData }) {
                 ))}
                 {caseCount > 5 && (
                   <li className="text-[11px] text-cream-100/60 px-2 pt-0.5">
-                    +{caseCount - 5} more
+                    +{caseCount - 5} <T>more</T>
                   </li>
                 )}
               </ul>
@@ -456,7 +484,7 @@ function QuickActionsTile({ data }: { data: DashboardTileData }) {
   return (
     <TileFrame
       eyebrow="Quick actions"
-      title="Start something"
+      title={<T>Start something</T>}
       accent={data.accent}
       span={2}
     >
@@ -467,7 +495,7 @@ function QuickActionsTile({ data }: { data: DashboardTileData }) {
             href={a.href}
             className="rounded-md ring-1 ring-forest-700/40 bg-forest-900/40 hover:bg-forest-800/60 px-3 py-2 text-[12.5px] text-cream-100/85 hover:text-cream-100 transition-colors text-center"
           >
-            {a.label}
+            <T>{a.label}</T>
           </Link>
         ))}
       </div>
@@ -482,9 +510,11 @@ function MeetingsTile({ data }: { data: DashboardTileData }) {
     <TileFrame
       eyebrow="Upcoming meetings"
       title={
-        data.meetings.length === 0
-          ? 'Nothing on the calendar'
-          : `Next ${Math.min(data.meetings.length, 5)}`
+        data.meetings.length === 0 ? (
+          <T>Nothing on the calendar</T>
+        ) : (
+          <><T>Next</T> {Math.min(data.meetings.length, 5)}</>
+        )
       }
       href="/counsel/calendar"
       accent={data.accent}
@@ -492,8 +522,10 @@ function MeetingsTile({ data }: { data: DashboardTileData }) {
     >
       {data.meetings.length === 0 ? (
         <p className="text-[12.5px] text-cream-100/60 mt-2 leading-relaxed">
-          Connect Microsoft 365 or Zoom from Calendar to see your
-          schedule here.
+          <T>
+            Connect Microsoft 365 or Zoom from Calendar to see your
+            schedule here.
+          </T>
         </p>
       ) : (
         <ul className="mt-3 space-y-1.5">
@@ -526,9 +558,11 @@ function DeadlinesTile({ data }: { data: DashboardTileData }) {
     <TileFrame
       eyebrow="Hearings + deadlines"
       title={
-        data.deadlines.length === 0
-          ? 'Nothing due'
-          : `Next ${Math.min(data.deadlines.length, 5)}`
+        data.deadlines.length === 0 ? (
+          <T>Nothing due</T>
+        ) : (
+          <><T>Next</T> {Math.min(data.deadlines.length, 5)}</>
+        )
       }
       href="/counsel/calendar"
       accent={data.accent}
@@ -536,8 +570,10 @@ function DeadlinesTile({ data }: { data: DashboardTileData }) {
     >
       {data.deadlines.length === 0 ? (
         <p className="text-[12.5px] text-cream-100/60 mt-2 leading-relaxed">
-          Hearings and case deadlines flagged in your matters will
-          appear here.
+          <T>
+            Hearings and case deadlines flagged in your matters will
+            appear here.
+          </T>
         </p>
       ) : (
         <ul className="mt-3 space-y-1.5">
@@ -575,7 +611,7 @@ function IntakePipelineTile({ data }: { data: DashboardTileData }) {
   return (
     <TileFrame
       eyebrow="Intake pipeline"
-      title="Request inbox"
+      title={<T>Request inbox</T>}
       href="/counsel/inbox"
       accent={data.accent}
       span={2}
@@ -590,7 +626,7 @@ function IntakePipelineTile({ data }: { data: DashboardTileData }) {
               {l.count}
             </p>
             <p className="text-[10px] uppercase tracking-wider text-cream-100/55 mt-0.5">
-              {l.label}
+              <T>{l.label}</T>
             </p>
           </div>
         ))}
@@ -625,13 +661,15 @@ function RecentActivityTile({ data }: { data: DashboardTileData }) {
   return (
     <TileFrame
       eyebrow="Recent activity"
-      title={top.length === 0 ? 'Nothing recently' : 'Across the firm'}
+      title={
+        top.length === 0 ? <T>Nothing recently</T> : <T>Across the firm</T>
+      }
       accent={data.accent}
       span={2}
     >
       {top.length === 0 ? (
         <p className="text-[12.5px] text-cream-100/60 mt-2 leading-relaxed">
-          New intakes, uploads, and signings will surface here.
+          <T>New intakes, uploads, and signings will surface here.</T>
         </p>
       ) : (
         <ul className="mt-3 space-y-1.5">
@@ -663,9 +701,11 @@ function RecentUploadsTile({ data }: { data: DashboardTileData }) {
     <TileFrame
       eyebrow="Recent uploads"
       title={
-        data.recentUploads.length === 0
-          ? 'No documents yet'
-          : `Last ${Math.min(data.recentUploads.length, 5)}`
+        data.recentUploads.length === 0 ? (
+          <T>No documents yet</T>
+        ) : (
+          <><T>Last</T> {Math.min(data.recentUploads.length, 5)}</>
+        )
       }
       href="/counsel/documents"
       accent={data.accent}
@@ -673,8 +713,7 @@ function RecentUploadsTile({ data }: { data: DashboardTileData }) {
     >
       {data.recentUploads.length === 0 ? (
         <p className="text-[12.5px] text-cream-100/60 mt-2 leading-relaxed">
-          Upload contracts, motions, evidence and they'll show up
-          here.
+          <T>Upload contracts, motions, evidence and they'll show up here.</T>
         </p>
       ) : (
         <ul className="mt-3 space-y-1.5">
