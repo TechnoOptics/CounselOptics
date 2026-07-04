@@ -40,13 +40,13 @@ export default async function SigningRequestDetail({
         <div>
           <p className="eyebrow mb-1"><T>Signing request</T></p>
           <h1 className="font-display text-2xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-            {doc?.name ?? 'Document'}
+            {doc?.name ?? <T>Document</T>}
           </h1>
           <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-1 font-mono">
             <T>Request</T> #{data.request.id.slice(0, 8)} &middot; <T>Sent</T>{' '}
             {data.request.sentAt
               ? new Date(data.request.sentAt).toLocaleString()
-              : 'not yet'}
+              : <T>not yet</T>}
           </p>
         </div>
         <div className="flex flex-col items-end gap-2">
@@ -71,11 +71,13 @@ export default async function SigningRequestDetail({
           }`}
         >
           <p>
-            {data.request.status === 'canceled'
-              ? 'You recalled this request. Its sign links no longer work. Send a new request from Documents when the document is ready.'
-              : data.request.status === 'rejected'
-                ? 'A signer declined to sign. Review their note below. Reopen to send the revised document without losing signatures already collected, or send a fresh request.'
-                : 'A signer requested changes. Review their note below. Reopen to put the document back out for signature (anyone who already signed stays signed), or send a fresh request.'}
+            {data.request.status === 'canceled' ? (
+              <T>You recalled this request. Its sign links no longer work. Send a new request from Documents when the document is ready.</T>
+            ) : data.request.status === 'rejected' ? (
+              <T>A signer declined to sign. Review their note below. Reopen to send the revised document without losing signatures already collected, or send a fresh request.</T>
+            ) : (
+              <T>A signer requested changes. Review their note below. Reopen to put the document back out for signature (anyone who already signed stays signed), or send a fresh request.</T>
+            )}
           </p>
           {(data.request.status === 'rejected' ||
             data.request.status === 'changes_requested') && (
@@ -121,7 +123,11 @@ export default async function SigningRequestDetail({
                         : 'text-amber-700 dark:text-amber-300'
                     }`}
                   >
-                    {sig.response === 'rejected' ? 'Declined' : 'Requested changes'}
+                    {sig.response === 'rejected' ? (
+                      <T>Declined</T>
+                    ) : (
+                      <T>Requested changes</T>
+                    )}
                     {sig.respondedAt
                       ? ` · ${new Date(sig.respondedAt).toLocaleDateString()}`
                       : ''}

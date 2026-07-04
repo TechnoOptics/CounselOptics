@@ -143,7 +143,7 @@ export default async function CounselTimePage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="font-semibold text-forest-900 dark:text-cream-100 truncate">
-                        {e.description ?? 'Time entry'}
+                        {e.description ?? <T>Time entry</T>}
                       </p>
                       {e.invoice_id && (
                         <span className="inline-flex items-center px-1.5 py-[1px] rounded text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-200 ring-emerald-200 dark:ring-emerald-700/40">

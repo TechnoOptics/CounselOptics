@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { readIntakeFolder } from '@/lib/request-folders';
+import { T } from '@/components/i18n/LocaleProvider';
 
 export type InboxIntake = {
   id: string;
@@ -130,7 +131,7 @@ export function IntakeInbox({
   if (intakes.length === 0) {
     return (
       <p className="card p-6 text-[13px] text-ink-500 dark:text-cream-100/55 italic">
-        {emptyMessage ?? 'No requests here yet.'}
+        <T>{emptyMessage ?? 'No requests here yet.'}</T>
       </p>
     );
   }

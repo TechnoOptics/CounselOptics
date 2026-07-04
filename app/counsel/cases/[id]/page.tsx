@@ -369,7 +369,7 @@ export default async function CounselCaseDetailPage({
               >
                 <div className="min-w-0 flex-1">
                   <p className="text-[13px] text-forest-900 dark:text-cream-100 truncate">
-                    {e.description ?? 'Time entry'}
+                    {e.description ?? <T>Time entry</T>}
                   </p>
                   <p className="text-[11px] text-ink-500 dark:text-cream-100/55 font-mono tabular-nums mt-0.5">
                     {new Date(e.started_at).toLocaleString()}

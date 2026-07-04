@@ -115,7 +115,7 @@ function LeadCard({
       <Link href={`/counsel/leads/${lead.id}`} className="block space-y-2">
         <div className="flex items-start justify-between gap-2">
           <p className="font-semibold text-forest-900 dark:text-cream-100 truncate flex-1 min-w-0">
-            {lead.practiceAreas.slice(0, 3).join(', ') || 'Legal matter'} ·{' '}
+            {lead.practiceAreas.slice(0, 3).join(', ') || <T>Legal matter</T>} ·{' '}
             {lead.jurisdictionState ?? '—'}
           </p>
           <span

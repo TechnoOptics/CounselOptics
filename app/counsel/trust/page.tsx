@@ -131,7 +131,7 @@ export default async function CounselTrustPage({
             {account.name}
           </h1>
           <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-1 font-mono">
-            {account.bank_name ?? 'Bank not set'} ·{' '}
+            {account.bank_name ?? <T>Bank not set</T>} ·{' '}
             {account.is_iolta ? 'IOLTA' : 'Trust'} · {account.state}
             {account.account_number_masked && ` · ${account.account_number_masked}`}
           </p>

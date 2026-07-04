@@ -34,7 +34,7 @@ export default async function FirmLeadDetailPage({
       <header>
         <p className="eyebrow mb-1"><T>Lead</T></p>
         <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          {lead.practiceAreas.slice(0, 2).join(', ') || 'Legal matter'}
+          {lead.practiceAreas.slice(0, 2).join(', ') || <T>Legal matter</T>}
           {lead.jurisdictionState ? ` · ${lead.jurisdictionState}` : ''}
         </h1>
         <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-1 font-mono">

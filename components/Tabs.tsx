@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { T } from '@/components/i18n/LocaleProvider';
 
 export type TabDef = {
   id: string;
@@ -100,7 +101,7 @@ export function Tabs({
           choices, and there's no hidden state. */}
       <div className="sm:hidden">
         <label htmlFor="tabs-mobile-select" className="sr-only">
-          Choose section
+          <T>Choose section</T>
         </label>
         <div className="relative">
           <select
@@ -117,7 +118,7 @@ export function Tabs({
                   : '';
               return (
                 <option key={t.id} value={t.id}>
-                  {t.label}
+                  <T>{t.label}</T>
                   {badge}
                 </option>
               );
@@ -140,12 +141,12 @@ export function Tabs({
         </div>
         {activeTab && (
           <p className="mt-2 text-[11px] uppercase tracking-[0.22em] font-semibold text-gold-700 dark:text-gold-300">
-            {activeTab.label}
+            <T>{activeTab.label}</T>
           </p>
         )}
         {swipe && tabs.length > 1 && (
           <p className="mt-1 text-[11px] text-ink-500 dark:text-cream-100/70">
-            Swipe left or right to move between sections.
+            <T>Swipe left or right to move between sections.</T>
           </p>
         )}
       </div>
@@ -169,7 +170,7 @@ export function Tabs({
               onClick={() => setActive(t.id)}
               className={`tab inline-flex items-center gap-2 ${isActive ? 'tab-active' : ''}`}
             >
-              <span>{t.label}</span>
+              <span><T>{t.label}</T></span>
               {t.badge !== undefined && t.badge !== null && t.badge !== '' && (
                 <span
                   className={`inline-flex items-center justify-center text-[10px] font-mono rounded-full px-1.5 py-0.5 leading-none min-w-[18px] ${
