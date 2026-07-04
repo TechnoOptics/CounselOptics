@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { T, useT } from '@/components/i18n/LocaleProvider';
 import {
   runConflictCheckAction,
   clearConflictAction,
@@ -34,6 +35,7 @@ export function ConflictCheckPanel({
   notes: string | null;
 }) {
   const router = useRouter();
+  const t = useT();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [reason, setReason] = useState('');
@@ -42,19 +44,19 @@ export function ConflictCheckPanel({
     setError(null);
     startTransition(async () => {
       const res = await runConflictCheckAction(firmId, intakeId);
-      if (!res.ok) setError(res.error ?? 'Check failed.');
+      if (!res.ok) setError(res.error ?? t('Check failed.'));
       router.refresh();
     });
   }
   function clear() {
     setError(null);
     if (reason.trim().length < 10) {
-      setError('Reason must be at least 10 characters.');
+      setError(t('Reason must be at least 10 characters.'));
       return;
     }
     startTransition(async () => {
       const res = await clearConflictAction(firmId, intakeId, reason);
-      if (!res.ok) setError(res.error ?? 'Could not clear.');
+      if (!res.ok) setError(res.error ?? t('Could not clear.'));
       router.refresh();
     });
   }
@@ -67,12 +69,12 @@ export function ConflictCheckPanel({
     <section className="card p-5 sm:p-6 space-y-4">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="eyebrow">Conflict check</p>
+          <p className="eyebrow"><T>Conflict check</T></p>
           <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-0.5 leading-relaxed max-w-2xl">
-            Searches the firm&rsquo;s existing client list and prior matter
+            <T>Searches the firm&rsquo;s existing client list and prior matter
             intakes for any name overlap with the parties on this intake.
             Hits are categorized by severity; clear with a written reason
-            for the audit trail.
+            for the audit trail.</T>
           </p>
         </div>
         <button
@@ -81,13 +83,13 @@ export function ConflictCheckPanel({
           disabled={pending}
           className="btn-secondary"
         >
-          {pending ? 'Running...' : status === 'in_progress' ? 'Run check' : 'Re-run'}
+          {pending ? <T>Running...</T> : status === 'in_progress' ? <T>Run check</T> : <T>Re-run</T>}
         </button>
       </div>
 
       {hits.length === 0 && passed && (
         <p className="text-[13px] text-emerald-700 dark:text-emerald-300">
-          No conflicts found. You&rsquo;re clear to proceed with engagement.
+          <T>No conflicts found. You&rsquo;re clear to proceed with engagement.</T>
         </p>
       )}
 
@@ -100,7 +102,7 @@ export function ConflictCheckPanel({
             >
               <div className="flex items-center justify-between gap-2">
                 <p className="text-[13px] text-forest-900 dark:text-cream-100">
-                  <strong>{h.matchedParty}</strong> matches{' '}
+                  <strong>{h.matchedParty}</strong> <T>matches</T>{' '}
                   <strong>{h.matchedAgainst}</strong>
                 </p>
                 <span
@@ -112,7 +114,7 @@ export function ConflictCheckPanel({
                 </span>
               </div>
               <p className="text-[11.5px] text-ink-500 dark:text-cream-100/55 mt-0.5">
-                Source: {h.source.replace(/_/g, ' ')}
+                <T>Source:</T> {h.source.replace(/_/g, ' ')}
               </p>
             </li>
           ))}
@@ -122,15 +124,15 @@ export function ConflictCheckPanel({
       {flagged && (
         <div className="space-y-2">
           <p className="text-[13px] font-semibold text-rose-700 dark:text-rose-300">
-            Conflict check flagged. Clear with a written reason or reject the
-            intake.
+            <T>Conflict check flagged. Clear with a written reason or reject the
+            intake.</T>
           </p>
           <textarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             rows={2}
             className="input"
-            placeholder="Written waiver from the existing client; conflict is purely titular; common business name; etc. (min. 10 chars)"
+            placeholder={t('Written waiver from the existing client; conflict is purely titular; common business name; etc. (min. 10 chars)')}
           />
           <div className="flex justify-end">
             <button
@@ -139,7 +141,7 @@ export function ConflictCheckPanel({
               disabled={pending}
               className="btn-primary"
             >
-              {pending ? 'Clearing...' : 'Clear with this reason'}
+              {pending ? <T>Clearing...</T> : <T>Clear with this reason</T>}
             </button>
           </div>
         </div>
@@ -147,7 +149,7 @@ export function ConflictCheckPanel({
 
       {notes && (
         <div className="text-[12px] text-ink-500 dark:text-cream-100/55 italic border-t border-ink-100 dark:border-forest-800/40 pt-3">
-          Cleared with: {notes}
+          <T>Cleared with:</T> {notes}
         </div>
       )}
 

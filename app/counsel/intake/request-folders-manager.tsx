@@ -7,6 +7,7 @@ import {
   deleteRequestFolderAction,
 } from '@/lib/firm-actions';
 import type { RequestFolder } from '@/lib/request-folders';
+import { T, useT } from '@/components/i18n/LocaleProvider';
 
 /**
  * Owner/admin: create the folders/sections requests get organized
@@ -21,6 +22,7 @@ export function RequestFoldersManager({
   initial: RequestFolder[];
 }) {
   const router = useRouter();
+  const t = useT();
   const [pending, startTransition] = useTransition();
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -36,7 +38,7 @@ export function RequestFoldersManager({
         setName('');
         router.refresh();
       } else {
-        setError(res.error ?? 'Could not add folder.');
+        setError(res.error ?? t('Could not add folder.'));
       }
     });
   }
@@ -51,7 +53,7 @@ export function RequestFoldersManager({
   return (
     <div className="card p-4 space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="eyebrow">Folders</p>
+        <p className="eyebrow"><T>Folders</T></p>
         <div className="flex items-center gap-2">
           <input
             value={name}
@@ -62,7 +64,7 @@ export function RequestFoldersManager({
                 add();
               }
             }}
-            placeholder="New folder (e.g. Contracts, Litigation, HR)"
+            placeholder={t('New folder (e.g. Contracts, Litigation, HR)')}
             className="input !py-1 text-[13px] w-64 max-w-[60vw]"
             disabled={pending}
           />
@@ -72,7 +74,7 @@ export function RequestFoldersManager({
             disabled={pending || !name.trim()}
             className="btn-primary !py-1 text-[13px]"
           >
-            Add
+            <T>Add</T>
           </button>
         </div>
       </div>

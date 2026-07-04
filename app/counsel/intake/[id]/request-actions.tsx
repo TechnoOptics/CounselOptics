@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { T, useT } from '@/components/i18n/LocaleProvider';
 import {
   setIntakeReminderAction,
   convertIntakeToCaseAction,
@@ -26,6 +27,7 @@ export function RequestActions({
   caseId?: string | null;
 }) {
   const router = useRouter();
+  const t = useT();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
@@ -39,7 +41,7 @@ export function RequestActions({
       if (res.ok && res.caseId) {
         router.push(`/counsel/cases/${res.caseId}`);
       } else {
-        setConvertError(res.error ?? 'Could not open the matter.');
+        setConvertError(res.error ?? t('Could not open the matter.'));
       }
     });
   }
@@ -63,7 +65,7 @@ export function RequestActions({
     if (!clear) {
       const d = new Date(when);
       if (!when || Number.isNaN(d.getTime())) {
-        setError('Pick a date and time for the reminder.');
+        setError(t('Pick a date and time for the reminder.'));
         return;
       }
       iso = d.toISOString();
@@ -71,11 +73,11 @@ export function RequestActions({
     startTransition(async () => {
       const res = await setIntakeReminderAction(firmId, intakeId, iso);
       if (res.ok) {
-        setOk(clear ? 'Reminder cleared.' : 'Reminder set.');
+        setOk(clear ? t('Reminder cleared.') : t('Reminder set.'));
         if (clear) setWhen('');
         router.refresh();
       } else {
-        setError(res.error ?? 'Could not save the reminder.');
+        setError(res.error ?? t('Could not save the reminder.'));
       }
     });
   }
@@ -84,11 +86,11 @@ export function RequestActions({
    <div className="space-y-4">
     <section className="card p-5 flex flex-wrap items-center justify-between gap-4">
       <div className="min-w-0">
-        <p className="eyebrow">Matter</p>
+        <p className="eyebrow"><T>Matter</T></p>
         <p className="text-[13px] text-ink-700 dark:text-cream-100/85 mt-1 max-w-xl leading-relaxed">
           {caseId
-            ? 'This request has been opened as a matter in your caseload.'
-            : 'Accept this request and open it as a matter. It joins the firm caseload with the client, summary, and jurisdiction pre-filled.'}
+            ? <T>This request has been opened as a matter in your caseload.</T>
+            : <T>Accept this request and open it as a matter. It joins the firm caseload with the client, summary, and jurisdiction pre-filled.</T>}
         </p>
         {convertError && (
           <p className="text-[12px] text-rose-600 dark:text-rose-300 mt-1">
@@ -101,7 +103,7 @@ export function RequestActions({
           href={`/counsel/cases/${caseId}`}
           className="btn-secondary !py-1.5 text-[13px] text-center whitespace-nowrap"
         >
-          View matter &rarr;
+          <T>View matter &rarr;</T>
         </a>
       ) : (
         <button
@@ -110,17 +112,17 @@ export function RequestActions({
           disabled={convertPending}
           className="btn-primary !py-1.5 text-[13px] whitespace-nowrap disabled:opacity-60"
         >
-          {convertPending ? 'Opening…' : 'Open as a matter'}
+          {convertPending ? <T>Opening…</T> : <T>Open as a matter</T>}
         </button>
       )}
     </section>
 
     <section className="card p-5 grid sm:grid-cols-2 gap-5">
       <div className="space-y-2">
-        <p className="eyebrow">Reminder</p>
+        <p className="eyebrow"><T>Reminder</T></p>
         <p className="text-[12px] text-ink-500 dark:text-cream-100/55 leading-relaxed">
-          Get pinged when this contract/request is due. Notifies you,
-          the legal team, and the requester.
+          <T>Get pinged when this contract/request is due. Notifies you,
+          the legal team, and the requester.</T>
         </p>
         <input
           type="datetime-local"
@@ -136,7 +138,7 @@ export function RequestActions({
             disabled={pending}
             className="btn-primary !py-1 text-[13px]"
           >
-            {pending ? 'Saving...' : currentReminder ? 'Update' : 'Set reminder'}
+            {pending ? <T>Saving...</T> : currentReminder ? <T>Update</T> : <T>Set reminder</T>}
           </button>
           {currentReminder && (
             <button
@@ -145,13 +147,13 @@ export function RequestActions({
               disabled={pending}
               className="text-[12px] underline text-ink-600 dark:text-cream-100/70"
             >
-              Clear
+              <T>Clear</T>
             </button>
           )}
         </div>
         {currentReminder && (
           <p className="text-[11px] text-ink-500 dark:text-cream-100/55">
-            Currently due{' '}
+            <T>Currently due</T>{' '}
             {new Date(currentReminder).toLocaleString()}
           </p>
         )}
@@ -168,24 +170,24 @@ export function RequestActions({
       </div>
 
       <div className="space-y-2 sm:border-l sm:border-ink-200 sm:dark:border-forest-700/40 sm:pl-5">
-        <p className="eyebrow">E-signature</p>
+        <p className="eyebrow"><T>E-signature</T></p>
         <p className="text-[12px] text-ink-500 dark:text-cream-100/55 leading-relaxed">
-          Send a document to the parties to sign - external people or
+          <T>Send a document to the parties to sign - external people or
           employees. Signatures + dates render onto the final PDF with
-          a tamper-evident audit trail.
+          a tamper-evident audit trail.</T>
         </p>
         <div className="flex flex-col gap-1.5 pt-1">
           <a
             href="/counsel/documents"
             className="btn-primary !py-1 text-[13px] text-center"
           >
-            Upload &amp; send for signature
+            <T>Upload &amp; send for signature</T>
           </a>
           <a
             href="/counsel/signing"
             className="text-[12px] underline text-ink-700 dark:text-cream-100/85"
           >
-            Track signing requests &rarr;
+            <T>Track signing requests &rarr;</T>
           </a>
         </div>
       </div>

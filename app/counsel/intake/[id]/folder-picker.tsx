@@ -4,6 +4,7 @@ import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { setIntakeFolderAction } from '@/lib/firm-actions';
 import type { RequestFolder } from '@/lib/request-folders';
+import { T } from '@/components/i18n/LocaleProvider';
 
 /** Inline folder assignment on a request - any legal-team member. */
 export function FolderPicker({
@@ -23,7 +24,7 @@ export function FolderPicker({
   return (
     <label className="inline-flex items-center gap-2 text-[12px]">
       <span className="text-ink-500 dark:text-cream-100/55 uppercase tracking-[0.14em] font-semibold">
-        Folder
+        <T>Folder</T>
       </span>
       <select
         value={current}
@@ -37,7 +38,7 @@ export function FolderPicker({
         }}
         className="rounded-md bg-transparent ring-1 ring-ink-200 dark:ring-forest-700/40 px-2 py-1 text-ink-800 dark:text-cream-100/85 disabled:opacity-50"
       >
-        <option value="">Unfiled</option>
+        <option value=""><T>Unfiled</T></option>
         {folders.map((f) => (
           <option key={f.key} value={f.key}>
             {f.name}

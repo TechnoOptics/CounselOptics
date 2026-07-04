@@ -9,6 +9,7 @@ import {
 } from '@/lib/intake-uploads';
 import type { DocScorecard } from '@/lib/doc-review';
 import { VoiceDictateButton } from '@/components/VoiceDictateButton';
+import { T, useT } from '@/components/i18n/LocaleProvider';
 
 /**
  * Generic typed intake.
@@ -93,6 +94,7 @@ export function CreateIntakeForm({
   redirectBase?: string;
 }) {
   const router = useRouter();
+  const t = useT();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const availableTypes = employeeMode
@@ -119,7 +121,7 @@ export function CreateIntakeForm({
       const res = await reviewIntakeAttachmentAction(firmId, fd);
       setReviewing(false);
       if (res.ok && res.scorecard) setScorecard(res.scorecard);
-      else setReviewErr(res.error ?? 'Could not review the document.');
+      else setReviewErr(res.error ?? t('Could not review the document.'));
     });
   }
 
@@ -136,8 +138,8 @@ export function CreateIntakeForm({
     if (!subject) {
       setError(
         inhouse
-          ? 'A short request title is required.'
-          : 'Client name is required.',
+          ? t('A short request title is required.')
+          : t('Client name is required.'),
       );
       return;
     }
@@ -193,7 +195,7 @@ export function CreateIntakeForm({
     if (filesAttached) {
       if (!scorecard) {
         setError(
-          'Run Advottic Review on your attached document before submitting.',
+          t('Run Advottic Review on your attached document before submitting.'),
         );
         return;
       }
@@ -215,7 +217,7 @@ export function CreateIntakeForm({
       if (hasFiles) {
         const up = await uploadIntakeFilesAction(firmId, formData);
         if (!up.ok) {
-          setError(up.error ?? 'Could not upload your files.');
+          setError(up.error ?? t('Could not upload your files.'));
           return;
         }
         if (up.files && up.files.length > 0) {
@@ -241,22 +243,22 @@ export function CreateIntakeForm({
           employeeMode ? redirectBase : `${redirectBase}/${res.intakeId}`,
         );
       } else {
-        setError(res.error ?? 'Could not create intake.');
+        setError(res.error ?? t('Could not create intake.'));
       }
     });
   }
 
   return (
     <form ref={formRef} action={submit} className="card p-5 sm:p-6 space-y-5">
-      <p className="eyebrow">New intake</p>
+      <p className="eyebrow"><T>New intake</T></p>
 
       <label className="block">
         <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-          Request type{' '}
+          <T>Request type</T>{' '}
           <span aria-hidden className="text-rose-600 dark:text-rose-300">
             *
           </span>
-          <span className="sr-only">(required)</span>
+          <span className="sr-only"><T>(required)</T></span>
         </span>
         <select
           name="requestType"
@@ -266,14 +268,16 @@ export function CreateIntakeForm({
         >
           {availableTypes.map((r) => (
             <option key={r.value} value={r.value}>
-              {r.label}
+              <T>{r.label}</T>
             </option>
           ))}
         </select>
         <span className="block text-[11.5px] text-ink-500 dark:text-cream-100/55 mt-1">
-          {inhouse
-            ? 'In-house request. Capture who submitted it, who is involved, and when it is due.'
-            : 'Outside-client matter. Capture the client and every party so the conflict check can run.'}
+          {inhouse ? (
+            <T>In-house request. Capture who submitted it, who is involved, and when it is due.</T>
+          ) : (
+            <T>Outside-client matter. Capture the client and every party so the conflict check can run.</T>
+          )}
         </span>
       </label>
 
@@ -286,11 +290,11 @@ export function CreateIntakeForm({
             the accessibility tree.
           */}
           <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-            {inhouse ? 'Request title / subject' : 'Client name'}{' '}
+            {inhouse ? <T>Request title / subject</T> : <T>Client name</T>}{' '}
             <span aria-hidden className="text-rose-600 dark:text-rose-300">
               *
             </span>
-            <span className="sr-only">(required)</span>
+            <span className="sr-only"><T>(required)</T></span>
           </span>
           <input
             name="subject"
@@ -300,7 +304,7 @@ export function CreateIntakeForm({
             className="input"
             placeholder={
               inhouse
-                ? 'e.g. Acme SaaS renewal - vendor MSA review'
+                ? t('e.g. Acme SaaS renewal - vendor MSA review')
                 : undefined
             }
           />
@@ -310,7 +314,7 @@ export function CreateIntakeForm({
           <>
             <label className="block">
               <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-                Submitted by
+                <T>Submitted by</T>
               </span>
               <input
                 name="submittedBy"
@@ -318,46 +322,46 @@ export function CreateIntakeForm({
                 defaultValue={defaultSubmittedBy}
                 readOnly={employeeMode}
                 aria-readonly={employeeMode || undefined}
-                placeholder="Who is filing this request"
+                placeholder={t('Who is filing this request')}
               />
               {employeeMode && (
                 <span className="block text-[11.5px] text-ink-500 dark:text-cream-100/55 mt-1">
-                  Filed as you. Legal will see who submitted this.
+                  <T>Filed as you. Legal will see who submitted this.</T>
                 </span>
               )}
             </label>
             <label className="block">
               <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-                Priority
+                <T>Priority</T>
               </span>
               <select name="priority" className="input" defaultValue="Normal">
                 {PRIORITIES.map((p) => (
                   <option key={p} value={p}>
-                    {p}
+                    <T>{p}</T>
                   </option>
                 ))}
               </select>
             </label>
             <label className="block">
               <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-                Due by
+                <T>Due by</T>
               </span>
               <input name="dueBy" type="date" className="input" />
             </label>
             {!employeeMode && (
               <label className="block">
                 <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-                  Expiry / valid until
+                  <T>Expiry / valid until</T>
                 </span>
                 <input name="expiry" type="date" className="input" />
                 <span className="block text-[11.5px] text-ink-500 dark:text-cream-100/55 mt-1">
-                  Set by legal once the document/term is known.
+                  <T>Set by legal once the document/term is known.</T>
                 </span>
               </label>
             )}
             <label className="block">
               <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-                Confidentiality
+                <T>Confidentiality</T>
               </span>
               <select
                 name="confidentiality"
@@ -366,17 +370,17 @@ export function CreateIntakeForm({
               >
                 {CONFIDENTIALITY.map((c) => (
                   <option key={c} value={c}>
-                    {c}
+                    <T>{c}</T>
                   </option>
                 ))}
               </select>
             </label>
             <label className="block">
               <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-                State
+                <T>State</T>
               </span>
               <select name="state" className="input" defaultValue="">
-                <option value="">Pick a state</option>
+                <option value=""><T>Pick a state</T></option>
                 {STATES.map((s) => (
                   <option key={s} value={s}>
                     {s}
@@ -389,22 +393,22 @@ export function CreateIntakeForm({
           <>
             <label className="block">
               <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-                Client email
+                <T>Client email</T>
               </span>
               <input name="clientEmail" type="email" className="input" />
             </label>
             <label className="block">
               <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-                Phone
+                <T>Phone</T>
               </span>
               <input name="clientPhone" type="tel" className="input" />
             </label>
             <label className="block sm:col-span-2">
               <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-                State
+                <T>State</T>
               </span>
               <select name="state" className="input" defaultValue="">
-                <option value="">Pick a state</option>
+                <option value=""><T>Pick a state</T></option>
                 {STATES.map((s) => (
                   <option key={s} value={s}>
                     {s}
@@ -417,22 +421,22 @@ export function CreateIntakeForm({
       </div>
 
       <PartyList
-        label={inhouse ? 'Counterparty / other side' : 'Other parties'}
+        label={inhouse ? t('Counterparty / other side') : t('Other parties')}
         hint={
           inhouse
-            ? 'The vendor, contracting party, or other side - whoever this request is against or with.'
-            : 'The other parties involved (counterparty, defendant, complainant, or other side).'
+            ? t('The vendor, contracting party, or other side - whoever this request is against or with.')
+            : t('The other parties involved (counterparty, defendant, complainant, or other side).')
         }
         values={opposing}
         onChange={setOpposing}
       />
 
       <PartyList
-        label={inhouse ? 'Employees involved' : 'Related parties'}
+        label={inhouse ? t('Employees involved') : t('Related parties')}
         hint={
           inhouse
-            ? 'Employees or internal stakeholders connected to this request.'
-            : 'Co-defendants, employers, family members, witnesses - anyone connected to the matter.'
+            ? t('Employees or internal stakeholders connected to this request.')
+            : t('Co-defendants, employers, family members, witnesses - anyone connected to the matter.')
         }
         values={related}
         onChange={setRelated}
@@ -441,7 +445,7 @@ export function CreateIntakeForm({
       <div className="block">
         <div className="flex items-center justify-between gap-2 mb-1.5">
           <span className="block text-sm font-medium text-forest-900 dark:text-cream-100">
-            {inhouse ? 'Details / desired outcome' : 'Matter summary'}
+            {inhouse ? <T>Details / desired outcome</T> : <T>Matter summary</T>}
           </span>
           <VoiceDictateButton
             onTranscript={(seg) =>
@@ -457,33 +461,33 @@ export function CreateIntakeForm({
           onChange={(e) => setSummary(e.target.value)}
           placeholder={
             inhouse
-              ? 'Type or tap Dictate. What you need from legal, any background, and what a good outcome looks like.'
-              : 'Brief description of what the client is asking for and any deadlines.'
+              ? t('Type or tap Dictate. What you need from legal, any background, and what a good outcome looks like.')
+              : t('Brief description of what the client is asking for and any deadlines.')
           }
         />
       </div>
 
       <label className="block">
         <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-          Reference links{' '}
+          <T>Reference links</T>{' '}
           <span className="text-ink-500 dark:text-cream-100/55 font-normal">
-            (optional)
+            <T>(optional)</T>
           </span>
         </span>
         <textarea
           name="links"
           rows={2}
           className="input"
-          placeholder="Paste any relevant URLs - one per line (SharePoint, Drive, a contract link, a ticket...)"
+          placeholder={t('Paste any relevant URLs - one per line (SharePoint, Drive, a contract link, a ticket...)')}
         />
       </label>
 
       <div className="space-y-3 rounded-xl ring-1 ring-ink-200 dark:ring-forest-700/40 p-4">
         <label className="block">
           <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-            Attach documents{' '}
+            <T>Attach documents</T>{' '}
             <span className="text-ink-500 dark:text-cream-100/55 font-normal">
-              (optional, up to 8 files / 25 MB each)
+              <T>(optional, up to 8 files / 25 MB each)</T>
             </span>
           </span>
           <input
@@ -510,21 +514,23 @@ export function CreateIntakeForm({
         {fileNames.length > 0 && (
           <>
             <p className="text-[12px] text-ink-600 dark:text-cream-100/65 leading-relaxed">
-              Attached contracts must pass{' '}
-              <strong>Advottic Review</strong> (grade C or higher)
-              before this can be submitted. Review checks bias,
-              vulnerabilities, and how it squares with the relevant
-              state&rsquo;s law, and suggests fixes.
+              <T>Attached contracts must pass</T>{' '}
+              <strong>Advottic Review</strong>{' '}
+              <T>
+                (grade C or higher) before this can be submitted. Review checks bias,
+                vulnerabilities, and how it squares with the relevant
+                state&rsquo;s law, and suggests fixes.
+              </T>
             </p>
             <details className="text-[12px] text-ink-500 dark:text-cream-100/55">
               <summary className="cursor-pointer select-none">
-                Scanned file unreadable? Paste the contract text
+                <T>Scanned file unreadable? Paste the contract text</T>
               </summary>
               <textarea
                 name="reviewText"
                 rows={3}
                 className="input mt-2"
-                placeholder="Optional fallback - paste the contract text if the file can't be read automatically."
+                placeholder={t("Optional fallback - paste the contract text if the file can't be read automatically.")}
               />
             </details>
             <button
@@ -533,11 +539,13 @@ export function CreateIntakeForm({
               disabled={reviewing || pending}
               className="btn bg-gold-400 hover:bg-gold-300 text-forest-950 font-semibold disabled:opacity-60"
             >
-              {reviewing
-                ? 'Reviewing…'
-                : scorecard
-                  ? 'Re-run Advottic Review'
-                  : 'Run Advottic Review'}
+              {reviewing ? (
+                <T>Reviewing…</T>
+              ) : scorecard ? (
+                <T>Re-run Advottic Review</T>
+              ) : (
+                <T>Run Advottic Review</T>
+              )}
             </button>
             {reviewErr && (
               <p className="rounded-lg border border-rose-200 dark:border-rose-700/40 bg-rose-50 dark:bg-rose-950/30 px-3 py-2 text-[13px] text-rose-800 dark:text-rose-200">
@@ -571,7 +579,7 @@ export function CreateIntakeForm({
 
       <div className="flex justify-end">
         <button type="submit" className="btn-primary" disabled={pending}>
-          {pending ? 'Creating...' : 'Create intake'}
+          {pending ? <T>Creating...</T> : <T>Create intake</T>}
         </button>
       </div>
     </form>
@@ -616,7 +624,7 @@ function PartyList({
         onClick={() => onChange([...values, ''])}
         className="text-[12px] underline text-ink-700 dark:text-cream-100/85"
       >
-        Add another
+        <T>Add another</T>
       </button>
     </div>
   );
@@ -649,12 +657,15 @@ function Scorecard({ s }: { s: DocScorecard }) {
         </span>
         <div className="min-w-0">
           <p className="text-sm font-semibold text-forest-900 dark:text-cream-100">
-            Advottic Review {s.passes ? '· Cleared to submit' : '· Blocked'}
+            Advottic Review{' '}
+            {s.passes ? <T>· Cleared to submit</T> : <T>· Blocked</T>}
           </p>
           <p className="text-[12px] text-ink-600 dark:text-cream-100/65 leading-snug">
-            {s.passes
-              ? 'Grade C or higher. You can submit this request.'
-              : 'Below the C threshold. Apply the changes below and re-run.'}
+            {s.passes ? (
+              <T>Grade C or higher. You can submit this request.</T>
+            ) : (
+              <T>Below the C threshold. Apply the changes below and re-run.</T>
+            )}
           </p>
         </div>
       </div>
@@ -665,7 +676,7 @@ function Scorecard({ s }: { s: DocScorecard }) {
 
       <div>
         <div className="flex items-center justify-between text-[11.5px] text-ink-600 dark:text-cream-100/65 mb-1">
-          <span>Bias: {s.biasToward}</span>
+          <span><T>Bias:</T> {s.biasToward}</span>
           <span className="font-mono">{s.biasScore}/100</span>
         </div>
         <div className="h-2 rounded-full bg-ink-200 dark:bg-forest-800 overflow-hidden">
@@ -685,7 +696,7 @@ function Scorecard({ s }: { s: DocScorecard }) {
       {s.vulnerabilities.length > 0 && (
         <div>
           <p className="text-[12px] font-semibold text-forest-900 dark:text-cream-100 mb-1">
-            Vulnerabilities
+            <T>Vulnerabilities</T>
           </p>
           <ul className="space-y-1">
             {s.vulnerabilities.map((v, i) => (
@@ -703,7 +714,7 @@ function Scorecard({ s }: { s: DocScorecard }) {
 
       <div>
         <p className="text-[12px] font-semibold text-forest-900 dark:text-cream-100 mb-1">
-          State-law relevance
+          <T>State-law relevance</T>
         </p>
         <p className="text-[12.5px] text-ink-700 dark:text-cream-100/75 leading-relaxed">
           {s.stateLawNotes}
@@ -713,7 +724,7 @@ function Scorecard({ s }: { s: DocScorecard }) {
       {s.suggestedRevisions.length > 0 && (
         <div>
           <p className="text-[12px] font-semibold text-forest-900 dark:text-cream-100 mb-1">
-            Suggested revisions
+            <T>Suggested revisions</T>
           </p>
           <ol className="space-y-1 list-decimal pl-4">
             {s.suggestedRevisions.map((v, i) => (

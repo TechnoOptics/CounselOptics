@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { ExternalLink } from '@/components/ExternalLink';
+import { T, useT } from '@/components/i18n/LocaleProvider';
 import { scheduleMeetingFromIntakeAction } from '@/lib/firm-actions';
 
 /**
@@ -20,6 +21,7 @@ export function ScheduleMeetingPanel({
   defaultTitle: string;
 }) {
   const router = useRouter();
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -31,7 +33,7 @@ export function ScheduleMeetingPanel({
     const local = String(formData.get('when') ?? '');
     const d = new Date(local);
     if (!local || Number.isNaN(d.getTime())) {
-      setError('Pick a date and time.');
+      setError(t('Pick a date and time.'));
       return;
     }
     formData.set('startISO', d.toISOString());
@@ -45,7 +47,7 @@ export function ScheduleMeetingPanel({
         setJoinUrl(res.joinUrl ?? null);
         router.refresh();
       } else {
-        setError(res.error ?? 'Could not schedule the meeting.');
+        setError(res.error ?? t('Could not schedule the meeting.'));
       }
     });
   }
@@ -54,10 +56,10 @@ export function ScheduleMeetingPanel({
     <section className="card p-5 space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="eyebrow">Meeting</p>
+          <p className="eyebrow"><T>Meeting</T></p>
           <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-1">
-            Schedule a Teams or Zoom call on this request - the link
-            drops into the thread.
+            <T>Schedule a Teams or Zoom call on this request - the link
+            drops into the thread.</T>
           </p>
         </div>
         {!open && (
@@ -66,7 +68,7 @@ export function ScheduleMeetingPanel({
             onClick={() => setOpen(true)}
             className="btn-primary shrink-0"
           >
-            Schedule meeting
+            <T>Schedule meeting</T>
           </button>
         )}
       </div>
@@ -76,7 +78,7 @@ export function ScheduleMeetingPanel({
           <div className="grid sm:grid-cols-2 gap-3">
             <label className="block sm:col-span-2">
               <span className="block text-[12px] font-medium text-forest-900 dark:text-cream-100 mb-1">
-                Title
+                <T>Title</T>
               </span>
               <input
                 name="title"
@@ -87,7 +89,7 @@ export function ScheduleMeetingPanel({
             </label>
             <label className="block">
               <span className="block text-[12px] font-medium text-forest-900 dark:text-cream-100 mb-1">
-                When
+                <T>When</T>
               </span>
               <input
                 name="when"
@@ -99,7 +101,7 @@ export function ScheduleMeetingPanel({
             </label>
             <label className="block">
               <span className="block text-[12px] font-medium text-forest-900 dark:text-cream-100 mb-1">
-                Duration
+                <T>Duration</T>
               </span>
               <select
                 name="durationMin"
@@ -107,18 +109,18 @@ export function ScheduleMeetingPanel({
                 className="input"
                 disabled={pending}
               >
-                <option value="15">15 minutes</option>
-                <option value="30">30 minutes</option>
-                <option value="45">45 minutes</option>
-                <option value="60">60 minutes</option>
+                <option value="15"><T>15 minutes</T></option>
+                <option value="30"><T>30 minutes</T></option>
+                <option value="45"><T>45 minutes</T></option>
+                <option value="60"><T>60 minutes</T></option>
               </select>
             </label>
             <label className="block sm:col-span-2">
               <span className="block text-[12px] font-medium text-forest-900 dark:text-cream-100 mb-1">
-                Extra attendees{' '}
+                <T>Extra attendees</T>{' '}
                 <span className="text-ink-500 dark:text-cream-100/70">
-                  (emails, comma-separated - the requester is added
-                  automatically)
+                  <T>(emails, comma-separated - the requester is added
+                  automatically)</T>
                 </span>
               </span>
               <input
@@ -139,7 +141,7 @@ export function ScheduleMeetingPanel({
                     href="/counsel/calendar"
                     className="underline font-semibold"
                   >
-                    Open Calendar
+                    <T>Open Calendar</T>
                   </a>
                 </>
               )}
@@ -147,7 +149,7 @@ export function ScheduleMeetingPanel({
           )}
           {joinUrl && (
             <p className="rounded-lg border border-emerald-200 dark:border-emerald-700/40 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-2 text-[13px] text-emerald-900 dark:text-emerald-100">
-              Scheduled. Join link posted to the thread:{' '}
+              <T>Scheduled. Join link posted to the thread:</T>{' '}
               <ExternalLink
                 href={joinUrl}
                 className="underline font-semibold break-all"
@@ -163,14 +165,14 @@ export function ScheduleMeetingPanel({
               disabled={pending}
               className="btn text-ink-600 dark:text-cream-100/70"
             >
-              Cancel
+              <T>Cancel</T>
             </button>
             <button
               type="submit"
               disabled={pending}
               className="btn-primary"
             >
-              {pending ? 'Scheduling...' : 'Create meeting'}
+              {pending ? <T>Scheduling...</T> : <T>Create meeting</T>}
             </button>
           </div>
         </form>
