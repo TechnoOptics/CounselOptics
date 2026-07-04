@@ -22,15 +22,16 @@ export default async function CounselAidPage() {
     // on very short screens (where the page may scroll, which is fine).
     <div className="flex flex-col gap-4 animate-fade-up h-[calc(100dvh-9.5rem)] min-h-[28rem]">
       <header className="flex-none">
-        <p className="eyebrow mb-1">Counsel · Advottic Aid</p>
+        <p className="eyebrow mb-1"><T>Counsel · Advottic Aid</T></p>
         <h1 className="font-display text-2xl sm:text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          Advottic Aid
+          <T>Advottic Aid</T>
         </h1>
         <p className="hidden sm:block text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-          Ask questions about your matters and get answers grounded in
-          real case law for <strong>{where}</strong>, plus instant
+          <T>Ask questions about your matters and get answers grounded in
+          real case law for</T> <strong>{where}</strong>,{' '}
+          <T>plus instant
           retrieval of your firm&rsquo;s past items. Powered by Bella
-          with live CourtListener case-law search.
+          with live CourtListener case-law search.</T>
         </p>
       </header>
       <div className="flex-1 min-h-0">

@@ -4,6 +4,7 @@ import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import type { FirmType } from '@/lib/firm-types';
 import { GrantOnboardingWizard } from './grant-wizard';
+import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
@@ -118,18 +119,18 @@ function Status({
     <div className="dark counsel-shell min-h-screen text-cream-100 flex items-center justify-center px-4">
       <div className="max-w-md w-full card p-8 text-center space-y-3">
         <p className="text-[10px] uppercase tracking-[0.32em] font-semibold text-gold-300">
-          Counsel onboarding
+          <T>Counsel onboarding</T>
         </p>
-        <h1 className="font-display text-2xl font-medium tracking-[-0.01em]">{title}</h1>
+        <h1 className="font-display text-2xl font-medium tracking-[-0.01em]"><T>{title}</T></h1>
         <p className="text-sm text-cream-100/80 leading-relaxed">{body}</p>
         <div className="flex items-center justify-center gap-2 pt-1">
           <Link href="/counsel/request" className="btn-secondary text-sm">
-            Request access
+            <T>Request access</T>
           </Link>
           {showSignOut && (
             <form action="/auth/sign-out" method="post">
               <button type="submit" className="btn-ghost text-sm">
-                Sign out
+                <T>Sign out</T>
               </button>
             </form>
           )}

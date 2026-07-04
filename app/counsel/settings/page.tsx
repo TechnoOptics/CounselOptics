@@ -58,17 +58,17 @@ export default async function CounselSettingsPage() {
       />
       <section className="space-y-3 pt-2 border-t border-ink-200 dark:border-forest-700/40">
         <header>
-          <p className="eyebrow mb-1">Outbound webhooks</p>
+          <p className="eyebrow mb-1"><T>Outbound webhooks</T></p>
           <h2 className="font-display text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
-            Slack, Microsoft Teams, and custom JSON endpoints
+            <T>Slack, Microsoft Teams, and custom JSON endpoints</T>
           </h2>
           <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-            Fan chat activity out to your existing team tools. Paste an
+            <T>Fan chat activity out to your existing team tools. Paste an
             Incoming Webhook URL once and every new message in matching
             channels echoes there. By default we send only metadata
-            (sender, channel name, link); flip <em>include message body</em>{' '}
-            to mirror full content - leave it off if the channel can carry
-            privileged material.
+            (sender, channel name, link); flip</T> <em><T>include message body</T></em>{' '}
+            <T>to mirror full content - leave it off if the channel can carry
+            privileged material.</T>
           </p>
         </header>
         <WebhookManager
@@ -78,44 +78,45 @@ export default async function CounselSettingsPage() {
       </section>
       <section className="space-y-3 pt-2 border-t border-ink-200 dark:border-forest-700/40">
         <header>
-          <p className="eyebrow mb-1">Enterprise</p>
+          <p className="eyebrow mb-1"><T>Enterprise</T></p>
           <h2 className="font-display text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
-            Single sign-on and automatic provisioning
+            <T>Single sign-on and automatic provisioning</T>
           </h2>
           <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-            Connect your identity provider so people are added and removed
+            <T>Connect your identity provider so people are added and removed
             automatically as they join or leave, and sign in with your
-            organization&rsquo;s credentials.
+            organization&rsquo;s credentials.</T>
           </p>
         </header>
         <a
           href="/counsel/settings/scim"
           className="inline-flex items-center gap-2 rounded-lg border border-ink-200 px-4 py-2 text-sm font-medium text-forest-900 transition hover:bg-ink-50 dark:border-forest-700/40 dark:text-cream-100 dark:hover:bg-forest-900/40"
         >
-          Set up SSO &amp; provisioning
+          <T>Set up SSO &amp; provisioning</T>
         </a>
       </section>
 
       <section className="space-y-3 pt-2 border-t border-ink-200 dark:border-forest-700/40">
         <header>
-          <p className="eyebrow mb-1">Data export &amp; backup</p>
+          <p className="eyebrow mb-1"><T>Data export &amp; backup</T></p>
           <h2 className="font-display text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
-            Keep your own copy
+            <T>Keep your own copy</T>
           </h2>
           <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-            Download a portable JSON archive of {ctx.firm.name}&rsquo;s
+            <T>Download a portable JSON archive of</T> {ctx.firm.name}
+            <T>&rsquo;s
             operational data (matters, clients, people, documents metadata,
             billing, trust ledger, projects) to store on your own servers. The
             archive excludes secrets and document file bytes. Scheduled backups
             straight to your own data warehouse or bucket are available on
-            request.
+            request.</T>
           </p>
         </header>
         <a
           href="/api/counsel/firm-export"
           className="inline-flex items-center gap-2 rounded-lg bg-forest-900 text-white dark:bg-gold-metal dark:text-forest-950 px-4 py-2 text-sm font-medium transition hover:brightness-110"
         >
-          Download data archive (JSON)
+          <T>Download data archive (JSON)</T>
         </a>
       </section>
     </div>

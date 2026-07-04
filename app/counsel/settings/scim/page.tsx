@@ -3,6 +3,7 @@ import { headers } from 'next/headers';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { ScimSettings } from '@/components/counsel/ScimSettings';
 import { SamlSsoSetup } from '@/components/counsel/SamlSsoSetup';
+import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'SSO & provisioning · Counsel' };
@@ -43,31 +44,32 @@ export default async function ScimSettingsPage() {
   return (
     <div className="space-y-8 animate-fade-up">
       <header>
-        <p className="eyebrow mb-1">Enterprise · SSO &amp; provisioning</p>
+        <p className="eyebrow mb-1"><T>Enterprise · SSO &amp; provisioning</T></p>
         <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          Single sign-on &amp; automatic provisioning
+          <T>Single sign-on &amp; automatic provisioning</T>
         </h1>
         <p className="mt-1 max-w-2xl text-sm leading-relaxed text-ink-600 dark:text-cream-100/70">
-          Let {ctx.firm.name}&rsquo;s people sign in with your identity provider
+          <T>Let</T> {ctx.firm.name}
+          <T>&rsquo;s people sign in with your identity provider
           (SAML SSO) and keep your firm directory in sync automatically (SCIM).
           When someone joins or leaves in Microsoft Entra ID or Okta, their
-          access here keeps pace without manual steps.
+          access here keeps pace without manual steps.</T>
         </p>
       </header>
 
       {sso && (
         <section className="space-y-3">
           <div>
-            <p className="eyebrow mb-1">SAML single sign-on</p>
+            <p className="eyebrow mb-1"><T>SAML single sign-on</T></p>
             <h2 className="font-display text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
-              Connect your identity provider
+              <T>Connect your identity provider</T>
             </h2>
             <p className="mt-1 max-w-2xl text-sm leading-relaxed text-ink-600 dark:text-cream-100/70">
-              Give these service-provider values to your IdP, then send your
+              <T>Give these service-provider values to your IdP, then send your
               metadata URL and email domain to Advottic to register the
               connection (that last step is on our side). Once it&rsquo;s live,
               the &ldquo;Sign in with your organization&rdquo; option on the
-              sign-in page works for anyone on that domain.
+              sign-in page works for anyone on that domain.</T>
             </p>
           </div>
           <SamlSsoSetup
@@ -80,9 +82,9 @@ export default async function ScimSettingsPage() {
 
       <section className="space-y-3 pt-2 border-t border-ink-200 dark:border-forest-700/40">
         <div>
-          <p className="eyebrow mb-1">SCIM provisioning</p>
+          <p className="eyebrow mb-1"><T>SCIM provisioning</T></p>
           <h2 className="font-display text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
-            Automatic user provisioning
+            <T>Automatic user provisioning</T>
           </h2>
         </div>
         <ScimSettings baseUrl={resolveBaseUrl()} />
