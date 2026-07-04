@@ -7,7 +7,7 @@ import {
   sendFirmMessageAction,
 } from '@/lib/firm-actions';
 import { createBrowserSupabase } from '@/lib/supabase/client';
-import { useT } from '@/components/i18n/LocaleProvider';
+import { T, useT } from '@/components/i18n/LocaleProvider';
 import type { FirmChannel, FirmMessage } from '@/lib/firm-types';
 
 // Heartbeat refetch interval - the Realtime channel covers the live
@@ -188,7 +188,7 @@ export function ChatShell({
     startTransition(async () => {
       const res = await sendFirmMessageAction(activeId, body);
       if (!res.ok) {
-        setSendError(res.error ?? 'Could not send message.');
+        setSendError(res.error ?? t('Could not send message.'));
         setDraft(body);
       }
     });
@@ -203,7 +203,7 @@ export function ChatShell({
         router.refresh();
         setActiveId(res.channelId);
       } else {
-        setSendError(res.error ?? 'Could not create channel.');
+        setSendError(res.error ?? t('Could not create channel.'));
       }
     });
   }
@@ -212,13 +212,13 @@ export function ChatShell({
     <div className="grid md:grid-cols-[240px,1fr] gap-4 h-full min-h-0">
       <aside className="card p-3 overflow-y-auto">
         <div className="flex items-center justify-between mb-2">
-          <p className="eyebrow">Channels</p>
+          <p className="eyebrow"><T>Channels</T></p>
           <button
             type="button"
             onClick={() => setShowNewChannel((v) => !v)}
             className="text-[11px] text-forest-900 dark:text-cream-100/85 hover:underline"
           >
-            + New
+            <T>+ New</T>
           </button>
         </div>
         {showNewChannel && (
@@ -229,13 +229,13 @@ export function ChatShell({
             <input
               name="name"
               required
-              placeholder="general"
+              placeholder={t('general')}
               className="input py-1 text-sm"
               maxLength={40}
             />
-            <input name="topic" placeholder="Topic (optional)" className="input py-1 text-sm" />
+            <input name="topic" placeholder={t('Topic (optional)')} className="input py-1 text-sm" />
             <button type="submit" className="btn-primary text-xs w-full" disabled={pending}>
-              Create
+              <T>Create</T>
             </button>
           </form>
         )}
@@ -273,7 +273,7 @@ export function ChatShell({
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3">
           {messages.length === 0 ? (
             <p className="text-sm text-ink-500 dark:text-cream-100/55 italic">
-              No messages yet. Say hi.
+              <T>No messages yet. Say hi.</T>
             </p>
           ) : (
             messages.map((m) => (
@@ -318,7 +318,7 @@ export function ChatShell({
                 send();
               }
             }}
-            placeholder="Message"
+            placeholder={t('Message')}
             rows={1}
             className="input resize-none flex-1"
             disabled={pending || !activeId}
@@ -330,7 +330,7 @@ export function ChatShell({
             className="btn-primary"
             aria-label={t('Send')}
           >
-            Send
+            <T>Send</T>
           </button>
         </form>
         {sendError && (

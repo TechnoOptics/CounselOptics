@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { stripBellaMarkdown } from '@/lib/bella-markdown';
+import { T, useT } from '@/components/i18n/LocaleProvider';
 
 type Msg = { role: 'user' | 'assistant'; content: string };
 
@@ -24,6 +25,7 @@ const SUGGESTIONS = [
 ];
 
 export function AidChat() {
+  const t = useT();
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -55,12 +57,12 @@ export function AidChat() {
       if (!res.ok || !res.body) {
         const e = await res
           .json()
-          .catch(() => ({ error: 'Aid is unavailable right now.' }));
+          .catch(() => ({ error: t('Aid is unavailable right now.') }));
         setMessages((m) => {
           const c = [...m];
           c[c.length - 1] = {
             role: 'assistant',
-            content: e.error || 'Aid is unavailable right now.',
+            content: e.error || t('Aid is unavailable right now.'),
           };
           return c;
         });
@@ -84,7 +86,7 @@ export function AidChat() {
         const c = [...m];
         c[c.length - 1] = {
           role: 'assistant',
-          content: 'Network error - try again.',
+          content: t('Network error - try again.'),
         };
         return c;
       });
@@ -106,12 +108,14 @@ export function AidChat() {
             </span>
             <div>
               <p className="font-display text-2xl text-forest-900 dark:text-cream-100">
-                Ask Advottic Aid
+                <T>Ask Advottic Aid</T>
               </p>
               <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1.5 max-w-md leading-relaxed">
-                Research questions, grounded in your firm&rsquo;s
-                jurisdictions and real case law, plus instant retrieval
-                of your past matters.
+                <T>
+                  Research questions, grounded in your firm&rsquo;s
+                  jurisdictions and real case law, plus instant retrieval
+                  of your past matters.
+                </T>
               </p>
             </div>
             <div className="grid sm:grid-cols-2 gap-2 w-full max-w-2xl">
@@ -122,7 +126,7 @@ export function AidChat() {
                   onClick={() => send(s)}
                   className="text-left text-[13px] rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 px-3 py-2.5 text-ink-700 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/50 transition-colors"
                 >
-                  {s}
+                  <T>{s}</T>
                 </button>
               ))}
             </div>
@@ -144,7 +148,7 @@ export function AidChat() {
               >
                 {m.role === 'assistant' && !m.content && busy ? (
                   <span className="text-ink-500 dark:text-cream-100/55 italic">
-                    Researching...
+                    <T>Researching...</T>
                   </span>
                 ) : m.role === 'assistant' ? (
                   stripBellaMarkdown(m.content)
@@ -174,7 +178,7 @@ export function AidChat() {
               }
             }}
             rows={2}
-            placeholder="Ask about the law in your state, or pull up a past matter..."
+            placeholder={t('Ask about the law in your state, or pull up a past matter...')}
             className="input resize-none flex-1"
             disabled={busy}
           />
@@ -183,12 +187,14 @@ export function AidChat() {
             disabled={busy || !input.trim()}
             className="btn-primary"
           >
-            {busy ? '...' : 'Ask'}
+            {busy ? '...' : <T>Ask</T>}
           </button>
         </form>
         <p className="text-[11px] text-ink-500 dark:text-cream-100/70 mt-2">
-          Research assistance, not legal advice. Verify citations
-          before relying on them.
+          <T>
+            Research assistance, not legal advice. Verify citations
+            before relying on them.
+          </T>
         </p>
       </div>
     </div>

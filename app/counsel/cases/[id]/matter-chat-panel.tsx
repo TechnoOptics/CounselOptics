@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { sendFirmMessageAction } from '@/lib/firm-actions';
 import { createBrowserSupabase } from '@/lib/supabase/client';
-import { useT } from '@/components/i18n/LocaleProvider';
+import { T, useT } from '@/components/i18n/LocaleProvider';
 import type { FirmMessage } from '@/lib/firm-types';
 
 /**
@@ -94,7 +94,7 @@ export function MatterChatPanel({
     startTransition(async () => {
       const res = await sendFirmMessageAction(channelId, body);
       if (!res.ok) {
-        setError(res.error ?? 'Could not send message.');
+        setError(res.error ?? t('Could not send message.'));
         setDraft(body);
       }
       // On success the Realtime INSERT event will append the message;
@@ -107,15 +107,15 @@ export function MatterChatPanel({
       <header className="border-b border-ink-100 dark:border-forest-700/40 px-4 py-3 flex items-center justify-between">
         <div>
           <p className="eyebrow text-[10px] tracking-[0.22em] mb-0.5">
-            Matter room
+            <T>Matter room</T>
           </p>
           <p className="text-[12px] text-ink-500 dark:text-cream-100/55">
-            Realtime · @-mention teammates · echoes to firm webhooks
+            <T>Realtime · @-mention teammates · echoes to firm webhooks</T>
           </p>
         </div>
         <span className="inline-flex items-center gap-1.5 text-[10px] text-emerald-700 dark:text-emerald-300">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse" />
-          Live
+          <T>Live</T>
         </span>
       </header>
 
@@ -125,7 +125,7 @@ export function MatterChatPanel({
       >
         {messages.length === 0 ? (
           <p className="text-sm text-ink-500 dark:text-cream-100/55 italic">
-            No messages yet. Be the first to post.
+            <T>No messages yet. Be the first to post.</T>
           </p>
         ) : (
           messages.map((m) => {
@@ -156,7 +156,7 @@ export function MatterChatPanel({
                 (e.currentTarget.form as HTMLFormElement).requestSubmit();
               }
             }}
-            placeholder="Message this matter room · @-mention to notify · Enter to send, Shift+Enter for newline"
+            placeholder={t('Message this matter room · @-mention to notify · Enter to send, Shift+Enter for newline')}
             rows={2}
             maxLength={4000}
             className="flex-1 rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 bg-white dark:bg-forest-950/60 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-forest-500"

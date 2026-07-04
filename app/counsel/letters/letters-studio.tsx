@@ -10,7 +10,7 @@ import {
   type LetterOptions,
 } from '@/lib/letter-compose';
 import { saveLetterToCaseAction } from '@/lib/letters-actions';
-import { useT } from '@/components/i18n/LocaleProvider';
+import { T, useT } from '@/components/i18n/LocaleProvider';
 
 type Brand = {
   firmName: string;
@@ -92,12 +92,12 @@ export function LettersStudio({
       });
       const j = await res.json();
       if (!res.ok) {
-        setError(j.error || 'Could not generate the letter.');
+        setError(j.error || t('Could not generate the letter.'));
         return;
       }
       setBody(j.body);
     } catch {
-      setError('Network error - try again.');
+      setError(t('Network error - try again.'));
     } finally {
       setBusy(false);
     }
@@ -136,7 +136,7 @@ export function LettersStudio({
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        setError(`${format.toUpperCase()} export failed.`);
+        setError(`${format.toUpperCase()} ${t('export failed.')}`);
         return;
       }
       const blob = await res.blob();
@@ -167,12 +167,12 @@ export function LettersStudio({
       if (res.ok) {
         setSaved(
           caseId
-            ? 'Saved to the case as a Word document.'
-            : 'Saved to your documents as a Word document.',
+            ? t('Saved to the case as a Word document.')
+            : t('Saved to your documents as a Word document.'),
         );
         router.refresh();
       } else {
-        setError(res.error ?? 'Could not save the letter.');
+        setError(res.error ?? t('Could not save the letter.'));
       }
     });
   }
@@ -182,56 +182,56 @@ export function LettersStudio({
       {/* Builder */}
       <div className="card p-5 space-y-4 self-start">
         <label className="block">
-          <span className="label">Document title</span>
+          <span className="label"><T>Document title</T></span>
           <input
             className="input"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Letter"
+            placeholder={t('Letter')}
           />
         </label>
 
         <label className="block">
-          <span className="label">What should the letter say?</span>
+          <span className="label"><T>What should the letter say?</T></span>
           <textarea
             rows={5}
             className="input resize-y"
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
-            placeholder="e.g. A demand that the tenant cure the unpaid rent of $2,400 within 10 days, referencing the lease dated Jan 3, 2025."
+            placeholder={t('e.g. A demand that the tenant cure the unpaid rent of $2,400 within 10 days, referencing the lease dated Jan 3, 2025.')}
           />
         </label>
 
         <div className="grid grid-cols-2 gap-3">
           <label className="block">
-            <span className="label">Recipient</span>
+            <span className="label"><T>Recipient</T></span>
             <input
               className="input"
               value={recipient}
               onChange={(e) => setRecipient(e.target.value)}
-              placeholder="Jane Roe"
+              placeholder={t('Jane Roe')}
             />
           </label>
           <label className="block">
-            <span className="label">Tone (optional)</span>
+            <span className="label"><T>Tone (optional)</T></span>
             <input
               className="input"
               value={tone}
               onChange={(e) => setTone(e.target.value)}
-              placeholder="firm, cordial…"
+              placeholder={t('firm, cordial…')}
             />
           </label>
         </div>
 
         {cases.length > 0 && (
           <label className="block">
-            <span className="label">Attach to a case (optional)</span>
+            <span className="label"><T>Attach to a case (optional)</T></span>
             <select
               className="input"
               value={caseId}
               onChange={(e) => setCaseId(e.target.value)}
             >
-              <option value="">Not attached</option>
+              <option value=""><T>Not attached</T></option>
               {cases.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.title}
@@ -247,30 +247,30 @@ export function LettersStudio({
           disabled={busy || prompt.trim().length < 8}
           className="btn-primary w-full"
         >
-          {busy ? 'Drafting…' : body ? 'Regenerate' : 'Generate letter'}
+          {busy ? <T>Drafting…</T> : body ? <T>Regenerate</T> : <T>Generate letter</T>}
         </button>
 
         <div className="border-t border-ink-100 dark:border-forest-700/40 pt-4 space-y-3">
-          <p className="label">Signature block</p>
+          <p className="label"><T>Signature block</T></p>
           <div className="grid grid-cols-2 gap-3">
             <input
               className="input"
               value={signerName}
               onChange={(e) => setSignerName(e.target.value)}
-              placeholder="Signer name"
+              placeholder={t('Signer name')}
             />
             <input
               className="input"
               value={signerTitle}
               onChange={(e) => setSignerTitle(e.target.value)}
-              placeholder="Title"
+              placeholder={t('Title')}
             />
           </div>
           <input
             className="input"
             value={dateText}
             onChange={(e) => setDateText(e.target.value)}
-            placeholder="Date"
+            placeholder={t('Date')}
           />
           <div className="flex flex-wrap gap-1.5">
             {TOGGLES.map((tg) => (
@@ -286,7 +286,7 @@ export function LettersStudio({
                 }`}
               >
                 {options[tg.key] ? '✓ ' : ''}
-                {tg.label}
+                <T>{tg.label}</T>
               </button>
             ))}
           </div>
@@ -301,8 +301,7 @@ export function LettersStudio({
           </p>
         )}
         <p className="text-[11px] text-ink-500 dark:text-cream-100/70 leading-relaxed">
-          Drafted as your firm&rsquo;s work product. A licensed attorney should
-          review before it is sent or filed.
+          <T>Drafted as your firm&rsquo;s work product. A licensed attorney should review before it is sent or filed.</T>
         </p>
       </div>
 
@@ -316,7 +315,7 @@ export function LettersStudio({
                 onClick={() => navigator.clipboard?.writeText(composed)}
                 className="text-[12px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-3 py-1.5 text-ink-700 dark:text-cream-100/85"
               >
-                Copy text
+                <T>Copy text</T>
               </button>
               <button
                 type="button"
@@ -324,7 +323,7 @@ export function LettersStudio({
                 disabled={exporting !== null}
                 className="text-[13px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-3 py-1.5 text-ink-700 dark:text-cream-100/85"
               >
-                {exporting === 'docx' ? 'Exporting…' : 'Export Word'}
+                {exporting === 'docx' ? <T>Exporting…</T> : <T>Export Word</T>}
               </button>
               <button
                 type="button"
@@ -332,7 +331,7 @@ export function LettersStudio({
                 disabled={exporting !== null}
                 className="text-[13px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-3 py-1.5 text-ink-700 dark:text-cream-100/85"
               >
-                {exporting === 'pdf' ? 'Exporting…' : 'Export PDF'}
+                {exporting === 'pdf' ? <T>Exporting…</T> : <T>Export PDF</T>}
               </button>
               <button
                 type="button"
@@ -340,7 +339,7 @@ export function LettersStudio({
                 disabled={saving}
                 className="btn-primary !py-1.5 text-[13px]"
               >
-                {saving ? 'Saving…' : caseId ? 'Save to case' : 'Save to documents'}
+                {saving ? <T>Saving…</T> : caseId ? <T>Save to case</T> : <T>Save to documents</T>}
               </button>
             </div>
 
@@ -388,20 +387,17 @@ export function LettersStudio({
                 </pre>
               </div>
               <div className="px-8 py-4 text-[10px] text-[#8a8472] border-t border-[#ece8dd]">
-                {brand.firmName} · Generated {new Date().toLocaleDateString()} ·
-                Draft for attorney review
+                {brand.firmName} · <T>Generated</T> {new Date().toLocaleDateString()} ·{' '}
+                <T>Draft for attorney review</T>
               </div>
             </article>
             <p className="no-print text-[11px] text-ink-500 dark:text-cream-100/55 mt-2">
-              The body above is editable. The signature block updates live from
-              the toggles on the left.
+              <T>The body above is editable. The signature block updates live from the toggles on the left.</T>
             </p>
           </>
         ) : (
           <div className="card p-10 text-center text-[13px] text-ink-500 dark:text-cream-100/55">
-            Describe the letter, pick what the signature block should include,
-            then generate a branded draft you can edit, export as Word or PDF,
-            and save to a case.
+            <T>Describe the letter, pick what the signature block should include, then generate a branded draft you can edit, export as Word or PDF, and save to a case.</T>
           </div>
         )}
       </div>

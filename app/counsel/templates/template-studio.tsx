@@ -7,6 +7,7 @@ import {
   getTemplate,
   cleanLegalText,
 } from '@/lib/legal-templates';
+import { T, useT } from '@/components/i18n/LocaleProvider';
 
 type Meta = {
   title: string;
@@ -19,6 +20,7 @@ type Meta = {
 };
 
 export function TemplateStudio({ brand }: { brand: Meta }) {
+  const t = useT();
   const [group, setGroup] = useState(TEMPLATE_GROUPS[0]);
   const [tplId, setTplId] = useState('');
   const [params, setParams] = useState<Record<string, string>>({});
@@ -30,7 +32,7 @@ export function TemplateStudio({ brand }: { brand: Meta }) {
 
   const tpl = getTemplate(tplId);
   const inGroup = useMemo(
-    () => LEGAL_TEMPLATES.filter((t) => t.group === group),
+    () => LEGAL_TEMPLATES.filter((item) => item.group === group),
     [group],
   );
 
@@ -47,7 +49,7 @@ export function TemplateStudio({ brand }: { brand: Meta }) {
       });
       const j = await res.json();
       if (!res.ok) {
-        setError(j.error || 'Could not generate the document.');
+        setError(j.error || t('Could not generate the document.'));
         return;
       }
       setDoc(cleanLegalText(j.document));
@@ -60,7 +62,7 @@ export function TemplateStudio({ brand }: { brand: Meta }) {
         accent: j.accent,
       });
     } catch {
-      setError('Network error - try again.');
+      setError(t('Network error - try again.'));
     } finally {
       setBusy(false);
     }
@@ -82,7 +84,7 @@ export function TemplateStudio({ brand }: { brand: Meta }) {
         }),
       });
       if (!res.ok) {
-        setError('PDF export failed.');
+        setError(t('PDF export failed.'));
         return;
       }
       const blob = await res.blob();
@@ -102,7 +104,7 @@ export function TemplateStudio({ brand }: { brand: Meta }) {
       {/* Builder */}
       <div className="card p-5 space-y-4 self-start">
         <div>
-          <p className="label">Category</p>
+          <p className="label"><T>Category</T></p>
           <div className="flex flex-wrap gap-1.5">
             {TEMPLATE_GROUPS.map((g) => (
               <button
@@ -124,7 +126,7 @@ export function TemplateStudio({ brand }: { brand: Meta }) {
           </div>
         </div>
         <div>
-          <p className="label">Document type</p>
+          <p className="label"><T>Document type</T></p>
           <select
             className="input"
             value={tplId}
@@ -134,10 +136,10 @@ export function TemplateStudio({ brand }: { brand: Meta }) {
               setDoc('');
             }}
           >
-            <option value="">Choose a document...</option>
-            {inGroup.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
+            <option value=""><T>Choose a document...</T></option>
+            {inGroup.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
               </option>
             ))}
           </select>
@@ -156,7 +158,7 @@ export function TemplateStudio({ brand }: { brand: Meta }) {
                 {f.optional && (
                   <span className="text-ink-400 dark:text-cream-100/40">
                     {' '}
-                    (optional)
+                    <T>(optional)</T>
                   </span>
                 )}
               </span>
@@ -195,12 +197,11 @@ export function TemplateStudio({ brand }: { brand: Meta }) {
             disabled={busy}
             className="btn-primary w-full"
           >
-            {busy ? 'Drafting...' : 'Generate document'}
+            {busy ? <T>Drafting...</T> : <T>Generate document</T>}
           </button>
         )}
         <p className="text-[11px] text-ink-500 dark:text-cream-100/70 leading-relaxed">
-          Drafted as your firm&rsquo;s work product. A licensed
-          attorney should review before it is signed or filed.
+          <T>Drafted as your firm&rsquo;s work product. A licensed attorney should review before it is signed or filed.</T>
         </p>
       </div>
 
@@ -214,7 +215,7 @@ export function TemplateStudio({ brand }: { brand: Meta }) {
                 onClick={() => navigator.clipboard?.writeText(doc)}
                 className="text-[12px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-3 py-1.5 text-ink-700 dark:text-cream-100/85"
               >
-                Copy text
+                <T>Copy text</T>
               </button>
               <button
                 type="button"
@@ -222,7 +223,7 @@ export function TemplateStudio({ brand }: { brand: Meta }) {
                 disabled={exporting}
                 className="btn-primary !py-1.5 text-[13px]"
               >
-                {exporting ? 'Exporting...' : 'Export PDF'}
+                {exporting ? <T>Exporting...</T> : <T>Export PDF</T>}
               </button>
             </div>
             <article
@@ -263,16 +264,14 @@ export function TemplateStudio({ brand }: { brand: Meta }) {
                 </pre>
               </div>
               <div className="px-8 py-4 text-[10px] text-[#8a8472] border-t border-[#ece8dd]">
-                {meta.firmName} · Generated{' '}
-                {new Date().toLocaleDateString()} · Draft for attorney
-                review
+                {meta.firmName} · <T>Generated</T>{' '}
+                {new Date().toLocaleDateString()} · <T>Draft for attorney review</T>
               </div>
             </article>
           </>
         ) : (
           <div className="card p-10 text-center text-[13px] text-ink-500 dark:text-cream-100/55">
-            Pick a document type, fill in the parties and key terms,
-            then generate a branded draft you can export as PDF.
+            <T>Pick a document type, fill in the parties and key terms, then generate a branded draft you can export as PDF.</T>
           </div>
         )}
       </div>

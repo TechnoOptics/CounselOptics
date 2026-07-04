@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { cleanLegalText } from '@/lib/legal-templates';
-import { useT } from '@/components/i18n/LocaleProvider';
+import { T, useT } from '@/components/i18n/LocaleProvider';
 
 /**
  * The big "Ask Advottic" bar at the top of the Counsel workspace.
@@ -40,7 +40,7 @@ export function AskAdvottic() {
 
   // Whether any turn is mid-stream. Used to disable the submit
   // button and to gate certain UI affordances.
-  const busy = turns.some((t) => t.busy);
+  const busy = turns.some((turn) => turn.busy);
 
   // Auto-scroll the answer panel during streaming, but only when the
   // user is already near the bottom - if they have scrolled up to
@@ -53,7 +53,7 @@ export function AskAdvottic() {
     if (nearBottom) el.scrollTop = el.scrollHeight;
   }, [turns]);
 
-  function patchLast(updater: (t: Turn) => Turn) {
+  function patchLast(updater: (turn: Turn) => Turn) {
     setTurns((prev) => {
       if (prev.length === 0) return prev;
       const next = prev.slice();
@@ -88,9 +88,9 @@ export function AskAdvottic() {
 
     try {
       const messages = [
-        ...history.flatMap((t) => [
-          { role: 'user' as const, content: t.question },
-          { role: 'assistant' as const, content: t.answer },
+        ...history.flatMap((turn) => [
+          { role: 'user' as const, content: turn.question },
+          { role: 'assistant' as const, content: turn.answer },
         ]),
         { role: 'user' as const, content: text },
       ];
@@ -120,18 +120,18 @@ export function AskAdvottic() {
         if (done) break;
         acc += dec.decode(value, { stream: true });
         const cleaned = cleanLegalText(acc);
-        patchLast((t) => ({ ...t, answer: cleaned }));
+        patchLast((turn) => ({ ...turn, answer: cleaned }));
       }
-      patchLast((t) => ({ ...t, busy: false }));
+      patchLast((turn) => ({ ...turn, busy: false }));
     } catch (err) {
       if ((err as { name?: string }).name === 'AbortError') return;
-      patchLast((t) => ({
-        ...t,
+      patchLast((turn) => ({
+        ...turn,
         busy: false,
         error:
           err instanceof Error
             ? err.message
-            : 'Could not reach Advottic. Try again.',
+            : t('Could not reach Advottic. Try again.'),
       }));
     }
   }
@@ -174,8 +174,8 @@ export function AskAdvottic() {
             onChange={(e) => setQ(e.target.value)}
             placeholder={
               turns.length > 0
-                ? 'Ask a follow-up…'
-                : 'Ask Advottic anything - a law, a case, a clause, a client, a meeting…'
+                ? t('Ask a follow-up…')
+                : t('Ask Advottic anything - a law, a case, a clause, a client, a meeting…')
             }
             className="flex-1 bg-transparent outline-none text-[15px] text-cream-100 placeholder:text-cream-100/60"
             aria-label={t('Ask Advottic')}
@@ -188,7 +188,7 @@ export function AskAdvottic() {
               className="text-[12px] text-cream-100/50 hover:text-cream-100 px-2"
               title={t('Clear the conversation')}
             >
-              Clear
+              <T>Clear</T>
             </button>
           ) : null}
           <button
@@ -196,7 +196,7 @@ export function AskAdvottic() {
             disabled={busy || !q.trim()}
             className="btn-primary text-[13px] px-4 py-1.5 disabled:opacity-50"
           >
-            {busy ? 'Thinking…' : 'Ask'}
+            {busy ? <T>Thinking…</T> : <T>Ask</T>}
           </button>
         </div>
       </form>
@@ -210,7 +210,7 @@ export function AskAdvottic() {
               onClick={() => ask(s)}
               className="text-[11.5px] rounded-full bg-forest-900/50 ring-1 ring-forest-700/40 px-2.5 py-1 text-cream-100/65 hover:text-cream-100 hover:ring-gold-500/40 transition-colors"
             >
-              {s}
+              <T>{s}</T>
             </button>
           ))}
         </div>
@@ -251,14 +251,16 @@ export function AskAdvottic() {
                 </div>
               ) : (
                 <p className="text-[13px] text-cream-100/55">
-                  Searching your firm&rsquo;s environment…
+                  <T>Searching your firm&rsquo;s environment…</T>
                 </p>
               )}
             </div>
           ))}
           <p className="mt-5 pt-3 border-t border-forest-700/40 text-[11px] text-cream-100/60">
-            Advottic can be wrong - verify anything load-bearing. Not
-            legal advice.
+            <T>
+              Advottic can be wrong - verify anything load-bearing. Not
+              legal advice.
+            </T>
           </p>
         </div>
       )}
