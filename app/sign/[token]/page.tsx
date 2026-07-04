@@ -7,6 +7,9 @@ import { appendSignatureEvent } from '@/lib/esign-audit';
 import { SignatureCapture } from './signature-capture';
 import { SignerResponse } from './signer-response';
 import { AccessCodeGate } from './access-code-gate';
+import { AutoTranslate } from '@/components/i18n/AutoTranslate';
+import { LanguageSwitcher } from '@/components/i18n/LanguageSwitcher';
+import { getLocaleCookie } from '@/lib/i18n/locale';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +36,7 @@ export default async function SignPage({ params }: { params: { token: string } }
   if (!data) notFound();
 
   const { signature, request, document, firm } = data;
+  const locale = await getLocaleCookie();
 
   // Audit trail: record that the signer opened the link. Best-effort
   // and skipped once the signature is already executed (so a
@@ -143,6 +147,7 @@ export default async function SignPage({ params }: { params: { token: string } }
   // header / footer chrome. The page should feel like a focused
   // signing portal.
   return (
+   <AutoTranslate initialLocale={locale}>
     <div
       className="min-h-screen bg-gradient-to-b from-cream-50 to-white dark:from-forest-950 dark:to-forest-900"
       style={{ ['--firm-accent' as string]: firm.accentColor }}
@@ -154,6 +159,7 @@ export default async function SignPage({ params }: { params: { token: string } }
               className="h-9 w-9 rounded-md inline-flex items-center justify-center text-white font-semibold shadow-sm"
               style={{ backgroundColor: firm.accentColor }}
               aria-hidden
+              data-no-translate
             >
               {firm.name.slice(0, 1).toUpperCase()}
             </span>
@@ -161,14 +167,20 @@ export default async function SignPage({ params }: { params: { token: string } }
               <p className="text-[10px] uppercase tracking-[0.2em] font-semibold text-ink-500 dark:text-cream-100/55 leading-none">
                 Sent by
               </p>
-              <p className="text-sm font-semibold text-forest-900 dark:text-cream-100 truncate">
+              <p
+                className="text-sm font-semibold text-forest-900 dark:text-cream-100 truncate"
+                data-no-translate
+              >
                 {firm.name}
               </p>
             </div>
           </div>
-          <p className="text-[11px] text-ink-500 dark:text-cream-100/55 font-mono uppercase tracking-wider">
-            via Advottic
-          </p>
+          <div className="flex items-center gap-3">
+            <LanguageSwitcher initialLocale={locale} />
+            <p className="hidden sm:block text-[11px] text-ink-500 dark:text-cream-100/55 font-mono uppercase tracking-wider" data-no-translate>
+              via Advottic
+            </p>
+          </div>
         </div>
       </header>
 
@@ -215,5 +227,6 @@ export default async function SignPage({ params }: { params: { token: string } }
         </div>
       </footer>
     </div>
+   </AutoTranslate>
   );
 }
