@@ -76,11 +76,35 @@ export async function POST(req: NextRequest) {
     signing_request_id: string;
     signed_at: string | null;
     signer_email: string;
+    access_code_hash: string | null;
+    access_code_verified_at: string | null;
+    response: 'rejected' | 'changes_requested' | null;
   };
   if (sig.signed_at) {
     return NextResponse.json(
       { error: 'This link has already been signed.' },
       { status: 410 },
+    );
+  }
+  // Enforce the one-time access-code gate SERVER-SIDE. The /sign page
+  // renders a code gate before the signature pad, but that's only a
+  // client affordance - without this check a forwarded/leaked link
+  // could POST a signature directly and bypass the code entirely,
+  // defeating the whole point of the dual link+OTP delivery (#5). When
+  // a code was issued (access_code_hash set) it must have been verified
+  // (access_code_verified_at set) first.
+  if (sig.access_code_hash && !sig.access_code_verified_at) {
+    return NextResponse.json(
+      { error: 'Enter the access code from your email before signing.' },
+      { status: 403 },
+    );
+  }
+  // A signer who already declined or requested changes can't then sign
+  // on the same link; the firm must send a fresh request.
+  if (sig.response) {
+    return NextResponse.json(
+      { error: 'This signing link is on hold. Ask the firm for a new request.' },
+      { status: 409 },
     );
   }
 
