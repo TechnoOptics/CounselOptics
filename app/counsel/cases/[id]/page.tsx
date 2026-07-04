@@ -322,7 +322,7 @@ export default async function CounselCaseDetailPage({
                       }`}
                     >
                       {d.kind.replace(/_/g, ' ')} ·{' '}
-                      {overdue ? 'OVERDUE ' : 'Due '}
+                      {overdue ? <T>OVERDUE </T> : <T>Due </T>}
                       {new Date(d.due_at).toLocaleString()}
                     </p>
                   </div>
@@ -345,7 +345,7 @@ export default async function CounselCaseDetailPage({
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="font-display text-lg font-medium text-forest-900 dark:text-cream-100">
-            Time on this matter
+            <T>Time on this matter</T>
           </h2>
           {unbilledCents > 0 && (
             <DraftInvoiceButton
@@ -358,7 +358,7 @@ export default async function CounselCaseDetailPage({
         </div>
         {time.length === 0 ? (
           <p className="card p-4 text-[13px] text-ink-500 dark:text-cream-100/55 italic">
-            No time entries yet. Start the timer in the header.
+            <T>No time entries yet. Start the timer in the header.</T>
           </p>
         ) : (
           <ul className="space-y-2">
@@ -373,14 +373,14 @@ export default async function CounselCaseDetailPage({
                   </p>
                   <p className="text-[11px] text-ink-500 dark:text-cream-100/55 font-mono tabular-nums mt-0.5">
                     {new Date(e.started_at).toLocaleString()}
-                    {e.invoice_id && ' · invoiced'}
-                    {!e.billable && ' · non-billable'}
+                    {e.invoice_id && <T> · invoiced</T>}
+                    {!e.billable && <T> · non-billable</T>}
                   </p>
                 </div>
                 <p className="shrink-0 font-mono tabular-nums text-forest-900 dark:text-cream-100 font-semibold text-[13px]">
                   {e.duration_seconds
                     ? fmtHours(e.duration_seconds)
-                    : 'running'}
+                    : <T>running</T>}
                 </p>
               </li>
             ))}
@@ -392,7 +392,7 @@ export default async function CounselCaseDetailPage({
       {invoices.length > 0 && (
         <section className="space-y-3">
           <h2 className="font-display text-lg font-medium text-forest-900 dark:text-cream-100">
-            Invoices
+            <T>Invoices</T>
           </h2>
           <ul className="space-y-2">
             {invoices.map((i) => (
@@ -421,7 +421,7 @@ export default async function CounselCaseDetailPage({
       {trustEntries.length > 0 && (
         <section className="space-y-3">
           <h2 className="font-display text-lg font-medium text-forest-900 dark:text-cream-100">
-            Trust ledger (this matter)
+            <T>Trust ledger (this matter)</T>
           </h2>
           <ul className="space-y-1.5">
             {trustEntries.slice(0, 10).map((t) => (
@@ -456,20 +456,20 @@ export default async function CounselCaseDetailPage({
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-3">
           <h2 className="font-display text-lg font-medium text-forest-900 dark:text-cream-100">
-            Documents
+            <T>Documents</T>
           </h2>
           <div className="flex items-center gap-2">
             <Link
               href={`/counsel/projects?caseId=${params.id}`}
               className="text-[12px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-3 py-1.5 text-ink-700 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/40"
             >
-              Projects
+              <T>Projects</T>
             </Link>
             <Link
               href={`/counsel/letters?caseId=${params.id}`}
               className="text-[12px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-3 py-1.5 text-ink-700 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/40"
             >
-              Draft a letter
+              <T>Draft a letter</T>
             </Link>
           </div>
         </div>
@@ -494,9 +494,9 @@ export default async function CounselCaseDetailPage({
           </ul>
         ) : (
           <p className="text-[13px] text-ink-500 dark:text-cream-100/55">
-            No documents yet. Draft a letter or upload one from{' '}
+            <T>No documents yet. Draft a letter or upload one from</T>{' '}
             <Link href="/counsel/documents" className="underline">
-              Documents
+              <T>Documents</T>
             </Link>
             .
           </p>
@@ -560,9 +560,9 @@ async function MatterChatSection({
   if (!channelRes.ok || !channelRes.channelId) {
     return (
       <section className="card p-5">
-        <p className="eyebrow text-[10px] mb-1">Matter room</p>
+        <p className="eyebrow text-[10px] mb-1"><T>Matter room</T></p>
         <p className="text-[13px] text-ink-500 dark:text-cream-100/55 italic">
-          Could not prepare the matter chat. Reload the page or contact support.
+          <T>Could not prepare the matter chat. Reload the page or contact support.</T>
         </p>
       </section>
     );

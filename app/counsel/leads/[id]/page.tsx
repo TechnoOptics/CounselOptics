@@ -38,28 +38,28 @@ export default async function FirmLeadDetailPage({
           {lead.jurisdictionState ? ` · ${lead.jurisdictionState}` : ''}
         </h1>
         <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-1 font-mono">
-          Received {new Date(lead.createdAt).toLocaleString()} · urgency{' '}
+          <T>Received</T> {new Date(lead.createdAt).toLocaleString()} · <T>urgency</T>{' '}
           {lead.urgency ?? 'normal'}
         </p>
       </header>
 
       <section className="card p-5 sm:p-6 space-y-4">
         <div>
-          <p className="eyebrow text-[10px] mb-1">Brief</p>
+          <p className="eyebrow text-[10px] mb-1"><T>Brief</T></p>
           <p className="text-[14px] text-ink-800 dark:text-cream-100/90 leading-relaxed whitespace-pre-wrap">
             {lead.summary}
           </p>
         </div>
         {lead.budget && (
           <div>
-            <p className="eyebrow text-[10px] mb-1">Budget signaled</p>
+            <p className="eyebrow text-[10px] mb-1"><T>Budget signaled</T></p>
             <p className="text-[13px] text-ink-700 dark:text-cream-100/80">
               {lead.budget}
             </p>
           </div>
         )}
         <div>
-          <p className="eyebrow text-[10px] mb-1">Practice areas</p>
+          <p className="eyebrow text-[10px] mb-1"><T>Practice areas</T></p>
           <div className="flex flex-wrap gap-1">
             {lead.practiceAreas.map((p) => (
               <span
@@ -76,15 +76,15 @@ export default async function FirmLeadDetailPage({
       {accepted ? (
         <section className="card p-5 sm:p-6 ring-1 ring-emerald-300/50 dark:ring-emerald-700/40 bg-emerald-50/40 dark:bg-emerald-950/20 space-y-3">
           <p className="eyebrow text-emerald-700 dark:text-emerald-300">
-            Accepted by consumer
+            <T>Accepted by consumer</T>
           </p>
           <h2 className="font-display text-xl text-forest-900 dark:text-cream-100">
-            Contact details unlocked
+            <T>Contact details unlocked</T>
           </h2>
           <dl className="grid sm:grid-cols-2 gap-3 text-[13px]">
             <div>
               <dt className="font-mono text-[10.5px] uppercase tracking-wider text-ink-500 dark:text-cream-100/55 mb-0.5">
-                Name
+                <T>Name</T>
               </dt>
               <dd className="text-forest-900 dark:text-cream-100">
                 {lead.contactName}
@@ -92,7 +92,7 @@ export default async function FirmLeadDetailPage({
             </div>
             <div>
               <dt className="font-mono text-[10.5px] uppercase tracking-wider text-ink-500 dark:text-cream-100/55 mb-0.5">
-                Email
+                <T>Email</T>
               </dt>
               <dd className="text-forest-900 dark:text-cream-100">
                 <a href={`mailto:${lead.contactEmail}`} className="underline">
@@ -103,7 +103,7 @@ export default async function FirmLeadDetailPage({
             {lead.contactPhone && (
               <div>
                 <dt className="font-mono text-[10.5px] uppercase tracking-wider text-ink-500 dark:text-cream-100/55 mb-0.5">
-                  Phone
+                  <T>Phone</T>
                 </dt>
                 <dd className="text-forest-900 dark:text-cream-100">
                   <a href={`tel:${lead.contactPhone}`} className="underline">
@@ -114,19 +114,20 @@ export default async function FirmLeadDetailPage({
             )}
           </dl>
           <p className="text-[12px] text-ink-600 dark:text-cream-100/70 leading-relaxed pt-2 border-t border-emerald-200 dark:border-emerald-800/40">
-            Reach out within 24 hours - the consumer is expecting you.
+            <T>Reach out within 24 hours - the consumer is expecting you.</T>
           </p>
         </section>
       ) : lead.firmResponse ? (
         <section className="card p-5 ring-1 ring-amber-300/50 dark:ring-amber-700/40 bg-amber-50/30 dark:bg-amber-950/15">
           <p className="eyebrow text-amber-800 dark:text-amber-200 mb-1">
-            Your response sent
+            <T>Your response sent</T>
           </p>
           <p className="text-[13px] text-ink-700 dark:text-cream-100/85 leading-relaxed">
-            You marked this lead as <strong>{lead.firmResponse.responseType}</strong>{' '}
-            on {new Date(lead.firmResponse.createdAt).toLocaleString()}.
-            {lead.firmResponse.responseType === 'interested' &&
-              " The consumer was notified - we'll let you know if they accept."}
+            <T>You marked this lead as</T> <strong>{lead.firmResponse.responseType}</strong>{' '}
+            <T>on</T> {new Date(lead.firmResponse.createdAt).toLocaleString()}.
+            {lead.firmResponse.responseType === 'interested' && (
+              <> <T>The consumer was notified - we'll let you know if they accept.</T></>
+            )}
           </p>
         </section>
       ) : (

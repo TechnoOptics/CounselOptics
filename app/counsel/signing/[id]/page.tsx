@@ -170,7 +170,7 @@ export default async function SigningRequestDetail({
 
       {signedUrl && (
         <section className="card overflow-hidden">
-          <p className="eyebrow px-5 pt-4 pb-2">Document preview</p>
+          <p className="eyebrow px-5 pt-4 pb-2"><T>Document preview</T></p>
           <iframe
             src={signedUrl}
             title={doc?.name ?? 'Document'}

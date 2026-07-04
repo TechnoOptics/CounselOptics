@@ -9,6 +9,7 @@ import {
 import { CreateSigningRequestForm } from './signing-form';
 import { DocumentStatusChanger } from './status-changer';
 import { ExternalLink } from '@/components/ExternalLink';
+import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,17 +51,17 @@ export default async function FirmDocumentDetail({
           href="/counsel/documents"
           className="text-ink-500 hover:text-forest-900 dark:hover:text-cream-100"
         >
-          &larr; Documents
+          <T>&larr; Documents</T>
         </Link>
       </p>
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <p className="eyebrow mb-1">Document</p>
+          <p className="eyebrow mb-1"><T>Document</T></p>
           <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100 break-words">
             {doc.name}
           </h1>
           <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-1 font-mono">
-            v{doc.version} &middot; {doc.mimeType} &middot; uploaded{' '}
+            v{doc.version} &middot; {doc.mimeType} &middot; <T>uploaded</T>{' '}
             {new Date(doc.uploadedAt).toLocaleString()}
           </p>
           {doc.tags.length > 0 && (
@@ -95,7 +96,7 @@ export default async function FirmDocumentDetail({
       {/* Context strip: case linkage, due date, description */}
       <section className="card p-4 sm:p-5 grid gap-3 sm:grid-cols-3">
         <div>
-          <p className="eyebrow text-[10px] mb-1">Case</p>
+          <p className="eyebrow text-[10px] mb-1"><T>Case</T></p>
           {linkedCase ? (
             <Link
               href={`/counsel/cases/${linkedCase.id}`}
@@ -106,12 +107,12 @@ export default async function FirmDocumentDetail({
             </Link>
           ) : (
             <p className="text-[13px] text-ink-500 dark:text-cream-100/55 italic">
-              Not attached to a case
+              <T>Not attached to a case</T>
             </p>
           )}
         </div>
         <div>
-          <p className="eyebrow text-[10px] mb-1">Due date</p>
+          <p className="eyebrow text-[10px] mb-1"><T>Due date</T></p>
           {doc.dueAt ? (
             <p
               className={`text-[13px] font-semibold ${
@@ -123,25 +124,25 @@ export default async function FirmDocumentDetail({
               {new Date(doc.dueAt).toLocaleString()}
               {isOverdue && (
                 <span className="ml-2 text-[10.5px] font-mono uppercase tracking-wider">
-                  overdue
+                  <T>overdue</T>
                 </span>
               )}
             </p>
           ) : (
             <p className="text-[13px] text-ink-500 dark:text-cream-100/55 italic">
-              No deadline set
+              <T>No deadline set</T>
             </p>
           )}
         </div>
         <div>
-          <p className="eyebrow text-[10px] mb-1">Status moved</p>
+          <p className="eyebrow text-[10px] mb-1"><T>Status moved</T></p>
           <p className="text-[13px] text-forest-900 dark:text-cream-100 font-mono tabular-nums">
             {new Date(doc.statusUpdatedAt).toLocaleString()}
           </p>
         </div>
         {doc.description && (
           <div className="sm:col-span-3 pt-3 border-t border-ink-100 dark:border-forest-800/40">
-            <p className="eyebrow text-[10px] mb-1">Description</p>
+            <p className="eyebrow text-[10px] mb-1"><T>Description</T></p>
             <p className="text-[13px] text-ink-700 dark:text-cream-100/85 whitespace-pre-wrap leading-relaxed">
               {doc.description}
             </p>
@@ -162,7 +163,7 @@ export default async function FirmDocumentDetail({
               className="btn-secondary text-sm"
               download={doc.name}
             >
-              Download
+              <T>Download</T>
             </ExternalLink>
           </div>
         </section>

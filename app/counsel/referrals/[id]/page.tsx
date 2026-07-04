@@ -4,6 +4,7 @@ import { getActiveFirmContext } from '@/lib/firm-storage';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { RespondToReferralForm } from './respond-form';
 import { RecordPaymentForm } from './record-payment-form';
+import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Referral · Counsel' };
@@ -79,19 +80,20 @@ export default async function ReferralDetailPage({
           href="/counsel/referrals"
           className="text-ink-500 hover:text-forest-900 dark:hover:text-cream-100"
         >
-          &larr; Referrals
+          <T>&larr; Referrals</T>
         </Link>
       </p>
 
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <p className="eyebrow mb-1">Referral</p>
+          <p className="eyebrow mb-1"><T>Referral</T></p>
           <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
             {names.get(r.referring_firm_id)} &rarr;{' '}
             {names.get(r.referred_firm_id)}
           </h1>
           <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-1 font-mono">
-            {r.state} · proposed split {r.proposed_split_percent}% · created{' '}
+            {r.state} · <T>proposed split</T> {r.proposed_split_percent}% ·{' '}
+            <T>created</T>{' '}
             {new Date(r.created_at).toLocaleString()}
           </p>
         </div>
@@ -103,7 +105,7 @@ export default async function ReferralDetailPage({
       </header>
 
       <section className="card p-5 space-y-2">
-        <p className="eyebrow text-[10px]">Matter brief</p>
+        <p className="eyebrow text-[10px]"><T>Matter brief</T></p>
         <p className="text-[14px] text-ink-800 dark:text-cream-100/90 leading-relaxed whitespace-pre-wrap">
           {r.matter_summary}
         </p>
@@ -117,11 +119,12 @@ export default async function ReferralDetailPage({
         <>
           <section className="card p-5 ring-1 ring-emerald-300/40 dark:ring-emerald-700/40 bg-emerald-50/30 dark:bg-emerald-950/20 space-y-2">
             <p className="eyebrow text-emerald-700 dark:text-emerald-300">
-              Accepted · client consent on file
+              <T>Accepted · client consent on file</T>
             </p>
             {r.client_consent_at && (
               <p className="text-[12px] text-ink-600 dark:text-cream-100/70 font-mono">
-                Consent recorded {new Date(r.client_consent_at).toLocaleString()}
+                <T>Consent recorded</T>{' '}
+                {new Date(r.client_consent_at).toLocaleString()}
               </p>
             )}
             {r.client_consent_audit && (
@@ -134,7 +137,7 @@ export default async function ReferralDetailPage({
           <section className="grid sm:grid-cols-2 gap-3">
             <div className="card p-5">
               <p className="eyebrow text-[10px] mb-2">
-                Referring firm received
+                <T>Referring firm received</T>
               </p>
               <p className="font-display text-2xl font-medium text-forest-900 dark:text-cream-100 tabular-nums">
                 {fmtCents(r.referring_paid_cents)}
@@ -149,7 +152,7 @@ export default async function ReferralDetailPage({
               )}
             </div>
             <div className="card p-5">
-              <p className="eyebrow text-[10px] mb-2">Referred firm received</p>
+              <p className="eyebrow text-[10px] mb-2"><T>Referred firm received</T></p>
               <p className="font-display text-2xl font-medium text-forest-900 dark:text-cream-100 tabular-nums">
                 {fmtCents(r.referred_paid_cents)}
               </p>

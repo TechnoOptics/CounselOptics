@@ -16,6 +16,7 @@ import { AnalyzeStudio } from '@/app/counsel/analyze/analyze-studio';
 import { ReviewScorecard } from '@/components/ReviewScorecard';
 import type { DocScorecard } from '@/lib/doc-review';
 import { Tabs, type TabDef } from '@/components/Tabs';
+import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Intake · Counsel' };
@@ -121,27 +122,27 @@ export default async function IntakeDetailPage({
           href="/counsel/intake"
           className="text-ink-500 hover:text-forest-900 dark:hover:text-cream-100"
         >
-          &larr; Intake
+          <T>&larr; Intake</T>
         </Link>
       </p>
 
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="eyebrow mb-1">
-            {isEmployeeReq ? 'Employee request' : 'Intake'}
+            {isEmployeeReq ? <T>Employee request</T> : <T>Intake</T>}
           </p>
           <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100 break-words">
             {intake.client_name}
           </h1>
           {isEmployeeReq && (
             <span className="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-gold-500/15 ring-1 ring-gold-500/30 px-2.5 py-0.5 text-[11px] font-semibold text-gold-700 dark:text-gold-200">
-              In-house · submitted by {submittedBy}
+              <T>In-house · submitted by</T> {submittedBy}
             </span>
           )}
           <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-1 font-mono">
-            {intake.matter_type ?? 'Matter type not set'}
+            {intake.matter_type ?? <T>Matter type not set</T>}
             {intake.jurisdiction_state && ` · ${intake.jurisdiction_state}`}
-            {' · '}created{' '}
+            {' · '}<T>created</T>{' '}
             {new Date(intake.created_at).toLocaleString()}
           </p>
         </div>
@@ -176,12 +177,12 @@ export default async function IntakeDetailPage({
               <div className="space-y-6">
                 {meta.length > 0 && (
                   <section className="card p-5">
-                    <p className="eyebrow mb-3">Request details</p>
+                    <p className="eyebrow mb-3"><T>Request details</T></p>
                     <dl className="grid sm:grid-cols-3 gap-x-4 gap-y-3">
                       {meta.map((m) => (
                         <div key={m.label}>
                           <dt className="text-[10px] uppercase tracking-[0.16em] font-semibold text-ink-400 dark:text-cream-100/40 mb-0.5">
-                            {m.label}
+                            <T>{m.label}</T>
                           </dt>
                           <dd className="text-[13px] text-ink-800 dark:text-cream-100/85">
                             {m.value}
@@ -194,7 +195,7 @@ export default async function IntakeDetailPage({
 
                 <section className="card p-5 grid sm:grid-cols-2 gap-3">
                   <div>
-                    <p className="eyebrow text-[10px] mb-1">Email</p>
+                    <p className="eyebrow text-[10px] mb-1"><T>Email</T></p>
                     <p className="text-[13px]">
                       {intake.client_email ? (
                         <a
@@ -205,37 +206,37 @@ export default async function IntakeDetailPage({
                         </a>
                       ) : (
                         <span className="italic text-ink-500 dark:text-cream-100/55">
-                          Not set
+                          <T>Not set</T>
                         </span>
                       )}
                     </p>
                   </div>
                   <div>
-                    <p className="eyebrow text-[10px] mb-1">Phone</p>
+                    <p className="eyebrow text-[10px] mb-1"><T>Phone</T></p>
                     <p className="text-[13px]">
                       {intake.client_phone ?? (
                         <span className="italic text-ink-500 dark:text-cream-100/55">
-                          Not set
+                          <T>Not set</T>
                         </span>
                       )}
                     </p>
                   </div>
                   <div className="sm:col-span-2">
                     <p className="eyebrow text-[10px] mb-1">
-                      Matter summary
+                      <T>Matter summary</T>
                     </p>
                     <p className="text-[13px] text-ink-700 dark:text-cream-100/85 leading-relaxed whitespace-pre-wrap">
-                      {intake.matter_summary ?? '(none)'}
+                      {intake.matter_summary ?? <T>(none)</T>}
                     </p>
                   </div>
                 </section>
 
                 <section className="grid sm:grid-cols-2 gap-3">
                   <div className="card p-4">
-                    <p className="eyebrow mb-2">Other parties</p>
+                    <p className="eyebrow mb-2"><T>Other parties</T></p>
                     {intake.opposing_parties.length === 0 ? (
                       <p className="text-[13px] italic text-ink-500 dark:text-cream-100/55">
-                        None listed.
+                        <T>None listed.</T>
                       </p>
                     ) : (
                       <ul className="space-y-1 text-[13px]">
@@ -246,10 +247,10 @@ export default async function IntakeDetailPage({
                     )}
                   </div>
                   <div className="card p-4">
-                    <p className="eyebrow mb-2">Related parties</p>
+                    <p className="eyebrow mb-2"><T>Related parties</T></p>
                     {intake.related_parties.length === 0 ? (
                       <p className="text-[13px] italic text-ink-500 dark:text-cream-100/55">
-                        None listed.
+                        <T>None listed.</T>
                       </p>
                     ) : (
                       <ul className="space-y-1 text-[13px]">
@@ -298,11 +299,11 @@ export default async function IntakeDetailPage({
             label: 'Analyze',
             content: (
               <div className="space-y-2">
-                <p className="eyebrow">Analyze the submission</p>
+                <p className="eyebrow"><T>Analyze the submission</T></p>
                 <p className="text-[12px] text-ink-500 dark:text-cream-100/55 -mt-1">
-                  Run an AI breakdown of what the submitted document /
+                  <T>Run an AI breakdown of what the submitted document /
                   contract means, how the law applies, its bias, and
-                  the risky clauses.
+                  the risky clauses.</T>
                 </p>
                 <AnalyzeStudio
                   embedded
