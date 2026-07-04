@@ -119,12 +119,21 @@ export async function buildDraftInvoiceAction(
     return sum + Math.round(rate * hours);
   }, 0);
 
-  // Generate next invoice number for this firm.
-  const { count } = await supabase
+  // Next invoice number for this firm. Derive from the HIGHEST existing
+  // number (not count(*), which would reuse a number after an invoice is
+  // voided/deleted). The insert below retries on the unique-constraint
+  // collision two concurrent drafts would otherwise hit, so numbering is
+  // both gap-tolerant and race-safe. (Audit 2026-07-03.)
+  const { data: lastRows } = await supabase
     .from('firm_invoices')
-    .select('id', { count: 'exact', head: true })
-    .eq('firm_id', firmId);
-  const number = `INV-${String((count ?? 0) + 1).padStart(5, '0')}`;
+    .select('number')
+    .eq('firm_id', firmId)
+    .order('number', { ascending: false })
+    .limit(1);
+  const lastNumber =
+    (lastRows?.[0] as { number?: string } | undefined)?.number ?? '';
+  const lastSeqMatch = /(\d+)\s*$/.exec(lastNumber);
+  let nextSeq = (lastSeqMatch ? parseInt(lastSeqMatch[1], 10) : 0) + 1;
 
   // Try to resolve a client_user_id from the email.
   const admin = createAdminSupabase();
@@ -140,27 +149,45 @@ export async function buildDraftInvoiceAction(
     if (matched) clientUserId = matched.id;
   }
 
-  const { data: inv, error: invErr } = await supabase
-    .from('firm_invoices')
-    .insert({
-      firm_id: firmId,
-      case_id: caseId,
-      client_user_id: clientUserId,
-      client_email: clientEmail.trim().toLowerCase(),
-      client_name: clientName ?? null,
-      number,
-      status: 'draft',
-      subtotal_cents: subtotal,
-      total_cents: subtotal,
-      currency: 'USD',
-      created_by: user.id,
-    })
-    .select('id')
-    .single();
+  let inv: { id: string } | null = null;
+  let invErr: { code?: string; message?: string } | null = null;
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const number = `INV-${String(nextSeq).padStart(5, '0')}`;
+    const res = await supabase
+      .from('firm_invoices')
+      .insert({
+        firm_id: firmId,
+        case_id: caseId,
+        client_user_id: clientUserId,
+        client_email: clientEmail.trim().toLowerCase(),
+        client_name: clientName ?? null,
+        number,
+        status: 'draft',
+        subtotal_cents: subtotal,
+        total_cents: subtotal,
+        currency: 'USD',
+        created_by: user.id,
+      })
+      .select('id')
+      .single();
+    if (!res.error) {
+      inv = res.data as { id: string };
+      invErr = null;
+      break;
+    }
+    invErr = res.error as { code?: string; message?: string };
+    // 23505 = unique_violation: a concurrent draft took this number.
+    // Bump and retry; anything else is a real error.
+    if ((res.error as { code?: string }).code === '23505') {
+      nextSeq += 1;
+      continue;
+    }
+    break;
+  }
   if (invErr || !inv) {
     return { ok: false, error: invErr?.message ?? 'Could not create invoice.' };
   }
-  const invoiceId = (inv as { id: string }).id;
+  const invoiceId = inv.id;
 
   // Stamp each entry with the invoice_id. The subtotal above was
   // computed from every billable entry on the case (across all
@@ -303,6 +330,16 @@ export async function markInvoicePaidAction(
   const paidAuth = await assertInvoicePoster(supabase, invoice.firm_id, user.id);
   if (!paidAuth.ok) return paidAuth;
   if (invoice.status === 'paid') return { ok: true };
+  // State-machine guard: a voided/canceled invoice must not be
+  // resurrected as paid - that corrupts AR (a receivable that was
+  // written off would reappear as collected). Payment is only valid
+  // from a live invoice (draft or sent). (Audit 2026-07-03.)
+  if (invoice.status === 'void' || invoice.status === 'canceled') {
+    return {
+      ok: false,
+      error: `This invoice was ${invoice.status} and cannot be marked paid.`,
+    };
+  }
 
   await supabase
     .from('firm_invoices')

@@ -332,15 +332,19 @@ export async function POST(req: NextRequest) {
             if (row.id) matchedIds.add(row.id);
           }
         }
-        for (const userId of matchedIds) {
-          await createNotification({
-            userId,
-            type: 'signing_request_completed',
-            title: `Fully executed: ${docName}`,
-            body: 'All signers have completed their signatures.',
-            link: '/inbox/documents',
-          });
-        }
+        // Fan the completion notices out concurrently rather than one
+        // sequential DB round-trip per signer. (Audit 2026-07-03, perf.)
+        await Promise.all(
+          Array.from(matchedIds).map((userId) =>
+            createNotification({
+              userId,
+              type: 'signing_request_completed',
+              title: `Fully executed: ${docName}`,
+              body: 'All signers have completed their signatures.',
+              link: '/inbox/documents',
+            }),
+          ),
+        );
       }
       // Notify the firm member who initiated the request.
       if (requestedBy) {

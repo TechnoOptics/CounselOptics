@@ -154,11 +154,13 @@ export async function verifyAccessCodeAction(
   }
 
   if (sha256(cleaned) !== sig.access_code_hash) {
-    const next = attempts + 1;
-    await admin
-      .from('firm_signatures')
-      .update({ access_attempts: next })
-      .eq('id', sig.id);
+    // Atomic increment: a single UPDATE ... RETURNING so K parallel wrong
+    // guesses advance the counter by K (not ~1), closing the lockout
+    // race. Fall back to the read value + 1 only if the RPC is missing.
+    const { data: bumped } = await admin.rpc('bump_signature_access_attempt', {
+      p_id: sig.id,
+    });
+    const next = typeof bumped === 'number' ? bumped : attempts + 1;
     await appendSignatureEvent(admin, {
       signingRequestId: sig.signing_request_id,
       signatureId: sig.id,
