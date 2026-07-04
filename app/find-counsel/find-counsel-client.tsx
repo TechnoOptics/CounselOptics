@@ -206,7 +206,25 @@ export function FindCounselClient() {
       {/* Map */}
       {embedSrc ? (
         <div className="space-y-3">
-          <div className="card overflow-hidden p-0">
+          <div className="card overflow-hidden p-0 ring-1 ring-forest-900/10">
+            {/* Advottic-branded map frame. The results come from a
+                cross-origin Google Maps embed whose own tiles can't be
+                recolored, so we theme the surround instead: a forest
+                header bar + brand ring keep it on-brand without hurting
+                map legibility. */}
+            <div className="flex items-center gap-2 bg-forest-900 text-cream-100 px-4 py-2.5">
+              <svg
+                viewBox="0 0 24 24"
+                className="h-4 w-4 flex-none text-gold-400"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z" />
+              </svg>
+              <p className="text-[12px] font-semibold tracking-[0.02em]">
+                Counsel near{placeLabel ? ` ${placeLabel}` : ' you'}
+              </p>
+            </div>
             <iframe
               key={embedSrc}
               src={embedSrc}
