@@ -103,6 +103,11 @@ export async function createCaseAction(
   formData: FormData,
 ): Promise<CreateCaseResult> {
   let createdId: string;
+  // Group mode: when the wizard's "rally community support" toggle is on,
+  // we skip the usual land-on-/cases and drop the organizer straight into
+  // the Community Case setup for the case they just created. Read here
+  // (outside the try) so it's in scope at the post-catch redirect.
+  const startGroupMode = String(formData.get('startGroupMode') ?? '') === '1';
   try {
     await assertAuthIfSupabase();
     const title = String(formData.get('title') ?? '').trim();
@@ -305,7 +310,14 @@ export async function createCaseAction(
   // exception isn't swallowed. Land on the case list (not the detail
   // page) so the user sees the new case appear in their dashboard
   // and orient before they dive in. They can click it from there.
+  //
+  // Exception: group mode. If the organizer chose to rally community
+  // support, take them straight to the Community Case editor for the
+  // case they just created so they can publish the public page.
   revalidatePath('/cases');
+  if (startGroupMode) {
+    redirect(`/cases/${createdId}/community`);
+  }
   redirect('/cases');
 }
 

@@ -531,6 +531,12 @@ export function SmartAssistForm() {
   const [direction, setDirection] = useState<'forward' | 'back'>('forward');
   const formRef = useRef<HTMLFormElement | null>(null);
   const cardRef = useRef<HTMLDivElement | null>(null);
+  // Group mode: opt-in on the final step. When on, the server action
+  // routes to the new case's Community Case editor instead of /cases,
+  // so the organizer can publish a public rally page right away. Kept
+  // as its own state (not a WizardState key) so the auto-serialized
+  // hidden-input map below doesn't emit a duplicate field.
+  const [groupMode, setGroupMode] = useState(false);
   const [actionState, formAction] = useFormState<CreateCaseResult | null, FormData>(
     createCaseAction,
     null,
@@ -670,6 +676,43 @@ export function SmartAssistForm() {
           across steps, not just the description step. */}
       <SafetyAdvisory text={`${state.title}\n${state.description}\n${state.subj_notes}`} />
 
+      {/* Group mode opt-in. Only offered on the final review step so it
+          reads as a deliberate choice about *this* case, not a wizard
+          setting. When on, we land the organizer in the Community Case
+          editor after creation instead of the case list. */}
+      {isLast && (
+        <label
+          htmlFor="group-mode"
+          className={`block rounded-xl border px-4 py-3.5 cursor-pointer transition-colors ${
+            groupMode
+              ? 'border-gold-400 bg-gold-500/10 dark:border-gold-500/50'
+              : 'border-ink-200 dark:border-forest-700/50 hover:border-ink-300 dark:hover:border-forest-600'
+          }`}
+        >
+          <div className="flex items-start gap-3">
+            <input
+              id="group-mode"
+              type="checkbox"
+              checked={groupMode}
+              onChange={(e) => setGroupMode(e.target.checked)}
+              className="mt-0.5 h-4 w-4 flex-none accent-gold-600"
+            />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-forest-900 dark:text-cream-100">
+                Start in Group mode — rally community support
+              </p>
+              <p className="text-[12.5px] text-ink-600 dark:text-cream-100/70 mt-1 leading-relaxed">
+                Publish a shareable public page so friends, family, and the
+                community can rally around this case, submit letters of
+                support, and send evidence straight to the attorney.
+                Submissions stay private. You can set this up now or later
+                from the case page.
+              </p>
+            </div>
+          </div>
+        </label>
+      )}
+
       {actionState?.error && actionState.duplicateOf ? (
         <div
           role="alert"
@@ -762,7 +805,10 @@ export function SmartAssistForm() {
             "Create anyway" button on the duplicate warning sets this
             to "1" before resubmitting. */}
         <input type="hidden" name="force" defaultValue="" />
-        <FormLoadingOverlay label="Creating your case file" />
+        {/* Group mode flag, read by createCaseAction to redirect into
+            the Community Case editor after the case is created. */}
+        <input type="hidden" name="startGroupMode" value={groupMode ? '1' : ''} />
+        <FormLoadingOverlay label={groupMode ? 'Setting up your group case' : 'Creating your case file'} />
       </form>
     </div>
   );
