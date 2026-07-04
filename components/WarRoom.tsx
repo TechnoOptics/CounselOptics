@@ -104,13 +104,13 @@ export function WarRoom({ items }: { items: WarItem[] }) {
     <div className="space-y-8 animate-fade-up">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="eyebrow mb-2">War Room</p>
+          <p className="eyebrow mb-2">Action Center</p>
           <h1 className="font-display text-3xl font-medium tracking-[-0.015em] text-forest-900">
-            Run everything from here
+            What needs you right now
           </h1>
           <p className="text-sm text-ink-500 mt-1.5 max-w-xl leading-relaxed">
             Every case, every clock, and the single best next move for
-            each - in one place.
+            each - plus your time-sensitive tools, in one place.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -119,6 +119,12 @@ export function WarRoom({ items }: { items: WarItem[] }) {
           </Link>
           <Link href="/decoder" className="btn-secondary">
             Decode a document
+          </Link>
+          <Link href="/action-center/mock-trial" className="btn-secondary">
+            Mock trial
+          </Link>
+          <Link href="/safe" className="btn-secondary">
+            Safe Witness
           </Link>
           <Link href="/cases/new/speak" className="btn-primary">
             Speak a new case
@@ -220,7 +226,83 @@ export function WarRoom({ items }: { items: WarItem[] }) {
           </div>
         )}
       </section>
+
+      {/* Time-sensitive tools. Folded in here so the Action Center is
+          one surface: practice for a hearing, decode a document, or
+          reach your trusted contacts - without leaving the cockpit. */}
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold tracking-wider uppercase text-forest-700">
+          Your tools
+        </h2>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <ToolTile
+            href="/action-center/mock-trial"
+            title="Mock trial"
+            body="Argue your case out loud. Advottic plays opposing counsel and the judge, asks the hard questions, then coaches you - before the real hearing."
+            cta="Step up to the stand"
+            tone="forest"
+          />
+          <ToolTile
+            href="/safe"
+            title="Safe Witness"
+            body="One press alerts your trusted contacts with your location and a voice memo. Set up your contacts first, then trigger from any device."
+            cta="Open Safe Witness"
+            tone="rose"
+          />
+          <ToolTile
+            href="/decoder"
+            title="Decode a document"
+            body="Paste or attach a court notice, letter, or contract - even a photo - and get it back in plain English with the deadlines spelled out."
+            cta="Decode now"
+            tone="forest"
+          />
+          <ToolTile
+            href="/deadlines"
+            title="Deadline Radar"
+            body="Hearings, filings, and statute-of-limitations cutoffs across every case, sorted by what bites first."
+            cta="Open Deadline Radar"
+            tone="gold"
+          />
+        </div>
+      </section>
     </div>
+  );
+}
+
+function ToolTile({
+  href,
+  title,
+  body,
+  cta,
+  tone,
+}: {
+  href: string;
+  title: string;
+  body: string;
+  cta: string;
+  tone: 'forest' | 'rose' | 'gold';
+}) {
+  const chip =
+    tone === 'rose'
+      ? 'bg-rose-500/12 text-rose-700 ring-rose-200/70'
+      : tone === 'gold'
+        ? 'bg-gold-400/15 text-gold-800 ring-gold-200/70'
+        : 'bg-forest-900/8 text-forest-900 ring-forest-900/15';
+  return (
+    <Link href={href} className="card-hover p-5 block animate-fade-up">
+      <span
+        className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] uppercase tracking-[0.14em] font-bold ring-1 ${chip}`}
+      >
+        {title}
+      </span>
+      <p className="text-[13px] text-ink-600 mt-2.5 leading-relaxed">{body}</p>
+      <span className="mt-3 inline-flex items-center text-sm font-medium text-forest-900">
+        {cta}
+        <span aria-hidden className="ml-1.5">
+          &rarr;
+        </span>
+      </span>
+    </Link>
   );
 }
 

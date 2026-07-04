@@ -1,44 +1,13 @@
-import type { Metadata } from 'next';
-import { listCases } from '@/lib/storage';
-import { storageUnavailable } from '@/lib/setup-status';
-import { WarRoom, type WarItem } from '@/components/WarRoom';
+import { redirect } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
 
-export const metadata: Metadata = {
-  title: 'War Room',
-  description:
-    'Every case, every deadline, and the single best next move for each - one command center.',
-};
-
-export default async function WarRoomPage() {
-  if (storageUnavailable()) {
-    return (
-      <div className="max-w-3xl mx-auto card p-8 text-sm text-ink-600">
-        Connect storage to use the War Room.
-      </div>
-    );
-  }
-
-  let items: WarItem[] = [];
-  try {
-    const cases = await listCases();
-    items = cases.map((c) => ({
-      id: c.id,
-      title: c.title,
-      status: c.status,
-      posture: c.posture,
-      caseType: c.caseType,
-      hearingAt: c.hearingAt ?? null,
-      updatedAt: c.updatedAt,
-    }));
-  } catch {
-    items = [];
-  }
-
-  return (
-    <div className="max-w-4xl mx-auto">
-      <WarRoom items={items} />
-    </div>
-  );
+/**
+ * The War Room and the Action Center had the same job, so they're now
+ * one surface under the Action Center name. This route is kept only so
+ * old links, bookmarks, and the sitemap don't 404 - it forwards to the
+ * consolidated cockpit.
+ */
+export default function WarRoomRedirect() {
+  redirect('/action-center');
 }
