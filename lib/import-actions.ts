@@ -301,6 +301,138 @@ export async function importClientsCsvAction(input: {
 }
 
 // =====================================================================
+// LANE: Employees CSV (#8) - pre-provisioned Hub accounts
+// =====================================================================
+
+export type EmployeesImportMapping = {
+  email: string;
+  displayName?: string;
+  department?: string;
+  roleKey?: string;
+  externalId?: string;
+};
+
+/**
+ * Import an employee roster (#8). Unlike the Clients lane, we do NOT
+ * create an auth user up front: we drop a firm_employees row with
+ * user_id = null, pre-populated with the person's details. The persona
+ * resolver (lib/persona.ts) auto-links that row to the real auth user
+ * the first time they sign in with a matching email - which is exactly
+ * "creates accounts with prepopulated data waiting for their first
+ * sign in". Works for a ServiceNow / Workday / HRIS export (map the
+ * columns) or a plain spreadsheet; a live API adapter is a separate,
+ * credential-gated follow-up.
+ *
+ * Idempotent per firm: an email already on the firm (as an employee)
+ * is skipped, so re-running an updated export won't duplicate people.
+ */
+export async function importEmployeesCsvAction(input: {
+  csvText: string;
+  mapping: EmployeesImportMapping;
+}): Promise<
+  Result<{
+    created: number;
+    skipped: number;
+    failures: Array<{ row: number; reason: string }>;
+  }>
+> {
+  const ctx = await requireFirmMember();
+  if ('error' in ctx) return { ok: false, error: ctx.error };
+  const { firmId } = ctx;
+  if (!ctx.admin) return { ok: false, error: 'Service role not configured.' };
+  const admin: NonNullable<typeof ctx.admin> = ctx.admin;
+  if (!input.mapping?.email) {
+    return { ok: false, error: 'Map the email column before importing.' };
+  }
+
+  let parsed;
+  try {
+    parsed = parseCsv(input.csvText);
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Could not parse CSV.',
+    };
+  }
+  if (parsed.rows.length === 0) {
+    return { ok: false, error: 'CSV had no data rows after the header.' };
+  }
+  if (!parsed.headers.includes(input.mapping.email.toLowerCase())) {
+    return {
+      ok: false,
+      error: `Email column "${input.mapping.email}" not in CSV headers.`,
+    };
+  }
+
+  const emailKey = input.mapping.email.toLowerCase();
+  const dnKey = input.mapping.displayName?.toLowerCase();
+  const deptKey = input.mapping.department?.toLowerCase();
+  const roleKey = input.mapping.roleKey?.toLowerCase();
+  const extKey = input.mapping.externalId?.toLowerCase();
+
+  const failures: Array<{ row: number; reason: string }> = [];
+  let created = 0;
+  let skipped = 0;
+  // Guard against duplicate emails within the same file too.
+  const seen = new Set<string>();
+
+  for (let i = 0; i < parsed.rows.length; i++) {
+    const r = parsed.rows[i]!;
+    const email = (r[emailKey] ?? '').trim().toLowerCase();
+    if (!email) {
+      failures.push({ row: i + 2, reason: 'Empty email' });
+      continue;
+    }
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      failures.push({ row: i + 2, reason: `Invalid email: ${email}` });
+      continue;
+    }
+    if (seen.has(email)) {
+      skipped += 1;
+      continue;
+    }
+    seen.add(email);
+
+    // Already an employee on this firm? Skip (idempotent re-import).
+    const { data: existing } = await admin
+      .from('firm_employees')
+      .select('id')
+      .eq('firm_id', firmId)
+      .ilike('email', email)
+      .maybeSingle();
+    if (existing) {
+      skipped += 1;
+      continue;
+    }
+
+    const displayName = dnKey ? (r[dnKey] ?? '').trim() || null : null;
+    const department = deptKey ? (r[deptKey] ?? '').trim() || null : null;
+    const roleVal = roleKey ? (r[roleKey] ?? '').trim() || null : null;
+    const externalId = extKey ? (r[extKey] ?? '').trim() || null : null;
+
+    const { error: insertErr } = await admin.from('firm_employees').insert({
+      firm_id: firmId,
+      user_id: null, // linked on first sign-in by lib/persona.ts
+      email,
+      display_name: displayName,
+      department,
+      role_key: roleVal,
+      source: 'manual',
+      external_id: externalId,
+    });
+    if (insertErr) {
+      failures.push({ row: i + 2, reason: insertErr.message });
+      continue;
+    }
+    created += 1;
+  }
+
+  revalidatePath('/counsel/employees');
+  revalidatePath('/counsel');
+  return { ok: true, created, skipped, failures };
+}
+
+// =====================================================================
 // LANE 2: Cases CSV
 // =====================================================================
 

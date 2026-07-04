@@ -5,11 +5,13 @@ import {
   importBulkDocumentAction,
   importCasesCsvAction,
   importClientsCsvAction,
+  importEmployeesCsvAction,
   importJsonDumpAction,
   previewCsvAction,
   previewJsonDumpAction,
   type CasesImportMapping,
   type ClientsImportMapping,
+  type EmployeesImportMapping,
 } from '@/lib/import-actions';
 
 /**
@@ -365,6 +367,139 @@ export function ClientsImporter() {
       {result && 'created' in result && (
         <ResultPanel
           summary={`Imported ${result.created} client${result.created === 1 ? '' : 's'}`}
+          subline={
+            result.skipped > 0
+              ? `${result.skipped} already on the firm and skipped.`
+              : undefined
+          }
+          failures={result.failures}
+        />
+      )}
+    </section>
+  );
+}
+
+/* ----- LANE: Employees CSV (#8) ----- */
+
+export function EmployeesImporter() {
+  const [preview, setPreview] = useState<CsvPreview>({ phase: 'idle' });
+  const [mapping, setMapping] = useState<EmployeesImportMapping>({ email: '' });
+  const [pending, startTransition] = useTransition();
+  const [result, setResult] = useState<
+    | null
+    | {
+        created: number;
+        skipped: number;
+        failures: Array<{ row: number; reason: string }>;
+      }
+    | { error: string }
+  >(null);
+
+  function submit() {
+    if (preview.phase !== 'ready') return;
+    setResult(null);
+    startTransition(async () => {
+      const res = await importEmployeesCsvAction({
+        csvText: preview.csvText,
+        mapping,
+      });
+      if (!res.ok) {
+        setResult({ error: res.error });
+        return;
+      }
+      setResult({
+        created: res.created,
+        skipped: res.skipped,
+        failures: res.failures,
+      });
+    });
+  }
+
+  return (
+    <section className="space-y-4">
+      <PanelHeader
+        eyebrow="Lane"
+        title="Employees CSV"
+        description={
+          'Export your people roster from ServiceNow, Workday, an HRIS, or a spreadsheet. Map the email column (required) and any extras. Each person becomes a pre-provisioned Hub account with their details already filled in - it links to them automatically the first time they sign in with that email. Existing employees are skipped.'
+        }
+      />
+      <FilePickerCsv state={preview} setState={setPreview} />
+      <CsvSampleTable preview={preview} />
+
+      {preview.phase === 'ready' && (
+        <>
+          <div className="card p-5 space-y-3">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-cream-100/55">
+              Map columns
+            </p>
+            <div className="grid sm:grid-cols-2 gap-3">
+              <MapDropdown
+                label="Email"
+                required
+                headers={preview.headers}
+                value={mapping.email}
+                onChange={(v) => setMapping((m) => ({ ...m, email: v }))}
+              />
+              <MapDropdown
+                label="Display name"
+                headers={preview.headers}
+                value={mapping.displayName ?? ''}
+                onChange={(v) =>
+                  setMapping((m) => ({ ...m, displayName: v || undefined }))
+                }
+              />
+              <MapDropdown
+                label="Department"
+                headers={preview.headers}
+                value={mapping.department ?? ''}
+                onChange={(v) =>
+                  setMapping((m) => ({ ...m, department: v || undefined }))
+                }
+              />
+              <MapDropdown
+                label="Role key"
+                helper="Optional portal role key (from Team → Roles). Blank = default access."
+                headers={preview.headers}
+                value={mapping.roleKey ?? ''}
+                onChange={(v) =>
+                  setMapping((m) => ({ ...m, roleKey: v || undefined }))
+                }
+              />
+              <MapDropdown
+                label="External ID"
+                helper="Optional source system ID (e.g. ServiceNow sys_id) for later reconciliation."
+                headers={preview.headers}
+                value={mapping.externalId ?? ''}
+                onChange={(v) =>
+                  setMapping((m) => ({ ...m, externalId: v || undefined }))
+                }
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              className="btn-primary"
+              disabled={pending || !mapping.email}
+              onClick={submit}
+            >
+              {pending
+                ? 'Importing...'
+                : `Import ${preview.totalRows} ${preview.totalRows === 1 ? 'person' : 'people'}`}
+            </button>
+            <span className="text-[11px] text-cream-100/55">
+              No email is sent; accounts activate on first sign-in.
+            </span>
+          </div>
+        </>
+      )}
+
+      {result && 'error' in result && <Banner tone="error" text={result.error} />}
+      {result && 'created' in result && (
+        <ResultPanel
+          summary={`Pre-provisioned ${result.created} ${result.created === 1 ? 'person' : 'people'}`}
           subline={
             result.skipped > 0
               ? `${result.skipped} already on the firm and skipped.`

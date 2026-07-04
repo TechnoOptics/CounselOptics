@@ -5,6 +5,7 @@ import {
   CasesImporter,
   ClientsImporter,
   DocumentsImporter,
+  EmployeesImporter,
   JsonDumpImporter,
 } from '@/components/counsel/import/ImportPanels';
 
@@ -34,6 +35,11 @@ export default async function CounselImportPage() {
       id: 'clients',
       label: 'Clients CSV',
       content: <ClientsImporter />,
+    },
+    {
+      id: 'employees',
+      label: 'Employees CSV',
+      content: <EmployeesImporter />,
     },
     {
       id: 'cases',
