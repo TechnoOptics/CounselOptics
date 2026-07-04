@@ -14,12 +14,22 @@ data
 # Capacitor / Android native build chain - never needed by the web build
 android
 ios
+capacitor-shell
+ios-watch
+watchos
+
+# Native / mobile build + store artifacts (local-only, huge; break the
+# upload with too many files / oversized archive). build_sim alone is ~1.4 GB.
+build_sim
+build-artifacts
+store-assets
 
 # Other large local-only artifacts
 docs/build
 .claude
 .vscode
 .idea
+.vercel
 
 # Local env files
 .env

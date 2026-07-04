@@ -87,18 +87,18 @@ export async function getFirmBySubdomain(
     const supabase = createClient(env.url, env.anon, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
+    // Read branding through the SECURITY DEFINER RPC (explicit public
+    // column allowlist) rather than a direct table select. The old
+    // firms_public_tenant_select policy exposed every column of any
+    // subdomain-enabled firm to anon (token_pool_balance, created_by,
+    // full metadata); the RPC returns only public branding columns and
+    // already filters to subdomain_enabled = true, case-insensitively.
+    // See supabase/fixes/2026-07-04-firm-public-tenant-rpc.sql.
     const { data, error } = await supabase
-      .from('firms')
-      .select('id, slug, name, accent_color, logo_url, subdomain_enabled')
-      .ilike('slug', key)
+      .rpc('get_public_tenant_firm', { _slug: key })
       .maybeSingle();
 
     if (error || !data) {
-      cache.set(key, { value: null, expiresAt: now + NEGATIVE_TTL_MS });
-      return null;
-    }
-
-    if (!(data as { subdomain_enabled: boolean }).subdomain_enabled) {
       cache.set(key, { value: null, expiresAt: now + NEGATIVE_TTL_MS });
       return null;
     }

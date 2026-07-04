@@ -23,15 +23,17 @@
 -- ── firms ────────────────────────────────────────────────────────────
 -- INSERT firms_self_insert            WITH CHECK (created_by = auth.uid())
 -- SELECT firms_member_select          USING  (caller is a firm_member of firms.id)
--- SELECT firms_public_tenant_select   USING  (subdomain_enabled = true)
 -- UPDATE firms_owner_update           USING  (caller is owner/admin of firms.id)
 --
--- REVIEW ITEM: firms_public_tenant_select exposes EVERY column of any
--- subdomain-enabled firm to anon (needed for public tenant branding),
--- including token_pool_balance / created_by / metadata. Prefer a
--- SECURITY DEFINER RPC that returns only the public branding columns,
--- the same pattern the community pages use, so internal fields can't
--- leak by simply adding a column later.
+-- RESOLVED 2026-07-04: firms_public_tenant_select (USING subdomain_enabled
+-- = true) was DROPPED. It exposed EVERY column of any subdomain-enabled
+-- firm to anon (token_pool_balance / created_by / full metadata). Public
+-- tenant branding now reads through public.get_public_tenant_firm(slug), a
+-- SECURITY DEFINER RPC with an explicit column allowlist - the same
+-- pattern the community pages use - so internal fields can't leak by
+-- adding a column later. See 2026-07-04-firm-public-tenant-rpc.sql. There
+-- is no longer any anon/authenticated SELECT policy on `firms`; the only
+-- non-member read path is that RPC.
 
 -- ── firm_members (tenant boundary root) ──────────────────────────────
 -- SELECT firm_members_visible_to_firm    USING  private.is_firm_member(firm_id, auth.uid())
