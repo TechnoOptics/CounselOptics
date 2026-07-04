@@ -5,7 +5,7 @@ import {
   importMigrationBundleAction,
   type MigrationResult,
 } from '@/lib/migration-actions';
-import { useT } from '@/components/i18n/LocaleProvider';
+import { T, useT } from '@/components/i18n/LocaleProvider';
 
 /**
  * "Migrate from another platform" panel. Two ways in:
@@ -71,7 +71,7 @@ export function MigrateClient() {
                 : 'bg-ink-100 text-ink-600 dark:bg-forest-800/60 dark:text-cream-100/70'
             }`}
           >
-            {m === 'json' ? 'Universal bundle (JSON)' : 'ServiceNow'}
+            {m === 'json' ? <T>Universal bundle (JSON)</T> : <T>ServiceNow</T>}
           </button>
         ))}
       </div>
@@ -79,9 +79,11 @@ export function MigrateClient() {
       {mode === 'json' ? (
         <div className="space-y-3">
           <p className="text-sm text-ink-600 dark:text-cream-100/70 leading-relaxed">
-            Import a universal bundle: matters with their attachments, notes,
-            and history. Original dates are preserved, so the workspace looks
-            exactly as established as it was on your old platform.
+            <T>
+              Import a universal bundle: matters with their attachments, notes,
+              and history. Original dates are preserved, so the workspace looks
+              exactly as established as it was on your old platform.
+            </T>
           </p>
           <input
             type="file"
@@ -104,15 +106,17 @@ export function MigrateClient() {
             disabled={pending || !json.trim()}
             className="btn-primary disabled:opacity-60"
           >
-            {pending ? 'Importing…' : 'Import bundle'}
+            {pending ? <T>Importing…</T> : <T>Import bundle</T>}
           </button>
         </div>
       ) : (
         <div className="space-y-3">
           <p className="text-sm text-ink-600 dark:text-cream-100/70 leading-relaxed">
-            Connect ServiceNow to pull records and their attachments directly.
-            Use a service account token scoped to read the table and its
-            attachments.
+            <T>
+              Connect ServiceNow to pull records and their attachments directly.
+              Use a service account token scoped to read the table and its
+              attachments.
+            </T>
           </p>
           <input
             value={sn.instanceUrl}
@@ -151,7 +155,7 @@ export function MigrateClient() {
             disabled={pending || !sn.instanceUrl.trim() || !sn.token.trim()}
             className="btn-primary disabled:opacity-60"
           >
-            {pending ? 'Importing…' : 'Pull from ServiceNow'}
+            {pending ? <T>Importing…</T> : <T>Pull from ServiceNow</T>}
           </button>
         </div>
       )}
@@ -167,11 +171,15 @@ export function MigrateClient() {
           {result.ok ? (
             <>
               <p className="font-medium">
-                Imported {result.casesCreated} matter
-                {result.casesCreated === 1 ? '' : 's'} and{' '}
-                {result.attachmentsCreated} attachment
-                {result.attachmentsCreated === 1 ? '' : 's'} from{' '}
-                {result.source}.
+                <T>Imported</T> {result.casesCreated}{' '}
+                <T>{result.casesCreated === 1 ? 'matter' : 'matters'}</T>{' '}
+                <T>and</T> {result.attachmentsCreated}{' '}
+                <T>
+                  {result.attachmentsCreated === 1
+                    ? 'attachment'
+                    : 'attachments'}
+                </T>{' '}
+                <T>from</T> {result.source}.
               </p>
               {!!result.failures?.length && (
                 <ul className="mt-2 list-disc pl-5 text-[13px]">

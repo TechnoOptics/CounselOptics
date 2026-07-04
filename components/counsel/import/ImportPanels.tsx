@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState, useTransition } from 'react';
+import { T } from '@/components/i18n/LocaleProvider';
 import {
   importBulkDocumentAction,
   importCasesCsvAction,
@@ -36,12 +37,12 @@ function PanelHeader({
 }) {
   return (
     <div>
-      <p className="eyebrow mb-1">{eyebrow}</p>
+      <p className="eyebrow mb-1"><T>{eyebrow}</T></p>
       <h2 className="font-display text-2xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-        {title}
+        <T>{title}</T>
       </h2>
       <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-        {description}
+        <T>{description}</T>
       </p>
     </div>
   );
@@ -154,17 +155,21 @@ function FilePickerCsv({
         onClick={() => inputRef.current?.click()}
         className="btn-secondary"
       >
-        {state.phase === 'ready' ? 'Choose a different CSV' : 'Choose CSV'}
+        {state.phase === 'ready' ? (
+          <T>Choose a different CSV</T>
+        ) : (
+          <T>Choose CSV</T>
+        )}
       </button>
       {state.phase === 'ready' && (
         <span className="ml-3 text-[12.5px] text-ink-600 dark:text-cream-100/60">
-          {state.fileName} - {state.totalRows} row
-          {state.totalRows === 1 ? '' : 's'} detected
+          {state.fileName} - {state.totalRows} <T>row</T>
+          {state.totalRows === 1 ? '' : 's'} <T>detected</T>
         </span>
       )}
       {state.phase === 'loading' && (
         <span className="ml-3 text-[12.5px] text-ink-500 dark:text-cream-100/55">
-          Reading...
+          <T>Reading...</T>
         </span>
       )}
       {state.phase === 'error' && <Banner tone="error" text={state.message} />}
@@ -177,7 +182,7 @@ function CsvSampleTable({ preview }: { preview: CsvPreview }) {
   return (
     <div className="card p-4 overflow-x-auto">
       <p className="text-[10px] uppercase tracking-[0.2em] text-cream-100/55 mb-2">
-        Preview - first {preview.sample.length} row
+        <T>Preview - first</T> {preview.sample.length} <T>row</T>
         {preview.sample.length === 1 ? '' : 's'}
       </p>
       <table className="text-[12px] min-w-full">
@@ -230,7 +235,7 @@ function MapDropdown({
   return (
     <label className="block">
       <span className="block text-[12px] uppercase tracking-[0.16em] text-cream-100/55 mb-0.5">
-        {label}
+        <T>{label}</T>
         {required ? ' *' : ''}
       </span>
       <select
@@ -238,7 +243,7 @@ function MapDropdown({
         onChange={(e) => onChange(e.target.value)}
         className="w-full bg-forest-900/60 ring-1 ring-forest-700/40 rounded-md px-3 py-2 text-[13px] text-cream-100"
       >
-        <option value="">- not mapped -</option>
+        <option value=""><T>- not mapped -</T></option>
         {headers.map((h) => (
           <option key={h} value={h}>
             {h}
@@ -247,7 +252,7 @@ function MapDropdown({
       </select>
       {helper && (
         <span className="block text-[11px] text-cream-100/50 mt-1">
-          {helper}
+          <T>{helper}</T>
         </span>
       )}
     </label>
@@ -306,7 +311,7 @@ export function ClientsImporter() {
         <>
           <div className="card p-5 space-y-3">
             <p className="text-[10px] uppercase tracking-[0.2em] text-cream-100/55">
-              Map columns
+              <T>Map columns</T>
             </p>
             <div className="grid sm:grid-cols-2 gap-3">
               <MapDropdown
@@ -352,12 +357,17 @@ export function ClientsImporter() {
               disabled={pending || !mapping.email}
               onClick={submit}
             >
-              {pending
-                ? 'Importing...'
-                : `Import ${preview.totalRows} client${preview.totalRows === 1 ? '' : 's'}`}
+              {pending ? (
+                <T>Importing...</T>
+              ) : (
+                <>
+                  <T>Import</T> {preview.totalRows}{' '}
+                  <T>{preview.totalRows === 1 ? 'client' : 'clients'}</T>
+                </>
+              )}
             </button>
             <span className="text-[11px] text-cream-100/55">
-              Unassigned rows default to the firm&rsquo;s paralegal.
+              <T>Unassigned rows default to the firm&rsquo;s paralegal.</T>
             </span>
           </div>
         </>
@@ -431,7 +441,7 @@ export function EmployeesImporter() {
         <>
           <div className="card p-5 space-y-3">
             <p className="text-[10px] uppercase tracking-[0.2em] text-cream-100/55">
-              Map columns
+              <T>Map columns</T>
             </p>
             <div className="grid sm:grid-cols-2 gap-3">
               <MapDropdown
@@ -485,12 +495,17 @@ export function EmployeesImporter() {
               disabled={pending || !mapping.email}
               onClick={submit}
             >
-              {pending
-                ? 'Importing...'
-                : `Import ${preview.totalRows} ${preview.totalRows === 1 ? 'person' : 'people'}`}
+              {pending ? (
+                <T>Importing...</T>
+              ) : (
+                <>
+                  <T>Import</T> {preview.totalRows}{' '}
+                  {preview.totalRows === 1 ? <T>person</T> : <T>people</T>}
+                </>
+              )}
             </button>
             <span className="text-[11px] text-cream-100/55">
-              No email is sent; accounts activate on first sign-in.
+              <T>No email is sent; accounts activate on first sign-in.</T>
             </span>
           </div>
         </>
@@ -556,7 +571,7 @@ export function CasesImporter() {
         <>
           <div className="card p-5 space-y-3">
             <p className="text-[10px] uppercase tracking-[0.2em] text-cream-100/55">
-              Map columns
+              <T>Map columns</T>
             </p>
             <div className="grid sm:grid-cols-2 gap-3">
               <MapDropdown
@@ -639,9 +654,14 @@ export function CasesImporter() {
             disabled={pending || !mapping.title}
             onClick={submit}
           >
-            {pending
-              ? 'Importing...'
-              : `Import ${preview.totalRows} case${preview.totalRows === 1 ? '' : 's'}`}
+            {pending ? (
+              <T>Importing...</T>
+            ) : (
+              <>
+                <T>Import</T> {preview.totalRows}{' '}
+                <T>{preview.totalRows === 1 ? 'case' : 'cases'}</T>
+              </>
+            )}
           </button>
         </>
       )}
@@ -721,7 +741,7 @@ export function DocumentsImporter() {
       <div className="card p-5 space-y-3">
         <label className="block">
           <span className="block text-[12px] uppercase tracking-[0.16em] text-cream-100/55 mb-0.5">
-            Tag for this batch
+            <T>Tag for this batch</T>
           </span>
           <input
             type="text"
@@ -731,7 +751,7 @@ export function DocumentsImporter() {
             className="w-full bg-forest-900/60 ring-1 ring-forest-700/40 rounded-md px-3 py-2 text-[13px] text-cream-100"
           />
           <span className="block text-[11px] text-cream-100/50 mt-1">
-            All uploaded files get this tag plus &ldquo;imported&rdquo; so the Documents page can filter to just this batch.
+            <T>All uploaded files get this tag plus &ldquo;imported&rdquo; so the Documents page can filter to just this batch.</T>
           </span>
         </label>
         <input
@@ -760,11 +780,11 @@ export function DocumentsImporter() {
             disabled={pending}
             onClick={() => inputRef.current?.click()}
           >
-            {pending ? 'Uploading...' : 'Choose files / folder'}
+            {pending ? <T>Uploading...</T> : <T>Choose files / folder</T>}
           </button>
           {progress && (
             <span className="text-[12.5px] text-cream-100/65">
-              {progress.done} / {progress.total} processed
+              {progress.done} / {progress.total} <T>processed</T>
             </span>
           )}
         </div>
@@ -855,7 +875,7 @@ export function JsonDumpImporter() {
           disabled={pending || !text.trim()}
           onClick={check}
         >
-          {pending ? 'Checking...' : 'Preview'}
+          {pending ? <T>Checking...</T> : <T>Preview</T>}
         </button>
         <button
           type="button"
@@ -863,7 +883,7 @@ export function JsonDumpImporter() {
           disabled={pending || !text.trim() || !(preview && !('error' in preview))}
           onClick={run}
         >
-          {pending ? 'Importing...' : 'Run import'}
+          {pending ? <T>Importing...</T> : <T>Run import</T>}
         </button>
       </div>
       {preview && 'error' in preview && <Banner tone="error" text={preview.error} />}
@@ -909,8 +929,12 @@ function ResultPanel({
       {failures.length > 0 && (
         <details className="mt-2">
           <summary className="text-[12.5px] text-rose-300 cursor-pointer">
-            {failures.length} failure{failures.length === 1 ? '' : 's'} -
-            expand to inspect
+            {failures.length}{' '}
+            <T>
+              {failures.length === 1
+                ? 'failure - expand to inspect'
+                : 'failures - expand to inspect'}
+            </T>
           </summary>
           <ul className="mt-2 space-y-1 text-[12px] text-cream-100/85 max-h-56 overflow-y-auto">
             {failures.map((f, i) => (

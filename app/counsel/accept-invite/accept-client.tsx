@@ -3,8 +3,10 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { acceptFirmInvitationAction } from '@/lib/firm-actions';
+import { T, useT } from '@/components/i18n/LocaleProvider';
 
 export function AcceptInviteClient({ token }: { token: string }) {
+  const t = useT();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -12,18 +14,18 @@ export function AcceptInviteClient({ token }: { token: string }) {
 
   function accept() {
     setError(null);
-    const t = tokenInput.trim();
-    if (!t) {
-      setError('Paste the token from your invitation email.');
+    const trimmed = tokenInput.trim();
+    if (!trimmed) {
+      setError(t('Paste the token from your invitation email.'));
       return;
     }
     startTransition(async () => {
-      const res = await acceptFirmInvitationAction(t);
+      const res = await acceptFirmInvitationAction(trimmed);
       if (res.ok) {
         router.push('/counsel');
         router.refresh();
       } else {
-        setError(res.error ?? 'Could not accept invitation.');
+        setError(res.error ?? t('Could not accept invitation.'));
       }
     });
   }
@@ -33,12 +35,12 @@ export function AcceptInviteClient({ token }: { token: string }) {
       {!token && (
         <label className="block">
           <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-            Invitation token
+            <T>Invitation token</T>
           </span>
           <input
             value={tokenInput}
             onChange={(e) => setTokenInput(e.target.value)}
-            placeholder="Paste the token from your email"
+            placeholder={t('Paste the token from your email')}
             className="input"
             disabled={pending}
           />
@@ -50,7 +52,7 @@ export function AcceptInviteClient({ token }: { token: string }) {
         disabled={pending || !tokenInput.trim()}
         className="btn-primary w-full"
       >
-        {pending ? 'Accepting...' : 'Accept invitation'}
+        {pending ? <T>Accepting...</T> : <T>Accept invitation</T>}
       </button>
       {error && (
         <p className="rounded-lg border border-rose-200 dark:border-rose-700/40 bg-rose-50 dark:bg-rose-950/30 px-3 py-2 text-sm text-rose-800 dark:text-rose-200">

@@ -9,6 +9,7 @@ import {
   FIRM_TYPE_DESCRIPTION,
   type FirmType,
 } from '@/lib/firm-types';
+import { T, useT } from '@/components/i18n/LocaleProvider';
 
 const ACCENTS = [
   { name: 'Forest', hex: '#0f2d24' },
@@ -112,6 +113,7 @@ export function OnboardingWizard({
    *  marked accepted on the server. */
   grantToken?: string;
 }) {
+  const t = useT();
   const router = useRouter();
   // 'welcome' is the first-time premium splash; 1-5 are the wizard
   // steps proper. Once a user dismisses the welcome we never show
@@ -214,7 +216,7 @@ export function OnboardingWizard({
         ? await createFirmFromGrantAction(formData)
         : await createFirmAction(formData);
       if (!res.ok) {
-        setError(res.error ?? 'Could not create firm.');
+        setError(res.error ?? t('Could not create firm.'));
         return;
       }
       router.push('/counsel');
@@ -232,28 +234,28 @@ export function OnboardingWizard({
 
       {step === 1 && (
         <div className="space-y-4">
-          <p className="eyebrow">What kind of legal team are you?</p>
+          <p className="eyebrow"><T>What kind of legal team are you?</T></p>
           <p className="text-sm text-ink-600 dark:text-cream-100/70 leading-relaxed">
-            Pick the option that fits best. The next steps adapt to it - we won&rsquo;t ask
-            a corporate counsel team about firm size, or a public defender about industry.
+            <T>Pick the option that fits best. The next steps adapt to it - we won&rsquo;t ask
+            a corporate counsel team about firm size, or a public defender about industry.</T>
           </p>
           <ul className="grid gap-2 sm:grid-cols-2">
-            {FIRM_TYPES.map((t) => (
-              <li key={t}>
+            {FIRM_TYPES.map((ft) => (
+              <li key={ft}>
                 <button
                   type="button"
-                  onClick={() => setFirmType(t)}
+                  onClick={() => setFirmType(ft)}
                   className={`w-full text-left card p-4 transition-all ${
-                    firmType === t
+                    firmType === ft
                       ? 'ring-2 ring-gold-400/50 dark:ring-gold-500/50 border-gold-400'
                       : 'hover:border-gold-500/40'
                   }`}
                 >
                   <p className="font-semibold text-forest-900 dark:text-cream-100 text-sm">
-                    {FIRM_TYPE_LABEL[t]}
+                    {FIRM_TYPE_LABEL[ft]}
                   </p>
                   <p className="text-[12px] text-ink-600 dark:text-cream-100/70 mt-1.5 leading-relaxed">
-                    {FIRM_TYPE_DESCRIPTION[t]}
+                    {FIRM_TYPE_DESCRIPTION[ft]}
                   </p>
                 </button>
               </li>
@@ -261,7 +263,7 @@ export function OnboardingWizard({
           </ul>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={() => setStep(2)} className="btn-primary">
-              Continue &rarr;
+              <T>Continue</T> &rarr;
             </button>
           </div>
         </div>
@@ -273,12 +275,12 @@ export function OnboardingWizard({
           <div>
             <label className="label" htmlFor="firm-name">
               {firmType === 'corporate'
-                ? 'Legal team name'
+                ? <T>Legal team name</T>
                 : firmType === 'government'
-                  ? 'Office / agency name'
+                  ? <T>Office / agency name</T>
                   : firmType === 'legal_aid'
-                    ? 'Organization name'
-                    : 'Firm name'}
+                    ? <T>Organization name</T>
+                    : <T>Firm name</T>}
             </label>
             <input
               id="firm-name"
@@ -287,16 +289,16 @@ export function OnboardingWizard({
               onChange={(e) => setName(e.target.value)}
               placeholder={
                 firmType === 'individual'
-                  ? 'Jane Doe Law'
+                  ? t('Jane Doe Law')
                   : firmType === 'firm'
-                    ? 'Acme Law Group, PLLC'
+                    ? t('Acme Law Group, PLLC')
                     : firmType === 'corporate'
-                      ? 'Acme Corp Legal'
+                      ? t('Acme Corp Legal')
                       : firmType === 'government'
-                        ? 'County of Hennepin - Office of the Attorney'
+                        ? t('County of Hennepin - Office of the Attorney')
                         : firmType === 'legal_aid'
-                          ? 'Mid-Minnesota Legal Aid'
-                          : 'Your organization'
+                          ? t('Mid-Minnesota Legal Aid')
+                          : t('Your organization')
               }
               className="input"
               maxLength={120}
@@ -304,28 +306,28 @@ export function OnboardingWizard({
           </div>
           <div>
             <label className="label" htmlFor="firm-slug">
-              URL slug{' '}
+              <T>URL slug</T>{' '}
               <span className="text-ink-500 dark:text-cream-100/70 font-normal">
-                (optional - we&rsquo;ll generate one from the name if blank)
+                <T>(optional - we&rsquo;ll generate one from the name if blank)</T>
               </span>
             </label>
             <input
               id="firm-slug"
               value={slug}
               onChange={(e) => setSlug(e.target.value)}
-              placeholder="acme"
+              placeholder={t('acme')}
               className="input"
               maxLength={40}
             />
           </div>
           {defaultEmail && (
             <p className="text-[11px] text-ink-500 dark:text-cream-100/55">
-              You&rsquo;ll be added as the <strong>owner</strong> using {defaultEmail}.
+              <T>You&rsquo;ll be added as the</T> <strong><T>owner</T></strong> <T>using</T> {defaultEmail}.
             </p>
           )}
           <div className="flex justify-between gap-2 pt-2">
             <button type="button" onClick={() => setStep(1)} className="btn-ghost">
-              &larr; Back
+              &larr; <T>Back</T>
             </button>
             <button
               type="button"
@@ -333,7 +335,7 @@ export function OnboardingWizard({
               disabled={!canStep2}
               className="btn-primary"
             >
-              Continue &rarr;
+              <T>Continue</T> &rarr;
             </button>
           </div>
         </div>
@@ -341,16 +343,16 @@ export function OnboardingWizard({
 
       {step === 3 && (
         <div className="space-y-5">
-          <p className="eyebrow">A few more about {name || 'your team'}</p>
+          <p className="eyebrow"><T>A few more about</T> {name || <T>your team</T>}</p>
 
           {firmType === 'individual' && (
             <>
               <div className="grid sm:grid-cols-2 gap-3">
                 <label className="block">
                   <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-                    Bar number{' '}
+                    <T>Bar number</T>{' '}
                     <span className="text-ink-500 dark:text-cream-100/70 font-normal">
-                      (optional)
+                      <T>(optional)</T>
                     </span>
                   </span>
                   <input
@@ -363,9 +365,9 @@ export function OnboardingWizard({
                 </label>
                 <label className="block">
                   <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-                    Year admitted to practice{' '}
+                    <T>Year admitted to practice</T>{' '}
                     <span className="text-ink-500 dark:text-cream-100/70 font-normal">
-                      (optional)
+                      <T>(optional)</T>
                     </span>
                   </span>
                   <input
@@ -386,7 +388,7 @@ export function OnboardingWizard({
             <>
               <div>
                 <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-                  Firm size
+                  <T>Firm size</T>
                 </span>
                 <div className="grid grid-cols-4 gap-2">
                   {FIRM_SIZE_BANDS.map((b) => (
@@ -407,9 +409,9 @@ export function OnboardingWizard({
               </div>
               <label className="block">
                 <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-                  Founded year{' '}
+                  <T>Founded year</T>{' '}
                   <span className="text-ink-500 dark:text-cream-100/70 font-normal">
-                    (optional)
+                    <T>(optional)</T>
                   </span>
                 </span>
                 <input
@@ -429,29 +431,29 @@ export function OnboardingWizard({
             <>
               <label className="block">
                 <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-                  Parent company
+                  <T>Parent company</T>
                 </span>
                 <input
                   value={parentCompany}
                   onChange={(e) => setParentCompany(e.target.value)}
-                  placeholder="Acme Corp."
+                  placeholder={t('Acme Corp.')}
                   className="input"
                   maxLength={120}
                 />
               </label>
               <label className="block">
                 <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-                  Industry
+                  <T>Industry</T>
                 </span>
                 <select
                   value={industry}
                   onChange={(e) => setIndustry(e.target.value)}
                   className="input"
                 >
-                  <option value="">Select an industry…</option>
+                  <option value=""><T>Select an industry…</T></option>
                   {CORPORATE_INDUSTRIES.map((i) => (
                     <option key={i} value={i}>
-                      {i}
+                      <T>{i}</T>
                     </option>
                   ))}
                 </select>
@@ -463,11 +465,11 @@ export function OnboardingWizard({
                   onChange={(e) => setIsGeneralCounsel(e.currentTarget.checked)}
                   className="mt-1"
                 />
-                <span>I am the General Counsel for this team.</span>
+                <span><T>I am the General Counsel for this team.</T></span>
               </label>
               <Chips
-                label="Business areas of focus"
-                placeholder="e.g., M&A, IP, Employment"
+                label={t('Business areas of focus')}
+                placeholder={t('e.g., M&A, IP, Employment')}
                 value={businessAreas}
                 onChange={setBusinessAreas}
                 input={practiceInput}
@@ -475,8 +477,8 @@ export function OnboardingWizard({
                 suggestions={CORPORATE_BUSINESS_AREAS}
               />
               <p className="text-[11px] text-ink-500 dark:text-cream-100/55">
-                In-house teams typically organize around business areas rather than
-                practice areas - we&rsquo;ll show those in the dashboard.
+                <T>In-house teams typically organize around business areas rather than
+                practice areas - we&rsquo;ll show those in the dashboard.</T>
               </p>
             </>
           )}
@@ -485,24 +487,24 @@ export function OnboardingWizard({
             <>
               <label className="block">
                 <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-                  Agency type
+                  <T>Agency type</T>
                 </span>
                 <select
                   value={agencyType}
                   onChange={(e) => setAgencyType(e.target.value)}
                   className="input"
                 >
-                  <option value="">Select an agency type…</option>
-                  {GOVERNMENT_AGENCY_TYPES.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
+                  <option value=""><T>Select an agency type…</T></option>
+                  {GOVERNMENT_AGENCY_TYPES.map((at) => (
+                    <option key={at} value={at}>
+                      <T>{at}</T>
                     </option>
                   ))}
                 </select>
               </label>
               <div>
                 <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-                  Government level
+                  <T>Government level</T>
                 </span>
                 <div className="grid grid-cols-4 gap-2">
                   {(['federal', 'state', 'county', 'municipal'] as const).map((lvl) => (
@@ -528,30 +530,30 @@ export function OnboardingWizard({
             <>
               <label className="block">
                 <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-                  Population served{' '}
+                  <T>Population served</T>{' '}
                   <span className="text-ink-500 dark:text-cream-100/70 font-normal">
-                    (optional)
+                    <T>(optional)</T>
                   </span>
                 </span>
                 <input
                   value={populationServed}
                   onChange={(e) => setPopulationServed(e.target.value)}
-                  placeholder="e.g., low-income tenants, asylum seekers"
+                  placeholder={t('e.g., low-income tenants, asylum seekers')}
                   className="input"
                   maxLength={200}
                 />
               </label>
               <label className="block">
                 <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-                  Funding source{' '}
+                  <T>Funding source</T>{' '}
                   <span className="text-ink-500 dark:text-cream-100/70 font-normal">
-                    (optional)
+                    <T>(optional)</T>
                   </span>
                 </span>
                 <input
                   value={fundingSource}
                   onChange={(e) => setFundingSource(e.target.value)}
-                  placeholder="e.g., LSC grant, IOLTA, private donations"
+                  placeholder={t('e.g., LSC grant, IOLTA, private donations')}
                   className="input"
                   maxLength={200}
                 />
@@ -562,13 +564,13 @@ export function OnboardingWizard({
           {firmType === 'other' && (
             <label className="block">
               <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-                Tell us about your organization
+                <T>Tell us about your organization</T>
               </span>
               <textarea
                 rows={4}
                 value={otherDescription}
                 onChange={(e) => setOtherDescription(e.target.value)}
-                placeholder="We're a court-appointed mediation panel covering five counties..."
+                placeholder={t("We're a court-appointed mediation panel covering five counties...")}
                 className="input resize-y"
                 maxLength={1000}
               />
@@ -577,10 +579,10 @@ export function OnboardingWizard({
 
           <div className="flex justify-between gap-2 pt-2">
             <button type="button" onClick={() => setStep(2)} className="btn-ghost">
-              &larr; Back
+              &larr; <T>Back</T>
             </button>
             <button type="button" onClick={() => setStep(4)} className="btn-primary">
-              Continue &rarr;
+              <T>Continue</T> &rarr;
             </button>
           </div>
         </div>
@@ -588,11 +590,11 @@ export function OnboardingWizard({
 
       {step === 4 && (
         <div className="space-y-5">
-          <p className="eyebrow">Brand</p>
+          <p className="eyebrow"><T>Brand</T></p>
           <div>
-            <label className="label">Accent color</label>
+            <label className="label"><T>Accent color</T></label>
             <p className="text-[11px] text-ink-500 dark:text-cream-100/55 mb-3">
-              Highlights buttons, sidebar icons, and the firm logo placeholder.
+              <T>Highlights buttons, sidebar icons, and the firm logo placeholder.</T>
             </p>
             <div className="grid grid-cols-4 gap-2">
               {ACCENTS.map((c) => (
@@ -610,13 +612,13 @@ export function OnboardingWizard({
                     className="block h-8 w-full rounded mb-1.5 shadow-sm"
                     style={{ backgroundColor: c.hex }}
                   />
-                  <span className="text-ink-700 dark:text-cream-100/85">{c.name}</span>
+                  <span className="text-ink-700 dark:text-cream-100/85"><T>{c.name}</T></span>
                 </button>
               ))}
             </div>
             <div className="mt-3 flex items-center gap-2">
               <label htmlFor="custom-accent" className="text-xs text-ink-600 dark:text-cream-100/70">
-                Custom hex:
+                <T>Custom hex:</T>
               </label>
               <input
                 id="custom-accent"
@@ -635,9 +637,9 @@ export function OnboardingWizard({
           </div>
           <div>
             <label className="label" htmlFor="logo-url">
-              Logo URL{' '}
+              <T>Logo URL</T>{' '}
               <span className="text-ink-500 dark:text-cream-100/70 font-normal">
-                (optional - upload comes in firm settings)
+                <T>(optional - upload comes in firm settings)</T>
               </span>
             </label>
             <input
@@ -651,10 +653,10 @@ export function OnboardingWizard({
           </div>
           <div className="flex justify-between gap-2 pt-2">
             <button type="button" onClick={() => setStep(3)} className="btn-ghost">
-              &larr; Back
+              &larr; <T>Back</T>
             </button>
             <button type="button" onClick={() => setStep(5)} className="btn-primary">
-              Continue &rarr;
+              <T>Continue</T> &rarr;
             </button>
           </div>
         </div>
@@ -662,16 +664,16 @@ export function OnboardingWizard({
 
       {step === 5 && (
         <div className="space-y-5">
-          <p className="eyebrow">Coverage</p>
+          <p className="eyebrow"><T>Coverage</T></p>
           <Chips
             label={
               firmType === 'government'
-                ? 'Jurisdictions you cover'
+                ? t('Jurisdictions you cover')
                 : firmType === 'corporate'
-                  ? 'Where the company operates'
-                  : 'Jurisdictions where you practice'
+                  ? t('Where the company operates')
+                  : t('Jurisdictions where you practice')
             }
-            placeholder="e.g., Minnesota, US Federal"
+            placeholder={t('e.g., Minnesota, US Federal')}
             value={jurisdictions}
             onChange={setJurisdictions}
             input={jurisdictionInput}
@@ -680,8 +682,8 @@ export function OnboardingWizard({
           />
           {usesPracticeAreas && (
             <Chips
-              label="Practice areas"
-              placeholder="e.g., Family, Estate planning"
+              label={t('Practice areas')}
+              placeholder={t('e.g., Family, Estate planning')}
               value={practiceAreas}
               onChange={setPracticeAreas}
               input={practiceInput}
@@ -698,10 +700,10 @@ export function OnboardingWizard({
 
           <div className="flex justify-between gap-2 pt-2">
             <button type="button" onClick={() => setStep(4)} className="btn-ghost" disabled={pending}>
-              &larr; Back
+              &larr; <T>Back</T>
             </button>
             <button type="button" onClick={submit} disabled={pending} className="btn-primary">
-              {pending ? 'Creating workspace...' : 'Create & continue'}
+              {pending ? <T>Creating workspace...</T> : <T>Create &amp; continue</T>}
             </button>
           </div>
         </div>
@@ -721,69 +723,72 @@ function CounselWelcome({ onContinue }: { onContinue: () => void }) {
     <div className="card p-7 sm:p-10 space-y-7 animate-fade-up">
       <div className="text-center">
         <p className="text-[10px] uppercase tracking-[0.32em] font-semibold text-gold-300 mb-3">
-          Welcome to Advottic Counsel
+          <T>Welcome to Advottic Counsel</T>
         </p>
         <h1 className="font-display text-3xl sm:text-4xl font-medium tracking-[-0.02em] leading-[1.1] text-cream-100">
-          Built for the people who carry{' '}
+          <T>Built for the people who carry</T>{' '}
           <span className="bg-gold-shine bg-clip-text text-transparent gold-pan italic">
-            other people&rsquo;s stories.
+            <T>other people&rsquo;s stories.</T>
           </span>
         </h1>
         <p className="text-sm sm:text-base text-cream-100/80 mt-4 max-w-2xl mx-auto leading-relaxed">
-          Advottic started on the consumer side, helping individuals walk into court
+          <T>Advottic started on the consumer side, helping individuals walk into court
           prepared. As clients shared their files with their attorneys, those attorneys
           asked us for the other half of the picture: a workspace built around their
-          firm. This is that workspace.
+          firm. This is that workspace.</T>
         </p>
       </div>
 
       <section className="rounded-xl ring-1 ring-gold-400/30 bg-forest-900/40 p-5 sm:p-6 space-y-3">
         <p className="font-display text-lg font-medium text-cream-100">
-          Your data is yours. Full stop.
+          <T>Your data is yours. Full stop.</T>
         </p>
         <ul className="space-y-2.5 text-[14.5px] text-cream-100/85 leading-relaxed">
           <li className="flex items-start gap-3">
             <CheckIcon />
             <span>
-              <strong className="text-cream-100">Owned by your organization.</strong>{' '}
-              Cases, documents, signatures, messages, client records - every row lives
+              <strong className="text-cream-100"><T>Owned by your organization.</T></strong>{' '}
+              <T>Cases, documents, signatures, messages, client records - every row lives
               under your firm&rsquo;s account and only your firm&rsquo;s account. We do
-              not access it. We do not aggregate it. We do not sell it.
+              not access it. We do not aggregate it. We do not sell it.</T>
             </span>
           </li>
           <li className="flex items-start gap-3">
             <CheckIcon />
             <span>
-              <strong className="text-cream-100">Encrypted everywhere.</strong> TLS 1.3
+              <strong className="text-cream-100"><T>Encrypted everywhere.</T></strong>{' '}
+              <T>TLS 1.3
               on the wire. AES-256 at rest. Per-row access controls enforced by the
               database itself, so a code bug can never expose another firm&rsquo;s file
-              to yours.
+              to yours.</T>
             </span>
           </li>
           <li className="flex items-start gap-3">
             <CheckIcon />
             <span>
-              <strong className="text-cream-100">Never used to train any AI.</strong> The
+              <strong className="text-cream-100"><T>Never used to train any AI.</T></strong>{' '}
+              <T>The
               assistant inside Advottic runs under strict zero-retention commercial
               terms. Your case content reaches the model, returns an answer, and is not
-              retained beyond the response.
+              retained beyond the response.</T>
             </span>
           </li>
           <li className="flex items-start gap-3">
             <CheckIcon />
             <span>
-              <strong className="text-cream-100">Privacy of those you serve.</strong>{' '}
-              Your clients&rsquo; documents and statements are protected by the same
+              <strong className="text-cream-100"><T>Privacy of those you serve.</T></strong>{' '}
+              <T>Your clients&rsquo; documents and statements are protected by the same
               controls. Signing happens inside Advottic - the signer&rsquo;s link never
-              leaves the app, and the file never travels to a third-party service.
+              leaves the app, and the file never travels to a third-party service.</T>
             </span>
           </li>
           <li className="flex items-start gap-3">
             <CheckIcon />
             <span>
-              <strong className="text-cream-100">Yours to take with you.</strong> Export
+              <strong className="text-cream-100"><T>Yours to take with you.</T></strong>{' '}
+              <T>Export
               everything, any time. Close the workspace and we delete it from primary
-              storage within 30 days, from backups within 35.
+              storage within 30 days, from backups within 35.</T>
             </span>
           </li>
         </ul>
@@ -791,7 +796,7 @@ function CounselWelcome({ onContinue }: { onContinue: () => void }) {
 
       <section className="space-y-3">
         <p className="font-display text-lg font-medium text-cream-100">
-          Why teams choose Counsel
+          <T>Why teams choose Counsel</T>
         </p>
         <div className="grid sm:grid-cols-2 gap-3">
           <FeatureTile
@@ -827,13 +832,13 @@ function CounselWelcome({ onContinue }: { onContinue: () => void }) {
           onClick={onContinue}
           className="btn bg-gold-metal text-forest-950 hover:brightness-110 shadow-gold-glow font-semibold px-6 py-3 text-base"
         >
-          Set up my workspace
+          <T>Set up my workspace</T>
           <span aria-hidden className="ml-2">
             &rarr;
           </span>
         </button>
         <p className="text-[11px] text-cream-100/55">
-          Two minutes. You can change everything later.
+          <T>Two minutes. You can change everything later.</T>
         </p>
       </div>
     </div>
@@ -843,8 +848,8 @@ function CounselWelcome({ onContinue }: { onContinue: () => void }) {
 function FeatureTile({ title, body }: { title: string; body: string }) {
   return (
     <article className="rounded-lg ring-1 ring-forest-700/40 bg-forest-900/40 p-4">
-      <p className="font-semibold text-cream-100 text-[14.5px]">{title}</p>
-      <p className="text-[13px] text-cream-100/75 mt-1.5 leading-relaxed">{body}</p>
+      <p className="font-semibold text-cream-100 text-[14.5px]"><T>{title}</T></p>
+      <p className="text-[13px] text-cream-100/75 mt-1.5 leading-relaxed"><T>{body}</T></p>
     </article>
   );
 }
@@ -948,7 +953,7 @@ function Chips({
           maxLength={80}
         />
         <button type="button" onClick={() => add(input)} className="btn-secondary">
-          Add
+          <T>Add</T>
         </button>
       </div>
       <div className="mt-2 flex flex-wrap gap-1.5">
@@ -962,7 +967,7 @@ function Chips({
               onClick={() => add(s)}
               className="text-[11px] px-2 py-0.5 rounded-full bg-ink-100 dark:bg-forest-800/50 text-ink-600 dark:text-cream-100/70 hover:bg-cream-50 dark:hover:bg-forest-700/60 hover:text-forest-900 dark:hover:text-cream-100 transition-colors"
             >
-              + {s}
+              + <T>{s}</T>
             </button>
           ))}
       </div>
