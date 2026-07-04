@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Advottic</title>
+<!--
+  Branded offline / load-error screen for the native shells.
+
+  The Advottic apps are remote-URL Capacitor wrappers (server.url =
+  https://advottic.com). When the WebView can't reach the site - no
+  connection, a flaky network right after boot, a transient
+  ERR_CONNECTION_ABORTED - Capacitor redirects the main frame here
+  (server.errorPath in capacitor.config.ts) instead of showing the
+  browser engine's raw "Webpage not available" page.
+
+  Self-contained: no external assets, so it renders with zero network.
+  Calm, non-alarming tone to match the app (users may already be in a
+  stressful legal moment). Retries automatically when the connection
+  returns, and offers a manual "Try again".
+-->
+<style>
+  :root {
+    --forest-950: #0c1f17;
+    --forest-900: #0f2d24;
+    --cream-100: #f5efe2;
+    --gold: #e6c878;
+    --gold-deep: #c9a14f;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%;
+    background: var(--forest-950);
+    color: var(--cream-100);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    display: flex; align-items: center; justify-content: center;
+    padding: calc(24px + env(safe-area-inset-top)) 24px calc(24px + env(safe-area-inset-bottom));
+  }
+  .wrap { text-align: center; max-width: 340px; width: 100%; }
+  .mark {
+    width: 64px; height: 64px; margin: 0 auto 22px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, var(--gold-deep), var(--gold));
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 8px 24px -6px rgba(0,0,0,0.5);
+  }
+  .mark svg { width: 34px; height: 34px; }
+  h1 { font-size: 20px; font-weight: 600; margin: 0 0 8px; letter-spacing: -0.01em; }
+  p { font-size: 14.5px; line-height: 1.55; color: rgba(245,239,226,0.72); margin: 0 0 22px; }
+  button {
+    -webkit-appearance: none; appearance: none; border: 0; cursor: pointer;
+    width: 100%; min-height: 48px; border-radius: 12px;
+    background: var(--gold); color: var(--forest-900);
+    font-size: 15px; font-weight: 600; font-family: inherit;
+    transition: filter 0.15s ease;
+  }
+  button:active { filter: brightness(0.92); }
+  button[disabled] { opacity: 0.6; cursor: default; }
+  .status {
+    margin-top: 16px; font-size: 12.5px; color: rgba(245,239,226,0.45);
+    min-height: 18px;
+  }
+  .spin {
+    display: inline-block; width: 13px; height: 13px; vertical-align: -2px;
+    margin-right: 6px; border: 2px solid rgba(245,239,226,0.35);
+    border-top-color: var(--cream-100); border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="mark" aria-hidden="true">
+      <!-- classical column: the Advottic mark -->
+      <svg viewBox="0 0 24 24" fill="none" stroke="#0c1f17" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 21h18M5 21V10M9 21V10M15 21V10M19 21V10M4 10h16M12 3 4 8h16z" />
+      </svg>
+    </div>
+    <h1>Can’t reach Advottic</h1>
+    <p>You appear to be offline, or the connection dropped. Your work is safe. Reconnect and try again.</p>
+    <button id="retry" type="button">Try again</button>
+    <div class="status" id="status" role="status" aria-live="polite"></div>
+  </div>
+
+  <script>
+    // The app root. Retrying navigates back to the live site, which
+    // re-enters the app from a clean state.
+    var HOME = 'https://advottic.com/';
+    var btn = document.getElementById('retry');
+    var status = document.getElementById('status');
+    var tries = 0;
+
+    function go() {
+      btn.disabled = true;
+      status.innerHTML = '<span class="spin"></span>Reconnecting…';
+      // A tick lets the spinner paint before navigation.
+      setTimeout(function () { window.location.replace(HOME); }, 150);
+    }
+
+    btn.addEventListener('click', go);
+
+    // Auto-retry the moment the OS reports the network is back.
+    window.addEventListener('online', function () {
+      status.textContent = 'Back online';
+      go();
+    });
+
+    // Gentle background retry (in case the "online" event never fires
+    // but connectivity returns), backing off so we never hammer.
+    function schedule() {
+      tries++;
+      var delay = Math.min(30000, 4000 * tries);
+      setTimeout(function () {
+        if (navigator.onLine) { go(); return; }
+        schedule();
+      }, delay);
+    }
+    if (navigator.onLine) {
+      // We got here despite being "online" — likely a transient abort.
+      status.textContent = 'Retrying automatically…';
+      setTimeout(go, 2500);
+    } else {
+      schedule();
+    }
+  </script>
+</body>
+</html>

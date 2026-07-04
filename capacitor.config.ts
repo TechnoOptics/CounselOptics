@@ -43,6 +43,15 @@ const config: CapacitorConfig = {
     url: 'https://advottic.com',
     cleartext: false,
     androidScheme: 'https',
+    // Branded offline / load-error screen. When the WebView can't reach
+    // server.url (no connection, a flaky network right after boot, a
+    // transient ERR_CONNECTION_ABORTED), Capacitor redirects the main
+    // frame to this local file (from capacitor-shell/) instead of the
+    // browser engine's raw "Webpage not available" page. The page
+    // auto-retries when the connection returns. Cross-platform:
+    // BridgeWebViewClient.onReceivedError honors server.errorPath on
+    // Android, and CAPBridgeViewController does the equivalent on iOS.
+    errorPath: 'offline.html',
   },
   ios: {
     contentInset: 'automatic',
