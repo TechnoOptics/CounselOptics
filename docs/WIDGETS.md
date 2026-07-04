@@ -4,6 +4,12 @@ The Advottic apps ship a home-screen widget that shows the signed-in
 user's **open cases**, their **next hearing** (as a countdown), and the
 **top recent action** on a case.
 
+iOS families: `systemSmall` (headline glance), `systemMedium` (headline
++ the next 3 upcoming hearings), and the iOS 16+ **lock-screen
+accessories** (`accessoryInline`, `accessoryCircular`,
+`accessoryRectangular`). Android: a resizable home-screen widget
+(2×1 and up).
+
 ## How it works
 
 The apps are remote-URL Capacitor WebViews, so the case data lives in
