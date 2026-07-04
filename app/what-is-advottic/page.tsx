@@ -367,10 +367,10 @@ export default function WhatIsAdvotticPage() {
 
       <Section title="Trust + safety">
         <p>
-          Encryption in transit and at rest, MFA enforcement, signed
-          audit log on every signature and AI action, no sale of user
-          data, no training on customer data, BAA available for
-          Enterprise tiers, SOC 2 path in progress. Read more at{' '}
+          Encryption in transit and at rest, multi-factor authentication
+          available, signed audit log on every signature and AI action,
+          no sale of user data, no training on customer data, BAA available for
+          Enterprise tiers on request, SOC 2 path in progress. Read more at{' '}
           <Link href="/security" className="underline">
             /security
           </Link>

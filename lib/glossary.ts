@@ -131,9 +131,9 @@ export const GLOSSARY: GlossaryEntry[] = [
     slug: 'iolta',
     term: 'IOLTA trust accounting',
     shortDefinition:
-      'Compliant attorney trust-account ledger with three-way reconciliation. Ships in every Advottic Counsel firm tier.',
+      'IOLTA-ready attorney trust-account ledger with the three-way reconciliation your state bar requires. Ships in every Advottic Counsel firm tier.',
     longDefinition:
-      "IOLTA (Interest on Lawyers Trust Account) is the regulatory regime that requires US attorneys to hold client funds in a trust account separate from the firm's operating account. Advottic Counsel includes a fully-compliant IOLTA ledger with three-way reconciliation (bank statement / book balance / client ledger all matched monthly), per-client subaccounts, and an audit trail signed at every transaction. The system flags negative balances, missing reconciliations, and unusual disbursements before they become bar-complaint problems. Shipped in Solo, Small Firm, Growing Firm, and Enterprise tiers.",
+      "IOLTA (Interest on Lawyers Trust Account) is the regulatory regime that requires US attorneys to hold client funds in a trust account separate from the firm's operating account. Advottic Counsel includes an IOLTA-ready ledger that supports the three-way reconciliation every state bar requires (bank statement / book balance / client ledger all matched monthly), per-client subaccounts, and an audit trail signed at every transaction. The system flags negative balances, missing reconciliations, and unusual disbursements before they become bar-complaint problems. Compliance with your state's trust-accounting rules remains your professional responsibility. Shipped in Solo, Small Firm, Growing Firm, and Enterprise tiers.",
     aliases: ['Advottic IOLTA', 'trust accounting'],
     lastReviewed: '2026-06-08',
   },

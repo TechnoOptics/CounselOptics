@@ -367,14 +367,14 @@ export function SignatureCapture({
               setMode('draw');
               clear();
             }}
-            className={`px-3 py-1.5 ${mode === 'draw' ? 'bg-forest-900 text-white dark:bg-gold-metal dark:text-forest-950' : 'text-ink-700 dark:text-cream-100/85'}`}
+            className={`px-3 py-1.5 min-h-[40px] inline-flex items-center justify-center ${mode === 'draw' ? 'bg-forest-900 text-white dark:bg-gold-metal dark:text-forest-950' : 'text-ink-700 dark:text-cream-100/85'}`}
           >
             Draw
           </button>
           <button
             type="button"
             onClick={() => setMode('type')}
-            className={`px-3 py-1.5 ${mode === 'type' ? 'bg-forest-900 text-white dark:bg-gold-metal dark:text-forest-950' : 'text-ink-700 dark:text-cream-100/85'}`}
+            className={`px-3 py-1.5 min-h-[40px] inline-flex items-center justify-center ${mode === 'type' ? 'bg-forest-900 text-white dark:bg-gold-metal dark:text-forest-950' : 'text-ink-700 dark:text-cream-100/85'}`}
           >
             Type
           </button>
@@ -384,7 +384,7 @@ export function SignatureCapture({
               setMode('upload');
               clear();
             }}
-            className={`px-3 py-1.5 ${mode === 'upload' ? 'bg-forest-900 text-white dark:bg-gold-metal dark:text-forest-950' : 'text-ink-700 dark:text-cream-100/85'}`}
+            className={`px-3 py-1.5 min-h-[40px] inline-flex items-center justify-center ${mode === 'upload' ? 'bg-forest-900 text-white dark:bg-gold-metal dark:text-forest-950' : 'text-ink-700 dark:text-cream-100/85'}`}
           >
             Upload
           </button>

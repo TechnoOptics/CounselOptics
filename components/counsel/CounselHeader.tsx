@@ -4,8 +4,11 @@ import type { Firm, FirmMember } from '@/lib/firm-types';
 import { FIRM_ROLE_LABEL } from '@/lib/firm-types';
 import { CounselFirmSwitcher } from './CounselFirmSwitcher';
 import { PersonaSwitcher } from './PersonaSwitcher';
+import { CounselMobileNav } from './CounselMobileNav';
+import { applyMenuConfig, readMenuConfig } from '@/lib/menu-config';
 import { UserMenu } from '@/components/UserMenu';
 import { TokenBalanceGauge } from '@/components/TokenBalanceGauge';
+import { ExternalLink } from '@/components/ExternalLink';
 import { LanguageSwitcher } from '@/components/i18n/LanguageSwitcher';
 import { T } from '@/components/i18n/LocaleProvider';
 import type { LocaleCode } from '@/lib/i18n/locales';
@@ -64,6 +67,13 @@ export function CounselHeader({
     ).trim() || 'Advottic Enterprise';
   const brandChip =
     brandName.replace(/^advottic\s+/i, '').trim() || brandName;
+  // Mobile nav data (the sidebar is hidden below md). Same firm-
+  // customized menu the sidebar renders.
+  const mobileSections = firm
+    ? applyMenuConfig(readMenuConfig(firm.metadata))
+    : [];
+  const canSettings =
+    membership?.role === 'owner' || membership?.role === 'admin';
   return (
     // pt-[var(--safe-top)] extends the dark header background up
     // through the iOS notch / dynamic island and Android punch-hole on
@@ -74,6 +84,14 @@ export function CounselHeader({
     // globals.css.
     <header className="bg-forest-950/95 backdrop-blur-md sticky top-0 z-30 pt-[var(--safe-top)]">
       <div className="mx-auto max-w-none px-4 sm:px-6 lg:px-10 py-3 flex items-center justify-between gap-3">
+        {firm && (
+          <CounselMobileNav
+            firm={firm}
+            sections={mobileSections}
+            tenantMode={tenantMode}
+            canSettings={canSettings}
+          />
+        )}
         {brandFirst ? (
           // Firm IS the brand - either a <slug>.advottic.com tenant
           // URL, or the firm turned on full white-label in settings.
@@ -192,7 +210,7 @@ export function CounselHeader({
               platform identity is acknowledged without competing with
               the firm's brand. */}
           {tenantMode && !ownBrand && (
-            <Link
+            <ExternalLink
               href="https://advottic.com"
               className="hidden sm:inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] text-cream-100/45 hover:text-cream-100/75 transition-colors"
               aria-label="Powered by Advottic"
@@ -205,7 +223,7 @@ export function CounselHeader({
                 height={1699}
                 className="h-4 w-auto opacity-70"
               />
-            </Link>
+            </ExternalLink>
           )}
           <span className="hidden sm:inline-flex">
             <TokenBalanceGauge

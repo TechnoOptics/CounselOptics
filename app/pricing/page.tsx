@@ -212,7 +212,7 @@ const FIRM_TIERS: Tier[] = [
       '15M+ tokens / month per seat (firm pool)',
       'SAML / OIDC SSO (SCIM provisioning on the roadmap)',
       'Data residency on request (US, EU)',
-      'HIPAA Business Associate Agreement',
+      'HIPAA BAA available on request',
       '99.9% uptime SLA',
       'Dedicated infrastructure',
       'White-label tenant subdomain + full brand override',
