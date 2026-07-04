@@ -23,6 +23,7 @@ const PRACTICE_AREAS: { value: string; label: string }[] = [
 export function FindCounselClient() {
   const [mode, setMode] = useState<Mode>('idle');
   const [coords, setCoords] = useState<Coords | null>(null);
+  const [placeLabel, setPlaceLabel] = useState<string | null>(null);
   const [manualPlace, setManualPlace] = useState('');
   const [practice, setPractice] = useState<string>('lawyers');
   const [errMsg, setErrMsg] = useState('');
@@ -32,6 +33,33 @@ export function FindCounselClient() {
       setMode('unsupported');
     }
   }, []);
+
+  // Turn the raw lat/lng into a human place (city, state, ZIP) so we can
+  // show "Edina, MN 55435" instead of coordinates. Best-effort: if the
+  // lookup fails, placeLabel stays null and we fall back to coordinates.
+  useEffect(() => {
+    if (!coords) {
+      setPlaceLabel(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/geocode/reverse', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lat: coords.lat, lng: coords.lng }),
+        });
+        const j = (await res.json()) as { place?: { label?: string } | null };
+        if (!cancelled && j.place?.label) setPlaceLabel(j.place.label);
+      } catch {
+        /* keep coordinate fallback */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [coords]);
 
   function requestLocation() {
     setMode('asking');
@@ -147,7 +175,9 @@ export function FindCounselClient() {
             )}
             {mode === 'ready' && coords && (
               <p className="text-xs text-emerald-800 mt-2">
-                Located at {coords.lat.toFixed(3)}, {coords.lng.toFixed(3)}.
+                {placeLabel
+                  ? `Located near ${placeLabel}.`
+                  : 'Location detected. Finding attorneys near you…'}
               </p>
             )}
           </div>

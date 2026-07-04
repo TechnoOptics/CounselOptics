@@ -152,7 +152,7 @@ export default async function CounselLayout({
       />
       <div className="flex-1 flex w-full max-w-none mx-auto px-4 sm:px-6 lg:px-10 py-6 sm:py-8 gap-6">
         {active ? (
-          <aside className="hidden md:block w-56 flex-none">
+          <aside className="hidden md:block w-56 flex-none sticky top-24 self-start max-h-[calc(100dvh-7rem)] overflow-y-auto">
             <CounselSidebar
               firm={active.firm}
               membership={active.membership}

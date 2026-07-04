@@ -86,7 +86,7 @@ export function CounselSidebar({
   // the full default menu when the firm has not customized anything.
   const sections = applyMenuConfig(readMenuConfig(firm.metadata));
   return (
-    <nav className="card p-3 sticky top-24 space-y-0.5">
+    <nav className="card p-3 space-y-0.5">
       <p className="text-[10px] uppercase tracking-[0.2em] font-semibold text-ink-500 dark:text-cream-100/55 px-2 pt-1 pb-2">
         {firm.name}
       </p>
