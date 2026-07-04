@@ -302,7 +302,7 @@ export function CourtroomMode({
                 <span
                   className={`text-sm leading-relaxed ${
                     checks[i]
-                      ? 'text-cream-100/45 line-through'
+                      ? 'text-cream-100/60 line-through'
                       : 'text-cream-100/85'
                   }`}
                 >
@@ -329,7 +329,7 @@ export function CourtroomMode({
               </li>
             ))}
           </ul>
-          <p className="text-[11px] text-cream-100/40 mt-3 leading-relaxed">
+          <p className="text-[11px] text-cream-100/60 mt-3 leading-relaxed">
             General courtroom guidance, not legal advice. Local rules
             vary - follow the court&rsquo;s and any instructions you are
             given.

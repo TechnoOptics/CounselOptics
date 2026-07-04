@@ -10,7 +10,7 @@ export const metadata: Metadata = {
     'Respuestas claras a preguntas legales específicas: qué hacer si tu arrendador te quiere desalojar, o si alguien te está haciendo daño. Gratis, sin necesidad de cuenta.',
   alternates: {
     canonical: '/es/guias',
-    languages: { 'en-US': '/guides', 'es-US': '/es/guias' },
+    languages: { 'en-US': '/guides', 'es-US': '/es/guias', 'x-default': '/guides' },
   },
   openGraph: {
     title: 'Guías legales de Advottic en español',

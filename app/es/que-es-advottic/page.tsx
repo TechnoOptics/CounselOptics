@@ -19,7 +19,7 @@ export const metadata: Metadata = {
     'Advottic es una plataforma de preparación legal con inteligencia artificial para personas que manejan sus propios asuntos legales, y un espacio de gestión de despachos para abogados. Creada alrededor de Bella, una asistente de IA siempre disponible. No es un despacho de abogados; es solo informativa. Fundada en 2025 por Techno Optics LLC en Minnesota, EE. UU.',
   alternates: {
     canonical: '/es/que-es-advottic',
-    languages: { 'en-US': '/what-is-advottic', 'es-US': '/es/que-es-advottic' },
+    languages: { 'en-US': '/what-is-advottic', 'es-US': '/es/que-es-advottic', 'x-default': '/what-is-advottic' },
   },
   keywords: [
     'qué es advottic',

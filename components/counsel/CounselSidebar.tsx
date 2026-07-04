@@ -92,7 +92,7 @@ export function CounselSidebar({
       </p>
       {sections.map((sec) => (
         <div key={sec.section} className="pb-1">
-          <p className="text-[10px] uppercase tracking-[0.16em] font-semibold text-ink-400 dark:text-cream-100/40 px-2 pt-3 pb-1">
+          <p className="text-[10px] uppercase tracking-[0.16em] font-semibold text-ink-400 dark:text-cream-100/60 px-2 pt-3 pb-1">
             <T>{sec.section}</T>
           </p>
           {sec.items.map((item) => {

@@ -212,7 +212,7 @@ export function CounselHeader({
           {tenantMode && !ownBrand && (
             <ExternalLink
               href="https://advottic.com"
-              className="hidden sm:inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] text-cream-100/45 hover:text-cream-100/75 transition-colors"
+              className="hidden sm:inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] text-cream-100/60 hover:text-cream-100/75 transition-colors"
               aria-label="Powered by Advottic"
             >
               <span>Powered by</span>

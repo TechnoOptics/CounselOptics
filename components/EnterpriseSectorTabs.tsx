@@ -214,7 +214,7 @@ export function EnterpriseSectorTabs() {
             <span>{s.label}</span>
             <span
               className={`text-[10px] tracking-wide ${
-                sector === s.key ? 'text-forest-950/65' : 'text-cream-100/45 group-hover:text-cream-100/65'
+                sector === s.key ? 'text-forest-950/65' : 'text-cream-100/60 group-hover:text-cream-100/65'
               }`}
             >
               {s.tagline}

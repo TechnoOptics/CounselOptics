@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { getFirmLeadForFirm } from '@/lib/marketplace-storage';
 import { LeadResponseForm } from './lead-response-form';
+import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Lead · Counsel' };
@@ -26,12 +27,12 @@ export default async function FirmLeadDetailPage({
           href="/counsel/leads"
           className="text-ink-500 hover:text-forest-900 dark:hover:text-cream-100"
         >
-          &larr; Leads
+          <T>&larr; Leads</T>
         </Link>
       </p>
 
       <header>
-        <p className="eyebrow mb-1">Lead</p>
+        <p className="eyebrow mb-1"><T>Lead</T></p>
         <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
           {lead.practiceAreas.slice(0, 2).join(', ') || 'Legal matter'}
           {lead.jurisdictionState ? ` · ${lead.jurisdictionState}` : ''}

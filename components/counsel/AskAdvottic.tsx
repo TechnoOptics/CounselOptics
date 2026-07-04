@@ -175,7 +175,7 @@ export function AskAdvottic() {
                 ? 'Ask a follow-up…'
                 : 'Ask Advottic anything - a law, a case, a clause, a client, a meeting…'
             }
-            className="flex-1 bg-transparent outline-none text-[15px] text-cream-100 placeholder:text-cream-100/40"
+            className="flex-1 bg-transparent outline-none text-[15px] text-cream-100 placeholder:text-cream-100/60"
             aria-label="Ask Advottic"
             autoComplete="off"
           />
@@ -254,7 +254,7 @@ export function AskAdvottic() {
               )}
             </div>
           ))}
-          <p className="mt-5 pt-3 border-t border-forest-700/40 text-[11px] text-cream-100/40">
+          <p className="mt-5 pt-3 border-t border-forest-700/40 text-[11px] text-cream-100/60">
             Advottic can be wrong - verify anything load-bearing. Not
             legal advice.
           </p>

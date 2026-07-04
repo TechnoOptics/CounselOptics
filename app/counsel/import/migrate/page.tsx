@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { MigrateClient } from '@/components/counsel/import/MigrateClient';
+import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,16 +24,16 @@ export default async function MigratePage() {
           href="/counsel/import"
           className="text-[13px] text-forest-700 dark:text-gold-300 hover:underline"
         >
-          ← Back to import
+          <T>← Back to import</T>
         </Link>
         <h1 className="font-display text-2xl sm:text-3xl text-forest-900 dark:text-cream-100 mt-2">
-          Migrate from another platform
+          <T>Migrate from another platform</T>
         </h1>
         <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 leading-relaxed max-w-2xl">
-          Move everything that matters — matters, attachments and images,
+          <T>Move everything that matters — matters, attachments and images,
           notes, and the history behind them — with the original dates kept
           intact. Start with a universal bundle or connect ServiceNow; more
-          connectors plug into the same pipeline.
+          connectors plug into the same pipeline.</T>
         </p>
       </div>
       <MigrateClient />

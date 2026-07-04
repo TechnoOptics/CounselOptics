@@ -134,7 +134,7 @@ export default async function HubDocumentsPage() {
                   Download
                 </ExternalLink>
               ) : (
-                <span className="shrink-0 text-[11px] text-cream-100/40">
+                <span className="shrink-0 text-[11px] text-cream-100/60">
                   unavailable
                 </span>
               )}

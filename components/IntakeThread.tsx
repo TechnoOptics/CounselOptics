@@ -140,7 +140,7 @@ export function IntakeThread({
                 >
                   {renderWithMentions(m.text, names)}
                 </div>
-                <p className="mt-1 text-[10px] uppercase tracking-[0.14em] text-ink-400 dark:text-cream-100/40">
+                <p className="mt-1 text-[10px] uppercase tracking-[0.14em] text-ink-400 dark:text-cream-100/60">
                   {m.role === 'legal' ? 'Legal' : 'Requester'} · {m.name} ·{' '}
                   {new Date(m.at).toLocaleString()}
                 </p>

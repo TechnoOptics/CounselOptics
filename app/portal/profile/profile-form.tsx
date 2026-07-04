@@ -57,7 +57,7 @@ export function ProfileForm({
         <label className="block">
           <span className="block text-sm font-medium text-cream-100 mb-1.5">
             Mobile number{' '}
-            <span className="text-cream-100/45 font-normal">
+            <span className="text-cream-100/60 font-normal">
               (for text reminders)
             </span>
           </span>
@@ -73,7 +73,7 @@ export function ProfileForm({
       </div>
 
       <div className="border-t border-forest-700/40 pt-2">
-        <p className="text-[11px] uppercase tracking-[0.16em] text-cream-100/45 mb-1">
+        <p className="text-[11px] uppercase tracking-[0.16em] text-cream-100/60 mb-1">
           How should we notify you?
         </p>
         <div className="divide-y divide-forest-700/30">

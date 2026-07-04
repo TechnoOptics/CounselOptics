@@ -23,7 +23,7 @@ export const metadata: Metadata = {
     'Advottic helps you organize evidence, surface jurisdiction-aware issues, prepare for hearings, and ship a clean packet your attorney can read in five minutes. 7-day free trial, no card required.',
   alternates: {
     canonical: '/',
-    languages: { 'en-US': '/', 'es-US': '/es' },
+    languages: { 'en-US': '/', 'es-US': '/es', 'x-default': '/' },
   },
   openGraph: {
     title: 'Advottic - Walk into court prepared',

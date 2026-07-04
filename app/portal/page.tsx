@@ -137,7 +137,7 @@ export default async function PortalDashboardPage() {
                   : 'ring-forest-700/40'
             }`}
           >
-            <p className="text-[11px] uppercase tracking-[0.16em] text-cream-100/45">
+            <p className="text-[11px] uppercase tracking-[0.16em] text-cream-100/60">
               {s.label}
             </p>
             <p

@@ -516,7 +516,7 @@ export function SafeWitness() {
         >
           Stop &amp; secure evidence
         </button>
-        <p className="mt-3 text-[11px] text-cream-100/45 leading-relaxed">
+        <p className="mt-3 text-[11px] text-cream-100/60 leading-relaxed">
           Your phone shows a recording indicator - that&rsquo;s
           required by your phone and can&rsquo;t be removed. 911 is
           only called if you tap it.
@@ -545,7 +545,7 @@ export function SafeWitness() {
             <p className="text-[11px] font-mono break-all text-cream-100/80 mt-1">
               {hash}
             </p>
-            <p className="text-[11px] text-cream-100/45 mt-1">
+            <p className="text-[11px] text-cream-100/60 mt-1">
               Proves this file is unaltered. It was emailed with your
               alert for off-device proof.
             </p>
@@ -574,7 +574,7 @@ export function SafeWitness() {
             Done
           </button>
         </div>
-        <p className="mt-3 text-[11px] text-cream-100/45 leading-relaxed">
+        <p className="mt-3 text-[11px] text-cream-100/60 leading-relaxed">
           Upload it to a case as an exhibit to keep it in your account
           for the long term.
         </p>
@@ -661,7 +661,7 @@ function Shell({
 
 function Disclaimer() {
   return (
-    <p className="mt-8 text-[11px] text-cream-100/40 leading-relaxed">
+    <p className="mt-8 text-[11px] text-cream-100/60 leading-relaxed">
       Recording-consent laws vary by place - in some states all parties
       must consent. Use this to protect yourself responsibly. Advottic
       never contacts law enforcement for you; calling 911 is always

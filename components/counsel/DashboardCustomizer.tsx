@@ -121,7 +121,7 @@ export function DashboardCustomizer({
               order with arrow buttons to move them up + down. */}
           {enabled.length > 0 ? (
             <div className="mt-3">
-              <p className="text-[10px] uppercase tracking-[0.18em] text-cream-100/45 mb-1.5">
+              <p className="text-[10px] uppercase tracking-[0.18em] text-cream-100/60 mb-1.5">
                 On your dashboard ({enabled.length})
               </p>
               <ul className="space-y-1">
@@ -186,7 +186,7 @@ export function DashboardCustomizer({
                   <p className="text-[10px] uppercase tracking-[0.18em] font-semibold text-cream-100/55">
                     {cat.label}
                   </p>
-                  <p className="text-[11px] text-cream-100/45 mb-1.5">
+                  <p className="text-[11px] text-cream-100/60 mb-1.5">
                     {cat.description}
                   </p>
                   <ul className="space-y-1">

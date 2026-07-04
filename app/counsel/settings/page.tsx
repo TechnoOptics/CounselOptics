@@ -5,6 +5,7 @@ import { readMenuConfig } from '@/lib/menu-config';
 import { SettingsForm } from './settings-form';
 import { WebhookManager } from './webhook-manager';
 import { MenuCustomizer } from './menu-customizer';
+import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Firm settings · Counsel' };
@@ -21,12 +22,12 @@ export default async function CounselSettingsPage() {
   return (
     <div className="space-y-10 animate-fade-up">
       <header>
-        <p className="eyebrow mb-1">Firm settings</p>
+        <p className="eyebrow mb-1"><T>Firm settings</T></p>
         <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
           {ctx.firm.name}
         </h1>
         <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-          Update the firm&rsquo;s name, brand, jurisdictions, and practice areas.
+          <T>Update the firm&rsquo;s name, brand, jurisdictions, and practice areas.</T>
         </p>
       </header>
       <SettingsForm

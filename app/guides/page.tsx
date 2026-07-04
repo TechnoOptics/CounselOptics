@@ -8,7 +8,7 @@ export const metadata: Metadata = {
     'Plain-English answers to specific legal-prep questions: what to do when served with a lawsuit, statute-of-limitations basics, eviction defense, credit-card debt defense, domestic-violence safety planning.',
   alternates: {
     canonical: '/guides',
-    languages: { 'en-US': '/guides', 'es-US': '/es/guias' },
+    languages: { 'en-US': '/guides', 'es-US': '/es/guias', 'x-default': '/guides' },
   },
   openGraph: {
     title: 'Advottic legal-prep guides',

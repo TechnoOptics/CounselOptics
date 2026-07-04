@@ -25,6 +25,7 @@ export async function generateMetadata({
       languages: {
         'en-US': `/templates/${t.enSlug}`,
         'es-US': `/es/plantillas/${t.slug}`,
+        'x-default': `/templates/${t.enSlug}`,
       },
     },
     keywords: t.keywords,

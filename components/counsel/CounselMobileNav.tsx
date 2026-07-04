@@ -92,7 +92,7 @@ export function CounselMobileNav({
             <div className="px-2 py-3 space-y-1">
               {sections.map((sec) => (
                 <div key={sec.section} className="pb-1">
-                  <p className="px-3 pt-3 pb-1 text-[10px] uppercase tracking-[0.16em] font-semibold text-cream-100/40">
+                  <p className="px-3 pt-3 pb-1 text-[10px] uppercase tracking-[0.16em] font-semibold text-cream-100/60">
                     {sec.section}
                   </p>
                   {sec.items.map((item) => {

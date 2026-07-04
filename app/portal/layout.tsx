@@ -178,7 +178,7 @@ export default async function PortalLayout({
             >
               {firm.name}
             </p>
-            <p className="text-[10.5px] uppercase tracking-[0.16em] text-cream-100/40">
+            <p className="text-[10.5px] uppercase tracking-[0.16em] text-cream-100/60">
               <T>{railKicker}</T>
             </p>
           </div>
@@ -291,7 +291,7 @@ export default async function PortalLayout({
         </main>
 
         <footer className="border-t border-forest-700/40 bg-forest-950/70 backdrop-blur">
-          <div className="px-4 sm:px-8 lg:px-12 py-3.5 text-[11px] text-cream-100/45 flex flex-wrap items-center justify-between gap-2">
+          <div className="px-4 sm:px-8 lg:px-12 py-3.5 text-[11px] text-cream-100/60 flex flex-wrap items-center justify-between gap-2">
             <p>
               {ownBrand ? (
                 <span className="font-semibold text-cream-100" data-no-translate>

@@ -8,7 +8,7 @@ export const metadata: Metadata = {
     'Free, lawyer-reviewed legal templates: demand letter, NDA, cease and desist, lease termination notice, security deposit return demand. No signup, no email gate.',
   alternates: {
     canonical: '/templates',
-    languages: { 'en-US': '/templates', 'es-US': '/es/plantillas' },
+    languages: { 'en-US': '/templates', 'es-US': '/es/plantillas', 'x-default': '/templates' },
   },
   openGraph: {
     title: 'Advottic free legal templates',

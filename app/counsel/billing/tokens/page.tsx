@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { TokenTopUpButton } from './topup-button';
+import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Bella tokens · Counsel' };
@@ -87,21 +88,21 @@ export default async function FirmTokenPoolPage() {
           href="/counsel/billing"
           className="text-ink-500 hover:text-forest-900 dark:hover:text-cream-100"
         >
-          &larr; Billing
+          <T>&larr; Billing</T>
         </Link>
       </p>
 
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="eyebrow mb-1">Counsel · Bella tokens</p>
+          <p className="eyebrow mb-1"><T>Counsel · Bella tokens</T></p>
           <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-            Firm pool
+            <T>Firm pool</T>
           </h1>
           <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-            One pool everyone on the firm draws from when they ask Bella.
+            <T>One pool everyone on the firm draws from when they ask Bella.
             Heavy users on a litigation week absorb light users&rsquo;
             unused share. Top up here when the pool runs low; charges go
-            to the firm&rsquo;s payment method.
+            to the firm&rsquo;s payment method.</T>
           </p>
         </div>
         <TokenTopUpButton />
@@ -135,7 +136,7 @@ export default async function FirmTokenPoolPage() {
       {memberRanking.some((m) => m.usage > 0) && (
         <section className="space-y-3">
           <h2 className="font-display text-lg font-medium text-forest-900 dark:text-cream-100">
-            Top consumers (this period)
+            <T>Top consumers (this period)</T>
           </h2>
           <ul className="space-y-1.5">
             {memberRanking.slice(0, 10).map((m) => {
@@ -172,12 +173,12 @@ export default async function FirmTokenPoolPage() {
 
       <section className="space-y-3">
         <h2 className="font-display text-lg font-medium text-forest-900 dark:text-cream-100">
-          Recent ledger
+          <T>Recent ledger</T>
         </h2>
         {ledger.length === 0 ? (
           <p className="card p-4 text-[13px] text-ink-500 dark:text-cream-100/55 italic">
-            No firm-pool activity yet. Tokens consumed by users in firm
-            context will land here.
+            <T>No firm-pool activity yet. Tokens consumed by users in firm
+            context will land here.</T>
           </p>
         ) : (
           <ul className="space-y-1.5">
@@ -234,7 +235,7 @@ function Stat({
           : 'text-forest-900 dark:text-cream-100';
   return (
     <div className="card p-5">
-      <p className="eyebrow text-[10.5px] mb-2">{label}</p>
+      <p className="eyebrow text-[10.5px] mb-2"><T>{label}</T></p>
       <p className={`font-display text-3xl font-medium tabular-nums ${cls}`}>
         {value}
       </p>

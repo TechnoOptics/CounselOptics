@@ -145,7 +145,7 @@ export function FirmBrandingImageUploader({
               // eslint-disable-next-line @next/next/no-img-element
               <img src={currentUrl} alt={alt} className="h-full w-full object-contain" />
             ) : (
-              <span className="text-[10px] text-ink-400 dark:text-cream-100/40 uppercase tracking-wider">
+              <span className="text-[10px] text-ink-400 dark:text-cream-100/60 uppercase tracking-wider">
                 None
               </span>
             )}
@@ -185,7 +185,7 @@ export function FirmBrandingImageUploader({
               // eslint-disable-next-line @next/next/no-img-element
               <img src={currentUrl} alt={alt} className="w-full h-auto max-h-32 object-contain" />
             ) : (
-              <span className="text-[11px] text-ink-400 dark:text-cream-100/40 uppercase tracking-wider py-6">
+              <span className="text-[11px] text-ink-400 dark:text-cream-100/60 uppercase tracking-wider py-6">
                 {emptyLabel}
               </span>
             )}

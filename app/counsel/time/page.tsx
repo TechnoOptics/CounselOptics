@@ -4,6 +4,7 @@ import { getActiveFirmContext } from '@/lib/firm-storage';
 import { createServerSupabase, getCurrentUser } from '@/lib/supabase/server';
 import { listOpenTimer } from '@/lib/time-tracking';
 import { TimerWidget } from '@/components/TimerWidget';
+import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
 // Audit W20 V3 CR-27: title template applies once at layout level.
@@ -79,14 +80,14 @@ export default async function CounselTimePage() {
     <div className="space-y-8 animate-fade-up">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="eyebrow mb-1">Counsel · time</p>
+          <p className="eyebrow mb-1"><T>Counsel · time</T></p>
           <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-            Time entries
+            <T>Time entries</T>
           </h1>
           <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-            Every billable and non-billable minute logged across the firm.
+            <T>Every billable and non-billable minute logged across the firm.
             Start a timer from the case page and it lands here. Unbilled
-            entries roll up into invoices on the billing tab.
+            entries roll up into invoices on the billing tab.</T>
           </p>
         </div>
         <TimerWidget firmId={ctx.firm.id} initial={openTimer} />
@@ -94,35 +95,39 @@ export default async function CounselTimePage() {
 
       <section className="grid gap-3 sm:grid-cols-4">
         <Stat
-          label="This week"
+          label={<T>This week</T>}
           value={fmtDuration(sumSec(week))}
           sub={fmtCents(sumCents(week))}
         />
         <Stat
-          label="This month"
+          label={<T>This month</T>}
           value={fmtDuration(sumSec(month))}
           sub={fmtCents(sumCents(month))}
         />
         <Stat
-          label="Unbilled"
+          label={<T>Unbilled</T>}
           value={fmtDuration(sumSec(unbilled))}
           sub={fmtCents(sumCents(unbilled))}
           tone="amber"
         />
         <Stat
-          label="Total entries"
+          label={<T>Total entries</T>}
           value={String(entries.length)}
-          sub={`${entries.filter((e) => e.invoice_id).length} invoiced`}
+          sub={
+            <>
+              {entries.filter((e) => e.invoice_id).length} <T>invoiced</T>
+            </>
+          }
         />
       </section>
 
       <section className="space-y-3">
         <h2 className="font-display text-lg font-medium text-forest-900 dark:text-cream-100">
-          Recent entries
+          <T>Recent entries</T>
         </h2>
         {entries.length === 0 ? (
           <p className="card p-5 text-[13px] text-ink-500 dark:text-cream-100/55 italic">
-            No time entries yet. Start a timer to log work.
+            <T>No time entries yet. Start a timer to log work.</T>
           </p>
         ) : (
           <ul className="space-y-2">
@@ -142,12 +147,12 @@ export default async function CounselTimePage() {
                       </p>
                       {e.invoice_id && (
                         <span className="inline-flex items-center px-1.5 py-[1px] rounded text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-200 ring-emerald-200 dark:ring-emerald-700/40">
-                          Invoiced
+                          <T>Invoiced</T>
                         </span>
                       )}
                       {!e.billable && (
                         <span className="inline-flex items-center px-1.5 py-[1px] rounded text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 bg-ink-100 dark:bg-forest-800/50 text-ink-700 dark:text-cream-100/85 ring-ink-200 dark:ring-forest-700/40">
-                          Non-billable
+                          <T>Non-billable</T>
                         </span>
                       )}
                     </div>
@@ -186,9 +191,9 @@ function Stat({
   sub,
   tone = 'gray',
 }: {
-  label: string;
+  label: React.ReactNode;
   value: string;
-  sub?: string;
+  sub?: React.ReactNode;
   tone?: 'gray' | 'amber';
 }) {
   const cls =

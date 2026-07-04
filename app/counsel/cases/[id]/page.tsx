@@ -12,6 +12,7 @@ import { DraftInvoiceButton } from './draft-invoice-button';
 import { AddDeadlineForm } from './add-deadline-form';
 import { CompleteDeadlineButton } from './complete-deadline-button';
 import { MatterChatPanel } from './matter-chat-panel';
+import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
 
@@ -215,13 +216,13 @@ export default async function CounselCaseDetailPage({
           href="/counsel/cases"
           className="text-ink-500 hover:text-forest-900 dark:hover:text-cream-100"
         >
-          &larr; Cases
+          <T>&larr; Cases</T>
         </Link>
       </p>
 
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <p className="eyebrow mb-1">Counsel · matter</p>
+          <p className="eyebrow mb-1"><T>Counsel · matter</T></p>
           <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100 break-words">
             {c.title}
           </h1>
@@ -230,7 +231,7 @@ export default async function CounselCaseDetailPage({
             {c.posture}
             {c.jurisdiction?.state && ` · ${c.jurisdiction.state}`}
             {' · '}
-            subject {c.subject_name}
+            <T>subject</T> {c.subject_name}
           </p>
         </div>
         <TimerWidget
@@ -263,7 +264,7 @@ export default async function CounselCaseDetailPage({
 
       {c.description && (
         <section className="card p-5">
-          <p className="eyebrow text-[10px] mb-1">Description</p>
+          <p className="eyebrow text-[10px] mb-1"><T>Description</T></p>
           <p className="text-[13px] text-ink-700 dark:text-cream-100/85 leading-relaxed whitespace-pre-wrap">
             {c.description}
           </p>
@@ -286,12 +287,12 @@ export default async function CounselCaseDetailPage({
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="font-display text-lg font-medium text-forest-900 dark:text-cream-100">
-            Deadlines
+            <T>Deadlines</T>
           </h2>
         </div>
         {deadlines.length === 0 ? (
           <p className="card p-4 text-[13px] text-ink-500 dark:text-cream-100/55 italic">
-            No deadlines on this matter yet.
+            <T>No deadlines on this matter yet.</T>
           </p>
         ) : (
           <ul className="space-y-2">
@@ -526,7 +527,7 @@ function Stat({
             : 'text-forest-900 dark:text-cream-100';
   return (
     <div className="card p-5">
-      <p className="eyebrow text-[10.5px] mb-2">{label}</p>
+      <p className="eyebrow text-[10.5px] mb-2"><T>{label}</T></p>
       <p className={`font-display text-2xl font-medium tabular-nums ${cls}`}>
         {value}
       </p>

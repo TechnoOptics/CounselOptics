@@ -25,6 +25,7 @@ export async function generateMetadata({
       languages: {
         'en-US': `/guides/${g.enSlug}`,
         'es-US': `/es/guias/${g.slug}`,
+        'x-default': `/guides/${g.enSlug}`,
       },
     },
     keywords: g.keywords,

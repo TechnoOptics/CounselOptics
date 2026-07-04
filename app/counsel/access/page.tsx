@@ -4,6 +4,7 @@ import { createAdminSupabase } from '@/lib/supabase/admin';
 import type { SignupRequestRow } from '@/lib/access-requests';
 import { LocaleTime } from '@/components/LocaleTime';
 import { ReviewButtons } from './review-buttons';
+import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Access requests · Counsel' };
@@ -33,23 +34,23 @@ export default async function CounselAccessPage() {
   return (
     <div className="space-y-8 animate-fade-up">
       <header>
-        <p className="eyebrow mb-1">People</p>
+        <p className="eyebrow mb-1"><T>People</T></p>
         <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          Access requests
+          <T>Access requests</T>
         </h1>
         <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-          People with a work email on the firm&rsquo;s allowed domains
+          <T>People with a work email on the firm&rsquo;s allowed domains
           are set up automatically. Everyone else - outside clients,
           vendors, counterparties - lands here for you to approve or
           decline before any account exists. Approved external accounts
-          get the request loop only, never internal tools.
+          get the request loop only, never internal tools.</T>
         </p>
       </header>
 
       <section className="space-y-3">
         <div className="flex items-center gap-2">
           <h2 className="font-display text-lg text-forest-900 dark:text-cream-100">
-            Pending
+            <T>Pending</T>
           </h2>
           <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-semibold bg-gold-400 text-forest-950">
             {pending.length}
@@ -57,7 +58,7 @@ export default async function CounselAccessPage() {
         </div>
         {pending.length === 0 ? (
           <p className="card p-6 text-[13px] text-ink-500 dark:text-cream-100/55 italic">
-            No requests waiting. New external sign-ups will appear here.
+            <T>No requests waiting. New external sign-ups will appear here.</T>
           </p>
         ) : (
           <ul className="space-y-2">
@@ -71,8 +72,8 @@ export default async function CounselAccessPage() {
                     {r.full_name || r.email}
                   </p>
                   <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-0.5">
-                    <span className="font-mono">{r.email}</span> ·
-                    external · requested{' '}
+                    <span className="font-mono">{r.email}</span> ·{' '}
+                    <T>external · requested</T>{' '}
                     <LocaleTime iso={r.requested_at} mode="datetime" />
                   </p>
                 </div>
@@ -86,7 +87,7 @@ export default async function CounselAccessPage() {
       {reviewed.length > 0 && (
         <section className="space-y-3">
           <h2 className="font-display text-lg text-forest-900 dark:text-cream-100">
-            Recently reviewed
+            <T>Recently reviewed</T>
           </h2>
           <ul className="space-y-1.5">
             {reviewed.map((r) => (

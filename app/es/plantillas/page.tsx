@@ -10,7 +10,7 @@ export const metadata: Metadata = {
     'Plantillas legales gratuitas en español, revisadas por abogados: carta de demanda y más. Sin registro, sin dar tu correo electrónico.',
   alternates: {
     canonical: '/es/plantillas',
-    languages: { 'en-US': '/templates', 'es-US': '/es/plantillas' },
+    languages: { 'en-US': '/templates', 'es-US': '/es/plantillas', 'x-default': '/templates' },
   },
   openGraph: {
     title: 'Plantillas legales gratis de Advottic en español',

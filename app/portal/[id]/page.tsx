@@ -152,7 +152,7 @@ export default async function PortalRequestPage({
                     className={`h-7 w-7 rounded-full inline-flex items-center justify-center text-[12px] font-bold ring-1 ${
                       done || active
                         ? 'bg-gold-500/20 text-gold-200 ring-gold-500/40'
-                        : 'bg-forest-900/40 text-cream-100/40 ring-forest-700/40'
+                        : 'bg-forest-900/40 text-cream-100/60 ring-forest-700/40'
                     }`}
                   >
                     {done ? '✓' : i + 1}
@@ -202,7 +202,7 @@ export default async function PortalRequestPage({
                       <dl className="grid sm:grid-cols-3 gap-x-4 gap-y-3">
                         {meta.map((m) => (
                           <div key={m.label}>
-                            <dt className="text-[10px] uppercase tracking-[0.16em] font-semibold text-cream-100/40 mb-0.5">
+                            <dt className="text-[10px] uppercase tracking-[0.16em] font-semibold text-cream-100/60 mb-0.5">
                               {m.label}
                             </dt>
                             <dd className="text-[13px] text-cream-100/85">

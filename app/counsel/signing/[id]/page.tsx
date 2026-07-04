@@ -10,6 +10,7 @@ import {
 import { FIRM_SIGNING_STATUS_LABEL } from '@/lib/firm-types';
 import { RecallButton } from './recall-button';
 import { ReopenButton } from './reopen-button';
+import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,17 +33,17 @@ export default async function SigningRequestDetail({
     <div className="space-y-6 animate-fade-up">
       <p className="text-sm">
         <Link href="/counsel/signing" className="text-ink-500 hover:text-forest-900 dark:hover:text-cream-100">
-          &larr; Signing requests
+          <T>&larr; Signing requests</T>
         </Link>
       </p>
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="eyebrow mb-1">Signing request</p>
+          <p className="eyebrow mb-1"><T>Signing request</T></p>
           <h1 className="font-display text-2xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
             {doc?.name ?? 'Document'}
           </h1>
           <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-1 font-mono">
-            Request #{data.request.id.slice(0, 8)} &middot; Sent{' '}
+            <T>Request</T> #{data.request.id.slice(0, 8)} &middot; <T>Sent</T>{' '}
             {data.request.sentAt
               ? new Date(data.request.sentAt).toLocaleString()
               : 'not yet'}
@@ -92,7 +93,7 @@ export default async function SigningRequestDetail({
       )}
 
       <section className="card p-5 sm:p-6 space-y-3">
-        <p className="eyebrow">Signers</p>
+        <p className="eyebrow"><T>Signers</T></p>
         <ul className="space-y-2">
           {data.signatures.map((sig) => (
             <li
@@ -110,7 +111,7 @@ export default async function SigningRequestDetail({
               <div className="text-right">
                 {sig.signedAt ? (
                   <span className="text-[12px] font-mono text-emerald-700 dark:text-emerald-300 tabular-nums">
-                    Signed {new Date(sig.signedAt).toLocaleString()}
+                    <T>Signed</T> {new Date(sig.signedAt).toLocaleString()}
                   </span>
                 ) : sig.response ? (
                   <span
@@ -127,17 +128,17 @@ export default async function SigningRequestDetail({
                   </span>
                 ) : (
                   <span className="text-[12px] text-amber-700 dark:text-amber-300">
-                    Awaiting signature
+                    <T>Awaiting signature</T>
                     {sig.accessCodeRequired &&
                       (sig.accessVerifiedAt ? (
                         <span className="text-ink-500 dark:text-cream-100/45">
                           {' '}
-                          · code verified
+                          <T>· code verified</T>
                         </span>
                       ) : (
                         <span className="text-ink-500 dark:text-cream-100/45">
                           {' '}
-                          · code sent
+                          <T>· code sent</T>
                         </span>
                       ))}
                   </span>
@@ -152,7 +153,7 @@ export default async function SigningRequestDetail({
                         href={`${SITE_URL}/sign/${sig.token}`}
                         className="text-[11px] underline text-forest-900 dark:text-cream-100"
                       >
-                        Open sign link
+                        <T>Open sign link</T>
                       </ExternalLink>
                     </p>
                   )}

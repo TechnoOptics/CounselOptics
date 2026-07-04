@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { getCurrentUser } from '@/lib/supabase/server';
 import { listMyFirms } from '@/lib/firm-storage';
 import { OnboardingWizard } from './onboarding-wizard';
+import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,11 +31,11 @@ export default async function CounselOnboardingPage() {
         defaultEmail={user.email ?? null}
       />
       <p className="text-xs text-cream-100/55 text-center">
-        Already invited to a firm?{' '}
+        <T>Already invited to a firm?</T>{' '}
         <Link href="/counsel/accept-invite" className="underline hover:text-cream-100">
-          Open an invitation
+          <T>Open an invitation</T>
         </Link>{' '}
-        instead.
+        <T>instead.</T>
       </p>
     </div>
   );

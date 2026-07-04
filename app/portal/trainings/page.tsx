@@ -74,7 +74,7 @@ export default async function HubTrainingsPage() {
           <section className="space-y-2">
             <h2 className="font-display text-lg text-cream-100">
               To do{' '}
-              <span className="text-[12px] text-cream-100/45">
+              <span className="text-[12px] text-cream-100/60">
                 ({open.length})
               </span>
             </h2>

@@ -168,7 +168,7 @@ export function IntakeInbox({
                   ({items.length})
                 </span>
               </p>
-              <span className="text-[11px] text-ink-400 dark:text-cream-100/40">
+              <span className="text-[11px] text-ink-400 dark:text-cream-100/60">
                 {LANE_META[l].blurb}
               </span>
             </div>

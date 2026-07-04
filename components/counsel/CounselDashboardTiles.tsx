@@ -207,7 +207,7 @@ function TileFrame({
           {eyebrow}
         </p>
         {href ? (
-          <span className="text-[11px] text-cream-100/45">View</span>
+          <span className="text-[11px] text-cream-100/60">View</span>
         ) : null}
       </div>
       <p className="font-display text-lg font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
@@ -377,7 +377,7 @@ function AssignedToMeTile({ data }: { data: DashboardTileData }) {
       ) : (
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.18em] text-cream-100/45 mb-1">
+            <p className="text-[10px] uppercase tracking-[0.18em] text-cream-100/60 mb-1">
               Your clients ({clientCount})
             </p>
             {clientCount === 0 ? (
@@ -393,14 +393,14 @@ function AssignedToMeTile({ data }: { data: DashboardTileData }) {
                       className="block rounded px-2 py-1 text-[13px] text-cream-100 hover:bg-cream-100/5"
                     >
                       {c.displayName}
-                      <span className="ml-2 text-[10.5px] uppercase tracking-wider text-cream-100/45">
+                      <span className="ml-2 text-[10.5px] uppercase tracking-wider text-cream-100/60">
                         {c.status}
                       </span>
                     </Link>
                   </li>
                 ))}
                 {clientCount > 5 && (
-                  <li className="text-[11px] text-cream-100/45 px-2 pt-0.5">
+                  <li className="text-[11px] text-cream-100/60 px-2 pt-0.5">
                     +{clientCount - 5} more
                   </li>
                 )}
@@ -408,7 +408,7 @@ function AssignedToMeTile({ data }: { data: DashboardTileData }) {
             )}
           </div>
           <div>
-            <p className="text-[10px] uppercase tracking-[0.18em] text-cream-100/45 mb-1">
+            <p className="text-[10px] uppercase tracking-[0.18em] text-cream-100/60 mb-1">
               Your cases ({caseCount})
             </p>
             {caseCount === 0 ? (
@@ -424,14 +424,14 @@ function AssignedToMeTile({ data }: { data: DashboardTileData }) {
                       className="block rounded px-2 py-1 text-[13px] text-cream-100 hover:bg-cream-100/5"
                     >
                       {c.title}
-                      <span className="ml-2 text-[10.5px] uppercase tracking-wider text-cream-100/45">
+                      <span className="ml-2 text-[10.5px] uppercase tracking-wider text-cream-100/60">
                         {c.status.replace(/_/g, ' ')}
                       </span>
                     </Link>
                   </li>
                 ))}
                 {caseCount > 5 && (
-                  <li className="text-[11px] text-cream-100/45 px-2 pt-0.5">
+                  <li className="text-[11px] text-cream-100/60 px-2 pt-0.5">
                     +{caseCount - 5} more
                   </li>
                 )}
@@ -508,7 +508,7 @@ function MeetingsTile({ data }: { data: DashboardTileData }) {
               <span className="flex-1 text-cream-100 truncate">
                 {m.topic}
               </span>
-              <span className="text-[10.5px] uppercase tracking-wider text-cream-100/45">
+              <span className="text-[10.5px] uppercase tracking-wider text-cream-100/60">
                 {m.provider}
               </span>
             </li>
@@ -552,7 +552,7 @@ function DeadlinesTile({ data }: { data: DashboardTileData }) {
               <span className="flex-1 text-cream-100 truncate">
                 {d.title}
               </span>
-              <span className="text-[10.5px] uppercase tracking-wider text-cream-100/45">
+              <span className="text-[10.5px] uppercase tracking-wider text-cream-100/60">
                 {d.kind}
               </span>
             </li>

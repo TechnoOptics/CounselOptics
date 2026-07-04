@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { listFirmLeadsForFirm } from '@/lib/marketplace-storage';
+import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Leads · Counsel' };
@@ -34,31 +35,31 @@ export default async function FirmLeadsPage() {
     <div className="space-y-8 animate-fade-up">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="eyebrow mb-1">Counsel · marketplace</p>
+          <p className="eyebrow mb-1"><T>Counsel · marketplace</T></p>
           <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-            Inbound leads
+            <T>Inbound leads</T>
           </h1>
           <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-            Consumers who described a matter on /find-counsel and matched
+            <T>Consumers who described a matter on /find-counsel and matched
             your firm&rsquo;s jurisdictions and practice areas. Their
             contact details stay private until you signal interest and the
-            consumer picks your firm.
+            consumer picks your firm.</T>
           </p>
         </div>
         <p className="text-[12px] text-ink-500 dark:text-cream-100/55 font-mono uppercase tracking-wider">
-          {open.length} open · {responded.length} responded
+          {open.length} <T>open</T> · {responded.length} <T>responded</T>
         </p>
       </header>
 
       {leads.length === 0 ? (
         <div className="card p-8 text-center">
           <p className="font-display text-2xl text-forest-900 dark:text-cream-100">
-            No leads yet.
+            <T>No leads yet.</T>
           </p>
           <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 max-w-md mx-auto leading-relaxed">
-            Make sure your firm&rsquo;s jurisdictions and practice areas are
-            up to date in <Link href="/counsel/settings" className="underline">settings</Link> so
-            we can match you with the right consumers.
+            <T>Make sure your firm&rsquo;s jurisdictions and practice areas are
+            up to date in</T> <Link href="/counsel/settings" className="underline"><T>settings</T></Link> <T>so
+            we can match you with the right consumers.</T>
           </p>
         </div>
       ) : (
@@ -97,7 +98,7 @@ function Section({
   return (
     <section className="space-y-3">
       <h2 className="font-display text-lg font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-        {title}
+        <T>{title}</T>
       </h2>
       {children}
     </section>

@@ -84,7 +84,7 @@ export function PersonaSwitcher({ firmId }: { firmId: string }) {
             role="menu"
             className="absolute right-0 mt-1 w-64 rounded-lg bg-forest-900 border border-forest-700/60 shadow-card-hover overflow-hidden z-40"
           >
-            <p className="px-3 pt-2.5 pb-1 text-[10px] uppercase tracking-[0.18em] text-cream-100/40">
+            <p className="px-3 pt-2.5 pb-1 text-[10px] uppercase tracking-[0.18em] text-cream-100/60">
               Preview as
             </p>
             <div className="px-2 py-1 text-[12px] text-cream-100/85">
@@ -94,7 +94,7 @@ export function PersonaSwitcher({ firmId }: { firmId: string }) {
                   <span className="font-semibold text-cream-100">
                     Legal team
                   </span>
-                  <span className="block text-[11px] text-cream-100/45">
+                  <span className="block text-[11px] text-cream-100/60">
                     You&rsquo;re here now
                   </span>
                 </span>
