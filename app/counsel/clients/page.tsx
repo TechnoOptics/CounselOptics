@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { getActiveFirmContext, listFirmClients } from '@/lib/firm-storage';
 import { InviteClientForm } from './invite-form';
+import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Clients · Counsel' };
@@ -19,17 +20,16 @@ export default async function CounselClientsPage() {
     <div className="space-y-6 animate-fade-up">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="eyebrow mb-1">Clients</p>
+          <p className="eyebrow mb-1"><T>Clients</T></p>
           <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-            Client roster
+            <T>Client roster</T>
           </h1>
           <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-            Invite a client by email. They get a regular Advottic account; this firm gains
-            view + collaborate access on cases they share.
+            <T>Invite a client by email. They get a regular Advottic account; this firm gains view + collaborate access on cases they share.</T>
           </p>
         </div>
         <p className="text-[12px] text-ink-500 dark:text-cream-100/55 font-mono uppercase tracking-wider">
-          {clients.length} total
+          {clients.length} <T>total</T>
         </p>
       </header>
 
@@ -38,10 +38,10 @@ export default async function CounselClientsPage() {
       {clients.length === 0 ? (
         <div className="card p-8 text-center">
           <p className="font-display text-2xl text-forest-900 dark:text-cream-100">
-            No clients yet.
+            <T>No clients yet.</T>
           </p>
           <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 max-w-md mx-auto leading-relaxed">
-            Use the invite form above to add your first client.
+            <T>Use the invite form above to add your first client.</T>
           </p>
         </div>
       ) : (
@@ -49,10 +49,10 @@ export default async function CounselClientsPage() {
           <table className="w-full min-w-[560px] text-sm">
             <thead className="bg-cream-50 dark:bg-forest-900/60 text-ink-700 dark:text-cream-100/85 text-left">
               <tr>
-                <th className="font-semibold px-4 py-2.5">Email</th>
-                <th className="font-semibold px-4 py-2.5">Name</th>
-                <th className="font-semibold px-4 py-2.5">Status</th>
-                <th className="font-semibold px-4 py-2.5">Joined</th>
+                <th className="font-semibold px-4 py-2.5"><T>Email</T></th>
+                <th className="font-semibold px-4 py-2.5"><T>Name</T></th>
+                <th className="font-semibold px-4 py-2.5"><T>Status</T></th>
+                <th className="font-semibold px-4 py-2.5"><T>Joined</T></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-ink-100 dark:divide-forest-700/40">

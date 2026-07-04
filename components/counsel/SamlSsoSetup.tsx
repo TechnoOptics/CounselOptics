@@ -44,25 +44,36 @@ export function SamlSsoSetup({
 
       <div className="rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 bg-cream-50/50 dark:bg-forest-900/30 p-4">
         <p className="text-[12px] font-semibold text-forest-900 dark:text-cream-100">
-          Register the connection (one-time, per IdP)
+          Finish setup with Advottic (one-time, per IdP)
         </p>
         <p className="text-[12px] text-ink-600 dark:text-cream-100/70 mt-1 leading-relaxed">
-          After creating the app in your IdP, register it with Supabase Auth
-          using your IdP&rsquo;s metadata URL and your verified email domain:
+          The last step, registering the connection, happens on Advottic&rsquo;s
+          side, not in your own console. After you create the app in your IdP,{' '}
+          <a href="/counsel/help" className="underline font-medium">
+            open a request with Advottic
+          </a>{' '}
+          and include your <strong>IdP metadata URL</strong> and your{' '}
+          <strong>verified email domain</strong> (the two fields above). We
+          register it, usually within one business day, and email you when it&rsquo;s
+          live.
+        </p>
+        <p className="text-[11px] text-ink-500 dark:text-cream-100/55 mt-2 leading-relaxed">
+          For reference, that registration is a single Supabase Auth command run
+          by Advottic:
         </p>
         <CopyField
           label=""
           mono
           value={
-            'supabase sso add --type saml \\\n  --metadata-url <YOUR_IDP_METADATA_URL> \\\n  --domains yourcompany.com'
+            '# run by Advottic, not in your console\nsupabase sso add --type saml \\\n  --metadata-url <YOUR_IDP_METADATA_URL> \\\n  --domains yourcompany.com'
           }
         />
         <p className="text-[12px] text-ink-600 dark:text-cream-100/70 mt-2 leading-relaxed">
-          Once the domain is registered, the{' '}
+          Once we confirm the connection is live, the{' '}
           <strong>&ldquo;Sign in with your organization (SSO)&rdquo;</strong>{' '}
-          option on the sign-in page works automatically for anyone with an
-          email on that domain. Pair it with SCIM below so people are also
-          added to and removed from your firm directory automatically.
+          option on the sign-in page works for anyone with an email on that
+          domain. Pair it with SCIM below so people are also added to and removed
+          from your firm directory automatically.
         </p>
       </div>
     </div>

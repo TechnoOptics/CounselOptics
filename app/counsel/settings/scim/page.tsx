@@ -63,10 +63,11 @@ export default async function ScimSettingsPage() {
               Connect your identity provider
             </h2>
             <p className="mt-1 max-w-2xl text-sm leading-relaxed text-ink-600 dark:text-cream-100/70">
-              Give these service-provider values to your IdP, then register the
-              connection. Once your email domain is registered, the &ldquo;Sign
-              in with your organization&rdquo; option on the sign-in page works
-              automatically.
+              Give these service-provider values to your IdP, then send your
+              metadata URL and email domain to Advottic to register the
+              connection (that last step is on our side). Once it&rsquo;s live,
+              the &ldquo;Sign in with your organization&rdquo; option on the
+              sign-in page works for anyone on that domain.
             </p>
           </div>
           <SamlSsoSetup

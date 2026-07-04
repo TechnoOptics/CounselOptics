@@ -273,6 +273,9 @@ export default async function IntakeDetailPage({
                   firmId={ctx.firm.id}
                   intakeId={intake.id}
                   currentReminder={String(ans.reminder_at ?? '')}
+                  caseId={
+                    (intake as { case_id?: string | null }).case_id ?? null
+                  }
                 />
               </div>
             ),

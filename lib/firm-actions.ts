@@ -1355,6 +1355,105 @@ export async function setIntakeReminderAction(
   return { ok: true };
 }
 
+/**
+ * Convert an accepted intake/request into a firm case (Product H1 fix).
+ *
+ * Intake used to be a terminal inbox: the only actions were set-reminder
+ * and schedule-a-meeting, so an accepted matter never became a case -
+ * the lifecycle had an entrance but no exit into the caseload. This
+ * writes a firm-scoped `cases` row from the intake fields, links it back
+ * (firm_matter_intakes.case_id), and flips the intake to 'converted'.
+ * Idempotent: a second call returns the already-linked case.
+ *
+ * Runs via the admin client because it sets cases.firm_id (which the
+ * consumer RLS write policy would reject); the caller is verified as a
+ * posting-role member of the firm first.
+ */
+export async function convertIntakeToCaseAction(
+  firmId: string,
+  intakeId: string,
+): Promise<{ ok: boolean; error?: string; caseId?: string }> {
+  const user = await requireUser();
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server not configured.' };
+
+  // AuthZ: posting-role member of this firm (not read-only staff).
+  const supabase = createServerSupabase();
+  const { data: mem } = await supabase
+    .from('firm_members')
+    .select('role')
+    .eq('firm_id', firmId)
+    .eq('user_id', user.id)
+    .maybeSingle();
+  const role = (mem as { role?: string } | null)?.role;
+  if (!role || !['owner', 'admin', 'attorney', 'paralegal'].includes(role)) {
+    return { ok: false, error: 'You do not have permission to open a matter.' };
+  }
+
+  const { data: row } = await admin
+    .from('firm_matter_intakes')
+    .select(
+      'firm_id, case_id, client_name, matter_type, matter_summary, jurisdiction_state',
+    )
+    .eq('id', intakeId)
+    .maybeSingle();
+  const intake = row as {
+    firm_id: string;
+    case_id: string | null;
+    client_name: string | null;
+    matter_type: string | null;
+    matter_summary: string | null;
+    jurisdiction_state: string | null;
+  } | null;
+  if (!intake || intake.firm_id !== firmId) {
+    return { ok: false, error: 'Request not found.' };
+  }
+  // Idempotent: already converted.
+  if (intake.case_id) return { ok: true, caseId: intake.case_id };
+
+  const title =
+    (intake.matter_type || '').trim() ||
+    (intake.client_name ? `${intake.client_name} matter` : '') ||
+    'New matter';
+
+  const { data: created, error: caseErr } = await admin
+    .from('cases')
+    .insert({
+      firm_id: firmId,
+      user_id: user.id,
+      title,
+      subject_name: (intake.client_name || title).trim(),
+      subject_type: 'person',
+      case_type: (intake.matter_type || 'other').trim() || 'other',
+      status: 'open',
+      posture: 'claimant',
+      description: intake.matter_summary || '',
+      jurisdiction_country: 'US',
+      jurisdiction_state: intake.jurisdiction_state || '',
+      jurisdiction_city: '',
+      sandbox: false,
+    })
+    .select('id')
+    .single();
+  if (caseErr || !created) {
+    return { ok: false, error: caseErr?.message ?? 'Could not open the matter.' };
+  }
+  const caseId = (created as { id: string }).id;
+
+  await admin
+    .from('firm_matter_intakes')
+    .update({
+      case_id: caseId,
+      status: 'converted',
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', intakeId);
+
+  revalidatePath(`/counsel/intake/${intakeId}`);
+  revalidatePath('/counsel/cases');
+  return { ok: true, caseId };
+}
+
 // =====================================================================
 // Schedule a Teams/Zoom meeting from a request
 // =====================================================================
