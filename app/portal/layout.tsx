@@ -4,7 +4,7 @@ import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { getWorkspacePersona } from '@/lib/persona';
 import { exitPortalPreviewAction } from '@/lib/firm-actions';
 import { HubNavLink, type HubNavItem } from '@/components/portal/HubNavLink';
-import { AutoTranslate } from '@/components/i18n/AutoTranslate';
+import { LocaleProvider, T } from '@/components/i18n/LocaleProvider';
 import { LanguageSwitcher } from '@/components/i18n/LanguageSwitcher';
 import { getLocaleCookie } from '@/lib/i18n/locale';
 
@@ -143,7 +143,7 @@ export default async function PortalLayout({
   ];
 
   return (
-   <AutoTranslate initialLocale={locale}>
+   <LocaleProvider initialLocale={locale}>
     <div
       className="dark counsel-shell min-h-screen flex text-cream-100"
       style={
@@ -179,7 +179,7 @@ export default async function PortalLayout({
               {firm.name}
             </p>
             <p className="text-[10.5px] uppercase tracking-[0.16em] text-cream-100/40">
-              {railKicker}
+              <T>{railKicker}</T>
             </p>
           </div>
         </div>
@@ -190,7 +190,7 @@ export default async function PortalLayout({
           ))}
           <div className="pt-4 mt-3 border-t border-forest-700/30">
             <p className="px-3 pb-1 text-[10px] uppercase tracking-[0.18em] text-cream-100/30">
-              Workspace
+              <T>Workspace</T>
             </p>
             {workspace.map((i) => (
               <HubNavLink key={i.label} item={i} />
@@ -206,8 +206,11 @@ export default async function PortalLayout({
               className="w-full text-left px-3 py-2 rounded-lg text-[12.5px] text-cream-100/55 hover:text-cream-100 hover:bg-cream-100/5 transition-colors"
               title={`Signed in as ${who}`}
             >
-              Sign out
-              <span className="block text-[10.5px] text-cream-100/35 truncate">
+              <T>Sign out</T>
+              <span
+                className="block text-[10.5px] text-cream-100/35 truncate"
+                data-no-translate
+              >
                 {who}
               </span>
             </button>
@@ -254,7 +257,7 @@ export default async function PortalLayout({
                 type="submit"
                 className="px-2 py-1 rounded text-cream-100/50 hover:text-cream-100"
               >
-                Out
+                <T>Out</T>
               </button>
             </form>
           </nav>
@@ -264,16 +267,16 @@ export default async function PortalLayout({
           <div className="bg-gold-500/15 border-b border-gold-500/30 text-gold-100">
             <div className="px-4 sm:px-8 py-2 flex flex-wrap items-center justify-between gap-2 text-[13px]">
               <span>
-                Previewing the hub as{' '}
-                <strong>{persona.previewRoleName}</strong> - exactly what
-                this role sees.
+                <T>Previewing the hub as</T>{' '}
+                <strong data-no-translate>{persona.previewRoleName}</strong>{' '}
+                <T>- exactly what this role sees.</T>
               </span>
               <form action={exitPortalPreviewAction}>
                 <button
                   type="submit"
                   className="underline font-semibold hover:opacity-80"
                 >
-                  Exit preview
+                  <T>Exit preview</T>
                 </button>
               </form>
             </div>
@@ -291,23 +294,29 @@ export default async function PortalLayout({
           <div className="px-4 sm:px-8 lg:px-12 py-3.5 text-[11px] text-cream-100/45 flex flex-wrap items-center justify-between gap-2">
             <p>
               {ownBrand ? (
-                <span className="font-semibold text-cream-100">
+                <span className="font-semibold text-cream-100" data-no-translate>
                   {firm.name}
                 </span>
               ) : (
                 <>
-                  <span className="font-semibold text-cream-100">
+                  <span
+                    className="font-semibold text-cream-100"
+                    data-no-translate
+                  >
                     {firm.name}
                   </span>{' '}
-                  · Powered by Advottic
+                  · <T>Powered by Advottic</T>
                 </>
               )}
             </p>
-            <p>Signed in as {who}</p>
+            <p>
+              <T>Signed in as</T>{' '}
+              <span data-no-translate>{who}</span>
+            </p>
           </div>
         </footer>
       </div>
     </div>
-   </AutoTranslate>
+   </LocaleProvider>
   );
 }

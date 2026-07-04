@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import type { Firm, FirmMember } from '@/lib/firm-types';
 import { isCounselItemActive, tenantHref } from '@/lib/counsel-routing';
 import { applyMenuConfig, readMenuConfig } from '@/lib/menu-config';
+import { T } from '@/components/i18n/LocaleProvider';
 
 // Icons stay here (React) keyed by href; the menu DATA + the firm's
 // hide/rename/reorder customization live in lib/menu-config.ts so the
@@ -92,7 +93,7 @@ export function CounselSidebar({
       {sections.map((sec) => (
         <div key={sec.section} className="pb-1">
           <p className="text-[10px] uppercase tracking-[0.16em] font-semibold text-ink-400 dark:text-cream-100/40 px-2 pt-3 pb-1">
-            {sec.section}
+            <T>{sec.section}</T>
           </p>
           {sec.items.map((item) => {
             const active = isCounselItemActive(item.href, livePathname);
@@ -124,7 +125,7 @@ export function CounselSidebar({
             >
               {ICONS[item.href] ?? <DocIcon />}
             </span>
-            <span className="flex-1">{item.label}</span>
+            <span className="flex-1"><T>{item.label}</T></span>
           </Link>
             );
           })}
@@ -155,7 +156,7 @@ export function CounselSidebar({
                 >
                   <GearIcon />
                 </span>
-                <span>Firm settings</span>
+                <span><T>Firm settings</T></span>
               </Link>
             );
           })()}

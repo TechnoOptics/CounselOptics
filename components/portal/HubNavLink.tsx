@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { T } from '@/components/i18n/LocaleProvider';
 
 export type HubNavItem = {
   href: string;
@@ -44,11 +45,11 @@ export function HubNavLink({
         title="Coming soon"
       >
         <span className={variant === 'pill' ? '' : 'text-[13.5px]'}>
-          {item.label}
+          <T>{item.label}</T>
         </span>
         {variant === 'rail' && (
           <span className="text-[9px] uppercase tracking-[0.14em] px-1.5 py-0.5 rounded bg-cream-100/5 ring-1 ring-cream-100/10">
-            Soon
+            <T>Soon</T>
           </span>
         )}
       </div>
@@ -66,7 +67,7 @@ export function HubNavLink({
             : 'text-cream-100/75 hover:text-cream-100 hover:bg-cream-100/5'
         }`}
       >
-        {item.label}
+        <T>{item.label}</T>
       </Link>
     );
   }
@@ -81,7 +82,7 @@ export function HubNavLink({
           : 'text-cream-100/70 hover:text-cream-100 hover:bg-cream-100/5'
       }`}
     >
-      <span className="text-[13.5px] font-medium">{item.label}</span>
+      <span className="text-[13.5px] font-medium"><T>{item.label}</T></span>
     </Link>
   );
 }

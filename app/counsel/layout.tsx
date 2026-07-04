@@ -6,7 +6,7 @@ import { getActiveFirmContext, listMyFirms } from '@/lib/firm-storage';
 import { CounselSidebar } from '@/components/counsel/CounselSidebar';
 import { CounselHeader } from '@/components/counsel/CounselHeader';
 import { AskAdvottic } from '@/components/counsel/AskAdvottic';
-import { AutoTranslate } from '@/components/i18n/AutoTranslate';
+import { LocaleProvider } from '@/components/i18n/LocaleProvider';
 import { getLocaleCookie } from '@/lib/i18n/locale';
 import type { Firm, FirmMember } from '@/lib/firm-types';
 
@@ -122,8 +122,8 @@ export default async function CounselLayout({
     }
   }
 
-  // User's chosen UI language (#14). AutoTranslate below machine-
-  // translates the whole Counsel shell to it, live.
+  // User's chosen UI language (#14). LocaleProvider below translates
+  // only the UI chrome wrapped in <T>, leaving firm data verbatim.
   const locale = await getLocaleCookie();
 
   // If we resolved a context, expose it to children via the wrapper.
@@ -142,7 +142,7 @@ export default async function CounselLayout({
           : undefined
       }
     >
-     <AutoTranslate initialLocale={locale}>
+     <LocaleProvider initialLocale={locale}>
       <CounselHeader
         firm={active?.firm ?? null}
         membership={active?.membership ?? null}
@@ -193,7 +193,7 @@ export default async function CounselLayout({
           </p>
         </div>
       </footer>
-     </AutoTranslate>
+     </LocaleProvider>
     </div>
   );
 }

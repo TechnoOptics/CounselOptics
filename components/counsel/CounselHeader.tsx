@@ -7,6 +7,7 @@ import { PersonaSwitcher } from './PersonaSwitcher';
 import { UserMenu } from '@/components/UserMenu';
 import { TokenBalanceGauge } from '@/components/TokenBalanceGauge';
 import { LanguageSwitcher } from '@/components/i18n/LanguageSwitcher';
+import { T } from '@/components/i18n/LocaleProvider';
 import type { LocaleCode } from '@/lib/i18n/locales';
 
 /**
@@ -107,7 +108,7 @@ export function CounselHeader({
                 </span>
                 {membership && (
                   <span className="block text-[10px] uppercase tracking-[0.18em] font-semibold text-cream-100/55 leading-tight mt-0.5">
-                    {FIRM_ROLE_LABEL[membership.role]}
+                    <T>{FIRM_ROLE_LABEL[membership.role]}</T>
                   </span>
                 )}
               </span>
@@ -157,12 +158,12 @@ export function CounselHeader({
                 </span>
               )}
               <span className="text-sm font-semibold text-cream-100 truncate max-w-[36vw] sm:max-w-[24ch]">
-                {firm ? firm.name : 'Set up your firm'}
+                {firm ? firm.name : <T>Set up your firm</T>}
               </span>
             </div>
             {membership && (
               <span className="hidden sm:inline-flex badge bg-forest-800 text-cream-100/85 text-[10px]">
-                {FIRM_ROLE_LABEL[membership.role]}
+                <T>{FIRM_ROLE_LABEL[membership.role]}</T>
               </span>
             )}
           </div>
