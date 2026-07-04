@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { createProjectAction } from '@/lib/projects-actions';
+import { T, useT } from '@/components/i18n/LocaleProvider';
 
 export function NewProjectForm({
   firmId,
@@ -12,6 +13,7 @@ export function NewProjectForm({
   /** When set, the new project is attached to this case. */
   caseId?: string | null;
 }) {
+  const t = useT();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -26,7 +28,7 @@ export function NewProjectForm({
       if (res.ok && res.projectId) {
         router.push(`/counsel/projects/${res.projectId}`);
       } else {
-        setError(res.error ?? 'Could not create project.');
+        setError(res.error ?? t('Could not create project.'));
       }
     });
   }
@@ -34,17 +36,17 @@ export function NewProjectForm({
   if (!open) {
     return (
       <button type="button" onClick={() => setOpen(true)} className="btn-primary">
-        New project
+        <T>New project</T>
       </button>
     );
   }
 
   return (
     <form action={submit} className="card p-5 space-y-3">
-      <p className="eyebrow">New project</p>
+      <p className="eyebrow"><T>New project</T></p>
       <div>
         <label className="label" htmlFor="project-name">
-          Name
+          <T>Name</T>
         </label>
         <input
           id="project-name"
@@ -52,19 +54,19 @@ export function NewProjectForm({
           required
           maxLength={200}
           autoFocus
-          placeholder="e.g. Acme onboarding, Q3 policy review"
+          placeholder={t('e.g. Acme onboarding, Q3 policy review')}
           className="input"
         />
       </div>
       <div>
         <label className="label" htmlFor="project-desc">
-          Description (optional)
+          <T>Description (optional)</T>
         </label>
         <input
           id="project-desc"
           name="description"
           maxLength={500}
-          placeholder="What this project is for"
+          placeholder={t('What this project is for')}
           className="input"
         />
       </div>
@@ -78,10 +80,10 @@ export function NewProjectForm({
           disabled={pending}
           className="inline-flex items-center min-h-[40px] px-3 rounded-md text-[13px] text-ink-600 dark:text-cream-100/70 hover:bg-cream-50 dark:hover:bg-forest-800/30"
         >
-          Cancel
+          <T>Cancel</T>
         </button>
         <button type="submit" disabled={pending} className="btn-primary disabled:opacity-50">
-          {pending ? 'Creating…' : 'Create project'}
+          {pending ? <T>Creating…</T> : <T>Create project</T>}
         </button>
       </div>
     </form>

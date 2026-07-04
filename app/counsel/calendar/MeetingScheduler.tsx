@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { ExternalLink } from '@/components/ExternalLink';
+import { T, useT } from '@/components/i18n/LocaleProvider';
 import { scheduleStandaloneMeetingAction } from '@/lib/firm-actions';
 
 /**
@@ -20,6 +21,7 @@ export function MeetingScheduler({
   connected: Array<'microsoft' | 'zoom'>;
 }) {
   const router = useRouter();
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +37,7 @@ export function MeetingScheduler({
     const local = String(formData.get('when') ?? '');
     const d = new Date(local);
     if (!local || Number.isNaN(d.getTime())) {
-      setError('Pick a date and time.');
+      setError(t('Pick a date and time.'));
       return;
     }
     formData.set('startISO', d.toISOString());
@@ -49,7 +51,7 @@ export function MeetingScheduler({
         });
         router.refresh();
       } else {
-        setError(res.error ?? 'Could not schedule the meeting.');
+        setError(res.error ?? t('Could not schedule the meeting.'));
       }
     });
   }
@@ -58,10 +60,10 @@ export function MeetingScheduler({
     <section className="card p-5 space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="eyebrow">New meeting</p>
+          <p className="eyebrow"><T>New meeting</T></p>
           <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-1">
-            Set up a Teams or Zoom call. Invites go out to every
-            attendee and it appears on this shared calendar.
+            <T>Set up a Teams or Zoom call. Invites go out to every
+            attendee and it appears on this shared calendar.</T>
           </p>
         </div>
         {!open && (
@@ -70,7 +72,7 @@ export function MeetingScheduler({
             onClick={() => setOpen(true)}
             className="btn-primary shrink-0"
           >
-            Schedule meeting
+            <T>Schedule meeting</T>
           </button>
         )}
       </div>
@@ -80,11 +82,11 @@ export function MeetingScheduler({
           <div className="grid sm:grid-cols-2 gap-3">
             <label className="block sm:col-span-2">
               <span className="block text-[12px] font-medium text-forest-900 dark:text-cream-100 mb-1">
-                Title
+                <T>Title</T>
               </span>
               <input
                 name="title"
-                placeholder="Case strategy sync"
+                placeholder={t('Case strategy sync')}
                 required
                 className="input"
                 disabled={pending}
@@ -92,7 +94,7 @@ export function MeetingScheduler({
             </label>
             <label className="block">
               <span className="block text-[12px] font-medium text-forest-900 dark:text-cream-100 mb-1">
-                When
+                <T>When</T>
               </span>
               <input
                 name="when"
@@ -104,7 +106,7 @@ export function MeetingScheduler({
             </label>
             <label className="block">
               <span className="block text-[12px] font-medium text-forest-900 dark:text-cream-100 mb-1">
-                Duration
+                <T>Duration</T>
               </span>
               <select
                 name="durationMin"
@@ -112,27 +114,27 @@ export function MeetingScheduler({
                 className="input"
                 disabled={pending}
               >
-                <option value="15">15 minutes</option>
-                <option value="30">30 minutes</option>
-                <option value="45">45 minutes</option>
-                <option value="60">60 minutes</option>
-                <option value="90">90 minutes</option>
+                <option value="15"><T>15 minutes</T></option>
+                <option value="30"><T>30 minutes</T></option>
+                <option value="45"><T>45 minutes</T></option>
+                <option value="60"><T>60 minutes</T></option>
+                <option value="90"><T>90 minutes</T></option>
               </select>
             </label>
             <label className="block sm:col-span-2">
               <span className="block text-[12px] font-medium text-forest-900 dark:text-cream-100 mb-1">
-                Platform
+                <T>Platform</T>
               </span>
               {connected.length === 0 ? (
                 <p className="text-[12px] text-amber-700 dark:text-amber-300">
-                  No meeting account is connected.{' '}
+                  <T>No meeting account is connected.</T>{' '}
                   <a
                     href="/counsel/meetings"
                     className="underline font-semibold"
                   >
-                    Connect Microsoft 365 or Zoom
+                    <T>Connect Microsoft 365 or Zoom</T>
                   </a>{' '}
-                  first.
+                  <T>first.</T>
                 </p>
               ) : (
                 <select
@@ -144,23 +146,23 @@ export function MeetingScheduler({
                   disabled={pending}
                 >
                   {connected.length > 1 && (
-                    <option value="auto">Auto (Teams preferred)</option>
+                    <option value="auto"><T>Auto (Teams preferred)</T></option>
                   )}
                   {connected.includes('microsoft') && (
-                    <option value="microsoft">Microsoft Teams</option>
+                    <option value="microsoft"><T>Microsoft Teams</T></option>
                   )}
                   {connected.includes('zoom') && (
-                    <option value="zoom">Zoom</option>
+                    <option value="zoom"><T>Zoom</T></option>
                   )}
                 </select>
               )}
             </label>
             <label className="block sm:col-span-2">
               <span className="block text-[12px] font-medium text-forest-900 dark:text-cream-100 mb-1">
-                Attendees{' '}
+                <T>Attendees</T>{' '}
                 <span className="text-ink-500 dark:text-cream-100/70">
-                  (emails, comma-separated - you&rsquo;re added
-                  automatically)
+                  <T>(emails, comma-separated - you&rsquo;re added
+                  automatically)</T>
                 </span>
               </span>
               <input
@@ -181,7 +183,7 @@ export function MeetingScheduler({
                     href="/counsel/meetings"
                     className="underline font-semibold"
                   >
-                    Open Meetings
+                    <T>Open Meetings</T>
                   </a>
                 </>
               )}
@@ -190,7 +192,7 @@ export function MeetingScheduler({
           {result && (
             <div className="rounded-lg border border-emerald-200 dark:border-emerald-700/40 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-2 text-[13px] text-emerald-900 dark:text-emerald-100 space-y-1">
               <p>
-                Scheduled
+                <T>Scheduled</T>
                 {result.provider
                   ? ` via ${result.provider === 'microsoft' ? 'Teams' : 'Zoom'}`
                   : ''}
@@ -199,7 +201,7 @@ export function MeetingScheduler({
                   : '.'}
               </p>
               <p className="break-all">
-                Join link:{' '}
+                <T>Join link:</T>{' '}
                 <ExternalLink
                   href={result.joinUrl}
                   className="underline font-semibold"
@@ -220,14 +222,14 @@ export function MeetingScheduler({
               disabled={pending}
               className="btn text-ink-600 dark:text-cream-100/70"
             >
-              {result ? 'Done' : 'Cancel'}
+              {result ? <T>Done</T> : <T>Cancel</T>}
             </button>
             <button
               type="submit"
               disabled={pending}
               className="btn-primary"
             >
-              {pending ? 'Scheduling...' : 'Create meeting'}
+              {pending ? <T>Scheduling...</T> : <T>Create meeting</T>}
             </button>
           </div>
         </form>

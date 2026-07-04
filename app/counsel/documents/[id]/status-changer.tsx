@@ -10,6 +10,7 @@ import {
   FIRM_DOCUMENT_STATUS_TONE,
   type FirmDocumentStatus,
 } from '@/lib/firm-types';
+import { T, useT } from '@/components/i18n/LocaleProvider';
 
 const TONE_CLASSES: Record<
   ReturnType<typeof toneOf>,
@@ -52,6 +53,7 @@ export function DocumentStatusChanger({
   currentStatus: FirmDocumentStatus;
   statusUpdatedAt: string;
 }) {
+  const t = useT();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -73,7 +75,7 @@ export function DocumentStatusChanger({
         setOpen(false);
         router.refresh();
       } else {
-        setError(res.error ?? 'Could not update status.');
+        setError(res.error ?? t('Could not update status.'));
       }
     });
   }
@@ -99,7 +101,7 @@ export function DocumentStatusChanger({
             className="absolute z-40 mt-2 w-72 right-0 sm:left-0 sm:right-auto rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 bg-white dark:bg-forest-900 shadow-xl p-2 space-y-0.5"
           >
             {FIRM_DOCUMENT_STATUSES.map((s) => {
-              const t = toneOf(s);
+              const rowTone = toneOf(s);
               const active = s === currentStatus;
               return (
                 <button
@@ -109,7 +111,7 @@ export function DocumentStatusChanger({
                   disabled={pending}
                   className={`w-full text-left px-2.5 py-1.5 rounded-md text-[12.5px] transition-colors ${
                     active
-                      ? TONE_CLASSES[t] + ' ring-1'
+                      ? TONE_CLASSES[rowTone] + ' ring-1'
                       : 'hover:bg-ink-50 dark:hover:bg-forest-800/40 text-ink-800 dark:text-cream-100/85'
                   } disabled:opacity-50`}
                 >
@@ -117,7 +119,7 @@ export function DocumentStatusChanger({
                     {FIRM_DOCUMENT_STATUS_LABEL[s]}
                   </span>
                   <span className="block text-[10.5px] text-ink-500 dark:text-cream-100/55 mt-0.5">
-                    {STATUS_HINT[s]}
+                    <T>{STATUS_HINT[s]}</T>
                   </span>
                 </button>
               );
@@ -128,7 +130,7 @@ export function DocumentStatusChanger({
               </p>
             )}
             <p className="px-2.5 py-1 text-[10px] text-ink-500 dark:text-cream-100/70 border-t border-ink-100 dark:border-forest-800/40 mt-1 pt-2 font-mono">
-              Last moved {new Date(statusUpdatedAt).toLocaleString()}
+              <T>Last moved</T> {new Date(statusUpdatedAt).toLocaleString()}
             </p>
           </div>
       )}

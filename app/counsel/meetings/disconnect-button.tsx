@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { disconnectFirmIntegrationAction } from '@/lib/actions';
+import { T, useT } from '@/components/i18n/LocaleProvider';
 
 /**
  * Disconnect button for an active integration. Two-step confirm so a
@@ -16,6 +17,7 @@ export function DisconnectButton({
   firmId: string;
   provider: 'microsoft' | 'zoom';
 }) {
+  const t = useT();
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -26,7 +28,7 @@ export function DisconnectButton({
     startTransition(async () => {
       const res = await disconnectFirmIntegrationAction(firmId, provider);
       if (!res.ok) {
-        setError(res.error ?? 'Disconnect failed.');
+        setError(res.error ?? t('Disconnect failed.'));
         setConfirming(false);
         return;
       }
@@ -43,7 +45,7 @@ export function DisconnectButton({
           onClick={() => setConfirming(true)}
           className="btn-secondary"
         >
-          Disconnect
+          <T>Disconnect</T>
         </button>
         {error && (
           <p className="text-[11px] text-rose-700 dark:text-rose-300 w-full mt-1">
@@ -57,7 +59,7 @@ export function DisconnectButton({
   return (
     <>
       <span className="text-[12px] text-ink-700 dark:text-cream-100/80">
-        Are you sure?
+        <T>Are you sure?</T>
       </span>
       <button
         type="button"
@@ -65,7 +67,7 @@ export function DisconnectButton({
         disabled={pending}
         className="btn-primary"
       >
-        {pending ? 'Disconnecting…' : 'Yes, disconnect'}
+        {pending ? <T>Disconnecting…</T> : <T>Yes, disconnect</T>}
       </button>
       <button
         type="button"
@@ -73,7 +75,7 @@ export function DisconnectButton({
         disabled={pending}
         className="btn-ghost"
       >
-        Cancel
+        <T>Cancel</T>
       </button>
     </>
   );

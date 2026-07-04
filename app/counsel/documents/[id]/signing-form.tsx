@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { createSigningRequestAction } from '@/lib/firm-actions';
+import { T, useT } from '@/components/i18n/LocaleProvider';
 
 type Signer = { email: string; name: string };
 
@@ -13,6 +14,7 @@ export function CreateSigningRequestForm({
   firmId: string;
   documentId: string;
 }) {
+  const t = useT();
   const router = useRouter();
   const [signers, setSigners] = useState<Signer[]>([{ email: '', name: '' }]);
   const [message, setMessage] = useState('');
@@ -38,7 +40,7 @@ export function CreateSigningRequestForm({
       .map((s) => ({ email: s.email.trim().toLowerCase(), name: s.name.trim() || undefined }))
       .filter((s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.email));
     if (payload.length === 0) {
-      setError('Add at least one signer with a valid email.');
+      setError(t('Add at least one signer with a valid email.'));
       return;
     }
     startTransition(async () => {
@@ -54,23 +56,23 @@ export function CreateSigningRequestForm({
         setMessage('');
         router.refresh();
       } else {
-        setError(res.error ?? 'Could not send request.');
+        setError(res.error ?? t('Could not send request.'));
       }
     });
   }
 
   return (
     <section className="card p-5 sm:p-6 space-y-4">
-      <p className="eyebrow">Send for signature</p>
+      <p className="eyebrow"><T>Send for signature</T></p>
       <p className="text-[11px] text-ink-500 dark:text-cream-100/55 leading-relaxed">
-        Each signer gets a branded, single-use link that opens the document
+        <T>Each signer gets a branded, single-use link that opens the document
         inside Advottic. Outside signers also receive a one-time access code
         in a separate email and must enter it before the document is shown -
         so a forwarded link alone can&rsquo;t open it. People on your team see
         it in their portal without a code. Every signer steps through a
         UETA-aligned electronic-records disclosure before the signature pad,
         and every action lands in a tamper-evident audit chain. Jurisdictional
-        fit stays with your counsel.
+        fit stays with your counsel.</T>
       </p>
       <ul className="space-y-2">
         {signers.map((s, i) => (
@@ -86,7 +88,7 @@ export function CreateSigningRequestForm({
             <input
               value={s.name}
               onChange={(e) => update(i, { name: e.target.value })}
-              placeholder="Display name (optional)"
+              placeholder={t('Display name (optional)')}
               className="input"
               disabled={pending}
             />
@@ -97,7 +99,7 @@ export function CreateSigningRequestForm({
                 disabled={pending}
                 className="btn-ghost text-sm px-3"
               >
-                Remove
+                <T>Remove</T>
               </button>
             )}
           </li>
@@ -109,24 +111,24 @@ export function CreateSigningRequestForm({
         disabled={pending || signers.length >= 8}
         className="btn-secondary text-sm"
       >
-        + Add another signer
+        + <T>Add another signer</T>
       </button>
       <label className="block">
         <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-          Message (optional)
+          <T>Message (optional)</T>
         </span>
         <textarea
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           rows={3}
-          placeholder="Hey, please review and sign by Friday."
+          placeholder={t('Hey, please review and sign by Friday.')}
           className="input resize-y"
           disabled={pending}
         />
       </label>
       <div className="flex justify-end">
         <button type="button" onClick={submit} disabled={pending} className="btn-primary">
-          {pending ? 'Sending...' : 'Send signing request'}
+          {pending ? <T>Sending...</T> : <T>Send signing request</T>}
         </button>
       </div>
       {error && (
@@ -136,8 +138,8 @@ export function CreateSigningRequestForm({
       )}
       {ok && (
         <p className="rounded-lg border border-emerald-200 dark:border-emerald-700/40 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-2 text-sm text-emerald-900 dark:text-emerald-100">
-          Signing request sent. Each signer received a branded link; outside
-          signers also got a one-time access code in a separate email.
+          <T>Signing request sent. Each signer received a branded link; outside
+          signers also got a one-time access code in a separate email.</T>
         </p>
       )}
     </section>

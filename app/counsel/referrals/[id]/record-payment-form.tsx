@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { recordReferralPaymentAction } from '@/lib/cocounsel-actions';
+import { T, useT } from '@/components/i18n/LocaleProvider';
 
 export function RecordPaymentForm({
   firmId,
@@ -15,6 +16,7 @@ export function RecordPaymentForm({
   side: 'referring' | 'referred';
   current: number;
 }) {
+  const t = useT();
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [amount, setAmount] = useState(String((current / 100).toFixed(2)));
@@ -25,7 +27,7 @@ export function RecordPaymentForm({
     setError(null);
     const cents = Math.round(Number(amount.replace(/[^0-9.]/g, '')) * 100);
     if (!Number.isFinite(cents) || cents < 0) {
-      setError('Amount must be non-negative.');
+      setError(t('Amount must be non-negative.'));
       return;
     }
     startTransition(async () => {
@@ -39,7 +41,7 @@ export function RecordPaymentForm({
         setEditing(false);
         router.refresh();
       } else {
-        setError(res.error ?? 'Failed.');
+        setError(res.error ?? t('Failed.'));
       }
     });
   }
@@ -51,7 +53,7 @@ export function RecordPaymentForm({
         onClick={() => setEditing(true)}
         className="text-[11px] mt-2 underline text-ink-600 dark:text-cream-100/70"
       >
-        Update amount
+        <T>Update amount</T>
       </button>
     );
   }
@@ -69,14 +71,14 @@ export function RecordPaymentForm({
         disabled={pending}
         className="btn-primary text-sm"
       >
-        {pending ? '...' : 'Save'}
+        {pending ? '...' : <T>Save</T>}
       </button>
       <button
         type="button"
         onClick={() => setEditing(false)}
         className="btn-ghost text-sm"
       >
-        Cancel
+        <T>Cancel</T>
       </button>
       {error && (
         <span className="text-rose-700 dark:text-rose-300 text-[11px] ml-2">

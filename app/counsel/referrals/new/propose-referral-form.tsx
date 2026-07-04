@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { proposeReferralAction } from '@/lib/cocounsel-actions';
+import { T, useT } from '@/components/i18n/LocaleProvider';
 
 const STATES = [
   'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
@@ -18,6 +19,7 @@ export function ProposeReferralForm({
   firmId: string;
   availableFirms: Array<{ id: string; name: string; jurisdictions: string[] | null }>;
 }) {
+  const t = useT();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -29,11 +31,11 @@ export function ProposeReferralForm({
     const matterSummary = String(formData.get('matterSummary') ?? '').trim();
     const state = String(formData.get('state') ?? '').trim();
     if (!referredFirmId) {
-      setError('Pick a firm to refer to.');
+      setError(t('Pick a firm to refer to.'));
       return;
     }
     if (!state) {
-      setError('Pick the matter state.');
+      setError(t('Pick the matter state.'));
       return;
     }
     startTransition(async () => {
@@ -46,7 +48,7 @@ export function ProposeReferralForm({
       if (res.ok && res.referralId) {
         router.push(`/counsel/referrals/${res.referralId}`);
       } else {
-        setError(res.error ?? 'Could not propose referral.');
+        setError(res.error ?? t('Could not propose referral.'));
       }
     });
   }
@@ -55,11 +57,11 @@ export function ProposeReferralForm({
     <form action={submit} className="card p-5 sm:p-6 space-y-5">
       <label className="block">
         <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-          Refer to firm
+          <T>Refer to firm</T>
         </span>
         <select name="referredFirmId" className="input" required defaultValue="">
           <option value="" disabled>
-            Pick a firm
+            <T>Pick a firm</T>
           </option>
           {availableFirms.map((f) => (
             <option key={f.id} value={f.id}>
@@ -74,11 +76,11 @@ export function ProposeReferralForm({
 
       <label className="block">
         <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-          State for the matter
+          <T>State for the matter</T>
         </span>
         <select name="state" className="input" required defaultValue="">
           <option value="" disabled>
-            Pick a state
+            <T>Pick a state</T>
           </option>
           {STATES.map((s) => (
             <option key={s} value={s}>
@@ -90,14 +92,14 @@ export function ProposeReferralForm({
 
       <label className="block">
         <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-          Matter brief
+          <T>Matter brief</T>
         </span>
         <textarea
           name="matterSummary"
           rows={4}
           required
           className="input"
-          placeholder="What the matter is, why the other firm is a good fit, the client's deadline. Min. 20 chars."
+          placeholder={t("What the matter is, why the other firm is a good fit, the client's deadline. Min. 20 chars.")}
           maxLength={2000}
         />
       </label>
@@ -105,8 +107,8 @@ export function ProposeReferralForm({
       <div>
         <label className="block">
           <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-            Proposed fee split: {splitPct}% to the receiving firm,{' '}
-            {100 - splitPct}% to your firm
+            <T>Proposed fee split:</T> {splitPct}<T>% to the receiving firm,</T>{' '}
+            {100 - splitPct}<T>% to your firm</T>
           </span>
           <input
             type="range"
@@ -119,12 +121,12 @@ export function ProposeReferralForm({
           />
         </label>
         <p className="text-[11.5px] text-ink-500 dark:text-cream-100/55 leading-relaxed mt-1">
-          State bar rules vary on referral fees (Model Rule 1.5(e) and
+          <T>State bar rules vary on referral fees (Model Rule 1.5(e) and
           analogues). Most require the split be in proportion to work
           performed OR each firm assume joint responsibility. Confirm the
-          rule for {' '}
-          <span className="font-mono">your matter&rsquo;s state</span> before
-          finalizing.
+          rule for</T> {' '}
+          <span className="font-mono"><T>your matter&rsquo;s state</T></span> <T>before
+          finalizing.</T>
         </p>
       </div>
 
@@ -136,7 +138,7 @@ export function ProposeReferralForm({
 
       <div className="flex justify-end">
         <button type="submit" className="btn-primary" disabled={pending}>
-          {pending ? 'Sending...' : 'Propose referral'}
+          {pending ? <T>Sending...</T> : <T>Propose referral</T>}
         </button>
       </div>
     </form>

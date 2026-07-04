@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { setActiveFirmAction } from '@/lib/firm-actions';
 import type { Firm, FirmMember } from '@/lib/firm-types';
+import { T } from '@/components/i18n/LocaleProvider';
 
 /**
  * Tiny dropdown that lets a user with multiple firm memberships swap
@@ -51,7 +52,7 @@ export function CounselFirmSwitcher({
         aria-expanded={open}
       >
         <span className="font-medium truncate max-w-[14ch]">
-          {active ? active.firm.name : 'Switch firm'}
+          {active ? active.firm.name : <T>Switch firm</T>}
         </span>
         <svg
           width="10"

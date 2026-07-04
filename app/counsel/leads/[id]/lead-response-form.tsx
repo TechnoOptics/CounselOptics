@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { respondToLeadAction } from '@/lib/marketplace-actions';
+import { T, useT } from '@/components/i18n/LocaleProvider';
 
 export function LeadResponseForm({
   firmId,
@@ -11,6 +12,7 @@ export function LeadResponseForm({
   firmId: string;
   leadId: string;
 }) {
+  const t = useT();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -30,7 +32,7 @@ export function LeadResponseForm({
       if (res.ok) {
         router.refresh();
       } else {
-        setError(res.error ?? 'Could not send response.');
+        setError(res.error ?? t('Could not send response.'));
       }
     });
   }
@@ -38,18 +40,18 @@ export function LeadResponseForm({
   return (
     <section className="card p-5 sm:p-6 space-y-4">
       <div>
-        <p className="eyebrow">Respond to this lead</p>
+        <p className="eyebrow"><T>Respond to this lead</T></p>
         <p className="text-[13px] text-ink-600 dark:text-cream-100/70 mt-1 leading-relaxed">
-          Express interest with an optional message and proposed fee, or
+          <T>Express interest with an optional message and proposed fee, or
           pass. The consumer sees your response in their inbox and decides
           whether to accept. Their contact details are revealed only after
-          they accept.
+          they accept.</T>
         </p>
       </div>
 
       <label className="block">
         <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-          Message to the consumer (optional)
+          <T>Message to the consumer (optional)</T>
         </span>
         <textarea
           value={message}
@@ -57,20 +59,20 @@ export function LeadResponseForm({
           rows={3}
           className="input"
           maxLength={1000}
-          placeholder="Why your firm is a good fit, what your typical engagement looks like, any specific questions you have."
+          placeholder={t('Why your firm is a good fit, what your typical engagement looks like, any specific questions you have.')}
         />
       </label>
 
       <label className="block">
         <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-          Proposed fee (optional)
+          <T>Proposed fee (optional)</T>
         </span>
         <input
           value={proposedFee}
           onChange={(e) => setProposedFee(e.target.value)}
           className="input"
           maxLength={120}
-          placeholder="e.g. $2,500 flat for the demand letter, or $400/hr"
+          placeholder={t('e.g. $2,500 flat for the demand letter, or $400/hr')}
         />
       </label>
 
@@ -87,7 +89,7 @@ export function LeadResponseForm({
           disabled={pending}
           className="btn-ghost"
         >
-          {pending ? 'Sending...' : 'Pass'}
+          {pending ? <T>Sending...</T> : <T>Pass</T>}
         </button>
         <button
           type="button"
@@ -95,7 +97,7 @@ export function LeadResponseForm({
           disabled={pending}
           className="btn-primary"
         >
-          {pending ? 'Sending...' : 'Interested'}
+          {pending ? <T>Sending...</T> : <T>Interested</T>}
         </button>
       </div>
     </section>

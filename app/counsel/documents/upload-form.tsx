@@ -8,6 +8,7 @@ import {
   type FirmDocumentStatus,
 } from '@/lib/firm-types';
 import type { Case } from '@/lib/types';
+import { T, useT } from '@/components/i18n/LocaleProvider';
 
 /**
  * Upload + classify a firm document. The form has three layers:
@@ -27,6 +28,7 @@ export function UploadDocumentForm({
   firmId: string;
   cases: Case[];
 }) {
+  const t = useT();
   const router = useRouter();
   const formRef = useRef<HTMLFormElement | null>(null);
   const [pending, startTransition] = useTransition();
@@ -44,7 +46,7 @@ export function UploadDocumentForm({
         setExpanded(false);
         router.refresh();
       } else {
-        setError(res.error ?? 'Upload failed.');
+        setError(res.error ?? t('Upload failed.'));
       }
     });
   }
@@ -62,20 +64,20 @@ export function UploadDocumentForm({
 
   return (
     <form ref={formRef} action={submit} className="card p-5 sm:p-6 space-y-3">
-      <p className="eyebrow">Upload a document</p>
+      <p className="eyebrow"><T>Upload a document</T></p>
       <div className="grid sm:grid-cols-2 gap-3">
         <label className="block">
           <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-            File
+            <T>File</T>
           </span>
           <label
             htmlFor="firm-doc-file"
             className="btn-secondary cursor-pointer inline-flex"
           >
-            Choose file
+            <T>Choose file</T>
           </label>
           <span className="ml-3 text-sm text-ink-500 dark:text-cream-100/55 truncate">
-            {fileLabel || 'No file selected'}
+            {fileLabel || t('No file selected')}
           </span>
           <input
             id="firm-doc-file"
@@ -91,19 +93,19 @@ export function UploadDocumentForm({
         </label>
         <label className="block">
           <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-            Display name (optional)
+            <T>Display name (optional)</T>
           </span>
-          <input name="name" placeholder="Renewal lease - 2026" className="input" />
+          <input name="name" placeholder={t('Renewal lease - 2026')} className="input" />
         </label>
       </div>
 
       <div className="grid sm:grid-cols-2 gap-3">
         <label className="block">
           <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-            Attach to case{' '}
+            <T>Attach to case</T>{' '}
             {cases.length === 0 && (
               <span className="text-ink-500 dark:text-cream-100/70 font-normal">
-                (no cases yet - create one in the Cases tab)
+                <T>(no cases yet - create one in the Cases tab)</T>
               </span>
             )}
           </span>
@@ -113,7 +115,7 @@ export function UploadDocumentForm({
             defaultValue=""
             disabled={pending || cases.length === 0}
           >
-            <option value="">No case (general firm document)</option>
+            <option value=""><T>No case (general firm document)</T></option>
             {cases.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.title}
@@ -123,7 +125,7 @@ export function UploadDocumentForm({
         </label>
         <label className="block">
           <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-            Initial status
+            <T>Initial status</T>
           </span>
           <select name="status" className="input" defaultValue="submitted">
             {INITIAL_STATUSES.map((s) => (
@@ -141,7 +143,7 @@ export function UploadDocumentForm({
           onClick={() => setExpanded((v) => !v)}
           className="text-[12px] font-medium text-ink-600 dark:text-cream-100/70 hover:text-ink-900 dark:hover:text-cream-100 underline"
         >
-          {expanded ? 'Hide' : 'Add'} description, tags, and due date
+          {expanded ? <T>Hide</T> : <T>Add</T>} <T>description, tags, and due date</T>
         </button>
       </div>
 
@@ -149,35 +151,35 @@ export function UploadDocumentForm({
         <div className="space-y-3 rounded-lg p-4 bg-ink-50/40 dark:bg-forest-900/30 ring-1 ring-ink-200 dark:ring-forest-700/40">
           <label className="block">
             <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-              Description{' '}
+              <T>Description</T>{' '}
               <span className="text-ink-500 dark:text-cream-100/70 font-normal">
-                (context, scope, what this is for)
+                <T>(context, scope, what this is for)</T>
               </span>
             </span>
             <textarea
               name="description"
               rows={3}
-              placeholder="Counterparty draft of the renewal lease, redlines incoming..."
+              placeholder={t('Counterparty draft of the renewal lease, redlines incoming...')}
               className="input"
             />
           </label>
           <div className="grid sm:grid-cols-2 gap-3">
             <label className="block">
               <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-                Tags{' '}
+                <T>Tags</T>{' '}
                 <span className="text-ink-500 dark:text-cream-100/70 font-normal">
-                  (comma-separated)
+                  <T>(comma-separated)</T>
                 </span>
               </span>
               <input
                 name="tags"
-                placeholder="lease, renewal, draft"
+                placeholder={t('lease, renewal, draft')}
                 className="input"
               />
             </label>
             <label className="block">
               <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-                Due date (optional)
+                <T>Due date (optional)</T>
               </span>
               <input
                 type="datetime-local"
@@ -191,10 +193,10 @@ export function UploadDocumentForm({
 
       <div className="flex items-center justify-between gap-3">
         <p className="text-[11px] text-ink-500 dark:text-cream-100/55">
-          Up to 50 MB. Stored encrypted in private firm vault.
+          <T>Up to 50 MB. Stored encrypted in private firm vault.</T>
         </p>
         <button type="submit" className="btn-primary" disabled={pending}>
-          {pending ? 'Uploading...' : 'Upload'}
+          {pending ? <T>Uploading...</T> : <T>Upload</T>}
         </button>
       </div>
       {error && (

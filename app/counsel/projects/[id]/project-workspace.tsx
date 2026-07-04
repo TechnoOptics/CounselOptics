@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { isNativeApp } from '@/lib/platform';
+import { T, useT } from '@/components/i18n/LocaleProvider';
 import type { Project, ProjectFolder, ProjectItem } from '@/lib/project-types';
 import {
   addProjectNoteAction,
@@ -38,6 +39,7 @@ export function ProjectWorkspace({
   items: ProjectItem[];
 }) {
   const router = useRouter();
+  const t = useT();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
@@ -68,7 +70,7 @@ export function ProjectWorkspace({
         setAddingFolder(false);
         router.refresh();
       } else {
-        setError(res.error ?? 'Something went wrong.');
+        setError(res.error ?? t('Something went wrong.'));
       }
     });
   }
@@ -77,7 +79,7 @@ export function ProjectWorkspace({
     setError(null);
     const res = await getProjectDocumentUrlAction(firmId, itemId);
     if (!res.ok || !res.url) {
-      setError(res.error ?? 'Could not open the document.');
+      setError(res.error ?? t('Could not open the document.'));
       return;
     }
     if (isNativeApp()) {
@@ -89,7 +91,7 @@ export function ProjectWorkspace({
   }
 
   const sections: Array<{ key: string; label: string; folder?: ProjectFolder }> = [
-    { key: ROOT, label: 'Unfiled' },
+    { key: ROOT, label: t('Unfiled') },
     ...folders.map((f) => ({ key: f.id, label: f.name, folder: f })),
   ];
 
@@ -101,7 +103,7 @@ export function ProjectWorkspace({
             href="/counsel/projects"
             className="text-[12px] text-ink-500 dark:text-cream-100/55 hover:underline"
           >
-            ← All projects
+            ← <T>All projects</T>
           </Link>
           <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100 mt-1">
             {project.name}
@@ -120,7 +122,7 @@ export function ProjectWorkspace({
               onChange={(e) => setShowArchived(e.target.checked)}
               className="h-4 w-4 accent-forest-700"
             />
-            Show archived
+            <T>Show archived</T>
           </label>
           <button
             type="button"
@@ -132,7 +134,7 @@ export function ProjectWorkspace({
             }
             className="inline-flex items-center min-h-[40px] px-3 rounded-md text-[12px] ring-1 ring-ink-200 dark:ring-forest-700/40 hover:bg-cream-50 dark:hover:bg-forest-800/30 disabled:opacity-50"
           >
-            {project.status === 'archived' ? 'Unarchive project' : 'Archive project'}
+            {project.status === 'archived' ? <T>Unarchive project</T> : <T>Archive project</T>}
           </button>
         </div>
       </header>
@@ -156,18 +158,18 @@ export function ProjectWorkspace({
             required
             autoFocus
             maxLength={160}
-            placeholder="Folder name"
+            placeholder={t('Folder name')}
             className="input flex-1"
           />
           <button type="submit" disabled={pending} className="btn-primary disabled:opacity-50">
-            Add
+            <T>Add</T>
           </button>
           <button
             type="button"
             onClick={() => setAddingFolder(false)}
             className="inline-flex items-center min-h-[40px] px-3 rounded-md text-[13px] text-ink-600 dark:text-cream-100/70"
           >
-            Cancel
+            <T>Cancel</T>
           </button>
         </form>
       ) : (
@@ -176,7 +178,7 @@ export function ProjectWorkspace({
           onClick={() => setAddingFolder(true)}
           className="inline-flex items-center min-h-[40px] px-3 rounded-md text-[13px] ring-1 ring-ink-200 dark:ring-forest-700/40 hover:bg-cream-50 dark:hover:bg-forest-800/30"
         >
-          + New folder
+          + <T>New folder</T>
         </button>
       )}
 
@@ -212,14 +214,14 @@ export function ProjectWorkspace({
                     onClick={() => setComposer(`${sec.key}:note`)}
                     className="inline-flex items-center min-h-[34px] px-2.5 rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 hover:bg-cream-50 dark:hover:bg-forest-800/30"
                   >
-                    + Note
+                    + <T>Note</T>
                   </button>
                   <button
                     type="button"
                     onClick={() => setComposer(`${sec.key}:doc`)}
                     className="inline-flex items-center min-h-[34px] px-2.5 rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 hover:bg-cream-50 dark:hover:bg-forest-800/30"
                   >
-                    + Document
+                    + <T>Document</T>
                   </button>
                 </div>
               </div>
@@ -236,11 +238,11 @@ export function ProjectWorkspace({
                     )
                   }
                 >
-                  <input name="title" required maxLength={200} autoFocus placeholder="Note title" className="input" />
-                  <textarea name="body" rows={4} maxLength={20000} placeholder="Write your note…" className="input resize-y" />
+                  <input name="title" required maxLength={200} autoFocus placeholder={t('Note title')} className="input" />
+                  <textarea name="body" rows={4} maxLength={20000} placeholder={t('Write your note…')} className="input resize-y" />
                   <div className="flex justify-end gap-2">
-                    <button type="button" onClick={() => setComposer(null)} className="inline-flex items-center min-h-[36px] px-3 rounded-md text-[13px] text-ink-600 dark:text-cream-100/70">Cancel</button>
-                    <button type="submit" disabled={pending} className="btn-primary disabled:opacity-50">Save note</button>
+                    <button type="button" onClick={() => setComposer(null)} className="inline-flex items-center min-h-[36px] px-3 rounded-md text-[13px] text-ink-600 dark:text-cream-100/70"><T>Cancel</T></button>
+                    <button type="submit" disabled={pending} className="btn-primary disabled:opacity-50"><T>Save note</T></button>
                   </div>
                 </form>
               )}
@@ -250,17 +252,17 @@ export function ProjectWorkspace({
                   className="rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 p-3 space-y-2 bg-cream-50/40 dark:bg-forest-900/40"
                   action={(fd) => run(() => uploadProjectDocumentAction(firmId, project.id, folderId, fd))}
                 >
-                  <input name="title" maxLength={200} placeholder="Title (optional — defaults to file name)" className="input" />
+                  <input name="title" maxLength={200} placeholder={t('Title (optional — defaults to file name)')} className="input" />
                   <input name="file" type="file" required className="text-[13px] file:mr-3 file:rounded-md file:border-0 file:bg-forest-600 file:px-3 file:py-1.5 file:text-cream-50 file:cursor-pointer" />
                   <div className="flex justify-end gap-2">
-                    <button type="button" onClick={() => setComposer(null)} className="inline-flex items-center min-h-[36px] px-3 rounded-md text-[13px] text-ink-600 dark:text-cream-100/70">Cancel</button>
-                    <button type="submit" disabled={pending} className="btn-primary disabled:opacity-50">{pending ? 'Uploading…' : 'Upload'}</button>
+                    <button type="button" onClick={() => setComposer(null)} className="inline-flex items-center min-h-[36px] px-3 rounded-md text-[13px] text-ink-600 dark:text-cream-100/70"><T>Cancel</T></button>
+                    <button type="submit" disabled={pending} className="btn-primary disabled:opacity-50">{pending ? <T>Uploading…</T> : <T>Upload</T>}</button>
                   </div>
                 </form>
               )}
 
               {secItems.length === 0 ? (
-                <p className="text-[12px] text-ink-400 dark:text-cream-100/40 italic">Empty.</p>
+                <p className="text-[12px] text-ink-400 dark:text-cream-100/40 italic"><T>Empty.</T></p>
               ) : (
                 <ul className="space-y-2">
                   {secItems.map((it) => (
@@ -272,7 +274,7 @@ export function ProjectWorkspace({
                         <div className="min-w-0">
                           <p className="text-[13.5px] font-medium text-forest-900 dark:text-cream-100 flex items-center gap-1.5">
                             <span className="text-ink-400 dark:text-cream-100/40 text-[11px] uppercase tracking-[0.1em]">
-                              {it.kind === 'note' ? 'Note' : 'Doc'}
+                              {it.kind === 'note' ? <T>Note</T> : <T>Doc</T>}
                             </span>
                             {it.title}
                           </p>
@@ -294,7 +296,7 @@ export function ProjectWorkspace({
                               onClick={() => openDocument(it.id)}
                               className="inline-flex items-center min-h-[32px] px-2.5 rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 hover:bg-cream-50 dark:hover:bg-forest-800/30"
                             >
-                              Open
+                              <T>Open</T>
                             </button>
                           )}
                           <button
@@ -305,7 +307,7 @@ export function ProjectWorkspace({
                             }
                             className="inline-flex items-center min-h-[32px] px-2.5 rounded-md text-ink-600 dark:text-cream-100/70 hover:bg-cream-50 dark:hover:bg-forest-800/30 disabled:opacity-50"
                           >
-                            {it.archived ? 'Unarchive' : 'Archive'}
+                            {it.archived ? <T>Unarchive</T> : <T>Archive</T>}
                           </button>
                           <button
                             type="button"
@@ -315,7 +317,7 @@ export function ProjectWorkspace({
                             }
                             className="inline-flex items-center min-h-[32px] px-2.5 rounded-md text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/30 disabled:opacity-50"
                           >
-                            Delete
+                            <T>Delete</T>
                           </button>
                         </div>
                       </div>
@@ -366,10 +368,10 @@ function FolderTitle({
       >
         <input name="name" defaultValue={section.label} autoFocus className="input flex-1" />
         <button type="submit" className="btn-primary disabled:opacity-50" disabled={pending}>
-          Save
+          <T>Save</T>
         </button>
         <button type="button" onClick={() => setEditing(false)} className="text-[13px] text-ink-600 dark:text-cream-100/70 px-2">
-          Cancel
+          <T>Cancel</T>
         </button>
       </form>
     );
@@ -380,20 +382,20 @@ function FolderTitle({
         {section.label}
       </p>
       <button type="button" onClick={() => setEditing(true)} className="text-[11px] text-ink-500 dark:text-cream-100/55 hover:underline">
-        Rename
+        <T>Rename</T>
       </button>
       {confirming ? (
         <span className="text-[11px]">
           <button type="button" disabled={pending} onClick={onDelete} className="text-rose-600 dark:text-rose-300 font-semibold">
-            Confirm delete
+            <T>Confirm delete</T>
           </button>
           <button type="button" onClick={() => setConfirming(false)} className="ml-2 text-ink-500 dark:text-cream-100/55">
-            Cancel
+            <T>Cancel</T>
           </button>
         </span>
       ) : (
         <button type="button" onClick={() => setConfirming(true)} className="text-[11px] text-rose-500 dark:text-rose-300/80 hover:underline">
-          Delete
+          <T>Delete</T>
         </button>
       )}
     </div>

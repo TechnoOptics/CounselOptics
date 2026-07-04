@@ -6,8 +6,10 @@ import {
   approveAccessRequestAction,
   denyAccessRequestAction,
 } from '@/lib/access-actions';
+import { T, useT } from '@/components/i18n/LocaleProvider';
 
 export function ReviewButtons({ requestId }: { requestId: string }) {
+  const t = useT();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -22,7 +24,7 @@ export function ReviewButtons({ requestId }: { requestId: string }) {
       if (res.ok) {
         router.refresh();
       } else {
-        setError(res.error ?? 'Could not complete that.');
+        setError(res.error ?? t('Could not complete that.'));
       }
     });
   }
@@ -36,7 +38,7 @@ export function ReviewButtons({ requestId }: { requestId: string }) {
           disabled={pending}
           className="btn text-ink-600 dark:text-cream-100/65 hover:text-rose-600 dark:hover:text-rose-300 disabled:opacity-50"
         >
-          Decline
+          <T>Decline</T>
         </button>
         <button
           type="button"
@@ -44,7 +46,7 @@ export function ReviewButtons({ requestId }: { requestId: string }) {
           disabled={pending}
           className="btn bg-gold-400 hover:bg-gold-300 text-forest-950 font-semibold disabled:opacity-50"
         >
-          {pending ? 'Working…' : 'Approve'}
+          {pending ? <T>Working…</T> : <T>Approve</T>}
         </button>
       </div>
       {error && (

@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { addDeadlineAction, type DeadlineKind } from '@/lib/deadlines-actions';
 import { suggestSOL } from '@/lib/deadlines-data';
+import { T, useT } from '@/components/i18n/LocaleProvider';
 
 const KIND_LABEL: Record<DeadlineKind, string> = {
   statute_of_limitations: 'Statute of limitations',
@@ -26,6 +27,7 @@ export function AddDeadlineForm({
   firmId: string;
   jurisdictionState: string | null;
 }) {
+  const t = useT();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -38,7 +40,7 @@ export function AddDeadlineForm({
   function submit() {
     setError(null);
     if (!title.trim() || !dueAt) {
-      setError('Title and date are required.');
+      setError(t('Title and date are required.'));
       return;
     }
     startTransition(async () => {
@@ -57,14 +59,14 @@ export function AddDeadlineForm({
         setSolHint(null);
         router.refresh();
       } else {
-        setError(res.error ?? 'Failed.');
+        setError(res.error ?? t('Failed.'));
       }
     });
   }
 
   function onPickSOL(claimType: string) {
     if (!jurisdictionState) {
-      setSolHint('Set the matter jurisdiction first to suggest a SOL date.');
+      setSolHint(t('Set the matter jurisdiction first to suggest a SOL date.'));
       return;
     }
     const suggested = suggestSOL(
@@ -87,7 +89,7 @@ export function AddDeadlineForm({
         onClick={() => setOpen(true)}
         className="btn-secondary text-sm"
       >
-        Add a deadline
+        <T>Add a deadline</T>
       </button>
     );
   }
@@ -103,7 +105,7 @@ export function AddDeadlineForm({
           {(Object.entries(KIND_LABEL) as Array<[DeadlineKind, string]>).map(
             ([k, label]) => (
               <option key={k} value={k}>
-                {label}
+                <T>{label}</T>
               </option>
             ),
           )}
@@ -111,7 +113,7 @@ export function AddDeadlineForm({
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="Title"
+          placeholder={t('Title')}
           className="input text-sm sm:col-span-2"
         />
       </div>
@@ -123,7 +125,7 @@ export function AddDeadlineForm({
       />
 
       <div className="text-[11px] text-ink-600 dark:text-cream-100/70 space-y-1.5">
-        <p className="font-semibold">Quick SOL suggestions:</p>
+        <p className="font-semibold"><T>Quick SOL suggestions:</T></p>
         <div className="flex flex-wrap gap-1.5">
           {[
             'personal_injury',
@@ -160,7 +162,7 @@ export function AddDeadlineForm({
           className="btn-ghost text-sm"
           disabled={pending}
         >
-          Cancel
+          <T>Cancel</T>
         </button>
         <button
           type="button"
@@ -168,7 +170,7 @@ export function AddDeadlineForm({
           className="btn-primary text-sm"
           disabled={pending}
         >
-          {pending ? 'Adding...' : 'Add deadline'}
+          {pending ? <T>Adding...</T> : <T>Add deadline</T>}
         </button>
       </div>
     </div>

@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { recallSigningRequestAction } from '@/lib/signing-actions';
+import { T, useT } from '@/components/i18n/LocaleProvider';
 
 /**
  * Recall a signing request: its sign links stop working and signers
@@ -10,6 +11,7 @@ import { recallSigningRequestAction } from '@/lib/signing-actions';
  * Capacitor WebView suppresses).
  */
 export function RecallButton({ requestId }: { requestId: string }) {
+  const t = useT();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [confirming, setConfirming] = useState(false);
@@ -23,7 +25,7 @@ export function RecallButton({ requestId }: { requestId: string }) {
         setConfirming(false);
         router.refresh();
       } else {
-        setError(res.error ?? 'Could not recall.');
+        setError(res.error ?? t('Could not recall.'));
       }
     });
   }
@@ -33,7 +35,7 @@ export function RecallButton({ requestId }: { requestId: string }) {
       {confirming ? (
         <div className="flex items-center gap-2">
           <span className="text-[12px] text-ink-600 dark:text-cream-100/70">
-            Recall and disable all links?
+            <T>Recall and disable all links?</T>
           </span>
           <button
             type="button"
@@ -41,7 +43,7 @@ export function RecallButton({ requestId }: { requestId: string }) {
             disabled={pending}
             className="inline-flex items-center min-h-[36px] px-3 rounded-md bg-rose-600 text-white text-[12px] font-semibold hover:bg-rose-700 disabled:opacity-50"
           >
-            {pending ? 'Recalling…' : 'Confirm recall'}
+            {pending ? <T>Recalling…</T> : <T>Confirm recall</T>}
           </button>
           <button
             type="button"
@@ -49,7 +51,7 @@ export function RecallButton({ requestId }: { requestId: string }) {
             disabled={pending}
             className="inline-flex items-center min-h-[36px] px-3 rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 text-[12px]"
           >
-            Cancel
+            <T>Cancel</T>
           </button>
         </div>
       ) : (
@@ -58,7 +60,7 @@ export function RecallButton({ requestId }: { requestId: string }) {
           onClick={() => setConfirming(true)}
           className="inline-flex items-center min-h-[40px] px-3 rounded-md ring-1 ring-rose-200 dark:ring-rose-900/40 text-rose-700 dark:text-rose-300 text-[13px] hover:bg-rose-50 dark:hover:bg-rose-950/30"
         >
-          Recall request
+          <T>Recall request</T>
         </button>
       )}
       {error && <p className="text-[12px] text-rose-600 dark:text-rose-300">{error}</p>}

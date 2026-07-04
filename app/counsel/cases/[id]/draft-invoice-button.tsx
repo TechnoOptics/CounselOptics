@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { buildDraftInvoiceAction } from '@/lib/invoicing';
+import { T, useT } from '@/components/i18n/LocaleProvider';
 
 function fmtCents(cents: number) {
   return (cents / 100).toLocaleString('en-US', {
@@ -22,6 +23,7 @@ export function DraftInvoiceButton({
   caseTitle: string;
   unbilledCents: number;
 }) {
+  const t = useT();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -32,7 +34,7 @@ export function DraftInvoiceButton({
   function go() {
     setError(null);
     if (!email.trim()) {
-      setError('Client email is required.');
+      setError(t('Client email is required.'));
       return;
     }
     startTransition(async () => {
@@ -45,7 +47,7 @@ export function DraftInvoiceButton({
       if (res.ok && res.invoiceId) {
         router.push(`/counsel/billing`);
       } else {
-        setError(res.error ?? 'Failed.');
+        setError(res.error ?? t('Failed.'));
       }
     });
   }
@@ -57,7 +59,7 @@ export function DraftInvoiceButton({
         onClick={() => setConfirming(true)}
         className="btn-primary text-sm"
       >
-        Draft invoice ({fmtCents(unbilledCents)})
+        <T>Draft invoice</T> ({fmtCents(unbilledCents)})
       </button>
     );
   }
@@ -66,13 +68,13 @@ export function DraftInvoiceButton({
       <input
         value={name}
         onChange={(e) => setName(e.target.value)}
-        placeholder="Client name (optional)"
+        placeholder={t('Client name (optional)')}
         className="input text-sm"
       />
       <input
         value={email}
         onChange={(e) => setEmail(e.target.value)}
-        placeholder="Client email"
+        placeholder={t('Client email')}
         type="email"
         className="input text-sm"
       />
@@ -86,7 +88,7 @@ export function DraftInvoiceButton({
           className="btn-ghost text-sm"
           disabled={pending}
         >
-          Cancel
+          <T>Cancel</T>
         </button>
         <button
           type="button"
@@ -94,11 +96,17 @@ export function DraftInvoiceButton({
           className="btn-primary text-sm"
           disabled={pending}
         >
-          {pending ? 'Drafting...' : `Draft for ${fmtCents(unbilledCents)}`}
+          {pending ? (
+            <T>Drafting...</T>
+          ) : (
+            <>
+              <T>Draft for</T> {fmtCents(unbilledCents)}
+            </>
+          )}
         </button>
       </div>
       <p className="text-[10.5px] text-ink-500 dark:text-cream-100/55 text-right">
-        Drafts <em>{caseTitle}</em>; opens billing dashboard.
+        <T>Drafts</T> <em>{caseTitle}</em>; <T>opens billing dashboard.</T>
       </p>
     </div>
   );
