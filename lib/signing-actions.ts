@@ -85,6 +85,100 @@ export async function recallSigningRequestAction(
 }
 
 /**
+ * Reopen a request that a signer put on hold (rejected / changes
+ * requested), instead of forcing the firm to rebuild it from scratch.
+ *
+ * Signatures already captured are NEVER discarded - a signer's
+ * signed_at is untouched - so in a multi-party request the people who
+ * already signed stay signed. We only clear the RESPONSE fields on the
+ * signers who objected, so their link works again for the revised
+ * document, then recompute the rollup status (partial if anyone has
+ * signed, else sent). Team-only; appends a 'reopened' audit event.
+ */
+export async function reopenSigningRequestAction(
+  requestId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const ctx = await getActiveFirmContext();
+  if (!ctx) return { ok: false, error: 'Sign in first.' };
+  if (!POSTING_ROLES.includes(ctx.membership.role)) {
+    return { ok: false, error: 'Your role cannot reopen signing requests.' };
+  }
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Service unavailable.' };
+
+  const { data: reqRow } = await admin
+    .from('firm_signing_requests')
+    .select('id, firm_id, status')
+    .eq('id', requestId)
+    .maybeSingle();
+  const request = reqRow as {
+    id: string;
+    firm_id: string;
+    status: string;
+  } | null;
+  if (!request || request.firm_id !== ctx.firm.id) {
+    return { ok: false, error: 'Signing request not found.' };
+  }
+  if (request.status !== 'rejected' && request.status !== 'changes_requested') {
+    return {
+      ok: false,
+      error: 'Only a request a signer put on hold can be reopened.',
+    };
+  }
+
+  const { data: sigs } = await admin
+    .from('firm_signatures')
+    .select('id, signed_at, response, signer_user_id, signer_email')
+    .eq('signing_request_id', requestId);
+  const rows = (sigs ?? []) as Array<{
+    id: string;
+    signed_at: string | null;
+    response: string | null;
+    signer_user_id: string | null;
+    signer_email: string;
+  }>;
+
+  // Clear the objecting signers' response so their link is live again.
+  const toClear = rows.filter((r) => r.response && !r.signed_at).map((r) => r.id);
+  if (toClear.length > 0) {
+    await admin
+      .from('firm_signatures')
+      .update({ response: null, response_note: null, responded_at: null })
+      .in('id', toClear);
+  }
+
+  const anySigned = rows.some((r) => r.signed_at);
+  await admin
+    .from('firm_signing_requests')
+    .update({ status: anySigned ? 'partial' : 'sent' })
+    .eq('id', requestId);
+
+  await appendSignatureEvent(admin, {
+    signingRequestId: requestId,
+    eventType: 'reopened',
+    signerEmail: null,
+  }).catch(() => undefined);
+
+  // Nudge the signers who still need to act.
+  await Promise.all(
+    rows
+      .filter((r) => r.signer_user_id && !r.signed_at)
+      .map((r) =>
+        createNotification({
+          userId: r.signer_user_id as string,
+          type: 'system',
+          title: `${ctx.firm.name} reopened a document for your signature`,
+          body: 'A revised version is ready. Your signing link is active again.',
+        }).catch(() => null),
+      ),
+  );
+
+  revalidatePath('/counsel/signing');
+  revalidatePath(`/counsel/signing/${requestId}`);
+  return { ok: true };
+}
+
+/**
  * Verify the one-time access code an external signer received in a
  * separate email (#5). Token-scoped + unauthenticated (the sign page
  * is public). On success the code is consumed - access_code_verified_at

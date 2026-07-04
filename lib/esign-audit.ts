@@ -30,6 +30,7 @@ export type SignatureEventType =
   | 'recalled'
   | 'rejected'
   | 'changes_requested'
+  | 'reopened'
   | 'reminder_sent'
   // One-time access-code gate (#5). A code is emailed separately from
   // the sign link to external signers; entering it unlocks the token.

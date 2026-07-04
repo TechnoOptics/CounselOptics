@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { setActiveFirmAction } from '@/lib/firm-actions';
 import type { Firm, FirmMember } from '@/lib/firm-types';
@@ -21,6 +21,16 @@ export function CounselFirmSwitcher({
   const [pending, startTransition] = useTransition();
   const router = useRouter();
   const active = memberships.find((m) => m.firm.id === activeFirmId);
+
+  // Close on Escape (keyboard a11y for the popup).
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open]);
 
   function pick(firmId: string) {
     setOpen(false);
@@ -57,6 +67,14 @@ export function CounselFirmSwitcher({
         </svg>
       </button>
       {open && (
+        <>
+          <button
+            type="button"
+            aria-hidden
+            tabIndex={-1}
+            onClick={() => setOpen(false)}
+            className="fixed inset-0 z-30 cursor-default"
+          />
         <ul
           role="listbox"
           className="absolute right-0 mt-1 w-56 rounded-lg bg-white dark:bg-forest-900 border border-ink-200 dark:border-forest-700/60 shadow-card-hover overflow-hidden z-40"
@@ -84,6 +102,7 @@ export function CounselFirmSwitcher({
             </li>
           ))}
         </ul>
+        </>
       )}
     </div>
   );

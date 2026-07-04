@@ -43,11 +43,11 @@ export default async function CounselCasesPage() {
             Firm caseload
           </h1>
           <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-            Every case linked to {ctx.firm.name}. To attach a personal Advottic case to the firm, open it in the personal view and use{' '}
-            <span className="font-mono text-[12px] bg-ink-100 dark:bg-forest-800 px-1.5 py-0.5 rounded">
-              Share with firm
-            </span>
-            .
+            Every case linked to {ctx.firm.name}. Bring your caseload in from{' '}
+            <Link href="/counsel/import" className="underline">
+              Import data
+            </Link>{' '}
+            (spreadsheet upload or a migration from another platform).
           </p>
         </div>
         <p className="text-[12px] text-ink-500 dark:text-cream-100/55 font-mono uppercase tracking-wider">
@@ -61,9 +61,12 @@ export default async function CounselCasesPage() {
             No cases yet.
           </p>
           <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 max-w-md mx-auto leading-relaxed">
-            Cases appear here when a client invites you, or when one of your team members
-            attaches a personal Advottic case to the firm. The case page in personal view
-            has a &ldquo;Share with firm&rdquo; control.
+            Import your existing caseload to get started &mdash; upload a spreadsheet or
+            migrate from another platform on the{' '}
+            <Link href="/counsel/import" className="underline">
+              Import data
+            </Link>{' '}
+            page.
           </p>
         </div>
       ) : (

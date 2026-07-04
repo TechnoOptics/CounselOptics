@@ -9,6 +9,7 @@ import {
 } from '@/lib/firm-storage';
 import { FIRM_SIGNING_STATUS_LABEL } from '@/lib/firm-types';
 import { RecallButton } from './recall-button';
+import { ReopenButton } from './reopen-button';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,11 +69,19 @@ export default async function SigningRequestDetail({
               : 'ring-1 ring-amber-300/50 dark:ring-amber-600/30 bg-amber-50/50 dark:bg-amber-950/15 text-amber-900 dark:text-amber-200'
           }`}
         >
-          {data.request.status === 'canceled'
-            ? 'You recalled this request. Its sign links no longer work. Send a new request from Documents when the document is ready.'
-            : data.request.status === 'rejected'
-              ? 'A signer declined to sign. Review their note below, rework the document, and send a fresh request.'
-              : 'A signer requested changes. Review their note below, update the document, and send a fresh request.'}
+          <p>
+            {data.request.status === 'canceled'
+              ? 'You recalled this request. Its sign links no longer work. Send a new request from Documents when the document is ready.'
+              : data.request.status === 'rejected'
+                ? 'A signer declined to sign. Review their note below. Reopen to send the revised document without losing signatures already collected, or send a fresh request.'
+                : 'A signer requested changes. Review their note below. Reopen to put the document back out for signature (anyone who already signed stays signed), or send a fresh request.'}
+          </p>
+          {(data.request.status === 'rejected' ||
+            data.request.status === 'changes_requested') && (
+            <div className="mt-3">
+              <ReopenButton requestId={data.request.id} />
+            </div>
+          )}
         </div>
       )}
 
