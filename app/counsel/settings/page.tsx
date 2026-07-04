@@ -91,7 +91,7 @@ export default async function CounselSettingsPage() {
           href="/counsel/settings/scim"
           className="inline-flex items-center gap-2 rounded-lg border border-ink-200 px-4 py-2 text-sm font-medium text-forest-900 transition hover:bg-ink-50 dark:border-forest-700/40 dark:text-cream-100 dark:hover:bg-forest-900/40"
         >
-          Set up SCIM provisioning
+          Set up SSO &amp; provisioning
         </a>
       </section>
     </div>
