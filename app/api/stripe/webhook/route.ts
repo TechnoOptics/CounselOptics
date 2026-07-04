@@ -262,9 +262,26 @@ export async function POST(req: NextRequest) {
             currentPeriodEnd,
             cancelAtPeriodEnd,
           });
-          // Pro initial purchase: grant the first month of tokens.
-          if (tierFromPriceId(priceId) === 'pro' && currentPeriodEnd) {
-            await grantProMonthlyTokens({ userId, periodEnd: currentPeriodEnd });
+          // Initial purchase: grant the first month of tokens. Resolve
+          // the TierSlug (Personal Pro=500K, Plus=1.5M, Solo=2.5M) via the
+          // tier-aware helper - mirroring the renewal path below - and fall
+          // back to the legacy flat 1.5M grant ONLY for old subscriptions
+          // whose price doesn't map to a new STRIPE_PRICE_* env. The old
+          // code called grantProMonthlyTokens (1.5M) for anything mapping to
+          // the coarse 'pro' Tier enum, which over-granted every new Personal
+          // Pro signup 3x (1.5M instead of 500K); the correct 500K renewal
+          // grant then skipped on matching period_end, so the 3x stuck.
+          if (currentPeriodEnd) {
+            const initialSlug = tierSlugFromPriceId(priceId);
+            if (initialSlug && initialSlug !== 'free') {
+              await grantTierMonthlyTokens({
+                userId,
+                tier: initialSlug,
+                periodEnd: currentPeriodEnd,
+              });
+            } else if (tierFromPriceId(priceId) === 'pro') {
+              await grantProMonthlyTokens({ userId, periodEnd: currentPeriodEnd });
+            }
           }
           // Notify admin of the new subscription. Use the price's
           // unit amount when we have it, otherwise the session total

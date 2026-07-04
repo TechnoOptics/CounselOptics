@@ -72,7 +72,9 @@ export function OpposingCounsel({ caseId }: { caseId: string }) {
           ...history,
           {
             role: 'assistant',
-            content: `_${j.error || 'Could not reach the sparring partner.'}_`,
+            // Plain text, not `_..._`: this component's Line renderer
+            // doesn't parse markdown, so underscores showed literally.
+            content: j.error || 'Could not reach the sparring partner.',
           },
         ]);
         setBusy(false);
@@ -91,7 +93,7 @@ export function OpposingCounsel({ caseId }: { caseId: string }) {
       if (!(e instanceof DOMException && e.name === 'AbortError')) {
         setMessages([
           ...history,
-          { role: 'assistant', content: '_Round interrupted._' },
+          { role: 'assistant', content: 'Round interrupted.' },
         ]);
       }
     } finally {
@@ -175,6 +177,10 @@ export function OpposingCounsel({ caseId }: { caseId: string }) {
 
       <div
         ref={scrollRef}
+        role="log"
+        aria-live="polite"
+        aria-atomic="false"
+        aria-label="Cross-examination transcript"
         className="card p-4 sm:p-5 max-h-[520px] overflow-y-auto space-y-4"
       >
         {messages.map((m, i) =>
@@ -209,6 +215,7 @@ export function OpposingCounsel({ caseId }: { caseId: string }) {
         <textarea
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
+          aria-label="Your answer to opposing counsel"
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();

@@ -193,6 +193,7 @@ export function Decoder() {
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
+        aria-label="Document text to decode"
         rows={7}
         placeholder="Paste the full text of the document here - or attach it below."
         className="w-full resize-y rounded-2xl border border-ink-200 focus:border-gold-400 focus:outline-none px-4 py-3 text-sm leading-relaxed"
@@ -271,7 +272,12 @@ export function Decoder() {
       </div>
 
       {(busy || out) && (
-        <div className="card p-5 sm:p-6">
+        <div
+          className="card p-5 sm:p-6"
+          role="region"
+          aria-live="polite"
+          aria-label="Plain-English explanation"
+        >
           {out ? (
             render(out)
           ) : (

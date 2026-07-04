@@ -77,7 +77,12 @@ export async function POST(req: NextRequest) {
     'is unclear or the stakes are high, talk to a lawyer fast."',
     '',
     '--- DOCUMENT TEXT START ---',
-    text.slice(0, 9000),
+    // Match the /api/decode/extract cap (60K chars ~= 15K tokens, well
+    // within context). The old 9K slice dropped ~85% of a long summons -
+    // e.g. an answer deadline on page 6 was never seen, so the Decoder
+    // told a self-represented litigant "no deadline found". The extractor
+    // already truncates + flags at 60K, so this is the real ceiling.
+    text.slice(0, 60000),
     '--- DOCUMENT TEXT END ---',
   ].join('\n');
 

@@ -3543,7 +3543,16 @@ export async function* streamBella(input: {
   for (let turn = 0; turn < MAX_AGENT_TURNS; turn++) {
     const stream = await client.messages.stream({
       model: MODEL,
-      max_tokens: 1024,
+      // Was 1024 (~750 words), which silently truncated the very outputs
+      // this product exists to produce - full demand letters / NDAs /
+      // complaints drafted in-response, and the Decoder's multi-section
+      // explanation (its Deadlines / Watch-out-for sections were dropped).
+      // A max_tokens stop is treated as a normal end below, so the cut-off
+      // was invisible. max_tokens is only a CEILING (billed per actual
+      // output token, and the model still stops at end_turn on its own),
+      // so raising it prevents mid-clause truncation without adding cost to
+      // short replies. Tool-use turns stop at tool_use well before this.
+      max_tokens: 8192,
       system: systemBlocks,
       messages: conversation,
       ...(tools.length > 0 ? { tools } : {}),

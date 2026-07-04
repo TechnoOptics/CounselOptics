@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import crypto from 'node:crypto';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { checkRateLimit } from '@/lib/rate-limit';
-import { validateCommunityUpload } from '@/lib/upload-safety';
+import { validateCommunityUpload, MAX_EVIDENCE_BYTES } from '@/lib/upload-safety';
 import { appendWitnessEvent } from '@/lib/witness-audit';
 import { verifyTurnstileToken } from '@/lib/turnstile';
 
@@ -107,6 +107,18 @@ export async function POST(
   const fullName = String(formData.get('fullName') ?? '').trim();
   const file = formData.get('file');
   const hasFile = file instanceof File && file.size > 0;
+
+  // Reject oversize files by their declared size BEFORE buffering the
+  // whole thing into memory. validateCommunityUpload() re-checks the real
+  // byte length as the authoritative guard, but this early bail keeps a
+  // hostile 500MB upload from being read into a serverless function's
+  // heap just to be rejected a line later.
+  if (hasFile && (file as File).size > MAX_EVIDENCE_BYTES) {
+    return NextResponse.json(
+      { error: 'File is larger than the 25MB limit.' },
+      { status: 413 },
+    );
+  }
 
   if (!hasFile && !testimonialText) {
     return NextResponse.json(
