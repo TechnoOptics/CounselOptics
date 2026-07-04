@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getActiveFirmContext, listFirmCases } from '@/lib/firm-storage';
 import { STATUS_LABEL, type CaseStatus } from '@/lib/types';
+import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,35 +39,38 @@ export default async function CounselCasesPage() {
     <div className="space-y-6 animate-fade-up">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="eyebrow mb-1">Cases</p>
+          <p className="eyebrow mb-1"><T>Cases</T></p>
           <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-            Firm caseload
+            <T>Firm caseload</T>
           </h1>
           <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-            Every case linked to {ctx.firm.name}. Bring your caseload in from{' '}
+            <T>Every case linked to</T> {ctx.firm.name}.{' '}
+            <T>Bring your caseload in from</T>{' '}
             <Link href="/counsel/import" className="underline">
-              Import data
+              <T>Import data</T>
             </Link>{' '}
-            (spreadsheet upload or a migration from another platform).
+            <T>(spreadsheet upload or a migration from another platform).</T>
           </p>
         </div>
         <p className="text-[12px] text-ink-500 dark:text-cream-100/55 font-mono uppercase tracking-wider">
-          {cases.length} total
+          {cases.length} <T>total</T>
         </p>
       </header>
 
       {cases.length === 0 ? (
         <div className="card p-8 text-center">
           <p className="font-display text-2xl text-forest-900 dark:text-cream-100">
-            No cases yet.
+            <T>No cases yet.</T>
           </p>
           <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 max-w-md mx-auto leading-relaxed">
-            Import your existing caseload to get started &mdash; upload a spreadsheet or
-            migrate from another platform on the{' '}
+            <T>
+              Import your existing caseload to get started &mdash; upload a
+              spreadsheet or migrate from another platform on the
+            </T>{' '}
             <Link href="/counsel/import" className="underline">
-              Import data
+              <T>Import data</T>
             </Link>{' '}
-            page.
+            <T>page.</T>
           </p>
         </div>
       ) : (
@@ -106,7 +110,7 @@ export default async function CounselCasesPage() {
                         </p>
                         {c.hearingAt && (
                           <p className="text-[11px] text-ink-500 dark:text-cream-100/55 mt-1.5 font-mono tabular-nums">
-                            Hearing:{' '}
+                            <T>Hearing:</T>{' '}
                             {new Date(c.hearingAt).toLocaleDateString(undefined, {
                               month: 'short',
                               day: 'numeric',

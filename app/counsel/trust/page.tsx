@@ -11,6 +11,7 @@ import {
 import { CreateAccountForm } from './create-account-form';
 import { RecordTransactionForm } from './record-transaction-form';
 import { ReconcileForm } from './reconcile-form';
+import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
 // Audit W20 V3 CR-27: title template applies once at layout level.
@@ -69,9 +70,9 @@ export default async function CounselTrustPage({
     return (
       <div className="space-y-6 animate-fade-up">
         <header>
-          <p className="eyebrow mb-1">Counsel · trust</p>
+          <p className="eyebrow mb-1"><T>Counsel · trust</T></p>
           <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-            Trust accounting
+            <T>Trust accounting</T>
           </h1>
           <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
             {/*
@@ -86,13 +87,15 @@ export default async function CounselTrustPage({
               live-feed path is on the roadmap and will replace the
               upload step when it ships.
             */}
-            IOLTA-style ledger of every dollar held for a client. Every state
-            bar requires per-matter ledgers, per-client statements, and a
-            regular reconciliation against your bank statement. Advottic keeps
-            the book side - per-matter and per-client balances - and gives you
-            a reconciliation tool: enter your statement&rsquo;s ending balance,
-            check off what has cleared, and it confirms the two agree. Add your
-            first trust account below to start.
+            <T>
+              IOLTA-style ledger of every dollar held for a client. Every state
+              bar requires per-matter ledgers, per-client statements, and a
+              regular reconciliation against your bank statement. Advottic keeps
+              the book side - per-matter and per-client balances - and gives you
+              a reconciliation tool: enter your statement&rsquo;s ending balance,
+              check off what has cleared, and it confirms the two agree. Add your
+              first trust account below to start.
+            </T>
           </p>
         </header>
         <CreateAccountForm firmId={ctx.firm.id} />
@@ -123,7 +126,7 @@ export default async function CounselTrustPage({
     <div className="space-y-8 animate-fade-up">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="eyebrow mb-1">Counsel · trust</p>
+          <p className="eyebrow mb-1"><T>Counsel · trust</T></p>
           <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
             {account.name}
           </h1>
@@ -189,7 +192,7 @@ export default async function CounselTrustPage({
       {/* Per-client breakdown */}
       {recon.perClient.length > 0 && (
         <section className="card p-5 space-y-3">
-          <p className="eyebrow">Per-client balances</p>
+          <p className="eyebrow"><T>Per-client balances</T></p>
           <ul className="space-y-1.5 text-[13px]">
             {recon.perClient
               .filter((c) => c.balanceCents !== 0)
@@ -215,9 +218,11 @@ export default async function CounselTrustPage({
               ))}
           </ul>
           <p className="text-[11px] text-ink-500 dark:text-cream-100/55 leading-relaxed">
-            Negative balances mean the firm has disbursed more than was on
-            deposit for that client. This must NEVER happen on an IOLTA
-            account; investigate immediately.
+            <T>
+              Negative balances mean the firm has disbursed more than was on
+              deposit for that client. This must NEVER happen on an IOLTA
+              account; investigate immediately.
+            </T>
           </p>
         </section>
       )}
@@ -237,17 +242,17 @@ export default async function CounselTrustPage({
       {pastReconciliations.length > 0 && (
         <section className="space-y-3">
           <h2 className="font-display text-lg font-medium text-forest-900 dark:text-cream-100">
-            Reconciliation history
+            <T>Reconciliation history</T>
           </h2>
           <div className="card overflow-x-auto">
             <table className="w-full min-w-[520px] text-[13px]">
               <thead className="bg-cream-50 dark:bg-forest-900/60 text-ink-700 dark:text-cream-100/85 text-left">
                 <tr>
-                  <th className="font-semibold px-4 py-2.5">Statement date</th>
-                  <th className="font-semibold px-4 py-2.5 text-right">Bank</th>
-                  <th className="font-semibold px-4 py-2.5 text-right">Cleared</th>
-                  <th className="font-semibold px-4 py-2.5 text-right">Difference</th>
-                  <th className="font-semibold px-4 py-2.5">Status</th>
+                  <th className="font-semibold px-4 py-2.5"><T>Statement date</T></th>
+                  <th className="font-semibold px-4 py-2.5 text-right"><T>Bank</T></th>
+                  <th className="font-semibold px-4 py-2.5 text-right"><T>Cleared</T></th>
+                  <th className="font-semibold px-4 py-2.5 text-right"><T>Difference</T></th>
+                  <th className="font-semibold px-4 py-2.5"><T>Status</T></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-ink-100 dark:divide-forest-700/40">
@@ -293,11 +298,11 @@ export default async function CounselTrustPage({
       {/* Transactions ledger */}
       <section className="space-y-3">
         <h2 className="font-display text-lg font-medium text-forest-900 dark:text-cream-100">
-          Ledger
+          <T>Ledger</T>
         </h2>
         {transactions.length === 0 ? (
           <p className="card p-5 text-[13px] text-ink-500 dark:text-cream-100/55 italic">
-            No transactions yet.
+            <T>No transactions yet.</T>
           </p>
         ) : (
           <ul className="space-y-2">
@@ -372,7 +377,7 @@ function Stat({
           : 'text-forest-900 dark:text-cream-100';
   return (
     <div className="card p-5">
-      <p className="eyebrow text-[10.5px] mb-2">{label}</p>
+      <p className="eyebrow text-[10.5px] mb-2"><T>{label}</T></p>
       <p className={`font-display text-3xl font-medium tabular-nums ${cls}`}>
         {value}
       </p>

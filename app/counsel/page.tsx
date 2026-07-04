@@ -19,6 +19,7 @@ import {
   type DashboardTileData,
 } from '@/components/counsel/CounselDashboardTiles';
 import { getCounselDashboardConfig } from '@/lib/counsel-dashboard';
+import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
 
@@ -287,17 +288,17 @@ export default async function CounselDashboard() {
     <div className="space-y-6 animate-fade-up">
       {/* Welcome - always at the top. */}
       <header>
-        <p className="eyebrow mb-2">Counsel</p>
+        <p className="eyebrow mb-2"><T>Counsel</T></p>
         <h1 className="font-display text-3xl sm:text-4xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          Welcome to {ctx.firm.name}.
+          <T>Welcome to</T> {ctx.firm.name}.
         </h1>
         <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 max-w-2xl leading-relaxed">
-          You&rsquo;re signed in as{' '}
+          <T>You&rsquo;re signed in as</T>{' '}
           {ctx.membership.displayName ??
             ctx.membership.email ??
             'a team member'}{' '}
-          ({FIRM_ROLE_LABEL[ctx.membership.role].toLowerCase()}). Pick
-          the tiles that matter to you - hide the rest.
+          ({FIRM_ROLE_LABEL[ctx.membership.role].toLowerCase()}).{' '}
+          <T>Pick the tiles that matter to you - hide the rest.</T>
         </p>
       </header>
 
@@ -316,10 +317,12 @@ export default async function CounselDashboard() {
       {enabled.length === 0 ? (
         <div className="card p-6 text-center">
           <p className="text-[13px] text-cream-100/65 leading-relaxed">
-            Your dashboard is empty. Click{' '}
-            <strong>Customize dashboard</strong> up top to add tiles -
-            action center, assigned to me, cases, clients, meetings,
-            and more.
+            <T>Your dashboard is empty. Click</T>{' '}
+            <strong><T>Customize dashboard</T></strong>{' '}
+            <T>
+              up top to add tiles - action center, assigned to me,
+              cases, clients, meetings, and more.
+            </T>
           </p>
         </div>
       ) : (

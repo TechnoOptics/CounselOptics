@@ -11,6 +11,7 @@ import {
   type FirmDocumentStatus,
 } from '@/lib/firm-types';
 import { UploadDocumentForm } from './upload-form';
+import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Documents · Counsel' };
@@ -96,20 +97,22 @@ export default async function CounselDocumentsPage({
     <div className="space-y-6 animate-fade-up">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="eyebrow mb-1">Documents</p>
+          <p className="eyebrow mb-1"><T>Documents</T></p>
           <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-            Document vault
+            <T>Document vault</T>
           </h1>
           <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-            Contracts, motions, exhibits, anything the firm needs to keep.
-            Every document attaches to a case or matter and moves through a
-            lifecycle - received, ready, sent, signed (internal / employee /
-            client / other party), or on hold / overdue / canceled.
+            <T>
+              Contracts, motions, exhibits, anything the firm needs to keep.
+              Every document attaches to a case or matter and moves through a
+              lifecycle - received, ready, sent, signed (internal / employee /
+              client / other party), or on hold / overdue / canceled.
+            </T>
           </p>
         </div>
         <p className="text-[12px] text-ink-500 dark:text-cream-100/55 font-mono uppercase tracking-wider">
-          {documents.length} of {allDocs.length} document
-          {allDocs.length === 1 ? '' : 's'}
+          {documents.length} <T>of</T> {allDocs.length}{' '}
+          <T>{allDocs.length === 1 ? 'document' : 'documents'}</T>
         </p>
       </header>
 
@@ -118,7 +121,7 @@ export default async function CounselDocumentsPage({
       {/* Status filter pills */}
       <section className="flex flex-wrap gap-2 items-center">
         <FilterPill href="/counsel/documents" active={!statusFilter && !caseFilter}>
-          All ({allDocs.length})
+          <T>All</T> ({allDocs.length})
         </FilterPill>
         {STATUS_ORDER.filter((s) => (statusCounts.get(s) ?? 0) > 0).map((s) => (
           <FilterPill
@@ -135,7 +138,7 @@ export default async function CounselDocumentsPage({
       {/* Case filter dropdown when there are cases */}
       {cases.length > 0 && (
         <section className="flex flex-wrap gap-2 items-center text-[12.5px] text-ink-700 dark:text-cream-100/80">
-          <span className="font-medium">Filter by case:</span>
+          <span className="font-medium"><T>Filter by case:</T></span>
           <Link
             href={`/counsel/documents${statusFilter ? `?status=${statusFilter}` : ''}`}
             className={`px-2.5 py-1 rounded-md ring-1 ${
@@ -144,7 +147,7 @@ export default async function CounselDocumentsPage({
                 : 'bg-white dark:bg-forest-900/50 text-ink-700 dark:text-cream-100/80 ring-ink-200 dark:ring-forest-700/40'
             }`}
           >
-            All cases
+            <T>All cases</T>
           </Link>
           {cases.slice(0, 8).map((c) => (
             <Link
@@ -166,13 +169,17 @@ export default async function CounselDocumentsPage({
       {documents.length === 0 ? (
         <div className="card p-8 text-center">
           <p className="font-display text-2xl text-forest-900 dark:text-cream-100">
-            {statusFilter || caseFilter
-              ? 'No documents match this filter.'
-              : 'No documents yet.'}
+            {statusFilter || caseFilter ? (
+              <T>No documents match this filter.</T>
+            ) : (
+              <T>No documents yet.</T>
+            )}
           </p>
           <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 max-w-md mx-auto leading-relaxed">
-            Upload contracts, court filings, or evidence packets above. Files
-            up to 50 MB each.
+            <T>
+              Upload contracts, court filings, or evidence packets above. Files
+              up to 50 MB each.
+            </T>
           </p>
         </div>
       ) : (
@@ -206,7 +213,7 @@ export default async function CounselDocumentsPage({
                   {caseTitle && (
                     <p className="text-[11.5px] text-ink-600 dark:text-cream-100/70 truncate">
                       <span className="font-mono uppercase tracking-wider text-[9.5px] text-ink-500 dark:text-cream-100/50 mr-1.5">
-                        case
+                        <T>case</T>
                       </span>
                       {caseTitle}
                     </p>
@@ -237,7 +244,7 @@ export default async function CounselDocumentsPage({
                             : ''
                         }
                       >
-                        {isOverdue ? 'Overdue ' : 'Due '}
+                        {isOverdue ? <T>Overdue</T> : <T>Due</T>}{' '}
                         {new Date(d.dueAt).toLocaleDateString()}
                       </span>
                     )}

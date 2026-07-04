@@ -5,6 +5,7 @@ import {
   listFirmSigningRequestsWithSummary,
 } from '@/lib/firm-storage';
 import { FIRM_SIGNING_STATUS_LABEL } from '@/lib/firm-types';
+import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Signing · Counsel' };
@@ -17,37 +18,39 @@ export default async function CounselSigningPage() {
   return (
     <div className="space-y-6 animate-fade-up">
       <header>
-        <p className="eyebrow mb-1">Signing</p>
+        <p className="eyebrow mb-1"><T>Signing</T></p>
         <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          E-signature requests
+          <T>E-signature requests</T>
         </h1>
         <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-          Review status of every signing request you&rsquo;ve sent. Open a document from{' '}
+          <T>Review status of every signing request you&rsquo;ve sent. Open a document from</T>{' '}
           <Link href="/counsel/documents" className="underline">
-            Documents
+            <T>Documents</T>
           </Link>{' '}
-          to send a new request.
+          <T>to send a new request.</T>
         </p>
       </header>
       <section className="card p-5 sm:p-6 ring-1 ring-emerald-300/30 dark:ring-emerald-500/25 bg-emerald-50/30 dark:bg-emerald-950/15">
         <p className="text-sm text-ink-700 dark:text-cream-100/85 leading-relaxed">
-          <strong>UETA-aligned signing.</strong> Each request hashes the
-          document at creation, captures intent through a two-step disclosure
-          flow, and appends every event (sent, viewed, signed, completed) to
-          a tamper-evident audit chain you can inspect from each request below.
-          Jurisdictional fit for specific document classes (real-estate
-          conveyances, wills, certain UCC instruments) stays a question for
-          your counsel.
+          <strong><T>UETA-aligned signing.</T></strong>{' '}
+          <T>
+            Each request hashes the document at creation, captures intent
+            through a two-step disclosure flow, and appends every event (sent,
+            viewed, signed, completed) to a tamper-evident audit chain you can
+            inspect from each request below. Jurisdictional fit for specific
+            document classes (real-estate conveyances, wills, certain UCC
+            instruments) stays a question for your counsel.
+          </T>
         </p>
       </section>
 
       {requests.length === 0 ? (
         <div className="card p-8 text-center">
           <p className="font-display text-2xl text-forest-900 dark:text-cream-100">
-            No signing requests yet.
+            <T>No signing requests yet.</T>
           </p>
           <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 max-w-md mx-auto leading-relaxed">
-            Open a document and use &ldquo;Send for signature&rdquo;.
+            <T>Open a document and use &ldquo;Send for signature&rdquo;.</T>
           </p>
         </div>
       ) : (
@@ -65,11 +68,24 @@ export default async function CounselSigningPage() {
                       : `Request #${req.id.slice(0, 8)}`}
                   </p>
                   <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-0.5">
-                    {req.sentAt
-                      ? `Sent ${new Date(req.sentAt).toLocaleDateString()}`
-                      : `Created ${new Date(req.createdAt).toLocaleDateString()}`}
-                    {req.totalSigners > 0 &&
-                      ` · ${req.signedCount} of ${req.totalSigners} signed`}
+                    {req.sentAt ? (
+                      <>
+                        <T>Sent</T>{' '}
+                        {new Date(req.sentAt).toLocaleDateString()}
+                      </>
+                    ) : (
+                      <>
+                        <T>Created</T>{' '}
+                        {new Date(req.createdAt).toLocaleDateString()}
+                      </>
+                    )}
+                    {req.totalSigners > 0 && (
+                      <>
+                        {' '}
+                        · {req.signedCount} <T>of</T> {req.totalSigners}{' '}
+                        <T>signed</T>
+                      </>
+                    )}
                   </p>
                 </div>
                 <span

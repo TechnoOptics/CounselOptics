@@ -4,6 +4,7 @@ import { getActiveFirmContext } from '@/lib/firm-storage';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { ExternalLink } from '@/components/ExternalLink';
 import { MarkPaidButton } from './mark-paid-button';
+import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Billing · Counsel' };
@@ -114,14 +115,16 @@ export default async function CounselBillingPage() {
   return (
     <div className="space-y-8 animate-fade-up">
       <header>
-        <p className="eyebrow mb-1">Counsel · billing</p>
+        <p className="eyebrow mb-1"><T>Counsel · billing</T></p>
         <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          Billing
+          <T>Billing</T>
         </h1>
         <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-          Invoices issued from this firm, plus billable time that&rsquo;s
-          ready to invoice. Click into a case to draft an invoice from its
-          unbilled time entries.
+          <T>
+            Invoices issued from this firm, plus billable time that&rsquo;s
+            ready to invoice. Click into a case to draft an invoice from its
+            unbilled time entries.
+          </T>
         </p>
       </header>
 
@@ -140,7 +143,7 @@ export default async function CounselBillingPage() {
       {/* Unbilled time grouped by case */}
       {unbilledByCase.length > 0 && (
         <section className="card p-5 space-y-3">
-          <p className="eyebrow">Ready to invoice</p>
+          <p className="eyebrow"><T>Ready to invoice</T></p>
           <ul className="space-y-2">
             {unbilledByCase.map(([caseId, cents]) => (
               <li
@@ -151,7 +154,7 @@ export default async function CounselBillingPage() {
                   href={`/counsel/cases/${caseId}`}
                   className="text-forest-900 dark:text-cream-100 underline"
                 >
-                  Case {caseId.slice(0, 8)}...
+                  <T>Case</T> {caseId.slice(0, 8)}...
                 </Link>
                 <span className="font-mono tabular-nums text-forest-900 dark:text-cream-100 font-semibold">
                   {fmtCents(cents)}
@@ -160,8 +163,10 @@ export default async function CounselBillingPage() {
             ))}
           </ul>
           <p className="text-[11px] text-ink-500 dark:text-cream-100/55 leading-relaxed">
-            Invoices are drafted from the case detail page so the engagement
-            scope and client get filled in automatically.
+            <T>
+              Invoices are drafted from the case detail page so the engagement
+              scope and client get filled in automatically.
+            </T>
           </p>
         </section>
       )}
@@ -169,15 +174,15 @@ export default async function CounselBillingPage() {
       {/* Invoices list */}
       <section className="space-y-3">
         <h2 className="font-display text-lg font-medium text-forest-900 dark:text-cream-100">
-          Recent invoices
+          <T>Recent invoices</T>
         </h2>
         {invoices.length === 0 ? (
           <div className="card p-8 text-center">
             <p className="text-[15px] text-forest-900 dark:text-cream-100">
-              No invoices issued yet.
+              <T>No invoices issued yet.</T>
             </p>
             <p className="text-[12.5px] text-ink-600 dark:text-cream-100/70 mt-1">
-              Open a case with billable time and use &ldquo;Draft invoice&rdquo;.
+              <T>Open a case with billable time and use &ldquo;Draft invoice&rdquo;.</T>
             </p>
           </div>
         ) : (
@@ -214,7 +219,7 @@ export default async function CounselBillingPage() {
                         href={i.stripe_payment_link}
                         className="text-[11px] underline text-forest-900 dark:text-cream-100"
                       >
-                        Pay link
+                        <T>Pay link</T>
                       </ExternalLink>
                     )}
                     {i.status !== 'paid' && i.status !== 'void' && (
@@ -250,7 +255,7 @@ function Stat({
           : 'text-cream-100/65';
   return (
     <div className="card p-5">
-      <p className="eyebrow text-[10.5px] mb-2">{label}</p>
+      <p className="eyebrow text-[10.5px] mb-2"><T>{label}</T></p>
       <p className={`font-display text-3xl font-medium tabular-nums ${cls}`}>
         {value}
       </p>
