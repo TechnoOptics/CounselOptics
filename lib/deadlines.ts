@@ -61,40 +61,64 @@ export async function sweepDeadlineAlerts(): Promise<{
       ...(bucket === '30' ? { alerted_30: true } : {}),
       ...(bucket === '90' ? { alerted_90: true } : {}),
     };
-    await admin.from('case_deadlines').update(flagPatch).eq('id', r.id);
 
     const { createNotification } = await import('./notifications');
     const targetUser = r.user_id;
     const title = `${bucket} day${bucket === '7' ? '' : 's'} until: ${r.title}`;
     const body = `Deadline due ${new Date(r.due_at).toLocaleString()}.`;
-    if (targetUser) {
-      await createNotification({
-        userId: targetUser,
-        type: 'case_hearing_reminder',
-        title,
-        body,
-        link: `/cases/${r.case_id}`,
-        caseId: r.case_id,
-      });
-    }
-    if (r.firm_id) {
-      const { data: members } = await admin
-        .from('firm_members')
-        .select('user_id, role')
-        .eq('firm_id', r.firm_id)
-        .in('role', ['owner', 'admin', 'attorney', 'paralegal']);
-      for (const m of (members ?? []) as Array<{ user_id: string }>) {
-        await createNotification({
-          userId: m.user_id,
+
+    // Notify FIRST, flag only on success. Writing alerted_* before
+    // notifying meant a transient createNotification failure (it returns
+    // null and swallows DB errors) permanently dropped the reminder: the
+    // next sweep saw the flag set and skipped the row forever - a silent
+    // miss on a statute-of-limitations deadline. A per-row try/catch also
+    // keeps one bad row from aborting the whole sweep.
+    let hadRecipient = false;
+    let notified = false;
+    try {
+      if (targetUser) {
+        hadRecipient = true;
+        const n = await createNotification({
+          userId: targetUser,
           type: 'case_hearing_reminder',
           title,
           body,
-          link: `/counsel/cases/${r.case_id}`,
+          link: `/cases/${r.case_id}`,
           caseId: r.case_id,
         });
+        if (n) notified = true;
       }
+      if (r.firm_id) {
+        const { data: members } = await admin
+          .from('firm_members')
+          .select('user_id, role')
+          .eq('firm_id', r.firm_id)
+          .in('role', ['owner', 'admin', 'attorney', 'paralegal']);
+        for (const m of (members ?? []) as Array<{ user_id: string }>) {
+          hadRecipient = true;
+          const n = await createNotification({
+            userId: m.user_id,
+            type: 'case_hearing_reminder',
+            title,
+            body,
+            link: `/counsel/cases/${r.case_id}`,
+            caseId: r.case_id,
+          });
+          if (n) notified = true;
+        }
+      }
+    } catch (err) {
+      console.error('[deadlines] notification failed for', r.id, err);
     }
-    fired += 1;
+
+    // Flag the bucket only when we actually reached someone - OR when
+    // there is genuinely no recipient to reach (so we don't reprocess a
+    // recipient-less row every sweep). A row with recipients where every
+    // send failed stays unflagged and is retried on the next run.
+    if (notified || !hadRecipient) {
+      await admin.from('case_deadlines').update(flagPatch).eq('id', r.id);
+    }
+    if (notified) fired += 1;
   }
 
   // --- Request / contract reminders ----------------------------------

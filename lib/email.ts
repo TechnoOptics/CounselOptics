@@ -55,6 +55,11 @@ export async function sendEmail(input: {
         text: input.text,
         reply_to: input.replyTo,
       }),
+      // Bounded so a provider that accepts the TCP connection but never
+      // responds can't hang a Safe Witness alert (a safety-of-life path)
+      // for the whole function timeout. An abort surfaces as a failed
+      // send below, not an indefinite spinner.
+      signal: AbortSignal.timeout(8000),
     });
     const body = (await res.json().catch(() => ({}))) as {
       id?: string;

@@ -277,8 +277,17 @@ export async function POST(req: NextRequest) {
         }
         controller.close();
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Bella ran into an error.';
-        controller.enqueue(encoder.encode(`\n\n_${message}_`));
+        // Never surface the raw SDK/provider error to the user: it names
+        // the underlying provider (violating Bella's hard rule) and shows
+        // an un-actionable machine string (e.g. "rate_limit_error") in a
+        // legal-distress context. Log the real error server-side; stream a
+        // fixed, brand-safe line.
+        console.error('[bella] stream error', err);
+        controller.enqueue(
+          encoder.encode(
+            '\n\nBella is having trouble right now - please try again in a moment.',
+          ),
+        );
         controller.close();
       }
     },

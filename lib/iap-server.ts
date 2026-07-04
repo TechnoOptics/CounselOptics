@@ -1,5 +1,6 @@
 import 'server-only';
 import { createAdminSupabase } from '@/lib/supabase/admin';
+import { grantTierMonthlyTokens } from '@/lib/token-economy';
 import type { Tier } from '@/lib/types';
 
 /**
@@ -63,6 +64,29 @@ export async function recordIapEntitlement(input: {
     { onConflict: 'user_id' },
   );
   if (error) throw error;
+
+  // Grant the metered tier's monthly tokens. Without this an iOS Pro
+  // buyer got a subscriptions row but token_balance stayed 0, so Bella
+  // (which meters Pro) refused every turn with "You've used up your Pro
+  // tokens" - i.e. they paid for the flagship feature and were locked
+  // out of it. Mirror the Stripe path: grantTierMonthlyTokens dedups on
+  // token_quota_period_end, so keying the period on RevenueCat's
+  // expiresAt grants exactly once per billing period and again on
+  // renewal (when expiresAt advances). Only 'pro' is metered; 'standard'
+  // is flat-rate and unaffected by balance. Best-effort: a transient
+  // grant failure is retried by the next webhook/sync (idempotent), so
+  // it must not roll back the recorded entitlement.
+  if (input.active && input.tier === 'pro' && input.expiresAt) {
+    try {
+      await grantTierMonthlyTokens({
+        userId: input.userId,
+        tier: 'pro',
+        periodEnd: input.expiresAt,
+      });
+    } catch (err) {
+      console.error('[recordIapEntitlement] token grant failed', err);
+    }
+  }
 }
 
 type RcEntitlement = {

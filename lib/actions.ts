@@ -167,6 +167,11 @@ export async function createCaseAction(
             const { count } = await supabase
               .from('cases')
               .select('id', { count: 'exact', head: true })
+              // Only the user's OWN cases count against their plan limit.
+              // Without this, RLS lets the count see every case they
+              // collaborate on too, so a paid user invited onto many
+              // matters could be wrongly blocked from creating their own.
+              .eq('owner_id', user.id)
               .eq('sandbox', false)
               .neq('status', 'archived');
             if ((count ?? 0) >= limit) {

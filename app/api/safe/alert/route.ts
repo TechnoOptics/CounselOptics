@@ -6,6 +6,9 @@ import { sendSms, isSmsConfigured } from '@/lib/sms';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+// Cap the function so a stuck email/SMS provider (each bounded to 8s via
+// AbortSignal in lib/email + lib/sms) can't pin this safety-of-life route.
+export const maxDuration = 20;
 
 /**
  * POST /api/safe/alert

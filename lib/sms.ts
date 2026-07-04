@@ -78,6 +78,9 @@ export async function sendSms(input: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
         body: form.toString(),
+        // Bounded so a hung Twilio connection can't stall a Safe Witness
+        // alert (safety-of-life) for the whole function timeout.
+        signal: AbortSignal.timeout(8000),
       },
     );
     if (!res.ok) {
