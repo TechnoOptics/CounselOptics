@@ -9,6 +9,7 @@ import {
 } from '@/lib/firm-actions';
 import type { FirmMember, FirmRole } from '@/lib/firm-types';
 import { FIRM_ROLES, FIRM_ROLE_LABEL } from '@/lib/firm-types';
+import { T, useT } from '@/components/i18n/LocaleProvider';
 
 // 'owner' is excluded here on purpose: it can only change via
 // transferFirmOwnershipAction (below), which keeps firms.created_by in
@@ -31,6 +32,7 @@ export function TeamMemberRow({
   isLastOwner: boolean;
   otherMembers: FirmMember[];
 }) {
+  const t = useT();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [role, setRole] = useState<FirmRole>(member.role);
@@ -40,7 +42,7 @@ export function TeamMemberRow({
 
   function transferOwnership() {
     if (!transferTarget) {
-      setError('Pick who should become the new owner.');
+      setError(t('Pick who should become the new owner.'));
       return;
     }
     const target = otherMembers.find((m) => m.userId === transferTarget);
@@ -54,7 +56,7 @@ export function TeamMemberRow({
     setError(null);
     startTransition(async () => {
       const res = await transferFirmOwnershipAction(firmId, transferTarget);
-      if (!res.ok) setError(res.error ?? 'Could not transfer ownership.');
+      if (!res.ok) setError(res.error ?? t('Could not transfer ownership.'));
       else {
         setShowTransfer(false);
         router.refresh();
@@ -70,7 +72,7 @@ export function TeamMemberRow({
       const res = await updateFirmMemberRoleAction(firmId, member.userId, newRole);
       if (!res.ok) {
         setRole(member.role);
-        setError(res.error ?? 'Could not update role.');
+        setError(res.error ?? t('Could not update role.'));
       } else {
         router.refresh();
       }
@@ -79,13 +81,13 @@ export function TeamMemberRow({
 
   function remove() {
     if (member.role === 'owner' && isLastOwner) {
-      setError('You cannot remove the only owner. Promote someone else first.');
+      setError(t('You cannot remove the only owner. Promote someone else first.'));
       return;
     }
     if (
       !confirm(
         isMe
-          ? 'Leave this firm? You will lose access to its cases, documents, and chat.'
+          ? t('Leave this firm? You will lose access to its cases, documents, and chat.')
           : `Remove ${member.email ?? member.displayName ?? 'this member'} from the firm?`,
       )
     ) {
@@ -94,7 +96,7 @@ export function TeamMemberRow({
     setError(null);
     startTransition(async () => {
       const res = await removeFirmMemberAction(firmId, member.userId);
-      if (!res.ok) setError(res.error ?? 'Could not remove member.');
+      if (!res.ok) setError(res.error ?? t('Could not remove member.'));
       else router.refresh();
     });
   }
@@ -105,7 +107,7 @@ export function TeamMemberRow({
         {member.displayName ?? '-'}
         {isMe && (
           <span className="ml-2 text-[10px] uppercase tracking-wider text-ink-500 dark:text-cream-100/55">
-            (you)
+            <T>(you)</T>
           </span>
         )}
       </td>
@@ -122,7 +124,7 @@ export function TeamMemberRow({
                 onClick={() => setShowTransfer((v) => !v)}
                 className="block text-[11px] text-forest-700 dark:text-gold-400 hover:underline mt-0.5"
               >
-                Transfer ownership…
+                <T>Transfer ownership…</T>
               </button>
             )}
             {isMe && showTransfer && (
@@ -132,7 +134,7 @@ export function TeamMemberRow({
                   onChange={(e) => setTransferTarget(e.target.value)}
                   className="input py-1 text-[12px]"
                 >
-                  <option value="">Choose new owner…</option>
+                  <option value=""><T>Choose new owner…</T></option>
                   {otherMembers.map((m) => (
                     <option key={m.userId} value={m.userId}>
                       {m.displayName ?? m.email ?? m.userId}
@@ -145,7 +147,7 @@ export function TeamMemberRow({
                   disabled={pending || !transferTarget}
                   className="text-[12px] btn-secondary py-1 px-2"
                 >
-                  Confirm
+                  <T>Confirm</T>
                 </button>
               </div>
             )}
@@ -180,7 +182,7 @@ export function TeamMemberRow({
             disabled={pending}
             className="inline-flex items-center justify-center min-h-[40px] px-3 rounded-md text-[12px] text-rose-700 dark:text-rose-300 ring-1 ring-rose-200 dark:ring-rose-900/40 hover:bg-rose-50 dark:hover:bg-rose-950/30 disabled:opacity-50"
           >
-            {isMe ? 'Leave' : 'Remove'}
+            {isMe ? <T>Leave</T> : <T>Remove</T>}
           </button>
         )}
         {error && (

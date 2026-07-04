@@ -4,10 +4,12 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { inviteFirmMemberAction } from '@/lib/firm-actions';
 import { FIRM_ROLE_LABEL } from '@/lib/firm-types';
+import { T, useT } from '@/components/i18n/LocaleProvider';
 
 const INVITABLE_ROLES = ['admin', 'attorney', 'paralegal', 'staff'] as const;
 
 export function InviteMemberForm({ firmId }: { firmId: string }) {
+  const t = useT();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -22,20 +24,20 @@ export function InviteMemberForm({ firmId }: { firmId: string }) {
         setOk(true);
         router.refresh();
       } else {
-        setError(res.error ?? 'Could not send invitation.');
+        setError(res.error ?? t('Could not send invitation.'));
       }
     });
   }
 
   return (
     <form action={submit} className="card p-5 sm:p-6 space-y-3">
-      <p className="eyebrow">Invite a teammate</p>
+      <p className="eyebrow"><T>Invite a teammate</T></p>
       <div className="grid sm:grid-cols-3 gap-3">
         <input
           name="email"
           type="email"
           required
-          placeholder="teammate@example.com"
+          placeholder={t('teammate@example.com')}
           className="input sm:col-span-2"
           disabled={pending}
         />
@@ -49,10 +51,10 @@ export function InviteMemberForm({ firmId }: { firmId: string }) {
       </div>
       <div className="flex items-center justify-between gap-3">
         <p className="text-[11px] text-ink-500 dark:text-cream-100/55">
-          They&rsquo;ll get an email with a 7-day acceptance link.
+          <T>They&rsquo;ll get an email with a 7-day acceptance link.</T>
         </p>
         <button type="submit" className="btn-primary" disabled={pending}>
-          {pending ? 'Sending...' : 'Send invitation'}
+          {pending ? t('Sending...') : t('Send invitation')}
         </button>
       </div>
       {error && (
@@ -62,7 +64,7 @@ export function InviteMemberForm({ firmId }: { firmId: string }) {
       )}
       {ok && (
         <p className="rounded-lg border border-emerald-200 dark:border-emerald-700/40 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-2 text-sm text-emerald-900 dark:text-emerald-100">
-          Invitation sent.
+          <T>Invitation sent.</T>
         </p>
       )}
     </form>

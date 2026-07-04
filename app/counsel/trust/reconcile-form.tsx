@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { createTrustReconciliationAction } from '@/lib/trust-accounting';
 import type { UnreconciledEntry } from '@/lib/trust-accounting-queries';
+import { T, useT } from '@/components/i18n/LocaleProvider';
 
 const KIND_LABEL: Record<string, string> = {
   deposit: 'Deposit',
@@ -43,6 +44,7 @@ export function ReconcileForm({
   bookBalanceCents: number;
   unreconciled: UnreconciledEntry[];
 }) {
+  const t = useT();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -88,11 +90,11 @@ export function ReconcileForm({
   function submit() {
     setError(null);
     if (!statementDate) {
-      setError('Pick the statement date.');
+      setError(t('Pick the statement date.'));
       return;
     }
     if (bankCents === null) {
-      setError('Enter the bank statement ending balance.');
+      setError(t('Enter the bank statement ending balance.'));
       return;
     }
     startTransition(async () => {
@@ -109,7 +111,7 @@ export function ReconcileForm({
         setChecked(new Set());
         router.refresh();
       } else {
-        setError(res.error ?? 'Could not save the reconciliation.');
+        setError(res.error ?? t('Could not save the reconciliation.'));
       }
     });
   }
@@ -117,19 +119,19 @@ export function ReconcileForm({
   return (
     <section className="card p-5 space-y-4">
       <div>
-        <p className="eyebrow">Reconcile against your bank statement</p>
+        <p className="eyebrow"><T>Reconcile against your bank statement</T></p>
         <p className="text-[13px] text-ink-600 dark:text-cream-100/70 mt-1 leading-relaxed max-w-2xl">
-          Enter the statement&rsquo;s ending balance and check off the
+          <T>Enter the statement&rsquo;s ending balance and check off the
           transactions that have cleared the bank. It reconciles when the
           cleared total equals the bank balance. Anything left unchecked is
-          an outstanding item that hasn&rsquo;t hit the statement yet.
+          an outstanding item that hasn&rsquo;t hit the statement yet.</T>
         </p>
       </div>
 
       <div className="grid sm:grid-cols-2 gap-3">
         <label className="block">
           <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-            Bank statement ending balance
+            <T>Bank statement ending balance</T>
           </span>
           <input
             inputMode="decimal"
@@ -141,7 +143,7 @@ export function ReconcileForm({
         </label>
         <label className="block">
           <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-            Statement date
+            <T>Statement date</T>
           </span>
           <input
             type="date"
@@ -154,11 +156,11 @@ export function ReconcileForm({
 
       {/* Live summary */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-px rounded-lg overflow-hidden ring-1 ring-ink-200 dark:ring-forest-700/40 bg-ink-200 dark:bg-forest-700/40">
-        <SummaryCell label="Bank balance" value={bankCents === null ? '—' : fmtCents(bankCents)} />
-        <SummaryCell label="Cleared total" value={fmtCents(clearedTotal)} />
-        <SummaryCell label="Outstanding" value={fmtCents(outstanding)} muted />
+        <SummaryCell label={t('Bank balance')} value={bankCents === null ? '—' : fmtCents(bankCents)} />
+        <SummaryCell label={t('Cleared total')} value={fmtCents(clearedTotal)} />
+        <SummaryCell label={t('Outstanding')} value={fmtCents(outstanding)} muted />
         <SummaryCell
-          label="Difference"
+          label={t('Difference')}
           value={difference === null ? '—' : fmtCents(difference)}
           tone={difference === null ? undefined : balanced ? 'good' : 'bad'}
         />
@@ -173,7 +175,7 @@ export function ReconcileForm({
           }`}
         >
           {balanced
-            ? 'Balanced — the cleared total matches the bank statement.'
+            ? t('Balanced — the cleared total matches the bank statement.')
             : `Off by ${fmtCents(Math.abs(difference ?? 0))}. Check off the transactions that have cleared, or investigate the gap before saving.`}
         </p>
       )}
@@ -181,14 +183,14 @@ export function ReconcileForm({
       {/* Transaction checklist */}
       {unreconciled.length === 0 ? (
         <p className="text-[13px] text-ink-500 dark:text-cream-100/55 italic">
-          Every recorded transaction is already reconciled. Enter the bank
-          balance to confirm it still matches.
+          <T>Every recorded transaction is already reconciled. Enter the bank
+          balance to confirm it still matches.</T>
         </p>
       ) : (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <p className="text-[11px] uppercase tracking-[0.16em] text-ink-500 dark:text-cream-100/55 font-semibold">
-              Not yet cleared ({unreconciled.length})
+              <T>Not yet cleared</T> ({unreconciled.length})
             </p>
             <div className="flex items-center gap-1.5 text-[12px]">
               <button
@@ -196,14 +198,14 @@ export function ReconcileForm({
                 onClick={selectAll}
                 className="inline-flex items-center min-h-[32px] px-2.5 rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 hover:bg-cream-50 dark:hover:bg-forest-800/30"
               >
-                Select all
+                <T>Select all</T>
               </button>
               <button
                 type="button"
                 onClick={clearAll}
                 className="inline-flex items-center min-h-[32px] px-2.5 rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 hover:bg-cream-50 dark:hover:bg-forest-800/30"
               >
-                Clear
+                <T>Clear</T>
               </button>
             </div>
           </div>
@@ -254,12 +256,12 @@ export function ReconcileForm({
 
       <label className="block">
         <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-          Note (optional)
+          <T>Note (optional)</T>
         </span>
         <input
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          placeholder="March 2026 statement; deposit in transit clears 4/2"
+          placeholder={t('March 2026 statement; deposit in transit clears 4/2')}
           className="input"
         />
       </label>
@@ -272,8 +274,8 @@ export function ReconcileForm({
 
       <div className="flex items-center justify-between gap-3">
         <p className="text-[11.5px] text-ink-500 dark:text-cream-100/55">
-          Saving records this reconciliation and marks the checked items
-          cleared. Cleared items can&rsquo;t be unmarked.
+          <T>Saving records this reconciliation and marks the checked items
+          cleared. Cleared items can&rsquo;t be unmarked.</T>
         </p>
         <button
           type="button"
@@ -281,7 +283,7 @@ export function ReconcileForm({
           disabled={pending}
           className="btn-primary shrink-0 disabled:opacity-50"
         >
-          {pending ? 'Saving…' : 'Save reconciliation'}
+          {pending ? t('Saving…') : t('Save reconciliation')}
         </button>
       </div>
     </section>

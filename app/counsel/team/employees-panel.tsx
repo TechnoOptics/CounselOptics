@@ -9,6 +9,7 @@ import {
   type FirmEmployeeListItem,
 } from '@/lib/firm-actions';
 import type { PortalRole } from '@/lib/portal-features';
+import { T, useT } from '@/components/i18n/LocaleProvider';
 
 /**
  * Owner/admin panel: the non-legal employees who get the scoped
@@ -25,6 +26,7 @@ export function EmployeesPanel({
   initial: FirmEmployeeListItem[];
   roles: PortalRole[];
 }) {
+  const t = useT();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -39,7 +41,7 @@ export function EmployeesPanel({
         setOk(true);
         router.refresh();
       } else {
-        setError(res.error ?? 'Could not add employee.');
+        setError(res.error ?? t('Could not add employee.'));
       }
     });
   }
@@ -61,11 +63,11 @@ export function EmployeesPanel({
   return (
     <section className="card p-5 sm:p-6 space-y-4">
       <div>
-        <p className="eyebrow">Employees</p>
+        <p className="eyebrow"><T>Employees</T></p>
         <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-1 max-w-2xl leading-relaxed">
-          People here get the employee portal only - file requests to
+          <T>People here get the employee portal only - file requests to
           legal, track their own, run Advottic Review. They never see
-          cases, clients, or the rest of Counsel.
+          cases, clients, or the rest of Counsel.</T>
         </p>
       </div>
 
@@ -74,29 +76,29 @@ export function EmployeesPanel({
           name="email"
           type="email"
           required
-          placeholder="employee@company.com"
+          placeholder={t('employee@company.com')}
           className="input sm:col-span-2"
           disabled={pending}
         />
         <input
           name="displayName"
-          placeholder="Name (optional)"
+          placeholder={t('Name (optional)')}
           className="input"
           disabled={pending}
         />
         <input
           name="department"
-          placeholder="Dept (optional)"
+          placeholder={t('Dept (optional)')}
           className="input"
           disabled={pending}
         />
         <div className="sm:col-span-4 flex items-center justify-between gap-3">
           <p className="text-[11px] text-ink-500 dark:text-cream-100/55">
-            They get portal access the next time they sign in with this
-            email.
+            <T>They get portal access the next time they sign in with this
+            email.</T>
           </p>
           <button type="submit" className="btn-primary" disabled={pending}>
-            {pending ? 'Saving...' : 'Add employee'}
+            {pending ? t('Saving...') : t('Add employee')}
           </button>
         </div>
         {error && (
@@ -106,7 +108,7 @@ export function EmployeesPanel({
         )}
         {ok && (
           <p className="sm:col-span-4 rounded-lg border border-emerald-200 dark:border-emerald-700/40 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-2 text-sm text-emerald-900 dark:text-emerald-100">
-            Saved.
+            <T>Saved.</T>
           </p>
         )}
       </form>
@@ -134,7 +136,7 @@ export function EmployeesPanel({
                     {e.email}
                     {e.department && ` · ${e.department}`}
                     {' · '}
-                    {e.linked ? 'active account' : 'not signed in yet'}
+                    {e.linked ? <T>active account</T> : <T>not signed in yet</T>}
                     {e.source !== 'manual' && ` · ${e.source}`}
                   </p>
                 </div>
@@ -146,7 +148,7 @@ export function EmployeesPanel({
                     aria-label={`Role for ${e.displayName || e.email}`}
                     className="text-[12px] rounded-md bg-transparent ring-1 ring-ink-200 dark:ring-forest-700/40 px-2 py-1 text-ink-700 dark:text-cream-100/85 disabled:opacity-50"
                   >
-                    <option value="">Default access</option>
+                    <option value=""><T>Default access</T></option>
                     {roles.map((r) => (
                       <option key={r.key} value={r.key}>
                         {r.name}
@@ -159,7 +161,7 @@ export function EmployeesPanel({
                     disabled={pending}
                     className="inline-flex items-center min-h-[40px] px-2.5 rounded-md text-[12px] text-ink-700 dark:text-cream-100/85 ring-1 ring-ink-200 dark:ring-forest-700/40 hover:bg-cream-50 dark:hover:bg-forest-800/30 disabled:opacity-50"
                   >
-                    {inactive ? 'Reactivate' : 'Deactivate'}
+                    {inactive ? <T>Reactivate</T> : <T>Deactivate</T>}
                   </button>
                 </div>
               </li>

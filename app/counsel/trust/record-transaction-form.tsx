@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { recordTrustTransactionAction } from '@/lib/trust-accounting';
+import { T, useT } from '@/components/i18n/LocaleProvider';
 
 const KIND_LABEL: Record<string, string> = {
   deposit: 'Deposit (in)',
@@ -21,6 +22,7 @@ export function RecordTransactionForm({
   firmId: string;
   accountId: string;
 }) {
+  const t = useT();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -37,15 +39,15 @@ export function RecordTransactionForm({
     const reference = String(formData.get('reference') ?? '').trim() || null;
     const amount = Math.round(Number(amountStr) * 100);
     if (!clientLabel) {
-      setError('Client label is required.');
+      setError(t('Client label is required.'));
       return;
     }
     if (!Number.isFinite(amount) || amount <= 0) {
-      setError('Amount must be greater than zero.');
+      setError(t('Amount must be greater than zero.'));
       return;
     }
     if (!Object.keys(KIND_LABEL).includes(kind)) {
-      setError('Pick a transaction kind.');
+      setError(t('Pick a transaction kind.'));
       return;
     }
     startTransition(async () => {
@@ -57,43 +59,43 @@ export function RecordTransactionForm({
         reference,
       });
       if (res.ok) router.refresh();
-      else setError(res.error ?? 'Insert failed.');
+      else setError(res.error ?? t('Insert failed.'));
     });
   }
 
   return (
     <form action={submit} className="card p-5 space-y-4">
-      <p className="eyebrow">Record a transaction</p>
+      <p className="eyebrow"><T>Record a transaction</T></p>
       <div className="grid sm:grid-cols-2 gap-3">
         <label className="block">
           <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-            Client / matter label
+            <T>Client / matter label</T>
           </span>
           <input
             name="clientLabel"
             required
-            placeholder="Smith v. Acme - retainer"
+            placeholder={t('Smith v. Acme - retainer')}
             className="input"
           />
         </label>
         <label className="block">
           <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-            Kind
+            <T>Kind</T>
           </span>
           <select name="kind" required className="input" defaultValue="">
             <option value="" disabled>
-              Pick a kind
+              <T>Pick a kind</T>
             </option>
             {Object.entries(KIND_LABEL).map(([k, label]) => (
               <option key={k} value={k}>
-                {label}
+                <T>{label}</T>
               </option>
             ))}
           </select>
         </label>
         <label className="block">
           <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-            Amount (USD)
+            <T>Amount (USD)</T>
           </span>
           <input
             name="amount"
@@ -105,22 +107,22 @@ export function RecordTransactionForm({
         </label>
         <label className="block">
           <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-            Reference (optional)
+            <T>Reference (optional)</T>
           </span>
           <input
             name="reference"
-            placeholder="Wire ID / check number"
+            placeholder={t('Wire ID / check number')}
             className="input"
           />
         </label>
       </div>
       <label className="block">
         <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-          Description (optional)
+          <T>Description (optional)</T>
         </span>
         <input
           name="description"
-          placeholder="Initial retainer per engagement letter"
+          placeholder={t('Initial retainer per engagement letter')}
           className="input"
         />
       </label>
@@ -133,7 +135,7 @@ export function RecordTransactionForm({
 
       <div className="flex justify-end">
         <button type="submit" className="btn-primary" disabled={pending}>
-          {pending ? 'Recording...' : 'Record'}
+          {pending ? t('Recording...') : t('Record')}
         </button>
       </div>
     </form>

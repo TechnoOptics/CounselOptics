@@ -13,6 +13,7 @@ import {
   type PortalRole,
   type PortalFeature,
 } from '@/lib/portal-features';
+import { T, useT } from '@/components/i18n/LocaleProvider';
 
 /**
  * Owner/admin: define portal roles/groups (named feature bundles),
@@ -27,6 +28,7 @@ export function RolesManager({
   firmId: string;
   initial: PortalRole[];
 }) {
+  const t = useT();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -65,7 +67,7 @@ export function RolesManager({
 
   function save() {
     if (!name.trim()) {
-      setError('Give the role a name.');
+      setError(t('Give the role a name.'));
       return;
     }
     const fd = new FormData();
@@ -79,7 +81,7 @@ export function RolesManager({
         reset();
         router.refresh();
       } else {
-        setError(res.error ?? 'Could not save the role.');
+        setError(res.error ?? t('Could not save the role.'));
       }
     });
   }
@@ -102,11 +104,11 @@ export function RolesManager({
   return (
     <section className="card p-5 sm:p-6 space-y-5">
       <div>
-        <p className="eyebrow">Roles &amp; access</p>
+        <p className="eyebrow"><T>Roles &amp; access</T></p>
         <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-1 max-w-2xl leading-relaxed">
-          Build groups of employees and choose what each group can do
+          <T>Build groups of employees and choose what each group can do
           in the portal. Assign a role to a person below; more features
-          in their role unlock more of the portal for them.
+          in their role unlock more of the portal for them.</T>
         </p>
       </div>
 
@@ -129,7 +131,7 @@ export function RolesManager({
                     disabled={pending}
                     className="inline-flex items-center min-h-[40px] px-2.5 rounded-md text-gold-700 dark:text-gold-200 hover:bg-gold-500/10 disabled:opacity-50"
                   >
-                    Preview as this
+                    <T>Preview as this</T>
                   </button>
                   <button
                     type="button"
@@ -137,7 +139,7 @@ export function RolesManager({
                     disabled={pending}
                     className="inline-flex items-center min-h-[40px] px-2.5 rounded-md text-ink-700 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/30 disabled:opacity-50"
                   >
-                    Edit
+                    <T>Edit</T>
                   </button>
                   <button
                     type="button"
@@ -145,14 +147,14 @@ export function RolesManager({
                     disabled={pending}
                     className="inline-flex items-center min-h-[40px] px-2.5 rounded-md text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/30 disabled:opacity-50"
                   >
-                    Delete
+                    <T>Delete</T>
                   </button>
                 </div>
               </div>
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {r.features.length === 0 ? (
                   <span className="text-[11px] italic text-ink-500 dark:text-cream-100/55">
-                    View own requests only
+                    <T>View own requests only</T>
                   </span>
                 ) : (
                   r.features.map((f) => (
@@ -174,7 +176,7 @@ export function RolesManager({
       <div className="rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 p-4 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm font-semibold text-forest-900 dark:text-cream-100">
-            {editKey ? 'Edit role' : 'New role'}
+            {editKey ? <T>Edit role</T> : <T>New role</T>}
           </p>
           <div className="flex flex-wrap gap-1.5">
             {ROLE_PRESETS.map((p) => (
@@ -193,7 +195,7 @@ export function RolesManager({
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="Role / group name (e.g. Procurement, Engineering leads)"
+          placeholder={t('Role / group name (e.g. Procurement, Engineering leads)')}
           className="input"
           disabled={pending}
         />
@@ -221,7 +223,7 @@ export function RolesManager({
                     {f.label}
                     {f.base && (
                       <span className="ml-1.5 text-[10px] uppercase tracking-[0.1em] text-ink-400 dark:text-cream-100/40">
-                        always on
+                        <T>always on</T>
                       </span>
                     )}
                   </span>
@@ -245,7 +247,7 @@ export function RolesManager({
             disabled={pending}
             className="text-[12px] underline text-ink-600 dark:text-cream-100/70"
           >
-            Preview default access
+            <T>Preview default access</T>
           </button>
           <div className="flex gap-2">
             {editKey && (
@@ -255,7 +257,7 @@ export function RolesManager({
                 disabled={pending}
                 className="btn text-ink-600 dark:text-cream-100/70"
               >
-                Cancel
+                <T>Cancel</T>
               </button>
             )}
             <button
@@ -265,10 +267,10 @@ export function RolesManager({
               className="btn-primary"
             >
               {pending
-                ? 'Saving...'
+                ? t('Saving...')
                 : editKey
-                  ? 'Save role'
-                  : 'Create role'}
+                  ? t('Save role')
+                  : t('Create role')}
             </button>
           </div>
         </div>

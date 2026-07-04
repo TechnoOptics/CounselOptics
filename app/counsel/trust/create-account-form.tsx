@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
+import { T, useT } from '@/components/i18n/LocaleProvider';
 
 const STATES = [
   'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
@@ -16,6 +17,7 @@ const STATES = [
  * accounts can be added via /counsel/settings (out of scope for v1).
  */
 export function CreateAccountForm({ firmId }: { firmId: string }) {
+  const t = useT();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -27,7 +29,7 @@ export function CreateAccountForm({ firmId }: { firmId: string }) {
     const state = String(formData.get('state') ?? '').trim();
     const acct = String(formData.get('acct') ?? '').trim();
     if (!name || !state) {
-      setError('Name and state are required.');
+      setError(t('Name and state are required.'));
       return;
     }
     startTransition(async () => {
@@ -54,28 +56,28 @@ export function CreateAccountForm({ firmId }: { firmId: string }) {
 
   return (
     <form action={submit} className="card p-5 space-y-4">
-      <p className="eyebrow">Add your first trust account</p>
+      <p className="eyebrow"><T>Add your first trust account</T></p>
       <div className="grid sm:grid-cols-2 gap-3">
         <label className="block">
           <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-            Account label
+            <T>Account label</T>
           </span>
           <input
             name="name"
             required
-            placeholder="Main IOLTA"
+            placeholder={t('Main IOLTA')}
             className="input"
           />
         </label>
         <label className="block">
           <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-            Bank
+            <T>Bank</T>
           </span>
-          <input name="bank" placeholder="Bank name" className="input" />
+          <input name="bank" placeholder={t('Bank name')} className="input" />
         </label>
         <label className="block">
           <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-            Last 4 of account number
+            <T>Last 4 of account number</T>
           </span>
           <input
             name="acct"
@@ -88,11 +90,11 @@ export function CreateAccountForm({ firmId }: { firmId: string }) {
         </label>
         <label className="block">
           <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-            State
+            <T>State</T>
           </span>
           <select name="state" className="input" required defaultValue="">
             <option value="" disabled>
-              Pick a state
+              <T>Pick a state</T>
             </option>
             {STATES.map((s) => (
               <option key={s} value={s}>
@@ -111,7 +113,7 @@ export function CreateAccountForm({ firmId }: { firmId: string }) {
 
       <div className="flex justify-end">
         <button type="submit" className="btn-primary" disabled={pending}>
-          {pending ? 'Saving...' : 'Add account'}
+          {pending ? t('Saving...') : t('Add account')}
         </button>
       </div>
     </form>
