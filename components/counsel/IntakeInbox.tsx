@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { readIntakeFolder } from '@/lib/request-folders';
 import { T } from '@/components/i18n/LocaleProvider';
+import { Tt } from '@/components/i18n/Tt';
 
 export type InboxIntake = {
   id: string;
@@ -213,7 +214,7 @@ export function IntakeInbox({
                         </p>
                         <div className="flex items-center gap-1.5 shrink-0">
                           {i._grade && (
-                            <span
+                            <Tt
                               className={`inline-flex h-5 min-w-[20px] items-center justify-center rounded px-1 text-[11px] font-bold ${
                                 GRADE_TONE[i._grade] ??
                                 'bg-ink-400 text-white'
@@ -221,7 +222,7 @@ export function IntakeInbox({
                               title="Advottic Review grade"
                             >
                               {i._grade}
-                            </span>
+                            </Tt>
                           )}
                           <span
                             className={`inline-flex items-center rounded px-2 py-[2px] text-[10px] font-semibold ${

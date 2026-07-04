@@ -3,6 +3,7 @@ import { getActiveFirmContext } from '@/lib/firm-storage';
 import { listFirmEmployeeDirectory } from '@/lib/firm-actions';
 import { readPortalRoles } from '@/lib/portal-features';
 import { T } from '@/components/i18n/LocaleProvider';
+import { Tt } from '@/components/i18n/Tt';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Employees · Counsel' };
@@ -98,12 +99,12 @@ export default async function CounselEmployeesPage() {
                       <td className="px-4 py-2.5 font-medium text-forest-900 dark:text-cream-100">
                         {e.displayName || '—'}
                         {!e.linked && (
-                          <span
+                          <Tt
                             className="ml-2 align-middle text-[10px] uppercase tracking-[0.12em] text-ink-400 dark:text-cream-100/40"
                             title="Invited but has not signed in yet"
                           >
                             <T>Pending</T>
-                          </span>
+                          </Tt>
                         )}
                       </td>
                       <td className="px-4 py-2.5 text-ink-600 dark:text-cream-100/70 font-mono text-[12px]">
