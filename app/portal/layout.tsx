@@ -4,6 +4,9 @@ import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { getWorkspacePersona } from '@/lib/persona';
 import { exitPortalPreviewAction } from '@/lib/firm-actions';
 import { HubNavLink, type HubNavItem } from '@/components/portal/HubNavLink';
+import { AutoTranslate } from '@/components/i18n/AutoTranslate';
+import { LanguageSwitcher } from '@/components/i18n/LanguageSwitcher';
+import { getLocaleCookie } from '@/lib/i18n/locale';
 
 export const dynamic = 'force-dynamic';
 
@@ -87,6 +90,7 @@ export default async function PortalLayout({
   // (company trainings) so the owner sees what a vendor really sees.
   const isExternal = persona.preview === true && persona.external === true;
   const railKicker = isExternal ? 'Vendor access' : 'Client hub';
+  const locale = await getLocaleCookie();
   const who = employee.displayName || employee.email;
   const firstName = (employee.displayName || employee.email || 'there')
     .split(/[\s@.]/)[0]
@@ -139,6 +143,7 @@ export default async function PortalLayout({
   ];
 
   return (
+   <AutoTranslate initialLocale={locale}>
     <div
       className="dark counsel-shell min-h-screen flex text-cream-100"
       style={
@@ -167,7 +172,10 @@ export default async function PortalLayout({
             </span>
           )}
           <div className="min-w-0">
-            <p className="text-[13px] font-semibold text-cream-100 truncate">
+            <p
+              className="text-[13px] font-semibold text-cream-100 truncate"
+              data-no-translate
+            >
               {firm.name}
             </p>
             <p className="text-[10.5px] uppercase tracking-[0.16em] text-cream-100/40">
@@ -190,7 +198,8 @@ export default async function PortalLayout({
           </div>
         </nav>
 
-        <div className="px-3 py-4 border-t border-forest-700/30">
+        <div className="px-3 py-4 border-t border-forest-700/30 space-y-3">
+          <LanguageSwitcher initialLocale={locale} variant="light" />
           <form action="/auth/sign-out" method="post">
             <button
               type="submit"
@@ -227,7 +236,7 @@ export default async function PortalLayout({
                 {firm.name.slice(0, 1).toUpperCase()}
               </span>
             )}
-            <span className="text-sm font-semibold truncate">
+            <span className="text-sm font-semibold truncate" data-no-translate>
               {firm.name}
             </span>
           </div>
@@ -239,6 +248,7 @@ export default async function PortalLayout({
                 variant="pill"
               />
             ))}
+            <LanguageSwitcher initialLocale={locale} variant="light" />
             <form action="/auth/sign-out" method="post">
               <button
                 type="submit"
@@ -298,5 +308,6 @@ export default async function PortalLayout({
         </footer>
       </div>
     </div>
+   </AutoTranslate>
   );
 }

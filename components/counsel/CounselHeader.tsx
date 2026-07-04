@@ -6,6 +6,8 @@ import { CounselFirmSwitcher } from './CounselFirmSwitcher';
 import { PersonaSwitcher } from './PersonaSwitcher';
 import { UserMenu } from '@/components/UserMenu';
 import { TokenBalanceGauge } from '@/components/TokenBalanceGauge';
+import { LanguageSwitcher } from '@/components/i18n/LanguageSwitcher';
+import type { LocaleCode } from '@/lib/i18n/locales';
 
 /**
  * Top bar for /counsel/*. Renders the firm logo + name on the left,
@@ -22,10 +24,13 @@ export function CounselHeader({
   membership,
   memberships,
   tenantMode = false,
+  locale = 'en',
 }: {
   firm: Firm | null;
   membership: FirmMember | null;
   memberships: Array<{ firm: Firm; membership: FirmMember }>;
+  /** The user's chosen UI language (#14), for the header switcher. */
+  locale?: LocaleCode;
   /**
    * When true, the URL bar already contains the firm's identity
    * (<slug>.advottic.com), so the firm IS the brand. The header flips
@@ -206,6 +211,7 @@ export function CounselHeader({
               initial={{ combined: 0, firmPool: null, personal: 0, monthlyGrant: 0 }}
             />
           </span>
+          <LanguageSwitcher initialLocale={locale} variant="light" />
           <UserMenu />
         </div>
       </div>

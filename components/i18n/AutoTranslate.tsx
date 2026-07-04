@@ -200,7 +200,15 @@ export function AutoTranslate({
     };
   }, [locale]);
 
-  return <div ref={rootRef}>{children}</div>;
+  // display:contents keeps this wrapper layout-neutral, so it can wrap
+  // an existing flex/grid layout (a whole Counsel/Portal shell) without
+  // becoming an extra box that breaks it. The TreeWalker + observer
+  // still see all descendants.
+  return (
+    <div ref={rootRef} style={{ display: 'contents' }}>
+      {children}
+    </div>
+  );
 }
 
 function safeLocalGet(key: string): string | null {

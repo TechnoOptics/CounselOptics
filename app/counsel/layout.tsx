@@ -6,6 +6,8 @@ import { getActiveFirmContext, listMyFirms } from '@/lib/firm-storage';
 import { CounselSidebar } from '@/components/counsel/CounselSidebar';
 import { CounselHeader } from '@/components/counsel/CounselHeader';
 import { AskAdvottic } from '@/components/counsel/AskAdvottic';
+import { AutoTranslate } from '@/components/i18n/AutoTranslate';
+import { getLocaleCookie } from '@/lib/i18n/locale';
 import type { Firm, FirmMember } from '@/lib/firm-types';
 
 export const dynamic = 'force-dynamic';
@@ -120,6 +122,10 @@ export default async function CounselLayout({
     }
   }
 
+  // User's chosen UI language (#14). AutoTranslate below machine-
+  // translates the whole Counsel shell to it, live.
+  const locale = await getLocaleCookie();
+
   // If we resolved a context, expose it to children via the wrapper.
   // The "dark" class forces dark Tailwind variants throughout the
   // counsel side regardless of the user's consumer-side theme - the
@@ -136,11 +142,13 @@ export default async function CounselLayout({
           : undefined
       }
     >
+     <AutoTranslate initialLocale={locale}>
       <CounselHeader
         firm={active?.firm ?? null}
         membership={active?.membership ?? null}
         memberships={myFirms}
         tenantMode={isTenantSubdomain}
+        locale={locale}
       />
       <div className="flex-1 flex w-full max-w-none mx-auto px-4 sm:px-6 lg:px-10 py-6 sm:py-8 gap-6">
         {active ? (
@@ -185,6 +193,7 @@ export default async function CounselLayout({
           </p>
         </div>
       </footer>
+     </AutoTranslate>
     </div>
   );
 }
