@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  App Group entitlement for the main Advottic app target.
+
+  The App Group is the shared container the app writes case-glance data
+  into (via WidgetBridgePlugin) and the widget extension reads from. The
+  SAME group id must be enabled on BOTH targets and registered in the
+  Apple Developer portal. See docs/WIDGETS.md.
+
+  NOTE: this file only takes effect once the App target's "Code Signing
+  Entitlements" build setting points at it (Xcode sets that automatically
+  when you add the App Groups capability). Existing Capacitor apps ship
+  with no entitlements file; adding the capability in Xcode is what wires
+  it up.
+-->
+<plist version="1.0">
+<dict>
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string>group.com.advottic.app</string>
+    </array>
+</dict>
+</plist>

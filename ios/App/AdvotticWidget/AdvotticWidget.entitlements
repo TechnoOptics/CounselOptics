@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  App Group entitlement for the AdvotticWidget extension target. Must
+  match the main app's group id (group.com.advottic.app) so the widget
+  can read the case-glance snapshot the app writes. See docs/WIDGETS.md.
+-->
+<plist version="1.0">
+<dict>
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string>group.com.advottic.app</string>
+    </array>
+</dict>
+</plist>

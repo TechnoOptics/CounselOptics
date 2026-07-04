@@ -87,6 +87,22 @@
             android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
+
+        <!-- Home-screen "Open cases" App Widget. Fed by WidgetBridge
+             (SharedPreferences) and rendered by CasesWidgetProvider.
+             exported=false: the system launcher hosts it without any
+             other app needing to reach it. -->
+        <receiver
+            android:name=".CasesWidgetProvider"
+            android:label="@string/widget_cases_label"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_cases_info" />
+        </receiver>
     </application>
 
     <!-- Permissions -->

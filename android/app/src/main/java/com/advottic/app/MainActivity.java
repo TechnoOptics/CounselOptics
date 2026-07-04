@@ -15,6 +15,10 @@ public class MainActivity extends BridgeActivity {
         // up. This file is committed and `cap sync` does not
         // overwrite it, so the registration persists across CI.
         registerPlugin(AdvotticWatchPlugin.class);
+        // Home-screen widget bridge (writes SharedPreferences the
+        // CasesWidgetProvider reads). Same local-plugin registration
+        // rule as the watch bridge above.
+        registerPlugin(WidgetBridgePlugin.class);
         super.onCreate(savedInstanceState);
 
         // White status-bar icons. targetSdk 36 enforces edge-to-edge,

@@ -9,6 +9,7 @@ import { BrandMark } from '@/components/BrandMark';
 import { BiometricEnrollPrompt } from '@/components/BiometricEnrollPrompt';
 import { PermissionsPrimer } from '@/components/PermissionsPrimer';
 import { WatchSync } from '@/components/WatchSync';
+import { WidgetSync } from '@/components/WidgetSync';
 import { WatchConnectCard } from '@/components/WatchConnectCard';
 
 export const dynamic = 'force-dynamic';
@@ -146,6 +147,17 @@ export default async function CasesPage({
   return (
     <div className="space-y-8 animate-fade-up">
       <WatchSync
+        openCount={owned.length}
+        latestTitle={latestOpen?.title ?? ''}
+        latestCaseId={latestOpen?.id ?? ''}
+        nextHearingAt={nextHearing?.at ?? 0}
+        nextHearingTitle={nextHearing?.title ?? ''}
+        upcoming={upcomingHearings}
+        actions={actions}
+      />
+      {/* Home-screen widget (iOS + Android): same glance summary the
+          watch uses, pushed to native shared storage the widgets read. */}
+      <WidgetSync
         openCount={owned.length}
         latestTitle={latestOpen?.title ?? ''}
         latestCaseId={latestOpen?.id ?? ''}

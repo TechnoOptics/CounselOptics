@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Advottic home-screen widget background: the forest-green brand
+     surface with a subtle gold hairline border and rounded corners. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#0F2D24" />
+    <corners android:radius="24dp" />
+    <stroke android:width="0.5dp" android:color="#33D5BB7E" />
+</shape>
