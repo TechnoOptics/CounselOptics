@@ -6,6 +6,10 @@ import { generateCommunitySubmissionsDocx } from '@/lib/docx-export';
 import { getCommunityCaseForCase, listWitnessSubmissions } from '@/lib/community-actions';
 
 export const runtime = 'nodejs';
+// Give a large packet room to render, but cap it so a stuck export can't
+// pin the function. Peak memory is bounded separately by batching the
+// image downloads below.
+export const maxDuration = 60;
 
 /**
  * GET /cases/[id]/community/export?format=pdf|docx
@@ -59,8 +63,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     return Buffer.from(await data.arrayBuffer());
   }
 
-  const submissionsWithBuffers = await Promise.all(
-    submissions.map(async (s) => {
+  const buildRow = async (s: (typeof submissions)[number]) => {
       if (s.kind === 'letter_of_support') {
         const [signatureBuffer, idFrontBuffer, idBackBuffer] = await Promise.all([
           downloadBuffer(s.signatureImagePath),
@@ -96,8 +99,17 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
         createdAt: s.createdAt,
         imageBuffer,
       };
-    }),
-  );
+  };
+  // Download image buffers in small concurrent batches so at most BATCH*3
+  // are resident at once - a viral case with thousands of submissions
+  // would otherwise buffer every ID/signature image in one Promise.all
+  // and OOM the function.
+  const BATCH = 6;
+  const submissionsWithBuffers: Array<Awaited<ReturnType<typeof buildRow>>> = [];
+  for (let i = 0; i < submissions.length; i += BATCH) {
+    const rows = await Promise.all(submissions.slice(i, i + BATCH).map(buildRow));
+    submissionsWithBuffers.push(...rows);
+  }
 
   const exportData = {
     caseTitle: caseRecord.title,

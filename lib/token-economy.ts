@@ -469,19 +469,14 @@ export async function applyTopupPurchase(input: {
   const pack = TOKEN_PACKAGES.find((p) => p.id === input.packageId);
   if (!pack) return { ok: false, tokens: 0, error: `unknown package ${input.packageId}` };
 
-  // Idempotency: existing row for this payment intent means we already
-  // applied it.
-  const { data: existing } = await admin
-    .from('token_topup_purchases')
-    .select('id, status')
-    .eq('stripe_payment_intent_id', input.paymentIntentId)
-    .maybeSingle();
-  if (existing && (existing as { status: string }).status === 'succeeded') {
-    return { ok: true, tokens: pack.tokens };
-  }
-
-  // Insert / update the receipt row.
-  const upsertPayload = {
+  // Idempotency: CLAIM this payment intent by INSERTing the receipt row
+  // first. UNIQUE(stripe_payment_intent_id) means a duplicate webhook
+  // delivery (Stripe is at-least-once and retries on any non-2xx) loses
+  // the race with a 23505 unique-violation, so only the FIRST delivery
+  // falls through to credit the balance. This replaces a check-then-
+  // upsert where two concurrent deliveries could both pass the SELECT
+  // (neither seeing 'succeeded' yet) and double-credit the purchase.
+  const { error: claimErr } = await admin.from('token_topup_purchases').insert({
     stripe_payment_intent_id: input.paymentIntentId,
     package_id: pack.id,
     tokens_granted: pack.tokens,
@@ -491,12 +486,18 @@ export async function applyTopupPurchase(input: {
     firm_id: input.firmId ?? null,
     status: 'succeeded',
     succeeded_at: new Date().toISOString(),
-  };
-  await admin
-    .from('token_topup_purchases')
-    .upsert(upsertPayload, { onConflict: 'stripe_payment_intent_id' });
+  });
+  if (claimErr) {
+    // Unique violation => this payment was already applied: idempotent
+    // success, do NOT credit again. Any other error is a real failure.
+    if ((claimErr as { code?: string }).code === '23505') {
+      return { ok: true, tokens: pack.tokens };
+    }
+    return { ok: false, tokens: 0, error: claimErr.message };
+  }
 
-  // Credit the right pool. Firm > user when both are set.
+  // Credit the right pool. Firm > user when both are set. Only the first
+  // (winning) delivery reaches here.
   if (input.firmId) {
     const { data: row } = await admin
       .from('firms')

@@ -15,6 +15,7 @@ import {
 } from '@/lib/storage';
 import { grantTierMonthlyTokens } from '@/lib/token-economy';
 import { applyMonthlyOverageDebit } from '@/lib/item-limits';
+import { createAdminSupabase } from '@/lib/supabase/admin';
 import { sendEmail } from '@/lib/email';
 import type { SubscriptionStatus, Tier } from '@/lib/types';
 
@@ -219,15 +220,54 @@ export async function POST(req: NextRequest) {
           const priceId = lineItems.data[0]?.price?.id ?? null;
           const topup = topupForPriceId(priceId);
           if (topup) {
-            await adjustTokens({
-              userId,
-              delta: topup.amount,
-              reason: topup.reason,
-              metadata: {
-                stripe_session_id: session.id,
-                price_id: priceId,
-              },
-            });
+            // Idempotency: Stripe is at-least-once and retries on any
+            // non-2xx, so a redelivered checkout.session.completed for the
+            // same purchase must not credit twice. This legacy path used
+            // raw adjustTokens (a non-transactional read-add-write) with
+            // no dedup. Claim the purchase by INSERTing a receipt row
+            // first, keyed on the payment intent under the same UNIQUE
+            // constraint the modern applyTopupPurchase path relies on; a
+            // duplicate delivery 23505s and skips the credit.
+            const admin = createAdminSupabase();
+            const intentKey = String(
+              (session.payment_intent as string | null) ?? session.id,
+            );
+            let alreadyApplied = false;
+            if (admin) {
+              const { error: claimErr } = await admin
+                .from('token_topup_purchases')
+                .insert({
+                  stripe_payment_intent_id: intentKey,
+                  package_id: `legacy:${priceId ?? 'unknown'}`,
+                  tokens_granted: topup.amount,
+                  amount_cents: session.amount_total ?? 0,
+                  currency: (session.currency ?? 'usd').toUpperCase(),
+                  user_id: userId,
+                  firm_id: null,
+                  status: 'succeeded',
+                  succeeded_at: new Date().toISOString(),
+                });
+              if (claimErr) {
+                if ((claimErr as { code?: string }).code === '23505') {
+                  alreadyApplied = true; // duplicate delivery - do not re-credit
+                } else {
+                  // A real claim failure: rethrow so Stripe retries rather
+                  // than silently crediting without a receipt.
+                  throw claimErr;
+                }
+              }
+            }
+            if (!alreadyApplied) {
+              await adjustTokens({
+                userId,
+                delta: topup.amount,
+                reason: topup.reason,
+                metadata: {
+                  stripe_session_id: session.id,
+                  price_id: priceId,
+                },
+              });
+            }
             await notifyAdminOfRevenue({
               kind: 'topup_purchased',
               email: session.customer_details?.email ?? session.customer_email ?? null,

@@ -9,6 +9,7 @@ import { listMyFirms } from './firm-storage';
 import { tierSlugFromPriceId } from './stripe';
 import type { Subscription } from './types';
 import { appendWitnessEvent } from './witness-audit';
+import { validateCommunityUpload } from './upload-safety';
 import {
   generateCaseNumber,
   generateSlug,
@@ -300,6 +301,14 @@ export async function updateCommunityCaseAction(
  * bucket. Goes through the admin client because that bucket has no
  * authenticated storage policy (writes are organizer-server-action-only
  * by design, matching the community-submissions bucket's posture). */
+// Public banner/gallery images accept only real images (validateCommunityUpload
+// also allows PDF, which must not be served as a public "photo").
+const IMAGE_EXT_BY_MIME: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+};
+
 export async function uploadCommunityBannerAction(
   communityCaseId: string,
   caseId: string,
@@ -318,12 +327,22 @@ export async function uploadCommunityBannerAction(
     const admin = createAdminSupabase();
     if (!admin) return { ok: false, error: 'Storage is not configured on the server.' };
 
-    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '');
-    const path = `${communityCaseId}/banner.${ext || 'jpg'}`;
+    // Magic-byte validation before writing to the PUBLIC bucket. Without
+    // it, the filename extension + declared MIME were trusted, so an
+    // organizer could serve a non-image (e.g. an HTML/SVG payload named
+    // .jpg) from a public URL. Derive both the path extension and the
+    // stored content-type from the VALIDATED type, never the upload's.
     const buffer = Buffer.from(await file.arrayBuffer());
+    const check = validateCommunityUpload(buffer);
+    if (!check.ok) return { ok: false, error: check.reason };
+    const imgExt = IMAGE_EXT_BY_MIME[check.mimeType];
+    if (!imgExt) {
+      return { ok: false, error: 'Please upload a JPEG, PNG, or WebP image.' };
+    }
+    const path = `${communityCaseId}/banner.${imgExt}`;
     const { error: uploadErr } = await admin.storage
       .from('community-public')
-      .upload(path, buffer, { contentType: file.type || 'image/jpeg', upsert: true });
+      .upload(path, buffer, { contentType: check.mimeType, upsert: true });
     if (uploadErr) return { ok: false, error: uploadErr.message };
 
     const supabase = createServerSupabase();
@@ -373,13 +392,20 @@ export async function addCommunityGalleryImageAction(
     const admin = createAdminSupabase();
     if (!admin) return { ok: false, error: 'Storage is not configured on the server.' };
 
-    const imageId = crypto.randomUUID();
-    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '');
-    const path = `${communityCaseId}/gallery/${imageId}.${ext || 'jpg'}`;
+    // Same magic-byte validation as the banner upload - public bucket,
+    // so the stored type/extension come from the validated bytes.
     const buffer = Buffer.from(await file.arrayBuffer());
+    const check = validateCommunityUpload(buffer);
+    if (!check.ok) return { ok: false, error: check.reason };
+    const imgExt = IMAGE_EXT_BY_MIME[check.mimeType];
+    if (!imgExt) {
+      return { ok: false, error: 'Please upload a JPEG, PNG, or WebP image.' };
+    }
+    const imageId = crypto.randomUUID();
+    const path = `${communityCaseId}/gallery/${imageId}.${imgExt}`;
     const { error: uploadErr } = await admin.storage
       .from('community-public')
-      .upload(path, buffer, { contentType: file.type || 'image/jpeg', upsert: false });
+      .upload(path, buffer, { contentType: check.mimeType, upsert: false });
     if (uploadErr) return { ok: false, error: uploadErr.message };
 
     const caption = String(formData.get('caption') ?? '').trim();
