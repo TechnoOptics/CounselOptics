@@ -1,0 +1,26 @@
+# Source-invariant regression guards (SOC 2 CC8.1 change-management). These
+# are the drift-guards under scripts/test/*.mjs: they read source files and
+# fail the build if a load-bearing invariant is silently removed by a refactor
+# (counsel routing, Bella markdown safety, signing anchors, consumer i18n +
+# a11y wiring). They are pure-Node and zero-dependency, so no install step is
+# needed - keeping the gate fast enough to run on every push and PR.
+name: Guards
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  invariants:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run source-invariant guards
+        run: npm run test:audit-guards
