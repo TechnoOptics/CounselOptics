@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 /**
  * EvidencePicker.
@@ -36,9 +36,17 @@ export type EvidenceItem = {
 export function EvidencePicker({
   hiddenFieldName = 'attachedItems',
   helperText,
+  onChange,
 }: {
   hiddenFieldName?: string;
   helperText?: string;
+  /** Called with the serialized selection whenever it changes. Needed by
+   *  the smart-assist wizard, whose real <form> is a sibling of this
+   *  component - the local hidden input below never reaches it, so the
+   *  wizard mirrors the value into its own state instead. Forms that
+   *  render this picker INSIDE their <form> (e.g. the long case form) can
+   *  ignore this and rely on the hidden input. */
+  onChange?: (serialized: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -104,6 +112,16 @@ export function EvidencePicker({
       all.map((it) => ({ id: it.id, source: it.source })),
     );
   }, [vault, contracts, selected]);
+
+  // Mirror the serialized selection out to a controlled parent (the
+  // wizard) whenever it changes. Ref-held so a parent that passes a fresh
+  // callback each render can't turn this into a re-render loop - it fires
+  // only when `serialized` actually changes.
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  useEffect(() => {
+    onChangeRef.current?.(serialized);
+  }, [serialized]);
 
   function toggle(id: string) {
     setSelected((prev) => {

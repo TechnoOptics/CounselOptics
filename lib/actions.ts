@@ -286,6 +286,13 @@ export async function createCaseAction(
   // Best-effort activity log + owner notification.
   await logCaseEvent({ caseId: createdId, eventType: 'case_created' });
 
+  // Attach any existing vault / contract items the user picked in the
+  // wizard's Evidence step. These were serialized into the `attachedItems`
+  // hidden field but the action never read them, so the selection was
+  // silently discarded. Best-effort + bounded so it can't fail or unduly
+  // slow case creation.
+  await attachSelectedEvidence(createdId, String(formData.get('attachedItems') ?? ''));
+
   // Auto-review with a hard 2-second cap so the redirect is fast.
   //
   // We used to AWAIT runReview here, which made the user stare at
@@ -324,6 +331,122 @@ export async function createCaseAction(
     redirect(`/cases/${createdId}/community`);
   }
   redirect('/cases');
+}
+
+/** Upper bound on how many existing items one new case can pull in, so a
+ *  huge selection can't turn case creation into a long copy job. */
+const MAX_ATTACHED_EVIDENCE = 25;
+
+/**
+ * Copy the vault receipts / contracts the user selected in the new-case
+ * wizard's Evidence step into the new case as exhibits.
+ *
+ * `raw` is the JSON the EvidencePicker serialized into the `attachedItems`
+ * hidden field: `[{ id, source: 'vault' | 'contract' }]`. For each item we
+ * re-verify ownership (scoped to the current user), download the source
+ * file from its bucket, and hand it to addExhibit so it goes through the
+ * same labeling + magic-byte screening as any other exhibit upload.
+ *
+ * Entirely best-effort: a bad/duplicate item is skipped, never thrown, so
+ * it can't fail the case creation the user already completed.
+ */
+async function attachSelectedEvidence(caseId: string, raw: string): Promise<void> {
+  if (!raw || !usingSupabase()) return;
+
+  let items: Array<{ id: string; source: 'vault' | 'contract' }>;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return;
+    items = parsed
+      .filter(
+        (x): x is { id: string; source: 'vault' | 'contract' } =>
+          x &&
+          typeof x.id === 'string' &&
+          (x.source === 'vault' || x.source === 'contract'),
+      )
+      .slice(0, MAX_ATTACHED_EVIDENCE);
+  } catch {
+    return;
+  }
+  if (items.length === 0) return;
+
+  const user = await getCurrentUser();
+  if (!user) return;
+  const { createAdminSupabase } = await import('./supabase/admin');
+  const admin = createAdminSupabase();
+  if (!admin) return;
+
+  for (const item of items) {
+    try {
+      let bucket: string;
+      let filePath: string;
+      let mime: string | null;
+      let title: string;
+
+      if (item.source === 'vault') {
+        const { data } = await admin
+          .from('user_receipts')
+          .select('file_path, mime_type, label')
+          .eq('id', item.id)
+          .eq('user_id', user.id) // ownership: only the caller's own items
+          .maybeSingle();
+        const row = data as
+          | { file_path?: string; mime_type?: string | null; label?: string | null }
+          | null;
+        if (!row?.file_path) continue;
+        bucket = 'user-vault';
+        filePath = row.file_path;
+        mime = row.mime_type ?? null;
+        title = row.label?.trim() || 'Vault item';
+      } else {
+        const { data } = await admin
+          .from('user_contracts')
+          .select('file_path, mime_type, name, firm_id')
+          .eq('id', item.id)
+          .eq('user_id', user.id)
+          .maybeSingle();
+        const row = data as
+          | {
+              file_path?: string;
+              mime_type?: string | null;
+              name?: string | null;
+              firm_id?: string | null;
+            }
+          | null;
+        if (!row?.file_path) continue;
+        // Contracts live in firm-documents when firm-scoped, else user-vault
+        // (mirrors the download logic in contracts-actions).
+        bucket = row.firm_id ? 'firm-documents' : 'user-vault';
+        filePath = row.file_path;
+        mime = row.mime_type ?? null;
+        title = row.name?.trim() || 'Contract';
+      }
+
+      const { data: blob, error: dlErr } = await admin.storage
+        .from(bucket)
+        .download(filePath);
+      if (dlErr || !blob) continue;
+
+      const dotExt = filePath.includes('.') ? `.${filePath.split('.').pop()}` : '';
+      const safeTitle =
+        title.replace(/[/\\<>:"|?*\n\r]+/g, ' ').trim() ||
+        (item.source === 'vault' ? 'Vault item' : 'Contract');
+      const file = new File([blob], `${safeTitle}${dotExt}`, {
+        type: mime || blob.type || 'application/octet-stream',
+      });
+
+      await addExhibit({
+        caseId,
+        file,
+        description: `Attached from your ${
+          item.source === 'vault' ? 'vault' : 'contracts'
+        }: ${title}`,
+        source: item.source,
+      });
+    } catch (err) {
+      console.error('[createCaseAction] attach evidence failed', item.id, err);
+    }
+  }
 }
 
 /**

@@ -423,17 +423,17 @@ const STEPS: Step[] = [
     description: 'Attach existing items from your vault or contracts library so you do not have to re-upload anything.',
     optional: true,
     isValid: () => true,
-    render: () => (
-      // EvidencePicker manages its own state internally and serializes
-      // the selection into a hidden form field named "attachedItems".
-      // The outer form auto-collects every WizardState key so the
-      // server action just reads it like any other form field. We
-      // don't need to read it back into WizardState while the user
-      // navigates between steps because the EvidencePicker uses its
-      // own selected-set ref - swap to a controlled prop only if a
-      // step jump back ever drops state (not currently the case).
+    render: (_state, update) => (
+      // EvidencePicker manages its own selection state, but its hidden
+      // input is rendered HERE, inside the step card - which is a sibling
+      // of the real <form ref={formRef}> below, so it never gets submitted.
+      // Mirror the serialized selection into WizardState.attachedItems
+      // (which IS auto-collected into that form) via onChange, so the
+      // server action actually receives it. (Previously the selection was
+      // silently dropped - the wizard submitted the '[]' default.)
       <EvidencePicker
         hiddenFieldName="attachedItems"
+        onChange={(v) => update({ attachedItems: v })}
         helperText="Documents, photos, or contracts you already uploaded - we'll attach them as exhibits on this case."
       />
     ),
