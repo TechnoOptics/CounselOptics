@@ -2,8 +2,8 @@
 # are the drift-guards under scripts/test/*.mjs: they read source files and
 # fail the build if a load-bearing invariant is silently removed by a refactor
 # (counsel routing, Bella markdown safety, signing anchors, consumer i18n +
-# a11y wiring). They are pure-Node and zero-dependency, so no install step is
-# needed - keeping the gate fast enough to run on every push and PR.
+# a11y wiring). Most are pure-Node; signature-anchors.mjs builds a real PDF with pdf-lib, so the job runs
+# `npm ci` (cached) first - still fast enough to run on every push and PR.
 name: Guards
 
 on:
@@ -22,5 +22,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+      # Most guards are pure-Node, but signature-anchors.mjs builds a real
+      # PDF with pdf-lib, so the guards need the dependencies installed.
+      - name: Install dependencies
+        run: npm ci
       - name: Run source-invariant guards
         run: npm run test:audit-guards
