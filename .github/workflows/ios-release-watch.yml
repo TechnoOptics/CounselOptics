@@ -56,7 +56,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Select latest-stable Xcode (>= 26, Apple upload mandate)
         uses: maxim-lobanov/setup-xcode@v1
@@ -78,7 +78,7 @@ jobs:
           fi
 
       - name: Set up Node.js 22
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '22'
           cache: 'npm'
@@ -396,7 +396,7 @@ jobs:
 
       - name: Upload IPA artifact
         if: ${{ inputs.upload_to_testflight }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: advottic-ipa-watch
           path: ${{ env.IPA_PATH }}

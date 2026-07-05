@@ -64,10 +64,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           # Capacitor 8.3.4 declares `engines.node >=22`; Node 20 emits
           # EBADENGINE warnings and is going away from GitHub runners in
@@ -76,7 +76,7 @@ jobs:
           cache: 'npm'
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           # Capacitor 8.3.4's @capacitor/android library is built
@@ -86,7 +86,7 @@ jobs:
           java-version: '21'
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
         with:
           # compile-sdk 36 + build-tools 36 match android/variables.gradle.
           # The action also installs the platform-tools and required
@@ -215,7 +215,7 @@ jobs:
           echo "Install on the watch-paired phone: \`adb install -r app-release.apk\`, then open Advottic -> Cases to push to the watch." >> $GITHUB_STEP_SUMMARY
 
       - name: Upload AAB artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: advottic-aab
           # The artifact name + path produce a single-file zip:
@@ -227,7 +227,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload sideloadable APK artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: advottic-apk
           path: android/app/build/outputs/apk/release/*.apk

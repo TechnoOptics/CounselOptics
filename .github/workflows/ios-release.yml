@@ -120,7 +120,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Select latest-stable Xcode (>= 26, Apple upload mandate)
         # Apple rejects uploads built with < iOS 26 SDK. The runner
@@ -150,7 +150,7 @@ jobs:
           fi
 
       - name: Set up Node.js 22
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '22'
           cache: 'npm'
@@ -657,7 +657,7 @@ jobs:
           echo "IPA_PATH=$IPA" >> $GITHUB_ENV
 
       - name: Upload IPA artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: advottic-ipa
           path: ${{ env.IPA_PATH }}
