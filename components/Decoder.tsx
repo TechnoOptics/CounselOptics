@@ -277,6 +277,11 @@ export function Decoder() {
           role="region"
           aria-live="polite"
           aria-label="Plain-English explanation"
+          // The explanation streams token-by-token; leave it out of runtime
+          // auto-translation so the MutationObserver doesn't re-translate
+          // partial sentences on every chunk (localizing this output is a
+          // source-level, generate-in-locale task, not a DOM swap).
+          data-no-translate
         >
           {out ? (
             render(out)

@@ -398,7 +398,7 @@ export function Bella({ signedIn = true }: { signedIn?: boolean }) {
               </div>
             </div>
 
-            <div ref={scrollerRef} className="flex-1 overflow-y-auto p-5 bg-ink-50/40 dark:bg-forest-950/60 space-y-4">
+            <div ref={scrollerRef} data-no-translate className="flex-1 overflow-y-auto p-5 bg-ink-50/40 dark:bg-forest-950/60 space-y-4">
               {messages.length === 0 && (
                 <div className="space-y-3">
                   <p className="text-sm text-ink-700 dark:text-cream-100/85 leading-relaxed">

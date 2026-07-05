@@ -181,6 +181,9 @@ export function OpposingCounsel({ caseId }: { caseId: string }) {
         aria-live="polite"
         aria-atomic="false"
         aria-label="Cross-examination transcript"
+        // Streamed AI output + the user's own answers - keep it out of
+        // runtime auto-translation (no mid-stream re-translation churn).
+        data-no-translate
         className="card p-4 sm:p-5 max-h-[520px] overflow-y-auto space-y-4"
       >
         {messages.map((m, i) =>

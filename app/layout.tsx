@@ -11,6 +11,9 @@ import { TokenBalanceGauge } from '@/components/TokenBalanceGauge';
 import { listNotifications, unreadNotificationCount } from '@/lib/notifications';
 import { CookieBanner } from '@/components/CookieBanner';
 import { SearchPalette, SearchTrigger } from '@/components/SearchPalette';
+import { AutoTranslate } from '@/components/i18n/AutoTranslate';
+import { LanguageSwitcher } from '@/components/i18n/LanguageSwitcher';
+import { getLocaleCookie } from '@/lib/i18n/locale';
 import { ConsentModal } from '@/components/ConsentModal';
 import { Sidebar, MobileNav } from '@/components/Sidebar';
 import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
@@ -199,6 +202,16 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const isEmbedMode =
     pathname === '/embed' || pathname.startsWith('/embed/');
   const isShellMode = isCounselMode || isHqMode || isHubMode || isEmbedMode;
+
+  // Consumer-surface i18n (audit #12). The counsel/HQ/portal shells run
+  // their own dictionary-based <T> i18n, so runtime AutoTranslate is scoped
+  // to the CONSUMER routes only. /sign wraps its own AutoTranslate and /es
+  // is already static Spanish, so both are excluded to avoid double-work.
+  const locale = await getLocaleCookie();
+  const consumerI18n =
+    !isShellMode &&
+    !pathname.startsWith('/sign') &&
+    !pathname.startsWith('/es');
 
   // App-mode = the user is doing actual case work, where the in-app
   // sidebar (New case / Cases / Shared with me / Find counsel /
@@ -424,6 +437,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                     />
                   </Link>
                   <div className="flex items-center gap-1">
+                    {consumerI18n && (
+                      <LanguageSwitcher initialLocale={locale} variant="light" />
+                    )}
                     {signedIn && <SearchTrigger className="hidden sm:inline-flex" />}
                     {signedIn && (
                       <span className="hidden sm:inline-flex">
@@ -480,7 +496,17 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   page slot, not the whole tree, and the user sees no
                   flash. Layout chrome stays SSR. */}
               <div className="flex-1 min-w-0">
-                <Suspense fallback={null}>{children}</Suspense>
+                {consumerI18n ? (
+                  // Runtime-translate the consumer page content when the
+                  // user's locale isn't English. Inputs/textareas and
+                  // [data-no-translate] regions are left as-is by the
+                  // walker, so pasted documents and user data stay verbatim.
+                  <AutoTranslate initialLocale={locale}>
+                    <Suspense fallback={null}>{children}</Suspense>
+                  </AutoTranslate>
+                ) : (
+                  <Suspense fallback={null}>{children}</Suspense>
+                )}
               </div>
             </div>
           </main>
