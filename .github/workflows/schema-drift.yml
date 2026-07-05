@@ -1,0 +1,63 @@
+# Schema-drift gate (SOC 2 CC8.1 change-management). Fails when the live
+# Supabase `public` schema no longer matches what git records -- i.e. someone
+# changed the database (dashboard edit, manual SQL, an applied migration) without
+# updating the committed fingerprint. The signal is a single sha256 over a
+# deterministic per-object fingerprint (see scripts/schema/fingerprint-hash.sql),
+# computed server-side both here and when the baseline was generated, so it is
+# immune to psql/locale formatting and flags only real schema changes.
+#
+# Self-activating: skips cleanly until the SUPABASE_DB_URL secret exists (a
+# read-only Postgres connection string is enough -- the check only reads
+# catalog metadata). Add it under Settings -> Secrets and variables -> Actions.
+name: Schema drift
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '0 7 * * 1' # Mondays 07:00 UTC — catches out-of-band dashboard edits
+
+permissions:
+  contents: read
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for SUPABASE_DB_URL
+        id: guard
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Schema drift check skipped::Set the SUPABASE_DB_URL secret (read-only is fine) to enable the schema-drift gate."
+          else
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Compare live schema fingerprint to committed baseline
+        if: steps.guard.outputs.present == 'true'
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          expected="$(tr -d '[:space:]' < supabase/schema-fingerprint.sha256)"
+          actual="$(psql "$SUPABASE_DB_URL" -X -q -t -A -f scripts/schema/fingerprint-hash.sql | tr -d '[:space:]')"
+          echo "expected: $expected"
+          echo "actual:   $actual"
+          if [ "$expected" != "$actual" ]; then
+            echo "::error title=Schema drift detected::The live schema no longer matches supabase/schema-fingerprint.sha256."
+            echo "----- live schema fingerprint (for inspection) -----"
+            # Dump the per-object lines so the log shows WHICH objects exist now.
+            # Diff this against a local baseline run to see exactly what drifted.
+            psql "$SUPABASE_DB_URL" -X -q -t -A -f scripts/schema/fingerprint.sql
+            echo "----------------------------------------------------"
+            echo "If this change is intentional, regenerate the baseline and commit it:"
+            echo "  psql \"\$SUPABASE_DB_URL\" -X -q -t -A -f scripts/schema/fingerprint-hash.sql | tr -d '[:space:]' > supabase/schema-fingerprint.sha256"
+            exit 1
+          fi
+          echo "No schema drift."
