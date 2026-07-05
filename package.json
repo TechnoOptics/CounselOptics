@@ -11,7 +11,8 @@
     "test:signature-anchors": "node scripts/test/signature-anchors.mjs",
     "test:bella-markdown": "node scripts/test/bella-markdown.mjs",
     "test:i18n-a11y": "node scripts/test/i18n-a11y-invariants.mjs",
-    "test:audit-guards": "node scripts/test/counsel-routing.mjs && node scripts/test/bella-markdown.mjs && node scripts/test/signature-anchors.mjs && node scripts/test/i18n-a11y-invariants.mjs",
+    "test:counsel-i18n": "node scripts/test/counsel-i18n-invariants.mjs",
+    "test:audit-guards": "node scripts/test/counsel-routing.mjs && node scripts/test/bella-markdown.mjs && node scripts/test/signature-anchors.mjs && node scripts/test/i18n-a11y-invariants.mjs && node scripts/test/counsel-i18n-invariants.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },
