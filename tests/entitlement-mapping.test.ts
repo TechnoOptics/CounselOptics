@@ -72,6 +72,14 @@ describe('tierFromPriceId (coarse Tier for the subscriptions row)', () => {
     ['STRIPE_PRICE_COUNSEL_SMALL_FIRM', 'pro'],
     ['STRIPE_PRICE_COUNSEL_GROWING', 'pro'],
     ['STRIPE_PRICE_COUNSEL_ENTERPRISE', 'pro'],
+    // Annual prices now resolve to the same coarse tier as their monthly
+    // sibling (previously null — the fixed annual gap).
+    ['STRIPE_PRICE_PERSONAL_PRO_ANNUAL', 'pro'],
+    ['STRIPE_PRICE_PERSONAL_PLUS_ANNUAL', 'pro'],
+    ['STRIPE_PRICE_COUNSEL_SOLO_ANNUAL', 'pro'],
+    ['STRIPE_PRICE_COUNSEL_SMALL_FIRM_ANNUAL', 'pro'],
+    ['STRIPE_PRICE_COUNSEL_GROWING_ANNUAL', 'pro'],
+    ['STRIPE_PRICE_COUNSEL_ENTERPRISE_ANNUAL', 'pro'],
   ];
   for (const [envKey, expected] of cases) {
     it(`${envKey} -> ${expected}`, () => {
@@ -146,12 +154,17 @@ describe('resolvePriceEntitlement is the single source both delegators use', () 
     });
   }
 
-  it('preserves the annual-price tier gap (tier null, slug set)', () => {
-    // Bug-for-bug with the original tierFromPriceId, which never recognized
-    // annual ids. Guards against an accidental "fix" sneaking in unnoticed.
-    const annual = resolvePriceEntitlement(ENV.STRIPE_PRICE_PERSONAL_PRO_ANNUAL);
-    expect(annual.tier).toBeNull();
-    expect(annual.tierSlug).toBe('pro');
+  it('annual prices carry the same coarse tier as their monthly sibling', () => {
+    // The former annual gap (tier null) is fixed: an annual subscriber's
+    // subscriptions.tier is now written 'pro' instead of null. Both webhook
+    // grant sites resolve the slug first, so the coarse tier never affects
+    // which token grant fires.
+    const proAnnual = resolvePriceEntitlement(ENV.STRIPE_PRICE_PERSONAL_PRO_ANNUAL);
+    expect(proAnnual).toEqual({ tier: 'pro', tierSlug: 'pro' });
+    const plusAnnual = resolvePriceEntitlement(ENV.STRIPE_PRICE_PERSONAL_PLUS_ANNUAL);
+    expect(plusAnnual).toEqual({ tier: 'pro', tierSlug: 'pro_plus' });
+    const entAnnual = resolvePriceEntitlement(ENV.STRIPE_PRICE_COUNSEL_ENTERPRISE_ANNUAL);
+    expect(entAnnual).toEqual({ tier: 'pro', tierSlug: 'enterprise' });
   });
 
   it('returns both-null for null / unknown', () => {

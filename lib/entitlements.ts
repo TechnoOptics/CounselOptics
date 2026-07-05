@@ -12,21 +12,22 @@ import type { TierSlug } from './token-packages';
  * wired into one but not the other would silently mis-grant. They now all
  * delegate here.
  *
- * Behavior is pinned by tests/entitlement-mapping.test.ts. Two irregularities
- * in the table below are DELIBERATE and money-critical — do not "clean them
- * up" without changing those tests on purpose:
+ * Behavior is pinned by tests/entitlement-mapping.test.ts. One irregularity in
+ * the table below is DELIBERATE and money-critical — do not "clean it up"
+ * without changing those tests on purpose:
  *
- *   1. Legacy STRIPE_PRICE_PRO has tier 'pro' but tierSlug `null`. The null
- *      slug makes the webhook skip the tier-aware grant and fall back to
- *      grantProMonthlyTokens (1.5M), which is what grandfathered Pro
- *      subscribers are owed. A non-null slug would downgrade them to the
- *      500K 'pro' grant at their next renewal.
+ *   Legacy STRIPE_PRICE_PRO has tier 'pro' but tierSlug `null`. The null slug
+ *   makes the webhook skip the tier-aware grant and fall back to
+ *   grantProMonthlyTokens (1.5M), which is what grandfathered Pro subscribers
+ *   are owed. A non-null slug would downgrade them to the 500K 'pro' grant at
+ *   their next renewal.
  *
- *   2. The `_ANNUAL` prices have tier `null` (only a tierSlug). This mirrors
- *      the original tierFromPriceId, which never recognized annual ids. It is
- *      a latent gap (an annual subscriber's subscriptions.tier would be
- *      written null) — preserved here bug-for-bug so this consolidation
- *      changes no behavior; fixing it is a separate, deliberate change.
+ * (The original tierFromPriceId never recognized the `_ANNUAL` ids, so an
+ * annual subscriber's subscriptions.tier was written null. That gap is now
+ * fixed: each _ANNUAL row carries the same coarse tier as its monthly sibling.
+ * Safe because both webhook grant sites resolve the TierSlug FIRST and only
+ * fall back to the coarse-'pro' legacy grant when there is no slug — every
+ * annual price has a slug, so it never reaches that fallback.)
  */
 
 export type BillingEntitlement = { tier: Tier | null; tierSlug: TierSlug | null };
@@ -45,21 +46,22 @@ const PRICE_TABLE: readonly PriceRow[] = [
   // Legacy Pro: coarse tier 'pro', but NO slug — see irregularity (1).
   { env: 'STRIPE_PRICE_PRO', tier: 'pro', tierSlug: null },
   { env: 'STRIPE_MONTHLY_PRICE_ID', tier: 'standard', tierSlug: 'standard' },
-  // Consumer ladder (new billing model).
+  // Consumer ladder (new billing model). Each _ANNUAL row carries the same
+  // coarse tier as its monthly sibling (see the note on the former annual gap).
   { env: 'STRIPE_PRICE_PERSONAL_PRO', tier: 'pro', tierSlug: 'pro' },
-  { env: 'STRIPE_PRICE_PERSONAL_PRO_ANNUAL', tier: null, tierSlug: 'pro' },
+  { env: 'STRIPE_PRICE_PERSONAL_PRO_ANNUAL', tier: 'pro', tierSlug: 'pro' },
   { env: 'STRIPE_PRICE_PERSONAL_PLUS', tier: 'pro', tierSlug: 'pro_plus' },
-  { env: 'STRIPE_PRICE_PERSONAL_PLUS_ANNUAL', tier: null, tierSlug: 'pro_plus' },
+  { env: 'STRIPE_PRICE_PERSONAL_PLUS_ANNUAL', tier: 'pro', tierSlug: 'pro_plus' },
   // Firm ladder. Coarse tier collapses to 'pro' for anything that still
   // types against Tier (basic | standard | pro).
   { env: 'STRIPE_PRICE_COUNSEL_SOLO', tier: 'pro', tierSlug: 'solo' },
-  { env: 'STRIPE_PRICE_COUNSEL_SOLO_ANNUAL', tier: null, tierSlug: 'solo' },
+  { env: 'STRIPE_PRICE_COUNSEL_SOLO_ANNUAL', tier: 'pro', tierSlug: 'solo' },
   { env: 'STRIPE_PRICE_COUNSEL_SMALL_FIRM', tier: 'pro', tierSlug: 'small_firm' },
-  { env: 'STRIPE_PRICE_COUNSEL_SMALL_FIRM_ANNUAL', tier: null, tierSlug: 'small_firm' },
+  { env: 'STRIPE_PRICE_COUNSEL_SMALL_FIRM_ANNUAL', tier: 'pro', tierSlug: 'small_firm' },
   { env: 'STRIPE_PRICE_COUNSEL_GROWING', tier: 'pro', tierSlug: 'growing_firm' },
-  { env: 'STRIPE_PRICE_COUNSEL_GROWING_ANNUAL', tier: null, tierSlug: 'growing_firm' },
+  { env: 'STRIPE_PRICE_COUNSEL_GROWING_ANNUAL', tier: 'pro', tierSlug: 'growing_firm' },
   { env: 'STRIPE_PRICE_COUNSEL_ENTERPRISE', tier: 'pro', tierSlug: 'enterprise' },
-  { env: 'STRIPE_PRICE_COUNSEL_ENTERPRISE_ANNUAL', tier: null, tierSlug: 'enterprise' },
+  { env: 'STRIPE_PRICE_COUNSEL_ENTERPRISE_ANNUAL', tier: 'pro', tierSlug: 'enterprise' },
 ];
 
 /**
