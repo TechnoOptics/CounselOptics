@@ -2,6 +2,7 @@
 
 import { getCurrentUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
+import { safeStorageUpload } from './upload-safety';
 import { authorizeFirmActor } from './portal-entitlements';
 import {
   extractFileText,
@@ -76,14 +77,19 @@ export async function uploadIntakeFilesAction(
     const path = `intake-uploads/${firmId}/${user.id}/${id}-${safeName(
       f.name,
     )}`;
-    const { error } = await admin.storage
-      .from('firm-documents')
-      .upload(path, f, {
-        contentType: f.type || 'application/octet-stream',
-        upsert: false,
-      });
-    if (error) {
-      return { ok: false, error: `Upload failed: ${error.message}` };
+    // Central chokepoint: magic-byte + dangerous-content screen before the
+    // portal-intake attachment lands in the firm bucket.
+    const buffer = Buffer.from(await f.arrayBuffer());
+    const uploaded = await safeStorageUpload({
+      client: admin,
+      bucket: 'firm-documents',
+      path,
+      buffer,
+      declaredMime: f.type || null,
+      maxBytes: MAX_BYTES,
+    });
+    if (!uploaded.ok) {
+      return { ok: false, error: `Upload failed: ${uploaded.error}` };
     }
     files.push({
       name: f.name,

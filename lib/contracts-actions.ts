@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 import { createServerSupabase, getCurrentUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
+import { safeStorageUpload } from './upload-safety';
 import { getContractType } from './contract-types';
 
 /**
@@ -68,24 +69,36 @@ export async function uploadContractAction(
       filePath = `${options.firmId}/contracts/${id}/${safeName}`;
       const supabase = createServerSupabase();
       const buffer = Buffer.from(await file.arrayBuffer());
-      const { error: uploadErr } = await supabase.storage
-        .from('firm-documents')
-        .upload(filePath, buffer, { contentType: mimeType, upsert: false });
-      if (uploadErr) return { ok: false, error: uploadErr.message };
+      // Central chokepoint: magic-byte + dangerous-content screen.
+      const uploaded = await safeStorageUpload({
+        client: supabase,
+        bucket: 'firm-documents',
+        path: filePath,
+        buffer,
+        declaredMime: mimeType,
+        maxBytes: 50 * 1024 * 1024,
+      });
+      if (!uploaded.ok) return { ok: false, error: uploaded.error };
     } else {
       filePath = `${user.id}/contracts/${id}/${safeName}`;
       const admin = createAdminSupabase();
       if (!admin) return { ok: false, error: 'Service role not configured.' };
       const buffer = Buffer.from(await file.arrayBuffer());
-      const { error: uploadErr } = await admin.storage
-        .from('user-vault')
-        .upload(filePath, buffer, { contentType: mimeType, upsert: false });
-      if (uploadErr) {
-        // Bucket may not exist yet on first run; degrade gracefully.
-        if ((uploadErr.message ?? '').toLowerCase().includes('bucket')) {
+      const uploaded = await safeStorageUpload({
+        client: admin,
+        bucket: 'user-vault',
+        path: filePath,
+        buffer,
+        declaredMime: mimeType,
+        maxBytes: 50 * 1024 * 1024,
+      });
+      if (!uploaded.ok) {
+        // Bucket may not exist yet on first run; degrade gracefully. Any
+        // other error (incl. a rejected file) surfaces to the user.
+        if (uploaded.error.toLowerCase().includes('bucket')) {
           filePath = null;
         } else {
-          return { ok: false, error: uploadErr.message };
+          return { ok: false, error: uploaded.error };
         }
       }
     }

@@ -205,3 +205,51 @@ export function screenAuthenticatedUpload(
 }
 
 export { MAX_EVIDENCE_BYTES, MAX_ID_PHOTO_BYTES };
+
+/**
+ * Central chokepoint for AUTHENTICATED storage writes. Every server-side
+ * upload of a user-supplied file should go through here rather than calling
+ * `client.storage.from(bucket).upload(...)` directly, so the magic-byte /
+ * dangerous-content screen (screenAuthenticatedUpload) can never be forgotten
+ * on a new upload path. It also uses the caller's DECLARED content-type only
+ * after that type has been confirmed against the bytes.
+ *
+ * Structural client type so this file needn't import the Supabase SDK; both
+ * createServerSupabase() and createAdminSupabase() satisfy it.
+ */
+type StorageUploader = {
+  storage: {
+    from: (bucket: string) => {
+      upload: (
+        path: string,
+        body: Buffer | Uint8Array,
+        opts?: { contentType?: string; upsert?: boolean },
+      ) => Promise<{ error: { message: string } | null }>;
+    };
+  };
+};
+
+export async function safeStorageUpload(input: {
+  client: StorageUploader;
+  bucket: string;
+  path: string;
+  buffer: Buffer;
+  declaredMime: string | null;
+  maxBytes: number;
+  upsert?: boolean;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const screen = screenAuthenticatedUpload(
+    input.buffer,
+    input.declaredMime,
+    input.maxBytes,
+  );
+  if (!screen.ok) return { ok: false, error: screen.reason };
+  const { error } = await input.client.storage
+    .from(input.bucket)
+    .upload(input.path, input.buffer, {
+      contentType: input.declaredMime || 'application/octet-stream',
+      upsert: input.upsert ?? false,
+    });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}

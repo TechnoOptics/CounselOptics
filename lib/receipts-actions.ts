@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 import { getCurrentUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
+import { safeStorageUpload } from './upload-safety';
 import { RECEIPT_CATEGORIES, type ReceiptCategory } from './contract-types';
 
 /**
@@ -54,17 +55,26 @@ export async function uploadReceiptAction(
     const admin = createAdminSupabase();
     if (!admin) return { ok: false, error: 'Service role not configured.' };
     const buffer = Buffer.from(await file.arrayBuffer());
-    const { error: uploadErr } = await admin.storage
-      .from('user-vault')
-      .upload(filePath, buffer, { contentType: mimeType, upsert: false });
-    if (uploadErr) {
-      // Bucket may not exist yet on first run; degrade gracefully
-      // and record the row metadata-only so the user doesn't lose
-      // the entry.
-      if ((uploadErr.message ?? '').toLowerCase().includes('bucket')) {
+    // Through the central chokepoint: magic-byte + dangerous-content screen
+    // (a spoofed-type HTML/SVG/exe is rejected) before it lands in the vault
+    // bucket - which the new-case Evidence step can later copy into a case
+    // exhibit, so an unvalidated file here would propagate.
+    const uploaded = await safeStorageUpload({
+      client: admin,
+      bucket: 'user-vault',
+      path: filePath,
+      buffer,
+      declaredMime: mimeType,
+      maxBytes: 50 * 1024 * 1024,
+    });
+    if (!uploaded.ok) {
+      // Bucket may not exist yet on first run; degrade gracefully and record
+      // the row metadata-only so the user doesn't lose the entry. Any other
+      // error (incl. a rejected file) surfaces to the user.
+      if (uploaded.error.toLowerCase().includes('bucket')) {
         filePath = null;
       } else {
-        return { ok: false, error: uploadErr.message };
+        return { ok: false, error: uploaded.error };
       }
     }
   }

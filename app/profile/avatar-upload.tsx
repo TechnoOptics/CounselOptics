@@ -17,8 +17,13 @@ export function AvatarUpload({
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      setError('Please choose an image file.');
+    // Block SVG explicitly: it passes an "image/*" check but is active
+    // content, and the avatars bucket is PUBLIC + served inline, so an SVG
+    // avatar is a stored-XSS vector. (A determined caller can still hit the
+    // storage API directly - full server-side magic-byte validation of this
+    // upload is the complete fix, tracked as a follow-up.)
+    if (!file.type.startsWith('image/') || file.type === 'image/svg+xml') {
+      setError('Please choose a JPEG, PNG, or WebP image.');
       return;
     }
     if (file.size > 4 * 1024 * 1024) {
