@@ -63,13 +63,38 @@ export async function grantTierMonthlyTokens(input: {
     token_quota_period_end?: string;
   } | null) ?? { token_balance: 0 };
 
+  // Fast path / migration guard. If this period was already granted (tracked
+  // on the profile, incl. grants made before the claim table existed), skip
+  // without re-granting. This is NOT the concurrency guard - two concurrent
+  // deliveries for a NEW period both read the old period here and both fall
+  // through. The claim insert below is what makes only one of them credit.
   if (existing.token_quota_period_end === input.periodEnd) {
     return { granted: false, balance: existing.token_balance ?? 0 };
   }
 
-  // Roll-over with a hard cap. Prevents a dormant subscription
-  // accumulating a year of grants the user can dump on a single
-  // heavy session.
+  // Concurrency gate: CLAIM this (user, period) by INSERTing the grant receipt
+  // first. UNIQUE(user_id, period_end) means a duplicate/concurrent delivery
+  // loses with 23505 and becomes an idempotent no-op, so only the FIRST
+  // delivery reaches the credit below. Mirrors token_topup_purchases' insert-
+  // first-claim, which replaced the same class of check-then-write double-grant.
+  const { error: claimErr } = await admin.from('token_monthly_grants').insert({
+    user_id: input.userId,
+    period_end: input.periodEnd,
+    tier: input.tier,
+    tokens: grant,
+  });
+  if (claimErr) {
+    if ((claimErr as { code?: string }).code === '23505') {
+      // Lost the race: another delivery already granted this exact period.
+      return { granted: false, balance: existing.token_balance ?? 0 };
+    }
+    // A real failure (not a duplicate). Best-effort by contract: report
+    // not-granted so the next webhook/sync retries; never credit on error.
+    return { granted: false, balance: existing.token_balance ?? 0 };
+  }
+
+  // Won the claim -> credit exactly once. Roll-over with a hard cap prevents a
+  // dormant subscription accumulating a year of grants to dump in one session.
   const cap = grant * ROLLOVER_MULTIPLIER;
   const carryOver = Math.min(existing.token_balance ?? 0, cap - grant);
   const newBalance = Math.max(grant, grant + carryOver);
