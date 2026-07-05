@@ -144,7 +144,7 @@ export function EvidenceForm({ slug }: { slug: string }) {
 
       <TurnstileWidget onToken={setTurnstileToken} />
 
-      {error && <p className="text-sm text-rose-700 dark:text-rose-300">{error}</p>}
+      {error && <p role="alert" className="text-sm text-rose-700 dark:text-rose-300">{error}</p>}
 
       <button
         type="submit"

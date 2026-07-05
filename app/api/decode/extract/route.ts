@@ -46,8 +46,16 @@ export async function POST(req: NextRequest) {
     req.headers.get('x-real-ip') ||
     'unknown';
   // Heavier than a paste (parsing + possible vision call), so a tighter
-  // cap than /api/decode.
-  if (!(await checkRateLimit(`decode-extract:${ip}`, { limit: 8, windowSeconds: 60 }))) {
+  // cap than /api/decode. fail-closed: this is an UNAUTHENTICATED endpoint
+  // that triggers a paid vision call, so if the rate-limit store is down
+  // we refuse rather than let it fail open into uncapped model spend.
+  if (
+    !(await checkRateLimit(`decode-extract:${ip}`, {
+      limit: 8,
+      windowSeconds: 60,
+      failClosed: true,
+    }))
+  ) {
     return NextResponse.json(
       { error: 'One file at a time - give it a moment.' },
       { status: 429 },

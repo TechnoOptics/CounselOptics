@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
@@ -11,7 +12,10 @@ import {
 
 export const dynamic = 'force-dynamic';
 
-async function getPublicPage(slug: string) {
+// Wrapped in React cache() so the 3 RPCs run ONCE per request even though
+// both generateMetadata and the page component call it (the page is
+// force-dynamic, so without this the whole fetch ran twice per view).
+const getPublicPage = cache(async (slug: string) => {
   if (!isSupabaseConfigured()) return null;
   const supabase = createServerSupabase();
   const [{ data: pageRows }, { data: linkRows }, { data: imageRows }] = await Promise.all([
@@ -64,7 +68,7 @@ async function getPublicPage(slug: string) {
     };
   });
   return { communityCase, links, bannerUrl, galleryImages };
-}
+});
 
 export async function generateMetadata({
   params,

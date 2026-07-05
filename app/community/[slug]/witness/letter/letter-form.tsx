@@ -313,7 +313,7 @@ export function LetterForm({ slug }: { slug: string }) {
           />
         </div>
 
-        {error && <p className="text-sm text-rose-700 dark:text-rose-300">{error}</p>}
+        {error && <p role="alert" className="text-sm text-rose-700 dark:text-rose-300">{error}</p>}
 
         <div className="flex justify-end">
           <button type="button" onClick={advanceFromCompose} className="btn-primary">
@@ -361,7 +361,7 @@ export function LetterForm({ slug }: { slug: string }) {
           <span>I confirm I have the hardware and software described above.</span>
         </label>
 
-        {error && <p className="text-sm text-rose-700 dark:text-rose-300">{error}</p>}
+        {error && <p role="alert" className="text-sm text-rose-700 dark:text-rose-300">{error}</p>}
 
         <div className="flex items-center justify-between">
           <button type="button" onClick={() => setStep('compose')} className="btn-ghost text-sm">
@@ -447,7 +447,7 @@ export function LetterForm({ slug }: { slug: string }) {
           </span>
         </label>
 
-        {error && <p className="text-sm text-rose-700 dark:text-rose-300">{error}</p>}
+        {error && <p role="alert" className="text-sm text-rose-700 dark:text-rose-300">{error}</p>}
 
         <div className="flex items-center justify-between">
           <button type="button" onClick={() => setStep('disclosure')} className="btn-ghost text-sm">
@@ -481,7 +481,7 @@ export function LetterForm({ slug }: { slug: string }) {
 
       <TurnstileWidget onToken={setTurnstileToken} />
 
-      {error && <p className="text-sm text-rose-700 dark:text-rose-300">{error}</p>}
+      {error && <p role="alert" className="text-sm text-rose-700 dark:text-rose-300">{error}</p>}
 
       <div className="flex items-center justify-between">
         <button type="button" onClick={() => setStep('sign')} className="btn-ghost text-sm">
