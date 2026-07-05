@@ -162,7 +162,7 @@ export function WarRoom({ items }: { items: WarItem[] }) {
                 className={`card-hover p-4 flex items-center justify-between gap-4 block border ${TONE[mv.tone]}`}
               >
                 <span className="min-w-0">
-                  <span className="block text-[15px] font-semibold text-ink-950 truncate">
+                  <span className="block text-[15px] font-semibold text-ink-950 truncate" data-no-translate>
                     {it.title}
                   </span>
                   <span className="block text-sm mt-0.5">{mv.text}</span>
@@ -201,7 +201,7 @@ export function WarRoom({ items }: { items: WarItem[] }) {
                   style={{ animationDelay: `${Math.min(i, 8) * 50}ms` }}
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <h3 className="font-display text-[17px] font-medium text-ink-950 leading-tight">
+                    <h3 className="font-display text-[17px] font-medium text-ink-950 leading-tight" data-no-translate>
                       {it.title}
                     </h3>
                     <span className="badge bg-cream-50 text-forest-800 border border-gold-200 text-[10px] flex-none capitalize">

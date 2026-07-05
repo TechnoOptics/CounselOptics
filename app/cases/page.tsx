@@ -465,7 +465,10 @@ function CaseGrid({
             className={`card-hover p-5 block ${closedHint ? 'opacity-80 hover:opacity-100' : ''}`}
           >
             <div className="flex items-start justify-between gap-3 mb-3">
-              <h2 className="font-display text-[19px] font-medium text-ink-950 leading-tight tracking-[-0.005em]">
+              <h2
+                className="font-display text-[19px] font-medium text-ink-950 leading-tight tracking-[-0.005em]"
+                data-no-translate
+              >
                 {c.title}
               </h2>
               <div className="flex flex-col items-end gap-1">
@@ -482,7 +485,7 @@ function CaseGrid({
             </div>
             <p className="text-sm text-ink-700 mb-4">
               <span className="text-ink-500">{SUBJECT_TYPE_LABEL[c.subjectType]}: </span>
-              {c.subjectName}
+              <span data-no-translate>{c.subjectName}</span>
             </p>
             <div className="text-xs text-ink-500 flex flex-wrap items-center gap-x-2.5 gap-y-1">
               <span className="inline-flex items-center">{c.caseType}</span>

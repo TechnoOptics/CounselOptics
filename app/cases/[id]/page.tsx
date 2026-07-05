@@ -280,13 +280,13 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
                 </span>
               </div>
               <h1 className="font-display text-2xl sm:text-3xl md:text-[40px] font-medium tracking-[-0.015em] leading-[1.05] drop-shadow-[0_2px_18px_rgba(15,45,36,0.45)]">
-                <span className="bg-gold-shine bg-clip-text text-transparent gold-pan">
+                <span className="bg-gold-shine bg-clip-text text-transparent gold-pan" data-no-translate>
                   {c.title}
                 </span>
               </h1>
               <p className="text-sm text-cream-100/85 mt-3">
                 <span className="text-cream-100/55">{SUBJECT_TYPE_LABEL[c.subjectType]}: </span>
-                <span className="font-medium text-cream-100">{c.subjectName}</span>
+                <span className="font-medium text-cream-100" data-no-translate>{c.subjectName}</span>
                 {jurisdiction && (
                   <>
                     <span className="text-cream-100/40 mx-2">·</span>

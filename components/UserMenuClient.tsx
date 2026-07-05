@@ -61,7 +61,10 @@ export function UserMenuClient(props: UserMenuProps) {
         className="flex items-center gap-2.5 pl-2 pr-1 py-1 rounded-full hover:bg-forest-800 transition-colors"
         title={props.email}
       >
-        <span className="hidden md:inline text-sm text-cream-100 max-w-[160px] truncate">
+        <span
+          className="hidden md:inline text-sm text-cream-100 max-w-[160px] truncate"
+          data-no-translate
+        >
           {props.displayName}
         </span>
         {props.avatarUrl ? (
@@ -84,7 +87,7 @@ export function UserMenuClient(props: UserMenuProps) {
           role="menu"
           className="absolute right-0 mt-2 w-72 rounded-xl border border-forest-200 bg-white shadow-card-hover overflow-hidden z-50"
         >
-          <div className="px-4 py-3 border-b border-ink-100">
+          <div className="px-4 py-3 border-b border-ink-100" data-no-translate>
             <p className="font-semibold text-ink-950 text-sm truncate">{props.displayName}</p>
             <p className="text-xs text-ink-500 truncate">{props.email}</p>
             {props.organization && (
@@ -199,7 +202,7 @@ export function UserMenuClient(props: UserMenuProps) {
                     >
                       {m.firmName.slice(0, 1).toUpperCase()}
                     </span>
-                    <span className="flex-1 truncate">{m.firmName}</span>
+                    <span className="flex-1 truncate" data-no-translate>{m.firmName}</span>
                     <span aria-hidden className="text-ink-400">
                       →
                     </span>

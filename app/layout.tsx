@@ -414,7 +414,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             because firms have per-contract billing and the consumer
             directories are not relevant to organizational users. */}
         {!isShellMode && (
-          <>
+          // Wrap the consumer header/nav so it translates too (the main
+          // content is wrapped separately below). AutoTranslate is a no-op
+          // for English and skips <select>, so the LanguageSwitcher's own
+          // language names are left untouched. The user's name in UserMenu
+          // is protected via data-no-translate on the component itself.
+          <AutoTranslate initialLocale={locale}>
             <header className="sticky top-0 z-20">
               {/* pt-[var(--safe-top)] (NOT raw env()) keeps the header
                   content below the iOS notch AND the Android 15+
@@ -472,7 +477,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               )}
             </header>
             {signedIn && <SearchPalette />}
-          </>
+          </AutoTranslate>
         )}
         {isShellMode ? (
           // Counsel and HQ render their own full-bleed shells. Skip

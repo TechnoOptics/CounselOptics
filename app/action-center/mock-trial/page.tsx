@@ -64,7 +64,7 @@ export default async function MockTrialPage({
         <div className="space-y-5">
           <div>
             <p className="eyebrow mb-1">Mock trial</p>
-            <h1 className="font-display text-3xl font-medium tracking-[-0.015em] text-forest-900">
+            <h1 className="font-display text-3xl font-medium tracking-[-0.015em] text-forest-900" data-no-translate>
               {selected.title}
             </h1>
             <p className="text-sm text-ink-500 mt-1.5 max-w-xl leading-relaxed">
@@ -105,7 +105,7 @@ export default async function MockTrialPage({
                   href={`/action-center/mock-trial?case=${c.id}`}
                   className="card-hover p-5 block"
                 >
-                  <h2 className="font-display text-[17px] font-medium text-ink-950 leading-tight">
+                  <h2 className="font-display text-[17px] font-medium text-ink-950 leading-tight" data-no-translate>
                     {c.title}
                   </h2>
                   <p className="text-xs text-ink-500 mt-1">
