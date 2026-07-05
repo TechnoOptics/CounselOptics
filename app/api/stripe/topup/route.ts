@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { getStripe, isStripeConfigured } from '@/lib/stripe';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { getCurrentSubscription, upsertSubscriptionFromStripe } from '@/lib/storage';
+import { blockedIosAppPurchase } from '@/lib/iap-guard';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -13,6 +14,8 @@ export const runtime = 'nodejs';
  * the user's token_balance.
  */
 export async function POST(req: NextRequest) {
+  const iosBlock = blockedIosAppPurchase(req);
+  if (iosBlock) return iosBlock;
   if (!isSupabaseConfigured() || !isStripeConfigured()) {
     return NextResponse.json({ error: 'Billing is not configured.' }, { status: 503 });
   }

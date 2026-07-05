@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { getCurrentUser } from '@/lib/supabase/server';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { getTokenPackage } from '@/lib/token-packages';
+import { blockedIosAppPurchase } from '@/lib/iap-guard';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -26,6 +27,8 @@ export const dynamic = 'force-dynamic';
  * silently fail.
  */
 export async function POST(req: NextRequest) {
+  const iosBlock = blockedIosAppPurchase(req);
+  if (iosBlock) return iosBlock;
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: 'Sign in first.' }, { status: 401 });

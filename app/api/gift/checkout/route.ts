@@ -11,6 +11,7 @@ import {
 } from '@/lib/gift';
 import { generateRedemptionToken } from '@/lib/gift-server';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { blockedIosAppPurchase } from '@/lib/iap-guard';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -32,6 +33,8 @@ export const runtime = 'nodejs';
  * code/DB change; no Stripe-dashboard click for each new gift SKU.
  */
 export async function POST(req: NextRequest) {
+  const iosBlock = blockedIosAppPurchase(req);
+  if (iosBlock) return iosBlock;
   if (!isSupabaseConfigured()) {
     return NextResponse.json(
       { error: 'Server is not configured.' },
