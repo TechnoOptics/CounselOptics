@@ -151,11 +151,31 @@ export async function grantFirmPoolTokens(input: {
     token_pool_period_end?: string;
   } | null) ?? { token_pool_balance: 0 };
 
+  // Fast path / migration guard (see grantTierMonthlyTokens). Skips a period
+  // already granted, incl. pre-claim-table grants; NOT the concurrency guard.
   if (existing.token_pool_period_end === input.periodEnd) {
     return { granted: false, balance: existing.token_pool_balance ?? 0 };
   }
 
   const newGrant = perSeat * input.seats;
+
+  // Concurrency gate: CLAIM this (firm, period) via a UNIQUE(firm_id, period_end)
+  // insert first, so a duplicate/concurrent delivery loses with 23505 and only
+  // the first delivery credits the shared pool.
+  const { error: claimErr } = await admin.from('token_firm_pool_grants').insert({
+    firm_id: input.firmId,
+    period_end: input.periodEnd,
+    tier: input.tier,
+    seats: input.seats,
+    tokens: newGrant,
+  });
+  if (claimErr) {
+    // 23505 = lost the race (already granted); any other error is a real
+    // failure. Either way, never credit: report the current pool balance and
+    // let the next delivery retry.
+    return { granted: false, balance: existing.token_pool_balance ?? 0 };
+  }
+
   const cap = newGrant * 3;
   const carryOver = Math.min(existing.token_pool_balance ?? 0, cap - newGrant);
   const newBalance = Math.max(newGrant, newGrant + carryOver);
