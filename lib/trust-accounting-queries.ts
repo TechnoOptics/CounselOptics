@@ -43,6 +43,11 @@ export type TrustTransaction = {
 export async function listTrustTransactions(
   firmId: string,
   filter?: { caseId?: string; clientUserId?: string; accountId?: string },
+  // Display list only - bounded so a long-lived account's full history
+  // (which grows without limit) can't be pulled into the page render. The
+  // balances/totals come from the DB-aggregated reconcile helpers below,
+  // NOT from this list, so bounding it never affects the math.
+  limit = 500,
 ): Promise<TrustTransaction[]> {
   const supabase = createServerSupabase();
   let q = supabase
@@ -53,6 +58,7 @@ export async function listTrustTransactions(
   if (filter?.accountId) q = q.eq('account_id', filter.accountId);
   if (filter?.caseId) q = q.eq('case_id', filter.caseId);
   if (filter?.clientUserId) q = q.eq('client_user_id', filter.clientUserId);
+  q = q.limit(limit);
   const { data } = await q;
   return ((data ?? []) as Array<{
     id: string;
@@ -115,41 +121,30 @@ export async function reconcileTrustAccount(
   perClient: Array<{ clientLabel: string; balanceCents: number }>;
   unreconciledCount: number;
 }> {
+  // Aggregate in Postgres via the get_trust_reconciliation_summary RPC
+  // instead of pulling the whole ledger into Node: it grows without bound,
+  // so a long-lived IOLTA account would eventually OOM the render. The RPC
+  // also buckets perClient by client IDENTITY (user id when present, else
+  // the normalized label) - the SAME key post_trust_transaction's balance
+  // guard uses - so the reconciliation report and the guard always agree
+  // (previously this bucketed by raw free-text client_label and could split
+  // or merge clients differently from the guard).
   const supabase = createServerSupabase();
-  const { data } = await supabase
-    .from('firm_trust_transactions')
-    .select('client_label, kind, amount_cents, reconciled_at')
-    .eq('firm_id', firmId)
-    .eq('account_id', accountId);
-  const rows = (data ?? []) as Array<{
-    client_label: string;
-    kind: TrustTxKind;
-    amount_cents: number;
-    reconciled_at: string | null;
-  }>;
-  let bookBalance = 0;
-  let reconciledBalance = 0;
-  let unreconciledCount = 0;
-  const perClient = new Map<string, number>();
-  for (const r of rows) {
-    const sign = POSITIVE_KINDS.has(r.kind) && r.kind !== 'correction' ? 1 : -1;
-    const amt = sign * r.amount_cents;
-    bookBalance += amt;
-    if (r.reconciled_at) reconciledBalance += amt;
-    else unreconciledCount += 1;
-    perClient.set(
-      r.client_label,
-      (perClient.get(r.client_label) ?? 0) + amt,
-    );
-  }
+  const { data } = await supabase.rpc('get_trust_reconciliation_summary', {
+    p_firm_id: firmId,
+    p_account_id: accountId,
+  });
+  const d = (data ?? {}) as {
+    bookBalanceCents?: number;
+    reconciledBalanceCents?: number;
+    unreconciledCount?: number;
+    perClient?: Array<{ clientLabel: string; balanceCents: number }>;
+  };
   return {
-    bookBalanceCents: bookBalance,
-    reconciledBalanceCents: reconciledBalance,
-    perClient: Array.from(perClient.entries()).map(([clientLabel, balanceCents]) => ({
-      clientLabel,
-      balanceCents,
-    })),
-    unreconciledCount,
+    bookBalanceCents: d.bookBalanceCents ?? 0,
+    reconciledBalanceCents: d.reconciledBalanceCents ?? 0,
+    perClient: d.perClient ?? [],
+    unreconciledCount: d.unreconciledCount ?? 0,
   };
 }
 
@@ -177,11 +172,25 @@ export async function getReconciliationWorkspace(
   unreconciled: UnreconciledEntry[];
 }> {
   const supabase = createServerSupabase();
+  // Reconciled base = sum of already-cleared entries. Take it from the DB
+  // aggregate so the (unboundedly growing) reconciled HISTORY never lands
+  // in Node - only the unreconciled working set below does.
+  const { data: summary } = await supabase.rpc('get_trust_reconciliation_summary', {
+    p_firm_id: firmId,
+    p_account_id: accountId,
+  });
+  const reconciledBaseCents =
+    ((summary ?? {}) as { reconciledBalanceCents?: number }).reconciledBalanceCents ?? 0;
+
+  // Only the not-yet-cleared transactions - the rows the operator actually
+  // checks off. This is the real working set (an account with thousands of
+  // *unreconciled* entries is itself the problem to surface, not to hide).
   const { data } = await supabase
     .from('firm_trust_transactions')
-    .select('id, client_label, kind, amount_cents, description, reconciled_at, created_at')
+    .select('id, client_label, kind, amount_cents, description, created_at')
     .eq('firm_id', firmId)
     .eq('account_id', accountId)
+    .is('reconciled_at', null)
     .order('created_at', { ascending: true });
   const rows = (data ?? []) as Array<{
     id: string;
@@ -189,27 +198,19 @@ export async function getReconciliationWorkspace(
     kind: TrustTxKind;
     amount_cents: number;
     description: string | null;
-    reconciled_at: string | null;
     created_at: string;
   }>;
-  let reconciledBaseCents = 0;
-  const unreconciled: UnreconciledEntry[] = [];
-  for (const r of rows) {
+  const unreconciled: UnreconciledEntry[] = rows.map((r) => {
     const sign = POSITIVE_KINDS.has(r.kind) && r.kind !== 'correction' ? 1 : -1;
-    const signedCents = sign * r.amount_cents;
-    if (r.reconciled_at) {
-      reconciledBaseCents += signedCents;
-    } else {
-      unreconciled.push({
-        id: r.id,
-        kind: r.kind,
-        clientLabel: r.client_label,
-        signedCents,
-        description: r.description,
-        createdAt: r.created_at,
-      });
-    }
-  }
+    return {
+      id: r.id,
+      kind: r.kind,
+      clientLabel: r.client_label,
+      signedCents: sign * r.amount_cents,
+      description: r.description,
+      createdAt: r.created_at,
+    };
+  });
   return { reconciledBaseCents, unreconciled };
 }
 
