@@ -1,6 +1,7 @@
 import Stripe from 'stripe';
 import type { Tier } from './types';
 import type { TierSlug } from './token-packages';
+import { resolvePriceEntitlement } from './entitlements';
 
 let cached: Stripe | null = null;
 
@@ -42,71 +43,26 @@ export function isStripeConfigured(): boolean {
   );
 }
 
+// Price -> tier resolution now lives in lib/entitlements.ts as a single
+// table so the coarse Tier and the fine TierSlug can't drift. These two
+// exports are kept as thin, signature-preserving delegators so every
+// existing importer (webhook, checkout, billing UI) keeps working.
+
 export function tierFromPriceId(priceId: string | null | undefined): Tier | null {
-  if (!priceId) return null;
-  if (priceId === process.env.STRIPE_PRICE_BASIC?.trim()) return 'basic';
-  if (priceId === process.env.STRIPE_PRICE_STANDARD?.trim()) return 'standard';
-  if (priceId === process.env.STRIPE_PRICE_PRO?.trim()) return 'pro';
-  if (priceId === process.env.STRIPE_MONTHLY_PRICE_ID?.trim()) return 'standard';
-  // New-tier price IDs map to legacy Tier values for backward compat
-  // with anything that still types against Tier (basic | standard | pro).
-  // The richer TierSlug mapping lives in tierSlugFromPriceId below.
-  if (priceId === process.env.STRIPE_PRICE_PERSONAL_PRO?.trim()) return 'pro';
-  if (priceId === process.env.STRIPE_PRICE_PERSONAL_PLUS?.trim()) return 'pro';
-  if (priceId === process.env.STRIPE_PRICE_COUNSEL_SOLO?.trim()) return 'pro';
-  if (priceId === process.env.STRIPE_PRICE_COUNSEL_SMALL_FIRM?.trim()) return 'pro';
-  if (priceId === process.env.STRIPE_PRICE_COUNSEL_GROWING?.trim()) return 'pro';
-  if (priceId === process.env.STRIPE_PRICE_COUNSEL_ENTERPRISE?.trim()) return 'pro';
-  return null;
+  return resolvePriceEntitlement(priceId).tier;
 }
 
 /**
- * Resolve a Stripe Price ID to the full TierSlug used by the token
- * economy. Unlike tierFromPriceId (which collapses everything to
- * basic|standard|pro for legacy callers), this returns the exact
- * tier slug: free | pro | pro_plus | solo | small_firm | growing_firm
- * | enterprise.
- *
- * Set the matching STRIPE_PRICE_* env var in Vercel once you have
- * created the corresponding Stripe Price in the Stripe dashboard.
- * Until set, the function returns null for that tier and the webhook
- * skips the grant (no crash).
- *
- * Annual versions: add `_ANNUAL` suffix to each env var name if you
- * wire annual prepay (the 20% prepay discount mentioned on /pricing).
+ * Resolve a Stripe Price ID to the full TierSlug used by the token economy
+ * (free | pro | pro_plus | solo | small_firm | growing_firm | enterprise).
+ * Delegates to the shared table in lib/entitlements.ts, where the deliberate
+ * legacy-Pro divergence (STRIPE_PRICE_PRO -> null slug, so the 1.5M
+ * grantProMonthlyTokens fallback fires) is documented and tested.
  */
 export function tierSlugFromPriceId(
   priceId: string | null | undefined,
 ): TierSlug | null {
-  if (!priceId) return null;
-  // Legacy 'basic' / 'standard' map cleanly to their TierSlug names
-  // and share the same MONTHLY_TOKEN_GRANT entries. The legacy
-  // STRIPE_PRICE_PRO does NOT map here on purpose: its existing
-  // subscriber(s) get 1.5M tokens via the grantProMonthlyTokens
-  // fallback in the webhook (PRO_MONTHLY_TOKEN_GRANT). If we mapped
-  // STRIPE_PRICE_PRO -> 'pro' TierSlug, the new tier-aware path
-  // would only grant 500K tokens (MONTHLY_TOKEN_GRANT['pro']) and
-  // silently downgrade them at renewal. New Personal Pro customers
-  // sit on STRIPE_PRICE_PERSONAL_PRO below and correctly receive
-  // 500K via the new path.
-  if (priceId === process.env.STRIPE_PRICE_BASIC?.trim()) return 'basic';
-  if (priceId === process.env.STRIPE_PRICE_STANDARD?.trim()) return 'standard';
-  if (priceId === process.env.STRIPE_MONTHLY_PRICE_ID?.trim()) return 'standard';
-  // Consumer ladder.
-  if (priceId === process.env.STRIPE_PRICE_PERSONAL_PRO?.trim()) return 'pro';
-  if (priceId === process.env.STRIPE_PRICE_PERSONAL_PRO_ANNUAL?.trim()) return 'pro';
-  if (priceId === process.env.STRIPE_PRICE_PERSONAL_PLUS?.trim()) return 'pro_plus';
-  if (priceId === process.env.STRIPE_PRICE_PERSONAL_PLUS_ANNUAL?.trim()) return 'pro_plus';
-  // Firm ladder.
-  if (priceId === process.env.STRIPE_PRICE_COUNSEL_SOLO?.trim()) return 'solo';
-  if (priceId === process.env.STRIPE_PRICE_COUNSEL_SOLO_ANNUAL?.trim()) return 'solo';
-  if (priceId === process.env.STRIPE_PRICE_COUNSEL_SMALL_FIRM?.trim()) return 'small_firm';
-  if (priceId === process.env.STRIPE_PRICE_COUNSEL_SMALL_FIRM_ANNUAL?.trim()) return 'small_firm';
-  if (priceId === process.env.STRIPE_PRICE_COUNSEL_GROWING?.trim()) return 'growing_firm';
-  if (priceId === process.env.STRIPE_PRICE_COUNSEL_GROWING_ANNUAL?.trim()) return 'growing_firm';
-  if (priceId === process.env.STRIPE_PRICE_COUNSEL_ENTERPRISE?.trim()) return 'enterprise';
-  if (priceId === process.env.STRIPE_PRICE_COUNSEL_ENTERPRISE_ANNUAL?.trim()) return 'enterprise';
-  return null;
+  return resolvePriceEntitlement(priceId).tierSlug;
 }
 
 export function getWebhookSecret(): string | undefined {

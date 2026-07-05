@@ -1,7 +1,13 @@
 import 'server-only';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { grantTierMonthlyTokens } from '@/lib/token-economy';
+import { tierFromIosProduct } from '@/lib/entitlements';
 import type { Tier } from '@/lib/types';
+
+// Re-exported so existing importers (app/api/iap/revenuecat/route.ts) keep
+// resolving it from here; the map itself now lives in lib/entitlements.ts
+// alongside the Stripe price table.
+export { tierFromIosProduct };
 
 /**
  * Server-side helpers for Apple In-App Purchase via RevenueCat.
@@ -18,18 +24,6 @@ import type { Tier } from '@/lib/types';
  * Both converge on recordIapEntitlement(), which writes the
  * `subscriptions` row the rest of the app already reads.
  */
-
-/** Apple product id -> our consumer tier. Mirror of IOS_PRODUCT_BY_TIER. */
-const TIER_BY_IOS_PRODUCT: Record<string, Tier> = {
-  'com.advottic.app.standard.monthly': 'standard',
-  // Pro reuses the repurposed ASC draft id (see IOS_PRODUCT_BY_TIER in lib/iap.ts).
-  'com.advottic.app.personal_pro.monthly': 'pro',
-};
-
-export function tierFromIosProduct(productId: string | null | undefined): Tier | null {
-  if (!productId) return null;
-  return TIER_BY_IOS_PRODUCT[productId] ?? null;
-}
 
 /**
  * Upsert the subscriptions row from an IAP entitlement. `active` true =>
