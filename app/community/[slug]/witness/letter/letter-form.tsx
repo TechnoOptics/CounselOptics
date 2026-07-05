@@ -56,6 +56,7 @@ export function LetterForm({ slug }: { slug: string }) {
   const [idFront, setIdFront] = useState<File | null>(null);
   const [idBack, setIdBack] = useState<File | null>(null);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileExpired, setTurnstileExpired] = useState(false);
 
   useEffect(() => {
     if (step !== 'sign') return;
@@ -479,7 +480,18 @@ export function LetterForm({ slug }: { slug: string }) {
       <IdCapture label="Front of ID" file={idFront} onChange={setIdFront} />
       <IdCapture label="Back of ID" file={idBack} onChange={setIdBack} />
 
-      <TurnstileWidget onToken={setTurnstileToken} />
+      <TurnstileWidget
+        onToken={(t) => {
+          setTurnstileToken(t);
+          if (t) setTurnstileExpired(false);
+        }}
+        onExpire={() => setTurnstileExpired(true)}
+      />
+      {turnstileExpired && !turnstileToken && (
+        <p role="alert" className="text-sm text-amber-700 dark:text-amber-300">
+          Your verification expired - please complete the check above again before submitting.
+        </p>
+      )}
 
       {error && <p role="alert" className="text-sm text-rose-700 dark:text-rose-300">{error}</p>}
 

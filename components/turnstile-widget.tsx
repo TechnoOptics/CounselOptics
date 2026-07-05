@@ -45,7 +45,16 @@ function loadTurnstileScript(): Promise<void> {
  * configured, so public forms keep working in environments where
  * Turnstile hasn't been set up.
  */
-export function TurnstileWidget({ onToken }: { onToken: (token: string | null) => void }) {
+export function TurnstileWidget({
+  onToken,
+  onExpire,
+}: {
+  onToken: (token: string | null) => void;
+  /** Fired when a previously-solved challenge expires or errors, so the
+   *  form can explain why Submit went disabled instead of silently
+   *  greying it out. */
+  onExpire?: () => void;
+}) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const widgetIdRef = useRef<string | null>(null);
   const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
@@ -59,8 +68,14 @@ export function TurnstileWidget({ onToken }: { onToken: (token: string | null) =
         widgetIdRef.current = window.turnstile.render(containerRef.current, {
           sitekey: siteKey,
           callback: (token) => onToken(token),
-          'expired-callback': () => onToken(null),
-          'error-callback': () => onToken(null),
+          'expired-callback': () => {
+            onToken(null);
+            onExpire?.();
+          },
+          'error-callback': () => {
+            onToken(null);
+            onExpire?.();
+          },
         });
       })
       .catch(() => onToken(null));

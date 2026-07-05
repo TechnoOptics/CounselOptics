@@ -18,6 +18,7 @@ export function EvidenceForm({ slug }: { slug: string }) {
   const [done, setDone] = useState(false);
   const [fileLabel, setFileLabel] = useState('');
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileExpired, setTurnstileExpired] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -142,7 +143,18 @@ export function EvidenceForm({ slug }: { slug: string }) {
         </p>
       </div>
 
-      <TurnstileWidget onToken={setTurnstileToken} />
+      <TurnstileWidget
+        onToken={(t) => {
+          setTurnstileToken(t);
+          if (t) setTurnstileExpired(false);
+        }}
+        onExpire={() => setTurnstileExpired(true)}
+      />
+      {turnstileExpired && !turnstileToken && (
+        <p role="alert" className="text-sm text-amber-700 dark:text-amber-300">
+          Your verification expired - please complete the check above again before submitting.
+        </p>
+      )}
 
       {error && <p role="alert" className="text-sm text-rose-700 dark:text-rose-300">{error}</p>}
 
