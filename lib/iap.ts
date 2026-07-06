@@ -75,6 +75,15 @@ function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> 
 
 const STOREKIT_TIMEOUT_MS = 15000;
 
+// The purchase sheet is user-paced (Face ID, a sandbox sign-in, reading the
+// terms), so it gets a much longer ceiling than the pre-purchase calls - but it
+// is NOT unbounded. Build 19/20 were rejected under 2.1(b) because tapping
+// Subscribe "loaded indefinitely"; if StoreKit never presents the sheet, the
+// purchase promise never settles. Capping it guarantees the UI resolves to a
+// retryable message instead of an infinite spinner, which is the exact symptom
+// App Review cited.
+const PURCHASE_TIMEOUT_MS = 180000; // 3 min
+
 /**
  * Re-throw with a `[step]` prefix so a caught error's displayed message
  * pinpoints which native call failed - "The string did not match the
@@ -104,6 +113,10 @@ function tagStep<T>(step: string, fn: () => Promise<T>): Promise<T> {
     });
 }
 
+async function loadPurchasesModule() {
+  return tagStep('loadPlugin', async () => import('@revenuecat/purchases-capacitor'));
+}
+
 async function loadPurchases() {
   return tagStep('loadPlugin', async () => {
     const mod = await import('@revenuecat/purchases-capacitor');
@@ -117,10 +130,30 @@ async function loadPurchases() {
  * to the right account.
  */
 async function ensureConfigured(userId: string) {
-  const Purchases = await loadPurchases();
+  const mod = await loadPurchasesModule();
+  const Purchases = mod.Purchases;
   const apiKey = process.env.NEXT_PUBLIC_REVENUECAT_IOS_KEY?.trim();
   if (!apiKey) {
     throw new Error('In-app purchase is not configured yet.');
+  }
+  // A RevenueCat *public Apple* SDK key starts with "appl_". Shipping the wrong
+  // key type (a secret sk_ key, an Android goog_ key, or a stale key from a
+  // different RevenueCat project) is the classic cause of the SDK never
+  // completing its handshake - configure() returns fine, but every subsequent
+  // StoreKit-via-RevenueCat call stalls, so tapping Subscribe "loads
+  // indefinitely" and RevenueCat shows zero SDK connections. Fail loud here
+  // rather than let the purchase hang.
+  if (!apiKey.startsWith('appl_')) {
+    throw new Error(
+      'In-app purchase is misconfigured: NEXT_PUBLIC_REVENUECAT_IOS_KEY must be the RevenueCat public Apple key (starts with "appl_").',
+    );
+  }
+  // Surface the native RevenueCat handshake in device / App Review logs so a
+  // future failure is diagnosable instead of silent. Best-effort.
+  try {
+    await Purchases.setLogLevel({ level: mod.LOG_LEVEL.DEBUG });
+  } catch {
+    /* older plugin shape - non-fatal */
   }
   if (configuredFor === null) {
     await tagStep('configure', () =>
@@ -174,19 +207,58 @@ export async function purchaseTier(
     throw new Error('This plan is not available as an in-app purchase.');
   }
   const Purchases = await ensureConfigured(userId);
-  const { products } = await tagStep('getProducts', () =>
-    withTimeout(
-      Purchases.getProducts({ productIdentifiers: [productId] }),
-      STOREKIT_TIMEOUT_MS,
-      "The App Store isn't responding right now. Please try again in a moment.",
-    ),
-  );
-  const product = products?.[0];
-  if (!product) {
-    throw new Error('This plan is not available in the App Store right now.');
-  }
+
+  // Prefer RevenueCat's supported Offering/Package flow (the "default" offering
+  // has both products as packages). This is the path RevenueCat tests and is
+  // more reliable at presenting the StoreKit sheet than a raw StoreProduct.
+  // Fall back to the raw product if offerings aren't reachable, so a
+  // dashboard-side offering hiccup can never block a purchase outright.
+  let purchase: (() => Promise<{ customerInfo: unknown }>) | null = null;
   try {
-    const res = await Purchases.purchaseStoreProduct({ product });
+    const offerings = await tagStep('getOfferings', () =>
+      withTimeout(
+        Purchases.getOfferings(),
+        STOREKIT_TIMEOUT_MS,
+        "The App Store isn't responding right now. Please try again in a moment.",
+      ),
+    );
+    const pkgs =
+      (offerings as { current?: { availablePackages?: Array<{ product?: { identifier?: string } }> } })
+        ?.current?.availablePackages ?? [];
+    const pkg = pkgs.find((p) => p?.product?.identifier === productId);
+    if (pkg) {
+      purchase = () =>
+        (Purchases as unknown as {
+          purchasePackage: (o: { aPackage: unknown }) => Promise<{ customerInfo: unknown }>;
+        }).purchasePackage({ aPackage: pkg });
+    }
+  } catch {
+    /* fall through to the raw StoreProduct path */
+  }
+
+  if (!purchase) {
+    const { products } = await tagStep('getProducts', () =>
+      withTimeout(
+        Purchases.getProducts({ productIdentifiers: [productId] }),
+        STOREKIT_TIMEOUT_MS,
+        "The App Store isn't responding right now. Please try again in a moment.",
+      ),
+    );
+    const product = products?.[0];
+    if (!product) {
+      throw new Error('This plan is not available in the App Store right now.');
+    }
+    purchase = () => Purchases.purchaseStoreProduct({ product });
+  }
+
+  try {
+    // Bounded so a sheet that never presents can't hang forever (the 2.1(b)
+    // "loaded indefinitely" symptom) - see PURCHASE_TIMEOUT_MS.
+    const res = await withTimeout(
+      purchase(),
+      PURCHASE_TIMEOUT_MS,
+      "The purchase didn't start. Please try again.",
+    );
     return { active: hasActiveEntitlement(res.customerInfo), cancelled: false };
   } catch (err) {
     // RevenueCat sets userCancelled on a deliberate cancel - not an error.
@@ -194,7 +266,7 @@ export async function purchaseTier(
       return { active: false, cancelled: true };
     }
     throw err instanceof Error
-      ? Object.assign(new Error(`[purchaseStoreProduct] ${err.message}`), { stack: err.stack })
+      ? Object.assign(new Error(`[purchase] ${err.message}`), { stack: err.stack })
       : err;
   }
 }
