@@ -1297,13 +1297,37 @@ function drawWitnessSubmission(
 // Case Timeline exhibit
 // ===========================================================================
 
+/** One catalogued file, authenticated by a SHA-256 digest computed at intake. */
+export type ExhibitFile = {
+  name: string;
+  mime: string;
+  sizeBytes: number;
+  sha256: string; // hex digest (or a short "(unavailable)" note)
+  /** Embeddable JPEG/PNG bytes, or null for non-image / unsupported media. */
+  image: Buffer | null;
+};
+
+/** A profiled individual or entity referenced across the matter. */
+export type ExhibitEntity = {
+  name: string;
+  kind: 'person' | 'organization';
+  roleLabel: string;
+  aliases: string[];
+  notes: string | null;
+  /** Reference photo (JPEG/PNG) for identification assistance, or null. */
+  photo: Buffer | null;
+  /** How many catalogued items reference this entity. */
+  appearances: number;
+};
+
 export type TimelineExhibitData = {
   caseTitle: string;
+  caseRef: string | null;
   subjectName: string | null;
   preparedBy: string | null;
   generatedAt: string; // ISO
   narrative: { summary: string | null; narrative: string | null; conclusion: string | null } | null;
-  people: { name: string; role: string }[];
+  entities: ExhibitEntity[];
   entries: {
     index: number;
     when: string;
@@ -1311,36 +1335,131 @@ export type TimelineExhibitData = {
     title: string;
     context: string | null;
     summary: string | null;
+    sourceLabel: string | null;
     people: string[];
-    media: string[];
+    exhibits: ExhibitFile[];
   }[];
 };
 
-/** Move to a fresh page if fewer than `needed` points remain before the footer. */
+const BATES_PREFIX = 'ADV';
+const batesLabel = (n: number) => `${BATES_PREFIX}-${String(n).padStart(6, '0')}`;
+const humanBytes = (n: number) => {
+  if (!n || n < 1024) return `${n || 0} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+};
+const BOTTOM = PAGE_HEIGHT - MARGIN - 28;
+
+/** Add a page only if fewer than `needed` points remain — never leaves a blank. */
 function ensureSpace(doc: Doc, needed: number) {
-  if (doc.y + needed > PAGE_HEIGHT - MARGIN - 24) doc.addPage();
+  if (doc.y + needed > BOTTOM) doc.addPage();
 }
 
 /**
- * Court-ready chronology exhibit. Cover + executive summary + a numbered,
- * dated entry list (context + Bella's factual analysis + tagged people +
- * source files) + the reasoned conclusion, with the standard non-advice
- * disclaimer. Reuses the shared section/body/drawFooter helpers so it matches
- * generateCasePdf's typography rather than inventing a parallel layout.
+ * Start a major section on a fresh page WITHOUT ever producing a blank one.
+ * If the current page already holds content we break; if we're already at the
+ * top of an untouched page (e.g. right after an auto-break) we reuse it. This
+ * is the fix for "more pages than content": the previous version called
+ * doc.addPage() unconditionally before every section, so a section whose prior
+ * content happened to end near a page boundary left an empty page behind.
+ */
+function beginSection(doc: Doc, title: string) {
+  if (doc.y > MARGIN + 2) doc.addPage();
+  doc.x = MARGIN;
+  doc.y = MARGIN;
+  section(doc, title);
+}
+
+/** A reference profile card: optional photo + name + role + aliases + notes. */
+function drawEntityCard(doc: Doc, ent: ExhibitEntity) {
+  const cardH = ent.notes ? 96 : 76;
+  ensureSpace(doc, cardH + 8);
+  const top = doc.y;
+  const photoW = 58;
+  doc.save().roundedRect(MARGIN, top, CONTENT_WIDTH, cardH, 8)
+    .fill('#faf8f2').restore();
+  let textX = MARGIN + 14;
+  if (ent.photo) {
+    try {
+      doc.save();
+      doc.roundedRect(MARGIN + 12, top + 12, photoW, photoW, 6).clip();
+      doc.image(ent.photo, MARGIN + 12, top + 12, { fit: [photoW, photoW], align: 'center', valign: 'center' });
+      doc.restore();
+      textX = MARGIN + 12 + photoW + 14;
+    } catch { doc.restore(); }
+  } else {
+    doc.save().roundedRect(MARGIN + 12, top + 12, photoW, photoW, 6)
+      .fill(COLOR.rule ?? '#e7e2d6').restore();
+    doc.font('Helvetica-Bold').fontSize(20).fillColor(COLOR.muted)
+      .text((ent.name[0] || '?').toUpperCase(), MARGIN + 12, top + 12 + photoW / 2 - 12, { width: photoW, align: 'center' });
+    textX = MARGIN + 12 + photoW + 14;
+  }
+  const textW = MARGIN + CONTENT_WIDTH - textX - 12;
+  doc.font('Helvetica-Bold').fontSize(8).fillColor(COLOR.amber)
+    .text(`${ent.kind === 'organization' ? 'ORGANIZATION' : 'PERSON'} · ${ent.roleLabel.toUpperCase()}`, textX, top + 14, { characterSpacing: 1.2, width: textW });
+  doc.font('Helvetica-Bold').fontSize(14).fillColor(COLOR.ink)
+    .text(ent.name, textX, top + 26, { width: textW });
+  const meta: string[] = [];
+  if (ent.aliases.length) meta.push(`a.k.a. ${ent.aliases.join(', ')}`);
+  meta.push(`${ent.appearances} appearance${ent.appearances === 1 ? '' : 's'}`);
+  doc.font('Helvetica').fontSize(8.5).fillColor(COLOR.muted)
+    .text(meta.join('  ·  '), textX, doc.y + 1, { width: textW });
+  if (ent.notes) {
+    doc.font('Helvetica').fontSize(9).fillColor(COLOR.inkSoft)
+      .text(ent.notes, textX, doc.y + 3, { width: textW, height: 26, ellipsis: true });
+  }
+  doc.y = top + cardH + 8;
+}
+
+/** Embed one image with its authentication caption; paginates as needed. */
+function drawExhibitImage(doc: Doc, ex: ExhibitFile) {
+  if (!ex.image) return;
+  let iw = 0, ih = 0;
+  try {
+    const im = (doc as unknown as { openImage(src: Buffer): { width: number; height: number } }).openImage(ex.image);
+    iw = im.width; ih = im.height;
+  } catch { return; }
+  if (!iw || !ih) return;
+  const maxW = CONTENT_WIDTH;
+  const maxH = 360;
+  let w = maxW, h = (w * ih) / iw;
+  if (h > maxH) { h = maxH; w = (h * iw) / ih; }
+  const capH = 14;
+  if (doc.y + h + capH + 10 > BOTTOM) doc.addPage();
+  const x = MARGIN + (CONTENT_WIDTH - w) / 2;
+  try {
+    doc.save().roundedRect(x, doc.y, w, h, 6).clip();
+    doc.image(ex.image, x, doc.y, { width: w, height: h });
+    doc.restore();
+    doc.save().roundedRect(x, doc.y, w, h, 6).lineWidth(0.5).stroke(COLOR.rule ?? '#e7e2d6').restore();
+  } catch { doc.restore(); return; }
+  doc.y += h + 4;
+  doc.font('Helvetica').fontSize(7.5).fillColor(COLOR.faint)
+    .text(`${ex.name}  ·  ${humanBytes(ex.sizeBytes)}  ·  SHA-256 ${ex.sha256.slice(0, 24)}…`, MARGIN, doc.y, { width: CONTENT_WIDTH, align: 'center' });
+  doc.y += 10;
+}
+
+/**
+ * Court-ready evidentiary exhibit. Cover → certification/authentication →
+ * persons & organizations of interest (profiles + reference photos) → numbered
+ * dated chronology with EMBEDDED evidence images + per-file SHA-256 digests →
+ * narrative → conclusion → disclaimer. Every page carries a Bates-style
+ * identifier. Reuses the shared section/body/drawMetaGrid typography.
  */
 export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Promise<Buffer> {
   const logoBuffer = await loadLogoBuffer();
+  const totalExhibits = input.entries.reduce((n, e) => n + e.exhibits.length, 0);
+  const prepared = new Date(input.generatedAt).toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short' });
   return new Promise((resolve, reject) => {
     try {
       const doc = new PDFDocument({
         size: PAGE_SIZE,
         margin: MARGIN,
         autoFirstPage: true,
-        bufferPages: true,
         info: {
-          Title: `${input.caseTitle} - Timeline exhibit`,
+          Title: `${input.caseTitle} — Timeline exhibit`,
           Author: 'Advottic',
-          Subject: 'Case timeline exhibit',
+          Subject: 'Case timeline evidentiary exhibit',
         },
       });
       const chunks: Buffer[] = [];
@@ -1348,43 +1467,112 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', reject);
 
-      // ── Cover
-      if (logoBuffer) {
-        try { doc.image(logoBuffer, MARGIN, MARGIN, { width: 34 }); } catch { /* ignore */ }
-      }
-      doc.y = MARGIN + 60;
+      // Footer drawn per page as it's created (running page # + Bates
+      // identifier). This replaces the bufferPages + switchToPage post-pass,
+      // which duplicated every page 4× under pdfkit 0.15.2 — the actual cause
+      // of "more pages than content".
+      let pageNo = 0;
+      let inFooter = false;
+      const footPage = () => {
+        if (inFooter) return; // guard: footer text must never re-trigger pageAdded
+        inFooter = true;
+        pageNo += 1;
+        const sx = doc.x, sy = doc.y;
+        try { drawExhibitFooter(doc, pageNo, input.caseTitle, batesLabel(pageNo)); } catch { /* ignore */ }
+        doc.x = sx; doc.y = sy;
+        inFooter = false;
+      };
+      doc.on('pageAdded', footPage);
+      footPage(); // page 1 exists (autoFirstPage) before the listener attached
+
+      // ── COVER
+      if (logoBuffer) { try { doc.image(logoBuffer, MARGIN, MARGIN, { width: 34 }); } catch { /* ignore */ } }
+      doc.y = MARGIN + 64;
       doc.font('Helvetica-Bold').fontSize(9).fillColor(COLOR.muted)
-        .text('CASE TIMELINE - EXHIBIT', MARGIN, doc.y, { characterSpacing: 2 });
-      gap(doc, 8);
-      doc.font('Helvetica-Bold').fontSize(26).fillColor(COLOR.ink).text(input.caseTitle, MARGIN, doc.y);
-      gap(doc, 16);
+        .text('CASE TIMELINE — EVIDENTIARY EXHIBIT', MARGIN, doc.y, { characterSpacing: 2 });
+      gap(doc, 10);
+      doc.font('Helvetica-Bold').fontSize(26).fillColor(COLOR.ink)
+        .text(input.caseTitle, MARGIN, doc.y, { width: CONTENT_WIDTH });
+      gap(doc, 18);
       drawMetaGrid(doc, [
-        ['SUBJECT', input.subjectName],
-        ['PREPARED', new Date(input.generatedAt).toLocaleString('en-US', {
-          month: 'long', day: 'numeric', year: 'numeric',
-        })],
+        ['MATTER / SUBJECT', input.subjectName],
+        ['CASE REFERENCE', input.caseRef],
+        ['PREPARED', prepared],
         ['PREPARED BY', input.preparedBy],
         ['ENTRIES', String(input.entries.length)],
+        ['EXHIBITS', String(totalExhibits)],
       ]);
-      gap(doc, 12);
-      if (input.people.length > 0) {
-        doc.font('Helvetica-Bold').fontSize(8.5).fillColor(COLOR.muted)
-          .text('PEOPLE REFERENCED', MARGIN, doc.y, { characterSpacing: 1.5 });
-        gap(doc, 4);
-        doc.font('Helvetica').fontSize(10.5).fillColor(COLOR.ink)
-          .text(input.people.map((p) => `${p.name} (${p.role})`).join(' · '), MARGIN, doc.y, { width: CONTENT_WIDTH });
-        gap(doc, 12);
-      }
+      gap(doc, 16);
       doc.font('Helvetica-Oblique').fontSize(9).fillColor(COLOR.muted).text(
-        'This chronology was assembled by the submitter with Advottic. It is a factual summary of the materials listed and is not legal advice.',
+        'Prepared with Advottic. A factual chronology of the materials catalogued herein. Each exhibit is authenticated by a SHA-256 digest recorded at intake, and every page carries a unique Bates-style identifier. This document is not legal advice.',
         MARGIN, doc.y, { width: CONTENT_WIDTH },
       );
 
-      // ── Executive summary
-      if (input.narrative?.summary) {
-        doc.addPage();
-        section(doc, 'Summary');
-        body(doc, input.narrative.summary);
+      // ── CERTIFICATION & AUTHENTICATION
+      beginSection(doc, 'Certification & authentication');
+      body(doc, `This exhibit was assembled from ${input.entries.length} catalogued item(s) and ${totalExhibits} source file(s) submitted in connection with the above matter. Each file reproduced or referenced herein is identified by its original filename, media type, byte size, and a SHA-256 cryptographic digest computed at the time of intake. A digest that matches the original file establishes that the file has not been altered since it was catalogued.`);
+      gap(doc, 8);
+      body(doc, 'Entries are numbered sequentially and paginated with a unique Bates-style identifier in the footer of every page. Any AI-assisted description, transcription, or observation is labelled as such and is provided for organisational assistance only — it is not a determination of identity, authenticity, or legal significance, and must be independently verified by counsel.');
+
+      // ── PERSONS & ORGANIZATIONS OF INTEREST
+      if (input.entities.length) {
+        beginSection(doc, 'Persons & organizations of interest');
+        doc.font('Helvetica').fontSize(9.5).fillColor(COLOR.muted).text(
+          'Reference profiles for the individuals and entities catalogued in this matter. Reference images assist identification and are NOT a biometric determination.',
+          MARGIN, doc.y, { width: CONTENT_WIDTH },
+        );
+        gap(doc, 12);
+        for (const ent of input.entities) drawEntityCard(doc, ent);
+      }
+
+      // ── CHRONOLOGY (with embedded exhibits)
+      beginSection(doc, 'Chronology of events');
+      for (const e of input.entries) {
+        ensureSpace(doc, 96);
+        doc.font('Helvetica-Bold').fontSize(9).fillColor(COLOR.amber)
+          .text(`${e.index}.  ${e.when}`, MARGIN, doc.y, { characterSpacing: 0.5 });
+        gap(doc, 2);
+        doc.font('Helvetica-Bold').fontSize(13).fillColor(COLOR.ink)
+          .text(e.title || '(untitled entry)', MARGIN, doc.y, { width: CONTENT_WIDTH });
+        gap(doc, 2);
+        const metaBits = [e.kind];
+        if (e.sourceLabel) metaBits.push(`Source: ${e.sourceLabel}`);
+        if (e.people.length) metaBits.push(`People: ${e.people.join(', ')}`);
+        doc.font('Helvetica').fontSize(8.5).fillColor(COLOR.muted)
+          .text(metaBits.join('  ·  '), MARGIN, doc.y, { width: CONTENT_WIDTH });
+        if (e.context) { gap(doc, 4); body(doc, e.context); }
+        if (e.summary) {
+          gap(doc, 4);
+          doc.font('Helvetica-Oblique').fontSize(9.5).fillColor(COLOR.inkSoft)
+            .text(`AI-assisted analysis (verify): ${e.summary}`, MARGIN, doc.y, { width: CONTENT_WIDTH });
+        }
+        // Embedded evidence images + authentication captions.
+        if (e.exhibits.some((x) => x.image)) {
+          gap(doc, 8);
+          for (const ex of e.exhibits) drawExhibitImage(doc, ex);
+        }
+        // Non-image files: authenticated reference lines.
+        const nonImg = e.exhibits.filter((x) => !x.image);
+        if (nonImg.length) {
+          gap(doc, 4);
+          for (const ex of nonImg) {
+            ensureSpace(doc, 16);
+            doc.font('Helvetica').fontSize(8.5).fillColor(COLOR.faint)
+              .text(`📎  ${ex.name}  ·  ${ex.mime || 'file'}  ·  ${humanBytes(ex.sizeBytes)}  ·  SHA-256 ${ex.sha256.slice(0, 24)}…`, MARGIN, doc.y, { width: CONTENT_WIDTH });
+            gap(doc, 2);
+          }
+        }
+        gap(doc, 6);
+        ensureSpace(doc, 20);
+        doc.save().strokeColor(COLOR.rule).lineWidth(0.5)
+          .moveTo(MARGIN, doc.y).lineTo(PAGE_WIDTH - MARGIN, doc.y).stroke().restore();
+        gap(doc, 12);
+      }
+
+      // ── NARRATIVE
+      if (input.narrative?.summary || input.narrative?.narrative) {
+        beginSection(doc, 'Narrative summary');
+        if (input.narrative.summary) body(doc, input.narrative.summary);
         if (input.narrative.narrative) {
           gap(doc, 10);
           subsection(doc, 'Chronological account');
@@ -1392,54 +1580,40 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
         }
       }
 
-      // ── Chronology
-      doc.addPage();
-      section(doc, 'Chronology');
-      for (const e of input.entries) {
-        ensureSpace(doc, 90);
-        doc.font('Helvetica-Bold').fontSize(9).fillColor(COLOR.amber)
-          .text(`${e.index}.  ${e.when}`, MARGIN, doc.y, { characterSpacing: 0.5 });
-        gap(doc, 2);
-        doc.font('Helvetica-Bold').fontSize(12.5).fillColor(COLOR.ink)
-          .text(e.title || '(untitled entry)', MARGIN, doc.y, { width: CONTENT_WIDTH });
-        gap(doc, 2);
-        doc.font('Helvetica').fontSize(8.5).fillColor(COLOR.muted)
-          .text(e.kind + (e.people.length ? `  ·  People: ${e.people.join(', ')}` : ''), MARGIN, doc.y, { width: CONTENT_WIDTH });
-        if (e.context) { gap(doc, 4); body(doc, e.context); }
-        if (e.summary) {
-          gap(doc, 4);
-          doc.font('Helvetica-Oblique').fontSize(10).fillColor(COLOR.inkSoft)
-            .text(`Analysis: ${e.summary}`, MARGIN, doc.y, { width: CONTENT_WIDTH });
-        }
-        if (e.media.length) {
-          gap(doc, 4);
-          doc.font('Helvetica').fontSize(8.5).fillColor(COLOR.faint)
-            .text(`Source: ${e.media.join(', ')}`, MARGIN, doc.y, { width: CONTENT_WIDTH });
-        }
-        gap(doc, 6);
-        doc.save().strokeColor(COLOR.rule).lineWidth(0.5)
-          .moveTo(MARGIN, doc.y).lineTo(PAGE_WIDTH - MARGIN, doc.y).stroke().restore();
-        gap(doc, 10);
-      }
-
-      // ── Conclusion
+      // ── CONCLUSION
       if (input.narrative?.conclusion) {
-        doc.addPage();
-        section(doc, 'Conclusion');
+        beginSection(doc, 'Conclusion');
         body(doc, input.narrative.conclusion);
       }
 
-      // ── Disclaimer + footers
-      doc.addPage();
+      // ── DISCLAIMER (drawDisclaimer resets to top + draws its own header)
+      if (doc.y > MARGIN + 2) doc.addPage();
       drawDisclaimer(doc);
-      const range = doc.bufferedPageRange();
-      for (let i = 0; i < range.count; i++) {
-        doc.switchToPage(range.start + i);
-        if (i > 0) drawFooter(doc, i, range.count - 1, input.caseTitle);
-      }
+
       doc.end();
     } catch (err) {
       reject(err instanceof Error ? err : new Error('Timeline PDF generation failed.'));
     }
   });
+}
+
+/** Footer: page number left, matter centre, Bates identifier right. */
+function drawExhibitFooter(doc: Doc, page: number, caseTitle: string, bates: string) {
+  const y = PAGE_HEIGHT - MARGIN / 2 - 6;
+  // Drawing text below the content area leaves pdfkit in an "overflowed" state
+  // that paginates on the next write (which, via the pageAdded listener, would
+  // multiply pages). Zeroing the bottom margin for the duration prevents that.
+  const pageObj = (doc as unknown as { page: { margins: { bottom: number } } }).page;
+  const savedBottom = pageObj.margins.bottom;
+  pageObj.margins.bottom = 0;
+  doc.save();
+  doc.strokeColor(COLOR.rule).lineWidth(0.5);
+  doc.moveTo(MARGIN, y - 10).lineTo(PAGE_WIDTH - MARGIN, y - 10).stroke();
+  doc.font('Helvetica').fontSize(8).fillColor(COLOR.muted);
+  doc.text(`Advottic  ·  Page ${page}`, MARGIN, y - 4, { width: 220, align: 'left', lineBreak: false });
+  doc.text(truncate(caseTitle, 40), 0, y - 4, { width: PAGE_WIDTH, align: 'center', lineBreak: false });
+  doc.font('Helvetica-Bold').fontSize(8).fillColor(COLOR.ink);
+  doc.text(bates, PAGE_WIDTH - MARGIN - 200, y - 4, { width: 200, align: 'right', lineBreak: false });
+  doc.restore();
+  pageObj.margins.bottom = savedBottom;
 }

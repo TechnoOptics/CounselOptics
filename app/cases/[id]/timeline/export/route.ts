@@ -1,11 +1,29 @@
+import { createHash } from 'crypto';
 import { NextResponse } from 'next/server';
 import { getCurrentUser, createServerSupabase } from '@/lib/supabase/server';
 import { getTimelineBundle } from '@/lib/timeline-actions';
-import { generateTimelineExhibitPdf, type TimelineExhibitData } from '@/lib/pdf';
-import { formatOccurred, KIND_LABEL } from '@/lib/timeline-types';
+import {
+  generateTimelineExhibitPdf,
+  type TimelineExhibitData,
+  type ExhibitFile,
+  type ExhibitEntity,
+} from '@/lib/pdf';
+import { formatOccurred, KIND_LABEL, ROLE_LABEL, type TimelineMedia } from '@/lib/timeline-types';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
+
+// Bound the work so a huge timeline can't blow the 60s budget: cap how many
+// files we download + hash, and don't inline anything above ~15 MB.
+const MAX_DOWNLOADS = 150;
+const MAX_INLINE_BYTES = 15 * 1024 * 1024;
+
+function isJpegOrPng(buf: Buffer): boolean {
+  return (
+    (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) || // JPEG
+    (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) // PNG
+  );
+}
 
 export async function GET(
   _req: Request,
@@ -35,10 +53,111 @@ export async function GET(
     return NextResponse.json({ error: 'Add timeline entries before exporting.' }, { status: 400 });
   }
 
+  let downloads = 0;
+
+  // Download a file from the member-scoped exhibits bucket, hash it, and keep
+  // the bytes for embedding when it's a JPEG/PNG.
+  async function loadExhibit(m: TimelineMedia): Promise<ExhibitFile> {
+    const base: ExhibitFile = {
+      name: m.name || 'file',
+      mime: m.mime || '',
+      sizeBytes: m.size || 0,
+      sha256: '(not computed)',
+      image: null,
+    };
+    if (m.size && m.size > MAX_INLINE_BYTES) {
+      return { ...base, sha256: '(not computed — large file)' };
+    }
+    if (downloads >= MAX_DOWNLOADS) {
+      return { ...base, sha256: '(not computed — export limit reached)' };
+    }
+    downloads++;
+    try {
+      const { data, error } = await supabase.storage.from('exhibits').download(m.path);
+      if (error || !data) return { ...base, sha256: '(file unavailable)' };
+      const buf = Buffer.from(await data.arrayBuffer());
+      const sha256 = createHash('sha256').update(buf).digest('hex');
+      return { ...base, sizeBytes: buf.length || base.sizeBytes, sha256, image: isJpegOrPng(buf) ? buf : null };
+    } catch {
+      return { ...base, sha256: '(file unavailable)' };
+    }
+  }
+
+  async function loadPhoto(path: string | null): Promise<Buffer | null> {
+    if (!path || downloads >= MAX_DOWNLOADS) return null;
+    downloads++;
+    try {
+      const { data, error } = await supabase.storage.from('exhibits').download(path);
+      if (error || !data) return null;
+      const buf = Buffer.from(await data.arrayBuffer());
+      return isJpegOrPng(buf) ? buf : null;
+    } catch {
+      return null;
+    }
+  }
+
   const peopleById = new Map(bundle.people.map((p) => [p.id, p.displayName]));
+
+  // ── Persons of interest (profiles + reference photos).
+  const personEntities: ExhibitEntity[] = await Promise.all(
+    bundle.people.map(async (p) => ({
+      name: p.displayName,
+      kind: 'person' as const,
+      roleLabel: ROLE_LABEL[p.role] ?? 'Other',
+      aliases: p.aliases,
+      notes: p.notes,
+      photo: await loadPhoto(p.avatarPath),
+      appearances: bundle.events.filter((e) => e.people.includes(p.id)).length,
+    })),
+  );
+
+  // ── Organizations of interest, aggregated from Bella's per-item extraction.
+  const orgMap = new Map<string, { name: string; count: number }>();
+  for (const e of bundle.events) {
+    for (const raw of e.aiExtracted.organizations ?? []) {
+      const name = raw.trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      const cur = orgMap.get(key);
+      if (cur) cur.count++;
+      else orgMap.set(key, { name, count: 1 });
+    }
+  }
+  const orgEntities: ExhibitEntity[] = [...orgMap.values()]
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 12)
+    .map((o) => ({
+      name: o.name,
+      kind: 'organization' as const,
+      roleLabel: 'Organization',
+      aliases: [],
+      notes: `Referenced in ${o.count} item${o.count === 1 ? '' : 's'}`,
+      photo: null,
+      appearances: o.count,
+    }));
+
+  // ── Entries with embedded, hashed exhibits (sequential so the download cap
+  //    and the 60s budget are respected).
+  const entries: TimelineExhibitData['entries'] = [];
+  for (let i = 0; i < bundle.events.length; i++) {
+    const e = bundle.events[i];
+    const exhibits = await Promise.all(e.media.map(loadExhibit));
+    entries.push({
+      index: i + 1,
+      when: formatOccurred(e.occurredAt, e.occurredPrecision),
+      kind: KIND_LABEL[e.kind],
+      title: e.title,
+      context: e.description,
+      summary: e.aiSummary,
+      sourceLabel: e.sourceLabel,
+      people: e.people.map((id) => peopleById.get(id) ?? '').filter(Boolean),
+      exhibits,
+    });
+  }
 
   const data: TimelineExhibitData = {
     caseTitle: c.title,
+    caseRef: c.id.slice(0, 8).toUpperCase(),
     subjectName: c.subject_name,
     preparedBy:
       (profile as { display_name?: string | null } | null)?.display_name ||
@@ -52,21 +171,12 @@ export async function GET(
           conclusion: bundle.narrative.conclusion,
         }
       : null,
-    people: bundle.people.map((p) => ({ name: p.displayName, role: p.role })),
-    entries: bundle.events.map((e, i) => ({
-      index: i + 1,
-      when: formatOccurred(e.occurredAt, e.occurredPrecision),
-      kind: KIND_LABEL[e.kind],
-      title: e.title,
-      context: e.description,
-      summary: e.aiSummary,
-      people: e.people.map((id) => peopleById.get(id) ?? '').filter(Boolean),
-      media: e.media.map((m) => m.name),
-    })),
+    entities: [...personEntities, ...orgEntities],
+    entries,
   };
 
   const pdf = await generateTimelineExhibitPdf(data);
-  const filename = `${c.title.replace(/[^a-z0-9]+/gi, '-').slice(0, 60) || 'case'}-timeline.pdf`;
+  const filename = `${c.title.replace(/[^a-z0-9]+/gi, '-').slice(0, 60) || 'case'}-timeline-exhibit.pdf`;
 
   return new NextResponse(new Uint8Array(pdf), {
     status: 200,
