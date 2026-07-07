@@ -32,13 +32,18 @@ export default async function TimelinePage({
   return (
     <main className="min-h-[100dvh] bg-cream-50 dark:bg-forest-950">
       <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
-        <nav className="mb-4 text-sm">
+        <nav aria-label="Breadcrumb" className="mb-4 flex flex-wrap items-center gap-1.5 text-sm text-ink-500 dark:text-cream-300/70">
+          <Link href="/cases" className="hover:text-forest-900 dark:hover:text-cream-100">Cases</Link>
+          <span aria-hidden>/</span>
           <Link
             href={`/cases/${params.id}`}
-            className="text-forest-700 hover:text-forest-900 dark:text-cream-300"
+            className="max-w-[16rem] truncate hover:text-forest-900 dark:hover:text-cream-100"
+            data-no-translate
           >
-            ← Back to case
+            {c.title}
           </Link>
+          <span aria-hidden>/</span>
+          <span className="font-medium text-forest-900 dark:text-cream-100" aria-current="page">Timeline</span>
         </nav>
         <TimelineBuilder
           caseId={params.id}
