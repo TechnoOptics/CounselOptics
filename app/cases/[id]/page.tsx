@@ -214,6 +214,10 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
             <ShieldIcon />
             Courtroom Mode
           </Link>
+          <Link href={`/cases/${c.id}/timeline`} className="btn-secondary">
+            <TimelineIcon />
+            Timeline
+          </Link>
           <Link href={`/cases/${c.id}/packet`} className="btn-secondary">
             <DownloadIcon />
             Court Packet
@@ -935,6 +939,20 @@ function DownloadIcon() {
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
       <path
         d="M12 4v12m0 0l-4-4m4 4l4-4M5 20h14"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function TimelineIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 7a5 5 0 100 10 5 5 0 000-10Zm0 0V3m0 18v-4M7 12H3m18 0h-4"
         stroke="currentColor"
         strokeWidth="2"
         strokeLinecap="round"

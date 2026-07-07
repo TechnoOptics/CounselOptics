@@ -1292,3 +1292,154 @@ function drawWitnessSubmission(
       .text('PDF attachment - available separately in the case file.', MARGIN, doc.y);
   }
 }
+
+// ===========================================================================
+// Case Timeline exhibit
+// ===========================================================================
+
+export type TimelineExhibitData = {
+  caseTitle: string;
+  subjectName: string | null;
+  preparedBy: string | null;
+  generatedAt: string; // ISO
+  narrative: { summary: string | null; narrative: string | null; conclusion: string | null } | null;
+  people: { name: string; role: string }[];
+  entries: {
+    index: number;
+    when: string;
+    kind: string;
+    title: string;
+    context: string | null;
+    summary: string | null;
+    people: string[];
+    media: string[];
+  }[];
+};
+
+/** Move to a fresh page if fewer than `needed` points remain before the footer. */
+function ensureSpace(doc: Doc, needed: number) {
+  if (doc.y + needed > PAGE_HEIGHT - MARGIN - 24) doc.addPage();
+}
+
+/**
+ * Court-ready chronology exhibit. Cover + executive summary + a numbered,
+ * dated entry list (context + Bella's factual analysis + tagged people +
+ * source files) + the reasoned conclusion, with the standard non-advice
+ * disclaimer. Reuses the shared section/body/drawFooter helpers so it matches
+ * generateCasePdf's typography rather than inventing a parallel layout.
+ */
+export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Promise<Buffer> {
+  const logoBuffer = await loadLogoBuffer();
+  return new Promise((resolve, reject) => {
+    try {
+      const doc = new PDFDocument({
+        size: PAGE_SIZE,
+        margin: MARGIN,
+        autoFirstPage: true,
+        bufferPages: true,
+        info: {
+          Title: `${input.caseTitle} - Timeline exhibit`,
+          Author: 'Advottic',
+          Subject: 'Case timeline exhibit',
+        },
+      });
+      const chunks: Buffer[] = [];
+      doc.on('data', (c: Buffer) => chunks.push(c));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+
+      // ── Cover
+      if (logoBuffer) {
+        try { doc.image(logoBuffer, MARGIN, MARGIN, { width: 34 }); } catch { /* ignore */ }
+      }
+      doc.y = MARGIN + 60;
+      doc.font('Helvetica-Bold').fontSize(9).fillColor(COLOR.muted)
+        .text('CASE TIMELINE - EXHIBIT', MARGIN, doc.y, { characterSpacing: 2 });
+      gap(doc, 8);
+      doc.font('Helvetica-Bold').fontSize(26).fillColor(COLOR.ink).text(input.caseTitle, MARGIN, doc.y);
+      gap(doc, 16);
+      drawMetaGrid(doc, [
+        ['SUBJECT', input.subjectName],
+        ['PREPARED', new Date(input.generatedAt).toLocaleString('en-US', {
+          month: 'long', day: 'numeric', year: 'numeric',
+        })],
+        ['PREPARED BY', input.preparedBy],
+        ['ENTRIES', String(input.entries.length)],
+      ]);
+      gap(doc, 12);
+      if (input.people.length > 0) {
+        doc.font('Helvetica-Bold').fontSize(8.5).fillColor(COLOR.muted)
+          .text('PEOPLE REFERENCED', MARGIN, doc.y, { characterSpacing: 1.5 });
+        gap(doc, 4);
+        doc.font('Helvetica').fontSize(10.5).fillColor(COLOR.ink)
+          .text(input.people.map((p) => `${p.name} (${p.role})`).join(' · '), MARGIN, doc.y, { width: CONTENT_WIDTH });
+        gap(doc, 12);
+      }
+      doc.font('Helvetica-Oblique').fontSize(9).fillColor(COLOR.muted).text(
+        'This chronology was assembled by the submitter with Advottic. It is a factual summary of the materials listed and is not legal advice.',
+        MARGIN, doc.y, { width: CONTENT_WIDTH },
+      );
+
+      // ── Executive summary
+      if (input.narrative?.summary) {
+        doc.addPage();
+        section(doc, 'Summary');
+        body(doc, input.narrative.summary);
+        if (input.narrative.narrative) {
+          gap(doc, 10);
+          subsection(doc, 'Chronological account');
+          body(doc, input.narrative.narrative);
+        }
+      }
+
+      // ── Chronology
+      doc.addPage();
+      section(doc, 'Chronology');
+      for (const e of input.entries) {
+        ensureSpace(doc, 90);
+        doc.font('Helvetica-Bold').fontSize(9).fillColor(COLOR.amber)
+          .text(`${e.index}.  ${e.when}`, MARGIN, doc.y, { characterSpacing: 0.5 });
+        gap(doc, 2);
+        doc.font('Helvetica-Bold').fontSize(12.5).fillColor(COLOR.ink)
+          .text(e.title || '(untitled entry)', MARGIN, doc.y, { width: CONTENT_WIDTH });
+        gap(doc, 2);
+        doc.font('Helvetica').fontSize(8.5).fillColor(COLOR.muted)
+          .text(e.kind + (e.people.length ? `  ·  People: ${e.people.join(', ')}` : ''), MARGIN, doc.y, { width: CONTENT_WIDTH });
+        if (e.context) { gap(doc, 4); body(doc, e.context); }
+        if (e.summary) {
+          gap(doc, 4);
+          doc.font('Helvetica-Oblique').fontSize(10).fillColor(COLOR.inkSoft)
+            .text(`Analysis: ${e.summary}`, MARGIN, doc.y, { width: CONTENT_WIDTH });
+        }
+        if (e.media.length) {
+          gap(doc, 4);
+          doc.font('Helvetica').fontSize(8.5).fillColor(COLOR.faint)
+            .text(`Source: ${e.media.join(', ')}`, MARGIN, doc.y, { width: CONTENT_WIDTH });
+        }
+        gap(doc, 6);
+        doc.save().strokeColor(COLOR.rule).lineWidth(0.5)
+          .moveTo(MARGIN, doc.y).lineTo(PAGE_WIDTH - MARGIN, doc.y).stroke().restore();
+        gap(doc, 10);
+      }
+
+      // ── Conclusion
+      if (input.narrative?.conclusion) {
+        doc.addPage();
+        section(doc, 'Conclusion');
+        body(doc, input.narrative.conclusion);
+      }
+
+      // ── Disclaimer + footers
+      doc.addPage();
+      drawDisclaimer(doc);
+      const range = doc.bufferedPageRange();
+      for (let i = 0; i < range.count; i++) {
+        doc.switchToPage(range.start + i);
+        if (i > 0) drawFooter(doc, i, range.count - 1, input.caseTitle);
+      }
+      doc.end();
+    } catch (err) {
+      reject(err instanceof Error ? err : new Error('Timeline PDF generation failed.'));
+    }
+  });
+}

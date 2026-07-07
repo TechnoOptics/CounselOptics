@@ -1,0 +1,624 @@
+'use client';
+
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
+import Link from 'next/link';
+import {
+  createTimelineEvent,
+  analyzeTimelineEvent,
+  updateTimelineEvent,
+  deleteTimelineEvent,
+  addPerson,
+  deletePerson,
+  getTimelineMediaUrl,
+  generateTimelineNarrative,
+} from '@/lib/timeline-actions';
+import {
+  formatOccurred,
+  sortTimeline,
+  KIND_ICON,
+  KIND_LABEL,
+  ROLE_LABEL,
+  type TimelineBundle,
+  type TimelineEvent,
+  type CasePerson,
+  type TimelineKind,
+  type OccurredPrecision,
+  type PersonRole,
+} from '@/lib/timeline-types';
+
+// ── Small hook: lazily resolve a short-lived signed URL for a media path ──
+const urlCache = new Map<string, string>();
+function useSignedUrl(path: string | null): string | null {
+  const [url, setUrl] = useState<string | null>(path ? urlCache.get(path) ?? null : null);
+  useEffect(() => {
+    let active = true;
+    if (!path) return;
+    if (urlCache.has(path)) { setUrl(urlCache.get(path)!); return; }
+    getTimelineMediaUrl(path).then((u) => {
+      if (!active || !u) return;
+      urlCache.set(path, u);
+      setUrl(u);
+    });
+    return () => { active = false; };
+  }, [path]);
+  return url;
+}
+
+const KINDS: TimelineKind[] = ['photo', 'document', 'receipt', 'audio', 'video', 'message', 'note', 'event'];
+const ROLES: PersonRole[] = ['subject', 'witness', 'opposing', 'support', 'other'];
+
+function initials(name: string): string {
+  return name.split(/\s+/).map((w) => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || '?';
+}
+
+export function TimelineBuilder({
+  caseId,
+  caseTitle,
+  subjectName,
+  initialBundle,
+  aiEnabled,
+}: {
+  caseId: string;
+  caseTitle: string;
+  subjectName: string | null;
+  initialBundle: TimelineBundle;
+  aiEnabled: boolean;
+}) {
+  const [events, setEvents] = useState<TimelineEvent[]>(initialBundle.events);
+  const [people, setPeople] = useState<CasePerson[]>(initialBundle.people);
+  const [narrative, setNarrative] = useState(initialBundle.narrative);
+  const [analyzing, setAnalyzing] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const upsertEvent = useCallback((ev: TimelineEvent) => {
+    setEvents((prev) => sortTimeline([...prev.filter((e) => e.id !== ev.id), ev]));
+  }, []);
+
+  const runAnalysis = useCallback(async (id: string) => {
+    setAnalyzing((s) => new Set(s).add(id));
+    try {
+      const res = await analyzeTimelineEvent(id);
+      if (res.event) upsertEvent(res.event);
+    } finally {
+      setAnalyzing((s) => { const n = new Set(s); n.delete(id); return n; });
+    }
+  }, [upsertEvent]);
+
+  // Drop a pile of evidence → one event per file, each auto-analysed by Bella.
+  const ingestFiles = useCallback(async (files: File[]) => {
+    setError(null);
+    setBusy(true);
+    try {
+      for (const file of files) {
+        const fd = new FormData();
+        fd.append('files', file);
+        const res = await createTimelineEvent(caseId, fd);
+        if (!res.ok || !res.event) { setError(res.error ?? 'Upload failed.'); continue; }
+        upsertEvent(res.event);
+        if (aiEnabled && res.event.aiStatus === 'pending') void runAnalysis(res.event.id);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }, [caseId, aiEnabled, upsertEvent, runAnalysis]);
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length) void ingestFiles(files);
+  };
+
+  const dated = events.length;
+  const analysed = events.filter((e) => e.aiStatus === 'done').length;
+
+  return (
+    <div>
+      {/* Header */}
+      <header className="mb-6">
+        <p className="eyebrow mb-1 text-gold-700 dark:text-gold-500">Case Timeline</p>
+        <h1 className="font-display text-3xl font-semibold tracking-tight text-forest-900 dark:text-cream-50">
+          {caseTitle}
+        </h1>
+        <p className="mt-1 text-sm text-ink-600 dark:text-cream-300/80">
+          Drop everything you&apos;ve collected — photos, documents, receipts, voice notes, videos, chat
+          screenshots. Advottic reads each item, dates it, spots the people, and arranges it into a
+          court-ready chronology.
+        </p>
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-ink-500 dark:text-cream-300/70">
+          <span className="rounded-full bg-forest-900/5 px-2.5 py-1 dark:bg-cream-50/10">{dated} entr{dated === 1 ? 'y' : 'ies'}</span>
+          <span className="rounded-full bg-forest-900/5 px-2.5 py-1 dark:bg-cream-50/10">{analysed} analysed</span>
+          <span className="rounded-full bg-forest-900/5 px-2.5 py-1 dark:bg-cream-50/10">{people.length} {people.length === 1 ? 'person' : 'people'}</span>
+        </div>
+      </header>
+
+      {error && (
+        <div role="alert" className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+          {error}
+        </div>
+      )}
+
+      <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
+        {/* Main column */}
+        <div className="min-w-0">
+          {/* Dropzone */}
+          <div
+            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={onDrop}
+            className={`mb-6 rounded-2xl border-2 border-dashed p-6 text-center transition-colors ${
+              dragOver
+                ? 'border-gold-500 bg-gold-500/10'
+                : 'border-forest-900/20 bg-white/60 dark:border-cream-50/15 dark:bg-cream-50/5'
+            }`}
+          >
+            <div className="text-3xl">🗂️</div>
+            <p className="mt-2 font-medium text-forest-900 dark:text-cream-100">
+              Drop evidence here, or{' '}
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                className="text-gold-700 underline underline-offset-2 hover:text-gold-800 dark:text-gold-500"
+              >
+                browse your files
+              </button>
+            </p>
+            <p className="mt-1 text-xs text-ink-500 dark:text-cream-300/70">
+              Each file becomes a dated timeline entry. Up to 50&nbsp;MB each.
+            </p>
+            <input
+              ref={fileRef}
+              type="file"
+              multiple
+              accept="image/*,application/pdf,.doc,.docx,text/*,audio/*,video/*"
+              className="sr-only"
+              onChange={(e) => {
+                const files = Array.from(e.target.files ?? []);
+                if (files.length) void ingestFiles(files);
+                e.target.value = '';
+              }}
+            />
+            {busy && <p className="mt-3 text-sm text-forest-700 dark:text-cream-300">Uploading…</p>}
+            <div className="mt-3">
+              <ManualAddButton caseId={caseId} onAdded={(ev) => { upsertEvent(ev); if (aiEnabled && ev.aiStatus === 'pending') void runAnalysis(ev.id); }} />
+            </div>
+          </div>
+
+          {/* Timeline */}
+          {events.length === 0 ? (
+            <div className="rounded-2xl border border-forest-900/10 bg-white p-10 text-center dark:border-cream-50/10 dark:bg-forest-900/40">
+              <p className="text-ink-600 dark:text-cream-300/80">
+                Your timeline is empty. Drop your first piece of evidence above and watch it fall into place.
+              </p>
+            </div>
+          ) : (
+            <Timeline
+              events={events}
+              people={people}
+              analyzing={analyzing}
+              aiEnabled={aiEnabled}
+              onReanalyze={runAnalysis}
+              onChange={upsertEvent}
+              onDelete={(id) => setEvents((prev) => prev.filter((e) => e.id !== id))}
+              onCreatePerson={async (name, role) => {
+                const res = await addPerson(caseId, { displayName: name, role });
+                if (res.person) { setPeople((p) => [...p, res.person!]); return res.person; }
+                return null;
+              }}
+            />
+          )}
+        </div>
+
+        {/* Side rail */}
+        <aside className="space-y-6">
+          <PeopleRail
+            caseId={caseId}
+            people={people}
+            events={events}
+            onAdd={(p) => setPeople((prev) => [...prev, p])}
+            onRemove={(id) => setPeople((prev) => prev.filter((x) => x.id !== id))}
+          />
+          <DocumentPanel
+            caseId={caseId}
+            narrative={narrative}
+            eventCount={events.length}
+            aiEnabled={aiEnabled}
+            onGenerated={setNarrative}
+          />
+          <SharePanel caseId={caseId} />
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+// ── Manual entry (note / event with typed context) ────────────────────────
+function ManualAddButton({ caseId, onAdded }: { caseId: string; onAdded: (ev: TimelineEvent) => void }) {
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [date, setDate] = useState('');
+  const [kind, setKind] = useState<TimelineKind>('event');
+  const [pending, start] = useTransition();
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="text-sm text-forest-700 underline underline-offset-2 hover:text-forest-900 dark:text-cream-300"
+      >
+        ＋ Add an entry manually (a note or event)
+      </button>
+    );
+  }
+  return (
+    <div className="mx-auto mt-2 max-w-md rounded-xl border border-forest-900/15 bg-white p-4 text-left dark:border-cream-50/15 dark:bg-forest-900/60">
+      <input
+        value={title} onChange={(e) => setTitle(e.target.value)}
+        placeholder="Title (e.g. Landlord refused repairs)"
+        className="mb-2 w-full rounded-lg border border-ink-200 px-3 py-2 text-sm dark:border-cream-50/20 dark:bg-forest-950"
+      />
+      <textarea
+        value={description} onChange={(e) => setDescription(e.target.value)}
+        placeholder="What happened, and why it matters…" rows={3}
+        className="mb-2 w-full rounded-lg border border-ink-200 px-3 py-2 text-sm dark:border-cream-50/20 dark:bg-forest-950"
+      />
+      <div className="mb-3 flex gap-2">
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+          className="rounded-lg border border-ink-200 px-2 py-1.5 text-sm dark:border-cream-50/20 dark:bg-forest-950" />
+        <select value={kind} onChange={(e) => setKind(e.target.value as TimelineKind)}
+          className="rounded-lg border border-ink-200 px-2 py-1.5 text-sm dark:border-cream-50/20 dark:bg-forest-950">
+          {KINDS.map((k) => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}
+        </select>
+      </div>
+      <div className="flex justify-end gap-2">
+        <button type="button" onClick={() => setOpen(false)} className="rounded-lg px-3 py-1.5 text-sm text-ink-600">Cancel</button>
+        <button
+          type="button"
+          disabled={pending || (!title && !description)}
+          onClick={() => start(async () => {
+            const fd = new FormData();
+            fd.append('title', title); fd.append('description', description);
+            fd.append('kind', kind);
+            if (date) { fd.append('occurredAt', date); fd.append('occurredPrecision', 'day'); }
+            const res = await createTimelineEvent(caseId, fd);
+            if (res.event) { onAdded(res.event); setOpen(false); setTitle(''); setDescription(''); setDate(''); }
+          })}
+          className="rounded-lg bg-forest-900 px-3 py-1.5 text-sm font-medium text-cream-50 disabled:opacity-50 dark:bg-gold-metal dark:text-forest-950"
+        >
+          {pending ? 'Adding…' : 'Add entry'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── The chronological timeline ────────────────────────────────────────────
+function Timeline({
+  events, people, analyzing, aiEnabled, onReanalyze, onChange, onDelete, onCreatePerson,
+}: {
+  events: TimelineEvent[];
+  people: CasePerson[];
+  analyzing: Set<string>;
+  aiEnabled: boolean;
+  onReanalyze: (id: string) => void;
+  onChange: (ev: TimelineEvent) => void;
+  onDelete: (id: string) => void;
+  onCreatePerson: (name: string, role: PersonRole) => Promise<CasePerson | null>;
+}) {
+  // Group by year for a scannable spine.
+  const groups: { key: string; items: TimelineEvent[] }[] = [];
+  for (const e of events) {
+    const key = e.occurredAt ? String(new Date(e.occurredAt).getUTCFullYear()) : 'Undated';
+    const g = groups.find((x) => x.key === key);
+    if (g) g.items.push(e); else groups.push({ key, items: [e] });
+  }
+  return (
+    <div className="relative">
+      <div className="absolute left-4 top-2 bottom-2 w-px bg-forest-900/15 dark:bg-cream-50/15" aria-hidden />
+      <div className="space-y-8">
+        {groups.map((g) => (
+          <section key={g.key}>
+            <div className="mb-3 flex items-center gap-3">
+              <span className="relative z-10 grid h-8 w-8 place-items-center rounded-full bg-forest-900 text-xs font-semibold text-cream-50 dark:bg-gold-metal dark:text-forest-950">
+                {g.key === 'Undated' ? '—' : g.key.slice(2)}
+              </span>
+              <h2 className="font-display text-lg font-semibold text-forest-900 dark:text-cream-100">{g.key}</h2>
+            </div>
+            <div className="ml-1 space-y-3 pl-8">
+              {g.items.map((ev) => (
+                <EventCard
+                  key={ev.id}
+                  event={ev}
+                  people={people}
+                  analyzing={analyzing.has(ev.id)}
+                  aiEnabled={aiEnabled}
+                  onReanalyze={() => onReanalyze(ev.id)}
+                  onChange={onChange}
+                  onDelete={onDelete}
+                  onCreatePerson={onCreatePerson}
+                />
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function EventCard({
+  event, people, analyzing, aiEnabled, onReanalyze, onChange, onDelete, onCreatePerson,
+}: {
+  event: TimelineEvent;
+  people: CasePerson[];
+  analyzing: boolean;
+  aiEnabled: boolean;
+  onReanalyze: () => void;
+  onChange: (ev: TimelineEvent) => void;
+  onDelete: (id: string) => void;
+  onCreatePerson: (name: string, role: PersonRole) => Promise<CasePerson | null>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const firstImage = event.media.find((m) => /^image\//.test(m.mime)) ?? null;
+  const thumb = useSignedUrl(firstImage?.path ?? null);
+  const tagged = people.filter((p) => event.people.includes(p.id));
+  const detected = event.aiExtracted.detected_people ?? [];
+  const thread = event.aiExtracted.message_thread;
+
+  async function tagDetected(name: string) {
+    const existing = people.find((p) => p.displayName.toLowerCase() === name.toLowerCase());
+    const person = existing ?? (await onCreatePerson(name, 'other'));
+    if (!person) return;
+    const next = Array.from(new Set([...event.people, person.id]));
+    await updateTimelineEvent(event.id, { people: next });
+    onChange({ ...event, people: next });
+  }
+
+  return (
+    <article className="relative rounded-xl border border-forest-900/10 bg-white p-4 shadow-sm dark:border-cream-50/10 dark:bg-forest-900/50">
+      <span className="absolute -left-[38px] top-5 z-10 grid h-6 w-6 place-items-center rounded-full bg-cream-50 text-sm ring-2 ring-forest-900/15 dark:bg-forest-900 dark:ring-cream-50/15" aria-hidden>
+        {KIND_ICON[event.kind]}
+      </span>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-500 dark:text-cream-300/70">
+            <span className="font-medium text-forest-700 dark:text-gold-500">{formatOccurred(event.occurredAt, event.occurredPrecision)}</span>
+            <span aria-hidden>·</span>
+            <span>{KIND_LABEL[event.kind]}</span>
+            {event.sourceLabel && (<><span aria-hidden>·</span><span>{event.sourceLabel}</span></>)}
+          </div>
+          <h3 className="mt-0.5 font-medium text-forest-900 dark:text-cream-100" data-no-translate>
+            {event.title || <span className="italic text-ink-400">Untitled entry</span>}
+          </h3>
+        </div>
+        <div className="flex flex-none gap-1">
+          {aiEnabled && (
+            <button type="button" onClick={onReanalyze} disabled={analyzing}
+              title="Re-run Bella's analysis"
+              className="rounded-md px-2 py-1 text-xs text-ink-500 hover:bg-forest-900/5 disabled:opacity-50 dark:hover:bg-cream-50/10">
+              {analyzing ? '…' : '↻'}
+            </button>
+          )}
+          <button type="button" onClick={() => setEditing((v) => !v)} title="Edit"
+            className="rounded-md px-2 py-1 text-xs text-ink-500 hover:bg-forest-900/5 dark:hover:bg-cream-50/10">✎</button>
+          <button type="button"
+            onClick={async () => { if (confirm('Remove this entry?')) { await deleteTimelineEvent(event.id); onDelete(event.id); } }}
+            title="Delete" className="rounded-md px-2 py-1 text-xs text-rose-500 hover:bg-rose-50">🗑</button>
+        </div>
+      </div>
+
+      <div className="mt-3 flex gap-3">
+        {firstImage && (
+          // eslint-disable-next-line @next/next/no-img-element
+          thumb ? <img src={thumb} alt="" data-no-translate className="h-20 w-20 flex-none rounded-lg object-cover ring-1 ring-forest-900/10" />
+            : <div className="grid h-20 w-20 flex-none place-items-center rounded-lg bg-forest-900/5 text-2xl dark:bg-cream-50/10">🖼️</div>
+        )}
+        {!firstImage && event.media.length > 0 && (
+          <div className="grid h-20 w-20 flex-none place-items-center rounded-lg bg-forest-900/5 text-2xl dark:bg-cream-50/10">{KIND_ICON[event.kind]}</div>
+        )}
+        <div className="min-w-0 flex-1">
+          {event.description && <p className="text-sm text-ink-700 dark:text-cream-200/90" data-no-translate>{event.description}</p>}
+
+          {analyzing && <p className="mt-1 animate-pulse text-xs text-forest-600 dark:text-gold-500">Bella is analysing this…</p>}
+          {event.aiStatus === 'error' && event.aiError && (
+            <p className="mt-1 text-xs text-rose-600">Analysis: {event.aiError}</p>
+          )}
+          {event.aiSummary && (
+            <div className="mt-2 rounded-lg bg-gold-500/10 px-3 py-2 text-sm text-forest-900 dark:bg-gold-500/15 dark:text-cream-100">
+              <span className="mr-1 font-medium text-gold-800 dark:text-gold-400">Bella:</span>
+              <span data-no-translate>{event.aiSummary}</span>
+            </div>
+          )}
+
+          {thread?.messages && thread.messages.length > 0 && (
+            <details className="mt-2 rounded-lg border border-forest-900/10 p-2 text-xs dark:border-cream-50/10">
+              <summary className="cursor-pointer text-ink-600 dark:text-cream-300">
+                {thread.platform ?? 'Chat'} — {thread.messages.length} message{thread.messages.length === 1 ? '' : 's'} parsed
+              </summary>
+              <ul className="mt-2 space-y-1" data-no-translate>
+                {thread.messages.slice(0, 20).map((m, i) => (
+                  <li key={i} className="text-ink-700 dark:text-cream-200/90">
+                    <span className="font-medium">{m.sender ?? 'Unknown'}</span>
+                    {m.recipient ? <span className="text-ink-400"> → {m.recipient}</span> : null}
+                    {m.timestamp ? <span className="text-ink-400"> · {m.timestamp}</span> : null}
+                    : {m.body}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+
+          {/* People: tagged + AI-detected suggestions */}
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            {tagged.map((p) => (
+              <span key={p.id} className="inline-flex items-center gap-1 rounded-full bg-forest-900/10 px-2 py-0.5 text-xs text-forest-900 dark:bg-cream-50/10 dark:text-cream-100" data-no-translate>
+                <span className="grid h-4 w-4 place-items-center rounded-full bg-forest-900 text-[9px] text-cream-50 dark:bg-gold-metal dark:text-forest-950">{initials(p.displayName)}</span>
+                {p.displayName}
+              </span>
+            ))}
+            {detected
+              .filter((n) => !tagged.some((p) => p.displayName.toLowerCase() === n.toLowerCase()))
+              .slice(0, 6)
+              .map((n) => (
+                <button key={n} type="button" onClick={() => void tagDetected(n)}
+                  className="rounded-full border border-dashed border-forest-900/25 px-2 py-0.5 text-xs text-ink-500 hover:border-gold-500 hover:text-gold-700 dark:border-cream-50/25" data-no-translate>
+                  ＋ {n}
+                </button>
+              ))}
+          </div>
+        </div>
+      </div>
+
+      {editing && (
+        <EventEditor event={event} onSaved={(ev) => { onChange(ev); setEditing(false); }} onCancel={() => setEditing(false)} />
+      )}
+    </article>
+  );
+}
+
+function EventEditor({ event, onSaved, onCancel }: { event: TimelineEvent; onSaved: (ev: TimelineEvent) => void; onCancel: () => void }) {
+  const [title, setTitle] = useState(event.title);
+  const [description, setDescription] = useState(event.description ?? '');
+  const [date, setDate] = useState(event.occurredAt ? new Date(event.occurredAt).toISOString().slice(0, 10) : '');
+  const [precision, setPrecision] = useState<OccurredPrecision>(event.occurredPrecision);
+  const [kind, setKind] = useState<TimelineKind>(event.kind);
+  const [source, setSource] = useState(event.sourceLabel ?? '');
+  const [pending, start] = useTransition();
+  return (
+    <div className="mt-3 space-y-2 rounded-lg bg-forest-900/[0.03] p-3 dark:bg-cream-50/[0.04]">
+      <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title"
+        className="w-full rounded-lg border border-ink-200 px-3 py-1.5 text-sm dark:border-cream-50/20 dark:bg-forest-950" />
+      <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder="Your context"
+        className="w-full rounded-lg border border-ink-200 px-3 py-1.5 text-sm dark:border-cream-50/20 dark:bg-forest-950" />
+      <div className="flex flex-wrap gap-2">
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+          className="rounded-lg border border-ink-200 px-2 py-1.5 text-sm dark:border-cream-50/20 dark:bg-forest-950" />
+        <select value={precision} onChange={(e) => setPrecision(e.target.value as OccurredPrecision)}
+          className="rounded-lg border border-ink-200 px-2 py-1.5 text-sm dark:border-cream-50/20 dark:bg-forest-950">
+          {(['exact', 'day', 'month', 'year', 'unknown'] as OccurredPrecision[]).map((p) => <option key={p} value={p}>{p}</option>)}
+        </select>
+        <select value={kind} onChange={(e) => setKind(e.target.value as TimelineKind)}
+          className="rounded-lg border border-ink-200 px-2 py-1.5 text-sm dark:border-cream-50/20 dark:bg-forest-950">
+          {KINDS.map((k) => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}
+        </select>
+        <input value={source} onChange={(e) => setSource(e.target.value)} placeholder="Source (optional)"
+          className="min-w-0 flex-1 rounded-lg border border-ink-200 px-3 py-1.5 text-sm dark:border-cream-50/20 dark:bg-forest-950" />
+      </div>
+      <div className="flex justify-end gap-2">
+        <button type="button" onClick={onCancel} className="rounded-lg px-3 py-1.5 text-sm text-ink-600">Cancel</button>
+        <button type="button" disabled={pending}
+          onClick={() => start(async () => {
+            await updateTimelineEvent(event.id, {
+              title, description: description || null, kind, sourceLabel: source || null,
+              occurredAt: date || null, occurredPrecision: precision,
+            });
+            onSaved({ ...event, title, description: description || null, kind, sourceLabel: source || null, occurredAt: date ? new Date(date).toISOString() : null, occurredPrecision: date ? precision : 'unknown' });
+          })}
+          className="rounded-lg bg-forest-900 px-3 py-1.5 text-sm font-medium text-cream-50 disabled:opacity-50 dark:bg-gold-metal dark:text-forest-950">
+          {pending ? 'Saving…' : 'Save'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── People rail ───────────────────────────────────────────────────────────
+function PeopleRail({ caseId, people, events, onAdd, onRemove }: {
+  caseId: string; people: CasePerson[]; events: TimelineEvent[];
+  onAdd: (p: CasePerson) => void; onRemove: (id: string) => void;
+}) {
+  const [name, setName] = useState('');
+  const [role, setRole] = useState<PersonRole>('other');
+  const [pending, start] = useTransition();
+  const countFor = (id: string) => events.filter((e) => e.people.includes(id)).length;
+  return (
+    <div className="rounded-2xl border border-forest-900/10 bg-white p-4 dark:border-cream-50/10 dark:bg-forest-900/50">
+      <h2 className="mb-3 font-display text-base font-semibold text-forest-900 dark:text-cream-100">People</h2>
+      <ul className="space-y-2">
+        {people.map((p) => (
+          <li key={p.id} className="flex items-center gap-2">
+            <span className="grid h-7 w-7 flex-none place-items-center rounded-full bg-forest-900 text-[10px] font-semibold text-cream-50 dark:bg-gold-metal dark:text-forest-950" data-no-translate>{initials(p.displayName)}</span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm text-forest-900 dark:text-cream-100" data-no-translate>{p.displayName}</span>
+              <span className="text-[11px] text-ink-500 dark:text-cream-300/70">{ROLE_LABEL[p.role]} · {countFor(p.id)} entr{countFor(p.id) === 1 ? 'y' : 'ies'}</span>
+            </span>
+            <button type="button" onClick={async () => { if (confirm(`Remove ${p.displayName}?`)) { await deletePerson(p.id); onRemove(p.id); } }}
+              className="text-xs text-ink-400 hover:text-rose-500">✕</button>
+          </li>
+        ))}
+        {people.length === 0 && <li className="text-sm text-ink-500 dark:text-cream-300/70">No one tagged yet. Bella will suggest people from your evidence.</li>}
+      </ul>
+      <div className="mt-3 flex gap-1.5">
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Add a person"
+          className="min-w-0 flex-1 rounded-lg border border-ink-200 px-2.5 py-1.5 text-sm dark:border-cream-50/20 dark:bg-forest-950" />
+        <select value={role} onChange={(e) => setRole(e.target.value as PersonRole)}
+          className="rounded-lg border border-ink-200 px-1 py-1.5 text-xs dark:border-cream-50/20 dark:bg-forest-950">
+          {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
+        </select>
+        <button type="button" disabled={pending || !name.trim()}
+          onClick={() => start(async () => { const res = await addPerson(caseId, { displayName: name, role }); if (res.person) { onAdd(res.person); setName(''); } })}
+          className="rounded-lg bg-forest-900 px-2.5 py-1.5 text-sm text-cream-50 disabled:opacity-50 dark:bg-gold-metal dark:text-forest-950">＋</button>
+      </div>
+    </div>
+  );
+}
+
+// ── The generated legal document ──────────────────────────────────────────
+function DocumentPanel({ caseId, narrative, eventCount, aiEnabled, onGenerated }: {
+  caseId: string;
+  narrative: TimelineBundle['narrative'];
+  eventCount: number;
+  aiEnabled: boolean;
+  onGenerated: (n: TimelineBundle['narrative']) => void;
+}) {
+  const [pending, start] = useTransition();
+  const [err, setErr] = useState<string | null>(null);
+  return (
+    <div className="rounded-2xl border border-forest-900/10 bg-white p-4 dark:border-cream-50/10 dark:bg-forest-900/50">
+      <h2 className="mb-1 font-display text-base font-semibold text-forest-900 dark:text-cream-100">Timeline document</h2>
+      <p className="mb-3 text-xs text-ink-500 dark:text-cream-300/70">
+        Bella writes a chronological account + conclusion from your entries, ready to export as a court exhibit.
+      </p>
+      {narrative?.summary && (
+        <div className="mb-3 space-y-2 rounded-lg bg-forest-900/[0.03] p-3 text-sm text-ink-800 dark:bg-cream-50/[0.04] dark:text-cream-200/90" data-no-translate>
+          <p>{narrative.summary}</p>
+          {narrative.conclusion && <p className="border-t border-forest-900/10 pt-2 text-xs italic dark:border-cream-50/10">{narrative.conclusion}</p>}
+        </div>
+      )}
+      {err && <p className="mb-2 text-xs text-rose-600">{err}</p>}
+      <div className="flex flex-col gap-2">
+        {aiEnabled && (
+          <button type="button" disabled={pending || eventCount === 0}
+            onClick={() => { setErr(null); start(async () => { const res = await generateTimelineNarrative(caseId); if (!res.ok) setErr(res.error ?? 'Failed.'); else { const b = await import('@/lib/timeline-actions').then((m) => m.getTimelineBundle(caseId)); onGenerated(b.narrative); } }); }}
+            className="rounded-lg bg-forest-900 px-3 py-2 text-sm font-medium text-cream-50 disabled:opacity-50 dark:bg-gold-metal dark:text-forest-950">
+            {pending ? 'Building…' : narrative ? 'Regenerate document' : 'Generate document'}
+          </button>
+        )}
+        <a href={`/cases/${caseId}/timeline/export`} target="_blank" rel="noopener noreferrer"
+          className="rounded-lg border border-forest-900/20 px-3 py-2 text-center text-sm font-medium text-forest-900 hover:bg-forest-900/5 dark:border-cream-50/20 dark:text-cream-100 dark:hover:bg-cream-50/10">
+          ⬇ Export court-ready PDF
+        </a>
+      </div>
+    </div>
+  );
+}
+
+function SharePanel({ caseId }: { caseId: string }) {
+  return (
+    <div className="rounded-2xl border border-forest-900/10 bg-white p-4 dark:border-cream-50/10 dark:bg-forest-900/50">
+      <h2 className="mb-1 font-display text-base font-semibold text-forest-900 dark:text-cream-100">Share</h2>
+      <p className="mb-3 text-xs text-ink-500 dark:text-cream-300/70">
+        Invite an attorney or a trusted collaborator to view or help build this timeline.
+      </p>
+      <Link href={`/cases/${caseId}#collaborators`}
+        className="block rounded-lg border border-forest-900/20 px-3 py-2 text-center text-sm font-medium text-forest-900 hover:bg-forest-900/5 dark:border-cream-50/20 dark:text-cream-100 dark:hover:bg-cream-50/10">
+        Manage collaborators
+      </Link>
+    </div>
+  );
+}
