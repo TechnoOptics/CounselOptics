@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { TIER_FEATURES, TIER_LABEL, type Tier } from '@/lib/types';
 import { useIsNativeApp } from '@/components/useIsNativeApp';
 import { tierHasIosProduct } from '@/lib/iap';
@@ -104,8 +104,18 @@ export function TierCard({
   const [error, setError] = useState<string | null>(null);
   // Diagnostic: live step-by-step trace of the IAP flow, rendered under the
   // button so it can be read straight off the device (RevenueCat's own logs
-  // don't reach idevicesyslog). Temporary — remove once the purchase works.
+  // don't reach idevicesyslog). Hidden unless the page is opened with
+  // ?iapdebug=1, so normal users never see it but we can re-enable it to
+  // re-verify a purchase after shipping a fresh native build.
   const [diag, setDiag] = useState<string[]>([]);
+  const [showDiag, setShowDiag] = useState(false);
+  useEffect(() => {
+    try {
+      setShowDiag(new URLSearchParams(window.location.search).has('iapdebug'));
+    } catch {
+      /* ignore */
+    }
+  }, []);
   const f = TIER_FEATURES[tier];
   const bullets = bulletsForTier(tier);
   const isCurrent = isActive && currentTier === tier;
@@ -283,7 +293,7 @@ export function TierCard({
           {error}
         </p>
       )}
-      {useIap && diag.length > 0 && (
+      {useIap && diag.length > 0 && showDiag && (
         <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-ink-200 bg-ink-950/90 px-3 py-2 text-[10.5px] leading-snug text-emerald-200">
           {diag.map((d, i) => `${i + 1}. ${d}`).join('\n')}
         </pre>

@@ -155,30 +155,35 @@ async function ensureConfigured(userId: string) {
       'In-app purchase is misconfigured: NEXT_PUBLIC_REVENUECAT_IOS_KEY must be the RevenueCat public Apple key (starts with "appl_").',
     );
   }
-  // We deliberately do NOT call setLogLevel (its concurrent bridge call
-  // deadlocked configure on this build), and we do NOT AWAIT configure().
+  // We do NOT call setLogLevel — firing it concurrently with configure()
+  // deadlocked the native plugin on the stale TestFlight binary, and its
+  // output doesn't reach idevicesyslog anyway.
   //
-  // On-device tracing showed the flow freezing at "configuring…" forever:
-  // configure() never returned AND the 15s withTimeout never fired, which is
-  // only possible if configure() blocks the WebView's JS thread. RevenueCat's
-  // SDK is designed so you can call configure() and then immediately call
-  // getOfferings/purchase — the SDK queues those behind configuration
-  // internally. So we fire configure() and move on WITHOUT awaiting it, which
-  // avoids parking the JS thread on a native call that doesn't hand control
-  // back. If the very act of calling configure() still freezes, that is a hard
-  // native-binary deadlock (skew between the v13 JS SDK served from
-  // advottic.com and the plugin compiled into the installed TestFlight build)
-  // and only a fresh native build can fix it.
-  if (configuredFor !== userId) {
-    try {
-      // Not awaited on purpose — see above.
-      void (Purchases.configure({ apiKey, appUserID: userId }) as unknown as
-        | Promise<unknown>
-        | undefined
-      )?.catch?.(() => {});
-    } catch {
-      /* synchronous throw from the bridge — non-fatal, let downstream calls surface it */
-    }
+  // configure() is bounded by withTimeout so a healthy-but-slow handshake
+  // surfaces a clear error instead of an infinite spinner (Guideline 2.1(b)).
+  // NOTE: on-device tracing proved that a *version-skewed* native plugin makes
+  // configure() freeze the WebView JS thread SYNCHRONOUSLY — which no JS guard
+  // can interrupt. That is fixed only by shipping a fresh native build whose
+  // @revenuecat/purchases-capacitor matches the JS SDK served from advottic.com
+  // (both 13.2.0 as of this writing). Keep the app binary's plugin in lockstep
+  // with the deployed web bundle.
+  if (configuredFor === null) {
+    await tagStep('configure', () =>
+      withTimeout(
+        Purchases.configure({ apiKey, appUserID: userId }),
+        STOREKIT_TIMEOUT_MS,
+        "Couldn't reach the App Store. Please check your connection and try again.",
+      ),
+    );
+    configuredFor = userId;
+  } else if (configuredFor !== userId) {
+    await tagStep('logIn', () =>
+      withTimeout(
+        Purchases.logIn({ appUserID: userId }),
+        STOREKIT_TIMEOUT_MS,
+        "Couldn't reach the App Store. Please check your connection and try again.",
+      ),
+    );
     configuredFor = userId;
   }
   return Purchases;
