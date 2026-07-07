@@ -14,6 +14,7 @@ import {
   resolveSuggestedDate,
   aiConfigured,
 } from './timeline-ai';
+import { resolveTimelineAccess } from './timeline-entitlement';
 import {
   kindFromMime,
   isVisionAnalyzable,
@@ -116,6 +117,12 @@ export async function createTimelineEvent(
   const admin = createAdminSupabase();
   if (!admin) return { ok: false, error: 'Service unavailable.' };
 
+  // Firm plans build; Personal Plus submits; everyone else is locked out.
+  const access = await resolveTimelineAccess();
+  if (access === 'locked') {
+    return { ok: false, error: 'The case timeline is available on Personal Plus and firm plans.' };
+  }
+
   const eventId = crypto.randomUUID();
   const title = String(formData.get('title') ?? '').trim();
   const description = String(formData.get('description') ?? '').trim() || null;
@@ -157,6 +164,8 @@ export async function createTimelineEvent(
     if (!Number.isNaN(d.getTime())) occurredAt = d.toISOString();
   }
 
+  // Only firm-plan users get Bella analysis queued; Personal Plus can upload +
+  // add context, but the sense-making is the firm's tier.
   const supabase = createServerSupabase();
   const { data, error } = await supabase
     .from('case_timeline_events')
@@ -171,7 +180,10 @@ export async function createTimelineEvent(
       description,
       media,
       source_label: sourceLabel,
-      ai_status: aiConfigured() && (media.length > 0 || description) ? 'pending' : 'skipped',
+      ai_status:
+        access === 'firm' && aiConfigured() && (media.length > 0 || description)
+          ? 'pending'
+          : 'skipped',
     })
     .select('*')
     .single();
@@ -196,6 +208,11 @@ export async function analyzeTimelineEvent(
     await supabase.from('case_timeline_events')
       .update({ ai_status: 'skipped' }).eq('id', eventId);
     return { ok: false, error: 'AI analysis is not configured.' };
+  }
+  if ((await resolveTimelineAccess()) !== 'firm') {
+    await supabase.from('case_timeline_events')
+      .update({ ai_status: 'skipped' }).eq('id', eventId);
+    return { ok: false, error: 'Bella timeline analysis is a firm-plan feature.' };
   }
 
   await supabase.from('case_timeline_events').update({ ai_status: 'running' }).eq('id', eventId);
@@ -393,6 +410,7 @@ export async function generateTimelineNarrative(
   if (!user) return { ok: false, error: 'Sign in first.' };
   if (!(await assertCaseMember(caseId))) return { ok: false, error: 'No access to this case.' };
   if (!aiConfigured()) return { ok: false, error: 'AI is not configured.' };
+  if ((await resolveTimelineAccess()) !== 'firm') return { ok: false, error: 'The timeline document is a firm-plan feature.' };
 
   const supabase = createServerSupabase();
   const { data: caseRow } = await supabase.from('cases').select('title').eq('id', caseId).maybeSingle();
