@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { MicButton } from './dictation';
+import { MediaLightbox } from './media-lightbox';
 import {
   createTimelineEvent,
   analyzeTimelineEvent,
@@ -21,11 +22,21 @@ import {
   ROLE_LABEL,
   type TimelineBundle,
   type TimelineEvent,
+  type TimelineMedia,
   type CasePerson,
   type TimelineKind,
   type OccurredPrecision,
   type PersonRole,
 } from '@/lib/timeline-types';
+
+// Small type/label helpers for the attachment chips.
+function mediaIcon(m: TimelineMedia): string {
+  if (/^image\//.test(m.mime)) return '🖼️';
+  if (/^audio\//.test(m.mime)) return '🎙️';
+  if (/^video\//.test(m.mime)) return '🎬';
+  if (m.mime === 'application/pdf' || /\.pdf$/i.test(m.name)) return '📄';
+  return '📎';
+}
 
 // ── Small hook: lazily resolve a short-lived signed URL for a media path ──
 const urlCache = new Map<string, string>();
@@ -148,7 +159,7 @@ export function TimelineBuilder({
           {caseTitle}
         </h1>
         <p className="mt-1 text-sm text-ink-600 dark:text-cream-300/80">
-          Drop everything you&apos;ve collected — photos, documents, receipts, voice notes, videos, chat
+          Drop everything you&apos;ve collected: photos, documents, receipts, voice notes, videos, chat
           screenshots. Advottic reads each item, dates it, spots the people, and arranges it into a
           court-ready chronology.
         </p>
@@ -385,7 +396,7 @@ function Timeline({
           <section key={g.key}>
             <div className="mb-3 flex items-center gap-3">
               <span className="relative z-10 grid h-8 w-8 place-items-center rounded-full bg-forest-900 text-xs font-semibold text-cream-50 dark:bg-gold-metal dark:text-forest-950">
-                {g.key === 'Undated' ? '—' : g.key.slice(2)}
+                {g.key === 'Undated' ? '·' : g.key.slice(2)}
               </span>
               <h2 className="font-display text-lg font-semibold text-forest-900 dark:text-cream-100">{g.key}</h2>
             </div>
@@ -426,8 +437,10 @@ function EventCard({
   onCreated: (ev: TimelineEvent) => void;
 }) {
   const [editing, setEditing] = useState(false);
+  const [viewing, setViewing] = useState<TimelineMedia | null>(null);
   const firstImage = event.media.find((m) => /^image\//.test(m.mime)) ?? null;
   const thumb = useSignedUrl(firstImage?.path ?? null);
+  const transcript = event.aiExtracted.ocr_text ?? null;
   const tagged = people.filter((p) => event.people.includes(p.id));
   const detected = event.aiExtracted.detected_people ?? [];
   const dates = event.aiExtracted.detected_dates ?? [];
@@ -454,7 +467,7 @@ function EventCard({
       if (seen.has(day)) continue;
       seen.add(day);
       const fd = new FormData();
-      fd.append('title', `${event.title || 'Event'} — ${raw}`);
+      fd.append('title', `${event.title || 'Event'} - ${raw}`);
       fd.append('description', `Extracted from "${event.title || 'this item'}".`);
       fd.append('kind', 'event');
       fd.append('occurredAt', day);
@@ -508,23 +521,54 @@ function EventCard({
 
       <div className="mt-3 flex gap-3">
         {firstImage && (
-          // eslint-disable-next-line @next/next/no-img-element
-          thumb ? <img src={thumb} alt="" data-no-translate className="h-20 w-20 flex-none rounded-lg object-cover ring-1 ring-forest-900/10" />
-            : <div className="grid h-20 w-20 flex-none place-items-center rounded-lg bg-forest-900/5 text-2xl dark:bg-cream-50/10">🖼️</div>
+          <button
+            type="button"
+            onClick={() => setViewing(firstImage)}
+            title="View full screen"
+            className="flex-none overflow-hidden rounded-lg ring-1 ring-forest-900/10 transition hover:ring-2 hover:ring-gold-500"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            {thumb ? <img src={thumb} alt="" data-no-translate className="h-20 w-20 object-cover" />
+              : <div className="grid h-20 w-20 place-items-center bg-forest-900/5 text-2xl dark:bg-cream-50/10">🖼️</div>}
+          </button>
         )}
         {!firstImage && event.media.length > 0 && (
-          <div className="grid h-20 w-20 flex-none place-items-center rounded-lg bg-forest-900/5 text-2xl dark:bg-cream-50/10">{KIND_ICON[event.kind]}</div>
+          <button
+            type="button"
+            onClick={() => setViewing(event.media[0])}
+            title="Open attachment"
+            className="grid h-20 w-20 flex-none place-items-center rounded-lg bg-forest-900/5 text-2xl transition hover:ring-2 hover:ring-gold-500 dark:bg-cream-50/10"
+          >
+            {mediaIcon(event.media[0])}
+          </button>
         )}
         <div className="min-w-0 flex-1">
           {event.description && <p className="text-sm text-ink-700 dark:text-cream-200/90" data-no-translate>{event.description}</p>}
 
-          {analyzing && <p className="mt-1 animate-pulse text-xs text-forest-600 dark:text-gold-500">Bella is analysing this…</p>}
+          {event.media.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {event.media.map((m) => (
+                <button
+                  key={m.path}
+                  type="button"
+                  onClick={() => setViewing(m)}
+                  title={m.name}
+                  className="inline-flex max-w-[13rem] items-center gap-1.5 rounded-full border border-forest-900/10 bg-forest-900/[0.03] px-2.5 py-1 text-xs text-ink-600 transition hover:border-gold-500 hover:text-forest-900 dark:border-cream-50/10 dark:bg-cream-50/[0.04] dark:text-cream-300 dark:hover:text-cream-100"
+                >
+                  <span aria-hidden>{mediaIcon(m)}</span>
+                  <span className="truncate" data-no-translate>{m.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {analyzing && <p className="mt-1 animate-pulse text-xs text-forest-600 dark:text-gold-500">Advottic Review is analysing this…</p>}
           {event.aiStatus === 'error' && event.aiError && (
             <p className="mt-1 text-xs text-rose-600">Analysis: {event.aiError}</p>
           )}
           {event.aiSummary && (
             <div className="mt-2 rounded-lg bg-gold-500/10 px-3 py-2 text-sm text-forest-900 dark:bg-gold-500/15 dark:text-cream-100">
-              <span className="mr-1 font-medium text-gold-800 dark:text-gold-400">Bella:</span>
+              <span className="mr-1 font-medium text-gold-800 dark:text-gold-400">Advottic Review:</span>
               <span data-no-translate>{event.aiSummary}</span>
             </div>
           )}
@@ -532,7 +576,7 @@ function EventCard({
           {thread?.messages && thread.messages.length > 0 && (
             <details className="mt-2 rounded-lg border border-forest-900/10 p-2 text-xs dark:border-cream-50/10">
               <summary className="cursor-pointer text-ink-600 dark:text-cream-300">
-                {thread.platform ?? 'Chat'} — {thread.messages.length} message{thread.messages.length === 1 ? '' : 's'} parsed
+                {thread.platform ?? 'Chat'} · {thread.messages.length} message{thread.messages.length === 1 ? '' : 's'} parsed
               </summary>
               <ul className="mt-2 space-y-1" data-no-translate>
                 {thread.messages.slice(0, 20).map((m, i) => (
@@ -661,6 +705,10 @@ function EventCard({
 
       {editing && (
         <EventEditor event={event} onSaved={(ev) => { onChange(ev); setEditing(false); }} onCancel={() => setEditing(false)} />
+      )}
+
+      {viewing && (
+        <MediaLightbox media={viewing} transcript={transcript} onClose={() => setViewing(null)} />
       )}
     </article>
   );
@@ -947,7 +995,7 @@ function CalendarView({
         </div>
         {undated > 0 && (
           <p className="mt-3 text-xs text-ink-500 dark:text-cream-300/70">
-            {undated} undated {undated === 1 ? 'entry is' : 'entries are'} not shown on the calendar — give them a date, or find them in List view.
+            {undated} undated {undated === 1 ? 'entry is' : 'entries are'} not shown on the calendar. Give them a date, or find them in List view.
           </p>
         )}
       </div>

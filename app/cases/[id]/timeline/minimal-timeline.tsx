@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { MicButton } from './dictation';
+import { MediaLightbox } from './media-lightbox';
 import {
   createTimelineEvent,
   updateTimelineEvent,
@@ -16,9 +17,18 @@ import {
   KIND_LABEL,
   type TimelineBundle,
   type TimelineEvent,
+  type TimelineMedia,
   type TimelineKind,
   type OccurredPrecision,
 } from '@/lib/timeline-types';
+
+function mediaIcon(m: TimelineMedia): string {
+  if (/^image\//.test(m.mime)) return '🖼️';
+  if (/^audio\//.test(m.mime)) return '🎙️';
+  if (/^video\//.test(m.mime)) return '🎬';
+  if (m.mime === 'application/pdf' || /\.pdf$/i.test(m.name)) return '📄';
+  return '📎';
+}
 
 const urlCache = new Map<string, string>();
 function useSignedUrl(path: string | null): string | null {
@@ -209,8 +219,10 @@ function MinimalCard({ event, onChange, onDelete }: {
   event: TimelineEvent; onChange: (ev: TimelineEvent) => void; onDelete: (id: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
+  const [viewing, setViewing] = useState<TimelineMedia | null>(null);
   const img = event.media.find((m) => /^image\//.test(m.mime)) ?? null;
   const thumb = useSignedUrl(img?.path ?? null);
+  const transcript = event.aiExtracted?.ocr_text ?? null;
   return (
     <article className="rounded-xl border border-forest-900/10 bg-white p-4 dark:border-cream-50/10 dark:bg-forest-900/50">
       <div className="flex items-start justify-between gap-3">
@@ -232,14 +244,47 @@ function MinimalCard({ event, onChange, onDelete }: {
       </div>
       <div className="mt-3 flex gap-3">
         {img ? (
-          thumb ? <img src={thumb} alt="" data-no-translate className="h-16 w-16 flex-none rounded-lg object-cover ring-1 ring-forest-900/10" />
-            : <div className="grid h-16 w-16 flex-none place-items-center rounded-lg bg-forest-900/5 dark:bg-cream-50/10">🖼️</div>
+          <button
+            type="button"
+            onClick={() => setViewing(img)}
+            title="View full screen"
+            className="flex-none overflow-hidden rounded-lg ring-1 ring-forest-900/10 transition hover:ring-2 hover:ring-gold-500"
+          >
+            {thumb ? <img src={thumb} alt="" data-no-translate className="h-16 w-16 object-cover" />
+              : <div className="grid h-16 w-16 place-items-center bg-forest-900/5 dark:bg-cream-50/10">🖼️</div>}
+          </button>
         ) : event.media.length > 0 ? (
-          <div className="grid h-16 w-16 flex-none place-items-center rounded-lg bg-forest-900/5 text-xl dark:bg-cream-50/10">{KIND_ICON[event.kind]}</div>
+          <button
+            type="button"
+            onClick={() => setViewing(event.media[0])}
+            title="Open attachment"
+            className="grid h-16 w-16 flex-none place-items-center rounded-lg bg-forest-900/5 text-xl transition hover:ring-2 hover:ring-gold-500 dark:bg-cream-50/10"
+          >
+            {mediaIcon(event.media[0])}
+          </button>
         ) : null}
-        {event.description && <p className="min-w-0 flex-1 text-sm text-ink-700 dark:text-cream-200/90" data-no-translate>{event.description}</p>}
+        <div className="min-w-0 flex-1">
+          {event.description && <p className="text-sm text-ink-700 dark:text-cream-200/90" data-no-translate>{event.description}</p>}
+          {event.media.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {event.media.map((m) => (
+                <button
+                  key={m.path}
+                  type="button"
+                  onClick={() => setViewing(m)}
+                  title={m.name}
+                  className="inline-flex max-w-[12rem] items-center gap-1.5 rounded-full border border-forest-900/10 bg-forest-900/[0.03] px-2.5 py-1 text-xs text-ink-600 transition hover:border-gold-500 hover:text-forest-900 dark:border-cream-50/10 dark:bg-cream-50/[0.04] dark:text-cream-300 dark:hover:text-cream-100"
+                >
+                  <span aria-hidden>{mediaIcon(m)}</span>
+                  <span className="truncate" data-no-translate>{m.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
       {editing && <MinimalEditor event={event} onSaved={(ev) => { onChange(ev); setEditing(false); }} onCancel={() => setEditing(false)} />}
+      {viewing && <MediaLightbox media={viewing} transcript={transcript} onClose={() => setViewing(null)} />}
     </article>
   );
 }
