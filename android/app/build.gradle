@@ -119,8 +119,15 @@ android {
         // subscription nav (Stripe-only token top-ups + gifting stay
         // hidden). New native plugin -> new build; codes stay unique
         // across both stores.
-        versionCode 20
-        versionName "1.0.16"
+        // v1.0.17 (code 21): rebuild to bundle @revenuecat/purchases-capacitor
+        // 13.2.0 NATIVE plugin, matching the 13.2.0 JS SDK served from
+        // advottic.com. The installed build 20 had an older native plugin, so
+        // Purchases.configure() deadlocked the WebView JS thread synchronously
+        // ("Subscribe loads indefinitely", Guideline 2.1(b)). A fresh archive
+        // realigns native↔JS; no web change fixes a frozen JS thread. Build
+        // number must be > 20 or App Store Connect rejects the upload.
+        versionCode 21
+        versionName "1.0.17"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
