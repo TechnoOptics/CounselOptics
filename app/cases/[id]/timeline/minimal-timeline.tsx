@@ -97,6 +97,27 @@ export function MinimalTimeline({
 
       {error && <div role="alert" className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">{error}</div>}
 
+      {/* Once a firm has built the timeline (a narrative exists), the client can
+          download the finished, court-ready document. */}
+      {initialBundle.narrative ? (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-gold-500/40 bg-gold-500/[0.06] px-5 py-4">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-forest-900 dark:text-cream-50">Your timeline is ready</p>
+            <p className="mt-0.5 text-xs text-ink-600 dark:text-cream-300/80">Your legal team has prepared a court-ready case timeline from everything you added.</p>
+          </div>
+          <a
+            href={`/cases/${caseId}/timeline/export`}
+            className="flex-none rounded-lg bg-forest-900 px-4 py-2 text-sm font-semibold text-cream-50 hover:bg-forest-800 dark:bg-gold-metal dark:text-forest-950"
+          >
+            Download timeline (PDF)
+          </a>
+        </div>
+      ) : events.length > 0 ? (
+        <div className="mb-4 rounded-2xl border border-forest-900/10 bg-white/60 px-5 py-3 text-xs text-ink-500 dark:border-cream-50/10 dark:bg-cream-50/5 dark:text-cream-300/70">
+          When your legal team finishes building your timeline, a download button will appear here.
+        </div>
+      ) : null}
+
       {/* Upload + context */}
       <div
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
