@@ -13,7 +13,9 @@ import {
 } from '@/lib/storage';
 import { isStripeConfigured } from '@/lib/stripe';
 import { TIER_FEATURES, TIER_LABEL, type Tier } from '@/lib/types';
-import { TierCard } from './tier-card';
+import { PERSONAL_TIERS, personalTierForSlug, type PersonalTierKey } from '@/lib/personal-tiers';
+import { resolvePriceEntitlement } from '@/lib/entitlements';
+import { PersonalTierCard } from './personal-tier-card';
 import { ManageButton } from './billing-actions';
 import { TopUpButtons } from './topup-buttons';
 import { RestorePurchases } from '@/components/RestorePurchases';
@@ -49,8 +51,6 @@ const STATUS_STYLES: Record<string, string> = {
   incomplete: 'bg-rose-50 text-rose-800 border border-rose-200',
   unpaid: 'bg-rose-50 text-rose-800 border border-rose-200',
 };
-
-const TIER_ORDER: Tier[] = ['basic', 'standard', 'pro'];
 
 export default async function BillingPage({
   searchParams,
@@ -97,6 +97,12 @@ export default async function BillingPage({
       : rawStatus;
   const isActive = status === 'active' || status === 'trialing';
 
+  // Which personal rung the account is on now (drives the "Current plan"
+  // badge). Inactive users default to Free; legacy/firm subs resolve to null.
+  const currentPersonalKey: PersonalTierKey | null = isActive
+    ? personalTierForSlug(resolvePriceEntitlement(sub?.priceId ?? null).tierSlug)?.key ?? null
+    : 'free';
+
   // Pro tier: pull token balance + recent ledger so we can render the
   // gauge + history below the plan cards.
   const isPro = currentTier === 'pro' && isActive;
@@ -128,7 +134,7 @@ export default async function BillingPage({
         <p className="text-sm text-ink-600 mt-1 max-w-2xl">
           {status === 'active'
             ? 'Manage your billing, top up tokens, or switch tiers from the customer portal.'
-            : 'Three tiers, monthly billing, 7-day free trial for first-time subscribers. Cancel any time.'}
+            : 'Five plans, monthly billing, 7-day free trial for first-time subscribers. Cancel any time.'}
         </p>
       </div>
 
@@ -288,16 +294,18 @@ export default async function BillingPage({
         )}
       </div>
 
-      {/* Three tier cards */}
-      <div id="tiers" className="grid gap-4 md:grid-cols-3 items-stretch stagger scroll-mt-20">
-        {TIER_ORDER.map((t) => (
-          <TierCard
-            key={t}
+      {/* Personal plan ladder — five rungs, features unlock as you climb */}
+      <div id="tiers" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5 items-stretch stagger scroll-mt-20">
+        {PERSONAL_TIERS.map((t) => (
+          <PersonalTierCard
+            key={t.key}
             tier={t}
-            currentTier={currentTier}
+            currentKey={currentPersonalKey}
             isActive={isActive}
             stripeReady={stripeReady}
+            priceConfigured={Boolean(t.stripeEnv && process.env[t.stripeEnv]?.trim())}
             serverPlatform={serverPlatform}
+            highlighted={t.key === 'plus'}
           />
         ))}
       </div>

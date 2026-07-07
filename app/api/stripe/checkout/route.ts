@@ -7,6 +7,7 @@ import {
   upsertSubscriptionFromStripe,
 } from '@/lib/storage';
 import type { Tier } from '@/lib/types';
+import { PERSONAL_TIERS, type PersonalTierKey } from '@/lib/personal-tiers';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -31,20 +32,43 @@ export async function POST(req: NextRequest) {
   const stripe = getStripe();
   if (!stripe) return NextResponse.json({ error: 'Stripe SDK unavailable.' }, { status: 503 });
 
-  let body: { tier?: Tier } = {};
+  let body: { tier?: Tier; slug?: PersonalTierKey } = {};
   try {
     body = await req.json();
   } catch {
     body = {};
   }
-  const validTiers: Tier[] = ['basic', 'standard', 'pro'];
-  const tier: Tier = validTiers.includes(body.tier as Tier) ? (body.tier as Tier) : 'standard';
-  const priceId = getPriceForTier(tier);
-  if (!priceId) {
-    return NextResponse.json(
-      { error: `No Stripe price configured for tier "${tier}".` },
-      { status: 503 },
-    );
+
+  // Two checkout paths share this route:
+  //  - `slug`: the new 5-rung personal ladder (lib/personal-tiers.ts). The
+  //    price id comes from that rung's env var.
+  //  - `tier`: the legacy coarse basic/standard/pro path (kept working).
+  let priceId: string | undefined;
+  let tierLabel: string;
+  const personal = body.slug ? PERSONAL_TIERS.find((t) => t.key === body.slug) : undefined;
+  if (personal) {
+    if (personal.priceUsd === 0 || !personal.stripeEnv) {
+      return NextResponse.json({ error: 'That plan is free — no checkout needed.' }, { status: 400 });
+    }
+    priceId = process.env[personal.stripeEnv]?.trim() || undefined;
+    tierLabel = personal.key;
+    if (!priceId) {
+      return NextResponse.json(
+        { error: `The ${personal.name} plan isn't available for purchase yet.` },
+        { status: 503 },
+      );
+    }
+  } else {
+    const validTiers: Tier[] = ['basic', 'standard', 'pro'];
+    const tier: Tier = validTiers.includes(body.tier as Tier) ? (body.tier as Tier) : 'standard';
+    priceId = getPriceForTier(tier);
+    tierLabel = tier;
+    if (!priceId) {
+      return NextResponse.json(
+        { error: `No Stripe price configured for tier "${tier}".` },
+        { status: 503 },
+      );
+    }
   }
 
   // Get or create a Stripe customer; persist the customer id on the
@@ -114,9 +138,9 @@ export async function POST(req: NextRequest) {
     cancel_url: `${origin}/billing?canceled=1`,
     allow_promotion_codes: true,
     client_reference_id: user.id,
-    metadata: { supabase_user_id: user.id, tier },
+    metadata: { supabase_user_id: user.id, tier: tierLabel },
     subscription_data: {
-      metadata: { supabase_user_id: user.id, tier },
+      metadata: { supabase_user_id: user.id, tier: tierLabel },
       // 7-day free trial for first-time subscribers; skip for users who've
       // already had a Stripe subscription (returning subscribers).
       ...(hasUsedTrial ? {} : { trial_period_days: 7 }),

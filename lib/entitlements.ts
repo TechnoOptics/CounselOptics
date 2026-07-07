@@ -52,6 +52,17 @@ const PRICE_TABLE: readonly PriceRow[] = [
   { env: 'STRIPE_PRICE_PERSONAL_PRO_ANNUAL', tier: 'pro', tierSlug: 'pro' },
   { env: 'STRIPE_PRICE_PERSONAL_PLUS', tier: 'pro', tierSlug: 'pro_plus' },
   { env: 'STRIPE_PRICE_PERSONAL_PLUS_ANNUAL', tier: 'pro', tierSlug: 'pro_plus' },
+  // 5-tier consumer ladder (2026-07-07). Coarse tier is 'standard' for Starter
+  // (no Bella) and 'pro' for the Bella tiers so the token gauge shows; the fine
+  // slug carries the real per-rung caps + unlocks (lib/personal-tiers.ts).
+  { env: 'STRIPE_PRICE_PERSONAL_STARTER', tier: 'standard', tierSlug: 'starter' },
+  { env: 'STRIPE_PRICE_PERSONAL_STARTER_ANNUAL', tier: 'standard', tierSlug: 'starter' },
+  { env: 'STRIPE_PRICE_PERSONAL_PLUS8', tier: 'pro', tierSlug: 'plus' },
+  { env: 'STRIPE_PRICE_PERSONAL_PLUS8_ANNUAL', tier: 'pro', tierSlug: 'plus' },
+  { env: 'STRIPE_PRICE_PERSONAL_PRO15', tier: 'pro', tierSlug: 'premium' },
+  { env: 'STRIPE_PRICE_PERSONAL_PRO15_ANNUAL', tier: 'pro', tierSlug: 'premium' },
+  { env: 'STRIPE_PRICE_PERSONAL_ULTRA', tier: 'pro', tierSlug: 'ultra' },
+  { env: 'STRIPE_PRICE_PERSONAL_ULTRA_ANNUAL', tier: 'pro', tierSlug: 'ultra' },
   // Firm ladder. Coarse tier collapses to 'pro' for anything that still
   // types against Tier (basic | standard | pro).
   { env: 'STRIPE_PRICE_COUNSEL_SOLO', tier: 'pro', tierSlug: 'solo' },

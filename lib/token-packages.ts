@@ -15,6 +15,12 @@
 
 export type TierSlug =
   | 'free'
+  // Consumer ("personal") paid ladder — see lib/personal-tiers.ts for the
+  // canonical prices / case caps / feature unlocks keyed off these slugs.
+  | 'starter'
+  | 'plus'
+  | 'premium'
+  | 'ultra'
   | 'pro'
   | 'pro_plus'
   | 'solo'
@@ -94,6 +100,11 @@ export function getTokenPackage(id: string): TokenPackage | null {
  */
 export const MONTHLY_TOKEN_GRANT: Record<TierSlug, number> = {
   free: 25_000,
+  // Personal ladder (mirrors lib/personal-tiers.ts monthlyTokens).
+  starter: 150_000,
+  plus: 500_000,
+  premium: 1_500_000,
+  ultra: 3_000_000,
   pro: 500_000,
   pro_plus: 1_500_000,
   solo: 2_500_000,
@@ -128,6 +139,10 @@ export const ROLLOVER_MULTIPLIER = 2;
  */
 export const FIRM_POOL_GRANT: Record<TierSlug, number> = {
   free: 0,
+  starter: 0,
+  plus: 0,
+  premium: 0,
+  ultra: 0,
   pro: 0,
   pro_plus: 0,
   solo: 0, // single seat - personal balance is enough
@@ -155,6 +170,11 @@ export const FIRM_POOL_GRANT: Record<TierSlug, number> = {
  */
 export const TIER_ITEM_LIMITS: Record<TierSlug, number | null> = {
   free: 1,
+  // Personal ladder case/item caps (mirrors lib/personal-tiers.ts caseLimit).
+  starter: 3,
+  plus: 8,
+  premium: 15,
+  ultra: 40,
   pro: 20,
   pro_plus: 50,
   // Solo bumped from 20 to 30 (2026-05-12) to match the typical
@@ -186,6 +206,10 @@ export const TIER_ITEM_LIMITS: Record<TierSlug, number | null> = {
  */
 export const ITEM_OVERAGE_TOKENS_PER_MONTH: Record<TierSlug, number> = {
   free: 0, // no overage allowed - Free is a single-case ceiling
+  starter: 25_000,
+  plus: 25_000,
+  premium: 25_000,
+  ultra: 25_000,
   pro: 25_000,
   pro_plus: 25_000,
   solo: 50_000,

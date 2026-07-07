@@ -2,6 +2,7 @@ import 'server-only';
 import { getCurrentSubscription, getProfile } from './storage';
 import { activeTier } from './tier';
 import { tierSlugFromPriceId } from './stripe';
+import { personalTierForSlug } from './personal-tiers';
 import type { Subscription } from './types';
 import type { TierSlug } from './token-packages';
 
@@ -34,6 +35,10 @@ export function timelineAccessFor(sub: Subscription | null | undefined): Timelin
   const slug = tierSlugFromPriceId(sub.priceId);
   if (slug && FIRM_SLUGS.has(slug)) return 'firm';
   if (slug === 'pro_plus') return 'submit';
+  // Personal ladder rungs that include the timeline (Plus and up) get the
+  // submit-only consumer view.
+  const pt = personalTierForSlug(slug);
+  if (pt?.timeline) return 'submit';
   // Comp / trialing subs may carry no mapped price id; treat the top coarse
   // tier ('pro') as the submit tier rather than locking them out.
   if (!slug && activeTier(sub) === 'pro') return 'submit';
