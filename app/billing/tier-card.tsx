@@ -1,10 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { TIER_FEATURES, TIER_LABEL, type Tier } from '@/lib/types';
 import { useIsNativeApp } from '@/components/useIsNativeApp';
-import { tierHasIosProduct } from '@/lib/iap';
-import { createBrowserSupabase } from '@/lib/supabase/client';
 import type { NativePlatform } from '@/lib/platform';
 
 const TIER_TAGLINE: Record<Tier, string> = {
@@ -102,80 +100,23 @@ export function TierCard({
 }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Diagnostic: live step-by-step trace of the IAP flow, rendered under the
-  // button so it can be read straight off the device (RevenueCat's own logs
-  // don't reach idevicesyslog). Hidden unless the page is opened with
-  // ?iapdebug=1, so normal users never see it but we can re-enable it to
-  // re-verify a purchase after shipping a fresh native build.
-  const [diag, setDiag] = useState<string[]>([]);
-  const [showDiag, setShowDiag] = useState(false);
-  useEffect(() => {
-    try {
-      setShowDiag(new URLSearchParams(window.location.search).has('iapdebug'));
-    } catch {
-      /* ignore */
-    }
-  }, []);
   const f = TIER_FEATURES[tier];
   const bullets = bulletsForTier(tier);
   const isCurrent = isActive && currentTier === tier;
   const isHighlighted = tier === 'standard';
 
-  // Inside the iOS app, paid plans must be sold through Apple In-App
-  // Purchase (Guideline 3.1.1), not Stripe. `useIap` is true only for
-  // paid tiers that have an App Store product; the free `basic` tier
-  // has none, so its button is simply hidden on iOS.
+  // Advottic uses the "reader" model on iOS: the app does NOT sell
+  // subscriptions in-app. Plans are purchased on the web (advottic.com via
+  // Stripe) and the iOS app simply unlocks based on the signed-in account's
+  // entitlement. This removes Apple IAP entirely — sidestepping the StoreKit
+  // issues that blocked review AND Apple's 30% cut. On iOS we show an
+  // informational note in place of a buy button; web/Android use Stripe.
   //
-  // isIOS is server-authoritative OR client-confirmed - the OR means a
-  // wrong/racy client read can never turn a real iOS session into a
-  // Stripe one (the server UA check can't lose that race), while a
-  // client-side positive still counts in the rare case a proxy strips
-  // or rewrites the User-Agent header before it reaches the server.
+  // isIOS is server-authoritative OR client-confirmed (see serverPlatform) so
+  // a racy client read can never wrongly show a buy button to a real iOS user.
   const { ready, platform } = useIsNativeApp();
   const isIOS = serverPlatform === 'ios' || (ready && platform === 'ios');
-  const useIap = isIOS && tierHasIosProduct(tier);
-  const hideButtonOnIos = isIOS && !tierHasIosProduct(tier);
-
-  async function startIapPurchase() {
-    setPending(true);
-    setError(null);
-    const trace: string[] = [];
-    const log = (m: string) => {
-      trace.push(m);
-      setDiag([...trace]);
-    };
-    // Diagnostic aid for the 2.1(b) rejection: tagStep() in lib/iap.ts
-    // didn't change the surfaced error at all across two deploys, which
-    // means the failure may be happening BEFORE purchaseTier() is ever
-    // called - this tracks which step we actually reached.
-    let step = 'getSession';
-    try {
-      log('getSession…');
-      const supabase = createBrowserSupabase();
-      const { data } = await supabase.auth.getSession();
-      const userId = data.session?.user.id;
-      if (!userId) throw new Error('Please sign in before subscribing.');
-      log('session ✓');
-      step = 'importIap';
-      const { purchaseTier } = await import('@/lib/iap');
-      log('iap module ✓');
-      step = 'purchaseTier';
-      const res = await purchaseTier(tier, userId, log);
-      if (res.cancelled) {
-        setPending(false);
-        return;
-      }
-      step = 'sync';
-      // Record the entitlement server-side (authoritative read from
-      // RevenueCat), then reflect the unlocked plan.
-      await fetch('/api/iap/sync', { method: 'POST' }).catch(() => {});
-      window.location.reload();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Could not complete the purchase.';
-      setError(`[card:${step}] ${message}`);
-      setPending(false);
-    }
-  }
+  const isPaidTier = f.monthlyPriceUsd > 0;
 
   async function startCheckout() {
     if (!stripeReady) return;
@@ -259,11 +200,20 @@ export function TierCard({
           <CheckIcon />
           Your current plan
         </button>
-      ) : hideButtonOnIos ? null : (
+      ) : isIOS ? (
+        // Reader model: no in-app purchase on iOS.
+        isPaidTier ? (
+          <div className="rounded-lg border border-forest-900/15 bg-forest-900/[0.03] px-3.5 py-3 text-[12.5px] leading-snug text-ink-700 dark:border-cream-50/15 dark:bg-cream-50/[0.04] dark:text-cream-200/90">
+            To start or change this plan, subscribe on the web at{' '}
+            <span className="font-semibold text-forest-900 dark:text-cream-100">advottic.com</span>.
+            Your access unlocks here automatically once you&apos;re subscribed.
+          </div>
+        ) : null
+      ) : (
         <button
           type="button"
-          onClick={useIap ? startIapPurchase : startCheckout}
-          disabled={useIap ? pending : !stripeReady || pending}
+          onClick={startCheckout}
+          disabled={!stripeReady || pending}
           className={
             isHighlighted
               ? 'btn bg-gold-metal text-forest-950 hover:brightness-110 shadow-gold-glow font-semibold w-full'
@@ -280,9 +230,7 @@ export function TierCard({
           }
         >
           {pending
-            ? useIap
-              ? 'Starting purchase...'
-              : 'Opening Stripe...'
+            ? 'Opening Stripe...'
             : isActive
               ? `Switch to ${TIER_LABEL[tier]}`
               : `Start ${TIER_LABEL[tier]}`}
@@ -292,11 +240,6 @@ export function TierCard({
         <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800 mt-2">
           {error}
         </p>
-      )}
-      {useIap && diag.length > 0 && showDiag && (
-        <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-ink-200 bg-ink-950/90 px-3 py-2 text-[10.5px] leading-snug text-emerald-200">
-          {diag.map((d, i) => `${i + 1}. ${d}`).join('\n')}
-        </pre>
       )}
     </div>
   );

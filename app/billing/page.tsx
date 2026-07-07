@@ -302,10 +302,9 @@ export default async function BillingPage({
         ))}
       </div>
 
-      {/* iOS-only: Apple-required Restore Purchases + a note that the
-          subscription is billed/managed through the Apple ID. Renders
-          null on web/Android (those use the Stripe portal above). */}
-      <RestorePurchases userId={user.id} serverPlatform={serverPlatform} />
+      {/* iOS-only: reader-model note (no in-app purchase; subscriptions are
+          managed on the web). Renders null on web/Android. */}
+      <RestorePurchases serverPlatform={serverPlatform} />
 
       {/* Items-used gauge. Shows for every signed-in user; surfaces
           how close the account is to the tier cap and (when over) how
