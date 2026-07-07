@@ -1,21 +1,30 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 /**
- * Live case map. Given the geocoded pins across a case's timeline, it drops
- * gold Advottic-themed markers and frames the view to exactly the pinged area
- * (no wider). As new evidence is analysed and more pins resolve, the parent
- * re-renders with fresh `points` and the map re-fits its bounds live, so the
- * breadcrumbs fill in as the case grows.
+ * Live case map with a breadcrumb time-slider. Every geocoded pin carries the
+ * time of its event and the people tagged to it, so the map can trace a route:
+ * scrub the slider along the checkpoints and the trail fills in point by point,
+ * a moving marker shows "here, then", and a path connects the movements in
+ * chronological order. Filter to one person to follow just their movements, or
+ * press play to watch the whole thing animate.
  *
- * Gated on NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: with no key the component renders
- * nothing, so the timeline is unaffected until the key is present.
+ * Gated on NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: with no key it renders nothing, so
+ * the timeline is unaffected until the key is present.
  */
 
-export type MapPoint = { lat: number; lng: number; label: string; source: 'gps' | 'place' };
+export type MapPoint = {
+  lat: number;
+  lng: number;
+  label: string;
+  source: 'gps' | 'place';
+  time?: string | null; // ISO occurredAt of the owning event
+  when?: string; // human label, e.g. "March 14, 2023, 2:07 PM"
+  people?: string[]; // names tagged to the event
+  title?: string; // event title
+};
 
-// Advottic palette, mirroring lib/maps.ts THEME_STYLES as JS style objects.
 const MAP_STYLE = [
   { featureType: 'landscape', elementType: 'geometry', stylers: [{ color: '#f4f1ea' }] },
   { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#c9dcd3' }] },
@@ -28,14 +37,15 @@ const MAP_STYLE = [
   { featureType: 'transit', stylers: [{ visibility: 'off' }] },
 ];
 
-/* Minimal shape of the pieces of the Maps JS runtime we touch, so we avoid a
- * heavy @types/google.maps dependency (same approach as PlaceAutocomplete). */
-type GMap = { fitBounds(b: unknown, padding?: number): void; setCenter(c: { lat: number; lng: number }): void; setZoom(z: number): void };
+type LatLng = { lat: number; lng: number };
+type GMarker = { setMap(m: unknown): void };
+type GMap = { fitBounds(b: unknown, padding?: number): void; setCenter(c: LatLng): void; setZoom(z: number): void; panTo(c: LatLng): void };
 type GMaps = {
   Map: new (el: HTMLElement, opts: Record<string, unknown>) => GMap;
-  Marker: new (opts: Record<string, unknown>) => { setMap(m: GMap | null): void };
-  LatLngBounds: new () => { extend(p: { lat: number; lng: number }): void };
-  InfoWindow: new (opts: Record<string, unknown>) => { open(map: GMap, anchor: unknown): void };
+  Marker: new (opts: Record<string, unknown>) => GMarker;
+  Polyline: new (opts: Record<string, unknown>) => GMarker;
+  LatLngBounds: new () => { extend(p: LatLng): void };
+  InfoWindow: new (opts: Record<string, unknown>) => { open(map: GMap, anchor: unknown): void; setContent(c: string): void };
   SymbolPath: { CIRCLE: number };
   event: { addListener(target: unknown, ev: string, cb: () => void): void };
 };
@@ -50,7 +60,6 @@ function loadMaps(apiKey: string): Promise<void> {
   if (gmaps()) return Promise.resolve();
   if (loaderPromise) return loaderPromise;
   loaderPromise = new Promise<void>((resolve, reject) => {
-    // Reuse a script another component (PlaceAutocomplete) may have added.
     const existing = document.querySelector<HTMLScriptElement>('script[data-google-maps]');
     if (existing) {
       existing.addEventListener('load', () => resolve());
@@ -70,24 +79,75 @@ function loadMaps(apiKey: string): Promise<void> {
   return loaderPromise;
 }
 
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
+}
+
 export function CaseMap({ points, title = 'Case map' }: { points: MapPoint[]; title?: string }) {
   const key = (process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? '').trim();
   const boxRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<GMap | null>(null);
-  const markersRef = useRef<Array<{ setMap(m: GMap | null): void }>>([]);
+  const markersRef = useRef<GMarker[]>([]);
+  const pathRef = useRef<GMarker | null>(null);
+  const infoRef = useRef<{ open(map: GMap, anchor: unknown): void; setContent(c: string): void } | null>(null);
+  const lastFitRef = useRef<string>('');
   const [failed, setFailed] = useState(false);
 
-  // De-dup points that resolve to (nearly) the same coordinate.
-  const uniq: MapPoint[] = [];
-  for (const p of points) {
-    if (!Number.isFinite(p.lat) || !Number.isFinite(p.lng)) continue;
-    if (uniq.some((u) => Math.abs(u.lat - p.lat) < 1e-4 && Math.abs(u.lng - p.lng) < 1e-4)) continue;
-    uniq.push(p);
-  }
-  const sig = uniq.map((p) => `${p.lat.toFixed(4)},${p.lng.toFixed(4)}`).join('|');
+  // Everyone who appears on a timed, located point — the person filter.
+  const [person, setPerson] = useState<string | null>(null);
 
+  const allPeople = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of points) for (const n of p.people ?? []) if (n) set.add(n);
+    return [...set].sort();
+  }, [points]);
+
+  // Timed + located points, sorted chronologically; these drive the slider.
+  const timed = useMemo(() => {
+    const list = points
+      .filter((p) => p.time && Number.isFinite(p.lat) && Number.isFinite(p.lng))
+      .filter((p) => !person || (p.people ?? []).includes(person))
+      .map((p) => ({ ...p, t: new Date(p.time as string).getTime() }))
+      .filter((p) => Number.isFinite(p.t))
+      .sort((a, b) => a.t - b.t);
+    return list;
+  }, [points, person]);
+
+  // Located-but-undated points: shown faintly, always, since they have no place
+  // on the time slider.
+  const undated = useMemo(
+    () => points.filter((p) => !p.time && Number.isFinite(p.lat) && Number.isFinite(p.lng) && (!person || (p.people ?? []).includes(person))),
+    [points, person],
+  );
+
+  const [cursor, setCursor] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const filterSig = useMemo(() => `${person ?? '*'}|${timed.map((p) => `${p.lat.toFixed(4)},${p.lng.toFixed(4)},${p.t}`).join(';')}`, [person, timed]);
+
+  // Reset the cursor to the end whenever the filtered set changes.
   useEffect(() => {
-    if (!key || !boxRef.current || uniq.length === 0) return;
+    setCursor(timed.length ? timed.length - 1 : 0);
+    setPlaying(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterSig]);
+
+  // Play: advance the cursor along the checkpoints.
+  useEffect(() => {
+    if (!playing || timed.length < 2) return;
+    const id = window.setInterval(() => {
+      setCursor((c) => {
+        if (c >= timed.length - 1) { window.clearInterval(id); setPlaying(false); return c; }
+        return c + 1;
+      });
+    }, 1100);
+    return () => window.clearInterval(id);
+  }, [playing, timed.length]);
+
+  const hasAny = timed.length > 0 || undated.length > 0;
+
+  // Draw / redraw the map for the current cursor.
+  useEffect(() => {
+    if (!key || !boxRef.current || !hasAny) return;
     let cancelled = false;
     loadMaps(key)
       .then(() => {
@@ -101,66 +161,193 @@ export function CaseMap({ points, title = 'Case map' }: { points: MapPoint[]; ti
             gestureHandling: 'cooperative',
             backgroundColor: '#f4f1ea',
           });
+          infoRef.current = new maps.InfoWindow({});
         }
         const map = mapRef.current;
         markersRef.current.forEach((m) => m.setMap(null));
         markersRef.current = [];
-        const info = new maps.InfoWindow({});
-        for (const p of uniq) {
-          const marker = new maps.Marker({
-            position: { lat: p.lat, lng: p.lng },
+        if (pathRef.current) { pathRef.current.setMap(null); pathRef.current = null; }
+
+        const visibleTimed = timed.slice(0, cursor + 1);
+
+        // Breadcrumb path connecting movements up to the cursor.
+        if (visibleTimed.length >= 2) {
+          pathRef.current = new maps.Polyline({
+            path: visibleTimed.map((p) => ({ lat: p.lat, lng: p.lng })),
+            geodesic: true,
+            strokeColor: '#c9a227',
+            strokeOpacity: 0.9,
+            strokeWeight: 2.5,
             map,
-            title: p.label,
-            icon: {
-              path: maps.SymbolPath.CIRCLE,
-              scale: 7,
-              fillColor: p.source === 'gps' ? '#0f2d24' : '#c9a227',
-              fillOpacity: 1,
-              strokeColor: '#ffffff',
-              strokeWeight: 2,
-            },
           });
-          maps.event.addListener(marker, 'click', () => {
-            (info as unknown as { setContent(c: string): void }).setContent(
-              `<div style="font:500 12px/1.4 system-ui;color:#0f2d24;max-width:220px">${escapeHtml(p.label)}</div>`,
-            );
-            info.open(map, marker);
+        }
+
+        const openInfo = (p: MapPoint, marker: GMarker) => {
+          if (!infoRef.current) return;
+          const who = (p.people ?? []).length ? `<div style="color:#0f2d24;margin-top:2px">${escapeHtml((p.people ?? []).join(', '))}</div>` : '';
+          const when = p.when ? `<div style="color:#8a8a8a;margin-top:2px">${escapeHtml(p.when)}</div>` : '';
+          infoRef.current.setContent(
+            `<div style="font:500 12px/1.4 system-ui;max-width:230px"><div style="color:#0f2d24;font-weight:600">${escapeHtml(p.title || p.label)}</div><div style="color:#6f6f6f">${escapeHtml(p.label)}</div>${who}${when}</div>`,
+          );
+          infoRef.current.open(map, marker);
+        };
+
+        // Undated located points: faint, always shown.
+        for (const p of undated) {
+          const marker = new maps.Marker({
+            position: { lat: p.lat, lng: p.lng }, map, title: p.label, opacity: 0.55,
+            icon: { path: maps.SymbolPath.CIRCLE, scale: 5, fillColor: '#9aa39d', fillOpacity: 0.8, strokeColor: '#ffffff', strokeWeight: 1.5 },
           });
+          maps.event.addListener(marker, 'click', () => openInfo(p, marker));
           markersRef.current.push(marker);
         }
-        if (uniq.length === 1) {
-          map.setCenter({ lat: uniq[0].lat, lng: uniq[0].lng });
-          map.setZoom(14);
-        } else {
-          const bounds = new maps.LatLngBounds();
-          uniq.forEach((p) => bounds.extend({ lat: p.lat, lng: p.lng }));
-          map.fitBounds(bounds, 48);
+
+        // Timed breadcrumbs up to the cursor; the last is the "current" stop.
+        visibleTimed.forEach((p, i) => {
+          const isCurrent = i === visibleTimed.length - 1;
+          const marker = new maps.Marker({
+            position: { lat: p.lat, lng: p.lng }, map, title: p.label,
+            zIndex: isCurrent ? 999 : i,
+            icon: {
+              path: maps.SymbolPath.CIRCLE,
+              scale: isCurrent ? 9 : 6,
+              fillColor: isCurrent ? '#0f2d24' : '#c9a227',
+              fillOpacity: 1,
+              strokeColor: '#ffffff',
+              strokeWeight: isCurrent ? 3 : 2,
+            },
+          });
+          maps.event.addListener(marker, 'click', () => openInfo(p, marker));
+          markersRef.current.push(marker);
+        });
+
+        // Fit bounds once per filter change (stable frame while scrubbing);
+        // gently pan to the current stop as the cursor moves.
+        const allForFit = [...timed, ...undated];
+        if (lastFitRef.current !== filterSig && allForFit.length) {
+          lastFitRef.current = filterSig;
+          if (allForFit.length === 1) {
+            map.setCenter({ lat: allForFit[0].lat, lng: allForFit[0].lng });
+            map.setZoom(14);
+          } else {
+            const bounds = new maps.LatLngBounds();
+            allForFit.forEach((p) => bounds.extend({ lat: p.lat, lng: p.lng }));
+            map.fitBounds(bounds, 56);
+          }
+        } else if (visibleTimed.length) {
+          const cur = visibleTimed[visibleTimed.length - 1];
+          map.panTo({ lat: cur.lat, lng: cur.lng });
         }
       })
       .catch(() => { if (!cancelled) setFailed(true); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, sig]);
+  }, [key, filterSig, cursor, hasAny]);
 
-  if (!key || uniq.length === 0 || failed) return null;
+  if (!key || !hasAny || failed) return null;
+
+  const current = timed[cursor];
+  const showSlider = timed.length >= 2;
 
   return (
     <section className="mb-6 overflow-hidden rounded-2xl border border-forest-900/10 bg-white shadow-card dark:border-cream-50/10 dark:bg-forest-900/50">
-      <div className="flex items-center justify-between border-b border-forest-900/10 bg-forest-900/[0.02] px-5 py-3 dark:border-cream-50/10 dark:bg-cream-50/[0.03]">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-forest-900/10 bg-forest-900/[0.02] px-5 py-3 dark:border-cream-50/10 dark:bg-cream-50/[0.03]">
         <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gold-700 dark:text-gold-500">{title}</p>
         <p className="text-xs text-ink-500 dark:text-cream-300/70">
-          {uniq.length} {uniq.length === 1 ? 'location' : 'locations'}
+          {timed.length} timed {timed.length === 1 ? 'point' : 'points'}{undated.length ? ` · ${undated.length} undated` : ''}
         </p>
       </div>
-      <div ref={boxRef} className="h-72 w-full" data-no-translate />
+
+      {/* Person filter */}
+      {allPeople.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 border-b border-forest-900/10 px-5 py-2.5 dark:border-cream-50/10">
+          <span className="mr-1 self-center text-[11px] font-medium text-ink-400 dark:text-cream-300/50">Follow:</span>
+          <button
+            type="button" onClick={() => setPerson(null)} aria-pressed={person === null}
+            className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${person === null ? 'bg-forest-900 text-cream-50 dark:bg-gold-metal dark:text-forest-950' : 'bg-forest-900/5 text-ink-600 hover:bg-forest-900/10 dark:bg-cream-50/10 dark:text-cream-300'}`}
+          >
+            Everyone
+          </button>
+          {allPeople.map((name) => (
+            <button
+              key={name} type="button" onClick={() => setPerson(name)} aria-pressed={person === name}
+              className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${person === name ? 'bg-forest-900 text-cream-50 dark:bg-gold-metal dark:text-forest-950' : 'bg-forest-900/5 text-ink-600 hover:bg-forest-900/10 dark:bg-cream-50/10 dark:text-cream-300'}`}
+              data-no-translate
+            >
+              {name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div ref={boxRef} className="h-80 w-full" data-no-translate />
+
+      {/* Time scrubber with checkpoint marks */}
+      {showSlider && (
+        <div className="border-t border-forest-900/10 px-5 py-3 dark:border-cream-50/10">
+          <div className="mb-2 flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                if (cursor >= timed.length - 1) { setCursor(0); setPlaying(true); }
+                else setPlaying((p) => !p);
+              }}
+              className="inline-flex h-8 w-8 flex-none items-center justify-center rounded-full bg-forest-900 text-cream-50 hover:bg-forest-800 dark:bg-gold-metal dark:text-forest-950"
+              aria-label={playing ? 'Pause' : 'Play movements'}
+            >
+              {playing ? (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>
+              ) : (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+              )}
+            </button>
+            <div className="min-w-0 flex-1">
+              <input
+                type="range" min={0} max={timed.length - 1} step={1} value={cursor}
+                onChange={(e) => { setPlaying(false); setCursor(Number(e.target.value)); }}
+                className="adv-timeslider w-full"
+                style={{ ['--adv-fill' as string]: `${timed.length > 1 ? (cursor / (timed.length - 1)) * 100 : 100}%` }}
+                aria-label="Scrub through time"
+              />
+            </div>
+            <span className="flex-none text-xs font-medium text-forest-900 dark:text-cream-100" data-no-translate>
+              {cursor + 1}/{timed.length}
+            </span>
+          </div>
+
+          {/* Checkpoint dots the user can jump to */}
+          {timed.length <= 24 && (
+            <div className="mb-1.5 flex items-center justify-between">
+              {timed.map((p, i) => (
+                <button
+                  key={`${p.lat},${p.lng},${p.t},${i}`}
+                  type="button"
+                  onClick={() => { setPlaying(false); setCursor(i); }}
+                  title={p.when || p.label}
+                  aria-label={`Jump to ${p.when || p.label}`}
+                  className={`h-2.5 w-2.5 rounded-full transition-colors ${i <= cursor ? 'bg-gold-600 dark:bg-gold-500' : 'bg-forest-900/20 dark:bg-cream-50/20'} ${i === cursor ? 'ring-2 ring-forest-900/40 dark:ring-gold-500/50' : ''}`}
+                />
+              ))}
+            </div>
+          )}
+
+          <p className="truncate text-center text-xs text-ink-600 dark:text-cream-300/80" data-no-translate>
+            {current ? (
+              <>
+                <span className="font-medium text-forest-900 dark:text-cream-100">{current.when || current.label}</span>
+                {current.title ? ` · ${current.title}` : ''}
+                {(current.people ?? []).length ? ` · ${(current.people ?? []).join(', ')}` : ''}
+              </>
+            ) : null}
+          </p>
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-5 py-2.5 text-[11px] text-ink-500 dark:text-cream-300/70">
-        <span className="inline-flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-[#c9a227] ring-1 ring-white" />Named place</span>
-        <span className="inline-flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-[#0f2d24] ring-1 ring-white" />File GPS</span>
+        <span className="inline-flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-[#0f2d24] ring-1 ring-white" />Current stop</span>
+        <span className="inline-flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-[#c9a227] ring-1 ring-white" />Earlier stop</span>
+        {undated.length > 0 && <span className="inline-flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full bg-[#9aa39d] ring-1 ring-white" />Undated</span>}
       </div>
     </section>
   );
-}
-
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
 }

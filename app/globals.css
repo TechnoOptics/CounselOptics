@@ -903,6 +903,40 @@ canvas {
   }
 }
 
+/* Advottic time scrubber (case breadcrumb map): a slim gold-filled track with
+   a gold thumb, so scrubbing through movements reads as premium, not default. */
+.adv-timeslider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(to right, #c9a227 0%, #c9a227 var(--adv-fill, 100%), rgba(15, 45, 36, 0.14) var(--adv-fill, 100%));
+  cursor: pointer;
+  outline: none;
+}
+.adv-timeslider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 18px;
+  width: 18px;
+  border-radius: 50%;
+  background: #0f2d24;
+  border: 3px solid #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+.adv-timeslider::-moz-range-thumb {
+  height: 16px;
+  width: 16px;
+  border-radius: 50%;
+  background: #0f2d24;
+  border: 3px solid #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+:is(.dark) .adv-timeslider::-webkit-slider-thumb,
+:is(.dark) .adv-timeslider::-moz-range-thumb {
+  background: #d5bb7e;
+}
+
 /* Live-presence indicator - green pulsing dot on viewer chips. The
    chip itself doesn't move; only the pulse ring expands and fades so
    the effect is "alive" rather than busy. */

@@ -11,6 +11,7 @@ import {
   deleteTimelineEvent,
   getTimelineMediaUrl,
 } from '@/lib/timeline-actions';
+import { inviteCollaboratorAction } from '@/lib/actions';
 import {
   formatOccurred,
   sortTimeline,
@@ -88,10 +89,11 @@ export function MinimalTimeline({
           Upload everything you&apos;ve collected and add a little context to each item. Your legal team
           turns it into a fully-analysed, court-ready case timeline.
         </p>
-        <div className="mt-3">
+        <div className="mt-3 flex flex-wrap items-center gap-2">
           <span className="rounded-full bg-forest-900/5 px-2.5 py-1 text-xs text-ink-500 dark:bg-cream-50/10 dark:text-cream-300/70">
             {events.length} {events.length === 1 ? 'item' : 'items'}
           </span>
+          <InviteFirm caseId={caseId} />
         </div>
       </header>
 
@@ -357,6 +359,67 @@ function MinimalEditor({ event, onSaved, onCancel }: {
           {pending ? 'Saving…' : 'Save'}
         </button>
       </div>
+    </div>
+  );
+}
+
+// ── Invite a law firm to this case (a client-friendly wrapper over the
+//    collaborator invite: adds the firm as an Attorney, who then gets the full
+//    build experience on the client's case). ─────────────────────────────────
+function InviteFirm({ caseId }: { caseId: string }) {
+  const [open, setOpen] = useState(false);
+  const [email, setEmail] = useState('');
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [pending, start] = useTransition();
+
+  if (!open && !msg) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="inline-flex items-center gap-1.5 rounded-full border border-forest-900/15 bg-white px-2.5 py-1 text-xs font-medium text-forest-800 hover:border-gold-500 dark:border-cream-50/15 dark:bg-forest-900/40 dark:text-cream-200"
+      >
+        ⚖️ Invite your law firm
+      </button>
+    );
+  }
+
+  return (
+    <div className="w-full">
+      {msg && (
+        <p className={`mb-2 rounded-lg px-3 py-2 text-xs ${msg.ok ? 'bg-emerald-50 text-emerald-900 dark:bg-emerald-500/10 dark:text-emerald-300' : 'bg-rose-50 text-rose-800 dark:bg-rose-500/10 dark:text-rose-300'}`}>
+          {msg.text}
+        </p>
+      )}
+      {open && (
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+            placeholder="firm@lawfirm.com"
+            className="min-w-0 flex-1 rounded-lg border border-ink-200 px-3 py-1.5 text-sm dark:border-cream-50/20 dark:bg-forest-950"
+          />
+          <button
+            type="button" disabled={pending || !email.trim()}
+            onClick={() => start(async () => {
+              setMsg(null);
+              const fd = new FormData();
+              fd.append('email', email.trim());
+              fd.append('role', 'attorney');
+              try {
+                const res = await inviteCollaboratorAction(caseId, fd);
+                setOpen(false); setEmail('');
+                setMsg({ ok: true, text: res?.emailed ? `Invite sent to ${email.trim()}. Once they join, they can build your timeline.` : `${email.trim()} added. Email delivery is unconfigured, so let them know directly.` });
+              } catch (err) {
+                setMsg({ ok: false, text: err instanceof Error ? err.message : 'Invite failed.' });
+              }
+            })}
+            className="flex-none rounded-lg bg-forest-900 px-3 py-1.5 text-sm font-medium text-cream-50 disabled:opacity-50 dark:bg-gold-metal dark:text-forest-950"
+          >
+            {pending ? 'Sending…' : 'Send invite'}
+          </button>
+          <button type="button" onClick={() => { setOpen(false); setMsg(null); }} className="flex-none rounded-lg px-2 py-1.5 text-sm text-ink-500">Cancel</button>
+        </div>
+      )}
     </div>
   );
 }

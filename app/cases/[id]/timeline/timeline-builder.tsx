@@ -151,7 +151,18 @@ export function TimelineBuilder({
 
   const dated = events.length;
   const analysed = events.filter((e) => e.aiStatus === 'done').length;
-  const mapPoints: MapPoint[] = events.flatMap((e) => e.aiExtracted.geo_points ?? []);
+  // Enrich each geocoded pin with its event's time and tagged people, so the
+  // map can breadcrumb movements over the timeline.
+  const peopleName = (id: string) => people.find((p) => p.id === id)?.displayName ?? '';
+  const mapPoints: MapPoint[] = events.flatMap((e) =>
+    (e.aiExtracted.geo_points ?? []).map((p) => ({
+      ...p,
+      time: e.occurredAt,
+      when: formatOccurred(e.occurredAt, e.occurredPrecision),
+      people: e.people.map(peopleName).filter(Boolean),
+      title: e.title,
+    })),
+  );
 
   return (
     <div>
@@ -199,7 +210,7 @@ export function TimelineBuilder({
         </div>
       )}
 
-      <CaseMap points={mapPoints} title="Case map · where the evidence pings" />
+      <CaseMap points={mapPoints} title="Movements · scrub the timeline to trace the breadcrumbs" />
 
       <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
         {/* Main column */}
