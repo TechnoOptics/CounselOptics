@@ -1328,6 +1328,9 @@ export type TimelineExhibitData = {
   generatedAt: string; // ISO
   narrative: { summary: string | null; narrative: string | null; conclusion: string | null } | null;
   entities: ExhibitEntity[];
+  /** Themed static map of every geocoded location in the case, framed to the
+   *  pinged area. Null when no locations resolved or Maps is not configured. */
+  caseMap?: { image: Buffer; count: number; places: string[] } | null;
   entries: {
     index: number;
     when: string;
@@ -1525,6 +1528,34 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
         );
         gap(doc, 12);
         for (const ent of input.entities) drawEntityCard(doc, ent);
+      }
+
+      // ── LOCATIONS (themed map of everywhere the evidence pings)
+      if (input.caseMap?.image) {
+        beginSection(doc, 'Locations of interest');
+        doc.font('Helvetica').fontSize(9.5).fillColor(COLOR.muted).text(
+          `Every location resolved from the catalogued evidence, plotted below. ${input.caseMap.count} location${input.caseMap.count === 1 ? '' : 's'} mapped. Coordinates are derived from embedded file GPS or from places named in the content, and are provided for orientation only.`,
+          MARGIN, doc.y, { width: CONTENT_WIDTH },
+        );
+        gap(doc, 12);
+        try {
+          const im = (doc as unknown as { openImage(src: Buffer): { width: number; height: number } }).openImage(input.caseMap.image);
+          const iw = im.width || 640, ih = im.height || 360;
+          let w = CONTENT_WIDTH, h = (w * ih) / iw;
+          if (h > 380) { h = 380; w = (h * iw) / ih; }
+          if (doc.y + h + 10 > BOTTOM) doc.addPage();
+          const x = MARGIN + (CONTENT_WIDTH - w) / 2;
+          doc.save().roundedRect(x, doc.y, w, h, 6).clip();
+          doc.image(input.caseMap.image, x, doc.y, { width: w, height: h });
+          doc.restore();
+          doc.save().roundedRect(x, doc.y, w, h, 6).lineWidth(0.5).stroke(COLOR.rule ?? '#e7e2d6').restore();
+          doc.y += h + 8;
+        } catch { /* map image is best-effort */ }
+        if (input.caseMap.places.length) {
+          doc.font('Helvetica').fontSize(8.5).fillColor(COLOR.faint)
+            .text(input.caseMap.places.join('  ·  '), MARGIN, doc.y, { width: CONTENT_WIDTH, align: 'center' });
+          doc.y += 10;
+        }
       }
 
       // ── CHRONOLOGY (with embedded exhibits)

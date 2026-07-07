@@ -9,6 +9,7 @@ import {
   type ExhibitEntity,
 } from '@/lib/pdf';
 import { formatOccurred, KIND_LABEL, ROLE_LABEL, type TimelineMedia } from '@/lib/timeline-types';
+import { staticMapUrlServer } from '@/lib/maps';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -156,9 +157,36 @@ export async function GET(
     });
   }
 
+  // ── General case map: a themed static image of every geocoded location,
+  //    framed to the pinged area. Gated on the Maps key (null without it).
+  let caseMap: TimelineExhibitData['caseMap'] = null;
+  const allPoints = bundle.events.flatMap((e) => e.aiExtracted.geo_points ?? []);
+  if (allPoints.length) {
+    const seen = new Set<string>();
+    const uniq = allPoints.filter((p) => {
+      const k = `${p.lat.toFixed(4)},${p.lng.toFixed(4)}`;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+    const url = staticMapUrlServer(uniq.map((p) => ({ lat: p.lat, lng: p.lng })), { width: 640, height: 360, scale: 2 });
+    if (url) {
+      try {
+        const r = await fetch(url, { cache: 'no-store' });
+        if (r.ok) {
+          const places = [...new Set(uniq.filter((p) => p.source === 'place').map((p) => p.label))].slice(0, 12);
+          caseMap = { image: Buffer.from(await r.arrayBuffer()), count: uniq.length, places };
+        }
+      } catch {
+        /* map is best-effort */
+      }
+    }
+  }
+
   const data: TimelineExhibitData = {
     caseTitle: c.title,
     caseRef: c.id.slice(0, 8).toUpperCase(),
+    caseMap,
     subjectName: c.subject_name,
     preparedBy:
       (profile as { display_name?: string | null } | null)?.display_name ||

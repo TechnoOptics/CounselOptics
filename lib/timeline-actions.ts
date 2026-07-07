@@ -7,6 +7,7 @@ import { createAdminSupabase } from './supabase/admin';
 import { safeStorageUpload } from './upload-safety';
 import { extractFileText } from './doc-review';
 import { extractMediaMetadata } from './media-metadata';
+import { mapsConfigured, geocodeAddress } from './maps';
 import {
   analyzeImage,
   analyzeText,
@@ -269,6 +270,25 @@ export async function analyzeTimelineEvent(
       if (meta.gps) result.extracted.metadata_gps = meta.gps;
     } catch {
       /* metadata is best-effort */
+    }
+  }
+
+  // Map pins: the file's own GPS, plus any named places we can geocode. Gated
+  // on the Maps key (helpers return null without it), so this is a no-op until
+  // the key is present, and never fails the analysis.
+  if (!('error' in result) && mapsConfigured()) {
+    try {
+      const points: NonNullable<AiExtracted['geo_points']> = [];
+      const gps = result.extracted.metadata_gps;
+      if (gps) points.push({ lat: gps.lat, lng: gps.lng, label: 'File GPS', source: 'gps' });
+      const places = (result.extracted.locations ?? []).slice(0, 4);
+      for (const place of places) {
+        const at = await geocodeAddress(place);
+        if (at) points.push({ lat: at.lat, lng: at.lng, label: place.slice(0, 80), source: 'place' });
+      }
+      if (points.length) result.extracted.geo_points = points;
+    } catch {
+      /* geocoding is best-effort */
     }
   }
 

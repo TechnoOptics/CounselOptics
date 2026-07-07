@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { MicButton } from './dictation';
 import { MediaLightbox } from './media-lightbox';
+import { CaseMap, type MapPoint } from './case-map';
 import {
   createTimelineEvent,
   analyzeTimelineEvent,
@@ -149,6 +150,7 @@ export function TimelineBuilder({
 
   const dated = events.length;
   const analysed = events.filter((e) => e.aiStatus === 'done').length;
+  const mapPoints: MapPoint[] = events.flatMap((e) => e.aiExtracted.geo_points ?? []);
 
   return (
     <div>
@@ -195,6 +197,8 @@ export function TimelineBuilder({
           {error}
         </div>
       )}
+
+      <CaseMap points={mapPoints} title="Case map · where the evidence pings" />
 
       <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
         {/* Main column */}

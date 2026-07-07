@@ -69,6 +69,12 @@ export type AiExtracted = {
   metadata?: { label: string; value: string }[];
   /** GPS coordinates embedded in the file, when present. */
   metadata_gps?: { lat: number; lng: number } | null;
+  /**
+   * Map pins for this entry: the file's own GPS plus any named locations that
+   * geocoded to coordinates. Powers the live case map and the export maps.
+   * Empty/undefined when nothing resolved or Maps is not configured.
+   */
+  geo_points?: { lat: number; lng: number; label: string; source: 'gps' | 'place' }[];
 };
 
 export type CasePerson = {
