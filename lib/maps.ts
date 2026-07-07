@@ -18,7 +18,13 @@ import 'server-only';
 export type LatLng = { lat: number; lng: number };
 
 function serverKey(): string {
-  return process.env.GOOGLE_MAPS_API_KEY?.trim() || '';
+  // Prefer the dedicated server key; fall back to the public key so the maps
+  // light up with whatever key is attached (mirrors app/api/safe/alert).
+  return (
+    process.env.GOOGLE_MAPS_API_KEY?.trim() ||
+    process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY?.trim() ||
+    ''
+  );
 }
 export function mapsConfigured(): boolean {
   return Boolean(serverKey());
