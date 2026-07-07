@@ -1,5 +1,6 @@
 import type { Tier } from './types';
 import type { TierSlug } from './token-packages';
+import { COMP_ULTRA_PRICE_ID } from './personal-tiers';
 
 /**
  * Single source of truth for "what plan does this billing artifact grant?"
@@ -84,6 +85,9 @@ export function resolvePriceEntitlement(
   priceId: string | null | undefined,
 ): BillingEntitlement {
   if (!priceId) return { tier: null, tierSlug: null };
+  // Lifetime comp accounts (founder/owner/QA) carry a sentinel price id that
+  // never exists in Stripe — grant Ultra. See lib/personal-tiers.ts.
+  if (priceId === COMP_ULTRA_PRICE_ID) return { tier: 'pro', tierSlug: 'ultra' };
   for (const row of PRICE_TABLE) {
     const configured = process.env[row.env]?.trim();
     if (configured && priceId === configured) {

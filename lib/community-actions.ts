@@ -30,7 +30,10 @@ export type CommunityActionResult = { ok: boolean; error?: string; slug?: string
  * collapses every paid tier, including Personal Pro and Solo, down to
  * 'pro') so it must not be used for this check except as the narrow
  * comp-account signal below. */
-const ELIGIBLE_TIER_SLUGS = new Set(['pro_plus', 'growing_firm', 'enterprise']);
+// Group (Community) cases are an Ultra personal feature, or Growing Firm+ on
+// the firm track. Lifetime-comp accounts resolve to the 'ultra' slug, so they
+// pass here too. Legacy 'pro_plus' kept for any grandfathered Personal Plus.
+const ELIGIBLE_TIER_SLUGS = new Set(['ultra', 'pro_plus', 'growing_firm', 'enterprise']);
 
 /** True if a subscription is active/trialing at Personal Plus or above
  * (or Growing Firm or above for firm tiers). Shared by the caller's-own-
@@ -93,7 +96,7 @@ async function assertOrganizerEligible() {
 
   if (!hasEligibleTier) {
     throw new Error(
-      'Creating a Community Case page requires a Personal Plus plan or above (Growing Firm or above for firm accounts).',
+      'Creating a Community Case page requires the Ultra plan (Growing Firm or above for firm accounts).',
     );
   }
 

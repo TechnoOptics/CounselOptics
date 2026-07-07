@@ -24,6 +24,7 @@ import { createServerSupabase, getCurrentUser, isSupabaseConfigured } from './su
 import { createAdminSupabase } from './supabase/admin';
 import { sendEmail, buildInviteEmailHtml } from './email';
 import { parseMenuPreferences, type AllMenuPreferences } from './menu-prefs';
+import { COMP_ULTRA_PRICE_ID } from './personal-tiers';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
@@ -1560,7 +1561,9 @@ function compSubscription(userId: string): Subscription {
     stripeCustomerId: null,
     stripeSubscriptionId: null,
     status: 'active',
-    priceId: null,
+    // Lifetime Ultra: the sentinel price id resolves to the Ultra slug (all
+    // Ultra features + uncapped cases) without any Stripe subscription.
+    priceId: COMP_ULTRA_PRICE_ID,
     tier: 'pro',
     currentPeriodEnd: null,
     cancelAtPeriodEnd: false,

@@ -1,7 +1,7 @@
 import { TIER_FEATURES, type Subscription, type Tier, type TierFeatures } from './types';
 import type { EffectiveTrialState } from './storage';
 import { resolvePriceEntitlement } from './entitlements';
-import { personalTierForSlug, type PersonalTier } from './personal-tiers';
+import { personalTierForSlug, COMP_ULTRA_PRICE_ID, type PersonalTier } from './personal-tiers';
 
 /**
  * The active personal-ladder rung for a subscription, or null when the sub is
@@ -60,6 +60,8 @@ export function hasFeature(
 
 /** null = unlimited. */
 export function caseLimit(sub: Subscription | null | undefined): number | null {
+  // Lifetime comp (founder/owner/QA): Ultra features but uncapped cases.
+  if (sub?.priceId === COMP_ULTRA_PRICE_ID) return null;
   const pt = activePersonalTier(sub);
   if (pt) return pt.caseLimit;
   const f = activeFeatures(sub);

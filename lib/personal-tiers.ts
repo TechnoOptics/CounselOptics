@@ -1,6 +1,15 @@
 import type { TierSlug } from './token-packages';
 
 /**
+ * Sentinel price id for a lifetime, comped Ultra grant (founder / owner / QA
+ * accounts — see COMP_EMAILS in lib/storage.ts). It never exists in Stripe;
+ * resolvePriceEntitlement() special-cases it to the Ultra slug so these
+ * accounts get every Ultra feature for free, forever, and caseLimit() treats
+ * it as uncapped.
+ */
+export const COMP_ULTRA_PRICE_ID = 'comp_lifetime_ultra';
+
+/**
  * The five consumer ("personal") plans, the single source of truth for the
  * billing cards AND the feature gates. The coarse `Tier` enum only has three
  * values, which cannot express five distinct case caps or "Bella unlocks at
@@ -31,8 +40,10 @@ export type PersonalTier = {
   bella: boolean;
   aiReview: boolean;
   collaborators: boolean;
-  /** Submit-only timeline access (the personal minimal timeline). */
+  /** Submit-only timeline access (the personal minimal timeline). Ultra only. */
   timeline: boolean;
+  /** Community / group-case organizing. Ultra only (personal track). */
+  groupCases: boolean;
   monthlyTokens: number;
   /** Env var holding this rung's Stripe price id. Null for Free. */
   stripeEnv: string | null;
@@ -52,6 +63,7 @@ export const PERSONAL_TIERS: PersonalTier[] = [
     aiReview: false,
     collaborators: false,
     timeline: false,
+    groupCases: false,
     monthlyTokens: 25_000,
     stripeEnv: null,
     highlights: ['1 case', 'PDF export', 'Find counsel'],
@@ -67,6 +79,7 @@ export const PERSONAL_TIERS: PersonalTier[] = [
     aiReview: false,
     collaborators: false,
     timeline: false,
+    groupCases: false,
     monthlyTokens: 150_000,
     stripeEnv: 'STRIPE_PRICE_PERSONAL_STARTER',
     highlights: ['3 cases', 'PDF export', 'Priority support'],
@@ -81,10 +94,11 @@ export const PERSONAL_TIERS: PersonalTier[] = [
     bella: true,
     aiReview: false,
     collaborators: false,
-    timeline: true,
+    timeline: false,
+    groupCases: false,
     monthlyTokens: 500_000,
     stripeEnv: 'STRIPE_PRICE_PERSONAL_PLUS8',
-    highlights: ['8 cases', 'Bella AI assistant', 'Case timeline (submit)'],
+    highlights: ['8 cases', 'Bella AI assistant', '500K tokens / month'],
   },
   {
     key: 'premium',
@@ -96,7 +110,8 @@ export const PERSONAL_TIERS: PersonalTier[] = [
     bella: true,
     aiReview: true,
     collaborators: true,
-    timeline: true,
+    timeline: false,
+    groupCases: false,
     monthlyTokens: 1_500_000,
     stripeEnv: 'STRIPE_PRICE_PERSONAL_PRO15',
     highlights: ['15 cases', 'Advottic Review', 'Invite your firm'],
@@ -112,9 +127,10 @@ export const PERSONAL_TIERS: PersonalTier[] = [
     aiReview: true,
     collaborators: true,
     timeline: true,
+    groupCases: true,
     monthlyTokens: 3_000_000,
     stripeEnv: 'STRIPE_PRICE_PERSONAL_ULTRA',
-    highlights: ['40 cases', 'Everything in Pro', 'Highest token grant'],
+    highlights: ['40 cases', 'Case timeline + group cases', 'Everything in Pro'],
   },
 ];
 

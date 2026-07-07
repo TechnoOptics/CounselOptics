@@ -34,10 +34,11 @@ function featureRows(t: PersonalTier): FeatureRow[] {
   return [
     { label: `${t.caseLimit} case${t.caseLimit === 1 ? '' : 's'}`, on: true },
     { label: 'PDF export', on: true },
-    { label: 'Case timeline', on: t.timeline },
     { label: 'Bella AI assistant', on: t.bella },
     { label: 'Advottic Review', on: t.aiReview },
     { label: 'Invite your law firm', on: t.collaborators },
+    { label: 'Case timeline', on: t.timeline },
+    { label: 'Group / community cases', on: t.groupCases },
   ];
 }
 
