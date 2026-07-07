@@ -1338,6 +1338,8 @@ export type TimelineExhibitData = {
     sourceLabel: string | null;
     people: string[];
     exhibits: ExhibitFile[];
+    /** Forensic metadata pulled from the file (EXIF/GPS/device/authoring). */
+    coreDetails: { label: string; value: string }[];
   }[];
 };
 
@@ -1560,6 +1562,19 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
             doc.font('Helvetica').fontSize(8.5).fillColor(COLOR.faint)
               .text(`📎  ${ex.name}  ·  ${ex.mime || 'file'}  ·  ${humanBytes(ex.sizeBytes)}  ·  SHA-256 ${ex.sha256.slice(0, 24)}…`, MARGIN, doc.y, { width: CONTENT_WIDTH });
             gap(doc, 2);
+          }
+        }
+        // Forensic core details extracted from the file (EXIF/GPS/device/authoring).
+        if (e.coreDetails.length) {
+          gap(doc, 6);
+          ensureSpace(doc, 16 + e.coreDetails.length * 11);
+          doc.font('Helvetica-Bold').fontSize(7.5).fillColor(COLOR.emerald)
+            .text('CORE DETAILS — EXTRACTED FROM FILE METADATA', MARGIN, doc.y, { characterSpacing: 1 });
+          gap(doc, 3);
+          for (const d of e.coreDetails) {
+            ensureSpace(doc, 11);
+            doc.font('Courier').fontSize(8).fillColor(COLOR.inkSoft)
+              .text(`${(d.label + ':').padEnd(16)}${d.value}`, MARGIN + 4, doc.y, { width: CONTENT_WIDTH - 4 });
           }
         }
         gap(doc, 6);

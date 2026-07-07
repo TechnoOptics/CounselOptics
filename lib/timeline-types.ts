@@ -61,6 +61,14 @@ export type AiExtracted = {
   suggested_occurred_at?: string | null;
   suggested_precision?: OccurredPrecision;
   confidence?: 'high' | 'medium' | 'low';
+  /**
+   * Forensic "core details" pulled from the file itself — EXIF/GPS/device for
+   * images, authoring metadata for PDFs. Best-effort; empty when the file
+   * carries none. See lib/media-metadata.ts.
+   */
+  metadata?: { label: string; value: string }[];
+  /** GPS coordinates embedded in the file, when present. */
+  metadata_gps?: { lat: number; lng: number } | null;
 };
 
 export type CasePerson = {

@@ -434,6 +434,8 @@ function EventCard({
   const locations = event.aiExtracted.locations ?? [];
   const orgs = event.aiExtracted.organizations ?? [];
   const thread = event.aiExtracted.message_thread;
+  const meta = event.aiExtracted.metadata ?? [];
+  const metaGps = event.aiExtracted.metadata_gps ?? null;
 
   async function setEntryDate(raw: string) {
     const iso = parseLoose(raw);
@@ -623,6 +625,36 @@ function EventCard({
                 </div>
               )}
             </div>
+          )}
+
+          {/* Forensic "core details" — EXIF/GPS/device/authoring metadata pulled
+              from the file itself. Collapsed, terminal-styled. */}
+          {meta.length > 0 && (
+            <details className="group mt-2">
+              <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400 select-none">
+                <span className="transition-transform group-open:rotate-90" aria-hidden>▸</span>
+                <span className="font-mono tracking-tight">core_details</span>
+                <span className="rounded bg-emerald-500/15 px-1 text-[10px] text-emerald-700 dark:text-emerald-300">{meta.length}</span>
+              </summary>
+              <div className="mt-1.5 overflow-x-auto rounded-lg border border-emerald-500/25 bg-[#0b1512] px-3 py-2.5 font-mono text-[11px] leading-relaxed text-emerald-300/90 shadow-inner">
+                {meta.map((m) => (
+                  <div key={m.label} className="flex gap-2">
+                    <span className="w-24 flex-none text-emerald-500/55" data-no-translate>{m.label}</span>
+                    <span className="min-w-0 break-words text-emerald-200" data-no-translate>{m.value}</span>
+                  </div>
+                ))}
+                {metaGps && (
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${metaGps.lat},${metaGps.lng}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 inline-flex items-center gap-1 text-emerald-400 underline decoration-emerald-500/40 underline-offset-2 hover:text-emerald-300"
+                  >
+                    ◎ open GPS on map
+                  </a>
+                )}
+              </div>
+            </details>
           )}
         </div>
       </div>

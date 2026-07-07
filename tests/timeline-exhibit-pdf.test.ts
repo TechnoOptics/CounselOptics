@@ -50,6 +50,11 @@ function sample(entryCount: number): TimelineExhibitData {
         { name: `photo-${i}.png`, mime: 'image/png', sizeBytes: png.length, sha256: 'a'.repeat(64), image: png },
         { name: `statement-${i}.pdf`, mime: 'application/pdf', sizeBytes: 45678, sha256: 'b'.repeat(64), image: null },
       ],
+      coreDetails: [
+        { label: 'Device', value: 'Apple iPhone 14 Pro' },
+        { label: 'Captured', value: 'Mar 14, 2023, 4:12 PM' },
+        { label: 'GPS', value: '44.833400, -93.526600' },
+      ],
     })),
   };
 }

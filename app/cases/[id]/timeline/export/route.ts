@@ -152,6 +152,7 @@ export async function GET(
       sourceLabel: e.sourceLabel,
       people: e.people.map((id) => peopleById.get(id) ?? '').filter(Boolean),
       exhibits,
+      coreDetails: e.aiExtracted.metadata ?? [],
     });
   }
 

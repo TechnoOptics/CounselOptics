@@ -6,6 +6,7 @@ import { getCurrentUser, createServerSupabase } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
 import { safeStorageUpload } from './upload-safety';
 import { extractFileText } from './doc-review';
+import { extractMediaMetadata } from './media-metadata';
 import {
   analyzeImage,
   analyzeText,
@@ -219,6 +220,7 @@ export async function analyzeTimelineEvent(
   const admin = createAdminSupabase();
 
   let result: { extracted: AiExtracted; summary: string } | { error: string };
+  let metaSource: { buf: Buffer; mime: string; name: string } | null = null;
   const img = ev.media.find((m) => isVisionAnalyzable(m.mime));
   const doc = ev.media.find((m) => /pdf|word|officedocument|text\//.test(m.mime));
   const audio = ev.media.find((m) => /^audio\//.test(m.mime));
@@ -227,6 +229,7 @@ export async function analyzeTimelineEvent(
     if (img && admin) {
       const dl = await admin.storage.from(BUCKET).download(img.path);
       const buf = Buffer.from(await (dl.data as Blob).arrayBuffer());
+      metaSource = { buf, mime: img.mime, name: img.name };
       result = await analyzeImage({ buffer: buf, mime: img.mime, userContext: ev.description, kind: ev.kind });
     } else if (audio && admin) {
       const dl = await admin.storage.from(BUCKET).download(audio.path);
@@ -242,6 +245,7 @@ export async function analyzeTimelineEvent(
     } else if (doc && admin) {
       const dl = await admin.storage.from(BUCKET).download(doc.path);
       const buf = Buffer.from(await (dl.data as Blob).arrayBuffer());
+      metaSource = { buf, mime: doc.mime, name: doc.name };
       const file = new File([new Uint8Array(buf)], doc.name, { type: doc.mime });
       const ext = await extractFileText(file);
       result = ext.text.trim()
@@ -254,6 +258,18 @@ export async function analyzeTimelineEvent(
     }
   } catch (err) {
     result = { error: err instanceof Error ? err.message : 'Analysis failed.' };
+  }
+
+  // Forensic "core details" straight from the file (EXIF/GPS/device for
+  // images, authoring metadata for PDFs). Non-fatal; merged into the analysis.
+  if (!('error' in result) && metaSource) {
+    try {
+      const meta = await extractMediaMetadata(metaSource.buf, metaSource.mime, metaSource.name);
+      if (meta.fields.length) result.extracted.metadata = meta.fields;
+      if (meta.gps) result.extracted.metadata_gps = meta.gps;
+    } catch {
+      /* metadata is best-effort */
+    }
   }
 
   if ('error' in result) {
