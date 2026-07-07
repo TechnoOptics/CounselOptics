@@ -114,14 +114,21 @@ function tagStep<T>(step: string, fn: () => Promise<T>): Promise<T> {
 }
 
 async function loadPurchasesModule() {
-  return tagStep('loadPlugin', async () => import('@revenuecat/purchases-capacitor'));
+  // The dynamic import fetches a JS chunk from advottic.com (remote-URL
+  // WebView). Guard it so a stalled chunk request can't hang the purchase
+  // before any native call is even attempted.
+  return tagStep('loadPlugin', () =>
+    withTimeout(
+      import('@revenuecat/purchases-capacitor'),
+      STOREKIT_TIMEOUT_MS,
+      "The purchase module didn't load. Please check your connection and try again.",
+    ),
+  );
 }
 
 async function loadPurchases() {
-  return tagStep('loadPlugin', async () => {
-    const mod = await import('@revenuecat/purchases-capacitor');
-    return mod.Purchases;
-  });
+  const mod = await loadPurchasesModule();
+  return mod.Purchases;
 }
 
 /**
@@ -149,11 +156,24 @@ async function ensureConfigured(userId: string) {
     );
   }
   // Surface the native RevenueCat handshake in device / App Review logs so a
-  // future failure is diagnosable instead of silent. Best-effort.
+  // future failure is diagnosable instead of silent. Best-effort — and it must
+  // NOT be able to hang the purchase. This is the FIRST native bridge call, and
+  // a bare `await` here caused the 2.1(b) "loads indefinitely" symptom: on the
+  // remote-URL WebView, if the native RevenueCat plugin binary compiled into
+  // the installed build is older than the v13 JS wrapper served from
+  // advottic.com, a call to a skewed method never calls back, so `await` hangs
+  // forever and the plain try/catch (which only catches a *rejection*) can't
+  // rescue it. Bounding it with withTimeout guarantees we fall through to
+  // configure() (which is itself bounded and surfaces a real error) instead of
+  // spinning. 5s is generous for a fire-and-forget log-level setter.
   try {
-    await Purchases.setLogLevel({ level: mod.LOG_LEVEL.DEBUG });
+    await withTimeout(
+      Purchases.setLogLevel({ level: mod.LOG_LEVEL.DEBUG }),
+      5000,
+      'setLogLevel stalled',
+    );
   } catch {
-    /* older plugin shape - non-fatal */
+    /* older plugin shape, or the native bridge stalled - non-fatal, keep going */
   }
   if (configuredFor === null) {
     await tagStep('configure', () =>
