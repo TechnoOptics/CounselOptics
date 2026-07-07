@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
+import { MicButton } from './dictation';
 import {
   createTimelineEvent,
   analyzeTimelineEvent,
@@ -49,6 +50,12 @@ const ROLES: PersonRole[] = ['subject', 'witness', 'opposing', 'support', 'other
 
 function initials(name: string): string {
   return name.split(/\s+/).map((w) => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || '?';
+}
+
+/** Parse a loosely-formatted date string ("March 2023", "2023-03-14") to ISO, or null. */
+function parseLoose(s: string): string | null {
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
 export function TimelineBuilder({
@@ -255,12 +262,14 @@ export function TimelineBuilder({
               onChange={upsertEvent}
               onDelete={removeEvent}
               onCreatePerson={createPerson}
+              onCreated={onCreated}
             />
           )}
         </div>
 
         {/* Side rail */}
         <aside className="space-y-6">
+          <InsightsPanel events={events} />
           <PeopleRail
             caseId={caseId}
             people={people}
@@ -309,11 +318,14 @@ function ManualAddButton({ caseId, onAdded }: { caseId: string; onAdded: (ev: Ti
         placeholder="Title (e.g. Landlord refused repairs)"
         className="mb-2 w-full rounded-lg border border-ink-200 px-3 py-2 text-sm dark:border-cream-50/20 dark:bg-forest-950"
       />
-      <textarea
-        value={description} onChange={(e) => setDescription(e.target.value)}
-        placeholder="What happened, and why it matters…" rows={3}
-        className="mb-2 w-full rounded-lg border border-ink-200 px-3 py-2 text-sm dark:border-cream-50/20 dark:bg-forest-950"
-      />
+      <div className="mb-2 flex items-start gap-2">
+        <textarea
+          value={description} onChange={(e) => setDescription(e.target.value)}
+          placeholder="What happened, and why it matters… (type or dictate)" rows={3}
+          className="w-full rounded-lg border border-ink-200 px-3 py-2 text-sm dark:border-cream-50/20 dark:bg-forest-950"
+        />
+        <MicButton onAppend={(t) => setDescription((d) => (d ? d + ' ' : '') + t)} />
+      </div>
       <div className="mb-3 flex gap-2">
         <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
           className="rounded-lg border border-ink-200 px-2 py-1.5 text-sm dark:border-cream-50/20 dark:bg-forest-950" />
@@ -346,7 +358,7 @@ function ManualAddButton({ caseId, onAdded }: { caseId: string; onAdded: (ev: Ti
 
 // ── The chronological timeline ────────────────────────────────────────────
 function Timeline({
-  events, people, analyzing, aiEnabled, onReanalyze, onChange, onDelete, onCreatePerson,
+  events, people, analyzing, aiEnabled, onReanalyze, onChange, onDelete, onCreatePerson, onCreated,
 }: {
   events: TimelineEvent[];
   people: CasePerson[];
@@ -356,6 +368,7 @@ function Timeline({
   onChange: (ev: TimelineEvent) => void;
   onDelete: (id: string) => void;
   onCreatePerson: (name: string, role: PersonRole) => Promise<CasePerson | null>;
+  onCreated: (ev: TimelineEvent) => void;
 }) {
   // Group by year for a scannable spine.
   const groups: { key: string; items: TimelineEvent[] }[] = [];
@@ -388,6 +401,7 @@ function Timeline({
                   onChange={onChange}
                   onDelete={onDelete}
                   onCreatePerson={onCreatePerson}
+                  onCreated={onCreated}
                 />
               ))}
             </div>
@@ -399,7 +413,7 @@ function Timeline({
 }
 
 function EventCard({
-  event, people, analyzing, aiEnabled, onReanalyze, onChange, onDelete, onCreatePerson,
+  event, people, analyzing, aiEnabled, onReanalyze, onChange, onDelete, onCreatePerson, onCreated,
 }: {
   event: TimelineEvent;
   people: CasePerson[];
@@ -409,13 +423,44 @@ function EventCard({
   onChange: (ev: TimelineEvent) => void;
   onDelete: (id: string) => void;
   onCreatePerson: (name: string, role: PersonRole) => Promise<CasePerson | null>;
+  onCreated: (ev: TimelineEvent) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const firstImage = event.media.find((m) => /^image\//.test(m.mime)) ?? null;
   const thumb = useSignedUrl(firstImage?.path ?? null);
   const tagged = people.filter((p) => event.people.includes(p.id));
   const detected = event.aiExtracted.detected_people ?? [];
+  const dates = event.aiExtracted.detected_dates ?? [];
+  const locations = event.aiExtracted.locations ?? [];
+  const orgs = event.aiExtracted.organizations ?? [];
   const thread = event.aiExtracted.message_thread;
+
+  async function setEntryDate(raw: string) {
+    const iso = parseLoose(raw);
+    if (!iso) return;
+    await updateTimelineEvent(event.id, { occurredAt: iso.slice(0, 10), occurredPrecision: 'day' });
+    onChange({ ...event, occurredAt: iso, occurredPrecision: 'day' });
+  }
+
+  // Turn a document that spans many dates into one entry per date.
+  async function plotDates() {
+    const seen = new Set<string>();
+    for (const raw of dates) {
+      const iso = parseLoose(raw);
+      if (!iso) continue;
+      const day = iso.slice(0, 10);
+      if (seen.has(day)) continue;
+      seen.add(day);
+      const fd = new FormData();
+      fd.append('title', `${event.title || 'Event'} — ${raw}`);
+      fd.append('description', `Extracted from "${event.title || 'this item'}".`);
+      fd.append('kind', 'event');
+      fd.append('occurredAt', day);
+      fd.append('occurredPrecision', 'day');
+      const res = await createTimelineEvent(event.caseId, fd);
+      if (res.event) onCreated(res.event);
+    }
+  }
 
   async function tagDetected(name: string) {
     const existing = people.find((p) => p.displayName.toLowerCase() === name.toLowerCase());
@@ -518,6 +563,67 @@ function EventCard({
                 </button>
               ))}
           </div>
+
+          {/* Extracted intelligence: dates / locations / organizations */}
+          {(dates.length > 0 || locations.length > 0 || orgs.length > 0) && (
+            <div className="mt-2 space-y-1.5">
+              {dates.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {dates.slice(0, 8).map((d) => {
+                    const ok = Boolean(parseLoose(d));
+                    return (
+                      <button
+                        key={d}
+                        type="button"
+                        disabled={!ok || (event.occurredAt?.slice(0, 10) === parseLoose(d)?.slice(0, 10))}
+                        onClick={() => void setEntryDate(d)}
+                        title={ok ? "Use as this entry's date" : undefined}
+                        className="rounded-full border border-forest-900/15 bg-forest-900/5 px-2 py-0.5 text-xs text-forest-800 enabled:hover:border-gold-500 disabled:opacity-60 dark:border-cream-50/15 dark:bg-cream-50/5 dark:text-cream-200"
+                        data-no-translate
+                      >
+                        📅 {d}
+                      </button>
+                    );
+                  })}
+                  {dates.filter((d) => parseLoose(d)).length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => void plotDates()}
+                      className="rounded-full border border-dashed border-gold-500/50 px-2 py-0.5 text-xs text-gold-700 hover:bg-gold-500/10 dark:text-gold-500"
+                    >
+                      ＋ Plot all dates as entries
+                    </button>
+                  )}
+                </div>
+              )}
+              {locations.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {locations.slice(0, 6).map((loc) => (
+                    <a
+                      key={loc}
+                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="View on map"
+                      className="rounded-full border border-forest-900/15 bg-forest-900/5 px-2 py-0.5 text-xs text-forest-800 hover:border-gold-500 dark:border-cream-50/15 dark:bg-cream-50/5 dark:text-cream-200"
+                      data-no-translate
+                    >
+                      📍 {loc}
+                    </a>
+                  ))}
+                </div>
+              )}
+              {orgs.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {orgs.slice(0, 6).map((o) => (
+                    <span key={o} className="rounded-full bg-forest-900/5 px-2 py-0.5 text-xs text-ink-600 dark:bg-cream-50/5 dark:text-cream-300" data-no-translate>
+                      🏢 {o}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -540,8 +646,11 @@ function EventEditor({ event, onSaved, onCancel }: { event: TimelineEvent; onSav
     <div className="mt-3 space-y-2 rounded-lg bg-forest-900/[0.03] p-3 dark:bg-cream-50/[0.04]">
       <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title"
         className="w-full rounded-lg border border-ink-200 px-3 py-1.5 text-sm dark:border-cream-50/20 dark:bg-forest-950" />
-      <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder="Your context"
-        className="w-full rounded-lg border border-ink-200 px-3 py-1.5 text-sm dark:border-cream-50/20 dark:bg-forest-950" />
+      <div className="flex items-start gap-2">
+        <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder="Your context (type or dictate)"
+          className="w-full rounded-lg border border-ink-200 px-3 py-1.5 text-sm dark:border-cream-50/20 dark:bg-forest-950" />
+        <MicButton onAppend={(t) => setDescription((d) => (d ? d + ' ' : '') + t)} />
+      </div>
       <div className="flex flex-wrap gap-2">
         <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
           className="rounded-lg border border-ink-200 px-2 py-1.5 text-sm dark:border-cream-50/20 dark:bg-forest-950" />
@@ -810,6 +919,7 @@ function CalendarView({
                   onChange={onChange}
                   onDelete={onDelete}
                   onCreatePerson={onCreatePerson}
+                  onCreated={onCreated}
                 />
               ))
             )}
@@ -838,8 +948,9 @@ function DayAddArea({ caseId, dateISO, onCreated, onIngestForDate }: {
       className={`rounded-xl border border-dashed p-3 transition-colors ${over ? 'border-gold-500 bg-gold-500/10' : 'border-forest-900/20 dark:border-cream-50/15'}`}
     >
       <div className="flex items-center gap-2">
-        <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Add a note for this day…"
+        <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Add a note for this day… (type or dictate)"
           className="min-w-0 flex-1 rounded-lg border border-ink-200 px-3 py-1.5 text-sm dark:border-cream-50/20 dark:bg-forest-950" />
+        <MicButton onAppend={(t) => setNote((n) => (n ? n + ' ' : '') + t)} />
         <button type="button" disabled={pending || !note.trim()}
           onClick={() => start(async () => {
             const fd = new FormData();
@@ -859,6 +970,71 @@ function DayAddArea({ caseId, dateISO, onCreated, onIngestForDate }: {
           accept="image/*,application/pdf,.doc,.docx,text/*,audio/*,video/*"
           onChange={(e) => { const f = Array.from(e.target.files ?? []); if (f.length) onIngestForDate(f, dateISO); e.target.value = ''; }} />
       </div>
+    </div>
+  );
+}
+
+// ── Extracted intelligence: everything Bella pulled out, aggregated ───────
+function InsightsPanel({ events }: { events: TimelineEvent[] }) {
+  const dates = events.filter((e) => e.occurredAt).map((e) => e.occurredAt as string);
+  const span = dates.length
+    ? { first: dates.reduce((a, b) => (a < b ? a : b)), last: dates.reduce((a, b) => (a > b ? a : b)) }
+    : null;
+
+  const tally = (pick: (e: TimelineEvent) => string[]) => {
+    const m = new Map<string, number>();
+    for (const e of events) for (const v of pick(e)) m.set(v, (m.get(v) ?? 0) + 1);
+    return [...m.entries()].sort((a, b) => b[1] - a[1]);
+  };
+  const places = tally((e) => e.aiExtracted.locations ?? []).slice(0, 6);
+  const orgs = tally((e) => e.aiExtracted.organizations ?? []).slice(0, 6);
+
+  if (!span && places.length === 0 && orgs.length === 0) return null;
+
+  return (
+    <div className="rounded-2xl border border-gold-500/30 bg-gradient-to-b from-gold-500/[0.07] to-transparent p-4 dark:border-gold-500/25">
+      <h2 className="mb-1 flex items-center gap-1.5 font-display text-base font-semibold text-forest-900 dark:text-cream-100">
+        <span aria-hidden>✨</span> Extracted intelligence
+      </h2>
+      <p className="mb-3 text-xs text-ink-500 dark:text-cream-300/70">What Bella pulled from across your evidence.</p>
+
+      {span && (
+        <div className="mb-3">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-ink-400 dark:text-cream-300/60">Spans</p>
+          <p className="text-sm text-forest-900 dark:text-cream-100" data-no-translate>
+            {formatOccurred(span.first, 'day')} → {formatOccurred(span.last, 'day')}
+          </p>
+        </div>
+      )}
+
+      {places.length > 0 && (
+        <div className="mb-3">
+          <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-ink-400 dark:text-cream-300/60">Places</p>
+          <div className="flex flex-wrap gap-1.5">
+            {places.map(([loc, n]) => (
+              <a key={loc} href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc)}`}
+                target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 rounded-full border border-forest-900/15 bg-white px-2 py-0.5 text-xs text-forest-800 hover:border-gold-500 dark:border-cream-50/15 dark:bg-forest-900/50 dark:text-cream-200"
+                data-no-translate>
+                📍 {loc}{n > 1 ? <span className="text-ink-400"> ×{n}</span> : null}
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {orgs.length > 0 && (
+        <div>
+          <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-ink-400 dark:text-cream-300/60">Organizations</p>
+          <div className="flex flex-wrap gap-1.5">
+            {orgs.map(([o, n]) => (
+              <span key={o} className="rounded-full bg-forest-900/5 px-2 py-0.5 text-xs text-ink-600 dark:bg-cream-50/10 dark:text-cream-300" data-no-translate>
+                🏢 {o}{n > 1 ? <span className="text-ink-400"> ×{n}</span> : null}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

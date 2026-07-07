@@ -45,6 +45,10 @@ export type AiExtracted = {
   detected_dates?: string[];
   /** People Bella observed (names read from the content, or generic "Person in red"). */
   detected_people?: string[];
+  /** Locations / street addresses / places named or visible in the content. */
+  locations?: string[];
+  /** Companies, agencies, courts, or other organizations named in the content. */
+  organizations?: string[];
   /** For a chat/group-chat screenshot. */
   message_thread?: {
     platform?: string | null;

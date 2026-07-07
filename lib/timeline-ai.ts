@@ -57,8 +57,10 @@ const ANALYSIS_INSTRUCTIONS = `You are Bella, Advottic's evidence analyst. You e
 Return ONLY a JSON object with this exact shape:
 {
   "ocr_text": "all legible text, verbatim (empty string if none)",
-  "detected_dates": ["any dates visible in or implied by the content, ISO where possible, e.g. 2023-03-14 or 'March 2023'"],
+  "detected_dates": ["EVERY distinct date visible in or implied by the content, ISO where possible, e.g. 2023-03-14 or 'March 2023' — do not omit any"],
   "detected_people": ["each distinct person visible or named; use the name/handle if legible, otherwise a neutral descriptor like 'man in blue jacket'"],
+  "locations": ["every place, street address, city, venue, or location named or visible — full street addresses verbatim where present"],
+  "organizations": ["every company, agency, court, bank, landlord, or other organization named"],
   "message_thread": {              // ONLY if this is a chat / SMS / group-chat screenshot, else null
     "platform": "WhatsApp | iMessage | SMS | Instagram | unknown",
     "participants": ["names/handles"],
