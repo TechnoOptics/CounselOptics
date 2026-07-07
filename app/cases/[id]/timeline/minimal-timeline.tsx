@@ -34,8 +34,6 @@ function useSignedUrl(path: string | null): string | null {
 }
 
 const KINDS: TimelineKind[] = ['photo', 'document', 'receipt', 'audio', 'video', 'message', 'note', 'event'];
-const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 export function MinimalTimeline({
   caseId,
@@ -47,7 +45,6 @@ export function MinimalTimeline({
   initialBundle: TimelineBundle;
 }) {
   const [events, setEvents] = useState<TimelineEvent[]>(initialBundle.events);
-  const [view, setView] = useState<'list' | 'calendar'>('list');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -80,21 +77,10 @@ export function MinimalTimeline({
           Upload everything you&apos;ve collected and add a little context to each item. Your legal team
           turns it into a fully-analysed, court-ready case timeline.
         </p>
-        <div className="mt-3 flex items-center justify-between">
+        <div className="mt-3">
           <span className="rounded-full bg-forest-900/5 px-2.5 py-1 text-xs text-ink-500 dark:bg-cream-50/10 dark:text-cream-300/70">
             {events.length} {events.length === 1 ? 'item' : 'items'}
           </span>
-          <div className="inline-flex rounded-lg border border-forest-900/15 bg-white p-0.5 text-sm dark:border-cream-50/15 dark:bg-forest-900/50">
-            {(['list', 'calendar'] as const).map((v) => (
-              <button key={v} type="button" onClick={() => setView(v)}
-                className={`rounded-md px-3 py-1 font-medium transition-colors ${
-                  view === v ? 'bg-forest-900 text-cream-50 dark:bg-gold-metal dark:text-forest-950'
-                  : 'text-ink-600 hover:bg-forest-900/5 dark:text-cream-300 dark:hover:bg-cream-50/10'
-                }`}>
-                {v === 'list' ? 'List' : 'Calendar'}
-              </button>
-            ))}
-          </div>
         </div>
       </header>
 
@@ -126,8 +112,6 @@ export function MinimalTimeline({
         <div className="rounded-2xl border border-forest-900/10 bg-white p-10 text-center text-ink-600 dark:border-cream-50/10 dark:bg-forest-900/40 dark:text-cream-300/80">
           Nothing yet. Drop your first item above.
         </div>
-      ) : view === 'calendar' ? (
-        <MonthOverview events={events} onChange={upsert} onDelete={(id) => setEvents((p) => p.filter((e) => e.id !== id))} onIngestForDate={(f, d) => void ingest(f, d)} caseId={caseId} onAdded={upsert} />
       ) : (
         <ListOverview events={events} onChange={upsert} onDelete={(id) => setEvents((p) => p.filter((e) => e.id !== id))} />
       )}
@@ -296,69 +280,3 @@ function MinimalEditor({ event, onSaved, onCancel }: {
   );
 }
 
-// ── Minimal month overview ────────────────────────────────────────────────
-function MonthOverview({ events, onChange, onDelete, onIngestForDate, caseId, onAdded }: {
-  events: TimelineEvent[];
-  onChange: (ev: TimelineEvent) => void;
-  onDelete: (id: string) => void;
-  onIngestForDate: (files: File[], dateISO: string) => void;
-  caseId: string;
-  onAdded: (ev: TimelineEvent) => void;
-}) {
-  const byDay = new Map<string, TimelineEvent[]>();
-  for (const e of events) { if (!e.occurredAt) continue; const k = e.occurredAt.slice(0, 10); (byDay.get(k) ?? byDay.set(k, []).get(k)!).push(e); }
-  const latest = events.find((e) => e.occurredAt)?.occurredAt ?? null;
-  const init = latest ? new Date(latest) : new Date();
-  const [month, setMonth] = useState(() => new Date(Date.UTC(init.getUTCFullYear(), init.getUTCMonth(), 1)));
-  const [selected, setSelected] = useState<string | null>(latest ? latest.slice(0, 10) : null);
-  const y = month.getUTCFullYear(); const m = month.getUTCMonth();
-  const firstWeekday = new Date(Date.UTC(y, m, 1)).getUTCDay();
-  const daysInMonth = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
-  const cells: (number | null)[] = [...Array(firstWeekday).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
-  const todayISO = new Date().toISOString().slice(0, 10);
-  const undated = events.filter((e) => !e.occurredAt).length;
-  const iso = (d: number) => `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-  const selEvents = selected ? byDay.get(selected) ?? [] : [];
-
-  return (
-    <div>
-      <div className="rounded-2xl border border-forest-900/10 bg-white p-4 dark:border-cream-50/10 dark:bg-forest-900/50">
-        <div className="mb-3 flex items-center justify-between">
-          <button type="button" onClick={() => setMonth(new Date(Date.UTC(y, m - 1, 1)))} className="rounded-md px-2 py-1 text-forest-700 hover:bg-forest-900/5 dark:text-cream-300 dark:hover:bg-cream-50/10">◀</button>
-          <h2 className="font-display text-lg font-semibold text-forest-900 dark:text-cream-100">{MONTHS[m]} {y}</h2>
-          <button type="button" onClick={() => setMonth(new Date(Date.UTC(y, m + 1, 1)))} className="rounded-md px-2 py-1 text-forest-700 hover:bg-forest-900/5 dark:text-cream-300 dark:hover:bg-cream-50/10">▶</button>
-        </div>
-        <div className="mb-1 grid grid-cols-7 gap-1 text-center text-[11px] font-medium text-ink-400 dark:text-cream-300/60">
-          {WEEKDAYS.map((w) => <div key={w}>{w}</div>)}
-        </div>
-        <div className="grid grid-cols-7 gap-1">
-          {cells.map((d, i) => {
-            if (d === null) return <div key={`b${i}`} />;
-            const k = iso(d); const count = byDay.get(k)?.length ?? 0; const sel = selected === k; const today = k === todayISO;
-            return (
-              <button key={k} type="button" onClick={() => setSelected(k)}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => { e.preventDefault(); setSelected(k); const f = Array.from(e.dataTransfer.files); if (f.length) onIngestForDate(f, k); }}
-                className={`relative flex aspect-square flex-col items-center justify-center rounded-lg border text-sm transition-colors ${
-                  sel ? 'border-forest-900 bg-forest-900/10 dark:border-gold-500 dark:bg-gold-500/15' : 'border-transparent hover:bg-forest-900/5 dark:hover:bg-cream-50/10'
-                }`}>
-                <span className={today ? 'grid h-6 w-6 place-items-center rounded-full bg-forest-900 text-cream-50 dark:bg-gold-metal dark:text-forest-950' : 'text-forest-900 dark:text-cream-100'}>{d}</span>
-                {count > 0 && <span className="absolute bottom-1 inline-flex min-w-[16px] items-center justify-center rounded-full bg-gold-600 px-1 text-[9px] font-semibold text-white dark:bg-gold-500 dark:text-forest-950">{count}</span>}
-              </button>
-            );
-          })}
-        </div>
-        {undated > 0 && <p className="mt-3 text-xs text-ink-500 dark:text-cream-300/70">{undated} undated {undated === 1 ? 'item' : 'items'} — add a date, or find them in List view.</p>}
-      </div>
-
-      {selected && (
-        <div className="mt-4">
-          <h3 className="mb-3 font-display text-lg font-semibold text-forest-900 dark:text-cream-100">{formatOccurred(`${selected}T00:00:00.000Z`, 'day')}</h3>
-          {selEvents.length === 0
-            ? <p className="text-sm text-ink-500 dark:text-cream-300/70">Nothing on this day. Drop files onto the date, or add an item with that date.</p>
-            : <div className="space-y-2">{selEvents.map((ev) => <MinimalCard key={ev.id} event={ev} onChange={onChange} onDelete={onDelete} />)}</div>}
-        </div>
-      )}
-    </div>
-  );
-}
