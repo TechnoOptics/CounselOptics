@@ -617,7 +617,7 @@ function drawDisclaimer(doc: Doc) {
     .fontSize(11)
     .fillColor(COLOR.ink)
     .text(
-      'Advottic provides legal information, case organization tools, document summaries, and Advottic Review (AI-assisted) issue spotting. Advottic does not provide legal advice, does not represent users, and does not create an attorney-client relationship.',
+      'Advottic provides legal information, case organization tools, document summaries, and Advottic Review issue spotting. Advottic does not provide legal advice, does not represent users, and does not create an attorney-client relationship.',
       MARGIN,
       doc.y,
       { width: CONTENT_WIDTH, align: 'left' },
@@ -1459,7 +1459,7 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
         margin: MARGIN,
         autoFirstPage: true,
         info: {
-          Title: `${input.caseTitle} — Timeline exhibit`,
+          Title: `${input.caseTitle}: Timeline exhibit`,
           Author: 'Advottic',
           Subject: 'Case timeline evidentiary exhibit',
         },
@@ -1491,7 +1491,7 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
       if (logoBuffer) { try { doc.image(logoBuffer, MARGIN, MARGIN, { width: 34 }); } catch { /* ignore */ } }
       doc.y = MARGIN + 64;
       doc.font('Helvetica-Bold').fontSize(9).fillColor(COLOR.muted)
-        .text('CASE TIMELINE — EVIDENTIARY EXHIBIT', MARGIN, doc.y, { characterSpacing: 2 });
+        .text('EVIDENTIARY TIMELINE EXHIBIT', MARGIN, doc.y, { characterSpacing: 2 });
       gap(doc, 10);
       doc.font('Helvetica-Bold').fontSize(26).fillColor(COLOR.ink)
         .text(input.caseTitle, MARGIN, doc.y, { width: CONTENT_WIDTH });
@@ -1514,7 +1514,7 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
       beginSection(doc, 'Certification & authentication');
       body(doc, `This exhibit was assembled from ${input.entries.length} catalogued item(s) and ${totalExhibits} source file(s) submitted in connection with the above matter. Each file reproduced or referenced herein is identified by its original filename, media type, byte size, and a SHA-256 cryptographic digest computed at the time of intake. A digest that matches the original file establishes that the file has not been altered since it was catalogued.`);
       gap(doc, 8);
-      body(doc, 'Entries are numbered sequentially and paginated with a unique Bates-style identifier in the footer of every page. Any AI-assisted description, transcription, or observation is labelled as such and is provided for organisational assistance only — it is not a determination of identity, authenticity, or legal significance, and must be independently verified by counsel.');
+      body(doc, 'Entries are numbered sequentially and paginated with a unique Bates-style identifier in the footer of every page. Any description, transcription, or observation labelled Advottic Review is provided for organisational assistance only. It is not a determination of identity, authenticity, or legal significance, and must be independently verified by counsel.');
 
       // ── PERSONS & ORGANIZATIONS OF INTEREST
       if (input.entities.length) {
@@ -1529,7 +1529,12 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
 
       // ── CHRONOLOGY (with embedded exhibits)
       beginSection(doc, 'Chronology of events');
+      let firstEntry = true;
       for (const e of input.entries) {
+        // One exhibit / thought per page: the first entry shares the section
+        // header's page; every subsequent entry starts on its own fresh page.
+        if (!firstEntry) doc.addPage();
+        firstEntry = false;
         ensureSpace(doc, 96);
         doc.font('Helvetica-Bold').fontSize(9).fillColor(COLOR.amber)
           .text(`${e.index}.  ${e.when}`, MARGIN, doc.y, { characterSpacing: 0.5 });
@@ -1544,9 +1549,12 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
           .text(metaBits.join('  ·  '), MARGIN, doc.y, { width: CONTENT_WIDTH });
         if (e.context) { gap(doc, 4); body(doc, e.context); }
         if (e.summary) {
-          gap(doc, 4);
-          doc.font('Helvetica-Oblique').fontSize(9.5).fillColor(COLOR.inkSoft)
-            .text(`AI-assisted analysis (verify): ${e.summary}`, MARGIN, doc.y, { width: CONTENT_WIDTH });
+          gap(doc, 6);
+          doc.font('Helvetica-Bold').fontSize(8).fillColor(COLOR.muted)
+            .text('ADVOTTIC REVIEW', MARGIN, doc.y, { characterSpacing: 1.4 });
+          gap(doc, 2);
+          doc.font('Helvetica').fontSize(10).fillColor(COLOR.inkSoft)
+            .text(e.summary, MARGIN, doc.y, { width: CONTENT_WIDTH });
         }
         // Embedded evidence images + authentication captions.
         if (e.exhibits.some((x) => x.image)) {
@@ -1560,7 +1568,7 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
           for (const ex of nonImg) {
             ensureSpace(doc, 16);
             doc.font('Helvetica').fontSize(8.5).fillColor(COLOR.faint)
-              .text(`📎  ${ex.name}  ·  ${ex.mime || 'file'}  ·  ${humanBytes(ex.sizeBytes)}  ·  SHA-256 ${ex.sha256.slice(0, 24)}…`, MARGIN, doc.y, { width: CONTENT_WIDTH });
+              .text(`Attachment: ${ex.name}  ·  ${ex.mime || 'file'}  ·  ${humanBytes(ex.sizeBytes)}  ·  SHA-256 ${ex.sha256.slice(0, 24)}`, MARGIN, doc.y, { width: CONTENT_WIDTH });
             gap(doc, 2);
           }
         }
@@ -1569,7 +1577,7 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
           gap(doc, 6);
           ensureSpace(doc, 16 + e.coreDetails.length * 11);
           doc.font('Helvetica-Bold').fontSize(7.5).fillColor(COLOR.emerald)
-            .text('CORE DETAILS — EXTRACTED FROM FILE METADATA', MARGIN, doc.y, { characterSpacing: 1 });
+            .text('CORE DETAILS (EXTRACTED FROM FILE METADATA)', MARGIN, doc.y, { characterSpacing: 1 });
           gap(doc, 3);
           for (const d of e.coreDetails) {
             ensureSpace(doc, 11);
@@ -1577,11 +1585,6 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
               .text(`${(d.label + ':').padEnd(16)}${d.value}`, MARGIN + 4, doc.y, { width: CONTENT_WIDTH - 4 });
           }
         }
-        gap(doc, 6);
-        ensureSpace(doc, 20);
-        doc.save().strokeColor(COLOR.rule).lineWidth(0.5)
-          .moveTo(MARGIN, doc.y).lineTo(PAGE_WIDTH - MARGIN, doc.y).stroke().restore();
-        gap(doc, 12);
       }
 
       // ── NARRATIVE

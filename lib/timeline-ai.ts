@@ -52,14 +52,14 @@ const IMAGE_MEDIA_TYPES: Record<string, 'image/jpeg' | 'image/png' | 'image/webp
   'image/gif': 'image/gif',
 };
 
-const ANALYSIS_INSTRUCTIONS = `You are Bella, Advottic's evidence analyst. You examine a single piece of a person's evidence for a legal timeline. Be precise, neutral, and factual — never dramatize, never invent. If something is unreadable or absent, say so; do not guess identities.
+const ANALYSIS_INSTRUCTIONS = `You are a neutral evidence analyst examining a single piece of a person's evidence for a legal timeline. Be precise, neutral, and factual. Never dramatize, never invent. If something is unreadable or absent, say so; do not guess identities.
 
 Return ONLY a JSON object with this exact shape:
 {
   "ocr_text": "all legible text, verbatim (empty string if none)",
-  "detected_dates": ["EVERY distinct date visible in or implied by the content, ISO where possible, e.g. 2023-03-14 or 'March 2023' — do not omit any"],
+  "detected_dates": ["EVERY distinct date visible in or implied by the content, ISO where possible, e.g. 2023-03-14 or 'March 2023'. Do not omit any"],
   "detected_people": ["each distinct person visible or named; use the name/handle if legible, otherwise a neutral descriptor like 'man in blue jacket'"],
-  "locations": ["every place, street address, city, venue, or location named or visible — full street addresses verbatim where present"],
+  "locations": ["every place, street address, city, venue, or location named or visible. Full street addresses verbatim where present"],
   "organizations": ["every company, agency, court, bank, landlord, or other organization named"],
   "message_thread": {              // ONLY if this is a chat / SMS / group-chat screenshot, else null
     "platform": "WhatsApp | iMessage | SMS | Instagram | unknown",
@@ -71,9 +71,26 @@ Return ONLY a JSON object with this exact shape:
   "suggested_occurred_at": "the single most likely date this happened, ISO (YYYY-MM-DD) or null",
   "suggested_precision": "exact | day | month | year | unknown",
   "confidence": "high | medium | low",
-  "summary": "2-4 neutral sentences: what this item is and what it factually shows, suitable for an attorney."
+  "summary": "2 to 4 neutral sentences: what this item is and what it factually shows, suitable for an attorney."
 }
-Rules: Do NOT claim to recognize a person's identity by their face; only report names/handles that are actually written in the content, otherwise describe them. Keep everything court-appropriate and non-speculative.`;
+Rules: Do NOT claim to recognize a person's identity by their face; only report names/handles that are actually written in the content, otherwise describe them. Keep everything court-appropriate and non-speculative. Never use em dashes or en dashes in any text you write; use commas, periods, colons, or parentheses instead. Do not refer to yourself, to any assistant, or to AI; write as a neutral case analyst.`;
+
+/**
+ * Strip AI "tells" from model output before it is stored or shown: em/en dashes
+ * (a common giveaway) become plain punctuation, and any self-reference to an
+ * assistant/AI is neutralised. Keeps output reading as a human case analyst's.
+ */
+export function cleanAiText(s: string | null | undefined): string {
+  if (!s) return '';
+  return String(s)
+    .replace(/\s*[—―]\s*/g, ', ') // em dash / horizontal bar -> ", "
+    .replace(/\s*–\s*/g, ' to ')        // en dash -> " to " (usually a range)
+    .replace(/‒/g, '-')                  // figure dash -> hyphen
+    .replace(/\b(as an? (?:AI|assistant|language model)[^.]*\.)/gi, '')
+    .replace(/\bI'?m Bella\b/gi, '')
+    .replace(/  +/g, ' ')
+    .trim();
+}
 
 type RawAnalysis = AiExtracted & { summary?: string };
 
@@ -114,7 +131,7 @@ export async function analyzeImage(input: {
     const parsed = parseJson<RawAnalysis>(textFrom(res));
     if (!parsed) return { error: 'Analysis returned an unreadable result.' };
     const { summary = '', ...extracted } = parsed;
-    return { extracted, summary: String(summary).trim() };
+    return { extracted, summary: cleanAiText(summary) };
   } catch (err) {
     return { error: err instanceof Error ? err.message : 'Analysis failed.' };
   }
@@ -147,7 +164,7 @@ export async function analyzeText(input: {
     const parsed = parseJson<RawAnalysis>(textFrom(res));
     if (!parsed) return { error: 'Analysis returned an unreadable result.' };
     const { summary = '', ...extracted } = parsed;
-    return { extracted, summary: String(summary).trim() };
+    return { extracted, summary: cleanAiText(summary) };
   } catch (err) {
     return { error: err instanceof Error ? err.message : 'Analysis failed.' };
   }
@@ -216,7 +233,7 @@ export async function buildNarrative(input: {
   const lines = input.entries
     .map(
       (e, i) =>
-        `${i + 1}. [${e.when}] (${e.kind}) ${e.title}${e.people.length ? ` — people: ${e.people.join(', ')}` : ''}\n   Context: ${e.context ?? '—'}\n   Analysis: ${e.summary ?? '—'}`,
+        `${i + 1}. [${e.when}] (${e.kind}) ${e.title}${e.people.length ? `, people: ${e.people.join(', ')}` : ''}\n   Context: ${e.context ?? '(none)'}\n   Findings: ${e.summary ?? '(none)'}`,
     )
     .join('\n');
 
@@ -224,11 +241,11 @@ export async function buildNarrative(input: {
     const res = await c.messages.create({
       model: MODEL,
       max_tokens: 4000,
-      system: `You are Bella, Advottic's evidence analyst, preparing a timeline document that may be attached to a court filing as an exhibit. Write in neutral, factual, professional English. Base every statement ONLY on the entries provided; never invent facts, dates, or identities. This is a factual chronology and reasoned summary — it is NOT legal advice, and you must not present it as such.
+      system: `You are a neutral evidence analyst preparing a timeline document that may be attached to a court filing as an exhibit. Write in neutral, factual, professional English. Base every statement ONLY on the entries provided; never invent facts, dates, or identities. This is a factual chronology and reasoned summary. It is NOT legal advice, and you must not present it as such. Never use em dashes or en dashes; use commas, periods, colons, or parentheses. Do not refer to yourself, to any assistant, or to AI.
 
 Return ONLY JSON:
 {
-  "summary": "a 3-5 sentence executive overview of what this evidence, taken together, establishes",
+  "summary": "a 3 to 5 sentence executive overview of what this evidence, taken together, establishes",
   "narrative": "a clear chronological account tying the entries together in order, referencing entry numbers and dates; several short paragraphs",
   "conclusion": "a measured conclusion of what the timeline tends to show, with appropriate caveats about gaps or undated items"
 }`,
@@ -242,9 +259,9 @@ Return ONLY JSON:
     const parsed = parseJson<{ summary?: string; narrative?: string; conclusion?: string }>(textFrom(res));
     if (!parsed) return { error: 'The narrative came back unreadable.' };
     return {
-      summary: String(parsed.summary ?? '').trim(),
-      narrative: String(parsed.narrative ?? '').trim(),
-      conclusion: String(parsed.conclusion ?? '').trim(),
+      summary: cleanAiText(parsed.summary),
+      narrative: cleanAiText(parsed.narrative),
+      conclusion: cleanAiText(parsed.conclusion),
     };
   } catch (err) {
     return { error: err instanceof Error ? err.message : 'Narrative generation failed.' };
