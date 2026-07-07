@@ -166,15 +166,15 @@ async function ensureConfigured(userId: string) {
   // rescue it. Bounding it with withTimeout guarantees we fall through to
   // configure() (which is itself bounded and surfaces a real error) instead of
   // spinning. 5s is generous for a fire-and-forget log-level setter.
-  try {
-    await withTimeout(
-      Purchases.setLogLevel({ level: mod.LOG_LEVEL.DEBUG }),
-      5000,
-      'setLogLevel stalled',
-    );
-  } catch {
-    /* older plugin shape, or the native bridge stalled - non-fatal, keep going */
-  }
+  // Fire-and-forget: NEVER await this. On the remote-URL WebView a bare
+  // `await` here hung the whole purchase (see the 2.1(b) history above). We
+  // still want DEBUG logging on so device / App Review logs show RevenueCat's
+  // exact verdict, but enabling it must not gate the flow - so kick it off
+  // without awaiting and swallow any error/hang. configure() (bounded, below)
+  // runs immediately regardless.
+  void Promise.resolve()
+    .then(() => Purchases.setLogLevel({ level: mod.LOG_LEVEL.DEBUG }))
+    .catch(() => {});
   if (configuredFor === null) {
     await tagStep('configure', () =>
       withTimeout(
