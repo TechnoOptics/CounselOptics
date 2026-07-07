@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { MicButton } from './dictation';
 import { MediaLightbox } from './media-lightbox';
 import { CaseMap, type MapPoint } from './case-map';
+import { SmartDatePicker } from './smart-date-picker';
 import {
   createTimelineEvent,
   analyzeTimelineEvent,
@@ -311,7 +312,8 @@ function ManualAddButton({ caseId, onAdded }: { caseId: string; onAdded: (ev: Ti
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [date, setDate] = useState('');
+  const [occurredAt, setOccurredAt] = useState<string | null>(null);
+  const [precision, setPrecision] = useState<OccurredPrecision>('day');
   const [kind, setKind] = useState<TimelineKind>('event');
   const [pending, start] = useTransition();
 
@@ -341,9 +343,15 @@ function ManualAddButton({ caseId, onAdded }: { caseId: string; onAdded: (ev: Ti
         />
         <MicButton onAppend={(t) => setDescription((d) => (d ? d + ' ' : '') + t)} />
       </div>
+      <div className="mb-3 rounded-lg border border-forest-900/10 bg-forest-900/[0.02] p-2.5 dark:border-cream-50/10 dark:bg-cream-50/[0.03]">
+        <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-ink-400 dark:text-cream-300/50">When did this happen?</p>
+        <SmartDatePicker
+          value={occurredAt}
+          precision={precision}
+          onChange={(n) => { setOccurredAt(n.occurredAt); setPrecision(n.precision); }}
+        />
+      </div>
       <div className="mb-3 flex gap-2">
-        <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
-          className="rounded-lg border border-ink-200 px-2 py-1.5 text-sm dark:border-cream-50/20 dark:bg-forest-950" />
         <select value={kind} onChange={(e) => setKind(e.target.value as TimelineKind)}
           className="rounded-lg border border-ink-200 px-2 py-1.5 text-sm dark:border-cream-50/20 dark:bg-forest-950">
           {KINDS.map((k) => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}
@@ -358,9 +366,9 @@ function ManualAddButton({ caseId, onAdded }: { caseId: string; onAdded: (ev: Ti
             const fd = new FormData();
             fd.append('title', title); fd.append('description', description);
             fd.append('kind', kind);
-            if (date) { fd.append('occurredAt', date); fd.append('occurredPrecision', 'day'); }
+            if (occurredAt) { fd.append('occurredAt', occurredAt); fd.append('occurredPrecision', precision); }
             const res = await createTimelineEvent(caseId, fd);
-            if (res.event) { onAdded(res.event); setOpen(false); setTitle(''); setDescription(''); setDate(''); }
+            if (res.event) { onAdded(res.event); setOpen(false); setTitle(''); setDescription(''); setOccurredAt(null); setPrecision('day'); }
           })}
           className="rounded-lg bg-forest-900 px-3 py-1.5 text-sm font-medium text-cream-50 disabled:opacity-50 dark:bg-gold-metal dark:text-forest-950"
         >
@@ -721,7 +729,7 @@ function EventCard({
 function EventEditor({ event, onSaved, onCancel }: { event: TimelineEvent; onSaved: (ev: TimelineEvent) => void; onCancel: () => void }) {
   const [title, setTitle] = useState(event.title);
   const [description, setDescription] = useState(event.description ?? '');
-  const [date, setDate] = useState(event.occurredAt ? new Date(event.occurredAt).toISOString().slice(0, 10) : '');
+  const [occurredAt, setOccurredAt] = useState<string | null>(event.occurredAt);
   const [precision, setPrecision] = useState<OccurredPrecision>(event.occurredPrecision);
   const [kind, setKind] = useState<TimelineKind>(event.kind);
   const [source, setSource] = useState(event.sourceLabel ?? '');
@@ -735,13 +743,15 @@ function EventEditor({ event, onSaved, onCancel }: { event: TimelineEvent; onSav
           className="w-full rounded-lg border border-ink-200 px-3 py-1.5 text-sm dark:border-cream-50/20 dark:bg-forest-950" />
         <MicButton onAppend={(t) => setDescription((d) => (d ? d + ' ' : '') + t)} />
       </div>
+      <div className="rounded-lg border border-forest-900/10 bg-white/60 p-2.5 dark:border-cream-50/10 dark:bg-forest-950/40">
+        <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-ink-400 dark:text-cream-300/50">When did this happen?</p>
+        <SmartDatePicker
+          value={occurredAt}
+          precision={precision}
+          onChange={(n) => { setOccurredAt(n.occurredAt); setPrecision(n.precision); }}
+        />
+      </div>
       <div className="flex flex-wrap gap-2">
-        <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
-          className="rounded-lg border border-ink-200 px-2 py-1.5 text-sm dark:border-cream-50/20 dark:bg-forest-950" />
-        <select value={precision} onChange={(e) => setPrecision(e.target.value as OccurredPrecision)}
-          className="rounded-lg border border-ink-200 px-2 py-1.5 text-sm dark:border-cream-50/20 dark:bg-forest-950">
-          {(['exact', 'day', 'month', 'year', 'unknown'] as OccurredPrecision[]).map((p) => <option key={p} value={p}>{p}</option>)}
-        </select>
         <select value={kind} onChange={(e) => setKind(e.target.value as TimelineKind)}
           className="rounded-lg border border-ink-200 px-2 py-1.5 text-sm dark:border-cream-50/20 dark:bg-forest-950">
           {KINDS.map((k) => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}
@@ -753,11 +763,12 @@ function EventEditor({ event, onSaved, onCancel }: { event: TimelineEvent; onSav
         <button type="button" onClick={onCancel} className="rounded-lg px-3 py-1.5 text-sm text-ink-600">Cancel</button>
         <button type="button" disabled={pending}
           onClick={() => start(async () => {
+            const finalPrecision = occurredAt ? precision : 'unknown';
             await updateTimelineEvent(event.id, {
               title, description: description || null, kind, sourceLabel: source || null,
-              occurredAt: date || null, occurredPrecision: precision,
+              occurredAt: occurredAt || null, occurredPrecision: finalPrecision,
             });
-            onSaved({ ...event, title, description: description || null, kind, sourceLabel: source || null, occurredAt: date ? new Date(date).toISOString() : null, occurredPrecision: date ? precision : 'unknown' });
+            onSaved({ ...event, title, description: description || null, kind, sourceLabel: source || null, occurredAt: occurredAt || null, occurredPrecision: finalPrecision });
           })}
           className="rounded-lg bg-forest-900 px-3 py-1.5 text-sm font-medium text-cream-50 disabled:opacity-50 dark:bg-gold-metal dark:text-forest-950">
           {pending ? 'Saving…' : 'Save'}

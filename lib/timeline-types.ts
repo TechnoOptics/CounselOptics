@@ -17,7 +17,34 @@ export type TimelineKind =
   | 'note'
   | 'event';
 
-export type OccurredPrecision = 'exact' | 'day' | 'month' | 'year' | 'unknown';
+/**
+ * How precisely an entry is dated. The smart picker lets a user choose the
+ * grain from seconds up to a year (or leave it undated). 'exact' is a legacy
+ * alias kept for older rows and is displayed like 'minute'. occurred_at is a
+ * full timestamp, so the grain governs only how the moment is *shown*.
+ */
+export type OccurredPrecision =
+  | 'second'
+  | 'minute'
+  | 'hour'
+  | 'exact'
+  | 'day'
+  | 'week'
+  | 'month'
+  | 'year'
+  | 'unknown';
+
+/** The grains the picker offers, coarse → fine, with labels. */
+export const PRECISION_GRAINS: { value: OccurredPrecision; label: string; hint: string }[] = [
+  { value: 'second', label: 'Second', hint: 'To the exact second' },
+  { value: 'minute', label: 'Minute', hint: 'To the minute' },
+  { value: 'hour', label: 'Hour', hint: 'Approximate hour' },
+  { value: 'day', label: 'Day', hint: 'A specific day' },
+  { value: 'week', label: 'Week', hint: 'The week of' },
+  { value: 'month', label: 'Month', hint: 'A month' },
+  { value: 'year', label: 'Year', hint: 'A year' },
+  { value: 'unknown', label: 'Undated', hint: 'No date yet' },
+];
 
 export type AiStatus = 'pending' | 'running' | 'done' | 'error' | 'skipped';
 
@@ -192,7 +219,21 @@ export function formatOccurred(
   if (precision === 'month') {
     return d.toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
   }
-  if (precision === 'exact') {
+  if (precision === 'week') {
+    return 'Week of ' + d.toLocaleString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+  }
+  if (precision === 'hour') {
+    return d.toLocaleString('en-US', {
+      month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', timeZone: 'UTC',
+    });
+  }
+  if (precision === 'second') {
+    return d.toLocaleString('en-US', {
+      month: 'long', day: 'numeric', year: 'numeric',
+      hour: 'numeric', minute: '2-digit', second: '2-digit', timeZone: 'UTC',
+    });
+  }
+  if (precision === 'minute' || precision === 'exact') {
     return d.toLocaleString('en-US', {
       month: 'long', day: 'numeric', year: 'numeric',
       hour: 'numeric', minute: '2-digit', timeZone: 'UTC',
