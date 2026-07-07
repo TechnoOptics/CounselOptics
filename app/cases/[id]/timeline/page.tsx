@@ -6,6 +6,7 @@ import { aiConfigured } from '@/lib/timeline-ai';
 import { resolveTimelineAccess } from '@/lib/timeline-entitlement';
 import { TimelineBuilder } from './timeline-builder';
 import { MinimalTimeline } from './minimal-timeline';
+import { FactsPanel, type CaseFacts } from './facts-panel';
 
 export const metadata = {
   title: 'Case Timeline · Advottic',
@@ -23,12 +24,30 @@ export default async function TimelinePage({
   const supabase = createServerSupabase();
   const { data: caseRow } = await supabase
     .from('cases')
-    .select('id, title, subject_name')
+    .select('id, title, subject_name, subject_type, jurisdiction, case_type, description, posture, status, hearing_at, hearing_location, created_at')
     .eq('id', params.id)
     .maybeSingle();
   if (!caseRow) notFound();
 
-  const c = caseRow as { id: string; title: string; subject_name: string | null };
+  const c = caseRow as {
+    id: string; title: string; subject_name: string | null;
+    subject_type: string | null; jurisdiction: string | null; case_type: string | null;
+    description: string | null; posture: string | null; status: string | null;
+    hearing_at: string | null; hearing_location: string | null; created_at: string | null;
+  };
+  const facts: CaseFacts = {
+    title: c.title,
+    subjectName: c.subject_name,
+    subjectType: c.subject_type,
+    jurisdiction: c.jurisdiction,
+    caseType: c.case_type,
+    posture: c.posture,
+    status: c.status,
+    description: c.description,
+    hearingAt: c.hearing_at,
+    hearingLocation: c.hearing_location,
+    createdAt: c.created_at,
+  };
   const [bundle, access] = await Promise.all([
     getTimelineBundle(params.id),
     resolveTimelineAccess(),
@@ -50,6 +69,7 @@ export default async function TimelinePage({
           <span aria-hidden>/</span>
           <span className="font-medium text-forest-900 dark:text-cream-100" aria-current="page">Timeline</span>
         </nav>
+        {access !== 'locked' && <FactsPanel facts={facts} />}
         {access === 'firm' ? (
           <TimelineBuilder
             caseId={params.id}
