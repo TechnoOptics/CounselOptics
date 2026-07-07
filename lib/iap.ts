@@ -155,41 +155,30 @@ async function ensureConfigured(userId: string) {
       'In-app purchase is misconfigured: NEXT_PUBLIC_REVENUECAT_IOS_KEY must be the RevenueCat public Apple key (starts with "appl_").',
     );
   }
-  // Surface the native RevenueCat handshake in device / App Review logs so a
-  // future failure is diagnosable instead of silent. Best-effort — and it must
-  // NOT be able to hang the purchase. This is the FIRST native bridge call, and
-  // a bare `await` here caused the 2.1(b) "loads indefinitely" symptom: on the
-  // remote-URL WebView, if the native RevenueCat plugin binary compiled into
-  // the installed build is older than the v13 JS wrapper served from
-  // advottic.com, a call to a skewed method never calls back, so `await` hangs
-  // forever and the plain try/catch (which only catches a *rejection*) can't
-  // rescue it. Bounding it with withTimeout guarantees we fall through to
-  // configure() (which is itself bounded and surfaces a real error) instead of
-  // spinning. 5s is generous for a fire-and-forget log-level setter.
-  // NOTE: we deliberately do NOT call Purchases.setLogLevel() here.
-  // Firing it (even fire-and-forget) concurrently with configure() deadlocked
-  // the native RevenueCat plugin on this remote-URL WebView build: the JS
-  // thread froze inside configure() and never returned, so even the withTimeout
-  // guard below couldn't fire (a blocked JS thread can't run its own timer).
-  // configure() must be the first and only bridge call in flight. Debug log
-  // level isn't worth that risk (its output doesn't reach idevicesyslog anyway).
-  if (configuredFor === null) {
-    await tagStep('configure', () =>
-      withTimeout(
-        Purchases.configure({ apiKey, appUserID: userId }),
-        STOREKIT_TIMEOUT_MS,
-        "Couldn't reach the App Store. Please check your connection and try again.",
-      ),
-    );
-    configuredFor = userId;
-  } else if (configuredFor !== userId) {
-    await tagStep('logIn', () =>
-      withTimeout(
-        Purchases.logIn({ appUserID: userId }),
-        STOREKIT_TIMEOUT_MS,
-        "Couldn't reach the App Store. Please check your connection and try again.",
-      ),
-    );
+  // We deliberately do NOT call setLogLevel (its concurrent bridge call
+  // deadlocked configure on this build), and we do NOT AWAIT configure().
+  //
+  // On-device tracing showed the flow freezing at "configuring…" forever:
+  // configure() never returned AND the 15s withTimeout never fired, which is
+  // only possible if configure() blocks the WebView's JS thread. RevenueCat's
+  // SDK is designed so you can call configure() and then immediately call
+  // getOfferings/purchase — the SDK queues those behind configuration
+  // internally. So we fire configure() and move on WITHOUT awaiting it, which
+  // avoids parking the JS thread on a native call that doesn't hand control
+  // back. If the very act of calling configure() still freezes, that is a hard
+  // native-binary deadlock (skew between the v13 JS SDK served from
+  // advottic.com and the plugin compiled into the installed TestFlight build)
+  // and only a fresh native build can fix it.
+  if (configuredFor !== userId) {
+    try {
+      // Not awaited on purpose — see above.
+      void (Purchases.configure({ apiKey, appUserID: userId }) as unknown as
+        | Promise<unknown>
+        | undefined
+      )?.catch?.(() => {});
+    } catch {
+      /* synchronous throw from the bridge — non-fatal, let downstream calls surface it */
+    }
     configuredFor = userId;
   }
   return Purchases;
