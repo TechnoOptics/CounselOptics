@@ -218,6 +218,7 @@ export function iapAvailable(): boolean {
 export async function purchaseTier(
   tier: Tier,
   userId: string,
+  log: (m: string) => void = () => {},
 ): Promise<{ active: boolean; cancelled: boolean }> {
   if (!isIOSApp()) {
     throw new Error('In-app purchase is only available in the Advottic iOS app.');
@@ -226,7 +227,10 @@ export async function purchaseTier(
   if (!productId) {
     throw new Error('This plan is not available as an in-app purchase.');
   }
+  log(`product=${productId}`);
+  log('configuring…');
   const Purchases = await ensureConfigured(userId);
+  log('configured ✓');
 
   // Prefer RevenueCat's supported Offering/Package flow (the "default" offering
   // has both products as packages). This is the path RevenueCat tests and is
@@ -235,6 +239,7 @@ export async function purchaseTier(
   // dashboard-side offering hiccup can never block a purchase outright.
   let purchase: (() => Promise<{ customerInfo: unknown }>) | null = null;
   try {
+    log('getOfferings…');
     const offerings = await tagStep('getOfferings', () =>
       withTimeout(
         Purchases.getOfferings(),
@@ -242,21 +247,33 @@ export async function purchaseTier(
         "The App Store isn't responding right now. Please try again in a moment.",
       ),
     );
-    const pkgs =
-      (offerings as { current?: { availablePackages?: Array<{ product?: { identifier?: string } }> } })
-        ?.current?.availablePackages ?? [];
+    const o = offerings as {
+      current?: { identifier?: string; availablePackages?: Array<{ product?: { identifier?: string } }> };
+      all?: Record<string, unknown>;
+    };
+    const pkgs = o?.current?.availablePackages ?? [];
+    log(
+      `offerings ✓ current=${o?.current?.identifier ?? 'NONE'} all=${
+        o?.all ? Object.keys(o.all).length : 0
+      } pkgs=${pkgs.length}[${pkgs.map((p) => p?.product?.identifier ?? '?').join(',')}]`,
+    );
     const pkg = pkgs.find((p) => p?.product?.identifier === productId);
     if (pkg) {
+      log('matched package ✓');
       purchase = () =>
         (Purchases as unknown as {
           purchasePackage: (o: { aPackage: unknown }) => Promise<{ customerInfo: unknown }>;
         }).purchasePackage({ aPackage: pkg });
+    } else {
+      log('no matching package → getProducts fallback');
     }
-  } catch {
+  } catch (e) {
+    log(`getOfferings FAILED: ${e instanceof Error ? e.message : String(e)}`);
     /* fall through to the raw StoreProduct path */
   }
 
   if (!purchase) {
+    log('getProducts…');
     const { products } = await tagStep('getProducts', () =>
       withTimeout(
         Purchases.getProducts({ productIdentifiers: [productId] }),
@@ -264,27 +281,49 @@ export async function purchaseTier(
         "The App Store isn't responding right now. Please try again in a moment.",
       ),
     );
+    log(`getProducts ✓ count=${products?.length ?? 0}`);
     const product = products?.[0];
     if (!product) {
-      throw new Error('This plan is not available in the App Store right now.');
+      throw new Error(
+        `App Store returned NO product for "${productId}". This means the product isn't fetchable — usually the Paid Apps agreement isn't fully active, the product isn't "Ready to Submit"/Approved, or the bundle id / RevenueCat offering is mismatched.`,
+      );
     }
+    log('got product ✓');
     purchase = () => Purchases.purchaseStoreProduct({ product });
   }
+  log('presenting Apple sheet…');
 
   try {
-    // Bounded so a sheet that never presents can't hang forever (the 2.1(b)
-    // "loaded indefinitely" symptom) - see PURCHASE_TIMEOUT_MS.
+    // Diagnostic build: keep the present-sheet step SHORT so we see a verdict
+    // fast instead of a 3-min wait. A real sheet presents in <1s; if it hasn't
+    // presented in 20s the purchase call is stuck, and that IS the finding.
     const res = await withTimeout(
       purchase(),
-      PURCHASE_TIMEOUT_MS,
-      "The purchase didn't start. Please try again.",
+      20000,
+      "sheet never presented (purchasePackage/purchaseStoreProduct did not resolve in 20s)",
     );
+    log('purchase resolved ✓');
     return { active: hasActiveEntitlement(res.customerInfo), cancelled: false };
   } catch (err) {
     // RevenueCat sets userCancelled on a deliberate cancel - not an error.
     if ((err as { userCancelled?: boolean })?.userCancelled) {
+      log('user cancelled');
       return { active: false, cancelled: true };
     }
+    // Surface RevenueCat's structured error fields — code + underlying StoreKit
+    // message are what actually pinpoint the cause.
+    const e = err as {
+      message?: string;
+      code?: unknown;
+      readableErrorCode?: string;
+      underlyingErrorMessage?: string;
+      userInfo?: unknown;
+    };
+    log(
+      `purchase ERROR code=${String(e?.readableErrorCode ?? e?.code ?? '?')} msg=${
+        e?.message ?? String(err)
+      }${e?.underlyingErrorMessage ? ` underlying=${e.underlyingErrorMessage}` : ''}`,
+    );
     throw err instanceof Error
       ? Object.assign(new Error(`[purchase] ${err.message}`), { stack: err.stack })
       : err;

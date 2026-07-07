@@ -102,6 +102,10 @@ export function TierCard({
 }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Diagnostic: live step-by-step trace of the IAP flow, rendered under the
+  // button so it can be read straight off the device (RevenueCat's own logs
+  // don't reach idevicesyslog). Temporary — remove once the purchase works.
+  const [diag, setDiag] = useState<string[]>([]);
   const f = TIER_FEATURES[tier];
   const bullets = bulletsForTier(tier);
   const isCurrent = isActive && currentTier === tier;
@@ -125,20 +129,28 @@ export function TierCard({
   async function startIapPurchase() {
     setPending(true);
     setError(null);
+    const trace: string[] = [];
+    const log = (m: string) => {
+      trace.push(m);
+      setDiag([...trace]);
+    };
     // Diagnostic aid for the 2.1(b) rejection: tagStep() in lib/iap.ts
     // didn't change the surfaced error at all across two deploys, which
     // means the failure may be happening BEFORE purchaseTier() is ever
     // called - this tracks which step we actually reached.
     let step = 'getSession';
     try {
+      log('getSession…');
       const supabase = createBrowserSupabase();
       const { data } = await supabase.auth.getSession();
       const userId = data.session?.user.id;
       if (!userId) throw new Error('Please sign in before subscribing.');
+      log('session ✓');
       step = 'importIap';
       const { purchaseTier } = await import('@/lib/iap');
+      log('iap module ✓');
       step = 'purchaseTier';
-      const res = await purchaseTier(tier, userId);
+      const res = await purchaseTier(tier, userId, log);
       if (res.cancelled) {
         setPending(false);
         return;
@@ -270,6 +282,11 @@ export function TierCard({
         <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800 mt-2">
           {error}
         </p>
+      )}
+      {useIap && diag.length > 0 && (
+        <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-ink-200 bg-ink-950/90 px-3 py-2 text-[10.5px] leading-snug text-emerald-200">
+          {diag.map((d, i) => `${i + 1}. ${d}`).join('\n')}
+        </pre>
       )}
     </div>
   );
