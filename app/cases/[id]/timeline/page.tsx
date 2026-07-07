@@ -36,7 +36,7 @@ export default async function TimelinePage({
 
   return (
     <main className="min-h-[100dvh] bg-cream-50 dark:bg-forest-950">
-      <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
+      <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
         <nav aria-label="Breadcrumb" className="mb-4 flex flex-wrap items-center gap-1.5 text-sm text-ink-500 dark:text-cream-300/70">
           <Link href="/cases" className="hover:text-forest-900 dark:hover:text-cream-100">Cases</Link>
           <span aria-hidden>/</span>

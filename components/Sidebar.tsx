@@ -87,6 +87,27 @@ export function Sidebar({
   const [editing, setEditing] = useState(false);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  // Collapsible: hide the whole sidebar to give the page its full width
+  // (great for the Timeline + calendar). Persisted across navigation.
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    try {
+      setCollapsed(localStorage.getItem('adv-sidebar-collapsed') === '1');
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  const toggleCollapsed = () => {
+    setCollapsed((v) => {
+      const next = !v;
+      try {
+        localStorage.setItem('adv-sidebar-collapsed', next ? '1' : '0');
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
 
   // Draft state mirrors the saved prefs until the user clicks
   // Save. Cancel resets back to initialPrefs.
@@ -158,11 +179,18 @@ export function Sidebar({
   }
 
   return (
+    <>
     <aside
       aria-label="Primary"
       // top offset = sticky header height (top-row ~60px + a bit of breathing room).
       // Layout has self-start so the sticky body anchors against the parent flex item.
-      className="hidden md:block sticky top-20 self-start w-[200px] lg:w-[224px] flex-none"
+      // Collapsed → width animates to 0 and a negative right margin eats the flex
+      // gap, so the page content slides out to full width smoothly.
+      className={`hidden md:block sticky top-20 self-start flex-none overflow-hidden transition-[width,opacity,margin] duration-300 ease-out ${
+        collapsed
+          ? 'w-0 opacity-0 pointer-events-none -mr-6 lg:-mr-8'
+          : 'w-[200px] lg:w-[224px] opacity-100'
+      }`}
     >
       <nav className="rounded-2xl bg-gradient-to-b from-forest-900 via-forest-900 to-forest-950 ring-1 ring-forest-700/40 shadow-card text-cream-100 p-3 space-y-1">
         {/* Edit affordance. Default state: pencil icon. Edit state:
@@ -174,15 +202,28 @@ export function Sidebar({
             {editing ? 'Edit menu' : 'Menu'}
           </p>
           {!editing ? (
-            <button
-              type="button"
-              onClick={() => setEditing(true)}
-              aria-label="Edit menu order and visibility"
-              title="Reorder or hide items"
-              className="inline-flex h-6 w-6 items-center justify-center rounded-md text-cream-100/55 hover:text-gold-300 hover:bg-forest-700/50 transition-colors"
-            >
-              <PencilIcon />
-            </button>
+            <div className="flex items-center gap-0.5">
+              <button
+                type="button"
+                onClick={() => setEditing(true)}
+                aria-label="Edit menu order and visibility"
+                title="Reorder or hide items"
+                className="inline-flex h-6 w-6 items-center justify-center rounded-md text-cream-100/55 hover:text-gold-300 hover:bg-forest-700/50 transition-colors"
+              >
+                <PencilIcon />
+              </button>
+              <button
+                type="button"
+                onClick={toggleCollapsed}
+                aria-label="Hide menu"
+                title="Hide menu"
+                className="inline-flex h-6 w-6 items-center justify-center rounded-md text-cream-100/55 hover:text-gold-300 hover:bg-forest-700/50 transition-colors"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+                  <path d="M15 6l-6 6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            </div>
           ) : (
             <button
               type="button"
@@ -288,6 +329,21 @@ export function Sidebar({
         )}
       </nav>
     </aside>
+    {/* Re-open tab: a slim pill on the left edge, shown only when collapsed. */}
+    <button
+      type="button"
+      onClick={toggleCollapsed}
+      aria-label="Show menu"
+      title="Show menu"
+      className={`hidden md:flex sticky top-20 self-start flex-none items-center justify-center h-16 rounded-r-xl bg-forest-900 text-cream-100/70 ring-1 ring-forest-700/40 shadow-card transition-[width,opacity,margin] duration-300 ease-out hover:text-gold-300 ${
+        collapsed ? 'w-6 opacity-100 mr-2' : 'w-0 opacity-0 pointer-events-none overflow-hidden'
+      }`}
+    >
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+        <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </button>
+    </>
   );
 }
 
