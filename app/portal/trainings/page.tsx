@@ -14,6 +14,10 @@ export default async function HubTrainingsPage() {
   if (!user) redirect('/sign-in?next=/portal/trainings');
   const persona = await getWorkspacePersona();
   if (persona.kind !== 'employee') redirect('/portal');
+  // Company trainings are for in-house staff, not external parties.
+  if (persona.external === true || !persona.entitlements.includes('requests.create')) {
+    redirect('/portal');
+  }
 
   const admin = createAdminSupabase();
   let assignments: Array<{

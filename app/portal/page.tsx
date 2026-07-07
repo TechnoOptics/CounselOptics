@@ -31,7 +31,10 @@ export default async function PortalDashboardPage() {
     .split(/[\s@.]/)[0]
     .replace(/^./, (c) => c.toUpperCase());
   const canCreate = persona.entitlements.includes('requests.create');
-  const canReview = persona.entitlements.includes('review');
+  // External parties (can't file requests, or previewing as vendor) get a
+  // simple hub: no AI review, no request-filing. Only status + documents.
+  const externalView = persona.external === true || !canCreate;
+  const canReview = persona.entitlements.includes('review') && !externalView;
 
   const admin = createAdminSupabase();
   let intakes: IntakeRow[] = [];

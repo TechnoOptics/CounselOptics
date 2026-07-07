@@ -103,44 +103,46 @@ export default async function PortalLayout({
       ?.hideAdvotticLogo === true;
   const reviewLabel = ownBrand ? 'Document review' : 'Advottic Review';
 
-  const primary: NavItem[] = [
-    { href: '/portal', label: 'Home', hint: 'Your dashboard' },
-    { href: '/portal/requests', label: 'My requests', hint: 'Track everything' },
-  ];
-  if (can('requests.create')) {
+  // An external party (an outside collaborator / counterparty who cannot file
+  // internal requests) gets a deliberately minimal hub: no AI review, no "my
+  // requests", no calendar or trainings. All they do is see the status of
+  // their items and work the documents (sign, comment, archive). Preview-as-
+  // vendor counts too. In-house staff keep the full hub.
+  const externalView = isExternal || !can('requests.create');
+
+  const primary: NavItem[] = externalView
+    ? [{ href: '/portal', label: 'Home', hint: 'Your items & status' }]
+    : [
+        { href: '/portal', label: 'Home', hint: 'Your dashboard' },
+        { href: '/portal/requests', label: 'My requests', hint: 'Track everything' },
+      ];
+  if (!externalView && can('requests.create')) {
     primary.push({
       href: '/portal/new',
       label: 'New request',
       hint: 'Ask legal',
     });
   }
-  if (can('review')) {
+  if (!externalView && can('review')) {
     primary.push({
       href: '/review-my-document',
       label: reviewLabel,
       hint: 'AI document insight',
     });
   }
-  const workspace: NavItem[] = [
-    { href: '/portal/documents', label: 'Documents', hint: 'Your files' },
-    { href: '/portal/calendar', label: 'Calendar', hint: 'Your meetings' },
-    // Company trainings are for in-house staff, not outside vendors.
-    ...(isExternal
-      ? []
-      : [
-          {
-            href: '/portal/trainings',
-            label: 'Trainings',
-            hint: 'Assigned by legal',
-          },
-        ]),
-    {
-      href: '/portal/profile',
-      label: 'Profile',
-      hint: 'Reminders + notifications',
-    },
-    { href: '/portal/help', label: 'Help', hint: 'Contact Advottic' },
-  ];
+  const workspace: NavItem[] = externalView
+    ? [
+        { href: '/portal/documents', label: 'Documents', hint: 'Sign, comment & archive' },
+        { href: '/portal/profile', label: 'Profile', hint: 'Reminders + notifications' },
+        { href: '/portal/help', label: 'Help', hint: 'Contact us' },
+      ]
+    : [
+        { href: '/portal/documents', label: 'Documents', hint: 'Your files' },
+        { href: '/portal/calendar', label: 'Calendar', hint: 'Your meetings' },
+        { href: '/portal/trainings', label: 'Trainings', hint: 'Assigned by legal' },
+        { href: '/portal/profile', label: 'Profile', hint: 'Reminders + notifications' },
+        { href: '/portal/help', label: 'Help', hint: 'Contact Advottic' },
+      ];
 
   return (
    <LocaleProvider initialLocale={locale}>

@@ -30,6 +30,10 @@ export default async function PortalRequestsPage() {
   if (!user) redirect('/sign-in?next=/portal/requests');
   const persona = await getWorkspacePersona();
   if (persona.kind !== 'employee') redirect('/portal');
+  // External parties don't file internal requests; this section isn't theirs.
+  if (persona.external === true || !persona.entitlements.includes('requests.create')) {
+    redirect('/portal');
+  }
 
   const admin = createAdminSupabase();
   let requests: Array<{

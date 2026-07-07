@@ -14,6 +14,10 @@ export default async function HubCalendarPage() {
   if (!user) redirect('/sign-in?next=/portal/calendar');
   const persona = await getWorkspacePersona();
   if (persona.kind !== 'employee') redirect('/portal');
+  // The calendar is for in-house staff; external parties get a simpler hub.
+  if (persona.external === true || !persona.entitlements.includes('requests.create')) {
+    redirect('/portal');
+  }
 
   const admin = createAdminSupabase();
   type Item = { at: number; title: string; sub: string; href?: string; kind: 'meeting' | 'due' };

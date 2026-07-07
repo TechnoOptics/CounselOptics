@@ -76,7 +76,6 @@ const ALWAYS: PortalFeature[] = ['requests.view'];
 export const VENDOR_PREVIEW_FEATURES: PortalFeature[] = [
   'requests.view',
   'requests.message',
-  'review',
 ];
 
 export type PortalRole = {
