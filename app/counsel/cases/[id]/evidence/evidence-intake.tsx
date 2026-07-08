@@ -57,6 +57,7 @@ const DEDUPE_PROMPT_MAX = 60;
 const UPLOAD_CONCURRENCY = 3; // parallel import requests during a big drop
 const BATCH_RETRIES = 2; // retry a failed batch before giving up (so one blip can't abort a 1,000-file run)
 const BATCH_TIMEOUT_MS = 120_000; // give up on a hung request so the whole drop can't stall forever
+const REFRESH_TIMEOUT_MS = 20_000; // list re-sync is best-effort; never let it freeze the upload spinner
 
 /** Pack files into request-sized batches bounded by count AND total bytes. */
 function packBatches(files: File[]): File[][] {
@@ -235,10 +236,24 @@ export function EvidenceIntake({
   const [shareData, setShareData] = useState<{ matter: string; items: EvidenceExportItem[] } | null>(null);
 
   const refresh = useCallback(async (): Promise<TimelineEvent[]> => {
-    const res = await getFirmCaseTimeline(firmId, caseId);
-    if (res.ok && res.events) {
-      setEvents(res.events);
-      return res.events;
+    // Best-effort list re-sync. It's awaited mid-upload while `busy` is
+    // true, so a hung or failed request (flaky mobile network) must
+    // never freeze the spinner: race a timeout and swallow errors. The
+    // batches have already landed server-side; the list catches up on
+    // the next load / auto-resume.
+    try {
+      const res = await Promise.race([
+        getFirmCaseTimeline(firmId, caseId),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('__timeout__')), REFRESH_TIMEOUT_MS),
+        ),
+      ]);
+      if (res.ok && res.events) {
+        setEvents(res.events);
+        return res.events;
+      }
+    } catch {
+      /* keep the current list; do not freeze the upload */
     }
     return [];
   }, [firmId, caseId]);
