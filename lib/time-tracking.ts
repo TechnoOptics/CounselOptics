@@ -165,9 +165,25 @@ export async function logManualEntryAction(
 ): Promise<{ ok: boolean; error?: string; entryId?: string }> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: 'Sign in first.' };
+  // A back-filled entry must be a positive whole number of seconds, capped at
+  // 24h — guards against a negative/absurd duration inflating an invoice.
+  const dur = input.durationSeconds;
+  if (!Number.isFinite(dur) || !Number.isInteger(dur) || dur <= 0 || dur > 86_400) {
+    return { ok: false, error: 'Enter a duration between 1 second and 24 hours.' };
+  }
   const supabase = createServerSupabase();
+  // Rate is the member's configured default, NEVER a client-supplied value, so
+  // a member can't set their own billing rate on a back-filled entry.
+  const { data: member } = await supabase
+    .from('firm_members')
+    .select('default_rate_cents')
+    .eq('firm_id', firmId)
+    .eq('user_id', user.id)
+    .maybeSingle();
+  if (!member) return { ok: false, error: 'You are not a member of that firm.' };
+  const rateCents = (member as { default_rate_cents: number | null }).default_rate_cents;
   const now = new Date();
-  const startedAt = new Date(now.getTime() - input.durationSeconds * 1000);
+  const startedAt = new Date(now.getTime() - dur * 1000);
   const { data, error } = await supabase
     .from('firm_time_entries')
     .insert({
@@ -177,9 +193,9 @@ export async function logManualEntryAction(
       description: input.description,
       started_at: startedAt.toISOString(),
       ended_at: now.toISOString(),
-      duration_seconds: input.durationSeconds,
+      duration_seconds: dur,
       billable: input.billable ?? true,
-      rate_cents: input.rateCents ?? null,
+      rate_cents: rateCents,
       source: 'manual',
     })
     .select('id')

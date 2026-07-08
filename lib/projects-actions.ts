@@ -13,7 +13,10 @@ import type { Project, ProjectFolder, ProjectItem } from './project-types';
  * storage upload (pathed under the firm + project).
  */
 
-const MAX_BYTES = 25 * 1024 * 1024; // 25 MB / file
+// 50 MB / file — matches the firm document upload limit (firm-actions.ts) so
+// the two upload surfaces are consistent (projects previously capped at 25 MB
+// with the form stating no limit, which surprised users mid-upload).
+const MAX_BYTES = 50 * 1024 * 1024;
 
 function safeName(name: string): string {
   return (

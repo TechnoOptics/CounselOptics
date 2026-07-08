@@ -130,10 +130,15 @@ export async function reconcileTrustAccount(
   // (previously this bucketed by raw free-text client_label and could split
   // or merge clients differently from the guard).
   const supabase = createServerSupabase();
-  const { data } = await supabase.rpc('get_trust_reconciliation_summary', {
+  const { data, error } = await supabase.rpc('get_trust_reconciliation_summary', {
     p_firm_id: firmId,
     p_account_id: accountId,
   });
+  if (error) {
+    // Never silently render $0.00 balances on a money page — a failed aggregate
+    // must surface as an error, not masquerade as an empty/zeroed account.
+    throw new Error(`Trust reconciliation summary failed: ${error.message}`);
+  }
   const d = (data ?? {}) as {
     bookBalanceCents?: number;
     reconciledBalanceCents?: number;
