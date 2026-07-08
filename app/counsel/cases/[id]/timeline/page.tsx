@@ -4,7 +4,8 @@ import { notFound, redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { createServerSupabase, getCurrentUser } from '@/lib/supabase/server';
 import { getFirmTimelineBundle } from '@/lib/firm-timeline-actions';
-import { getCaseParticipants, getSectionComments } from '@/lib/case-collab-actions';
+import { getCaseParticipants, getSectionComments, getChatThread } from '@/lib/case-collab-actions';
+import { GENERAL_THREAD_KEY } from '@/lib/case-collab-types';
 import { resolveTimelineAccess } from '@/lib/timeline-entitlement';
 import { aiConfigured } from '@/lib/timeline-ai';
 import { FactsPanel, type CaseFacts } from '@/app/cases/[id]/timeline/facts-panel';
@@ -80,17 +81,18 @@ export default async function FirmTimelinePage({
     createdAt: c.created_at,
   };
 
-  const [bundle, access, participants, commentBundle, user] = await Promise.all([
+  const [bundle, access, participants, commentBundle, generalChat, user] = await Promise.all([
     getFirmTimelineBundle(ctx.firm.id, params.id),
     resolveTimelineAccess(),
     getCaseParticipants(ctx.firm.id, params.id),
     getSectionComments(ctx.firm.id, params.id),
+    getChatThread(ctx.firm.id, params.id, GENERAL_THREAD_KEY),
     getCurrentUser(),
   ]);
   const aiEnabled = aiConfigured() && access === 'firm';
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 pb-16">
+    <div className="mx-auto max-w-6xl space-y-6 pb-16">
       {/* Focus mode: slide the counsel rail out on this route. */}
       <RequestSidebarFocus />
       <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1.5 text-sm text-ink-500 dark:text-cream-100/60">
@@ -122,6 +124,7 @@ export default async function FirmTimelinePage({
           participants,
           comments: commentBundle.comments,
           authors: commentBundle.authors,
+          generalChat,
         }}
       />
     </div>

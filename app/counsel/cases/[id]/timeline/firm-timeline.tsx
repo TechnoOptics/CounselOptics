@@ -18,7 +18,8 @@ import { generateFirmTimelineNarrative } from '@/lib/firm-timeline-actions';
 import { FirmTimelineCalendar, type PeriodRange } from './firm-timeline-calendar';
 import { CollabProvider } from './collab-context';
 import { SectionComments } from './section-comments';
-import type { AuthorCard, CaseParticipant, SectionComment } from '@/lib/case-collab-types';
+import { CaseChatPanel } from './case-chat-panel';
+import type { AuthorCard, CaseParticipant, ChatMessage, SectionComment } from '@/lib/case-collab-types';
 
 /**
  * Firm-native Case Timeline. Distinct from the evidence intake (which is where
@@ -44,6 +45,7 @@ export function FirmTimeline({
     participants: CaseParticipant[];
     comments: SectionComment[];
     authors: AuthorCard[];
+    generalChat: ChatMessage[];
   };
 }) {
   const t = useT();
@@ -135,7 +137,8 @@ export function FirmTimeline({
       initialComments={collab.comments}
       initialAuthors={collab.authors}
     >
-    <div className="space-y-6">
+    <div className="flex gap-6 items-start">
+    <div className="flex-1 min-w-0 space-y-6">
       {/* Actions */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="font-display text-lg font-medium text-forest-900 dark:text-cream-100">
@@ -307,6 +310,11 @@ export function FirmTimeline({
           ))}
         </ol>
       )}
+    </div>
+    {/* Chat + presence dock (desktop). */}
+    <aside className="hidden lg:block w-80 flex-none sticky top-24 self-start">
+      <CaseChatPanel initialGeneralChat={collab.generalChat} />
+    </aside>
     </div>
     </CollabProvider>
   );
