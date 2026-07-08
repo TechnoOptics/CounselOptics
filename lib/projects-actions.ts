@@ -3,6 +3,10 @@
 import { revalidatePath } from 'next/cache';
 import { createServerSupabase, getCurrentUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
+import { createFirmCaseAction } from './firm-actions';
+import { importFileAsCaseEvidence, loadCaseContext } from './case-evidence';
+import { aiConfigured } from './timeline-ai';
+import { resolveTimelineAccess } from './timeline-entitlement';
 import type { Project, ProjectFolder, ProjectItem } from './project-types';
 
 /**
@@ -407,4 +411,239 @@ export async function getProjectDocumentUrlAction(
     .createSignedUrl(path, 60 * 10);
   if (error || !data) return { ok: false, error: error?.message ?? 'Could not open.' };
   return { ok: true, url: data.signedUrl };
+}
+
+// ── Project ↔ Case linking ────────────────────────────────────────────────
+//
+// A project (a firm's working binder of notes + documents) can be bound to the
+// matter it is for. From there a firm can pull the binder's documents straight
+// into the case's evidence timeline. All writes are firm-membership gated: the
+// project + case are both confirmed to belong to `firmId` before any change,
+// and the evidence import runs through the admin client (case_timeline_events
+// RLS is case-membership only, which firm members are not, so firm-case writes
+// go through admin exactly like createFirmCaseAction).
+
+/** True when the current user is a member of `firmId`. */
+async function callerInFirm(firmId: string): Promise<boolean> {
+  const user = await getCurrentUser();
+  if (!user) return false;
+  const supabase = createServerSupabase();
+  const { data } = await supabase
+    .from('firm_members')
+    .select('id')
+    .eq('firm_id', firmId)
+    .eq('user_id', user.id)
+    .maybeSingle();
+  return Boolean(data);
+}
+
+/** Light case options for the "associate an existing case" picker. */
+export async function listFirmCaseOptions(
+  firmId: string,
+): Promise<Array<{ id: string; title: string; status: string }>> {
+  const supabase = createServerSupabase();
+  const { data } = await supabase
+    .from('cases')
+    .select('id, title, status')
+    .eq('firm_id', firmId)
+    .order('updated_at', { ascending: false })
+    .limit(200);
+  return ((data ?? []) as Array<{ id: string; title: string; status: string }>).map((r) => ({
+    id: r.id,
+    title: r.title,
+    status: r.status,
+  }));
+}
+
+/** The case a project is linked to (title + status), or null. */
+export async function getLinkedCaseAction(
+  firmId: string,
+  caseId: string,
+): Promise<{ id: string; title: string; status: string } | null> {
+  const supabase = createServerSupabase();
+  const { data } = await supabase
+    .from('cases')
+    .select('id, title, status')
+    .eq('id', caseId)
+    .eq('firm_id', firmId)
+    .maybeSingle();
+  return (data as { id: string; title: string; status: string } | null) ?? null;
+}
+
+/** Bind an existing firm case to a project (both must belong to `firmId`). */
+export async function associateProjectWithCaseAction(
+  firmId: string,
+  projectId: string,
+  caseId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  if (!(await callerInFirm(firmId))) return { ok: false, error: 'You do not have access to this firm.' };
+  const supabase = createServerSupabase();
+  // Both sides must belong to this firm, so a stray/forged id can't cross firms.
+  const [{ data: proj }, { data: kase }] = await Promise.all([
+    supabase.from('firm_projects').select('id').eq('id', projectId).eq('firm_id', firmId).maybeSingle(),
+    supabase.from('cases').select('id').eq('id', caseId).eq('firm_id', firmId).maybeSingle(),
+  ]);
+  if (!proj) return { ok: false, error: 'Project not found.' };
+  if (!kase) return { ok: false, error: 'That case is not in this firm.' };
+
+  const { error } = await supabase
+    .from('firm_projects')
+    .update({ case_id: caseId, updated_at: new Date().toISOString() })
+    .eq('id', projectId)
+    .eq('firm_id', firmId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/counsel/projects/${projectId}`);
+  revalidatePath(`/counsel/cases/${caseId}`);
+  return { ok: true };
+}
+
+/** Unbind a project from its case (leaves the case untouched). */
+export async function unlinkProjectFromCaseAction(
+  firmId: string,
+  projectId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  if (!(await callerInFirm(firmId))) return { ok: false, error: 'You do not have access to this firm.' };
+  const supabase = createServerSupabase();
+  const { data: proj } = await supabase
+    .from('firm_projects').select('case_id').eq('id', projectId).eq('firm_id', firmId).maybeSingle();
+  const priorCaseId = (proj as { case_id: string | null } | null)?.case_id ?? null;
+  const { error } = await supabase
+    .from('firm_projects')
+    .update({ case_id: null, updated_at: new Date().toISOString() })
+    .eq('id', projectId)
+    .eq('firm_id', firmId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/counsel/projects/${projectId}`);
+  if (priorCaseId) revalidatePath(`/counsel/cases/${priorCaseId}`);
+  return { ok: true };
+}
+
+/** Open a new firm matter from a project, then link the project to it. */
+export async function createCaseFromProjectAction(
+  firmId: string,
+  projectId: string,
+): Promise<{ ok: boolean; error?: string; caseId?: string }> {
+  if (!(await callerInFirm(firmId))) return { ok: false, error: 'You do not have access to this firm.' };
+  const supabase = createServerSupabase();
+  const { data: projRow } = await supabase
+    .from('firm_projects')
+    .select('id, name, description')
+    .eq('id', projectId)
+    .eq('firm_id', firmId)
+    .maybeSingle();
+  const project = projRow as { id: string; name: string; description: string | null } | null;
+  if (!project) return { ok: false, error: 'Project not found.' };
+
+  const created = await createFirmCaseAction(firmId, {
+    title: project.name,
+    subject: project.name,
+  });
+  if (!created.ok || !created.caseId) {
+    return { ok: false, error: created.error ?? 'Could not open the matter.' };
+  }
+
+  // Carry the project description onto the matter (createFirmCaseAction opens
+  // with an empty description); admin write, firm membership already confirmed.
+  if (project.description?.trim()) {
+    const admin = createAdminSupabase();
+    if (admin) {
+      await admin.from('cases').update({ description: project.description.trim() }).eq('id', created.caseId);
+    }
+  }
+
+  const link = await associateProjectWithCaseAction(firmId, projectId, created.caseId);
+  if (!link.ok) return { ok: false, error: link.error };
+  revalidatePath(`/counsel/projects/${projectId}`);
+  revalidatePath('/counsel/cases');
+  return { ok: true, caseId: created.caseId };
+}
+
+/**
+ * Pull a project's uploaded documents into its linked case as evidence
+ * timeline entries. Each document is copied from the firm-documents bucket
+ * into the exhibits bucket and gets its own case_timeline_events row, analysed
+ * inline when the firm is on a plan that includes timeline analysis.
+ */
+export async function pullProjectFilesIntoCaseAction(
+  firmId: string,
+  projectId: string,
+): Promise<{ ok: boolean; error?: string; imported?: number; failed?: number; errors?: string[] }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: 'Sign in first.' };
+  if (!(await callerInFirm(firmId))) return { ok: false, error: 'You do not have access to this firm.' };
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Service unavailable.' };
+  const supabase = createServerSupabase();
+
+  const { data: projRow } = await supabase
+    .from('firm_projects')
+    .select('id, name, case_id')
+    .eq('id', projectId)
+    .eq('firm_id', firmId)
+    .maybeSingle();
+  const project = projRow as { id: string; name: string; case_id: string | null } | null;
+  if (!project) return { ok: false, error: 'Project not found.' };
+  if (!project.case_id) return { ok: false, error: 'Link this project to a case first.' };
+
+  // Confirm the linked case is still in this firm before writing to it.
+  const { data: kase } = await supabase
+    .from('cases').select('id').eq('id', project.case_id).eq('firm_id', firmId).maybeSingle();
+  if (!kase) return { ok: false, error: 'The linked case is not in this firm.' };
+  const caseId = project.case_id;
+
+  const { data: itemRows } = await supabase
+    .from('firm_project_items')
+    .select('id, title, storage_path, file_name, file_type')
+    .eq('project_id', projectId)
+    .eq('kind', 'document')
+    .eq('archived', false)
+    .not('storage_path', 'is', null);
+  const docs = ((itemRows ?? []) as Array<{
+    id: string; title: string; storage_path: string | null; file_name: string | null; file_type: string | null;
+  }>).filter((d) => d.storage_path);
+  if (docs.length === 0) return { ok: false, error: 'This project has no documents to pull in.' };
+
+  const aiEligible = aiConfigured() && (await resolveTimelineAccess()) === 'firm';
+  const caseContext = aiEligible ? await loadCaseContext(admin, caseId) : null;
+
+  let imported = 0;
+  let failed = 0;
+  const errors: string[] = [];
+  // Cap the batch so one action stays within server time limits; the button
+  // can be pressed again for the remainder.
+  for (const doc of docs.slice(0, 25)) {
+    try {
+      const dl = await admin.storage.from('firm-documents').download(doc.storage_path!);
+      if (!dl.data) {
+        failed++;
+        continue;
+      }
+      const buffer = Buffer.from(await dl.data.arrayBuffer());
+      const name = doc.file_name || doc.title || 'document';
+      const res = await importFileAsCaseEvidence({
+        admin,
+        caseId,
+        userId: user.id,
+        buffer,
+        name,
+        mime: doc.file_type || 'application/octet-stream',
+        sourceLabel: `Project: ${project.name}`,
+        analyze: aiEligible,
+        caseContext,
+      });
+      if (res.ok) imported++;
+      else {
+        failed++;
+        if (res.error) errors.push(`${name}: ${res.error}`);
+      }
+    } catch (err) {
+      failed++;
+      errors.push(err instanceof Error ? err.message : 'Import failed.');
+    }
+  }
+
+  revalidatePath(`/counsel/cases/${caseId}`);
+  revalidatePath(`/cases/${caseId}/timeline`);
+  revalidatePath(`/counsel/projects/${projectId}`);
+  return { ok: imported > 0, imported, failed, errors: errors.slice(0, 5) };
 }

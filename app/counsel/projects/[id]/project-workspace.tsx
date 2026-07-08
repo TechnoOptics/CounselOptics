@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { isNativeApp } from '@/lib/platform';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import type { Project, ProjectFolder, ProjectItem } from '@/lib/project-types';
+import { LinkCasePanel } from './link-case-panel';
 import {
   addProjectNoteAction,
   uploadProjectDocumentAction,
@@ -32,11 +33,15 @@ export function ProjectWorkspace({
   project,
   folders,
   items,
+  linkedCase,
+  caseOptions,
 }: {
   firmId: string;
   project: Project;
   folders: ProjectFolder[];
   items: ProjectItem[];
+  linkedCase: { id: string; title: string; status: string } | null;
+  caseOptions: Array<{ id: string; title: string; status: string }>;
 }) {
   const router = useRouter();
   const t = useT();
@@ -50,6 +55,10 @@ export function ProjectWorkspace({
   const visibleItems = useMemo(
     () => (showArchived ? items : items.filter((i) => !i.archived)),
     [items, showArchived],
+  );
+  const docCount = useMemo(
+    () => items.filter((i) => i.kind === 'document' && !i.archived).length,
+    [items],
   );
   const itemsByFolder = useMemo(() => {
     const map = new Map<string, ProjectItem[]>();
@@ -144,6 +153,15 @@ export function ProjectWorkspace({
           {error}
         </p>
       )}
+
+      {/* Link this binder to the matter it is for */}
+      <LinkCasePanel
+        firmId={firmId}
+        projectId={project.id}
+        linkedCase={linkedCase}
+        caseOptions={caseOptions}
+        docCount={docCount}
+      />
 
       {/* Add folder */}
       {addingFolder ? (
