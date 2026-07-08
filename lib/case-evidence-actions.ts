@@ -12,6 +12,7 @@ import {
   MAX_EVIDENCE_BYTES,
   type CaseContext,
 } from './case-evidence';
+import { fetchRemoteEvidence } from './remote-fetch';
 import {
   sortTimeline,
   type TimelineEvent,
@@ -148,6 +149,73 @@ export async function bulkImportCaseEvidenceAction(
       else {
         failed++;
         if (res.error) errors.push(`${f.name}: ${res.error}`);
+      }
+    } catch (err) {
+      failed++;
+      errors.push(err instanceof Error ? err.message : 'Import failed.');
+    }
+  }
+
+  revalidatePath(`/counsel/cases/${caseId}/evidence`);
+  revalidatePath(`/cases/${caseId}/timeline`);
+  return { ok: imported > 0, imported, failed, errors: errors.slice(0, 8) };
+}
+
+/**
+ * Import evidence dragged in from a *browser* (an image or link), where the
+ * drop hands us URLs rather than files. The browser can't fetch those
+ * cross-origin (CORS), so we download them server-side via the SSRF-guarded
+ * fetchRemoteEvidence, then run each through the same import pipeline as a
+ * dropped file (storage-side magic-byte validation + optional analysis).
+ */
+export async function importCaseEvidenceFromUrlsAction(
+  firmId: string,
+  caseId: string,
+  urls: string[],
+): Promise<{ ok: boolean; error?: string; imported?: number; failed?: number; errors?: string[] }> {
+  const gate = await assertFirmCase(firmId, caseId);
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Service unavailable.' };
+
+  const clean = Array.from(
+    new Set(
+      (urls ?? [])
+        .map((u) => (typeof u === 'string' ? u.trim() : ''))
+        .filter((u) => /^https?:\/\//i.test(u)),
+    ),
+  ).slice(0, 8);
+  if (clean.length === 0) return { ok: false, error: 'Nothing importable was dropped.' };
+
+  const aiEligible = aiConfigured() && (await resolveTimelineAccess()) === 'firm';
+  const caseContext: CaseContext | null = aiEligible ? await loadCaseContext(admin, caseId) : null;
+
+  let imported = 0;
+  let failed = 0;
+  const errors: string[] = [];
+  for (const url of clean) {
+    try {
+      const fetched = await fetchRemoteEvidence(url, MAX_EVIDENCE_BYTES);
+      if (!fetched.ok) {
+        failed++;
+        errors.push(`${url}: ${fetched.error}`);
+        continue;
+      }
+      const res = await importFileAsCaseEvidence({
+        admin,
+        caseId,
+        userId: gate.userId,
+        buffer: fetched.file.buffer,
+        name: fetched.file.name,
+        mime: fetched.file.mime,
+        sourceLabel: 'Dropped from web',
+        analyze: aiEligible,
+        caseContext,
+      });
+      if (res.ok) imported++;
+      else {
+        failed++;
+        if (res.error) errors.push(`${url}: ${res.error}`);
       }
     } catch (err) {
       failed++;

@@ -14,6 +14,7 @@ import {
 } from '@/lib/timeline-types';
 import {
   bulkImportCaseEvidenceAction,
+  importCaseEvidenceFromUrlsAction,
   getFirmCaseTimeline,
   analyzeFirmCaseEventAction,
   deleteFirmCaseEventAction,
@@ -21,6 +22,68 @@ import {
 } from '@/lib/case-evidence-actions';
 
 const BATCH = 6; // files per request, so the UI can show progress + stay in limits
+
+/**
+ * Pull real files AND web URLs out of a drop. `dataTransfer` is only valid
+ * synchronously inside the drop handler, so everything is read here before
+ * any await.
+ *
+ * - Files: from `items` (catches app-provided file promises from Mail /
+ *   Photos / other apps) unioned with `files` (Finder / Explorer), deduped.
+ * - URLs: dragging an image or link straight from a browser hands over a URL,
+ *   not a file (and the browser can't fetch it cross-origin), so we collect
+ *   text/uri-list, an <img src> from text/html, or a bare http(s) text/plain
+ *   and let the server download them.
+ */
+function extractDrop(dt: DataTransfer): { files: File[]; urls: string[] } {
+  const files: File[] = [];
+  const seen = new Set<string>();
+  const add = (f: File | null) => {
+    if (!f || f.size === 0) return;
+    const key = `${f.name}:${f.size}:${f.lastModified}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      files.push(f);
+    }
+  };
+  if (dt.items && dt.items.length) {
+    for (const it of Array.from(dt.items)) {
+      if (it.kind === 'file') add(it.getAsFile());
+    }
+  }
+  for (const f of Array.from(dt.files ?? [])) add(f);
+
+  const urls: string[] = [];
+  const pushUrl = (u: string) => {
+    const t = u.trim();
+    if (/^https?:\/\//i.test(t) && !urls.includes(t)) urls.push(t);
+  };
+  try {
+    dt.getData('text/uri-list')
+      .split(/\r?\n/)
+      .filter((l) => l && !l.startsWith('#'))
+      .forEach(pushUrl);
+  } catch {
+    /* getData can throw in some browsers mid-drag; ignore */
+  }
+  if (urls.length === 0) {
+    try {
+      const html = dt.getData('text/html');
+      const m = html.match(/<img[^>]+src=["']([^"']+)["']/i);
+      if (m) pushUrl(m[1]);
+    } catch {
+      /* ignore */
+    }
+  }
+  if (urls.length === 0) {
+    try {
+      pushUrl(dt.getData('text/plain'));
+    } catch {
+      /* ignore */
+    }
+  }
+  return { files, urls };
+}
 
 export function EvidenceIntake({
   firmId,
@@ -81,11 +144,31 @@ export function EvidenceIntake({
     [firmId, caseId, refresh, t],
   );
 
+  const importFromUrls = useCallback(
+    async (urls: string[]) => {
+      if (urls.length === 0) return;
+      setError(null);
+      setNotice(null);
+      setBusy(true);
+      const res = await importCaseEvidenceFromUrlsAction(firmId, caseId, urls);
+      await refresh();
+      setBusy(false);
+      const parts = [t('Imported {n} file(s).').replace('{n}', String(res.imported ?? 0))];
+      if (res.failed) parts.push(t('{n} could not be imported.').replace('{n}', String(res.failed)));
+      setNotice(parts.join(' '));
+      if (res.errors?.length) setError(res.errors.slice(0, 4).join('  •  '));
+      else if (!res.ok && res.error) setError(res.error);
+    },
+    [firmId, caseId, refresh, t],
+  );
+
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
-    const files = Array.from(e.dataTransfer.files);
+    // Read the transfer synchronously - it's invalid after the handler returns.
+    const { files, urls } = extractDrop(e.dataTransfer);
     if (files.length) void upload(files);
+    else if (urls.length) void importFromUrls(urls);
   };
 
   function reanalyze(id: string) {
@@ -163,6 +246,9 @@ export function EvidenceIntake({
         </p>
         <p className="mt-0.5 text-[12px] text-ink-500 dark:text-cream-100/55">
           <T>Photos, video, PDFs and documents, and email files (.eml, .msg). Drop many at once.</T>
+        </p>
+        <p className="mt-0.5 text-[11.5px] text-ink-400 dark:text-cream-100/45">
+          <T>Drag straight from your desktop, an email, your photos, or an image on a web page.</T>
         </p>
         <button
           type="button"
