@@ -134,6 +134,13 @@ export type AiExtracted = {
   folder?: string;
   /** A person put this item in its folder by hand; re-analysis must not move it. */
   folder_locked?: boolean;
+  /**
+   * The team set this item aside as not part of the case (a stray upload, a
+   * dead-end, a non-relevant file). It stays stored and recoverable, but is
+   * hidden from the working evidence view and left out of coverage counts and
+   * exports until restored. Set by the firm intake's bulk "Exclude" action.
+   */
+  excluded?: boolean;
   /** A person corrected this entry's analysis; set to the editor's user id. */
   edited_by?: string;
   /** ISO timestamp of the last human correction to this entry's analysis. */
@@ -469,6 +476,48 @@ export function kindFromMime(mime: string, name: string): TimelineKind {
 /** Analysable-as-an-image (Claude vision) — photos, receipts, message screenshots. */
 export function isVisionAnalyzable(mime: string): boolean {
   return /^image\/(jpe?g|png|webp|gif|heic|heif)$/i.test(mime);
+}
+
+/** The broad kind of media an evidence file is, for choosing how to render it. */
+export type MediaCategory = 'image' | 'video' | 'audio' | 'pdf' | 'email' | 'other';
+
+const EXT_IMAGE = /\.(jpe?g|png|webp|gif|avif|bmp|heic|heif|tiff?)$/i;
+const EXT_VIDEO = /\.(mp4|mov|m4v|webm|avi|mkv|3gp|hevc)$/i;
+const EXT_AUDIO = /\.(mp3|wav|m4a|aac|ogg|oga|flac|amr)$/i;
+const EXT_PDF = /\.pdf$/i;
+
+/**
+ * Decide how to render a stored file. Imports often carry a generic
+ * `application/octet-stream` mime (browsers frequently send an empty type on
+ * drop), so mime alone is unreliable: this falls through mime → filename
+ * extension → the item's medium (`kind`), which is why the viewer and previews
+ * route the file correctly even when the mime is missing or wrong.
+ */
+export function mediaCategory(
+  media: { mime: string; name: string } | null | undefined,
+  kind?: TimelineKind,
+): MediaCategory {
+  if (!media) return 'other';
+  const mime = media.mime || '';
+  const name = media.name || '';
+  if (isEmailFile(mime, name)) return 'email';
+  if (IMAGE_MIME.test(mime) || EXT_IMAGE.test(name)) return 'image';
+  if (VIDEO_MIME.test(mime) || EXT_VIDEO.test(name)) return 'video';
+  if (AUDIO_MIME.test(mime) || EXT_AUDIO.test(name)) return 'audio';
+  if (mime === 'application/pdf' || EXT_PDF.test(name)) return 'pdf';
+  // Generic/blank mime and no telling extension: fall back to the medium.
+  if (kind === 'photo' || kind === 'receipt') return 'image';
+  if (kind === 'video') return 'video';
+  if (kind === 'audio') return 'audio';
+  return 'other';
+}
+
+/** An image a browser will actually paint inline (HEIC/HEIF/TIFF will not). */
+export function isDisplayableImage(mime: string, name: string): boolean {
+  return (
+    /^image\/(jpe?g|png|webp|gif|avif|svg\+xml)$/i.test(mime) ||
+    /\.(jpe?g|png|webp|gif|avif|svg)$/i.test(name)
+  );
 }
 
 /**

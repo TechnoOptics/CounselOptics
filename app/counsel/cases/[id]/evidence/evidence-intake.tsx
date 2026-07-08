@@ -4,13 +4,17 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import Link from 'next/link';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import { RelevanceBadge } from '@/components/RelevanceBadge';
+import { EvidencePreview } from '@/components/EvidencePreview';
 import { CaseMap, type MapPoint } from '@/app/cases/[id]/timeline/case-map';
+import { isNativeApp } from '@/lib/platform';
+import { createBrowserSupabase } from '@/lib/supabase/client';
 import {
   formatOccurred,
   folderForEvent,
   capturedAt,
   contentIconFor,
   exhibitLabel,
+  relevanceBand,
   sortTimeline,
   EVIDENCE_FOLDERS,
   KIND_ICON,
@@ -30,14 +34,21 @@ import {
   setFirmEvidenceFolderAction,
   renameFirmEvidenceFolderAction,
   deleteFirmCaseEventAction,
+  setFirmEvidenceExcludedAction,
   checkEvidenceDuplicatesAction,
   exportSelectedEvidenceAction,
   type EvidenceExportItem,
 } from '@/lib/case-evidence-actions';
 import { EvidenceViewer } from './evidence-viewer';
-import { EvidenceThumb } from './evidence-thumb';
+import { EvidenceDashboard } from './evidence-dashboard';
+import { DuplicatePanel, findDuplicateGroups } from './duplicate-panel';
 import { DuplicateDialog, type DuplicateAction, type DuplicateEntry } from './duplicate-dialog';
 import { ShareExportDialog } from './share-export-dialog';
+
+// How often the list re-syncs from the server as a fallback to Realtime, so
+// items and scores another member (or the background scorer) produced appear
+// without a manual reload. Only fires when the view is idle (see the effect).
+const AUTO_REFRESH_MS = 25_000;
 
 // Requests are packed by BOTH a file count and a byte budget so a batch never
 // exceeds the 50 MB server-action body limit, whatever the file sizes are.
@@ -221,13 +232,18 @@ export function EvidenceIntake({
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [pending, startTransition] = useTransition();
 
-  // View + organisation controls
-  const [view, setView] = useState<ViewMode>('list');
+  // View + organisation controls. Grid is the default: the readable, image-first
+  // layout the firm reviews evidence in; the list stays a click away.
+  const [view, setView] = useState<ViewMode>('grid');
   const [groupMode, setGroupMode] = useState<GroupMode>('folder');
   const [query, setQuery] = useState('');
   const [hiddenFolders, setHiddenFolders] = useState<Set<string>>(new Set());
   const [hiddenKinds, setHiddenKinds] = useState<Set<TimelineKind>>(new Set());
   const [showFilters, setShowFilters] = useState(false);
+  // Items set aside as "not part of the case" are hidden by default, with a
+  // toggle to bring them back into view (to restore or delete them).
+  const [showExcluded, setShowExcluded] = useState(false);
+  const [dupDismissed, setDupDismissed] = useState(false);
 
   // Selection + viewer + dialogs
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -318,6 +334,53 @@ export function EvidenceIntake({
     const queue = initialEvents.filter((e) => e.aiStatus === 'skipped').map((e) => e.id);
     if (queue.length) void runAnalyzeQueue(queue);
   }, [aiEnabled, initialEvents, runAnalyzeQueue]);
+
+  // Latest interaction state, read by the auto-refresh guard so a background
+  // re-sync never clobbers an in-progress upload / edit / selection / viewer.
+  const idleRef = useRef(true);
+  idleRef.current =
+    !busy && !pending && editingId === null && selected.size === 0 && dedupe === null && viewerIndex === null;
+
+  // Auto-refresh: a Supabase Realtime subscription on this case's evidence rows
+  // nudges a re-sync when anything changes, with a slow poll as a fallback (firm
+  // members are not case members, so Realtime row delivery is best-effort; the
+  // poll keeps new items + fresh scores flowing in either way). Both only fire
+  // when the view is idle, so they never interrupt work in progress.
+  useEffect(() => {
+    let cancelled = false;
+    let debounce: ReturnType<typeof setTimeout> | null = null;
+    const syncIfIdle = () => {
+      if (cancelled || !idleRef.current) return;
+      void refresh();
+    };
+    const scheduleSync = () => {
+      if (debounce) clearTimeout(debounce);
+      debounce = setTimeout(syncIfIdle, 1200);
+    };
+    try {
+      const supabase = createBrowserSupabase();
+      const channel = supabase
+        .channel(`case-evidence:${caseId}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'case_timeline_events', filter: `case_id=eq.${caseId}` },
+          scheduleSync,
+        )
+        .subscribe();
+      const poll = setInterval(syncIfIdle, AUTO_REFRESH_MS);
+      return () => {
+        cancelled = true;
+        if (debounce) clearTimeout(debounce);
+        clearInterval(poll);
+        supabase.removeChannel(channel);
+      };
+    } catch {
+      // Supabase env not configured here: skip live refresh, nothing else breaks.
+      return () => {
+        cancelled = true;
+      };
+    }
+  }, [caseId, refresh]);
 
   /** The actual upload: batch the files and (on the first batch) apply replaces. */
   const performUpload = useCallback(
@@ -640,15 +703,26 @@ export function EvidenceIntake({
   );
 
   // ── Filtering + ordering ────────────────────────────────────────────
+  // The case's working evidence: everything not set aside. Drives the dashboard,
+  // the duplicate scan, and (unless "show set-aside" is on) the list itself.
+  const activeEvents = useMemo(() => events.filter((e) => !e.aiExtracted?.excluded), [events]);
+  const excludedCount = events.length - activeEvents.length;
+  const baseEvents = showExcluded ? events : activeEvents;
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return events.filter((e) => {
+    return baseEvents.filter((e) => {
       if (hiddenFolders.has(folderForEvent(e))) return false;
       if (hiddenKinds.has(e.kind)) return false;
       if (q && !searchHaystack(e).includes(q)) return false;
       return true;
     });
-  }, [events, query, hiddenFolders, hiddenKinds]);
+  }, [baseEvents, query, hiddenFolders, hiddenKinds]);
+
+  // Possible duplicates within the working evidence (exact by content hash, or
+  // similar by filename + size). Recomputed as items land.
+  const duplicateGroups = useMemo(() => findDuplicateGroups(activeEvents), [activeEvents]);
+  const duplicateExtras = duplicateGroups.reduce((n, g) => n + g.items.length - 1, 0);
 
   // Folder groups (taxonomy order), each chronologically sorted.
   const folderGroups = useMemo(() => {
@@ -696,18 +770,18 @@ export function EvidenceIntake({
     [groupMode, folderGroups, dateGroups],
   );
 
-  // Counts for the filter chips are taken from ALL events, so hiding one folder
-  // still shows the others' real totals.
+  // Counts for the filter chips are taken from the base list, so hiding one
+  // folder still shows the others' real totals.
   const folderCounts = useMemo(() => {
     const m = new Map<string, number>();
-    for (const e of events) m.set(folderForEvent(e), (m.get(folderForEvent(e)) ?? 0) + 1);
+    for (const e of baseEvents) m.set(folderForEvent(e), (m.get(folderForEvent(e)) ?? 0) + 1);
     return m;
-  }, [events]);
+  }, [baseEvents]);
   const kindCounts = useMemo(() => {
     const m = new Map<TimelineKind, number>();
-    for (const e of events) m.set(e.kind, (m.get(e.kind) ?? 0) + 1);
+    for (const e of baseEvents) m.set(e.kind, (m.get(e.kind) ?? 0) + 1);
     return m;
-  }, [events]);
+  }, [baseEvents]);
 
   // ── Selection ───────────────────────────────────────────────────────
   const toggleSelect = useCallback((id: string) => {
@@ -720,7 +794,12 @@ export function EvidenceIntake({
   }, []);
   const selectAllVisible = useCallback(() => setSelected(new Set(ordered.map((e) => e.id))), [ordered]);
   const clearSelection = useCallback(() => setSelected(new Set()), []);
-  const selectedIds = useMemo(() => ordered.filter((e) => selected.has(e.id)).map((e) => e.id), [ordered, selected]);
+  const selectedEvents = useMemo(() => ordered.filter((e) => selected.has(e.id)), [ordered, selected]);
+  const selectedIds = useMemo(() => selectedEvents.map((e) => e.id), [selectedEvents]);
+  // When every selected item is already set aside, the bulk control restores
+  // rather than excludes.
+  const selectedAllExcluded =
+    selectedEvents.length > 0 && selectedEvents.every((e) => e.aiExtracted?.excluded);
 
   // ── Bulk actions ────────────────────────────────────────────────────
   const runBulk = useCallback(
@@ -745,19 +824,35 @@ export function EvidenceIntake({
     [],
   );
 
+  // Delete a specific set of items (used by bulk delete and the duplicate panel).
+  const deleteIds = useCallback(
+    async (ids: string[]) => {
+      if (ids.length === 0) return;
+      await runBulk(ids, async (id) => {
+        const res = await deleteFirmCaseEventAction(firmId, caseId, id);
+        if (res.ok) {
+          setEvents((list) => list.filter((e) => e.id !== id));
+          setSelected((s) => {
+            const n = new Set(s);
+            n.delete(id);
+            return n;
+          });
+        }
+      });
+    },
+    [runBulk, firmId, caseId],
+  );
+
   const bulkDelete = useCallback(async () => {
     const ids = selectedIds;
     if (ids.length === 0) return;
     if (typeof window !== 'undefined' && !window.confirm(t('Delete {n} selected item(s)? This cannot be undone.').replace('{n}', String(ids.length)))) {
       return;
     }
-    await runBulk(ids, async (id) => {
-      const res = await deleteFirmCaseEventAction(firmId, caseId, id);
-      if (res.ok) setEvents((list) => list.filter((e) => e.id !== id));
-    });
+    await deleteIds(ids);
     clearSelection();
     setNotice(t('Deleted {n} item(s).').replace('{n}', String(ids.length)));
-  }, [selectedIds, runBulk, firmId, caseId, clearSelection, t]);
+  }, [selectedIds, deleteIds, clearSelection, t]);
 
   const bulkReanalyze = useCallback(async () => {
     const ids = selectedIds;
@@ -791,6 +886,53 @@ export function EvidenceIntake({
     else setError(res.error ?? t('Could not prepare the share.'));
   }, [selectedIds, firmId, caseId, t]);
 
+  // Build a court-ready file from just the selected items, via the firm export
+  // route (admin-path, so it renders the same evidence the firm sees here).
+  const bulkExport = useCallback(async () => {
+    const ids = selectedIds;
+    if (ids.length === 0) return;
+    const url = `/counsel/cases/${caseId}/export?ids=${encodeURIComponent(ids.join(','))}`;
+    if (isNativeApp()) {
+      const { Browser } = await import('@capacitor/browser');
+      await Browser.open({ url });
+    } else {
+      window.open(url, '_blank', 'noopener');
+    }
+  }, [selectedIds, caseId]);
+
+  // Set aside (or restore) the selected items. Excluded items stay stored but
+  // drop out of the working view, the coverage counts, and exports.
+  const bulkSetExcluded = useCallback(
+    async (excluded: boolean) => {
+      const ids = selectedIds;
+      if (ids.length === 0) return;
+      setBusy(true);
+      const res = await setFirmEvidenceExcludedAction(firmId, caseId, ids, excluded);
+      setBusy(false);
+      if (!res.ok) {
+        setError(res.error ?? t('Could not update those items.'));
+        return;
+      }
+      const idSet = new Set(ids);
+      setEvents((list) =>
+        list.map((e) => {
+          if (!idSet.has(e.id)) return e;
+          const ext = { ...(e.aiExtracted ?? {}) };
+          if (excluded) ext.excluded = true;
+          else delete ext.excluded;
+          return { ...e, aiExtracted: ext };
+        }),
+      );
+      clearSelection();
+      setNotice(
+        excluded
+          ? t('Set aside {n} item(s). They stay stored and can be restored.').replace('{n}', String(ids.length))
+          : t('Restored {n} item(s) to the case.').replace('{n}', String(ids.length)),
+      );
+    },
+    [selectedIds, firmId, caseId, clearSelection, t],
+  );
+
   // ── Viewer ──────────────────────────────────────────────────────────
   const openViewer = useCallback(
     (id: string) => {
@@ -823,6 +965,27 @@ export function EvidenceIntake({
     [events],
   );
 
+  // Set aside / restore a single item (the per-card control).
+  const toggleExclude = useCallback(
+    (id: string, excluded: boolean) => {
+      startTransition(async () => {
+        const res = await setFirmEvidenceExcludedAction(firmId, caseId, [id], excluded);
+        if (res.ok) {
+          setEvents((list) =>
+            list.map((e) => {
+              if (e.id !== id) return e;
+              const ext = { ...(e.aiExtracted ?? {}) };
+              if (excluded) ext.excluded = true;
+              else delete ext.excluded;
+              return { ...e, aiExtracted: ext };
+            }),
+          );
+        } else if (res.error) setError(res.error);
+      });
+    },
+    [firmId, caseId],
+  );
+
   const groups = groupMode === 'folder' ? folderGroups : dateGroups;
   const allVisibleSelected = ordered.length > 0 && ordered.every((e) => selected.has(e.id));
 
@@ -834,10 +997,12 @@ export function EvidenceIntake({
     busy: pending,
     analyzing: analyzing.has(e.id) || e.aiStatus === 'running',
     selected: selected.has(e.id),
+    excluded: Boolean(e.aiExtracted?.excluded),
     onToggleSelect: () => toggleSelect(e.id),
     onOpenViewer: () => openViewer(e.id),
     onReanalyze: () => reanalyze(e.id),
     onDelete: () => remove(e.id),
+    onToggleExclude: () => toggleExclude(e.id, !e.aiExtracted?.excluded),
   });
 
   return (
@@ -920,6 +1085,11 @@ export function EvidenceIntake({
         </p>
       )}
 
+      {/* Dashboard: analysis progress, count tiles, evidence types, coverage. */}
+      {activeEvents.length > 0 && (
+        <EvidenceDashboard events={activeEvents} caseId={caseId} aiEnabled={aiEnabled} />
+      )}
+
       {/* Breadcrumb map (renders nothing without a Maps key or located pins) */}
       <CaseMap points={mapPoints} title={t('Case map')} />
 
@@ -928,7 +1098,7 @@ export function EvidenceIntake({
         <div className="flex items-center justify-between gap-2">
           <h2 className="font-display text-lg font-medium text-forest-900 dark:text-cream-100">
             <T>Evidence</T>{' '}
-            <span className="text-ink-400 dark:text-cream-100/40">({events.length})</span>
+            <span className="text-ink-400 dark:text-cream-100/40">({activeEvents.length})</span>
           </h2>
           <Link
             href={`/counsel/cases/${caseId}/timeline`}
@@ -937,6 +1107,23 @@ export function EvidenceIntake({
             <T>Open full timeline builder</T> →
           </Link>
         </div>
+
+        {/* Proactive duplicate review */}
+        {duplicateGroups.length > 0 && !dupDismissed && (
+          <DuplicatePanel
+            firmId={firmId}
+            caseId={caseId}
+            groups={duplicateGroups}
+            extras={duplicateExtras}
+            busy={busy}
+            onDelete={async (ids) => {
+              await deleteIds(ids);
+              setNotice(t('Removed {n} duplicate copy(ies).').replace('{n}', String(ids.length)));
+            }}
+            onDismiss={() => setDupDismissed(true)}
+            onOpen={(id) => openViewer(id)}
+          />
+        )}
 
         {events.length > 0 && (
           <Toolbar
@@ -955,7 +1142,10 @@ export function EvidenceIntake({
             folderCounts={folderCounts}
             kindCounts={kindCounts}
             shownCount={filtered.length}
-            totalCount={events.length}
+            totalCount={baseEvents.length}
+            excludedCount={excludedCount}
+            showExcluded={showExcluded}
+            setShowExcluded={setShowExcluded}
             allVisibleSelected={allVisibleSelected}
             onSelectAll={selectAllVisible}
             onClearSelection={clearSelection}
@@ -971,7 +1161,7 @@ export function EvidenceIntake({
             <T>Nothing matches the current filters.</T>
           </p>
         ) : view === 'grid' ? (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
             {ordered.map((e) => (
               <GridCard key={e.id} {...cardProps(e)} />
             ))}
@@ -1009,16 +1199,21 @@ export function EvidenceIntake({
         )}
       </section>
 
-      {/* Selection action bar */}
+      {/* Selection action bar: surfaces the moment the first box is checked */}
       {selected.size > 0 && (
         <BulkBar
           count={selectedIds.length}
           busy={busy}
           aiEnabled={aiEnabled}
+          allVisibleSelected={allVisibleSelected}
+          excludeMode={selectedAllExcluded ? 'restore' : 'exclude'}
+          onSelectAll={selectAllVisible}
           onClear={clearSelection}
           onDelete={() => void bulkDelete()}
           onReanalyze={() => void bulkReanalyze()}
           onShare={() => void bulkShare()}
+          onExport={() => void bulkExport()}
+          onExclude={() => void bulkSetExcluded(!selectedAllExcluded)}
         />
       )}
 
@@ -1076,6 +1271,9 @@ function Toolbar({
   kindCounts,
   shownCount,
   totalCount,
+  excludedCount,
+  showExcluded,
+  setShowExcluded,
   allVisibleSelected,
   onSelectAll,
   onClearSelection,
@@ -1096,6 +1294,9 @@ function Toolbar({
   kindCounts: Map<TimelineKind, number>;
   shownCount: number;
   totalCount: number;
+  excludedCount: number;
+  showExcluded: boolean;
+  setShowExcluded: (b: boolean) => void;
   allVisibleSelected: boolean;
   onSelectAll: () => void;
   onClearSelection: () => void;
@@ -1180,6 +1381,18 @@ function Toolbar({
         >
           {allVisibleSelected ? <T>Deselect all</T> : <T>Select all shown</T>}
         </button>
+        {excludedCount > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowExcluded(!showExcluded)}
+            className="text-ink-500 dark:text-cream-100/55 hover:underline"
+            data-no-translate
+          >
+            {showExcluded
+              ? t('Hide set-aside ({n})').replace('{n}', String(excludedCount))
+              : t('Show set-aside ({n})').replace('{n}', String(excludedCount))}
+          </button>
+        )}
       </div>
 
       {/* Filter panel */}
@@ -1255,53 +1468,63 @@ function Toolbar({
   );
 }
 
-/** The floating bulk-action bar shown while items are selected. */
+/** The floating bulk-action bar shown the moment items are selected. */
 function BulkBar({
   count,
   busy,
   aiEnabled,
+  allVisibleSelected,
+  excludeMode,
+  onSelectAll,
   onClear,
   onDelete,
   onReanalyze,
   onShare,
+  onExport,
+  onExclude,
 }: {
   count: number;
   busy: boolean;
   aiEnabled: boolean;
+  allVisibleSelected: boolean;
+  excludeMode: 'exclude' | 'restore';
+  onSelectAll: () => void;
   onClear: () => void;
   onDelete: () => void;
   onReanalyze: () => void;
   onShare: () => void;
+  onExport: () => void;
+  onExclude: () => void;
 }) {
   const t = useT();
+  const act = 'rounded-full px-3 py-1.5 text-[13px] hover:bg-white/10 disabled:opacity-50';
   return (
     <div
       className="fixed inset-x-0 z-40 flex justify-center px-4"
       style={{ bottom: 'calc(1rem + var(--safe-bottom, 0px))' }}
     >
-      <div className="flex flex-wrap items-center gap-2 rounded-full bg-forest-900 px-3 py-2 text-cream-50 shadow-2xl ring-1 ring-forest-700/50">
+      <div className="flex max-w-[calc(100vw-2rem)] flex-wrap items-center justify-center gap-1 rounded-2xl bg-forest-900 px-3 py-2 text-cream-50 shadow-2xl ring-1 ring-forest-700/50">
         <span className="pl-1 text-[13px] font-medium" data-no-translate>
           {count} {t('selected')}
         </span>
-        <span className="mx-1 h-4 w-px bg-cream-50/20" />
-        <button
-          type="button"
-          disabled={busy}
-          onClick={onShare}
-          className="rounded-full px-3 py-1.5 text-[13px] hover:bg-white/10 disabled:opacity-50"
-        >
-          <T>Share</T>
+        <button type="button" onClick={allVisibleSelected ? onClear : onSelectAll} className={act}>
+          {allVisibleSelected ? <T>None</T> : <T>All</T>}
         </button>
+        <span className="mx-1 h-4 w-px bg-cream-50/20" />
         {aiEnabled && (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={onReanalyze}
-            className="rounded-full px-3 py-1.5 text-[13px] hover:bg-white/10 disabled:opacity-50"
-          >
+          <button type="button" disabled={busy} onClick={onReanalyze} className={act}>
             <T>Reanalyse</T>
           </button>
         )}
+        <button type="button" disabled={busy} onClick={onShare} className={act}>
+          <T>Share</T>
+        </button>
+        <button type="button" disabled={busy} onClick={onExport} className={act}>
+          <T>Export</T>
+        </button>
+        <button type="button" disabled={busy} onClick={onExclude} className={act}>
+          {excludeMode === 'restore' ? <T>Restore</T> : <T>Exclude</T>}
+        </button>
         <button
           type="button"
           disabled={busy}
@@ -1433,43 +1656,102 @@ type CardShared = {
   busy: boolean;
   analyzing: boolean;
   selected: boolean;
+  excluded: boolean;
   onToggleSelect: () => void;
   onOpenViewer: () => void;
   onReanalyze: () => void;
   onDelete: () => void;
+  onToggleExclude: () => void;
 };
 
-/** A compact grid tile: thumbnail, exhibit number, title, select checkbox. */
-function GridCard({ firmId, caseId, event: e, selected, onToggleSelect, onOpenViewer }: CardShared) {
+/**
+ * A readable grid card: a large preview of the item on one side, its extracted
+ * facts (title, date, people, orgs, locations, summary, relevance, exhibit #)
+ * laid out next to it. Side-by-side on any card wide enough; stacks on a narrow
+ * one. Clicking the preview or title opens the in-window viewer.
+ */
+function GridCard({
+  firmId,
+  caseId,
+  event: e,
+  selected,
+  excluded,
+  analyzing,
+  onToggleSelect,
+  onOpenViewer,
+  onToggleExclude,
+}: CardShared) {
   const t = useT();
   const ext = e.aiExtracted ?? {};
   const exhibit = exhibitLabel(ext.exhibit_no);
+  const summary = (e.aiSummary ?? '').trim();
   return (
-    <div className={`group relative overflow-hidden rounded-xl ring-1 ${selected ? 'ring-2 ring-forest-500' : 'ring-ink-100 dark:ring-forest-800/40'}`}>
-      <button type="button" onClick={onOpenViewer} className="block w-full text-left" aria-label={t('Open item')}>
-        <EvidenceThumb firmId={firmId} caseId={caseId} event={e} variant="grid" />
-      </button>
-      <label className="absolute left-2 top-2 flex h-6 w-6 cursor-pointer items-center justify-center rounded-md bg-white/85 shadow ring-1 ring-black/5 dark:bg-forest-900/85">
-        <input type="checkbox" checked={selected} onChange={onToggleSelect} className="h-3.5 w-3.5 accent-forest-600" />
-      </label>
-      {exhibit && (
-        <span className="absolute right-2 top-2 rounded bg-forest-950/70 px-1.5 py-0.5 font-mono text-[10px] text-cream-50">
-          {exhibit}
-        </span>
-      )}
-      <div className="p-2">
-        <p className="flex items-center gap-1 text-[12px] font-medium text-forest-900 dark:text-cream-100">
-          <span aria-hidden>{contentIconFor(e)}</span>
-          <span className="truncate" data-no-translate>
+    <div
+      className={`group relative flex flex-col overflow-hidden rounded-xl ring-1 sm:flex-row ${
+        selected ? 'ring-2 ring-forest-500' : 'ring-ink-100 dark:ring-forest-800/40'
+      } ${excluded ? 'opacity-60' : ''}`}
+    >
+      {/* Preview side */}
+      <div className="relative shrink-0 sm:w-44 lg:w-52">
+        <button
+          type="button"
+          onClick={onOpenViewer}
+          className="block h-40 w-full sm:h-full"
+          aria-label={t('Open item')}
+        >
+          <EvidencePreview firmId={firmId} caseId={caseId} event={e} rounded="rounded-none" className="h-full w-full" />
+        </button>
+        <label className="absolute left-2 top-2 flex h-6 w-6 cursor-pointer items-center justify-center rounded-md bg-white/85 shadow ring-1 ring-black/5 dark:bg-forest-900/85">
+          <input type="checkbox" checked={selected} onChange={onToggleSelect} className="h-3.5 w-3.5 accent-forest-600" />
+        </label>
+        {exhibit && (
+          <span className="absolute right-2 top-2 rounded bg-forest-950/70 px-1.5 py-0.5 font-mono text-[10px] text-cream-50">
+            {exhibit}
+          </span>
+        )}
+      </div>
+
+      {/* Facts side */}
+      <div className="min-w-0 flex-1 space-y-1.5 p-3">
+        <div className="flex items-start justify-between gap-2">
+          <button
+            type="button"
+            onClick={onOpenViewer}
+            className="min-w-0 flex-1 text-left text-[13.5px] font-medium text-forest-900 hover:underline dark:text-cream-100"
+            data-no-translate
+          >
+            <span className="mr-1" aria-hidden>{contentIconFor(e)}</span>
             {e.title || e.media[0]?.name || t('(untitled)')}
-          </span>
-        </p>
-        <div className="mt-0.5 flex items-center justify-between gap-1">
-          <span className="text-[10.5px] text-ink-400 dark:text-cream-100/45" data-no-translate>
-            {formatOccurred(e.occurredAt, e.occurredPrecision)}
-          </span>
+          </button>
           <RelevanceBadge score={ext.relevance_score} reason={ext.relevance_reason} size="xs" />
         </div>
+        <p className="text-[11px] text-ink-500 dark:text-cream-100/55" data-no-translate>
+          {formatOccurred(e.occurredAt, e.occurredPrecision)}
+          {excluded ? ` · ${t('Set aside')}` : ''}
+        </p>
+        {analyzing ? (
+          <p className="text-[12px] italic text-ink-400 dark:text-cream-100/40"><T>Analysing…</T></p>
+        ) : e.aiStatus === 'skipped' ? (
+          <p className="text-[12px] italic text-ink-400 dark:text-cream-100/40"><T>Waiting to be analysed…</T></p>
+        ) : summary ? (
+          <p className="line-clamp-3 text-[12.5px] leading-relaxed text-ink-600 dark:text-cream-100/70" data-no-translate>
+            {summary}
+          </p>
+        ) : null}
+        <div className="space-y-1 pt-0.5">
+          <ChipRow icon="👤" label={t('People')} items={ext.detected_people} />
+          <ChipRow icon="🏢" label={t('Orgs')} items={ext.organizations} />
+          <ChipRow icon="📍" label={t('Places')} items={ext.locations} />
+        </div>
+        {excluded && (
+          <button
+            type="button"
+            onClick={onToggleExclude}
+            className="text-[11px] text-forest-700 hover:underline dark:text-cream-100/80"
+          >
+            <T>Restore to case</T>
+          </button>
+        )}
       </div>
     </div>
   );
@@ -1484,10 +1766,12 @@ function EvidenceCard({
   busy,
   analyzing,
   selected,
+  excluded,
   onToggleSelect,
   onOpenViewer,
   onReanalyze,
   onDelete,
+  onToggleExclude,
   editing,
   onEdit,
   onCancelEdit,
@@ -1515,7 +1799,7 @@ function EvidenceCard({
   }
 
   return (
-    <li className="card p-3">
+    <li className={`card p-3 ${excluded ? 'opacity-60' : ''}`}>
       <div className="flex gap-3">
         <div className="flex flex-col items-center gap-1.5">
           <input
@@ -1528,11 +1812,20 @@ function EvidenceCard({
           <button
             type="button"
             onClick={onOpenViewer}
-            className="block overflow-hidden rounded-lg ring-1 ring-ink-100 dark:ring-forest-800/40"
+            className="block h-28 w-24 overflow-hidden rounded-lg ring-1 ring-ink-100 dark:ring-forest-800/40 sm:h-32 sm:w-28"
             aria-label={t('Open item')}
           >
-            <EvidenceThumb firmId={firmId} caseId={caseId} event={e} variant="list" />
+            <EvidencePreview firmId={firmId} caseId={caseId} event={e} rounded="rounded-none" className="h-full w-full" />
           </button>
+          {excluded && (
+            <button
+              type="button"
+              onClick={onToggleExclude}
+              className="text-[10.5px] text-forest-700 hover:underline dark:text-cream-100/80"
+            >
+              <T>Restore</T>
+            </button>
+          )}
         </div>
 
         <div className="min-w-0 flex-1 space-y-1.5">

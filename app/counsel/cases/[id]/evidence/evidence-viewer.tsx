@@ -9,7 +9,8 @@ import {
   exhibitLabel,
   folderForEvent,
   formatOccurred,
-  isEmailFile,
+  isDisplayableImage,
+  mediaCategory,
   KIND_LABEL,
   type TimelineEvent,
 } from '@/lib/timeline-types';
@@ -49,7 +50,10 @@ export function EvidenceViewer({
   const t = useT();
   const media = event.media[0];
   const ext = event.aiExtracted ?? {};
-  const isEmail = media ? isEmailFile(media.mime, media.name) : false;
+  // Route by mime → extension → medium, so a file that arrived with a generic
+  // `application/octet-stream` mime (common on drop) still renders correctly.
+  const category = media ? mediaCategory(media, event.kind) : 'other';
+  const isEmail = category === 'email';
 
   const [url, setUrl] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -94,10 +98,12 @@ export function EvidenceViewer({
     };
   }, [onClose, onNext, onPrev, hasNext, hasPrev]);
 
-  const isImage = media ? /^image\//.test(media.mime) : false;
-  const isVideo = media ? /^video\//.test(media.mime) : false;
-  const isAudio = media ? /^audio\//.test(media.mime) : false;
-  const isPdf = media ? media.mime === 'application/pdf' || /\.pdf$/i.test(media.name) : false;
+  // A HEIC/TIFF image can't be painted by <img>; treat it as a downloadable file.
+  const isImage = category === 'image' && !!media && isDisplayableImage(media.mime, media.name);
+  const isRawImage = category === 'image' && !isImage;
+  const isVideo = category === 'video';
+  const isAudio = category === 'audio';
+  const isPdf = category === 'pdf';
   const transcript = ext.ocr_text?.trim() || null;
 
   const title = (event.title ?? '').trim() || media?.name || t('Untitled item');
@@ -220,14 +226,31 @@ export function EvidenceViewer({
           ) : isPdf ? (
             <iframe src={url} title={title} className="h-[74vh] w-full rounded-lg bg-white shadow-2xl" />
           ) : (
-            <a
-              href={url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="rounded-lg bg-white/10 px-5 py-2.5 text-sm font-medium text-cream-50 hover:bg-white/20"
-            >
-              <T>Open file</T>
-            </a>
+            <div className="flex flex-col items-center gap-4 rounded-2xl border border-cream-50/10 bg-forest-900/50 px-8 py-10 text-center">
+              <span className="text-6xl" aria-hidden>
+                {contentIconFor(event)}
+              </span>
+              <div>
+                <p className="text-sm font-medium text-cream-50" data-no-translate>
+                  {media?.name || title}
+                </p>
+                <p className="mt-1 text-[12px] text-cream-100/55">
+                  {isRawImage ? (
+                    <T>This image format can't be shown in the browser. Open it to view.</T>
+                  ) : (
+                    <T>This file can't be previewed here. Open it to view.</T>
+                  )}
+                </p>
+              </div>
+              <a
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-lg bg-white/10 px-5 py-2.5 text-sm font-medium text-cream-50 hover:bg-white/20"
+              >
+                <T>Open file</T>
+              </a>
+            </div>
           )}
         </div>
 
