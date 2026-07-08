@@ -40,7 +40,12 @@ import { FreshnessGuard } from '@/components/FreshnessGuard';
 import { TrialBanner } from '@/components/TrialBanner';
 import { NoCapture } from '@/components/NoCapture';
 import { TraceWatermark } from '@/components/TraceWatermark';
-import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
+import {
+  getCurrentUser,
+  isSupabaseConfigured,
+  createServerSupabase,
+} from '@/lib/supabase/server';
+import { getActiveFirmContext } from '@/lib/firm-storage';
 import {
   ensureSignupHistory,
   getEffectiveTrialState,
@@ -316,6 +321,46 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               user.email ??
               '',
           };
+        }
+        // Firm-mode exception. A firm member working inside one of their
+        // own matters lands on the SHARED consumer case routes
+        // (/cases/[id]/timeline, /packet, /export) - those aren't part
+        // of the /counsel shell, so `isShellMode` above is false and the
+        // consumer consent modal (binding arbitration, "how are you
+        // representing yourself?", request-a-public-defender copy) would
+        // pop over the attorney's workspace. The firm IS counsel and
+        // accepts firm-side terms elsewhere, so suppress the gate when
+        // the case being viewed belongs to the member's active firm.
+        // Scoped to the already-needs-consent path so the extra firm
+        // lookup never runs for the vast majority of users, who have
+        // consented. Consumer-owned cases (firm_id null / mismatched)
+        // still gate normally, so the consumer flow is untouched.
+        if (consent.needed && pathname.startsWith('/cases/')) {
+          const caseId = pathname.split('/')[2];
+          if (caseId && caseId !== 'new') {
+            try {
+              const firmCtx = await getActiveFirmContext();
+              if (firmCtx) {
+                const supabase = createServerSupabase();
+                const { data: caseRow } = await supabase
+                  .from('cases')
+                  .select('firm_id')
+                  .eq('id', caseId)
+                  .maybeSingle();
+                if (
+                  caseRow &&
+                  (caseRow as { firm_id: string | null }).firm_id ===
+                    firmCtx.firm.id
+                ) {
+                  consent = { needed: false };
+                }
+              }
+            } catch {
+              // A firm-context/DB hiccup must not fabricate consent or
+              // suppress it unsafely - leave the consumer default (still
+              // needed) in place.
+            }
+          }
         }
         // Best-effort: record this email in signup_history so the free
         // trial clock anchors on the FIRST time we ever saw the address,
