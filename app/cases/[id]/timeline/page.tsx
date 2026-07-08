@@ -24,22 +24,26 @@ export default async function TimelinePage({
   const supabase = createServerSupabase();
   const { data: caseRow } = await supabase
     .from('cases')
-    .select('id, title, subject_name, subject_type, jurisdiction, case_type, description, posture, status, hearing_at, hearing_location, created_at')
+    .select('id, title, subject_name, subject_type, jurisdiction_country, jurisdiction_state, jurisdiction_city, case_type, description, posture, status, hearing_at, hearing_location, created_at')
     .eq('id', params.id)
     .maybeSingle();
   if (!caseRow) notFound();
 
   const c = caseRow as {
     id: string; title: string; subject_name: string | null;
-    subject_type: string | null; jurisdiction: string | null; case_type: string | null;
+    subject_type: string | null; case_type: string | null;
+    jurisdiction_country: string | null; jurisdiction_state: string | null; jurisdiction_city: string | null;
     description: string | null; posture: string | null; status: string | null;
     hearing_at: string | null; hearing_location: string | null; created_at: string | null;
   };
+  // Jurisdiction is stored as three columns; compose a "City, State, Country" label.
+  const jurisdiction =
+    [c.jurisdiction_city, c.jurisdiction_state, c.jurisdiction_country].filter(Boolean).join(', ') || null;
   const facts: CaseFacts = {
     title: c.title,
     subjectName: c.subject_name,
     subjectType: c.subject_type,
-    jurisdiction: c.jurisdiction,
+    jurisdiction,
     caseType: c.case_type,
     posture: c.posture,
     status: c.status,

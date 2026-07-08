@@ -86,7 +86,7 @@ export default async function CounselCaseDetailPage({
   // panels (time, deadlines, invoicing, trust).
   const { data: caseRow } = await supabase
     .from('cases')
-    .select('id, title, subject_name, case_type, posture, status, jurisdiction, hearing_at, description, firm_id')
+    .select('id, title, subject_name, case_type, posture, status, jurisdiction_state, hearing_at, description, firm_id')
     .eq('id', params.id)
     .maybeSingle();
   if (!caseRow) notFound();
@@ -97,7 +97,7 @@ export default async function CounselCaseDetailPage({
     case_type: string;
     posture: string;
     status: string;
-    jurisdiction: { state?: string } | null;
+    jurisdiction_state: string | null;
     hearing_at: string | null;
     description: string | null;
     firm_id: string | null;
@@ -229,7 +229,7 @@ export default async function CounselCaseDetailPage({
           <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-1 font-mono">
             {STATUS_LABEL[c.status] ?? c.status} · {c.case_type} ·{' '}
             {c.posture}
-            {c.jurisdiction?.state && ` · ${c.jurisdiction.state}`}
+            {c.jurisdiction_state && ` · ${c.jurisdiction_state}`}
             {' · '}
             <T>subject</T> {c.subject_name}
           </p>
@@ -337,7 +337,7 @@ export default async function CounselCaseDetailPage({
         <AddDeadlineForm
           caseId={params.id}
           firmId={ctx.firm.id}
-          jurisdictionState={c.jurisdiction?.state ?? null}
+          jurisdictionState={c.jurisdiction_state ?? null}
         />
       </section>
 
