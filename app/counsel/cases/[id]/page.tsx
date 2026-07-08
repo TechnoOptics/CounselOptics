@@ -24,7 +24,9 @@ import { T } from '@/components/i18n/LocaleProvider';
 import { aiConfigured } from '@/lib/timeline-ai';
 import { resolveTimelineAccess } from '@/lib/timeline-entitlement';
 import { getLatestReview } from '@/lib/storage';
+import { getFirmLegalReview } from '@/lib/firm-legal-review-actions';
 import { ReviewPanel } from '@/app/cases/[id]/review-panel';
+import { LegalReviewPanel } from './legal-review-panel';
 import { EvidenceHeatmap } from '@/components/EvidenceHeatmap';
 import { BellaPrompt } from '@/components/BellaPrompt';
 
@@ -132,10 +134,11 @@ export default async function CounselCaseDetailPage({
   // configured model. getLatestReview reads through RLS, so it only
   // returns a review the member is allowed to see. Best-effort review
   // fetch: a miss just renders the "Run Case Analysis" empty state.
-  const [access, latestReview, caseImagesRes] = await Promise.all([
+  const [access, latestReview, caseImagesRes, legalReviewRes] = await Promise.all([
     resolveTimelineAccess(),
     getLatestReview(params.id).catch(() => null),
     listCaseImages(ctx.firm.id, params.id).catch(() => ({ ok: false as const })),
+    getFirmLegalReview(ctx.firm.id, params.id).catch(() => ({ ok: false as const })),
   ]);
   const aiEnabled = aiConfigured() && access === 'firm';
   // Per-firm surface toggle: when a firm hides Time & Billing, the case view
@@ -144,6 +147,8 @@ export default async function CounselCaseDetailPage({
   const surface = await getFirmSurfaceSettings(ctx.firm.id);
   const showTimeBilling = !surface.hideTimeBilling;
   const caseImages = (caseImagesRes.ok && caseImagesRes.images) ? caseImagesRes.images : [];
+  const legalReview =
+    ('review' in legalReviewRes ? legalReviewRes.review : null) ?? null;
 
   // assigned_to is fetched separately and best-effort so this page can't
   // 500 on a DB that predates the case-assignee migration - a failed
@@ -444,6 +449,14 @@ export default async function CounselCaseDetailPage({
           />
 
           <EvidenceHeatmap caseId={params.id} variant="firm" />
+
+          {/* Legal review: laws / claims implicated in the matter's state, with
+              recommended actions and CourtListener-verified case law. Distinct
+              from Case Analysis (issue spotting) above; this one grounds every
+              case citation in a real CourtListener record. */}
+          <div className="border-t border-ink-100 dark:border-forest-700/40 pt-8">
+            <LegalReviewPanel firmId={ctx.firm.id} caseId={params.id} initial={legalReview} />
+          </div>
 
           <BellaPrompt
             title="Work this matter with Advottic"
