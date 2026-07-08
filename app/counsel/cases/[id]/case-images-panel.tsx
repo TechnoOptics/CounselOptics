@@ -7,6 +7,7 @@ import {
   uploadCaseImageAction,
   deleteCaseImageAction,
   getCaseImageUrl,
+  setFeaturedPartyImageAction,
   type CaseImage,
 } from '@/lib/case-images-actions';
 
@@ -19,15 +20,34 @@ export function CaseImagesPanel({
   firmId,
   caseId,
   initial,
+  featuredImageId = null,
 }: {
   firmId: string;
   caseId: string;
   initial: CaseImage[];
+  /** The party image currently featured as the matter's portrait / logo. */
+  featuredImageId?: string | null;
 }) {
   const t = useT();
   const [images, setImages] = useState<CaseImage[]>(initial);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [featured, setFeatured] = useState<string | null>(featuredImageId);
+
+  const feature = useCallback(
+    async (id: string) => {
+      // Star toggles: clicking the current portrait clears it.
+      const next = featured === id ? null : id;
+      const prev = featured;
+      setFeatured(next); // optimistic
+      const res = await setFeaturedPartyImageAction(firmId, caseId, next);
+      if (!res.ok) {
+        setFeatured(prev);
+        if (res.error) setError(res.error);
+      }
+    },
+    [firmId, caseId, featured],
+  );
 
   const upload = useCallback(
     async (files: File[], kind: 'party' | 'context') => {
@@ -50,10 +70,17 @@ export function CaseImagesPanel({
   const remove = useCallback(
     async (id: string) => {
       const res = await deleteCaseImageAction(firmId, caseId, id);
-      if (res.ok) setImages((list) => list.filter((i) => i.id !== id));
-      else if (res.error) setError(res.error);
+      if (res.ok) {
+        setImages((list) => list.filter((i) => i.id !== id));
+        // Removing the featured portrait clears the feature (the row is gone;
+        // the server drops featuredImageId only if asked, so mirror it here).
+        if (featured === id) {
+          setFeatured(null);
+          setFeaturedPartyImageAction(firmId, caseId, null).catch(() => {});
+        }
+      } else if (res.error) setError(res.error);
     },
-    [firmId, caseId],
+    [firmId, caseId, featured],
   );
 
   const party = images.filter((i) => i.kind === 'party');
@@ -65,7 +92,7 @@ export function CaseImagesPanel({
 
       <Group
         title={t('People / parties')}
-        hint={t('Photos of the people involved in the matter.')}
+        hint={t('Photos of the people involved. Star one to feature it as the party portrait.')}
         images={party}
         kind="party"
         firmId={firmId}
@@ -73,6 +100,8 @@ export function CaseImagesPanel({
         busy={busy}
         onUpload={upload}
         onRemove={remove}
+        featuredId={featured}
+        onFeature={feature}
       />
       <Group
         title={t('Case context')}
@@ -101,6 +130,8 @@ function Group({
   busy,
   onUpload,
   onRemove,
+  featuredId = null,
+  onFeature,
 }: {
   title: string;
   hint: string;
@@ -111,6 +142,8 @@ function Group({
   busy: boolean;
   onUpload: (files: File[], kind: 'party' | 'context') => void;
   onRemove: (id: string) => void;
+  featuredId?: string | null;
+  onFeature?: (id: string) => void;
 }) {
   const t = useT();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -145,7 +178,15 @@ function Group({
       {images.length > 0 && (
         <div className="mt-2 grid grid-cols-3 sm:grid-cols-5 gap-2">
           {images.map((img) => (
-            <Thumb key={img.id} img={img} firmId={firmId} caseId={caseId} onRemove={onRemove} />
+            <Thumb
+              key={img.id}
+              img={img}
+              firmId={firmId}
+              caseId={caseId}
+              onRemove={onRemove}
+              featured={featuredId === img.id}
+              onFeature={onFeature}
+            />
           ))}
         </div>
       )}
@@ -158,11 +199,15 @@ function Thumb({
   firmId,
   caseId,
   onRemove,
+  featured = false,
+  onFeature,
 }: {
   img: CaseImage;
   firmId: string;
   caseId: string;
   onRemove: (id: string) => void;
+  featured?: boolean;
+  onFeature?: (id: string) => void;
 }) {
   const t = useT();
   const [url, setUrl] = useState<string | null>(null);
@@ -187,7 +232,13 @@ function Thumb({
   };
 
   return (
-    <div className="relative group aspect-square rounded-lg overflow-hidden ring-1 ring-ink-200 dark:ring-forest-700/40 bg-cream-100/60 dark:bg-forest-900/40">
+    <div
+      className={`relative group aspect-square rounded-lg overflow-hidden ring-1 bg-cream-100/60 dark:bg-forest-900/40 ${
+        featured
+          ? 'ring-2 ring-gold-400 dark:ring-gold-300'
+          : 'ring-ink-200 dark:ring-forest-700/40'
+      }`}
+    >
       {url ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -199,6 +250,22 @@ function Thumb({
         />
       ) : (
         <div className="h-full w-full animate-pulse" />
+      )}
+      {onFeature && (
+        <button
+          type="button"
+          onClick={() => onFeature(img.id)}
+          title={featured ? t('Featured party portrait') : t('Feature as party portrait')}
+          aria-label={featured ? t('Featured party portrait') : t('Feature as party portrait')}
+          aria-pressed={featured}
+          className={`absolute top-1 left-1 h-5 w-5 grid place-items-center rounded-full text-[11px] leading-none transition-opacity ${
+            featured
+              ? 'bg-gold-metal text-forest-950 opacity-100'
+              : 'bg-black/55 text-white opacity-0 group-hover:opacity-100'
+          }`}
+        >
+          {featured ? '★' : '☆'}
+        </button>
       )}
       <button
         type="button"

@@ -166,6 +166,24 @@ export function EditMatterForm({
         <textarea value={profile.notes ?? ''} onChange={(e) => setP('notes', e.target.value)} placeholder={t('Notes on the opposing party')} rows={2} className="input text-sm sm:col-span-2 resize-y" data-no-translate />
       </div>
 
+      {/* Party profile (prove-the-case): the dossier shown as a portrait card in
+          the matter facts. The photo / logo itself is chosen in Case images. */}
+      <div className="rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 p-3 grid gap-2 sm:grid-cols-2">
+        <p className="sm:col-span-2 text-[11px] uppercase tracking-[0.12em] text-ink-400 dark:text-cream-100/40"><T>Party profile</T></p>
+        <input value={profile.caseStatus ?? ''} onChange={(e) => setP('caseStatus', e.target.value)} placeholder={t('Status in matter (e.g. Defendant, active)')} className="input text-sm" data-no-translate />
+        <input value={profile.location ?? ''} onChange={(e) => setP('location', e.target.value)} placeholder={t('Location')} className="input text-sm" data-no-translate />
+        <textarea value={profile.partyRelevance ?? ''} onChange={(e) => setP('partyRelevance', e.target.value)} placeholder={t('Relevance to the matter')} rows={2} className="input text-sm sm:col-span-2 resize-y" data-no-translate />
+        {subjectType === 'person' && (
+          <>
+            <input value={profile.gender ?? ''} onChange={(e) => setP('gender', e.target.value)} placeholder={t('Gender')} className="input text-sm" data-no-translate />
+            <input value={profile.height ?? ''} onChange={(e) => setP('height', e.target.value)} placeholder={t('Height')} className="input text-sm" data-no-translate />
+            <input value={profile.race ?? ''} onChange={(e) => setP('race', e.target.value)} placeholder={t('Race')} className="input text-sm" data-no-translate />
+            <input value={profile.otherDescriptors ?? ''} onChange={(e) => setP('otherDescriptors', e.target.value)} placeholder={t('Other descriptors')} className="input text-sm" data-no-translate />
+          </>
+        )}
+        <textarea value={profile.roleContext ?? ''} onChange={(e) => setP('roleContext', e.target.value)} placeholder={t('Role in the matter: what you are trying to establish about this party')} rows={2} className="input text-sm sm:col-span-2 resize-y" data-no-translate />
+      </div>
+
       <div className="rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 p-3 grid gap-2 sm:grid-cols-2">
         <p className="sm:col-span-2 text-[11px] uppercase tracking-[0.12em] text-ink-400 dark:text-cream-100/40"><T>Hearing / key date</T></p>
         <input type="datetime-local" value={hearingAt} onChange={(e) => setHearingAt(e.target.value)} className="input text-sm" aria-label={t('Hearing date and time')} />

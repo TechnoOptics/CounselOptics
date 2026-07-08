@@ -1,5 +1,7 @@
 import { T } from '@/components/i18n/LocaleProvider';
 import { ExpandableText } from '@/components/ExpandableText';
+import { PartyProfileCard } from './party-profile-card';
+import type { SubjectProfile } from '@/lib/types';
 
 /**
  * Read-only "Matter facts" panel for the counsel case page - the firm
@@ -46,11 +48,14 @@ function fmtHearing(iso: string): string {
 }
 
 export function MatterFacts({
+  firmId,
+  caseId,
   posture,
   caseType,
   subjectName,
   subjectType,
   subjectProfile,
+  partyImages = [],
   jurisdictionCountry,
   jurisdictionState,
   jurisdictionCity,
@@ -59,11 +64,15 @@ export function MatterFacts({
   hearingLocation,
   hearingNotes,
 }: {
+  firmId: string;
+  caseId: string;
   posture: string;
   caseType: string;
   subjectName: string;
   subjectType: string | null;
   subjectProfile: Record<string, string> | null;
+  /** Party-kind case images, so the profile card can show the portrait / logo. */
+  partyImages?: { id: string; storagePath: string }[];
   jurisdictionCountry: string | null;
   jurisdictionState: string | null;
   jurisdictionCity: string | null;
@@ -82,9 +91,38 @@ export function MatterFacts({
     ([key]) => (profile[key] ?? '').trim().length > 0,
   );
 
+  // The party profile card renders when the firm has captured anything worth
+  // showing: a portrait/logo, or any of the prove-the-case dossier fields.
+  const typedProfile = profile as SubjectProfile;
+  const hasPartyProfile =
+    partyImages.length > 0 ||
+    [
+      typedProfile.caseStatus,
+      typedProfile.partyRelevance,
+      typedProfile.location,
+      typedProfile.gender,
+      typedProfile.height,
+      typedProfile.race,
+      typedProfile.otherDescriptors,
+      typedProfile.roleContext,
+    ].some((v) => (v ?? '').trim().length > 0);
+
   return (
     <section className="card p-5 space-y-4">
       <p className="eyebrow text-[10px]"><T>Matter facts</T></p>
+
+      {hasPartyProfile && (
+        <div className="pb-1 border-b border-ink-100 dark:border-forest-700/40">
+          <PartyProfileCard
+            firmId={firmId}
+            caseId={caseId}
+            subjectName={subjectName}
+            subjectType={subjectType}
+            profile={typedProfile}
+            partyImages={partyImages}
+          />
+        </div>
+      )}
 
       <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2 text-[13px]">
         <Row label="Posture">

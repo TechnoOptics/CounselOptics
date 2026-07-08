@@ -359,11 +359,16 @@ export default async function CounselCaseDetailPage({
       </nav>
 
       <MatterFacts
+        firmId={ctx.firm.id}
+        caseId={params.id}
         posture={c.posture}
         caseType={c.case_type}
         subjectName={c.subject_name}
         subjectType={c.subject_type}
         subjectProfile={c.subject_profile}
+        partyImages={caseImages
+          .filter((i) => i.kind === 'party')
+          .map((i) => ({ id: i.id, storagePath: i.storagePath }))}
         jurisdictionCountry={c.jurisdiction_country}
         jurisdictionState={c.jurisdiction_state}
         jurisdictionCity={c.jurisdiction_city}
@@ -398,7 +403,12 @@ export default async function CounselCaseDetailPage({
       </div>
 
       {/* Party portraits + case-context images */}
-      <CaseImagesPanel firmId={ctx.firm.id} caseId={params.id} initial={caseImages} />
+      <CaseImagesPanel
+        firmId={ctx.firm.id}
+        caseId={params.id}
+        initial={caseImages}
+        featuredImageId={(c.subject_profile as { featuredImageId?: string } | null)?.featuredImageId ?? null}
+      />
 
       {/* Case analysis - the substantive analytical surfaces ported from
           the personal case file (app/cases/[id]) and reframed as firm

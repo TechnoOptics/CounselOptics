@@ -153,6 +153,58 @@ export async function deleteCaseImageAction(
   return { ok: true };
 }
 
+/**
+ * Feature (or clear, when imageId is null) a party image as the matter's party
+ * portrait / business logo. Stored on cases.subject_profile.featuredImageId
+ * (zero migration). Read-modify-write so the rest of the dossier is preserved.
+ * Firm-scoped admin path, mirroring the other writes here.
+ */
+export async function setFeaturedPartyImageAction(
+  firmId: string,
+  caseId: string,
+  imageId: string | null,
+): Promise<{ ok: boolean; error?: string }> {
+  const gate = await assertFirmCase(firmId, caseId);
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Service unavailable.' };
+
+  // When setting (not clearing), confirm the image is a party image on this
+  // matter, so we never point the portrait at a stray or context image.
+  if (imageId) {
+    const { data: img } = await admin
+      .from('case_images')
+      .select('id, kind')
+      .eq('id', imageId)
+      .eq('case_id', caseId)
+      .maybeSingle();
+    const row = img as { id: string; kind: string } | null;
+    if (!row || row.kind !== 'party') {
+      return { ok: false, error: 'Choose a party image to feature.' };
+    }
+  }
+
+  const { data: caseRow } = await admin
+    .from('cases')
+    .select('subject_profile')
+    .eq('id', caseId)
+    .maybeSingle();
+  const profile = {
+    ...(((caseRow as { subject_profile: Record<string, unknown> | null } | null)?.subject_profile) ?? {}),
+  };
+  if (imageId) profile.featuredImageId = imageId;
+  else delete profile.featuredImageId;
+
+  const { error } = await admin
+    .from('cases')
+    .update({ subject_profile: profile, updated_at: new Date().toISOString() })
+    .eq('id', caseId)
+    .eq('firm_id', firmId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/counsel/cases/${caseId}`);
+  return { ok: true };
+}
+
 /** Short-TTL signed URL for an image (admin, firm-scoped). */
 export async function getCaseImageUrl(
   firmId: string,

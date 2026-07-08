@@ -65,6 +65,30 @@ export type SubjectProfile = {
   // Government / entity
   agencyOrDepartment?: string;
   jurisdictionLevel?: string; // federal / state / county / city
+
+  // ── Party profile (firm "prove-the-case" layer) ──────────────────────────
+  // A richer dossier the firm builds on the opposing party / subject, shown as
+  // a portrait card in the matter facts. All optional and free text; stored in
+  // the same cases.subject_profile jsonb (zero migration).
+  /** The case_images (kind 'party') row id to feature as the party portrait /
+   *  business logo. When unset the profile card shows the first party image. */
+  featuredImageId?: string;
+  /** The party's status in the matter, free text (e.g. "Defendant, active"). */
+  caseStatus?: string;
+  /** Why this party matters / their relevance to the matter, free text. */
+  partyRelevance?: string;
+  /** Where the party is located, free text (distinct from the mailing address). */
+  location?: string;
+  // Physical descriptors (person subjects). Free text; never inferred, only what
+  // the firm records. Shown only for person-type subjects.
+  gender?: string;
+  height?: string;
+  race?: string;
+  /** Any other identifying descriptors, free text. */
+  otherDescriptors?: string;
+  /** Free-text role context: what the firm is trying to establish about this
+   *  party in the matter (their part in the story). */
+  roleContext?: string;
 };
 
 export type Case = {
