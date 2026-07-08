@@ -7,6 +7,7 @@ import { getOrCreateMatterChannelAction } from '@/lib/firm-actions';
 import { CaseAssigneePicker, type AssigneeOption } from './assignee-picker';
 import { listOpenTimer } from '@/lib/time-tracking';
 import { listTrustTransactions } from '@/lib/trust-accounting-queries';
+import { getFirmSurfaceSettings } from '@/lib/firm-settings';
 import { TimerWidget } from '@/components/TimerWidget';
 import type { FirmMessage } from '@/lib/firm-types';
 import { DraftInvoiceButton } from './draft-invoice-button';
@@ -137,6 +138,11 @@ export default async function CounselCaseDetailPage({
     listCaseImages(ctx.firm.id, params.id).catch(() => ({ ok: false as const })),
   ]);
   const aiEnabled = aiConfigured() && access === 'firm';
+  // Per-firm surface toggle: when a firm hides Time & Billing, the case view
+  // must drop the timer, billing stats, time entries, invoices, and trust
+  // ledger too - not just the sidebar link.
+  const surface = await getFirmSurfaceSettings(ctx.firm.id);
+  const showTimeBilling = !surface.hideTimeBilling;
   const caseImages = (caseImagesRes.ok && caseImagesRes.images) ? caseImagesRes.images : [];
 
   // assigned_to is fetched separately and best-effort so this page can't
@@ -284,12 +290,14 @@ export default async function CounselCaseDetailPage({
           </p>
         </div>
         <div className="flex flex-col items-start gap-3 sm:items-end">
-          <TimerWidget
-            firmId={ctx.firm.id}
-            initial={openTimer}
-            caseId={params.id}
-            caseTitle={c.title}
-          />
+          {showTimeBilling && (
+            <TimerWidget
+              firmId={ctx.firm.id}
+              initial={openTimer}
+              caseId={params.id}
+              caseTitle={c.title}
+            />
+          )}
           <CaseAssigneePicker
             caseId={params.id}
             members={assigneeOptions}
@@ -298,7 +306,8 @@ export default async function CounselCaseDetailPage({
         </div>
       </header>
 
-      {/* Top stats */}
+      {/* Top stats (Time & Billing) - hidden when the firm turns the surface off */}
+      {showTimeBilling && (
       <section className="grid gap-3 sm:grid-cols-4">
         <Stat label="Time logged" value={fmtHours(totalSeconds)} />
         <Stat
@@ -317,6 +326,7 @@ export default async function CounselCaseDetailPage({
           tone={trustBalance < 0 ? 'rose' : 'emerald'}
         />
       </section>
+      )}
 
       {/* Case work - the substantive surfaces a firm case shares with a
           personal case: the interactive Timeline (firm-tier = full builder),
@@ -335,18 +345,17 @@ export default async function CounselCaseDetailPage({
         >
           <T>Evidence intake</T>
         </Link>
-        <Link
-          href={`/cases/${params.id}/packet`}
+        {/* Firm-native court packet/export (the consumer /cases/[id]/packet
+            + /export routes dropped firm users into the personal UI and
+            returned empty pages). This route builds the court-ready exhibit
+            through the firm admin path; granular evidence selection lives on
+            the Timeline's export dialog. */}
+        <a
+          href={`/counsel/cases/${params.id}/export`}
           className="text-[12.5px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-3 py-1.5 text-ink-700 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/40 transition-colors"
         >
-          <T>Court packet</T>
-        </Link>
-        <Link
-          href={`/cases/${params.id}/export`}
-          className="text-[12.5px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-3 py-1.5 text-ink-700 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/40 transition-colors"
-        >
-          <T>Export PDF</T>
-        </Link>
+          <T>Court packet / export</T>
+        </a>
       </nav>
 
       <MatterFacts
@@ -515,6 +524,8 @@ export default async function CounselCaseDetailPage({
         />
       </section>
 
+      {showTimeBilling && (
+       <>
       {/* Time entries */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
@@ -624,6 +635,8 @@ export default async function CounselCaseDetailPage({
             ))}
           </ul>
         </section>
+      )}
+       </>
       )}
 
       {/* Documents on this case */}
