@@ -10,13 +10,16 @@
 -- 'represented' is a new first-class role: the client can view the matter
 -- AND contribute their own evidence/statements, so it must be allowed by
 -- the role CHECK constraint and by can_add_to_case() (the RLS gate that
--- decides who may INSERT exhibits).
+-- decides who may INSERT exhibits, and — via the exhibits storage bucket
+-- policy — upload the underlying file).
 --
--- The committed schema.sql historically shows only ('viewer','editor',
--- 'attorney'), while application code also writes 'witness'. To be robust
--- to whatever the live constraint actually is, we drop ANY existing
--- role-related CHECK constraint on the table by discovery, then re-add the
--- full, correct set. Idempotent.
+-- NOTE: the RLS helper functions were moved from `public` to the `private`
+-- schema (2026-06-27-move-rls-helpers-to-private-schema.sql), and the live
+-- exhibits / storage INSERT policies call `private.can_add_to_case`. This
+-- migration therefore updates the PRIVATE function - updating a public copy
+-- would be a no-op. The live role CHECK already includes 'witness' (added
+-- out of band); we drop any existing role CHECK by discovery and re-add the
+-- full, correct set so the migration is robust regardless. Idempotent.
 
 do $$
 declare
@@ -40,16 +43,16 @@ alter table public.case_collaborators
   add constraint case_collaborators_role_check
   check (role in ('viewer', 'editor', 'attorney', 'witness', 'represented'));
 
--- can_add_to_case: owner OR an editor/attorney/represented collaborator may
--- add exhibits to a case. Adding 'represented' lets an invited client
--- contribute their own evidence. (Recreating the function preserves its
--- existing privileges; grants below are idempotent and match schema.sql.)
-create or replace function public.can_add_to_case(_case_id uuid)
+-- private.can_add_to_case: owner OR an editor/attorney/represented
+-- collaborator may add exhibits. Adding 'represented' lets an invited
+-- client contribute their own evidence. Recreating the function preserves
+-- its existing privileges (granted to authenticated/anon/service_role).
+create or replace function private.can_add_to_case(_case_id uuid)
 returns boolean
 language sql
-security definer
 stable
-set search_path = public
+security definer
+set search_path to 'public'
 as $$
   select
     exists (select 1 from public.cases where id = _case_id and user_id = auth.uid())
@@ -60,6 +63,3 @@ as $$
         and role in ('editor', 'attorney', 'represented')
     );
 $$;
-
-revoke execute on function public.can_add_to_case(uuid) from public;
-grant execute on function public.can_add_to_case(uuid) to authenticated;
