@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
+import { getFirmSurfaceSettings } from '@/lib/firm-settings';
 import { createServerSupabase, getCurrentUser } from '@/lib/supabase/server';
 import { listOpenTimer } from '@/lib/time-tracking';
 import { TimerWidget } from '@/components/TimerWidget';
@@ -24,6 +25,9 @@ function fmtCents(cents: number) {
 export default async function CounselTimePage() {
   const ctx = await getActiveFirmContext();
   if (!ctx) redirect('/counsel');
+  if ((await getFirmSurfaceSettings(ctx.firm.id)).hideTimeBilling) {
+    redirect('/counsel');
+  }
   const user = await getCurrentUser();
   if (!user) redirect('/sign-in?next=/counsel/time');
 

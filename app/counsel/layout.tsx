@@ -4,6 +4,7 @@ import { headers } from 'next/headers';
 import { getCurrentUserResult, isSupabaseConfigured } from '@/lib/supabase/server';
 import { SessionReconnect } from '@/components/auth/SessionReconnect';
 import { getActiveFirmContext, listMyFirms } from '@/lib/firm-storage';
+import { getFirmSurfaceSettings, DEFAULT_FIRM_SURFACE_SETTINGS } from '@/lib/firm-settings';
 import { CounselSidebar } from '@/components/counsel/CounselSidebar';
 import { SidebarCollapseProvider, CounselSidebarShell } from '@/components/counsel/SidebarFocus';
 import { CounselHeader } from '@/components/counsel/CounselHeader';
@@ -138,6 +139,13 @@ export default async function CounselLayout({
   // only the UI chrome wrapped in <T>, leaving firm data verbatim.
   const locale = await getLocaleCookie();
 
+  // Per-firm surface toggles: a firm can hide the global search box and
+  // the Time & Billing group. Read once here and thread down to the
+  // header (mobile nav), the sidebar, and the Ask Advottic bar.
+  const surface = active
+    ? await getFirmSurfaceSettings(active.firm.id)
+    : DEFAULT_FIRM_SURFACE_SETTINGS;
+
   // If we resolved a context, expose it to children via the wrapper.
   // The "dark" class forces dark Tailwind variants throughout the
   // counsel side regardless of the user's consumer-side theme - the
@@ -161,6 +169,7 @@ export default async function CounselLayout({
         memberships={myFirms}
         tenantMode={isTenantSubdomain}
         locale={locale}
+        hideTimeBilling={surface.hideTimeBilling}
       />
       <SidebarCollapseProvider>
         <div className="flex-1 flex w-full max-w-none mx-auto px-4 sm:px-6 lg:px-10 py-6 sm:py-8 gap-6">
@@ -171,6 +180,7 @@ export default async function CounselLayout({
                 membership={active.membership}
                 pathname={pathname}
                 tenantMode={isTenantSubdomain}
+                hideTimeBilling={surface.hideTimeBilling}
               />
             </CounselSidebarShell>
           ) : null}
@@ -180,7 +190,9 @@ export default async function CounselLayout({
                 welcome banner above the Ask bar and then handles its
                 own ordering, so we skip rendering it from the layout
                 for that one route. */}
-            {active && pathname !== '/counsel' ? <AskAdvottic /> : null}
+            {active && pathname !== '/counsel' && !surface.hideSearch ? (
+              <AskAdvottic />
+            ) : null}
             {children}
           </main>
         </div>

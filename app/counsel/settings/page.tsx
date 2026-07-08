@@ -2,9 +2,11 @@ import { redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { listFirmWebhooksAction } from '@/lib/firm-actions';
 import { readMenuConfig } from '@/lib/menu-config';
+import { getFirmSurfaceSettings } from '@/lib/firm-settings';
 import { SettingsForm } from './settings-form';
 import { WebhookManager } from './webhook-manager';
 import { MenuCustomizer } from './menu-customizer';
+import { FirmSurfaceToggles } from './firm-surface-toggles';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -19,6 +21,7 @@ export default async function CounselSettingsPage() {
   // Load webhooks server-side so the manager mounts with real state
   // and the operator never sees the empty-list flicker.
   const webhooksResult = await listFirmWebhooksAction(ctx.firm.id);
+  const surface = await getFirmSurfaceSettings(ctx.firm.id);
   return (
     <div className="space-y-10 animate-fade-up">
       <header>
@@ -56,6 +59,19 @@ export default async function CounselSettingsPage() {
         firmId={ctx.firm.id}
         initial={readMenuConfig(ctx.firm.metadata)}
       />
+      <section className="space-y-3 pt-2 border-t border-ink-200 dark:border-forest-700/40">
+        <header>
+          <p className="eyebrow mb-1"><T>Workspace surfaces</T></p>
+          <h2 className="font-display text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
+            <T>Turn off what you don&rsquo;t use</T>
+          </h2>
+          <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
+            <T>Hide entire surfaces of the workspace for everyone at your firm.
+            These are off by default, so nothing changes until you turn one on.</T>
+          </p>
+        </header>
+        <FirmSurfaceToggles firmId={ctx.firm.id} initial={surface} />
+      </section>
       <section className="space-y-3 pt-2 border-t border-ink-200 dark:border-forest-700/40">
         <header>
           <p className="eyebrow mb-1"><T>Outbound webhooks</T></p>

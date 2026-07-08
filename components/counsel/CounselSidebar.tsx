@@ -4,7 +4,12 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { Firm, FirmMember } from '@/lib/firm-types';
 import { isCounselItemActive, tenantHref } from '@/lib/counsel-routing';
-import { applyMenuConfig, readMenuConfig } from '@/lib/menu-config';
+import {
+  applyMenuConfig,
+  readMenuConfig,
+  withHiddenHrefs,
+  TIME_BILLING_HREFS,
+} from '@/lib/menu-config';
 import { T } from '@/components/i18n/LocaleProvider';
 
 // Icons stay here (React) keyed by href; the menu DATA + the firm's
@@ -50,6 +55,7 @@ export function CounselSidebar({
   membership,
   pathname,
   tenantMode = false,
+  hideTimeBilling = false,
 }: {
   firm: Firm;
   membership: FirmMember;
@@ -71,6 +77,12 @@ export function CounselSidebar({
    * 307 redirect. Audit V5 CR-5/CR-28.
    */
   tenantMode?: boolean;
+  /**
+   * True when the firm turned off the Time & Billing group in settings
+   * (firm_settings.hide_time_billing). Drops Time / Billing / Trust
+   * from the rail.
+   */
+  hideTimeBilling?: boolean;
 }) {
   // The pathname prop is forwarded from the server layout for the
   // initial SSR pass (so the right item is highlighted on first
@@ -84,7 +96,14 @@ export function CounselSidebar({
   const livePathname = usePathname() ?? pathname;
   // Per-firm customization (hide / rename / reorder). Falls back to
   // the full default menu when the firm has not customized anything.
-  const sections = applyMenuConfig(readMenuConfig(firm.metadata));
+  // When the firm hid Time & Billing, fold those hrefs into the hidden
+  // set so the whole Finance group drops out.
+  const sections = applyMenuConfig(
+    withHiddenHrefs(
+      readMenuConfig(firm.metadata),
+      hideTimeBilling ? TIME_BILLING_HREFS : [],
+    ),
+  );
   return (
     <nav className="card p-3 space-y-0.5">
       <p className="text-[10px] uppercase tracking-[0.2em] font-semibold text-ink-500 dark:text-cream-100/55 px-2 pt-1 pb-2">
