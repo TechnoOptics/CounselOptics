@@ -14,6 +14,7 @@ import { AddDeadlineForm } from './add-deadline-form';
 import { CompleteDeadlineButton } from './complete-deadline-button';
 import { MatterChatPanel } from './matter-chat-panel';
 import { CaseInvitePanel } from './case-invite-panel';
+import { LinkedProjectsPanel } from './linked-projects-panel';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -490,6 +491,12 @@ export default async function CounselCaseDetailPage({
           </h2>
           <div className="flex items-center gap-2">
             <Link
+              href={`/counsel/cases/${params.id}/evidence`}
+              className="text-[12px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-3 py-1.5 text-ink-700 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/40"
+            >
+              <T>Evidence intake</T>
+            </Link>
+            <Link
               href={`/counsel/projects?caseId=${params.id}`}
               className="text-[12px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-3 py-1.5 text-ink-700 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/40"
             >
@@ -532,6 +539,9 @@ export default async function CounselCaseDetailPage({
           </p>
         )}
       </section>
+
+      {/* Project binders bound to this matter (renders nothing when none) */}
+      <LinkedProjectsPanel firmId={ctx.firm.id} caseId={params.id} />
     </div>
   );
 }
