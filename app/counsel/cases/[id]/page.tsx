@@ -17,6 +17,8 @@ import { CaseInvitePanel } from './case-invite-panel';
 import { LinkedProjectsPanel } from './linked-projects-panel';
 import { MatterFacts } from './matter-facts';
 import { EditMatterForm } from './edit-matter-form';
+import { listCaseImages } from '@/lib/case-images-actions';
+import { CaseImagesPanel } from './case-images-panel';
 import { T } from '@/components/i18n/LocaleProvider';
 import { aiConfigured } from '@/lib/timeline-ai';
 import { resolveTimelineAccess } from '@/lib/timeline-entitlement';
@@ -129,11 +131,13 @@ export default async function CounselCaseDetailPage({
   // configured model. getLatestReview reads through RLS, so it only
   // returns a review the member is allowed to see. Best-effort review
   // fetch: a miss just renders the "Run Case Analysis" empty state.
-  const [access, latestReview] = await Promise.all([
+  const [access, latestReview, caseImagesRes] = await Promise.all([
     resolveTimelineAccess(),
     getLatestReview(params.id).catch(() => null),
+    listCaseImages(ctx.firm.id, params.id).catch(() => ({ ok: false as const })),
   ]);
   const aiEnabled = aiConfigured() && access === 'firm';
+  const caseImages = (caseImagesRes.ok && caseImagesRes.images) ? caseImagesRes.images : [];
 
   // assigned_to is fetched separately and best-effort so this page can't
   // 500 on a DB that predates the case-assignee migration - a failed
@@ -383,6 +387,9 @@ export default async function CounselCaseDetailPage({
           }}
         />
       </div>
+
+      {/* Party portraits + case-context images */}
+      <CaseImagesPanel firmId={ctx.firm.id} caseId={params.id} initial={caseImages} />
 
       {/* Case analysis - the substantive analytical surfaces ported from
           the personal case file (app/cases/[id]) and reframed as firm
