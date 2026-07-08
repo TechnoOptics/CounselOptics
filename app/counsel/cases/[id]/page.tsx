@@ -25,8 +25,10 @@ import { aiConfigured } from '@/lib/timeline-ai';
 import { resolveTimelineAccess } from '@/lib/timeline-entitlement';
 import { getLatestReview } from '@/lib/storage';
 import { getFirmLegalReview } from '@/lib/firm-legal-review-actions';
+import { listFirmApproaches } from '@/lib/firm-approach-actions';
 import { ReviewPanel } from '@/app/cases/[id]/review-panel';
 import { LegalReviewPanel } from './legal-review-panel';
+import { ApproachBuilder } from './approach-builder';
 import { EvidenceHeatmap } from '@/components/EvidenceHeatmap';
 import { BellaPrompt } from '@/components/BellaPrompt';
 
@@ -134,11 +136,12 @@ export default async function CounselCaseDetailPage({
   // configured model. getLatestReview reads through RLS, so it only
   // returns a review the member is allowed to see. Best-effort review
   // fetch: a miss just renders the "Run Case Analysis" empty state.
-  const [access, latestReview, caseImagesRes, legalReviewRes] = await Promise.all([
+  const [access, latestReview, caseImagesRes, legalReviewRes, approachesRes] = await Promise.all([
     resolveTimelineAccess(),
     getLatestReview(params.id).catch(() => null),
     listCaseImages(ctx.firm.id, params.id).catch(() => ({ ok: false as const })),
     getFirmLegalReview(ctx.firm.id, params.id).catch(() => ({ ok: false as const })),
+    listFirmApproaches(ctx.firm.id, params.id).catch(() => ({ ok: false as const })),
   ]);
   const aiEnabled = aiConfigured() && access === 'firm';
   // Per-firm surface toggle: when a firm hides Time & Billing, the case view
@@ -149,6 +152,8 @@ export default async function CounselCaseDetailPage({
   const caseImages = (caseImagesRes.ok && caseImagesRes.images) ? caseImagesRes.images : [];
   const legalReview =
     ('review' in legalReviewRes ? legalReviewRes.review : null) ?? null;
+  const approaches =
+    ('approaches' in approachesRes ? approachesRes.approaches : null) ?? [];
 
   // assigned_to is fetched separately and best-effort so this page can't
   // 500 on a DB that predates the case-assignee migration - a failed
@@ -456,6 +461,12 @@ export default async function CounselCaseDetailPage({
               case citation in a real CourtListener record. */}
           <div className="border-t border-ink-100 dark:border-forest-700/40 pt-8">
             <LegalReviewPanel firmId={ctx.firm.id} caseId={params.id} initial={legalReview} />
+          </div>
+
+          {/* Approach builder: the lawyer's theory in, a structured argument
+              with cited exhibits + supporting timeline out. */}
+          <div className="border-t border-ink-100 dark:border-forest-700/40 pt-8">
+            <ApproachBuilder firmId={ctx.firm.id} caseId={params.id} initial={approaches} />
           </div>
 
           <BellaPrompt

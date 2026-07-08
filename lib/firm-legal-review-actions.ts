@@ -5,12 +5,8 @@ import { getCurrentUser, createServerSupabase } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
 import { aiConfigured } from './timeline-ai';
 import { resolveTimelineAccess } from './timeline-entitlement';
-import { formatOccurred, type OccurredPrecision } from './timeline-types';
-import {
-  generateLegalReviewDraft,
-  type EvidenceDigestItem,
-  type LegalReviewFacts,
-} from './legal-review-ai';
+import { generateLegalReviewDraft, type LegalReviewFacts } from './legal-review-ai';
+import { loadCaseEvidenceDigest } from './case-evidence-digest';
 import { verifyCases, type CitationCandidate } from './courtlistener';
 import { AI_UNAVAILABLE_MESSAGE } from './ai-errors';
 
@@ -116,36 +112,6 @@ export async function getFirmLegalReview(
   return { ok: true, review };
 }
 
-/** Build a compact evidence digest for the model (admin read). */
-async function loadEvidenceDigest(
-  admin: NonNullable<ReturnType<typeof createAdminSupabase>>,
-  caseId: string,
-): Promise<EvidenceDigestItem[]> {
-  const { data } = await admin
-    .from('case_timeline_events')
-    .select('title, ai_summary, kind, occurred_at, occurred_precision, ai_extracted')
-    .eq('case_id', caseId)
-    .limit(200);
-  const rows = (data ?? []) as Array<{
-    title: string | null;
-    ai_summary: string | null;
-    kind: string;
-    occurred_at: string | null;
-    occurred_precision: OccurredPrecision | null;
-    ai_extracted: { exhibit_no?: number } | null;
-  }>;
-  return rows.map((r) => {
-    const no = r.ai_extracted?.exhibit_no;
-    return {
-      exhibit: typeof no === 'number' ? `EX-${String(no).padStart(4, '0')}` : null,
-      when: r.occurred_at ? formatOccurred(r.occurred_at, r.occurred_precision ?? 'day') : null,
-      kind: r.kind,
-      title: r.title || '(untitled)',
-      summary: r.ai_summary,
-    };
-  });
-}
-
 // ── Generate: draft (AI) -> verify citations (CourtListener) -> persist ───
 export async function generateFirmLegalReviewAction(
   firmId: string,
@@ -187,7 +153,7 @@ export async function generateFirmLegalReviewAction(
     description: cr.description,
   };
 
-  const evidence = await loadEvidenceDigest(admin, caseId);
+  const evidence = await loadCaseEvidenceDigest(admin, caseId);
   const draft = await generateLegalReviewDraft({ facts, evidence });
   if ('error' in draft) return { ok: false, error: draft.error };
 
