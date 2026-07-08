@@ -5,6 +5,7 @@ import { extractFileText } from './doc-review';
 import { extractMediaMetadata } from './media-metadata';
 import { mapsConfigured, geocodeAddress } from './maps';
 import { parseEmail } from './email-parse';
+import { friendlyAiError } from './ai-errors';
 import { safeStorageUpload } from './upload-safety';
 import {
   analyzeImage,
@@ -218,7 +219,10 @@ export async function computeEventAnalysis(input: {
       result = { error: 'Nothing to analyse - add a file or a description.' };
     }
   } catch (err) {
-    result = { error: err instanceof Error ? err.message : 'Analysis failed.' };
+    // Any failure downloading/parsing the file or calling the model.
+    // friendlyAiError keeps provider JSON (and internal detail) out of
+    // the ai_error we persist and later show in the UI.
+    result = { error: friendlyAiError(err, 'computeEventAnalysis') };
   }
 
   // Forensic core details straight from the file (EXIF/GPS/device for images,

@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { createServerSupabase, getCurrentUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
+import { AiUnavailableError, friendlyAiError } from './ai-errors';
 
 const MODEL = 'claude-sonnet-4-6';
 
@@ -275,12 +276,19 @@ export async function bellaGenerate(opts: {
     throw new Error('The server is missing an ANTHROPIC_API_KEY.');
   }
   const client = new Anthropic({ apiKey });
-  const res = await client.messages.create({
-    model: MODEL,
-    max_tokens: opts.maxTokens ?? 4096,
-    system: opts.system,
-    messages: [{ role: 'user', content: opts.prompt }],
-  });
+  let res;
+  try {
+    res = await client.messages.create({
+      model: MODEL,
+      max_tokens: opts.maxTokens ?? 4096,
+      system: opts.system,
+      messages: [{ role: 'user', content: opts.prompt }],
+    });
+  } catch (err) {
+    // Calm, branded failure instead of raw Anthropic JSON (credit/quota
+    // 400, 429, auth). Callers surface AiUnavailableError.message.
+    throw new AiUnavailableError(err, 'bellaGenerate');
+  }
   return res.content
     .map((b) => (b.type === 'text' ? b.text : ''))
     .join('')
@@ -3541,33 +3549,45 @@ export async function* streamBella(input: {
   let totalCachedInputTokens = 0;
   let totalOutputTokens = 0;
   for (let turn = 0; turn < MAX_AGENT_TURNS; turn++) {
-    const stream = await client.messages.stream({
-      model: MODEL,
-      // Was 1024 (~750 words), which silently truncated the very outputs
-      // this product exists to produce - full demand letters / NDAs /
-      // complaints drafted in-response, and the Decoder's multi-section
-      // explanation (its Deadlines / Watch-out-for sections were dropped).
-      // A max_tokens stop is treated as a normal end below, so the cut-off
-      // was invisible. max_tokens is only a CEILING (billed per actual
-      // output token, and the model still stops at end_turn on its own),
-      // so raising it prevents mid-clause truncation without adding cost to
-      // short replies. Tool-use turns stop at tool_use well before this.
-      max_tokens: 8192,
-      system: systemBlocks,
-      messages: conversation,
-      ...(tools.length > 0 ? { tools } : {}),
-    });
+    // Provider failures (credit/quota exhaustion, 429, auth, network)
+    // surface either when the stream starts or mid-iteration. Catch them
+    // and yield a calm, branded line into the chat instead of letting
+    // raw Anthropic JSON reach the client. We only bail on the FIRST
+    // turn (no text emitted yet); a failure after partial output is rare
+    // and better to end cleanly than to append an apology mid-sentence.
+    let finalMsg: Anthropic.Messages.Message;
+    try {
+      const stream = client.messages.stream({
+        model: MODEL,
+        // Was 1024 (~750 words), which silently truncated the very outputs
+        // this product exists to produce - full demand letters / NDAs /
+        // complaints drafted in-response, and the Decoder's multi-section
+        // explanation (its Deadlines / Watch-out-for sections were dropped).
+        // A max_tokens stop is treated as a normal end below, so the cut-off
+        // was invisible. max_tokens is only a CEILING (billed per actual
+        // output token, and the model still stops at end_turn on its own),
+        // so raising it prevents mid-clause truncation without adding cost to
+        // short replies. Tool-use turns stop at tool_use well before this.
+        max_tokens: 8192,
+        system: systemBlocks,
+        messages: conversation,
+        ...(tools.length > 0 ? { tools } : {}),
+      });
 
-    for await (const event of stream) {
-      if (
-        event.type === 'content_block_delta' &&
-        event.delta.type === 'text_delta'
-      ) {
-        yield event.delta.text;
+      for await (const event of stream) {
+        if (
+          event.type === 'content_block_delta' &&
+          event.delta.type === 'text_delta'
+        ) {
+          yield event.delta.text;
+        }
       }
-    }
 
-    const finalMsg = await stream.finalMessage();
+      finalMsg = await stream.finalMessage();
+    } catch (err) {
+      yield (turn === 0 ? '' : '\n\n') + friendlyAiError(err, 'streamBella');
+      return;
+    }
     totalTokens +=
       (finalMsg.usage?.input_tokens ?? 0) + (finalMsg.usage?.output_tokens ?? 0);
     totalInputTokens += finalMsg.usage?.input_tokens ?? 0;

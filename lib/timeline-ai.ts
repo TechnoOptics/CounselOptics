@@ -1,6 +1,7 @@
 import 'server-only';
 import Anthropic from '@anthropic-ai/sdk';
 import { DOCUMENT_TYPES, EVIDENCE_FOLDERS, normalizeDocumentType, normalizeFolder, type AiExtracted, type OccurredPrecision, type TimelineKind } from './timeline-types';
+import { friendlyAiError } from './ai-errors';
 // Type-only import (erased at runtime, so no import cycle with case-evidence).
 import type { CaseContext } from './case-evidence';
 
@@ -187,7 +188,7 @@ export async function analyzeImage(input: {
     normalizeExtracted(extracted);
     return { extracted, summary: cleanAiText(summary) };
   } catch (err) {
-    return { error: err instanceof Error ? err.message : 'Analysis failed.' };
+    return { error: friendlyAiError(err, 'analyzeImage') };
   }
 }
 
@@ -222,7 +223,7 @@ export async function analyzeText(input: {
     normalizeExtracted(extracted);
     return { extracted, summary: cleanAiText(summary) };
   } catch (err) {
-    return { error: err instanceof Error ? err.message : 'Analysis failed.' };
+    return { error: friendlyAiError(err, 'analyzeText') };
   }
 }
 
@@ -253,12 +254,20 @@ export async function transcribeAudio(input: {
       signal: AbortSignal.timeout(60_000),
     });
     if (!res.ok) {
-      return { configured: true, text: null, error: `Transcription failed (${res.status}).` };
+      const errText = await res.text().catch(() => '');
+      return {
+        configured: true,
+        text: null,
+        error: friendlyAiError(
+          { status: res.status, message: errText.slice(0, 400) },
+          'transcribeAudio',
+        ),
+      };
     }
     const data = (await res.json()) as { text?: string };
     return { configured: true, text: (data.text ?? '').trim() || null };
   } catch (err) {
-    return { configured: true, text: null, error: err instanceof Error ? err.message : 'Transcription error.' };
+    return { configured: true, text: null, error: friendlyAiError(err, 'transcribeAudio') };
   }
 }
 
@@ -329,7 +338,7 @@ Return ONLY JSON:
       conclusion: cleanAiText(parsed.conclusion),
     };
   } catch (err) {
-    return { error: err instanceof Error ? err.message : 'Narrative generation failed.' };
+    return { error: friendlyAiError(err, 'buildNarrative') };
   }
 }
 
