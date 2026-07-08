@@ -2,14 +2,15 @@ import Link from 'next/link';
 import Image from 'next/image';
 import type { Firm, FirmMember } from '@/lib/firm-types';
 import { FIRM_ROLE_LABEL } from '@/lib/firm-types';
-import { CounselFirmSwitcher } from './CounselFirmSwitcher';
-import { PersonaSwitcher } from './PersonaSwitcher';
 import { CounselMobileNav } from './CounselMobileNav';
-import { applyMenuConfig, readMenuConfig } from '@/lib/menu-config';
-import { UserMenu } from '@/components/UserMenu';
-import { TokenBalanceGauge } from '@/components/TokenBalanceGauge';
+import { CounselProfileMenu } from './CounselProfileMenu';
+import {
+  applyMenuConfig,
+  readMenuConfig,
+  withHiddenHrefs,
+  TIME_BILLING_HREFS,
+} from '@/lib/menu-config';
 import { ExternalLink } from '@/components/ExternalLink';
-import { LanguageSwitcher } from '@/components/i18n/LanguageSwitcher';
 import { T } from '@/components/i18n/LocaleProvider';
 import type { LocaleCode } from '@/lib/i18n/locales';
 
@@ -29,12 +30,16 @@ export function CounselHeader({
   memberships,
   tenantMode = false,
   locale = 'en',
+  hideTimeBilling = false,
 }: {
   firm: Firm | null;
   membership: FirmMember | null;
   memberships: Array<{ firm: Firm; membership: FirmMember }>;
   /** The user's chosen UI language (#14), for the header switcher. */
   locale?: LocaleCode;
+  /** Firm hid the Time & Billing group - keep it out of the mobile nav
+   *  too, so the phone experience matches the sidebar. */
+  hideTimeBilling?: boolean;
   /**
    * When true, the URL bar already contains the firm's identity
    * (<slug>.advottic.com), so the firm IS the brand. The header flips
@@ -70,7 +75,12 @@ export function CounselHeader({
   // Mobile nav data (the sidebar is hidden below md). Same firm-
   // customized menu the sidebar renders.
   const mobileSections = firm
-    ? applyMenuConfig(readMenuConfig(firm.metadata))
+    ? applyMenuConfig(
+        withHiddenHrefs(
+          readMenuConfig(firm.metadata),
+          hideTimeBilling ? TIME_BILLING_HREFS : [],
+        ),
+      )
     : [];
   const canSettings =
     membership?.role === 'owner' || membership?.role === 'admin';
@@ -187,26 +197,8 @@ export function CounselHeader({
           </div>
         )}
         <div className="flex items-center gap-2">
-          {/* "View as" preview switcher - owner/admin only. Lets the
-              firm's admin see the employee Hub and the external-vendor
-              view without a second account. Never shown to regular
-              staff, so it's not an access-control surface. */}
-          {firm &&
-            (membership?.role === 'owner' ||
-              membership?.role === 'admin') && (
-              <PersonaSwitcher firmId={firm.id} />
-            )}
-          {/* Firm switcher only in shared-portal mode. On a tenant
-              subdomain the URL pins the firm and the switcher is
-              suppressed even when the user belongs to multiple firms. */}
-          {!tenantMode && memberships.length > 1 && (
-            <CounselFirmSwitcher
-              activeFirmId={firm?.id ?? null}
-              memberships={memberships}
-            />
-          )}
           {/* "Powered by Advottic" mark in tenant mode - quiet, half
-              opacity, on the right next to the user menu so the
+              opacity, on the right next to the account menu so the
               platform identity is acknowledged without competing with
               the firm's brand. */}
           {tenantMode && !ownBrand && (
@@ -225,13 +217,17 @@ export function CounselHeader({
               />
             </ExternalLink>
           )}
-          <span className="hidden sm:inline-flex">
-            <TokenBalanceGauge
-              initial={{ combined: 0, firmPool: null, personal: 0, monthlyGrant: 0 }}
-            />
-          </span>
-          <LanguageSwitcher initialLocale={locale} variant="light" />
-          <UserMenu />
+          {/* Consolidated account menu. The firm/owner switcher, the
+              "View as" persona preview, the language picker, and the
+              token balance all live inside this one dropdown now - the
+              header bar shows nothing but the initials avatar. */}
+          <CounselProfileMenu
+            firm={firm}
+            membership={membership}
+            memberships={memberships}
+            tenantMode={tenantMode}
+            locale={locale}
+          />
         </div>
       </div>
       {/* Decorative glow strip under the header. On a tenant subdomain
