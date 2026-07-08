@@ -41,6 +41,7 @@ const DEFER_AI_ABOVE = 40;
 const ANALYZE_CONCURRENCY = 3; // parallel scoring passes when analysing pending
 const UPLOAD_CONCURRENCY = 3; // parallel import requests during a big drop
 const BATCH_RETRIES = 2; // retry a failed batch before giving up (so one blip can't abort a 1,000-file run)
+const BATCH_TIMEOUT_MS = 120_000; // give up on a hung request so the whole drop can't stall forever
 
 /** Pack files into request-sized batches bounded by count AND total bytes. */
 function packBatches(files: File[]): File[][] {
@@ -193,6 +194,30 @@ export function EvidenceIntake({
     [firmId, caseId, t],
   );
 
+  // Warn before a refresh / tab-close while an import is running: the un-sent
+  // files are held only in this tab (the browser can't re-read them after a
+  // reload), so leaving mid-upload would lose whatever hasn't been sent yet.
+  useEffect(() => {
+    if (!busy) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [busy]);
+
+  // Resume analysis after a reload: anything already uploaded but not yet scored
+  // (ai_status 'skipped') gets picked back up automatically, so a refresh never
+  // strands the scoring queue. The server-side cron also backstops this.
+  const resumedRef = useRef(false);
+  useEffect(() => {
+    if (resumedRef.current || !aiEnabled) return;
+    resumedRef.current = true;
+    const queue = initialEvents.filter((e) => e.aiStatus === 'skipped').map((e) => e.id);
+    if (queue.length) void runAnalyzeQueue(queue);
+  }, [aiEnabled, initialEvents, runAnalyzeQueue]);
+
   const upload = useCallback(
     async (files: File[]) => {
       if (files.length === 0) return;
@@ -217,14 +242,25 @@ export function EvidenceIntake({
           try {
             const fd = new FormData();
             for (const f of batch) fd.append('files', f);
-            return await bulkImportCaseEvidenceAction(firmId, caseId, fd, { analyze: !deferAi });
+            // Race the request against a timeout so ONE hung request can't stall
+            // the whole drop. A timeout is terminal for this batch (no retry) -
+            // the request may still be running server-side, and retrying it
+            // could double-import; the skipped items are reported so they can be
+            // re-dropped.
+            return await Promise.race([
+              bulkImportCaseEvidenceAction(firmId, caseId, fd, { analyze: !deferAi }),
+              new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error('__timeout__')), BATCH_TIMEOUT_MS),
+              ),
+            ]);
           } catch (err) {
-            if (attempt >= BATCH_RETRIES) {
+            const timedOut = err instanceof Error && err.message === '__timeout__';
+            if (timedOut || attempt >= BATCH_RETRIES) {
               return {
                 ok: false,
                 imported: 0,
                 failed: batch.length,
-                errors: [err instanceof Error ? err.message : 'Upload failed.'],
+                errors: [timedOut ? 'A batch timed out and was skipped.' : err instanceof Error ? err.message : 'Upload failed.'],
               };
             }
             await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
