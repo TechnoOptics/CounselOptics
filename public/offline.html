@@ -122,11 +122,34 @@
         Advottic needs an internet connection to load your case files. Reconnect
         to Wi&#8209;Fi or cellular and tap below to try again.
       </p>
-      <button type="button" onclick="location.href = location.origin || 'https://advottic.com';">
+      <button type="button" id="retry">
         Try again
       </button>
       <p class="hint">Tip: turning airplane mode off and on again often helps.</p>
     </div>
   </div>
+  <script>
+    // When this page is showing, the WebView origin is the local app shell
+    // (capacitor://localhost), NOT advottic.com - so a naive
+    // location.href = location.origin would reload the shell and strand the
+    // user here forever. Always hard-navigate back to the live site.
+    (function () {
+      var HOME = 'https://advottic.com/';
+      function goHome() { window.location.replace(HOME); }
+      var btn = document.getElementById('retry');
+      if (btn) btn.addEventListener('click', goHome);
+      // Auto-recover: the moment the device reports it is back online, return
+      // to the app without the user having to tap anything.
+      window.addEventListener('online', goHome);
+      // Belt-and-suspenders: poll connectivity in case the 'online' event was
+      // missed (some WebViews fire it unreliably), then retry.
+      var tries = 0;
+      var timer = setInterval(function () {
+        tries += 1;
+        if (navigator.onLine) { clearInterval(timer); goHome(); }
+        else if (tries > 60) { clearInterval(timer); } // give up after ~2 min
+      }, 2000);
+    })();
+  </script>
 </body>
 </html>
