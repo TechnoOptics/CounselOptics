@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
-import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
+import { getCurrentUserResult, isSupabaseConfigured } from '@/lib/supabase/server';
+import { SessionReconnect } from '@/components/auth/SessionReconnect';
 import { getActiveFirmContext, listMyFirms } from '@/lib/firm-storage';
 import { CounselSidebar } from '@/components/counsel/CounselSidebar';
 import { CounselHeader } from '@/components/counsel/CounselHeader';
@@ -73,7 +74,17 @@ export default async function CounselLayout({
       </div>
     );
   }
-  const user = await getCurrentUser();
+  // Distinguish a genuine sign-out from a transient session-read
+  // failure. A real null redirects to sign-in (correct). A thrown
+  // read - corrupted cookie, Edge decode error, or a stale-bundle
+  // hiccup during a deploy - must NOT evict the user; we show a soft
+  // reconnect screen that retries in place instead. See
+  // getCurrentUserResult / SessionReconnect.
+  const userResult = await getCurrentUserResult();
+  if ('error' in userResult) {
+    return <SessionReconnect signInHref="/sign-in?next=/counsel" />;
+  }
+  const user = userResult.user;
   if (!user) redirect('/sign-in?next=/counsel');
 
   // Counsel is now invitation-only: a signed-in user without firm

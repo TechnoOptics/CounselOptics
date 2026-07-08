@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
+import { getCurrentUserResult, isSupabaseConfigured } from '@/lib/supabase/server';
+import { SessionReconnect } from '@/components/auth/SessionReconnect';
 import { getWorkspacePersona } from '@/lib/persona';
 import { exitPortalPreviewAction } from '@/lib/firm-actions';
 import { HubNavLink, type HubNavItem } from '@/components/portal/HubNavLink';
@@ -42,7 +43,14 @@ export default async function PortalLayout({
     );
   }
 
-  const user = await getCurrentUser();
+  // A genuine null redirects to sign-in; a thrown session read
+  // (corrupted cookie / Edge decode / stale-bundle deploy hiccup)
+  // must NOT sign the user out - hold their place and retry.
+  const userResult = await getCurrentUserResult();
+  if ('error' in userResult) {
+    return <SessionReconnect signInHref="/sign-in?next=/portal" />;
+  }
+  const user = userResult.user;
   if (!user) redirect('/sign-in?next=/portal');
 
   const persona = await getWorkspacePersona();

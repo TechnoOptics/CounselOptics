@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr';
+import type { User } from '@supabase/supabase-js';
 import { cookies, headers } from 'next/headers';
 import { cookieDomainForHost } from './cookie-domain';
 
@@ -52,6 +53,55 @@ export function createServerSupabase() {
   });
 }
 
+/**
+ * Result of a session read that keeps "no session" distinct from
+ * "the read threw".
+ *
+ *  - `{ user: User | null }` - the read SUCCEEDED. `user` is the
+ *    authenticated user, or `null` when the visitor is genuinely
+ *    signed out (no/expired session). This is a definitive answer.
+ *  - `{ error }` - the read THREW (corrupted cookie, Edge decode
+ *    failure, transient Supabase/network hiccup). We do NOT know
+ *    whether the visitor is signed in; callers must NOT treat this
+ *    as a logout.
+ *
+ * Distinguishing the two matters because a transient read failure -
+ * common during a Vercel deploy window when a client holds a stale
+ * RSC/JS bundle - is otherwise indistinguishable from a real
+ * sign-out, and evicting the user to /sign-in on a hiccup is the
+ * "crashed the app and signed me out" symptom firms report.
+ */
+export type CurrentUserResult = { user: User | null } | { error: unknown };
+
+/**
+ * Reads the current session, preserving the success/error distinction.
+ *
+ * Prefer this over getCurrentUser() at auth chokepoints (route/layout
+ * gates) where the caller decides between redirecting a genuinely
+ * signed-out visitor and softly retrying a transient failure. When a
+ * plain null-or-user is enough, getCurrentUser() remains fine.
+ */
+export async function getCurrentUserResult(): Promise<CurrentUserResult> {
+  // Not configured is a definitive "no session", not an error: there
+  // is no auth on this deployment, so the visitor is signed out.
+  if (!isSupabaseConfigured()) return { user: null };
+  try {
+    const supabase = createServerSupabase();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    return { user };
+  } catch (err) {
+    // Surface the message to runtime logs without re-throwing.
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[server-supabase] session read threw; NOT treating as signed-out:',
+      err instanceof Error ? err.message : err,
+    );
+    return { error: err };
+  }
+}
+
 /** Returns the current authenticated user or null.
  *
  * Defensive try/catch: if Supabase's session-recovery throws (e.g.
@@ -65,24 +115,15 @@ export function createServerSupabase() {
  * `_recoverAndRefresh` cascades through every server component
  * that reads the user, producing a site-wide "Application error:
  * a server-side exception has occurred" page. May 2026 incident.
+ *
+ * NOTE: this collapses a thrown read to `null` (signed-out) for the
+ * many callers that only need best-effort user resolution. Auth
+ * chokepoints that must NOT sign a user out on a transient hiccup
+ * should call getCurrentUserResult() and branch on the error case.
  */
 export async function getCurrentUser() {
-  if (!isSupabaseConfigured()) return null;
-  try {
-    const supabase = createServerSupabase();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    return user;
-  } catch (err) {
-    // Surface the message to runtime logs without re-throwing.
-    // eslint-disable-next-line no-console
-    console.warn(
-      '[server-supabase] getCurrentUser failed; treating as signed-out:',
-      err instanceof Error ? err.message : err,
-    );
-    return null;
-  }
+  const result = await getCurrentUserResult();
+  return 'error' in result ? null : result.user;
 }
 
 /** Like getCurrentUser, but throws if no user - for server actions and protected routes. */
