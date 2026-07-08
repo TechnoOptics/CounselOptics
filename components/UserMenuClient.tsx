@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
+import { LanguageSwitcher } from '@/components/i18n/LanguageSwitcher';
+import type { LocaleCode } from '@/lib/i18n/locales';
 
 export type UserMenuProps = {
   email: string;
@@ -27,6 +29,10 @@ export type UserMenuProps = {
    *  Hides the "Advottic HQ" entry since it would link the page to
    *  itself. */
   isHqMode?: boolean;
+  /** When set (consumer i18n is on), render the language selector inside the
+   *  menu instead of the top header, where it overlapped the Advottic wordmark
+   *  on narrow mobile widths. */
+  languageLocale?: LocaleCode;
 };
 
 export function UserMenuClient(props: UserMenuProps) {
@@ -121,6 +127,14 @@ export function UserMenuClient(props: UserMenuProps) {
             <MenuLink href="/feedback" onClick={() => setOpen(false)}>
               Send feedback
             </MenuLink>
+            {props.languageLocale && (
+              <div className="px-3 pt-2 mt-1 border-t border-ink-100">
+                <p className="text-[10px] uppercase tracking-[0.14em] text-ink-400 mb-1.5">
+                  Language
+                </p>
+                <LanguageSwitcher initialLocale={props.languageLocale} />
+              </div>
+            )}
           </div>
 
           {/* Switch-portal cluster. Surfaces every portal the user

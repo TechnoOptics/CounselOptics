@@ -487,7 +487,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                     />
                   </Link>
                   <div className="flex items-center gap-1">
-                    {consumerI18n && (
+                    {/* Signed IN: the language selector lives inside the
+                        account menu (UserMenu) so it no longer overlaps the
+                        Advottic wordmark on narrow mobile widths. Signed OUT:
+                        there is no account menu, so keep it in the header. */}
+                    {!signedIn && consumerI18n && (
                       <LanguageSwitcher initialLocale={locale} variant="light" />
                     )}
                     {signedIn && <SearchTrigger className="hidden sm:inline-flex" />}
@@ -510,7 +514,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                       />
                     )}
                     {signedIn && <div className="hidden sm:block h-5 w-px bg-cream-100/15 mx-2" />}
-                    <UserMenu />
+                    <UserMenu languageLocale={consumerI18n ? locale : undefined} />
                   </div>
                 </div>
                 <div className="header-glow-line" aria-hidden />

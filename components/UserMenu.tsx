@@ -4,8 +4,11 @@ import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { getProfile } from '@/lib/storage';
 import { listMyFirms } from '@/lib/firm-storage';
 import { UserMenuClient } from './UserMenuClient';
+import type { LocaleCode } from '@/lib/i18n/locales';
 
-export async function UserMenu() {
+export async function UserMenu({
+  languageLocale,
+}: { languageLocale?: LocaleCode } = {}) {
   if (!isSupabaseConfigured()) {
     return (
       <span
@@ -80,6 +83,7 @@ export async function UserMenu() {
       }))}
       isCounselMode={isCounselMode}
       isHqMode={isHqMode}
+      languageLocale={languageLocale}
     />
   );
 }
