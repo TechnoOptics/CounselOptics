@@ -39,6 +39,8 @@ const MAX_BATCH_BYTES = 40 * 1024 * 1024; // headroom under the 50 MB server lim
 // thousand sequential model calls.
 const DEFER_AI_ABOVE = 40;
 const ANALYZE_CONCURRENCY = 3; // parallel scoring passes when analysing pending
+const UPLOAD_CONCURRENCY = 3; // parallel import requests during a big drop
+const BATCH_RETRIES = 2; // retry a failed batch before giving up (so one blip can't abort a 1,000-file run)
 
 /** Pack files into request-sized batches bounded by count AND total bytes. */
 function packBatches(files: File[]): File[][] {
@@ -206,25 +208,59 @@ export function EvidenceIntake({
       let done = 0;
       const errors: string[] = [];
       setProgress({ done: 0, total: files.length });
-      for (let b = 0; b < batches.length; b++) {
-        const batch = batches[b];
-        const fd = new FormData();
-        for (const f of batch) fd.append('files', f);
-        const res = await bulkImportCaseEvidenceAction(firmId, caseId, fd, {
-          analyze: !deferAi,
-        });
-        imported += res.imported ?? 0;
-        failed += res.failed ?? 0;
-        if (res.errors) errors.push(...res.errors);
-        if (!res.ok && res.error && !res.imported) errors.push(res.error);
-        done += batch.length;
-        setProgress({ done, total: files.length });
-        // Refresh the list periodically rather than every batch so a huge drop
-        // doesn't fire hundreds of timeline reads while it's still importing.
-        if (b === batches.length - 1 || b % 5 === 4) await refresh();
+
+      // Send one batch with retries. A batch that keeps failing is counted and
+      // SKIPPED - it must never throw out of here, or the whole run would abort
+      // partway (which read like an upload "cap" on big drops).
+      const sendBatch = async (batch: File[]) => {
+        for (let attempt = 0; ; attempt++) {
+          try {
+            const fd = new FormData();
+            for (const f of batch) fd.append('files', f);
+            return await bulkImportCaseEvidenceAction(firmId, caseId, fd, { analyze: !deferAi });
+          } catch (err) {
+            if (attempt >= BATCH_RETRIES) {
+              return {
+                ok: false,
+                imported: 0,
+                failed: batch.length,
+                errors: [err instanceof Error ? err.message : 'Upload failed.'],
+              };
+            }
+            await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+          }
+        }
+      };
+
+      // Process batches with a small worker pool so a 1,000-item drop is quick
+      // but never fires all requests at once. Refresh the list periodically.
+      let next = 0;
+      let sinceRefresh = 0;
+      const worker = async () => {
+        for (;;) {
+          const i = next++;
+          if (i >= batches.length) return;
+          const res = await sendBatch(batches[i]);
+          imported += res.imported ?? 0;
+          failed += res.failed ?? 0;
+          if (res.errors) errors.push(...res.errors);
+          if (!res.ok && res.error && !res.imported) errors.push(res.error);
+          done += batches[i].length;
+          sinceRefresh += batches[i].length;
+          setProgress({ done, total: files.length });
+          if (sinceRefresh >= 40 || done === files.length) {
+            sinceRefresh = 0;
+            await refresh();
+          }
+        }
+      };
+      try {
+        await Promise.all(Array.from({ length: UPLOAD_CONCURRENCY }, worker));
+      } finally {
+        setBusy(false);
+        setProgress(null);
       }
-      setBusy(false);
-      setProgress(null);
+
       const parts = [t('Imported {n} file(s).').replace('{n}', String(imported))];
       if (failed) parts.push(t('{n} could not be imported.').replace('{n}', String(failed)));
       if (errors.length) setError(errors.slice(0, 4).join('  •  '));
