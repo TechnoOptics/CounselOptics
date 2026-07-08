@@ -8,7 +8,9 @@ import { getCaseParticipants, getSectionComments, getChatThread } from '@/lib/ca
 import { GENERAL_THREAD_KEY } from '@/lib/case-collab-types';
 import { resolveTimelineAccess } from '@/lib/timeline-entitlement';
 import { aiConfigured } from '@/lib/timeline-ai';
-import { FactsPanel, type CaseFacts } from '@/app/cases/[id]/timeline/facts-panel';
+import { type CaseFacts } from '@/app/cases/[id]/timeline/facts-panel';
+import { FirmFactsPanel } from './firm-facts-panel';
+import { type EditMatterInitial } from '../edit-matter-form';
 import { FirmTimeline } from './firm-timeline';
 import { RequestSidebarFocus } from '@/components/counsel/SidebarFocus';
 import { T } from '@/components/i18n/LocaleProvider';
@@ -52,16 +54,18 @@ export default async function FirmTimelinePage({
   const { data: caseRow } = await supabase
     .from('cases')
     .select(
-      'id, title, subject_name, subject_type, jurisdiction_country, jurisdiction_state, jurisdiction_city, case_type, description, posture, status, hearing_at, hearing_location, created_at, firm_id',
+      'id, title, subject_name, subject_type, subject_profile, jurisdiction_country, jurisdiction_state, jurisdiction_city, case_type, description, posture, status, hearing_at, hearing_location, hearing_notes, created_at, firm_id',
     )
     .eq('id', params.id)
     .maybeSingle();
   if (!caseRow) notFound();
   const c = caseRow as {
     id: string; title: string; subject_name: string | null; subject_type: string | null;
+    subject_profile: Record<string, string> | null;
     jurisdiction_country: string | null; jurisdiction_state: string | null; jurisdiction_city: string | null;
     case_type: string | null; description: string | null; posture: string | null; status: string | null;
-    hearing_at: string | null; hearing_location: string | null; created_at: string | null; firm_id: string | null;
+    hearing_at: string | null; hearing_location: string | null; hearing_notes: string | null;
+    created_at: string | null; firm_id: string | null;
   };
   if (c.firm_id !== ctx.firm.id) notFound();
 
@@ -79,6 +83,25 @@ export default async function FirmTimelinePage({
     hearingAt: c.hearing_at,
     hearingLocation: c.hearing_location,
     createdAt: c.created_at,
+  };
+
+  // Pre-fill for inline editing (mirrors the matter page's Edit details form).
+  // hearing_at is stored as an ISO instant; a datetime-local input wants
+  // "YYYY-MM-DDTHH:mm", so trim the ISO string rather than reformatting.
+  const editInitial: EditMatterInitial = {
+    title: c.title,
+    subject: c.subject_name ?? '',
+    subjectType: (c.subject_type as EditMatterInitial['subjectType']) ?? 'person',
+    caseType: c.case_type ?? '',
+    posture: c.posture === 'defendant' ? 'defendant' : 'claimant',
+    country: c.jurisdiction_country ?? '',
+    state: c.jurisdiction_state ?? '',
+    city: c.jurisdiction_city ?? '',
+    description: c.description ?? '',
+    profile: c.subject_profile ?? {},
+    hearingAt: c.hearing_at ? c.hearing_at.slice(0, 16) : '',
+    hearingLocation: c.hearing_location ?? '',
+    hearingNotes: c.hearing_notes ?? '',
   };
 
   const [bundle, access, participants, commentBundle, generalChat, user] = await Promise.all([
@@ -112,7 +135,7 @@ export default async function FirmTimelinePage({
         </h1>
       </div>
 
-      <FactsPanel facts={facts} />
+      <FirmFactsPanel facts={facts} firmId={ctx.firm.id} caseId={params.id} editInitial={editInitial} />
 
       <FirmTimeline
         firmId={ctx.firm.id}
