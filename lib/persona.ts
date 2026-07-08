@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
-import { getCurrentUser } from './supabase/server';
+import type { User } from '@supabase/supabase-js';
+import { getCurrentUserResult } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
 import {
   getActiveFirmContext,
@@ -115,10 +116,12 @@ function readPreviewCookie(): {
   }
 }
 
-export async function getWorkspacePersona(): Promise<WorkspacePersona> {
-  const user = await getCurrentUser();
-  if (!user) return { kind: 'none' };
-
+/**
+ * Resolve the persona for an already-authenticated user. Split out so
+ * the session read (which can THROW on a transient hiccup) stays
+ * separable from persona resolution - see getWorkspacePersonaResult.
+ */
+async function resolvePersonaForUser(user: User): Promise<WorkspacePersona> {
   const myFirms = await listMyFirms();
 
   // Preview mode: an owner/admin chose to see the employee portal.
@@ -313,4 +316,50 @@ export async function getWorkspacePersona(): Promise<WorkspacePersona> {
   }
 
   return { kind: 'none' };
+}
+
+/**
+ * Result of persona resolution that keeps a definitive persona (incl.
+ * the legitimate `{ kind: 'none' }` "no workspace yet" state) distinct
+ * from a THROWN session read.
+ *
+ *  - `{ persona }` - the session read SUCCEEDED; the persona is
+ *    authoritative (including a genuine `none`).
+ *  - `{ error }`   - the session read THREW (corrupted cookie, Edge
+ *    decode failure, stale-bundle deploy hiccup). Callers must NOT
+ *    render "No workspace yet" or otherwise treat the visitor as
+ *    unprivileged; it's a transient failure, not an answer.
+ *
+ * Without this, a thrown read collapsed to `{ kind: 'none' }` and the
+ * portal showed the "No workspace yet" card to a fully-provisioned
+ * employee during a deploy window - the same false-eviction class as
+ * the sign-in redirect. See getCurrentUserResult.
+ */
+export type WorkspacePersonaResult =
+  | { persona: WorkspacePersona }
+  | { error: unknown };
+
+/**
+ * Like getWorkspacePersona, but surfaces a thrown session read as
+ * `{ error }` instead of silently degrading to `{ kind: 'none' }`.
+ * Prefer this at the portal chokepoint so a transient hiccup shows a
+ * soft reconnect rather than a misleading "no access" state.
+ */
+export async function getWorkspacePersonaResult(): Promise<WorkspacePersonaResult> {
+  const userResult = await getCurrentUserResult();
+  if ('error' in userResult) return { error: userResult.error };
+  const { user } = userResult;
+  if (!user) return { persona: { kind: 'none' } };
+  return { persona: await resolvePersonaForUser(user) };
+}
+
+/**
+ * Best-effort persona resolution: collapses a thrown session read to
+ * `{ kind: 'none' }`. Retained for the portal pages that only need a
+ * persona and render fine under the guarded layout; auth chokepoints
+ * should prefer getWorkspacePersonaResult.
+ */
+export async function getWorkspacePersona(): Promise<WorkspacePersona> {
+  const result = await getWorkspacePersonaResult();
+  return 'error' in result ? { kind: 'none' } : result.persona;
 }

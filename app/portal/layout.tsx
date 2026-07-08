@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getCurrentUserResult, isSupabaseConfigured } from '@/lib/supabase/server';
 import { SessionReconnect } from '@/components/auth/SessionReconnect';
-import { getWorkspacePersona } from '@/lib/persona';
+import { getWorkspacePersonaResult } from '@/lib/persona';
 import { exitPortalPreviewAction } from '@/lib/firm-actions';
 import { HubNavLink, type HubNavItem } from '@/components/portal/HubNavLink';
 import { LocaleProvider, T } from '@/components/i18n/LocaleProvider';
@@ -53,7 +53,14 @@ export default async function PortalLayout({
   const user = userResult.user;
   if (!user) redirect('/sign-in?next=/portal');
 
-  const persona = await getWorkspacePersona();
+  // Resolve the persona, surfacing a thrown session read as reconnect
+  // rather than a misleading "No workspace yet" card. A genuine
+  // `{ kind: 'none' }` still falls through to that card below.
+  const personaResult = await getWorkspacePersonaResult();
+  if ('error' in personaResult) {
+    return <SessionReconnect signInHref="/sign-in?next=/portal" />;
+  }
+  const persona = personaResult.persona;
   if (persona.kind === 'legal' || persona.kind === 'admin') {
     redirect('/counsel');
   }
