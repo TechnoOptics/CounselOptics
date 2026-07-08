@@ -117,6 +117,34 @@ function dedupe(list: (string | null | undefined)[]): string[] {
   return [...new Set(list.map((s) => (s ?? '').trim()).filter(Boolean))];
 }
 
+/** Hex SHA-256 of a file's bytes, used for duplicate detection at import. */
+export function sha256Hex(buffer: Buffer): string {
+  return crypto.createHash('sha256').update(buffer).digest('hex');
+}
+
+/**
+ * Carry the "sticky" ai_extracted fields, ones assigned once and never derived
+ * by the reader, across a re-analysis that otherwise replaces ai_extracted with
+ * a fresh object. Covers the stable exhibit number, the content hash, and a
+ * hand-pinned folder. Every analysis write-path funnels its fresh extraction
+ * through this so re-scoring never drops an exhibit number, a hash, or a
+ * deliberately filed folder. `prior` is the row's ai_extracted before the run.
+ */
+export function mergeStickyExtracted(
+  next: AiExtracted | undefined,
+  prior: AiExtracted | null | undefined,
+): AiExtracted {
+  const out: AiExtracted = { ...(next ?? {}) };
+  const p = prior ?? {};
+  if (typeof p.exhibit_no === 'number' && out.exhibit_no === undefined) out.exhibit_no = p.exhibit_no;
+  if (p.sha256 && !out.sha256) out.sha256 = p.sha256;
+  if (p.folder_locked && p.folder) {
+    out.folder = p.folder;
+    out.folder_locked = true;
+  }
+  return out;
+}
+
 /**
  * Analyse one event's content and return a column patch ready to persist. Never
  * throws; on failure returns a patch that records the error status so the row
@@ -266,6 +294,8 @@ export async function importFileAsCaseEvidence(input: {
   /** Run analysis inline (firm plan + AI configured). */
   analyze: boolean;
   caseContext?: CaseContext | null;
+  /** Stable per-matter exhibit number to stamp on this item at import. */
+  exhibitNo?: number;
 }): Promise<{ ok: boolean; eventId?: string; error?: string }> {
   const { admin, caseId, userId } = input;
   if (input.buffer.length > MAX_EVIDENCE_BYTES) {
@@ -288,6 +318,12 @@ export async function importFileAsCaseEvidence(input: {
   const media: TimelineMedia[] = [{ path, mime, name: input.name, size: input.buffer.length }];
   const kind = kindFromMime(mime, input.name);
 
+  // Seed the sticky fields at insert: the content hash (for duplicate detection)
+  // and the stable exhibit number. Both survive later re-analysis via
+  // mergeStickyExtracted, so they are assigned exactly once.
+  const seededExtracted: AiExtracted = { sha256: sha256Hex(input.buffer) };
+  if (typeof input.exhibitNo === 'number') seededExtracted.exhibit_no = input.exhibitNo;
+
   const { error: insErr } = await admin.from('case_timeline_events').insert({
     id: eventId,
     case_id: caseId,
@@ -297,6 +333,7 @@ export async function importFileAsCaseEvidence(input: {
     description: input.description ?? null,
     media,
     source_label: input.sourceLabel ?? null,
+    ai_extracted: seededExtracted,
     ai_status: input.analyze ? 'pending' : 'skipped',
   });
   if (insErr) {
@@ -311,6 +348,13 @@ export async function importFileAsCaseEvidence(input: {
       admin,
       caseContext: input.caseContext ?? null,
     });
+    // Re-analysis returns a fresh ai_extracted; carry the seeded sticky fields.
+    if (outcome.ok && outcome.patch.ai_extracted) {
+      outcome.patch.ai_extracted = mergeStickyExtracted(
+        outcome.patch.ai_extracted as AiExtracted,
+        seededExtracted,
+      );
+    }
     await admin.from('case_timeline_events').update(outcome.patch).eq('id', eventId);
   }
 
@@ -415,12 +459,13 @@ export async function analyzePendingEvidence(
           admin,
           caseContext: await contextFor(r.case_id),
         });
-        // Keep a deliberately-filed folder pinned even when the sweep re-scores.
-        if (outcome.ok && prior.folder_locked && prior.folder) {
-          const ext = (outcome.patch.ai_extracted ?? {}) as AiExtracted;
-          ext.folder = prior.folder;
-          ext.folder_locked = true;
-          outcome.patch.ai_extracted = ext;
+        // Carry the exhibit number, hash, and any hand-pinned folder across the
+        // re-score, so the sweep never drops a stable identifier.
+        if (outcome.ok && outcome.patch.ai_extracted) {
+          outcome.patch.ai_extracted = mergeStickyExtracted(
+            outcome.patch.ai_extracted as AiExtracted,
+            prior,
+          );
         }
         await admin.from('case_timeline_events').update(outcome.patch).eq('id', r.id);
         if (outcome.ok) analyzed++;

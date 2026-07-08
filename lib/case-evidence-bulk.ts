@@ -5,7 +5,7 @@ import { createServerSupabase, getCurrentUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
 import { aiConfigured } from './timeline-ai';
 import { resolveTimelineAccess } from './timeline-entitlement';
-import { loadCaseContext, computeEventAnalysis } from './case-evidence';
+import { loadCaseContext, computeEventAnalysis, mergeStickyExtracted } from './case-evidence';
 import { getFirmFaceSetting } from './face-settings';
 import type { AiExtracted, TimelineMedia, TimelineKind } from './timeline-types';
 
@@ -149,12 +149,9 @@ export async function reanalyzeCaseEvidenceBatchAction(
         admin,
         caseContext,
       });
-      // Keep a deliberately-filed folder pinned even on a forced re-run.
-      if (outcome.ok && prior.folder_locked && prior.folder) {
-        const ext = (outcome.patch.ai_extracted ?? {}) as AiExtracted;
-        ext.folder = prior.folder;
-        ext.folder_locked = true;
-        outcome.patch.ai_extracted = ext;
+      // Carry exhibit number, hash, and any hand-pinned folder across the re-run.
+      if (outcome.ok && outcome.patch.ai_extracted) {
+        outcome.patch.ai_extracted = mergeStickyExtracted(outcome.patch.ai_extracted as AiExtracted, prior);
       }
       await admin.from('case_timeline_events').update(outcome.patch).eq('id', r.id);
       if (outcome.ok) analyzed++;

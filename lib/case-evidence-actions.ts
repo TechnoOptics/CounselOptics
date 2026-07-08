@@ -9,6 +9,7 @@ import {
   importFileAsCaseEvidence,
   loadCaseContext,
   computeEventAnalysis,
+  mergeStickyExtracted,
   MAX_EVIDENCE_BYTES,
   type CaseContext,
 } from './case-evidence';
@@ -17,6 +18,9 @@ import {
   sortTimeline,
   normalizeFolder,
   folderForEvent,
+  formatOccurred,
+  exhibitLabel,
+  capturedAt,
   type TimelineEvent,
   type TimelineMedia,
   type AiExtracted,
@@ -84,6 +88,57 @@ function toEvent(r: EventRow): TimelineEvent {
   };
 }
 
+/** The highest exhibit number already used in this matter (0 when none). */
+async function maxExhibitNo(
+  admin: NonNullable<ReturnType<typeof createAdminSupabase>>,
+  caseId: string,
+): Promise<number> {
+  const { data } = await admin
+    .from('case_timeline_events')
+    .select('ai_extracted')
+    .eq('case_id', caseId);
+  let max = 0;
+  for (const r of (data ?? []) as { ai_extracted: AiExtracted | null }[]) {
+    const n = r.ai_extracted?.exhibit_no;
+    if (typeof n === 'number' && n > max) max = n;
+  }
+  return max;
+}
+
+/**
+ * Give every item that lacks one a stable exhibit number, assigned in creation
+ * order, and persist it. Numbers are assigned exactly once and never reshuffled,
+ * so a given item keeps its label as others are added or removed. New imports
+ * are numbered at import time, so this only ever writes for legacy rows (or a
+ * rare gap), and is a pure read once every item is numbered. Mutates `events` in
+ * place so the caller returns the freshly numbered rows.
+ */
+async function backfillExhibitNumbers(
+  admin: NonNullable<ReturnType<typeof createAdminSupabase>>,
+  caseId: string,
+  events: TimelineEvent[],
+): Promise<void> {
+  const missing = events
+    .filter((e) => typeof e.aiExtracted?.exhibit_no !== 'number')
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  if (missing.length === 0) return;
+  let next = 0;
+  for (const e of events) {
+    const n = e.aiExtracted?.exhibit_no;
+    if (typeof n === 'number' && n > next) next = n;
+  }
+  for (const e of missing) {
+    next += 1;
+    const ext: AiExtracted = { ...(e.aiExtracted ?? {}), exhibit_no: next };
+    const { error } = await admin
+      .from('case_timeline_events')
+      .update({ ai_extracted: ext })
+      .eq('id', e.id)
+      .eq('case_id', caseId);
+    if (!error) e.aiExtracted = ext;
+  }
+}
+
 /** Read this matter's evidence timeline (admin, firm-scoped). */
 export async function getFirmCaseTimeline(
   firmId: string,
@@ -98,6 +153,7 @@ export async function getFirmCaseTimeline(
     .select('*')
     .eq('case_id', caseId);
   const events = sortTimeline(((data ?? []) as EventRow[]).map(toEvent));
+  await backfillExhibitNumbers(admin, caseId, events);
   return { ok: true, events };
 }
 
@@ -112,7 +168,7 @@ export async function bulkImportCaseEvidenceAction(
   firmId: string,
   caseId: string,
   formData: FormData,
-  opts?: { analyze?: boolean },
+  opts?: { analyze?: boolean; replaceHashes?: string[] },
 ): Promise<{ ok: boolean; error?: string; imported?: number; failed?: number; errors?: string[] }> {
   const gate = await assertFirmCase(firmId, caseId);
   if (!gate.ok) return { ok: false, error: gate.error };
@@ -124,12 +180,20 @@ export async function bulkImportCaseEvidenceAction(
     .filter((f): f is File => typeof f === 'object' && f !== null && 'size' in f && (f as File).size > 0);
   if (files.length === 0) return { ok: false, error: 'Choose at least one file.' };
 
+  // "Replace" duplicates: drop the prior item(s) whose bytes match, so the fresh
+  // upload takes their place rather than sitting alongside them.
+  if (opts?.replaceHashes?.length) {
+    await deleteEventsByHashes(admin, caseId, opts.replaceHashes);
+  }
+
   // Inline analysis is skipped when the caller opts out (large drops import
   // fast and get scored afterwards via analyzeFirmCaseEventAction), so a
   // thousand-file intake isn't gated on a thousand sequential model calls.
   const aiEligible =
     opts?.analyze !== false && aiConfigured() && (await resolveTimelineAccess()) === 'firm';
   const caseContext: CaseContext | null = aiEligible ? await loadCaseContext(admin, caseId) : null;
+  // Stable exhibit numbers continue from the matter's current high-water mark.
+  let exhibitNo = await maxExhibitNo(admin, caseId);
 
   let imported = 0;
   let failed = 0;
@@ -144,6 +208,7 @@ export async function bulkImportCaseEvidenceAction(
         continue;
       }
       const buffer = Buffer.from(await f.arrayBuffer());
+      exhibitNo += 1;
       const res = await importFileAsCaseEvidence({
         admin,
         caseId,
@@ -154,6 +219,7 @@ export async function bulkImportCaseEvidenceAction(
         sourceLabel: 'Bulk intake',
         analyze: aiEligible,
         caseContext,
+        exhibitNo,
       });
       if (res.ok) imported++;
       else {
@@ -199,6 +265,7 @@ export async function importCaseEvidenceFromUrlsAction(
 
   const aiEligible = aiConfigured() && (await resolveTimelineAccess()) === 'firm';
   const caseContext: CaseContext | null = aiEligible ? await loadCaseContext(admin, caseId) : null;
+  let exhibitNo = await maxExhibitNo(admin, caseId);
 
   let imported = 0;
   let failed = 0;
@@ -211,6 +278,7 @@ export async function importCaseEvidenceFromUrlsAction(
         errors.push(`${url}: ${fetched.error}`);
         continue;
       }
+      exhibitNo += 1;
       const res = await importFileAsCaseEvidence({
         admin,
         caseId,
@@ -221,6 +289,7 @@ export async function importCaseEvidenceFromUrlsAction(
         sourceLabel: 'Dropped from web',
         analyze: aiEligible,
         caseContext,
+        exhibitNo,
       });
       if (res.ok) imported++;
       else {
@@ -278,13 +347,10 @@ export async function analyzeFirmCaseEventAction(
   const caseContext = await loadCaseContext(admin, caseId);
   const outcome = await computeEventAnalysis({ ev, admin, caseContext });
 
-  // Keep a hand-picked folder pinned across a re-run so re-analysis never
-  // reshuffles what a person deliberately filed.
-  if (outcome.ok && prior.folder_locked && prior.folder) {
-    const ext = (outcome.patch.ai_extracted ?? {}) as AiExtracted;
-    ext.folder = prior.folder;
-    ext.folder_locked = true;
-    outcome.patch.ai_extracted = ext;
+  // Carry the exhibit number, hash, and any hand-pinned folder across the re-run
+  // so re-analysis never reshuffles a stable identifier or a deliberate filing.
+  if (outcome.ok && outcome.patch.ai_extracted) {
+    outcome.patch.ai_extracted = mergeStickyExtracted(outcome.patch.ai_extracted as AiExtracted, prior);
   }
 
   const { data: updated } = await admin
@@ -468,6 +534,155 @@ export async function deleteFirmCaseEventAction(
   if (error) return { ok: false, error: error.message };
   revalidatePath(`/counsel/cases/${caseId}/evidence`);
   return { ok: true };
+}
+
+/**
+ * Delete every event in this matter whose stored bytes hash to one of `hashes`,
+ * removing its media too. Used by the "Replace" duplicate action so a re-upload
+ * supersedes the prior copy. Internal, admin, already gated by the caller.
+ */
+async function deleteEventsByHashes(
+  admin: NonNullable<ReturnType<typeof createAdminSupabase>>,
+  caseId: string,
+  hashes: string[],
+): Promise<number> {
+  const set = new Set(hashes.filter((h) => typeof h === 'string' && h));
+  if (set.size === 0) return 0;
+  const { data } = await admin
+    .from('case_timeline_events')
+    .select('id, media, ai_extracted')
+    .eq('case_id', caseId);
+  const rows = (data ?? []) as { id: string; media: TimelineMedia[] | null; ai_extracted: AiExtracted | null }[];
+  const hits = rows.filter((r) => r.ai_extracted?.sha256 && set.has(r.ai_extracted.sha256));
+  if (hits.length === 0) return 0;
+  const paths = hits.flatMap((r) => (Array.isArray(r.media) ? r.media.map((m) => m.path) : []));
+  if (paths.length) await admin.storage.from('exhibits').remove(paths).catch(() => {});
+  const { error } = await admin
+    .from('case_timeline_events')
+    .delete()
+    .eq('case_id', caseId)
+    .in('id', hits.map((r) => r.id));
+  return error ? 0 : hits.length;
+}
+
+/**
+ * Given a set of content hashes the client computed for files it is about to
+ * upload, report which already exist in this matter, so the UI can prompt to
+ * Rename / Replace / Skip before anything is sent. The server stores every
+ * import's hash (ai_extracted.sha256), making it the source of truth for dupes.
+ */
+export async function checkEvidenceDuplicatesAction(
+  firmId: string,
+  caseId: string,
+  hashes: string[],
+): Promise<{
+  ok: boolean;
+  error?: string;
+  duplicates?: Record<string, { id: string; title: string; exhibit: string | null }>;
+}> {
+  const gate = await assertFirmCase(firmId, caseId);
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Service unavailable.' };
+  const wanted = new Set((hashes ?? []).filter((h) => typeof h === 'string' && h));
+  if (wanted.size === 0) return { ok: true, duplicates: {} };
+
+  const { data } = await admin
+    .from('case_timeline_events')
+    .select('id, title, ai_extracted')
+    .eq('case_id', caseId);
+  const rows = (data ?? []) as { id: string; title: string | null; ai_extracted: AiExtracted | null }[];
+  const duplicates: Record<string, { id: string; title: string; exhibit: string | null }> = {};
+  for (const r of rows) {
+    const h = r.ai_extracted?.sha256;
+    // First stored copy of a given hash wins as the "existing" item.
+    if (h && wanted.has(h) && !duplicates[h]) {
+      duplicates[h] = {
+        id: r.id,
+        title: (r.title ?? '').trim() || 'Untitled item',
+        exhibit: exhibitLabel(r.ai_extracted?.exhibit_no),
+      };
+    }
+  }
+  return { ok: true, duplicates };
+}
+
+/** One item's row in a selected-evidence export manifest. */
+export type EvidenceExportItem = {
+  exhibit: string | null;
+  id: string;
+  name: string;
+  kind: TimelineKind;
+  folder: string;
+  documentType: string | null;
+  captured: string;
+  summary: string;
+  people: string[];
+  organizations: string[];
+  locations: string[];
+  dates: string[];
+  relevance: number | null;
+  url: string | null;
+};
+
+/**
+ * Build a self-contained export manifest for a hand-picked set of items: their
+ * exhibit numbers, filing, mined facts, and a short-TTL signed link to each
+ * file. This is the firm-native "Share": it produces an evidence index the firm
+ * can hand to a collaborator or the represented client, entirely in-app, sending
+ * nothing externally. The client turns it into a downloadable index after an
+ * explicit confirm.
+ */
+export async function exportSelectedEvidenceAction(
+  firmId: string,
+  caseId: string,
+  eventIds: string[],
+): Promise<{ ok: boolean; error?: string; matter?: string; items?: EvidenceExportItem[] }> {
+  const gate = await assertFirmCase(firmId, caseId);
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Service unavailable.' };
+  const ids = Array.from(new Set((eventIds ?? []).filter((s) => typeof s === 'string'))).slice(0, 200);
+  if (ids.length === 0) return { ok: false, error: 'Select at least one item to share.' };
+
+  const { data: caseRow } = await admin.from('cases').select('title').eq('id', caseId).maybeSingle();
+  const matter = (caseRow as { title: string } | null)?.title ?? 'Matter';
+
+  const { data } = await admin
+    .from('case_timeline_events')
+    .select('*')
+    .eq('case_id', caseId)
+    .in('id', ids);
+  const events = sortTimeline(((data ?? []) as EventRow[]).map(toEvent));
+
+  const items: EvidenceExportItem[] = [];
+  for (const e of events) {
+    const ext = e.aiExtracted ?? {};
+    const media = e.media[0];
+    let url: string | null = null;
+    if (media) {
+      const signed = await admin.storage.from('exhibits').createSignedUrl(media.path, 600);
+      url = signed.data?.signedUrl ?? null;
+    }
+    const cap = capturedAt(e);
+    items.push({
+      exhibit: exhibitLabel(ext.exhibit_no),
+      id: e.id,
+      name: (e.title ?? '').trim() || media?.name || 'Untitled item',
+      kind: e.kind,
+      folder: folderForEvent(e),
+      documentType: ext.document_type ?? null,
+      captured: cap ? formatOccurred(cap, e.occurredAt ? e.occurredPrecision : 'day') : 'Undated',
+      summary: e.aiSummary ?? '',
+      people: ext.detected_people ?? [],
+      organizations: ext.organizations ?? [],
+      locations: ext.locations ?? [],
+      dates: ext.detected_dates ?? [],
+      relevance: typeof ext.relevance_score === 'number' ? ext.relevance_score : null,
+      url,
+    });
+  }
+  return { ok: true, matter, items };
 }
 
 /** Short-TTL signed URL for an evidence file (admin, firm-scoped). */
