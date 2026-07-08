@@ -1183,6 +1183,20 @@ select:focus-visible,
      green" complaint when other contrast inversions slip in. */
   .btn-primary { color: #fbf7e9; }
   .dark .btn-primary { color: #0a1f19; }
+  /* Gold glow ring so primary CTAs pop against the dark counsel UI - they
+     previously blended into the forest background and got lost. Light mode
+     already carries shadow-brand-glow, so this is dark-only. Kept subtle
+     (a thin gold ring + a soft halo) per the calm-tone rule. */
+  .dark .btn-primary {
+    box-shadow:
+      0 0 0 1px rgba(213, 187, 126, 0.55),
+      0 6px 22px -6px rgba(213, 187, 126, 0.45);
+  }
+  .dark .btn-primary:hover {
+    box-shadow:
+      0 0 0 1px rgba(213, 187, 126, 0.85),
+      0 9px 28px -6px rgba(213, 187, 126, 0.62);
+  }
   /* Subtle inner highlight along the top edge of primaries - reads like
      a polished metal button instead of a flat dark rectangle. */
   .btn-primary::after {

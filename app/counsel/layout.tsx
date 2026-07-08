@@ -7,6 +7,7 @@ import { getActiveFirmContext, listMyFirms } from '@/lib/firm-storage';
 import { getFirmSurfaceSettings, DEFAULT_FIRM_SURFACE_SETTINGS } from '@/lib/firm-settings';
 import { CounselSidebar } from '@/components/counsel/CounselSidebar';
 import { SidebarCollapseProvider, CounselSidebarShell } from '@/components/counsel/SidebarFocus';
+import { CounselTrialBanner } from '@/components/counsel/CounselTrialBanner';
 import { CounselHeader } from '@/components/counsel/CounselHeader';
 import { AskAdvottic } from '@/components/counsel/AskAdvottic';
 import { LocaleProvider } from '@/components/i18n/LocaleProvider';
@@ -163,6 +164,18 @@ export default async function CounselLayout({
       }
     >
      <LocaleProvider initialLocale={locale}>
+      {active ? (
+        <CounselTrialBanner
+          firmName={active.firm.name}
+          daysLeft={(() => {
+            const created = (active.firm as { createdAt?: string }).createdAt;
+            const ms = created ? Date.parse(created) : NaN;
+            if (Number.isNaN(ms)) return 30;
+            const elapsed = Math.floor((Date.now() - ms) / 86_400_000);
+            return Math.max(0, 30 - elapsed);
+          })()}
+        />
+      ) : null}
       <CounselHeader
         firm={active?.firm ?? null}
         membership={active?.membership ?? null}
