@@ -29,11 +29,21 @@ export async function authenticateScim(req: Request): Promise<ScimAuth | null> {
   if (!admin) return null;
   const { data } = await admin
     .from('firm_scim_tokens')
-    .select('id, firm_id')
+    .select('id, firm_id, revoked_at, expires_at')
     .eq('token_hash', hashScimToken(m[1].trim()))
     .maybeSingle();
   if (!data) return null;
-  const row = data as { id: string; firm_id: string };
+  const row = data as {
+    id: string;
+    firm_id: string;
+    revoked_at: string | null;
+    expires_at: string | null;
+  };
+  // Reject revoked or expired tokens (a leaked bearer token must not grant
+  // indefinite directory access).
+  const now = Date.now();
+  if (row.revoked_at) return null;
+  if (row.expires_at && Date.parse(row.expires_at) <= now) return null;
   admin
     .from('firm_scim_tokens')
     .update({ last_used_at: new Date().toISOString() })
