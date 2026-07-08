@@ -16,12 +16,34 @@
 export type MenuItem = { href: string; label: string; hint: string };
 export type MenuSection = { section: string; items: MenuItem[] };
 
+/**
+ * The Time & Billing group (the "Finance" section). When a firm turns
+ * on firm_settings.hide_time_billing these hrefs are hidden from the
+ * sidebar + mobile nav and the routes are blocked. Kept here so the
+ * sidebar, the header's mobile nav, and the route guards share one
+ * source of truth.
+ */
+export const TIME_BILLING_HREFS = [
+  '/counsel/time',
+  '/counsel/billing',
+  '/counsel/trust',
+];
+
+/** Fold a set of extra hidden hrefs into an existing menu config. */
+export function withHiddenHrefs(
+  config: MenuConfig,
+  hrefs: string[],
+): MenuConfig {
+  if (hrefs.length === 0) return config;
+  return { ...config, hidden: [...config.hidden, ...hrefs] };
+}
+
 export const DEFAULT_MENU: MenuSection[] = [
   {
     section: 'Overview',
     items: [
       { href: '/counsel', label: 'Dashboard', hint: 'Overview' },
-      { href: '/counsel/analytics', label: 'Analytics', hint: 'Firm metrics + reports' },
+      { href: '/counsel/analytics', label: 'Impact', hint: 'Firm-wide case analytics' },
       { href: '/counsel/aid', label: 'Advottic Aid', hint: 'Ask about cases + law' },
       { href: '/counsel/calendar', label: 'Calendar', hint: 'Meetings, deadlines + integrations' },
       { href: '/counsel/import', label: 'Import data', hint: 'Migrate clients, cases + documents' },

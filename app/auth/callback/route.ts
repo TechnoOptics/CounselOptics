@@ -198,6 +198,15 @@ export async function GET(request: NextRequest) {
   // them right back out and surface a friendly message. Wrapped in
   // try/catch so a transient profiles-table read error never strands an
   // otherwise valid session at the sign-in page.
+  //
+  // Also resolves the default post-sign-in landing: a firm owner/member
+  // belongs in the Counsel workspace, not the consumer /cases app. The
+  // sign-in page bakes `next=/cases` into this callback URL whenever the
+  // user didn't request a specific destination, so we treat a bare
+  // `/cases` as the overridable default and send firm members to
+  // /counsel. Any deliberate deep link (e.g. /cases/<id>, /inbox) is
+  // left untouched.
+  let landingOverride: string | null = null;
   try {
     const {
       data: { user },
@@ -226,9 +235,33 @@ export async function GET(request: NextRequest) {
         url: meta.url,
         details: { email: user.email },
       });
+      // Persona-aware default landing (see block comment above). Use
+      // THIS client (it holds the freshly-minted session) rather than a
+      // fresh cookies()-based client, which wouldn't see the new session
+      // yet. RLS scopes firm_members to the caller automatically.
+      if (next === '/cases' || next === '/cases/') {
+        const { data: memberRows } = await supabase
+          .from('firm_members')
+          .select('id')
+          .eq('user_id', user.id)
+          .limit(1);
+        if (memberRows && memberRows.length > 0) {
+          landingOverride = '/counsel';
+        }
+      }
     }
   } catch (blockErr) {
     console.error('[auth/callback] block-list check failed (continuing)', blockErr);
+  }
+
+  if (landingOverride) {
+    // Re-anchor the redirect on the Counsel workspace while carrying
+    // over every auth cookie the exchange attached to successResponse.
+    const dest = NextResponse.redirect(new URL(landingOverride, url.origin));
+    for (const cookie of successResponse.cookies.getAll()) {
+      dest.cookies.set(cookie);
+    }
+    return dest;
   }
 
   return successResponse;

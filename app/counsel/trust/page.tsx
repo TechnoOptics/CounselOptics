@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
+import { getFirmSurfaceSettings } from '@/lib/firm-settings';
 import { createServerSupabase } from '@/lib/supabase/server';
 import {
   reconcileTrustAccount,
@@ -50,6 +51,9 @@ export default async function CounselTrustPage({
 }) {
   const ctx = await getActiveFirmContext();
   if (!ctx) redirect('/counsel');
+  if ((await getFirmSurfaceSettings(ctx.firm.id)).hideTimeBilling) {
+    redirect('/counsel');
+  }
   const supabase = createServerSupabase();
 
   const { data: accountsRaw } = await supabase

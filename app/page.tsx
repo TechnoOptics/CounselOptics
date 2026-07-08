@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import type { Metadata } from 'next';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
+import { resolveDefaultLanding } from '@/lib/landing';
 import { listCases } from '@/lib/storage';
 import { storageUnavailable } from '@/lib/setup-status';
 import { TestimonialMarquee } from '@/components/TestimonialMarquee';
@@ -67,7 +68,10 @@ export default async function HomePage() {
       const user = await getCurrentUser();
       if (user) {
         signedIn = true;
-        redirect('/cases');
+        // Firm owners/members belong in the Counsel workspace, not the
+        // consumer /cases app. resolveDefaultLanding checks firm
+        // membership and falls back to /cases for everyone else.
+        redirect(await resolveDefaultLanding());
       }
     } catch (err) {
       // redirect() throws a Next.js NEXT_REDIRECT internally; let it

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
+import { getFirmSurfaceSettings } from '@/lib/firm-settings';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { ExternalLink } from '@/components/ExternalLink';
 import { MarkPaidButton } from './mark-paid-button';
@@ -31,6 +32,9 @@ function fmtCents(cents: number) {
 export default async function CounselBillingPage() {
   const ctx = await getActiveFirmContext();
   if (!ctx) redirect('/counsel');
+  if ((await getFirmSurfaceSettings(ctx.firm.id)).hideTimeBilling) {
+    redirect('/counsel');
+  }
   const supabase = createServerSupabase();
 
   const [{ data: invoicesRaw }, { data: openTimerRaw }, { data: unbilledRaw }] =

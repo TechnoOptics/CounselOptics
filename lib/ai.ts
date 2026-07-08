@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { CASE_TYPES, type CaseType } from './types';
 import type { AIReview, Case, Exhibit, ScanData } from './types';
+import { AiUnavailableError, friendlyAiError } from './ai-errors';
 
 const MODEL = 'claude-sonnet-4-6';
 const FAST_MODEL = 'claude-haiku-4-5-20251001';
@@ -230,20 +231,28 @@ Use the submit_review tool to return your structured analysis.`;
 
   const client = new Anthropic({ apiKey });
 
-  const result = await client.messages.create({
-    model: MODEL,
-    max_tokens: 4000,
-    system: [
-      {
-        type: 'text',
-        text: SYSTEM_PROMPT,
-        cache_control: { type: 'ephemeral' },
-      },
-    ],
-    tools: [TOOL_SCHEMA],
-    tool_choice: { type: 'tool', name: 'submit_review' },
-    messages: [{ role: 'user', content: userContent }],
-  });
+  let result;
+  try {
+    result = await client.messages.create({
+      model: MODEL,
+      max_tokens: 4000,
+      system: [
+        {
+          type: 'text',
+          text: SYSTEM_PROMPT,
+          cache_control: { type: 'ephemeral' },
+        },
+      ],
+      tools: [TOOL_SCHEMA],
+      tool_choice: { type: 'tool', name: 'submit_review' },
+      messages: [{ role: 'user', content: userContent }],
+    });
+  } catch (err) {
+    // Never let raw Anthropic JSON (credit/quota 400, 429, auth) reach
+    // the UI. AiUnavailableError.message is already the calm, branded
+    // copy, so a client boundary can render err.message safely.
+    throw new AiUnavailableError(err, 'runReview');
+  }
 
   // Pro tier: deduct input + output tokens from the user's quota.
   // No-op for Basic/Standard/anonymous (handled inside the helper).
@@ -495,25 +504,30 @@ export async function scanDocument(input: {
         source: { type: 'base64', media_type: 'application/pdf', data: dataB64 },
       };
 
-  const result = await client.messages.create({
-    model: MODEL,
-    max_tokens: 2000,
-    system: [{ type: 'text', text: SCAN_SYSTEM, cache_control: { type: 'ephemeral' } }],
-    tools: [SCAN_TOOL],
-    tool_choice: { type: 'tool', name: 'submit_scan' },
-    messages: [
-      {
-        role: 'user',
-        content: [
-          filePart,
-          {
-            type: 'text',
-            text: `File name: ${input.fileName}\n\nUse the submit_scan tool to return structured metadata about this document.`,
-          },
-        ],
-      },
-    ],
-  });
+  let result;
+  try {
+    result = await client.messages.create({
+      model: MODEL,
+      max_tokens: 2000,
+      system: [{ type: 'text', text: SCAN_SYSTEM, cache_control: { type: 'ephemeral' } }],
+      tools: [SCAN_TOOL],
+      tool_choice: { type: 'tool', name: 'submit_scan' },
+      messages: [
+        {
+          role: 'user',
+          content: [
+            filePart,
+            {
+              type: 'text',
+              text: `File name: ${input.fileName}\n\nUse the submit_scan tool to return structured metadata about this document.`,
+            },
+          ],
+        },
+      ],
+    });
+  } catch (err) {
+    throw new AiUnavailableError(err, 'scanDocument');
+  }
 
   const toolUse = result.content.find(
     (b): b is Extract<(typeof result.content)[number], { type: 'tool_use' }> =>
@@ -595,14 +609,26 @@ export async function transcribeMedia(input: {
   form.append('model', 'whisper-1');
   form.append('response_format', 'json');
 
-  const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}` },
-    body: form,
-  });
+  let res: Response;
+  try {
+    res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: form,
+    });
+  } catch (err) {
+    // Network-level failure reaching OpenAI (timeout, DNS, socket).
+    throw new AiUnavailableError(err, 'transcribeMedia');
+  }
   if (!res.ok) {
     const errText = await res.text().catch(() => '');
-    throw new Error(`Whisper transcription failed (${res.status}): ${errText.slice(0, 300)}`);
+    // Log the raw provider text server-side, but surface only the calm,
+    // branded copy. Pass the status + text so it's classified correctly
+    // (e.g. 429 insufficient_quota -> "busy"/"unavailable").
+    throw new AiUnavailableError(
+      { status: res.status, message: errText.slice(0, 400) },
+      'transcribeMedia',
+    );
   }
   const json = (await res.json()) as { text?: string };
   const transcript = json.text ?? '';

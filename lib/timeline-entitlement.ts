@@ -3,7 +3,7 @@ import { cookies } from 'next/headers';
 import { getCurrentSubscription, getProfile } from './storage';
 import { activeTier } from './tier';
 import { tierSlugFromPriceId } from './stripe';
-import { personalTierForSlug } from './personal-tiers';
+import { personalTierForSlug, COMP_ULTRA_PRICE_ID } from './personal-tiers';
 import type { Subscription } from './types';
 import type { TierSlug } from './token-packages';
 
@@ -36,6 +36,13 @@ const FIRM_SLUGS: ReadonlySet<TierSlug> = new Set([
 /** Pure entitlement from a subscription. */
 export function timelineAccessFor(sub: Subscription | null | undefined): TimelineAccess {
   if (!sub || (sub.status !== 'active' && sub.status !== 'trialing')) return 'locked';
+  // Comp / founder / support / QA accounts (lifetime Ultra) get the full
+  // firm build everywhere, including the consumer timeline. The comp is
+  // meant to be unconditional access — not a personal-tier ceiling — so a
+  // comped account switching into the consumer view must never hit the
+  // "firm-plan feature" gate. Mirrors the admin short-circuit in
+  // resolveTimelineAccess.
+  if (sub.priceId === COMP_ULTRA_PRICE_ID) return 'firm';
   const slug = tierSlugFromPriceId(sub.priceId);
   if (slug && FIRM_SLUGS.has(slug)) return 'firm';
   if (slug === 'pro_plus') return 'submit';

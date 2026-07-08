@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
+import { resolveDefaultLanding, isDefaultConsumerLanding } from '@/lib/landing';
 import { SignInButtons } from './sign-in-buttons';
 import { BrandMark } from '@/components/BrandMark';
 import { BiometricUnlockGate } from '@/components/BiometricUnlockGate';
@@ -216,7 +217,16 @@ export default async function SignInPage({
   // Auto-redirect ONLY when the user did NOT explicitly ask to
   // switch. The switching branch falls through to the picker below
   // with an extra "currently signed in as X" panel on top.
-  if (user && !switching) redirect(next);
+  if (user && !switching) {
+    // When the destination is just the generic consumer dashboard
+    // (no deliberate deep link), send firm owners/members to their
+    // Counsel workspace instead of the consumer /cases app. A specific
+    // deep link is always honoured.
+    if (isDefaultConsumerLanding(next)) {
+      redirect(await resolveDefaultLanding());
+    }
+    redirect(next);
+  }
 
   return (
     <div className="max-w-md mx-auto animate-fade-up">
