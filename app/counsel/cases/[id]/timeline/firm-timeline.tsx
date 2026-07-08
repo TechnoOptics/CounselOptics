@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { isNativeApp } from '@/lib/platform';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import { RelevanceBadge } from '@/components/RelevanceBadge';
+import { EvidencePreview } from '@/components/EvidencePreview';
 import { CaseMap, type MapPoint } from '@/app/cases/[id]/timeline/case-map';
 import {
   formatOccurred,
@@ -286,38 +287,72 @@ export function FirmTimeline({
         )
       ) : (
         <ol className="space-y-2">
-          {visible.map((e) => (
-            <li key={e.id} className="card p-3">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-[13.5px] font-medium text-forest-900 dark:text-cream-100 flex flex-wrap items-center gap-1.5">
-                    <span>{KIND_ICON[e.kind]}</span>
-                    <span className="break-words" data-no-translate>{e.title || t('(untitled)')}</span>
-                    <RelevanceBadge score={e.aiExtracted.relevance_score} reason={e.aiExtracted.relevance_reason} size="xs" />
-                  </p>
-                  <p className="text-[11.5px] text-ink-500 dark:text-cream-100/55 mt-0.5" data-no-translate>
-                    {formatOccurred(e.occurredAt, e.occurredPrecision)}
-                    {e.sourceLabel ? ` · ${e.sourceLabel}` : ''}
-                  </p>
-                  {e.aiSummary && (
-                    <p className="text-[12.5px] text-ink-600 dark:text-cream-100/70 mt-1 whitespace-pre-wrap" data-no-translate>
-                      {e.aiSummary}
-                    </p>
+          {visible.map((e) => {
+            const ext = e.aiExtracted ?? {};
+            const facts = [
+              ...(ext.detected_people ?? []).slice(0, 4),
+              ...(ext.organizations ?? []).slice(0, 3),
+              ...(ext.locations ?? []).slice(0, 3),
+            ];
+            return (
+              <li key={e.id} className="card p-3">
+                <div className="flex gap-3">
+                  {e.media[0] && (
+                    <button
+                      type="button"
+                      onClick={() => openMedia(e.media[0].path)}
+                      className="block h-24 w-24 shrink-0 overflow-hidden rounded-lg ring-1 ring-ink-100 dark:ring-forest-800/40 sm:h-28 sm:w-28"
+                      aria-label={t('Open')}
+                    >
+                      <EvidencePreview firmId={firmId} caseId={caseId} event={e} rounded="rounded-none" className="h-full w-full" />
+                    </button>
                   )}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-[13.5px] font-medium text-forest-900 dark:text-cream-100 flex flex-wrap items-center gap-1.5">
+                          <span>{KIND_ICON[e.kind]}</span>
+                          <span className="break-words" data-no-translate>{e.title || t('(untitled)')}</span>
+                          <RelevanceBadge score={e.aiExtracted.relevance_score} reason={e.aiExtracted.relevance_reason} size="xs" />
+                        </p>
+                        <p className="text-[11.5px] text-ink-500 dark:text-cream-100/55 mt-0.5" data-no-translate>
+                          {formatOccurred(e.occurredAt, e.occurredPrecision)}
+                          {e.sourceLabel ? ` · ${e.sourceLabel}` : ''}
+                        </p>
+                      </div>
+                      {e.media[0] && (
+                        <button
+                          type="button"
+                          onClick={() => openMedia(e.media[0].path)}
+                          className="inline-flex items-center min-h-[30px] px-2.5 rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 text-[12px] hover:bg-cream-50 dark:hover:bg-forest-800/30 shrink-0"
+                        >
+                          <T>Open</T>
+                        </button>
+                      )}
+                    </div>
+                    {e.aiSummary && (
+                      <p className="text-[12.5px] text-ink-600 dark:text-cream-100/70 mt-1 line-clamp-3 whitespace-pre-wrap" data-no-translate>
+                        {e.aiSummary}
+                      </p>
+                    )}
+                    {facts.length > 0 && (
+                      <div className="mt-1.5 flex flex-wrap gap-1" data-no-translate>
+                        {facts.map((f, i) => (
+                          <span
+                            key={i}
+                            className="inline-flex items-center rounded-full bg-cream-100/80 px-2 py-[1px] text-[10.5px] text-ink-700 dark:bg-forest-800/50 dark:text-cream-100/80"
+                          >
+                            {f}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
-                {e.media[0] && (
-                  <button
-                    type="button"
-                    onClick={() => openMedia(e.media[0].path)}
-                    className="inline-flex items-center min-h-[30px] px-2.5 rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 text-[12px] hover:bg-cream-50 dark:hover:bg-forest-800/30 shrink-0"
-                  >
-                    <T>Open</T>
-                  </button>
-                )}
-              </div>
-              <SectionComments sectionType="event" targetRef={e.id} />
-            </li>
-          ))}
+                <SectionComments sectionType="event" targetRef={e.id} />
+              </li>
+            );
+          })}
         </ol>
       )}
     </div>
