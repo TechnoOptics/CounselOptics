@@ -15,6 +15,12 @@ import {
 import type { FirmRole, FirmSigningStatus, FirmType } from './firm-types';
 import { FIRM_ROLES, FIRM_TYPES } from './firm-types';
 import { CASE_TYPES, type CaseType, type Posture } from './types';
+import type { Collaborator, CollaboratorRole } from './types';
+import {
+  inviteCollaboratorAsFirm,
+  listCollaboratorsAsFirm,
+  removeCollaboratorAsFirm,
+} from './storage';
 import { logSecurityEvent } from './security-audit';
 import {
   readPortalRoles,
@@ -3799,6 +3805,209 @@ export async function setCaseAssigneeAction(
   revalidatePath('/counsel/cases');
   revalidatePath('/counsel');
   return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Matter collaborators - firm invites people to a matter with clear roles.
+//
+// Reuses the consumer case_collaborators system (same table, same invite
+// email + held-invite flow) but authorizes the firm side: only an
+// owner/admin/attorney of the matter's firm may invite or remove, and all
+// writes go through the service-role client (the caller is not the case's
+// row owner, so RLS would otherwise reject them).
+// ---------------------------------------------------------------------------
+
+/**
+ * The four firm-facing invite roles, mapped onto case_collaborators roles:
+ *   - represented -> 'represented' (client / represented party: view +
+ *     contribute their own evidence/statements)
+ *   - co_counsel  -> 'attorney'    (attorney-level: view + add exhibits)
+ *   - contributor -> 'editor'      (add evidence/notes, no case management)
+ *   - viewer      -> 'viewer'      (read-only)
+ */
+const FIRM_INVITE_ROLE_MAP: Record<string, CollaboratorRole> = {
+  represented: 'represented',
+  co_counsel: 'attorney',
+  contributor: 'editor',
+  viewer: 'viewer',
+};
+
+/** True only if the signed-in user is owner/admin/attorney of `firmId`. */
+async function callerCanManageMatter(firmId: string): Promise<boolean> {
+  const user = await getCurrentUser();
+  if (!user) return false;
+  const supabase = createServerSupabase();
+  const { data } = await supabase
+    .from('firm_members')
+    .select('role')
+    .eq('firm_id', firmId)
+    .eq('user_id', user.id)
+    .maybeSingle();
+  const role = (data as { role?: FirmRole } | null)?.role;
+  return role === 'owner' || role === 'admin' || role === 'attorney';
+}
+
+/**
+ * Invite someone to a firm matter with a role. Server-side authorizes the
+ * caller as an owner/admin/attorney of the matter's firm - the client-sent
+ * role is never trusted. Returns whether the invite email went out.
+ */
+export async function inviteMatterCollaboratorAction(
+  caseId: string,
+  formData: FormData,
+): Promise<{ ok: boolean; error?: string; emailed?: boolean }> {
+  const user = await requireUser();
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server not configured.' };
+
+  const { data: caseRow } = await admin
+    .from('cases')
+    .select('firm_id, title')
+    .eq('id', caseId)
+    .maybeSingle();
+  const cr = caseRow as { firm_id: string | null; title: string } | null;
+  const firmId = cr?.firm_id ?? null;
+  if (!firmId) return { ok: false, error: 'Matter not found.' };
+  if (!(await callerCanManageMatter(firmId))) {
+    return {
+      ok: false,
+      error: 'Only firm owners, admins, or attorneys can invite people to a matter.',
+    };
+  }
+
+  const email = String(formData.get('email') ?? '').trim().toLowerCase();
+  if (!email || !email.includes('@')) {
+    return { ok: false, error: 'Enter a valid email address.' };
+  }
+  const roleKey = String(formData.get('role') ?? 'viewer');
+  const role = FIRM_INVITE_ROLE_MAP[roleKey] ?? 'viewer';
+
+  try {
+    const inviterName =
+      (user.user_metadata?.full_name as string | undefined) ?? user.email ?? 'A colleague';
+    const { emailed, caseTitle } = await inviteCollaboratorAsFirm({
+      caseId,
+      firmId,
+      email,
+      role,
+      inviterId: user.id,
+      inviterName,
+      inviterEmail: user.email ?? null,
+    });
+
+    // Best-effort audit trail.
+    try {
+      const { logCaseEvent } = await import('./activity');
+      await logCaseEvent({
+        caseId,
+        eventType: 'collaborator_invited',
+        metadata: { email, role, roleKey, via: 'firm' },
+      });
+    } catch {
+      /* audit miss is non-blocking */
+    }
+
+    // Best-effort in-app notification if the invitee already has an account.
+    try {
+      const { data: prof } = await admin
+        .from('profiles')
+        .select('id')
+        .eq('email', email)
+        .maybeSingle();
+      const inviteeId = (prof as { id?: string } | null)?.id;
+      if (inviteeId) {
+        const { createNotification } = await import('./notifications');
+        await createNotification({
+          userId: inviteeId,
+          type: 'case_invited',
+          title: 'You were added to a matter',
+          body: caseTitle
+            ? `Open the matter to start collaborating: ${caseTitle}`
+            : 'Open the matter to start collaborating.',
+          link: `/cases/${caseId}`,
+          caseId,
+        });
+      }
+    } catch {
+      /* notification miss is non-blocking */
+    }
+
+    revalidatePath(`/counsel/cases/${caseId}`);
+    return { ok: true, emailed };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Invite failed.',
+    };
+  }
+}
+
+/**
+ * Remove a collaborator from a firm matter. Same owner/admin/attorney
+ * authorization as the invite path.
+ */
+export async function removeMatterCollaboratorAction(
+  caseId: string,
+  collaboratorId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  await requireUser();
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server not configured.' };
+
+  const { data: caseRow } = await admin
+    .from('cases')
+    .select('firm_id')
+    .eq('id', caseId)
+    .maybeSingle();
+  const firmId = (caseRow as { firm_id: string | null } | null)?.firm_id ?? null;
+  if (!firmId) return { ok: false, error: 'Matter not found.' };
+  if (!(await callerCanManageMatter(firmId))) {
+    return { ok: false, error: 'Not authorized to manage this matter.' };
+  }
+
+  try {
+    await removeCollaboratorAsFirm({ collaboratorId, firmId });
+    try {
+      const { logCaseEvent } = await import('./activity');
+      await logCaseEvent({
+        caseId,
+        eventType: 'collaborator_removed',
+        metadata: { collaboratorId, via: 'firm' },
+      });
+    } catch {
+      /* audit miss is non-blocking */
+    }
+    revalidatePath(`/counsel/cases/${caseId}`);
+    return { ok: true };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Remove failed.',
+    };
+  }
+}
+
+/**
+ * Server-side list of a matter's collaborators for the counsel case page.
+ * Authorizes the caller as any member of the matter's firm (viewing is
+ * open to the legal team; invite/remove is gated separately). Returns an
+ * empty list for non-members.
+ */
+export async function listMatterCollaboratorsAction(
+  caseId: string,
+): Promise<Collaborator[]> {
+  await requireUser();
+  const admin = createAdminSupabase();
+  if (!admin) return [];
+  const { data: caseRow } = await admin
+    .from('cases')
+    .select('firm_id')
+    .eq('id', caseId)
+    .maybeSingle();
+  const firmId = (caseRow as { firm_id: string | null } | null)?.firm_id ?? null;
+  if (!firmId) return [];
+  if (!(await callerIsFirmMember(firmId))) return [];
+  return listCollaboratorsAsFirm(caseId, firmId);
 }
 
 // Marker so we can inspect at runtime whether the redirect helper is

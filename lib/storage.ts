@@ -1343,6 +1343,111 @@ export async function listCollaborators(caseId: string): Promise<Collaborator[]>
   return (data as CollaboratorRow[]).map(collaboratorFromRow);
 }
 
+/** Resolve an auth user's id by email (service-role read of auth.users). */
+async function lookupUserIdByEmail(
+  admin: NonNullable<ReturnType<typeof createAdminSupabase>>,
+  email: string,
+): Promise<string | null> {
+  const { data: usersResp } = await admin.auth.admin.listUsers({ perPage: 1000 });
+  const match = usersResp.users.find(
+    (u) => (u.email ?? '').toLowerCase() === email.toLowerCase(),
+  );
+  return match ? match.id : null;
+}
+
+/**
+ * Email a collaborator their sign-up / sign-in link. We generate the auth
+ * link server-side (via the admin API) and deliver it through Resend,
+ * because Supabase's built-in email service is heavily rate-limited
+ * (~3-4/hour on the free tier) and frequently doesn't deliver to real
+ * inboxes. If RESEND_API_KEY isn't configured, we fall back to Supabase's
+ * built-in email path so the invite still has a chance of going out.
+ *
+ * Best-effort: returns false (never throws) on any send failure, so the
+ * invite row stays in place and the collaborator can still sign up with
+ * the matching email later.
+ */
+async function deliverCollaboratorInviteEmail(params: {
+  admin: NonNullable<ReturnType<typeof createAdminSupabase>>;
+  email: string;
+  caseId: string;
+  caseTitle: string;
+  existingUserId: string | null;
+  inviterName: string;
+  inviterEmail: string | null;
+}): Promise<boolean> {
+  const { admin, email, caseId, caseTitle, existingUserId, inviterName, inviterEmail } =
+    params;
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://advottic.com';
+  const redirectTo = `${siteUrl}/auth/callback?next=${encodeURIComponent('/cases?welcome=1')}`;
+  try {
+    let actionLink: string | null = null;
+    if (existingUserId) {
+      const linkRes = await admin.auth.admin.generateLink({
+        type: 'magiclink',
+        email,
+        options: { redirectTo },
+      });
+      actionLink = linkRes.data.properties?.action_link ?? null;
+    } else {
+      const linkRes = await admin.auth.admin.generateLink({
+        type: 'invite',
+        email,
+        options: {
+          redirectTo,
+          data: {
+            invited_to_case: caseId,
+            invited_to_case_title: caseTitle,
+            invited_by: inviterEmail ?? '',
+          },
+        },
+      });
+      actionLink = linkRes.data.properties?.action_link ?? null;
+    }
+
+    const resendKey = process.env.RESEND_API_KEY?.trim();
+    if (actionLink && resendKey) {
+      const subject = existingUserId
+        ? `${inviterName} added you to "${caseTitle}" on Advottic`
+        : `${inviterName} invited you to "${caseTitle}" on Advottic`;
+      const html = buildInviteEmailHtml({
+        inviterName,
+        caseTitle,
+        link: actionLink,
+        isNewUser: !existingUserId,
+      });
+      const result = await sendEmail({
+        to: email,
+        subject,
+        html,
+        replyTo: inviterEmail ?? undefined,
+      });
+      return result.ok;
+    }
+    // No Resend configured (or generateLink failed) - fall back to
+    // Supabase's built-in delivery so the invite still has a chance.
+    if (existingUserId) {
+      await admin.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo: redirectTo, shouldCreateUser: false },
+      });
+    } else {
+      await admin.auth.admin.inviteUserByEmail(email, {
+        redirectTo,
+        data: {
+          invited_to_case: caseId,
+          invited_to_case_title: caseTitle,
+          invited_by: inviterEmail ?? '',
+        },
+      });
+    }
+    return true;
+  } catch (err) {
+    console.error('[deliverCollaboratorInviteEmail] email failed', err);
+    return false;
+  }
+}
+
 export async function inviteCollaborator(input: {
   caseId: string;
   email: string;
@@ -1367,14 +1472,9 @@ export async function inviteCollaborator(input: {
 
   // Look up existing user (via service role to read auth.users)
   const admin = createAdminSupabase();
-  let existingUserId: string | null = null;
-  if (admin) {
-    const { data: usersResp } = await admin.auth.admin.listUsers({ perPage: 1000 });
-    const match = usersResp.users.find(
-      (u) => (u.email ?? '').toLowerCase() === input.email.toLowerCase(),
-    );
-    if (match) existingUserId = match.id;
-  }
+  const existingUserId = admin
+    ? await lookupUserIdByEmail(admin, input.email)
+    : null;
 
   const email = input.email.toLowerCase();
   const { data, error } = await supabase
@@ -1394,92 +1494,161 @@ export async function inviteCollaborator(input: {
     .single();
   if (error) throw error;
 
-  // Email the invitee a sign-up / sign-in link. We generate the auth link
-  // server-side (via the admin API) and deliver it through Resend, because
-  // Supabase's built-in email service is heavily rate-limited (~3-4/hour
-  // on the free tier) and frequently doesn't deliver to real inboxes.
-  // If RESEND_API_KEY isn't configured, we fall back to Supabase's built-in
-  // email path so the invite still has a chance of going out.
-  let emailed = false;
-  if (admin) {
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://advottic.com';
-    const redirectTo = `${siteUrl}/auth/callback?next=${encodeURIComponent('/cases?welcome=1')}`;
-    const inviterName =
-      (user.user_metadata?.full_name as string | undefined) ?? user.email ?? 'A colleague';
-
-    try {
-      let actionLink: string | null = null;
-      if (existingUserId) {
-        const linkRes = await admin.auth.admin.generateLink({
-          type: 'magiclink',
-          email,
-          options: { redirectTo },
-        });
-        actionLink = linkRes.data.properties?.action_link ?? null;
-      } else {
-        const linkRes = await admin.auth.admin.generateLink({
-          type: 'invite',
-          email,
-          options: {
-            redirectTo,
-            data: {
-              invited_to_case: input.caseId,
-              invited_to_case_title: caseRow.title,
-              invited_by: user.email ?? user.id,
-            },
-          },
-        });
-        actionLink = linkRes.data.properties?.action_link ?? null;
-      }
-
-      const resendKey = process.env.RESEND_API_KEY?.trim();
-      if (actionLink && resendKey) {
-        const subject = existingUserId
-          ? `${inviterName} added you to "${caseRow.title}" on Advottic`
-          : `${inviterName} invited you to "${caseRow.title}" on Advottic`;
-        const html = buildInviteEmailHtml({
-          inviterName,
-          caseTitle: caseRow.title,
-          link: actionLink,
-          isNewUser: !existingUserId,
-        });
-        const result = await sendEmail({
-          to: email,
-          subject,
-          html,
-          replyTo: user.email ?? undefined,
-        });
-        emailed = result.ok;
-      } else {
-        // No Resend configured (or generateLink failed) - fall back to
-        // Supabase's built-in delivery so the invite still has a chance.
-        if (existingUserId) {
-          await admin.auth.signInWithOtp({
-            email,
-            options: { emailRedirectTo: redirectTo, shouldCreateUser: false },
-          });
-        } else {
-          await admin.auth.admin.inviteUserByEmail(email, {
-            redirectTo,
-            data: {
-              invited_to_case: input.caseId,
-              invited_to_case_title: caseRow.title,
-              invited_by: user.email ?? user.id,
-            },
-          });
-        }
-        emailed = true;
-      }
-    } catch (err) {
-      // Email send failed (rate limit, bad config, etc). Don't fail the
-      // invite itself; the row is in place and the collaborator can sign
-      // up on their own with the matching email later.
-      console.error('[inviteCollaborator] email failed', err);
-      emailed = false;
-    }
-  }
+  const emailed = admin
+    ? await deliverCollaboratorInviteEmail({
+        admin,
+        email,
+        caseId: input.caseId,
+        caseTitle: caseRow.title,
+        existingUserId,
+        inviterName:
+          (user.user_metadata?.full_name as string | undefined) ??
+          user.email ??
+          'A colleague',
+        inviterEmail: user.email ?? null,
+      })
+    : false;
 
   return { collaborator: collaboratorFromRow(data as CollaboratorRow), emailed };
+}
+
+/**
+ * Firm-side invite: a law firm invites someone to a matter it owns.
+ *
+ * Unlike inviteCollaborator (which authorizes the case OWNER and writes
+ * through the user-scoped client), the caller here is a firm member who
+ * is NOT the case's row owner, so RLS on case_collaborators would reject
+ * the insert. We therefore write through the service-role client - the
+ * same pattern every other firm-case write uses (see firm-actions.ts).
+ *
+ * Authorization (caller is an owner/admin/attorney of the matter's firm)
+ * is enforced by the calling server action; as defense-in-depth we also
+ * confirm the case actually belongs to `firmId` before writing.
+ */
+export async function inviteCollaboratorAsFirm(input: {
+  caseId: string;
+  firmId: string;
+  email: string;
+  role: CollaboratorRole;
+  inviterId: string;
+  inviterName: string;
+  inviterEmail: string | null;
+}): Promise<{ collaborator: Collaborator; emailed: boolean; caseTitle: string }> {
+  if (!usingSupabase()) {
+    throw new Error('Collaborators require Supabase to be configured.');
+  }
+  const admin = createAdminSupabase();
+  if (!admin) throw new Error('Server not configured for firm invites.');
+
+  const { data: caseRow, error: caseErr } = await admin
+    .from('cases')
+    .select('id, title, firm_id')
+    .eq('id', input.caseId)
+    .maybeSingle();
+  if (caseErr) throw caseErr;
+  const cr = caseRow as { id: string; title: string; firm_id: string | null } | null;
+  if (!cr || cr.firm_id !== input.firmId) {
+    throw new Error('Matter not found for this firm.');
+  }
+
+  const email = input.email.toLowerCase();
+  const existingUserId = await lookupUserIdByEmail(admin, email);
+
+  const { data, error } = await admin
+    .from('case_collaborators')
+    .upsert(
+      {
+        case_id: input.caseId,
+        email,
+        role: input.role,
+        user_id: existingUserId,
+        invited_by: input.inviterId,
+        accepted_at: existingUserId ? new Date().toISOString() : null,
+      },
+      { onConflict: 'case_id,email' },
+    )
+    .select('*')
+    .single();
+  if (error) throw error;
+
+  const emailed = await deliverCollaboratorInviteEmail({
+    admin,
+    email,
+    caseId: input.caseId,
+    caseTitle: cr.title,
+    existingUserId,
+    inviterName: input.inviterName,
+    inviterEmail: input.inviterEmail,
+  });
+
+  return {
+    collaborator: collaboratorFromRow(data as CollaboratorRow),
+    emailed,
+    caseTitle: cr.title,
+  };
+}
+
+/**
+ * Firm-side list: read a matter's collaborators through the service-role
+ * client (the firm member calling this is not the case row owner, so RLS
+ * would otherwise return nothing). Verifies the case belongs to `firmId`.
+ */
+export async function listCollaboratorsAsFirm(
+  caseId: string,
+  firmId: string,
+): Promise<Collaborator[]> {
+  if (!usingSupabase()) return [];
+  const admin = createAdminSupabase();
+  if (!admin) return [];
+  const { data: caseRow } = await admin
+    .from('cases')
+    .select('firm_id')
+    .eq('id', caseId)
+    .maybeSingle();
+  if ((caseRow as { firm_id: string | null } | null)?.firm_id !== firmId) return [];
+  const { data, error } = await admin
+    .from('case_collaborators')
+    .select('*')
+    .eq('case_id', caseId)
+    .order('invited_at', { ascending: true });
+  if (error) throw error;
+  return (data as CollaboratorRow[]).map(collaboratorFromRow);
+}
+
+/**
+ * Firm-side remove: delete a matter collaborator through the service-role
+ * client. Verifies the collaborator's case belongs to `firmId` so a
+ * caller authorized for one firm can't remove collaborators on another.
+ */
+export async function removeCollaboratorAsFirm(input: {
+  collaboratorId: string;
+  firmId: string;
+}): Promise<void> {
+  if (!usingSupabase()) {
+    throw new Error('Collaborators require Supabase to be configured.');
+  }
+  const admin = createAdminSupabase();
+  if (!admin) throw new Error('Server not configured.');
+  const { data: collabRow } = await admin
+    .from('case_collaborators')
+    .select('case_id')
+    .eq('id', input.collaboratorId)
+    .maybeSingle();
+  const caseId = (collabRow as { case_id?: string } | null)?.case_id;
+  if (!caseId) return; // already gone
+  const { data: caseRow } = await admin
+    .from('cases')
+    .select('firm_id')
+    .eq('id', caseId)
+    .maybeSingle();
+  if ((caseRow as { firm_id: string | null } | null)?.firm_id !== input.firmId) {
+    throw new Error('Not authorized to remove this collaborator.');
+  }
+  const { error } = await admin
+    .from('case_collaborators')
+    .delete()
+    .eq('id', input.collaboratorId);
+  if (error) throw error;
 }
 
 export async function removeCollaborator(collaboratorId: string): Promise<void> {
