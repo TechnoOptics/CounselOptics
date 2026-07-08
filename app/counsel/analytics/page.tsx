@@ -2,13 +2,22 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { getFirmAnalytics, type StatusCount, type MonthPoint } from '@/lib/counsel-analytics';
+import { getFirmImpact, type Bucket, type FirmImpact } from '@/lib/counsel-impact';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Analytics · Counsel' };
+export const metadata = { title: 'Impact · Counsel' };
 
 function fmtCents(cents: number) {
-  return (cents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+  return (cents / 100).toLocaleString('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  });
+}
+function fmtHours(hours: number) {
+  if (hours >= 100) return `${Math.round(hours)}h`;
+  return `${hours.toFixed(1)}h`;
 }
 function prettify(s: string) {
   return s.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase());
@@ -17,6 +26,9 @@ function prettify(s: string) {
 // Friendly labels for known statuses; anything else is prettified.
 const LABELS: Record<string, string> = {
   in_progress: 'In progress',
+  under_review: 'Under review',
+  needs_evidence: 'Needs evidence',
+  export_ready: 'Export ready',
   conflict_check_passed: 'Cleared',
   conflict_check_flagged: 'Conflict flagged',
   engaged: 'Engaged',
@@ -44,67 +56,131 @@ const BAR_TONES = [
   'bg-ink-400 dark:bg-cream-100/40',
 ];
 
-export default async function CounselAnalyticsPage() {
+export default async function CounselImpactPage() {
   const ctx = await getActiveFirmContext();
   if (!ctx) redirect('/counsel');
-  const a = await getFirmAnalytics(ctx.firm.id);
+  const [a, impact] = await Promise.all([
+    getFirmAnalytics(ctx.firm.id),
+    getFirmImpact(ctx.firm.id),
+  ]);
+
+  const trustCents = a.trust.bookBalanceCents;
 
   return (
     <div className="space-y-8 animate-fade-up">
       <header>
-        <p className="eyebrow mb-1"><T>Analytics</T></p>
+        <p className="eyebrow mb-1"><T>Impact</T></p>
         <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          <T>Firm dashboard</T>
+          <T>Firm impact</T>
         </h1>
         <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-          <T>How</T> {ctx.firm.name}{' '}
+          <T>The work</T> {ctx.firm.name}{' '}
           <T>
-            is tracking across requests, signing, matters, meetings, and
-            money. Live from your own data.
+            is carrying right now, at a glance: matters, evidence, the
+            calendar ahead, and the money in motion. Live from your own
+            data.
           </T>
         </p>
       </header>
 
-      {/* KPI row */}
+      {/* Impact KPI row */}
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Kpi label="Open requests" value={String(a.requests.open)} sub={`${a.requests.thisMonth} new this month`} tone="forest" href="/counsel/inbox" />
-        <Kpi label="Signed this month" value={String(a.signing.completedThisMonth)} sub={`${a.signing.completed} completed all-time`} tone="emerald" href="/counsel/signing" />
-        <Kpi label="Upcoming meetings" value={String(a.meetings.upcoming)} sub={`${a.meetings.thisMonth} this month`} tone="sky" href="/counsel/calendar" />
-        <Kpi label="Outstanding invoices" value={fmtCents(a.billing.outstandingCents)} sub={`${fmtCents(a.billing.paidThisMonthCents)} paid this month`} tone="amber" href="/counsel/billing" />
-        <Kpi label="Requests this year" value={String(a.requests.thisYear)} sub={`${a.requests.total} all-time`} tone="forest" />
-        <Kpi label="Avg. resolution" value={a.requests.avgResolutionDays === null ? '—' : `${a.requests.avgResolutionDays.toFixed(1)}d`} sub="request → engaged/closed" tone="ink" />
-        <Kpi label="Signing turnaround" value={a.signing.avgTurnaroundDays === null ? '—' : `${a.signing.avgTurnaroundDays.toFixed(1)}d`} sub="sent → signed" tone="ink" />
-        <Kpi label="Trust on deposit" value={fmtCents(a.trust.bookBalanceCents)} sub={`${a.people.members} team · ${a.people.employees} staff`} tone="forest" href="/counsel/trust" />
+        <Kpi
+          label="Open matters"
+          value={String(impact.matters.open)}
+          sub={`${impact.matters.total} total`}
+          tone="forest"
+          href="/counsel/cases"
+        />
+        <Kpi
+          label="Evidence logged"
+          value={String(impact.evidence.total)}
+          sub={`${impact.evidence.high} highly relevant`}
+          tone="emerald"
+        />
+        <Kpi
+          label="Upcoming hearings"
+          value={String(impact.schedule.hearingsUpcoming)}
+          sub={`${impact.schedule.deadlinesUpcoming} due within 30 days`}
+          tone="sky"
+          href="/counsel/calendar"
+        />
+        <Kpi
+          label="Overdue deadlines"
+          value={String(impact.schedule.deadlinesOverdue)}
+          sub="hearing passed, matter still open"
+          tone={impact.schedule.deadlinesOverdue > 0 ? 'rose' : 'ink'}
+          href="/counsel/cases"
+        />
+        <Kpi
+          label="Hours logged"
+          value={fmtHours(impact.time.hoursLogged)}
+          sub={`${fmtHours(impact.time.billableHours)} billable`}
+          tone="forest"
+          href="/counsel/time"
+        />
+        <Kpi
+          label="Unbilled time"
+          value={fmtCents(impact.time.unbilledCents)}
+          sub={`${fmtCents(a.billing.outstandingCents)} invoiced, unpaid`}
+          tone="amber"
+          href="/counsel/billing"
+        />
+        <Kpi
+          label="Trust on deposit"
+          value={fmtCents(trustCents)}
+          sub="client funds held"
+          tone="forest"
+          href="/counsel/trust"
+        />
+        <Kpi
+          label="Open requests"
+          value={String(a.requests.open)}
+          sub={`${a.requests.thisMonth} new this month`}
+          tone="sky"
+          href="/counsel/inbox"
+        />
       </section>
 
-      {/* Requests trend + status */}
+      {/* Matters */}
+      <section className="grid lg:grid-cols-3 gap-4">
+        <Panel title="Matters by status">
+          <StatusBars data={impact.matters.byStatus} total={impact.matters.total} />
+        </Panel>
+        <Panel title="Matters by type">
+          <BucketBars data={impact.matters.byType} total={impact.matters.total} />
+        </Panel>
+        <Panel title="Matters by posture">
+          <BucketBars data={impact.matters.byPosture} total={impact.matters.total} />
+        </Panel>
+      </section>
+
+      {/* Evidence + schedule */}
       <section className="grid lg:grid-cols-2 gap-4">
+        <Panel title="Evidence relevance">
+          <RelevanceSplit ev={impact.evidence} />
+        </Panel>
+        <Panel title="On the calendar">
+          <SchedulePanel schedule={impact.schedule} />
+        </Panel>
+      </section>
+
+      {/* Activity + signing */}
+      <section className="grid lg:grid-cols-2 gap-4">
+        <Panel title="Matters opened, last 6 months">
+          <MonthlyBars points={impact.activity} />
+        </Panel>
         <Panel title="Requests, last 6 months">
           <MonthlyBars points={a.requests.monthly} />
         </Panel>
-        <Panel title="Requests by status">
-          <StatusBars data={a.requests.byStatus} total={a.requests.total} />
-        </Panel>
       </section>
 
-      {/* Signing + documents + cases */}
-      <section className="grid lg:grid-cols-3 gap-4">
-        <Panel title="Signing by status">
-          <StatusBars data={a.signing.byStatus} total={a.signing.total} />
-        </Panel>
-        <Panel title="Cases by status">
-          <StatusBars data={a.cases.byStatus} total={a.cases.total} />
-        </Panel>
-        <Panel title="Documents by status">
-          <StatusBars data={a.documents.byStatus} total={a.documents.total} />
-        </Panel>
-      </section>
-
-      {/* Money */}
-      <section className="grid sm:grid-cols-3 gap-3">
+      {/* Money + time */}
+      <section className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <MoneyStat label="Unbilled time" value={fmtCents(impact.time.unbilledCents)} accent />
+        <MoneyStat label="Billed time" value={fmtCents(impact.time.billedCents)} />
         <MoneyStat label="Paid this month" value={fmtCents(a.billing.paidThisMonthCents)} />
-        <MoneyStat label="Paid this year" value={fmtCents(a.billing.paidThisYearCents)} />
-        <MoneyStat label="Outstanding" value={fmtCents(a.billing.outstandingCents)} accent />
+        <MoneyStat label="Trust on deposit" value={fmtCents(trustCents)} />
       </section>
     </div>
   );
@@ -120,7 +196,7 @@ function Kpi({
   label: string;
   value: string;
   sub: string;
-  tone: 'forest' | 'emerald' | 'sky' | 'amber' | 'ink';
+  tone: 'forest' | 'emerald' | 'sky' | 'amber' | 'rose' | 'ink';
   href?: string;
 }) {
   const accent =
@@ -130,9 +206,11 @@ function Kpi({
         ? 'text-sky-700 dark:text-sky-300'
         : tone === 'amber'
           ? 'text-amber-700 dark:text-amber-300'
-          : tone === 'ink'
-            ? 'text-ink-700 dark:text-cream-100/80'
-            : 'text-forest-800 dark:text-gold-300';
+          : tone === 'rose'
+            ? 'text-rose-700 dark:text-rose-300'
+            : tone === 'ink'
+              ? 'text-ink-700 dark:text-cream-100/80'
+              : 'text-forest-800 dark:text-gold-300';
   const body = (
     <div className="card p-4 h-full">
       <p className="text-[10.5px] uppercase tracking-[0.14em] text-ink-500 dark:text-cream-100/55">
@@ -162,6 +240,14 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
   );
 }
 
+function EmptyNote() {
+  return (
+    <p className="text-[12.5px] text-ink-400 dark:text-cream-100/40 italic py-6">
+      <T>Nothing yet. This fills in as you use Advottic.</T>
+    </p>
+  );
+}
+
 function MonthlyBars({ points }: { points: MonthPoint[] }) {
   const max = Math.max(1, ...points.map((p) => p.count));
   return (
@@ -185,13 +271,7 @@ function MonthlyBars({ points }: { points: MonthPoint[] }) {
 }
 
 function StatusBars({ data, total }: { data: StatusCount[]; total: number }) {
-  if (total === 0) {
-    return (
-      <p className="text-[12.5px] text-ink-400 dark:text-cream-100/40 italic py-6">
-        <T>Nothing yet — this fills in as you use Advottic.</T>
-      </p>
-    );
-  }
+  if (total === 0) return <EmptyNote />;
   return (
     <ul className="space-y-2.5">
       {data.map((d, i) => {
@@ -204,16 +284,205 @@ function StatusBars({ data, total }: { data: StatusCount[]; total: number }) {
                 {d.count} · {pct}%
               </span>
             </div>
-            <div className="h-2 rounded-full bg-ink-100 dark:bg-forest-800/60 overflow-hidden">
-              <div
-                className={`h-full rounded-full ${BAR_TONES[i % BAR_TONES.length]}`}
-                style={{ width: `${Math.max(3, pct)}%` }}
-              />
-            </div>
+            <Track pct={pct} tone={BAR_TONES[i % BAR_TONES.length]} />
           </li>
         );
       })}
     </ul>
+  );
+}
+
+function BucketBars({ data, total }: { data: Bucket[]; total: number }) {
+  if (total === 0 || data.length === 0) return <EmptyNote />;
+  return (
+    <ul className="space-y-2.5">
+      {data.map((d, i) => {
+        const pct = Math.round((d.count / total) * 100);
+        return (
+          <li key={d.key}>
+            <div className="flex items-center justify-between text-[12.5px] mb-1">
+              <span className="text-forest-900 dark:text-cream-100" data-no-translate>{d.label}</span>
+              <span className="text-ink-500 dark:text-cream-100/55 font-mono tabular-nums">
+                {d.count} · {pct}%
+              </span>
+            </div>
+            <Track pct={pct} tone={BAR_TONES[i % BAR_TONES.length]} />
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function Track({ pct, tone }: { pct: number; tone: string }) {
+  return (
+    <div className="h-2 rounded-full bg-ink-100 dark:bg-forest-800/60 overflow-hidden">
+      <div
+        className={`h-full rounded-full ${tone}`}
+        style={{ width: `${Math.max(3, pct)}%` }}
+      />
+    </div>
+  );
+}
+
+function RelevanceSplit({ ev }: { ev: FirmImpact['evidence'] }) {
+  if (ev.scored === 0) {
+    return (
+      <div className="space-y-3">
+        <p className="text-[12.5px] text-ink-600 dark:text-cream-100/70">
+          <T>Evidence items logged</T>:{' '}
+          <span className="font-mono tabular-nums text-forest-900 dark:text-cream-100">
+            {ev.total}
+          </span>
+        </p>
+        <p className="text-[12px] text-ink-400 dark:text-cream-100/40 italic">
+          <T>
+            None scored for relevance yet. Run Advottic Review on a matter
+            to see how its evidence maps to the case.
+          </T>
+        </p>
+      </div>
+    );
+  }
+  const segs = [
+    { key: 'high', label: 'Highly relevant', count: ev.high, tone: 'bg-emerald-500' },
+    { key: 'medium', label: 'Relevant', count: ev.medium, tone: 'bg-amber-500' },
+    { key: 'low', label: 'Low relevance', count: ev.low, tone: 'bg-ink-300 dark:bg-forest-700' },
+  ];
+  return (
+    <div className="space-y-4">
+      <div className="flex items-end justify-between">
+        <p className="text-[12.5px] text-ink-600 dark:text-cream-100/70">
+          <span className="font-mono tabular-nums text-forest-900 dark:text-cream-100 text-lg">
+            {ev.scored}
+          </span>{' '}
+          <T>of</T> {ev.total} <T>items scored</T>
+        </p>
+        {ev.avgScore !== null && (
+          <p className="text-[12px] text-ink-500 dark:text-cream-100/55">
+            <T>Avg</T>{' '}
+            <span className="font-mono tabular-nums">{ev.avgScore.toFixed(0)}</span>/100
+          </p>
+        )}
+      </div>
+      {/* Segmented bar */}
+      <div className="flex h-3 rounded-full overflow-hidden bg-ink-100 dark:bg-forest-800/60">
+        {segs.map((s) =>
+          s.count > 0 ? (
+            <div
+              key={s.key}
+              className={s.tone}
+              style={{ width: `${(s.count / ev.scored) * 100}%` }}
+              title={`${s.label}: ${s.count}`}
+            />
+          ) : null,
+        )}
+      </div>
+      <ul className="space-y-1.5">
+        {segs.map((s) => (
+          <li key={s.key} className="flex items-center justify-between text-[12.5px]">
+            <span className="flex items-center gap-2 text-forest-900 dark:text-cream-100">
+              <span className={`h-2.5 w-2.5 rounded-sm ${s.tone}`} aria-hidden />
+              <SegLabel k={s.key} />
+            </span>
+            <span className="text-ink-500 dark:text-cream-100/55 font-mono tabular-nums">
+              {s.count}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+// Static, translatable labels for the three relevance bands (keyed so
+// the guard sees literal <T> children, not a dynamic wrap).
+function SegLabel({ k }: { k: string }) {
+  if (k === 'high') return <T>Highly relevant</T>;
+  if (k === 'medium') return <T>Relevant</T>;
+  return <T>Low relevance</T>;
+}
+
+function SchedulePanel({
+  schedule,
+}: {
+  schedule: {
+    hearingsUpcoming: number;
+    nextHearings: Array<{ caseId: string; title: string; at: string; location: string | null }>;
+    deadlinesOverdue: number;
+    deadlinesUpcoming: number;
+  };
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-3 gap-2 text-center">
+        <MiniStat value={schedule.hearingsUpcoming} label="Upcoming hearings" />
+        <MiniStat value={schedule.deadlinesUpcoming} label="Due in 30 days" />
+        <MiniStat
+          value={schedule.deadlinesOverdue}
+          label="Overdue"
+          tone={schedule.deadlinesOverdue > 0 ? 'rose' : 'ink'}
+        />
+      </div>
+      {schedule.nextHearings.length > 0 ? (
+        <ul className="space-y-1.5 pt-1">
+          {schedule.nextHearings.map((h) => (
+            <li key={h.caseId}>
+              <Link
+                href={`/counsel/cases/${h.caseId}`}
+                className="flex items-center justify-between gap-3 rounded-lg px-2.5 py-2 hover:bg-cream-50 dark:hover:bg-forest-800/50 transition-colors"
+              >
+                <span className="min-w-0">
+                  <span className="block text-[13px] text-forest-900 dark:text-cream-100 truncate" data-no-translate>
+                    {h.title}
+                  </span>
+                  {h.location && (
+                    <span className="block text-[11px] text-ink-500 dark:text-cream-100/55 truncate" data-no-translate>
+                      {h.location}
+                    </span>
+                  )}
+                </span>
+                <span className="text-[11.5px] text-ink-600 dark:text-cream-100/70 whitespace-nowrap" data-no-translate>
+                  {new Date(h.at).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                  })}
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-[12.5px] text-ink-400 dark:text-cream-100/40 italic pt-1">
+          <T>No hearings on the calendar. Add a hearing date to a matter to track it here.</T>
+        </p>
+      )}
+    </div>
+  );
+}
+
+function MiniStat({
+  value,
+  label: l,
+  tone = 'forest',
+}: {
+  value: number;
+  label: string;
+  tone?: 'forest' | 'rose' | 'ink';
+}) {
+  const accent =
+    tone === 'rose'
+      ? 'text-rose-700 dark:text-rose-300'
+      : tone === 'ink'
+        ? 'text-ink-500 dark:text-cream-100/55'
+        : 'text-forest-800 dark:text-gold-300';
+  return (
+    <div className="rounded-lg ring-1 ring-ink-100 dark:ring-forest-700/40 py-2.5">
+      <p className={`font-display text-2xl leading-none ${accent}`}>{value}</p>
+      <p className="text-[10px] uppercase tracking-[0.1em] text-ink-500 dark:text-cream-100/55 mt-1 px-1">
+        <T>{l}</T>
+      </p>
+    </div>
   );
 }
 
