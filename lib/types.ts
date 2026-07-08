@@ -146,13 +146,19 @@ export type Exhibit = {
   uploadedAt: string;
 };
 
-export type CollaboratorRole = 'viewer' | 'editor' | 'attorney' | 'witness';
+export type CollaboratorRole =
+  | 'viewer'
+  | 'editor'
+  | 'attorney'
+  | 'witness'
+  | 'represented';
 
 export const COLLABORATOR_ROLE_LABEL: Record<CollaboratorRole, string> = {
   viewer: 'Viewer',
   editor: 'Editor',
   attorney: 'Attorney',
   witness: 'Witness',
+  represented: 'Represented party',
 };
 
 export type Collaborator = {

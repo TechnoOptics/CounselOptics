@@ -88,7 +88,8 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
     isOwner ||
     myCollab?.role === 'editor' ||
     myCollab?.role === 'attorney' ||
-    myCollab?.role === 'witness';
+    myCollab?.role === 'witness' ||
+    myCollab?.role === 'represented';
   const isWitness = myCollab?.role === 'witness';
   const jurisdiction = [c.jurisdiction.city, c.jurisdiction.state, c.jurisdiction.country]
     .filter(Boolean)

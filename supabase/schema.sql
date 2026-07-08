@@ -105,7 +105,7 @@ create table if not exists public.case_collaborators (
   case_id uuid not null references public.cases(id) on delete cascade,
   user_id uuid references auth.users(id) on delete cascade,
   email text not null,
-  role text not null default 'viewer' check (role in ('viewer', 'editor', 'attorney')),
+  role text not null default 'viewer' check (role in ('viewer', 'editor', 'attorney', 'witness', 'represented')),
   invited_by uuid references auth.users(id) on delete set null,
   invited_at timestamptz not null default now(),
   accepted_at timestamptz
@@ -272,7 +272,7 @@ as $$
       select 1 from public.case_collaborators
       where case_id = _case_id
         and user_id = auth.uid()
-        and role in ('editor', 'attorney')
+        and role in ('editor', 'attorney', 'represented')
     );
 $$;
 

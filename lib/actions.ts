@@ -637,7 +637,13 @@ export async function inviteCollaboratorAction(caseId: string, formData: FormDat
   if (!email || !email.includes('@')) {
     throw new Error('Enter a valid email address.');
   }
-  const validRoles: CollaboratorRole[] = ['viewer', 'editor', 'attorney', 'witness'];
+  const validRoles: CollaboratorRole[] = [
+    'viewer',
+    'editor',
+    'attorney',
+    'witness',
+    'represented',
+  ];
   const role: CollaboratorRole = validRoles.includes(roleRaw as CollaboratorRole)
     ? (roleRaw as CollaboratorRole)
     : 'viewer';
