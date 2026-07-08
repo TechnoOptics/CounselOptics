@@ -356,7 +356,23 @@ export async function updateSession(request: NextRequest) {
       (originalPath === '/' || originalPath === '')
     ) {
       const dashUrl = request.nextUrl.clone();
+      // Firm owners/members land in the Counsel workspace; everyone else
+      // in the consumer cases dashboard. Best-effort: any lookup failure
+      // falls through to /cases so the home redirect never breaks. RLS
+      // scopes firm_members to the signed-in user automatically.
       dashUrl.pathname = '/cases';
+      try {
+        const { data: memberRows } = await supabase
+          .from('firm_members')
+          .select('id')
+          .eq('user_id', user.id)
+          .limit(1);
+        if (memberRows && memberRows.length > 0) {
+          dashUrl.pathname = '/counsel';
+        }
+      } catch {
+        /* keep /cases */
+      }
       return applySeoHeaders(NextResponse.redirect(dashUrl));
     }
 
