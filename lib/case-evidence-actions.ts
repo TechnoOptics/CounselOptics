@@ -109,6 +109,7 @@ export async function bulkImportCaseEvidenceAction(
   firmId: string,
   caseId: string,
   formData: FormData,
+  opts?: { analyze?: boolean },
 ): Promise<{ ok: boolean; error?: string; imported?: number; failed?: number; errors?: string[] }> {
   const gate = await assertFirmCase(firmId, caseId);
   if (!gate.ok) return { ok: false, error: gate.error };
@@ -120,13 +121,19 @@ export async function bulkImportCaseEvidenceAction(
     .filter((f): f is File => typeof f === 'object' && f !== null && 'size' in f && (f as File).size > 0);
   if (files.length === 0) return { ok: false, error: 'Choose at least one file.' };
 
-  const aiEligible = aiConfigured() && (await resolveTimelineAccess()) === 'firm';
+  // Inline analysis is skipped when the caller opts out (large drops import
+  // fast and get scored afterwards via analyzeFirmCaseEventAction), so a
+  // thousand-file intake isn't gated on a thousand sequential model calls.
+  const aiEligible =
+    opts?.analyze !== false && aiConfigured() && (await resolveTimelineAccess()) === 'firm';
   const caseContext: CaseContext | null = aiEligible ? await loadCaseContext(admin, caseId) : null;
 
   let imported = 0;
   let failed = 0;
   const errors: string[] = [];
-  for (const f of files.slice(0, 12)) {
+  // Safety cap per request; the client packs batches well under this and under
+  // the 50 MB server-action body limit, so this only bounds a malformed request.
+  for (const f of files.slice(0, 25)) {
     try {
       if (f.size > MAX_EVIDENCE_BYTES) {
         failed++;

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useRef, useState, useTransition } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { isNativeApp } from '@/lib/platform';
 import { T, useT } from '@/components/i18n/LocaleProvider';
@@ -21,7 +21,33 @@ import {
   getFirmEvidenceMediaUrl,
 } from '@/lib/case-evidence-actions';
 
-const BATCH = 6; // files per request, so the UI can show progress + stay in limits
+// Requests are packed by BOTH a file count and a byte budget so a batch never
+// exceeds the 50 MB server-action body limit, whatever the file sizes are.
+const MAX_BATCH_FILES = 10;
+const MAX_BATCH_BYTES = 40 * 1024 * 1024; // headroom under the 50 MB server limit
+// Above this many files in one drop, import fast (no inline AI) and let the
+// user score relevance afterwards - so a 1,000+ item intake isn't blocked on
+// a thousand sequential model calls.
+const DEFER_AI_ABOVE = 40;
+const ANALYZE_CONCURRENCY = 3; // parallel scoring passes when analysing pending
+
+/** Pack files into request-sized batches bounded by count AND total bytes. */
+function packBatches(files: File[]): File[][] {
+  const batches: File[][] = [];
+  let cur: File[] = [];
+  let curBytes = 0;
+  for (const f of files) {
+    if (cur.length >= MAX_BATCH_FILES || (cur.length > 0 && curBytes + f.size > MAX_BATCH_BYTES)) {
+      batches.push(cur);
+      cur = [];
+      curBytes = 0;
+    }
+    cur.push(f);
+    curBytes += f.size;
+  }
+  if (cur.length) batches.push(cur);
+  return batches;
+}
 
 /**
  * Pull real files AND web URLs out of a drop. `dataTransfer` is only valid
@@ -118,31 +144,81 @@ export function EvidenceIntake({
       setError(null);
       setNotice(null);
       setBusy(true);
+      // Large drops import fast: skip inline scoring so the intake keeps moving,
+      // then relevance is scored afterwards via "Analyse pending".
+      const deferAi = aiEnabled && files.length > DEFER_AI_ABOVE;
+      const batches = packBatches(files);
       let imported = 0;
       let failed = 0;
+      let done = 0;
       const errors: string[] = [];
       setProgress({ done: 0, total: files.length });
-      for (let i = 0; i < files.length; i += BATCH) {
-        const batch = files.slice(i, i + BATCH);
+      for (let b = 0; b < batches.length; b++) {
+        const batch = batches[b];
         const fd = new FormData();
         for (const f of batch) fd.append('files', f);
-        const res = await bulkImportCaseEvidenceAction(firmId, caseId, fd);
+        const res = await bulkImportCaseEvidenceAction(firmId, caseId, fd, {
+          analyze: !deferAi,
+        });
         imported += res.imported ?? 0;
         failed += res.failed ?? 0;
         if (res.errors) errors.push(...res.errors);
         if (!res.ok && res.error && !res.imported) errors.push(res.error);
-        setProgress({ done: Math.min(i + BATCH, files.length), total: files.length });
-        await refresh();
+        done += batch.length;
+        setProgress({ done, total: files.length });
+        // Refresh the list periodically rather than every batch so a huge drop
+        // doesn't fire hundreds of timeline reads while it's still importing.
+        if (b === batches.length - 1 || b % 5 === 4) await refresh();
       }
       setBusy(false);
       setProgress(null);
       const parts = [t('Imported {n} file(s).').replace('{n}', String(imported))];
       if (failed) parts.push(t('{n} could not be imported.').replace('{n}', String(failed)));
+      if (deferAi && imported) {
+        parts.push(t('Relevance scoring is pending — run "Analyse pending" below.'));
+      }
       setNotice(parts.join(' '));
       if (errors.length) setError(errors.slice(0, 4).join('  •  '));
     },
-    [firmId, caseId, refresh, t],
+    [firmId, caseId, refresh, aiEnabled, t],
   );
+
+  // Score every not-yet-analysed entry, a few at a time, so a big backlog after
+  // a large import gets relevance scores without a thousand-deep serial queue.
+  const analyzePending = useCallback(async () => {
+    const queue = events.filter((e) => e.aiStatus === 'skipped').map((e) => e.id);
+    if (queue.length === 0) return;
+    setError(null);
+    setNotice(null);
+    setBusy(true);
+    setProgress({ done: 0, total: queue.length });
+    setAnalyzing(new Set(queue));
+    let done = 0;
+    let idx = 0;
+    const worker = async () => {
+      for (;;) {
+        const i = idx++;
+        if (i >= queue.length) return;
+        const id = queue[i];
+        const res = await analyzeFirmCaseEventAction(firmId, caseId, id);
+        if (res.event) {
+          const ev = res.event;
+          setEvents((list) => list.map((e) => (e.id === id ? ev : e)));
+        }
+        setAnalyzing((s) => {
+          const n = new Set(s);
+          n.delete(id);
+          return n;
+        });
+        done += 1;
+        setProgress({ done, total: queue.length });
+      }
+    };
+    await Promise.all(Array.from({ length: ANALYZE_CONCURRENCY }, worker));
+    setBusy(false);
+    setProgress(null);
+    setNotice(t('Scored {n} item(s).').replace('{n}', String(done)));
+  }, [events, firmId, caseId, t]);
 
   const importFromUrls = useCallback(
     async (urls: string[]) => {
@@ -170,6 +246,56 @@ export function EvidenceIntake({
     if (files.length) void upload(files);
     else if (urls.length) void importFromUrls(urls);
   };
+
+  // Paste-to-add: ⌘/Ctrl-V a screenshot or copied image straight onto the
+  // page. A document-level listener catches the paste even when nothing is
+  // focused; it only acts on image/file payloads (or a pasted http URL), so it
+  // never hijacks an ordinary text paste.
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const dt = e.clipboardData;
+      if (!dt) return;
+      const files: File[] = [];
+      const seen = new Set<string>();
+      const add = (f: File | null) => {
+        if (!f || f.size === 0) return;
+        const key = `${f.name}:${f.size}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          files.push(f);
+        }
+      };
+      for (const it of Array.from(dt.items ?? [])) {
+        if (it.kind === 'file') add(it.getAsFile());
+      }
+      for (const f of Array.from(dt.files ?? [])) add(f);
+      if (files.length) {
+        e.preventDefault();
+        // Clipboard images often arrive unnamed or as "image.png"; give each a
+        // unique, extension-correct name so they don't collide.
+        const stamp = Date.now();
+        const named = files.map((f, i) => {
+          if (f.name && f.name !== 'image.png') return f;
+          const ext = (f.type.split('/')[1] || 'png').replace(/[^a-z0-9]/gi, '') || 'png';
+          return new File([f], `pasted-${stamp}-${i}.${ext}`, { type: f.type });
+        });
+        void upload(named);
+        return;
+      }
+      const text = dt.getData('text/plain')?.trim();
+      if (text && /^https?:\/\//i.test(text)) {
+        e.preventDefault();
+        void importFromUrls([text]);
+      }
+    };
+    document.addEventListener('paste', onPaste);
+    return () => document.removeEventListener('paste', onPaste);
+  }, [upload, importFromUrls]);
+
+  const pendingCount = useMemo(
+    () => (aiEnabled ? events.filter((e) => e.aiStatus === 'skipped').length : 0),
+    [aiEnabled, events],
+  );
 
   function reanalyze(id: string) {
     setAnalyzing((s) => new Set(s).add(id));
@@ -248,20 +374,32 @@ export function EvidenceIntake({
           <T>Photos, video, PDFs and documents, and email files (.eml, .msg). Drop many at once.</T>
         </p>
         <p className="mt-0.5 text-[11.5px] text-ink-400 dark:text-cream-100/45">
-          <T>Drag straight from your desktop, an email, your photos, or an image on a web page.</T>
+          <T>Drag straight from your desktop, an email, your photos, or an image on a web page - or paste a screenshot. Thousands at once is fine.</T>
         </p>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => fileRef.current?.click()}
-          className="btn-primary mt-3 disabled:opacity-50"
-        >
-          {busy
-            ? progress
-              ? t('Importing {d}/{n}…').replace('{d}', String(progress.done)).replace('{n}', String(progress.total))
-              : t('Importing…')
-            : t('Choose files')}
-        </button>
+        <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => fileRef.current?.click()}
+            className="btn-primary disabled:opacity-50"
+          >
+            {busy
+              ? progress
+                ? t('Importing {d}/{n}…').replace('{d}', String(progress.done)).replace('{n}', String(progress.total))
+                : t('Importing…')
+              : t('Choose files')}
+          </button>
+          {pendingCount > 0 && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void analyzePending()}
+              className="inline-flex items-center min-h-[38px] px-3 rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 text-[13px] text-ink-700 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/30 disabled:opacity-50"
+            >
+              {t('Analyse pending ({n})').replace('{n}', String(pendingCount))}
+            </button>
+          )}
+        </div>
         <input
           ref={fileRef}
           type="file"
