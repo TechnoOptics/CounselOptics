@@ -64,7 +64,22 @@ function gaugeColor(n: number) {
   return 'text-rose-600';
 }
 
-export function EvidenceHeatmap({ caseId }: { caseId: string }) {
+export function EvidenceHeatmap({
+  caseId,
+  variant = 'consumer',
+}: {
+  caseId: string;
+  /**
+   * 'consumer' - "Evidence Strength / Do you have enough to win?": the
+   * self-represented litigant asking whether they can prevail.
+   * 'firm' - "Evidence Coverage / discovery gaps": same element-by-element
+   * /api/strength analysis, reframed as a coverage + gap-closing read for
+   * counsel working up the matter. Not "can I win" but "what's thin and
+   * what do we still need to pull in discovery".
+   */
+  variant?: 'consumer' | 'firm';
+}) {
+  const isFirm = variant === 'firm';
   const [data, setData] = useState<Result | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -95,14 +110,16 @@ export function EvidenceHeatmap({ caseId }: { caseId: string }) {
     <section className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="eyebrow mb-1">Evidence Strength</p>
-          <h2 className="font-display text-2xl font-medium tracking-[-0.01em] text-forest-900">
-            Do you have enough to win?
+          <p className="eyebrow mb-1">
+            {isFirm ? 'Evidence Coverage' : 'Evidence Strength'}
+          </p>
+          <h2 className="font-display text-2xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
+            {isFirm ? 'Where are the discovery gaps?' : 'Do you have enough to win?'}
           </h2>
-          <p className="text-sm text-ink-500 mt-1 max-w-xl leading-relaxed">
-            An honest, element-by-element read of how well your
-            exhibits back the things a case like this has to prove -
-            and the one piece that would help most next.
+          <p className="text-sm text-ink-500 dark:text-cream-100/70 mt-1 max-w-xl leading-relaxed">
+            {isFirm
+              ? 'An element-by-element read of how well the exhibits on file cover what this kind of matter has to establish - and the single item worth pulling in next to close the thinnest gap.'
+              : 'An honest, element-by-element read of how well your exhibits back the things a case like this has to prove - and the one piece that would help most next.'}
           </p>
         </div>
         <button
@@ -115,7 +132,9 @@ export function EvidenceHeatmap({ caseId }: { caseId: string }) {
             ? 'Analyzing...'
             : data
               ? 'Re-analyze'
-              : 'Analyze my evidence'}
+              : isFirm
+                ? 'Analyze coverage'
+                : 'Analyze my evidence'}
         </button>
       </div>
 
@@ -168,7 +187,7 @@ export function EvidenceHeatmap({ caseId }: { caseId: string }) {
             </div>
             <div className="min-w-0">
               <p className="text-[11px] uppercase tracking-[0.18em] font-semibold text-ink-400">
-                Evidence readiness
+                {isFirm ? 'Evidence coverage' : 'Evidence readiness'}
               </p>
               <p className="text-sm text-ink-700 mt-1 leading-relaxed">
                 {data.summary}
@@ -233,9 +252,9 @@ export function EvidenceHeatmap({ caseId }: { caseId: string }) {
             })}
           </div>
           <p className="text-[11px] text-ink-400 leading-relaxed">
-            A general organizational read of typical elements -
-            jurisdictions and facts vary, and this is not legal
-            advice. Use it to find and close gaps before they matter.
+            {isFirm
+              ? 'A working read of the typical elements for this kind of matter - a drafting aid for the team, not a substitute for counsel judgment. Jurisdictions and facts vary; use it to prioritize what to pull in discovery.'
+              : 'A general organizational read of typical elements - jurisdictions and facts vary, and this is not legal advice. Use it to find and close gaps before they matter.'}
           </p>
         </div>
       )}

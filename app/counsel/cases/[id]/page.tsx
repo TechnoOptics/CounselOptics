@@ -17,6 +17,12 @@ import { CaseInvitePanel } from './case-invite-panel';
 import { LinkedProjectsPanel } from './linked-projects-panel';
 import { MatterFacts } from './matter-facts';
 import { T } from '@/components/i18n/LocaleProvider';
+import { aiConfigured } from '@/lib/timeline-ai';
+import { resolveTimelineAccess } from '@/lib/timeline-entitlement';
+import { getLatestReview } from '@/lib/storage';
+import { ReviewPanel } from '@/app/cases/[id]/review-panel';
+import { EvidenceHeatmap } from '@/components/EvidenceHeatmap';
+import { BellaPrompt } from '@/components/BellaPrompt';
 
 export const dynamic = 'force-dynamic';
 
@@ -115,6 +121,18 @@ export default async function CounselCaseDetailPage({
     firm_id: string | null;
   };
   if (c.firm_id !== ctx.firm.id) notFound();
+
+  // Firm-tailored analytical surfaces (Case Analysis + Evidence
+  // Coverage) reuse the SAME entitlement the evidence intake gates on:
+  // a firm-tier subscription (resolveTimelineAccess === 'firm') AND a
+  // configured model. getLatestReview reads through RLS, so it only
+  // returns a review the member is allowed to see. Best-effort review
+  // fetch: a miss just renders the "Run Case Analysis" empty state.
+  const [access, latestReview] = await Promise.all([
+    resolveTimelineAccess(),
+    getLatestReview(params.id).catch(() => null),
+  ]);
+  const aiEnabled = aiConfigured() && access === 'firm';
 
   // assigned_to is fetched separately and best-effort so this page can't
   // 500 on a DB that predates the case-assignee migration - a failed
@@ -340,6 +358,53 @@ export default async function CounselCaseDetailPage({
         hearingLocation={c.hearing_location}
         hearingNotes={c.hearing_notes}
       />
+
+      {/* Case analysis - the substantive analytical surfaces ported from
+          the personal case file (app/cases/[id]) and reframed as firm
+          work product: "Case Analysis" (the Advottic Review AI, minus
+          the consumer "bring in a licensed attorney" callout - the firm
+          IS counsel) and "Evidence Coverage" (the element-by-element
+          strength read, reframed around discovery gaps). Gated on the
+          firm AI entitlement (firm-tier + configured model), the same
+          gate the evidence intake uses. These are case-substance
+          surfaces, not firm-internal ops, so they carry cleanly into
+          the Slice 3 client view later. */}
+      {aiEnabled && (
+        <section className="space-y-8 border-t border-ink-100 dark:border-forest-700/40 pt-8">
+          <div>
+            <p className="eyebrow mb-1"><T>Analysis</T></p>
+            <h2 className="font-display text-2xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
+              <T>Case analysis</T>
+            </h2>
+            <p className="text-sm text-ink-500 dark:text-cream-100/55 mt-1 max-w-2xl leading-relaxed">
+              <T>
+                AI-assisted issue spotting and evidence-coverage read for the
+                team - work product, grounded in the matter facts and exhibits
+                on file. Matter content is never used to train external models.
+              </T>
+            </p>
+          </div>
+
+          <ReviewPanel
+            caseId={params.id}
+            review={latestReview}
+            variant="firm"
+            showBella={false}
+          />
+
+          <EvidenceHeatmap caseId={params.id} variant="firm" />
+
+          <BellaPrompt
+            title="Work this matter with Advottic"
+            subtitle="Litigation-focused prompts grounded in the matter facts and exhibits on file."
+            prompts={[
+              'Identify the discovery gaps for this matter.',
+              'Summarize exhibit relevance to our theory of the case.',
+              "What's missing to prove each element?",
+            ]}
+          />
+        </section>
+      )}
 
       {/* Matter room - idempotent: getOrCreate ensures one channel
           per case_id (the unique index on firm_channels.case_id
