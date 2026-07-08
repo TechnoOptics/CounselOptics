@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { relevanceBand } from '@/lib/timeline-types';
 
 /**
  * Live case map with a breadcrumb time-slider. Every geocoded pin carries the
@@ -23,7 +24,16 @@ export type MapPoint = {
   when?: string; // human label, e.g. "March 14, 2023, 2:07 PM"
   people?: string[]; // names tagged to the event
   title?: string; // event title
+  relevance?: number; // 0-100 relevance of the owning event to the case
 };
+
+/** Marker opacity by relevance band: low pins are de-emphasised, not hidden. */
+function relevanceOpacity(rel: number | undefined): number {
+  const band = relevanceBand(rel);
+  if (band === 'low') return 0.4;
+  if (band === 'medium') return 0.8;
+  return 1; // high or unscored: full strength
+}
 
 const MAP_STYLE = [
   { featureType: 'landscape', elementType: 'geometry', stylers: [{ color: '#f4f1ea' }] },
@@ -95,6 +105,13 @@ export function CaseMap({ points, title = 'Case map' }: { points: MapPoint[]; ti
 
   // Everyone who appears on a timed, located point — the person filter.
   const [person, setPerson] = useState<string | null>(null);
+  // Optionally hide points whose owning event scored low relevance to the case.
+  const [focusRelevant, setFocusRelevant] = useState(false);
+  const hasLowRelevance = useMemo(
+    () => points.some((p) => relevanceBand(p.relevance) === 'low'),
+    [points],
+  );
+  const keepByRelevance = (p: MapPoint) => !focusRelevant || relevanceBand(p.relevance) !== 'low';
 
   const allPeople = useMemo(() => {
     const set = new Set<string>();
@@ -107,17 +124,20 @@ export function CaseMap({ points, title = 'Case map' }: { points: MapPoint[]; ti
     const list = points
       .filter((p) => p.time && Number.isFinite(p.lat) && Number.isFinite(p.lng))
       .filter((p) => !person || (p.people ?? []).includes(person))
+      .filter(keepByRelevance)
       .map((p) => ({ ...p, t: new Date(p.time as string).getTime() }))
       .filter((p) => Number.isFinite(p.t))
       .sort((a, b) => a.t - b.t);
     return list;
-  }, [points, person]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [points, person, focusRelevant]);
 
   // Located-but-undated points: shown faintly, always, since they have no place
   // on the time slider.
   const undated = useMemo(
-    () => points.filter((p) => !p.time && Number.isFinite(p.lat) && Number.isFinite(p.lng) && (!person || (p.people ?? []).includes(person))),
-    [points, person],
+    () => points.filter((p) => !p.time && Number.isFinite(p.lat) && Number.isFinite(p.lng) && (!person || (p.people ?? []).includes(person)) && keepByRelevance(p)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [points, person, focusRelevant],
   );
 
   const [cursor, setCursor] = useState(0);
@@ -195,7 +215,7 @@ export function CaseMap({ points, title = 'Case map' }: { points: MapPoint[]; ti
         // Undated located points: faint, always shown.
         for (const p of undated) {
           const marker = new maps.Marker({
-            position: { lat: p.lat, lng: p.lng }, map, title: p.label, opacity: 0.55,
+            position: { lat: p.lat, lng: p.lng }, map, title: p.label, opacity: 0.55 * relevanceOpacity(p.relevance),
             icon: { path: maps.SymbolPath.CIRCLE, scale: 5, fillColor: '#9aa39d', fillOpacity: 0.8, strokeColor: '#ffffff', strokeWeight: 1.5 },
           });
           maps.event.addListener(marker, 'click', () => openInfo(p, marker));
@@ -205,9 +225,12 @@ export function CaseMap({ points, title = 'Case map' }: { points: MapPoint[]; ti
         // Timed breadcrumbs up to the cursor; the last is the "current" stop.
         visibleTimed.forEach((p, i) => {
           const isCurrent = i === visibleTimed.length - 1;
+          // The current stop is always full strength; earlier stops fade with
+          // low case-relevance so the eye follows the pins that matter.
           const marker = new maps.Marker({
             position: { lat: p.lat, lng: p.lng }, map, title: p.label,
             zIndex: isCurrent ? 999 : i,
+            opacity: isCurrent ? 1 : relevanceOpacity(p.relevance),
             icon: {
               path: maps.SymbolPath.CIRCLE,
               scale: isCurrent ? 9 : 6,
@@ -257,6 +280,21 @@ export function CaseMap({ points, title = 'Case map' }: { points: MapPoint[]; ti
           {timed.length} timed {timed.length === 1 ? 'point' : 'points'}{undated.length ? ` · ${undated.length} undated` : ''}
         </p>
       </div>
+
+      {/* Relevance focus toggle */}
+      {hasLowRelevance && (
+        <div className="flex items-center justify-end border-b border-forest-900/10 px-5 py-2 dark:border-cream-50/10">
+          <label className="inline-flex cursor-pointer items-center gap-1.5 text-[11px] font-medium text-ink-500 dark:text-cream-300/70">
+            <input
+              type="checkbox"
+              checked={focusRelevant}
+              onChange={(e) => setFocusRelevant(e.target.checked)}
+              className="h-3.5 w-3.5 accent-forest-700"
+            />
+            Hide low-relevance pins
+          </label>
+        </div>
+      )}
 
       {/* Person filter */}
       {allPeople.length > 0 && (

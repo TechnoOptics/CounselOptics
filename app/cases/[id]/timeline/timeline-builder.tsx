@@ -6,6 +6,7 @@ import { MicButton } from './dictation';
 import { MediaLightbox } from './media-lightbox';
 import { CaseMap, type MapPoint } from './case-map';
 import { SmartDatePicker } from './smart-date-picker';
+import { RelevanceBadge } from '@/components/RelevanceBadge';
 import {
   createTimelineEvent,
   analyzeTimelineEvent,
@@ -161,6 +162,7 @@ export function TimelineBuilder({
       when: formatOccurred(e.occurredAt, e.occurredPrecision),
       people: e.people.map(peopleName).filter(Boolean),
       title: e.title,
+      relevance: e.aiExtracted.relevance_score,
     })),
   );
 
@@ -522,8 +524,11 @@ function EventCard({
             <span>{KIND_LABEL[event.kind]}</span>
             {event.sourceLabel && (<><span aria-hidden>·</span><span>{event.sourceLabel}</span></>)}
           </div>
-          <h3 className="mt-0.5 font-medium text-forest-900 dark:text-cream-100" data-no-translate>
-            {event.title || <span className="italic text-ink-400">Untitled entry</span>}
+          <h3 className="mt-0.5 flex flex-wrap items-center gap-2 font-medium text-forest-900 dark:text-cream-100">
+            <span data-no-translate>
+              {event.title || <span className="italic text-ink-400">Untitled entry</span>}
+            </span>
+            <RelevanceBadge score={event.aiExtracted.relevance_score} reason={event.aiExtracted.relevance_reason} size="xs" />
           </h3>
         </div>
         <div className="flex flex-none gap-1">
