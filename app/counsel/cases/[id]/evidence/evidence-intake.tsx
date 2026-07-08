@@ -547,7 +547,7 @@ export function EvidenceIntake({
             <T>Evidence</T> <span className="text-ink-400 dark:text-cream-100/40">({events.length})</span>
           </h2>
           <Link
-            href={`/cases/${caseId}/timeline`}
+            href={`/counsel/cases/${caseId}/timeline`}
             className="text-[12px] text-ink-500 dark:text-cream-100/55 hover:underline"
           >
             <T>Open full timeline builder</T> →
