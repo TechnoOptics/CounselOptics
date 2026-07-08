@@ -29,6 +29,8 @@ export type PeriodRange = {
   start: string; // ISO
   end: string; // ISO (exclusive)
   label: string;
+  /** Stable anchor key for calendar-period comments (e.g. '2026', '2026-07', '2026-07-08'). */
+  refKey: string;
 };
 
 const LEVELS: { value: CalLevel; label: string }[] = [
@@ -282,7 +284,17 @@ export function FirmTimelineCalendar({
               : cell.start.toLocaleString('en-US', {
                   month: 'short', day: 'numeric', hour: 'numeric', timeZone: 'UTC',
                 });
-      onSelect({ start: cell.start.toISOString(), end: cell.end.toISOString(), label: filterLabel });
+      // A stable anchor key for calendar-period comments, at this cell's grain.
+      const iso = cell.start.toISOString();
+      const refKey =
+        level === 'decade'
+          ? iso.slice(0, 4)
+          : level === 'year'
+            ? iso.slice(0, 7)
+            : level === 'month' || level === 'week'
+              ? iso.slice(0, 10)
+              : iso.slice(0, 13);
+      onSelect({ start: iso, end: cell.end.toISOString(), label: filterLabel, refKey });
       // Drill one zoom finer along the natural chain.
       setAnchor(cell.start);
       if (level === 'decade') setLevel('year');

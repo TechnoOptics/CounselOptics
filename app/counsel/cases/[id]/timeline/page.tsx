@@ -2,8 +2,9 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
-import { createServerSupabase } from '@/lib/supabase/server';
+import { createServerSupabase, getCurrentUser } from '@/lib/supabase/server';
 import { getFirmTimelineBundle } from '@/lib/firm-timeline-actions';
+import { getCaseParticipants, getSectionComments } from '@/lib/case-collab-actions';
 import { resolveTimelineAccess } from '@/lib/timeline-entitlement';
 import { aiConfigured } from '@/lib/timeline-ai';
 import { FactsPanel, type CaseFacts } from '@/app/cases/[id]/timeline/facts-panel';
@@ -79,9 +80,12 @@ export default async function FirmTimelinePage({
     createdAt: c.created_at,
   };
 
-  const [bundle, access] = await Promise.all([
+  const [bundle, access, participants, commentBundle, user] = await Promise.all([
     getFirmTimelineBundle(ctx.firm.id, params.id),
     resolveTimelineAccess(),
+    getCaseParticipants(ctx.firm.id, params.id),
+    getSectionComments(ctx.firm.id, params.id),
+    getCurrentUser(),
   ]);
   const aiEnabled = aiConfigured() && access === 'firm';
 
@@ -113,6 +117,12 @@ export default async function FirmTimelinePage({
         caseId={params.id}
         initialBundle={bundle}
         aiEnabled={aiEnabled}
+        collab={{
+          currentUserId: user?.id ?? '',
+          participants,
+          comments: commentBundle.comments,
+          authors: commentBundle.authors,
+        }}
       />
     </div>
   );

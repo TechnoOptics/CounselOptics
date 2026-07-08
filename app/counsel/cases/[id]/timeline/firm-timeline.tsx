@@ -16,6 +16,9 @@ import {
 import { getFirmEvidenceMediaUrl } from '@/lib/case-evidence-actions';
 import { generateFirmTimelineNarrative } from '@/lib/firm-timeline-actions';
 import { FirmTimelineCalendar, type PeriodRange } from './firm-timeline-calendar';
+import { CollabProvider } from './collab-context';
+import { SectionComments } from './section-comments';
+import type { AuthorCard, CaseParticipant, SectionComment } from '@/lib/case-collab-types';
 
 /**
  * Firm-native Case Timeline. Distinct from the evidence intake (which is where
@@ -30,11 +33,18 @@ export function FirmTimeline({
   caseId,
   initialBundle,
   aiEnabled,
+  collab,
 }: {
   firmId: string;
   caseId: string;
   initialBundle: TimelineBundle;
   aiEnabled: boolean;
+  collab: {
+    currentUserId: string;
+    participants: CaseParticipant[];
+    comments: SectionComment[];
+    authors: AuthorCard[];
+  };
 }) {
   const t = useT();
   const [events] = useState<TimelineEvent[]>(initialBundle.events);
@@ -117,6 +127,14 @@ export function FirmTimeline({
   };
 
   return (
+    <CollabProvider
+      firmId={firmId}
+      caseId={caseId}
+      currentUserId={collab.currentUserId}
+      participants={collab.participants}
+      initialComments={collab.comments}
+      initialAuthors={collab.authors}
+    >
     <div className="space-y-6">
       {/* Actions */}
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -229,6 +247,9 @@ export function FirmTimeline({
           >
             <T>Clear filter</T>
           </button>
+          <div className="w-full">
+            <SectionComments sectionType="calendar" targetRef={range.refKey} label={t('Notes on {period}').replace('{period}', range.label)} />
+          </div>
         </div>
       )}
 
@@ -281,10 +302,12 @@ export function FirmTimeline({
                   </button>
                 )}
               </div>
+              <SectionComments sectionType="event" targetRef={e.id} />
             </li>
           ))}
         </ol>
       )}
     </div>
+    </CollabProvider>
   );
 }
