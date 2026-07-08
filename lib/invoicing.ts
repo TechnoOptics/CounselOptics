@@ -24,6 +24,17 @@ import { createAdminSupabase } from './supabase/admin';
  *     - Manual mark-paid (eg. wire received outside Stripe).
  *     - Notifies the firm members who created the invoice.
  *
+ *   voidInvoiceAction(firmId, invoiceId)
+ *     - Cancels a mis-sent/wrong-client invoice from a live state
+ *       (draft/sent, never paid) via an atomic status guard, and
+ *       RELEASES its time entries (invoice_id -> null) so they become
+ *       billable again.
+ *
+ *   deleteDraftInvoiceAction(firmId, invoiceId)
+ *     - Removes a draft outright (draft only) and releases its time
+ *       entries. A draft was never sent, so there's nothing to keep for
+ *       the AR trail - unlike a sent invoice, which is voided (kept).
+ *
  * Currency: USD only for v1. Multi-currency lives in a follow-up.
  */
 
@@ -66,7 +77,15 @@ export async function buildDraftInvoiceAction(
   caseId: string,
   clientEmail: string,
   clientName?: string | null,
-): Promise<{ ok: boolean; error?: string; invoiceId?: string; subtotalCents?: number; lineCount?: number }> {
+): Promise<{
+  ok: boolean;
+  error?: string;
+  invoiceId?: string;
+  subtotalCents?: number;
+  lineCount?: number;
+  warning?: string;
+  unratedCount?: number;
+}> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: 'Sign in first.' };
   const supabase = createServerSupabase();
@@ -118,6 +137,22 @@ export async function buildDraftInvoiceAction(
     const hours = e.duration_seconds / 3600;
     return sum + Math.round(rate * hours);
   }, 0);
+
+  // Entries with no rate get billed at $0 but are still stamped as
+  // invoiced (so they can never be re-billed). That silent write-off is
+  // almost always a data-entry miss - surface it so the drafter can fix
+  // the rate before sending rather than discovering it on the client's
+  // bill. We still draft (the invoice is editable while draft), but the
+  // caller gets a warning + count to show.
+  const unratedCount = entries.filter(
+    (e) => e.rate_cents == null || e.rate_cents === 0,
+  ).length;
+  const warning =
+    unratedCount > 0
+      ? `${unratedCount} time ${
+          unratedCount === 1 ? 'entry has' : 'entries have'
+        } no billing rate and will be invoiced at $0. Set a rate before sending if that's not intended.`
+      : undefined;
 
   // Next invoice number for this firm. Derive from the HIGHEST existing
   // number (not count(*), which would reuse a number after an invoice is
@@ -211,6 +246,8 @@ export async function buildDraftInvoiceAction(
     invoiceId,
     subtotalCents: subtotal,
     lineCount: entries.length,
+    warning,
+    unratedCount,
   };
 }
 
@@ -356,6 +393,166 @@ export async function markInvoicePaidAction(
       link: '/counsel/billing',
     });
   }
+  revalidatePath('/counsel/billing');
+  return { ok: true };
+}
+
+/**
+ * Release every time entry stamped with this invoice back to billable
+ * (invoice_id -> null). MUST run through the service-role client: the
+ * firm_time_entries write policy's USING clause requires
+ * invoice_id IS NULL, so an invoiced entry is immutable to a member -
+ * an RLS-scoped update would match zero rows and silently release
+ * nothing. Also stamps across every attorney's entries, not just the
+ * caller's. Returns false when the entries could not be released so the
+ * caller can warn instead of claiming success.
+ */
+async function releaseInvoiceEntries(
+  admin: ReturnType<typeof createAdminSupabase>,
+  invoiceId: string,
+): Promise<boolean> {
+  if (!admin) return false;
+  const { error } = await admin
+    .from('firm_time_entries')
+    .update({ invoice_id: null })
+    .eq('invoice_id', invoiceId);
+  return !error;
+}
+
+/**
+ * Void a mis-sent/wrong-client invoice and free its time for re-billing.
+ *
+ * Transitions status draft|sent -> void via an ATOMIC guard
+ * (.eq('status', prior)): if a concurrent action paid or already voided
+ * the invoice between our read and write, the update matches zero rows
+ * and we bail without touching the time entries. Paid invoices are never
+ * voidable here - reversing collected AR is a credit-note concern, not a
+ * void. Only after the status flips do we release the entries, so we
+ * never release time off an invoice that's actually still live/paid.
+ */
+export async function voidInvoiceAction(
+  firmId: string,
+  invoiceId: string,
+): Promise<{ ok: boolean; error?: string; releasedEntries?: boolean }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: 'Sign in first.' };
+  const supabase = createServerSupabase();
+
+  const { data: inv } = await supabase
+    .from('firm_invoices')
+    .select('id, firm_id, status')
+    .eq('id', invoiceId)
+    .maybeSingle();
+  if (!inv) return { ok: false, error: 'Invoice not found.' };
+  const invoice = inv as { id: string; firm_id: string; status: string };
+  if (invoice.firm_id !== firmId) {
+    return { ok: false, error: 'Invoice does not belong to this firm.' };
+  }
+
+  const auth = await assertInvoicePoster(supabase, invoice.firm_id, user.id);
+  if (!auth.ok) return auth;
+
+  if (invoice.status === 'void') return { ok: true, releasedEntries: true };
+  if (invoice.status === 'paid') {
+    return {
+      ok: false,
+      error: 'A paid invoice cannot be voided. Issue a refund/credit instead.',
+    };
+  }
+  if (invoice.status !== 'draft' && invoice.status !== 'sent') {
+    return { ok: false, error: `Cannot void an invoice that is ${invoice.status}.` };
+  }
+  const prior = invoice.status;
+
+  // Atomic transition: only flips if the status is still `prior`.
+  const { data: updated, error: updateErr } = await supabase
+    .from('firm_invoices')
+    .update({ status: 'void', updated_at: new Date().toISOString() })
+    .eq('id', invoice.id)
+    .eq('status', prior)
+    .select('id');
+  if (updateErr) {
+    return { ok: false, error: updateErr.message ?? 'Could not void invoice.' };
+  }
+  if (!updated || updated.length === 0) {
+    return {
+      ok: false,
+      error: 'Invoice changed while voiding. Reload and try again.',
+    };
+  }
+
+  const released = await releaseInvoiceEntries(createAdminSupabase(), invoice.id);
+
+  revalidatePath('/counsel/billing');
+  return {
+    ok: true,
+    releasedEntries: released,
+    error: released
+      ? undefined
+      : 'Invoice voided, but its time entries could not be released automatically.',
+  };
+}
+
+/**
+ * Delete a DRAFT invoice outright and release its time entries. A draft
+ * was never sent to the client, so there's no AR trail worth keeping -
+ * unlike a sent invoice, which voidInvoiceAction preserves. Guarded
+ * atomically on status='draft' so a draft that was sent/paid out from
+ * under us is never deleted. The firm_time_entries.invoice_id FK is
+ * `on delete set null` (see 2026-07-03-billing-schema.sql), so the
+ * guarded delete releases the entries as part of the same operation -
+ * which is why we delete FIRST: releasing before the guard could strip
+ * entries off an invoice that was concurrently sent.
+ */
+export async function deleteDraftInvoiceAction(
+  firmId: string,
+  invoiceId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: 'Sign in first.' };
+  const supabase = createServerSupabase();
+
+  const { data: inv } = await supabase
+    .from('firm_invoices')
+    .select('id, firm_id, status')
+    .eq('id', invoiceId)
+    .maybeSingle();
+  if (!inv) return { ok: false, error: 'Invoice not found.' };
+  const invoice = inv as { id: string; firm_id: string; status: string };
+  if (invoice.firm_id !== firmId) {
+    return { ok: false, error: 'Invoice does not belong to this firm.' };
+  }
+
+  const auth = await assertInvoicePoster(supabase, invoice.firm_id, user.id);
+  if (!auth.ok) return auth;
+
+  if (invoice.status !== 'draft') {
+    return {
+      ok: false,
+      error: 'Only draft invoices can be deleted. Void a sent invoice instead.',
+    };
+  }
+
+  // Atomic guarded delete: only removes the row while it is still a
+  // draft. The invoice_id FK's `on delete set null` releases every
+  // stamped time entry as part of this delete, so no separate release
+  // pass is needed - and none can race ahead of the guard.
+  const { data: deleted, error: delErr } = await supabase
+    .from('firm_invoices')
+    .delete()
+    .eq('id', invoice.id)
+    .eq('status', 'draft')
+    .select('id');
+  if (delErr) {
+    return { ok: false, error: delErr.message ?? 'Could not delete draft.' };
+  }
+  if (!deleted || deleted.length === 0) {
+    return {
+      ok: false,
+      error: 'Draft changed while deleting. Reload and try again.',
+    };
+  }
+
   revalidatePath('/counsel/billing');
   return { ok: true };
 }

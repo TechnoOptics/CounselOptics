@@ -27,12 +27,14 @@ export function DraftInvoiceButton({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
 
   function go() {
     setError(null);
+    setWarning(null);
     if (!email.trim()) {
       setError(t('Client email is required.'));
       return;
@@ -45,7 +47,14 @@ export function DraftInvoiceButton({
         name.trim() || null,
       );
       if (res.ok && res.invoiceId) {
-        router.push(`/counsel/billing`);
+        // Some entries had no rate and were billed at $0. Hold on the
+        // page and show the warning so the drafter can fix rates before
+        // sending, rather than silently navigating away.
+        if (res.warning) {
+          setWarning(res.warning);
+        } else {
+          router.push(`/counsel/billing`);
+        }
       } else {
         setError(res.error ?? t('Failed.'));
       }
@@ -81,6 +90,20 @@ export function DraftInvoiceButton({
       {error && (
         <p className="text-[11px] text-rose-700 dark:text-rose-300">{error}</p>
       )}
+      {warning && (
+        <div className="rounded-md ring-1 ring-amber-200 dark:ring-amber-800/50 bg-amber-50 dark:bg-amber-950/30 p-2.5 space-y-1.5">
+          <p className="text-[11px] text-amber-800 dark:text-amber-200 leading-relaxed">
+            {warning}
+          </p>
+          <button
+            type="button"
+            onClick={() => router.push('/counsel/billing')}
+            className="text-[11px] font-semibold underline text-amber-900 dark:text-amber-100"
+          >
+            <T>Open billing to review the draft</T> &rarr;
+          </button>
+        </div>
+      )}
       <div className="flex justify-end gap-2">
         <button
           type="button"
@@ -94,10 +117,12 @@ export function DraftInvoiceButton({
           type="button"
           onClick={go}
           className="btn-primary text-sm"
-          disabled={pending}
+          disabled={pending || warning !== null}
         >
           {pending ? (
             <T>Drafting...</T>
+          ) : warning !== null ? (
+            <T>Drafted</T>
           ) : (
             <>
               <T>Draft for</T> {fmtCents(unbilledCents)}

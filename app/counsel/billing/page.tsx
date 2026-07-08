@@ -4,6 +4,7 @@ import { getActiveFirmContext } from '@/lib/firm-storage';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { ExternalLink } from '@/components/ExternalLink';
 import { MarkPaidButton } from './mark-paid-button';
+import { InvoiceRowActions } from './invoice-actions';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -224,6 +225,13 @@ export default async function CounselBillingPage() {
                     )}
                     {i.status !== 'paid' && i.status !== 'void' && (
                       <MarkPaidButton invoiceId={i.id} />
+                    )}
+                    {(i.status === 'draft' || i.status === 'sent') && (
+                      <InvoiceRowActions
+                        firmId={ctx.firm.id}
+                        invoiceId={i.id}
+                        status={i.status}
+                      />
                     )}
                   </div>
                 </li>
