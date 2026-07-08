@@ -8,6 +8,10 @@
     {
       "path": "/api/cron/purge-community-ids",
       "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/cron/analyze-evidence",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

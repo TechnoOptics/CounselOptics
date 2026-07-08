@@ -125,7 +125,55 @@ export type AiExtracted = {
     date?: string | null;
     attachments?: string[];
   };
+  /**
+   * The folder Advottic filed this item under, from the controlled taxonomy in
+   * EVIDENCE_FOLDERS. Chosen during analysis (or derived from the kind for
+   * unanalysed / legacy rows via folderForEvent). A human move/rename sets this
+   * and flips `folder_locked` so a later re-analysis does not reshuffle it.
+   */
+  folder?: string;
+  /** A person put this item in its folder by hand; re-analysis must not move it. */
+  folder_locked?: boolean;
+  /** A person corrected this entry's analysis; set to the editor's user id. */
+  edited_by?: string;
+  /** ISO timestamp of the last human correction to this entry's analysis. */
+  edited_at?: string;
 };
+
+/**
+ * The small, controlled set of general folders Advottic sorts evidence into.
+ * The reader picks the best fit during analysis; folderForEvent derives one for
+ * rows that were never analysed. Kept deliberately broad so most items land
+ * somewhere sensible without a bespoke taxonomy per case.
+ */
+export const EVIDENCE_FOLDERS = [
+  'Scene & photos',
+  'Communications',
+  'Financial & receipts',
+  'Identity & people',
+  'Documents & contracts',
+  'Location & maps',
+  'Other',
+] as const;
+
+export type EvidenceFolder = (typeof EVIDENCE_FOLDERS)[number];
+
+/** Snap an arbitrary model/user folder string onto the controlled taxonomy. */
+export function normalizeFolder(raw: string | null | undefined): EvidenceFolder | null {
+  const s = (raw ?? '').trim();
+  if (!s) return null;
+  const hit = EVIDENCE_FOLDERS.find((f) => f.toLowerCase() === s.toLowerCase());
+  if (hit) return hit;
+  // Tolerate the reader naming a folder loosely (e.g. "photos", "receipts").
+  const t = s.toLowerCase();
+  if (/receipt|invoice|financ|bank|payment|money|bill/.test(t)) return 'Financial & receipts';
+  if (/message|comm|chat|sms|email|call|text/.test(t)) return 'Communications';
+  if (/identity|people|person|id\b|passport|licen[cs]e/.test(t)) return 'Identity & people';
+  if (/contract|document|agreement|letter|form|record/.test(t)) return 'Documents & contracts';
+  if (/location|map|address|place|gps/.test(t)) return 'Location & maps';
+  if (/scene|photo|image|picture|video/.test(t)) return 'Scene & photos';
+  return 'Other';
+}
 
 /** Coarse relevance bands for badges + map de-emphasis, derived from the score. */
 export type RelevanceBand = 'high' | 'medium' | 'low';
@@ -250,6 +298,32 @@ export function kindFromMime(mime: string, name: string): TimelineKind {
 /** Analysable-as-an-image (Claude vision) — photos, receipts, message screenshots. */
 export function isVisionAnalyzable(mime: string): boolean {
   return /^image\/(jpe?g|png|webp|gif|heic|heif)$/i.test(mime);
+}
+
+/**
+ * The folder an event belongs in: the one Advottic filed it under (or a person
+ * moved it to) when present, otherwise a sensible default derived from its kind
+ * so unanalysed and legacy rows still group somewhere reasonable.
+ */
+export function folderForEvent(ev: {
+  kind: TimelineKind;
+  aiExtracted?: AiExtracted | null;
+}): EvidenceFolder {
+  const stored = normalizeFolder(ev.aiExtracted?.folder);
+  if (stored) return stored;
+  switch (ev.kind) {
+    case 'photo':
+    case 'video':
+      return 'Scene & photos';
+    case 'message':
+      return 'Communications';
+    case 'receipt':
+      return 'Financial & receipts';
+    case 'document':
+      return 'Documents & contracts';
+    default:
+      return 'Other';
+  }
 }
 
 /**

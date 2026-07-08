@@ -316,3 +316,109 @@ export async function importFileAsCaseEvidence(input: {
 
   return { ok: true, eventId };
 }
+
+/** A pending row the background worker will score, in engine-native shape. */
+type PendingRow = {
+  id: string;
+  case_id: string;
+  kind: TimelineKind;
+  title: string | null;
+  description: string | null;
+  media: TimelineMedia[] | null;
+  occurred_at: string | null;
+};
+
+/**
+ * Background sweep that scores the evidence rows a deferred bulk import left
+ * with ai_status 'skipped', plus rows stuck in 'running' past a stale cutoff (a
+ * client that closed its tab mid-queue). It is deliberately firm-scoped: only
+ * rows whose case belongs to a firm are picked up, since the consumer timeline
+ * leaves rows 'skipped' when the viewer has no firm plan and those must stay
+ * unscored. Runs with limited concurrency and never throws; each failure is
+ * recorded on its own row via computeEventAnalysis' error patch. This is what
+ * makes auto-analysis reliable at 1000+ scale even if the browser goes away:
+ * the CRON_SECRET-gated route keeps calling it until nothing is pending.
+ */
+export async function analyzePendingEvidence(
+  admin: SupabaseClient,
+  opts?: { limit?: number; concurrency?: number; staleRunningMs?: number },
+): Promise<{ picked: number; analyzed: number; failed: number; remaining: boolean }> {
+  const limit = Math.max(1, Math.min(opts?.limit ?? 25, 100));
+  const concurrency = Math.max(1, Math.min(opts?.concurrency ?? 3, 8));
+  const staleMs = opts?.staleRunningMs ?? 15 * 60_000;
+  const staleCutoff = new Date(Date.now() - staleMs).toISOString();
+
+  // Pull one extra row than the limit so we can report whether more remain.
+  const { data } = await admin
+    .from('case_timeline_events')
+    .select('id, case_id, kind, title, description, media, occurred_at')
+    .or(`ai_status.eq.skipped,and(ai_status.eq.running,updated_at.lt.${staleCutoff})`)
+    .order('created_at', { ascending: true })
+    .limit(limit + 1);
+  const all = (data ?? []) as PendingRow[];
+  if (all.length === 0) return { picked: 0, analyzed: 0, failed: 0, remaining: false };
+  const remaining = all.length > limit;
+  const rows = all.slice(0, limit);
+
+  // Keep the sweep firm-scoped: only score rows whose case belongs to a firm.
+  const caseIds = [...new Set(rows.map((r) => r.case_id))];
+  const { data: caseRows } = await admin
+    .from('cases')
+    .select('id, firm_id')
+    .in('id', caseIds);
+  const firmCaseIds = new Set(
+    ((caseRows ?? []) as { id: string; firm_id: string | null }[])
+      .filter((c) => c.firm_id)
+      .map((c) => c.id),
+  );
+  const work = rows.filter((r) => firmCaseIds.has(r.case_id));
+  if (work.length === 0) return { picked: 0, analyzed: 0, failed: 0, remaining };
+
+  // Case context is reused across every row of the same case.
+  const contextCache = new Map<string, CaseContext | null>();
+  const contextFor = async (caseId: string): Promise<CaseContext | null> => {
+    if (!contextCache.has(caseId)) contextCache.set(caseId, await loadCaseContext(admin, caseId));
+    return contextCache.get(caseId) ?? null;
+  };
+
+  let analyzed = 0;
+  let failed = 0;
+  let idx = 0;
+  const worker = async () => {
+    for (;;) {
+      const i = idx++;
+      if (i >= work.length) return;
+      const r = work[i];
+      try {
+        await admin.from('case_timeline_events').update({ ai_status: 'running' }).eq('id', r.id);
+        const outcome = await computeEventAnalysis({
+          ev: {
+            id: r.id,
+            media: Array.isArray(r.media) ? r.media : [],
+            description: r.description,
+            kind: r.kind,
+            occurredAt: r.occurred_at,
+            title: r.title ?? '',
+          },
+          admin,
+          caseContext: await contextFor(r.case_id),
+        });
+        await admin.from('case_timeline_events').update(outcome.patch).eq('id', r.id);
+        if (outcome.ok) analyzed++;
+        else failed++;
+      } catch (err) {
+        failed++;
+        try {
+          await admin
+            .from('case_timeline_events')
+            .update({ ai_status: 'error', ai_error: err instanceof Error ? err.message : 'Analysis failed.' })
+            .eq('id', r.id);
+        } catch {
+          /* best-effort error stamp */
+        }
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: concurrency }, worker));
+  return { picked: work.length, analyzed, failed, remaining };
+}

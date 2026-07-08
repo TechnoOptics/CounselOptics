@@ -1,6 +1,6 @@
 import 'server-only';
 import Anthropic from '@anthropic-ai/sdk';
-import type { AiExtracted, OccurredPrecision, TimelineKind } from './timeline-types';
+import { EVIDENCE_FOLDERS, normalizeFolder, type AiExtracted, type OccurredPrecision, type TimelineKind } from './timeline-types';
 // Type-only import (erased at runtime, so no import cycle with case-evidence).
 import type { CaseContext } from './case-evidence';
 
@@ -69,15 +69,16 @@ Return ONLY a JSON object with this exact shape:
     "messages": [ { "sender": "name/handle or null", "recipient": "name/handle or null", "timestamp": "as shown or null", "body": "message text" } ]
   },
   "objects": ["notable objects/scene details relevant as evidence"],
+  "folder": "the single best-fit general folder for this item, chosen from EXACTLY this list: ${EVIDENCE_FOLDERS.join(' | ')}",
   "suggested_title": "a short, neutral title for this timeline entry",
   "suggested_occurred_at": "the single most likely date this happened, ISO (YYYY-MM-DD) or null",
   "suggested_precision": "exact | day | month | year | unknown",
   "confidence": "high | medium | low",
   "relevance_score": "integer 0 to 100: how relevant this item is to the SPECIFIC case described under CASE CONTEXT, if one is provided; null when no case context is given",
   "relevance_reason": "one neutral sentence explaining the relevance score (empty string when no case context is given)",
-  "summary": "2 to 4 neutral sentences: what this item is and what it factually shows, suitable for an attorney."
+  "summary": "2 to 4 neutral sentences describing the SCENE and what is happening: for a photo or video, say plainly what is depicted (who, where, what action, notable objects or damage); for a document or message, say what it is and what it states. Then note anything else that could matter to the case. Written factually for an attorney."
 }
-Rules: Do NOT claim to recognize a person's identity by their face; only report names/handles that are actually written in the content, otherwise describe them. Keep everything court-appropriate and non-speculative. When CASE CONTEXT is given, judge relevance by how directly this item bears on that case's parties, facts, dates, and claims: a high score (67 to 100) means it clearly concerns the case; a low score (0 to 33) means it is unrelated or only incidentally connected. Never use em dashes or en dashes in any text you write; use commas, periods, colons, or parentheses instead. Do not refer to yourself, to any assistant, or to AI; write as a neutral case analyst.`;
+Rules: For a photo or video, always describe the scene concretely in the summary (setting, people present and what they are doing, visible objects, condition or damage, any text on signs or screens) so a reader who cannot see the image understands what it shows. Capture anything else that could be relevant to the case, even if it does not fit a named field, in the summary. Do NOT claim to recognize a person's identity by their face; only report names/handles that are actually written in the content, otherwise describe them. Always set "folder" to one of the seven listed values, never invent a new one. Keep everything court-appropriate and non-speculative. When CASE CONTEXT is given, judge relevance by how directly this item bears on that case's parties, facts, dates, and claims: a high score (67 to 100) means it clearly concerns the case; a low score (0 to 33) means it is unrelated or only incidentally connected. Never use em dashes or en dashes in any text you write; use commas, periods, colons, or parentheses instead. Do not refer to yourself, to any assistant, or to AI; write as a neutral case analyst.`;
 
 /** A compact, factual block of the case's facts for relevance scoring. */
 function caseContextBlock(cc: CaseContext | null | undefined): string {
@@ -108,6 +109,18 @@ function normalizeRelevance(extracted: AiExtracted): void {
     delete extracted.relevance_score;
     delete extracted.relevance_reason;
   }
+}
+
+/**
+ * Finalise the model's structured fields: clamp relevance and snap the chosen
+ * folder onto the controlled taxonomy (dropping it when the reader returned
+ * nothing usable, so folderForEvent's kind-based default takes over).
+ */
+function normalizeExtracted(extracted: AiExtracted): void {
+  normalizeRelevance(extracted);
+  const folder = normalizeFolder(extracted.folder);
+  if (folder) extracted.folder = folder;
+  else delete extracted.folder;
 }
 
 /**
@@ -159,7 +172,7 @@ export async function analyzeImage(input: {
               type: 'image',
               source: { type: 'base64', media_type: mediaType, data: input.buffer.toString('base64') },
             },
-            { type: 'text', text: `${ctx}\nThis item is categorised as a ${input.kind}. Analyse it.${caseContextBlock(input.caseContext)}` },
+            { type: 'text', text: `${ctx}\nThis item is categorised as a ${input.kind}. Analyse it. In the summary, describe the scene concretely: what is depicted, who is present and what they are doing, the setting, notable objects, any visible condition or damage, and any legible text.${caseContextBlock(input.caseContext)}` },
           ],
         },
       ],
@@ -167,7 +180,7 @@ export async function analyzeImage(input: {
     const parsed = parseJson<RawAnalysis>(textFrom(res));
     if (!parsed) return { error: 'Analysis returned an unreadable result.' };
     const { summary = '', ...extracted } = parsed;
-    normalizeRelevance(extracted);
+    normalizeExtracted(extracted);
     return { extracted, summary: cleanAiText(summary) };
   } catch (err) {
     return { error: err instanceof Error ? err.message : 'Analysis failed.' };
@@ -202,7 +215,7 @@ export async function analyzeText(input: {
     const parsed = parseJson<RawAnalysis>(textFrom(res));
     if (!parsed) return { error: 'Analysis returned an unreadable result.' };
     const { summary = '', ...extracted } = parsed;
-    normalizeRelevance(extracted);
+    normalizeExtracted(extracted);
     return { extracted, summary: cleanAiText(summary) };
   } catch (err) {
     return { error: err instanceof Error ? err.message : 'Analysis failed.' };

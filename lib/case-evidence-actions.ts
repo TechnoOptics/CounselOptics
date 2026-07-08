@@ -15,6 +15,8 @@ import {
 import { fetchRemoteEvidence } from './remote-fetch';
 import {
   sortTimeline,
+  normalizeFolder,
+  folderForEvent,
   type TimelineEvent,
   type TimelineMedia,
   type AiExtracted,
@@ -235,12 +237,18 @@ export async function importCaseEvidenceFromUrlsAction(
   return { ok: imported > 0, imported, failed, errors: errors.slice(0, 8) };
 }
 
-/** Re-run analysis on one evidence entry (admin, firm-scoped). */
+/**
+ * Re-run analysis on one evidence entry (admin, firm-scoped). If a person has
+ * corrected this entry by hand, re-analysis would overwrite their work, so it
+ * refuses unless `force` is set (the UI confirms first). A folder the user moved
+ * the item into is always preserved, even on a forced re-run.
+ */
 export async function analyzeFirmCaseEventAction(
   firmId: string,
   caseId: string,
   eventId: string,
-): Promise<{ ok: boolean; error?: string; event?: TimelineEvent }> {
+  opts?: { force?: boolean },
+): Promise<{ ok: boolean; error?: string; event?: TimelineEvent; needsConfirm?: boolean }> {
   const gate = await assertFirmCase(firmId, caseId);
   if (!gate.ok) return { ok: false, error: gate.error };
   if (!aiConfigured()) return { ok: false, error: 'AI analysis is not configured.' };
@@ -255,14 +263,196 @@ export async function analyzeFirmCaseEventAction(
   if (!row) return { ok: false, error: 'Not found.' };
   const ev = toEvent(row as EventRow);
 
+  const prior = ev.aiExtracted ?? {};
+  if (prior.edited_at && !opts?.force) {
+    return {
+      ok: false,
+      needsConfirm: true,
+      error: 'This entry was corrected by hand. Re-analysing will replace those edits.',
+      event: ev,
+    };
+  }
+
   await admin.from('case_timeline_events').update({ ai_status: 'running' }).eq('id', eventId);
   const caseContext = await loadCaseContext(admin, caseId);
   const outcome = await computeEventAnalysis({ ev, admin, caseContext });
+
+  // Keep a hand-picked folder pinned across a re-run so re-analysis never
+  // reshuffles what a person deliberately filed.
+  if (outcome.ok && prior.folder_locked && prior.folder) {
+    const ext = (outcome.patch.ai_extracted ?? {}) as AiExtracted;
+    ext.folder = prior.folder;
+    ext.folder_locked = true;
+    outcome.patch.ai_extracted = ext;
+  }
+
   const { data: updated } = await admin
     .from('case_timeline_events').update(outcome.patch).eq('id', eventId).select('*').single();
 
   revalidatePath(`/counsel/cases/${caseId}/evidence`);
   return { ok: outcome.ok, error: outcome.error, event: updated ? toEvent(updated as EventRow) : ev };
+}
+
+/** Fields a person can correct on an evidence entry's analysis. */
+export type EvidenceEdit = {
+  title?: string;
+  summary?: string;
+  occurredAt?: string | null;
+  occurredPrecision?: OccurredPrecision;
+  detectedPeople?: string[];
+  detectedDates?: string[];
+  locations?: string[];
+  organizations?: string[];
+  folder?: string;
+};
+
+function cleanList(list: unknown): string[] | undefined {
+  if (!Array.isArray(list)) return undefined;
+  const out = [...new Set(list.map((s) => (typeof s === 'string' ? s.trim() : '')).filter(Boolean))];
+  return out.slice(0, 200);
+}
+
+/**
+ * Save a person's corrections to one evidence entry (admin, firm-scoped). Edits
+ * the narrative (ai_summary), the suggested title and date, and the extracted
+ * people / dates / locations / organizations, then stamps edited_by/edited_at so
+ * a later re-analysis warns before overwriting the correction.
+ */
+export async function updateFirmCaseEvidenceAction(
+  firmId: string,
+  caseId: string,
+  eventId: string,
+  edit: EvidenceEdit,
+): Promise<{ ok: boolean; error?: string; event?: TimelineEvent }> {
+  const gate = await assertFirmCase(firmId, caseId);
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Service unavailable.' };
+
+  const { data: row } = await admin
+    .from('case_timeline_events').select('*').eq('id', eventId).eq('case_id', caseId).maybeSingle();
+  if (!row) return { ok: false, error: 'Not found.' };
+  const current = toEvent(row as EventRow);
+
+  const ext: AiExtracted = { ...(current.aiExtracted ?? {}) };
+  const people = cleanList(edit.detectedPeople);
+  const dates = cleanList(edit.detectedDates);
+  const locations = cleanList(edit.locations);
+  const orgs = cleanList(edit.organizations);
+  if (people !== undefined) ext.detected_people = people;
+  if (dates !== undefined) ext.detected_dates = dates;
+  if (locations !== undefined) ext.locations = locations;
+  if (orgs !== undefined) ext.organizations = orgs;
+  if (edit.folder !== undefined) {
+    const folder = normalizeFolder(edit.folder);
+    if (folder) {
+      ext.folder = folder;
+      ext.folder_locked = true;
+    }
+  }
+  if (edit.occurredAt !== undefined) ext.suggested_occurred_at = edit.occurredAt;
+  ext.edited_by = gate.userId;
+  ext.edited_at = new Date().toISOString();
+
+  const patch: Record<string, unknown> = {
+    ai_extracted: ext,
+    updated_at: new Date().toISOString(),
+  };
+  if (edit.title !== undefined) patch.title = edit.title.trim().slice(0, 200);
+  if (edit.summary !== undefined) patch.ai_summary = edit.summary.trim();
+  if (edit.occurredAt !== undefined) {
+    if (edit.occurredAt) {
+      const d = new Date(edit.occurredAt);
+      if (!Number.isNaN(d.getTime())) {
+        patch.occurred_at = d.toISOString();
+        patch.occurred_precision = edit.occurredPrecision ?? current.occurredPrecision ?? 'day';
+      }
+    } else {
+      patch.occurred_at = null;
+      patch.occurred_precision = 'unknown';
+    }
+  } else if (edit.occurredPrecision !== undefined && current.occurredAt) {
+    patch.occurred_precision = edit.occurredPrecision;
+  }
+
+  const { data: updated, error } = await admin
+    .from('case_timeline_events').update(patch).eq('id', eventId).eq('case_id', caseId).select('*').single();
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/counsel/cases/${caseId}/evidence`);
+  return { ok: true, event: updated ? toEvent(updated as EventRow) : current };
+}
+
+/**
+ * Move one evidence entry into a folder (admin, firm-scoped). A pure move, so it
+ * pins the folder (folder_locked) without stamping the full edited flag, meaning
+ * re-analysis keeps the folder but does not otherwise treat the item as
+ * hand-corrected.
+ */
+export async function setFirmEvidenceFolderAction(
+  firmId: string,
+  caseId: string,
+  eventId: string,
+  folder: string,
+): Promise<{ ok: boolean; error?: string; event?: TimelineEvent }> {
+  const gate = await assertFirmCase(firmId, caseId);
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const normalized = normalizeFolder(folder);
+  if (!normalized) return { ok: false, error: 'Unknown folder.' };
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Service unavailable.' };
+
+  const { data: row } = await admin
+    .from('case_timeline_events').select('*').eq('id', eventId).eq('case_id', caseId).maybeSingle();
+  if (!row) return { ok: false, error: 'Not found.' };
+  const current = toEvent(row as EventRow);
+  const ext: AiExtracted = { ...(current.aiExtracted ?? {}), folder: normalized, folder_locked: true };
+
+  const { data: updated, error } = await admin
+    .from('case_timeline_events')
+    .update({ ai_extracted: ext, updated_at: new Date().toISOString() })
+    .eq('id', eventId).eq('case_id', caseId).select('*').single();
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/counsel/cases/${caseId}/evidence`);
+  return { ok: true, event: updated ? toEvent(updated as EventRow) : current };
+}
+
+/**
+ * Rename a folder across this matter (admin, firm-scoped): every entry currently
+ * shown under `from` (whether the reader filed it there or it fell there by its
+ * kind) is pinned to `to`, so the rename sticks even for items that had no
+ * explicit folder yet. `to` must be one of the controlled folder names.
+ */
+export async function renameFirmEvidenceFolderAction(
+  firmId: string,
+  caseId: string,
+  from: string,
+  to: string,
+): Promise<{ ok: boolean; error?: string; moved?: number }> {
+  const gate = await assertFirmCase(firmId, caseId);
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const target = normalizeFolder(to);
+  if (!target) return { ok: false, error: 'Pick a valid folder name.' };
+  if (!from.trim()) return { ok: false, error: 'Nothing to rename.' };
+  if (from.trim() === target) return { ok: true, moved: 0 };
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Service unavailable.' };
+
+  const { data } = await admin
+    .from('case_timeline_events').select('*').eq('case_id', caseId);
+  const events = ((data ?? []) as EventRow[]).map(toEvent);
+  const hits = events.filter((e) => folderForEvent(e) === from.trim());
+
+  let moved = 0;
+  for (const e of hits) {
+    const ext: AiExtracted = { ...(e.aiExtracted ?? {}), folder: target, folder_locked: true };
+    const { error } = await admin
+      .from('case_timeline_events')
+      .update({ ai_extracted: ext, updated_at: new Date().toISOString() })
+      .eq('id', e.id).eq('case_id', caseId);
+    if (!error) moved++;
+  }
+  revalidatePath(`/counsel/cases/${caseId}/evidence`);
+  return { ok: true, moved };
 }
 
 /** Delete one evidence entry + its stored media (admin, firm-scoped). */
