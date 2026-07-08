@@ -319,7 +319,7 @@ export default async function CounselCaseDetailPage({
           case tools, not client guidance. */}
       <nav className="flex flex-wrap gap-2">
         <Link
-          href={`/cases/${params.id}/timeline`}
+          href={`/counsel/cases/${params.id}/timeline`}
           className="text-[12.5px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-3 py-1.5 text-ink-700 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/40 transition-colors"
         >
           <T>Case Timeline</T>
