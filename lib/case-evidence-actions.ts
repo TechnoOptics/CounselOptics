@@ -513,6 +513,50 @@ export async function renameFirmEvidenceFolderAction(
   return { ok: true, moved };
 }
 
+/**
+ * Set aside (or restore) a set of evidence items as not part of the case
+ * (admin, firm-scoped). This is a soft, reversible flag on ai_extracted, not a
+ * delete: the files stay stored and recoverable, but an excluded item drops out
+ * of the working evidence view, the coverage counts, and exports until it is
+ * restored. Used by the intake's bulk "Exclude from case" action.
+ */
+export async function setFirmEvidenceExcludedAction(
+  firmId: string,
+  caseId: string,
+  eventIds: string[],
+  excluded: boolean,
+): Promise<{ ok: boolean; error?: string; updated?: number }> {
+  const gate = await assertFirmCase(firmId, caseId);
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Service unavailable.' };
+  const ids = Array.from(new Set((eventIds ?? []).filter((s) => typeof s === 'string'))).slice(0, 500);
+  if (ids.length === 0) return { ok: false, error: 'Select at least one item.' };
+
+  const { data } = await admin
+    .from('case_timeline_events')
+    .select('id, ai_extracted')
+    .eq('case_id', caseId)
+    .in('id', ids);
+  const rows = (data ?? []) as { id: string; ai_extracted: AiExtracted | null }[];
+
+  let updated = 0;
+  for (const r of rows) {
+    const ext: AiExtracted = { ...(r.ai_extracted ?? {}) };
+    if (excluded) ext.excluded = true;
+    else delete ext.excluded;
+    const { error } = await admin
+      .from('case_timeline_events')
+      .update({ ai_extracted: ext, updated_at: new Date().toISOString() })
+      .eq('id', r.id)
+      .eq('case_id', caseId);
+    if (!error) updated++;
+  }
+  revalidatePath(`/counsel/cases/${caseId}/evidence`);
+  revalidatePath(`/cases/${caseId}/timeline`);
+  return { ok: true, updated };
+}
+
 /** Delete one evidence entry + its stored media (admin, firm-scoped). */
 export async function deleteFirmCaseEventAction(
   firmId: string,
