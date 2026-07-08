@@ -326,6 +326,7 @@ type PendingRow = {
   description: string | null;
   media: TimelineMedia[] | null;
   occurred_at: string | null;
+  ai_extracted: AiExtracted | null;
 };
 
 /**
@@ -351,7 +352,7 @@ export async function analyzePendingEvidence(
   // Pull one extra row than the limit so we can report whether more remain.
   const { data } = await admin
     .from('case_timeline_events')
-    .select('id, case_id, kind, title, description, media, occurred_at')
+    .select('id, case_id, kind, title, description, media, occurred_at, ai_extracted')
     .or(`ai_status.eq.skipped,and(ai_status.eq.running,updated_at.lt.${staleCutoff})`)
     .order('created_at', { ascending: true })
     .limit(limit + 1);
@@ -389,6 +390,17 @@ export async function analyzePendingEvidence(
       const i = idx++;
       if (i >= work.length) return;
       const r = work[i];
+      const prior = r.ai_extracted ?? {};
+      // Never let the background sweep overwrite a hand correction (a race where
+      // someone edited a row that was still queued): mark it done and move on.
+      if (prior.edited_at) {
+        try {
+          await admin.from('case_timeline_events').update({ ai_status: 'done' }).eq('id', r.id);
+        } catch {
+          /* best-effort */
+        }
+        continue;
+      }
       try {
         await admin.from('case_timeline_events').update({ ai_status: 'running' }).eq('id', r.id);
         const outcome = await computeEventAnalysis({
@@ -403,6 +415,13 @@ export async function analyzePendingEvidence(
           admin,
           caseContext: await contextFor(r.case_id),
         });
+        // Keep a deliberately-filed folder pinned even when the sweep re-scores.
+        if (outcome.ok && prior.folder_locked && prior.folder) {
+          const ext = (outcome.patch.ai_extracted ?? {}) as AiExtracted;
+          ext.folder = prior.folder;
+          ext.folder_locked = true;
+          outcome.patch.ai_extracted = ext;
+        }
         await admin.from('case_timeline_events').update(outcome.patch).eq('id', r.id);
         if (outcome.ok) analyzed++;
         else failed++;

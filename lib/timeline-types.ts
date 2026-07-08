@@ -158,6 +158,19 @@ export const EVIDENCE_FOLDERS = [
 
 export type EvidenceFolder = (typeof EVIDENCE_FOLDERS)[number];
 
+/** Fields a person can correct on an evidence entry's analysis. */
+export type EvidenceEdit = {
+  title?: string;
+  summary?: string;
+  occurredAt?: string | null;
+  occurredPrecision?: OccurredPrecision;
+  detectedPeople?: string[];
+  detectedDates?: string[];
+  locations?: string[];
+  organizations?: string[];
+  folder?: string;
+};
+
 /** Snap an arbitrary model/user folder string onto the controlled taxonomy. */
 export function normalizeFolder(raw: string | null | undefined): EvidenceFolder | null {
   const s = (raw ?? '').trim();

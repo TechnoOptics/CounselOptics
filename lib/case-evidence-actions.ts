@@ -22,6 +22,7 @@ import {
   type AiExtracted,
   type TimelineKind,
   type OccurredPrecision,
+  type EvidenceEdit,
 } from './timeline-types';
 
 /**
@@ -293,19 +294,6 @@ export async function analyzeFirmCaseEventAction(
   return { ok: outcome.ok, error: outcome.error, event: updated ? toEvent(updated as EventRow) : ev };
 }
 
-/** Fields a person can correct on an evidence entry's analysis. */
-export type EvidenceEdit = {
-  title?: string;
-  summary?: string;
-  occurredAt?: string | null;
-  occurredPrecision?: OccurredPrecision;
-  detectedPeople?: string[];
-  detectedDates?: string[];
-  locations?: string[];
-  organizations?: string[];
-  folder?: string;
-};
-
 function cleanList(list: unknown): string[] | undefined {
   if (!Array.isArray(list)) return undefined;
   const out = [...new Set(list.map((s) => (typeof s === 'string' ? s.trim() : '')).filter(Boolean))];
@@ -357,6 +345,10 @@ export async function updateFirmCaseEvidenceAction(
   const patch: Record<string, unknown> = {
     ai_extracted: ext,
     updated_at: new Date().toISOString(),
+    // A hand-curated entry is final: mark it done so the background queue / cron
+    // never re-scores it and overwrites the correction, and clear any prior error.
+    ai_status: 'done',
+    ai_error: null,
   };
   if (edit.title !== undefined) patch.title = edit.title.trim().slice(0, 200);
   if (edit.summary !== undefined) patch.ai_summary = edit.summary.trim();

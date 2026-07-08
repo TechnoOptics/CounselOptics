@@ -259,13 +259,22 @@ export async function transcribeAudio(input: {
 }
 
 /**
- * Placeholder hook for a dedicated biometric face-recognition provider (AWS
- * Rekognition / face-api). Not wired by default — Bella's detected_people +
- * user tagging cover people-association today. Returns null so callers can
- * treat "no provider" uniformly.
+ * Hook into the SELF-HOSTED recurring-face engine. This is the single seam the
+ * evidence pipeline uses to turn one image's bytes into face boxes + embeddings.
+ * It runs entirely on Advottic infrastructure (no third-party face API) and is
+ * recurrence-only: it never asserts who a person is. It fails closed to null
+ * when the model is not provisioned, so callers can treat "no faces" uniformly.
+ *
+ * Callers MUST have already confirmed the firm's opt-in before calling this;
+ * the gate lives in lib/face-settings.ts, not here. See docs/face-detection-spike.md.
  */
-export async function detectFacesHook(): Promise<null> {
-  return null;
+export async function detectFacesHook(
+  buffer: Buffer,
+  mime: string,
+): Promise<import('./face-detect').DetectedFace[] | null> {
+  const { detectFaces } = await import('./face-detect');
+  const faces = await detectFaces(buffer, mime);
+  return faces.length ? faces : null;
 }
 
 /** Build the chronological narrative + reasoned conclusion for the export. */
