@@ -15,7 +15,12 @@ import {
 import type { FirmRole, FirmSigningStatus, FirmType } from './firm-types';
 import { FIRM_ROLES, FIRM_TYPES } from './firm-types';
 import { CASE_TYPES, type CaseType, type Posture } from './types';
-import type { Collaborator, CollaboratorRole } from './types';
+import type {
+  Collaborator,
+  CollaboratorRole,
+  SubjectProfile,
+  SubjectType,
+} from './types';
 import {
   inviteCollaboratorAsFirm,
   listCollaboratorsAsFirm,
@@ -3685,9 +3690,22 @@ export type CreateFirmCaseInput = {
   title: string;
   /** Who/what the matter is about; stored as cases.subject_name. */
   subject?: string;
+  /** person / business / state / entity - defaults to 'person'. */
+  subjectType?: SubjectType;
+  /** Full opposing-party dossier (legal name, AKA, address, etc.). */
+  subjectProfile?: SubjectProfile;
   caseType?: string;
+  /** Free-text jurisdiction; country defaults to 'US' when omitted. */
+  jurisdictionCountry?: string;
   jurisdictionState?: string;
+  jurisdictionCity?: string;
+  /** Matter summary / facts, stored as cases.description. */
+  description?: string;
   posture?: Posture;
+  /** ISO datetime of the next hearing, or null when none is set yet. */
+  hearingAt?: string | null;
+  hearingLocation?: string | null;
+  hearingNotes?: string | null;
 };
 
 /**
@@ -3727,7 +3745,38 @@ export async function createFirmCaseAction(
     ? (rawType as CaseType)
     : 'Other';
   const posture: Posture = input.posture === 'defendant' ? 'defendant' : 'claimant';
+  const jurisdictionCountry = (input.jurisdictionCountry ?? '').trim() || 'US';
   const jurisdictionState = (input.jurisdictionState ?? '').trim();
+  const jurisdictionCity = (input.jurisdictionCity ?? '').trim();
+  const validSubjectTypes: SubjectType[] = ['person', 'business', 'matter', 'state', 'entity'];
+  const subjectType: SubjectType = validSubjectTypes.includes(input.subjectType as SubjectType)
+    ? (input.subjectType as SubjectType)
+    : 'person';
+  const description = (input.description ?? '').trim();
+
+  // Only keep non-empty profile fields, matching createCaseAction's shape so
+  // a firm-opened matter carries the same opposing-party dossier a personal
+  // case does (surfaced read-only in the Subject panel on the matter page).
+  const rawProfile = input.subjectProfile ?? {};
+  const subjectProfile: SubjectProfile = {};
+  (Object.keys(rawProfile) as (keyof SubjectProfile)[]).forEach((k) => {
+    const v = (rawProfile[k] ?? '').trim();
+    if (v) subjectProfile[k] = v;
+  });
+
+  // Hearing is optional at creation; a malformed datetime is surfaced as a
+  // friendly error rather than a server exception (mirrors createCaseAction).
+  let hearingAt: string | null = null;
+  const hearingRaw = (input.hearingAt ?? '').trim();
+  if (hearingRaw) {
+    const parsed = new Date(hearingRaw);
+    if (Number.isNaN(parsed.getTime())) {
+      return { ok: false, error: 'Hearing date is not a valid date and time.' };
+    }
+    hearingAt = parsed.toISOString();
+  }
+  const hearingLocation = (input.hearingLocation ?? '').trim() || null;
+  const hearingNotes = (input.hearingNotes ?? '').trim() || null;
 
   const { data: created, error } = await admin
     .from('cases')
@@ -3737,14 +3786,18 @@ export async function createFirmCaseAction(
       assigned_to: user.id,
       title,
       subject_name: subject,
-      subject_type: 'person',
+      subject_type: subjectType,
+      subject_profile: subjectProfile,
       case_type: caseType,
       status: 'open',
       posture,
-      description: '',
-      jurisdiction_country: 'US',
+      description,
+      jurisdiction_country: jurisdictionCountry,
       jurisdiction_state: jurisdictionState,
-      jurisdiction_city: '',
+      jurisdiction_city: jurisdictionCity,
+      hearing_at: hearingAt,
+      hearing_location: hearingLocation,
+      hearing_notes: hearingNotes,
       sandbox: false,
     })
     .select('id')

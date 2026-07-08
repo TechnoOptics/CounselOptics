@@ -15,6 +15,7 @@ import { CompleteDeadlineButton } from './complete-deadline-button';
 import { MatterChatPanel } from './matter-chat-panel';
 import { CaseInvitePanel } from './case-invite-panel';
 import { LinkedProjectsPanel } from './linked-projects-panel';
+import { MatterFacts } from './matter-facts';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -89,7 +90,9 @@ export default async function CounselCaseDetailPage({
   // panels (time, deadlines, invoicing, trust).
   const { data: caseRow } = await supabase
     .from('cases')
-    .select('id, title, subject_name, case_type, posture, status, jurisdiction_state, hearing_at, description, firm_id')
+    .select(
+      'id, title, subject_name, subject_type, subject_profile, case_type, posture, status, jurisdiction_country, jurisdiction_state, jurisdiction_city, hearing_at, hearing_location, hearing_notes, description, firm_id',
+    )
     .eq('id', params.id)
     .maybeSingle();
   if (!caseRow) notFound();
@@ -97,11 +100,17 @@ export default async function CounselCaseDetailPage({
     id: string;
     title: string;
     subject_name: string;
+    subject_type: string | null;
+    subject_profile: Record<string, string> | null;
     case_type: string;
     posture: string;
     status: string;
+    jurisdiction_country: string | null;
     jurisdiction_state: string | null;
+    jurisdiction_city: string | null;
     hearing_at: string | null;
+    hearing_location: string | null;
+    hearing_notes: string | null;
     description: string | null;
     firm_id: string | null;
   };
@@ -286,14 +295,51 @@ export default async function CounselCaseDetailPage({
         />
       </section>
 
-      {c.description && (
-        <section className="card p-5">
-          <p className="eyebrow text-[10px] mb-1"><T>Description</T></p>
-          <p className="text-[13px] text-ink-700 dark:text-cream-100/85 leading-relaxed whitespace-pre-wrap">
-            {c.description}
-          </p>
-        </section>
-      )}
+      {/* Case work - the substantive surfaces a firm case shares with a
+          personal case: the interactive Timeline (firm-tier = full builder),
+          bulk Evidence intake, court-ready Packet, and export. Framed as
+          case tools, not client guidance. */}
+      <nav className="flex flex-wrap gap-2">
+        <Link
+          href={`/cases/${params.id}/timeline`}
+          className="text-[12.5px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-3 py-1.5 text-ink-700 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/40 transition-colors"
+        >
+          <T>Case Timeline</T>
+        </Link>
+        <Link
+          href={`/counsel/cases/${params.id}/evidence`}
+          className="text-[12.5px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-3 py-1.5 text-ink-700 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/40 transition-colors"
+        >
+          <T>Evidence intake</T>
+        </Link>
+        <Link
+          href={`/cases/${params.id}/packet`}
+          className="text-[12.5px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-3 py-1.5 text-ink-700 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/40 transition-colors"
+        >
+          <T>Court packet</T>
+        </Link>
+        <Link
+          href={`/cases/${params.id}/export`}
+          className="text-[12.5px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-3 py-1.5 text-ink-700 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/40 transition-colors"
+        >
+          <T>Export PDF</T>
+        </Link>
+      </nav>
+
+      <MatterFacts
+        posture={c.posture}
+        caseType={c.case_type}
+        subjectName={c.subject_name}
+        subjectType={c.subject_type}
+        subjectProfile={c.subject_profile}
+        jurisdictionCountry={c.jurisdiction_country}
+        jurisdictionState={c.jurisdiction_state}
+        jurisdictionCity={c.jurisdiction_city}
+        description={c.description}
+        hearingAt={c.hearing_at}
+        hearingLocation={c.hearing_location}
+        hearingNotes={c.hearing_notes}
+      />
 
       {/* Matter room - idempotent: getOrCreate ensures one channel
           per case_id (the unique index on firm_channels.case_id
