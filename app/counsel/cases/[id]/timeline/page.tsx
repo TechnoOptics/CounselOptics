@@ -8,6 +8,7 @@ import { resolveTimelineAccess } from '@/lib/timeline-entitlement';
 import { aiConfigured } from '@/lib/timeline-ai';
 import { FactsPanel, type CaseFacts } from '@/app/cases/[id]/timeline/facts-panel';
 import { FirmTimeline } from './firm-timeline';
+import { RequestSidebarFocus } from '@/components/counsel/SidebarFocus';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -86,6 +87,8 @@ export default async function FirmTimelinePage({
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 pb-16">
+      {/* Focus mode: slide the counsel rail out on this route. */}
+      <RequestSidebarFocus />
       <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1.5 text-sm text-ink-500 dark:text-cream-100/60">
         <Link href="/counsel/cases" className="hover:text-forest-900 dark:hover:text-cream-100"><T>Matters</T></Link>
         <span aria-hidden>/</span>

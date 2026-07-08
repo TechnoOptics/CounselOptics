@@ -5,6 +5,7 @@ import { getCurrentUserResult, isSupabaseConfigured } from '@/lib/supabase/serve
 import { SessionReconnect } from '@/components/auth/SessionReconnect';
 import { getActiveFirmContext, listMyFirms } from '@/lib/firm-storage';
 import { CounselSidebar } from '@/components/counsel/CounselSidebar';
+import { SidebarCollapseProvider, CounselSidebarShell } from '@/components/counsel/SidebarFocus';
 import { CounselHeader } from '@/components/counsel/CounselHeader';
 import { AskAdvottic } from '@/components/counsel/AskAdvottic';
 import { LocaleProvider } from '@/components/i18n/LocaleProvider';
@@ -161,27 +162,29 @@ export default async function CounselLayout({
         tenantMode={isTenantSubdomain}
         locale={locale}
       />
-      <div className="flex-1 flex w-full max-w-none mx-auto px-4 sm:px-6 lg:px-10 py-6 sm:py-8 gap-6">
-        {active ? (
-          <aside className="hidden md:block w-56 flex-none sticky top-24 self-start max-h-[calc(100dvh-7rem)] overflow-y-auto">
-            <CounselSidebar
-              firm={active.firm}
-              membership={active.membership}
-              pathname={pathname}
-              tenantMode={isTenantSubdomain}
-            />
-          </aside>
-        ) : null}
-        <main className="flex-1 min-w-0">
-          {/* The Ask Advottic bar normally sits at the top of every
-              Counsel page. The dashboard at /counsel renders its own
-              welcome banner above the Ask bar and then handles its
-              own ordering, so we skip rendering it from the layout
-              for that one route. */}
-          {active && pathname !== '/counsel' ? <AskAdvottic /> : null}
-          {children}
-        </main>
-      </div>
+      <SidebarCollapseProvider>
+        <div className="flex-1 flex w-full max-w-none mx-auto px-4 sm:px-6 lg:px-10 py-6 sm:py-8 gap-6">
+          {active ? (
+            <CounselSidebarShell>
+              <CounselSidebar
+                firm={active.firm}
+                membership={active.membership}
+                pathname={pathname}
+                tenantMode={isTenantSubdomain}
+              />
+            </CounselSidebarShell>
+          ) : null}
+          <main className="flex-1 min-w-0">
+            {/* The Ask Advottic bar normally sits at the top of every
+                Counsel page. The dashboard at /counsel renders its own
+                welcome banner above the Ask bar and then handles its
+                own ordering, so we skip rendering it from the layout
+                for that one route. */}
+            {active && pathname !== '/counsel' ? <AskAdvottic /> : null}
+            {children}
+          </main>
+        </div>
+      </SidebarCollapseProvider>
       <footer className="border-t border-forest-700/40 bg-forest-950/80 backdrop-blur">
         <div className="mx-auto max-w-none px-4 sm:px-6 lg:px-10 py-4 text-[11px] text-cream-100/55 flex flex-wrap items-center justify-between gap-2">
           <p>
