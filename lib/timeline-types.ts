@@ -138,6 +138,26 @@ export type AiExtracted = {
   edited_by?: string;
   /** ISO timestamp of the last human correction to this entry's analysis. */
   edited_at?: string;
+  /**
+   * A stable, per-matter exhibit number assigned once at import (EX-0001, ...).
+   * It is deliberately NOT reshuffled when items are added or removed, so a given
+   * item keeps its label for the life of the matter. Assigned by the firm import
+   * path (and backfilled for legacy rows); preserved across every re-analysis.
+   */
+  exhibit_no?: number;
+  /**
+   * SHA-256 (hex) of the stored file's bytes, computed server-side at import.
+   * Powers duplicate detection: a later import whose bytes hash to the same value
+   * is a duplicate of this item. Preserved across every re-analysis.
+   */
+  sha256?: string;
+  /**
+   * A content-derived document type the reader recognised (receipt, contract, id
+   * document, ...), from the controlled DOCUMENT_TYPES vocabulary. Drives the
+   * content-aware icon. Distinct from `kind` (which is only the file's medium)
+   * and from `folder` (the broad filing bucket). Undefined when unclassified.
+   */
+  document_type?: string;
 };
 
 /**
@@ -268,6 +288,144 @@ export const KIND_ICON: Record<TimelineKind, string> = {
   note: '📝',
   event: '📌',
 };
+
+/**
+ * A controlled vocabulary of content-derived document types the reader can
+ * recognise. Deliberately broad; the reader picks the single best fit (or none),
+ * and the value only ever drives the content-aware icon, never any logic. Kept
+ * small so most items land on a sensible icon without a bespoke taxonomy.
+ */
+export const DOCUMENT_TYPES = [
+  'receipt',
+  'invoice',
+  'bank_statement',
+  'check',
+  'tax_form',
+  'insurance',
+  'contract',
+  'agreement',
+  'lease',
+  'letter',
+  'email',
+  'court_filing',
+  'police_report',
+  'medical_record',
+  'id_document',
+  'passport',
+  'drivers_license',
+  'business_card',
+  'report',
+  'spreadsheet',
+  'screenshot',
+  'message',
+  'photo',
+  'map',
+  'other',
+] as const;
+
+export type DocumentType = (typeof DOCUMENT_TYPES)[number];
+
+/** Icon for each recognised content type. */
+export const DOCUMENT_TYPE_ICON: Record<DocumentType, string> = {
+  receipt: '🧾',
+  invoice: '🧾',
+  bank_statement: '🏦',
+  check: '💵',
+  tax_form: '🧮',
+  insurance: '🛡️',
+  contract: '📜',
+  agreement: '📜',
+  lease: '🏠',
+  letter: '✉️',
+  email: '📧',
+  court_filing: '⚖️',
+  police_report: '🚔',
+  medical_record: '🩺',
+  id_document: '🪪',
+  passport: '🛂',
+  drivers_license: '🪪',
+  business_card: '📇',
+  report: '📊',
+  spreadsheet: '📈',
+  screenshot: '📱',
+  message: '💬',
+  photo: '🖼️',
+  map: '🗺️',
+  other: '📎',
+};
+
+/** Fallback icon by filing folder, used when no content type was detected. */
+export const FOLDER_ICON: Record<EvidenceFolder, string> = {
+  'Scene & photos': '🖼️',
+  Communications: '💬',
+  'Financial & receipts': '🧾',
+  'Identity & people': '🪪',
+  'Documents & contracts': '📄',
+  'Location & maps': '🗺️',
+  Other: '📎',
+};
+
+/** Snap an arbitrary model/user document-type string onto the controlled list. */
+export function normalizeDocumentType(raw: string | null | undefined): DocumentType | null {
+  const s = (raw ?? '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+  if (!s) return null;
+  const hit = DOCUMENT_TYPES.find((d) => d === s);
+  if (hit) return hit;
+  // Tolerate loose synonyms the reader might return.
+  if (/^(bill|statement)$/.test(s)) return 'bank_statement';
+  if (/id_card|identity|national_id|ssn|social_security/.test(s)) return 'id_document';
+  if (/licen[cs]e/.test(s)) return 'drivers_license';
+  if (/text|sms|chat|imessage|whatsapp/.test(s)) return 'message';
+  if (/photograph|picture|image/.test(s)) return 'photo';
+  if (/deed|memo|agreement/.test(s)) return 'contract';
+  return null;
+}
+
+/**
+ * The single best icon for an evidence item, most specific first: the recognised
+ * content type, then the filing folder, then the file's medium (kind). This is
+ * what makes a photo of a receipt show a receipt icon rather than a generic
+ * image icon.
+ */
+export function contentIconFor(ev: {
+  kind: TimelineKind;
+  aiExtracted?: AiExtracted | null;
+}): string {
+  const dt = normalizeDocumentType(ev.aiExtracted?.document_type);
+  if (dt) return DOCUMENT_TYPE_ICON[dt];
+  const folder = normalizeFolder(ev.aiExtracted?.folder);
+  if (folder) return FOLDER_ICON[folder];
+  return KIND_ICON[ev.kind] ?? '📎';
+}
+
+/** Render a stable exhibit number as a padded label, e.g. 1 -> "EX-0001". */
+export function exhibitLabel(n: number | null | undefined): string | null {
+  if (typeof n !== 'number' || !Number.isFinite(n) || n <= 0) return null;
+  return `EX-${String(Math.floor(n)).padStart(4, '0')}`;
+}
+
+/**
+ * The best "captured" date for an item, for grouping/sorting by when it happened
+ * rather than by filing folder: the confirmed occurred_at, else the reader's
+ * suggested date, else the first parseable detected date. Returns an ISO string
+ * or null when nothing is datable.
+ */
+export function capturedAt(ev: {
+  occurredAt: string | null;
+  aiExtracted?: AiExtracted | null;
+}): string | null {
+  if (ev.occurredAt) return ev.occurredAt;
+  const ext = ev.aiExtracted ?? {};
+  if (ext.suggested_occurred_at) {
+    const d = new Date(ext.suggested_occurred_at);
+    if (!Number.isNaN(d.getTime())) return d.toISOString();
+  }
+  for (const raw of ext.detected_dates ?? []) {
+    const d = new Date(raw);
+    if (!Number.isNaN(d.getTime())) return d.toISOString();
+  }
+  return null;
+}
 
 export const ROLE_LABEL: Record<PersonRole, string> = {
   subject: 'Subject',
