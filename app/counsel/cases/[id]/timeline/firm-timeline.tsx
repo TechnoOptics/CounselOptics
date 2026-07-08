@@ -15,6 +15,7 @@ import {
 } from '@/lib/timeline-types';
 import { getFirmEvidenceMediaUrl } from '@/lib/case-evidence-actions';
 import { generateFirmTimelineNarrative } from '@/lib/firm-timeline-actions';
+import { FirmTimelineCalendar, type PeriodRange } from './firm-timeline-calendar';
 
 /**
  * Firm-native Case Timeline. Distinct from the evidence intake (which is where
@@ -40,6 +41,11 @@ export function FirmTimeline({
   const [narrative, setNarrative] = useState(initialBundle.narrative);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  // Timeline (list) vs. Calendar (density grid). The calendar can set a
+  // period filter that scopes the chronology, and the filter survives a
+  // switch back to the list so the user "drills into" the chronology.
+  const [view, setView] = useState<'timeline' | 'calendar'>('timeline');
+  const [range, setRange] = useState<PeriodRange | null>(null);
 
   // Chronological order: dated events first (ascending), undated last.
   const ordered = useMemo(() => {
@@ -48,6 +54,19 @@ export function FirmTimeline({
     withDate.sort((a, b) => (a.occurredAt! < b.occurredAt! ? -1 : 1));
     return [...withDate, ...undated];
   }, [events]);
+
+  // When a calendar period is selected, scope the chronology to it. Undated
+  // events drop out of a period filter (they have no place on the calendar).
+  const visible = useMemo(() => {
+    if (!range) return ordered;
+    const lo = new Date(range.start).getTime();
+    const hi = new Date(range.end).getTime();
+    return ordered.filter((e) => {
+      if (!e.occurredAt) return false;
+      const ms = new Date(e.occurredAt).getTime();
+      return !Number.isNaN(ms) && ms >= lo && ms < hi;
+    });
+  }, [ordered, range]);
 
   const mapPoints: MapPoint[] = useMemo(
     () =>
@@ -106,6 +125,34 @@ export function FirmTimeline({
           <span className="text-ink-400 dark:text-cream-100/40">({events.length})</span>
         </h2>
         <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 overflow-hidden" role="group" aria-label={t('View')}>
+            <button
+              type="button"
+              onClick={() => setView('timeline')}
+              aria-pressed={view === 'timeline'}
+              className={
+                (view === 'timeline'
+                  ? 'bg-forest-900/10 dark:bg-cream-100/10 font-semibold text-forest-900 dark:text-cream-100 '
+                  : 'text-ink-600 dark:text-cream-100/70 hover:bg-cream-50 dark:hover:bg-forest-800/40 ') +
+                'px-3 py-1.5 text-[12.5px] transition-colors'
+              }
+            >
+              <T>Timeline</T>
+            </button>
+            <button
+              type="button"
+              onClick={() => setView('calendar')}
+              aria-pressed={view === 'calendar'}
+              className={
+                (view === 'calendar'
+                  ? 'bg-forest-900/10 dark:bg-cream-100/10 font-semibold text-forest-900 dark:text-cream-100 '
+                  : 'text-ink-600 dark:text-cream-100/70 hover:bg-cream-50 dark:hover:bg-forest-800/40 ') +
+                'px-3 py-1.5 text-[12.5px] transition-colors'
+              }
+            >
+              <T>Calendar</T>
+            </button>
+          </div>
           <Link
             href={`/counsel/cases/${caseId}/evidence`}
             className="text-[12.5px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-3 py-1.5 text-ink-700 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/40"
@@ -159,21 +206,53 @@ export function FirmTimeline({
         </section>
       )}
 
+      {/* Calendar (density grid) */}
+      {view === 'calendar' && (
+        <FirmTimelineCalendar events={events} activeRange={range} onSelect={setRange} />
+      )}
+
       {/* Map */}
       <CaseMap points={mapPoints} title={t('Case map')} />
 
+      {/* Active period filter */}
+      {range && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg bg-forest-900/5 dark:bg-cream-100/5 ring-1 ring-ink-100 dark:ring-forest-700/40 px-3 py-2">
+          <span className="text-[12px] text-ink-600 dark:text-cream-100/70">
+            <T>Showing</T>{' '}
+            <span className="font-medium text-forest-900 dark:text-cream-100" data-no-translate>{range.label}</span>{' '}
+            <span className="text-ink-400 dark:text-cream-100/45">({visible.length})</span>
+          </span>
+          <button
+            type="button"
+            onClick={() => setRange(null)}
+            className="text-[12px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-2 py-0.5 text-ink-700 dark:text-cream-100/80 hover:bg-cream-50 dark:hover:bg-forest-800/40"
+          >
+            <T>Clear filter</T>
+          </button>
+        </div>
+      )}
+
       {/* Chronology */}
-      {ordered.length === 0 ? (
-        <p className="text-[13px] text-ink-500 dark:text-cream-100/55">
-          <T>No evidence yet.</T>{' '}
-          <Link href={`/counsel/cases/${caseId}/evidence`} className="underline">
-            <T>Add evidence</T>
-          </Link>{' '}
-          <T>to build the timeline.</T>
-        </p>
+      {visible.length === 0 ? (
+        range ? (
+          <p className="text-[13px] text-ink-500 dark:text-cream-100/55">
+            <T>No events in this period.</T>{' '}
+            <button type="button" onClick={() => setRange(null)} className="underline">
+              <T>Clear filter</T>
+            </button>
+          </p>
+        ) : (
+          <p className="text-[13px] text-ink-500 dark:text-cream-100/55">
+            <T>No evidence yet.</T>{' '}
+            <Link href={`/counsel/cases/${caseId}/evidence`} className="underline">
+              <T>Add evidence</T>
+            </Link>{' '}
+            <T>to build the timeline.</T>
+          </p>
+        )
       ) : (
         <ol className="space-y-2">
-          {ordered.map((e) => (
+          {visible.map((e) => (
             <li key={e.id} className="card p-3">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
