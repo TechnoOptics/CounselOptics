@@ -1,6 +1,6 @@
 import 'server-only';
 import Anthropic from '@anthropic-ai/sdk';
-import { EVIDENCE_FOLDERS, normalizeFolder, type AiExtracted, type OccurredPrecision, type TimelineKind } from './timeline-types';
+import { DOCUMENT_TYPES, EVIDENCE_FOLDERS, normalizeDocumentType, normalizeFolder, type AiExtracted, type OccurredPrecision, type TimelineKind } from './timeline-types';
 // Type-only import (erased at runtime, so no import cycle with case-evidence).
 import type { CaseContext } from './case-evidence';
 
@@ -70,6 +70,7 @@ Return ONLY a JSON object with this exact shape:
   },
   "objects": ["notable objects/scene details relevant as evidence"],
   "folder": "the single best-fit general folder for this item, chosen from EXACTLY this list: ${EVIDENCE_FOLDERS.join(' | ')}",
+  "document_type": "the single best-fit content type of what this item DEPICTS (not the file format), chosen from EXACTLY this list, or null if none fit: ${DOCUMENT_TYPES.join(' | ')}. For example a photo of a paper receipt is 'receipt', a scan of a driver license is 'drivers_license', a signed contract is 'contract'",
   "suggested_title": "a short, neutral title for this timeline entry",
   "suggested_occurred_at": "the single most likely date this happened, ISO (YYYY-MM-DD) or null",
   "suggested_precision": "exact | day | month | year | unknown",
@@ -121,6 +122,9 @@ function normalizeExtracted(extracted: AiExtracted): void {
   const folder = normalizeFolder(extracted.folder);
   if (folder) extracted.folder = folder;
   else delete extracted.folder;
+  const docType = normalizeDocumentType(extracted.document_type);
+  if (docType) extracted.document_type = docType;
+  else delete extracted.document_type;
 }
 
 /**
