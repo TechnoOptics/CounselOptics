@@ -8,6 +8,7 @@ import { getFirmCaseTimeline } from '@/lib/case-evidence-actions';
 import { T } from '@/components/i18n/LocaleProvider';
 import { EvidenceIntake } from './evidence-intake';
 import { RecurringPeople } from './recurring-people';
+import { BulkReanalyze } from './bulk-reanalyze';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,6 +55,8 @@ export default async function CaseEvidencePage({
           {c.title}
         </p>
       </header>
+
+      {aiEnabled && <BulkReanalyze firmId={ctx.firm.id} caseId={params.id} />}
 
       <EvidenceIntake
         firmId={ctx.firm.id}
