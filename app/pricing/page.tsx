@@ -48,74 +48,85 @@ type Tier = {
   emphasized?: boolean;
 };
 
+// Consumer ("personal") ladder. Kept in lockstep with lib/personal-tiers.ts —
+// case caps 1/3/8/15/40, Bella unlocks at Plus ($29), Advottic Review + invite-
+// firm at Pro ($59), and the case timeline + group cases at Ultra ($99).
 const CONSUMER_TIERS: Tier[] = [
   {
     id: 'free',
     name: 'Free',
     price: '$0',
     cadence: 'forever',
-    blurb:
-      'Try Bella, save one case, get personal-safety alerts. No credit card.',
+    blurb: 'Save one case and get personal-safety alerts. No credit card.',
     features: [
-      '1 case or contract (vault sized separately in GB)',
-      '25K Bella tokens / month',
-      'Safe Witness: 1 trusted contact, web only, 3 alerts / month',
+      '1 case',
+      'Court-ready PDF export',
+      'Safe Witness personal-safety alerts',
       'Receive e-signature requests as a signer',
-      'Inbox notifications',
-      'Browse the public lawyer directory',
+      'Find counsel + public defender directories',
     ],
     cta: { label: 'Sign up free', href: '/sign-in?next=/cases' },
   },
   {
-    id: 'pro',
-    name: 'Personal Pro',
+    id: 'starter',
+    name: 'Starter',
     price: '$19',
     cadence: '/ month',
-    blurb:
-      'Everything you need to handle a legal matter on your own, plus full Safe Witness with the Wear OS watch.',
+    blurb: 'A few matters at once, with priority support.',
     features: [
-      '20 cases or contracts (shared budget; vault sized in GB)',
-      '500K Bella tokens / month (~12 sessions)',
-      'Bella drafts documents from 13+ templates',
-      'Safe Witness: up to 5 contacts, SMS + email, watch press, 30s audio capture, live tracker page with browser geolocation',
-      'Wear OS companion app (cases, deadlines, courtroom mode, Safe Witness)',
-      'Action Center hub: War Room, Deadline Radar, Decode a document, Safe Witness',
-      'E-sign as recipient (always free)',
-      '3 contract reviews / month with confidence rating',
-      '5 e-sign requests / month',
-      '5 GB receipt vault',
-      'Documents inbox + priority lawyer matching',
-      'Extras: 25K tokens / item / month past the cap',
+      '3 cases',
+      'Court-ready PDF export',
+      'Safe Witness with SMS delivery',
+      'E-sign as a signer, always free',
+      'Priority support',
     ],
-    cta: { label: 'Start 7-day trial', href: '/billing?upgrade=pro' },
-    // emphasized intentionally false: audit W20 flagged "Most popular"
-    // badge appearing on Personal Pro AND Small Firm simultaneously,
-    // which collapses the badge's signal. Small Firm is the actual
-    // most-popular tier (its blurb already says "Most popular") so
-    // the badge lives there. Personal Pro is anchored by being the
-    // first paid tier in the consumer column, which is enough hierarchy.
+    cta: { label: 'Start 7-day trial', href: '/billing' },
   },
   {
-    id: 'family',
-    name: 'Personal Plus',
+    id: 'plus',
+    name: 'Plus',
     price: '$29',
     cadence: '/ month',
-    blurb:
-      'Family share, more storage, Safe Witness for every family member, and a head start when you need real counsel.',
+    blurb: 'Bella, your AI legal assistant, unlocks here.',
     features: [
-      'Everything in Personal Pro, plus:',
-      'Family share for up to 4 members - each gets their own Safe Witness',
-      'Safe Witness: up to 15 contacts per family member',
-      '50 cases or contracts (shared budget across the family)',
-      '1.5M Bella tokens / month (~37 sessions) - 3x Pro',
-      '10 contract reviews / month',
-      '15 e-sign requests / month',
-      '25 GB receipt vault',
-      '$1,000 / year credit toward Advottic Counsel firms',
-      'Priority response from matched firms (24h)',
-      'Extras: 25K tokens / item / month past the cap',
+      'Everything in Starter, plus:',
+      '8 cases',
+      'Bella AI assistant — chat + document drafting from templates',
+      '500K Bella tokens / month',
+      'Wear OS companion app',
     ],
-    cta: { label: 'Start 7-day trial', href: '/billing?upgrade=family' },
+    cta: { label: 'Start 7-day trial', href: '/billing' },
+  },
+  {
+    id: 'pro',
+    name: 'Pro',
+    price: '$59',
+    cadence: '/ month',
+    blurb: 'The full toolkit — AI review and bring your own law firm in.',
+    features: [
+      'Everything in Plus, plus:',
+      '15 cases',
+      'Advottic Review — AI plain-English document review',
+      'Invite your law firm to collaborate on a case',
+      '1.5M Bella tokens / month',
+    ],
+    cta: { label: 'Start 7-day trial', href: '/billing' },
+    emphasized: true,
+  },
+  {
+    id: 'ultra',
+    name: 'Ultra',
+    price: '$99',
+    cadence: '/ month',
+    blurb: 'Everything, at scale — the case timeline and group cases.',
+    features: [
+      'Everything in Pro, plus:',
+      '40 cases',
+      'Case Timeline — turn evidence into a court-ready chronology',
+      'Group / community cases',
+      '3M Bella tokens / month (highest grant)',
+    ],
+    cta: { label: 'Start 7-day trial', href: '/billing' },
   },
 ];
 
@@ -318,7 +329,7 @@ export default function PricingPage() {
         <h2 className="font-display text-2xl text-forest-900 dark:text-cream-100">
           For individuals
         </h2>
-        <div className="grid gap-4 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           {CONSUMER_TIERS.map((t) => (
             <TierCard key={t.id} tier={t} />
           ))}
@@ -476,10 +487,11 @@ export default function PricingPage() {
           Still figuring out which tier?
         </h2>
         <p className="text-[14px] text-ink-700 dark:text-cream-100/80 leading-relaxed">
-          The honest answer for most people is &ldquo;Personal Pro&rdquo;,
-          and for most firms it&rsquo;s &ldquo;Small Firm.&rdquo; Try the
-          tier above what you think you need; if you don&rsquo;t use it,
-          downgrade for free.
+          The honest answer for most people is &ldquo;Plus&rdquo; (where Bella
+          unlocks) or &ldquo;Pro&rdquo; if you want AI document review and to
+          bring your law firm in, and for most firms it&rsquo;s &ldquo;Small
+          Firm.&rdquo; Try the tier above what you think you need; if you
+          don&rsquo;t use it, downgrade for free.
         </p>
         <Link href="/sign-in" className="btn-primary inline-flex">
           Get started

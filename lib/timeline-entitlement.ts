@@ -1,10 +1,14 @@
 import 'server-only';
+import { cookies } from 'next/headers';
 import { getCurrentSubscription, getProfile } from './storage';
 import { activeTier } from './tier';
 import { tierSlugFromPriceId } from './stripe';
 import { personalTierForSlug } from './personal-tiers';
 import type { Subscription } from './types';
 import type { TierSlug } from './token-packages';
+
+/** Cookie an admin sets to preview a non-firm timeline experience for QA. */
+export const TIMELINE_PREVIEW_COOKIE = 'adv_tl_preview';
 
 /**
  * Case Timeline access tiers:
@@ -48,7 +52,14 @@ export function timelineAccessFor(sub: Subscription | null | undefined): Timelin
 /** Server-side resolve for the current user (admins get the full firm build). */
 export async function resolveTimelineAccess(): Promise<TimelineAccess> {
   const profile = await getProfile().catch(() => null);
-  if (profile?.isAdmin) return 'firm';
+  if (profile?.isAdmin) {
+    // Admins can preview the consumer experience for QA via a cookie toggle,
+    // without giving up their admin status. Only affects admins.
+    const preview = cookies().get(TIMELINE_PREVIEW_COOKIE)?.value;
+    if (preview === 'consumer') return 'submit';
+    if (preview === 'locked') return 'locked';
+    return 'firm';
+  }
   const sub = await getCurrentSubscription();
   return timelineAccessFor(sub);
 }

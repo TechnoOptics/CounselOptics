@@ -1,12 +1,15 @@
 import { notFound, redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { getCurrentUser, createServerSupabase } from '@/lib/supabase/server';
+import { getProfile } from '@/lib/storage';
 import { getTimelineBundle } from '@/lib/timeline-actions';
 import { aiConfigured } from '@/lib/timeline-ai';
-import { resolveTimelineAccess } from '@/lib/timeline-entitlement';
+import { resolveTimelineAccess, TIMELINE_PREVIEW_COOKIE } from '@/lib/timeline-entitlement';
 import { TimelineBuilder } from './timeline-builder';
 import { MinimalTimeline } from './minimal-timeline';
 import { FactsPanel, type CaseFacts } from './facts-panel';
+import { AdminPreviewToggle } from './admin-preview-toggle';
 
 export const metadata = {
   title: 'Case Timeline · Advottic',
@@ -52,10 +55,14 @@ export default async function TimelinePage({
     hearingLocation: c.hearing_location,
     createdAt: c.created_at,
   };
-  const [bundle, access] = await Promise.all([
+  const [bundle, access, profile] = await Promise.all([
     getTimelineBundle(params.id),
     resolveTimelineAccess(),
+    getProfile().catch(() => null),
   ]);
+  const previewMode = cookies().get(TIMELINE_PREVIEW_COOKIE)?.value;
+  const currentPreview: 'firm' | 'consumer' | 'locked' =
+    previewMode === 'consumer' ? 'consumer' : previewMode === 'locked' ? 'locked' : 'firm';
 
   return (
     <main className="min-h-[100dvh] bg-cream-50 dark:bg-forest-950">
@@ -73,6 +80,7 @@ export default async function TimelinePage({
           <span aria-hidden>/</span>
           <span className="font-medium text-forest-900 dark:text-cream-100" aria-current="page">Timeline</span>
         </nav>
+        {profile?.isAdmin && <AdminPreviewToggle current={currentPreview} />}
         {access !== 'locked' && <FactsPanel facts={facts} />}
         {access === 'firm' ? (
           <TimelineBuilder
