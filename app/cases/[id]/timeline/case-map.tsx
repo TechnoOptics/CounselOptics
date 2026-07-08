@@ -49,7 +49,7 @@ const MAP_STYLE = [
 
 type LatLng = { lat: number; lng: number };
 type GMarker = { setMap(m: unknown): void };
-type GMap = { fitBounds(b: unknown, padding?: number): void; setCenter(c: LatLng): void; setZoom(z: number): void; panTo(c: LatLng): void };
+type GMap = { fitBounds(b: unknown, padding?: number): void; setCenter(c: LatLng): void; setZoom(z: number): void; getZoom(): number; panTo(c: LatLng): void };
 type GMaps = {
   Map: new (el: HTMLElement, opts: Record<string, unknown>) => GMap;
   Marker: new (opts: Record<string, unknown>) => GMarker;
@@ -57,7 +57,10 @@ type GMaps = {
   LatLngBounds: new () => { extend(p: LatLng): void };
   InfoWindow: new (opts: Record<string, unknown>) => { open(map: GMap, anchor: unknown): void; setContent(c: string): void };
   SymbolPath: { CIRCLE: number };
-  event: { addListener(target: unknown, ev: string, cb: () => void): void };
+  event: {
+    addListener(target: unknown, ev: string, cb: () => void): void;
+    addListenerOnce(target: unknown, ev: string, cb: () => void): void;
+  };
 };
 function gmaps(): GMaps | null {
   const g = (window as unknown as { google?: { maps?: GMaps } }).google;
@@ -249,13 +252,29 @@ export function CaseMap({ points, title = 'Case map' }: { points: MapPoint[]; ti
         const allForFit = [...timed, ...undated];
         if (lastFitRef.current !== filterSig && allForFit.length) {
           lastFitRef.current = filterSig;
-          if (allForFit.length === 1) {
-            map.setCenter({ lat: allForFit[0].lat, lng: allForFit[0].lng });
-            map.setZoom(14);
+          const lats = allForFit.map((p) => p.lat);
+          const lngs = allForFit.map((p) => p.lng);
+          const span = Math.max(
+            Math.max(...lats) - Math.min(...lats),
+            Math.max(...lngs) - Math.min(...lngs),
+          );
+          // One point, or everything in a tight cluster: frame the AREA at a
+          // contextual city-level zoom rather than diving to the street (which
+          // read as "too zoomed in"). Otherwise fit all pins, but never let
+          // auto-fit dive past a readable overview zoom.
+          if (allForFit.length === 1 || span < 0.03) {
+            map.setCenter({
+              lat: (Math.max(...lats) + Math.min(...lats)) / 2,
+              lng: (Math.max(...lngs) + Math.min(...lngs)) / 2,
+            });
+            map.setZoom(12);
           } else {
             const bounds = new maps.LatLngBounds();
             allForFit.forEach((p) => bounds.extend({ lat: p.lat, lng: p.lng }));
-            map.fitBounds(bounds, 56);
+            map.fitBounds(bounds, 72);
+            maps.event.addListenerOnce(map, 'idle', () => {
+              if (map.getZoom() > 13) map.setZoom(13);
+            });
           }
         } else if (visibleTimed.length) {
           const cur = visibleTimed[visibleTimed.length - 1];
@@ -318,7 +337,14 @@ export function CaseMap({ points, title = 'Case map' }: { points: MapPoint[]; ti
         </div>
       )}
 
-      <div ref={boxRef} className="h-80 w-full" data-no-translate />
+      <div className="relative">
+        <div ref={boxRef} className="h-[26rem] w-full" data-no-translate />
+        {/* Advottic mark, top-left, so the map reads as a bespoke case-system map. */}
+        <div className="pointer-events-none absolute left-3 top-3 z-10 flex items-center gap-1.5 rounded-lg bg-forest-950/75 px-2.5 py-1.5 ring-1 ring-gold-500/30 backdrop-blur-sm">
+          <span className="h-1.5 w-1.5 rounded-full bg-gold-400" />
+          <span className="text-[10.5px] font-semibold uppercase tracking-[0.2em] text-gold-300">Advottic</span>
+        </div>
+      </div>
 
       {/* Time scrubber with checkpoint marks */}
       {showSlider && (
