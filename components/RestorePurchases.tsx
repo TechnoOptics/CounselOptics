@@ -29,11 +29,9 @@ export function RestorePurchases({
     <div className="card p-5 sm:p-6">
       <p className="eyebrow mb-1">Your subscription</p>
       <p className="text-[13px] text-ink-700 dark:text-cream-100/80 leading-relaxed">
-        Advottic subscriptions are managed on the web. To start, change, or
-        cancel your plan, sign in at{' '}
-        <span className="font-semibold text-forest-900 dark:text-cream-100">advottic.com</span>{' '}
-        in your browser. Once you&apos;re subscribed, your access unlocks here
-        automatically — there&apos;s nothing to buy inside the app.
+        Your Advottic plan is tied to your account. When your account has an
+        active subscription, all of your features unlock here automatically.
+        There is nothing to buy inside the app.
       </p>
     </div>
   );

@@ -8,8 +8,9 @@ import type { PersonalTier, PersonalTierKey } from '@/lib/personal-tiers';
 /**
  * One card in the 5-rung consumer ladder. Shows the case cap plus a feature
  * matrix where locked, more-"revolutionary" features carry a padlock — so a
- * lower tier can see exactly what an upgrade unlocks. iOS uses the reader
- * model (no in-app buy button; a note points to advottic.com).
+ * lower tier can see exactly what an upgrade unlocks. On iOS there is no buy
+ * button and no external-purchase call-to-action (Apple anti-steering, 3.1.1);
+ * a neutral note says the plan unlocks with an active account subscription.
  */
 
 function Check() {
@@ -135,7 +136,7 @@ export function PersonalTierCard({
         </span>
       ) : isIOS ? (
         <p className="rounded-lg border border-ink-200 bg-ink-50 px-3 py-2 text-center text-[12px] leading-snug text-ink-600 dark:border-forest-700/40 dark:bg-forest-950/40 dark:text-cream-100/70">
-          Subscribe on the web at <span className="font-semibold">advottic.com</span>
+          Unlocks with an active subscription on your account
         </p>
       ) : !priceConfigured ? (
         <span className="rounded-lg border border-dashed border-ink-300 px-4 py-2 text-center text-sm text-ink-400 dark:border-forest-700/50 dark:text-cream-100/40">
