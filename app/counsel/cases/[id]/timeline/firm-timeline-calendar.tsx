@@ -305,8 +305,11 @@ export function FirmTimelineCalendar({
     [level, onSelect],
   );
 
+  // Cells that carry a weekday sublabel (week grid) need a touch more height.
+  const cellMinH = level === 'week' ? 'min-h-[42px]' : level === 'day' ? 'min-h-[34px]' : 'min-h-[36px]';
+
   return (
-    <section className="card p-4 space-y-3" aria-label={t('Calendar')}>
+    <section className="card p-3 space-y-2" aria-label={t('Calendar')}>
       {/* Level switcher */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="inline-flex rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 overflow-hidden" role="group" aria-label={t('Zoom level')}>
@@ -320,26 +323,26 @@ export function FirmTimelineCalendar({
                 (level === l.value
                   ? 'bg-forest-900/10 dark:bg-cream-100/10 font-semibold text-forest-900 dark:text-cream-100 '
                   : 'text-ink-600 dark:text-cream-100/70 hover:bg-cream-50 dark:hover:bg-forest-800/40 ') +
-                'px-2.5 py-1 text-[12px] transition-colors'
+                'px-2 py-0.5 text-[11px] transition-colors'
               }
             >
               <T>{l.label}</T>
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1">
           <button
             type="button"
             onClick={() => step(-1)}
             aria-label={t('Previous')}
-            className="inline-flex h-7 w-7 items-center justify-center rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 text-ink-700 dark:text-cream-100/80 hover:bg-cream-50 dark:hover:bg-forest-800/40"
+            className="inline-flex h-6 w-6 items-center justify-center rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 text-ink-700 dark:text-cream-100/80 hover:bg-cream-50 dark:hover:bg-forest-800/40"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden><path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden><path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
           </button>
           <button
             type="button"
             onClick={() => setAnchor(new Date())}
-            className="rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-2.5 py-1 text-[12px] text-ink-700 dark:text-cream-100/80 hover:bg-cream-50 dark:hover:bg-forest-800/40"
+            className="rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-2 py-0.5 text-[11px] text-ink-700 dark:text-cream-100/80 hover:bg-cream-50 dark:hover:bg-forest-800/40"
           >
             <T>Today</T>
           </button>
@@ -347,26 +350,26 @@ export function FirmTimelineCalendar({
             type="button"
             onClick={() => step(1)}
             aria-label={t('Next')}
-            className="inline-flex h-7 w-7 items-center justify-center rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 text-ink-700 dark:text-cream-100/80 hover:bg-cream-50 dark:hover:bg-forest-800/40"
+            className="inline-flex h-6 w-6 items-center justify-center rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 text-ink-700 dark:text-cream-100/80 hover:bg-cream-50 dark:hover:bg-forest-800/40"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden><path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden><path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
           </button>
         </div>
       </div>
 
       {/* Heading */}
       <div className="flex items-center justify-between gap-2">
-        <h3 className="font-display text-[15px] font-medium text-forest-900 dark:text-cream-100" data-no-translate>
+        <h3 className="font-display text-[13px] font-medium text-forest-900 dark:text-cream-100" data-no-translate>
           {heading}
         </h3>
-        <p className="text-[11.5px] text-ink-500 dark:text-cream-100/55">
+        <p className="text-[11px] text-ink-500 dark:text-cream-100/55">
           {total} <T>in view</T>
         </p>
       </div>
 
       {/* Weekday header for day-grid levels */}
       {(level === 'month' || level === 'week') && (
-        <div className="grid grid-cols-7 gap-1 text-center text-[10px] text-ink-400 dark:text-cream-100/45">
+        <div className="grid grid-cols-7 gap-1 text-center text-[9.5px] text-ink-400 dark:text-cream-100/45">
           {WEEKDAYS.map((w) => (
             <div key={w}>{w}</div>
           ))}
@@ -392,7 +395,7 @@ export function FirmTimelineCalendar({
               aria-label={`${c.label}${c.sub ? ' ' + c.sub : ''} · ${c.count} ${c.count === 1 ? t('event') : t('events')}`}
               title={`${c.count} ${c.count === 1 ? t('event') : t('events')}`}
               className={
-                'relative aspect-square rounded-md p-1 text-left transition-colors ' +
+                'relative ' + cellMinH + ' rounded p-1 text-left transition-colors ' +
                 'ring-1 ' +
                 (isActive
                   ? 'ring-2 ring-forest-900 dark:ring-gold-400 '
@@ -402,17 +405,17 @@ export function FirmTimelineCalendar({
                 (c.count > 0 ? 'font-medium ' : 'text-ink-500 dark:text-cream-100/55 ')
               }
             >
-              <span className="flex items-start justify-between gap-1">
-                <span className="text-[11px] leading-none" data-no-translate>{c.label}</span>
+              <span className="flex items-start justify-between gap-0.5">
+                <span className="text-[10px] leading-none" data-no-translate>{c.label}</span>
                 {c.isToday && (
-                  <span className="h-1.5 w-1.5 rounded-full bg-forest-900 dark:bg-gold-400" aria-hidden />
+                  <span className="h-1 w-1 rounded-full bg-forest-900 dark:bg-gold-400" aria-hidden />
                 )}
               </span>
               {c.sub && (
-                <span className="block text-[9px] text-current/70 leading-none mt-0.5" data-no-translate>{c.sub}</span>
+                <span className="block text-[8.5px] text-current/70 leading-none mt-0.5" data-no-translate>{c.sub}</span>
               )}
               {c.count > 0 && (
-                <span className="absolute bottom-1 right-1 inline-flex min-w-[15px] items-center justify-center rounded-full bg-forest-900/85 dark:bg-forest-950/70 px-1 text-[9px] font-semibold text-cream-50 dark:text-cream-100">
+                <span className="absolute bottom-0.5 right-0.5 inline-flex min-w-[13px] items-center justify-center rounded-full bg-forest-900/85 dark:bg-forest-950/70 px-1 text-[8.5px] font-semibold text-cream-50 dark:text-cream-100 leading-tight">
                   {c.count}
                 </span>
               )}
@@ -422,17 +425,17 @@ export function FirmTimelineCalendar({
       </div>
 
       {/* Legend + undated + active filter */}
-      <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-        <div className="flex items-center gap-1.5 text-[10.5px] text-ink-500 dark:text-cream-100/55">
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+        <div className="flex items-center gap-1.5 text-[10px] text-ink-500 dark:text-cream-100/55">
           <T>Fewer</T>
-          <span className="h-3 w-3 rounded-sm bg-gold-500/25" />
-          <span className="h-3 w-3 rounded-sm bg-gold-500/45" />
-          <span className="h-3 w-3 rounded-sm bg-gold-500/60" />
-          <span className="h-3 w-3 rounded-sm bg-gold-500/80" />
+          <span className="h-2.5 w-2.5 rounded-sm bg-gold-500/25" />
+          <span className="h-2.5 w-2.5 rounded-sm bg-gold-500/45" />
+          <span className="h-2.5 w-2.5 rounded-sm bg-gold-500/60" />
+          <span className="h-2.5 w-2.5 rounded-sm bg-gold-500/80" />
           <T>More</T>
         </div>
         {undatedCount > 0 && (
-          <p className="text-[10.5px] text-ink-400 dark:text-cream-100/45">
+          <p className="text-[10px] text-ink-400 dark:text-cream-100/45">
             {undatedCount} <T>undated</T>
           </p>
         )}
