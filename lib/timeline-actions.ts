@@ -5,21 +5,11 @@ import { revalidatePath } from 'next/cache';
 import { getCurrentUser, createServerSupabase } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
 import { safeStorageUpload } from './upload-safety';
-import { extractFileText } from './doc-review';
-import { extractMediaMetadata } from './media-metadata';
-import { mapsConfigured, geocodeAddress } from './maps';
-import {
-  analyzeImage,
-  analyzeText,
-  transcribeAudio,
-  buildNarrative,
-  resolveSuggestedDate,
-  aiConfigured,
-} from './timeline-ai';
+import { buildNarrative, aiConfigured } from './timeline-ai';
+import { computeEventAnalysis, loadCaseContext } from './case-evidence';
 import { resolveTimelineAccess } from './timeline-entitlement';
 import {
   kindFromMime,
-  isVisionAnalyzable,
   sortTimeline,
   formatOccurred,
   type TimelineEvent,
@@ -220,99 +210,18 @@ export async function analyzeTimelineEvent(
   await supabase.from('case_timeline_events').update({ ai_status: 'running' }).eq('id', eventId);
   const admin = createAdminSupabase();
 
-  let result: { extracted: AiExtracted; summary: string } | { error: string };
-  let metaSource: { buf: Buffer; mime: string; name: string } | null = null;
-  const img = ev.media.find((m) => isVisionAnalyzable(m.mime));
-  const doc = ev.media.find((m) => /pdf|word|officedocument|text\//.test(m.mime));
-  const audio = ev.media.find((m) => /^audio\//.test(m.mime));
+  // Score relevance against the case facts (when we can read them).
+  const caseContext = admin ? await loadCaseContext(admin, ev.caseId) : null;
+  const outcome = await computeEventAnalysis({ ev, admin, caseContext });
 
-  try {
-    if (img && admin) {
-      const dl = await admin.storage.from(BUCKET).download(img.path);
-      const buf = Buffer.from(await (dl.data as Blob).arrayBuffer());
-      metaSource = { buf, mime: img.mime, name: img.name };
-      result = await analyzeImage({ buffer: buf, mime: img.mime, userContext: ev.description, kind: ev.kind });
-    } else if (audio && admin) {
-      const dl = await admin.storage.from(BUCKET).download(audio.path);
-      const buf = Buffer.from(await (dl.data as Blob).arrayBuffer());
-      const tr = await transcribeAudio({ buffer: buf, filename: audio.name, mime: audio.mime });
-      const base = tr.text
-        ? `Transcript of the voice note:\n${tr.text}`
-        : `${ev.description ?? ''}`.trim();
-      result = base
-        ? await analyzeText({ text: base, userContext: ev.description, kind: ev.kind })
-        : { error: tr.configured ? 'No speech could be transcribed.' : 'Voice transcription is not configured; add a description so Bella can analyse it.' };
-      if ('extracted' in result && tr.text) result.extracted.ocr_text = tr.text;
-    } else if (doc && admin) {
-      const dl = await admin.storage.from(BUCKET).download(doc.path);
-      const buf = Buffer.from(await (dl.data as Blob).arrayBuffer());
-      metaSource = { buf, mime: doc.mime, name: doc.name };
-      const file = new File([new Uint8Array(buf)], doc.name, { type: doc.mime });
-      const ext = await extractFileText(file);
-      result = ext.text.trim()
-        ? await analyzeText({ text: ext.text, userContext: ev.description, kind: ev.kind })
-        : { error: ext.error ?? 'Could not read text from this document.' };
-    } else if (ev.description) {
-      result = await analyzeText({ text: ev.description, userContext: null, kind: ev.kind });
-    } else {
-      result = { error: 'Nothing to analyse — add a file or a description.' };
-    }
-  } catch (err) {
-    result = { error: err instanceof Error ? err.message : 'Analysis failed.' };
-  }
-
-  // Forensic "core details" straight from the file (EXIF/GPS/device for
-  // images, authoring metadata for PDFs). Non-fatal; merged into the analysis.
-  if (!('error' in result) && metaSource) {
-    try {
-      const meta = await extractMediaMetadata(metaSource.buf, metaSource.mime, metaSource.name);
-      if (meta.fields.length) result.extracted.metadata = meta.fields;
-      if (meta.gps) result.extracted.metadata_gps = meta.gps;
-    } catch {
-      /* metadata is best-effort */
-    }
-  }
-
-  // Map pins: the file's own GPS, plus any named places we can geocode. Gated
-  // on the Maps key (helpers return null without it), so this is a no-op until
-  // the key is present, and never fails the analysis.
-  if (!('error' in result) && mapsConfigured()) {
-    try {
-      const points: NonNullable<AiExtracted['geo_points']> = [];
-      const gps = result.extracted.metadata_gps;
-      if (gps) points.push({ lat: gps.lat, lng: gps.lng, label: 'File GPS', source: 'gps' });
-      const places = (result.extracted.locations ?? []).slice(0, 4);
-      for (const place of places) {
-        const at = await geocodeAddress(place);
-        if (at) points.push({ lat: at.lat, lng: at.lng, label: place.slice(0, 80), source: 'place' });
-      }
-      if (points.length) result.extracted.geo_points = points;
-    } catch {
-      /* geocoding is best-effort */
-    }
-  }
-
-  if ('error' in result) {
-    await supabase.from('case_timeline_events')
-      .update({ ai_status: 'error', ai_error: result.error }).eq('id', eventId);
+  if (!outcome.ok) {
+    await supabase.from('case_timeline_events').update(outcome.patch).eq('id', eventId);
     const { data: fresh } = await supabase.from('case_timeline_events').select('*').eq('id', eventId).maybeSingle();
-    return { ok: false, error: result.error, event: fresh ? toEvent(fresh as EventRow) : undefined };
+    return { ok: false, error: outcome.error, event: fresh ? toEvent(fresh as EventRow) : undefined };
   }
-
-  // Fill an empty date from Bella's suggestion; keep a user-set title.
-  const patch: Record<string, unknown> = {
-    ai_status: 'done', ai_error: null,
-    ai_summary: result.summary, ai_extracted: result.extracted,
-    updated_at: new Date().toISOString(),
-  };
-  if (!ev.occurredAt) {
-    const s = resolveSuggestedDate(result.extracted);
-    if (s.occurredAt) { patch.occurred_at = s.occurredAt; patch.occurred_precision = s.precision; }
-  }
-  if (!ev.title && result.extracted.suggested_title) patch.title = result.extracted.suggested_title.slice(0, 200);
 
   const { data: updated } = await supabase
-    .from('case_timeline_events').update(patch).eq('id', eventId).select('*').single();
+    .from('case_timeline_events').update(outcome.patch).eq('id', eventId).select('*').single();
   revalidatePath(`/cases/${ev.caseId}/timeline`);
   return { ok: true, event: updated ? toEvent(updated as EventRow) : ev };
 }

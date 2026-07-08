@@ -1,6 +1,8 @@
 import 'server-only';
 import Anthropic from '@anthropic-ai/sdk';
 import type { AiExtracted, OccurredPrecision, TimelineKind } from './timeline-types';
+// Type-only import (erased at runtime, so no import cycle with case-evidence).
+import type { CaseContext } from './case-evidence';
 
 /**
  * Timeline AI engine (Bella). Uses the multimodal model to OCR an image,
@@ -71,9 +73,42 @@ Return ONLY a JSON object with this exact shape:
   "suggested_occurred_at": "the single most likely date this happened, ISO (YYYY-MM-DD) or null",
   "suggested_precision": "exact | day | month | year | unknown",
   "confidence": "high | medium | low",
+  "relevance_score": "integer 0 to 100: how relevant this item is to the SPECIFIC case described under CASE CONTEXT, if one is provided; null when no case context is given",
+  "relevance_reason": "one neutral sentence explaining the relevance score (empty string when no case context is given)",
   "summary": "2 to 4 neutral sentences: what this item is and what it factually shows, suitable for an attorney."
 }
-Rules: Do NOT claim to recognize a person's identity by their face; only report names/handles that are actually written in the content, otherwise describe them. Keep everything court-appropriate and non-speculative. Never use em dashes or en dashes in any text you write; use commas, periods, colons, or parentheses instead. Do not refer to yourself, to any assistant, or to AI; write as a neutral case analyst.`;
+Rules: Do NOT claim to recognize a person's identity by their face; only report names/handles that are actually written in the content, otherwise describe them. Keep everything court-appropriate and non-speculative. When CASE CONTEXT is given, judge relevance by how directly this item bears on that case's parties, facts, dates, and claims: a high score (67 to 100) means it clearly concerns the case; a low score (0 to 33) means it is unrelated or only incidentally connected. Never use em dashes or en dashes in any text you write; use commas, periods, colons, or parentheses instead. Do not refer to yourself, to any assistant, or to AI; write as a neutral case analyst.`;
+
+/** A compact, factual block of the case's facts for relevance scoring. */
+function caseContextBlock(cc: CaseContext | null | undefined): string {
+  if (!cc) return '';
+  const facts = [
+    `Title: ${cc.title}`,
+    cc.subject ? `Subject: ${cc.subject}` : '',
+    cc.caseType ? `Case type: ${cc.caseType}` : '',
+    cc.jurisdiction ? `Jurisdiction: ${cc.jurisdiction}` : '',
+    cc.description ? `Description: ${cc.description.slice(0, 2000)}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+  return `\n\nCASE CONTEXT (score this item's relevance to THIS case):\n${facts}\n`;
+}
+
+/**
+ * Normalise the model's relevance fields into a clamped integer + cleaned
+ * sentence (or drop them when unscored), so callers can trust the shape.
+ */
+function normalizeRelevance(extracted: AiExtracted): void {
+  const raw = (extracted as { relevance_score?: unknown }).relevance_score;
+  const n = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : NaN;
+  if (Number.isFinite(n)) {
+    extracted.relevance_score = Math.max(0, Math.min(100, Math.round(n)));
+    extracted.relevance_reason = cleanAiText(extracted.relevance_reason) || undefined;
+  } else {
+    delete extracted.relevance_score;
+    delete extracted.relevance_reason;
+  }
+}
 
 /**
  * Strip AI "tells" from model output before it is stored or shown: em/en dashes
@@ -100,6 +135,7 @@ export async function analyzeImage(input: {
   mime: string;
   userContext: string | null;
   kind: TimelineKind;
+  caseContext?: CaseContext | null;
 }): Promise<{ extracted: AiExtracted; summary: string } | { error: string }> {
   const c = client();
   if (!c) return { error: 'AI is not configured (missing API key).' };
@@ -123,7 +159,7 @@ export async function analyzeImage(input: {
               type: 'image',
               source: { type: 'base64', media_type: mediaType, data: input.buffer.toString('base64') },
             },
-            { type: 'text', text: `${ctx}\nThis item is categorised as a ${input.kind}. Analyse it.` },
+            { type: 'text', text: `${ctx}\nThis item is categorised as a ${input.kind}. Analyse it.${caseContextBlock(input.caseContext)}` },
           ],
         },
       ],
@@ -131,6 +167,7 @@ export async function analyzeImage(input: {
     const parsed = parseJson<RawAnalysis>(textFrom(res));
     if (!parsed) return { error: 'Analysis returned an unreadable result.' };
     const { summary = '', ...extracted } = parsed;
+    normalizeRelevance(extracted);
     return { extracted, summary: cleanAiText(summary) };
   } catch (err) {
     return { error: err instanceof Error ? err.message : 'Analysis failed.' };
@@ -142,6 +179,7 @@ export async function analyzeText(input: {
   text: string;
   userContext: string | null;
   kind: TimelineKind;
+  caseContext?: CaseContext | null;
 }): Promise<{ extracted: AiExtracted; summary: string } | { error: string }> {
   const c = client();
   if (!c) return { error: 'AI is not configured (missing API key).' };
@@ -157,13 +195,14 @@ export async function analyzeText(input: {
       messages: [
         {
           role: 'user',
-          content: `${ctx}\nThis item is a ${input.kind}. Analyse the following content:\n\n${body}`,
+          content: `${ctx}\nThis item is a ${input.kind}. Analyse the following content:\n\n${body}${caseContextBlock(input.caseContext)}`,
         },
       ],
     });
     const parsed = parseJson<RawAnalysis>(textFrom(res));
     if (!parsed) return { error: 'Analysis returned an unreadable result.' };
     const { summary = '', ...extracted } = parsed;
+    normalizeRelevance(extracted);
     return { extracted, summary: cleanAiText(summary) };
   } catch (err) {
     return { error: err instanceof Error ? err.message : 'Analysis failed.' };

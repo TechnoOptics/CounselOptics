@@ -102,7 +102,41 @@ export type AiExtracted = {
    * Empty/undefined when nothing resolved or Maps is not configured.
    */
   geo_points?: { lat: number; lng: number; label: string; source: 'gps' | 'place' }[];
+  /**
+   * How relevant this item is to the specific case it was filed under (0 to
+   * 100), scored against the case facts (title, subject, type, jurisdiction,
+   * description). Distinct from `confidence`, which is only how sure the reader
+   * is of its own extraction. Undefined when the item was not scored (no case
+   * context, analysis skipped, or a legacy row).
+   */
+  relevance_score?: number;
+  /** One neutral sentence explaining the relevance score. */
+  relevance_reason?: string;
+  /**
+   * For an imported email (.eml / .msg): the parsed header fields, so the
+   * timeline can show who sent it, to whom, and when at a glance. The body is
+   * carried in `ocr_text` and the people/dates flow into the usual fields.
+   */
+  email?: {
+    from?: string | null;
+    to?: string[];
+    cc?: string[];
+    subject?: string | null;
+    date?: string | null;
+    attachments?: string[];
+  };
 };
+
+/** Coarse relevance bands for badges + map de-emphasis, derived from the score. */
+export type RelevanceBand = 'high' | 'medium' | 'low';
+
+/** Map a 0-100 relevance score to a band. Undefined score → undefined (unscored). */
+export function relevanceBand(score: number | undefined | null): RelevanceBand | undefined {
+  if (typeof score !== 'number' || Number.isNaN(score)) return undefined;
+  if (score >= 67) return 'high';
+  if (score >= 34) return 'medium';
+  return 'low';
+}
 
 export type CasePerson = {
   id: string;
@@ -186,8 +220,22 @@ const IMAGE_MIME = /^image\//;
 const VIDEO_MIME = /^video\//;
 const AUDIO_MIME = /^audio\//;
 
+/**
+ * True for an email file we can parse (.eml via RFC822, .msg best-effort).
+ * Detected by extension or mime, since browsers often send an empty/generic
+ * mime for these.
+ */
+export function isEmailFile(mime: string, name: string): boolean {
+  const n = name.toLowerCase();
+  return (
+    /message\/rfc822|application\/vnd\.ms-outlook|application\/x-msg/i.test(mime) ||
+    /\.(eml|msg)$/i.test(n)
+  );
+}
+
 /** Best-guess kind from a file's mime type (the user can override). */
 export function kindFromMime(mime: string, name: string): TimelineKind {
+  if (isEmailFile(mime, name)) return 'message';
   if (IMAGE_MIME.test(mime)) {
     return /receipt|invoice/i.test(name) ? 'receipt' : 'photo';
   }
