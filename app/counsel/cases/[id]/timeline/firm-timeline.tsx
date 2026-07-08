@@ -229,7 +229,14 @@ export function FirmTimeline({
 
       {/* Calendar (density grid) */}
       {view === 'calendar' && (
-        <FirmTimelineCalendar events={events} activeRange={range} onSelect={setRange} />
+        <FirmTimelineCalendar
+          events={events}
+          activeRange={range}
+          onSelect={setRange}
+          firmId={firmId}
+          caseId={caseId}
+          onOpenMedia={openMedia}
+        />
       )}
 
       {/* Map */}

@@ -1,8 +1,10 @@
 'use client';
 
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useEffect } from 'react';
 import { T, useT } from '@/components/i18n/LocaleProvider';
-import type { TimelineEvent } from '@/lib/timeline-types';
+import { RelevanceBadge } from '@/components/RelevanceBadge';
+import { getFirmEvidenceMediaUrl } from '@/lib/case-evidence-actions';
+import { formatOccurred, KIND_ICON, KIND_LABEL, type TimelineEvent } from '@/lib/timeline-types';
 
 /**
  * Firm-native calendar view for the case timeline. A companion to the dated
@@ -100,17 +102,81 @@ function intensityClass(count: number, max: number): string {
   return 'bg-gold-500/25 dark:bg-gold-500/30 text-forest-900 dark:text-cream-100';
 }
 
+/** The events whose occurredAt lands in the half-open [start, end), ascending. */
+function eventsInRange(events: TimelineEvent[], start: Date, end: Date): TimelineEvent[] {
+  const lo = start.getTime();
+  const hi = end.getTime();
+  return events
+    .filter((e) => {
+      if (!e.occurredAt) return false;
+      const ms = new Date(e.occurredAt).getTime();
+      return !Number.isNaN(ms) && ms >= lo && ms < hi;
+    })
+    .sort((a, b) => (a.occurredAt! < b.occurredAt! ? -1 : 1));
+}
+
+function isImageMedia(mime: string | undefined): boolean {
+  return !!mime && mime.startsWith('image/');
+}
+
+/** A lazy thumbnail for an evidence item on the day-detail popup. Signs the URL
+ *  on mount (best-effort); falls back to the item's kind icon. */
+function DayThumb({
+  firmId,
+  caseId,
+  path,
+  mime,
+  fallback,
+}: {
+  firmId: string;
+  caseId: string;
+  path: string | null;
+  mime: string | undefined;
+  fallback: string;
+}) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    if (path && isImageMedia(mime)) {
+      getFirmEvidenceMediaUrl(firmId, caseId, path).then((r) => {
+        if (live && r.ok && r.url) setUrl(r.url);
+      });
+    }
+    return () => {
+      live = false;
+    };
+  }, [firmId, caseId, path, mime]);
+  return (
+    <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-md bg-cream-100 ring-1 ring-ink-100 dark:bg-forest-800/50 dark:ring-forest-700/40">
+      {url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={url} alt="" className="h-full w-full object-cover" />
+      ) : (
+        <span className="text-[15px]" aria-hidden>{fallback}</span>
+      )}
+    </span>
+  );
+}
+
 export function FirmTimelineCalendar({
   events,
   activeRange,
   onSelect,
+  firmId,
+  caseId,
+  onOpenMedia,
 }: {
   events: TimelineEvent[];
   activeRange: PeriodRange | null;
   onSelect: (range: PeriodRange | null) => void;
+  firmId: string;
+  caseId: string;
+  onOpenMedia: (path: string) => void;
 }) {
   const t = useT();
   const [level, setLevel] = useState<CalLevel>('month');
+  // The day/hour the user clicked into, with its events listed in a popup.
+  const [detail, setDetail] = useState<{ label: string; items: TimelineEvent[] } | null>(null);
   // Anchor: any moment inside the currently shown period.
   const [anchor, setAnchor] = useState<Date>(() => {
     const dated = events.find((e) => e.occurredAt)?.occurredAt;
@@ -254,6 +320,7 @@ export function FirmTimelineCalendar({
   // ── Navigation ──────────────────────────────────────────────────────────
   const step = useCallback(
     (dir: -1 | 1) => {
+      setDetail(null);
       setAnchor((a) => {
         if (level === 'decade') return utc(a.getUTCFullYear() + dir * 10, a.getUTCMonth(), 1);
         if (level === 'year') return utc(a.getUTCFullYear() + dir, a.getUTCMonth(), 1);
@@ -295,14 +362,21 @@ export function FirmTimelineCalendar({
               ? iso.slice(0, 10)
               : iso.slice(0, 13);
       onSelect({ start: iso, end: cell.end.toISOString(), label: filterLabel, refKey });
-      // Drill one zoom finer along the natural chain.
+      // Coarse levels drill one zoom finer along the natural chain. At a day
+      // grain (a day cell in month/week, or an hour cell in day view) we open
+      // a popup listing that period's evidence instead of drilling further.
       setAnchor(cell.start);
-      if (level === 'decade') setLevel('year');
-      else if (level === 'year') setLevel('month');
-      else if (level === 'month' || level === 'week') setLevel('day');
-      // day: stay; the click just filters to the hour.
+      if (level === 'decade') {
+        setDetail(null);
+        setLevel('year');
+      } else if (level === 'year') {
+        setDetail(null);
+        setLevel('month');
+      } else {
+        setDetail({ label: filterLabel, items: eventsInRange(events, cell.start, cell.end) });
+      }
     },
-    [level, onSelect],
+    [level, onSelect, events],
   );
 
   // Cells that carry a weekday sublabel (week grid) need a touch more height.
@@ -317,7 +391,7 @@ export function FirmTimelineCalendar({
             <button
               key={l.value}
               type="button"
-              onClick={() => setLevel(l.value)}
+              onClick={() => { setDetail(null); setLevel(l.value); }}
               aria-pressed={level === l.value}
               className={
                 (level === l.value
@@ -341,7 +415,7 @@ export function FirmTimelineCalendar({
           </button>
           <button
             type="button"
-            onClick={() => setAnchor(new Date())}
+            onClick={() => { setDetail(null); setAnchor(new Date()); }}
             className="rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-2 py-0.5 text-[11px] text-ink-700 dark:text-cream-100/80 hover:bg-cream-50 dark:hover:bg-forest-800/40"
           >
             <T>Today</T>
@@ -423,6 +497,66 @@ export function FirmTimelineCalendar({
           );
         })}
       </div>
+
+      {/* Day detail: the clicked day/hour's evidence, with thumbnails + open. */}
+      {detail && (
+        <div className="rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 bg-cream-50/60 dark:bg-forest-800/30 p-3 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[12px] font-medium text-forest-900 dark:text-cream-100">
+              <span data-no-translate>{detail.label}</span>{' '}
+              <span className="text-ink-400 dark:text-cream-100/45">({detail.items.length})</span>
+            </p>
+            <button
+              type="button"
+              onClick={() => setDetail(null)}
+              aria-label={t('Close')}
+              className="inline-flex h-6 w-6 items-center justify-center rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 text-ink-600 dark:text-cream-100/70 hover:bg-cream-50 dark:hover:bg-forest-800/40"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+            </button>
+          </div>
+          {detail.items.length === 0 ? (
+            <p className="text-[11.5px] text-ink-500 dark:text-cream-100/55"><T>No evidence on this day.</T></p>
+          ) : (
+            <ul className="space-y-1.5">
+              {detail.items.map((e) => {
+                const m = e.media[0];
+                return (
+                  <li key={e.id} className="flex items-center gap-2.5 rounded-md bg-white/70 dark:bg-forest-900/40 ring-1 ring-ink-100 dark:ring-forest-700/30 px-2 py-1.5">
+                    <DayThumb
+                      firmId={firmId}
+                      caseId={caseId}
+                      path={m?.path ?? null}
+                      mime={m?.mime}
+                      fallback={KIND_ICON[e.kind]}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="flex flex-wrap items-center gap-1.5 text-[12px] font-medium text-forest-900 dark:text-cream-100">
+                        <span className="break-words" data-no-translate>{e.title || t('(untitled)')}</span>
+                        <RelevanceBadge score={e.aiExtracted.relevance_score} reason={e.aiExtracted.relevance_reason} size="xs" />
+                      </span>
+                      <span className="block text-[10.5px] text-ink-500 dark:text-cream-100/55" data-no-translate>
+                        {formatOccurred(e.occurredAt, e.occurredPrecision)}
+                        {' · '}
+                        {KIND_LABEL[e.kind]}
+                      </span>
+                    </span>
+                    {m && (
+                      <button
+                        type="button"
+                        onClick={() => onOpenMedia(m.path)}
+                        className="shrink-0 inline-flex items-center min-h-[28px] px-2.5 rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 text-[11.5px] hover:bg-cream-50 dark:hover:bg-forest-800/30"
+                      >
+                        <T>Open</T>
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      )}
 
       {/* Legend + undated + active filter */}
       <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
