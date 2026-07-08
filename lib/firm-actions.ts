@@ -3811,6 +3811,95 @@ export async function createFirmCaseAction(
 }
 
 /**
+ * Edit a firm matter's details (fix a typo, correct a name, update the
+ * opposing-party dossier / jurisdiction / hearing). Admin-path write gated on
+ * firm membership + the case belonging to that firm, mirroring
+ * createFirmCaseAction. Reuses the same input shape; every editable field is
+ * re-validated the same way it is at creation.
+ */
+export async function updateFirmCaseAction(
+  firmId: string,
+  caseId: string,
+  input: CreateFirmCaseInput,
+): Promise<{ ok: boolean; error?: string }> {
+  await requireUser();
+  if (!(await callerIsFirmMember(firmId))) {
+    return { ok: false, error: 'You do not have access to this firm.' };
+  }
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server not configured.' };
+
+  const { data: kase } = await admin
+    .from('cases')
+    .select('id, firm_id')
+    .eq('id', caseId)
+    .maybeSingle();
+  if (!kase || (kase as { firm_id: string | null }).firm_id !== firmId) {
+    return { ok: false, error: 'That matter is not in this firm.' };
+  }
+
+  const title = (input.title ?? '').trim();
+  if (!title) return { ok: false, error: 'Give the matter a title.' };
+  const subject = (input.subject ?? '').trim() || title;
+  const rawType = (input.caseType ?? '').trim();
+  const caseType: CaseType = (CASE_TYPES as readonly string[]).includes(rawType)
+    ? (rawType as CaseType)
+    : 'Other';
+  const posture: Posture = input.posture === 'defendant' ? 'defendant' : 'claimant';
+  const validSubjectTypes: SubjectType[] = ['person', 'business', 'matter', 'state', 'entity'];
+  const subjectType: SubjectType = validSubjectTypes.includes(input.subjectType as SubjectType)
+    ? (input.subjectType as SubjectType)
+    : 'person';
+  const jurisdictionCountry = (input.jurisdictionCountry ?? '').trim() || 'US';
+  const jurisdictionState = (input.jurisdictionState ?? '').trim();
+  const jurisdictionCity = (input.jurisdictionCity ?? '').trim();
+  const description = (input.description ?? '').trim();
+
+  const rawProfile = input.subjectProfile ?? {};
+  const subjectProfile: SubjectProfile = {};
+  (Object.keys(rawProfile) as (keyof SubjectProfile)[]).forEach((k) => {
+    const v = (rawProfile[k] ?? '').trim();
+    if (v) subjectProfile[k] = v;
+  });
+
+  let hearingAt: string | null = null;
+  const hearingRaw = (input.hearingAt ?? '').trim();
+  if (hearingRaw) {
+    const parsed = new Date(hearingRaw);
+    if (Number.isNaN(parsed.getTime())) {
+      return { ok: false, error: 'Hearing date is not a valid date and time.' };
+    }
+    hearingAt = parsed.toISOString();
+  }
+  const hearingLocation = (input.hearingLocation ?? '').trim() || null;
+  const hearingNotes = (input.hearingNotes ?? '').trim() || null;
+
+  const { error } = await admin
+    .from('cases')
+    .update({
+      title,
+      subject_name: subject,
+      subject_type: subjectType,
+      subject_profile: subjectProfile,
+      case_type: caseType,
+      posture,
+      description,
+      jurisdiction_country: jurisdictionCountry,
+      jurisdiction_state: jurisdictionState,
+      jurisdiction_city: jurisdictionCity,
+      hearing_at: hearingAt,
+      hearing_location: hearingLocation,
+      hearing_notes: hearingNotes,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', caseId)
+    .eq('firm_id', firmId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/counsel/cases/${caseId}`);
+  return { ok: true };
+}
+
+/**
  * Sets (or clears, when assigneeUserId is null) the responsible
  * attorney on a matter. Service-role write gated on firm membership:
  * the caller must belong to the matter's firm, and a non-null assignee

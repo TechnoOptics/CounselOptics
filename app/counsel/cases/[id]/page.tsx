@@ -16,6 +16,7 @@ import { MatterChatPanel } from './matter-chat-panel';
 import { CaseInvitePanel } from './case-invite-panel';
 import { LinkedProjectsPanel } from './linked-projects-panel';
 import { MatterFacts } from './matter-facts';
+import { EditMatterForm } from './edit-matter-form';
 import { T } from '@/components/i18n/LocaleProvider';
 import { aiConfigured } from '@/lib/timeline-ai';
 import { resolveTimelineAccess } from '@/lib/timeline-entitlement';
@@ -358,6 +359,30 @@ export default async function CounselCaseDetailPage({
         hearingLocation={c.hearing_location}
         hearingNotes={c.hearing_notes}
       />
+
+      {/* Correct a typo / edit any case detail (name, business, jurisdiction,
+          hearing) in place - firm-gated admin write. */}
+      <div className="flex justify-end -mt-3">
+        <EditMatterForm
+          firmId={ctx.firm.id}
+          caseId={params.id}
+          initial={{
+            title: c.title,
+            subject: c.subject_name,
+            subjectType: (c.subject_type as 'person' | 'business' | 'entity' | 'state' | 'matter') ?? 'person',
+            caseType: c.case_type,
+            posture: (c.posture as 'claimant' | 'defendant') ?? 'claimant',
+            country: c.jurisdiction_country ?? 'US',
+            state: c.jurisdiction_state ?? '',
+            city: c.jurisdiction_city ?? '',
+            description: c.description ?? '',
+            profile: (c.subject_profile ?? {}) as Record<string, string>,
+            hearingAt: c.hearing_at ? c.hearing_at.slice(0, 16) : '',
+            hearingLocation: c.hearing_location ?? '',
+            hearingNotes: c.hearing_notes ?? '',
+          }}
+        />
+      </div>
 
       {/* Case analysis - the substantive analytical surfaces ported from
           the personal case file (app/cases/[id]) and reframed as firm
