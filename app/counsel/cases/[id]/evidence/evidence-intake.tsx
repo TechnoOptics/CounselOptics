@@ -2,13 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
-import { isNativeApp } from '@/lib/platform';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import { RelevanceBadge } from '@/components/RelevanceBadge';
 import { CaseMap, type MapPoint } from '@/app/cases/[id]/timeline/case-map';
 import {
   formatOccurred,
   folderForEvent,
+  capturedAt,
+  contentIconFor,
+  exhibitLabel,
   sortTimeline,
   EVIDENCE_FOLDERS,
   KIND_ICON,
@@ -16,6 +18,7 @@ import {
   PRECISION_GRAINS,
   type OccurredPrecision,
   type TimelineEvent,
+  type TimelineKind,
   type EvidenceEdit,
 } from '@/lib/timeline-types';
 import {
@@ -27,8 +30,14 @@ import {
   setFirmEvidenceFolderAction,
   renameFirmEvidenceFolderAction,
   deleteFirmCaseEventAction,
-  getFirmEvidenceMediaUrl,
+  checkEvidenceDuplicatesAction,
+  exportSelectedEvidenceAction,
+  type EvidenceExportItem,
 } from '@/lib/case-evidence-actions';
+import { EvidenceViewer } from './evidence-viewer';
+import { EvidenceThumb } from './evidence-thumb';
+import { DuplicateDialog, type DuplicateAction, type DuplicateEntry } from './duplicate-dialog';
+import { ShareExportDialog } from './share-export-dialog';
 
 // Requests are packed by BOTH a file count and a byte budget so a batch never
 // exceeds the 50 MB server-action body limit, whatever the file sizes are.
@@ -39,6 +48,12 @@ const MAX_BATCH_BYTES = 40 * 1024 * 1024; // headroom under the 50 MB server lim
 // thousand sequential model calls.
 const DEFER_AI_ABOVE = 40;
 const ANALYZE_CONCURRENCY = 3; // parallel scoring passes when analysing pending
+const BULK_CONCURRENCY = 3; // parallel workers for bulk delete / re-analyse
+// Above this many files in one drop, skip the interactive duplicate prompt: a
+// per-file dialog is impractical at that scale (and hashing every file up front
+// is heavy). The server still records each file's hash, so later smaller imports
+// still detect these as duplicates.
+const DEDUPE_PROMPT_MAX = 60;
 
 /** Pack files into request-sized batches bounded by count AND total bytes. */
 function packBatches(files: File[]): File[][] {
@@ -120,6 +135,64 @@ function toDateInput(iso: string | null): string {
   return Number.isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
 }
 
+/** Hex SHA-256 of a file's bytes, for client-side duplicate pre-checks. */
+async function hashFile(file: File): Promise<string | null> {
+  try {
+    if (typeof crypto === 'undefined' || !crypto.subtle) return null;
+    const buf = await file.arrayBuffer();
+    const digest = await crypto.subtle.digest('SHA-256', buf);
+    return Array.from(new Uint8Array(digest))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+  } catch {
+    return null;
+  }
+}
+
+/** Insert a " (copy)" before the extension so a kept-both duplicate is distinct. */
+function copyName(name: string): string {
+  const dot = name.lastIndexOf('.');
+  if (dot <= 0) return `${name} (copy)`;
+  return `${name.slice(0, dot)} (copy)${name.slice(dot)}`;
+}
+
+/** Everything an item's text could be searched by, lowercased once. */
+function searchHaystack(e: TimelineEvent): string {
+  const ext = e.aiExtracted ?? {};
+  return [
+    e.title,
+    exhibitLabel(ext.exhibit_no),
+    e.aiSummary,
+    ext.ocr_text,
+    ext.document_type,
+    e.sourceLabel,
+    KIND_LABEL[e.kind],
+    folderForEvent(e),
+    ...(ext.detected_people ?? []),
+    ...(ext.organizations ?? []),
+    ...(ext.locations ?? []),
+    ...(ext.detected_dates ?? []),
+    ...(ext.objects ?? []),
+    e.media[0]?.name,
+  ]
+    .filter(Boolean)
+    .join('  ')
+    .toLowerCase();
+}
+
+/** A month bucket key + label for date grouping. */
+function monthBucket(iso: string | null): { key: string; label: string } {
+  if (!iso) return { key: 'zzzz-undated', label: 'Undated' };
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return { key: 'zzzz-undated', label: 'Undated' };
+  const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+  const label = d.toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+  return { key, label };
+}
+
+type GroupMode = 'folder' | 'date';
+type ViewMode = 'list' | 'grid';
+
 export function EvidenceIntake({
   firmId,
   caseId,
@@ -144,6 +217,20 @@ export function EvidenceIntake({
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [pending, startTransition] = useTransition();
 
+  // View + organisation controls
+  const [view, setView] = useState<ViewMode>('list');
+  const [groupMode, setGroupMode] = useState<GroupMode>('folder');
+  const [query, setQuery] = useState('');
+  const [hiddenFolders, setHiddenFolders] = useState<Set<string>>(new Set());
+  const [hiddenKinds, setHiddenKinds] = useState<Set<TimelineKind>>(new Set());
+  const [showFilters, setShowFilters] = useState(false);
+
+  // Selection + viewer + dialogs
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const [dedupe, setDedupe] = useState<{ entries: DuplicateEntry[]; all: { file: File; hash: string | null }[] } | null>(null);
+  const [shareData, setShareData] = useState<{ matter: string; items: EvidenceExportItem[] } | null>(null);
+
   const refresh = useCallback(async (): Promise<TimelineEvent[]> => {
     const res = await getFirmCaseTimeline(firmId, caseId);
     if (res.ok && res.events) {
@@ -155,7 +242,6 @@ export function EvidenceIntake({
 
   // Score a specific set of entries, a few at a time, so a big backlog after a
   // large import gets relevance + folders without a thousand-deep serial queue.
-  // Shared by the automatic post-import kick and the manual "Analyse pending".
   const runAnalyzeQueue = useCallback(
     async (queue: string[]) => {
       if (queue.length === 0) return;
@@ -191,14 +277,13 @@ export function EvidenceIntake({
     [firmId, caseId, t],
   );
 
-  const upload = useCallback(
-    async (files: File[]) => {
+  /** The actual upload: batch the files and (on the first batch) apply replaces. */
+  const performUpload = useCallback(
+    async (files: File[], replaceHashes: string[] = []) => {
       if (files.length === 0) return;
       setError(null);
       setNotice(null);
       setBusy(true);
-      // Large drops import fast: skip inline scoring so the intake keeps moving,
-      // then the queue is auto-kicked (and the cron backstops it) afterwards.
       const deferAi = aiEnabled && files.length > DEFER_AI_ABOVE;
       const batches = packBatches(files);
       let imported = 0;
@@ -212,6 +297,8 @@ export function EvidenceIntake({
         for (const f of batch) fd.append('files', f);
         const res = await bulkImportCaseEvidenceAction(firmId, caseId, fd, {
           analyze: !deferAi,
+          // Replaces are handled once, before any file is imported.
+          replaceHashes: b === 0 ? replaceHashes : undefined,
         });
         imported += res.imported ?? 0;
         failed += res.failed ?? 0;
@@ -219,8 +306,6 @@ export function EvidenceIntake({
         if (!res.ok && res.error && !res.imported) errors.push(res.error);
         done += batch.length;
         setProgress({ done, total: files.length });
-        // Refresh the list periodically rather than every batch so a huge drop
-        // doesn't fire hundreds of timeline reads while it's still importing.
         if (b === batches.length - 1 || b % 5 === 4) await refresh();
       }
       setBusy(false);
@@ -229,9 +314,6 @@ export function EvidenceIntake({
       if (failed) parts.push(t('{n} could not be imported.').replace('{n}', String(failed)));
       if (errors.length) setError(errors.slice(0, 4).join('  •  '));
 
-      // Always-on analysis: after a deferred import, kick the pending queue
-      // automatically instead of waiting for the user to click a button. If the
-      // tab is closed before it finishes, the cron sweep picks up the rest.
       if (deferAi && imported) {
         const fresh = await refresh();
         const queue = fresh.filter((e) => e.aiStatus === 'skipped').map((e) => e.id);
@@ -243,6 +325,61 @@ export function EvidenceIntake({
       setNotice(parts.join(' '));
     },
     [firmId, caseId, refresh, aiEnabled, t, runAnalyzeQueue],
+  );
+
+  /** Upload entry point: pre-check for duplicates, prompt, then hand off. */
+  const upload = useCallback(
+    async (files: File[]) => {
+      if (files.length === 0) return;
+      // Skip the interactive prompt for very large drops (see DEDUPE_PROMPT_MAX).
+      if (files.length > DEDUPE_PROMPT_MAX) {
+        await performUpload(files);
+        return;
+      }
+      setBusy(true);
+      setError(null);
+      const withHash = await Promise.all(files.map(async (file) => ({ file, hash: await hashFile(file) })));
+      const hashes = withHash.map((h) => h.hash).filter((h): h is string => Boolean(h));
+      let dupMap: Record<string, { id: string; title: string; exhibit: string | null }> = {};
+      if (hashes.length) {
+        const res = await checkEvidenceDuplicatesAction(firmId, caseId, hashes);
+        if (res.ok && res.duplicates) dupMap = res.duplicates;
+      }
+      const entries: DuplicateEntry[] = withHash
+        .filter((h) => h.hash && dupMap[h.hash])
+        .map((h) => ({ file: h.file, hash: h.hash as string, existing: dupMap[h.hash as string] }));
+      setBusy(false);
+      if (entries.length) {
+        setDedupe({ entries, all: withHash });
+        return; // wait for the dialog to resolve
+      }
+      await performUpload(files);
+    },
+    [firmId, caseId, performUpload],
+  );
+
+  /** Resolve the duplicate dialog into a final file list + replace set. */
+  const applyDedupe = useCallback(
+    (resolutions: Map<File, DuplicateAction>) => {
+      if (!dedupe) return;
+      const finalFiles: File[] = [];
+      const replaceHashes: string[] = [];
+      for (const { file, hash } of dedupe.all) {
+        const action = resolutions.get(file); // undefined for non-duplicate files
+        if (action === 'skip') continue;
+        if (action === 'replace') {
+          if (hash) replaceHashes.push(hash);
+          finalFiles.push(file);
+        } else if (action === 'rename') {
+          finalFiles.push(new File([file], copyName(file.name), { type: file.type }));
+        } else {
+          finalFiles.push(file);
+        }
+      }
+      setDedupe(null);
+      void performUpload(finalFiles, replaceHashes);
+    },
+    [dedupe, performUpload],
   );
 
   const analyzePending = useCallback(async () => {
@@ -273,7 +410,6 @@ export function EvidenceIntake({
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
-    // Read the transfer synchronously - it's invalid after the handler returns.
     const { files, urls } = extractDrop(e.dataTransfer);
     if (files.length) void upload(files);
     else if (urls.length) void importFromUrls(urls);
@@ -336,9 +472,10 @@ export function EvidenceIntake({
           return n;
         });
         if (res.needsConfirm) {
-          if (typeof window !== 'undefined' && window.confirm(
-            t('This entry was corrected by hand. Re-analysing replaces those edits. Continue?'),
-          )) {
+          if (
+            typeof window !== 'undefined' &&
+            window.confirm(t('This entry was corrected by hand. Re-analysing replaces those edits. Continue?'))
+          ) {
             reanalyze(id, true);
           }
           return;
@@ -354,8 +491,14 @@ export function EvidenceIntake({
     (id: string) => {
       startTransition(async () => {
         const res = await deleteFirmCaseEventAction(firmId, caseId, id);
-        if (res.ok) setEvents((list) => list.filter((e) => e.id !== id));
-        else if (res.error) setError(res.error);
+        if (res.ok) {
+          setEvents((list) => list.filter((e) => e.id !== id));
+          setSelected((s) => {
+            const n = new Set(s);
+            n.delete(id);
+            return n;
+          });
+        } else if (res.error) setError(res.error);
       });
     },
     [firmId, caseId],
@@ -399,23 +542,173 @@ export function EvidenceIntake({
     [firmId, caseId, refresh],
   );
 
-  const openMedia = useCallback(
-    async (path: string) => {
-      setError(null);
-      const res = await getFirmEvidenceMediaUrl(firmId, caseId, path);
-      if (!res.ok || !res.url) {
-        setError(res.error ?? t('Could not open the file.'));
-        return;
+  // ── Filtering + ordering ────────────────────────────────────────────
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return events.filter((e) => {
+      if (hiddenFolders.has(folderForEvent(e))) return false;
+      if (hiddenKinds.has(e.kind)) return false;
+      if (q && !searchHaystack(e).includes(q)) return false;
+      return true;
+    });
+  }, [events, query, hiddenFolders, hiddenKinds]);
+
+  // Folder groups (taxonomy order), each chronologically sorted.
+  const folderGroups = useMemo(() => {
+    const map = new Map<string, TimelineEvent[]>();
+    for (const e of filtered) {
+      const f = folderForEvent(e);
+      const bucket = map.get(f);
+      if (bucket) bucket.push(e);
+      else map.set(f, [e]);
+    }
+    const ordered: { name: string; items: TimelineEvent[] }[] = [];
+    for (const name of EVIDENCE_FOLDERS) {
+      const items = map.get(name);
+      if (items?.length) ordered.push({ name, items: sortTimeline(items) });
+    }
+    for (const [name, items] of map) {
+      if (!(EVIDENCE_FOLDERS as readonly string[]).includes(name)) {
+        ordered.push({ name, items: sortTimeline(items) });
       }
-      if (isNativeApp()) {
-        const { Browser } = await import('@capacitor/browser');
-        await Browser.open({ url: res.url });
-      } else {
-        window.open(res.url, '_blank', 'noopener');
-      }
-    },
-    [firmId, caseId, t],
+    }
+    return ordered;
+  }, [filtered]);
+
+  // Date groups (by captured month), chronological, undated last.
+  const dateGroups = useMemo(() => {
+    const map = new Map<string, { label: string; items: TimelineEvent[] }>();
+    for (const e of filtered) {
+      const { key, label } = monthBucket(capturedAt(e));
+      const bucket = map.get(key);
+      if (bucket) bucket.items.push(e);
+      else map.set(key, { label, items: [e] });
+    }
+    return [...map.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([key, { label, items }]) => ({
+        name: label,
+        key,
+        items: [...items].sort((a, b) => (capturedAt(a) ?? '').localeCompare(capturedAt(b) ?? '')),
+      }));
+  }, [filtered]);
+
+  // The flat display order (used by the grid and the viewer's next/prev).
+  const ordered = useMemo(
+    () => (groupMode === 'folder' ? folderGroups : dateGroups).flatMap((g) => g.items),
+    [groupMode, folderGroups, dateGroups],
   );
+
+  // Counts for the filter chips are taken from ALL events, so hiding one folder
+  // still shows the others' real totals.
+  const folderCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const e of events) m.set(folderForEvent(e), (m.get(folderForEvent(e)) ?? 0) + 1);
+    return m;
+  }, [events]);
+  const kindCounts = useMemo(() => {
+    const m = new Map<TimelineKind, number>();
+    for (const e of events) m.set(e.kind, (m.get(e.kind) ?? 0) + 1);
+    return m;
+  }, [events]);
+
+  // ── Selection ───────────────────────────────────────────────────────
+  const toggleSelect = useCallback((id: string) => {
+    setSelected((s) => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  }, []);
+  const selectAllVisible = useCallback(() => setSelected(new Set(ordered.map((e) => e.id))), [ordered]);
+  const clearSelection = useCallback(() => setSelected(new Set()), []);
+  const selectedIds = useMemo(() => ordered.filter((e) => selected.has(e.id)).map((e) => e.id), [ordered, selected]);
+
+  // ── Bulk actions ────────────────────────────────────────────────────
+  const runBulk = useCallback(
+    async (ids: string[], worker: (id: string) => Promise<void>) => {
+      setBusy(true);
+      setProgress({ done: 0, total: ids.length });
+      let done = 0;
+      let idx = 0;
+      const run = async () => {
+        for (;;) {
+          const i = idx++;
+          if (i >= ids.length) return;
+          await worker(ids[i]);
+          done += 1;
+          setProgress({ done, total: ids.length });
+        }
+      };
+      await Promise.all(Array.from({ length: BULK_CONCURRENCY }, run));
+      setBusy(false);
+      setProgress(null);
+    },
+    [],
+  );
+
+  const bulkDelete = useCallback(async () => {
+    const ids = selectedIds;
+    if (ids.length === 0) return;
+    if (typeof window !== 'undefined' && !window.confirm(t('Delete {n} selected item(s)? This cannot be undone.').replace('{n}', String(ids.length)))) {
+      return;
+    }
+    await runBulk(ids, async (id) => {
+      const res = await deleteFirmCaseEventAction(firmId, caseId, id);
+      if (res.ok) setEvents((list) => list.filter((e) => e.id !== id));
+    });
+    clearSelection();
+    setNotice(t('Deleted {n} item(s).').replace('{n}', String(ids.length)));
+  }, [selectedIds, runBulk, firmId, caseId, clearSelection, t]);
+
+  const bulkReanalyze = useCallback(async () => {
+    const ids = selectedIds;
+    if (ids.length === 0) return;
+    setAnalyzing((s) => new Set([...s, ...ids]));
+    await runBulk(ids, async (id) => {
+      const res = await analyzeFirmCaseEventAction(firmId, caseId, id);
+      // A hand-edited item returns needsConfirm; leave it untouched in a bulk run.
+      if (res.event) setEvents((list) => list.map((e) => (e.id === id ? res.event! : e)));
+      setAnalyzing((s) => {
+        const n = new Set(s);
+        n.delete(id);
+        return n;
+      });
+    });
+    setAnalyzing((s) => {
+      const n = new Set(s);
+      ids.forEach((id) => n.delete(id));
+      return n;
+    });
+    setNotice(t('Re-analysed {n} item(s).').replace('{n}', String(ids.length)));
+  }, [selectedIds, runBulk, firmId, caseId, t]);
+
+  const bulkShare = useCallback(async () => {
+    const ids = selectedIds;
+    if (ids.length === 0) return;
+    setBusy(true);
+    const res = await exportSelectedEvidenceAction(firmId, caseId, ids);
+    setBusy(false);
+    if (res.ok && res.items) setShareData({ matter: res.matter ?? 'Matter', items: res.items });
+    else setError(res.error ?? t('Could not prepare the share.'));
+  }, [selectedIds, firmId, caseId, t]);
+
+  // ── Viewer ──────────────────────────────────────────────────────────
+  const openViewer = useCallback(
+    (id: string) => {
+      const i = ordered.findIndex((e) => e.id === id);
+      if (i >= 0) setViewerIndex(i);
+    },
+    [ordered],
+  );
+  const viewerEvent = viewerIndex != null ? ordered[viewerIndex] : undefined;
+  // If the list shifts under an open viewer (a delete), keep it in range.
+  useEffect(() => {
+    if (viewerIndex != null && viewerIndex >= ordered.length) {
+      setViewerIndex(ordered.length ? ordered.length - 1 : null);
+    }
+  }, [ordered.length, viewerIndex]);
 
   // Map pins across every event, carrying case-relevance for de-emphasis.
   const mapPoints: MapPoint[] = useMemo(
@@ -433,29 +726,22 @@ export function EvidenceIntake({
     [events],
   );
 
-  // Group evidence into folders, kept in the taxonomy's order, each folder's
-  // entries sorted chronologically. Only non-empty folders are shown.
-  const folders = useMemo(() => {
-    const map = new Map<string, TimelineEvent[]>();
-    for (const e of events) {
-      const f = folderForEvent(e);
-      const bucket = map.get(f);
-      if (bucket) bucket.push(e);
-      else map.set(f, [e]);
-    }
-    const ordered: { name: string; items: TimelineEvent[] }[] = [];
-    for (const name of EVIDENCE_FOLDERS) {
-      const items = map.get(name);
-      if (items?.length) ordered.push({ name, items: sortTimeline(items) });
-    }
-    // Any folder name outside the taxonomy (shouldn't happen, but never hide data).
-    for (const [name, items] of map) {
-      if (!(EVIDENCE_FOLDERS as readonly string[]).includes(name)) {
-        ordered.push({ name, items: sortTimeline(items) });
-      }
-    }
-    return ordered;
-  }, [events]);
+  const groups = groupMode === 'folder' ? folderGroups : dateGroups;
+  const allVisibleSelected = ordered.length > 0 && ordered.every((e) => selected.has(e.id));
+
+  const cardProps = (e: TimelineEvent) => ({
+    firmId,
+    caseId,
+    event: e,
+    aiEnabled,
+    busy: pending,
+    analyzing: analyzing.has(e.id) || e.aiStatus === 'running',
+    selected: selected.has(e.id),
+    onToggleSelect: () => toggleSelect(e.id),
+    onOpenViewer: () => openViewer(e.id),
+    onReanalyze: () => reanalyze(e.id),
+    onDelete: () => remove(e.id),
+  });
 
   return (
     <div className="space-y-5 animate-fade-up">
@@ -540,11 +826,12 @@ export function EvidenceIntake({
       {/* Breadcrumb map (renders nothing without a Maps key or located pins) */}
       <CaseMap points={mapPoints} title={t('Case map')} />
 
-      {/* Evidence, organised into folders */}
+      {/* Evidence */}
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-2">
           <h2 className="font-display text-lg font-medium text-forest-900 dark:text-cream-100">
-            <T>Evidence</T> <span className="text-ink-400 dark:text-cream-100/40">({events.length})</span>
+            <T>Evidence</T>{' '}
+            <span className="text-ink-400 dark:text-cream-100/40">({events.length})</span>
           </h2>
           <Link
             href={`/cases/${caseId}/timeline`}
@@ -554,56 +841,397 @@ export function EvidenceIntake({
           </Link>
         </div>
 
+        {events.length > 0 && (
+          <Toolbar
+            view={view}
+            setView={setView}
+            groupMode={groupMode}
+            setGroupMode={setGroupMode}
+            query={query}
+            setQuery={setQuery}
+            showFilters={showFilters}
+            setShowFilters={setShowFilters}
+            hiddenFolders={hiddenFolders}
+            setHiddenFolders={setHiddenFolders}
+            hiddenKinds={hiddenKinds}
+            setHiddenKinds={setHiddenKinds}
+            folderCounts={folderCounts}
+            kindCounts={kindCounts}
+            shownCount={filtered.length}
+            totalCount={events.length}
+            allVisibleSelected={allVisibleSelected}
+            onSelectAll={selectAllVisible}
+            onClearSelection={clearSelection}
+          />
+        )}
+
         {events.length === 0 ? (
           <p className="text-[13px] text-ink-500 dark:text-cream-100/55">
             <T>No evidence yet. Drop files above to begin.</T>
           </p>
+        ) : filtered.length === 0 ? (
+          <p className="text-[13px] text-ink-500 dark:text-cream-100/55">
+            <T>Nothing matches the current filters.</T>
+          </p>
+        ) : view === 'grid' ? (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            {ordered.map((e) => (
+              <GridCard key={e.id} {...cardProps(e)} />
+            ))}
+          </div>
         ) : (
-          folders.map((folder) => (
+          groups.map((group) => (
             <FolderSection
-              key={folder.name}
-              name={folder.name}
-              items={folder.items}
-              collapsed={collapsed.has(folder.name)}
+              key={group.name}
+              name={group.name}
+              items={group.items}
+              collapsed={collapsed.has(group.name)}
+              renamable={groupMode === 'folder'}
               onToggle={() =>
                 setCollapsed((s) => {
                   const n = new Set(s);
-                  if (n.has(folder.name)) n.delete(folder.name);
-                  else n.add(folder.name);
+                  if (n.has(group.name)) n.delete(group.name);
+                  else n.add(group.name);
                   return n;
                 })
               }
-              onRename={(to) => renameFolder(folder.name, to)}
+              onRename={(to) => renameFolder(group.name, to)}
               renderItem={(e) => (
                 <EvidenceCard
                   key={e.id}
-                  event={e}
-                  aiEnabled={aiEnabled}
-                  busy={pending}
-                  analyzing={analyzing.has(e.id) || e.aiStatus === 'running'}
+                  {...cardProps(e)}
                   editing={editingId === e.id}
                   onEdit={() => setEditingId(e.id)}
                   onCancelEdit={() => setEditingId(null)}
                   onSave={(edit) => saveEdit(e.id, edit)}
-                  onReanalyze={() => reanalyze(e.id)}
                   onMoveFolder={(folderName) => moveFolder(e.id, folderName)}
-                  onDelete={() => remove(e.id)}
-                  onOpen={() => openMedia(e.media[0]?.path ?? '')}
                 />
               )}
             />
           ))
         )}
       </section>
+
+      {/* Selection action bar */}
+      {selected.size > 0 && (
+        <BulkBar
+          count={selectedIds.length}
+          busy={busy}
+          aiEnabled={aiEnabled}
+          onClear={clearSelection}
+          onDelete={() => void bulkDelete()}
+          onReanalyze={() => void bulkReanalyze()}
+          onShare={() => void bulkShare()}
+        />
+      )}
+
+      {/* Viewer */}
+      {viewerEvent && (
+        <EvidenceViewer
+          firmId={firmId}
+          caseId={caseId}
+          event={viewerEvent}
+          index={viewerIndex as number}
+          total={ordered.length}
+          hasPrev={(viewerIndex as number) > 0}
+          hasNext={(viewerIndex as number) < ordered.length - 1}
+          onPrev={() => setViewerIndex((i) => (i != null && i > 0 ? i - 1 : i))}
+          onNext={() => setViewerIndex((i) => (i != null && i < ordered.length - 1 ? i + 1 : i))}
+          onClose={() => setViewerIndex(null)}
+        />
+      )}
+
+      {/* Duplicate prompt */}
+      {dedupe && (
+        <DuplicateDialog
+          entries={dedupe.entries}
+          onCancel={() => {
+            setDedupe(null);
+            setNotice(t('Import cancelled.'));
+          }}
+          onApply={applyDedupe}
+        />
+      )}
+
+      {/* Share export */}
+      {shareData && (
+        <ShareExportDialog matter={shareData.matter} items={shareData.items} onClose={() => setShareData(null)} />
+      )}
     </div>
   );
 }
 
-/** A collapsible folder header with an inline rename, wrapping its entries. */
+/** Search box, view/group toggles, filter chips, and select-all. */
+function Toolbar({
+  view,
+  setView,
+  groupMode,
+  setGroupMode,
+  query,
+  setQuery,
+  showFilters,
+  setShowFilters,
+  hiddenFolders,
+  setHiddenFolders,
+  hiddenKinds,
+  setHiddenKinds,
+  folderCounts,
+  kindCounts,
+  shownCount,
+  totalCount,
+  allVisibleSelected,
+  onSelectAll,
+  onClearSelection,
+}: {
+  view: ViewMode;
+  setView: (v: ViewMode) => void;
+  groupMode: GroupMode;
+  setGroupMode: (g: GroupMode) => void;
+  query: string;
+  setQuery: (q: string) => void;
+  showFilters: boolean;
+  setShowFilters: (b: boolean) => void;
+  hiddenFolders: Set<string>;
+  setHiddenFolders: (updater: (s: Set<string>) => Set<string>) => void;
+  hiddenKinds: Set<TimelineKind>;
+  setHiddenKinds: (updater: (s: Set<TimelineKind>) => Set<TimelineKind>) => void;
+  folderCounts: Map<string, number>;
+  kindCounts: Map<TimelineKind, number>;
+  shownCount: number;
+  totalCount: number;
+  allVisibleSelected: boolean;
+  onSelectAll: () => void;
+  onClearSelection: () => void;
+}) {
+  const t = useT();
+  const anyFilter = hiddenFolders.size > 0 || hiddenKinds.size > 0;
+  const seg = 'px-2.5 py-1 text-[12px] transition-colors';
+  const segOn = 'bg-forest-600 text-cream-50';
+  const segOff = 'text-ink-600 dark:text-cream-100/70 hover:bg-cream-50 dark:hover:bg-forest-800/30';
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative min-w-[180px] flex-1">
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t('Search name, exhibit, people, places, text…')}
+            className="w-full rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 bg-white dark:bg-forest-900/40 pl-8 pr-7 py-1.5 text-[13px]"
+            data-no-translate
+          />
+          <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-400 dark:text-cream-100/40">
+            ⌕
+          </span>
+          {query && (
+            <button
+              type="button"
+              onClick={() => setQuery('')}
+              aria-label={t('Clear search')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-400 hover:text-ink-600 dark:text-cream-100/40"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+
+        {/* Group by */}
+        <div className="inline-flex overflow-hidden rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40">
+          <button type="button" onClick={() => setGroupMode('folder')} className={`${seg} ${groupMode === 'folder' ? segOn : segOff}`}>
+            <T>Folders</T>
+          </button>
+          <button type="button" onClick={() => setGroupMode('date')} className={`${seg} ${groupMode === 'date' ? segOn : segOff}`}>
+            <T>Date</T>
+          </button>
+        </div>
+
+        {/* View */}
+        <div className="inline-flex overflow-hidden rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40">
+          <button type="button" onClick={() => setView('list')} className={`${seg} ${view === 'list' ? segOn : segOff}`} aria-label={t('List view')}>
+            ☰
+          </button>
+          <button type="button" onClick={() => setView('grid')} className={`${seg} ${view === 'grid' ? segOn : segOff}`} aria-label={t('Grid view')}>
+            ▦
+          </button>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setShowFilters(!showFilters)}
+          className={`inline-flex items-center rounded-md px-2.5 py-1 text-[12px] ring-1 ${
+            anyFilter
+              ? 'bg-forest-100 text-forest-800 ring-forest-300 dark:bg-forest-800/60 dark:text-cream-100/85 dark:ring-forest-700/40'
+              : 'ring-ink-200 text-ink-600 dark:ring-forest-700/40 dark:text-cream-100/70'
+          }`}
+        >
+          <T>Filter</T>
+          {anyFilter ? ` (${hiddenFolders.size + hiddenKinds.size})` : ''}
+        </button>
+      </div>
+
+      {/* Row 2: counts + select all */}
+      <div className="flex flex-wrap items-center gap-3 text-[12px] text-ink-500 dark:text-cream-100/55">
+        <span data-no-translate>
+          {shownCount === totalCount
+            ? t('Showing all {n}').replace('{n}', String(totalCount))
+            : `${t('Showing')} ${shownCount} / ${totalCount}`}
+        </span>
+        <button
+          type="button"
+          onClick={allVisibleSelected ? onClearSelection : onSelectAll}
+          className="text-forest-700 dark:text-cream-100/80 hover:underline"
+        >
+          {allVisibleSelected ? <T>Deselect all</T> : <T>Select all shown</T>}
+        </button>
+      </div>
+
+      {/* Filter panel */}
+      {showFilters && (
+        <div className="space-y-2 rounded-lg ring-1 ring-ink-100 dark:ring-forest-800/40 p-3">
+          <p className="text-[10px] uppercase tracking-[0.06em] text-ink-400 dark:text-cream-100/45">
+            <T>Folders</T>
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {EVIDENCE_FOLDERS.filter((f) => folderCounts.get(f)).map((f) => {
+              const on = !hiddenFolders.has(f);
+              return (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() =>
+                    setHiddenFolders((s) => {
+                      const n = new Set(s);
+                      if (n.has(f)) n.delete(f);
+                      else n.add(f);
+                      return n;
+                    })
+                  }
+                  className={`rounded-full px-2.5 py-1 text-[12px] ring-1 ${
+                    on
+                      ? 'bg-forest-600 text-cream-50 ring-forest-600'
+                      : 'text-ink-400 line-through ring-ink-200 dark:text-cream-100/40 dark:ring-forest-700/40'
+                  }`}
+                  data-no-translate
+                >
+                  {f} ({folderCounts.get(f)})
+                </button>
+              );
+            })}
+          </div>
+          <p className="pt-1 text-[10px] uppercase tracking-[0.06em] text-ink-400 dark:text-cream-100/45">
+            <T>Types</T>
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {(Object.keys(KIND_LABEL) as TimelineKind[])
+              .filter((k) => kindCounts.get(k))
+              .map((k) => {
+                const on = !hiddenKinds.has(k);
+                return (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() =>
+                      setHiddenKinds((s) => {
+                        const n = new Set(s);
+                        if (n.has(k)) n.delete(k);
+                        else n.add(k);
+                        return n;
+                      })
+                    }
+                    className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] ring-1 ${
+                      on
+                        ? 'bg-forest-600 text-cream-50 ring-forest-600'
+                        : 'text-ink-400 line-through ring-ink-200 dark:text-cream-100/40 dark:ring-forest-700/40'
+                    }`}
+                  >
+                    <span aria-hidden>{KIND_ICON[k]}</span>
+                    <span data-no-translate>
+                      {KIND_LABEL[k]} ({kindCounts.get(k)})
+                    </span>
+                  </button>
+                );
+              })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** The floating bulk-action bar shown while items are selected. */
+function BulkBar({
+  count,
+  busy,
+  aiEnabled,
+  onClear,
+  onDelete,
+  onReanalyze,
+  onShare,
+}: {
+  count: number;
+  busy: boolean;
+  aiEnabled: boolean;
+  onClear: () => void;
+  onDelete: () => void;
+  onReanalyze: () => void;
+  onShare: () => void;
+}) {
+  const t = useT();
+  return (
+    <div
+      className="fixed inset-x-0 z-40 flex justify-center px-4"
+      style={{ bottom: 'calc(1rem + var(--safe-bottom, 0px))' }}
+    >
+      <div className="flex flex-wrap items-center gap-2 rounded-full bg-forest-900 px-3 py-2 text-cream-50 shadow-2xl ring-1 ring-forest-700/50">
+        <span className="pl-1 text-[13px] font-medium" data-no-translate>
+          {count} {t('selected')}
+        </span>
+        <span className="mx-1 h-4 w-px bg-cream-50/20" />
+        <button
+          type="button"
+          disabled={busy}
+          onClick={onShare}
+          className="rounded-full px-3 py-1.5 text-[13px] hover:bg-white/10 disabled:opacity-50"
+        >
+          <T>Share</T>
+        </button>
+        {aiEnabled && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onReanalyze}
+            className="rounded-full px-3 py-1.5 text-[13px] hover:bg-white/10 disabled:opacity-50"
+          >
+            <T>Reanalyse</T>
+          </button>
+        )}
+        <button
+          type="button"
+          disabled={busy}
+          onClick={onDelete}
+          className="rounded-full px-3 py-1.5 text-[13px] text-rose-200 hover:bg-rose-500/20 disabled:opacity-50"
+        >
+          <T>Delete</T>
+        </button>
+        <button
+          type="button"
+          onClick={onClear}
+          aria-label={t('Clear selection')}
+          className="ml-1 inline-flex h-7 w-7 items-center justify-center rounded-full hover:bg-white/10"
+        >
+          ✕
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** A collapsible section (a folder, or a date bucket) wrapping its entries. */
 function FolderSection({
   name,
   items,
   collapsed,
+  renamable,
   onToggle,
   onRename,
   renderItem,
@@ -611,6 +1239,7 @@ function FolderSection({
   name: string;
   items: TimelineEvent[];
   collapsed: boolean;
+  renamable: boolean;
   onToggle: () => void;
   onRename: (to: string) => void;
   renderItem: (e: TimelineEvent) => React.ReactNode;
@@ -621,12 +1250,7 @@ function FolderSection({
   return (
     <div className="rounded-xl ring-1 ring-ink-100 dark:ring-forest-800/40 overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-2 bg-cream-50/70 dark:bg-forest-900/30">
-        <button
-          type="button"
-          onClick={onToggle}
-          className="flex items-center gap-1.5 min-w-0 text-left"
-          aria-expanded={!collapsed}
-        >
+        <button type="button" onClick={onToggle} className="flex items-center gap-1.5 min-w-0 text-left" aria-expanded={!collapsed}>
           <span className="text-ink-400 dark:text-cream-100/45 text-[11px]">{collapsed ? '▸' : '▾'}</span>
           {renaming ? null : (
             <span className="text-[13.5px] font-medium text-forest-900 dark:text-cream-100 truncate" data-no-translate>
@@ -635,7 +1259,7 @@ function FolderSection({
           )}
           <span className="text-[11.5px] text-ink-400 dark:text-cream-100/45">({items.length})</span>
         </button>
-        {renaming ? (
+        {renamable && renaming ? (
           <form
             className="flex items-center gap-1.5 ml-auto"
             onSubmit={(e) => {
@@ -659,15 +1283,11 @@ function FolderSection({
             <button type="submit" className="text-[12px] text-forest-700 dark:text-cream-100/80 hover:underline">
               <T>Save</T>
             </button>
-            <button
-              type="button"
-              onClick={() => setRenaming(false)}
-              className="text-[12px] text-ink-500 dark:text-cream-100/55 hover:underline"
-            >
+            <button type="button" onClick={() => setRenaming(false)} className="text-[12px] text-ink-500 dark:text-cream-100/55 hover:underline">
               <T>Cancel</T>
             </button>
           </form>
-        ) : (
+        ) : renamable ? (
           <button
             type="button"
             onClick={() => {
@@ -679,7 +1299,7 @@ function FolderSection({
           >
             <T>Rename</T>
           </button>
-        )}
+        ) : null}
       </div>
       {!collapsed && <ul className="p-2 space-y-2">{items.map((e) => renderItem(e))}</ul>}
     </div>
@@ -702,45 +1322,92 @@ function ChipRow({ icon, label, items }: { icon: string; label: string; items?: 
           {it}
         </span>
       ))}
-      {items.length > 12 && (
-        <span className="text-[10.5px] text-ink-400 dark:text-cream-100/40">+{items.length - 12}</span>
-      )}
+      {items.length > 12 && <span className="text-[10.5px] text-ink-400 dark:text-cream-100/40">+{items.length - 12}</span>}
     </div>
   );
 }
 
-/** One evidence entry: header, scene summary, extracted chips, and edit form. */
-function EvidenceCard({
-  event: e,
-  aiEnabled,
-  busy,
-  analyzing,
-  editing,
-  onEdit,
-  onCancelEdit,
-  onSave,
-  onReanalyze,
-  onMoveFolder,
-  onDelete,
-  onOpen,
-}: {
+/** Shared props both the list card and the grid tile take. */
+type CardShared = {
+  firmId: string;
+  caseId: string;
   event: TimelineEvent;
   aiEnabled: boolean;
   busy: boolean;
   analyzing: boolean;
+  selected: boolean;
+  onToggleSelect: () => void;
+  onOpenViewer: () => void;
+  onReanalyze: () => void;
+  onDelete: () => void;
+};
+
+/** A compact grid tile: thumbnail, exhibit number, title, select checkbox. */
+function GridCard({ firmId, caseId, event: e, selected, onToggleSelect, onOpenViewer }: CardShared) {
+  const t = useT();
+  const ext = e.aiExtracted ?? {};
+  const exhibit = exhibitLabel(ext.exhibit_no);
+  return (
+    <div className={`group relative overflow-hidden rounded-xl ring-1 ${selected ? 'ring-2 ring-forest-500' : 'ring-ink-100 dark:ring-forest-800/40'}`}>
+      <button type="button" onClick={onOpenViewer} className="block w-full text-left" aria-label={t('Open item')}>
+        <EvidenceThumb firmId={firmId} caseId={caseId} event={e} variant="grid" />
+      </button>
+      <label className="absolute left-2 top-2 flex h-6 w-6 cursor-pointer items-center justify-center rounded-md bg-white/85 shadow ring-1 ring-black/5 dark:bg-forest-900/85">
+        <input type="checkbox" checked={selected} onChange={onToggleSelect} className="h-3.5 w-3.5 accent-forest-600" />
+      </label>
+      {exhibit && (
+        <span className="absolute right-2 top-2 rounded bg-forest-950/70 px-1.5 py-0.5 font-mono text-[10px] text-cream-50">
+          {exhibit}
+        </span>
+      )}
+      <div className="p-2">
+        <p className="flex items-center gap-1 text-[12px] font-medium text-forest-900 dark:text-cream-100">
+          <span aria-hidden>{contentIconFor(e)}</span>
+          <span className="truncate" data-no-translate>
+            {e.title || e.media[0]?.name || t('(untitled)')}
+          </span>
+        </p>
+        <div className="mt-0.5 flex items-center justify-between gap-1">
+          <span className="text-[10.5px] text-ink-400 dark:text-cream-100/45" data-no-translate>
+            {formatOccurred(e.occurredAt, e.occurredPrecision)}
+          </span>
+          <RelevanceBadge score={ext.relevance_score} reason={ext.relevance_reason} size="xs" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** One evidence entry (list view): thumbnail, header, chips, actions, edit form. */
+function EvidenceCard({
+  firmId,
+  caseId,
+  event: e,
+  aiEnabled,
+  busy,
+  analyzing,
+  selected,
+  onToggleSelect,
+  onOpenViewer,
+  onReanalyze,
+  onDelete,
+  editing,
+  onEdit,
+  onCancelEdit,
+  onSave,
+  onMoveFolder,
+}: CardShared & {
   editing: boolean;
   onEdit: () => void;
   onCancelEdit: () => void;
   onSave: (edit: EvidenceEdit) => void;
-  onReanalyze: () => void;
   onMoveFolder: (folder: string) => void;
-  onDelete: () => void;
-  onOpen: () => void;
 }) {
   const t = useT();
   const ext = e.aiExtracted ?? {};
   const currentFolder = folderForEvent(e);
   const edited = Boolean(ext.edited_at);
+  const exhibit = exhibitLabel(ext.exhibit_no);
 
   if (editing) {
     return (
@@ -751,121 +1418,146 @@ function EvidenceCard({
   }
 
   return (
-    <li className="card p-3 space-y-1.5">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="text-[13.5px] font-medium text-forest-900 dark:text-cream-100 flex flex-wrap items-center gap-1.5">
-            <span>{KIND_ICON[e.kind]}</span>
-            <span className="break-words" data-no-translate>{e.title || t('(untitled)')}</span>
-            <RelevanceBadge score={ext.relevance_score} reason={ext.relevance_reason} size="xs" />
-            {edited && (
-              <span
-                className="inline-flex items-center rounded-full bg-forest-100 dark:bg-forest-800/60 px-1.5 py-[1px] text-[10px] font-semibold uppercase tracking-[0.06em] text-forest-700 dark:text-cream-100/70"
-                title={t('Corrected by hand')}
-              >
-                <T>Edited</T>
-              </span>
-            )}
-          </p>
-          <p className="text-[11.5px] text-ink-500 dark:text-cream-100/55 mt-0.5">
-            {formatOccurred(e.occurredAt, e.occurredPrecision)}
-            {e.sourceLabel ? ` · ${e.sourceLabel}` : ''}
-          </p>
-        </div>
-        <div className="flex items-center gap-1.5 text-[12px] shrink-0">
-          {e.media[0] && (
-            <button
-              type="button"
-              onClick={onOpen}
-              className="inline-flex items-center min-h-[30px] px-2.5 rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 hover:bg-cream-50 dark:hover:bg-forest-800/30"
-            >
-              <T>Open</T>
-            </button>
-          )}
-          {aiEnabled && (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={onEdit}
-              className="inline-flex items-center min-h-[30px] px-2.5 rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 hover:bg-cream-50 dark:hover:bg-forest-800/30 disabled:opacity-50"
-            >
-              <T>Edit</T>
-            </button>
-          )}
-          {aiEnabled && (
-            <button
-              type="button"
-              disabled={analyzing || busy}
-              onClick={onReanalyze}
-              className="inline-flex items-center min-h-[30px] px-2.5 rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 hover:bg-cream-50 dark:hover:bg-forest-800/30 disabled:opacity-50"
-            >
-              {analyzing ? <T>Analysing…</T> : <T>Re-analyse</T>}
-            </button>
-          )}
+    <li className="card p-3">
+      <div className="flex gap-3">
+        <div className="flex flex-col items-center gap-1.5">
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={onToggleSelect}
+            aria-label={t('Select item')}
+            className="mt-1 h-4 w-4 accent-forest-600"
+          />
           <button
             type="button"
-            disabled={busy}
-            onClick={onDelete}
-            className="inline-flex items-center min-h-[30px] px-2.5 rounded-md text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/30 disabled:opacity-50"
+            onClick={onOpenViewer}
+            className="block overflow-hidden rounded-lg ring-1 ring-ink-100 dark:ring-forest-800/40"
+            aria-label={t('Open item')}
           >
-            <T>Delete</T>
+            <EvidenceThumb firmId={firmId} caseId={caseId} event={e} variant="list" />
           </button>
         </div>
-      </div>
 
-      {ext.email && (
-        <p className="text-[11.5px] text-ink-500 dark:text-cream-100/55" data-no-translate>
-          {ext.email.from ? `From ${ext.email.from}` : ''}
-          {ext.email.to?.length ? ` → ${ext.email.to.slice(0, 3).join(', ')}` : ''}
-        </p>
-      )}
+        <div className="min-w-0 flex-1 space-y-1.5">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-[13.5px] font-medium text-forest-900 dark:text-cream-100 flex flex-wrap items-center gap-1.5">
+                {exhibit && (
+                  <span className="rounded bg-cream-100 dark:bg-forest-800/60 px-1.5 py-[1px] font-mono text-[10.5px] text-ink-500 dark:text-cream-100/70">
+                    {exhibit}
+                  </span>
+                )}
+                <span aria-hidden>{contentIconFor(e)}</span>
+                <button type="button" onClick={onOpenViewer} className="break-words text-left hover:underline" data-no-translate>
+                  {e.title || t('(untitled)')}
+                </button>
+                <RelevanceBadge score={ext.relevance_score} reason={ext.relevance_reason} size="xs" />
+                {edited && (
+                  <span
+                    className="inline-flex items-center rounded-full bg-forest-100 dark:bg-forest-800/60 px-1.5 py-[1px] text-[10px] font-semibold uppercase tracking-[0.06em] text-forest-700 dark:text-cream-100/70"
+                    title={t('Corrected by hand')}
+                  >
+                    <T>Edited</T>
+                  </span>
+                )}
+              </p>
+              <p className="text-[11.5px] text-ink-500 dark:text-cream-100/55 mt-0.5">
+                {formatOccurred(e.occurredAt, e.occurredPrecision)}
+                {e.sourceLabel ? ` · ${e.sourceLabel}` : ''}
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5 text-[12px] shrink-0">
+              <button
+                type="button"
+                onClick={onOpenViewer}
+                className="inline-flex items-center min-h-[30px] px-2.5 rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 hover:bg-cream-50 dark:hover:bg-forest-800/30"
+              >
+                <T>Open</T>
+              </button>
+              {aiEnabled && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={onEdit}
+                  className="inline-flex items-center min-h-[30px] px-2.5 rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 hover:bg-cream-50 dark:hover:bg-forest-800/30 disabled:opacity-50"
+                >
+                  <T>Edit</T>
+                </button>
+              )}
+              {aiEnabled && (
+                <button
+                  type="button"
+                  disabled={analyzing || busy}
+                  onClick={onReanalyze}
+                  className="inline-flex items-center min-h-[30px] px-2.5 rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 hover:bg-cream-50 dark:hover:bg-forest-800/30 disabled:opacity-50"
+                >
+                  {analyzing ? <T>Analysing…</T> : <T>Re-analyse</T>}
+                </button>
+              )}
+              <button
+                type="button"
+                disabled={busy}
+                onClick={onDelete}
+                className="inline-flex items-center min-h-[30px] px-2.5 rounded-md text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/30 disabled:opacity-50"
+              >
+                <T>Delete</T>
+              </button>
+            </div>
+          </div>
 
-      {e.aiStatus === 'error' && e.aiError ? (
-        <p className="text-[12px] text-rose-600 dark:text-rose-300">{e.aiError}</p>
-      ) : analyzing ? (
-        <p className="text-[12px] text-ink-400 dark:text-cream-100/40 italic">
-          <T>Analysing…</T>
-        </p>
-      ) : e.aiStatus === 'skipped' ? (
-        <p className="text-[12px] text-ink-400 dark:text-cream-100/40 italic">
-          <T>Waiting to be analysed…</T>
-        </p>
-      ) : e.aiSummary ? (
-        <p className="text-[12.5px] text-ink-600 dark:text-cream-100/70 whitespace-pre-wrap" data-no-translate>
-          {e.aiSummary}
-        </p>
-      ) : null}
+          {ext.email && (
+            <p className="text-[11.5px] text-ink-500 dark:text-cream-100/55" data-no-translate>
+              {ext.email.from ? `From ${ext.email.from}` : ''}
+              {ext.email.to?.length ? ` → ${ext.email.to.slice(0, 3).join(', ')}` : ''}
+            </p>
+          )}
 
-      {/* What Advottic mined from this item */}
-      <div className="space-y-1">
-        <ChipRow icon="👤" label={t('People')} items={ext.detected_people} />
-        <ChipRow icon="🏢" label={t('Organizations')} items={ext.organizations} />
-        <ChipRow icon="📍" label={t('Locations')} items={ext.locations} />
-        <ChipRow icon="📅" label={t('Dates')} items={ext.detected_dates} />
-        <ChipRow icon="🔎" label={t('Details')} items={ext.objects} />
-      </div>
+          {e.aiStatus === 'error' && e.aiError ? (
+            <p className="text-[12px] text-rose-600 dark:text-rose-300">{e.aiError}</p>
+          ) : analyzing ? (
+            <p className="text-[12px] text-ink-400 dark:text-cream-100/40 italic">
+              <T>Analysing…</T>
+            </p>
+          ) : e.aiStatus === 'skipped' ? (
+            <p className="text-[12px] text-ink-400 dark:text-cream-100/40 italic">
+              <T>Waiting to be analysed…</T>
+            </p>
+          ) : e.aiSummary ? (
+            <p className="text-[12.5px] text-ink-600 dark:text-cream-100/70 whitespace-pre-wrap" data-no-translate>
+              {e.aiSummary}
+            </p>
+          ) : null}
 
-      {/* Move between folders */}
-      {aiEnabled && (
-        <div className="flex items-center gap-1.5 pt-0.5">
-          <label className="text-[10px] uppercase tracking-[0.06em] text-ink-400 dark:text-cream-100/40">
-            <T>Folder</T>
-          </label>
-          <select
-            value={currentFolder}
-            disabled={busy}
-            onChange={(ev) => onMoveFolder(ev.target.value)}
-            className="text-[11.5px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 bg-white dark:bg-forest-900/40 px-1.5 py-0.5 disabled:opacity-50"
-            data-no-translate
-          >
-            {EVIDENCE_FOLDERS.map((f) => (
-              <option key={f} value={f}>
-                {f}
-              </option>
-            ))}
-          </select>
+          <div className="space-y-1">
+            <ChipRow icon="👤" label={t('People')} items={ext.detected_people} />
+            <ChipRow icon="🏢" label={t('Organizations')} items={ext.organizations} />
+            <ChipRow icon="📍" label={t('Locations')} items={ext.locations} />
+            <ChipRow icon="📅" label={t('Dates')} items={ext.detected_dates} />
+            <ChipRow icon="🔎" label={t('Details')} items={ext.objects} />
+          </div>
+
+          {aiEnabled && (
+            <div className="flex items-center gap-1.5 pt-0.5">
+              <label className="text-[10px] uppercase tracking-[0.06em] text-ink-400 dark:text-cream-100/40">
+                <T>Folder</T>
+              </label>
+              <select
+                value={currentFolder}
+                disabled={busy}
+                onChange={(ev) => onMoveFolder(ev.target.value)}
+                className="text-[11.5px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 bg-white dark:bg-forest-900/40 px-1.5 py-0.5 disabled:opacity-50"
+                data-no-translate
+              >
+                {EVIDENCE_FOLDERS.map((f) => (
+                  <option key={f} value={f}>
+                    {f}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </li>
   );
 }
@@ -903,7 +1595,8 @@ function EditForm({
   const [locations, setLocations] = useState((ext.locations ?? []).join('\n'));
   const [dates, setDates] = useState((ext.detected_dates ?? []).join('\n'));
 
-  const field = 'w-full text-[12.5px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 bg-white dark:bg-forest-900/40 px-2 py-1.5';
+  const field =
+    'w-full text-[12.5px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 bg-white dark:bg-forest-900/40 px-2 py-1.5';
   const listBox = `${field} min-h-[52px] whitespace-pre font-mono`;
 
   return (
@@ -924,26 +1617,29 @@ function EditForm({
       }}
     >
       <div>
-        <label className="text-[10px] uppercase tracking-[0.06em] text-ink-400 dark:text-cream-100/40"><T>Title</T></label>
+        <label className="text-[10px] uppercase tracking-[0.06em] text-ink-400 dark:text-cream-100/40">
+          <T>Title</T>
+        </label>
         <input value={title} onChange={(ev) => setTitle(ev.target.value)} className={field} data-no-translate />
       </div>
       <div>
-        <label className="text-[10px] uppercase tracking-[0.06em] text-ink-400 dark:text-cream-100/40"><T>What this shows</T></label>
+        <label className="text-[10px] uppercase tracking-[0.06em] text-ink-400 dark:text-cream-100/40">
+          <T>What this shows</T>
+        </label>
         <textarea value={summary} onChange={(ev) => setSummary(ev.target.value)} rows={3} className={field} data-no-translate />
       </div>
       <div className="flex flex-wrap gap-2">
         <div className="min-w-0">
-          <label className="text-[10px] uppercase tracking-[0.06em] text-ink-400 dark:text-cream-100/40"><T>Date</T></label>
+          <label className="text-[10px] uppercase tracking-[0.06em] text-ink-400 dark:text-cream-100/40">
+            <T>Date</T>
+          </label>
           <input type="date" value={date} onChange={(ev) => setDate(ev.target.value)} className={field} />
         </div>
         <div className="min-w-0">
-          <label className="text-[10px] uppercase tracking-[0.06em] text-ink-400 dark:text-cream-100/40"><T>Precision</T></label>
-          <select
-            value={precision}
-            onChange={(ev) => setPrecision(ev.target.value as OccurredPrecision)}
-            className={field}
-            disabled={!date}
-          >
+          <label className="text-[10px] uppercase tracking-[0.06em] text-ink-400 dark:text-cream-100/40">
+            <T>Precision</T>
+          </label>
+          <select value={precision} onChange={(ev) => setPrecision(ev.target.value as OccurredPrecision)} className={field} disabled={!date}>
             {PRECISION_GRAINS.filter((g) => g.value !== 'unknown').map((g) => (
               <option key={g.value} value={g.value}>
                 {t(g.label)}
@@ -954,19 +1650,27 @@ function EditForm({
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <div>
-          <label className="text-[10px] uppercase tracking-[0.06em] text-ink-400 dark:text-cream-100/40"><T>People (one per line)</T></label>
+          <label className="text-[10px] uppercase tracking-[0.06em] text-ink-400 dark:text-cream-100/40">
+            <T>People (one per line)</T>
+          </label>
           <textarea value={people} onChange={(ev) => setPeople(ev.target.value)} className={listBox} data-no-translate />
         </div>
         <div>
-          <label className="text-[10px] uppercase tracking-[0.06em] text-ink-400 dark:text-cream-100/40"><T>Organizations (one per line)</T></label>
+          <label className="text-[10px] uppercase tracking-[0.06em] text-ink-400 dark:text-cream-100/40">
+            <T>Organizations (one per line)</T>
+          </label>
           <textarea value={orgs} onChange={(ev) => setOrgs(ev.target.value)} className={listBox} data-no-translate />
         </div>
         <div>
-          <label className="text-[10px] uppercase tracking-[0.06em] text-ink-400 dark:text-cream-100/40"><T>Locations (one per line)</T></label>
+          <label className="text-[10px] uppercase tracking-[0.06em] text-ink-400 dark:text-cream-100/40">
+            <T>Locations (one per line)</T>
+          </label>
           <textarea value={locations} onChange={(ev) => setLocations(ev.target.value)} className={listBox} data-no-translate />
         </div>
         <div>
-          <label className="text-[10px] uppercase tracking-[0.06em] text-ink-400 dark:text-cream-100/40"><T>Dates (one per line)</T></label>
+          <label className="text-[10px] uppercase tracking-[0.06em] text-ink-400 dark:text-cream-100/40">
+            <T>Dates (one per line)</T>
+          </label>
           <textarea value={dates} onChange={(ev) => setDates(ev.target.value)} className={listBox} data-no-translate />
         </div>
       </div>
