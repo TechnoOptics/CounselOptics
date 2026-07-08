@@ -1,4 +1,5 @@
 import { T } from '@/components/i18n/LocaleProvider';
+import { ExpandableText } from '@/components/ExpandableText';
 
 /**
  * Read-only "Matter facts" panel for the counsel case page - the firm
@@ -129,9 +130,11 @@ export function MatterFacts({
           <p className="text-[10px] uppercase tracking-[0.14em] text-ink-400 dark:text-cream-100/40 mb-1">
             <T>Summary</T>
           </p>
-          <p className="text-[13px] text-ink-700 dark:text-cream-100/85 leading-relaxed whitespace-pre-wrap" data-no-translate>
-            {description}
-          </p>
+          <ExpandableText
+            text={description}
+            clampChars={320}
+            className="text-[13px] text-ink-700 dark:text-cream-100/85 leading-relaxed whitespace-pre-wrap"
+          />
         </div>
       )}
 
