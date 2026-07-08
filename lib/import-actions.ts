@@ -40,6 +40,20 @@ async function requireFirmMember(): Promise<
   if (!ctx) return { error: 'No active firm context.' };
   const admin = createAdminSupabase();
   if (!admin) return { error: 'Service role not configured on this deployment.' };
+  // Bulk import runs through the service-role client (RLS-bypassing) and can
+  // mass-create clients / cases / employees and seed role entitlements, so it
+  // must be owner/admin-only — not any member (a read-only staff member could
+  // otherwise provision the whole firm).
+  const { data: membership } = await admin
+    .from('firm_members')
+    .select('role')
+    .eq('firm_id', ctx.firm.id)
+    .eq('user_id', user.id)
+    .maybeSingle();
+  const role = (membership as { role?: string } | null)?.role;
+  if (role !== 'owner' && role !== 'admin') {
+    return { error: 'Only firm owners or admins can import data.' };
+  }
   return { firmId: ctx.firm.id, userId: user.id, admin };
 }
 
@@ -515,7 +529,7 @@ export async function importCasesCsvAction(input: {
       subject_type: subjectType,
       case_type: caseType,
       status,
-      posture: 'pre_filing',
+      posture: 'claimant',
       description,
       jurisdiction_country: 'US',
       jurisdiction_state: jurState,
@@ -766,7 +780,7 @@ export async function importJsonDumpAction(input: {
       subject_type: k.subject_type || 'other',
       case_type: k.case_type || 'other',
       status: k.status || 'open',
-      posture: 'pre_filing',
+      posture: 'claimant',
       description: k.description || '',
       jurisdiction_country: 'US',
       jurisdiction_state: k.jurisdiction_state || '',

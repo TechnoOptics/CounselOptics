@@ -492,11 +492,17 @@ type CaseRow = {
   hearing_location: string | null;
   hearing_notes: string | null;
   status: string;
-  jurisdiction: { country?: string | null; state?: string | null; city?: string | null } | null;
+  // Jurisdiction is three real columns on public.cases, not a single object,
+  // and the owner column is user_id (there is no owner_id). Reading the old
+  // names silently produced a blank jurisdiction + undefined ownerId on every
+  // firm case.
+  jurisdiction_country: string | null;
+  jurisdiction_state: string | null;
+  jurisdiction_city: string | null;
   subject_profile: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
-  owner_id: string;
+  user_id: string;
 };
 
 function firmCaseFromRow(r: CaseRow): Case {
@@ -513,14 +519,14 @@ function firmCaseFromRow(r: CaseRow): Case {
     hearingNotes: r.hearing_notes,
     status: r.status as Case['status'],
     jurisdiction: {
-      country: r.jurisdiction?.country ?? '',
-      state: r.jurisdiction?.state ?? undefined,
-      city: r.jurisdiction?.city ?? undefined,
+      country: r.jurisdiction_country ?? '',
+      state: r.jurisdiction_state ?? undefined,
+      city: r.jurisdiction_city ?? undefined,
     },
     subjectProfile: (r.subject_profile as Case['subjectProfile']) ?? {},
     createdAt: r.created_at,
     updatedAt: r.updated_at,
-    ownerId: r.owner_id,
+    ownerId: r.user_id,
   };
 }
 
