@@ -13,6 +13,7 @@ import { DraftInvoiceButton } from './draft-invoice-button';
 import { AddDeadlineForm } from './add-deadline-form';
 import { CompleteDeadlineButton } from './complete-deadline-button';
 import { MatterChatPanel } from './matter-chat-panel';
+import { CaseInvitePanel } from './case-invite-panel';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -303,6 +304,13 @@ export default async function CounselCaseDetailPage({
         caseId={params.id}
         caseTitle={c.title}
         currentUserId={ctx.membership.userId}
+      />
+
+      {/* People on this matter - firm invites client/co-counsel/contributor/viewer */}
+      <CaseInvitePanel
+        caseId={params.id}
+        firmId={ctx.firm.id}
+        canManage={['owner', 'admin', 'attorney'].includes(ctx.membership.role)}
       />
 
       {/* Deadlines */}
