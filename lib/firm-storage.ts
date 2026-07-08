@@ -503,6 +503,7 @@ type CaseRow = {
   created_at: string;
   updated_at: string;
   user_id: string;
+  assigned_to: string | null;
 };
 
 function firmCaseFromRow(r: CaseRow): Case {
@@ -527,6 +528,7 @@ function firmCaseFromRow(r: CaseRow): Case {
     createdAt: r.created_at,
     updatedAt: r.updated_at,
     ownerId: r.user_id,
+    assignedTo: r.assigned_to ?? null,
   };
 }
 

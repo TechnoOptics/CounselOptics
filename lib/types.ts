@@ -70,6 +70,9 @@ export type SubjectProfile = {
 export type Case = {
   id: string;
   ownerId?: string;
+  /** Firm member (auth.users id) responsible for the matter; null when
+   *  unassigned. Only populated on the firm/counsel side. */
+  assignedTo?: string | null;
   title: string;
   subjectName: string;
   subjectType: SubjectType;

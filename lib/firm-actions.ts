@@ -14,6 +14,7 @@ import {
 } from './email';
 import type { FirmRole, FirmSigningStatus, FirmType } from './firm-types';
 import { FIRM_ROLES, FIRM_TYPES } from './firm-types';
+import { CASE_TYPES, type CaseType, type Posture } from './types';
 import { logSecurityEvent } from './security-audit';
 import {
   readPortalRoles,
@@ -3667,6 +3668,136 @@ export async function revokeCounselGrantAction(
     .eq('id', grantId);
   if (error) return { ok: false, error: error.message };
   revalidatePath('/admin/invitations');
+  return { ok: true };
+}
+
+// =====================================================================
+// Matters: create + assign
+// =====================================================================
+
+export type CreateFirmCaseInput = {
+  title: string;
+  /** Who/what the matter is about; stored as cases.subject_name. */
+  subject?: string;
+  caseType?: string;
+  jurisdictionState?: string;
+  posture?: Posture;
+};
+
+/**
+ * Creates a firm-owned matter from the minimal "New matter" form on
+ * /counsel/cases. Until now a firm could only get a case via Import or
+ * intake-conversion; there was no way to hand-open one.
+ *
+ * Writes through the service-role client (like every other firm-case
+ * write in this codebase - see convertIntakeToCaseAction / import
+ * lanes) after confirming the caller is a member of `firmId`. RLS on
+ * public.cases only lets the row OWNER write, so a firm member creating
+ * a matter on the firm's behalf must go through admin.
+ *
+ * Defaults: user_id (the row owner) and assigned_to are the creator, so
+ * a freshly opened matter immediately shows in their "Assigned to me"
+ * lane and can be re-routed from the case's assignee picker.
+ */
+export async function createFirmCaseAction(
+  firmId: string,
+  input: CreateFirmCaseInput,
+): Promise<{ ok: boolean; error?: string; caseId?: string }> {
+  const user = await requireUser();
+  if (!(await callerIsFirmMember(firmId))) {
+    return { ok: false, error: 'You do not have access to this firm.' };
+  }
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server not configured.' };
+
+  const title = (input.title ?? '').trim();
+  if (!title) return { ok: false, error: 'Give the matter a title.' };
+  const subject = (input.subject ?? '').trim() || title;
+  // case_type is stored as free text (no DB check constraint); the form
+  // is a picker so we keep known values verbatim and fall back to
+  // "Other" for anything unexpected.
+  const rawType = (input.caseType ?? '').trim();
+  const caseType: CaseType = (CASE_TYPES as readonly string[]).includes(rawType)
+    ? (rawType as CaseType)
+    : 'Other';
+  const posture: Posture = input.posture === 'defendant' ? 'defendant' : 'claimant';
+  const jurisdictionState = (input.jurisdictionState ?? '').trim();
+
+  const { data: created, error } = await admin
+    .from('cases')
+    .insert({
+      firm_id: firmId,
+      user_id: user.id,
+      assigned_to: user.id,
+      title,
+      subject_name: subject,
+      subject_type: 'person',
+      case_type: caseType,
+      status: 'open',
+      posture,
+      description: '',
+      jurisdiction_country: 'US',
+      jurisdiction_state: jurisdictionState,
+      jurisdiction_city: '',
+      sandbox: false,
+    })
+    .select('id')
+    .single();
+  if (error || !created) {
+    return { ok: false, error: error?.message ?? 'Could not create the matter.' };
+  }
+  revalidatePath('/counsel/cases');
+  revalidatePath('/counsel');
+  return { ok: true, caseId: (created as { id: string }).id };
+}
+
+/**
+ * Sets (or clears, when assigneeUserId is null) the responsible
+ * attorney on a matter. Service-role write gated on firm membership:
+ * the caller must belong to the matter's firm, and a non-null assignee
+ * must be a member of that same firm - you can't assign a matter to
+ * someone outside the firm.
+ */
+export async function setCaseAssigneeAction(
+  caseId: string,
+  assigneeUserId: string | null,
+): Promise<{ ok: boolean; error?: string }> {
+  await requireUser();
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server not configured.' };
+
+  const { data: caseRow } = await admin
+    .from('cases')
+    .select('id, firm_id')
+    .eq('id', caseId)
+    .maybeSingle();
+  const firmId = (caseRow as { firm_id: string | null } | null)?.firm_id ?? null;
+  if (!firmId) return { ok: false, error: 'Matter not found.' };
+  if (!(await callerIsFirmMember(firmId))) {
+    return { ok: false, error: 'You do not have access to this matter.' };
+  }
+
+  if (assigneeUserId) {
+    const { data: member } = await admin
+      .from('firm_members')
+      .select('user_id')
+      .eq('firm_id', firmId)
+      .eq('user_id', assigneeUserId)
+      .maybeSingle();
+    if (!member) {
+      return { ok: false, error: 'Assignee must be a member of this firm.' };
+    }
+  }
+
+  const { error } = await admin
+    .from('cases')
+    .update({ assigned_to: assigneeUserId })
+    .eq('id', caseId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath(`/counsel/cases/${caseId}`);
+  revalidatePath('/counsel/cases');
+  revalidatePath('/counsel');
   return { ok: true };
 }
 

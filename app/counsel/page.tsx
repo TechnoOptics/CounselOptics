@@ -143,31 +143,29 @@ export default async function CounselDashboard() {
       String((i.intake_answers ?? {}).submitted_by ?? '').trim().length > 0,
   }));
 
-  // Assigned to me: clients where primary attorney == me, plus
-  // cases linked to those clients via cases.client_id. The cases
-  // table doesn't carry an explicit assignee, so client linkage is
-  // the source of truth for "your work" - which matches how the
-  // rest of the workspace already attributes matters.
+  // Assigned to me: matters whose first-class assignee is the
+  // signed-in attorney (cases.assigned_to), plus clients where they
+  // are the primary attorney. Previously "my matters" was inferred
+  // indirectly (firm_clients.primary_attorney_id -> the client's user
+  // -> cases.user_id) because cases carried no assignee; the real
+  // assigned_to column (migration 2026-07-07-case-assignee) makes this
+  // a direct query. Left null-tolerant: a null result (e.g. before the
+  // column exists on an older DB) yields an empty lane, never a throw.
   const myClients = clients.filter(
     (c) => c.primaryAttorneyId === user.id,
   );
-  const myClientUserIds = new Set(myClients.map((c) => c.userId));
-  // cases.user_id is the case owner (the consumer / client user
-  // who started the case). Linking back to firm_clients.userId
-  // gives us "this case belongs to my client."
   type CaseRowMin = {
     id: string;
     title: string;
     status: string;
-    user_id: string | null;
   };
-  const { data: caseRowsForClients } = await supabase
+  const { data: assignedCaseRows } = await supabase
     .from('cases')
-    .select('id, title, status, user_id')
-    .eq('firm_id', ctx.firm.id);
-  const myCases = ((caseRowsForClients ?? []) as CaseRowMin[]).filter(
-    (c) => c.user_id && myClientUserIds.has(c.user_id),
-  );
+    .select('id, title, status')
+    .eq('firm_id', ctx.firm.id)
+    .eq('assigned_to', user.id)
+    .order('updated_at', { ascending: false });
+  const myCases = (assignedCaseRows ?? []) as CaseRowMin[];
 
   // Signing requests the current user created that are still out.
   const mySigningOpen = signing.filter(

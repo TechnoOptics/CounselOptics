@@ -1,8 +1,15 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { getActiveFirmContext, listFirmCases } from '@/lib/firm-storage';
+import {
+  getActiveFirmContext,
+  listFirmCases,
+  listFirmMembers,
+} from '@/lib/firm-storage';
+import { getCurrentUser } from '@/lib/supabase/server';
 import { STATUS_LABEL, type CaseStatus } from '@/lib/types';
 import { T } from '@/components/i18n/LocaleProvider';
+import { NewMatterButton } from './new-matter-button';
+import { CasesFilter, type AssigneeFilterOption } from './cases-filter';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,10 +25,45 @@ const STATUS_TONE: Record<CaseStatus, string> = {
   archived: 'bg-ink-100 text-ink-600 ring-ink-300/40 dark:bg-forest-800/40 dark:text-cream-100/55 dark:ring-forest-700/40',
 };
 
-export default async function CounselCasesPage() {
+export default async function CounselCasesPage({
+  searchParams,
+}: {
+  searchParams: { assignee?: string };
+}) {
   const ctx = await getActiveFirmContext();
   if (!ctx) redirect('/counsel');
-  const cases = await listFirmCases(ctx.firm.id);
+  const [allCases, members, user] = await Promise.all([
+    listFirmCases(ctx.firm.id),
+    listFirmMembers(ctx.firm.id),
+    getCurrentUser(),
+  ]);
+
+  // Resolve assignee display names once (userId -> label).
+  const memberLabel = new Map<string, string>();
+  for (const m of members) {
+    memberLabel.set(m.userId, m.displayName ?? m.email ?? 'Member');
+  }
+
+  // Assignee filter. `?assignee=` is: '' (all), 'me', 'unassigned', or a
+  // firm member's user id. `me` resolves to the signed-in attorney.
+  const filter = (searchParams.assignee ?? '').trim();
+  const meId = user?.id ?? null;
+  const cases = allCases.filter((c) => {
+    if (!filter) return true;
+    if (filter === 'unassigned') return !c.assignedTo;
+    if (filter === 'me') return meId != null && c.assignedTo === meId;
+    return c.assignedTo === filter;
+  });
+
+  const filterOptions: AssigneeFilterOption[] = [
+    { value: '', label: 'Everyone' },
+    { value: 'me', label: 'Assigned to me' },
+    { value: 'unassigned', label: 'Unassigned' },
+    ...members.map((m) => ({
+      value: m.userId,
+      label: memberLabel.get(m.userId) ?? 'Member',
+    })),
+  ];
 
   // Bucket by status for the firm-side view.
   const buckets: Record<CaseStatus, typeof cases> = {
@@ -52,25 +94,46 @@ export default async function CounselCasesPage() {
             <T>(spreadsheet upload or a migration from another platform).</T>
           </p>
         </div>
-        <p className="text-[12px] text-ink-500 dark:text-cream-100/55 font-mono uppercase tracking-wider">
-          {cases.length} <T>total</T>
-        </p>
+        <div className="flex flex-col items-end gap-2">
+          <NewMatterButton firmId={ctx.firm.id} />
+          <p className="text-[12px] text-ink-500 dark:text-cream-100/55 font-mono uppercase tracking-wider">
+            {cases.length} <T>total</T>
+          </p>
+        </div>
       </header>
 
-      {cases.length === 0 ? (
+      {allCases.length > 0 && (
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          <CasesFilter options={filterOptions} current={filter} />
+        </div>
+      )}
+
+      {allCases.length === 0 ? (
         <div className="card p-8 text-center">
           <p className="font-display text-2xl text-forest-900 dark:text-cream-100">
             <T>No cases yet.</T>
           </p>
           <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 max-w-md mx-auto leading-relaxed">
             <T>
-              Import your existing caseload to get started &mdash; upload a
-              spreadsheet or migrate from another platform on the
+              Open one with &ldquo;New matter&rdquo; above, or import your
+              existing caseload &mdash; upload a spreadsheet or migrate from
+              another platform on the
             </T>{' '}
             <Link href="/counsel/import" className="underline">
               <T>Import data</T>
             </Link>{' '}
             <T>page.</T>
+          </p>
+        </div>
+      ) : cases.length === 0 ? (
+        <div className="card p-8 text-center">
+          <p className="font-display text-xl text-forest-900 dark:text-cream-100">
+            <T>No matters match this filter.</T>
+          </p>
+          <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2">
+            <Link href="/counsel/cases" className="underline">
+              <T>Clear the assignee filter</T>
+            </Link>
           </p>
         </div>
       ) : (
@@ -107,6 +170,18 @@ export default async function CounselCasesPage() {
                         </p>
                         <p className="text-xs text-ink-500 dark:text-cream-100/55 mt-1">
                           {c.subjectName} &middot; {c.caseType}
+                        </p>
+                        <p className="text-[11px] text-ink-500 dark:text-cream-100/55 mt-1">
+                          {c.assignedTo ? (
+                            <>
+                              <T>Assigned:</T>{' '}
+                              <span data-no-translate>
+                                {memberLabel.get(c.assignedTo) ?? 'Member'}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="italic"><T>Unassigned</T></span>
+                          )}
                         </p>
                         {c.hearingAt && (
                           <p className="text-[11px] text-ink-500 dark:text-cream-100/55 mt-1.5 font-mono tabular-nums">

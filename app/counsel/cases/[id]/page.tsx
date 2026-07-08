@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { getActiveFirmContext } from '@/lib/firm-storage';
+import { getActiveFirmContext, listFirmMembers } from '@/lib/firm-storage';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { getOrCreateMatterChannelAction } from '@/lib/firm-actions';
+import { CaseAssigneePicker, type AssigneeOption } from './assignee-picker';
 import { listOpenTimer } from '@/lib/time-tracking';
 import { listTrustTransactions } from '@/lib/trust-accounting-queries';
 import { TimerWidget } from '@/components/TimerWidget';
@@ -104,7 +105,21 @@ export default async function CounselCaseDetailPage({
   };
   if (c.firm_id !== ctx.firm.id) notFound();
 
-  const openTimer = await listOpenTimer(ctx.firm.id);
+  // assigned_to is fetched separately and best-effort so this page can't
+  // 500 on a DB that predates the case-assignee migration - a failed
+  // read just renders the picker as "Unassigned".
+  const [openTimer, members, assigneeRes] = await Promise.all([
+    listOpenTimer(ctx.firm.id),
+    listFirmMembers(ctx.firm.id),
+    supabase.from('cases').select('assigned_to').eq('id', params.id).maybeSingle(),
+  ]);
+  const currentAssigneeId =
+    (assigneeRes.data as { assigned_to: string | null } | null)?.assigned_to ??
+    null;
+  const assigneeOptions: AssigneeOption[] = members.map((m) => ({
+    userId: m.userId,
+    label: m.displayName ?? m.email ?? 'Member',
+  }));
 
   const [
     { data: timeRaw },
@@ -234,12 +249,19 @@ export default async function CounselCaseDetailPage({
             <T>subject</T> {c.subject_name}
           </p>
         </div>
-        <TimerWidget
-          firmId={ctx.firm.id}
-          initial={openTimer}
-          caseId={params.id}
-          caseTitle={c.title}
-        />
+        <div className="flex flex-col items-start gap-3 sm:items-end">
+          <TimerWidget
+            firmId={ctx.firm.id}
+            initial={openTimer}
+            caseId={params.id}
+            caseTitle={c.title}
+          />
+          <CaseAssigneePicker
+            caseId={params.id}
+            members={assigneeOptions}
+            currentAssigneeId={currentAssigneeId}
+          />
+        </div>
       </header>
 
       {/* Top stats */}
