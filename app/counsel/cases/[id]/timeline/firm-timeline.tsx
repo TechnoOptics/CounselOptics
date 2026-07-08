@@ -58,6 +58,7 @@ export function FirmTimeline({
   // switch back to the list so the user "drills into" the chronology.
   const [view, setView] = useState<'timeline' | 'calendar'>('timeline');
   const [range, setRange] = useState<PeriodRange | null>(null);
+  const [exportOpen, setExportOpen] = useState(false);
 
   // Chronological order: dated events first (ascending), undated last.
   const ordered = useMemo(() => {
@@ -180,12 +181,14 @@ export function FirmTimeline({
           >
             <T>Add / manage evidence</T>
           </Link>
-          <Link
-            href={`/cases/${caseId}/export`}
-            className="text-[12.5px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-3 py-1.5 text-ink-700 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/40"
+          <button
+            type="button"
+            onClick={() => setExportOpen(true)}
+            disabled={events.length === 0}
+            className="text-[12.5px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-3 py-1.5 text-ink-700 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/40 disabled:opacity-50"
           >
             <T>Export</T>
-          </Link>
+          </button>
           {aiEnabled && (
             <button
               type="button"
@@ -323,6 +326,141 @@ export function FirmTimeline({
       <CaseChatPanel initialGeneralChat={collab.generalChat} />
     </aside>
     </div>
+    {exportOpen && (
+      <ExportDialog caseId={caseId} events={ordered} onClose={() => setExportOpen(false)} />
+    )}
     </CollabProvider>
+  );
+}
+
+/**
+ * Firm-native export by selection. Lists the matter's evidence with checkboxes
+ * (all selected by default), lets the user exclude items so the final file is
+ * lean, then downloads a court-ready timeline exhibit built from ONLY the
+ * selected items via the firm export route (which reads through the firm admin
+ * path, fixing the empty-pages bug the consumer export produced for firm cases).
+ */
+function ExportDialog({
+  caseId,
+  events,
+  onClose,
+}: {
+  caseId: string;
+  events: TimelineEvent[];
+  onClose: () => void;
+}) {
+  const t = useT();
+  // Sensible default: the whole matter is selected; the user unchecks to trim.
+  const [selected, setSelected] = useState<Set<string>>(() => new Set(events.map((e) => e.id)));
+  const [building, setBuilding] = useState(false);
+
+  const toggle = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const selectAll = () => setSelected(new Set(events.map((e) => e.id)));
+  const selectNone = () => setSelected(new Set());
+
+  const download = async () => {
+    if (selected.size === 0) return;
+    setBuilding(true);
+    const ids = events.filter((e) => selected.has(e.id)).map((e) => e.id).join(',');
+    const url = `/counsel/cases/${caseId}/export?ids=${encodeURIComponent(ids)}`;
+    try {
+      if (isNativeApp()) {
+        const { Browser } = await import('@capacitor/browser');
+        await Browser.open({ url });
+      } else {
+        window.open(url, '_blank', 'noopener');
+      }
+    } finally {
+      setBuilding(false);
+      onClose();
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-forest-950/40 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label={t('Export evidence')}
+      onClick={onClose}
+    >
+      <div
+        className="card flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden p-0"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="border-b border-ink-100 dark:border-forest-700/40 px-5 py-4">
+          <p className="eyebrow text-[10px]"><T>Export</T></p>
+          <h3 className="font-display text-lg font-medium text-forest-900 dark:text-cream-100">
+            <T>Build a court-ready file</T>
+          </h3>
+          <p className="mt-1 text-[12.5px] text-ink-600 dark:text-cream-100/70">
+            <T>Pick the evidence to include. Each item is embedded with its date and context. Uncheck anything you want to leave out.</T>
+          </p>
+        </div>
+
+        <div className="flex items-center justify-between gap-2 border-b border-ink-100 dark:border-forest-700/40 px-5 py-2">
+          <span className="text-[12px] text-ink-600 dark:text-cream-100/70">
+            {selected.size} <T>of</T> {events.length} <T>selected</T>
+          </span>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={selectAll} className="text-[12px] text-forest-700 dark:text-gold-300 hover:underline">
+              <T>Select all</T>
+            </button>
+            <button type="button" onClick={selectNone} className="text-[12px] text-forest-700 dark:text-gold-300 hover:underline">
+              <T>Select none</T>
+            </button>
+          </div>
+        </div>
+
+        <ul className="min-h-0 flex-1 overflow-y-auto px-3 py-2 space-y-1">
+          {events.map((e) => {
+            const checked = selected.has(e.id);
+            return (
+              <li key={e.id}>
+                <label className="flex cursor-pointer items-start gap-2.5 rounded-md px-2 py-1.5 hover:bg-cream-50 dark:hover:bg-forest-800/40">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggle(e.id)}
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-forest-700 dark:accent-gold-400"
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="flex flex-wrap items-center gap-1.5 text-[13px] font-medium text-forest-900 dark:text-cream-100">
+                      <span aria-hidden>{KIND_ICON[e.kind]}</span>
+                      <span className="break-words" data-no-translate>{e.title || t('(untitled)')}</span>
+                      <RelevanceBadge score={e.aiExtracted.relevance_score} reason={e.aiExtracted.relevance_reason} size="xs" />
+                    </span>
+                    <span className="block text-[11px] text-ink-500 dark:text-cream-100/55" data-no-translate>
+                      {formatOccurred(e.occurredAt, e.occurredPrecision)}
+                      {e.media[0] ? ` · ${e.media.length} ${e.media.length === 1 ? t('file') : t('files')}` : ''}
+                    </span>
+                  </span>
+                </label>
+              </li>
+            );
+          })}
+        </ul>
+
+        <div className="flex items-center justify-end gap-2 border-t border-ink-100 dark:border-forest-700/40 px-5 py-3">
+          <button type="button" onClick={onClose} className="btn-ghost text-sm" disabled={building}>
+            <T>Cancel</T>
+          </button>
+          <button
+            type="button"
+            onClick={download}
+            disabled={building || selected.size === 0}
+            className="btn-primary text-sm disabled:opacity-50"
+          >
+            {building ? <T>Preparing…</T> : <T>Download</T>}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
