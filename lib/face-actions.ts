@@ -49,21 +49,22 @@ async function assertFirmAdmin(
 /** Read the firm's recurring-face opt-in (any firm member). */
 export async function getRecurringFacesEnabledAction(
   firmId: string,
-): Promise<{ ok: boolean; enabled?: boolean; error?: string }> {
+): Promise<{ ok: boolean; enabled?: boolean; canManage?: boolean; error?: string }> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: 'Sign in first.' };
   const supabase = createServerSupabase();
   const { data: member } = await supabase
     .from('firm_members')
-    .select('id')
+    .select('role')
     .eq('firm_id', firmId)
     .eq('user_id', user.id)
     .maybeSingle();
-  if (!member) return { ok: false, error: 'You do not have access to this firm.' };
+  const role = (member as { role: string } | null)?.role;
+  if (!role) return { ok: false, error: 'You do not have access to this firm.' };
   const admin = createAdminSupabase();
   if (!admin) return { ok: false, error: 'Service unavailable.' };
   const setting = await getFirmFaceSetting(admin, firmId);
-  return { ok: true, enabled: setting.enabled };
+  return { ok: true, enabled: setting.enabled, canManage: role === 'owner' || role === 'admin' };
 }
 
 /**

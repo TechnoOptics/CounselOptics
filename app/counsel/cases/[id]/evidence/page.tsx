@@ -7,6 +7,7 @@ import { resolveTimelineAccess } from '@/lib/timeline-entitlement';
 import { getFirmCaseTimeline } from '@/lib/case-evidence-actions';
 import { T } from '@/components/i18n/LocaleProvider';
 import { EvidenceIntake } from './evidence-intake';
+import { RecurringPeople } from './recurring-people';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,6 +61,8 @@ export default async function CaseEvidencePage({
         initialEvents={timeline.events ?? []}
         aiEnabled={aiEnabled}
       />
+
+      {access === 'firm' && <RecurringPeople firmId={ctx.firm.id} caseId={params.id} />}
     </div>
   );
 }
