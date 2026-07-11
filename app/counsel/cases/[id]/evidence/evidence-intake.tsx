@@ -585,7 +585,9 @@ export function EvidenceIntake({
   const analyzePending = useCallback(async () => {
     setError(null);
     setNotice(null);
-    const queue = events.filter((e) => e.aiStatus === 'skipped').map((e) => e.id);
+    const queue = events
+      .filter((e) => e.aiStatus === 'skipped' || e.aiStatus === 'error')
+      .map((e) => e.id);
     await runAnalyzeQueue(queue);
   }, [events, runAnalyzeQueue]);
 
@@ -656,8 +658,14 @@ export function EvidenceIntake({
     return () => document.removeEventListener('paste', onPaste);
   }, [upload, importFromUrls]);
 
+  // "Unscanned" = never analysed (skipped) OR a scan that failed (error). Both
+  // are items that did not process; the reprocess control picks up both so a
+  // failed batch is never silently left behind.
   const pendingCount = useMemo(
-    () => (aiEnabled ? events.filter((e) => e.aiStatus === 'skipped').length : 0),
+    () =>
+      aiEnabled
+        ? events.filter((e) => e.aiStatus === 'skipped' || e.aiStatus === 'error').length
+        : 0,
     [aiEnabled, events],
   );
 
@@ -1152,7 +1160,7 @@ export function EvidenceIntake({
               onClick={() => void analyzePending()}
               className="inline-flex items-center min-h-[38px] px-3 rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 text-[13px] text-ink-700 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/30 disabled:opacity-50"
             >
-              {t('Analyse pending ({n})').replace('{n}', String(pendingCount))}
+              {t('Reprocess unscanned ({n})').replace('{n}', String(pendingCount))}
             </button>
           )}
         </div>
