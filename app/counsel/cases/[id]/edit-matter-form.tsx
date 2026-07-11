@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateFirmCaseAction } from '@/lib/firm-actions';
 import { CASE_TYPES, SUBJECT_TYPE_LABEL } from '@/lib/types';
@@ -34,10 +34,14 @@ export function EditMatterForm({
   firmId,
   caseId,
   initial,
+  children,
 }: {
   firmId: string;
   caseId: string;
   initial: EditMatterInitial;
+  /** Rendered inside the open editor (e.g. the Case images panel), so images
+   *  live with the rest of the editable matter details. */
+  children?: ReactNode;
 }) {
   const t = useT();
   const router = useRouter();
@@ -190,6 +194,13 @@ export function EditMatterForm({
         <input value={hearingLocation} onChange={(e) => setHearingLocation(e.target.value)} placeholder={t('Court / location')} className="input text-sm" data-no-translate />
         <textarea value={hearingNotes} onChange={(e) => setHearingNotes(e.target.value)} placeholder={t('Hearing notes')} rows={2} className="input text-sm sm:col-span-2 resize-y" data-no-translate />
       </div>
+
+      {children && (
+        <div className="rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 p-3">
+          <p className="text-[11px] uppercase tracking-[0.12em] text-ink-400 dark:text-cream-100/40 mb-2"><T>Case images</T></p>
+          {children}
+        </div>
+      )}
 
       {error && <p className="text-[11px] text-rose-700 dark:text-rose-300">{error}</p>}
 

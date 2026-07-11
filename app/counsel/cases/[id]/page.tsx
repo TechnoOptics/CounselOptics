@@ -342,29 +342,31 @@ export default async function CounselCaseDetailPage({
           personal case: the interactive Timeline (firm-tier = full builder),
           bulk Evidence intake, court-ready Packet, and export. Framed as
           case tools, not client guidance. */}
-      <nav className="flex flex-wrap gap-2">
+      {/* Prominent tab bar for the three primary case surfaces, so they read
+          as clear destinations rather than blending into the page. The court
+          packet uses <a> (a route handler that streams a PDF); the others are
+          client-nav <Link>s. */}
+      <nav className="grid grid-cols-1 sm:grid-cols-3 gap-2 rounded-xl border border-ink-200 dark:border-forest-700/50 bg-cream-50/70 dark:bg-forest-900/40 p-1.5">
         <Link
           href={`/counsel/cases/${params.id}/timeline`}
-          className="text-[12.5px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-3 py-1.5 text-ink-700 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/40 transition-colors"
+          className="group flex items-center justify-center gap-2 rounded-lg px-4 py-3 ring-1 ring-transparent text-forest-900 dark:text-cream-100 hover:bg-white dark:hover:bg-forest-800/60 hover:ring-gold-500/60 hover:shadow-sm transition-all"
         >
-          <T>Case Timeline</T>
+          <span className="text-base" aria-hidden>🗓️</span>
+          <span className="text-[13px] font-semibold"><T>Case Timeline</T></span>
         </Link>
         <Link
           href={`/counsel/cases/${params.id}/evidence`}
-          className="text-[12.5px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-3 py-1.5 text-ink-700 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/40 transition-colors"
+          className="group flex items-center justify-center gap-2 rounded-lg px-4 py-3 ring-1 ring-transparent text-forest-900 dark:text-cream-100 hover:bg-white dark:hover:bg-forest-800/60 hover:ring-gold-500/60 hover:shadow-sm transition-all"
         >
-          <T>Evidence intake</T>
+          <span className="text-base" aria-hidden>🗂️</span>
+          <span className="text-[13px] font-semibold"><T>Evidence intake</T></span>
         </Link>
-        {/* Firm-native court packet/export (the consumer /cases/[id]/packet
-            + /export routes dropped firm users into the personal UI and
-            returned empty pages). This route builds the court-ready exhibit
-            through the firm admin path; granular evidence selection lives on
-            the Timeline's export dialog. */}
         <a
           href={`/counsel/cases/${params.id}/export`}
-          className="text-[12.5px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-3 py-1.5 text-ink-700 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/40 transition-colors"
+          className="group flex items-center justify-center gap-2 rounded-lg px-4 py-3 ring-1 ring-transparent text-forest-900 dark:text-cream-100 hover:bg-white dark:hover:bg-forest-800/60 hover:ring-gold-500/60 hover:shadow-sm transition-all"
         >
-          <T>Court packet / export</T>
+          <span className="text-base" aria-hidden>📄</span>
+          <span className="text-[13px] font-semibold"><T>Court packet</T></span>
         </a>
       </nav>
 
@@ -390,7 +392,7 @@ export default async function CounselCaseDetailPage({
 
       {/* Correct a typo / edit any case detail (name, business, jurisdiction,
           hearing) in place - firm-gated admin write. */}
-      <div className="flex justify-end -mt-3">
+      <div className="-mt-3">
         <EditMatterForm
           firmId={ctx.firm.id}
           caseId={params.id}
@@ -409,16 +411,17 @@ export default async function CounselCaseDetailPage({
             hearingLocation: c.hearing_location ?? '',
             hearingNotes: c.hearing_notes ?? '',
           }}
-        />
+        >
+          {/* Party portraits + case-context images now live inside the
+              Edit details editor (moved out of a standalone panel). */}
+          <CaseImagesPanel
+            firmId={ctx.firm.id}
+            caseId={params.id}
+            initial={caseImages}
+            featuredImageId={(c.subject_profile as { featuredImageId?: string } | null)?.featuredImageId ?? null}
+          />
+        </EditMatterForm>
       </div>
-
-      {/* Party portraits + case-context images */}
-      <CaseImagesPanel
-        firmId={ctx.firm.id}
-        caseId={params.id}
-        initial={caseImages}
-        featuredImageId={(c.subject_profile as { featuredImageId?: string } | null)?.featuredImageId ?? null}
-      />
 
       {/* Case analysis - the substantive analytical surfaces ported from
           the personal case file (app/cases/[id]) and reframed as firm
