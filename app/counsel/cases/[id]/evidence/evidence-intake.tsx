@@ -1976,6 +1976,17 @@ function EvidenceCard({
               </p>
             </div>
             <div className="flex items-center gap-1.5 text-[12px] shrink-0">
+              {/* Delete first, so it is immediately reachable at the top of
+                  the item rather than buried at the end of the action row. */}
+              <button
+                type="button"
+                disabled={busy}
+                onClick={onDelete}
+                aria-label={t('Delete item')}
+                className="inline-flex items-center min-h-[30px] px-2.5 rounded-md text-rose-600 dark:text-rose-300 ring-1 ring-rose-200 dark:ring-rose-800/50 hover:bg-rose-50 dark:hover:bg-rose-950/30 disabled:opacity-50 font-medium"
+              >
+                <T>Delete</T>
+              </button>
               <TimelineToggle on={onTimeline} busy={busy} onToggle={onToggleTimeline} size="xs" />
               <button
                 type="button"
@@ -2004,14 +2015,6 @@ function EvidenceCard({
                   {analyzing ? <T>Analysing…</T> : <T>Re-analyse</T>}
                 </button>
               )}
-              <button
-                type="button"
-                disabled={busy}
-                onClick={onDelete}
-                className="inline-flex items-center min-h-[30px] px-2.5 rounded-md text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/30 disabled:opacity-50"
-              >
-                <T>Delete</T>
-              </button>
             </div>
           </div>
 
