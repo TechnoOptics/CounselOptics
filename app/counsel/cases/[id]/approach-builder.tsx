@@ -12,19 +12,27 @@ import {
 import type { ApproachArgument } from '@/lib/approach-ai';
 
 /**
- * Approach builder (firm "prove-the-case" layer). The lawyer writes a theory,
- * "what I'm trying to prove," and Advottic assembles the matter's evidence into
- * a structured argument with cited exhibits and a supporting timeline. Saved as
- * "Approach 1/2/3", editable and re-runnable.
+ * Case Theory Console — the firm "prove-the-case" approach board, styled as a
+ * premium investigative terminal. The lawyer opens an APPROACH VECTOR: the
+ * theory they mean to prove, who is connected, and anything relevant. Advottic
+ * marshals the matter's own evidence into a structured argument with cited
+ * exhibits and a supporting timeline, saved as "Approach 01/02/03", editable
+ * and re-runnable.
  *
  * AI-gated + graceful: the approach is always saved; when analysis is
- * unavailable the card shows a calm "add credits to run" state and a re-run
- * button, never a raw error.
+ * unavailable the dossier shows a calm "awaiting analysis" state and a re-run
+ * control, never a raw error. Pure presentation change over the existing
+ * actions — no behavioural wiring changed.
  */
 
 const AI_UNAVAILABLE = "Advottic's analysis is temporarily unavailable. Please try again shortly.";
 function isUnavailable(msg: string | null | undefined): boolean {
   return !!msg && (msg === AI_UNAVAILABLE || /temporarily unavailable|add credits/i.test(msg));
+}
+
+/** Zero-padded dossier index: 1 -> "01". */
+function pad2(n: number): string {
+  return String(n).padStart(2, '0');
 }
 
 export function ApproachBuilder({
@@ -38,6 +46,7 @@ export function ApproachBuilder({
 }) {
   const t = useT();
   const [approaches, setApproaches] = useState<Approach[]>(initial);
+  const [open, setOpen] = useState(initial.length === 0);
   const [title, setTitle] = useState('');
   const [prompt, setPrompt] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -48,7 +57,7 @@ export function ApproachBuilder({
     setError(null);
     setNotice(null);
     if (!prompt.trim()) {
-      setError(t('Write what you are trying to prove.'));
+      setError(t('Lay out the theory you are setting out to prove.'));
       return;
     }
     startTransition(async () => {
@@ -57,6 +66,7 @@ export function ApproachBuilder({
         setApproaches((list) => [...list, res.approach!]);
         setTitle('');
         setPrompt('');
+        setOpen(false);
         if (res.generateError) {
           setNotice(
             isUnavailable(res.generateError)
@@ -76,79 +86,165 @@ export function ApproachBuilder({
     setApproaches((list) => list.filter((x) => x.id !== id));
 
   return (
-    <section className="space-y-5">
-      <header>
-        <h2 className="text-xl font-semibold tracking-tight text-ink-950 dark:text-cream-100">
-          <T>Approach builder</T>
-        </h2>
-        <p className="text-sm text-ink-500 mt-0.5 max-w-2xl leading-relaxed">
-          <T>
-            Write the theory you are trying to prove. Advottic marshals the
-            matter&apos;s evidence into a structured argument with cited exhibits
-            and a supporting timeline. Save several approaches and compare them.
-          </T>
-        </p>
-      </header>
+    <section
+      className="relative overflow-hidden rounded-2xl border border-gold-metal/25 bg-forest-950 text-cream-100 shadow-[0_0_0_1px_rgba(198,161,91,0.04),0_24px_60px_-30px_rgba(0,0,0,0.8)]"
+      style={{
+        backgroundImage:
+          'radial-gradient(120% 90% at 82% -10%, rgba(198,161,91,0.10), transparent 55%), linear-gradient(0deg, rgba(10,26,20,0.6), rgba(6,18,14,0.6))',
+      }}
+    >
+      {/* Faint console grid + top scan line */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-[0.35]"
+        style={{
+          backgroundImage:
+            'linear-gradient(rgba(198,161,91,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(198,161,91,0.05) 1px, transparent 1px)',
+          backgroundSize: '38px 38px',
+          maskImage: 'linear-gradient(180deg, black, transparent 70%)',
+          WebkitMaskImage: 'linear-gradient(180deg, black, transparent 70%)',
+        }}
+      />
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-gold-metal/60 to-transparent" />
 
-      {/* New approach */}
-      <div className="card p-4 space-y-3">
-        <input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder={t('Approach title (optional, e.g. Constructive eviction)')}
-          className="input text-sm w-full"
-          data-no-translate
-        />
-        <textarea
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          placeholder={t('What are you trying to prove? For example: The landlord knew about the mold for months and failed to act, making the unit uninhabitable.')}
-          rows={3}
-          className="input text-sm w-full resize-y"
-          data-no-translate
-        />
-        {error && <p className="text-[12px] text-rose-700 dark:text-rose-300" data-no-translate>{error}</p>}
+      <div className="relative p-5 sm:p-6 space-y-6">
+        {/* Console header */}
+        <header className="flex flex-wrap items-end justify-between gap-3">
+          <div className="min-w-0">
+            <p className="flex items-center gap-2 font-mono text-[10.5px] uppercase tracking-[0.28em] text-gold-metal/80">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-gold-metal/70" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-gold-metal" />
+              </span>
+              <T>Case theory console</T>
+            </p>
+            <h2 className="mt-1.5 font-display text-2xl font-medium tracking-tight text-cream-50">
+              <T>Approaches</T>
+            </h2>
+            <p className="mt-1 max-w-2xl text-[13px] leading-relaxed text-cream-100/60">
+              <T>
+                Open an approach, lay out the theory you mean to prove, and Advottic
+                assembles the matter&apos;s evidence into a cited argument with its own
+                supporting timeline. Run several theories side by side.
+              </T>
+            </p>
+          </div>
+          <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.2em] text-cream-100/40">
+            <span>{pad2(approaches.length)} <T>on file</T></span>
+            {!open && (
+              <button
+                type="button"
+                onClick={() => setOpen(true)}
+                className="group inline-flex items-center gap-1.5 rounded-md border border-gold-metal/40 bg-gold-metal/10 px-3 py-1.5 text-[11px] font-medium tracking-[0.14em] text-gold-metal transition-all hover:bg-gold-metal/20 hover:shadow-[0_0_18px_-4px_rgba(198,161,91,0.55)]"
+              >
+                <span className="text-[13px] leading-none">+</span>
+                <T>New approach</T>
+              </button>
+            )}
+          </div>
+        </header>
+
+        {/* New approach vector */}
+        {open && (
+          <div className="relative rounded-xl border border-gold-metal/25 bg-forest-900/50 p-4 sm:p-5">
+            <CornerTicks />
+            <p className="mb-3 font-mono text-[10px] uppercase tracking-[0.26em] text-gold-metal/70">
+              <T>New approach vector</T>
+            </p>
+            <div className="space-y-3">
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder={t('Codename for this theory (e.g. Constructive eviction)')}
+                className="w-full rounded-lg border border-cream-50/12 bg-forest-950/70 px-3 py-2 text-sm text-cream-50 placeholder:text-cream-100/35 outline-none transition-colors focus:border-gold-metal/50 focus:shadow-[0_0_0_3px_rgba(198,161,91,0.10)]"
+                data-no-translate
+              />
+              <textarea
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                placeholder={t(
+                  'Lay it out: the theory you are proving, who is connected (parties, witnesses, roles), and anything relevant. Example: The landlord knew about the mold for months and failed to act — tie together the inspection report (EX-03), the tenant emails, and the maintenance logs.',
+                )}
+                rows={5}
+                className="w-full resize-y rounded-lg border border-cream-50/12 bg-forest-950/70 px-3 py-2.5 text-sm leading-relaxed text-cream-50 placeholder:text-cream-100/35 outline-none transition-colors focus:border-gold-metal/50 focus:shadow-[0_0_0_3px_rgba(198,161,91,0.10)]"
+                data-no-translate
+              />
+              {error && (
+                <p className="font-mono text-[11.5px] text-rose-300" data-no-translate>
+                  {error}
+                </p>
+              )}
+              <div className="flex items-center justify-end gap-2">
+                {approaches.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => { setOpen(false); setError(null); }}
+                    disabled={pending}
+                    className="rounded-lg px-3 py-2 text-[13px] text-cream-100/70 hover:text-cream-100"
+                  >
+                    <T>Cancel</T>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={create}
+                  disabled={pending}
+                  className="inline-flex items-center gap-2 rounded-lg border border-gold-metal/50 bg-gold-metal/15 px-4 py-2 text-[13px] font-medium text-gold-metal transition-all hover:bg-gold-metal/25 hover:shadow-[0_0_22px_-6px_rgba(198,161,91,0.7)] disabled:opacity-60"
+                >
+                  {pending ? (
+                    <>
+                      <Spinner />
+                      <T>Assembling the argument…</T>
+                    </>
+                  ) : (
+                    <T>Assemble the argument</T>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {notice && (
-          <p className="text-[12px] text-amber-800 dark:text-amber-200 bg-amber-50/70 dark:bg-amber-500/10 rounded-md px-3 py-2">
+          <p className="rounded-lg border border-amber-400/25 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-200">
             {notice}
           </p>
         )}
-        <div className="flex justify-end">
-          <button onClick={create} disabled={pending} className="btn-primary text-sm">
-            {pending ? <T>Assembling…</T> : <T>Assemble the argument</T>}
-          </button>
-        </div>
-      </div>
 
-      {approaches.length === 0 ? (
-        <p className="text-[13px] text-ink-500 dark:text-cream-100/55 italic">
-          <T>No approaches yet. Write your first theory above.</T>
-        </p>
-      ) : (
-        <div className="space-y-4">
-          {approaches.map((a) => (
-            <ApproachCard
-              key={a.id}
-              firmId={firmId}
-              caseId={caseId}
-              approach={a}
-              onUpdated={onUpdated}
-              onRemoved={onRemoved}
-            />
-          ))}
-        </div>
-      )}
+        {/* Dossiers */}
+        {approaches.length === 0 && !open ? (
+          <p className="font-mono text-[12px] italic text-cream-100/45">
+            <T>No approaches on file. Open one to begin.</T>
+          </p>
+        ) : (
+          <div className="space-y-4">
+            {approaches.map((a, i) => (
+              <ApproachCard
+                key={a.id}
+                index={i + 1}
+                firmId={firmId}
+                caseId={caseId}
+                approach={a}
+                onUpdated={onUpdated}
+                onRemoved={onRemoved}
+              />
+            ))}
+          </div>
+        )}
+      </div>
     </section>
   );
 }
 
 function ApproachCard({
+  index,
   firmId,
   caseId,
   approach,
   onUpdated,
   onRemoved,
 }: {
+  index: number;
   firmId: string;
   caseId: string;
   approach: Approach;
@@ -163,6 +259,7 @@ function ApproachCard({
   const [pending, startTransition] = useTransition();
 
   const g = approach.generated;
+  const assembled = !!g;
 
   function rerun(withPrompt?: string) {
     setError(null);
@@ -191,6 +288,7 @@ function ApproachCard({
   }
 
   function remove() {
+    if (typeof window !== 'undefined' && !window.confirm(t('Delete this approach? This cannot be undone.'))) return;
     startTransition(async () => {
       const res = await deleteFirmApproach(firmId, caseId, approach.id);
       if (res.ok) onRemoved(approach.id);
@@ -199,77 +297,128 @@ function ApproachCard({
   }
 
   return (
-    <div className="card p-5 space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <h3 className="text-[15.5px] font-semibold text-forest-900 dark:text-cream-100" data-no-translate>
-          {approach.title}
-        </h3>
-        <div className="flex items-center gap-1.5 text-[12px]">
-          <button onClick={() => setEditing((v) => !v)} disabled={pending} className="btn-ghost px-2 py-1">
-            {editing ? <T>Cancel</T> : <T>Edit</T>}
-          </button>
-          <button onClick={() => rerun()} disabled={pending} className="btn-ghost px-2 py-1">
-            {pending ? <T>Working…</T> : <T>Re-run</T>}
-          </button>
-          <button onClick={remove} disabled={pending} className="btn-ghost px-2 py-1 text-rose-700 dark:text-rose-300">
-            <T>Delete</T>
-          </button>
-        </div>
-      </div>
+    <div className="relative overflow-hidden rounded-xl border border-cream-50/10 bg-forest-900/40">
+      <CornerTicks />
+      {/* Left status rail */}
+      <span
+        aria-hidden
+        className={`absolute inset-y-0 left-0 w-[3px] ${assembled ? 'bg-gold-metal' : 'bg-amber-500/60'}`}
+        style={assembled ? { boxShadow: '0 0 14px 0 rgba(198,161,91,0.6)' } : undefined}
+      />
 
-      {editing ? (
-        <div className="space-y-2">
-          <input value={title} onChange={(e) => setTitle(e.target.value)} className="input text-sm w-full" data-no-translate />
-          <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={3} className="input text-sm w-full resize-y" data-no-translate />
-          <div className="flex justify-end gap-2">
-            <button onClick={saveEdits} disabled={pending} className="btn-ghost text-sm"><T>Save</T></button>
-            <button onClick={() => rerun(prompt)} disabled={pending} className="btn-primary text-sm"><T>Save and re-run</T></button>
+      <div className="p-4 pl-5 sm:p-5 sm:pl-6 space-y-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="mt-0.5 shrink-0 rounded-md border border-gold-metal/40 bg-gold-metal/10 px-2 py-1 font-mono text-[11px] font-semibold tracking-[0.12em] text-gold-metal">
+              {`A-${pad2(index)}`}
+            </span>
+            <div className="min-w-0">
+              <h3 className="text-[16px] font-semibold leading-tight text-cream-50" data-no-translate>
+                {approach.title || t('Untitled approach')}
+              </h3>
+              <p className="mt-1 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.2em]">
+                <span className={`inline-block h-1.5 w-1.5 rounded-full ${assembled ? 'bg-gold-metal' : 'bg-amber-400'}`} />
+                <span className={assembled ? 'text-gold-metal/80' : 'text-amber-300/80'}>
+                  {assembled ? <T>Argument assembled</T> : <T>Awaiting analysis</T>}
+                </span>
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 font-mono text-[11px] uppercase tracking-[0.12em]">
+            <RailButton onClick={() => setEditing((v) => !v)} disabled={pending}>
+              {editing ? <T>Cancel</T> : <T>Edit</T>}
+            </RailButton>
+            <RailButton onClick={() => rerun()} disabled={pending}>
+              {pending ? <T>Working…</T> : (assembled ? <T>Re-run</T> : <T>Assemble</T>)}
+            </RailButton>
+            <RailButton onClick={remove} disabled={pending} tone="danger">
+              <T>Delete</T>
+            </RailButton>
           </div>
         </div>
-      ) : (
-        <p className="text-[13px] text-ink-600 dark:text-cream-100/70 italic leading-relaxed" data-no-translate>
-          &ldquo;{approach.prompt}&rdquo;
-        </p>
-      )}
 
-      {error && (
-        isUnavailable(error) ? (
-          <p className="text-[12px] text-amber-800 dark:text-amber-200 bg-amber-50/70 dark:bg-amber-500/10 rounded-md px-3 py-2">
-            <T>Advottic analysis is temporarily unavailable. Add credits to run, then re-run this approach.</T>
-          </p>
+        {editing ? (
+          <div className="space-y-2 rounded-lg border border-cream-50/10 bg-forest-950/50 p-3">
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full rounded-lg border border-cream-50/12 bg-forest-950/70 px-3 py-2 text-sm text-cream-50 outline-none focus:border-gold-metal/50"
+              data-no-translate
+            />
+            <textarea
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              rows={4}
+              className="w-full resize-y rounded-lg border border-cream-50/12 bg-forest-950/70 px-3 py-2.5 text-sm leading-relaxed text-cream-50 outline-none focus:border-gold-metal/50"
+              data-no-translate
+            />
+            <div className="flex justify-end gap-2">
+              <button onClick={saveEdits} disabled={pending} className="rounded-lg px-3 py-1.5 text-[13px] text-cream-100/75 hover:text-cream-100">
+                <T>Save</T>
+              </button>
+              <button onClick={() => rerun(prompt)} disabled={pending} className="inline-flex items-center gap-2 rounded-lg border border-gold-metal/50 bg-gold-metal/15 px-3 py-1.5 text-[13px] font-medium text-gold-metal hover:bg-gold-metal/25">
+                {pending && <Spinner />}
+                <T>Save and re-run</T>
+              </button>
+            </div>
+          </div>
         ) : (
-          <p className="text-[12px] text-rose-700 dark:text-rose-300" data-no-translate>{error}</p>
-        )
-      )}
+          <blockquote className="border-l-2 border-gold-metal/40 pl-3 text-[13px] italic leading-relaxed text-cream-100/75" data-no-translate>
+            {approach.prompt}
+          </blockquote>
+        )}
 
-      {g ? (
-        <GeneratedArgument g={g} />
-      ) : (
-        !editing && (
-          <div className="rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50/60 dark:bg-amber-500/10 px-4 py-3 text-[13px] text-amber-900 dark:text-amber-200">
-            <T>The argument has not been assembled yet. Add Advottic credits, then Re-run to build it from the evidence on file.</T>
-          </div>
-        )
-      )}
+        {error && (
+          isUnavailable(error) ? (
+            <p className="rounded-lg border border-amber-400/25 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-200">
+              <T>Advottic analysis is temporarily unavailable. Add credits to run, then re-run this approach.</T>
+            </p>
+          ) : (
+            <p className="font-mono text-[11.5px] text-rose-300" data-no-translate>{error}</p>
+          )
+        )}
+
+        {g ? (
+          <GeneratedArgument g={g} />
+        ) : (
+          !editing && (
+            <div className="flex items-start gap-2.5 rounded-lg border border-amber-400/20 bg-amber-500/[0.07] px-4 py-3 text-[12.5px] text-amber-200/90">
+              <span aria-hidden className="mt-0.5 text-[14px]">◇</span>
+              <T>The argument has not been assembled yet. Add Advottic credits, then Assemble to build it from the evidence on file.</T>
+            </div>
+          )
+        )}
+      </div>
     </div>
+  );
+}
+
+/** Console section label with a hairline lead-in. */
+function ConsoleLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="mb-2 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.24em] text-gold-metal/70">
+      <span aria-hidden className="h-px w-4 bg-gold-metal/40" />
+      {children}
+    </p>
   );
 }
 
 function GeneratedArgument({ g }: { g: ApproachArgument }) {
   return (
-    <div className="space-y-4 border-t border-ink-100 dark:border-forest-700/40 pt-4">
+    <div className="space-y-5 border-t border-cream-50/10 pt-4">
       {g.thesis && (
         <div>
-          <p className="eyebrow text-[10px] mb-1"><T>Thesis</T></p>
-          <p className="text-[14px] font-medium text-forest-900 dark:text-cream-100 leading-relaxed" data-no-translate>
+          <ConsoleLabel><T>Thesis</T></ConsoleLabel>
+          <p className="rounded-lg border border-gold-metal/20 bg-gold-metal/[0.06] px-3.5 py-3 text-[14px] font-medium leading-relaxed text-cream-50" data-no-translate>
             {g.thesis}
           </p>
         </div>
       )}
+
       {g.argument && (
         <div>
-          <p className="eyebrow text-[10px] mb-1"><T>Argument</T></p>
-          <p className="text-[14px] text-ink-800 dark:text-cream-100/85 leading-relaxed whitespace-pre-wrap" data-no-translate>
+          <ConsoleLabel><T>Argument</T></ConsoleLabel>
+          <p className="whitespace-pre-wrap text-[13.5px] leading-relaxed text-cream-100/85" data-no-translate>
             {g.argument}
           </p>
         </div>
@@ -277,18 +426,20 @@ function GeneratedArgument({ g }: { g: ApproachArgument }) {
 
       {g.exhibits.length > 0 && (
         <div>
-          <p className="eyebrow text-[10px] mb-2"><T>Exhibits</T></p>
+          <ConsoleLabel><T>Exhibits marshalled</T></ConsoleLabel>
           <ul className="space-y-1.5">
             {g.exhibits.map((e, i) => (
-              <li key={i} className="flex gap-2 text-[13.5px]">
-                {e.exhibit && (
-                  <span className="shrink-0 font-mono text-[11px] rounded bg-forest-900 text-white dark:bg-gold-metal dark:text-forest-950 px-1.5 py-0.5 h-fit" data-no-translate>
+              <li key={i} className="flex gap-2.5 rounded-md bg-forest-950/40 px-2.5 py-1.5 text-[13px]">
+                {e.exhibit ? (
+                  <span className="h-fit shrink-0 rounded bg-gold-metal px-1.5 py-0.5 font-mono text-[10.5px] font-semibold text-forest-950" data-no-translate>
                     {e.exhibit}
                   </span>
+                ) : (
+                  <span aria-hidden className="mt-2 h-1 w-1 shrink-0 rounded-full bg-cream-100/40" />
                 )}
-                <span className="text-ink-800 dark:text-cream-100/85 leading-relaxed" data-no-translate>
-                  <span className="font-medium">{e.title}</span>
-                  {e.why && <span className="text-ink-600 dark:text-cream-100/65">: {e.why}</span>}
+                <span className="leading-relaxed text-cream-100/85" data-no-translate>
+                  <span className="font-medium text-cream-50">{e.title}</span>
+                  {e.why && <span className="text-cream-100/60"> — {e.why}</span>}
                 </span>
               </li>
             ))}
@@ -298,15 +449,19 @@ function GeneratedArgument({ g }: { g: ApproachArgument }) {
 
       {g.timeline.length > 0 && (
         <div>
-          <p className="eyebrow text-[10px] mb-2"><T>Timeline</T></p>
-          <ol className="space-y-2 border-l-2 border-ink-200 dark:border-forest-700/40 pl-3.5">
+          <ConsoleLabel><T>Supporting timeline</T></ConsoleLabel>
+          <ol className="relative space-y-3 border-l border-gold-metal/25 pl-4">
             {g.timeline.map((tl, i) => (
               <li key={i} className="relative">
-                <span aria-hidden className="absolute -left-[19px] top-1.5 h-2 w-2 rounded-full bg-gold-metal ring-2 ring-white dark:ring-forest-950" />
-                <p className="text-[12px] font-mono text-ink-500 dark:text-cream-100/55" data-no-translate>{tl.when}</p>
-                <p className="text-[13.5px] font-medium text-forest-900 dark:text-cream-100" data-no-translate>{tl.title}</p>
+                <span
+                  aria-hidden
+                  className="absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full border-2 border-forest-900 bg-gold-metal"
+                  style={{ boxShadow: '0 0 10px 0 rgba(198,161,91,0.55)' }}
+                />
+                <p className="font-mono text-[11px] uppercase tracking-[0.1em] text-gold-metal/70" data-no-translate>{tl.when}</p>
+                <p className="text-[13.5px] font-medium text-cream-50" data-no-translate>{tl.title}</p>
                 {tl.significance && (
-                  <p className="text-[13px] text-ink-600 dark:text-cream-100/70 leading-relaxed" data-no-translate>{tl.significance}</p>
+                  <p className="text-[13px] leading-relaxed text-cream-100/70" data-no-translate>{tl.significance}</p>
                 )}
               </li>
             ))}
@@ -316,11 +471,11 @@ function GeneratedArgument({ g }: { g: ApproachArgument }) {
 
       {g.gaps.length > 0 && (
         <div>
-          <p className="eyebrow text-[10px] mb-2"><T>Gaps to close</T></p>
-          <ul className="space-y-1.5 text-[13.5px] text-ink-800 dark:text-cream-100/85">
+          <ConsoleLabel><T>Gaps to close</T></ConsoleLabel>
+          <ul className="space-y-1.5 text-[13px] text-cream-100/85">
             {g.gaps.map((gap, i) => (
               <li key={i} className="flex gap-2">
-                <span aria-hidden className="mt-[8px] h-1 w-1 flex-none rounded-full bg-amber-500" />
+                <span aria-hidden className="mt-[7px] h-1.5 w-1.5 flex-none rotate-45 bg-amber-400" />
                 <span className="leading-relaxed" data-no-translate>{gap}</span>
               </li>
             ))}
@@ -328,5 +483,54 @@ function GeneratedArgument({ g }: { g: ApproachArgument }) {
         </div>
       )}
     </div>
+  );
+}
+
+/** Decorative corner brackets for the console panels. */
+function CornerTicks() {
+  const c = 'pointer-events-none absolute h-2.5 w-2.5 border-gold-metal/35';
+  return (
+    <>
+      <span aria-hidden className={`${c} left-1.5 top-1.5 border-l border-t`} />
+      <span aria-hidden className={`${c} right-1.5 top-1.5 border-r border-t`} />
+      <span aria-hidden className={`${c} bottom-1.5 left-1.5 border-b border-l`} />
+      <span aria-hidden className={`${c} bottom-1.5 right-1.5 border-b border-r`} />
+    </>
+  );
+}
+
+function RailButton({
+  children,
+  onClick,
+  disabled,
+  tone,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+  tone?: 'danger';
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`rounded-md px-2 py-1 transition-colors disabled:opacity-50 ${
+        tone === 'danger'
+          ? 'text-rose-300/80 hover:bg-rose-500/10 hover:text-rose-200'
+          : 'text-cream-100/60 hover:bg-cream-50/10 hover:text-cream-50'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Spinner() {
+  return (
+    <span
+      aria-hidden
+      className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-[1.5px] border-gold-metal/30 border-t-gold-metal"
+    />
   );
 }
