@@ -4108,7 +4108,29 @@ export async function removeMatterCollaboratorAction(
   }
 
   try {
+    // Capture who is being removed BEFORE the row is deleted, so we can also
+    // cut a firm-provisioned guest identity if this was their last matter.
+    let removedUserId: string | null = null;
+    const { data: collabRow } = await admin
+      .from('case_collaborators')
+      .select('user_id')
+      .eq('id', collaboratorId)
+      .maybeSingle();
+    removedUserId = (collabRow as { user_id: string | null } | null)?.user_id ?? null;
+
+    // Deleting the collaborator row IS the revocation: the case-scoped guest
+    // persona resolves matter access from these rows, and there is no re-grant
+    // handler, so any held/pending invite or old magic link becomes inert.
     await removeCollaboratorAsFirm({ collaboratorId, firmId });
+
+    // Belt-and-suspenders for firm-provisioned guests (see revokeGuestAccessOnRemoval).
+    try {
+      const { revokeGuestAccessOnRemoval } = await import('./counsel-guest');
+      await revokeGuestAccessOnRemoval({ userId: removedUserId, firmId });
+    } catch {
+      /* guest-identity cut is non-blocking; the row deletion already revoked */
+    }
+
     try {
       const { logCaseEvent } = await import('./activity');
       await logCaseEvent({
