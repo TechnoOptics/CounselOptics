@@ -647,10 +647,13 @@ async function deleteEventsByHashes(
 ): Promise<number> {
   const set = new Set(hashes.filter((h) => typeof h === 'string' && h));
   if (set.size === 0) return 0;
+  // Same JSONB-path filter as the duplicate check: pull only the rows that
+  // actually match a replace hash, not the whole matter.
   const { data } = await admin
     .from('case_timeline_events')
     .select('id, media, ai_extracted')
-    .eq('case_id', caseId);
+    .eq('case_id', caseId)
+    .in('ai_extracted->>sha256', [...set]);
   const rows = (data ?? []) as { id: string; media: TimelineMedia[] | null; ai_extracted: AiExtracted | null }[];
   const hits = rows.filter((r) => r.ai_extracted?.sha256 && set.has(r.ai_extracted.sha256));
   if (hits.length === 0) return 0;
@@ -686,10 +689,14 @@ export async function checkEvidenceDuplicatesAction(
   const wanted = new Set((hashes ?? []).filter((h) => typeof h === 'string' && h));
   if (wanted.size === 0) return { ok: true, duplicates: {} };
 
+  // Filter to only rows whose stored hash is one we're asking about, server-side,
+  // via a JSONB path filter - so a duplicate check on a big matter doesn't drag
+  // back every item's (large) ai_extracted blob just to compare hashes.
   const { data } = await admin
     .from('case_timeline_events')
     .select('id, title, ai_extracted')
-    .eq('case_id', caseId);
+    .eq('case_id', caseId)
+    .in('ai_extracted->>sha256', [...wanted]);
   const rows = (data ?? []) as { id: string; title: string | null; ai_extracted: AiExtracted | null }[];
   const duplicates: Record<string, { id: string; title: string; exhibit: string | null }> = {};
   for (const r of rows) {
