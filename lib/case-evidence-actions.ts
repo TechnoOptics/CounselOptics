@@ -233,7 +233,7 @@ export async function bulkImportCaseEvidenceAction(
   }
 
   revalidatePath(`/counsel/cases/${caseId}/evidence`);
-  revalidatePath(`/cases/${caseId}/timeline`);
+  revalidatePath(`/counsel/cases/${caseId}/timeline`);
   return { ok: imported > 0, imported, failed, errors: errors.slice(0, 8) };
 }
 
@@ -303,7 +303,7 @@ export async function importCaseEvidenceFromUrlsAction(
   }
 
   revalidatePath(`/counsel/cases/${caseId}/evidence`);
-  revalidatePath(`/cases/${caseId}/timeline`);
+  revalidatePath(`/counsel/cases/${caseId}/timeline`);
   return { ok: imported > 0, imported, failed, errors: errors.slice(0, 8) };
 }
 
@@ -553,7 +553,7 @@ export async function setFirmEvidenceExcludedAction(
     if (!error) updated++;
   }
   revalidatePath(`/counsel/cases/${caseId}/evidence`);
-  revalidatePath(`/cases/${caseId}/timeline`);
+  revalidatePath(`/counsel/cases/${caseId}/timeline`);
   return { ok: true, updated };
 }
 
@@ -625,8 +625,13 @@ export async function deleteFirmCaseEventAction(
   const { error } = await admin
     .from('case_timeline_events').delete().eq('id', eventId).eq('case_id', caseId);
   if (error) return { ok: false, error: error.message };
+  // Revalidate every surface the row could appear on: the evidence intake, the
+  // firm timeline builder, AND the matter overview (which shows evidence /
+  // timeline counts + a preview). Missing the overview is what left a deleted
+  // duplicate visible there until a hard refresh.
   revalidatePath(`/counsel/cases/${caseId}/evidence`);
   revalidatePath(`/counsel/cases/${caseId}/timeline`);
+  revalidatePath(`/counsel/cases/${caseId}`);
   return { ok: true };
 }
 
