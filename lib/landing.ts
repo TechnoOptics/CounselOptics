@@ -1,5 +1,6 @@
 import 'server-only';
 import { listMyFirms } from './firm-storage';
+import { getGuestContext } from './counsel-guest';
 
 /**
  * The default post-sign-in landing path for the currently-signed-in
@@ -22,10 +23,22 @@ import { listMyFirms } from './firm-storage';
  * client with the freshly-minted session and query firm_members
  * directly instead of calling this.
  */
-export async function resolveDefaultLanding(): Promise<'/counsel' | '/cases'> {
+export async function resolveDefaultLanding(): Promise<string> {
   try {
     const firms = await listMyFirms();
-    return firms.length > 0 ? '/counsel' : '/cases';
+    if (firms.length > 0) return '/counsel';
+    // Case-scoped co-counsel guest: land them straight on their matter (or the
+    // force-change page if they still owe a first-login password change). They
+    // have no firm membership, so without this they'd fall through to /cases.
+    const guest = await getGuestContext();
+    if (guest) {
+      if (guest.mustChangePassword) return '/counsel/guest/password';
+      if (guest.caseIds.length > 0) return `/counsel/cases/${guest.caseIds[0]}`;
+      // Provisioned but not yet assigned a matter - park them on a calm holding
+      // page inside the counsel shell rather than the consumer app.
+      return '/counsel/guest';
+    }
+    return '/cases';
   } catch {
     return '/cases';
   }

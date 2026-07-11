@@ -14,6 +14,8 @@ import { type EditMatterInitial } from '../edit-matter-form';
 import { FirmTimeline } from './firm-timeline';
 import { RequestSidebarFocus } from '@/components/counsel/SidebarFocus';
 import { T } from '@/components/i18n/LocaleProvider';
+import { getGuestTimelineBundle, getGuestCaseSummary } from '@/lib/counsel-guest';
+import { GuestTimelineView } from './guest-timeline-view';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,7 +50,21 @@ export default async function FirmTimelinePage({
   params: { id: string };
 }) {
   const ctx = await getActiveFirmContext();
-  if (!ctx) redirect('/counsel');
+  if (!ctx) {
+    // Case-scoped co-counsel GUEST: read-only timeline view if they have access.
+    const guestBundle = await getGuestTimelineBundle(params.id);
+    const summary = await getGuestCaseSummary(params.id);
+    if (summary) {
+      return (
+        <GuestTimelineView
+          caseId={params.id}
+          caseTitle={summary.case.title}
+          bundle={guestBundle}
+        />
+      );
+    }
+    redirect('/counsel');
+  }
   const supabase = createServerSupabase();
 
   const { data: caseRow } = await supabase

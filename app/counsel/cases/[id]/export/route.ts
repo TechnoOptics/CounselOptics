@@ -41,25 +41,42 @@ function isJpegOrPng(buf: Buffer): boolean {
 }
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
-  const ctx = await getActiveFirmContext();
-  if (!ctx) return NextResponse.json({ error: 'Sign in to your firm first.' }, { status: 401 });
-  const firmId = ctx.firm.id;
-
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: 'Sign in first.' }, { status: 401 });
 
   const admin = createAdminSupabase();
   if (!admin) return NextResponse.json({ error: 'Server not configured.' }, { status: 500 });
 
-  // Gate: the caller is a member of this firm AND the matter belongs to it.
-  const supabase = createServerSupabase();
-  const { data: member } = await supabase
-    .from('firm_members')
-    .select('id')
-    .eq('firm_id', firmId)
-    .eq('user_id', user.id)
-    .maybeSingle();
-  if (!member) return NextResponse.json({ error: 'No access to this firm.' }, { status: 403 });
+  // Authorize as EITHER a firm member of the matter's firm OR a case-scoped
+  // co-counsel GUEST assigned to this matter. Guests get the SAME court-ready
+  // export (view + export is their whole job) but can never reach a matter
+  // they were not added to. Resolve firmId from whichever path authorizes.
+  const ctx = await getActiveFirmContext();
+  let firmId: string | null = null;
+  if (ctx) {
+    firmId = ctx.firm.id;
+    const supabase = createServerSupabase();
+    const { data: member } = await supabase
+      .from('firm_members')
+      .select('id')
+      .eq('firm_id', firmId)
+      .eq('user_id', user.id)
+      .maybeSingle();
+    if (!member) return NextResponse.json({ error: 'No access to this firm.' }, { status: 403 });
+  } else {
+    const { guestCanReadCase } = await import('@/lib/counsel-guest');
+    // Read the matter's firm first so we can bind the guest check to it.
+    const { data: firmRow } = await admin
+      .from('cases')
+      .select('firm_id')
+      .eq('id', params.id)
+      .maybeSingle();
+    const caseFirmId = (firmRow as { firm_id: string | null } | null)?.firm_id ?? null;
+    if (!caseFirmId || !(await guestCanReadCase(params.id, caseFirmId))) {
+      return NextResponse.json({ error: 'No access to this matter.' }, { status: 403 });
+    }
+    firmId = caseFirmId;
+  }
 
   const { data: caseRow } = await admin
     .from('cases')
