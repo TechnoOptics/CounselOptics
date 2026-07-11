@@ -9,9 +9,15 @@ import { CounselSidebar } from '@/components/counsel/CounselSidebar';
 import { SidebarCollapseProvider, CounselSidebarShell } from '@/components/counsel/SidebarFocus';
 import { CounselTrialBanner } from '@/components/counsel/CounselTrialBanner';
 import { CounselHeader } from '@/components/counsel/CounselHeader';
+import { CounselGuestHeader } from '@/components/counsel/CounselGuestHeader';
 import { AskAdvottic } from '@/components/counsel/AskAdvottic';
 import { LocaleProvider } from '@/components/i18n/LocaleProvider';
 import { getLocaleCookie } from '@/lib/i18n/locale';
+import {
+  getGuestContext,
+  guestPathAllowed,
+  guestFallbackPath,
+} from '@/lib/counsel-guest';
 import type { Firm, FirmMember } from '@/lib/firm-types';
 
 export const dynamic = 'force-dynamic';
@@ -98,6 +104,61 @@ export default async function CounselLayout({
   // valid grant via /counsel/welcome - the layout still gates it on
   // firm membership in the same way as the rest.
   const myFirms = await listMyFirms();
+
+  // Case-scoped co-counsel GUEST shell. A signed-in user who is co-counsel on
+  // a firm matter (case_collaborators role 'attorney') but is NOT a firm
+  // member gets a STRIPPED Counsel view: their matter(s) and nothing else. We
+  // resolve this only when they have no firm membership (a firm member is
+  // never a guest) and enforce the path allowlist here - this layout wraps
+  // EVERY /counsel/* route, so it is the server-side chokepoint that rejects a
+  // guest anywhere outside their case(s). Default-deny.
+  if (myFirms.length === 0) {
+    const guest = await getGuestContext();
+    if (guest) {
+      const locale = await getLocaleCookie();
+      // Force-change wall: a provisioned guest who still owes their first-login
+      // password change is parked on that page until it's done.
+      if (
+        guest.mustChangePassword &&
+        pathname !== '/counsel/guest/password'
+      ) {
+        redirect('/counsel/guest/password');
+      }
+      // Path scope: anything outside their matter(s) / guest pages is denied.
+      if (!guest.mustChangePassword && !guestPathAllowed(guest, pathname)) {
+        redirect(guestFallbackPath(guest));
+      }
+      return (
+        <div
+          className="dark counsel-shell min-h-screen flex flex-col text-cream-100"
+          style={
+            guest.firm
+              ? ({
+                  ['--firm-accent' as string]: guest.firm.accentColor,
+                } as React.CSSProperties)
+              : undefined
+          }
+        >
+          <LocaleProvider initialLocale={locale}>
+            <CounselGuestHeader
+              firm={guest.firm}
+              homeHref={guestFallbackPath(guest)}
+              displayName={guest.displayName ?? guest.email ?? 'Guest'}
+              email={guest.email ?? ''}
+            />
+            <div className="flex-1 flex w-full max-w-none mx-auto px-4 sm:px-6 lg:px-10 py-6 sm:py-8">
+              <main className="flex-1 min-w-0">{children}</main>
+            </div>
+            <footer className="border-t border-forest-700/40 bg-forest-950/80 backdrop-blur">
+              <div className="mx-auto max-w-none px-4 sm:px-6 lg:px-10 py-4 text-[11px] text-cream-100/55">
+                Advottic &middot; Guest access to your assigned matter.
+              </div>
+            </footer>
+          </LocaleProvider>
+        </div>
+      );
+    }
+  }
 
   // Tenant-subdomain access gate. The user MUST be a member of the
   // firm whose subdomain they're on. We fail closed: redirect to the

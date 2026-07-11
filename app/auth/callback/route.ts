@@ -239,7 +239,13 @@ export async function GET(request: NextRequest) {
       // THIS client (it holds the freshly-minted session) rather than a
       // fresh cookies()-based client, which wouldn't see the new session
       // yet. RLS scopes firm_members to the caller automatically.
-      if (next === '/cases' || next === '/cases/') {
+      //
+      // The consumer collaborator invite email bakes `next=/cases?welcome=1`,
+      // so we treat any `/cases`-prefixed destination as the overridable
+      // default here (a deliberate non-cases deep link is left untouched).
+      const isCasesDefault =
+        next === '/cases' || next === '/cases/' || next.startsWith('/cases?');
+      if (isCasesDefault) {
         const { data: memberRows } = await supabase
           .from('firm_members')
           .select('id')
@@ -247,6 +253,37 @@ export async function GET(request: NextRequest) {
           .limit(1);
         if (memberRows && memberRows.length > 0) {
           landingOverride = '/counsel';
+        } else {
+          // Case-scoped co-counsel GUEST (attorney collaborator, not a firm
+          // member) belongs in the firm-framed Counsel view of their matter,
+          // not the consumer app. RLS lets the user read their own
+          // collaborator + guest rows through this session-scoped client.
+          const { data: guestRow } = await supabase
+            .from('firm_guest_accounts')
+            .select('deactivated_at, must_change_password')
+            .eq('user_id', user.id)
+            .maybeSingle();
+          const g = guestRow as
+            | { deactivated_at: string | null; must_change_password: boolean }
+            | null;
+          if (g?.deactivated_at) {
+            // Deactivated guest - fail closed, don't route them into a matter.
+          } else {
+            const { data: collab } = await supabase
+              .from('case_collaborators')
+              .select('case_id')
+              .eq('user_id', user.id)
+              .eq('role', 'attorney')
+              .limit(1);
+            const firstCaseId = (collab as { case_id: string }[] | null)?.[0]?.case_id;
+            if (g?.must_change_password) {
+              landingOverride = '/counsel/guest/password';
+            } else if (firstCaseId) {
+              landingOverride = `/counsel/cases/${firstCaseId}`;
+            } else if (g) {
+              landingOverride = '/counsel/guest';
+            }
+          }
         }
       }
     }

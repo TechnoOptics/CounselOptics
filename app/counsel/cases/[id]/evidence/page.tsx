@@ -9,6 +9,8 @@ import { T } from '@/components/i18n/LocaleProvider';
 import { EvidenceIntake } from './evidence-intake';
 import { RecurringPeople } from './recurring-people';
 import { BulkReanalyze } from './bulk-reanalyze';
+import { getGuestTimelineBundle, getGuestCaseSummary } from '@/lib/counsel-guest';
+import { GuestEvidenceView } from './guest-evidence-view';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,7 +24,21 @@ export default async function CaseEvidencePage({
   params: { id: string };
 }) {
   const ctx = await getActiveFirmContext();
-  if (!ctx) redirect('/counsel');
+  if (!ctx) {
+    // Case-scoped co-counsel GUEST: read-only evidence view if they have access.
+    const summary = await getGuestCaseSummary(params.id);
+    if (summary) {
+      const bundle = await getGuestTimelineBundle(params.id);
+      return (
+        <GuestEvidenceView
+          caseId={params.id}
+          caseTitle={summary.case.title}
+          bundle={bundle}
+        />
+      );
+    }
+    redirect('/counsel');
+  }
 
   const supabase = createServerSupabase();
   const { data: caseRow } = await supabase

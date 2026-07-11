@@ -15,6 +15,7 @@ import {
   type PortalFeature,
 } from './portal-features';
 import { emailDomain, firmInternalDomains } from './access-requests';
+import { resolveGuestContextForUser, type GuestContext } from './counsel-guest';
 
 /**
  * Resolve the signed-in user's workspace persona.
@@ -38,6 +39,17 @@ export const PORTAL_PREVIEW_COOKIE = 'adv_portal_preview';
 export type WorkspacePersona =
   | { kind: 'none' }
   | { kind: 'legal' | 'admin'; firm: Firm; membership: FirmMember }
+  | {
+      /**
+       * Case-scoped Counsel GUEST: co-counsel / outside collaborator added to
+       * one or more firm matters (case_collaborators role 'attorney') who is
+       * NOT a firm member. They get the firm-framed Counsel view of ONLY their
+       * assigned matter(s) - nothing else in the workspace. See
+       * lib/counsel-guest.ts + app/counsel/layout.tsx.
+       */
+      kind: 'counsel_guest';
+      guest: GuestContext;
+    }
   | {
       kind: 'employee';
       firm: Firm;
@@ -191,6 +203,19 @@ async function resolvePersonaForUser(user: User): Promise<WorkspacePersona> {
       firm: active.firm,
       membership: active.membership,
     };
+  }
+
+  // Not on any legal team. Case-scoped co-counsel GUEST? A user added to a
+  // firm matter as co-counsel (case_collaborators role 'attorney') who is NOT
+  // a firm member gets the strictly matter-scoped Counsel view. Checked BEFORE
+  // the employee-portal lookup so an outside attorney invited to a matter sees
+  // the matter, not a portal. Fails closed on any error (best-effort). See
+  // lib/counsel-guest.ts.
+  try {
+    const guest = await resolveGuestContextForUser(user);
+    if (guest) return { kind: 'counsel_guest', guest };
+  } catch {
+    // Table not migrated yet, or transient failure - fall through.
   }
 
   // Not on any legal team. Directory-synced / admin-added employee?

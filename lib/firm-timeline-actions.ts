@@ -123,7 +123,14 @@ export async function getFirmTimelineBundle(
   caseId: string,
 ): Promise<TimelineBundle> {
   const gate = await assertFirmCase(firmId, caseId);
-  if (!gate.ok) return { events: [], people: [], narrative: null };
+  if (!gate.ok) {
+    // A case-scoped co-counsel GUEST may READ the timeline of their matter
+    // (view + export). Write actions keep the firm-only gate above.
+    const { guestCanReadCase } = await import('./counsel-guest');
+    if (!(await guestCanReadCase(caseId, firmId))) {
+      return { events: [], people: [], narrative: null };
+    }
+  }
   const admin = createAdminSupabase();
   if (!admin) return { events: [], people: [], narrative: null };
   const [{ data: ev }, { data: pl }, { data: nr }] = await Promise.all([
