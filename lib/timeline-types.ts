@@ -124,6 +124,14 @@ export type AiExtracted = {
     subject?: string | null;
     date?: string | null;
     attachments?: string[];
+    /**
+     * The message body ALONE (no header block), for display in the email
+     * viewer. `ocr_text` keeps the header block prepended for analysis; the
+     * viewer must not show that or the From/To/Date/Subject render twice. Older
+     * rows imported before this field existed fall back to stripping the header
+     * block off `ocr_text` at render time.
+     */
+    body?: string | null;
   };
   /**
    * The folder Advottic filed this item under, from the controlled taxonomy in

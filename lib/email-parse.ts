@@ -68,6 +68,30 @@ function uniq(list: string[]): string[] {
   return [...new Set(list.map((s) => s.trim()).filter(Boolean))];
 }
 
+/**
+ * Flatten an HTML email part to readable plain text. Used only when the message
+ * carries no text/plain alternative (HTML-only marketing / rich mail), which
+ * would otherwise render as an empty body. Deliberately minimal - block tags
+ * become line breaks, everything else is stripped, common entities decoded.
+ */
+function htmlToPlain(html: string | false | undefined): string {
+  if (!html) return '';
+  return html
+    .replace(/<(style|script|head)[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<\/(p|div|tr|li|h[1-6]|blockquote)>/gi, '\n')
+    .replace(/<(br|hr)\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&quot;/gi, '"')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 export async function parseEmail(
   buffer: Buffer,
   filename: string,
@@ -88,7 +112,9 @@ export async function parseEmail(
 
     const subject = mail.subject?.trim() || null;
     const date = mail.date ? mail.date.toISOString() : null;
-    const body = (mail.text ?? '').trim();
+    // Prefer the text/plain part; fall back to flattening HTML so an HTML-only
+    // message still shows a readable body instead of a blank pane.
+    const body = (mail.text ?? '').trim() || htmlToPlain(mail.html);
     const attachments = uniq(
       (mail.attachments ?? [])
         .map((a) => a.filename ?? '')
@@ -128,6 +154,7 @@ export async function parseEmail(
         subject,
         date,
         attachments,
+        body,
       },
     };
 

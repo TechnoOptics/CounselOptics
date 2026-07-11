@@ -347,10 +347,32 @@ function FactLine({ label, items }: { label: string; items?: string[] | null }) 
 }
 
 /** A readable rendering of a parsed email: headers, then the body text. */
+/**
+ * Strip a leading RFC-822 header block ("From:/To:/Cc:/Date:/Subject:" lines
+ * up to the first blank line) off text stored in `ocr_text`. Used only for
+ * emails imported before `email.body` existed - the parser prepends the header
+ * block to `ocr_text` for analysis, and showing that verbatim double-prints the
+ * headers the viewer already renders in its styled block. Only strips when the
+ * lead-in really is a header block, so a normal body is never truncated.
+ */
+function stripEmailHeaderBlock(text: string): string {
+  const sep = text.indexOf('\n\n');
+  if (sep === -1) return text;
+  const head = text.slice(0, sep);
+  const isHeaderBlock =
+    head.length > 0 &&
+    head.split('\n').every((line) => /^(From|To|Cc|Date|Subject):\s/.test(line));
+  return isHeaderBlock ? text.slice(sep + 2).trim() : text;
+}
+
 function EmailView({ event, url }: { event: TimelineEvent; url: string | null }) {
   const t = useT();
   const email = event.aiExtracted?.email ?? {};
-  const body = event.aiExtracted?.ocr_text?.trim() || '';
+  // New imports carry the clean message body; older rows only have `ocr_text`
+  // with the header block prepended, so strip it there.
+  const body =
+    email.body?.trim() ||
+    stripEmailHeaderBlock(event.aiExtracted?.ocr_text?.trim() || '');
   const row = (label: string, value?: string | null) =>
     value ? (
       <div className="flex gap-2 text-[13px]">
