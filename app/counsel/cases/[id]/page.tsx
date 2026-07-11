@@ -7,7 +7,7 @@ import { getOrCreateMatterChannelAction } from '@/lib/firm-actions';
 import { CaseAssigneePicker, type AssigneeOption } from './assignee-picker';
 import { listOpenTimer } from '@/lib/time-tracking';
 import { listTrustTransactions } from '@/lib/trust-accounting-queries';
-import { getFirmSurfaceSettings } from '@/lib/firm-settings';
+import { getFirmSurfaceSettings, DEFAULT_FIRM_SURFACE_SETTINGS } from '@/lib/firm-settings';
 import { TimerWidget } from '@/components/TimerWidget';
 import type { FirmMessage } from '@/lib/firm-types';
 import { DraftInvoiceButton } from './draft-invoice-button';
@@ -35,6 +35,12 @@ import { getGuestCaseSummary } from '@/lib/counsel-guest';
 import { GuestCaseView } from './guest-case-view';
 
 export const dynamic = 'force-dynamic';
+// This matter page composes many surfaces (facts, evidence, analysis, billing,
+// trust, legal review, approaches). On a heavy matter the default ~10s function
+// budget was blown, returning a 504 (which read to users as "crashes / very
+// slow", including the re-render after saving matter details). Raise the ceiling
+// AND parallelize every read below into a single wave.
+export const maxDuration = 60;
 
 /**
  * Audit V5 CR-30: the counsel-side case detail used to show
@@ -145,33 +151,38 @@ export default async function CounselCaseDetailPage({
   // configured model. getLatestReview reads through RLS, so it only
   // returns a review the member is allowed to see. Best-effort review
   // fetch: a miss just renders the "Run Case Analysis" empty state.
-  const [access, latestReview, caseImagesRes, legalReviewRes, approachesRes] = await Promise.all([
+  // Single parallel wave: none of these depend on each other, so fetching
+  // them together (instead of in 3 sequential await blocks) is what keeps the
+  // render inside the function budget. Each is independently .catch-guarded so
+  // one slow/failed read degrades its own panel rather than the whole page.
+  const [
+    access,
+    latestReview,
+    caseImagesRes,
+    legalReviewRes,
+    approachesRes,
+    surface,
+    openTimer,
+    members,
+    assigneeRes,
+  ] = await Promise.all([
     resolveTimelineAccess(),
     getLatestReview(params.id).catch(() => null),
     listCaseImages(ctx.firm.id, params.id).catch(() => ({ ok: false as const })),
     getFirmLegalReview(ctx.firm.id, params.id).catch(() => ({ ok: false as const })),
     listFirmApproaches(ctx.firm.id, params.id).catch(() => ({ ok: false as const })),
+    getFirmSurfaceSettings(ctx.firm.id).catch(() => DEFAULT_FIRM_SURFACE_SETTINGS),
+    listOpenTimer(ctx.firm.id).catch(() => null),
+    listFirmMembers(ctx.firm.id).catch(() => []),
+    supabase.from('cases').select('assigned_to').eq('id', params.id).maybeSingle(),
   ]);
   const aiEnabled = aiConfigured() && access === 'firm';
-  // Per-firm surface toggle: when a firm hides Time & Billing, the case view
-  // must drop the timer, billing stats, time entries, invoices, and trust
-  // ledger too - not just the sidebar link.
-  const surface = await getFirmSurfaceSettings(ctx.firm.id);
   const showTimeBilling = !surface.hideTimeBilling;
   const caseImages = (caseImagesRes.ok && caseImagesRes.images) ? caseImagesRes.images : [];
   const legalReview =
     ('review' in legalReviewRes ? legalReviewRes.review : null) ?? null;
   const approaches =
     ('approaches' in approachesRes ? approachesRes.approaches : null) ?? [];
-
-  // assigned_to is fetched separately and best-effort so this page can't
-  // 500 on a DB that predates the case-assignee migration - a failed
-  // read just renders the picker as "Unassigned".
-  const [openTimer, members, assigneeRes] = await Promise.all([
-    listOpenTimer(ctx.firm.id),
-    listFirmMembers(ctx.firm.id),
-    supabase.from('cases').select('assigned_to').eq('id', params.id).maybeSingle(),
-  ]);
   const currentAssigneeId =
     (assigneeRes.data as { assigned_to: string | null } | null)?.assigned_to ??
     null;
