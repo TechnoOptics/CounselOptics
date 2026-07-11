@@ -135,6 +135,17 @@ export type AiExtracted = {
   /** A person put this item in its folder by hand; re-analysis must not move it. */
   folder_locked?: boolean;
   /**
+   * Whether the firm has explicitly placed this item on the case TIMELINE.
+   * Evidence lives in the evidence intake regardless; the timeline shows only
+   * items the firm chose to add. Newly imported evidence is stamped `false`
+   * (off the timeline) so an intake never floods the chronology. A missing flag
+   * (legacy rows imported before this feature) is treated as ON the timeline via
+   * isOnTimeline, so existing cases are not emptied. Toggled by the intake's
+   * "Add to timeline" / "Remove from timeline" control. Sticky across
+   * re-analysis (see mergeStickyExtracted).
+   */
+  on_timeline?: boolean;
+  /**
    * The team set this item aside as not part of the case (a stray upload, a
    * dead-end, a non-relevant file). It stays stored and recoverable, but is
    * hidden from the working evidence view and left out of coverage counts and
@@ -432,6 +443,17 @@ export function capturedAt(ev: {
     if (!Number.isNaN(d.getTime())) return d.toISOString();
   }
   return null;
+}
+
+/**
+ * Whether an evidence item belongs on the case TIMELINE. Only items the firm
+ * explicitly added are shown: a stamped `true` is on, a stamped `false` is off.
+ * A missing flag (a legacy row imported before the on/off feature) is treated as
+ * ON, so upgrading never empties an existing case's timeline. New imports are
+ * always stamped `false`, so a fresh intake defaults off.
+ */
+export function isOnTimeline(ev: { aiExtracted?: AiExtracted | null }): boolean {
+  return ev.aiExtracted?.on_timeline !== false;
 }
 
 export const ROLE_LABEL: Record<PersonRole, string> = {

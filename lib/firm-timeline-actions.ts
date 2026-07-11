@@ -11,6 +11,7 @@ import {
   kindFromMime,
   sortTimeline,
   formatOccurred,
+  isOnTimeline,
   type TimelineEvent,
   type TimelineMedia,
   type CasePerson,
@@ -130,7 +131,13 @@ export async function getFirmTimelineBundle(
     admin.from('case_people').select('*').eq('case_id', caseId).order('display_name'),
     admin.from('case_timeline_narratives').select('*').eq('case_id', caseId).maybeSingle(),
   ]);
-  const events = sortTimeline((ev ?? []).map((r) => toEvent(r as EventRow)));
+  // The timeline shows ONLY evidence the firm explicitly added (on_timeline).
+  // Everything else stays in the evidence intake. Legacy rows with no flag are
+  // treated as on the timeline so existing cases are not emptied (see
+  // isOnTimeline).
+  const events = sortTimeline(
+    (ev ?? []).map((r) => toEvent(r as EventRow)).filter(isOnTimeline),
+  );
   const people = (pl ?? []).map((r) => toPerson(r as PersonRow));
   const narrative = nr
     ? {

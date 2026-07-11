@@ -143,6 +143,11 @@ export function mergeStickyExtracted(
     out.folder = p.folder;
     out.folder_locked = true;
   }
+  // The firm's on/off-the-timeline choice is deliberate and must survive a
+  // re-score (which otherwise replaces ai_extracted with a fresh object).
+  if (typeof p.on_timeline === 'boolean' && out.on_timeline === undefined) {
+    out.on_timeline = p.on_timeline;
+  }
   return out;
 }
 
@@ -324,8 +329,10 @@ export async function importFileAsCaseEvidence(input: {
 
   // Seed the sticky fields at insert: the content hash (for duplicate detection)
   // and the stable exhibit number. Both survive later re-analysis via
-  // mergeStickyExtracted, so they are assigned exactly once.
-  const seededExtracted: AiExtracted = { sha256: sha256Hex(input.buffer) };
+  // mergeStickyExtracted, so they are assigned exactly once. New evidence starts
+  // OFF the timeline (on_timeline: false); the firm adds items to the chronology
+  // explicitly, so a bulk intake never floods the timeline.
+  const seededExtracted: AiExtracted = { sha256: sha256Hex(input.buffer), on_timeline: false };
   if (typeof input.exhibitNo === 'number') seededExtracted.exhibit_no = input.exhibitNo;
 
   const { error: insErr } = await admin.from('case_timeline_events').insert({

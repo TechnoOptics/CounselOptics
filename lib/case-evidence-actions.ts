@@ -557,7 +557,56 @@ export async function setFirmEvidenceExcludedAction(
   return { ok: true, updated };
 }
 
-/** Delete one evidence entry + its stored media (admin, firm-scoped). */
+/**
+ * Add (or remove) a set of evidence items to the case TIMELINE (admin,
+ * firm-scoped). Evidence always lives in the intake; the timeline shows only
+ * items the firm explicitly placed there. This flips the on_timeline flag on
+ * ai_extracted (zero-migration) and revalidates both surfaces so the chronology,
+ * calendar, and map reflect the change. Used by the intake's per-item toggle and
+ * the bulk bar.
+ */
+export async function setFirmEvidenceOnTimelineAction(
+  firmId: string,
+  caseId: string,
+  eventIds: string[],
+  onTimeline: boolean,
+): Promise<{ ok: boolean; error?: string; updated?: number }> {
+  const gate = await assertFirmCase(firmId, caseId);
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Service unavailable.' };
+  const ids = Array.from(new Set((eventIds ?? []).filter((s) => typeof s === 'string'))).slice(0, 500);
+  if (ids.length === 0) return { ok: false, error: 'Select at least one item.' };
+
+  const { data } = await admin
+    .from('case_timeline_events')
+    .select('id, ai_extracted')
+    .eq('case_id', caseId)
+    .in('id', ids);
+  const rows = (data ?? []) as { id: string; ai_extracted: AiExtracted | null }[];
+
+  let updated = 0;
+  for (const r of rows) {
+    const ext: AiExtracted = { ...(r.ai_extracted ?? {}), on_timeline: onTimeline };
+    const { error } = await admin
+      .from('case_timeline_events')
+      .update({ ai_extracted: ext, updated_at: new Date().toISOString() })
+      .eq('id', r.id)
+      .eq('case_id', caseId);
+    if (!error) updated++;
+  }
+  revalidatePath(`/counsel/cases/${caseId}/evidence`);
+  revalidatePath(`/counsel/cases/${caseId}/timeline`);
+  return { ok: true, updated };
+}
+
+/**
+ * Delete one evidence entry + its stored media (admin, firm-scoped). A full row
+ * delete: because evidence and the timeline share case_timeline_events rows,
+ * removing the row drops the item from the timeline chronology, the calendar,
+ * the case map, and every selection/exhibit list at once. Both surfaces are
+ * revalidated so no stale copy survives in any view (e.g. deleting a duplicate).
+ */
 export async function deleteFirmCaseEventAction(
   firmId: string,
   caseId: string,
@@ -577,6 +626,7 @@ export async function deleteFirmCaseEventAction(
     .from('case_timeline_events').delete().eq('id', eventId).eq('case_id', caseId);
   if (error) return { ok: false, error: error.message };
   revalidatePath(`/counsel/cases/${caseId}/evidence`);
+  revalidatePath(`/counsel/cases/${caseId}/timeline`);
   return { ok: true };
 }
 

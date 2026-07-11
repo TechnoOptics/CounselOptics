@@ -14,6 +14,7 @@ import {
   capturedAt,
   contentIconFor,
   exhibitLabel,
+  isOnTimeline,
   relevanceBand,
   sortTimeline,
   EVIDENCE_FOLDERS,
@@ -35,6 +36,7 @@ import {
   renameFirmEvidenceFolderAction,
   deleteFirmCaseEventAction,
   setFirmEvidenceExcludedAction,
+  setFirmEvidenceOnTimelineAction,
   checkEvidenceDuplicatesAction,
   exportSelectedEvidenceAction,
   type EvidenceExportItem,
@@ -800,6 +802,10 @@ export function EvidenceIntake({
   // rather than excludes.
   const selectedAllExcluded =
     selectedEvents.length > 0 && selectedEvents.every((e) => e.aiExtracted?.excluded);
+  // When every selected item is already on the timeline, the bulk control
+  // removes rather than adds.
+  const selectedAllOnTimeline =
+    selectedEvents.length > 0 && selectedEvents.every((e) => isOnTimeline(e));
 
   // ── Bulk actions ────────────────────────────────────────────────────
   const runBulk = useCallback(
@@ -900,6 +906,36 @@ export function EvidenceIntake({
     }
   }, [selectedIds, caseId]);
 
+  // Add (or remove) the selected items to the timeline in one pass.
+  const bulkSetOnTimeline = useCallback(
+    async (onTimeline: boolean) => {
+      const ids = selectedIds;
+      if (ids.length === 0) return;
+      setBusy(true);
+      const res = await setFirmEvidenceOnTimelineAction(firmId, caseId, ids, onTimeline);
+      setBusy(false);
+      if (!res.ok) {
+        setError(res.error ?? t('Could not update those items.'));
+        return;
+      }
+      const idSet = new Set(ids);
+      setEvents((list) =>
+        list.map((e) =>
+          idSet.has(e.id)
+            ? { ...e, aiExtracted: { ...(e.aiExtracted ?? {}), on_timeline: onTimeline } }
+            : e,
+        ),
+      );
+      clearSelection();
+      setNotice(
+        onTimeline
+          ? t('Added {n} item(s) to the timeline.').replace('{n}', String(ids.length))
+          : t('Removed {n} item(s) from the timeline.').replace('{n}', String(ids.length)),
+      );
+    },
+    [selectedIds, firmId, caseId, clearSelection, t],
+  );
+
   // Set aside (or restore) the selected items. Excluded items stay stored but
   // drop out of the working view, the coverage counts, and exports.
   const bulkSetExcluded = useCallback(
@@ -965,6 +1001,31 @@ export function EvidenceIntake({
     [events],
   );
 
+  // Add / remove a single item to the timeline (the per-card control). Evidence
+  // stays in the intake either way; this only governs the chronology.
+  const toggleOnTimeline = useCallback(
+    (id: string, onTimeline: boolean) => {
+      // Optimistic: reflect the choice immediately, roll back on failure.
+      setEvents((list) =>
+        list.map((e) =>
+          e.id === id ? { ...e, aiExtracted: { ...(e.aiExtracted ?? {}), on_timeline: onTimeline } } : e,
+        ),
+      );
+      startTransition(async () => {
+        const res = await setFirmEvidenceOnTimelineAction(firmId, caseId, [id], onTimeline);
+        if (!res.ok) {
+          setEvents((list) =>
+            list.map((e) =>
+              e.id === id ? { ...e, aiExtracted: { ...(e.aiExtracted ?? {}), on_timeline: !onTimeline } } : e,
+            ),
+          );
+          if (res.error) setError(res.error);
+        }
+      });
+    },
+    [firmId, caseId],
+  );
+
   // Set aside / restore a single item (the per-card control).
   const toggleExclude = useCallback(
     (id: string, excluded: boolean) => {
@@ -998,11 +1059,13 @@ export function EvidenceIntake({
     analyzing: analyzing.has(e.id) || e.aiStatus === 'running',
     selected: selected.has(e.id),
     excluded: Boolean(e.aiExtracted?.excluded),
+    onTimeline: isOnTimeline(e),
     onToggleSelect: () => toggleSelect(e.id),
     onOpenViewer: () => openViewer(e.id),
     onReanalyze: () => reanalyze(e.id),
     onDelete: () => remove(e.id),
     onToggleExclude: () => toggleExclude(e.id, !e.aiExtracted?.excluded),
+    onToggleTimeline: () => toggleOnTimeline(e.id, !isOnTimeline(e)),
   });
 
   return (
@@ -1207,6 +1270,7 @@ export function EvidenceIntake({
           aiEnabled={aiEnabled}
           allVisibleSelected={allVisibleSelected}
           excludeMode={selectedAllExcluded ? 'restore' : 'exclude'}
+          timelineMode={selectedAllOnTimeline ? 'remove' : 'add'}
           onSelectAll={selectAllVisible}
           onClear={clearSelection}
           onDelete={() => void bulkDelete()}
@@ -1214,6 +1278,7 @@ export function EvidenceIntake({
           onShare={() => void bulkShare()}
           onExport={() => void bulkExport()}
           onExclude={() => void bulkSetExcluded(!selectedAllExcluded)}
+          onToggleTimeline={() => void bulkSetOnTimeline(!selectedAllOnTimeline)}
         />
       )}
 
@@ -1230,6 +1295,8 @@ export function EvidenceIntake({
           onPrev={() => setViewerIndex((i) => (i != null && i > 0 ? i - 1 : i))}
           onNext={() => setViewerIndex((i) => (i != null && i < ordered.length - 1 ? i + 1 : i))}
           onClose={() => setViewerIndex(null)}
+          onTimeline={isOnTimeline(viewerEvent)}
+          onToggleTimeline={() => toggleOnTimeline(viewerEvent.id, !isOnTimeline(viewerEvent))}
         />
       )}
 
@@ -1475,6 +1542,7 @@ function BulkBar({
   aiEnabled,
   allVisibleSelected,
   excludeMode,
+  timelineMode,
   onSelectAll,
   onClear,
   onDelete,
@@ -1482,12 +1550,14 @@ function BulkBar({
   onShare,
   onExport,
   onExclude,
+  onToggleTimeline,
 }: {
   count: number;
   busy: boolean;
   aiEnabled: boolean;
   allVisibleSelected: boolean;
   excludeMode: 'exclude' | 'restore';
+  timelineMode: 'add' | 'remove';
   onSelectAll: () => void;
   onClear: () => void;
   onDelete: () => void;
@@ -1495,6 +1565,7 @@ function BulkBar({
   onShare: () => void;
   onExport: () => void;
   onExclude: () => void;
+  onToggleTimeline: () => void;
 }) {
   const t = useT();
   const act = 'rounded-full px-3 py-1.5 text-[13px] hover:bg-white/10 disabled:opacity-50';
@@ -1511,6 +1582,9 @@ function BulkBar({
           {allVisibleSelected ? <T>None</T> : <T>All</T>}
         </button>
         <span className="mx-1 h-4 w-px bg-cream-50/20" />
+        <button type="button" disabled={busy} onClick={onToggleTimeline} className={act}>
+          {timelineMode === 'remove' ? <T>Remove from timeline</T> : <T>Add to timeline</T>}
+        </button>
         {aiEnabled && (
           <button type="button" disabled={busy} onClick={onReanalyze} className={act}>
             <T>Reanalyse</T>
@@ -1647,6 +1721,41 @@ function ChipRow({ icon, label, items }: { icon: string; label: string; items?: 
   );
 }
 
+/**
+ * The per-item "on the timeline" control. Evidence always lives in the intake;
+ * this only governs whether the item shows on the case chronology. On = a filled
+ * chip that removes on click; off = a quiet outline that adds.
+ */
+function TimelineToggle({
+  on,
+  busy,
+  onToggle,
+  size = 'sm',
+}: {
+  on: boolean;
+  busy: boolean;
+  onToggle: () => void;
+  size?: 'sm' | 'xs';
+}) {
+  const pad = size === 'xs' ? 'px-2 py-[3px] text-[10.5px]' : 'px-2.5 py-1 text-[11.5px]';
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      onClick={onToggle}
+      aria-pressed={on}
+      className={`inline-flex items-center gap-1 rounded-full ${pad} font-medium ring-1 transition-colors disabled:opacity-50 ${
+        on
+          ? 'bg-forest-600 text-cream-50 ring-forest-600 hover:bg-forest-500'
+          : 'text-forest-700 ring-ink-200 hover:bg-cream-50 dark:text-cream-100/80 dark:ring-forest-700/40 dark:hover:bg-forest-800/30'
+      }`}
+    >
+      <span aria-hidden>{on ? '✓' : '+'}</span>
+      {on ? <T>On timeline</T> : <T>Add to timeline</T>}
+    </button>
+  );
+}
+
 /** Shared props both the list card and the grid tile take. */
 type CardShared = {
   firmId: string;
@@ -1657,11 +1766,13 @@ type CardShared = {
   analyzing: boolean;
   selected: boolean;
   excluded: boolean;
+  onTimeline: boolean;
   onToggleSelect: () => void;
   onOpenViewer: () => void;
   onReanalyze: () => void;
   onDelete: () => void;
   onToggleExclude: () => void;
+  onToggleTimeline: () => void;
 };
 
 /**
@@ -1674,12 +1785,15 @@ function GridCard({
   firmId,
   caseId,
   event: e,
+  busy,
   selected,
   excluded,
   analyzing,
+  onTimeline,
   onToggleSelect,
   onOpenViewer,
   onToggleExclude,
+  onToggleTimeline,
 }: CardShared) {
   const t = useT();
   const ext = e.aiExtracted ?? {};
@@ -1743,15 +1857,18 @@ function GridCard({
           <ChipRow icon="🏢" label={t('Orgs')} items={ext.organizations} />
           <ChipRow icon="📍" label={t('Places')} items={ext.locations} />
         </div>
-        {excluded && (
-          <button
-            type="button"
-            onClick={onToggleExclude}
-            className="text-[11px] text-forest-700 hover:underline dark:text-cream-100/80"
-          >
-            <T>Restore to case</T>
-          </button>
-        )}
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          <TimelineToggle on={onTimeline} busy={busy} onToggle={onToggleTimeline} />
+          {excluded && (
+            <button
+              type="button"
+              onClick={onToggleExclude}
+              className="text-[11px] text-forest-700 hover:underline dark:text-cream-100/80"
+            >
+              <T>Restore to case</T>
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -1767,11 +1884,13 @@ function EvidenceCard({
   analyzing,
   selected,
   excluded,
+  onTimeline,
   onToggleSelect,
   onOpenViewer,
   onReanalyze,
   onDelete,
   onToggleExclude,
+  onToggleTimeline,
   editing,
   onEdit,
   onCancelEdit,
@@ -1857,6 +1976,7 @@ function EvidenceCard({
               </p>
             </div>
             <div className="flex items-center gap-1.5 text-[12px] shrink-0">
+              <TimelineToggle on={onTimeline} busy={busy} onToggle={onToggleTimeline} size="xs" />
               <button
                 type="button"
                 onClick={onOpenViewer}

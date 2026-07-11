@@ -35,6 +35,8 @@ export function EvidenceViewer({
   onPrev,
   onNext,
   onClose,
+  onTimeline,
+  onToggleTimeline,
 }: {
   firmId: string;
   caseId: string;
@@ -46,6 +48,9 @@ export function EvidenceViewer({
   onPrev: () => void;
   onNext: () => void;
   onClose: () => void;
+  /** When provided, shows an "Add to / On timeline" control in the header. */
+  onTimeline?: boolean;
+  onToggleTimeline?: () => void;
 }) {
   const t = useT();
   const media = event.media[0];
@@ -191,6 +196,23 @@ export function EvidenceViewer({
               {index + 1} / {total}
             </span>
           </p>
+          {onToggleTimeline && (
+            <div className="mt-2 flex justify-center">
+              <button
+                type="button"
+                onClick={onToggleTimeline}
+                aria-pressed={onTimeline}
+                className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-[12px] font-medium ring-1 transition-colors ${
+                  onTimeline
+                    ? 'bg-forest-600 text-cream-50 ring-forest-600 hover:bg-forest-500'
+                    : 'text-cream-100/85 ring-cream-50/25 hover:bg-white/10'
+                }`}
+              >
+                <span aria-hidden>{onTimeline ? '✓' : '+'}</span>
+                {onTimeline ? <T>On timeline</T> : <T>Add to timeline</T>}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Media stage */}
