@@ -6,6 +6,7 @@ import { updateFirmCaseAction } from '@/lib/firm-actions';
 import { CASE_TYPES, SUBJECT_TYPE_LABEL } from '@/lib/types';
 import type { Posture, SubjectProfile, SubjectType } from '@/lib/types';
 import { T, useT } from '@/components/i18n/LocaleProvider';
+import { AdvotticPulse } from '@/components/AdvotticPulse';
 
 const SUBJECT_TYPES: SubjectType[] = ['person', 'business', 'entity', 'state', 'matter'];
 
@@ -208,8 +209,8 @@ export function EditMatterForm({
         <button type="button" onClick={() => { reset(); setOpen(false); }} className="btn-ghost text-sm" disabled={pending}>
           <T>Cancel</T>
         </button>
-        <button type="button" onClick={save} className="btn-primary text-sm" disabled={pending}>
-          {pending ? <T>Saving...</T> : <T>Save changes</T>}
+        <button type="button" onClick={save} className="btn-primary text-sm inline-flex items-center" disabled={pending}>
+          {pending ? <AdvotticPulse size={16} label={t('Saving…')} /> : <T>Save changes</T>}
         </button>
       </div>
     </div>

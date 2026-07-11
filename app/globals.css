@@ -1025,6 +1025,24 @@ canvas {
   animation: co-loading-aurora 2.6s ease-in-out infinite;
   pointer-events: none;
 }
+/* Compact inline variant of the loading mark - for buttons/actions, so a
+   click is acknowledged instantly with the same gold pulse + halo, sized to
+   sit next to a line of text. */
+.pulse-mark {
+  position: relative;
+  display: inline-flex;
+  animation: co-loading-pulse 1.5s ease-in-out infinite;
+}
+.pulse-mark::before {
+  content: '';
+  position: absolute;
+  inset: -8px;
+  border-radius: 9999px;
+  filter: blur(7px);
+  z-index: -1;
+  animation: co-loading-aurora 2.4s ease-in-out infinite;
+  pointer-events: none;
+}
 
 /* Soft-pulse halo for "AI is alive / standing by" surfaces (Bella avatar,
    Advottic Review sparkle etc.). Lighter than animate-glow. */
@@ -1153,6 +1171,8 @@ select:focus-visible,
   .aurora,
   .loading-mark,
   .loading-mark::before,
+  .pulse-mark,
+  .pulse-mark::before,
   .header-glow-line::after,
   .animate-card-forward,
   .animate-card-back,
