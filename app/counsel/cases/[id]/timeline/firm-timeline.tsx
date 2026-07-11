@@ -31,6 +31,21 @@ import type { AuthorCard, CaseParticipant, ChatMessage, SectionComment } from '@
  * gate) and reads/writes through the firm admin-path actions so ANY firm member
  * can use it. Adding/editing individual items stays on the evidence route.
  */
+/**
+ * Bucket an event's date into a "YYYY-MM" section key + a human month label.
+ * Events with no (or an unparseable) date land in a single trailing "Undated"
+ * section. The label is locale-formatted; the undated flag lets the caller show
+ * a translated word instead of a date string.
+ */
+function monthKeyLabel(occurredAt: string | null): { key: string; label: string; undated: boolean } {
+  if (!occurredAt) return { key: '~undated', label: '', undated: true };
+  const d = new Date(occurredAt);
+  if (Number.isNaN(d.getTime())) return { key: '~undated', label: '', undated: true };
+  const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  const label = d.toLocaleDateString(undefined, { year: 'numeric', month: 'long' });
+  return { key, label, undated: false };
+}
+
 export function FirmTimeline({
   firmId,
   caseId,
@@ -100,6 +115,43 @@ export function FirmTimeline({
       ),
     [events],
   );
+
+  // Group the visible chronology into month sections that collapse/expand, so a
+  // long timeline stays scannable - a header per period with a count, the events
+  // tucked under it. Order is preserved (visible is already sorted); undated
+  // items fall into their own trailing section.
+  const periodGroups = useMemo(() => {
+    const groups: { key: string; label: string; undated: boolean; items: TimelineEvent[] }[] = [];
+    const byKey = new Map<string, number>();
+    for (const e of visible) {
+      const p = monthKeyLabel(e.occurredAt);
+      let gi = byKey.get(p.key);
+      if (gi === undefined) {
+        gi = groups.length;
+        byKey.set(p.key, gi);
+        groups.push({ key: p.key, label: p.label, undated: p.undated, items: [] });
+      }
+      groups[gi].items.push(e);
+    }
+    return groups;
+  }, [visible]);
+
+  // Collapsed period keys. Empty = every section open (the default).
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const toggleGroup = useCallback((key: string) => {
+    setCollapsedGroups((prev) => {
+      const n = new Set(prev);
+      if (n.has(key)) n.delete(key);
+      else n.add(key);
+      return n;
+    });
+  }, []);
+  const allCollapsed = periodGroups.length > 0 && collapsedGroups.size >= periodGroups.length;
+  const toggleAllGroups = useCallback(() => {
+    setCollapsedGroups((prev) =>
+      prev.size >= periodGroups.length ? new Set() : new Set(periodGroups.map((g) => g.key)),
+    );
+  }, [periodGroups]);
 
   // Open an item in the in-window viewer, positioned within the visible list so
   // the arrows navigate the on-screen chronology.
@@ -296,8 +348,49 @@ export function FirmTimeline({
           </p>
         )
       ) : (
-        <ol className="space-y-2">
-          {visible.map((e) => {
+        <div className="space-y-3">
+          {periodGroups.length > 1 && (
+            <div className="flex justify-end -mt-1">
+              <button
+                type="button"
+                onClick={toggleAllGroups}
+                className="text-[12px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-2 py-0.5 text-ink-700 dark:text-cream-100/80 hover:bg-cream-50 dark:hover:bg-forest-800/40"
+              >
+                {allCollapsed ? <T>Expand all</T> : <T>Collapse all</T>}
+              </button>
+            </div>
+          )}
+          {periodGroups.map((g) => {
+            const groupCollapsed = collapsedGroups.has(g.key);
+            return (
+              <section key={g.key} className="rounded-xl ring-1 ring-ink-100 dark:ring-forest-800/40 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(g.key)}
+                  aria-expanded={!groupCollapsed}
+                  className="flex w-full items-center gap-2 bg-cream-50/70 px-3 py-2 text-left hover:bg-cream-100/70 dark:bg-forest-900/40 dark:hover:bg-forest-800/40"
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    aria-hidden
+                    className={`shrink-0 text-ink-400 transition-transform dark:text-cream-100/50 ${groupCollapsed ? '' : 'rotate-90'}`}
+                  >
+                    <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  <span
+                    className="text-[12.5px] font-semibold text-forest-900 dark:text-cream-100"
+                    data-no-translate={!g.undated ? '' : undefined}
+                  >
+                    {g.undated ? t('Undated') : g.label}
+                  </span>
+                  <span className="ml-auto text-[11px] text-ink-400 dark:text-cream-100/45">{g.items.length}</span>
+                </button>
+                {!groupCollapsed && (
+                  <ol className="space-y-2 p-2">
+                    {g.items.map((e) => {
             const ext = e.aiExtracted ?? {};
             const facts = [
               ...(ext.detected_people ?? []).slice(0, 4),
@@ -364,8 +457,13 @@ export function FirmTimeline({
                 <SectionComments sectionType="event" targetRef={e.id} />
               </li>
             );
+                    })}
+                  </ol>
+                )}
+              </section>
+            );
           })}
-        </ol>
+        </div>
       )}
     </div>
     {/* Chat + presence dock (desktop). */}

@@ -713,6 +713,34 @@ export async function checkEvidenceDuplicatesAction(
   return { ok: true, duplicates };
 }
 
+/**
+ * The set of file names already stored in this matter (lower-cased), so an
+ * upload can auto-skip a file whose name already exists - a name-based
+ * duplicate guard that runs before the content-hash prompt. Names are small,
+ * so we pull just the first media entry's name off every row. Trimmed +
+ * lower-cased for a case-insensitive, whitespace-insensitive comparison.
+ */
+export async function listCaseEvidenceNamesAction(
+  firmId: string,
+  caseId: string,
+): Promise<{ ok: boolean; error?: string; names?: string[] }> {
+  const gate = await assertFirmCase(firmId, caseId);
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Service unavailable.' };
+  const { data } = await admin
+    .from('case_timeline_events')
+    .select('media')
+    .eq('case_id', caseId);
+  const names = new Set<string>();
+  for (const r of (data ?? []) as { media: TimelineMedia[] | null }[]) {
+    const name = Array.isArray(r.media) ? r.media[0]?.name : undefined;
+    const norm = (name ?? '').trim().toLowerCase();
+    if (norm) names.add(norm);
+  }
+  return { ok: true, names: [...names] };
+}
+
 /** One item's row in a selected-evidence export manifest. */
 export type EvidenceExportItem = {
   exhibit: string | null;

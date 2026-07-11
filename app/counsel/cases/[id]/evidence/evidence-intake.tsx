@@ -38,6 +38,7 @@ import {
   setFirmEvidenceExcludedAction,
   setFirmEvidenceOnTimelineAction,
   checkEvidenceDuplicatesAction,
+  listCaseEvidenceNamesAction,
   exportSelectedEvidenceAction,
   type EvidenceExportItem,
 } from '@/lib/case-evidence-actions';
@@ -493,14 +494,51 @@ export function EvidenceIntake({
   const upload = useCallback(
     async (files: File[]) => {
       if (files.length === 0) return;
-      // Skip the interactive prompt for very large drops (see DEDUPE_PROMPT_MAX).
-      if (files.length > DEDUPE_PROMPT_MAX) {
-        await performUpload(files);
-        return;
-      }
       setBusy(true);
       setError(null);
-      const withHash = await Promise.all(files.map(async (file) => ({ file, hash: await hashFile(file) })));
+
+      // ── Name-based auto-skip ────────────────────────────────────────────
+      // A file whose name already exists in this matter is silently skipped -
+      // no prompt - so re-dropping the same set never re-imports duplicates.
+      // This also de-dupes by name WITHIN the current drop. Runs before the
+      // content-hash prompt and before the large-drop shortcut.
+      let candidates = files;
+      let autoSkipped = 0;
+      const namesRes = await listCaseEvidenceNamesAction(firmId, caseId);
+      if (namesRes.ok && namesRes.names) {
+        const existing = new Set(namesRes.names);
+        const seen = new Set<string>();
+        candidates = files.filter((f) => {
+          const key = f.name.trim().toLowerCase();
+          if (!key) return true;
+          if (existing.has(key) || seen.has(key)) {
+            autoSkipped += 1;
+            return false;
+          }
+          seen.add(key);
+          return true;
+        });
+      }
+      if (autoSkipped > 0) {
+        setNotice(
+          t('Skipped {n} file(s) already in this matter (same name).').replace(
+            '{n}',
+            String(autoSkipped),
+          ),
+        );
+      }
+      if (candidates.length === 0) {
+        setBusy(false);
+        return;
+      }
+
+      // Skip the interactive content-hash prompt for very large drops.
+      if (candidates.length > DEDUPE_PROMPT_MAX) {
+        setBusy(false);
+        await performUpload(candidates);
+        return;
+      }
+      const withHash = await Promise.all(candidates.map(async (file) => ({ file, hash: await hashFile(file) })));
       const hashes = withHash.map((h) => h.hash).filter((h): h is string => Boolean(h));
       let dupMap: Record<string, { id: string; title: string; exhibit: string | null }> = {};
       if (hashes.length) {
@@ -515,9 +553,9 @@ export function EvidenceIntake({
         setDedupe({ entries, all: withHash });
         return; // wait for the dialog to resolve
       }
-      await performUpload(files);
+      await performUpload(candidates);
     },
-    [firmId, caseId, performUpload],
+    [firmId, caseId, performUpload, t],
   );
 
   /** Resolve the duplicate dialog into a final file list + replace set. */
