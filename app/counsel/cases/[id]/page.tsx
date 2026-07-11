@@ -31,6 +31,8 @@ import { LegalReviewPanel } from './legal-review-panel';
 import { ApproachBuilder } from './approach-builder';
 import { EvidenceHeatmap } from '@/components/EvidenceHeatmap';
 import { BellaPrompt } from '@/components/BellaPrompt';
+import { getGuestCaseSummary } from '@/lib/counsel-guest';
+import { GuestCaseView } from './guest-case-view';
 
 export const dynamic = 'force-dynamic';
 
@@ -96,7 +98,14 @@ export default async function CounselCaseDetailPage({
   params: { id: string };
 }) {
   const ctx = await getActiveFirmContext();
-  if (!ctx) redirect('/counsel');
+  if (!ctx) {
+    // No firm context: this may be a case-scoped co-counsel GUEST. Render the
+    // stripped, guest-safe matter overview if they have access; otherwise the
+    // counsel layout has already scoped them, so just send them home.
+    const guestView = await getGuestCaseSummary(params.id);
+    if (guestView) return <GuestCaseView kase={guestView.case} />;
+    redirect('/counsel');
+  }
   const supabase = createServerSupabase();
 
   // Pull case (RLS gates). The consumer-side `/cases/[id]` route
@@ -498,6 +507,7 @@ export default async function CounselCaseDetailPage({
         caseId={params.id}
         firmId={ctx.firm.id}
         canManage={['owner', 'admin', 'attorney'].includes(ctx.membership.role)}
+        canProvisionGuests={['owner', 'admin'].includes(ctx.membership.role)}
       />
 
       {/* Deadlines */}

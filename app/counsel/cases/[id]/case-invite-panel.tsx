@@ -1,4 +1,5 @@
 import { listCollaboratorsAsFirm } from '@/lib/storage';
+import { listCaseGuestAccounts } from '@/lib/counsel-guest';
 import { MatterInviteForm } from './matter-invite-form';
 
 /**
@@ -14,19 +15,27 @@ export async function CaseInvitePanel({
   caseId,
   firmId,
   canManage,
+  canProvisionGuests = false,
 }: {
   caseId: string;
   firmId: string;
   canManage: boolean;
+  /** Owner/admin only: create + deactivate firm-provisioned guest accounts. */
+  canProvisionGuests?: boolean;
 }) {
-  const collaborators = await listCollaboratorsAsFirm(caseId, firmId).catch(
-    () => [],
-  );
+  const [collaborators, guestAccounts] = await Promise.all([
+    listCollaboratorsAsFirm(caseId, firmId).catch(() => []),
+    canProvisionGuests
+      ? listCaseGuestAccounts(caseId, firmId).catch(() => [])
+      : Promise.resolve([]),
+  ]);
   return (
     <MatterInviteForm
       caseId={caseId}
       collaborators={collaborators}
       canManage={canManage}
+      canProvisionGuests={canProvisionGuests}
+      guestAccounts={guestAccounts}
     />
   );
 }
