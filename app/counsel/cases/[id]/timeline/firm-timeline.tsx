@@ -1,11 +1,12 @@
 'use client';
 
-import { useCallback, useMemo, useState, useTransition } from 'react';
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { isNativeApp } from '@/lib/platform';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import { RelevanceBadge } from '@/components/RelevanceBadge';
 import { EvidencePreview } from '@/components/EvidencePreview';
+import { ExpandableText } from '@/components/ExpandableText';
 import { CaseMap, type MapPoint } from '@/app/cases/[id]/timeline/case-map';
 import {
   formatOccurred,
@@ -14,8 +15,8 @@ import {
   type TimelineBundle,
   type TimelineEvent,
 } from '@/lib/timeline-types';
-import { getFirmEvidenceMediaUrl } from '@/lib/case-evidence-actions';
 import { generateFirmTimelineNarrative } from '@/lib/firm-timeline-actions';
+import { EvidenceViewer } from '@/app/counsel/cases/[id]/evidence/evidence-viewer';
 import { FirmTimelineCalendar, type PeriodRange } from './firm-timeline-calendar';
 import { CollabProvider } from './collab-context';
 import { SectionComments } from './section-comments';
@@ -60,6 +61,9 @@ export function FirmTimeline({
   const [view, setView] = useState<'timeline' | 'calendar'>('timeline');
   const [range, setRange] = useState<PeriodRange | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
+  // In-window viewer: an index into the currently visible chronology, so PREV /
+  // NEXT step through exactly the list on screen (never a new browser tab).
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
 
   // Chronological order: dated events first (ascending), undated last.
   const ordered = useMemo(() => {
@@ -97,23 +101,23 @@ export function FirmTimeline({
     [events],
   );
 
-  const openMedia = useCallback(
-    async (path: string) => {
-      setError(null);
-      const res = await getFirmEvidenceMediaUrl(firmId, caseId, path);
-      if (!res.ok || !res.url) {
-        setError(res.error ?? t('Could not open the file.'));
-        return;
-      }
-      if (isNativeApp()) {
-        const { Browser } = await import('@capacitor/browser');
-        await Browser.open({ url: res.url });
-      } else {
-        window.open(res.url, '_blank', 'noopener');
-      }
+  // Open an item in the in-window viewer, positioned within the visible list so
+  // the arrows navigate the on-screen chronology.
+  const openItem = useCallback(
+    (id: string) => {
+      const i = visible.findIndex((e) => e.id === id);
+      if (i >= 0) setViewerIndex(i);
     },
-    [firmId, caseId, t],
+    [visible],
   );
+  const viewerEvent = viewerIndex != null ? visible[viewerIndex] : undefined;
+  // If the visible list shifts under an open viewer (e.g. a period filter
+  // changes), keep the index in range.
+  useEffect(() => {
+    if (viewerIndex != null && viewerIndex >= visible.length) {
+      setViewerIndex(visible.length ? visible.length - 1 : null);
+    }
+  }, [visible.length, viewerIndex]);
 
   const generate = () => {
     setError(null);
@@ -219,14 +223,20 @@ export function FirmTimeline({
             </p>
           )}
           {narrative.narrative && (
-            <p className="text-[13px] text-ink-700 dark:text-cream-100/85 leading-relaxed whitespace-pre-wrap" data-no-translate>
-              {narrative.narrative}
-            </p>
+            <ExpandableText
+              text={narrative.narrative}
+              clampChars={600}
+              className="text-[13px] text-ink-700 dark:text-cream-100/85 leading-relaxed whitespace-pre-wrap"
+            />
           )}
           {narrative.conclusion && (
-            <p className="text-[13px] text-ink-600 dark:text-cream-100/70 leading-relaxed whitespace-pre-wrap border-t border-ink-100 dark:border-forest-700/40 pt-3" data-no-translate>
-              {narrative.conclusion}
-            </p>
+            <div className="border-t border-ink-100 dark:border-forest-700/40 pt-3">
+              <ExpandableText
+                text={narrative.conclusion}
+                clampChars={400}
+                className="text-[13px] text-ink-600 dark:text-cream-100/70 leading-relaxed whitespace-pre-wrap"
+              />
+            </div>
           )}
         </section>
       )}
@@ -239,7 +249,7 @@ export function FirmTimeline({
           onSelect={setRange}
           firmId={firmId}
           caseId={caseId}
-          onOpenMedia={openMedia}
+          onOpenItem={openItem}
         />
       )}
 
@@ -300,7 +310,7 @@ export function FirmTimeline({
                   {e.media[0] && (
                     <button
                       type="button"
-                      onClick={() => openMedia(e.media[0].path)}
+                      onClick={() => openItem(e.id)}
                       className="block h-24 w-24 shrink-0 overflow-hidden rounded-lg ring-1 ring-ink-100 dark:ring-forest-800/40 sm:h-28 sm:w-28"
                       aria-label={t('Open')}
                     >
@@ -323,7 +333,7 @@ export function FirmTimeline({
                       {e.media[0] && (
                         <button
                           type="button"
-                          onClick={() => openMedia(e.media[0].path)}
+                          onClick={() => openItem(e.id)}
                           className="inline-flex items-center min-h-[30px] px-2.5 rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 text-[12px] hover:bg-cream-50 dark:hover:bg-forest-800/30 shrink-0"
                         >
                           <T>Open</T>
@@ -331,9 +341,11 @@ export function FirmTimeline({
                       )}
                     </div>
                     {e.aiSummary && (
-                      <p className="text-[12.5px] text-ink-600 dark:text-cream-100/70 mt-1 line-clamp-3 whitespace-pre-wrap" data-no-translate>
-                        {e.aiSummary}
-                      </p>
+                      <ExpandableText
+                        text={e.aiSummary}
+                        clampChars={240}
+                        className="text-[12.5px] text-ink-600 dark:text-cream-100/70 mt-1 whitespace-pre-wrap"
+                      />
                     )}
                     {facts.length > 0 && (
                       <div className="mt-1.5 flex flex-wrap gap-1" data-no-translate>
@@ -363,6 +375,20 @@ export function FirmTimeline({
     </div>
     {exportOpen && (
       <ExportDialog caseId={caseId} events={ordered} onClose={() => setExportOpen(false)} />
+    )}
+    {viewerEvent && (
+      <EvidenceViewer
+        firmId={firmId}
+        caseId={caseId}
+        event={viewerEvent}
+        index={viewerIndex as number}
+        total={visible.length}
+        hasPrev={(viewerIndex as number) > 0}
+        hasNext={(viewerIndex as number) < visible.length - 1}
+        onPrev={() => setViewerIndex((i) => (i != null && i > 0 ? i - 1 : i))}
+        onNext={() => setViewerIndex((i) => (i != null && i < visible.length - 1 ? i + 1 : i))}
+        onClose={() => setViewerIndex(null)}
+      />
     )}
     </CollabProvider>
   );

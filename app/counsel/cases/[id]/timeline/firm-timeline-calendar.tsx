@@ -164,14 +164,15 @@ export function FirmTimelineCalendar({
   onSelect,
   firmId,
   caseId,
-  onOpenMedia,
+  onOpenItem,
 }: {
   events: TimelineEvent[];
   activeRange: PeriodRange | null;
   onSelect: (range: PeriodRange | null) => void;
   firmId: string;
   caseId: string;
-  onOpenMedia: (path: string) => void;
+  /** Open an evidence item in the in-window viewer (by event id). */
+  onOpenItem: (id: string) => void;
 }) {
   const t = useT();
   const [level, setLevel] = useState<CalLevel>('month');
@@ -544,7 +545,7 @@ export function FirmTimelineCalendar({
                     {m && (
                       <button
                         type="button"
-                        onClick={() => onOpenMedia(m.path)}
+                        onClick={() => onOpenItem(e.id)}
                         className="shrink-0 inline-flex items-center min-h-[28px] px-2.5 rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 text-[11.5px] hover:bg-cream-50 dark:hover:bg-forest-800/30"
                       >
                         <T>Open</T>
