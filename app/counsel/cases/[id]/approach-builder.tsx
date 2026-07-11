@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { T, useT } from '@/components/i18n/LocaleProvider';
+import { isNativeApp } from '@/lib/platform';
 import {
   createFirmApproach,
   regenerateFirmApproach,
@@ -296,6 +297,19 @@ function ApproachCard({
     });
   }
 
+  // Court-ready packet for THIS approach: the assembled argument as the opening
+  // narrative, then only the exhibits this approach marshals, embedded. Opens
+  // through the in-app browser on native, a new tab on web.
+  async function exportPacket() {
+    const url = `/counsel/cases/${caseId}/approach/${approach.id}/export`;
+    if (isNativeApp()) {
+      const { Browser } = await import('@capacitor/browser');
+      await Browser.open({ url });
+    } else {
+      window.open(url, '_blank', 'noopener');
+    }
+  }
+
   return (
     <div className="relative overflow-hidden rounded-xl border border-cream-50/10 bg-forest-900/40">
       <CornerTicks />
@@ -325,6 +339,17 @@ function ApproachCard({
             </div>
           </div>
           <div className="flex items-center gap-1 font-mono text-[11px] uppercase tracking-[0.12em]">
+            {assembled && (
+              <button
+                type="button"
+                onClick={exportPacket}
+                disabled={pending}
+                className="mr-1 inline-flex items-center gap-1.5 rounded-md border border-gold-metal/50 bg-gold-metal/15 px-2.5 py-1 text-gold-metal transition-all hover:bg-gold-metal/25 hover:shadow-[0_0_16px_-5px_rgba(198,161,91,0.7)] disabled:opacity-50"
+              >
+                <span aria-hidden className="text-[12px] leading-none">⬇</span>
+                <T>Export packet</T>
+              </button>
+            )}
             <RailButton onClick={() => setEditing((v) => !v)} disabled={pending}>
               {editing ? <T>Cancel</T> : <T>Edit</T>}
             </RailButton>
