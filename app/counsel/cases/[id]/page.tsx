@@ -472,12 +472,15 @@ export default async function CounselCaseDetailPage({
 
       {/* Evidence dashboard - a live, at-a-glance analytics read over the
           matter's evidence set (counts, processing status, relevance, folders,
-          document types, temporal span, extracted entities). Firm-only, and
-          self-hides when nothing has been uploaded yet. Server-rendered from
-          the admin-scoped aggregate, so it is always current on load. */}
-      {access === 'firm' && caseAnalytics ? (
-        <EvidenceDashboard analytics={caseAnalytics} />
-      ) : null}
+          document types, temporal span, extracted entities). This is a
+          read-only overview of evidence the firm can already see via the
+          Evidence tab; it consumes no AI, so it is NOT gated on the AI-build
+          subscription tier (resolveTimelineAccess). The whole page already
+          requires firm context to load, so any viewer here is a firm member -
+          we just need the aggregate to be present. The component self-hides
+          when nothing has been uploaded yet. Server-rendered from the
+          admin-scoped aggregate, so it is always current on load. */}
+      {caseAnalytics ? <EvidenceDashboard analytics={caseAnalytics} /> : null}
 
       {/* Case analysis - the substantive analytical surfaces ported from
           the personal case file (app/cases/[id]) and reframed as firm
