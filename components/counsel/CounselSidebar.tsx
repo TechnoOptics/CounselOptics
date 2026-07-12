@@ -137,15 +137,13 @@ export function CounselSidebar({
                 : 'flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-sm text-ink-800 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/60 hover:text-forest-900 dark:hover:text-cream-100 transition-colors'
             }
           >
-            {/* Clean monochrome glyph - no per-row colour tile (that read as
-                cheap). It inherits the row's text colour, and the active row
-                tints it with the firm accent so the brand shows where it
-                matters without cluttering every item. */}
+            {/* Duotone gold glyphs (soft gold body + burnished gold line) — a
+                crafted, on-brand set. No per-row colour tile (that read cheap).
+                The active row shows at full strength; others sit slightly back. */}
             <span
-              className={`inline-flex h-[18px] w-[18px] flex-none items-center justify-center transition-colors ${
-                active ? '' : 'text-ink-400 dark:text-cream-100/50'
+              className={`inline-flex h-[18px] w-[18px] flex-none items-center justify-center transition-opacity ${
+                active ? 'opacity-100' : 'opacity-80'
               }`}
-              style={active ? { color: firm.accentColor } : undefined}
               aria-hidden
             >
               {ICONS[item.href] ?? <DocIcon />}
@@ -191,241 +189,256 @@ export function CounselSidebar({
   );
 }
 
+const GOLD_FILL = '#D5BB7E';
+const GOLD_LINE = '#B9922F';
+
 const SVG = {
   width: 18,
   height: 18,
   viewBox: '0 0 24 24',
-  fill: 'none',
-  stroke: 'currentColor',
-  strokeWidth: 1.75,
   strokeLinecap: 'round' as const,
   strokeLinejoin: 'round' as const,
-  'aria-hidden': true,
+  'aria-hidden': true as const,
 };
+// Duotone: a soft gold filled body + a burnished gold stroke for the linework,
+// so the whole rail reads as one crafted, on-brand set rather than flat
+// outlines. `F` = the tinted body shape, `L` = the crisp detail strokes.
+const F = { fill: GOLD_FILL, fillOpacity: 0.24, stroke: 'none' } as const;
+const L = { fill: 'none', stroke: GOLD_LINE, strokeWidth: 1.6 } as const;
+
+function Icon({ children }: { children: React.ReactNode }) {
+  return <svg {...SVG}>{children}</svg>;
+}
 
 function DashIcon() {
   return (
-    <svg {...SVG}>
-      <rect x="3" y="3" width="7" height="9" rx="1" />
-      <rect x="14" y="3" width="7" height="5" rx="1" />
-      <rect x="14" y="12" width="7" height="9" rx="1" />
-      <rect x="3" y="16" width="7" height="5" rx="1" />
-    </svg>
+    <Icon>
+      <rect x="3" y="3" width="7" height="8.5" rx="1.5" {...F} />
+      <rect x="14" y="3" width="7" height="5" rx="1.5" {...F} />
+      <rect x="14" y="12.5" width="7" height="8.5" rx="1.5" {...F} />
+      <rect x="3" y="16" width="7" height="5" rx="1.5" {...F} />
+      <rect x="3" y="3" width="7" height="8.5" rx="1.5" {...L} />
+      <rect x="14" y="3" width="7" height="5" rx="1.5" {...L} />
+      <rect x="14" y="12.5" width="7" height="8.5" rx="1.5" {...L} />
+      <rect x="3" y="16" width="7" height="5" rx="1.5" {...L} />
+    </Icon>
   );
 }
 function SparkIcon() {
   return (
-    <svg {...SVG}>
-      <path d="M12 3l1.8 5L19 9.8 14 12l-2 5-2-5-5-2.2L10 8z" />
-    </svg>
+    <Icon>
+      <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z" {...F} />
+      <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z" {...L} />
+    </Icon>
   );
 }
 function MagnifyIcon() {
   return (
-    <svg {...SVG}>
-      <circle cx="11" cy="11" r="7" />
-      <path d="M21 21l-4.3-4.3" />
-    </svg>
+    <Icon>
+      <circle cx="11" cy="11" r="7" {...F} />
+      <circle cx="11" cy="11" r="7" {...L} />
+      <path d="M21 21l-4.3-4.3" {...L} />
+    </Icon>
   );
 }
 function CaseIcon() {
   return (
-    <svg {...SVG}>
-      <rect x="3" y="7" width="18" height="13" rx="2" />
-      <path d="M9 7V5a2 2 0 012-2h2a2 2 0 012 2v2" />
-    </svg>
+    <Icon>
+      <rect x="3" y="7" width="18" height="13" rx="2" {...F} />
+      <rect x="3" y="7" width="18" height="13" rx="2" {...L} />
+      <path d="M9 7V5.5A2 2 0 0111 3.5h2a2 2 0 012 2V7M3 12h18" {...L} />
+    </Icon>
   );
 }
 function UserIcon() {
   return (
-    <svg {...SVG}>
-      <circle cx="12" cy="8" r="4" />
-      <path d="M4 21c0-4 4-7 8-7s8 3 8 7" />
-    </svg>
+    <Icon>
+      <circle cx="12" cy="8" r="4" {...F} />
+      <path d="M4.5 20c0-4 3.4-6.5 7.5-6.5s7.5 2.5 7.5 6.5z" {...F} />
+      <circle cx="12" cy="8" r="4" {...L} />
+      <path d="M4.5 20c0-4 3.4-6.5 7.5-6.5s7.5 2.5 7.5 6.5" {...L} />
+    </Icon>
   );
 }
 function UsersIcon() {
   return (
-    <svg {...SVG}>
-      <circle cx="9" cy="8" r="3.5" />
-      <circle cx="17" cy="9" r="2.5" />
-      <path d="M3 21c0-3 3-5 6-5s6 2 6 5" />
-      <path d="M14 21c0-2 2-4 5-4s5 2 5 4" />
-    </svg>
+    <Icon>
+      <circle cx="9" cy="8" r="3.5" {...F} />
+      <circle cx="17" cy="9" r="2.5" {...F} />
+      <circle cx="9" cy="8" r="3.5" {...L} />
+      <circle cx="17" cy="9" r="2.5" {...L} />
+      <path d="M3 20c0-3.2 2.7-5.3 6-5.3s6 2.1 6 5.3" {...L} />
+      <path d="M15.5 15.2c2.9-.4 5.5 1.3 5.5 3.9" {...L} />
+    </Icon>
   );
 }
 function DocIcon() {
   return (
-    <svg {...SVG}>
-      <path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z" />
-      <path d="M14 3v5h5" />
-    </svg>
+    <Icon>
+      <path d="M7 3.5h6L18 8v10.5A1.5 1.5 0 0116.5 20h-9A1.5 1.5 0 016 18.5v-13A1.5 1.5 0 017 3.5z" {...F} />
+      <path d="M7 3.5h6L18 8v10.5A1.5 1.5 0 0116.5 20h-9A1.5 1.5 0 016 18.5v-13A1.5 1.5 0 017 3.5z" {...L} />
+      <path d="M13 3.5V8h5M9 12.5h6M9 15.5h4" {...L} />
+    </Icon>
   );
 }
 function SignIcon() {
   return (
-    <svg {...SVG}>
-      <path d="M15 4l5 5L9 20H4v-5z" />
-      <path d="M12 7l5 5" />
-    </svg>
+    <Icon>
+      <path d="M15 4l5 5-9.5 9.5H5.5V13z" {...F} />
+      <path d="M15 4l5 5-9.5 9.5H5.5V13z" {...L} />
+      <path d="M12.5 6.5l5 5" {...L} />
+    </Icon>
   );
 }
 function ChatIcon() {
   return (
-    <svg {...SVG}>
-      <path d="M21 12a8 8 0 01-11.5 7.2L4 20l1-4.5A8 8 0 1121 12z" />
-    </svg>
+    <Icon>
+      <path d="M21 12a8 8 0 01-11.6 7.1L4 20.5l1.4-5.3A8 8 0 1121 12z" {...F} />
+      <path d="M21 12a8 8 0 01-11.6 7.1L4 20.5l1.4-5.3A8 8 0 1121 12z" {...L} />
+    </Icon>
   );
 }
 function CalIcon() {
   return (
-    <svg {...SVG}>
-      <rect x="3" y="5" width="18" height="16" rx="2" />
-      <path d="M3 10h18M8 3v4M16 3v4" />
-    </svg>
+    <Icon>
+      <rect x="3" y="5" width="18" height="16" rx="2.5" {...F} />
+      <rect x="3" y="5" width="18" height="16" rx="2.5" {...L} />
+      <path d="M3 10h18M8 3v4M16 3v4" {...L} />
+    </Icon>
   );
 }
 function MailIcon() {
   return (
-    <svg {...SVG}>
-      <rect x="3" y="5" width="18" height="14" rx="2" />
-      <path d="M4 7l8 6 8-6" />
-    </svg>
+    <Icon>
+      <rect x="3" y="5" width="18" height="14" rx="2.5" {...F} />
+      <rect x="3" y="5" width="18" height="14" rx="2.5" {...L} />
+      <path d="M4 7.5l8 5.5 8-5.5" {...L} />
+    </Icon>
   );
 }
 function ImportIcon() {
   return (
-    <svg {...SVG}>
-      <path d="M12 3v12" />
-      <path d="M7 10l5 5 5-5" />
-      <path d="M5 21h14" />
-    </svg>
+    <Icon>
+      <path d="M4 15v3.5A1.5 1.5 0 005.5 20h13a1.5 1.5 0 001.5-1.5V15z" {...F} />
+      <path d="M12 3v11M7.5 10l4.5 4.5L16.5 10" {...L} />
+      <path d="M4 15v3.5A1.5 1.5 0 005.5 20h13a1.5 1.5 0 001.5-1.5V15" {...L} />
+    </Icon>
   );
 }
 function GearIcon() {
   return (
-    <svg {...SVG}>
-      <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 15a7.97 7.97 0 000-6l2-1.2-2-3.4-2.3.8a8 8 0 00-5.2-3L11.5 0h-3l-.4 2.2a8 8 0 00-5.2 3l-2.3-.8-2 3.4 2 1.2a7.97 7.97 0 000 6l-2 1.2 2 3.4 2.3-.8a8 8 0 005.2 3L8.5 24h3l.4-2.2a8 8 0 005.2-3l2.3.8 2-3.4z" />
-    </svg>
+    <Icon>
+      <path d="M19.4 13a7.5 7.5 0 000-2l1.9-1.4-1.9-3.3-2.3.9a7.5 7.5 0 00-1.7-1l-.35-2.4h-3.8l-.35 2.4a7.5 7.5 0 00-1.7 1l-2.3-.9L3 9.6 4.9 11a7.5 7.5 0 000 2L3 14.4l1.9 3.3 2.3-.9a7.5 7.5 0 001.7 1l.35 2.4h3.8l.35-2.4a7.5 7.5 0 001.7-1l2.3.9 1.9-3.3z" {...F} />
+      <circle cx="12" cy="12" r="2.8" {...L} />
+    </Icon>
   );
 }
-
-/** Analytics — bars with a trend line. */
 function ChartIcon() {
   return (
-    <svg {...SVG}>
-      <path d="M4 20V4" />
-      <path d="M4 20h16" />
-      <path d="M8 20v-5M12 20v-9M16 20v-6" />
-      <path d="M7 11l4-4 3 2 4-5" opacity="0.65" />
-    </svg>
+    <Icon>
+      <rect x="7" y="12" width="3" height="6" rx="1" {...F} />
+      <rect x="11.5" y="9" width="3" height="9" rx="1" {...F} />
+      <rect x="16" y="6" width="3" height="12" rx="1" {...F} />
+      <path d="M4 4v16h16" {...L} />
+      <path d="M7 12v6M12.5 9v9M17 6v12" {...L} />
+    </Icon>
   );
 }
-
-/** Intake — an inbox tray with an incoming item. */
 function InboxIcon() {
   return (
-    <svg {...SVG}>
-      <path d="M4 13v5a2 2 0 002 2h12a2 2 0 002-2v-5" />
-      <path d="M4 13l2.2-7a2 2 0 011.9-1.4h7.8A2 2 0 0117.8 6L20 13" />
-      <path d="M4 13h4l1.2 2h5.6L16 13h4" />
-    </svg>
+    <Icon>
+      <path d="M4 13l2.2-7A2 2 0 018.1 4.6h7.8A2 2 0 0117.8 6L20 13v5a2 2 0 01-2 2H6a2 2 0 01-2-2z" {...F} />
+      <path d="M4 13l2.2-7A2 2 0 018.1 4.6h7.8A2 2 0 0117.8 6L20 13v5a2 2 0 01-2 2H6a2 2 0 01-2-2z" {...L} />
+      <path d="M4 13h4l1.2 2h5.6l1.2-2h4" {...L} />
+    </Icon>
   );
 }
-
-/** Contract — a page with a signature flourish. */
 function ContractIcon() {
   return (
-    <svg {...SVG}>
-      <path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z" />
-      <path d="M14 3v5h5" />
-      <path d="M8.5 16.5c.9-1 1.6.6 2.5 0s1.6.6 2.5 0" opacity="0.8" />
-    </svg>
+    <Icon>
+      <path d="M7 3.5h6L18 8v10.5A1.5 1.5 0 0116.5 20h-9A1.5 1.5 0 016 18.5v-13A1.5 1.5 0 017 3.5z" {...F} />
+      <path d="M7 3.5h6L18 8v10.5A1.5 1.5 0 0116.5 20h-9A1.5 1.5 0 016 18.5v-13A1.5 1.5 0 017 3.5z" {...L} />
+      <path d="M13 3.5V8h5" {...L} />
+      <path d="M8.5 16.4c.9-1 1.6.5 2.5 0s1.6.5 2.5 0" {...L} />
+    </Icon>
   );
 }
-
-/** Projects — a small kanban of columns. */
 function ProjectIcon() {
   return (
-    <svg {...SVG}>
-      <rect x="4" y="5" width="4.2" height="14" rx="1" />
-      <rect x="10" y="5" width="4.2" height="9" rx="1" />
-      <rect x="16" y="5" width="4.2" height="11" rx="1" />
-    </svg>
+    <Icon>
+      <rect x="4" y="5" width="4.2" height="14" rx="1.2" {...F} />
+      <rect x="10" y="5" width="4.2" height="9" rx="1.2" {...F} />
+      <rect x="16" y="5" width="4.2" height="11" rx="1.2" {...F} />
+      <rect x="4" y="5" width="4.2" height="14" rx="1.2" {...L} />
+      <rect x="10" y="5" width="4.2" height="9" rx="1.2" {...L} />
+      <rect x="16" y="5" width="4.2" height="11" rx="1.2" {...L} />
+    </Icon>
   );
 }
-
-/** Templates — a page with a laid-out placeholder header + column. */
 function TemplateIcon() {
   return (
-    <svg {...SVG}>
-      <rect x="4" y="4" width="16" height="16" rx="2" />
-      <path d="M4 9h16M9 9v11" />
-    </svg>
+    <Icon>
+      <rect x="4" y="4" width="16" height="16" rx="2.5" {...F} />
+      <rect x="4" y="4" width="16" height="16" rx="2.5" {...L} />
+      <path d="M4 9h16M9 9v11" {...L} />
+    </Icon>
   );
 }
-
-/** Time — a clock. */
 function TimeIcon() {
   return (
-    <svg {...SVG}>
-      <circle cx="12" cy="12" r="8" />
-      <path d="M12 8v4.2l2.8 1.8" />
-    </svg>
+    <Icon>
+      <circle cx="12" cy="12" r="8" {...F} />
+      <circle cx="12" cy="12" r="8" {...L} />
+      <path d="M12 8v4.2l2.8 1.8" {...L} />
+    </Icon>
   );
 }
-
-/** Billing — an invoice with a torn base + lines. */
 function BillingIcon() {
   return (
-    <svg {...SVG}>
-      <path d="M6 3.5h12v17l-2-1.2-2 1.2-2-1.2-2 1.2-2-1.2-2 1.2z" />
-      <path d="M9 8h6M9 11.5h6M9 15h3.5" opacity="0.8" />
-    </svg>
+    <Icon>
+      <path d="M6 3.5h12v17l-2-1.2-2 1.2-2-1.2-2 1.2-2-1.2-2 1.2z" {...F} />
+      <path d="M6 3.5h12v17l-2-1.2-2 1.2-2-1.2-2 1.2-2-1.2-2 1.2z" {...L} />
+      <path d="M9 8h6M9 11.5h6M9 15h3.5" {...L} />
+    </Icon>
   );
 }
-
-/** Trust — a shield with a check (protected client funds). */
 function TrustIcon() {
   return (
-    <svg {...SVG}>
-      <path d="M12 3l7 3v5c0 5-3.4 8-7 9-3.6-1-7-4-7-9V6z" />
-      <path d="M9 12l2 2 4-4" opacity="0.85" />
-    </svg>
+    <Icon>
+      <path d="M12 3l7 3v5c0 5-3.4 8-7 9-3.6-1-7-4-7-9V6z" {...F} />
+      <path d="M12 3l7 3v5c0 5-3.4 8-7 9-3.6-1-7-4-7-9V6z" {...L} />
+      <path d="M8.8 12l2.1 2.1 4.3-4.3" {...L} />
+    </Icon>
   );
 }
-
-/** Leads — a person with a plus. */
 function LeadIcon() {
   return (
-    <svg {...SVG}>
-      <circle cx="10" cy="8" r="3.5" />
-      <path d="M3.5 20c0-3.4 3-6 6.5-6 1 0 2 .2 2.8.6" />
-      <path d="M18 15v5M15.5 17.5h5" opacity="0.85" />
-    </svg>
+    <Icon>
+      <circle cx="10" cy="8" r="3.5" {...F} />
+      <path d="M3.5 20c0-3.4 3-6 6.5-6 1 0 2 .2 2.8.6" {...F} />
+      <circle cx="10" cy="8" r="3.5" {...L} />
+      <path d="M3.5 20c0-3.4 3-6 6.5-6 1 0 2 .2 2.8.6" {...L} />
+      <path d="M18 15v5M15.5 17.5h5" {...L} />
+    </Icon>
   );
 }
-
-/** Referrals — two nodes linked (a hand-off). */
 function ReferralIcon() {
   return (
-    <svg {...SVG}>
-      <circle cx="6" cy="7" r="2.5" />
-      <circle cx="18" cy="17" r="2.5" />
-      <path d="M8 8.6l8 6.8" opacity="0.75" />
-      <path d="M14.5 6.5H18v3.5" opacity="0.75" />
-    </svg>
+    <Icon>
+      <circle cx="6" cy="7" r="2.6" {...F} />
+      <circle cx="18" cy="17" r="2.6" {...F} />
+      <circle cx="6" cy="7" r="2.6" {...L} />
+      <circle cx="18" cy="17" r="2.6" {...L} />
+      <path d="M8 8.7l8 6.6" {...L} />
+    </Icon>
   );
 }
-
-/** Help — a question mark in a ring. */
 function HelpIcon() {
   return (
-    <svg {...SVG}>
-      <circle cx="12" cy="12" r="8.5" />
-      <path d="M9.6 9.2a2.4 2.4 0 014.7.7c0 1.7-2.3 2-2.3 3.4" />
-      <path d="M12 16.4h.01" strokeWidth="2" />
-    </svg>
+    <Icon>
+      <circle cx="12" cy="12" r="8.5" {...F} />
+      <circle cx="12" cy="12" r="8.5" {...L} />
+      <path d="M9.6 9.2a2.4 2.4 0 014.7.7c0 1.7-2.3 2-2.3 3.4M12 16.4h.01" {...L} />
+    </Icon>
   );
 }
