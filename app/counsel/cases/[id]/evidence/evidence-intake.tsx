@@ -500,12 +500,35 @@ export function EvidenceIntake({
       setBusy(true);
       setError(null);
 
+      // ── Zip expansion ───────────────────────────────────────────────────
+      // A firm can zip a folder of exhibits and drop the single archive; we
+      // expand it in the browser and feed the extracted files into the exact
+      // same pipeline (dedup → upload → analysis → exhibit numbers). Loaded
+      // lazily so fflate isn't in the initial bundle.
+      let sourceFiles = files;
+      if (files.some((f) => /\.zip$/i.test(f.name) || /zip/.test(f.type))) {
+        const { expandZips } = await import('./unzip');
+        const z = await expandZips(files);
+        sourceFiles = z.files;
+        if (z.archives > 0) {
+          setNotice(
+            t('Unzipped {n} file(s) from {z} archive(s).')
+              .replace('{n}', String(z.extracted))
+              .replace('{z}', String(z.archives)),
+          );
+        }
+        if (sourceFiles.length === 0) {
+          setBusy(false);
+          return;
+        }
+      }
+
       // ── Name-based auto-skip ────────────────────────────────────────────
       // A file whose name already exists in this matter is silently skipped -
       // no prompt - so re-dropping the same set never re-imports duplicates.
       // This also de-dupes by name WITHIN the current drop. Runs before the
       // content-hash prompt and before the large-drop shortcut.
-      let candidates = files;
+      let candidates = sourceFiles;
       let autoSkipped = 0;
       const namesRes = await listCaseEvidenceNamesAction(firmId, caseId);
       if (namesRes.ok && namesRes.names) {
@@ -1186,7 +1209,7 @@ export function EvidenceIntake({
           <T>Drop evidence here</T>
         </p>
         <p className="mt-0.5 text-[12px] text-ink-500 dark:text-cream-100/55">
-          <T>Photos, video, PDFs and documents, and email files (.eml, .msg). Drop many at once.</T>
+          <T>Photos, video, PDFs and documents, and email files (.eml, .msg) — or a .zip of a whole folder. Drop many at once.</T>
         </p>
         <p className="mt-0.5 text-[11.5px] text-ink-400 dark:text-cream-100/45">
           <T>Advottic reads each item, files it into a folder, and scores how it bears on the case. Thousands at once is fine.</T>
@@ -1219,7 +1242,7 @@ export function EvidenceIntake({
           ref={fileRef}
           type="file"
           multiple
-          accept="image/*,video/*,application/pdf,.doc,.docx,text/*,audio/*,.eml,.msg,message/rfc822"
+          accept="image/*,video/*,application/pdf,.doc,.docx,text/*,audio/*,.eml,.msg,message/rfc822,.zip,application/zip,application/x-zip-compressed"
           className="hidden"
           onChange={(e) => {
             const files = Array.from(e.target.files ?? []);
