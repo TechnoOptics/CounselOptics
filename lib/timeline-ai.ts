@@ -38,13 +38,140 @@ function textFrom(res: Anthropic.Messages.Message): string {
 
 /** Extract the first JSON object from a model reply (which may wrap it in prose). */
 function parseJson<T>(raw: string): T | null {
-  const m = raw.match(/\{[\s\S]*\}/);
-  if (!m) return null;
+  const start = raw.indexOf('{');
+  if (start === -1) return null;
+  const body = raw.slice(start);
+  // Fast path: a well-formed object spanning the first { to the last }.
+  const greedy = body.match(/^[\s\S]*\}/);
+  if (greedy) {
+    try {
+      return JSON.parse(greedy[0]) as T;
+    } catch {
+      /* fall through to the repair path */
+    }
+  }
+  // Repair path. LLM replies break in two recurring ways when a field holds
+  // verbatim OCR or message text: (1) unescaped double quotes inside a string
+  // value (e.g. a good "tune up" and), which derail JSON.parse, and (2) the
+  // reply is cut off at the output-token cap, leaving brackets open. Escape the
+  // stray quotes and control characters, then close anything still open, so a
+  // dense evidence screenshot yields a usable analysis instead of a hard fail.
+  const escaped = escapeLooseStringChars(body);
+  const escGreedy = escaped.match(/^[\s\S]*\}/);
+  if (escGreedy) {
+    try {
+      return JSON.parse(escGreedy[0]) as T;
+    } catch {
+      /* fall through to truncation close */
+    }
+  }
+  const closed = closeTruncatedJson(escaped);
+  if (!closed) return null;
   try {
-    return JSON.parse(m[0]) as T;
+    return JSON.parse(closed) as T;
   } catch {
     return null;
   }
+}
+
+/**
+ * Escape stray characters that make an LLM's JSON invalid without changing its
+ * structure: double quotes that appear inside a string value (detected by the
+ * absence of a following structural character) and raw control characters that
+ * are illegal inside JSON strings. Structurally-valid input passes through with
+ * the same meaning; only in-string offenders are escaped.
+ */
+function escapeLooseStringChars(s: string): string {
+  let out = '';
+  let inStr = false;
+  let esc = false;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (!inStr) {
+      out += ch;
+      if (ch === '"') inStr = true;
+      continue;
+    }
+    if (esc) {
+      out += ch;
+      esc = false;
+      continue;
+    }
+    if (ch === '\\') {
+      out += ch;
+      esc = true;
+      continue;
+    }
+    if (ch === '"') {
+      // A closing quote is followed (past whitespace) by a structural token;
+      // anything else is an unescaped quote sitting inside the string value.
+      let j = i + 1;
+      while (j < s.length && (s[j] === ' ' || s[j] === '\t' || s[j] === '\n' || s[j] === '\r')) j++;
+      const next = s[j];
+      if (next === undefined || next === ',' || next === ':' || next === '}' || next === ']') {
+        out += '"';
+        inStr = false;
+      } else {
+        out += '\\"';
+      }
+      continue;
+    }
+    if (ch === '\n') out += '\\n';
+    else if (ch === '\r') out += '\\r';
+    else if (ch === '\t') out += '\\t';
+    else out += ch;
+  }
+  return out;
+}
+
+/**
+ * Best-effort recovery of a JSON object that was truncated mid-write. Walks the
+ * text tracking string state and bracket depth, trims back to the last complete
+ * value, then appends the closing brackets that were never emitted. Returns null
+ * when the object is actually balanced (nothing to repair) or unrecoverable.
+ */
+function closeTruncatedJson(s: string): string | null {
+  let inStr = false;
+  let esc = false;
+  let depth = 0;
+  let lastSafe = -1; // index of the last comma/close that ends a complete value
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (ch === '\\') esc = true;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') inStr = true;
+    else if (ch === '{' || ch === '[') depth++;
+    else if (ch === '}' || ch === ']') {
+      depth--;
+      lastSafe = i;
+    } else if (ch === ',') lastSafe = i;
+  }
+  if (depth <= 0 || lastSafe === -1) return null;
+  // Drop the half-written trailing value (and any comma that preceded it).
+  const cut = s.slice(0, lastSafe + 1).replace(/,\s*$/, '');
+  // Recompute the open brackets over the cut text and close them in reverse.
+  const open: string[] = [];
+  inStr = false;
+  esc = false;
+  for (let i = 0; i < cut.length; i++) {
+    const ch = cut[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (ch === '\\') esc = true;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') inStr = true;
+    else if (ch === '{' || ch === '[') open.push(ch);
+    else if (ch === '}' || ch === ']') open.pop();
+  }
+  let tail = '';
+  for (let i = open.length - 1; i >= 0; i--) tail += open[i] === '{' ? '}' : ']';
+  return cut + tail;
 }
 
 const IMAGE_MEDIA_TYPES: Record<string, 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'> = {
@@ -167,7 +294,7 @@ export async function analyzeImage(input: {
   try {
     const res = await c.messages.create({
       model: MODEL,
-      max_tokens: 2000,
+      max_tokens: 8000,
       system: ANALYSIS_INSTRUCTIONS,
       messages: [
         {
@@ -208,7 +335,7 @@ export async function analyzeText(input: {
   try {
     const res = await c.messages.create({
       model: MODEL,
-      max_tokens: 2000,
+      max_tokens: 8000,
       system: ANALYSIS_INSTRUCTIONS,
       messages: [
         {
