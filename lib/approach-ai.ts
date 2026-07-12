@@ -125,12 +125,18 @@ function evidenceBlock(items: EvidenceDigestItem[]): string {
 export async function generateApproachArgument(input: {
   facts: ApproachFacts;
   approach: string;
+  /** Who is connected — parties, witnesses, roles — and how. Optional. */
+  connections?: string;
   evidence: EvidenceDigestItem[];
 }): Promise<ApproachArgument | { error: string }> {
   const c = client();
   if (!c) return { error: 'AI is not configured (missing API key).' };
   const approach = input.approach.trim();
   if (!approach) return { error: 'Write what you are trying to prove first.' };
+  const connections = (input.connections ?? '').trim();
+  const connectionsBlock = connections
+    ? `\n\nCONNECTED PARTIES (who is involved and how — use these roles when weighing the evidence, but never invent facts beyond them):\n${connections}`
+    : '';
 
   try {
     const res = await c.messages.create({
@@ -140,7 +146,7 @@ export async function generateApproachArgument(input: {
       messages: [
         {
           role: 'user',
-          content: `MATTER FACTS:\n${factsBlock(input.facts)}\n\nEVIDENCE DIGEST:\n${evidenceBlock(input.evidence)}\n\nTHE APPROACH TO PROVE:\n${approach}\n\nAssemble the argument. Produce the JSON.`,
+          content: `MATTER FACTS:\n${factsBlock(input.facts)}\n\nEVIDENCE DIGEST:\n${evidenceBlock(input.evidence)}\n\nTHE APPROACH TO PROVE:\n${approach}${connectionsBlock}\n\nAssemble the argument. Produce the JSON.`,
         },
       ],
     });

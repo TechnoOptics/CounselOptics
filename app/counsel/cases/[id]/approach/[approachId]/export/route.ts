@@ -47,8 +47,14 @@ function isJpegOrPng(buf: Buffer): boolean {
 function approachNarrative(
   title: string,
   g: ApproachArgument,
+  connections?: string,
 ): TimelineExhibitData['narrative'] {
-  const summary = [`Approach: ${title}`.trim(), g.thesis?.trim()]
+  const conn = (connections ?? '').trim();
+  const summary = [
+    `Approach: ${title}`.trim(),
+    g.thesis?.trim(),
+    conn ? `Connected parties:\n${conn}` : null,
+  ]
     .filter(Boolean)
     .join('\n\n');
   const conclusion = g.gaps.length
@@ -110,12 +116,12 @@ export async function GET(
   // Load the approach, scoped to this matter + firm.
   const { data: appRow } = await admin
     .from('case_approaches')
-    .select('id, title, generated, firm_id, case_id')
+    .select('id, title, connections, generated, firm_id, case_id')
     .eq('id', params.approachId)
     .eq('case_id', params.id)
     .maybeSingle();
   const approach = appRow as
-    | { id: string; title: string; generated: ApproachArgument | null; firm_id: string | null; case_id: string }
+    | { id: string; title: string; connections: string | null; generated: ApproachArgument | null; firm_id: string | null; case_id: string }
     | null;
   if (!approach || approach.firm_id !== firmId) {
     return NextResponse.json({ error: 'Approach not found.' }, { status: 404 });
@@ -259,7 +265,7 @@ export async function GET(
     preparedBy:
       (profile as { display_name?: string | null } | null)?.display_name || user.email || null,
     generatedAt: new Date().toISOString(),
-    narrative: approachNarrative(approach.title, g),
+    narrative: approachNarrative(approach.title, g, approach.connections ?? undefined),
     entities: [...personEntities, ...orgEntities],
     entries,
   };

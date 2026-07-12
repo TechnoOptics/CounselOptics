@@ -50,6 +50,7 @@ export function ApproachBuilder({
   const [open, setOpen] = useState(initial.length === 0);
   const [title, setTitle] = useState('');
   const [prompt, setPrompt] = useState('');
+  const [connections, setConnections] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -62,11 +63,12 @@ export function ApproachBuilder({
       return;
     }
     startTransition(async () => {
-      const res = await createFirmApproach(firmId, caseId, { title, prompt });
+      const res = await createFirmApproach(firmId, caseId, { title, prompt, connections });
       if (res.ok && res.approach) {
         setApproaches((list) => [...list, res.approach!]);
         setTitle('');
         setPrompt('');
+        setConnections('');
         setOpen(false);
         if (res.generateError) {
           setNotice(
@@ -164,12 +166,27 @@ export function ApproachBuilder({
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder={t(
-                  'Lay it out: the theory you are proving, who is connected (parties, witnesses, roles), and anything relevant. Example: The landlord knew about the mold for months and failed to act — tie together the inspection report (EX-03), the tenant emails, and the maintenance logs.',
+                  'The theory you are proving. Example: The landlord knew about the mold for months and failed to act — tie together the inspection report (EX-03), the tenant emails, and the maintenance logs.',
                 )}
-                rows={5}
+                rows={4}
                 className="w-full resize-y rounded-lg border border-cream-50/12 bg-forest-950/70 px-3 py-2.5 text-sm leading-relaxed text-cream-50 placeholder:text-cream-100/35 outline-none transition-colors focus:border-gold-metal/50 focus:shadow-[0_0_0_3px_rgba(198,161,91,0.10)]"
                 data-no-translate
               />
+              <div>
+                <p className="mb-1 font-mono text-[9.5px] uppercase tracking-[0.2em] text-gold-metal/60">
+                  <T>Connected parties</T>
+                </p>
+                <textarea
+                  value={connections}
+                  onChange={(e) => setConnections(e.target.value)}
+                  placeholder={t(
+                    'Who is connected and how — parties, witnesses, roles. Example: Jane Doe (tenant, claimant); Acme Property LLC (landlord, defendant); Bob Smith (building super, saw the leak).',
+                  )}
+                  rows={3}
+                  className="w-full resize-y rounded-lg border border-cream-50/12 bg-forest-950/70 px-3 py-2.5 text-sm leading-relaxed text-cream-50 placeholder:text-cream-100/35 outline-none transition-colors focus:border-gold-metal/50 focus:shadow-[0_0_0_3px_rgba(198,161,91,0.10)]"
+                  data-no-translate
+                />
+              </div>
               {error && (
                 <p className="font-mono text-[11.5px] text-rose-300" data-no-translate>
                   {error}
@@ -256,6 +273,7 @@ function ApproachCard({
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(approach.title);
   const [prompt, setPrompt] = useState(approach.prompt);
+  const [connections, setConnections] = useState(approach.connections);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -278,9 +296,9 @@ function ApproachCard({
   function saveEdits() {
     setError(null);
     startTransition(async () => {
-      const res = await updateFirmApproach(firmId, caseId, approach.id, { title, prompt });
+      const res = await updateFirmApproach(firmId, caseId, approach.id, { title, prompt, connections });
       if (res.ok) {
-        onUpdated({ ...approach, title: title.trim(), prompt: prompt.trim() });
+        onUpdated({ ...approach, title: title.trim(), prompt: prompt.trim(), connections: connections.trim() });
         setEditing(false);
       } else {
         setError(res.error ?? t('Could not save.'));
@@ -374,6 +392,15 @@ function ApproachCard({
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               rows={4}
+              placeholder={t('The theory you are proving')}
+              className="w-full resize-y rounded-lg border border-cream-50/12 bg-forest-950/70 px-3 py-2.5 text-sm leading-relaxed text-cream-50 outline-none focus:border-gold-metal/50"
+              data-no-translate
+            />
+            <textarea
+              value={connections}
+              onChange={(e) => setConnections(e.target.value)}
+              rows={3}
+              placeholder={t('Connected parties — who is involved and how')}
               className="w-full resize-y rounded-lg border border-cream-50/12 bg-forest-950/70 px-3 py-2.5 text-sm leading-relaxed text-cream-50 outline-none focus:border-gold-metal/50"
               data-no-translate
             />
@@ -388,9 +415,21 @@ function ApproachCard({
             </div>
           </div>
         ) : (
-          <blockquote className="border-l-2 border-gold-metal/40 pl-3 text-[13px] italic leading-relaxed text-cream-100/75" data-no-translate>
-            {approach.prompt}
-          </blockquote>
+          <div className="space-y-2">
+            <blockquote className="border-l-2 border-gold-metal/40 pl-3 text-[13px] italic leading-relaxed text-cream-100/75" data-no-translate>
+              {approach.prompt}
+            </blockquote>
+            {approach.connections.trim() && (
+              <div className="rounded-lg border border-cream-50/10 bg-forest-950/40 px-3 py-2">
+                <p className="mb-0.5 font-mono text-[9.5px] uppercase tracking-[0.18em] text-gold-metal/60">
+                  <T>Connected parties</T>
+                </p>
+                <p className="whitespace-pre-wrap text-[12.5px] leading-relaxed text-cream-100/75" data-no-translate>
+                  {approach.connections}
+                </p>
+              </div>
+            )}
+          </div>
         )}
 
         {error && (

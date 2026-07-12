@@ -27,6 +27,8 @@ export type Approach = {
   caseId: string;
   title: string;
   prompt: string;
+  /** Who is connected — parties, witnesses, roles — and how. */
+  connections: string;
   generated: ApproachArgument | null;
   createdAt: string;
   updatedAt: string;
@@ -37,6 +39,7 @@ type Row = {
   case_id: string;
   title: string;
   prompt: string;
+  connections: string | null;
   generated: ApproachArgument | null;
   created_at: string;
   updated_at: string;
@@ -46,6 +49,7 @@ const toApproach = (r: Row): Approach => ({
   caseId: r.case_id,
   title: r.title,
   prompt: r.prompt,
+  connections: r.connections ?? '',
   generated: r.generated ?? null,
   createdAt: r.created_at,
   updatedAt: r.updated_at,
@@ -75,7 +79,7 @@ async function assertFirmCase(
   return { ok: true, userId: user.id };
 }
 
-const SELECT = 'id, case_id, title, prompt, generated, created_at, updated_at';
+const SELECT = 'id, case_id, title, prompt, connections, generated, created_at, updated_at';
 
 // ── List (admin, firm-scoped) ─────────────────────────────────────────────
 export async function listFirmApproaches(
@@ -99,6 +103,7 @@ async function runGeneration(
   admin: NonNullable<ReturnType<typeof createAdminSupabase>>,
   caseId: string,
   prompt: string,
+  connections?: string,
 ): Promise<{ generated?: ApproachArgument; error?: string }> {
   if (!aiConfigured() || (await resolveTimelineAccess()) !== 'firm') {
     return { error: AI_UNAVAILABLE_MESSAGE };
@@ -129,7 +134,12 @@ async function runGeneration(
     description: cr.description,
   };
   const evidence = await loadCaseEvidenceDigest(admin, caseId);
-  const res = await generateApproachArgument({ facts, approach: prompt, evidence });
+  const res = await generateApproachArgument({
+    facts,
+    approach: prompt,
+    connections: (connections ?? '').trim() || undefined,
+    evidence,
+  });
   if ('error' in res) return { error: res.error };
   return { generated: res };
 }
@@ -138,7 +148,7 @@ async function runGeneration(
 export async function createFirmApproach(
   firmId: string,
   caseId: string,
-  input: { title: string; prompt: string },
+  input: { title: string; prompt: string; connections?: string },
 ): Promise<{ ok: boolean; error?: string; approach?: Approach; generateError?: string }> {
   const gate = await assertFirmCase(firmId, caseId);
   if (!gate.ok) return { ok: false, error: gate.error };
@@ -147,6 +157,7 @@ export async function createFirmApproach(
 
   const prompt = (input.prompt ?? '').trim();
   if (!prompt) return { ok: false, error: 'Write what you are trying to prove.' };
+  const connections = (input.connections ?? '').trim();
 
   // Auto-number the title ("Approach 1/2/3") when none is given.
   let title = (input.title ?? '').trim();
@@ -159,7 +170,7 @@ export async function createFirmApproach(
   }
 
   // Save first so the lawyer's theory is never lost, even if analysis is down.
-  const gen = await runGeneration(admin, caseId, prompt);
+  const gen = await runGeneration(admin, caseId, prompt, connections);
   const { data, error } = await admin
     .from('case_approaches')
     .insert({
@@ -167,6 +178,7 @@ export async function createFirmApproach(
       firm_id: firmId,
       title: title.slice(0, 200),
       prompt,
+      connections,
       generated: gen.generated ?? null,
       created_by: gate.userId,
     })
@@ -182,7 +194,7 @@ export async function updateFirmApproach(
   firmId: string,
   caseId: string,
   approachId: string,
-  patch: { title?: string; prompt?: string },
+  patch: { title?: string; prompt?: string; connections?: string },
 ): Promise<{ ok: boolean; error?: string }> {
   const gate = await assertFirmCase(firmId, caseId);
   if (!gate.ok) return { ok: false, error: gate.error };
@@ -198,6 +210,9 @@ export async function updateFirmApproach(
     const p = patch.prompt.trim();
     if (!p) return { ok: false, error: 'The approach cannot be empty.' };
     row.prompt = p;
+  }
+  if (patch.connections !== undefined) {
+    row.connections = patch.connections.trim();
   }
   const { error } = await admin
     .from('case_approaches')
@@ -221,20 +236,21 @@ export async function regenerateFirmApproach(
   const admin = createAdminSupabase();
   if (!admin) return { ok: false, error: 'Service unavailable.' };
 
-  // Resolve the prompt to run: the passed-in edit, else the stored one.
-  let theory = (prompt ?? '').trim();
-  if (!theory) {
-    const { data: cur } = await admin
-      .from('case_approaches')
-      .select('prompt')
-      .eq('id', approachId)
-      .eq('case_id', caseId)
-      .maybeSingle();
-    theory = ((cur as { prompt: string } | null)?.prompt ?? '').trim();
-  }
+  // Resolve the prompt + connections to run against. Always read the stored
+  // connections (they aren't passed on a re-run), plus the passed-in theory
+  // edit if any, else the stored theory.
+  const { data: cur } = await admin
+    .from('case_approaches')
+    .select('prompt, connections')
+    .eq('id', approachId)
+    .eq('case_id', caseId)
+    .maybeSingle();
+  const stored = cur as { prompt: string; connections: string | null } | null;
+  const theory = (prompt ?? '').trim() || (stored?.prompt ?? '').trim();
   if (!theory) return { ok: false, error: 'The approach cannot be empty.' };
+  const connections = (stored?.connections ?? '').trim();
 
-  const gen = await runGeneration(admin, caseId, theory);
+  const gen = await runGeneration(admin, caseId, theory, connections);
   if (gen.error) return { ok: false, error: gen.error };
 
   const { data, error } = await admin
