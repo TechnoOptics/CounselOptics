@@ -9,8 +9,8 @@ import { T } from '@/components/i18n/LocaleProvider';
 import { EvidenceIntake } from './evidence-intake';
 import { RecurringPeople } from './recurring-people';
 import { BulkReanalyze } from './bulk-reanalyze';
-import { getGuestTimelineBundle, getGuestCaseSummary } from '@/lib/counsel-guest';
-import { GuestEvidenceView } from './guest-evidence-view';
+import { getGuestCaseSummary } from '@/lib/counsel-guest';
+import { createAdminSupabase } from '@/lib/supabase/admin';
 
 export const dynamic = 'force-dynamic';
 // A heavy matter (hundreds of evidence rows) can push the assemble past the
@@ -28,38 +28,39 @@ export default async function CaseEvidencePage({
   params: { id: string };
 }) {
   const ctx = await getActiveFirmContext();
-  if (!ctx) {
-    // Case-scoped co-counsel GUEST: read-only evidence view if they have access.
+  let firmId: string;
+  let isGuest = false;
+  if (ctx) {
+    firmId = ctx.firm.id;
+  } else {
+    // Case-scoped co-counsel GUEST: render the SAME firm evidence intake for
+    // their assigned matter, so co-counsel can edit the evidence. AI (bulk
+    // re-analyze, face grouping) stays firm-only; the write actions are widened
+    // to this scoped guest server-side.
     const summary = await getGuestCaseSummary(params.id);
-    if (summary) {
-      const bundle = await getGuestTimelineBundle(params.id);
-      return (
-        <GuestEvidenceView
-          caseId={params.id}
-          caseTitle={summary.case.title}
-          bundle={bundle}
-        />
-      );
-    }
-    redirect('/counsel');
+    if (!summary || !summary.guest.firmId) redirect('/counsel');
+    firmId = summary.guest.firmId;
+    isGuest = true;
   }
 
   const supabase = createServerSupabase();
+  // A guest is not a firm member, so RLS returns nothing on the user client -
+  // read the matter row through the admin client (already authorized above).
+  const admin = isGuest ? createAdminSupabase() : null;
   // One parallel wave: the case row (for the header + ownership guard), the
-  // timeline, and the access tier. The timeline loader gates itself on firm
-  // membership, so fetching it alongside the ownership check leaks nothing -
-  // it just removes a serial round-trip before the heavy read.
+  // timeline, and the access tier.
   const [caseRes, timeline, access] = await Promise.all([
-    supabase.from('cases').select('id, title, firm_id').eq('id', params.id).maybeSingle(),
-    // Keyset page 1 only: paints instantly; the client streams the rest via the
-    // returned cursor. A heavy matter is interactive at once instead of blocking
-    // the whole server render on the full set.
-    getFirmCaseTimelinePage(ctx.firm.id, params.id, { limit: 120 }),
+    isGuest
+      ? (admin
+          ? admin.from('cases').select('id, title, firm_id').eq('id', params.id).maybeSingle()
+          : Promise.resolve({ data: null }))
+      : supabase.from('cases').select('id, title, firm_id').eq('id', params.id).maybeSingle(),
+    getFirmCaseTimelinePage(firmId, params.id, { limit: 120 }),
     resolveTimelineAccess(),
   ]);
   const c = caseRes.data as { id: string; title: string; firm_id: string | null } | null;
-  if (!c || c.firm_id !== ctx.firm.id) notFound();
-  const aiEnabled = aiConfigured() && access === 'firm';
+  if (!c || c.firm_id !== firmId) notFound();
+  const aiEnabled = aiConfigured() && access === 'firm' && !isGuest;
 
   return (
     <div className="space-y-5">
@@ -78,17 +79,17 @@ export default async function CaseEvidencePage({
         </p>
       </header>
 
-      {aiEnabled && <BulkReanalyze firmId={ctx.firm.id} caseId={params.id} />}
+      {aiEnabled && <BulkReanalyze firmId={firmId} caseId={params.id} />}
 
       <EvidenceIntake
-        firmId={ctx.firm.id}
+        firmId={firmId}
         caseId={params.id}
         initialEvents={timeline.events ?? []}
         initialCursor={timeline.nextCursor ?? null}
         aiEnabled={aiEnabled}
       />
 
-      {access === 'firm' && <RecurringPeople firmId={ctx.firm.id} caseId={params.id} />}
+      {!isGuest && access === 'firm' && <RecurringPeople firmId={firmId} caseId={params.id} />}
     </div>
   );
 }

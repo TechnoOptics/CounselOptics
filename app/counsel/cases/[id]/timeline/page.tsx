@@ -14,8 +14,8 @@ import { type EditMatterInitial } from '../edit-matter-form';
 import { FirmTimeline } from './firm-timeline';
 import { RequestSidebarFocus } from '@/components/counsel/SidebarFocus';
 import { T } from '@/components/i18n/LocaleProvider';
-import { getGuestTimelineBundle, getGuestCaseSummary } from '@/lib/counsel-guest';
-import { GuestTimelineView } from './guest-timeline-view';
+import { getGuestCaseSummary } from '@/lib/counsel-guest';
+import { createAdminSupabase } from '@/lib/supabase/admin';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,30 +50,32 @@ export default async function FirmTimelinePage({
   params: { id: string };
 }) {
   const ctx = await getActiveFirmContext();
-  if (!ctx) {
-    // Case-scoped co-counsel GUEST: read-only timeline view if they have access.
-    const guestBundle = await getGuestTimelineBundle(params.id);
+  let firmId: string;
+  let isGuest = false;
+  if (ctx) {
+    firmId = ctx.firm.id;
+  } else {
+    // Case-scoped co-counsel GUEST: render the SAME firm timeline BUILDER for
+    // their assigned matter, so co-counsel can edit the timeline. Collaboration
+    // (chat/comments) and AI stay firm-only; the timeline write actions are
+    // widened to this scoped guest server-side.
     const summary = await getGuestCaseSummary(params.id);
-    if (summary) {
-      return (
-        <GuestTimelineView
-          caseId={params.id}
-          caseTitle={summary.case.title}
-          bundle={guestBundle}
-        />
-      );
-    }
-    redirect('/counsel');
+    if (!summary || !summary.guest.firmId) redirect('/counsel');
+    firmId = summary.guest.firmId;
+    isGuest = true;
   }
   const supabase = createServerSupabase();
-
-  const { data: caseRow } = await supabase
-    .from('cases')
-    .select(
-      'id, title, subject_name, subject_type, subject_profile, jurisdiction_country, jurisdiction_state, jurisdiction_city, case_type, description, posture, status, hearing_at, hearing_location, hearing_notes, created_at, firm_id',
-    )
-    .eq('id', params.id)
-    .maybeSingle();
+  const CASE_COLS =
+    'id, title, subject_name, subject_type, subject_profile, jurisdiction_country, jurisdiction_state, jurisdiction_city, case_type, description, posture, status, hearing_at, hearing_location, hearing_notes, created_at, firm_id';
+  // A guest is not a firm member, so RLS returns nothing on the user client -
+  // read the matter through the admin client (already authorized: the guest
+  // grant was confirmed above). A firm member keeps the RLS-scoped read.
+  const admin = isGuest ? createAdminSupabase() : null;
+  const { data: caseRow } = isGuest
+    ? (admin
+        ? await admin.from('cases').select(CASE_COLS).eq('id', params.id).maybeSingle()
+        : { data: null })
+    : await supabase.from('cases').select(CASE_COLS).eq('id', params.id).maybeSingle();
   if (!caseRow) notFound();
   const c = caseRow as {
     id: string; title: string; subject_name: string | null; subject_type: string | null;
@@ -83,7 +85,7 @@ export default async function FirmTimelinePage({
     hearing_at: string | null; hearing_location: string | null; hearing_notes: string | null;
     created_at: string | null; firm_id: string | null;
   };
-  if (c.firm_id !== ctx.firm.id) notFound();
+  if (c.firm_id !== firmId) notFound();
 
   const jurisdiction =
     [c.jurisdiction_city, c.jurisdiction_state, c.jurisdiction_country].filter(Boolean).join(', ') || null;
@@ -121,14 +123,18 @@ export default async function FirmTimelinePage({
   };
 
   const [bundle, access, participants, commentBundle, generalChat, user] = await Promise.all([
-    getFirmTimelineBundle(ctx.firm.id, params.id),
+    getFirmTimelineBundle(firmId, params.id),
     resolveTimelineAccess(),
-    getCaseParticipants(ctx.firm.id, params.id),
-    getSectionComments(ctx.firm.id, params.id),
-    getChatThread(ctx.firm.id, params.id, GENERAL_THREAD_KEY),
+    isGuest ? Promise.resolve([]) : getCaseParticipants(firmId, params.id),
+    isGuest
+      ? Promise.resolve({ comments: [], authors: [] })
+      : getSectionComments(firmId, params.id),
+    isGuest ? Promise.resolve([]) : getChatThread(firmId, params.id, GENERAL_THREAD_KEY),
     getCurrentUser(),
   ]);
-  const aiEnabled = aiConfigured() && access === 'firm';
+  // AI (bulk re-analyze, suggestions) and collaboration stay firm-only; a guest
+  // co-counsel still gets the full manual timeline builder.
+  const aiEnabled = aiConfigured() && access === 'firm' && !isGuest;
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 pb-16">
@@ -151,10 +157,10 @@ export default async function FirmTimelinePage({
         </h1>
       </div>
 
-      <FirmFactsPanel facts={facts} firmId={ctx.firm.id} caseId={params.id} editInitial={editInitial} />
+      <FirmFactsPanel facts={facts} firmId={firmId} caseId={params.id} editInitial={editInitial} canEdit={!isGuest} />
 
       <FirmTimeline
-        firmId={ctx.firm.id}
+        firmId={firmId}
         caseId={params.id}
         initialBundle={bundle}
         aiEnabled={aiEnabled}

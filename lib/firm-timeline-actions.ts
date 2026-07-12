@@ -95,21 +95,18 @@ async function assertFirmCase(
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: 'Sign in first.' };
   const supabase = createServerSupabase();
-  const { data: member } = await supabase
-    .from('firm_members')
-    .select('id')
-    .eq('firm_id', firmId)
-    .eq('user_id', user.id)
-    .maybeSingle();
-  if (!member) return { ok: false, error: 'You do not have access to this firm.' };
-  const { data: kase } = await supabase
-    .from('cases')
-    .select('id')
-    .eq('id', caseId)
-    .eq('firm_id', firmId)
-    .maybeSingle();
-  if (!kase) return { ok: false, error: 'That matter is not in this firm.' };
-  return { ok: true, userId: user.id };
+  const [memberRes, kaseRes] = await Promise.all([
+    supabase.from('firm_members').select('id').eq('firm_id', firmId).eq('user_id', user.id).maybeSingle(),
+    supabase.from('cases').select('id').eq('id', caseId).eq('firm_id', firmId).maybeSingle(),
+  ]);
+  if (!kaseRes.data) return { ok: false, error: 'That matter is not in this firm.' };
+  if (memberRes.data) return { ok: true, userId: user.id };
+  // Co-counsel GUEST scoped to this matter: co-counsel may build the timeline
+  // on their assigned matter. guestCanReadCase binds the check to `firmId`, so
+  // a guest can never reach another matter or firm through this gate.
+  const { guestCanReadCase } = await import('./counsel-guest');
+  if (await guestCanReadCase(caseId, firmId)) return { ok: true, userId: user.id };
+  return { ok: false, error: 'You do not have access to this matter.' };
 }
 
 function revalidateFirm(caseId: string) {

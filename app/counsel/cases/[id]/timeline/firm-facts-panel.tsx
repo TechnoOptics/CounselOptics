@@ -38,11 +38,15 @@ export function FirmFactsPanel({
   firmId,
   caseId,
   editInitial,
+  canEdit = true,
 }: {
   facts: CaseFacts;
   firmId: string;
   caseId: string;
   editInitial: EditMatterInitial;
+  /** Editing the core matter facts is a firm-member action. A scoped co-counsel
+   *  guest sees the facts read-only (they still build the timeline/evidence). */
+  canEdit?: boolean;
 }) {
   const t = useT();
   const [open, setOpen] = useState(false);
@@ -120,10 +124,13 @@ export function FirmFactsPanel({
             </div>
           )}
 
-          {/* Inline edit — fix a typo or a name without leaving the timeline. */}
-          <div className="border-t border-forest-900/10 px-5 py-3 dark:border-cream-50/10">
-            <EditMatterForm firmId={firmId} caseId={caseId} initial={editInitial} />
-          </div>
+          {/* Inline edit — fix a typo or a name without leaving the timeline.
+              Firm members only; co-counsel guests see the facts read-only. */}
+          {canEdit && (
+            <div className="border-t border-forest-900/10 px-5 py-3 dark:border-cream-50/10">
+              <EditMatterForm firmId={firmId} caseId={caseId} initial={editInitial} />
+            </div>
+          )}
         </>
       )}
     </section>
