@@ -47,20 +47,16 @@ async function assertFirmCase(
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: 'Sign in first.' };
   const supabase = createServerSupabase();
-  const { data: member } = await supabase
-    .from('firm_members')
-    .select('id')
-    .eq('firm_id', firmId)
-    .eq('user_id', user.id)
-    .maybeSingle();
-  if (!member) return { ok: false, error: 'You do not have access to this firm.' };
-  const { data: kase } = await supabase
-    .from('cases')
-    .select('id')
-    .eq('id', caseId)
-    .eq('firm_id', firmId)
-    .maybeSingle();
-  if (!kase) return { ok: false, error: 'That matter is not in this firm.' };
+  // The membership and case-ownership checks are independent, so run them in
+  // one parallel wave instead of two serial round-trips. This gate fronts all
+  // 15 firm evidence actions (list/upload/delete/analyze), so shaving a
+  // round-trip here compounds across the whole intake.
+  const [memberRes, caseRes] = await Promise.all([
+    supabase.from('firm_members').select('id').eq('firm_id', firmId).eq('user_id', user.id).maybeSingle(),
+    supabase.from('cases').select('id').eq('id', caseId).eq('firm_id', firmId).maybeSingle(),
+  ]);
+  if (!memberRes.data) return { ok: false, error: 'You do not have access to this firm.' };
+  if (!caseRes.data) return { ok: false, error: 'That matter is not in this firm.' };
   return { ok: true, userId: user.id };
 }
 

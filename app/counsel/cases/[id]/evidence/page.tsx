@@ -13,6 +13,10 @@ import { getGuestTimelineBundle, getGuestCaseSummary } from '@/lib/counsel-guest
 import { GuestEvidenceView } from './guest-evidence-view';
 
 export const dynamic = 'force-dynamic';
+// A heavy matter (hundreds of evidence rows) can push the assemble past the
+// default ~10s function budget; raise the ceiling so it never 504s, matching
+// the matter page.
+export const maxDuration = 60;
 
 export function generateMetadata() {
   return { title: 'Evidence intake · Counsel' };
@@ -41,18 +45,17 @@ export default async function CaseEvidencePage({
   }
 
   const supabase = createServerSupabase();
-  const { data: caseRow } = await supabase
-    .from('cases')
-    .select('id, title, firm_id')
-    .eq('id', params.id)
-    .maybeSingle();
-  const c = caseRow as { id: string; title: string; firm_id: string | null } | null;
-  if (!c || c.firm_id !== ctx.firm.id) notFound();
-
-  const [timeline, access] = await Promise.all([
+  // One parallel wave: the case row (for the header + ownership guard), the
+  // timeline, and the access tier. The timeline loader gates itself on firm
+  // membership, so fetching it alongside the ownership check leaks nothing -
+  // it just removes a serial round-trip before the heavy read.
+  const [caseRes, timeline, access] = await Promise.all([
+    supabase.from('cases').select('id, title, firm_id').eq('id', params.id).maybeSingle(),
     getFirmCaseTimeline(ctx.firm.id, params.id),
     resolveTimelineAccess(),
   ]);
+  const c = caseRes.data as { id: string; title: string; firm_id: string | null } | null;
+  if (!c || c.firm_id !== ctx.firm.id) notFound();
   const aiEnabled = aiConfigured() && access === 'firm';
 
   return (
