@@ -167,7 +167,7 @@ export default async function CounselCaseDetailPage({
     })(),
   ]);
   const showTimeBilling = !surface.hideTimeBilling;
-  const caseImages = (caseImagesRes.ok && caseImagesRes.images) ? caseImagesRes.images : [];
+  const caseImages = (caseImagesRes?.ok && caseImagesRes.images) ? caseImagesRes.images : [];
   const approaches =
     ('approaches' in approachesRes ? approachesRes.approaches : null) ?? [];
   const currentAssigneeId =
@@ -774,8 +774,8 @@ async function MatterChatSection({
   caseTitle: string;
   currentUserId: string;
 }) {
-  const channelRes = await getOrCreateMatterChannelAction(firmId, caseId, caseTitle);
-  if (!channelRes.ok || !channelRes.channelId) {
+  const channelRes = await getOrCreateMatterChannelAction(firmId, caseId, caseTitle).catch(() => null);
+  if (!channelRes?.ok || !channelRes.channelId) {
     return (
       <section className="card p-5">
         <p className="eyebrow text-[10px] mb-1"><T>Matter room</T></p>
