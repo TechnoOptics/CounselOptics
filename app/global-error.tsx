@@ -69,23 +69,16 @@ export default function GlobalError({
         }}
       >
         <div style={{ textAlign: 'center', padding: 24, maxWidth: 360 }}>
-          <div
-            style={{
-              width: 72,
-              height: 72,
-              margin: '0 auto 20px',
-              borderRadius: 18,
-              background: 'linear-gradient(135deg, #c9a14f, #e6c878)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 40,
-              fontWeight: 700,
-              color: '#0c1f17',
-            }}
-          >
-            A
-          </div>
+          {/* The Advottic mark (a static public asset, so it still resolves
+              when the whole React root has crashed). No letter-in-a-box. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/advottic-mark.png"
+            alt="Advottic"
+            width={72}
+            height={72}
+            style={{ width: 72, height: 72, margin: '0 auto 20px', display: 'block', objectFit: 'contain' }}
+          />
           <p style={{ fontSize: 15, opacity: 0.85, margin: '0 0 18px', lineHeight: 1.4 }}>
             Advottic ran into a problem loading. Reload to continue.
           </p>

@@ -54,6 +54,26 @@ export function EvidenceIcon({ className }: IconProps) {
   );
 }
 
+/** Case Approach — a target: the theory you are setting out to prove. */
+export function ApproachIcon({ className }: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden
+      className={`${base} ${className ?? ''}`}
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="8.5" />
+      <circle cx="12" cy="12" r="4.5" opacity="0.9" />
+      <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
 /** Court Packet — a bound, sealed dossier ready to file. */
 export function PacketIcon({ className }: IconProps) {
   return (

@@ -17,7 +17,7 @@ import { MatterChatPanel } from './matter-chat-panel';
 import { CaseInvitePanel } from './case-invite-panel';
 import { LinkedProjectsPanel } from './linked-projects-panel';
 import { MatterFacts } from './matter-facts';
-import { TimelineIcon, EvidenceIcon, PacketIcon } from '@/components/counsel/CaseSectionIcons';
+import { TimelineIcon, EvidenceIcon, PacketIcon, ApproachIcon } from '@/components/counsel/CaseSectionIcons';
 import { EditMatterForm } from './edit-matter-form';
 import { listCaseImages } from '@/lib/case-images-actions';
 import { CaseImagesPanel } from './case-images-panel';
@@ -367,7 +367,7 @@ export default async function CounselCaseDetailPage({
           as clear destinations rather than blending into the page. The court
           packet uses <a> (a route handler that streams a PDF); the others are
           client-nav <Link>s. */}
-      <nav className="grid grid-cols-1 sm:grid-cols-3 gap-2 rounded-xl border border-ink-200 dark:border-forest-700/50 bg-cream-50/70 dark:bg-forest-900/40 p-1.5">
+      <nav className="grid grid-cols-2 lg:grid-cols-4 gap-2 rounded-xl border border-ink-200 dark:border-forest-700/50 bg-cream-50/70 dark:bg-forest-900/40 p-1.5">
         <Link
           href={`/counsel/cases/${params.id}/timeline`}
           prefetch={false}
@@ -388,6 +388,15 @@ export default async function CounselCaseDetailPage({
           </span>
           <span className="text-[13px] font-semibold"><T>Evidence intake</T></span>
         </Link>
+        <a
+          href="#case-approaches"
+          className="group flex items-center justify-center gap-2.5 rounded-lg px-4 py-3 ring-1 ring-transparent text-forest-900 dark:text-cream-100 hover:bg-white dark:hover:bg-forest-800/60 hover:ring-gold-500/60 hover:shadow-sm transition-all"
+        >
+          <span className="grid h-8 w-8 place-items-center rounded-lg bg-gold-500/10 text-gold-600 ring-1 ring-gold-500/20 transition-colors group-hover:bg-gold-500/20 group-hover:text-gold-500 dark:text-gold-400/90">
+            <ApproachIcon />
+          </span>
+          <span className="text-[13px] font-semibold"><T>Case approach</T></span>
+        </a>
         <a
           href={`/counsel/cases/${params.id}/export`}
           className="group flex items-center justify-center gap-2.5 rounded-lg px-4 py-3 ring-1 ring-transparent text-forest-900 dark:text-cream-100 hover:bg-white dark:hover:bg-forest-800/60 hover:ring-gold-500/60 hover:shadow-sm transition-all"
@@ -496,8 +505,9 @@ export default async function CounselCaseDetailPage({
           </div>
 
           {/* Approach builder: the lawyer's theory in, a structured argument
-              with cited exhibits + supporting timeline out. */}
-          <div className="border-t border-ink-100 dark:border-forest-700/40 pt-8">
+              with cited exhibits + supporting timeline out. Anchored so the
+              "Case approach" tab scrolls here. */}
+          <div id="case-approaches" className="scroll-mt-24 border-t border-ink-100 dark:border-forest-700/40 pt-8">
             <ApproachBuilder firmId={ctx.firm.id} caseId={params.id} initial={approaches} />
           </div>
 
