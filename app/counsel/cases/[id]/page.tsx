@@ -31,6 +31,9 @@ import { ReviewPanel } from '@/app/cases/[id]/review-panel';
 import { LegalReviewPanel } from './legal-review-panel';
 import { ApproachBuilder } from './approach-builder';
 import { EvidenceHeatmap } from '@/components/EvidenceHeatmap';
+import { EvidenceDashboard } from './evidence-dashboard';
+import { getCaseEvidenceAnalytics } from '@/lib/case-analytics';
+import { createAdminSupabase } from '@/lib/supabase/admin';
 import { BellaPrompt } from '@/components/BellaPrompt';
 import { getGuestCaseSummary } from '@/lib/counsel-guest';
 import { GuestCaseView } from './guest-case-view';
@@ -166,6 +169,7 @@ export default async function CounselCaseDetailPage({
     openTimer,
     members,
     assigneeRes,
+    caseAnalytics,
   ] = await Promise.all([
     resolveTimelineAccess(),
     getLatestReview(params.id).catch(() => null),
@@ -176,6 +180,11 @@ export default async function CounselCaseDetailPage({
     listOpenTimer(ctx.firm.id).catch(() => null),
     listFirmMembers(ctx.firm.id).catch(() => []),
     supabase.from('cases').select('assigned_to').eq('id', params.id).maybeSingle(),
+    (async () => {
+      const admin = createAdminSupabase();
+      if (!admin) return null;
+      return getCaseEvidenceAnalytics(admin, params.id).catch(() => null);
+    })(),
   ]);
   const aiEnabled = aiConfigured() && access === 'firm';
   const showTimeBilling = !surface.hideTimeBilling;
@@ -460,6 +469,15 @@ export default async function CounselCaseDetailPage({
           />
         </EditMatterForm>
       </div>
+
+      {/* Evidence dashboard - a live, at-a-glance analytics read over the
+          matter's evidence set (counts, processing status, relevance, folders,
+          document types, temporal span, extracted entities). Firm-only, and
+          self-hides when nothing has been uploaded yet. Server-rendered from
+          the admin-scoped aggregate, so it is always current on load. */}
+      {access === 'firm' && caseAnalytics ? (
+        <EvidenceDashboard analytics={caseAnalytics} />
+      ) : null}
 
       {/* Case analysis - the substantive analytical surfaces ported from
           the personal case file (app/cases/[id]) and reframed as firm
