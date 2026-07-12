@@ -67,22 +67,26 @@ export function ApproachBuilder({
       return;
     }
     startTransition(async () => {
-      const res = await createFirmApproach(firmId, caseId, { title, prompt, connections });
-      if (res.ok && res.approach) {
-        setApproaches((list) => [...list, res.approach!]);
-        setTitle('');
-        setPrompt('');
-        setConnections('');
-        setOpen(false);
-        if (res.generateError) {
-          setNotice(
-            isUnavailable(res.generateError)
-              ? t("Approach saved. Advottic's analysis is temporarily unavailable right now; try assembling the argument again shortly.")
-              : res.generateError,
-          );
+      try {
+        const res = await createFirmApproach(firmId, caseId, { title, prompt, connections });
+        if (res?.ok && res.approach) {
+          setApproaches((list) => [...list, res.approach!]);
+          setTitle('');
+          setPrompt('');
+          setConnections('');
+          setOpen(false);
+          if (res.generateError) {
+            setNotice(
+              isUnavailable(res.generateError)
+                ? t("Approach saved. Advottic's analysis is temporarily unavailable right now; try assembling the argument again shortly.")
+                : res.generateError,
+            );
+          }
+        } else {
+          setError(res?.error ?? t('Could not save the approach.'));
         }
-      } else {
-        setError(res.error ?? t('Could not save the approach.'));
+      } catch {
+        setError(t("Advottic's analysis is temporarily unavailable right now; try assembling the argument again shortly."));
       }
     });
   }
@@ -287,12 +291,16 @@ function ApproachCard({
   function rerun(withPrompt?: string) {
     setError(null);
     startTransition(async () => {
-      const res = await regenerateFirmApproach(firmId, caseId, approach.id, withPrompt);
-      if (res.ok && res.approach) {
-        onUpdated(res.approach);
-        setEditing(false);
-      } else {
-        setError(res.error ?? t('Could not re-run.'));
+      try {
+        const res = await regenerateFirmApproach(firmId, caseId, approach.id, withPrompt);
+        if (res?.ok && res.approach) {
+          onUpdated(res.approach);
+          setEditing(false);
+        } else {
+          setError(res?.error ?? t('Could not re-run.'));
+        }
+      } catch {
+        setError(t("Advottic's analysis is temporarily unavailable right now; try assembling the argument again shortly."));
       }
     });
   }
@@ -300,12 +308,16 @@ function ApproachCard({
   function saveEdits() {
     setError(null);
     startTransition(async () => {
-      const res = await updateFirmApproach(firmId, caseId, approach.id, { title, prompt, connections });
-      if (res.ok) {
-        onUpdated({ ...approach, title: title.trim(), prompt: prompt.trim(), connections: connections.trim() });
-        setEditing(false);
-      } else {
-        setError(res.error ?? t('Could not save.'));
+      try {
+        const res = await updateFirmApproach(firmId, caseId, approach.id, { title, prompt, connections });
+        if (res?.ok) {
+          onUpdated({ ...approach, title: title.trim(), prompt: prompt.trim(), connections: connections.trim() });
+          setEditing(false);
+        } else {
+          setError(res?.error ?? t('Could not save.'));
+        }
+      } catch {
+        setError(t('Could not save. Please try again.'));
       }
     });
   }
@@ -313,9 +325,13 @@ function ApproachCard({
   function remove() {
     if (typeof window !== 'undefined' && !window.confirm(t('Delete this approach? This cannot be undone.'))) return;
     startTransition(async () => {
-      const res = await deleteFirmApproach(firmId, caseId, approach.id);
-      if (res.ok) onRemoved(approach.id);
-      else setError(res.error ?? t('Could not delete.'));
+      try {
+        const res = await deleteFirmApproach(firmId, caseId, approach.id);
+        if (res?.ok) onRemoved(approach.id);
+        else setError(res?.error ?? t('Could not delete.'));
+      } catch {
+        setError(t('Could not delete. Please try again.'));
+      }
     });
   }
 
@@ -773,8 +789,12 @@ function ApproachEvidence({
     setOpen(next);
     if (next && !loaded && !loading) {
       setLoading(true);
-      const res = await getApproachEvidence(firmId, caseId, approachId);
-      if (res.ok && res.events) setEvents(res.events);
+      try {
+        const res = await getApproachEvidence(firmId, caseId, approachId);
+        if (res?.ok && res.events) setEvents(res.events);
+      } catch {
+        /* leave the gallery empty; the argument still renders */
+      }
       setLoaded(true);
       setLoading(false);
     }
