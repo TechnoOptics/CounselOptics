@@ -12,9 +12,33 @@ import { exhibitLabel, formatOccurred, type TimelineEvent } from '@/lib/timeline
  */
 export type DuplicateGroup = {
   key: string;
-  reason: 'identical' | 'similar';
+  reason: 'identical' | 'similar' | 'visual';
   items: TimelineEvent[];
 };
+
+/**
+ * Hamming distance between two 16-hex-char (64-bit) perceptual hashes: how many
+ * bits differ. 0 = pixel-for-pixel the same look; a handful of bits = the same
+ * image re-saved / resized / re-screenshotted. Returns 64 (max) for malformed
+ * input so it never falsely groups.
+ */
+function phashDistance(a: string, b: string): number {
+  if (!a || !b || a.length !== b.length) return 64;
+  let d = 0;
+  for (let i = 0; i < a.length; i++) {
+    let x = parseInt(a[i], 16) ^ parseInt(b[i], 16);
+    while (x) {
+      d += x & 1;
+      x >>= 1;
+    }
+  }
+  return d;
+}
+
+// Two images within this many bits (of 64) are treated as the same picture.
+// Small enough to avoid grouping merely-similar photos, large enough to catch
+// re-saves, resizes, and screenshot-of-a-screenshot.
+const PHASH_THRESHOLD = 6;
 
 /** Filename with a trailing " (copy)" stripped, lowercased, for loose matching. */
 function baseName(name: string): string {
@@ -77,6 +101,31 @@ export function findDuplicateGroups(events: TimelineEvent[]): DuplicateGroup[] {
       const sorted = keeperFirst(fresh);
       groups.push({ key: `ns:${key}`, reason: 'similar', items: sorted });
       sorted.forEach((i) => covered.add(i.id));
+    }
+  }
+
+  // Visual: images that LOOK the same (perceptual hash within a small Hamming
+  // distance) even though their bytes and names differ - the common firm case
+  // of the same picture re-saved, resized, or re-screenshotted. Greedy
+  // clustering over the not-yet-covered images that carry a phash.
+  const phashPool = events.filter(
+    (e) => !covered.has(e.id) && typeof e.aiExtracted?.phash === 'string' && e.aiExtracted.phash.length === 16,
+  );
+  for (let i = 0; i < phashPool.length; i++) {
+    const seed = phashPool[i];
+    if (covered.has(seed.id)) continue;
+    const cluster = [seed];
+    for (let j = i + 1; j < phashPool.length; j++) {
+      const cand = phashPool[j];
+      if (covered.has(cand.id)) continue;
+      if (phashDistance(seed.aiExtracted!.phash!, cand.aiExtracted!.phash!) <= PHASH_THRESHOLD) {
+        cluster.push(cand);
+      }
+    }
+    if (cluster.length > 1) {
+      const sorted = keeperFirst(cluster);
+      groups.push({ key: `ph:${seed.aiExtracted!.phash}`, reason: 'visual', items: sorted });
+      sorted.forEach((it) => covered.add(it.id));
     }
   }
 
@@ -165,7 +214,13 @@ export function DuplicatePanel({
           {groups.map((g) => (
             <div key={g.key} className="rounded-lg bg-white/60 p-2 ring-1 ring-amber-200/60 dark:bg-forest-900/30 dark:ring-amber-800/30">
               <p className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.06em] text-amber-700 dark:text-amber-200/80">
-                {g.reason === 'identical' ? <T>Identical file</T> : <T>Same name and size</T>}
+                {g.reason === 'identical' ? (
+                  <T>Identical file</T>
+                ) : g.reason === 'visual' ? (
+                  <T>Looks like the same image</T>
+                ) : (
+                  <T>Same name and size</T>
+                )}
               </p>
               <ul className="space-y-1.5">
                 {g.items.map((e, i) => {

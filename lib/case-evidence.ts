@@ -5,6 +5,7 @@ import { extractFileText } from './doc-review';
 import { extractMediaMetadata } from './media-metadata';
 import { mapsConfigured, geocodeAddress } from './maps';
 import { parseEmail } from './email-parse';
+import { perceptualHash } from './perceptual-hash';
 import { friendlyAiError } from './ai-errors';
 import { safeStorageUpload } from './upload-safety';
 import {
@@ -139,6 +140,7 @@ export function mergeStickyExtracted(
   const p = prior ?? {};
   if (typeof p.exhibit_no === 'number' && out.exhibit_no === undefined) out.exhibit_no = p.exhibit_no;
   if (p.sha256 && !out.sha256) out.sha256 = p.sha256;
+  if (p.phash && !out.phash) out.phash = p.phash;
   if (p.folder_locked && p.folder) {
     out.folder = p.folder;
     out.folder_locked = true;
@@ -334,6 +336,12 @@ export async function importFileAsCaseEvidence(input: {
   // explicitly, so a bulk intake never floods the timeline.
   const seededExtracted: AiExtracted = { sha256: sha256Hex(input.buffer), on_timeline: false };
   if (typeof input.exhibitNo === 'number') seededExtracted.exhibit_no = input.exhibitNo;
+  // Perceptual hash for images, so a later re-saved / resized / re-screenshotted
+  // copy is caught as a near-duplicate even when its bytes differ. Best-effort.
+  if (kind === 'photo' || /^image\//i.test(mime)) {
+    const ph = await perceptualHash(input.buffer);
+    if (ph) seededExtracted.phash = ph;
+  }
 
   const { error: insErr } = await admin.from('case_timeline_events').insert({
     id: eventId,

@@ -178,6 +178,14 @@ export type AiExtracted = {
    */
   sha256?: string;
   /**
+   * A 64-bit perceptual hash (dHash) of the image, as 16 hex chars. Unlike
+   * sha256 (byte-exact), this is stable under re-saving, resizing, and light
+   * re-compression, so two captures/exports of the SAME image cluster together
+   * even when their bytes differ. Duplicate detection groups images whose
+   * phashes are within a small Hamming distance. Images only; preserved across
+   * re-analysis. */
+  phash?: string;
+  /**
    * A content-derived document type the reader recognised (receipt, contract, id
    * document, ...), from the controlled DOCUMENT_TYPES vocabulary. Drives the
    * content-aware icon. Distinct from `kind` (which is only the file's medium)
