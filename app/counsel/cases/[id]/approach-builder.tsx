@@ -77,7 +77,7 @@ export function ApproachBuilder({
         if (res.generateError) {
           setNotice(
             isUnavailable(res.generateError)
-              ? t('Approach saved. Advottic analysis is temporarily unavailable, add credits to assemble the argument, then re-run.')
+              ? t("Approach saved. Advottic's analysis is temporarily unavailable right now; try assembling the argument again shortly.")
               : res.generateError,
           );
         }
@@ -439,7 +439,7 @@ function ApproachCard({
         {error && (
           isUnavailable(error) ? (
             <p className="rounded-lg border border-amber-400/25 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-200">
-              <T>Advottic analysis is temporarily unavailable. Add credits to run, then re-run this approach.</T>
+              <T>Advottic&apos;s analysis is temporarily unavailable right now. Please try re-running this approach shortly.</T>
             </p>
           ) : (
             <p className="font-mono text-[11.5px] text-rose-300" data-no-translate>{error}</p>

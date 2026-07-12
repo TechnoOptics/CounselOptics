@@ -95,7 +95,7 @@ export function LegalReviewPanel({
       {error && (
         isUnavailable(error) ? (
           <div className="rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50/70 dark:bg-amber-500/10 px-4 py-3 text-sm text-amber-900 dark:text-amber-200">
-            <T>Advottic analysis is temporarily unavailable. Add credits to run the legal review.</T>{' '}
+            <T>Advottic&apos;s analysis is temporarily unavailable right now. Please try again shortly.</T>{' '}
             <T>CourtListener citation checking stays available and runs the moment analysis is back.</T>
           </div>
         ) : (
