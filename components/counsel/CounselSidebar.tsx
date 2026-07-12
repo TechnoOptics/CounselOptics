@@ -204,8 +204,8 @@ const SVG = {
 // Duotone: a soft gold filled body + a burnished gold stroke for the linework,
 // so the whole rail reads as one crafted, on-brand set rather than flat
 // outlines. `F` = the tinted body shape, `L` = the crisp detail strokes.
-const F = { fill: GOLD_FILL, fillOpacity: 0.24, stroke: 'none' } as const;
-const L = { fill: 'none', stroke: GOLD_LINE, strokeWidth: 1.6 } as const;
+const F = { fill: GOLD_FILL, fillOpacity: 0.5, stroke: 'none' } as const;
+const L = { fill: 'none', stroke: GOLD_LINE, strokeWidth: 1.7 } as const;
 
 function Icon({ children }: { children: React.ReactNode }) {
   return <svg {...SVG}>{children}</svg>;
