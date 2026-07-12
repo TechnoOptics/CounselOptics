@@ -57,12 +57,15 @@ const AUTO_REFRESH_MS = 25_000;
 
 // Requests are packed by BOTH a file count and a byte budget so a batch never
 // exceeds the 50 MB server-action body limit, whatever the file sizes are.
-const MAX_BATCH_FILES = 10;
-const MAX_BATCH_BYTES = 40 * 1024 * 1024; // headroom under the 50 MB server limit
+// Smaller batches upload + import well within the request timeout even on a
+// modest connection, so a big drop no longer times out and skips items. (Was
+// 10 files / 40 MB, which on limited upload bandwidth could exceed the timeout.)
+const MAX_BATCH_FILES = 6;
+const MAX_BATCH_BYTES = 16 * 1024 * 1024;
 // Above this many files in one drop, import fast (no inline AI) and let the
 // background queue score them - so a 1,000+ item intake isn't blocked on a
 // thousand sequential model calls.
-const DEFER_AI_ABOVE = 40;
+const DEFER_AI_ABOVE = 5;
 const ANALYZE_CONCURRENCY = 3; // parallel scoring passes when analysing pending
 const BULK_CONCURRENCY = 3; // parallel workers for bulk delete / re-analyse
 // Above this many files in one drop, skip the interactive duplicate prompt: a
@@ -70,9 +73,9 @@ const BULK_CONCURRENCY = 3; // parallel workers for bulk delete / re-analyse
 // is heavy). The server still records each file's hash, so later smaller imports
 // still detect these as duplicates.
 const DEDUPE_PROMPT_MAX = 60;
-const UPLOAD_CONCURRENCY = 3; // parallel import requests during a big drop
+const UPLOAD_CONCURRENCY = 2; // parallel import requests; 2 avoids saturating a modest upload link (each in-flight batch competes for the same bandwidth)
 const BATCH_RETRIES = 2; // retry a failed batch before giving up (so one blip can't abort a 1,000-file run)
-const BATCH_TIMEOUT_MS = 120_000; // give up on a hung request so the whole drop can't stall forever
+const BATCH_TIMEOUT_MS = 180_000; // give up on a hung request so the whole drop can't stall forever (generous: a slow link needs time to push a batch)
 const REFRESH_TIMEOUT_MS = 20_000; // list re-sync is best-effort; never let it freeze the upload spinner
 
 /** Pack files into request-sized batches bounded by count AND total bytes. */

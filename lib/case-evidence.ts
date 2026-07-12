@@ -242,6 +242,17 @@ export async function computeEventAnalysis(input: {
     } catch {
       /* metadata is best-effort */
     }
+    // Perceptual hash for images (near-duplicate detection). Computed here, on
+    // the buffer already downloaded for analysis, so it stays OFF the upload hot
+    // path (where it slowed bulk intake and caused batch timeouts).
+    if (/^image\//i.test(metaSource.mime)) {
+      try {
+        const ph = await perceptualHash(metaSource.buf);
+        if (ph) result.extracted.phash = ph;
+      } catch {
+        /* phash is best-effort */
+      }
+    }
   }
 
   // Map pins: the file's own GPS plus any named places we can geocode. A no-op
@@ -334,14 +345,11 @@ export async function importFileAsCaseEvidence(input: {
   // mergeStickyExtracted, so they are assigned exactly once. New evidence starts
   // OFF the timeline (on_timeline: false); the firm adds items to the chronology
   // explicitly, so a bulk intake never floods the timeline.
+  // Seed only the cheap sticky fields at upload (content hash + exhibit number).
+  // The perceptual hash (a sharp decode) is computed later during analysis, not
+  // here, so a bulk intake isn't slowed file-by-file and doesn't time out.
   const seededExtracted: AiExtracted = { sha256: sha256Hex(input.buffer), on_timeline: false };
   if (typeof input.exhibitNo === 'number') seededExtracted.exhibit_no = input.exhibitNo;
-  // Perceptual hash for images, so a later re-saved / resized / re-screenshotted
-  // copy is caught as a near-duplicate even when its bytes differ. Best-effort.
-  if (kind === 'photo' || /^image\//i.test(mime)) {
-    const ph = await perceptualHash(input.buffer);
-    if (ph) seededExtracted.phash = ph;
-  }
 
   const { error: insErr } = await admin.from('case_timeline_events').insert({
     id: eventId,
