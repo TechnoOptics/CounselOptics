@@ -137,9 +137,15 @@ export function CounselSidebar({
                 : 'flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-sm text-ink-800 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/60 hover:text-forest-900 dark:hover:text-cream-100 transition-colors'
             }
           >
+            {/* Clean monochrome glyph - no per-row colour tile (that read as
+                cheap). It inherits the row's text colour, and the active row
+                tints it with the firm accent so the brand shows where it
+                matters without cluttering every item. */}
             <span
-              className="h-5 w-5 rounded inline-flex items-center justify-center text-white flex-none"
-              style={{ backgroundColor: firm.accentColor, opacity: active ? 1 : 0.85 }}
+              className={`inline-flex h-[18px] w-[18px] flex-none items-center justify-center transition-colors ${
+                active ? '' : 'text-ink-400 dark:text-cream-100/50'
+              }`}
+              style={active ? { color: firm.accentColor } : undefined}
               aria-hidden
             >
               {ICONS[item.href] ?? <DocIcon />}
@@ -186,8 +192,8 @@ export function CounselSidebar({
 }
 
 const SVG = {
-  width: 13,
-  height: 13,
+  width: 18,
+  height: 18,
   viewBox: '0 0 24 24',
   fill: 'none',
   stroke: 'currentColor',

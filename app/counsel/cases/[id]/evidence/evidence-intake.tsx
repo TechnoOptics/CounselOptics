@@ -1354,6 +1354,7 @@ export function EvidenceIntake({
           </h2>
           <Link
             href={`/counsel/cases/${caseId}/timeline`}
+            prefetch={false}
             className="text-[12px] text-ink-500 dark:text-cream-100/55 hover:underline"
           >
             <T>Open full timeline builder</T> →

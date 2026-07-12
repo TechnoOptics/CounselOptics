@@ -370,6 +370,7 @@ export default async function CounselCaseDetailPage({
       <nav className="grid grid-cols-1 sm:grid-cols-3 gap-2 rounded-xl border border-ink-200 dark:border-forest-700/50 bg-cream-50/70 dark:bg-forest-900/40 p-1.5">
         <Link
           href={`/counsel/cases/${params.id}/timeline`}
+          prefetch={false}
           className="group flex items-center justify-center gap-2.5 rounded-lg px-4 py-3 ring-1 ring-transparent text-forest-900 dark:text-cream-100 hover:bg-white dark:hover:bg-forest-800/60 hover:ring-gold-500/60 hover:shadow-sm transition-all"
         >
           <span className="grid h-8 w-8 place-items-center rounded-lg bg-gold-500/10 text-gold-600 ring-1 ring-gold-500/20 transition-colors group-hover:bg-gold-500/20 group-hover:text-gold-500 dark:text-gold-400/90">
@@ -379,6 +380,7 @@ export default async function CounselCaseDetailPage({
         </Link>
         <Link
           href={`/counsel/cases/${params.id}/evidence`}
+          prefetch={false}
           className="group flex items-center justify-center gap-2.5 rounded-lg px-4 py-3 ring-1 ring-transparent text-forest-900 dark:text-cream-100 hover:bg-white dark:hover:bg-forest-800/60 hover:ring-gold-500/60 hover:shadow-sm transition-all"
         >
           <span className="grid h-8 w-8 place-items-center rounded-lg bg-gold-500/10 text-gold-600 ring-1 ring-gold-500/20 transition-colors group-hover:bg-gold-500/20 group-hover:text-gold-500 dark:text-gold-400/90">
