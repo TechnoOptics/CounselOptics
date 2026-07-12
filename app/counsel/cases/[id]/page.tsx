@@ -480,7 +480,7 @@ export default async function CounselCaseDetailPage({
           we just need the aggregate to be present. The component self-hides
           when nothing has been uploaded yet. Server-rendered from the
           admin-scoped aggregate, so it is always current on load. */}
-      {caseAnalytics ? <EvidenceDashboard analytics={caseAnalytics} /> : null}
+      {caseAnalytics ? <EvidenceDashboard analytics={caseAnalytics} caseId={params.id} /> : null}
 
       {/* Case analysis - the substantive analytical surfaces ported from
           the personal case file (app/cases/[id]) and reframed as firm

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import { RelevanceBadge } from '@/components/RelevanceBadge';
 import { EvidencePreview } from '@/components/EvidencePreview';
@@ -214,6 +215,94 @@ function monthBucket(iso: string | null): { key: string; label: string } {
 }
 
 type GroupMode = 'folder' | 'date' | 'relevance';
+
+/** A single-dimension focus applied from the dashboard's deep links
+ *  (?folder=, ?relevance=, ?status=, ?doctype=, ?type=, ?year=). Narrows the
+ *  working list to exactly the slice a metric or chart segment represents, so
+ *  the dashboard reads as a launchpad into the evidence rather than a static
+ *  readout. */
+type Focus = {
+  folder?: string;
+  relevance?: 'high' | 'medium' | 'low' | 'unscored';
+  status?: 'done' | 'error' | 'pending';
+  doctype?: string;
+  type?: 'images' | 'videos' | 'emails' | 'docs';
+  year?: string;
+};
+
+function parseFocus(sp: URLSearchParams | null): Focus {
+  const f: Focus = {};
+  if (!sp) return f;
+  const folder = sp.get('folder');
+  if (folder) f.folder = folder;
+  const rel = sp.get('relevance');
+  if (rel === 'high' || rel === 'medium' || rel === 'low' || rel === 'unscored') f.relevance = rel;
+  const st = sp.get('status');
+  if (st === 'done' || st === 'error' || st === 'pending') f.status = st;
+  const dt = sp.get('doctype');
+  if (dt) f.doctype = dt;
+  const ty = sp.get('type');
+  if (ty === 'images' || ty === 'videos' || ty === 'emails' || ty === 'docs') f.type = ty;
+  const yr = sp.get('year');
+  if (yr && /^\d{4}$/.test(yr)) f.year = yr;
+  return f;
+}
+
+function focusActive(f: Focus): boolean {
+  return !!(f.folder || f.relevance || f.status || f.doctype || f.type || f.year);
+}
+
+const REL_LABEL: Record<NonNullable<Focus['relevance']>, string> = {
+  high: 'Highly relevant',
+  medium: 'Relevant',
+  low: 'Low relevance',
+  unscored: 'Not yet scored',
+};
+const STATUS_LABEL: Record<NonNullable<Focus['status']>, string> = {
+  done: 'Analyzed',
+  error: 'Not analyzable',
+  pending: 'In progress',
+};
+const TYPE_LABEL: Record<NonNullable<Focus['type']>, string> = {
+  images: 'Images',
+  videos: 'Video',
+  emails: 'Emails',
+  docs: 'Documents',
+};
+
+function focusLabel(f: Focus): string {
+  if (f.folder) return f.folder;
+  if (f.relevance) return REL_LABEL[f.relevance];
+  if (f.status) return STATUS_LABEL[f.status];
+  if (f.doctype) return f.doctype;
+  if (f.type) return TYPE_LABEL[f.type];
+  if (f.year) return f.year;
+  return '';
+}
+
+function eventMediaClass(e: TimelineEvent): 'images' | 'videos' | 'emails' | 'docs' | 'other' {
+  const mime = (e.media?.[0]?.mime ?? '').toLowerCase();
+  if (mime.startsWith('image/')) return 'images';
+  if (mime.startsWith('video/')) return 'videos';
+  if (mime === 'message/rfc822') return 'emails';
+  if (mime.startsWith('application/') || mime.startsWith('text/')) return 'docs';
+  return 'other';
+}
+
+function matchesFocus(e: TimelineEvent, f: Focus): boolean {
+  if (f.folder && folderForEvent(e) !== f.folder) return false;
+  if (f.relevance && (relevanceBand(e.aiExtracted?.relevance_score) ?? 'unscored') !== f.relevance) return false;
+  if (f.status) {
+    const s = e.aiStatus;
+    if (f.status === 'done' && s !== 'done') return false;
+    if (f.status === 'error' && s !== 'error') return false;
+    if (f.status === 'pending' && (s === 'done' || s === 'error')) return false;
+  }
+  if (f.doctype && (e.aiExtracted?.document_type ?? '') !== f.doctype) return false;
+  if (f.type && eventMediaClass(e) !== f.type) return false;
+  if (f.year && (e.aiExtracted?.suggested_occurred_at ?? '').slice(0, 4) !== f.year) return false;
+  return true;
+}
 type ViewMode = 'list' | 'grid';
 
 export function EvidenceIntake({
@@ -284,7 +373,20 @@ export function EvidenceIntake({
   // View + organisation controls. Grid is the default: the readable, image-first
   // layout the firm reviews evidence in; the list stays a click away.
   const [view, setView] = useState<ViewMode>('grid');
-  const [groupMode, setGroupMode] = useState<GroupMode>('folder');
+  // Deep-link focus from the dashboard: the URL search params narrow the list to
+  // the slice a metric/chart segment stands for, and preset the grouping.
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const [focus, setFocus] = useState<Focus>(() => parseFocus(searchParams));
+  const [groupMode, setGroupMode] = useState<GroupMode>(() => {
+    const g = searchParams?.get('group');
+    return g === 'date' || g === 'relevance' || g === 'folder' ? g : 'folder';
+  });
+  const clearFocus = useCallback(() => {
+    setFocus({});
+    if (pathname) router.replace(pathname, { scroll: false });
+  }, [pathname, router]);
   const [query, setQuery] = useState('');
   const [hiddenFolders, setHiddenFolders] = useState<Set<string>>(new Set());
   const [hiddenKinds, setHiddenKinds] = useState<Set<TimelineKind>>(new Set());
@@ -852,12 +954,13 @@ export function EvidenceIntake({
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return baseEvents.filter((e) => {
+      if (!matchesFocus(e, focus)) return false;
       if (hiddenFolders.has(folderForEvent(e))) return false;
       if (hiddenKinds.has(e.kind)) return false;
       if (q && !searchHaystack(e).includes(q)) return false;
       return true;
     });
-  }, [baseEvents, query, hiddenFolders, hiddenKinds]);
+  }, [baseEvents, query, hiddenFolders, hiddenKinds, focus]);
 
   // Possible duplicates within the working evidence (exact by content hash, or
   // similar by filename + size). Recomputed as items land.
@@ -1429,6 +1532,25 @@ export function EvidenceIntake({
             onSelectAll={selectAllVisible}
             onClearSelection={clearSelection}
           />
+        )}
+
+        {focusActive(focus) && (
+          <div className="flex items-center gap-2 rounded-lg border border-gold-500/40 bg-gold-500/10 px-3 py-2 text-[13px]">
+            <i className="ti ti-filter text-gold-600 dark:text-gold-400" aria-hidden="true" />
+            <span className="text-ink-500 dark:text-cream-100/55"><T>Showing</T></span>
+            <span className="font-semibold text-forest-900 dark:text-cream-100">{focusLabel(focus)}</span>
+            <span className="tabular-nums text-ink-500 dark:text-cream-100/55">
+              · {filtered.length} <T>items</T>
+            </span>
+            <button
+              type="button"
+              onClick={clearFocus}
+              className="ml-auto inline-flex items-center gap-1 rounded-md px-2 py-1 text-[12px] font-medium text-gold-700 hover:bg-gold-500/15 dark:text-gold-300"
+            >
+              <i className="ti ti-x" aria-hidden="true" />
+              <T>Clear filter</T>
+            </button>
+          </div>
         )}
 
         {events.length === 0 ? (
