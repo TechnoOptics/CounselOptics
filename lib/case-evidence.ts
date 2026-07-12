@@ -439,7 +439,13 @@ export async function analyzePendingEvidence(
   const { data } = await admin
     .from('case_timeline_events')
     .select('id, case_id, kind, title, description, media, occurred_at, ai_extracted')
-    .or(`ai_status.eq.skipped,and(ai_status.eq.running,updated_at.lt.${staleCutoff})`)
+    // Pick up: never-scored ('skipped'), stale 'running' (tab closed mid-queue),
+    // AND rows that errored on a TRANSIENT condition (rate-limit / model
+    // overloaded, message "...temporarily unavailable..."). Without the last
+    // clause a burst that rate-limited would stay 'error' forever, since a big
+    // backlog can out-run the API's per-minute limit. Permanent errors (a
+    // corrupt or unreadable file) carry a different message and are NOT retried.
+    .or(`ai_status.eq.skipped,and(ai_status.eq.error,ai_error.ilike.*temporarily*),and(ai_status.eq.running,updated_at.lt.${staleCutoff})`)
     // Never spend a model call on a byte-for-byte duplicate; it's kept for the
     // review panel but intentionally left unanalysed.
     .is('ai_extracted->>duplicate_of', null)

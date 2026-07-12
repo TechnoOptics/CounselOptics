@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
   let remaining = true;
   let passes = 0;
   while (remaining && Date.now() < deadline && passes < 20) {
-    const res = await analyzePendingEvidence(admin, { limit: 25, concurrency: 3 });
+    const res = await analyzePendingEvidence(admin, { limit: 25, concurrency: 2 });
     analyzed += res.analyzed;
     failed += res.failed;
     picked += res.picked;
