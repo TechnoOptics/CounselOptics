@@ -207,7 +207,7 @@ function monthBucket(iso: string | null): { key: string; label: string } {
   return { key, label };
 }
 
-type GroupMode = 'folder' | 'date';
+type GroupMode = 'folder' | 'date' | 'relevance';
 type ViewMode = 'list' | 'grid';
 
 export function EvidenceIntake({
@@ -326,14 +326,18 @@ export function EvidenceIntake({
     return () => window.removeEventListener('beforeunload', warn);
   }, [busy]);
 
-  // Resume analysis after a reload: anything already uploaded but not yet scored
-  // (ai_status 'skipped') is picked back up automatically, so a refresh never
-  // strands the scoring queue. The server-side cron also backstops this.
+  // Resume analysis after a reload: anything already uploaded but not yet
+  // scored (ai_status 'skipped') OR that failed a prior attempt ('error') is
+  // picked back up automatically, so an unanalyzed upload never stays
+  // unanalyzed and a transient failure self-heals on the next visit. Runs once
+  // per mount; the server-side cron also backstops this.
   const resumedRef = useRef(false);
   useEffect(() => {
     if (resumedRef.current || !aiEnabled) return;
     resumedRef.current = true;
-    const queue = initialEvents.filter((e) => e.aiStatus === 'skipped').map((e) => e.id);
+    const queue = initialEvents
+      .filter((e) => e.aiStatus === 'skipped' || e.aiStatus === 'error')
+      .map((e) => e.id);
     if (queue.length) void runAnalyzeQueue(queue);
   }, [aiEnabled, initialEvents, runAnalyzeQueue]);
 
@@ -811,10 +815,45 @@ export function EvidenceIntake({
       }));
   }, [filtered]);
 
+  // Group by AI relevance band (Highly relevant / Relevant / Low / Not yet
+  // scored), highest first. Lets the firm collapse the long tail and open only
+  // what proves the case.
+  const relevanceGroups = useMemo(() => {
+    const order = ['high', 'medium', 'low', 'unscored'] as const;
+    const label: Record<(typeof order)[number], string> = {
+      high: 'Highly relevant',
+      medium: 'Relevant',
+      low: 'Low relevance',
+      unscored: 'Not yet scored',
+    };
+    const map = new Map<string, TimelineEvent[]>();
+    for (const e of filtered) {
+      const band = relevanceBand(e.aiExtracted?.relevance_score) ?? 'unscored';
+      const bucket = map.get(band);
+      if (bucket) bucket.push(e);
+      else map.set(band, [e]);
+    }
+    return order
+      .filter((b) => map.has(b))
+      .map((b) => ({
+        name: label[b],
+        key: b,
+        items: [...(map.get(b) ?? [])].sort(
+          (a, z) => (z.aiExtracted?.relevance_score ?? -1) - (a.aiExtracted?.relevance_score ?? -1),
+        ),
+      }));
+  }, [filtered]);
+
   // The flat display order (used by the grid and the viewer's next/prev).
   const ordered = useMemo(
-    () => (groupMode === 'folder' ? folderGroups : dateGroups).flatMap((g) => g.items),
-    [groupMode, folderGroups, dateGroups],
+    () =>
+      (groupMode === 'folder'
+        ? folderGroups
+        : groupMode === 'date'
+          ? dateGroups
+          : relevanceGroups
+      ).flatMap((g) => g.items),
+    [groupMode, folderGroups, dateGroups, relevanceGroups],
   );
 
   // Counts for the filter chips are taken from the base list, so hiding one
@@ -1092,7 +1131,20 @@ export function EvidenceIntake({
     [firmId, caseId],
   );
 
-  const groups = groupMode === 'folder' ? folderGroups : dateGroups;
+  const groups =
+    groupMode === 'folder' ? folderGroups : groupMode === 'date' ? dateGroups : relevanceGroups;
+
+  // Speed: collapse every group but the first by default (and re-seed when the
+  // grouping changes). A collapsed group never mounts its rows or thumbnails,
+  // so a heavy matter paints immediately instead of minting hundreds of signed
+  // URLs up front. User toggles are preserved within a grouping.
+  const seededGroupMode = useRef<GroupMode | null>(null);
+  useEffect(() => {
+    if (seededGroupMode.current === groupMode) return;
+    seededGroupMode.current = groupMode;
+    setCollapsed(new Set(groups.slice(1).map((g) => g.name)));
+  }, [groupMode, groups]);
+
   const allVisibleSelected = ordered.length > 0 && ordered.every((e) => selected.has(e.id));
 
   const cardProps = (e: TimelineEvent) => ({
@@ -1452,6 +1504,9 @@ function Toolbar({
           </button>
           <button type="button" onClick={() => setGroupMode('date')} className={`${seg} ${groupMode === 'date' ? segOn : segOff}`}>
             <T>Date</T>
+          </button>
+          <button type="button" onClick={() => setGroupMode('relevance')} className={`${seg} ${groupMode === 'relevance' ? segOn : segOff}`}>
+            <T>Relevance</T>
           </button>
         </div>
 
