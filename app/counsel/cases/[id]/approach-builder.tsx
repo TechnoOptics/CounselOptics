@@ -98,69 +98,49 @@ export function ApproachBuilder({
 
   return (
     <section
-      className="relative overflow-hidden rounded-2xl border border-gold-metal/25 bg-forest-950 text-cream-100 shadow-[0_0_0_1px_rgba(198,161,91,0.04),0_24px_60px_-30px_rgba(0,0,0,0.8)]"
+      className="relative overflow-hidden rounded-2xl border border-gold-metal/20 bg-forest-950 text-cream-100 shadow-[0_18px_50px_-30px_rgba(0,0,0,0.8)]"
       style={{
         backgroundImage:
-          'radial-gradient(120% 90% at 82% -10%, rgba(198,161,91,0.10), transparent 55%), linear-gradient(0deg, rgba(10,26,20,0.6), rgba(6,18,14,0.6))',
+          'radial-gradient(130% 100% at 90% -20%, rgba(198,161,91,0.06), transparent 60%)',
       }}
     >
-      {/* Faint console grid + top scan line */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-[0.35]"
-        style={{
-          backgroundImage:
-            'linear-gradient(rgba(198,161,91,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(198,161,91,0.05) 1px, transparent 1px)',
-          backgroundSize: '38px 38px',
-          maskImage: 'linear-gradient(180deg, black, transparent 70%)',
-          WebkitMaskImage: 'linear-gradient(180deg, black, transparent 70%)',
-        }}
-      />
-      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-gold-metal/60 to-transparent" />
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-gold-metal/40 to-transparent" />
 
       <div className="relative p-5 sm:p-6 space-y-6">
         {/* Console header */}
-        <header className="flex flex-wrap items-end justify-between gap-3">
+        <header className="flex flex-wrap items-end justify-between gap-4">
           <div className="min-w-0">
-            <p className="flex items-center gap-2 font-mono text-[10.5px] uppercase tracking-[0.28em] text-gold-metal/80">
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-gold-metal/70" />
-                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-gold-metal" />
-              </span>
-              <T>Case theory console</T>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gold-metal/70">
+              <T>Case theories</T>
             </p>
             <h2 className="mt-1.5 font-display text-2xl font-medium tracking-tight text-cream-50">
               <T>Approaches</T>
             </h2>
-            <p className="mt-1 max-w-2xl text-[13px] leading-relaxed text-cream-100/60">
+            <p className="mt-1.5 max-w-xl text-[13px] leading-relaxed text-cream-100/55">
               <T>
-                Open an approach, lay out the theory you mean to prove, and Advottic
-                assembles the matter&apos;s evidence into a cited argument with its own
-                supporting timeline. Run several theories side by side.
+                Lay out a theory you mean to prove; Advottic marshals the matter&apos;s
+                evidence into a cited argument with its own timeline. Run several
+                theories side by side.
               </T>
             </p>
           </div>
-          <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.2em] text-cream-100/40">
-            <span>{pad2(approaches.length)} <T>on file</T></span>
-            {!open && (
-              <button
-                type="button"
-                onClick={() => setOpen(true)}
-                className="group inline-flex items-center gap-1.5 rounded-md border border-gold-metal/40 bg-gold-metal/10 px-3 py-1.5 text-[11px] font-medium tracking-[0.14em] text-gold-metal transition-all hover:bg-gold-metal/20 hover:shadow-[0_0_18px_-4px_rgba(198,161,91,0.55)]"
-              >
-                <span className="text-[13px] leading-none">+</span>
-                <T>New approach</T>
-              </button>
-            )}
-          </div>
+          {!open && (
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-gold-metal/40 bg-gold-metal/10 px-3.5 py-2 text-[13px] font-medium text-gold-metal transition-colors hover:bg-gold-metal/20"
+            >
+              <span className="text-[15px] leading-none">+</span>
+              <T>New approach</T>
+            </button>
+          )}
         </header>
 
         {/* New approach vector */}
         {open && (
-          <div className="relative rounded-xl border border-gold-metal/25 bg-forest-900/50 p-4 sm:p-5">
-            <CornerTicks />
-            <p className="mb-3 font-mono text-[10px] uppercase tracking-[0.26em] text-gold-metal/70">
-              <T>New approach vector</T>
+          <div className="rounded-xl border border-gold-metal/20 bg-forest-900/50 p-4 sm:p-5">
+            <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-gold-metal/70">
+              <T>New approach</T>
             </p>
             <div className="space-y-3">
               <input
@@ -239,8 +219,8 @@ export function ApproachBuilder({
 
         {/* Dossiers */}
         {approaches.length === 0 && !open ? (
-          <p className="font-mono text-[12px] italic text-cream-100/45">
-            <T>No approaches on file. Open one to begin.</T>
+          <p className="text-[13px] text-cream-100/45">
+            <T>No approaches yet. Start one to begin building your argument.</T>
           </p>
         ) : (
           <div className="space-y-4">
@@ -350,49 +330,57 @@ function ApproachCard({
 
   return (
     <div className="relative overflow-hidden rounded-xl border border-cream-50/10 bg-forest-900/40">
-      <CornerTicks />
-      {/* Left status rail */}
+      {/* Left status accent */}
       <span
         aria-hidden
-        className={`absolute inset-y-0 left-0 w-[3px] ${assembled ? 'bg-gold-metal' : 'bg-amber-500/60'}`}
-        style={assembled ? { boxShadow: '0 0 14px 0 rgba(198,161,91,0.6)' } : undefined}
+        className={`absolute inset-y-0 left-0 w-[2px] ${assembled ? 'bg-gold-metal/70' : 'bg-amber-500/40'}`}
       />
 
       <div className="p-4 pl-5 sm:p-5 sm:pl-6 space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
-            <span className="mt-0.5 shrink-0 rounded-md border border-gold-metal/40 bg-gold-metal/10 px-2 py-1 font-mono text-[11px] font-semibold tracking-[0.12em] text-gold-metal">
+            <span className="mt-0.5 shrink-0 rounded-md border border-gold-metal/30 bg-gold-metal/10 px-2 py-1 font-mono text-[11px] font-semibold tracking-[0.08em] text-gold-metal">
               {`A-${pad2(index)}`}
             </span>
             <div className="min-w-0">
               <h3 className="text-[16px] font-semibold leading-tight text-cream-50" data-no-translate>
                 {approach.title || t('Untitled approach')}
               </h3>
-              <p className="mt-1 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.2em]">
-                <span className={`inline-block h-1.5 w-1.5 rounded-full ${assembled ? 'bg-gold-metal' : 'bg-amber-400'}`} />
-                <span className={assembled ? 'text-gold-metal/80' : 'text-amber-300/80'}>
-                  {assembled ? <T>Argument assembled</T> : <T>Awaiting analysis</T>}
-                </span>
-              </p>
+              <span
+                className={`mt-1.5 inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                  assembled ? 'bg-gold-metal/12 text-gold-metal/90' : 'bg-amber-500/12 text-amber-200/90'
+                }`}
+              >
+                <span aria-hidden className={`inline-block h-1.5 w-1.5 rounded-full ${assembled ? 'bg-gold-metal' : 'bg-amber-400'}`} />
+                {assembled ? <T>Assembled</T> : <T>Not yet assembled</T>}
+              </span>
             </div>
           </div>
-          <div className="flex items-center gap-1 font-mono text-[11px] uppercase tracking-[0.12em]">
+          <div className="flex flex-wrap items-center justify-end gap-1.5">
+            <button
+              type="button"
+              onClick={() => rerun()}
+              disabled={pending}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-gold-metal/50 bg-gold-metal/15 px-3 py-1.5 text-[12.5px] font-medium text-gold-metal transition-colors hover:bg-gold-metal/25 disabled:opacity-60"
+            >
+              {pending ? (
+                <>
+                  <Spinner />
+                  <T>Working…</T>
+                </>
+              ) : assembled ? (
+                <T>Re-run</T>
+              ) : (
+                <T>Assemble</T>
+              )}
+            </button>
             {assembled && (
-              <button
-                type="button"
-                onClick={exportPacket}
-                disabled={pending}
-                className="mr-1 inline-flex items-center gap-1.5 rounded-md border border-gold-metal/50 bg-gold-metal/15 px-2.5 py-1 text-gold-metal transition-all hover:bg-gold-metal/25 hover:shadow-[0_0_16px_-5px_rgba(198,161,91,0.7)] disabled:opacity-50"
-              >
-                <span aria-hidden className="text-[12px] leading-none">⬇</span>
-                <T>Export packet</T>
-              </button>
+              <RailButton onClick={exportPacket} disabled={pending}>
+                <T>Export</T>
+              </RailButton>
             )}
             <RailButton onClick={() => setEditing((v) => !v)} disabled={pending}>
               {editing ? <T>Cancel</T> : <T>Edit</T>}
-            </RailButton>
-            <RailButton onClick={() => rerun()} disabled={pending}>
-              {pending ? <T>Working…</T> : (assembled ? <T>Re-run</T> : <T>Assemble</T>)}
             </RailButton>
             <RailButton onClick={remove} disabled={pending} tone="danger">
               <T>Delete</T>
@@ -441,7 +429,7 @@ function ApproachCard({
             </blockquote>
             {approach.connections.trim() && (
               <div className="rounded-lg border border-cream-50/10 bg-forest-950/40 px-3 py-2">
-                <p className="mb-0.5 font-mono text-[9.5px] uppercase tracking-[0.18em] text-gold-metal/60">
+                <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-gold-metal/60">
                   <T>Connected parties</T>
                 </p>
                 <p className="whitespace-pre-wrap text-[12.5px] leading-relaxed text-cream-100/75" data-no-translate>
@@ -523,8 +511,7 @@ function AssembleProgress() {
 /** Console section label with a hairline lead-in. */
 function ConsoleLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="mb-2 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.24em] text-gold-metal/70">
-      <span aria-hidden className="h-px w-4 bg-gold-metal/40" />
+    <p className="mb-2 text-[10.5px] font-semibold uppercase tracking-[0.13em] text-gold-metal/70">
       {children}
     </p>
   );
@@ -864,18 +851,6 @@ function ApproachEvidence({
 }
 
 /** Decorative corner brackets for the console panels. */
-function CornerTicks() {
-  const c = 'pointer-events-none absolute h-2.5 w-2.5 border-gold-metal/35';
-  return (
-    <>
-      <span aria-hidden className={`${c} left-1.5 top-1.5 border-l border-t`} />
-      <span aria-hidden className={`${c} right-1.5 top-1.5 border-r border-t`} />
-      <span aria-hidden className={`${c} bottom-1.5 left-1.5 border-b border-l`} />
-      <span aria-hidden className={`${c} bottom-1.5 right-1.5 border-b border-r`} />
-    </>
-  );
-}
-
 function RailButton({
   children,
   onClick,
@@ -892,9 +867,9 @@ function RailButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`rounded-md px-2 py-1 transition-colors disabled:opacity-50 ${
+      className={`rounded-lg px-2.5 py-1.5 text-[12.5px] font-medium transition-colors disabled:opacity-50 ${
         tone === 'danger'
-          ? 'text-rose-300/80 hover:bg-rose-500/10 hover:text-rose-200'
+          ? 'text-rose-300/70 hover:bg-rose-500/10 hover:text-rose-200'
           : 'text-cream-100/60 hover:bg-cream-50/10 hover:text-cream-50'
       }`}
     >
