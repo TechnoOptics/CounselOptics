@@ -138,7 +138,6 @@ export function CounselProfileMenuClient(props: CounselProfileMenuClientProps) {
   }
 
   const showFirmSwitch = !props.tenantMode && props.memberships.length > 1;
-  const showConsumer = true; // always inside counsel here
   const showHq = props.isAdmin;
 
   return (
@@ -300,29 +299,15 @@ export function CounselProfileMenuClient(props: CounselProfileMenuClientProps) {
             </MenuLink>
           </div>
 
-          {/* Switch portal */}
-          {(showConsumer || showHq) && (
+          {/* Switch portal — only the staff HQ portal. The consumer/personal
+              dashboard link is intentionally NOT offered from the firm side:
+              nothing in the firm workspace routes a user into the personal
+              view. */}
+          {showHq && (
             <div className="border-t border-ink-100 py-1.5">
               <p className="px-4 pt-1 pb-1 text-[10px] uppercase tracking-[0.18em] font-semibold text-ink-500">
                 <T>Switch portal</T>
               </p>
-              {showConsumer && (
-                <a
-                  href="/cases"
-                  onClick={() => setOpen(false)}
-                  role="menuitem"
-                  className="flex items-center gap-2.5 px-4 py-2 text-sm text-ink-800 hover:bg-cream-50 hover:text-forest-900 transition-colors"
-                >
-                  <span
-                    className="h-5 w-5 rounded inline-flex items-center justify-center text-cream-50 text-[11px] font-semibold flex-none bg-forest-900"
-                    aria-hidden
-                  >
-                    A
-                  </span>
-                  <span className="flex-1 truncate"><T>Consumer dashboard</T></span>
-                  <span aria-hidden className="text-ink-400">→</span>
-                </a>
-              )}
               {showHq && (
                 <a
                   href="/admin"
