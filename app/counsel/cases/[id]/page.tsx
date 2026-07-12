@@ -22,19 +22,11 @@ import { EditMatterForm } from './edit-matter-form';
 import { listCaseImages } from '@/lib/case-images-actions';
 import { CaseImagesPanel } from './case-images-panel';
 import { T } from '@/components/i18n/LocaleProvider';
-import { aiConfigured } from '@/lib/timeline-ai';
-import { resolveTimelineAccess } from '@/lib/timeline-entitlement';
-import { getLatestReview } from '@/lib/storage';
-import { getFirmLegalReview } from '@/lib/firm-legal-review-actions';
 import { listFirmApproaches } from '@/lib/firm-approach-actions';
-import { ReviewPanel } from '@/app/cases/[id]/review-panel';
-import { LegalReviewPanel } from './legal-review-panel';
 import { ApproachBuilder } from './approach-builder';
-import { EvidenceHeatmap } from '@/components/EvidenceHeatmap';
 import { EvidenceDashboard } from './evidence-dashboard';
 import { getCaseEvidenceAnalytics } from '@/lib/case-analytics';
 import { createAdminSupabase } from '@/lib/supabase/admin';
-import { BellaPrompt } from '@/components/BellaPrompt';
 import { getGuestCaseSummary } from '@/lib/counsel-guest';
 import { GuestCaseView } from './guest-case-view';
 
@@ -149,21 +141,12 @@ export default async function CounselCaseDetailPage({
   };
   if (c.firm_id !== ctx.firm.id) notFound();
 
-  // Firm-tailored analytical surfaces (Case Analysis + Evidence
-  // Coverage) reuse the SAME entitlement the evidence intake gates on:
-  // a firm-tier subscription (resolveTimelineAccess === 'firm') AND a
-  // configured model. getLatestReview reads through RLS, so it only
-  // returns a review the member is allowed to see. Best-effort review
-  // fetch: a miss just renders the "Run Case Analysis" empty state.
   // Single parallel wave: none of these depend on each other, so fetching
-  // them together (instead of in 3 sequential await blocks) is what keeps the
+  // them together (instead of sequential await blocks) is what keeps the
   // render inside the function budget. Each is independently .catch-guarded so
   // one slow/failed read degrades its own panel rather than the whole page.
   const [
-    access,
-    latestReview,
     caseImagesRes,
-    legalReviewRes,
     approachesRes,
     surface,
     openTimer,
@@ -171,10 +154,7 @@ export default async function CounselCaseDetailPage({
     assigneeRes,
     caseAnalytics,
   ] = await Promise.all([
-    resolveTimelineAccess(),
-    getLatestReview(params.id).catch(() => null),
     listCaseImages(ctx.firm.id, params.id).catch(() => ({ ok: false as const })),
-    getFirmLegalReview(ctx.firm.id, params.id).catch(() => ({ ok: false as const })),
     listFirmApproaches(ctx.firm.id, params.id).catch(() => ({ ok: false as const })),
     getFirmSurfaceSettings(ctx.firm.id).catch(() => DEFAULT_FIRM_SURFACE_SETTINGS),
     listOpenTimer(ctx.firm.id).catch(() => null),
@@ -186,11 +166,8 @@ export default async function CounselCaseDetailPage({
       return getCaseEvidenceAnalytics(admin, params.id).catch(() => null);
     })(),
   ]);
-  const aiEnabled = aiConfigured() && access === 'firm';
   const showTimeBilling = !surface.hideTimeBilling;
   const caseImages = (caseImagesRes.ok && caseImagesRes.images) ? caseImagesRes.images : [];
-  const legalReview =
-    ('review' in legalReviewRes ? legalReviewRes.review : null) ?? null;
   const approaches =
     ('approaches' in approachesRes ? approachesRes.approaches : null) ?? [];
   const currentAssigneeId =
@@ -482,60 +459,6 @@ export default async function CounselCaseDetailPage({
           admin-scoped aggregate, so it is always current on load. */}
       {caseAnalytics ? <EvidenceDashboard analytics={caseAnalytics} caseId={params.id} /> : null}
 
-      {/* Case analysis - the substantive analytical surfaces ported from
-          the personal case file (app/cases/[id]) and reframed as firm
-          work product: "Case Analysis" (the Advottic Review AI, minus
-          the consumer "bring in a licensed attorney" callout - the firm
-          IS counsel) and "Evidence Coverage" (the element-by-element
-          strength read, reframed around discovery gaps). Gated on the
-          firm AI entitlement (firm-tier + configured model), the same
-          gate the evidence intake uses. These are case-substance
-          surfaces, not firm-internal ops, so they carry cleanly into
-          the Slice 3 client view later. */}
-      {aiEnabled && (
-        <section className="space-y-8 border-t border-ink-100 dark:border-forest-700/40 pt-8">
-          <div>
-            <p className="eyebrow mb-1"><T>Analysis</T></p>
-            <h2 className="font-display text-2xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-              <T>Case analysis</T>
-            </h2>
-            <p className="text-sm text-ink-500 dark:text-cream-100/55 mt-1 max-w-2xl leading-relaxed">
-              <T>
-                AI-assisted issue spotting and evidence-coverage read for the
-                team - work product, grounded in the matter facts and exhibits
-                on file. Matter content is never used to train external models.
-              </T>
-            </p>
-          </div>
-
-          <ReviewPanel
-            caseId={params.id}
-            review={latestReview}
-            variant="firm"
-            showBella={false}
-          />
-
-          <EvidenceHeatmap caseId={params.id} variant="firm" />
-
-          {/* Legal review: laws / claims implicated in the matter's state, with
-              recommended actions and CourtListener-verified case law. Distinct
-              from Case Analysis (issue spotting) above; this one grounds every
-              case citation in a real CourtListener record. */}
-          <div className="border-t border-ink-100 dark:border-forest-700/40 pt-8">
-            <LegalReviewPanel firmId={ctx.firm.id} caseId={params.id} initial={legalReview} />
-          </div>
-
-          <BellaPrompt
-            title="Work this matter with Advottic"
-            subtitle="Litigation-focused prompts grounded in the matter facts and exhibits on file."
-            prompts={[
-              'Identify the discovery gaps for this matter.',
-              'Summarize exhibit relevance to our theory of the case.',
-              "What's missing to prove each element?",
-            ]}
-          />
-        </section>
-      )}
 
       {/* Case approach — the lawyer's theory in, a structured argument with
           cited exhibits + supporting timeline out. Rendered UNCONDITIONALLY (it
