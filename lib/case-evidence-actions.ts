@@ -150,6 +150,16 @@ export async function getFirmCaseTimeline(
     .eq('case_id', caseId);
   const events = sortTimeline(((data ?? []) as EventRow[]).map(toEvent));
   await backfillExhibitNumbers(admin, caseId, events);
+  // Payload trim (phase 1): the forensic `metadata` array is only ever read by
+  // the export (which reloads full rows through its own bundle) and is rendered
+  // nowhere in the evidence route. Strip it from the list payload the client
+  // downloads - a free ~30KB cut on a heavy matter with zero feature loss.
+  for (const e of events) {
+    if (e.aiExtracted?.metadata) {
+      const { metadata: _drop, ...rest } = e.aiExtracted;
+      e.aiExtracted = rest;
+    }
+  }
   return { ok: true, events };
 }
 
