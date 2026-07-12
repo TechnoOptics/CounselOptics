@@ -28,7 +28,7 @@ import { EvidenceDashboard } from './evidence-dashboard';
 import { getCaseEvidenceAnalytics } from '@/lib/case-analytics';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { getGuestCaseSummary } from '@/lib/counsel-guest';
-import { GuestCaseView } from './guest-case-view';
+import { CounselGuestWorkspace } from './counsel-guest-workspace';
 
 export const dynamic = 'force-dynamic';
 // This matter page composes many surfaces (facts, evidence, analysis, billing,
@@ -102,10 +102,36 @@ export default async function CounselCaseDetailPage({
   const ctx = await getActiveFirmContext();
   if (!ctx) {
     // No firm context: this may be a case-scoped co-counsel GUEST. Render the
-    // stripped, guest-safe matter overview if they have access; otherwise the
-    // counsel layout has already scoped them, so just send them home.
+    // co-counsel case WORKSPACE (case tools scoped to this matter: dashboard,
+    // approaches, timeline/evidence, export) if they have access; otherwise the
+    // counsel layout has already scoped them, so just send them home. The
+    // firm-internal money ops, team/invite panels and other matters are never
+    // constructed on this path.
     const guestView = await getGuestCaseSummary(params.id);
-    if (guestView) return <GuestCaseView kase={guestView.case} />;
+    if (guestView) {
+      const gFirmId = guestView.guest.firmId;
+      const admin = createAdminSupabase();
+      const [gApproachesRes, gAnalytics] = await Promise.all([
+        gFirmId
+          ? listFirmApproaches(gFirmId, params.id).catch(() => ({ ok: false as const }))
+          : Promise.resolve({ ok: false as const }),
+        (async () => {
+          if (!admin) return null;
+          return getCaseEvidenceAnalytics(admin, params.id).catch(() => null);
+        })(),
+      ]);
+      const gApproaches =
+        'approaches' in gApproachesRes ? (gApproachesRes.approaches ?? []) : [];
+      return (
+        <CounselGuestWorkspace
+          kase={guestView.case}
+          firmId={gFirmId}
+          caseId={params.id}
+          approaches={gApproaches}
+          analytics={gAnalytics}
+        />
+      );
+    }
     redirect('/counsel');
   }
   const supabase = createServerSupabase();

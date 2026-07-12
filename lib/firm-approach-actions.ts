@@ -9,6 +9,7 @@ import { loadCaseEvidenceDigest } from './case-evidence-digest';
 import { generateApproachArgument, type ApproachArgument, type ApproachFacts } from './approach-ai';
 import { AI_UNAVAILABLE_MESSAGE } from './ai-errors';
 import { getFirmCaseTimeline } from './case-evidence-actions';
+import { guestCanReadCase } from './counsel-guest';
 import { exhibitLabel, type TimelineEvent } from './timeline-types';
 
 /**
@@ -84,15 +85,23 @@ async function assertFirmCase(
     .eq('firm_id', firmId)
     .eq('user_id', user.id)
     .maybeSingle();
-  if (!member) return { ok: false, error: 'You do not have access to this firm.' };
-  const { data: kase } = await supabase
-    .from('cases')
-    .select('id')
-    .eq('id', caseId)
-    .eq('firm_id', firmId)
-    .maybeSingle();
-  if (!kase) return { ok: false, error: 'That matter is not in this firm.' };
-  return { ok: true, userId: user.id };
+  if (member) {
+    const { data: kase } = await supabase
+      .from('cases')
+      .select('id')
+      .eq('id', caseId)
+      .eq('firm_id', firmId)
+      .maybeSingle();
+    if (!kase) return { ok: false, error: 'That matter is not in this firm.' };
+    return { ok: true, userId: user.id };
+  }
+  // Co-counsel GUEST scoped to this matter. A counsel guest (case_collaborators
+  // role 'attorney', not a firm member) may use the case tools - approaches
+  // included - but ONLY on the matter they're assigned to. guestCanReadCase
+  // verifies both the case grant AND that the case belongs to `firmId`, so a
+  // guest can never reach another matter or firm through this path.
+  if (await guestCanReadCase(caseId, firmId)) return { ok: true, userId: user.id };
+  return { ok: false, error: 'You do not have access to this matter.' };
 }
 
 const SELECT = 'id, case_id, title, prompt, connections, generated, created_at, updated_at';
@@ -121,7 +130,13 @@ async function runGeneration(
   prompt: string,
   connections?: string,
 ): Promise<{ generated?: ApproachArgument; error?: string }> {
-  if (!aiConfigured() || (await resolveTimelineAccess()) !== 'firm') {
+  // AI must be configured, and the matter's firm must be AI-entitled. A firm
+  // member reflects that via their own 'firm' access; a scoped co-counsel guest
+  // (already gated to THIS matter by assertFirmCase upstream) is allowed to run
+  // the matter's analysis too, so the case tools actually work for them.
+  if (!aiConfigured()) return { error: AI_UNAVAILABLE_MESSAGE };
+  const firmAccess = (await resolveTimelineAccess()) === 'firm';
+  if (!firmAccess && !(await guestCanReadCase(caseId))) {
     return { error: AI_UNAVAILABLE_MESSAGE };
   }
   const { data: caseRow } = await admin
