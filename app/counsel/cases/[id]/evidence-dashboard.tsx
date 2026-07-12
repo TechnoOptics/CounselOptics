@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { T } from '@/components/i18n/LocaleProvider';
+import { CaseMap } from '@/app/cases/[id]/timeline/case-map';
 import type { CaseEvidenceAnalytics, NameCount } from '@/lib/case-analytics';
 
 /* Live evidence analytics for a matter. Server-rendered from
@@ -198,25 +199,29 @@ function RelevanceBar({ a, base }: { a: CaseEvidenceAnalytics; base: string }) {
   );
 }
 
-/** Evidence-by-year columns; each column links to that year. */
+/** Evidence-by-year columns; each column links to that year. The columns are
+ *  full-height (items-stretch + a flex-1 plot area) so each bar's percentage
+ *  height resolves against the panel height instead of collapsing to a sliver. */
 function YearColumns({ rows, base }: { rows: { year: string; n: number }[]; base: string }) {
   const max = Math.max(1, ...rows.map((r) => r.n));
   return (
-    <div className="flex items-end gap-1.5 h-40" role="img" aria-label="Evidence items by year">
+    <div className="flex items-stretch gap-1.5 h-40" role="img" aria-label="Evidence items by year">
       {rows.map((r) => (
         <Link
           key={r.year}
           href={`${base}?year=${r.year}&group=date`}
           prefetch={false}
-          className="group flex-1 flex flex-col items-center justify-end gap-1 min-w-0"
+          className="group flex-1 flex flex-col min-w-0"
           title={`${r.year}: ${r.n}`}
         >
-          <span className="text-[10px] tabular-nums text-ink-400 dark:text-cream-100/40">{r.n}</span>
-          <div
-            className="w-full rounded-t-[3px] min-h-[3px] transition-opacity group-hover:opacity-80"
-            style={{ height: `${(r.n / max) * 100}%`, backgroundColor: GOLD }}
-          />
-          <span className="text-[9px] tabular-nums text-ink-400 dark:text-cream-100/40 truncate w-full text-center">
+          <div className="flex-1 flex flex-col items-center justify-end gap-1 min-h-0">
+            <span className="text-[10px] tabular-nums text-ink-400 dark:text-cream-100/40">{r.n}</span>
+            <div
+              className="w-full rounded-t-[3px] min-h-[3px] transition-opacity group-hover:opacity-80"
+              style={{ height: `${(r.n / max) * 100}%`, backgroundColor: GOLD }}
+            />
+          </div>
+          <span className="mt-1 text-[9px] tabular-nums text-ink-400 dark:text-cream-100/40 truncate w-full text-center">
             {r.year.slice(2)}
           </span>
         </Link>
@@ -284,6 +289,11 @@ export function EvidenceDashboard({ analytics: a, caseId }: { analytics: CaseEvi
           <YearColumns rows={a.byYear} base={base} />
         </Panel>
       ) : null}
+
+      {/* Case map: geocoded evidence pins with a breadcrumb time-slider. Moved
+          here from the evidence list. Self-renders nothing without a Maps key
+          or located pins, so it is safe to always mount when points exist. */}
+      {a.mapPoints.length > 0 ? <CaseMap points={a.mapPoints} title="Case map" /> : null}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {a.folders.length > 0 ? (

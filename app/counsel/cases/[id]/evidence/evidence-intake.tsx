@@ -6,7 +6,6 @@ import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import { RelevanceBadge } from '@/components/RelevanceBadge';
 import { EvidencePreview } from '@/components/EvidencePreview';
-import { CaseMap, type MapPoint } from '@/app/cases/[id]/timeline/case-map';
 import { isNativeApp } from '@/lib/platform';
 import { createBrowserSupabase } from '@/lib/supabase/client';
 import {
@@ -1261,22 +1260,6 @@ export function EvidenceIntake({
     }
   }, [ordered.length, viewerIndex]);
 
-  // Map pins across every event, carrying case-relevance for de-emphasis.
-  const mapPoints: MapPoint[] = useMemo(
-    () =>
-      events.flatMap((e) =>
-        (e.aiExtracted.geo_points ?? []).map((p) => ({
-          ...p,
-          time: e.occurredAt,
-          when: formatOccurred(e.occurredAt, e.occurredPrecision),
-          people: (e.aiExtracted.detected_people ?? []).slice(0, 6),
-          title: e.title || KIND_LABEL[e.kind],
-          relevance: e.aiExtracted.relevance_score,
-        })),
-      ),
-    [events],
-  );
-
   // Add / remove a single item to the timeline (the per-card control). Evidence
   // stays in the intake either way; this only governs the chronology.
   const toggleOnTimeline = useCallback(
@@ -1457,8 +1440,8 @@ export function EvidenceIntake({
         <EvidenceDashboard events={activeEvents} caseId={caseId} aiEnabled={aiEnabled} />
       )}
 
-      {/* Breadcrumb map (renders nothing without a Maps key or located pins) */}
-      <CaseMap points={mapPoints} title={t('Case map')} />
+      {/* The case map moved to the matter Evidence dashboard (rendered from the
+          server-side analytics aggregate), so it is no longer duplicated here. */}
 
       {/* Evidence */}
       <section className="space-y-3">

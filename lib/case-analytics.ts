@@ -1,6 +1,7 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AiExtracted, TimelineMedia } from './timeline-types';
+import type { MapPoint } from '@/app/cases/[id]/timeline/case-map';
 
 /**
  * Read-only analytics over a matter's evidence (case_timeline_events). Powers
@@ -32,9 +33,16 @@ export type CaseEvidenceAnalytics = {
   earliest: string | null;
   latest: string | null;
   byYear: { year: string; n: number }[];
+  mapPoints: MapPoint[];
 };
 
-type Row = { ai_status: string | null; media: TimelineMedia[] | null; ai_extracted: AiExtracted | null };
+type Row = {
+  ai_status: string | null;
+  media: TimelineMedia[] | null;
+  ai_extracted: AiExtracted | null;
+  title: string | null;
+  occurred_at: string | null;
+};
 
 function topCounts(map: Map<string, number>, limit?: number): NameCount[] {
   const out = [...map.entries()].map(([name, n]) => ({ name, n })).sort((a, b) => b.n - a.n);
@@ -62,11 +70,12 @@ export async function getCaseEvidenceAnalytics(
     earliest: null,
     latest: null,
     byYear: [],
+    mapPoints: [],
   };
 
   const { data, error } = await admin
     .from('case_timeline_events')
-    .select('ai_status, media, ai_extracted')
+    .select('ai_status, media, ai_extracted, title, occurred_at')
     .eq('case_id', caseId);
   if (error || !data || data.length === 0) return empty;
 
@@ -78,6 +87,7 @@ export async function getCaseEvidenceAnalytics(
   const orgs = new Set<string>();
   const places = new Set<string>();
   const years = new Map<string, number>();
+  const mapPts: MapPoint[] = [];
   let relSum = 0;
 
   const addAll = (set: Set<string>, arr: unknown) => {
@@ -133,6 +143,28 @@ export async function getCaseEvidenceAnalytics(
     addAll(orgs, ex.organizations);
     addAll(places, ex.locations);
 
+    // Geocoded pins for the dashboard case map (moved here from the evidence
+    // list). Each pin carries the owning event's time, people, and relevance so
+    // the map's breadcrumb slider and de-emphasis work unchanged.
+    if (Array.isArray(ex.geo_points)) {
+      const when = r.occurred_at ?? ex.suggested_occurred_at ?? null;
+      const evPeople = Array.isArray(ex.detected_people) ? ex.detected_people.slice(0, 6) : [];
+      for (const p of ex.geo_points) {
+        if (!p || typeof p.lat !== 'number' || typeof p.lng !== 'number') continue;
+        mapPts.push({
+          lat: p.lat,
+          lng: p.lng,
+          label: p.label ?? '',
+          source: p.source === 'gps' ? 'gps' : 'place',
+          time: when,
+          when: when ? when.slice(0, 10) : undefined,
+          people: evPeople,
+          title: r.title ?? undefined,
+          relevance: typeof ex.relevance_score === 'number' ? ex.relevance_score : undefined,
+        });
+      }
+    }
+
     const occ = ex.suggested_occurred_at ?? '';
     const ymd = /^(\d{4})-\d{2}-\d{2}/.exec(occ);
     if (ymd) {
@@ -150,5 +182,6 @@ export async function getCaseEvidenceAnalytics(
   a.folders = topCounts(folders);
   a.docTypes = topCounts(docTypes, 10);
   a.byYear = [...years.entries()].map(([year, n]) => ({ year, n })).sort((x, y) => x.year.localeCompare(y.year));
+  a.mapPoints = mapPts;
   return a;
 }
