@@ -83,6 +83,9 @@ export type SubjectProfile = {
   // the firm records. Shown only for person-type subjects.
   gender?: string;
   height?: string;
+  /** The party's age, free text so "42" or "early 40s" both work. Distinct
+   *  from dateOfBirthApprox (a DOB / birth-year estimate). */
+  age?: string;
   race?: string;
   /** Any other identifying descriptors, free text. */
   otherDescriptors?: string;

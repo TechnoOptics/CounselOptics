@@ -180,8 +180,9 @@ export function EditMatterForm({
         <textarea value={profile.partyRelevance ?? ''} onChange={(e) => setP('partyRelevance', e.target.value)} placeholder={t('Relevance to the matter')} rows={2} className="input text-sm sm:col-span-2 resize-y" data-no-translate />
         {subjectType === 'person' && (
           <>
-            <input value={profile.gender ?? ''} onChange={(e) => setP('gender', e.target.value)} placeholder={t('Gender')} className="input text-sm" data-no-translate />
+            <input value={profile.gender ?? ''} onChange={(e) => setP('gender', e.target.value)} placeholder={t('Sex')} className="input text-sm" data-no-translate />
             <input value={profile.height ?? ''} onChange={(e) => setP('height', e.target.value)} placeholder={t('Height')} className="input text-sm" data-no-translate />
+            <input value={profile.age ?? ''} onChange={(e) => setP('age', e.target.value)} placeholder={t('Age (e.g. 42 or early 40s)')} className="input text-sm" data-no-translate />
             <input value={profile.race ?? ''} onChange={(e) => setP('race', e.target.value)} placeholder={t('Race')} className="input text-sm" data-no-translate />
             <input value={profile.otherDescriptors ?? ''} onChange={(e) => setP('otherDescriptors', e.target.value)} placeholder={t('Other descriptors')} className="input text-sm" data-no-translate />
           </>
