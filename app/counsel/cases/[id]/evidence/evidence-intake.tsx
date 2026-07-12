@@ -266,7 +266,16 @@ export function EvidenceIntake({
   const [notice, setNotice] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState<Set<string>>(new Set());
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => {
+    // Fast first paint on a heavy matter: open with every folder section
+    // collapsed so hundreds of evidence cards don't all mount on load (the main
+    // cause of the intake feeling slow). Small matters open fully expanded.
+    const active = initialEvents.filter((e) => !e.aiExtracted?.excluded);
+    if (active.length <= 60) return new Set();
+    const names = new Set<string>();
+    for (const e of active) names.add(folderForEvent(e));
+    return names;
+  });
   const [pending, startTransition] = useTransition();
 
   // View + organisation controls. Grid is the default: the readable, image-first
