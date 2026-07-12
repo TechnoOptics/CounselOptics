@@ -359,9 +359,9 @@ export function buildSignInCodeEmailHtml(input: {
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0a0a0b;padding:36px 16px;">
     <tr><td align="center">
       <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="max-width:480px;background:#ffffff;border-radius:18px;overflow:hidden;box-shadow:0 10px 34px -6px rgba(0,0,0,0.55);border:1px solid #1c1c1e;">
-        <tr><td style="background:linear-gradient(135deg,#0b0b0c 0%,#14140f 55%,#1b1710 100%);padding:30px 34px 26px;border-bottom:2px solid #e8c878;">
-          <p style="margin:0;color:#e8c878;font-size:19px;letter-spacing:0.34em;text-transform:uppercase;font-weight:700;">Advottic</p>
-          <p style="margin:12px 0 0;color:#f4f0e6;font-size:16px;font-weight:600;letter-spacing:-0.005em;">Your sign-in code</p>
+        <tr><td align="center" style="background:linear-gradient(135deg,#0b0b0c 0%,#14140f 55%,#1b1710 100%);padding:30px 34px 26px;border-bottom:2px solid #e8c878;">
+          <img src="https://advottic.com/advottic-mark.png" alt="Advottic" width="46" height="50" style="display:block;margin:0 auto;width:46px;height:auto;border:0;outline:none;text-decoration:none;" />
+          <p style="margin:14px 0 0;color:#f4f0e6;font-size:16px;font-weight:600;letter-spacing:-0.005em;">Your sign-in code</p>
         </td></tr>
         <tr><td style="padding:30px 34px 6px;">
           <p style="margin:0 0 22px;color:#3f3f46;font-size:14.5px;line-height:1.6;">Enter this code on the sign-in screen to continue. For your security it expires in ${mins} minutes and can be used once.</p>
