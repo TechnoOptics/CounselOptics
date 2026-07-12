@@ -448,7 +448,7 @@ function AssignedToMeTile({ data }: { data: DashboardTileData }) {
                 {data.assigned.cases.slice(0, 5).map((c) => (
                   <li key={c.id}>
                     <Link
-                      href={`/case/${c.id}`}
+                      href={`/counsel/cases/${c.id}`}
                       className="block rounded px-2 py-1 text-[13px] text-cream-100 hover:bg-cream-100/5"
                     >
                       {c.title}
