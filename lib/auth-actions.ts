@@ -71,6 +71,10 @@ export async function requestSignInCode(rawEmail: string): Promise<SignInCodeRes
 
     const sent = await sendEmail({
       to: email,
+      // Pin the sender display name to Advottic so the code never appears to
+      // come from "Supabase" (the built-in fallback path's sender). The address
+      // stays the DKIM/DMARC-aligned invites@advottic.com.
+      fromName: 'Advottic',
       subject: 'Your Advottic sign-in code',
       html: buildSignInCodeEmailHtml({ code }),
       text: `Your Advottic sign-in code is ${code}. Enter it on the sign-in screen. It expires in 60 minutes and can be used once. If you didn't request it, you can ignore this email.`,
