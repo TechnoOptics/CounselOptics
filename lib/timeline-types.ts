@@ -178,6 +178,12 @@ export type AiExtracted = {
    */
   sha256?: string;
   /**
+   * Set to the id of the item this one byte-duplicates, when a copy is uploaded
+   * that is identical to something already on file. The copy is kept (so the
+   * duplicate review can surface it) but is NOT analysed - we don't spend a
+   * model call re-reading a byte-for-byte duplicate. */
+  duplicate_of?: string;
+  /**
    * A 64-bit perceptual hash (dHash) of the image, as 16 hex chars. Unlike
    * sha256 (byte-exact), this is stable under re-saving, resizing, and light
    * re-compression, so two captures/exports of the SAME image cluster together

@@ -504,13 +504,6 @@ export default async function CounselCaseDetailPage({
             <LegalReviewPanel firmId={ctx.firm.id} caseId={params.id} initial={legalReview} />
           </div>
 
-          {/* Approach builder: the lawyer's theory in, a structured argument
-              with cited exhibits + supporting timeline out. Anchored so the
-              "Case approach" tab scrolls here. */}
-          <div id="case-approaches" className="scroll-mt-24 border-t border-ink-100 dark:border-forest-700/40 pt-8">
-            <ApproachBuilder firmId={ctx.firm.id} caseId={params.id} initial={approaches} />
-          </div>
-
           <BellaPrompt
             title="Work this matter with Advottic"
             subtitle="Litigation-focused prompts grounded in the matter facts and exhibits on file."
@@ -522,6 +515,14 @@ export default async function CounselCaseDetailPage({
           />
         </section>
       )}
+
+      {/* Case approach — the lawyer's theory in, a structured argument with
+          cited exhibits + supporting timeline out. Rendered UNCONDITIONALLY (it
+          shows its own "add credits" state when AI is off) so the "Case
+          approach" tab's #case-approaches anchor always has a target. */}
+      <div id="case-approaches" className="scroll-mt-24 border-t border-ink-100 dark:border-forest-700/40 pt-8">
+        <ApproachBuilder firmId={ctx.firm.id} caseId={params.id} initial={approaches} />
+      </div>
 
       {/* Matter room - idempotent: getOrCreate ensures one channel
           per case_id (the unique index on firm_channels.case_id

@@ -348,8 +348,23 @@ export async function importFileAsCaseEvidence(input: {
   // Seed only the cheap sticky fields at upload (content hash + exhibit number).
   // The perceptual hash (a sharp decode) is computed later during analysis, not
   // here, so a bulk intake isn't slowed file-by-file and doesn't time out.
-  const seededExtracted: AiExtracted = { sha256: sha256Hex(input.buffer), on_timeline: false };
+  const sha = sha256Hex(input.buffer);
+  const seededExtracted: AiExtracted = { sha256: sha, on_timeline: false };
   if (typeof input.exhibitNo === 'number') seededExtracted.exhibit_no = input.exhibitNo;
+
+  // Confirm this isn't a byte-for-byte duplicate of something already on file
+  // BEFORE we begin analysis. A duplicate is still stored (so the duplicate
+  // review can surface it) but is left unanalysed - no model call is spent on a
+  // copy. The sequential bulk loop means an in-batch dup sees its predecessor.
+  const { data: dupRows } = await admin
+    .from('case_timeline_events')
+    .select('id')
+    .eq('case_id', caseId)
+    .eq('ai_extracted->>sha256', sha)
+    .limit(1);
+  const duplicateOf = Array.isArray(dupRows) && dupRows[0]?.id ? (dupRows[0].id as string) : null;
+  if (duplicateOf) seededExtracted.duplicate_of = duplicateOf;
+  const willAnalyze = !!input.analyze && !duplicateOf;
 
   const { error: insErr } = await admin.from('case_timeline_events').insert({
     id: eventId,
@@ -361,14 +376,14 @@ export async function importFileAsCaseEvidence(input: {
     media,
     source_label: input.sourceLabel ?? null,
     ai_extracted: seededExtracted,
-    ai_status: input.analyze ? 'pending' : 'skipped',
+    ai_status: willAnalyze ? 'pending' : 'skipped',
   });
   if (insErr) {
     await admin.storage.from(EXHIBITS_BUCKET).remove([path]).catch(() => {});
     return { ok: false, error: insErr.message };
   }
 
-  if (input.analyze) {
+  if (willAnalyze) {
     await admin.from('case_timeline_events').update({ ai_status: 'running' }).eq('id', eventId);
     const outcome = await computeEventAnalysis({
       ev: { id: eventId, media, description: input.description ?? null, kind, occurredAt: null, title: '' },
@@ -425,6 +440,9 @@ export async function analyzePendingEvidence(
     .from('case_timeline_events')
     .select('id, case_id, kind, title, description, media, occurred_at, ai_extracted')
     .or(`ai_status.eq.skipped,and(ai_status.eq.running,updated_at.lt.${staleCutoff})`)
+    // Never spend a model call on a byte-for-byte duplicate; it's kept for the
+    // review panel but intentionally left unanalysed.
+    .is('ai_extracted->>duplicate_of', null)
     .order('created_at', { ascending: true })
     .limit(limit + 1);
   const all = (data ?? []) as PendingRow[];

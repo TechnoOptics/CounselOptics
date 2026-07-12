@@ -402,7 +402,7 @@ export function EvidenceIntake({
     if (resumedRef.current || !aiEnabled || !loadedAll) return;
     resumedRef.current = true;
     const queue = events
-      .filter((e) => e.aiStatus === 'skipped' || e.aiStatus === 'error')
+      .filter((e) => (e.aiStatus === 'skipped' || e.aiStatus === 'error') && !e.aiExtracted?.duplicate_of)
       .map((e) => e.id);
     if (queue.length) void runAnalyzeQueue(queue);
   }, [aiEnabled, loadedAll, events, runAnalyzeQueue]);
@@ -548,7 +548,7 @@ export function EvidenceIntake({
 
       if (deferAi && imported) {
         const fresh = await refresh();
-        const queue = fresh.filter((e) => e.aiStatus === 'skipped').map((e) => e.id);
+        const queue = fresh.filter((e) => e.aiStatus === 'skipped' && !e.aiExtracted?.duplicate_of).map((e) => e.id);
         parts.push(t('Scoring {n} item(s) in the background.').replace('{n}', String(queue.length)));
         setNotice(parts.join(' '));
         void runAnalyzeQueue(queue);
@@ -678,7 +678,7 @@ export function EvidenceIntake({
     setError(null);
     setNotice(null);
     const queue = events
-      .filter((e) => e.aiStatus === 'skipped' || e.aiStatus === 'error')
+      .filter((e) => (e.aiStatus === 'skipped' || e.aiStatus === 'error') && !e.aiExtracted?.duplicate_of)
       .map((e) => e.id);
     await runAnalyzeQueue(queue);
   }, [events, runAnalyzeQueue]);
@@ -756,7 +756,7 @@ export function EvidenceIntake({
   const pendingCount = useMemo(
     () =>
       aiEnabled
-        ? events.filter((e) => e.aiStatus === 'skipped' || e.aiStatus === 'error').length
+        ? events.filter((e) => (e.aiStatus === 'skipped' || e.aiStatus === 'error') && !e.aiExtracted?.duplicate_of).length
         : 0,
     [aiEnabled, events],
   );
