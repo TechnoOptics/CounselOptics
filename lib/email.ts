@@ -334,6 +334,55 @@ export function buildSigningCodeEmailHtml(input: {
 </body></html>`;
 }
 
+/**
+ * Branded SIGN-IN code email. This is the email a user receives when they choose
+ * "Email me a sign-in code" on /sign-in. Premium black + gold Advottic identity,
+ * gold ADVOTTIC wordmark at the top, and a single large, spaced one-time code -
+ * no magic link, so there is no "opened in a different browser" failure mode:
+ * the code works in whichever browser the person started in.
+ *
+ * The code length is whatever Supabase mints (this project uses 8 digits); we
+ * space it in the middle for legibility ("1234 5678" / "123 456").
+ */
+export function buildSignInCodeEmailHtml(input: {
+  code: string;
+  /** Minutes until the code expires (Supabase default is 60). */
+  expiresMinutes?: number;
+}): string {
+  const year = new Date().getFullYear();
+  const c = input.code.trim();
+  const mid = Math.ceil(c.length / 2);
+  const spaced = c.length >= 6 ? `${c.slice(0, mid)} ${c.slice(mid)}` : c;
+  const mins = input.expiresMinutes ?? 60;
+  return `<!doctype html>
+<html><body style="margin:0;padding:0;background:#0a0a0b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif;color:#1a1a1a;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0a0a0b;padding:36px 16px;">
+    <tr><td align="center">
+      <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="max-width:480px;background:#ffffff;border-radius:18px;overflow:hidden;box-shadow:0 10px 34px -6px rgba(0,0,0,0.55);border:1px solid #1c1c1e;">
+        <tr><td style="background:linear-gradient(135deg,#0b0b0c 0%,#14140f 55%,#1b1710 100%);padding:30px 34px 26px;border-bottom:2px solid #e8c878;">
+          <p style="margin:0;color:#e8c878;font-size:19px;letter-spacing:0.34em;text-transform:uppercase;font-weight:700;">Advottic</p>
+          <p style="margin:12px 0 0;color:#f4f0e6;font-size:16px;font-weight:600;letter-spacing:-0.005em;">Your sign-in code</p>
+        </td></tr>
+        <tr><td style="padding:30px 34px 6px;">
+          <p style="margin:0 0 22px;color:#3f3f46;font-size:14.5px;line-height:1.6;">Enter this code on the sign-in screen to continue. For your security it expires in ${mins} minutes and can be used once.</p>
+          <div style="margin:0 0 22px;text-align:center;">
+            <span style="display:inline-block;padding:18px 30px;background:#faf7ef;border:1px solid #e6d9b6;border-radius:14px;color:#0b0b0c;font-size:34px;font-weight:700;letter-spacing:0.22em;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;">${escapeHtml(
+              spaced,
+            )}</span>
+          </div>
+          <p style="margin:0 0 6px;color:#71717a;font-size:12.5px;line-height:1.6;">Type it into the field on the page you started from - you do not need to leave this email or click any link.</p>
+          <p style="margin:0;color:#a1a1aa;font-size:11.5px;line-height:1.6;">Never share this code. Advottic will never ask for it by phone or email reply. If you did not request it, you can safely ignore this message and nothing will change.</p>
+        </td></tr>
+        <tr><td style="padding:18px 34px 30px;">
+          <hr style="border:none;border-top:1px solid #e4e4e7;margin:0 0 12px;" />
+          <p style="margin:0;color:#a1a1aa;font-size:11px;letter-spacing:0.04em;">© ${year} Advottic LLC &middot; Legal case organization, not legal advice.</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, '&amp;')

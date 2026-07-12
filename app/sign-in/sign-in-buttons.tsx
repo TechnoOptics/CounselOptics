@@ -9,6 +9,7 @@ import { useState } from 'react';
 // app/layout.tsx. The hands-on V3 audit traced 29 such crashes on
 // /sign-in?next=/admin and the OAuth callback.
 import { createBrowserSupabase } from '@/lib/supabase/client';
+import { requestSignInCode } from '@/lib/auth-actions';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { BiometricSignInHint } from '@/components/BiometricSignInHint';
 
@@ -531,6 +532,28 @@ export function SignInButtons({ next }: { next: string }) {
     if (forceApexBeforeAuth(next)) return;
     clearStalePkceCookies();
     try {
+      // Preferred path: our OWN branded, premium code email. The server action
+      // mints the one-time code for an existing account and delivers it through
+      // the Advottic-branded Resend template. It NEVER breaks sign-in - it
+      // returns { fallback: true } for a new signup or on any failure, and we
+      // drop through to Supabase's built-in email below. The 6/8-digit code the
+      // user then types verifies identically either way (verifyEmailCode).
+      try {
+        const branded = await requestSignInCode(email.trim());
+        if (branded.ok && 'delivered' in branded && branded.delivered) {
+          setEmailSent(email.trim());
+          setVerifyMode(true);
+          return;
+        }
+        if (!branded.ok) {
+          setError(branded.error);
+          return;
+        }
+        // branded.fallback === true -> continue to Supabase's own send below.
+      } catch {
+        // Any unexpected client/transport error: fall through to Supabase.
+      }
+
       const supabase = createBrowserSupabase();
       // Use the user's current origin, NOT NEXT_PUBLIC_SITE_URL - if the
       // user is on advottic.com (apex) but SITE_URL points at
@@ -722,38 +745,38 @@ export function SignInButtons({ next }: { next: string }) {
               Check your inbox at <strong>{emailSent}</strong>
             </p>
             <p>
-              Look for the <strong>6-digit code</strong> in the email
-              body and type it below.{' '}
-              <span className="text-amber-700">
-                Don&rsquo;t click the link in the email
-              </span>{' '}
-              - that opens a different browser tab and loses the
-              sign-in. The code works no matter which browser sent
-              the request.
+              Look for the <strong>numeric code</strong> in the email
+              body and type it below. The code works no matter which
+              browser you started in.
             </p>
           </div>
           <input
             type="text"
             required
-            placeholder="6-digit code"
+            placeholder="Enter your code"
             value={code}
-            onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            // This project's Supabase email OTP is 8 digits (some tenants use
+            // 6). Cap at 8 and accept 6-8 so the FULL code always fits the
+            // field - the previous 6-cap silently truncated an 8-digit code so
+            // it could never be entered. Tracking is tightened so all 8 digits
+            // sit comfortably inside the box.
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 8))}
             disabled={pending !== null}
-            className="input tracking-[0.4em] text-center font-mono text-lg"
+            className="input tracking-[0.22em] text-center font-mono text-lg"
             // inputMode="numeric" pulls up the digit pad on mobile;
             // autoComplete="one-time-code" lets iOS / Android suggest
             // the code straight from the email notification banner so
             // the user can tap once instead of switching apps.
             inputMode="numeric"
             autoComplete="one-time-code"
-            maxLength={6}
+            maxLength={8}
             minLength={6}
-            pattern="\d{6}"
+            pattern="\d{6,8}"
             autoFocus
           />
           <button
             type="submit"
-            disabled={pending !== null || code.length !== 6}
+            disabled={pending !== null || code.length < 6}
             className="btn-primary w-full"
           >
             {pending === 'email' ? <Spinner /> : <MailIcon />}
