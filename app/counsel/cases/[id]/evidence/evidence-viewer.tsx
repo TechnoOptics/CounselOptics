@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import { RelevanceBadge } from '@/components/RelevanceBadge';
 import { getFirmEvidenceMediaUrl } from '@/lib/case-evidence-actions';
@@ -63,6 +64,12 @@ export function EvidenceViewer({
   const [url, setUrl] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
+  // Portal to <body> only after mount. Without the portal the dialog's
+  // `fixed inset-0` is trapped by any transform ancestor (the route-fade
+  // wrapper), so it pins to the page content instead of the viewport - which
+  // rendered the viewer as a transparent panel floating over the cards.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   // Load a fresh signed URL whenever the shown item changes. Reset zoom so a new
   // image opens fit-to-screen.
@@ -114,7 +121,7 @@ export function EvidenceViewer({
   const title = (event.title ?? '').trim() || media?.name || t('Untitled item');
   const exhibit = exhibitLabel(ext.exhibit_no);
 
-  return (
+  const node = (
     <div
       role="dialog"
       aria-modal="true"
@@ -313,6 +320,11 @@ export function EvidenceViewer({
       </div>
     </div>
   );
+
+  // Pre-hydration: render in place. Post-hydration: portal to <body> so a
+  // transform ancestor can't pull the fixed overlay off the viewport.
+  if (!mounted || typeof document === 'undefined') return node;
+  return createPortal(node, document.body);
 }
 
 /** Floating +/-/reset zoom controls over an image. */
