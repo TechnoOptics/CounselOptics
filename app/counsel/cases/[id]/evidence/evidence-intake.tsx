@@ -1243,6 +1243,32 @@ export function EvidenceIntake({
 
   return (
     <div className="space-y-5 animate-fade-up">
+      {/* Status banner (duplicate skips, unzip results, errors) at the very top
+          - right by the drop zone where the upload happens - so a message is
+          seen at once instead of being buried below the drop zone / long list. */}
+      {(error || notice) && (
+        <div className="space-y-2">
+          {error && (
+            <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[13px] text-rose-800 shadow-sm dark:border-rose-700/40 dark:bg-rose-950/80 dark:text-rose-200">
+              {error}
+            </p>
+          )}
+          {notice && (
+            <p className="flex items-start justify-between gap-3 rounded-lg border border-forest-200 bg-forest-50 px-3 py-2 text-[13px] text-forest-800 shadow-sm dark:border-forest-700/40 dark:bg-forest-900/90 dark:text-cream-100/85">
+              <span>{notice}</span>
+              <button
+                type="button"
+                onClick={() => setNotice(null)}
+                aria-label={t('Dismiss')}
+                className="shrink-0 rounded px-1 leading-none text-forest-500 hover:text-forest-800 dark:text-cream-100/50 dark:hover:text-cream-100"
+              >
+                ✕
+              </button>
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Dropzone */}
       <div
         onDragOver={(e) => {
@@ -1309,17 +1335,6 @@ export function EvidenceIntake({
           </p>
         )}
       </div>
-
-      {error && (
-        <p className="rounded-lg border border-rose-200 dark:border-rose-700/40 bg-rose-50 dark:bg-rose-950/30 px-3 py-2 text-[13px] text-rose-800 dark:text-rose-200">
-          {error}
-        </p>
-      )}
-      {notice && (
-        <p className="rounded-lg border border-forest-200 dark:border-forest-700/40 bg-forest-50 dark:bg-forest-900/30 px-3 py-2 text-[13px] text-forest-800 dark:text-cream-100/80">
-          {notice}
-        </p>
-      )}
 
       {/* Dashboard: analysis progress, count tiles, evidence types, coverage. */}
       {activeEvents.length > 0 && (
