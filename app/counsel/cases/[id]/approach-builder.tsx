@@ -472,27 +472,7 @@ function GeneratedArgument({ g }: { g: ApproachArgument }) {
         </div>
       )}
 
-      {g.timeline.length > 0 && (
-        <div>
-          <ConsoleLabel><T>Supporting timeline</T></ConsoleLabel>
-          <ol className="relative space-y-3 border-l border-gold-metal/25 pl-4">
-            {g.timeline.map((tl, i) => (
-              <li key={i} className="relative">
-                <span
-                  aria-hidden
-                  className="absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full border-2 border-forest-900 bg-gold-metal"
-                  style={{ boxShadow: '0 0 10px 0 rgba(198,161,91,0.55)' }}
-                />
-                <p className="font-mono text-[11px] uppercase tracking-[0.1em] text-gold-metal/70" data-no-translate>{tl.when}</p>
-                <p className="text-[13.5px] font-medium text-cream-50" data-no-translate>{tl.title}</p>
-                {tl.significance && (
-                  <p className="text-[13px] leading-relaxed text-cream-100/70" data-no-translate>{tl.significance}</p>
-                )}
-              </li>
-            ))}
-          </ol>
-        </div>
-      )}
+      {g.timeline.length > 0 && <TimelinePanel timeline={g.timeline} />}
 
       {g.gaps.length > 0 && (
         <div>
@@ -505,6 +485,175 @@ function GeneratedArgument({ g }: { g: ApproachArgument }) {
               </li>
             ))}
           </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+type ApproachTimelineEntry = ApproachArgument['timeline'][number];
+
+type ParsedWhen = {
+  key: string;
+  monthLabel: string;
+  day: number | null;
+  sortMs: number;
+  relative: boolean;
+};
+
+/**
+ * Best-effort parse of an approach timeline entry's free-text `when` ("March
+ * 2024", "2024-03-15", "months prior") into a calendar bucket. Parseable dates
+ * group by month; a day chip appears only when the text actually carried a day
+ * number (so a bare "March 2024" isn't misrendered as the 1st). Anything the
+ * model expressed relatively falls into a trailing "relative / undated" bucket.
+ * The raw `when` string is always shown verbatim, so this never misstates it.
+ */
+function parseWhen(when: string | null | undefined): ParsedWhen {
+  const raw = (when ?? '').trim();
+  const monthOf = (d: Date) => d.toLocaleDateString(undefined, { year: 'numeric', month: 'long' });
+  const relative: ParsedWhen = { key: '~relative', monthLabel: '', day: null, sortMs: Number.POSITIVE_INFINITY, relative: true };
+  if (!raw) return relative;
+
+  // Explicit ISO-ish forms are parsed component-wise as LOCAL dates, so an
+  // ISO "2024-03-15" isn't rolled back a day by the UTC-midnight/local-read
+  // trap, and a bare year isn't mislabelled by it.
+  let m: RegExpExecArray | null;
+  if ((m = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw))) {
+    const d = new Date(+m[1], +m[2] - 1, +m[3]);
+    return { key: `${m[1]}-${m[2]}`, monthLabel: monthOf(d), day: +m[3], sortMs: d.getTime(), relative: false };
+  }
+  if ((m = /^(\d{4})-(\d{2})$/.exec(raw))) {
+    const d = new Date(+m[1], +m[2] - 1, 1);
+    return { key: `${m[1]}-${m[2]}`, monthLabel: monthOf(d), day: null, sortMs: d.getTime(), relative: false };
+  }
+  if ((m = /^(\d{4})$/.exec(raw))) {
+    const d = new Date(+m[1], 0, 1);
+    return { key: `${m[1]}-00`, monthLabel: m[1], day: null, sortMs: d.getTime(), relative: false };
+  }
+
+  // Worded dates ("March 2024", "March 15, 2024") — let Date parse them (these
+  // parse as local, no UTC trap). A day chip only when the text carried a day.
+  const ms = new Date(raw).getTime();
+  if (!Number.isNaN(ms)) {
+    const d = new Date(ms);
+    const hasDay = /[A-Za-z]{3,}/.test(raw) && /\b(3[01]|[12]\d|0?[1-9])\b/.test(raw);
+    return {
+      key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
+      monthLabel: monthOf(d),
+      day: hasDay ? d.getDate() : null,
+      sortMs: ms,
+      relative: false,
+    };
+  }
+  return relative;
+}
+
+/**
+ * The approach's supporting timeline, as a List (vertical rail) or a Calendar
+ * (month-grouped agenda). The calendar is the approach's OWN chronology — only
+ * the events Advottic marshalled for this theory — grouped into month blocks in
+ * chronological order, with day chips where the date is day-precise.
+ */
+function TimelinePanel({ timeline }: { timeline: ApproachTimelineEntry[] }) {
+  const t = useT();
+  const [mode, setMode] = useState<'list' | 'calendar'>('list');
+
+  const months = (() => {
+    const groups: { key: string; label: string; relative: boolean; sortMs: number; items: { tl: ApproachTimelineEntry; day: number | null }[] }[] = [];
+    const byKey = new Map<string, number>();
+    timeline.forEach((tl) => {
+      const p = parseWhen(tl.when);
+      let gi = byKey.get(p.key);
+      if (gi === undefined) {
+        gi = groups.length;
+        byKey.set(p.key, gi);
+        groups.push({ key: p.key, label: p.monthLabel, relative: p.relative, sortMs: p.sortMs, items: [] });
+      }
+      groups[gi].items.push({ tl, day: p.day });
+    });
+    return groups.sort((a, b) => a.sortMs - b.sortMs);
+  })();
+
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <ConsoleLabel><T>Supporting timeline</T></ConsoleLabel>
+        <div className="inline-flex overflow-hidden rounded-md border border-cream-50/12 font-mono text-[10px] uppercase tracking-[0.14em]">
+          {(['list', 'calendar'] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setMode(m)}
+              aria-pressed={mode === m}
+              className={`px-2.5 py-1 transition-colors ${
+                mode === m
+                  ? 'bg-gold-metal/20 text-gold-metal'
+                  : 'text-cream-100/55 hover:text-cream-100'
+              }`}
+            >
+              {m === 'list' ? <T>List</T> : <T>Calendar</T>}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {mode === 'list' ? (
+        <ol className="relative space-y-3 border-l border-gold-metal/25 pl-4">
+          {timeline.map((tl, i) => (
+            <li key={i} className="relative">
+              <span
+                aria-hidden
+                className="absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full border-2 border-forest-900 bg-gold-metal"
+                style={{ boxShadow: '0 0 10px 0 rgba(198,161,91,0.55)' }}
+              />
+              <p className="font-mono text-[11px] uppercase tracking-[0.1em] text-gold-metal/70" data-no-translate>{tl.when}</p>
+              <p className="text-[13.5px] font-medium text-cream-50" data-no-translate>{tl.title}</p>
+              {tl.significance && (
+                <p className="text-[13px] leading-relaxed text-cream-100/70" data-no-translate>{tl.significance}</p>
+              )}
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <div className="space-y-3">
+          {months.map((mo) => (
+            <div key={mo.key} className="rounded-lg border border-cream-50/10 bg-forest-950/40">
+              <div className="flex items-center gap-2 border-b border-cream-50/10 px-3 py-1.5">
+                <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-gold-metal" />
+                <p className="font-mono text-[10.5px] uppercase tracking-[0.18em] text-gold-metal/80">
+                  {mo.relative ? t('Relative / undated') : mo.label}
+                </p>
+                <span className="ml-auto font-mono text-[10px] text-cream-100/40">{mo.items.length}</span>
+              </div>
+              <ul className="divide-y divide-cream-50/[0.06]">
+                {mo.items.map(({ tl, day }, i) => (
+                  <li key={i} className="flex gap-3 px-3 py-2">
+                    <span
+                      className={`mt-0.5 flex h-9 w-9 shrink-0 flex-col items-center justify-center rounded-md border font-mono leading-none ${
+                        day != null
+                          ? 'border-gold-metal/40 bg-gold-metal/10 text-gold-metal'
+                          : 'border-cream-50/10 bg-forest-900/40 text-cream-100/40'
+                      }`}
+                    >
+                      {day != null ? (
+                        <span className="text-[14px] font-semibold">{day}</span>
+                      ) : (
+                        <span className="text-[13px]">◇</span>
+                      )}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="font-mono text-[10.5px] uppercase tracking-[0.08em] text-gold-metal/60" data-no-translate>{tl.when}</p>
+                      <p className="text-[13.5px] font-medium text-cream-50" data-no-translate>{tl.title}</p>
+                      {tl.significance && (
+                        <p className="text-[12.5px] leading-relaxed text-cream-100/70" data-no-translate>{tl.significance}</p>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </div>
       )}
     </div>
