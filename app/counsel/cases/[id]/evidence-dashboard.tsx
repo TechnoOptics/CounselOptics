@@ -110,14 +110,21 @@ function StatusRing({ a, base }: { a: CaseEvidenceAnalytics; base: string }) {
   ].filter((s) => s.v > 0);
   const r = 42;
   const circ = 2 * Math.PI * r;
-  let offset = 0;
+  // Each segment is a single dashed arc (arc length, then a full-circumference
+  // gap so only one arc draws) rotated into place by the running total. An SVG
+  // <circle> strokes clockwise from 3 o'clock, so rotating by (acc*360 - 90)
+  // starts the first segment at the top and tiles the rest clockwise with no
+  // seams - which the previous strokeDashoffset approach left gapped.
+  let acc = 0;
   return (
     <div className="flex items-center gap-5">
-      <svg viewBox="0 0 100 100" className="h-28 w-28 shrink-0 -rotate-90" role="img" aria-label="Analysis status ring">
+      <svg viewBox="0 0 100 100" className="h-28 w-28 shrink-0" role="img" aria-label="Analysis status ring">
         <circle cx="50" cy="50" r={r} fill="none" stroke="currentColor" strokeWidth="11" className="text-ink-100 dark:text-forest-800/70" />
         {segs.map((s, i) => {
-          const len = (s.v / total) * circ;
-          const el = (
+          const frac = s.v / total;
+          const rot = acc * 360 - 90;
+          acc += frac;
+          return (
             <circle
               key={i}
               cx="50"
@@ -126,12 +133,11 @@ function StatusRing({ a, base }: { a: CaseEvidenceAnalytics; base: string }) {
               fill="none"
               stroke={s.c}
               strokeWidth="11"
-              strokeDasharray={`${len} ${circ - len}`}
-              strokeDashoffset={-offset}
+              strokeLinecap="butt"
+              strokeDasharray={`${frac * circ} ${circ}`}
+              transform={`rotate(${rot} 50 50)`}
             />
           );
-          offset += len;
-          return el;
         })}
       </svg>
       <div className="space-y-1">
