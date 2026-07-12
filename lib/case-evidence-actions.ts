@@ -163,6 +163,78 @@ export async function getFirmCaseTimeline(
   return { ok: true, events };
 }
 
+/** Opaque cursor for keyset pagination of the evidence list. */
+export type EvidencePageCursor = { createdAt: string; id: string };
+
+/**
+ * One keyset page of a matter's evidence, ordered (created_at desc, id desc) so
+ * a page is a bounded index range-scan on case_timeline_events_case_created_idx
+ * regardless of matter size. The id tiebreaker is REQUIRED: a bulk import
+ * inserts many rows in one statement, so they share created_at, and a
+ * created_at-only cursor would skip or duplicate rows at the page boundary.
+ *
+ * The client paints page 1 immediately, then streams the rest via nextCursor,
+ * so a heavy matter is interactive at once instead of blocking on the whole set.
+ * Same viewer/export-only `metadata` trim as getFirmCaseTimeline.
+ */
+export async function getFirmCaseTimelinePage(
+  firmId: string,
+  caseId: string,
+  opts?: { cursor?: EvidencePageCursor | null; limit?: number },
+): Promise<{
+  ok: boolean;
+  error?: string;
+  events?: TimelineEvent[];
+  nextCursor?: EvidencePageCursor | null;
+}> {
+  const gate = await assertFirmCase(firmId, caseId);
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Service unavailable.' };
+
+  const limit = Math.min(Math.max(opts?.limit ?? 120, 1), 300);
+  let q = admin
+    .from('case_timeline_events')
+    .select('*')
+    .eq('case_id', caseId)
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(limit + 1); // +1 sentinel to detect a further page
+
+  const cursor = opts?.cursor;
+  if (cursor) {
+    // Normalize the "+00:00" UTC offset to "Z": the "+" in a PostgREST filter
+    // value can be decoded as a space and corrupt the timestamp. "Z" is the
+    // same instant and keeps full microsecond precision (unlike toISOString,
+    // which would truncate to ms and break the keyset on sub-ms neighbours).
+    const ts = cursor.createdAt.replace(/\+00:00$/, 'Z');
+    // Rows strictly "after" the cursor in (created_at desc, id desc):
+    //   created_at < c.createdAt  OR  (created_at = c.createdAt AND id < c.id)
+    q = q.or(`created_at.lt.${ts},and(created_at.eq.${ts},id.lt.${cursor.id})`);
+  }
+
+  const { data, error } = await q;
+  if (error) return { ok: false, error: error.message };
+  const rows = (data ?? []) as EventRow[];
+  const hasMore = rows.length > limit;
+  const pageRows = hasMore ? rows.slice(0, limit) : rows;
+
+  const events = pageRows.map(toEvent);
+  for (const e of events) {
+    if (e.aiExtracted?.metadata) {
+      const { metadata: _drop, ...rest } = e.aiExtracted;
+      e.aiExtracted = rest;
+    }
+  }
+  // Exhibit backfill is handled by getFirmCaseTimeline on the full-refresh path;
+  // per-page backfill would renumber across page boundaries, so skip it here.
+
+  const last = pageRows[pageRows.length - 1];
+  const nextCursor: EvidencePageCursor | null =
+    hasMore && last ? { createdAt: last.created_at, id: last.id } : null;
+  return { ok: true, events, nextCursor };
+}
+
 /**
  * Bulk import a batch of dropped files as evidence timeline entries. Accepts
  * images, video, PDFs/docs, and email files (.eml / .msg). Each file is stored

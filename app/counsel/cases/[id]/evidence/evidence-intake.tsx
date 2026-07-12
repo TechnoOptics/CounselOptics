@@ -28,6 +28,8 @@ import {
   bulkImportCaseEvidenceAction,
   importCaseEvidenceFromUrlsAction,
   getFirmCaseTimeline,
+  getFirmCaseTimelinePage,
+  type EvidencePageCursor,
   analyzeFirmCaseEventAction,
   updateFirmCaseEvidenceAction,
   setFirmEvidenceFolderAction,
@@ -214,16 +216,48 @@ export function EvidenceIntake({
   firmId,
   caseId,
   initialEvents,
+  initialCursor = null,
   aiEnabled,
 }: {
   firmId: string;
   caseId: string;
   initialEvents: TimelineEvent[];
+  /** Keyset cursor for the page after `initialEvents`; null when the first page
+   *  was the whole matter. When present the client streams the rest. */
+  initialCursor?: EvidencePageCursor | null;
   aiEnabled: boolean;
 }) {
   const t = useT();
   const fileRef = useRef<HTMLInputElement>(null);
   const [events, setEvents] = useState<TimelineEvent[]>(initialEvents);
+  // Keyset streaming: page 1 (initialEvents) paints instantly; the remaining
+  // pages stream in here and append, so a heavy matter is interactive at once.
+  // `loadedAll` gates the effects that need the WHOLE set (resume-analysis).
+  const [loadedAll, setLoadedAll] = useState<boolean>(initialCursor == null);
+  const streamRef = useRef(false);
+  useEffect(() => {
+    if (streamRef.current || initialCursor == null) return;
+    streamRef.current = true;
+    let cancelled = false;
+    (async () => {
+      let cursor: EvidencePageCursor | null = initialCursor;
+      while (cursor && !cancelled) {
+        const res = await getFirmCaseTimelinePage(firmId, caseId, { cursor });
+        if (!res.ok || !res.events) break;
+        const batch = res.events;
+        setEvents((list) => {
+          const seen = new Set(list.map((e) => e.id));
+          const fresh = batch.filter((e) => !seen.has(e.id));
+          return fresh.length ? [...list, ...fresh] : list;
+        });
+        cursor = res.nextCursor ?? null;
+      }
+      if (!cancelled) setLoadedAll(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [firmId, caseId, initialCursor]);
   const [dragOver, setDragOver] = useState(false);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
@@ -331,15 +365,34 @@ export function EvidenceIntake({
   // picked back up automatically, so an unanalyzed upload never stays
   // unanalyzed and a transient failure self-heals on the next visit. Runs once
   // per mount; the server-side cron also backstops this.
+  // Exhibit-number safety net. Keyset pages skip backfill (it must renumber
+  // across the whole matter, not per page). Once fully streamed, if anything is
+  // still unnumbered, do ONE full refresh - which runs the server-side backfill
+  // and repopulates. Fires only for a matter that actually has unnumbered items
+  // (essentially none in steady state, since every prior full load numbered
+  // them and post-upload refresh numbers new ones), so the common path pays
+  // nothing.
+  const backfilledRef = useRef(false);
+  useEffect(() => {
+    if (backfilledRef.current || !loadedAll) return;
+    backfilledRef.current = true;
+    if (events.some((e) => typeof e.aiExtracted?.exhibit_no !== 'number')) {
+      void refresh();
+    }
+  }, [loadedAll, events, refresh]);
+
   const resumedRef = useRef(false);
   useEffect(() => {
-    if (resumedRef.current || !aiEnabled) return;
+    // Wait for the full keyset stream before queuing, so unanalyzed items on
+    // later pages aren't missed (loadedAll is true immediately when there was
+    // only one page).
+    if (resumedRef.current || !aiEnabled || !loadedAll) return;
     resumedRef.current = true;
-    const queue = initialEvents
+    const queue = events
       .filter((e) => e.aiStatus === 'skipped' || e.aiStatus === 'error')
       .map((e) => e.id);
     if (queue.length) void runAnalyzeQueue(queue);
-  }, [aiEnabled, initialEvents, runAnalyzeQueue]);
+  }, [aiEnabled, loadedAll, events, runAnalyzeQueue]);
 
   // Latest interaction state, read by the auto-refresh guard so a background
   // re-sync never clobbers an in-progress upload / edit / selection / viewer.
@@ -1290,6 +1343,20 @@ export function EvidenceIntake({
             <T>Open full timeline builder</T> →
           </Link>
         </div>
+
+        {/* Keyset stream status: the first page is interactive immediately;
+            the rest arrive in the background. */}
+        {!loadedAll && (
+          <div className="flex items-center gap-2 rounded-lg border border-ink-100 bg-cream-50/60 px-3 py-1.5 text-[12px] text-ink-500 dark:border-forest-700/40 dark:bg-forest-900/40 dark:text-cream-100/55">
+            <span
+              aria-hidden
+              className="inline-block h-3 w-3 animate-spin rounded-full border-[1.5px] border-ink-300 border-t-forest-600 dark:border-forest-700 dark:border-t-gold-metal"
+            />
+            <span data-no-translate>
+              {t('Loading more evidence… {n} so far').replace('{n}', String(events.length))}
+            </span>
+          </div>
+        )}
 
         {/* Proactive duplicate review */}
         {duplicateGroups.length > 0 && !dupDismissed && (

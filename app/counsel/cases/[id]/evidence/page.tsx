@@ -4,7 +4,7 @@ import { getActiveFirmContext } from '@/lib/firm-storage';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { aiConfigured } from '@/lib/timeline-ai';
 import { resolveTimelineAccess } from '@/lib/timeline-entitlement';
-import { getFirmCaseTimeline } from '@/lib/case-evidence-actions';
+import { getFirmCaseTimelinePage } from '@/lib/case-evidence-actions';
 import { T } from '@/components/i18n/LocaleProvider';
 import { EvidenceIntake } from './evidence-intake';
 import { RecurringPeople } from './recurring-people';
@@ -51,7 +51,10 @@ export default async function CaseEvidencePage({
   // it just removes a serial round-trip before the heavy read.
   const [caseRes, timeline, access] = await Promise.all([
     supabase.from('cases').select('id, title, firm_id').eq('id', params.id).maybeSingle(),
-    getFirmCaseTimeline(ctx.firm.id, params.id),
+    // Keyset page 1 only: paints instantly; the client streams the rest via the
+    // returned cursor. A heavy matter is interactive at once instead of blocking
+    // the whole server render on the full set.
+    getFirmCaseTimelinePage(ctx.firm.id, params.id, { limit: 120 }),
     resolveTimelineAccess(),
   ]);
   const c = caseRes.data as { id: string; title: string; firm_id: string | null } | null;
@@ -81,6 +84,7 @@ export default async function CaseEvidencePage({
         firmId={ctx.firm.id}
         caseId={params.id}
         initialEvents={timeline.events ?? []}
+        initialCursor={timeline.nextCursor ?? null}
         aiEnabled={aiEnabled}
       />
 
