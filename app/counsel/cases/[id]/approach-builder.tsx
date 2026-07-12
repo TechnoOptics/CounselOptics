@@ -551,7 +551,7 @@ function GeneratedArgument({ g }: { g: ApproachArgument }) {
         </div>
       )}
 
-      {g.exhibits.length > 0 && (
+      {(g.exhibits?.length ?? 0) > 0 && (
         <div>
           <ConsoleLabel><T>Exhibits marshalled</T></ConsoleLabel>
           <ul className="space-y-1.5">
@@ -574,9 +574,9 @@ function GeneratedArgument({ g }: { g: ApproachArgument }) {
         </div>
       )}
 
-      {g.timeline.length > 0 && <TimelinePanel timeline={g.timeline} />}
+      {(g.timeline?.length ?? 0) > 0 && <TimelinePanel timeline={g.timeline} />}
 
-      {g.gaps.length > 0 && (
+      {(g.gaps?.length ?? 0) > 0 && (
         <div>
           <ConsoleLabel><T>Gaps to close</T></ConsoleLabel>
           <ul className="space-y-1.5 text-[13px] text-cream-100/85">

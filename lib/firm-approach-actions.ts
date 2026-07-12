@@ -46,13 +46,27 @@ type Row = {
   created_at: string;
   updated_at: string;
 };
+/** A stored `generated` blob from before normalize() guaranteed arrays (or a
+ *  partially written row) may miss exhibits/timeline/gaps. Backfill them so
+ *  every consumer can read `.length`/`.map` without a render-time crash. */
+const normalizeGenerated = (g: ApproachArgument | null): ApproachArgument | null =>
+  g == null
+    ? null
+    : {
+        thesis: g.thesis ?? '',
+        argument: g.argument ?? '',
+        exhibits: Array.isArray(g.exhibits) ? g.exhibits : [],
+        timeline: Array.isArray(g.timeline) ? g.timeline : [],
+        gaps: Array.isArray(g.gaps) ? g.gaps : [],
+      };
+
 const toApproach = (r: Row): Approach => ({
   id: r.id,
   caseId: r.case_id,
   title: r.title,
   prompt: r.prompt,
   connections: r.connections ?? '',
-  generated: r.generated ?? null,
+  generated: normalizeGenerated(r.generated ?? null),
   createdAt: r.created_at,
   updatedAt: r.updated_at,
 });
@@ -290,7 +304,7 @@ export async function getApproachEvidence(
     .eq('id', approachId)
     .eq('case_id', caseId)
     .maybeSingle();
-  const g = (appRow as { generated: ApproachArgument | null } | null)?.generated;
+  const g = normalizeGenerated((appRow as { generated: ApproachArgument | null } | null)?.generated ?? null);
   if (!g || g.exhibits.length === 0) return { ok: true, events: [] };
 
   const citedLabels = new Set(
