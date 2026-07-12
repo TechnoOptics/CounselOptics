@@ -4,6 +4,7 @@ import { listCases, getProfile } from '@/lib/storage';
 import { STATUS_LABEL, SUBJECT_TYPE_LABEL, type Case, type CaseStatus } from '@/lib/types';
 import { storageUnavailable, STORAGE_SETUP_MESSAGE } from '@/lib/setup-status';
 import { isSupabaseConfigured, getCurrentUser } from '@/lib/supabase/server';
+import { getGuestContext, guestFallbackPath } from '@/lib/counsel-guest';
 import { TourModal } from '@/components/TourModal';
 import { BrandMark } from '@/components/BrandMark';
 import { BiometricEnrollPrompt } from '@/components/BiometricEnrollPrompt';
@@ -20,6 +21,18 @@ export default async function CasesPage({
   searchParams?: { welcome?: string; filter?: string };
 }) {
   if (storageUnavailable()) return <SetupNeeded />;
+
+  // A case-scoped co-counsel GUEST (attorney collaborator, not a firm member)
+  // belongs in the firm-framed Counsel workspace, NOT the consumer app. The
+  // OAuth callback already routes them there, but the email-code sign-in lands
+  // on the baked-in next=/cases before that resolution runs - so guard the
+  // consumer entry itself and send a guest to their matter. getGuestContext is
+  // non-null ONLY for real counsel guests (firm members + plain consumers get
+  // null), so this never affects anyone else.
+  if (isSupabaseConfigured()) {
+    const guest = await getGuestContext().catch(() => null);
+    if (guest) redirect(guestFallbackPath(guest));
+  }
 
   // Consent is now handled by a layout-level popup modal; no redirect here.
   let profile = null;
