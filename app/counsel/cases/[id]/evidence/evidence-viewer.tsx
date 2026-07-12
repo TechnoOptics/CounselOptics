@@ -173,50 +173,11 @@ export function EvidenceViewer({
 
       <div
         onClick={(e) => e.stopPropagation()}
-        className="mx-auto flex h-full w-full max-w-6xl flex-col gap-3 overflow-y-auto px-4 py-4 sm:px-12"
+        className="mx-auto flex h-full w-full max-w-7xl flex-col gap-4 overflow-hidden px-3 py-4 sm:px-8 lg:flex-row lg:items-stretch lg:gap-6"
       >
-        {/* Heading */}
-        <div className="shrink-0 text-center">
-          <p className="flex flex-wrap items-center justify-center gap-2 text-sm font-medium text-cream-50" data-no-translate>
-            {exhibit && (
-              <span className="rounded-md bg-white/10 px-1.5 py-0.5 font-mono text-[11px] tracking-wide text-cream-100/90">
-                {exhibit}
-              </span>
-            )}
-            <KindIcon kind={event.kind} className="h-4 w-4 shrink-0 text-gold-400/90" />
-            <span className="break-words">{title}</span>
-          </p>
-          <p className="mt-1 flex flex-wrap items-center justify-center gap-2 text-[11.5px] text-cream-100/60">
-            <span data-no-translate>
-              {KIND_LABEL[event.kind]} · {folderForEvent(event)} ·{' '}
-              {formatOccurred(event.occurredAt, event.occurredPrecision)}
-            </span>
-            <RelevanceBadge score={ext.relevance_score} reason={ext.relevance_reason} size="xs" />
-            <span className="text-cream-100/40">
-              {index + 1} / {total}
-            </span>
-          </p>
-          {onToggleTimeline && (
-            <div className="mt-2 flex justify-center">
-              <button
-                type="button"
-                onClick={onToggleTimeline}
-                aria-pressed={onTimeline}
-                className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-[12px] font-medium ring-1 transition-colors ${
-                  onTimeline
-                    ? 'bg-forest-600 text-cream-50 ring-forest-600 hover:bg-forest-500'
-                    : 'text-cream-100/85 ring-cream-50/25 hover:bg-white/10'
-                }`}
-              >
-                <span aria-hidden>{onTimeline ? '✓' : '+'}</span>
-                {onTimeline ? <T>On timeline</T> : <T>Add to timeline</T>}
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Media stage */}
-        <div className="flex min-h-0 flex-1 items-center justify-center">
+        {/* Media pane — always in view; the info pane scrolls on its own so the
+            preview is never pushed off-screen. */}
+        <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden">
           {isEmail ? (
             <EmailView event={event} url={url} />
           ) : loadError ? (
@@ -226,7 +187,7 @@ export function EvidenceViewer({
               <T>Loading…</T>
             </div>
           ) : isImage ? (
-            <div className="relative flex max-h-full w-full items-center justify-center overflow-auto">
+            <div className="relative flex h-full max-h-full w-full items-center justify-center overflow-auto">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={url}
@@ -234,19 +195,21 @@ export function EvidenceViewer({
                 data-no-translate
                 onDoubleClick={() => setZoom((z) => (z > 1 ? 1 : 2))}
                 style={{ transform: `scale(${zoom})`, transformOrigin: 'center', cursor: zoom > 1 ? 'zoom-out' : 'zoom-in' }}
-                className="max-h-[74vh] w-auto max-w-full rounded-lg object-contain shadow-2xl transition-transform"
+                className="max-h-[84vh] w-auto max-w-full rounded-lg object-contain shadow-2xl transition-transform"
               />
               <ZoomControls zoom={zoom} onZoom={setZoom} />
             </div>
           ) : isVideo ? (
-            <video src={url} controls autoPlay playsInline className="max-h-[74vh] w-full rounded-lg bg-black shadow-2xl" data-no-translate />
+            <video src={url} controls autoPlay playsInline className="max-h-[84vh] w-full rounded-lg bg-black shadow-2xl" data-no-translate />
           ) : isAudio ? (
             <div className="w-full max-w-lg rounded-2xl border border-cream-50/10 bg-forest-900/60 p-6">
-              <div className="mb-4 text-center text-5xl">🎙️</div>
+              <div className="mb-4 flex justify-center text-cream-100/60">
+                <KindIcon kind={event.kind} className="h-12 w-12" />
+              </div>
               <audio src={url} controls autoPlay className="w-full" data-no-translate />
             </div>
           ) : isPdf ? (
-            <iframe src={url} title={title} className="h-[74vh] w-full rounded-lg bg-white shadow-2xl" />
+            <iframe src={url} title={title} className="h-full min-h-[60vh] w-full rounded-lg bg-white shadow-2xl" />
           ) : (
             <div className="flex flex-col items-center gap-4 rounded-2xl border border-cream-50/10 bg-forest-900/50 px-8 py-10 text-center">
               <KindIcon kind={event.kind} className="h-14 w-14 text-cream-100/50" />
@@ -274,32 +237,79 @@ export function EvidenceViewer({
           )}
         </div>
 
-        {/* Facts + transcript */}
-        {(event.aiSummary || transcript || (ext.detected_people?.length ?? 0) > 0) && (
-          <div className="shrink-0 space-y-2 rounded-xl border border-cream-50/10 bg-forest-900/50 p-4">
-            {event.aiSummary && (
-              <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-cream-100/90" data-no-translate>
-                {event.aiSummary}
-              </p>
-            )}
-            <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11.5px] text-cream-100/70" data-no-translate>
-              <FactLine label={t('People')} items={ext.detected_people} />
-              <FactLine label={t('Organizations')} items={ext.organizations} />
-              <FactLine label={t('Locations')} items={ext.locations} />
-              <FactLine label={t('Dates')} items={ext.detected_dates} />
-            </div>
-            {!isEmail && transcript && (
-              <details className="text-[12px] text-cream-100/80">
-                <summary className="cursor-pointer text-cream-100/60">
-                  {isVideo || isAudio ? t('Transcript') : t('Extracted text')}
-                </summary>
-                <p className="mt-1 max-h-[22vh] overflow-y-auto whitespace-pre-wrap leading-relaxed" data-no-translate>
-                  {transcript}
-                </p>
-              </details>
+        {/* Info pane — heading + full breakdown, beside the media on wide
+            screens, below it on mobile; scrolls independently. */}
+        <div className="min-h-0 max-h-[42vh] shrink-0 space-y-3 overflow-y-auto pr-0.5 lg:max-h-none lg:w-[372px] lg:border-l lg:border-cream-50/10 lg:pl-5">
+          {/* Heading */}
+          <div>
+            <p className="flex flex-wrap items-center gap-2 text-[15px] font-medium text-cream-50" data-no-translate>
+              {exhibit && (
+                <span className="rounded-md bg-white/10 px-1.5 py-0.5 font-mono text-[11px] tracking-wide text-cream-100/90">
+                  {exhibit}
+                </span>
+              )}
+              <KindIcon kind={event.kind} className="h-4 w-4 shrink-0 text-gold-400/90" />
+              <span className="break-words">{title}</span>
+            </p>
+            <p className="mt-1.5 flex flex-wrap items-center gap-2 text-[11.5px] text-cream-100/60">
+              <span data-no-translate>
+                {KIND_LABEL[event.kind]} · {folderForEvent(event)} ·{' '}
+                {formatOccurred(event.occurredAt, event.occurredPrecision)}
+              </span>
+              <RelevanceBadge score={ext.relevance_score} reason={ext.relevance_reason} size="xs" />
+              <span className="text-cream-100/40">{index + 1} / {total}</span>
+            </p>
+            {onToggleTimeline && (
+              <div className="mt-2.5">
+                <button
+                  type="button"
+                  onClick={onToggleTimeline}
+                  aria-pressed={onTimeline}
+                  className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-[12px] font-medium ring-1 transition-colors ${
+                    onTimeline
+                      ? 'bg-forest-600 text-cream-50 ring-forest-600 hover:bg-forest-500'
+                      : 'text-cream-100/85 ring-cream-50/25 hover:bg-white/10'
+                  }`}
+                >
+                  <span aria-hidden>{onTimeline ? '✓' : '+'}</span>
+                  {onTimeline ? <T>On timeline</T> : <T>Add to timeline</T>}
+                </button>
+              </div>
             )}
           </div>
-        )}
+
+          {/* Breakdown: summary, facts, transcript */}
+          {(event.aiSummary || transcript || (ext.detected_people?.length ?? 0) > 0) && (
+            <div className="space-y-2.5 rounded-xl border border-cream-50/10 bg-forest-900/50 p-4">
+              {event.aiSummary && (
+                <div>
+                  <p className="mb-1 font-mono text-[9.5px] uppercase tracking-[0.2em] text-gold-400/60">
+                    <T>Breakdown</T>
+                  </p>
+                  <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-cream-100/90" data-no-translate>
+                    {event.aiSummary}
+                  </p>
+                </div>
+              )}
+              <div className="flex flex-col gap-1 text-[11.5px] text-cream-100/70" data-no-translate>
+                <FactLine label={t('People')} items={ext.detected_people} />
+                <FactLine label={t('Organizations')} items={ext.organizations} />
+                <FactLine label={t('Locations')} items={ext.locations} />
+                <FactLine label={t('Dates')} items={ext.detected_dates} />
+              </div>
+              {!isEmail && transcript && (
+                <details className="text-[12px] text-cream-100/80">
+                  <summary className="cursor-pointer text-cream-100/60">
+                    {isVideo || isAudio ? t('Transcript') : t('Extracted text')}
+                  </summary>
+                  <p className="mt-1 whitespace-pre-wrap leading-relaxed" data-no-translate>
+                    {transcript}
+                  </p>
+                </details>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

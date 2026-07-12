@@ -44,6 +44,7 @@ import {
 } from '@/lib/case-evidence-actions';
 import { EvidenceViewer } from './evidence-viewer';
 import { KindIcon } from '@/components/counsel/KindIcon';
+import { ExpandableText } from '@/components/ExpandableText';
 import { EvidenceDashboard } from './evidence-dashboard';
 import { DuplicatePanel, findDuplicateGroups } from './duplicate-panel';
 import { DuplicateDialog, type DuplicateAction, type DuplicateEntry } from './duplicate-dialog';
@@ -2053,9 +2054,11 @@ function GridCard({
         ) : e.aiStatus === 'skipped' ? (
           <p className="text-[12px] italic text-ink-400 dark:text-cream-100/40"><T>Waiting to be analysed…</T></p>
         ) : summary ? (
-          <p className="line-clamp-3 text-[12.5px] leading-relaxed text-ink-600 dark:text-cream-100/70" data-no-translate>
-            {summary}
-          </p>
+          <ExpandableText
+            text={summary}
+            clampChars={480}
+            className="text-[12.5px] leading-relaxed text-ink-600 dark:text-cream-100/70 whitespace-pre-wrap"
+          />
         ) : null}
         <div className="space-y-1 pt-0.5">
           <ChipRow icon="👤" label={t('People')} items={ext.detected_people} />
