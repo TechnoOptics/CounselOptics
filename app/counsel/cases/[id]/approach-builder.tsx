@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import { isNativeApp } from '@/lib/platform';
 import {
@@ -446,7 +446,9 @@ function ApproachCard({
           )
         )}
 
-        {g ? (
+        {pending ? (
+          <AssembleProgress />
+        ) : g ? (
           <>
             <GeneratedArgument g={g} />
             <ApproachEvidence firmId={firmId} caseId={caseId} approachId={approach.id} />
@@ -455,11 +457,49 @@ function ApproachCard({
           !editing && (
             <div className="flex items-start gap-2.5 rounded-lg border border-amber-400/20 bg-amber-500/[0.07] px-4 py-3 text-[12.5px] text-amber-200/90">
               <span aria-hidden className="mt-0.5 text-[14px]">◇</span>
-              <T>The argument has not been assembled yet. Add Advottic credits, then Assemble to build it from the evidence on file.</T>
+              <T>The argument has not been assembled yet. Assemble to build it from the evidence on file.</T>
             </div>
           )
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Progress indicator for the assemble step. The server action streams no
+ * progress events, so this eases a bar toward ~92% over the expected
+ * generation time and the card swaps to the finished argument the moment
+ * `pending` clears (the bar unmounts, so it never sits stuck at 92%).
+ */
+function AssembleProgress() {
+  const [pct, setPct] = useState(6);
+  useEffect(() => {
+    const id = setInterval(() => {
+      setPct((p) => (p >= 92 ? p : p + Math.max(0.5, (92 - p) * 0.055)));
+    }, 450);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <div className="rounded-lg border border-gold-metal/25 bg-gold-metal/[0.06] px-4 py-3">
+      <div className="mb-1.5 flex items-center justify-between text-[11px]">
+        <span className="inline-flex items-center gap-1.5 font-mono uppercase tracking-[0.16em] text-gold-metal/85">
+          <Spinner />
+          <T>Assembling the argument</T>
+        </span>
+        <span className="tabular-nums text-gold-metal/70">{Math.round(pct)}%</span>
+      </div>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-gold-metal/15">
+        <div
+          className="h-full rounded-full bg-gold-metal transition-[width] duration-500 ease-out"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <p className="mt-2 text-[11px] leading-relaxed text-cream-100/45">
+        <T>
+          Reading the matter&apos;s evidence, drafting the argument, and citing exhibits. This can take up to a minute.
+        </T>
+      </p>
     </div>
   );
 }

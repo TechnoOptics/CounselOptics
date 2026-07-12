@@ -35,13 +35,126 @@ function textFrom(res: Anthropic.Messages.Message): string {
 }
 
 function parseJson<T>(raw: string): T | null {
-  const m = raw.match(/\{[\s\S]*\}/);
-  if (!m) return null;
+  const start = raw.indexOf('{');
+  if (start === -1) return null;
+  const body = raw.slice(start);
+  // Fast path: a well-formed object from the first { to the last }.
+  const greedy = body.match(/^[\s\S]*\}/);
+  if (greedy) {
+    try {
+      return JSON.parse(greedy[0]) as T;
+    } catch {
+      /* fall through to the repair path */
+    }
+  }
+  // Repair path (mirrors lib/timeline-ai.ts): a large legal argument frequently
+  // contains unescaped double quotes inside string values (quoted testimony,
+  // exhibit text) and can be cut off at the token cap. Escape the stray quotes
+  // and control characters, then close any brackets left open, so the argument
+  // parses instead of coming back "unreadable".
+  const escaped = escapeLooseStringChars(body);
+  const escGreedy = escaped.match(/^[\s\S]*\}/);
+  if (escGreedy) {
+    try {
+      return JSON.parse(escGreedy[0]) as T;
+    } catch {
+      /* fall through to truncation close */
+    }
+  }
+  const closed = closeTruncatedJson(escaped);
+  if (!closed) return null;
   try {
-    return JSON.parse(m[0]) as T;
+    return JSON.parse(closed) as T;
   } catch {
     return null;
   }
+}
+
+/** Escape in-string double quotes (detected by the absence of a following
+ *  structural token) and raw control chars that make an LLM's JSON invalid. */
+function escapeLooseStringChars(s: string): string {
+  let out = '';
+  let inStr = false;
+  let esc = false;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (!inStr) {
+      out += ch;
+      if (ch === '"') inStr = true;
+      continue;
+    }
+    if (esc) {
+      out += ch;
+      esc = false;
+      continue;
+    }
+    if (ch === '\\') {
+      out += ch;
+      esc = true;
+      continue;
+    }
+    if (ch === '"') {
+      let j = i + 1;
+      while (j < s.length && (s[j] === ' ' || s[j] === '\t' || s[j] === '\n' || s[j] === '\r')) j++;
+      const next = s[j];
+      if (next === undefined || next === ',' || next === ':' || next === '}' || next === ']') {
+        out += '"';
+        inStr = false;
+      } else {
+        out += '\\"';
+      }
+      continue;
+    }
+    if (ch === '\n') out += '\\n';
+    else if (ch === '\r') out += '\\r';
+    else if (ch === '\t') out += '\\t';
+    else out += ch;
+  }
+  return out;
+}
+
+/** Best-effort recovery of a JSON object truncated mid-write: trim to the last
+ *  complete value and append the closing brackets that were never emitted. */
+function closeTruncatedJson(s: string): string | null {
+  let inStr = false;
+  let esc = false;
+  let depth = 0;
+  let lastSafe = -1;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (ch === '\\') esc = true;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') inStr = true;
+    else if (ch === '{' || ch === '[') depth++;
+    else if (ch === '}' || ch === ']') {
+      depth--;
+      lastSafe = i;
+    } else if (ch === ',') lastSafe = i;
+  }
+  if (depth <= 0 || lastSafe === -1) return null;
+  const cut = s.slice(0, lastSafe + 1).replace(/,\s*$/, '');
+  const open: string[] = [];
+  inStr = false;
+  esc = false;
+  for (let i = 0; i < cut.length; i++) {
+    const ch = cut[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (ch === '\\') esc = true;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') inStr = true;
+    else if (ch === '{' || ch === '[') open.push(ch);
+    else if (ch === '}' || ch === ']') open.pop();
+  }
+  let tail = '';
+  for (let i = open.length - 1; i >= 0; i--) tail += open[i] === '{' ? '}' : ']';
+  return cut + tail;
 }
 
 export type ApproachExhibit = {
@@ -141,7 +254,7 @@ export async function generateApproachArgument(input: {
   try {
     const res = await c.messages.create({
       model: MODEL,
-      max_tokens: 4000,
+      max_tokens: 8000,
       system: SYSTEM,
       messages: [
         {
