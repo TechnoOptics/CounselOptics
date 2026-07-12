@@ -3,12 +3,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { getFirmEvidenceMediaUrl } from '@/lib/case-evidence-actions';
 import {
-  contentIconFor,
   isDisplayableImage,
   mediaCategory,
   KIND_LABEL,
   type TimelineEvent,
 } from '@/lib/timeline-types';
+import { KindIcon } from '@/components/counsel/KindIcon';
 
 /**
  * A large, readable preview of one evidence item, shared by the firm intake
@@ -103,9 +103,10 @@ export function EvidencePreview({
   const label = category === 'pdf' ? 'PDF' : KIND_LABEL[event.kind];
   return (
     <div ref={ref} className={`${base} flex flex-col items-center justify-center gap-1 p-3 text-center`}>
-      <span className="text-4xl leading-none sm:text-5xl" aria-hidden>
-        {contentIconFor(event)}
-      </span>
+      <KindIcon
+        kind={event.kind}
+        className="h-9 w-9 text-ink-400 dark:text-cream-100/45 sm:h-11 sm:w-11"
+      />
       <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-ink-500 dark:text-cream-100/55" data-no-translate>
         {label}
       </span>

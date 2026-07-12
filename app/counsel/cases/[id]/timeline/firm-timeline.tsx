@@ -6,11 +6,11 @@ import { isNativeApp } from '@/lib/platform';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import { RelevanceBadge } from '@/components/RelevanceBadge';
 import { EvidencePreview } from '@/components/EvidencePreview';
+import { KindIcon } from '@/components/counsel/KindIcon';
 import { ExpandableText } from '@/components/ExpandableText';
 import { CaseMap, type MapPoint } from '@/app/cases/[id]/timeline/case-map';
 import {
   formatOccurred,
-  KIND_ICON,
   KIND_LABEL,
   type TimelineBundle,
   type TimelineEvent,
@@ -414,7 +414,7 @@ export function FirmTimeline({
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="text-[13.5px] font-medium text-forest-900 dark:text-cream-100 flex flex-wrap items-center gap-1.5">
-                          <span>{KIND_ICON[e.kind]}</span>
+                          <KindIcon kind={e.kind} className="h-4 w-4 shrink-0 text-gold-600 dark:text-gold-400/90" />
                           <span className="break-words" data-no-translate>{e.title || t('(untitled)')}</span>
                           <RelevanceBadge score={e.aiExtracted.relevance_score} reason={e.aiExtracted.relevance_reason} size="xs" />
                         </p>
@@ -591,7 +591,7 @@ function ExportDialog({
                   />
                   <span className="min-w-0 flex-1">
                     <span className="flex flex-wrap items-center gap-1.5 text-[13px] font-medium text-forest-900 dark:text-cream-100">
-                      <span aria-hidden>{KIND_ICON[e.kind]}</span>
+                      <KindIcon kind={e.kind} className="h-4 w-4 shrink-0 text-gold-600 dark:text-gold-400/90" />
                       <span className="break-words" data-no-translate>{e.title || t('(untitled)')}</span>
                       <RelevanceBadge score={e.aiExtracted.relevance_score} reason={e.aiExtracted.relevance_reason} size="xs" />
                     </span>

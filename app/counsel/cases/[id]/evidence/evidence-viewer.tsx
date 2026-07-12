@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import { RelevanceBadge } from '@/components/RelevanceBadge';
 import { getFirmEvidenceMediaUrl } from '@/lib/case-evidence-actions';
+import { KindIcon } from '@/components/counsel/KindIcon';
 import {
-  contentIconFor,
   exhibitLabel,
   folderForEvent,
   formatOccurred,
@@ -183,7 +183,7 @@ export function EvidenceViewer({
                 {exhibit}
               </span>
             )}
-            <span>{contentIconFor(event)}</span>
+            <KindIcon kind={event.kind} className="h-4 w-4 shrink-0 text-gold-400/90" />
             <span className="break-words">{title}</span>
           </p>
           <p className="mt-1 flex flex-wrap items-center justify-center gap-2 text-[11.5px] text-cream-100/60">
@@ -249,9 +249,7 @@ export function EvidenceViewer({
             <iframe src={url} title={title} className="h-[74vh] w-full rounded-lg bg-white shadow-2xl" />
           ) : (
             <div className="flex flex-col items-center gap-4 rounded-2xl border border-cream-50/10 bg-forest-900/50 px-8 py-10 text-center">
-              <span className="text-6xl" aria-hidden>
-                {contentIconFor(event)}
-              </span>
+              <KindIcon kind={event.kind} className="h-14 w-14 text-cream-100/50" />
               <div>
                 <p className="text-sm font-medium text-cream-50" data-no-translate>
                   {media?.name || title}

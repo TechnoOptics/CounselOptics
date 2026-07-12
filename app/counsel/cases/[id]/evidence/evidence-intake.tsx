@@ -12,13 +12,11 @@ import {
   formatOccurred,
   folderForEvent,
   capturedAt,
-  contentIconFor,
   exhibitLabel,
   isOnTimeline,
   relevanceBand,
   sortTimeline,
   EVIDENCE_FOLDERS,
-  KIND_ICON,
   KIND_LABEL,
   PRECISION_GRAINS,
   type OccurredPrecision,
@@ -43,6 +41,7 @@ import {
   type EvidenceExportItem,
 } from '@/lib/case-evidence-actions';
 import { EvidenceViewer } from './evidence-viewer';
+import { KindIcon } from '@/components/counsel/KindIcon';
 import { EvidenceDashboard } from './evidence-dashboard';
 import { DuplicatePanel, findDuplicateGroups } from './duplicate-panel';
 import { DuplicateDialog, type DuplicateAction, type DuplicateEntry } from './duplicate-dialog';
@@ -1567,7 +1566,7 @@ function Toolbar({
                         : 'text-ink-400 line-through ring-ink-200 dark:text-cream-100/40 dark:ring-forest-700/40'
                     }`}
                   >
-                    <span aria-hidden>{KIND_ICON[k]}</span>
+                    <KindIcon kind={k} className="h-3.5 w-3.5 shrink-0" />
                     <span data-no-translate>
                       {KIND_LABEL[k]} ({kindCounts.get(k)})
                     </span>
@@ -1880,7 +1879,7 @@ function GridCard({
             className="min-w-0 flex-1 text-left text-[13.5px] font-medium text-forest-900 hover:underline dark:text-cream-100"
             data-no-translate
           >
-            <span className="mr-1" aria-hidden>{contentIconFor(e)}</span>
+            <KindIcon kind={e.kind} className="mr-1 inline h-4 w-4 align-text-bottom text-ink-400 dark:text-cream-100/50" />
             {e.title || e.media[0]?.name || t('(untitled)')}
           </button>
           <RelevanceBadge score={ext.relevance_score} reason={ext.relevance_reason} size="xs" />
@@ -2002,7 +2001,7 @@ function EvidenceCard({
                     {exhibit}
                   </span>
                 )}
-                <span aria-hidden>{contentIconFor(e)}</span>
+                <KindIcon kind={e.kind} className="h-4 w-4 shrink-0 text-ink-400 dark:text-cream-100/50" />
                 <button type="button" onClick={onOpenViewer} className="break-words text-left hover:underline" data-no-translate>
                   {e.title || t('(untitled)')}
                 </button>

@@ -3,8 +3,8 @@
 import { useMemo, useState } from 'react';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import { EvidenceHeatmap } from '@/components/EvidenceHeatmap';
+import { KindIcon } from '@/components/counsel/KindIcon';
 import {
-  KIND_ICON,
   KIND_LABEL,
   relevanceBand,
   type TimelineEvent,
@@ -136,7 +136,7 @@ export function EvidenceDashboard({
                 className="inline-flex items-center gap-1 rounded-full bg-cream-100/80 px-2.5 py-1 text-[11.5px] text-ink-700 dark:bg-forest-800/50 dark:text-cream-100/80"
                 data-no-translate
               >
-                <span aria-hidden>{KIND_ICON[kind]}</span>
+                <KindIcon kind={kind} className="h-3.5 w-3.5 shrink-0" />
                 {KIND_LABEL[kind]}
                 <span className="font-mono text-ink-400 dark:text-cream-100/45">{n}</span>
               </span>

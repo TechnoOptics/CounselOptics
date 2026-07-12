@@ -1,10 +1,11 @@
 'use client';
 
-import { useMemo, useState, useCallback, useEffect } from 'react';
+import { useMemo, useState, useCallback, useEffect, type ReactNode } from 'react';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import { RelevanceBadge } from '@/components/RelevanceBadge';
 import { getFirmEvidenceMediaUrl } from '@/lib/case-evidence-actions';
-import { formatOccurred, KIND_ICON, KIND_LABEL, type TimelineEvent } from '@/lib/timeline-types';
+import { formatOccurred, KIND_LABEL, type TimelineEvent } from '@/lib/timeline-types';
+import { KindIcon } from '@/components/counsel/KindIcon';
 
 /**
  * Firm-native calendar view for the case timeline. A companion to the dated
@@ -132,7 +133,7 @@ function DayThumb({
   caseId: string;
   path: string | null;
   mime: string | undefined;
-  fallback: string;
+  fallback: ReactNode;
 }) {
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
@@ -152,7 +153,7 @@ function DayThumb({
         // eslint-disable-next-line @next/next/no-img-element
         <img src={url} alt="" className="h-full w-full object-cover" />
       ) : (
-        <span className="text-[15px]" aria-hidden>{fallback}</span>
+        <span aria-hidden className="inline-flex items-center justify-center text-ink-400 dark:text-cream-100/50">{fallback}</span>
       )}
     </span>
   );
@@ -529,7 +530,7 @@ export function FirmTimelineCalendar({
                       caseId={caseId}
                       path={m?.path ?? null}
                       mime={m?.mime}
-                      fallback={KIND_ICON[e.kind]}
+                      fallback={<KindIcon kind={e.kind} className="h-4 w-4" />}
                     />
                     <span className="min-w-0 flex-1">
                       <span className="flex flex-wrap items-center gap-1.5 text-[12px] font-medium text-forest-900 dark:text-cream-100">
