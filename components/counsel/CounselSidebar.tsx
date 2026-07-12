@@ -173,8 +173,9 @@ export function CounselSidebar({
                 }
               >
                 <span
-                  className="h-5 w-5 rounded inline-flex items-center justify-center text-white flex-none"
-                  style={{ backgroundColor: firm.accentColor, opacity: active ? 1 : 0.85 }}
+                  className={`inline-flex h-[18px] w-[18px] flex-none items-center justify-center transition-opacity ${
+                    active ? 'opacity-100' : 'opacity-80'
+                  }`}
                   aria-hidden
                 >
                   <GearIcon />
