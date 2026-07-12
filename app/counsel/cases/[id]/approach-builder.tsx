@@ -8,9 +8,13 @@ import {
   regenerateFirmApproach,
   updateFirmApproach,
   deleteFirmApproach,
+  getApproachEvidence,
   type Approach,
 } from '@/lib/firm-approach-actions';
 import type { ApproachArgument } from '@/lib/approach-ai';
+import type { TimelineEvent } from '@/lib/timeline-types';
+import { EvidencePreview } from '@/components/EvidencePreview';
+import { EvidenceViewer } from './evidence/evidence-viewer';
 
 /**
  * Case Theory Console — the firm "prove-the-case" approach board, styled as a
@@ -443,7 +447,10 @@ function ApproachCard({
         )}
 
         {g ? (
-          <GeneratedArgument g={g} />
+          <>
+            <GeneratedArgument g={g} />
+            <ApproachEvidence firmId={firmId} caseId={caseId} approachId={approach.id} />
+          </>
         ) : (
           !editing && (
             <div className="flex items-start gap-2.5 rounded-lg border border-amber-400/20 bg-amber-500/[0.07] px-4 py-3 text-[12.5px] text-amber-200/90">
@@ -694,6 +701,103 @@ function TimelinePanel({ timeline }: { timeline: ApproachTimelineEntry[] }) {
             </div>
           ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The real uploads this approach marshals — only the evidence Advottic cited
+ * when assembling the argument. Lazy-loaded on expand (so a page of approaches
+ * doesn't fetch every gallery up front); each thumbnail opens the in-window
+ * evidence viewer with prev/next scoped to this approach's set.
+ */
+function ApproachEvidence({
+  firmId,
+  caseId,
+  approachId,
+}: {
+  firmId: string;
+  caseId: string;
+  approachId: string;
+}) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [events, setEvents] = useState<TimelineEvent[]>([]);
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+
+  async function toggle() {
+    const next = !open;
+    setOpen(next);
+    if (next && !loaded && !loading) {
+      setLoading(true);
+      const res = await getApproachEvidence(firmId, caseId, approachId);
+      if (res.ok && res.events) setEvents(res.events);
+      setLoaded(true);
+      setLoading(false);
+    }
+  }
+
+  const viewerEvent = viewerIndex != null ? events[viewerIndex] : undefined;
+
+  return (
+    <div className="border-t border-cream-50/10 pt-4">
+      <button
+        type="button"
+        onClick={toggle}
+        aria-expanded={open}
+        className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.24em] text-gold-metal/70 hover:text-gold-metal"
+      >
+        <span aria-hidden className={`transition-transform ${open ? 'rotate-90' : ''}`}>▸</span>
+        <span aria-hidden className="h-px w-4 bg-gold-metal/40" />
+        <T>Relevant uploads</T>
+        {loaded && <span className="text-cream-100/40">({events.length})</span>}
+      </button>
+
+      {open && (
+        <div className="mt-3">
+          {loading ? (
+            <div className="flex items-center gap-2 text-[12px] text-cream-100/55">
+              <Spinner />
+              <T>Gathering the cited evidence…</T>
+            </div>
+          ) : events.length === 0 ? (
+            <p className="font-mono text-[11.5px] italic text-cream-100/45">
+              <T>No uploads are cited by this approach yet. Re-run so Advottic marks the exhibits it relies on.</T>
+            </p>
+          ) : (
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
+              {events.map((e, i) => (
+                <button
+                  key={e.id}
+                  type="button"
+                  onClick={() => setViewerIndex(i)}
+                  className="group relative overflow-hidden rounded-lg ring-1 ring-cream-50/10 transition-shadow hover:ring-gold-metal/40 hover:shadow-[0_0_16px_-6px_rgba(198,161,91,0.6)]"
+                  aria-label={t('Open') + ' ' + (e.title || '')}
+                >
+                  <EvidencePreview firmId={firmId} caseId={caseId} event={e} rounded="rounded-none" className="h-24 w-full" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {viewerEvent && (
+        <EvidenceViewer
+          firmId={firmId}
+          caseId={caseId}
+          event={viewerEvent}
+          index={viewerIndex as number}
+          total={events.length}
+          hasPrev={(viewerIndex as number) > 0}
+          hasNext={(viewerIndex as number) < events.length - 1}
+          onPrev={() => setViewerIndex((i) => (i != null && i > 0 ? i - 1 : i))}
+          onNext={() => setViewerIndex((i) => (i != null && i < events.length - 1 ? i + 1 : i))}
+          onClose={() => setViewerIndex(null)}
+        />
       )}
     </div>
   );

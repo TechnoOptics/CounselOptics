@@ -8,6 +8,8 @@ import { resolveTimelineAccess } from './timeline-entitlement';
 import { loadCaseEvidenceDigest } from './case-evidence-digest';
 import { generateApproachArgument, type ApproachArgument, type ApproachFacts } from './approach-ai';
 import { AI_UNAVAILABLE_MESSAGE } from './ai-errors';
+import { getFirmCaseTimeline } from './case-evidence-actions';
+import { exhibitLabel, type TimelineEvent } from './timeline-types';
 
 /**
  * Firm approach-builder actions ("prove-the-case" layer). The lawyer writes a
@@ -263,6 +265,53 @@ export async function regenerateFirmApproach(
   if (error || !data) return { ok: false, error: error?.message ?? 'Could not save the argument.' };
   revalidatePath(`/counsel/cases/${caseId}`);
   return { ok: true, approach: toApproach(data as Row) };
+}
+
+/**
+ * The actual evidence items an approach marshals — the real uploads Advottic
+ * cited when it assembled the argument (by exhibit label, with a title fallback
+ * for label-less citations). Powers the in-app "Relevant uploads" gallery on
+ * the approach card, so the firm sees only the evidence that bears on that
+ * theory. Empty until the approach is assembled.
+ */
+export async function getApproachEvidence(
+  firmId: string,
+  caseId: string,
+  approachId: string,
+): Promise<{ ok: boolean; error?: string; events?: TimelineEvent[] }> {
+  const gate = await assertFirmCase(firmId, caseId);
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Service unavailable.' };
+
+  const { data: appRow } = await admin
+    .from('case_approaches')
+    .select('generated')
+    .eq('id', approachId)
+    .eq('case_id', caseId)
+    .maybeSingle();
+  const g = (appRow as { generated: ApproachArgument | null } | null)?.generated;
+  if (!g || g.exhibits.length === 0) return { ok: true, events: [] };
+
+  const citedLabels = new Set(
+    g.exhibits.map((e) => (e.exhibit ?? '').trim().toUpperCase()).filter(Boolean),
+  );
+  const citedTitles = new Set(
+    g.exhibits
+      .filter((e) => !e.exhibit)
+      .map((e) => (e.title ?? '').trim().toLowerCase())
+      .filter(Boolean),
+  );
+
+  const tl = await getFirmCaseTimeline(firmId, caseId);
+  if (!tl.ok || !tl.events) return { ok: true, events: [] };
+  const events = tl.events.filter((e) => {
+    const label = exhibitLabel(e.aiExtracted?.exhibit_no);
+    if (label && citedLabels.has(label.toUpperCase())) return true;
+    const title = (e.title ?? '').trim().toLowerCase();
+    return !!title && citedTitles.has(title);
+  });
+  return { ok: true, events };
 }
 
 // ── Delete ────────────────────────────────────────────────────────────────
