@@ -4,6 +4,7 @@ import { getCurrentUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
 import { getFirmById } from './firm-storage';
 import type { Firm } from './firm-types';
+import type { OccurredPrecision } from './timeline-types';
 
 /**
  * Case-scoped Counsel GUEST access.
@@ -383,6 +384,7 @@ export async function listCaseGuestAccounts(
 export type GuestTimelineEvent = {
   id: string;
   occurredAt: string | null;
+  occurredPrecision: OccurredPrecision;
   kind: string;
   title: string;
   description: string | null;
@@ -415,7 +417,7 @@ export async function getGuestTimelineBundle(
   const [{ data: ev }, { data: pl }, { data: nr }] = await Promise.all([
     admin
       .from('case_timeline_events')
-      .select('id, occurred_at, kind, title, description, source_label, media, position')
+      .select('id, occurred_at, occurred_precision, kind, title, description, source_label, media, position')
       .eq('case_id', caseId),
     admin
       .from('case_people')
@@ -431,6 +433,7 @@ export async function getGuestTimelineBundle(
   type Row = {
     id: string;
     occurred_at: string | null;
+    occurred_precision: OccurredPrecision | null;
     kind: string | null;
     title: string | null;
     description: string | null;
@@ -442,6 +445,7 @@ export async function getGuestTimelineBundle(
     .map((r) => ({
       id: r.id,
       occurredAt: r.occurred_at,
+      occurredPrecision: r.occurred_precision ?? 'day',
       kind: r.kind ?? 'note',
       title: r.title ?? '',
       description: r.description,

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { GuestTimelineBundle } from '@/lib/counsel-guest';
+import { formatOccurred } from '@/lib/timeline-types';
 import { T } from '@/components/i18n/LocaleProvider';
 
 /**
@@ -73,10 +74,8 @@ export function GuestTimelineView({
                 <p className="text-sm font-semibold text-cream-100" data-no-translate>
                   {e.title || '(untitled)'}
                 </p>
-                <span className="text-[11px] font-mono tabular-nums text-cream-100/55">
-                  {e.occurredAt
-                    ? new Date(e.occurredAt).toLocaleDateString()
-                    : 'Undated'}
+                <span className="text-[11px] font-mono tabular-nums text-cream-100/55" data-no-translate>
+                  {formatOccurred(e.occurredAt, e.occurredPrecision)}
                 </span>
               </div>
               {e.description && (
