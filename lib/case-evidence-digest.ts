@@ -13,7 +13,7 @@ import type { EvidenceDigestItem } from './legal-review-ai';
 export async function loadCaseEvidenceDigest(
   admin: SupabaseClient,
   caseId: string,
-  limit = 200,
+  limit = 2000,
 ): Promise<EvidenceDigestItem[]> {
   const { data } = await admin
     .from('case_timeline_events')
@@ -26,16 +26,29 @@ export async function loadCaseEvidenceDigest(
     kind: string;
     occurred_at: string | null;
     occurred_precision: OccurredPrecision | null;
-    ai_extracted: { exhibit_no?: number } | null;
+    ai_extracted: { exhibit_no?: number; relevance_score?: number } | null;
   }>;
-  return rows.map((r) => {
-    const no = r.ai_extracted?.exhibit_no;
-    return {
-      exhibit: typeof no === 'number' ? `EX-${String(no).padStart(4, '0')}` : null,
-      when: r.occurred_at ? formatOccurred(r.occurred_at, r.occurred_precision ?? 'day') : null,
-      kind: r.kind,
-      title: r.title || '(untitled)',
-      summary: r.ai_summary,
-    };
-  });
+  // Order by relevance (highest first, unscored last) so that any downstream cap
+  // keeps the MOST relevant items rather than an arbitrary slice. `limit` is set
+  // high enough to cover an entire matter, so nothing is silently dropped here.
+  return rows
+    .map((r) => ({
+      r,
+      score:
+        typeof r.ai_extracted?.relevance_score === 'number' &&
+        Number.isFinite(r.ai_extracted.relevance_score)
+          ? r.ai_extracted.relevance_score
+          : -1,
+    }))
+    .sort((a, b) => b.score - a.score)
+    .map(({ r }) => {
+      const no = r.ai_extracted?.exhibit_no;
+      return {
+        exhibit: typeof no === 'number' ? `EX-${String(no).padStart(4, '0')}` : null,
+        when: r.occurred_at ? formatOccurred(r.occurred_at, r.occurred_precision ?? 'day') : null,
+        kind: r.kind,
+        title: r.title || '(untitled)',
+        summary: r.ai_summary,
+      };
+    });
 }

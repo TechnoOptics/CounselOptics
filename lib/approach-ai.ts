@@ -223,10 +223,16 @@ function factsBlock(f: ApproachFacts): string {
     .join('\n');
 }
 
+// Cap generously: the digest is one line per item and arrives relevance-ordered,
+// so this covers an entire matter (hundreds of items) while still bounding the
+// prompt. Nothing is dropped for a normal case; only a pathological matter with
+// 600+ items would trim, and then it keeps the most relevant.
+const MAX_DIGEST_ITEMS = 600;
+
 function evidenceBlock(items: EvidenceDigestItem[]): string {
   if (items.length === 0) return '(no evidence on file yet)';
   return items
-    .slice(0, 80)
+    .slice(0, MAX_DIGEST_ITEMS)
     .map(
       (e) =>
         `- ${e.exhibit ? `[${e.exhibit}] ` : ''}${e.when ? `(${e.when}) ` : ''}${e.kind}: ${e.title}${e.summary ? ` , ${e.summary}` : ''}`,
