@@ -204,9 +204,9 @@ export function TierCard({
         // Reader model: no in-app purchase on iOS.
         isPaidTier ? (
           <div className="rounded-lg border border-forest-900/15 bg-forest-900/[0.03] px-3.5 py-3 text-[12.5px] leading-snug text-ink-700 dark:border-cream-50/15 dark:bg-cream-50/[0.04] dark:text-cream-200/90">
-            To start or change this plan, subscribe on the web at{' '}
-            <span className="font-semibold text-forest-900 dark:text-cream-100">advottic.com</span>.
-            Your access unlocks here automatically once you&apos;re subscribed.
+            {/* Status only, no external-purchase steering (guideline 3.1.3(b)):
+                no website named, no "subscribe on the web". */}
+            Your access unlocks here automatically once your account is subscribed.
           </div>
         ) : null
       ) : (

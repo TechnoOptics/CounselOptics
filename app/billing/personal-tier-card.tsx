@@ -136,12 +136,11 @@ export function PersonalTierCard({
         </span>
       ) : isIOS ? (
         // Reader model on iOS / iPadOS (same AdvotticApp/ios shell): no in-app
-        // purchase, direct to the web to subscribe. Matches the firm tier-card
-        // treatment (app/billing/tier-card.tsx) so both surfaces read the same.
+        // purchase and NO external-purchase steering. Describes subscription
+        // STATUS only (no website named, no "subscribe on the web") to stay
+        // clearly inside guideline 3.1.3(b). Matches the firm tier-card.
         <div className="rounded-lg border border-ink-200 bg-ink-50 px-3.5 py-3 text-[12.5px] leading-snug text-ink-700 dark:border-forest-700/40 dark:bg-forest-950/40 dark:text-cream-100/80">
-          To start this plan, subscribe on the web at{' '}
-          <span className="font-semibold text-forest-900 dark:text-cream-100">advottic.com</span>.
-          Your access unlocks here automatically once you&apos;re subscribed.
+          Your access unlocks here automatically once your account is subscribed.
         </div>
       ) : !priceConfigured ? (
         <span className="rounded-lg border border-dashed border-ink-300 px-4 py-2 text-center text-sm text-ink-400 dark:border-forest-700/50 dark:text-cream-100/40">

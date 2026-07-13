@@ -283,3 +283,55 @@ provided.
 - Native shell updates (new plugin, new permission, new icon, new
   splash) require a re-archive + new App Store submission. Bump
   the version in `Info.plist` first.
+
+---
+
+## 12. Resolution Center reply — subscription / IAP (3.1.3(b))
+
+Ready-to-paste reply for an App Review rejection questioning the
+subscription model / missing In-App Purchase. It restates the
+multiplatform-services position (section 9). Keep the App Review
+Notes field saying the same thing.
+
+> Hello, and thank you for the review.
+>
+> Advottic is a genuine multiplatform legal case-organization
+> service. The same account, cases, and subscription are available
+> on the web (advottic.com) and on Android, and the iOS app is a
+> native client for that same service.
+>
+> Regarding the subscription concern: Advottic does not offer any
+> in-app purchase and does not process any payment inside the iOS
+> app. Consistent with App Store Review Guideline 3.1.3(b)
+> (Multiplatform Services), paid plans are account-based
+> subscriptions that customers purchase and manage on the web. The
+> in-app Billing screen does not sell anything or start a checkout;
+> it simply reflects the customer's existing subscription status and
+> current plan. There is no Apple In-App Purchase product, no
+> third-party payment SDK, and no purchase button in the app.
+>
+> When a signed-in user is not yet subscribed, the app only displays
+> their status; access to any paid feature unlocks automatically once
+> the account is subscribed, on whichever platform they signed up.
+> Users are never blocked from the free functionality of the app.
+>
+> To help testing:
+> - Test account: appreview@advottic.com (password in App Review
+>   Notes). Sign in with Apple also works with any Apple ID.
+> - Suggested flow: sign in -> create a case with the Smart Assist
+>   wizard -> upload an exhibit -> run Advottic Review -> open Billing
+>   to see the account's plan status.
+>
+> We believe the app fully complies with 3.1.3(b). If any specific
+> screen still needs adjustment, we're glad to make it right away;
+> please let us know the exact screen and we'll turn a build around
+> quickly.
+>
+> Thank you for your time.
+
+**Copy posture (anti-steering):** the in-app iOS billing surfaces
+describe subscription STATUS only and do NOT name an external website
+or say "subscribe on the web" (that wording was removed to stay clearly
+inside 3.1.3(b) anti-steering). The reader-model note now reads: "Your
+access unlocks here automatically once your account is subscribed."
+Web + Android keep the real Stripe checkout button.
