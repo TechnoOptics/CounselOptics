@@ -483,16 +483,29 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                       width={14494}
                       height={1699}
                       priority
-                      className="h-6 sm:h-8 lg:h-9 w-auto max-w-[55vw] block group-hover:opacity-90 transition-opacity"
+                      // The wordmark is ~8.5:1. At h-6 (24px) its natural width
+                      // is ~205px; a max-width smaller than that clamps the
+                      // WIDTH while height stays fixed, squeezing the mark. The
+                      // old max-w-[55vw] (~206px at 375px, less below) squeezed
+                      // it on every phone under ~372px wide. max-w-[68vw] never
+                      // drops below the natural width on any real phone, so the
+                      // mark keeps its aspect ratio; it still caps growth as a
+                      // safety net. w-auto + h-* keeps the ratio otherwise.
+                      className="h-6 sm:h-8 lg:h-9 w-auto max-w-[68vw] block group-hover:opacity-90 transition-opacity"
                     />
                   </Link>
                   <div className="flex items-center gap-1">
                     {/* Signed IN: the language selector lives inside the
                         account menu (UserMenu) so it no longer overlaps the
-                        Advottic wordmark on narrow mobile widths. Signed OUT:
-                        there is no account menu, so keep it in the header. */}
+                        Advottic wordmark on narrow mobile widths. Signed OUT
+                        (login / marketing): keep it in the header on sm+ only.
+                        On mobile it is hidden so it never overlaps or crowds
+                        the wordmark; the choice still persists via the locale
+                        cookie and is available from the profile once signed in. */}
                     {!signedIn && consumerI18n && (
-                      <LanguageSwitcher initialLocale={locale} variant="light" />
+                      <span className="hidden sm:inline-flex">
+                        <LanguageSwitcher initialLocale={locale} variant="light" />
+                      </span>
                     )}
                     {signedIn && <SearchTrigger className="hidden sm:inline-flex" />}
                     {signedIn && (
