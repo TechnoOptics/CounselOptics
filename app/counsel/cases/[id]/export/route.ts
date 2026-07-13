@@ -10,7 +10,7 @@ import {
   type ExhibitFile,
   type ExhibitEntity,
 } from '@/lib/pdf';
-import { formatOccurred, KIND_LABEL, ROLE_LABEL, type TimelineMedia } from '@/lib/timeline-types';
+import { formatOccurred, KIND_LABEL, ROLE_LABEL, relevanceBand, type TimelineMedia } from '@/lib/timeline-types';
 import { staticMapUrlServer } from '@/lib/maps';
 import { canonicalOrg } from '@/lib/entity-normalize';
 
@@ -92,13 +92,24 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     return NextResponse.json({ error: 'Add evidence before exporting.' }, { status: 400 });
   }
 
-  // Selection: comma-separated event ids. Empty / absent => the whole matter.
+  // Selection: comma-separated event ids. An explicit selection is honoured
+  // exactly. With NO selection, the packet defaults to only the RELEVANT items
+  // (relevance band medium/high, plus unscored items) so the court is not
+  // handed low-relevance noise; pass ?all=1 to include the entire matter.
   const url = new URL(req.url);
   const raw = url.searchParams.get('ids');
+  const includeAll = url.searchParams.get('all') === '1';
   const selected = raw
     ? new Set(raw.split(',').map((s) => s.trim()).filter(Boolean))
     : null;
-  const chosen = selected ? bundle.events.filter((e) => selected.has(e.id)) : bundle.events;
+  let chosen = selected
+    ? bundle.events.filter((e) => selected.has(e.id))
+    : includeAll
+      ? bundle.events
+      : bundle.events.filter((e) => relevanceBand(e.aiExtracted.relevance_score) !== 'low');
+  // Never emit an empty packet: if the relevance filter left nothing (e.g. an
+  // unscored matter), fall back to the whole matter rather than erroring.
+  if (!selected && !includeAll && chosen.length === 0) chosen = bundle.events;
   if (chosen.length === 0) {
     return NextResponse.json({ error: 'Select at least one item to export.' }, { status: 400 });
   }
