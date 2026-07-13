@@ -164,7 +164,13 @@ async function runGeneration(
     jurisdiction,
     description: cr.description,
   };
-  const evidence = await loadCaseEvidenceDigest(admin, caseId);
+  // Full extracted text for the most-relevant items (so the argument reasons
+  // over the actual content, not just summaries), with one-line summaries for
+  // the rest so the whole matter is still in view.
+  const evidence = await loadCaseEvidenceDigest(admin, caseId, {
+    fullTextTopN: 150,
+    perItemChars: 2500,
+  });
   const res = await generateApproachArgument({
     facts,
     approach: prompt,

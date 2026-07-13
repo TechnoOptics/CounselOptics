@@ -196,6 +196,7 @@ const SYSTEM = `You are a neutral litigation analyst assembling work product for
 
 Rules (mandatory):
 - Use ONLY the matter facts and the evidence digest provided. Never invent evidence, exhibits, dates, parties, or facts.
+- The digest is ordered by relevance. The most relevant items include their FULL extracted content under a "Content:" block (the actual text of the document, email, or message thread); read that content closely and ground specific factual claims and quotes in what those items actually say. Lower-relevance items appear as one-line summaries; you may still cite them, but do not attribute specific wording to an item whose full content you were not given.
 - When you cite an exhibit, use the EXACT exhibit label shown in the digest (for example "EX-0003"). If an item in the digest has no label, refer to it by its title. Do not cite an exhibit that is not in the digest.
 - Build a clear chronological TIMELINE from the dated items that support the approach.
 - Be candid about GAPS: what is missing or weak for this approach.
@@ -233,11 +234,20 @@ function evidenceBlock(items: EvidenceDigestItem[]): string {
   if (items.length === 0) return '(no evidence on file yet)';
   return items
     .slice(0, MAX_DIGEST_ITEMS)
-    .map(
-      (e) =>
-        `- ${e.exhibit ? `[${e.exhibit}] ` : ''}${e.when ? `(${e.when}) ` : ''}${e.kind}: ${e.title}${e.summary ? ` , ${e.summary}` : ''}`,
-    )
-    .join('\n');
+    .map((e) => {
+      const head = `- ${e.exhibit ? `[${e.exhibit}] ` : ''}${e.when ? `(${e.when}) ` : ''}${e.kind}: ${e.title}`;
+      if (e.fullText) {
+        // Deep item: the actual extracted content, indented under the header, so
+        // the model reasons over what the document/email/thread really says.
+        const body = e.fullText
+          .split('\n')
+          .map((l) => `    ${l}`)
+          .join('\n');
+        return `${head}${e.summary ? `\n  Summary: ${e.summary}` : ''}\n  Content:\n${body}`;
+      }
+      return `${head}${e.summary ? ` , ${e.summary}` : ''}`;
+    })
+    .join('\n\n');
 }
 
 /** Assemble the structured argument for an approach. Returns { error } gracefully. */
@@ -260,7 +270,7 @@ export async function generateApproachArgument(input: {
   try {
     const res = await c.messages.create({
       model: MODEL,
-      max_tokens: 8000,
+      max_tokens: 12000,
       system: SYSTEM,
       messages: [
         {

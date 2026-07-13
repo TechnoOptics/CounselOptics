@@ -59,6 +59,10 @@ export type EvidenceDigestItem = {
   kind: string;
   title: string;
   summary: string | null;
+  /** The item's full extracted text (OCR / email body / message thread, plus
+   *  the AI's relevance reasoning), attached for the most-relevant items so the
+   *  analysis reasons over the actual content, not just the summary. Bounded. */
+  fullText?: string | null;
 };
 
 /** A candidate case the model proposes; UNVERIFIED until CourtListener says so. */
