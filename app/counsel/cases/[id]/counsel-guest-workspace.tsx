@@ -5,6 +5,7 @@ import type { Approach } from '@/lib/firm-approach-actions';
 import { T } from '@/components/i18n/LocaleProvider';
 import { EvidenceDashboard } from './evidence-dashboard';
 import { ApproachBuilder } from './approach-builder';
+import { MatterFacts } from './matter-facts';
 
 const STATUS_LABEL: Record<string, string> = {
   draft: 'Draft',
@@ -36,12 +37,24 @@ export function CounselGuestWorkspace({
   caseId,
   approaches,
   analytics,
+  subjectType,
+  subjectProfile,
+  posture,
+  hearingNotes,
+  partyImages,
 }: {
   kase: GuestCaseSummary;
   firmId: string | null;
   caseId: string;
   approaches: Approach[];
   analytics: CaseEvidenceAnalytics | null;
+  /** Extra matter facts (beyond the guest summary) so the party dossier -
+   *  portrait + full record - can lead the workspace like the firm page. */
+  subjectType: string | null;
+  subjectProfile: Record<string, string> | null;
+  posture: string | null;
+  hearingNotes: string | null;
+  partyImages: { id: string; storagePath: string }[];
 }) {
   const place = [kase.jurisdictionCity, kase.jurisdictionState, kase.jurisdictionCountry]
     .filter(Boolean)
@@ -67,35 +80,35 @@ export function CounselGuestWorkspace({
         </p>
       </header>
 
-      <section className="card p-5 grid gap-4 sm:grid-cols-2">
-        {kase.subjectName && <Field label="Subject" value={kase.subjectName} />}
-        {kase.caseType && <Field label="Matter type" value={kase.caseType} />}
-        {kase.status && (
-          <Field label="Status" value={STATUS_LABEL[kase.status] ?? kase.status} />
-        )}
-        {place && <Field label="Jurisdiction" value={place} />}
-        {kase.hearingAt && (
-          <Field
-            label="Hearing"
-            value={
-              new Date(kase.hearingAt).toLocaleString() +
-              (kase.hearingLocation ? ` · ${kase.hearingLocation}` : '')
-            }
-          />
-        )}
-      </section>
-
-      {kase.description && (
-        <section className="card p-5">
-          <h2 className="text-[11px] uppercase tracking-[0.12em] font-semibold text-cream-100/55 mb-2">
-            <T>Summary</T>
-          </h2>
-          <p
-            className="text-sm text-cream-100/80 whitespace-pre-wrap leading-relaxed"
-            data-no-translate
-          >
-            {kase.description}
-          </p>
+      {/* Party dossier leads the workspace: the subject's portrait + the full
+          record, then the summary - the same read the firm sees. Falls back to
+          a plain particulars card if the firm can't be resolved. */}
+      {firmId ? (
+        <MatterFacts
+          firmId={firmId}
+          caseId={caseId}
+          posture={posture ?? 'claimant'}
+          caseType={kase.caseType ?? ''}
+          subjectName={kase.subjectName ?? ''}
+          subjectType={subjectType}
+          subjectProfile={subjectProfile}
+          partyImages={partyImages}
+          jurisdictionCountry={kase.jurisdictionCountry}
+          jurisdictionState={kase.jurisdictionState}
+          jurisdictionCity={kase.jurisdictionCity}
+          description={kase.description}
+          hearingAt={kase.hearingAt}
+          hearingLocation={kase.hearingLocation}
+          hearingNotes={hearingNotes}
+        />
+      ) : (
+        <section className="card p-5 grid gap-4 sm:grid-cols-2">
+          {kase.subjectName && <Field label="Subject" value={kase.subjectName} />}
+          {kase.caseType && <Field label="Matter type" value={kase.caseType} />}
+          {kase.status && (
+            <Field label="Status" value={STATUS_LABEL[kase.status] ?? kase.status} />
+          )}
+          {place && <Field label="Jurisdiction" value={place} />}
         </section>
       )}
 

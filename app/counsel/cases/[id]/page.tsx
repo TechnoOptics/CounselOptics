@@ -111,7 +111,7 @@ export default async function CounselCaseDetailPage({
     if (guestView) {
       const gFirmId = guestView.guest.firmId;
       const admin = createAdminSupabase();
-      const [gApproachesRes, gAnalytics] = await Promise.all([
+      const [gApproachesRes, gAnalytics, gCaseRow, gImagesRow] = await Promise.all([
         gFirmId
           ? listFirmApproaches(gFirmId, params.id).catch(() => ({ ok: false as const }))
           : Promise.resolve({ ok: false as const }),
@@ -119,9 +119,31 @@ export default async function CounselCaseDetailPage({
           if (!admin) return null;
           return getCaseEvidenceAnalytics(admin, params.id).catch(() => null);
         })(),
+        // Extra matter facts for the party dossier (portrait + full record).
+        (async () => {
+          if (!admin) return null;
+          const { data } = await admin
+            .from('cases')
+            .select('subject_type, subject_profile, posture, hearing_notes')
+            .eq('id', params.id)
+            .maybeSingle();
+          return data as
+            | { subject_type: string | null; subject_profile: Record<string, string> | null; posture: string | null; hearing_notes: string | null }
+            | null;
+        })(),
+        (async () => {
+          if (!admin) return [] as { id: string; storage_path: string }[];
+          const { data } = await admin
+            .from('case_images')
+            .select('id, storage_path')
+            .eq('case_id', params.id)
+            .eq('kind', 'party');
+          return (data ?? []) as { id: string; storage_path: string }[];
+        })(),
       ]);
       const gApproaches =
         'approaches' in gApproachesRes ? (gApproachesRes.approaches ?? []) : [];
+      const gPartyImages = gImagesRow.map((i) => ({ id: i.id, storagePath: i.storage_path }));
       return (
         <CounselGuestWorkspace
           kase={guestView.case}
@@ -129,6 +151,11 @@ export default async function CounselCaseDetailPage({
           caseId={params.id}
           approaches={gApproaches}
           analytics={gAnalytics}
+          subjectType={gCaseRow?.subject_type ?? null}
+          subjectProfile={gCaseRow?.subject_profile ?? null}
+          posture={gCaseRow?.posture ?? null}
+          hearingNotes={gCaseRow?.hearing_notes ?? null}
+          partyImages={gPartyImages}
         />
       );
     }

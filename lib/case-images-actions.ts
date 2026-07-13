@@ -212,7 +212,12 @@ export async function getCaseImageUrl(
   path: string,
 ): Promise<{ ok: boolean; url?: string; error?: string }> {
   const gate = await assertFirmCase(firmId, caseId);
-  if (!gate.ok) return { ok: false, error: gate.error };
+  if (!gate.ok) {
+    // Co-counsel GUEST may VIEW the party portrait / case images of their
+    // matter (read only - uploads stay firm-member-gated above).
+    const { guestCanReadCase } = await import('./counsel-guest');
+    if (!(await guestCanReadCase(caseId, firmId))) return { ok: false, error: gate.error };
+  }
   if (!path.includes(`/${caseId}/case-images/`)) return { ok: false, error: 'Not in this matter.' };
   const admin = createAdminSupabase();
   if (!admin) return { ok: false, error: 'Service unavailable.' };
