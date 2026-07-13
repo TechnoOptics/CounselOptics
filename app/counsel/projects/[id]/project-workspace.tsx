@@ -93,7 +93,7 @@ export function ProjectWorkspace({
     }
     if (isNativeApp()) {
       const { Browser } = await import('@capacitor/browser');
-      await Browser.open({ url: res.url });
+      await Browser.open({ url: res.url, toolbarColor: '#0b0b0d' });
     } else {
       window.open(res.url, '_blank', 'noopener');
     }

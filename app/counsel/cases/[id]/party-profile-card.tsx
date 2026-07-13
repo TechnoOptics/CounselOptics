@@ -129,7 +129,7 @@ export function PartyProfileCard({
     if (!url) return;
     if (isNativeApp()) {
       const { Browser } = await import('@capacitor/browser');
-      await Browser.open({ url });
+      await Browser.open({ url, toolbarColor: '#0b0b0d' });
     } else {
       window.open(url, '_blank', 'noopener');
     }
