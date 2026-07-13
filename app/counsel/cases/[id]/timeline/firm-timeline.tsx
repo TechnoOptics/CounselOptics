@@ -12,6 +12,7 @@ import { CaseMap, type MapPoint } from '@/app/cases/[id]/timeline/case-map';
 import {
   formatOccurred,
   KIND_LABEL,
+  relevanceBand,
   type TimelineBundle,
   type TimelineEvent,
 } from '@/lib/timeline-types';
@@ -66,7 +67,20 @@ export function FirmTimeline({
   };
 }) {
   const t = useT();
-  const [events] = useState<TimelineEvent[]>(initialBundle.events);
+  const [allEvents] = useState<TimelineEvent[]>(initialBundle.events);
+  // The timeline, map, and analytics surface only items USEFUL to the case
+  // (relevance band medium/high, plus unscored); low-relevance uploads stay in
+  // the evidence database (intake) but do not clutter the chronology. Toggle to
+  // reveal everything when needed.
+  const [relevantOnly, setRelevantOnly] = useState(true);
+  const lowCount = useMemo(
+    () => allEvents.filter((e) => relevanceBand(e.aiExtracted?.relevance_score) === 'low').length,
+    [allEvents],
+  );
+  const events = useMemo(
+    () => (relevantOnly ? allEvents.filter((e) => relevanceBand(e.aiExtracted?.relevance_score) !== 'low') : allEvents),
+    [allEvents, relevantOnly],
+  );
   const [narrative, setNarrative] = useState(initialBundle.narrative);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -204,6 +218,25 @@ export function FirmTimeline({
           <span className="text-ink-400 dark:text-cream-100/40">({events.length})</span>
         </h2>
         <div className="flex flex-wrap items-center gap-2">
+          {lowCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setRelevantOnly((v) => !v)}
+              aria-pressed={relevantOnly}
+              title={t('Hide low-relevance uploads from the timeline, map, and analytics. The full corpus stays in Add / manage evidence.')}
+              className={
+                (relevantOnly
+                  ? 'bg-gold-metal/15 text-gold-700 dark:text-gold-300 ring-gold-metal/40 '
+                  : 'text-ink-600 dark:text-cream-100/70 ring-ink-200 dark:ring-forest-700/40 ') +
+                'inline-flex items-center gap-1.5 rounded-md ring-1 px-3 py-1.5 text-[12.5px] transition-colors'
+              }
+            >
+              {relevantOnly ? <T>Relevant only</T> : <T>All uploads</T>}
+              <span className="text-[11px] opacity-70" data-no-translate>
+                {relevantOnly ? `(${lowCount} hidden)` : ''}
+              </span>
+            </button>
+          )}
           <div className="inline-flex rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 overflow-hidden" role="group" aria-label={t('View')}>
             <button
               type="button"

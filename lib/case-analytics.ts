@@ -1,6 +1,6 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { AiExtracted, TimelineMedia } from './timeline-types';
+import { relevanceBand, type AiExtracted, type TimelineMedia } from './timeline-types';
 import type { MapPoint } from '@/app/cases/[id]/timeline/case-map';
 
 /**
@@ -79,7 +79,12 @@ export async function getCaseEvidenceAnalytics(
     .eq('case_id', caseId);
   if (error || !data || data.length === 0) return empty;
 
-  const rows = data as Row[];
+  // Analytics reflect only items USEFUL to the case (relevance band medium/high,
+  // plus unscored). Low-relevance uploads remain in the evidence intake as the
+  // matter's database, but do not drive the overview charts and coverage.
+  const rows = (data as Row[]).filter(
+    (r) => relevanceBand((r.ai_extracted as AiExtracted | null)?.relevance_score) !== 'low',
+  );
   const a = { ...empty, status: { ...empty.status }, types: { ...empty.types }, entities: { ...empty.entities } };
   const folders = new Map<string, number>();
   const docTypes = new Map<string, number>();

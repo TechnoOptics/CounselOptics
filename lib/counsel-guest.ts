@@ -5,6 +5,7 @@ import { createAdminSupabase } from './supabase/admin';
 import { getFirmById } from './firm-storage';
 import type { Firm } from './firm-types';
 import type { OccurredPrecision } from './timeline-types';
+import { relevanceBand } from './timeline-types';
 
 /**
  * Case-scoped Counsel GUEST access.
@@ -417,7 +418,7 @@ export async function getGuestTimelineBundle(
   const [{ data: ev }, { data: pl }, { data: nr }] = await Promise.all([
     admin
       .from('case_timeline_events')
-      .select('id, occurred_at, occurred_precision, kind, title, description, source_label, media, position')
+      .select('id, occurred_at, occurred_precision, kind, title, description, source_label, media, position, ai_extracted')
       .eq('case_id', caseId),
     admin
       .from('case_people')
@@ -440,8 +441,12 @@ export async function getGuestTimelineBundle(
     source_label: string | null;
     media: unknown[] | null;
     position: number | null;
+    ai_extracted: { relevance_score?: number } | null;
   };
   const events: GuestTimelineEvent[] = ((ev ?? []) as Row[])
+    // Only items USEFUL to the case (relevance band medium/high, plus unscored);
+    // low-relevance uploads stay in the evidence database, off the chronology.
+    .filter((r) => relevanceBand(r.ai_extracted?.relevance_score) !== 'low')
     .map((r) => ({
       id: r.id,
       occurredAt: r.occurred_at,
