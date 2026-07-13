@@ -153,7 +153,14 @@ export async function generateFirmLegalReviewAction(
     description: cr.description,
   };
 
-  const evidence = await loadCaseEvidenceDigest(admin, caseId);
+  // Full extracted text of the evidence (OCR / email / thread), relevance-
+  // ordered, so the legal issues are surfaced from the actual content, not just
+  // summaries. Budget-guarded for very large matters.
+  const evidence = await loadCaseEvidenceDigest(admin, caseId, {
+    fullTextTopN: 2000,
+    perItemChars: 2500,
+    totalCharBudget: 600_000,
+  });
   const draft = await generateLegalReviewDraft({ facts, evidence });
   if ('error' in draft) return { ok: false, error: draft.error };
 

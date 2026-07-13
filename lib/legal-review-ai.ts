@@ -98,6 +98,7 @@ const SYSTEM = `You are a neutral legal-issue analyst preparing work product for
 
 Honesty and safety rules (mandatory):
 - Ground everything in the facts provided. Never invent facts, dates, parties, or evidence.
+- The evidence digest is ordered by relevance. The most relevant items include their FULL extracted content under a "Content:" block (the actual text of the document, email, or message thread); read that content closely when deciding which claims the evidence supports. Lower-relevance items appear as one-line summaries.
 - For "cases", propose REAL, well-known decisions you are confident exist, and give the best citation you know (reporter citation like "410 U.S. 113" when you can). Do NOT fabricate citations. A separate verification step checks every case against CourtListener and DROPS any that cannot be confirmed, so a guessed or wrong citation will simply be discarded, never shown. Prefer landmark or controlling authority in the state or its federal circuit over obscure cases.
 - Statutes: cite by code section from public sources; add a short note that the attorney should confirm the current text and version.
 - Neutral, professional English. Never use em dashes or en dashes; use commas, periods, colons, or parentheses. Do not refer to yourself, to any assistant, or to AI. Do not name any product.
@@ -134,15 +135,24 @@ function factsBlock(f: LegalReviewFacts): string {
     .join('\n');
 }
 
+const MAX_DIGEST_ITEMS = 600;
+
 function evidenceBlock(items: EvidenceDigestItem[]): string {
   if (items.length === 0) return '(no evidence on file yet)';
   return items
-    .slice(0, 60)
-    .map(
-      (e) =>
-        `- ${e.exhibit ? `[${e.exhibit}] ` : ''}${e.when ? `(${e.when}) ` : ''}${e.kind}: ${e.title}${e.summary ? ` , ${e.summary}` : ''}`,
-    )
-    .join('\n');
+    .slice(0, MAX_DIGEST_ITEMS)
+    .map((e) => {
+      const head = `- ${e.exhibit ? `[${e.exhibit}] ` : ''}${e.when ? `(${e.when}) ` : ''}${e.kind}: ${e.title}`;
+      if (e.fullText) {
+        const body = e.fullText
+          .split('\n')
+          .map((l) => `    ${l}`)
+          .join('\n');
+        return `${head}${e.summary ? `\n  Summary: ${e.summary}` : ''}\n  Content:\n${body}`;
+      }
+      return `${head}${e.summary ? ` , ${e.summary}` : ''}`;
+    })
+    .join('\n\n');
 }
 
 /** Draft the legal review (UNVERIFIED citations). Returns { error } gracefully. */
@@ -160,7 +170,7 @@ export async function generateLegalReviewDraft(input: {
   try {
     const res = await c.messages.create({
       model: MODEL,
-      max_tokens: 4000,
+      max_tokens: 8000,
       system: SYSTEM,
       messages: [
         {
