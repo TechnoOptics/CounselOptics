@@ -168,8 +168,9 @@ async function runGeneration(
   // over the actual content, not just summaries), with one-line summaries for
   // the rest so the whole matter is still in view.
   const evidence = await loadCaseEvidenceDigest(admin, caseId, {
-    fullTextTopN: 150,
+    fullTextTopN: 2000, // every item, relevance-ordered
     perItemChars: 2500,
+    totalCharBudget: 600_000, // ~150k tokens ceiling; the tail of a huge matter degrades to summaries
   });
   const res = await generateApproachArgument({
     facts,

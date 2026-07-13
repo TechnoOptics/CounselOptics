@@ -43,9 +43,22 @@ function itemFullText(ex: ExtractedForDigest | null, perItemChars: number): stri
 export async function loadCaseEvidenceDigest(
   admin: SupabaseClient,
   caseId: string,
-  opts: { limit?: number; fullTextTopN?: number; perItemChars?: number } = {},
+  opts: {
+    limit?: number;
+    fullTextTopN?: number;
+    perItemChars?: number;
+    /** Overall cap on attached full text across the whole digest, so a huge
+     *  matter can't blow the context window. Items past the budget fall back to
+     *  their summary (relevance order means the most important keep full text). */
+    totalCharBudget?: number;
+  } = {},
 ): Promise<EvidenceDigestItem[]> {
-  const { limit = 2000, fullTextTopN = 0, perItemChars = 2500 } = opts;
+  const {
+    limit = 2000,
+    fullTextTopN = 0,
+    perItemChars = 2500,
+    totalCharBudget = 600_000,
+  } = opts;
   const { data } = await admin
     .from('case_timeline_events')
     .select('title, ai_summary, kind, occurred_at, occurred_precision, ai_extracted')
@@ -62,6 +75,7 @@ export async function loadCaseEvidenceDigest(
   // Order by relevance (highest first, unscored last) so that any downstream cap
   // keeps the MOST relevant items rather than an arbitrary slice, and so the
   // full-text budget is spent on the items that matter most.
+  let used = 0;
   return rows
     .map((r) => ({
       r,
@@ -74,13 +88,22 @@ export async function loadCaseEvidenceDigest(
     .sort((a, b) => b.score - a.score)
     .map(({ r }, i) => {
       const no = r.ai_extracted?.exhibit_no;
+      let fullText: string | null = null;
+      if (i < fullTextTopN && used < totalCharBudget) {
+        const ft = itemFullText(r.ai_extracted, perItemChars);
+        if (ft) {
+          const remaining = totalCharBudget - used;
+          fullText = ft.length > remaining ? `${ft.slice(0, remaining)}…` : ft;
+          used += fullText.length;
+        }
+      }
       return {
         exhibit: typeof no === 'number' ? `EX-${String(no).padStart(4, '0')}` : null,
         when: r.occurred_at ? formatOccurred(r.occurred_at, r.occurred_precision ?? 'day') : null,
         kind: r.kind,
         title: r.title || '(untitled)',
         summary: r.ai_summary,
-        fullText: i < fullTextTopN ? itemFullText(r.ai_extracted, perItemChars) : null,
+        fullText,
       };
     });
 }
