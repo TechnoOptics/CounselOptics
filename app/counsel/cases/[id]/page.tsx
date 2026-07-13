@@ -118,7 +118,7 @@ export default async function CounselCaseDetailPage({
     if (guestView) {
       const gFirmId = guestView.guest.firmId;
       const admin = createAdminSupabase();
-      const [gApproachesRes, gAnalytics, gCaseRow, gImagesRow] = await Promise.all([
+      const [gApproachesRes, gAnalytics, gCaseRow, gImagesRow, gDisplayName] = await Promise.all([
         gFirmId
           ? listFirmApproaches(gFirmId, params.id).catch(() => ({ ok: false as const }))
           : Promise.resolve({ ok: false as const }),
@@ -147,6 +147,19 @@ export default async function CounselCaseDetailPage({
             .eq('kind', 'party');
           return (data ?? []) as { id: string; storage_path: string }[];
         })(),
+        // Fresh display name from the profile row. The guest's JWT full_name can
+        // be stale (it carries whatever was on the token at last refresh, e.g. a
+        // shouty all-caps surname), so read the current profiles.display_name and
+        // prefer it for the greeting.
+        (async () => {
+          if (!admin) return null;
+          const { data } = await admin
+            .from('profiles')
+            .select('display_name')
+            .eq('id', guestView.guest.userId)
+            .maybeSingle();
+          return (data as { display_name: string | null } | null)?.display_name ?? null;
+        })(),
       ]);
       const gApproaches =
         'approaches' in gApproachesRes ? (gApproachesRes.approaches ?? []) : [];
@@ -164,10 +177,16 @@ export default async function CounselCaseDetailPage({
           hearingNotes={gCaseRow?.hearing_notes ?? null}
           partyImages={gPartyImages}
           firstName={(() => {
-            // First name only, cleaned: strip any trailing punctuation (a stale
-            // JWT can carry "MUCHAI,") and title-case, so the greeting never
-            // shows "MUCHAI,," or a shouty all-caps token.
-            const raw = (guestView.guest.displayName ?? '').trim() || (guestView.guest.email ?? '').split('@')[0] || '';
+            // First name only, cleaned. Prefer the fresh profiles.display_name
+            // (gDisplayName) over the JWT full_name, which can be stale and carry
+            // a shouty all-caps surname or trailing punctuation ("MUCHAI,"). Take
+            // the FIRST name token and title-case it, so the greeting shows
+            // "Abel", never "Muchai" or "MUCHAI,,".
+            const raw =
+              (gDisplayName ?? '').trim() ||
+              (guestView.guest.displayName ?? '').trim() ||
+              (guestView.guest.email ?? '').split('@')[0] ||
+              '';
             const tok = raw.match(/[\p{L}\p{M}'’-]+/u)?.[0] ?? '';
             return tok ? tok.charAt(0).toUpperCase() + tok.slice(1).toLowerCase() : null;
           })()}

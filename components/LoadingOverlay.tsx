@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { BrandMark } from '@/components/BrandMark';
 import { createPortal } from 'react-dom';
 import { useFormStatus } from 'react-dom';
 
@@ -55,11 +54,13 @@ export function LoadingOverlay({ show, label }: { show: boolean; label?: string 
       className="fixed inset-0 z-[60] min-h-screen w-screen flex items-center justify-center bg-white/92 dark:bg-forest-950/85 backdrop-blur-sm animate-fade-in pointer-events-auto"
     >
       <div className="relative flex flex-col items-center justify-center gap-5">
-        {/* Inline SVG mark (not next/image) so the pulsing logo always renders,
-            including inside the iOS WebView where the optimized image URL can
-            fail and show a broken-image square. */}
-        <span className="loading-mark inline-flex items-center justify-center text-gold-500">
-          <BrandMark size={96} />
+        {/* The real Advottic mark, loaded as a plain <img> (NOT next/image) so
+            the direct /advottic-mark.png path is served verbatim - the optimized
+            /_next/image URL is what failed in the iOS WebView and showed a
+            broken-image square. */}
+        <span className="loading-mark inline-flex items-center justify-center">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/advottic-mark.png" alt="" width={96} height={96} className="select-none" />
         </span>
         {label && (
           <p className="text-[11px] uppercase tracking-[0.3em] font-semibold text-forest-900 dark:text-cream-100/85 text-center max-w-xs">

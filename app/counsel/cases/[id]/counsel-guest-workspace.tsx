@@ -119,7 +119,33 @@ export function CounselGuestWorkspace({
         </section>
       )}
 
-      {/* Quick links into the routed sections. */}
+      {/* In-place sections, in the order counsel works them: the assembled
+          case analysis first, then the evidence overview. Open one when you
+          want it. */}
+      <div className="space-y-3">
+        {firmId && (
+          <SectionPanel
+            title="Case analysis"
+            blurb="The assembled arguments and the exhibits they marshal."
+            meta={`${approachCount} approach${approachCount === 1 ? '' : 'es'}`}
+            icon={<ScaleIcon />}
+          >
+            <ApproachBuilder firmId={firmId} caseId={caseId} initial={approaches} />
+          </SectionPanel>
+        )}
+        {analytics && (
+          <SectionPanel
+            title="Evidence overview"
+            blurb="Volume, coverage, and the year-by-year picture of the evidence."
+            meta={`${analytics.total} item${analytics.total === 1 ? '' : 's'}`}
+            icon={<ChartIcon />}
+          >
+            <EvidenceDashboard analytics={analytics} caseId={caseId} />
+          </SectionPanel>
+        )}
+      </div>
+
+      {/* Quick links into the routed sections, at the bottom. */}
       <div className="space-y-3">
         <p className="text-[11px] uppercase tracking-[0.14em] font-semibold text-cream-100/50">
           <T>Explore this matter</T>
@@ -128,31 +154,6 @@ export function CounselGuestWorkspace({
           <NavTile href={`/counsel/cases/${caseId}/timeline`} title="Timeline" blurb="The chronology of events on this matter." icon={<ClockIcon />} />
           <NavTile href={`/counsel/cases/${caseId}/evidence`} title="Evidence files" blurb="Documents and exhibits gathered for this matter." icon={<FolderIcon />} />
           <ExportPacketTile href={`/counsel/cases/${caseId}/export`} title="Export packet" blurb="Download the evidentiary record as a PDF." icon={<DownloadIcon />} />
-        </div>
-
-        {/* Collapsible in-place sections — open one when you want it. */}
-        <div className="space-y-3 pt-1">
-          {analytics && (
-            <SectionPanel
-              title="Evidence overview"
-              blurb="Volume, coverage, and the year-by-year picture of the evidence."
-              meta={`${analytics.total} item${analytics.total === 1 ? '' : 's'}`}
-              icon={<ChartIcon />}
-              defaultOpen
-            >
-              <EvidenceDashboard analytics={analytics} caseId={caseId} />
-            </SectionPanel>
-          )}
-          {firmId && (
-            <SectionPanel
-              title="Case analysis"
-              blurb="The assembled arguments and the exhibits they marshal."
-              meta={`${approachCount} approach${approachCount === 1 ? '' : 'es'}`}
-              icon={<ScaleIcon />}
-            >
-              <ApproachBuilder firmId={firmId} caseId={caseId} initial={approaches} />
-            </SectionPanel>
-          )}
         </div>
       </div>
     </div>
