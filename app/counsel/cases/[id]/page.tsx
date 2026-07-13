@@ -163,6 +163,11 @@ export default async function CounselCaseDetailPage({
           posture={gCaseRow?.posture ?? null}
           hearingNotes={gCaseRow?.hearing_notes ?? null}
           partyImages={gPartyImages}
+          firstName={
+            (guestView.guest.displayName ?? '').trim().split(/\s+/)[0] ||
+            (guestView.guest.email ?? '').split('@')[0] ||
+            null
+          }
         />
       );
     }

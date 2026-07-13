@@ -1,8 +1,9 @@
+import Link from 'next/link';
 import type { GuestCaseSummary } from '@/lib/counsel-guest';
 import type { CaseEvidenceAnalytics } from '@/lib/case-analytics';
 import type { Approach } from '@/lib/firm-approach-actions';
 import { T } from '@/components/i18n/LocaleProvider';
-import { SectionHub, type HubSection } from '@/components/counsel/SectionHub';
+import { SectionPanel } from '@/components/counsel/SectionPanel';
 import { EvidenceDashboard } from './evidence-dashboard';
 import { ApproachBuilder } from './approach-builder';
 import { MatterFacts } from './matter-facts';
@@ -19,15 +20,12 @@ const STATUS_LABEL: Record<string, string> = {
 
 /**
  * The CO-COUNSEL case workspace: the firm-framed Counsel interface for an
- * outside attorney (case_collaborators role 'attorney') scoped to a single
- * matter. Leads with the party dossier + case facts, then presents the rest of
- * the matter as a grid of SECTION TILES (SectionHub) the reader opens one at a
- * time — evidence overview, case analysis, timeline, evidence files, export —
- * rather than one long scroll of everything at once.
+ * outside attorney scoped to a single matter. Leads with the party dossier +
+ * case facts, then presents the rest as collapsible SECTION PANELS the reader
+ * opens one at a time (evidence overview, case analysis) plus quick links into
+ * the timeline, evidence files and export - rather than one long scroll.
  *
- * It deliberately renders NONE of the firm-internal operations (time, trust,
- * invoices, deadlines) and no team/invite controls: those live only on the
- * full firm case page, which a guest never reaches.
+ * Renders NONE of the firm-internal operations (time, trust, invoices).
  */
 export function CounselGuestWorkspace({
   kase,
@@ -40,6 +38,7 @@ export function CounselGuestWorkspace({
   posture,
   hearingNotes,
   partyImages,
+  firstName,
 }: {
   kase: GuestCaseSummary;
   firmId: string | null;
@@ -51,54 +50,13 @@ export function CounselGuestWorkspace({
   posture: string | null;
   hearingNotes: string | null;
   partyImages: { id: string; storagePath: string }[];
+  /** Counsel's first name, so the workspace can address them directly. */
+  firstName?: string | null;
 }) {
   const place = [kase.jurisdictionCity, kase.jurisdictionState, kase.jurisdictionCountry]
     .filter(Boolean)
     .join(', ');
-
   const approachCount = approaches.length;
-  const sections: HubSection[] = [];
-  if (analytics) {
-    sections.push({
-      key: 'overview',
-      title: 'Evidence overview',
-      blurb: 'Volume, coverage, and the year-by-year picture of the evidence.',
-      meta: `${analytics.total} item${analytics.total === 1 ? '' : 's'}`,
-      icon: <ChartIcon />,
-      content: <EvidenceDashboard analytics={analytics} caseId={caseId} />,
-    });
-  }
-  if (firmId) {
-    sections.push({
-      key: 'analysis',
-      title: 'Case analysis',
-      blurb: 'The assembled arguments and the exhibits they marshal.',
-      meta: `${approachCount} approach${approachCount === 1 ? '' : 'es'}`,
-      icon: <ScaleIcon />,
-      content: <ApproachBuilder firmId={firmId} caseId={caseId} initial={approaches} />,
-    });
-  }
-  sections.push({
-    key: 'timeline',
-    title: 'Timeline',
-    blurb: 'The chronology of events on this matter.',
-    icon: <ClockIcon />,
-    href: `/counsel/cases/${caseId}/timeline`,
-  });
-  sections.push({
-    key: 'evidence',
-    title: 'Evidence files',
-    blurb: 'Documents and exhibits gathered for this matter.',
-    icon: <FolderIcon />,
-    href: `/counsel/cases/${caseId}/evidence`,
-  });
-  sections.push({
-    key: 'export',
-    title: 'Export packet',
-    blurb: 'Download the evidentiary record as a PDF.',
-    icon: <DownloadIcon />,
-    href: `/counsel/cases/${caseId}/export`,
-  });
 
   return (
     <div className="space-y-8">
@@ -113,16 +71,24 @@ export function CounselGuestWorkspace({
           {kase.title}
         </h1>
         <p className="text-sm text-cream-100/70 mt-2 max-w-2xl">
-          <T>
-            You are co-counsel on this matter. Start with the party and the case
-            facts below, then open any section to work it. Firm billing and
-            internal operations are not shown.
-          </T>
+          {firstName ? (
+            <>
+              <span data-no-translate>{firstName}</span>
+              <T>, you are co-counsel on this matter. Start with the party and the
+              case facts below, then open any section to work it. Firm billing and
+              internal operations are not shown.</T>
+            </>
+          ) : (
+            <T>
+              You are co-counsel on this matter. Start with the party and the case
+              facts below, then open any section to work it. Firm billing and
+              internal operations are not shown.
+            </T>
+          )}
         </p>
       </header>
 
-      {/* Party dossier + case facts lead the workspace — the portrait and the
-          full record the reader needs before anything else. */}
+      {/* Party dossier + case facts lead the workspace. */}
       {firmId ? (
         <MatterFacts
           firmId={firmId}
@@ -152,12 +118,41 @@ export function CounselGuestWorkspace({
         </section>
       )}
 
-      {/* Section tiles — open one at a time instead of one long scroll. */}
+      {/* Quick links into the routed sections. */}
       <div className="space-y-3">
         <p className="text-[11px] uppercase tracking-[0.14em] font-semibold text-cream-100/50">
           <T>Explore this matter</T>
         </p>
-        <SectionHub sections={sections} />
+        <div className="grid gap-3 sm:grid-cols-3">
+          <NavTile href={`/counsel/cases/${caseId}/timeline`} title="Timeline" blurb="The chronology of events on this matter." icon={<ClockIcon />} />
+          <NavTile href={`/counsel/cases/${caseId}/evidence`} title="Evidence files" blurb="Documents and exhibits gathered for this matter." icon={<FolderIcon />} />
+          <NavTile href={`/counsel/cases/${caseId}/export`} title="Export packet" blurb="Download the evidentiary record as a PDF." icon={<DownloadIcon />} />
+        </div>
+
+        {/* Collapsible in-place sections — open one when you want it. */}
+        <div className="space-y-3 pt-1">
+          {analytics && (
+            <SectionPanel
+              title="Evidence overview"
+              blurb="Volume, coverage, and the year-by-year picture of the evidence."
+              meta={`${analytics.total} item${analytics.total === 1 ? '' : 's'}`}
+              icon={<ChartIcon />}
+              defaultOpen
+            >
+              <EvidenceDashboard analytics={analytics} caseId={caseId} />
+            </SectionPanel>
+          )}
+          {firmId && (
+            <SectionPanel
+              title="Case analysis"
+              blurb="The assembled arguments and the exhibits they marshal."
+              meta={`${approachCount} approach${approachCount === 1 ? '' : 'es'}`}
+              icon={<ScaleIcon />}
+            >
+              <ApproachBuilder firmId={firmId} caseId={caseId} initial={approaches} />
+            </SectionPanel>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -176,7 +171,31 @@ function Field({ label, value }: { label: string; value: string }) {
   );
 }
 
-// ── Tile icons (kept simple + on-brand; gold via the tile's text color). ──
+function NavTile({ href, title, blurb, icon }: { href: string; title: string; blurb: string; icon: React.ReactNode }) {
+  return (
+    <Link
+      href={href}
+      className="group block rounded-xl border border-cream-50/10 bg-forest-900/30 p-4 transition-all hover:border-gold-metal/30 hover:bg-forest-900/55"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <span className="grid h-10 w-10 place-items-center rounded-lg bg-gold-metal/12 text-gold-metal ring-1 ring-gold-metal/25">
+          {icon}
+        </span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden className="text-cream-100/40 transition-transform group-hover:translate-x-0.5">
+          <path d="M7 17L17 7M9 7h8v8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </div>
+      <p className="mt-3 text-[15px] font-semibold text-cream-50">
+        <T>{title}</T>
+      </p>
+      <p className="mt-1 text-[12.5px] leading-relaxed text-cream-100/55">
+        <T>{blurb}</T>
+      </p>
+    </Link>
+  );
+}
+
+// ── Tile icons ──
 function ChartIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
