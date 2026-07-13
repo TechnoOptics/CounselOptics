@@ -377,20 +377,16 @@ export default async function CounselCaseDetailPage({
       {showTimeBilling && (
       <section className="grid gap-3 sm:grid-cols-4">
         <Stat label="Time logged" value={fmtHours(totalSeconds)} />
-        <Stat
-          label="Billable hours"
-          value={fmtHours(billableSeconds)}
-          tone="sky"
-        />
+        <Stat label="Billable hours" value={fmtHours(billableSeconds)} />
         <Stat
           label="Unbilled"
           value={fmtCents(unbilledCents)}
-          tone={unbilledCents > 0 ? 'amber' : 'gray'}
+          tone={unbilledCents > 0 ? 'amber' : 'neutral'}
         />
         <Stat
           label="Trust balance"
           value={fmtCents(trustBalance)}
-          tone={trustBalance < 0 ? 'rose' : 'emerald'}
+          tone={trustBalance < 0 ? 'rose' : 'neutral'}
         />
       </section>
       )}
@@ -777,22 +773,21 @@ export default async function CounselCaseDetailPage({
 function Stat({
   label,
   value,
-  tone = 'gray',
+  tone = 'neutral',
 }: {
   label: string;
   value: string;
-  tone?: 'gray' | 'sky' | 'amber' | 'emerald' | 'rose';
+  // Calm by default: the numbers read neutral. Only two muted accents remain,
+  // each reserved for a state that actually warrants attention - amber for
+  // unbilled work, rose for a negative trust balance. No green on firm surfaces.
+  tone?: 'neutral' | 'amber' | 'rose';
 }) {
   const cls =
     tone === 'amber'
-      ? 'text-amber-700 dark:text-amber-300'
-      : tone === 'emerald'
-        ? 'text-emerald-700 dark:text-emerald-300'
-        : tone === 'sky'
-          ? 'text-sky-700 dark:text-sky-300'
-          : tone === 'rose'
-            ? 'text-rose-700 dark:text-rose-300'
-            : 'text-forest-900 dark:text-cream-100';
+      ? 'text-amber-600 dark:text-amber-300/85'
+      : tone === 'rose'
+        ? 'text-rose-600 dark:text-rose-300/85'
+        : 'text-forest-900 dark:text-cream-100';
   return (
     <div className="card p-5">
       <p className="eyebrow text-[10.5px] mb-2"><T>{label}</T></p>
