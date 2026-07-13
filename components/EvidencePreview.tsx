@@ -11,6 +11,58 @@ import {
 import { KindIcon } from '@/components/counsel/KindIcon';
 
 /**
+ * Thumbnails mint firm-scoped signed URLs through a server action. A gallery of
+ * hundreds of tiles, each firing its own request the moment it scrolls into
+ * view, bursts the serverless function hard enough that some invocations come
+ * back 503 (especially right after a fresh deploy, when functions are cold) -
+ * and a failed tile used to fall to a blank placeholder for good. Two guards
+ * fix that: a small global concurrency cap so we never fire more than a handful
+ * of URL requests at once, and a bounded retry with backoff so a transient 503
+ * recovers instead of leaving a hole in the gallery.
+ */
+const MAX_CONCURRENT_URL_FETCHES = 5;
+let activeUrlFetches = 0;
+const urlFetchQueue: Array<() => void> = [];
+
+function acquireUrlSlot(): Promise<void> {
+  if (activeUrlFetches < MAX_CONCURRENT_URL_FETCHES) {
+    activeUrlFetches++;
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    urlFetchQueue.push(() => {
+      activeUrlFetches++;
+      resolve();
+    });
+  });
+}
+
+function releaseUrlSlot(): void {
+  activeUrlFetches = Math.max(0, activeUrlFetches - 1);
+  urlFetchQueue.shift()?.();
+}
+
+async function loadSignedUrl(firmId: string, caseId: string, path: string): Promise<string | null> {
+  await acquireUrlSlot();
+  try {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const res = await getFirmEvidenceMediaUrl(firmId, caseId, path);
+        if (res.ok && res.url) return res.url;
+      } catch {
+        /* transient (e.g. a 503 under burst / cold start) - fall through to retry */
+      }
+      if (attempt < 2) {
+        await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+      }
+    }
+    return null;
+  } finally {
+    releaseUrlSlot();
+  }
+}
+
+/**
  * A large, readable preview of one evidence item, shared by the firm intake
  * cards and the firm timeline chronology so both read the same way. It shows the
  * actual content wherever it can: a browser-renderable image is lazy-loaded
@@ -63,9 +115,9 @@ export function EvidencePreview({
   useEffect(() => {
     if (!wantsImage || !inView || !media) return;
     let on = true;
-    getFirmEvidenceMediaUrl(firmId, caseId, media.path).then((res) => {
+    loadSignedUrl(firmId, caseId, media.path).then((u) => {
       if (!on) return;
-      if (res.ok && res.url) setUrl(res.url);
+      if (u) setUrl(u);
       else setFailed(true);
     });
     return () => {
