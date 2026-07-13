@@ -54,6 +54,7 @@ type GMaps = {
   Map: new (el: HTMLElement, opts: Record<string, unknown>) => GMap;
   Marker: new (opts: Record<string, unknown>) => GMarker;
   Polyline: new (opts: Record<string, unknown>) => GMarker;
+  Circle: new (opts: Record<string, unknown>) => GMarker;
   LatLngBounds: new () => { extend(p: LatLng): void };
   InfoWindow: new (opts: Record<string, unknown>) => { open(map: GMap, anchor: unknown): void; setContent(c: string): void };
   SymbolPath: { CIRCLE: number };
@@ -215,8 +216,29 @@ export function CaseMap({ points, title = 'Case map' }: { points: MapPoint[]; ti
           infoRef.current.open(map, marker);
         };
 
+        // A soft radius around a content-geocoded place, so it reads as a
+        // GENERAL area (e.g. "around Las Vegas") rather than a false-precision
+        // pin - these come from places named in the evidence, not exact coords.
+        const drawRadius = (p: MapPoint) => {
+          if (p.source !== 'place') return;
+          const circle = new maps.Circle({
+            center: { lat: p.lat, lng: p.lng },
+            radius: 7000,
+            map,
+            fillColor: '#c9a227',
+            fillOpacity: 0.08,
+            strokeColor: '#c9a227',
+            strokeOpacity: 0.35,
+            strokeWeight: 1,
+            clickable: false,
+            zIndex: 0,
+          });
+          markersRef.current.push(circle);
+        };
+
         // Undated located points: faint, always shown.
         for (const p of undated) {
+          drawRadius(p);
           const marker = new maps.Marker({
             position: { lat: p.lat, lng: p.lng }, map, title: p.label, opacity: 0.55 * relevanceOpacity(p.relevance),
             icon: { path: maps.SymbolPath.CIRCLE, scale: 5, fillColor: '#9aa39d', fillOpacity: 0.8, strokeColor: '#ffffff', strokeWeight: 1.5 },
@@ -228,6 +250,7 @@ export function CaseMap({ points, title = 'Case map' }: { points: MapPoint[]; ti
         // Timed breadcrumbs up to the cursor; the last is the "current" stop.
         visibleTimed.forEach((p, i) => {
           const isCurrent = i === visibleTimed.length - 1;
+          drawRadius(p);
           // The current stop is always full strength; earlier stops fade with
           // low case-relevance so the eye follows the pins that matter.
           const marker = new maps.Marker({

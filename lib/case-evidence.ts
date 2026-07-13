@@ -296,14 +296,19 @@ export async function computeEventAnalysis(input: {
     }
   }
 
-  // Map pins: the file's own GPS plus any named places we can geocode. A no-op
-  // until the Maps key is present, and never fails the analysis.
+  // Map pins: ONLY places NAMED IN THE EVIDENCE CONTENT, geocoded to a general
+  // area. Deliberately NOT the file's own EXIF/GPS - screenshots are all
+  // captured from one device/location, so file GPS clusters every item at a
+  // single, irrelevant point. The file's GPS stays in the forensic core details
+  // for the record; it just never drives the map. A no-op until the Maps key is
+  // present, and never fails the analysis.
   if (!('error' in result) && mapsConfigured()) {
     try {
       const points: NonNullable<AiExtracted['geo_points']> = [];
-      const gps = result.extracted.metadata_gps;
-      if (gps) points.push({ lat: gps.lat, lng: gps.lng, label: 'File GPS', source: 'gps' });
-      const places = (result.extracted.locations ?? []).slice(0, 4);
+      const places = (result.extracted.locations ?? [])
+        .map((p) => (p ?? '').trim())
+        .filter((p) => p.length >= 3 && !/https?:|www\.|@|\.(com|net|org)\b/i.test(p))
+        .slice(0, 4);
       for (const place of places) {
         const at = await geocodeAddress(place);
         if (at) points.push({ lat: at.lat, lng: at.lng, label: place.slice(0, 80), source: 'place' });
