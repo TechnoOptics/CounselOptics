@@ -29,6 +29,8 @@ import { getCaseEvidenceAnalytics } from '@/lib/case-analytics';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { getGuestCaseSummary } from '@/lib/counsel-guest';
 import { CounselGuestWorkspace } from './counsel-guest-workspace';
+import { logCaseActivity, listCaseActivity } from '@/lib/case-activity-log';
+import { CaseActivityStream } from '@/components/counsel/CaseActivityStream';
 
 export const dynamic = 'force-dynamic';
 // This matter page composes many surfaces (facts, evidence, analysis, billing,
@@ -164,6 +166,10 @@ export default async function CounselCaseDetailPage({
       const gApproaches =
         'approaches' in gApproachesRes ? (gApproachesRes.approaches ?? []) : [];
       const gPartyImages = gImagesRow.map((i) => ({ id: i.id, storagePath: i.storage_path }));
+      // Record the visit for the firm's activity stream. Throttled so a reload
+      // or quick back-and-forth doesn't spam the feed - one "viewed the matter"
+      // entry per ~15 min reads as a session/login.
+      void logCaseActivity({ caseId: params.id, action: 'view_matter', throttleMinutes: 15 });
       return (
         <CounselGuestWorkspace
           kase={guestView.case}
@@ -232,6 +238,9 @@ export default async function CounselCaseDetailPage({
   // them together (instead of sequential await blocks) is what keeps the
   // render inside the function budget. Each is independently .catch-guarded so
   // one slow/failed read degrades its own panel rather than the whole page.
+  // The activity stream is firm-leadership-only (owner/admin) - the case owner's
+  // window into who's been on the matter. Skip the read for other members.
+  const canSeeActivity = ['owner', 'admin'].includes(ctx.membership.role);
   const [
     caseImagesRes,
     approachesRes,
@@ -240,6 +249,7 @@ export default async function CounselCaseDetailPage({
     members,
     assigneeRes,
     caseAnalytics,
+    activityEvents,
   ] = await Promise.all([
     listCaseImages(ctx.firm.id, params.id).catch(() => ({ ok: false as const })),
     listFirmApproaches(ctx.firm.id, params.id).catch(() => ({ ok: false as const })),
@@ -252,6 +262,9 @@ export default async function CounselCaseDetailPage({
       if (!admin) return null;
       return getCaseEvidenceAnalytics(admin, params.id).catch(() => null);
     })(),
+    canSeeActivity
+      ? listCaseActivity(ctx.firm.id, params.id, 60).catch(() => [])
+      : Promise.resolve([]),
   ]);
   const showTimeBilling = !surface.hideTimeBilling;
   const caseImages = (caseImagesRes?.ok && caseImagesRes.images) ? caseImagesRes.images : [];
@@ -587,6 +600,10 @@ export default async function CounselCaseDetailPage({
         canManage={['owner', 'admin', 'attorney'].includes(ctx.membership.role)}
         canProvisionGuests={['owner', 'admin'].includes(ctx.membership.role)}
       />
+
+      {/* Activity stream — firm-leadership-only view of who's been on the
+          matter (guest logins, section opens, comments, downloads). */}
+      {canSeeActivity && <CaseActivityStream events={activityEvents} />}
 
       {/* Deadlines */}
       <section className="space-y-3">

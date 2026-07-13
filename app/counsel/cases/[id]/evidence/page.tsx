@@ -11,6 +11,7 @@ import { RecurringPeople } from './recurring-people';
 import { BulkReanalyze } from './bulk-reanalyze';
 import { getGuestCaseSummary } from '@/lib/counsel-guest';
 import { createAdminSupabase } from '@/lib/supabase/admin';
+import { logCaseActivity } from '@/lib/case-activity-log';
 
 export const dynamic = 'force-dynamic';
 // A heavy matter (hundreds of evidence rows) can push the assemble past the
@@ -61,6 +62,10 @@ export default async function CaseEvidencePage({
   const c = caseRes.data as { id: string; title: string; firm_id: string | null } | null;
   if (!c || c.firm_id !== firmId) notFound();
   const aiEnabled = aiConfigured() && access === 'firm' && !isGuest;
+
+  // Record a guest's evidence-files visit (skipFirm so firm-member visits are
+  // not logged into the activity stream).
+  void logCaseActivity({ caseId: params.id, action: 'view_evidence', skipFirm: true, throttleMinutes: 15 });
 
   return (
     <div className="space-y-5">

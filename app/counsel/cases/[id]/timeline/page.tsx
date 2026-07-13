@@ -16,6 +16,7 @@ import { RequestSidebarFocus } from '@/components/counsel/SidebarFocus';
 import { T } from '@/components/i18n/LocaleProvider';
 import { getGuestCaseSummary } from '@/lib/counsel-guest';
 import { createAdminSupabase } from '@/lib/supabase/admin';
+import { logCaseActivity } from '@/lib/case-activity-log';
 
 export const dynamic = 'force-dynamic';
 
@@ -135,6 +136,10 @@ export default async function FirmTimelinePage({
   // AI (bulk re-analyze, suggestions) and collaboration stay firm-only; a guest
   // co-counsel still gets the full manual timeline builder.
   const aiEnabled = aiConfigured() && access === 'firm' && !isGuest;
+
+  // Record a guest's timeline visit for the firm's activity stream (skipFirm so
+  // a firm member's own visit isn't logged).
+  void logCaseActivity({ caseId: params.id, action: 'view_timeline', skipFirm: true, throttleMinutes: 15 });
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 pb-16">

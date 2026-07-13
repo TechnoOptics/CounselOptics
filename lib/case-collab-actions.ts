@@ -10,6 +10,7 @@ import type {
   SectionType,
 } from './case-collab-types';
 import { GENERAL_THREAD_KEY, dmThreadKey } from './case-collab-types';
+import { logCaseActivity } from './case-activity-log';
 
 /**
  * FIRM-side actions for case timeline collaboration (section comments + chat).
@@ -199,6 +200,7 @@ export async function postSectionComment(
     .select('id, case_id, section_type, target_ref, author_user_id, body, created_at')
     .single();
   if (error || !data) return { ok: false, error: error?.message ?? 'Could not post.' };
+  void logCaseActivity({ caseId, action: 'comment', detail: { where: sectionType } });
   return { ok: true, comment: toComment(data as CommentRow) };
 }
 
@@ -293,5 +295,6 @@ export async function postChatMessage(
     .select('id, case_id, thread_kind, thread_key, participants, author_user_id, body, created_at')
     .single();
   if (error || !data) return { ok: false, error: error?.message ?? 'Could not send.' };
+  void logCaseActivity({ caseId, action: 'comment', detail: { where: input.threadKind === 'dm' ? 'direct message' : 'case chat' } });
   return { ok: true, message: toMessage(data as ChatRow) };
 }

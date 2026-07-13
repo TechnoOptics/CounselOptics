@@ -13,6 +13,7 @@ import {
 import { formatOccurred, KIND_LABEL, ROLE_LABEL, relevanceBand, type TimelineMedia } from '@/lib/timeline-types';
 import { staticMapUrlServer } from '@/lib/maps';
 import { canonicalOrg } from '@/lib/entity-normalize';
+import { logCaseActivity } from '@/lib/case-activity-log';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -91,6 +92,10 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   if (bundle.events.length === 0) {
     return NextResponse.json({ error: 'Add evidence before exporting.' }, { status: 400 });
   }
+
+  // Record the download for the firm's activity stream. skipFirm so only an
+  // outside co-counsel's download shows up, not the firm's own exports.
+  void logCaseActivity({ caseId: params.id, action: 'export', skipFirm: true });
 
   // Selection: comma-separated event ids. An explicit selection is honoured
   // exactly. With NO selection, the packet defaults to only the RELEVANT items

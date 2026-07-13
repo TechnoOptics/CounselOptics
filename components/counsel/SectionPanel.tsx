@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { T } from '@/components/i18n/LocaleProvider';
 
 /**
@@ -15,6 +15,7 @@ export function SectionPanel({
   meta,
   icon,
   defaultOpen = false,
+  reportCaseId,
   children,
 }: {
   title: string;
@@ -22,9 +23,31 @@ export function SectionPanel({
   meta?: string;
   icon: ReactNode;
   defaultOpen?: boolean;
+  /** When set, the FIRST time this panel is opened is reported to the case
+   *  activity stream (so the firm sees a guest opened the section). */
+  reportCaseId?: string;
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  const reported = useRef(false);
+
+  function toggle() {
+    setOpen((v) => {
+      const next = !v;
+      if (next && reportCaseId && !reported.current) {
+        reported.current = true;
+        // Best-effort: never block the UI on the log write.
+        void fetch('/api/counsel/activity', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ caseId: reportCaseId, action: 'open_section', detail: { section: title } }),
+          keepalive: true,
+        }).catch(() => {});
+      }
+      return next;
+    });
+  }
+
   return (
     <div
       className={`overflow-hidden rounded-xl border transition-colors ${
@@ -34,7 +57,7 @@ export function SectionPanel({
       <button
         type="button"
         aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
+        onClick={toggle}
         className="flex w-full items-center gap-3 p-4 text-left hover:bg-forest-900/40"
       >
         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-gold-metal/12 text-gold-metal ring-1 ring-gold-metal/25">

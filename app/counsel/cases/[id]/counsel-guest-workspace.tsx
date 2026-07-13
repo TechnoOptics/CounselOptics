@@ -135,6 +135,7 @@ export function CounselGuestWorkspace({
             blurb="The assembled arguments and the exhibits they marshal."
             meta={`${approachCount} approach${approachCount === 1 ? '' : 'es'}`}
             icon={<ScaleIcon />}
+            reportCaseId={caseId}
           >
             <ApproachBuilder firmId={firmId} caseId={caseId} initial={approaches} />
           </SectionPanel>
@@ -145,6 +146,7 @@ export function CounselGuestWorkspace({
             blurb="Volume, coverage, and the year-by-year picture of the evidence."
             meta={`${analytics.total} item${analytics.total === 1 ? '' : 's'}`}
             icon={<ChartIcon />}
+            reportCaseId={caseId}
           >
             <EvidenceDashboard analytics={analytics} caseId={caseId} />
           </SectionPanel>
