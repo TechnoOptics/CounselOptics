@@ -428,6 +428,9 @@ export async function buildNarrative(input: {
     summary: string | null;
     people: string[];
   }>;
+  /** Authoritative, client-verified facts the narrative must respect (e.g. the
+   *  subject's official employment dates), so it does not misread an entry. */
+  context?: string;
 }): Promise<{ summary: string; narrative: string; conclusion: string } | { error: string }> {
   const c = client();
   if (!c) return { error: 'AI is not configured (missing API key).' };
@@ -453,7 +456,7 @@ Return ONLY JSON:
       messages: [
         {
           role: 'user',
-          content: `Case: "${input.caseTitle}"\nHere are the timeline entries in chronological order:\n\n${lines}\n\nProduce the JSON.`,
+          content: `Case: "${input.caseTitle}"${input.context ? `\n\nAUTHORITATIVE CONTEXT (client-verified; weave in and never contradict): ${input.context}` : ''}\nHere are the timeline entries in chronological order:\n\n${lines}\n\nProduce the JSON.`,
         },
       ],
     });
