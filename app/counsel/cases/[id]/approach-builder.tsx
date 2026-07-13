@@ -567,6 +567,38 @@ function ConsoleLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** A collapsible argument section: a console-label header that reveals content. */
+function Collapsible({
+  label,
+  open,
+  onToggle,
+  children,
+}: {
+  label: React.ReactNode;
+  open: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="overflow-hidden rounded-lg border border-cream-50/10 bg-forest-950/25">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="flex w-full items-center gap-2 px-3 py-2.5 text-left hover:bg-forest-950/45"
+      >
+        <span className="flex-1 text-[10.5px] font-semibold uppercase tracking-[0.13em] text-gold-metal/70">
+          {label}
+        </span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden className={`shrink-0 text-gold-metal/60 transition-transform ${open ? 'rotate-180' : ''}`}>
+          <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+      {open && <div className="px-3 pb-3.5">{children}</div>}
+    </div>
+  );
+}
+
 function GeneratedArgument({
   g,
   firmId,
@@ -584,6 +616,16 @@ function GeneratedArgument({
   // full item in the viewer. Loaded once when the assembled argument mounts.
   const [events, setEvents] = useState<TimelineEvent[]>([]);
   const [viewerIdx, setViewerIdx] = useState<number | null>(null);
+  // Argument sections start COLLAPSED so the card is scannable; the reader opens
+  // just what they want, or uses Expand all / Collapse all.
+  const [openSections, setOpenSections] = useState<Set<string>>(new Set());
+  const toggleSection = (k: string) =>
+    setOpenSections((prev) => {
+      const n = new Set(prev);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
   useEffect(() => {
     let on = true;
     getApproachEvidence(firmId, caseId, approachId)
@@ -623,29 +665,47 @@ function GeneratedArgument({
     return null;
   };
 
+  const sectionKeys = [
+    g.thesis ? 'thesis' : null,
+    g.argument ? 'argument' : null,
+    (g.exhibits?.length ?? 0) > 0 ? 'exhibits' : null,
+    (g.timeline?.length ?? 0) > 0 ? 'timeline' : null,
+    (g.gaps?.length ?? 0) > 0 ? 'gaps' : null,
+  ].filter(Boolean) as string[];
+  const anyOpen = sectionKeys.some((k) => openSections.has(k));
+
   return (
-    <div className="space-y-5 border-t border-cream-50/10 pt-4">
+    <div className="space-y-2.5 border-t border-cream-50/10 pt-4">
+      {sectionKeys.length > 0 && (
+        <div className="flex items-center justify-between">
+          <ConsoleLabel><T>Assembled argument</T></ConsoleLabel>
+          <button
+            type="button"
+            onClick={() => setOpenSections(anyOpen ? new Set() : new Set(sectionKeys))}
+            className="mb-2 rounded-md px-2.5 py-1 text-[11px] font-medium text-gold-metal/85 ring-1 ring-gold-metal/30 transition-colors hover:bg-gold-metal/10"
+          >
+            {anyOpen ? <T>Collapse all</T> : <T>Expand all</T>}
+          </button>
+        </div>
+      )}
       {g.thesis && (
-        <div>
-          <ConsoleLabel><T>Thesis</T></ConsoleLabel>
+        <Collapsible label={<T>Thesis</T>} open={openSections.has('thesis')} onToggle={() => toggleSection('thesis')}>
           <p className="rounded-lg border border-gold-metal/20 bg-gold-metal/[0.06] px-3.5 py-3 text-[14px] font-medium leading-relaxed text-cream-50" data-no-translate>
             {g.thesis}
           </p>
-        </div>
+        </Collapsible>
       )}
 
       {g.argument && (
-        <div>
-          <ConsoleLabel><T>Argument</T></ConsoleLabel>
+        <Collapsible label={<T>Argument</T>} open={openSections.has('argument')} onToggle={() => toggleSection('argument')}>
           <p className="whitespace-pre-wrap text-[13.5px] leading-relaxed text-cream-100/85" data-no-translate>
             {g.argument}
           </p>
-        </div>
+        </Collapsible>
       )}
 
       {(g.exhibits?.length ?? 0) > 0 && (
-        <div>
-          <ConsoleLabel><T>Exhibits marshalled</T></ConsoleLabel>
+        <Collapsible label={<T>Exhibits marshalled</T>} open={openSections.has('exhibits')} onToggle={() => toggleSection('exhibits')}>
           <ul className="grid gap-2 sm:grid-cols-2">
             {g.exhibits.map((ex, i) => {
               const idx = indexFor(ex);
@@ -703,14 +763,17 @@ function GeneratedArgument({
               );
             })}
           </ul>
-        </div>
+        </Collapsible>
       )}
 
-      {(g.timeline?.length ?? 0) > 0 && <TimelinePanel timeline={g.timeline} />}
+      {(g.timeline?.length ?? 0) > 0 && (
+        <Collapsible label={<T>Supporting timeline</T>} open={openSections.has('timeline')} onToggle={() => toggleSection('timeline')}>
+          <TimelinePanel timeline={g.timeline} hideHeading />
+        </Collapsible>
+      )}
 
       {(g.gaps?.length ?? 0) > 0 && (
-        <div>
-          <ConsoleLabel><T>Gaps to close</T></ConsoleLabel>
+        <Collapsible label={<T>Gaps to close</T>} open={openSections.has('gaps')} onToggle={() => toggleSection('gaps')}>
           <ul className="space-y-1.5 text-[13px] text-cream-100/85">
             {g.gaps.map((gap, i) => (
               <li key={i} className="flex gap-2">
@@ -719,7 +782,7 @@ function GeneratedArgument({
               </li>
             ))}
           </ul>
-        </div>
+        </Collapsible>
       )}
 
       {viewerIdx != null && events[viewerIdx] && (
@@ -804,7 +867,7 @@ function parseWhen(when: string | null | undefined): ParsedWhen {
  * the events Advottic marshalled for this theory — grouped into month blocks in
  * chronological order, with day chips where the date is day-precise.
  */
-function TimelinePanel({ timeline }: { timeline: ApproachTimelineEntry[] }) {
+function TimelinePanel({ timeline, hideHeading }: { timeline: ApproachTimelineEntry[]; hideHeading?: boolean }) {
   const t = useT();
   const [mode, setMode] = useState<'list' | 'calendar'>('list');
 
@@ -826,8 +889,8 @@ function TimelinePanel({ timeline }: { timeline: ApproachTimelineEntry[] }) {
 
   return (
     <div>
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <ConsoleLabel><T>Supporting timeline</T></ConsoleLabel>
+      <div className={`mb-2 flex items-center gap-2 ${hideHeading ? 'justify-end' : 'justify-between'}`}>
+        {!hideHeading && <ConsoleLabel><T>Supporting timeline</T></ConsoleLabel>}
         <div className="inline-flex overflow-hidden rounded-md border border-cream-50/12 font-mono text-[10px] uppercase tracking-[0.14em]">
           {(['list', 'calendar'] as const).map((m) => (
             <button
