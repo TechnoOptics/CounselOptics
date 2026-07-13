@@ -199,7 +199,14 @@ export async function computeEventAnalysis(input: {
 
   const email = ev.media.find((m) => isEmailFile(m.mime, m.name));
   const img = ev.media.find((m) => isVisionAnalyzable(m.mime));
-  const doc = ev.media.find((m) => /pdf|word|officedocument|text\//.test(m.mime));
+  // Text-bearing documents, incl. spreadsheets. Match by MIME or by extension,
+  // since browsers often upload workbooks as application/octet-stream. Routed to
+  // extractFileText, which reads PDF/Word/.xlsx/CSV and flags .xls/.ods/.doc.
+  const doc = ev.media.find(
+    (m) =>
+      /pdf|word|officedocument|spreadsheet|excel|csv|text\//.test(m.mime) ||
+      /\.(pdf|docx?|xlsx|xlsm|xls|ods|csv|tsv|txt|rtf|md)$/i.test(m.name),
+  );
   const audio = ev.media.find((m) => /^audio\//.test(m.mime));
 
   try {

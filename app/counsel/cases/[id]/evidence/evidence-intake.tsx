@@ -1420,7 +1420,7 @@ export function EvidenceIntake({
           ref={fileRef}
           type="file"
           multiple
-          accept="image/*,video/*,application/pdf,.doc,.docx,text/*,audio/*,.eml,.msg,message/rfc822,.zip,application/zip,application/x-zip-compressed"
+          accept="image/*,video/*,application/pdf,.doc,.docx,.xlsx,.xlsm,.xls,.csv,.tsv,.ods,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/*,audio/*,.eml,.msg,message/rfc822,.zip,application/zip,application/x-zip-compressed"
           className="hidden"
           onChange={(e) => {
             const files = Array.from(e.target.files ?? []);

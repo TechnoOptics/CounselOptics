@@ -1,7 +1,7 @@
 /**
  * Advottic Review scoring engine.
  *
- * Pulls text out of an uploaded contract (PDF / Word / plain text),
+ * Pulls text out of an uploaded contract (PDF / Word / spreadsheet / plain text),
  * then runs it through the model with the firm's jurisdiction +
  * matter context to produce a structured scorecard: a letter grade,
  * a bias reading, concrete vulnerabilities, state-law relevance, and
@@ -35,6 +35,69 @@ const GRADE_ORDER: DocGrade[] = ['A', 'B', 'C', 'D', 'F'];
 /** C or higher passes (firm rule). */
 export function gradePasses(g: DocGrade): boolean {
   return g === 'A' || g === 'B' || g === 'C';
+}
+
+/** Upper bound on extracted spreadsheet text, so a huge workbook cannot flood
+ *  storage or the model prompt. Generous enough for real evidence workbooks. */
+const SHEET_CHAR_BUDGET = 200_000;
+const SHEET_MAX_ROWS = 5_000;
+
+/** Normalize one ExcelJS cell value to a plain string (dates, formulas with a
+ *  cached result, hyperlinks, and rich text all collapse to readable text). */
+function cellToString(v: unknown): string {
+  if (v == null) return '';
+  if (v instanceof Date) {
+    // Date-only vs datetime: drop the midnight time for clean day cells.
+    const iso = v.toISOString();
+    return iso.endsWith('T00:00:00.000Z') ? iso.slice(0, 10) : iso;
+  }
+  if (typeof v === 'object') {
+    const o = v as Record<string, unknown>;
+    if (typeof o.text === 'string') return o.text; // hyperlink cell
+    if (Array.isArray(o.richText)) {
+      return (o.richText as Array<{ text?: string }>).map((r) => r.text ?? '').join('');
+    }
+    if ('result' in o && o.result != null) return cellToString(o.result); // formula: use cached result
+    if (typeof o.formula === 'string') return `=${o.formula}`;
+    if (o.error != null) return String(o.error);
+    return '';
+  }
+  return String(v);
+}
+
+/** Flatten an ExcelJS workbook into readable, tab-separated text: one labelled
+ *  block per sheet, empty rows dropped, bounded so it never runs away. */
+function workbookToText(wb: import('exceljs').Workbook): string {
+  const parts: string[] = [];
+  let used = 0;
+  let truncated = false;
+  for (const ws of wb.worksheets) {
+    if (used >= SHEET_CHAR_BUDGET) {
+      truncated = true;
+      break;
+    }
+    const rows: string[] = [];
+    let rowCount = 0;
+    ws.eachRow({ includeEmpty: false }, (row) => {
+      if (rowCount >= SHEET_MAX_ROWS || used >= SHEET_CHAR_BUDGET) {
+        truncated = true;
+        return;
+      }
+      // row.values is 1-indexed (index 0 unused); drop trailing empties.
+      const vals = (Array.isArray(row.values) ? row.values.slice(1) : []).map(cellToString);
+      while (vals.length && vals[vals.length - 1] === '') vals.pop();
+      if (vals.every((c) => c === '')) return; // skip blank rows
+      const line = vals.join('\t');
+      rows.push(line);
+      rowCount += 1;
+      used += line.length + 1;
+    });
+    if (rows.length === 0) continue;
+    parts.push(`### Sheet: ${ws.name} (${rowCount} row${rowCount === 1 ? '' : 's'})\n${rows.join('\n')}`);
+  }
+  let text = parts.join('\n\n').slice(0, SHEET_CHAR_BUDGET);
+  if (truncated) text += '\n\n[Spreadsheet truncated for length; not every row is shown.]';
+  return text.trim();
 }
 
 /** Extract plain text from an uploaded file (best-effort, Node). */
@@ -74,6 +137,53 @@ export async function extractFileText(
         kind: 'doc',
         error:
           'Legacy .doc files cannot be read automatically. Save as PDF or .docx and re-upload, or paste the text.',
+      };
+    }
+    // Modern Excel workbooks (.xlsx / .xlsm): flatten every sheet to readable
+    // tab-separated rows so the analysis reasons over the actual cell values.
+    if (
+      name.endsWith('.xlsx') ||
+      name.endsWith('.xlsm') ||
+      type.includes('spreadsheetml')
+    ) {
+      // exceljs ships as CommonJS; under ESM interop the class lives on
+      // `.default`. Resolve both shapes so the import works in dev and build.
+      const mod = (await import('exceljs')) as unknown as {
+        Workbook?: typeof import('exceljs').Workbook;
+        default?: { Workbook: typeof import('exceljs').Workbook };
+      };
+      const Workbook = mod.Workbook ?? mod.default?.Workbook;
+      if (!Workbook) throw new Error('spreadsheet reader unavailable');
+      const wb = new Workbook();
+      await wb.xlsx.load(await file.arrayBuffer());
+      return { text: workbookToText(wb), kind: 'spreadsheet' };
+    }
+    // CSV / TSV are already plain text; label them as spreadsheets so the
+    // analysis treats them as tabular data, not prose.
+    if (
+      name.endsWith('.csv') ||
+      name.endsWith('.tsv') ||
+      type.includes('csv') ||
+      type.includes('tab-separated')
+    ) {
+      const text = await file.text();
+      return { text: text.slice(0, SHEET_CHAR_BUDGET), kind: 'spreadsheet' };
+    }
+    // Legacy binary Excel (.xls) and OpenDocument (.ods) are not read here on
+    // purpose: the only libraries that parse them carry known prototype-
+    // pollution / ReDoS advisories we will not run on untrusted uploads. Ask
+    // for a safe re-export instead.
+    if (
+      name.endsWith('.xls') ||
+      name.endsWith('.ods') ||
+      type === 'application/vnd.ms-excel' ||
+      type.includes('opendocument.spreadsheet')
+    ) {
+      return {
+        text: '',
+        kind: 'spreadsheet',
+        error:
+          'Legacy .xls and OpenDocument .ods spreadsheets cannot be read automatically. Save the file as .xlsx or CSV and re-upload.',
       };
     }
     // Plain-text family.
