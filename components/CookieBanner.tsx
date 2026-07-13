@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { focusWhenReady } from '@/lib/focus-when-ready';
+import { isNativeApp } from '@/lib/platform';
 import { PopupPortal } from './PopupPortal';
 
 // Storage keys / cookie name. Both the legacy localStorage key and
@@ -138,6 +139,13 @@ export function CookieBanner() {
     // hq.advottic.com (audit V5 CR-50). If we only find a legacy
     // localStorage record, the writer below will mirror it into the
     // cookie on next persist() call.
+    // Never show the cookie prompt inside the native apps. We use only
+    // strictly-necessary cookies (sign-in/session) - no advertising or tracking
+    // cookies - so no consent prompt is required. Apple flagged the prompt under
+    // 5.1.2(i) (a cookie consent UI implies tracking + would need App Tracking
+    // Transparency); since we don't track, removing the prompt in-app is Apple's
+    // own suggested resolution. Web keeps the GDPR-style banner.
+    if (isNativeApp()) return;
     const stored = readStoredChoice();
     if (!stored) setShow(true);
   }, []);

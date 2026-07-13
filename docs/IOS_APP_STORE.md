@@ -335,3 +335,74 @@ or say "subscribe on the web" (that wording was removed to stay clearly
 inside 3.1.3(b) anti-steering). The reader-model note now reads: "Your
 access unlocks here automatically once your account is subscribed."
 Web + Android keep the real Stripe checkout button.
+
+## 13. Resolution Center reply — rejection of 2026-07-09 (2.1(b) + 4.2 + 5.1.2(i))
+
+Submission `864667fd-c47b-4005-8434-4ce3860062f6`, reviewed 2026-07-09 on
+iPhone 17 Pro Max / iPad Air (M3), iOS/iPadOS 26.5.2. Four issues:
+2.1(b) "purchase button missing", 2.1(b) "Plus/Pro/Ultra IAP not submitted",
+4.2 minimum functionality, 5.1.2(i) privacy/ATT (cookies).
+
+**Code/config already shipped for this round (web = live in the existing
+remote-URL binary immediately on deploy):**
+- Cookie-consent prompt is now suppressed inside the native apps
+  (`components/CookieBanner.tsx` → `isNativeApp()` short-circuit). Essential
+  first-party cookies only; no tracking. Directly follows Apple's 5.1.2(i)
+  "remove the cookie prompts" path.
+- iOS Billing no longer renders the purchasable Plus/Pro/Ultra ladder or the
+  token top-up buttons (`app/billing/page.tsx`, server UA gate
+  `serverPlatform === 'ios'`). iOS shows current-plan STATUS only + a neutral
+  "nothing to buy in the app" note. Removes Apple's basis for "IAP products
+  not submitted / purchase button missing".
+
+**App Store Connect actions the Account Holder must do before resubmit:**
+1. App Privacy → confirm "Data is Not Used to Track You" (no tracking declared).
+2. Do NOT create/submit any In-App Purchase products (reader model — none exist).
+3. Confirm the App Review Notes describe the multiplatform/reader model + test
+   account, then Resubmit to App Review (no new binary strictly required — the
+   remote-URL shell picks up the deployed web fixes; a version/build bump is
+   optional but fine).
+
+**Ready-to-paste reply:**
+
+> Hello, and thank you for the detailed review.
+>
+> We've made changes and would like to clarify how Advottic works. Advottic is a
+> legal case-management service; the iOS app is the native client for accounts
+> people create on our multiplatform service (web + Android + iOS).
+>
+> **Guideline 2.1(b) — In-App Purchase / purchase button.** Advottic does not
+> sell any digital goods or subscriptions inside the iOS app, and by design there
+> is no in-app purchase button. Subscriptions (and token top-ups) are purchased
+> and managed by the account holder on our service; the paid entitlement then
+> unlocks automatically for that same account on iOS, Android, or the web. This
+> is the multiplatform / reader model of Guidelines 3.1.3(a)–(b). There are
+> therefore no In-App Purchase products to submit for this app. To remove any
+> ambiguity, we've updated the iOS Billing screen so it no longer displays a list
+> of named, purchasable plans (Plus / Pro / Ultra); on iOS it now shows only the
+> account's current plan status and a neutral note that the subscription is
+> managed from the user's account, with nothing to buy in the app. No purchase
+> button is missing — there is intentionally none.
+>
+> **Guideline 5.1.2(i) — Privacy / tracking.** Advottic does not track users. We
+> use only strictly-necessary, first-party cookies to keep the user signed in and
+> the session secure. We use no advertising SDKs, share no data with data
+> brokers, and never link user data with third-party data for advertising.
+> Because there is no tracking, we have removed the cookie-consent prompt inside
+> the iOS app, per your guidance, and our App Privacy information reflects "Data
+> Not Used to Track You."
+>
+> **Guideline 4.2 — Minimum Functionality.** Advottic is a full legal
+> case-management application, not a repackaged website. Native, device-level
+> functionality includes: Home-Screen Widgets (WidgetKit) showing the user's open
+> matters and recent activity; Sign in with Apple and Face ID / Touch ID app
+> lock; "Safe Alert" — background Core Location with one-tap emergency SMS to the
+> user's trusted contacts; native camera capture for adding evidence to a matter;
+> and offline access to previously loaded case content. These sit on top of the
+> substantive product itself: guided case building, an evidentiary timeline,
+> document/evidence management, e-signature, and court-packet export. We'd
+> welcome the chance to walk a reviewer through any of these — a test account and
+> a step-by-step flow are in the App Review Notes.
+>
+> If any specific screen still needs adjustment, tell us exactly which and we'll
+> turn around a change quickly. Thank you for your time.

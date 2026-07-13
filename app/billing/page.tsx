@@ -12,7 +12,7 @@ import {
   type TokenLedgerReason,
 } from '@/lib/storage';
 import { isStripeConfigured } from '@/lib/stripe';
-import { TIER_FEATURES, TIER_LABEL, type Tier } from '@/lib/types';
+import { TIER_LABEL, type Tier } from '@/lib/types';
 import { PERSONAL_TIERS, personalTierForSlug, type PersonalTierKey } from '@/lib/personal-tiers';
 import { resolvePriceEntitlement } from '@/lib/entitlements';
 import { PersonalTierCard } from './personal-tier-card';
@@ -294,21 +294,42 @@ export default async function BillingPage({
         )}
       </div>
 
-      {/* Personal plan ladder — five rungs, features unlock as you climb */}
-      <div id="tiers" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5 items-stretch stagger scroll-mt-20">
-        {PERSONAL_TIERS.map((t) => (
-          <PersonalTierCard
-            key={t.key}
-            tier={t}
-            currentKey={currentPersonalKey}
-            isActive={isActive}
-            stripeReady={stripeReady}
-            priceConfigured={Boolean(t.stripeEnv && process.env[t.stripeEnv]?.trim())}
-            serverPlatform={serverPlatform}
-            highlighted={t.key === 'plus'}
-          />
-        ))}
-      </div>
+      {/* Personal plan ladder — five rungs, features unlock as you climb.
+          On iOS/iPadOS we do NOT render the purchasable ladder at all: Apple
+          reads a list of named tiers (Plus/Pro/Ultra) with no in-app purchase
+          as "IAP products missing" (Guideline 2.1(b)). Reader model: the iOS
+          app only shows the account's CURRENT plan status; subscriptions are
+          purchased and changed on the web, and access unlocks here
+          automatically. Web/Android render the full ladder. */}
+      {serverPlatform === 'ios' ? (
+        <div className="rounded-2xl border border-gold-300/40 bg-gradient-to-br from-cream-50 to-white dark:from-forest-900 dark:to-forest-950 p-5 ring-1 ring-gold-400/20">
+          <p className="text-[11px] uppercase tracking-[0.18em] font-semibold text-gold-600 dark:text-gold-300">
+            Your plan
+          </p>
+          <p className="mt-1.5 font-display text-xl text-forest-900 dark:text-cream-100">
+            {isActive && currentTier ? `${TIER_LABEL[currentTier]} — active` : 'Free plan'}
+          </p>
+          <p className="mt-3 text-[13px] leading-relaxed text-ink-600 dark:text-cream-100/70">
+            Your subscription is managed from your Advottic account. Whatever plan
+            you have unlocks here automatically — there is nothing to buy in the app.
+          </p>
+        </div>
+      ) : (
+        <div id="tiers" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5 items-stretch stagger scroll-mt-20">
+          {PERSONAL_TIERS.map((t) => (
+            <PersonalTierCard
+              key={t.key}
+              tier={t}
+              currentKey={currentPersonalKey}
+              isActive={isActive}
+              stripeReady={stripeReady}
+              priceConfigured={Boolean(t.stripeEnv && process.env[t.stripeEnv]?.trim())}
+              serverPlatform={serverPlatform}
+              highlighted={t.key === 'plus'}
+            />
+          ))}
+        </div>
+      )}
 
       {/* iOS-only: reader-model note (no in-app purchase; subscriptions are
           managed on the web). Renders null on web/Android. */}
@@ -333,7 +354,10 @@ export default async function BillingPage({
       {isPro && tokens && (
         <section id="topup" className="space-y-5 scroll-mt-20">
           <TokenGauge balance={tokens.balance} />
-          <TopUpButtons />
+          {/* Token top-ups are consumable digital goods; buying them in-app
+              would require Apple IAP. Under the reader model the buy buttons are
+              iOS-hidden (top-ups happen on the web) - the balance stays visible. */}
+          {serverPlatform !== 'ios' && <TopUpButtons />}
           {ledger.length > 0 && (
             <TokenLedgerCard rows={ledger} />
           )}
