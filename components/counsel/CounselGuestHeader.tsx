@@ -24,7 +24,7 @@ export function CounselGuestHeader({
   email: string;
 }) {
   return (
-    <header className="bg-forest-950/95 backdrop-blur-md sticky top-0 z-30 pt-[var(--safe-top)]">
+    <header className="bg-forest-950 sticky top-0 z-30 pt-[var(--safe-top)] border-b border-forest-800/70 shadow-[0_6px_20px_-12px_rgba(0,0,0,0.9)]">
       <div className="mx-auto max-w-none px-4 sm:px-6 lg:px-10 py-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
           <Link
