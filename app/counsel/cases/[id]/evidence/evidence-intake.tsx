@@ -302,7 +302,7 @@ function matchesFocus(e: TimelineEvent, f: Focus): boolean {
   if (f.year && (e.aiExtracted?.suggested_occurred_at ?? '').slice(0, 4) !== f.year) return false;
   return true;
 }
-type ViewMode = 'list' | 'grid';
+type ViewMode = 'gallery' | 'list' | 'grid';
 
 export function EvidenceIntake({
   firmId,
@@ -371,7 +371,7 @@ export function EvidenceIntake({
 
   // View + organisation controls. Grid is the default: the readable, image-first
   // layout the firm reviews evidence in; the list stays a click away.
-  const [view, setView] = useState<ViewMode>('grid');
+  const [view, setView] = useState<ViewMode>('gallery');
   // Deep-link focus from the dashboard: the URL search params narrow the list to
   // the slice a metric/chart segment stands for, and preset the grouping.
   const searchParams = useSearchParams();
@@ -1544,6 +1544,12 @@ export function EvidenceIntake({
           <p className="text-[13px] text-ink-500 dark:text-cream-100/55">
             <T>Nothing matches the current filters.</T>
           </p>
+        ) : view === 'gallery' ? (
+          <div className="grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {ordered.map((e) => (
+              <GalleryTile key={e.id} {...cardProps(e)} />
+            ))}
+          </div>
         ) : view === 'grid' ? (
           <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
             {ordered.map((e) => (
@@ -1736,11 +1742,14 @@ function Toolbar({
 
         {/* View */}
         <div className="inline-flex overflow-hidden rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40">
+          <button type="button" onClick={() => setView('gallery')} className={`${seg} ${view === 'gallery' ? segOn : segOff}`} aria-label={t('Gallery view')}>
+            ▦
+          </button>
+          <button type="button" onClick={() => setView('grid')} className={`${seg} ${view === 'grid' ? segOn : segOff}`} aria-label={t('Card view')}>
+            ▤
+          </button>
           <button type="button" onClick={() => setView('list')} className={`${seg} ${view === 'list' ? segOn : segOff}`} aria-label={t('List view')}>
             ☰
-          </button>
-          <button type="button" onClick={() => setView('grid')} className={`${seg} ${view === 'grid' ? segOn : segOff}`} aria-label={t('Grid view')}>
-            ▦
           </button>
         </div>
 
@@ -2105,6 +2114,79 @@ type CardShared = {
  * laid out next to it. Side-by-side on any card wide enough; stacks on a narrow
  * one. Clicking the preview or title opens the in-window viewer.
  */
+/**
+ * Compact gallery tile (default view): just the thumbnail, a small exhibit
+ * badge, an on-timeline dot and a two-line caption (title + date). Clicking it
+ * opens the full EvidenceViewer, which carries all the context - summary,
+ * relevance, people/orgs/places/dates - in its side panel. Deliberately light:
+ * the wall of per-item facts lives in the viewer, not on every tile, so a large
+ * evidence set reads as a calm contact sheet instead of an endless feed.
+ */
+function GalleryTile({
+  firmId,
+  caseId,
+  event: e,
+  selected,
+  excluded,
+  onTimeline,
+  onToggleSelect,
+  onOpenViewer,
+}: CardShared) {
+  const t = useT();
+  const ext = e.aiExtracted ?? {};
+  const exhibit = exhibitLabel(ext.exhibit_no);
+  return (
+    <div className={`group relative flex flex-col ${excluded ? 'opacity-55' : ''}`}>
+      <button
+        type="button"
+        onClick={onOpenViewer}
+        aria-label={t('Open item')}
+        className={`relative block w-full overflow-hidden rounded-lg ring-1 transition-all hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-500 ${
+          selected ? 'ring-2 ring-forest-500' : 'ring-ink-100 hover:ring-gold-500/50 dark:ring-forest-800/50'
+        }`}
+      >
+        <div className="aspect-[4/3] w-full bg-ink-50 dark:bg-forest-900/50">
+          <EvidencePreview firmId={firmId} caseId={caseId} event={e} rounded="rounded-none" className="h-full w-full" />
+        </div>
+        {exhibit && (
+          <span className="absolute right-1.5 top-1.5 rounded bg-forest-950/70 px-1.5 py-0.5 font-mono text-[9.5px] leading-none text-cream-50">
+            {exhibit}
+          </span>
+        )}
+        {onTimeline && (
+          <span
+            aria-hidden
+            title={t('On timeline')}
+            className="absolute bottom-1.5 right-1.5 h-2.5 w-2.5 rounded-full bg-gold-400 ring-2 ring-forest-950/60"
+          />
+        )}
+      </button>
+      {/* Selection checkbox: quiet until hover or selected. */}
+      <label
+        className={`absolute left-1.5 top-1.5 flex h-5 w-5 cursor-pointer items-center justify-center rounded-md bg-white/85 shadow ring-1 ring-black/5 transition-opacity dark:bg-forest-900/85 ${
+          selected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100'
+        }`}
+      >
+        <input type="checkbox" checked={selected} onChange={onToggleSelect} className="h-3 w-3 accent-forest-600" />
+      </label>
+      <div className="mt-1.5 min-w-0 px-0.5">
+        <button
+          type="button"
+          onClick={onOpenViewer}
+          className="block w-full truncate text-left text-[12px] font-medium text-forest-900 hover:underline dark:text-cream-100"
+          data-no-translate
+          title={e.title || e.media[0]?.name || ''}
+        >
+          {e.title || e.media[0]?.name || t('(untitled)')}
+        </button>
+        <p className="mt-0.5 truncate text-[10.5px] text-ink-400 dark:text-cream-100/45" data-no-translate>
+          {formatOccurred(e.occurredAt, e.occurredPrecision)}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function GridCard({
   firmId,
   caseId,
