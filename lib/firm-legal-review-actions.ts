@@ -156,10 +156,13 @@ export async function generateFirmLegalReviewAction(
   // Full extracted text of the evidence (OCR / email / thread), relevance-
   // ordered, so the legal issues are surfaced from the actual content, not just
   // summaries. Budget-guarded for very large matters.
+  // Bounded to keep the AI pass inside the serverless budget (see the same note
+  // in lib/firm-approach-actions.ts). Every item is still in view; the budget
+  // only caps how many carry full text vs a one-line summary.
   const evidence = await loadCaseEvidenceDigest(admin, caseId, {
     fullTextTopN: 2000,
-    perItemChars: 2500,
-    totalCharBudget: 600_000,
+    perItemChars: 2200,
+    totalCharBudget: 300_000,
   });
   const draft = await generateLegalReviewDraft({ facts, evidence });
   if ('error' in draft) return { ok: false, error: draft.error };

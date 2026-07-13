@@ -36,7 +36,14 @@ export const dynamic = 'force-dynamic';
 // budget was blown, returning a 504 (which read to users as "crashes / very
 // slow", including the re-render after saving matter details). Raise the ceiling
 // AND parallelize every read below into a single wave.
-export const maxDuration = 60;
+//
+// 300s (the Vercel Pro ceiling) because the Server Actions invoked from this
+// route include the heavy AI passes (approach re-run, legal review) that
+// deep-read the whole matter. At 60s a large matter's re-run was being killed
+// mid-flight, so the client saw a bare "Could not re-run." The digest is also
+// bounded (see lib/firm-approach-actions.ts) so a typical run finishes with
+// margin under this ceiling.
+export const maxDuration = 300;
 
 /**
  * Audit V5 CR-30: the counsel-side case detail used to show

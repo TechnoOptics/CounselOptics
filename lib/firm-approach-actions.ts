@@ -166,11 +166,19 @@ async function runGeneration(
   };
   // Full extracted text for the most-relevant items (so the argument reasons
   // over the actual content, not just summaries), with one-line summaries for
-  // the rest so the whole matter is still in view.
+  // the rest so the whole matter is STILL entirely in view. Every item is
+  // present; the budget only decides how many get full text vs a summary.
+  //
+  // Bounded deliberately: a 600k-char / ~240k-token prompt made the model spend
+  // 3+ minutes generating, which blew even a raised serverless ceiling and
+  // returned nothing ("Could not re-run."). 300k chars (~75k tokens) keeps the
+  // ~120 most-relevant items at full text while every remaining item stays in
+  // as a one-line summary, and brings the call back to a reliable, completable
+  // duration.
   const evidence = await loadCaseEvidenceDigest(admin, caseId, {
-    fullTextTopN: 2000, // every item, relevance-ordered
-    perItemChars: 2500,
-    totalCharBudget: 600_000, // ~150k tokens ceiling; the tail of a huge matter degrades to summaries
+    fullTextTopN: 2000, // consider every item, relevance-ordered
+    perItemChars: 2200,
+    totalCharBudget: 300_000, // ~75k tokens; tail of a huge matter degrades to summaries
   });
   const res = await generateApproachArgument({
     facts,

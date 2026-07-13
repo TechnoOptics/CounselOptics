@@ -277,7 +277,12 @@ function ApproachCard({
           onUpdated(res.approach);
           setEditing(false);
         } else {
-          setError(res?.error ?? t('Could not re-run.'));
+          // An empty response (no res / no error) means the run did not finish
+          // in time on a large matter, not that anything is broken. Say so.
+          setError(
+            res?.error ??
+              t('This matter is large, so assembling the argument took longer than allowed. Please run it again.'),
+          );
         }
       } catch {
         setError(t("Advottic's analysis is temporarily unavailable right now; try assembling the argument again shortly."));
