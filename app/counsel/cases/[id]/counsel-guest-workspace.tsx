@@ -5,6 +5,7 @@ import type { Approach } from '@/lib/firm-approach-actions';
 import { T } from '@/components/i18n/LocaleProvider';
 import { SectionPanel } from '@/components/counsel/SectionPanel';
 import { ExportPacketTile } from '@/components/counsel/ExportPacketTile';
+import { CoCounselTour, CoCounselTourReplay } from '@/components/counsel/CoCounselTour';
 import { EvidenceDashboard } from './evidence-dashboard';
 import { ApproachBuilder } from './approach-builder';
 import { MatterFacts } from './matter-facts';
@@ -61,10 +62,15 @@ export function CounselGuestWorkspace({
 
   return (
     <div className="space-y-8">
+      {/* First-run walkthrough (auto-opens once; replayable from the chip below). */}
+      <CoCounselTour firstName={firstName} />
       <header className="min-w-0">
-        <p className="text-[11px] uppercase tracking-[0.16em] font-semibold text-gold-300">
-          <T>Co-counsel</T>
-        </p>
+        <div className="flex items-start justify-between gap-3">
+          <p className="text-[11px] uppercase tracking-[0.16em] font-semibold text-gold-300">
+            <T>Co-counsel</T>
+          </p>
+          <CoCounselTourReplay className="shrink-0" />
+        </div>
         <h1
           className="font-display text-3xl font-medium tracking-[-0.01em] text-cream-100 mt-1 break-words"
           data-no-translate
