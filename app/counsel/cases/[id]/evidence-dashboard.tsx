@@ -67,7 +67,7 @@ function Kpi({
 
 function Panel({ title, hint, children }: { title: React.ReactNode; hint?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl bg-white/70 dark:bg-forest-900/40 border border-ink-100 dark:border-forest-700/40 p-4">
+    <div className="rounded-xl bg-cream-50/70 dark:bg-forest-900/40 border border-ink-100 dark:border-forest-700/40 p-4">
       <div className="text-[13px] font-semibold text-forest-900 dark:text-cream-100">{title}</div>
       {hint ? <div className="mt-0.5 text-[11px] text-ink-400 dark:text-cream-100/40">{hint}</div> : null}
       <div className="mt-3">{children}</div>

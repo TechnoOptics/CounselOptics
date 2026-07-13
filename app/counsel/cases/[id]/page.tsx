@@ -321,16 +321,40 @@ export default async function CounselCaseDetailPage({
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="eyebrow mb-1"><T>Counsel · matter</T></p>
-          <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100 break-words">
+          <h1
+            className="font-display text-[28px] sm:text-3xl font-medium tracking-[-0.01em] leading-[1.1] text-forest-900 dark:text-cream-100 break-words"
+            data-no-translate
+          >
             {c.title}
           </h1>
-          <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-1 font-mono">
-            {STATUS_LABEL[c.status] ?? c.status} · {c.case_type} ·{' '}
-            {c.posture}
-            {c.jurisdiction_state && ` · ${c.jurisdiction_state}`}
-            {' · '}
-            <T>subject</T> {c.subject_name}
-          </p>
+          {/* Calm, scannable meta: a status pill + quiet particulars, then the
+              subject on its own line. Replaces the dense monospace run-on. */}
+          <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[12.5px] text-ink-500 dark:text-cream-100/60" data-no-translate>
+            <span className="inline-flex items-center rounded-full bg-gold-500/15 px-2.5 py-0.5 text-[11px] font-medium text-gold-700 dark:bg-gold-metal/12 dark:text-gold-metal/90">
+              {STATUS_LABEL[c.status] ?? c.status}
+            </span>
+            {c.case_type && <span>{c.case_type}</span>}
+            {c.posture && (
+              <>
+                <span className="text-ink-300 dark:text-cream-100/25">·</span>
+                <span className="capitalize">{c.posture}</span>
+              </>
+            )}
+            {c.jurisdiction_state && (
+              <>
+                <span className="text-ink-300 dark:text-cream-100/25">·</span>
+                <span>{c.jurisdiction_state}</span>
+              </>
+            )}
+          </div>
+          {c.subject_name && (
+            <p className="mt-1.5 text-[12.5px] text-ink-400 dark:text-cream-100/45">
+              <T>Subject</T>{' '}
+              <span className="text-forest-800 dark:text-cream-100/80" data-no-translate>
+                {c.subject_name}
+              </span>
+            </p>
+          )}
         </div>
         <div className="flex flex-col items-start gap-3 sm:items-end">
           {showTimeBilling && (
