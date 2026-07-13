@@ -681,7 +681,12 @@ function GeneratedArgument({
                 </>
               );
               return (
-                <li key={i}>
+                // min-w-0: grid items default to min-width:auto, so the
+                // truncate title's nowrap min-content was forcing the whole
+                // row wider than the phone viewport (titles/desc bled off the
+                // right edge). min-w-0 lets the row shrink so truncate + text
+                // wrap work inside the card.
+                <li key={i} className="min-w-0">
                   {idx != null ? (
                     <button
                       type="button"

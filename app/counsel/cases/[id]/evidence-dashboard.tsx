@@ -223,8 +223,14 @@ function YearColumns({
   const max = Math.max(1, ...rows.map((r) => r.n));
   return (
     <div>
+      {/* Scrolls horizontally on narrow screens: with many years, equal
+          flex-1 columns get too thin for a 4-digit label and the years
+          collide. Each column has a min width so labels stay legible; the
+          row grows past the viewport and scrolls instead of overlapping.
+          On wide screens min-w-full makes flex-1 fill the width (no scroll). */}
+      <div className="overflow-x-auto">
       <div
-        className="flex items-stretch gap-2 h-44"
+        className="flex items-stretch gap-2 h-44 min-w-full"
         role="img"
         aria-label="Evidence items by year, coloured by average relevance"
       >
@@ -233,7 +239,7 @@ function YearColumns({
             key={r.year}
             href={`${base}?year=${r.year}&group=date`}
             prefetch={false}
-            className="group flex-1 flex flex-col min-w-0"
+            className="group flex-1 flex flex-col min-w-[2.15rem]"
             title={`${r.year}: ${r.n} item${r.n === 1 ? '' : 's'}${
               r.avgRelevance != null ? ` · avg relevance ${r.avgRelevance}/100` : ''
             }`}
@@ -250,6 +256,7 @@ function YearColumns({
             </span>
           </Link>
         ))}
+      </div>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10.5px] text-ink-400 dark:text-cream-100/45">
         <span className="uppercase tracking-[0.1em] text-ink-400 dark:text-cream-100/40">
