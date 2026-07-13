@@ -178,6 +178,38 @@ export function MatterInviteForm({
 
       {showForm && canManage && (
         <form action={invite} className="card p-5 space-y-4">
+          <div className="grid gap-3 md:grid-cols-2">
+            <div>
+              <label
+                className="block text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-500 dark:text-cream-100/55 mb-1"
+                htmlFor="matter-invite-name"
+              >
+                Name
+              </label>
+              <input
+                id="matter-invite-name"
+                name="inviteeName"
+                type="text"
+                placeholder="Jordan Rivera"
+                className="input"
+              />
+            </div>
+            <div>
+              <label
+                className="block text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-500 dark:text-cream-100/55 mb-1"
+                htmlFor="matter-invite-org"
+              >
+                Organization
+              </label>
+              <input
+                id="matter-invite-org"
+                name="organization"
+                type="text"
+                placeholder="Rivera & Associates"
+                className="input"
+              />
+            </div>
+          </div>
           <div className="grid gap-3 md:grid-cols-[1fr_220px]">
             <div>
               <label

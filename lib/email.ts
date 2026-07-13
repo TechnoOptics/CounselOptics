@@ -118,6 +118,100 @@ export function buildInviteEmailHtml(input: {
 }
 
 /**
+ * Premium branded WELCOME email for a firm inviting counsel (or a client /
+ * contributor) onto a matter. Unlike the terse buildInviteEmailHtml, this is a
+ * full onboarding email: it personalizes to the invitee (name + organization),
+ * names the inviter + firm + matter + their access level, gives the primary
+ * "open the matter" link, and then walks them through BOTH ways to sign in with
+ * real screenshots of the live sign-in screen and the branded code email, so a
+ * first-time invitee is never lost. Images are hosted under /email on the site
+ * (public/email/*.png); email clients that block remote images still get full,
+ * self-explanatory alt text + numbered steps.
+ */
+export function buildCounselWelcomeEmailHtml(input: {
+  inviteeName?: string | null;
+  organization?: string | null;
+  inviterName: string;
+  firmName?: string | null;
+  caseTitle: string;
+  roleLabel: string;
+  link: string;
+}): string {
+  const site = process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://advottic.com';
+  const optionsImg = `${site}/email/login-options.png`;
+  const codeImg = `${site}/email/login-code.png`;
+  const greetingName = (input.inviteeName ?? '').trim();
+  const greeting = greetingName ? `Hi ${escapeHtml(greetingName)},` : 'Hello,';
+  const firmTrimmed = (input.firmName ?? '').trim();
+  const fromWho =
+    firmTrimmed && firmTrimmed.toLowerCase() !== input.inviterName.trim().toLowerCase()
+      ? `${escapeHtml(input.inviterName)} at ${escapeHtml(firmTrimmed)}`
+      : escapeHtml(input.inviterName);
+  const orgTrimmed = (input.organization ?? '').trim();
+  const orgLine = orgTrimmed ? ` on behalf of ${escapeHtml(orgTrimmed)}` : '';
+  return `<!doctype html>
+<html><body style="margin:0;padding:0;background:#f5edd6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif;color:#0f2d24;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5edd6;padding:32px 16px;">
+    <tr><td align="center">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 8px 24px -4px rgba(15,45,36,0.10);">
+        <tr><td style="background:linear-gradient(135deg,#0f2d24 0%,#173b30 60%,#23362f 100%);padding:28px 32px;text-align:center;">
+          <p style="margin:0;color:#d5bb7e;font-size:22px;letter-spacing:0.30em;text-transform:uppercase;font-weight:700;">Advottic</p>
+          <p style="margin:10px 0 0;color:#fbf7e9;font-size:15px;font-weight:500;letter-spacing:0.02em;">You've been invited to a matter</p>
+        </td></tr>
+        <tr><td style="padding:28px 32px 4px;">
+          <p style="margin:0 0 14px;color:#0f2d24;font-size:15px;line-height:1.5;">${greeting}</p>
+          <p style="margin:0 0 18px;color:#3f3f46;font-size:14.5px;line-height:1.6;">
+            ${fromWho} invited you${orgLine} to collaborate on the matter below in Advottic as
+            <strong style="color:#0f2d24;">${escapeHtml(input.roleLabel)}</strong>.
+          </p>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 22px;background:#f6f4ee;border:1px solid #e7e2d3;border-radius:12px;">
+            <tr><td style="padding:16px 18px;">
+              <p style="margin:0 0 3px;color:#8a7a52;font-size:10.5px;letter-spacing:0.18em;text-transform:uppercase;font-weight:700;">Matter</p>
+              <p style="margin:0;color:#0f2d24;font-size:17px;font-weight:600;line-height:1.25;">${escapeHtml(input.caseTitle)}</p>
+            </td></tr>
+          </table>
+          <p style="margin:0 0 26px;text-align:center;">
+            <a href="${escapeAttribute(input.link)}" style="display:inline-block;background:#0f2d24;color:#fbf7e9;text-decoration:none;padding:13px 30px;border-radius:10px;font-weight:600;font-size:14.5px;">Open the matter</a>
+          </p>
+        </td></tr>
+
+        <tr><td style="padding:0 32px 6px;">
+          <hr style="border:none;border-top:1px solid #ececec;margin:0 0 20px;" />
+          <p style="margin:0 0 4px;color:#0f2d24;font-size:16px;font-weight:600;">How to sign in</p>
+          <p style="margin:0 0 18px;color:#71717a;font-size:13px;line-height:1.55;">
+            Advottic creates your account on your first sign-in, using the email this invite was sent to. Pick whichever is easier, there is no separate signup form.
+          </p>
+
+          <p style="margin:0 0 8px;color:#0f2d24;font-size:14px;font-weight:600;">Option 1 &middot; Continue with a provider</p>
+          <p style="margin:0 0 12px;color:#3f3f46;font-size:13.5px;line-height:1.55;">
+            On the sign-in screen, tap <strong>Continue with Google</strong>, <strong>Continue with Microsoft</strong>, or <strong>Sign in with Apple</strong>, whichever matches your invited email. That is the whole step.
+          </p>
+          <img src="${escapeAttribute(optionsImg)}" width="536" alt="Advottic sign-in screen showing Continue with Google, Continue with Microsoft, Sign in with Apple, and an Email me a sign-in code option" style="display:block;width:100%;max-width:536px;height:auto;border:1px solid #e7e2d3;border-radius:12px;margin:0 0 26px;" />
+
+          <p style="margin:0 0 8px;color:#0f2d24;font-size:14px;font-weight:600;">Option 2 &middot; Email yourself a sign-in code</p>
+          <p style="margin:0 0 12px;color:#3f3f46;font-size:13.5px;line-height:1.55;">
+            Prefer no provider? Enter your email and tap <strong>Email me a sign-in code</strong>. Advottic sends a one-time <strong>8-digit code</strong> in a separate email (shown below). Type it into the same screen to finish. The code expires in 60 minutes and works only once.
+          </p>
+          <img src="${escapeAttribute(codeImg)}" width="536" alt="The Advottic sign-in code email, showing an example 8-digit code such as 4829 3107 to enter on the sign-in screen" style="display:block;width:100%;max-width:536px;height:auto;border:1px solid #e7e2d3;border-radius:12px;margin:0 0 8px;" />
+          <p style="margin:0 0 22px;color:#a1a1aa;font-size:11.5px;line-height:1.5;">The code above (4829 3107) is only an example of what the email looks like. Your real code arrives when you tap "Email me a sign-in code."</p>
+        </td></tr>
+
+        <tr><td style="padding:0 32px 8px;">
+          <p style="margin:0 0 8px;color:#71717a;font-size:12px;line-height:1.55;">If a button does not open, paste this link into your browser:</p>
+          <p style="margin:0 0 20px;word-break:break-all;color:#52525b;font-size:11.5px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;">${escapeHtml(input.link)}</p>
+          <p style="margin:0;color:#a1a1aa;font-size:11.5px;line-height:1.55;">Advottic provides legal information and case organization, not legal advice. If you weren't expecting this invitation, you can safely ignore this email.</p>
+        </td></tr>
+        <tr><td style="padding:18px 32px 28px;">
+          <hr style="border:none;border-top:1px solid #e4e4e7;margin:0 0 12px;" />
+          <p style="margin:0;color:#a1a1aa;font-size:11px;letter-spacing:0.04em;">© ${new Date().getFullYear()} Advottic LLC. All rights reserved.</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
+/**
  * Brand-styled meeting invite. Sent to every attendee when a meeting
  * is scheduled from the shared calendar, so Zoom invitees + any
  * non-Outlook recipient still get a proper invite (Microsoft Graph

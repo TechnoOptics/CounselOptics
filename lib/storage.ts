@@ -22,7 +22,7 @@ import type {
 } from './types';
 import { createServerSupabase, getCurrentUser, isSupabaseConfigured } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
-import { sendEmail, buildInviteEmailHtml } from './email';
+import { sendEmail, buildInviteEmailHtml, buildCounselWelcomeEmailHtml } from './email';
 import { parseMenuPreferences, type AllMenuPreferences } from './menu-prefs';
 import { COMP_ULTRA_PRICE_ID } from './personal-tiers';
 
@@ -1375,9 +1375,18 @@ async function deliverCollaboratorInviteEmail(params: {
   existingUserId: string | null;
   inviterName: string;
   inviterEmail: string | null;
+  /** When set, send the premium branded WELCOME email (with login guidance +
+   *  screenshots) instead of the terse invite. Passed by the firm invite path. */
+  welcome?: {
+    inviteeName?: string | null;
+    organization?: string | null;
+    firmName?: string | null;
+    roleLabel: string;
+  } | null;
 }): Promise<boolean> {
   const { admin, email, caseId, caseTitle, existingUserId, inviterName, inviterEmail } =
     params;
+  const welcome = params.welcome ?? null;
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://advottic.com';
   const redirectTo = `${siteUrl}/auth/callback?next=${encodeURIComponent('/cases?welcome=1')}`;
   try {
@@ -1407,15 +1416,27 @@ async function deliverCollaboratorInviteEmail(params: {
 
     const resendKey = process.env.RESEND_API_KEY?.trim();
     if (actionLink && resendKey) {
-      const subject = existingUserId
-        ? `${inviterName} added you to "${caseTitle}" on Advottic`
-        : `${inviterName} invited you to "${caseTitle}" on Advottic`;
-      const html = buildInviteEmailHtml({
-        inviterName,
-        caseTitle,
-        link: actionLink,
-        isNewUser: !existingUserId,
-      });
+      const subject = welcome
+        ? `${inviterName} invited you to "${caseTitle}" on Advottic`
+        : existingUserId
+          ? `${inviterName} added you to "${caseTitle}" on Advottic`
+          : `${inviterName} invited you to "${caseTitle}" on Advottic`;
+      const html = welcome
+        ? buildCounselWelcomeEmailHtml({
+            inviteeName: welcome.inviteeName,
+            organization: welcome.organization,
+            inviterName,
+            firmName: welcome.firmName,
+            caseTitle,
+            roleLabel: welcome.roleLabel,
+            link: actionLink,
+          })
+        : buildInviteEmailHtml({
+            inviterName,
+            caseTitle,
+            link: actionLink,
+            isNewUser: !existingUserId,
+          });
       const result = await sendEmail({
         to: email,
         subject,
@@ -1525,6 +1546,15 @@ export async function inviteCollaborator(input: {
  * is enforced by the calling server action; as defense-in-depth we also
  * confirm the case actually belongs to `firmId` before writing.
  */
+/** Firm-facing role labels for the branded welcome email. */
+const FIRM_WELCOME_ROLE_LABEL: Record<CollaboratorRole, string> = {
+  attorney: 'co-counsel',
+  represented: 'the represented party',
+  editor: 'a contributor',
+  viewer: 'a viewer',
+  witness: 'a witness',
+};
+
 export async function inviteCollaboratorAsFirm(input: {
   caseId: string;
   firmId: string;
@@ -1533,6 +1563,10 @@ export async function inviteCollaboratorAsFirm(input: {
   inviterId: string;
   inviterName: string;
   inviterEmail: string | null;
+  /** Optional invitee identity for the premium branded welcome email. */
+  inviteeName?: string | null;
+  organization?: string | null;
+  firmName?: string | null;
 }): Promise<{ collaborator: Collaborator; emailed: boolean; caseTitle: string }> {
   if (!usingSupabase()) {
     throw new Error('Collaborators require Supabase to be configured.');
@@ -1579,6 +1613,12 @@ export async function inviteCollaboratorAsFirm(input: {
     existingUserId,
     inviterName: input.inviterName,
     inviterEmail: input.inviterEmail,
+    welcome: {
+      inviteeName: input.inviteeName ?? null,
+      organization: input.organization ?? null,
+      firmName: input.firmName ?? null,
+      roleLabel: FIRM_WELCOME_ROLE_LABEL[input.role] ?? 'a collaborator',
+    },
   });
 
   return {

@@ -4023,6 +4023,16 @@ export async function inviteMatterCollaboratorAction(
   }
   const roleKey = String(formData.get('role') ?? 'viewer');
   const role = FIRM_INVITE_ROLE_MAP[roleKey] ?? 'viewer';
+  const inviteeName = String(formData.get('inviteeName') ?? '').trim().slice(0, 120) || null;
+  const organization = String(formData.get('organization') ?? '').trim().slice(0, 160) || null;
+
+  // The firm name personalizes the welcome email ("X at Firm invited you").
+  const { data: firmRow } = await admin
+    .from('firms')
+    .select('name')
+    .eq('id', firmId)
+    .maybeSingle();
+  const firmName = (firmRow as { name?: string | null } | null)?.name ?? null;
 
   try {
     const inviterName =
@@ -4035,6 +4045,9 @@ export async function inviteMatterCollaboratorAction(
       inviterId: user.id,
       inviterName,
       inviterEmail: user.email ?? null,
+      inviteeName,
+      organization,
+      firmName,
     });
 
     // Best-effort audit trail.
