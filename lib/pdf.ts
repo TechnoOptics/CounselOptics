@@ -1400,8 +1400,13 @@ function drawEntityCard(doc: Doc, ent: ExhibitEntity) {
     textX = MARGIN + 12 + photoW + 14;
   }
   const textW = MARGIN + CONTENT_WIDTH - textX - 12;
+  // Kind + role, without repeating the kind when the role is just the generic
+  // kind label (which produced "ORGANIZATION · ORGANIZATION").
+  const kindLabel = ent.kind === 'organization' ? 'ORGANIZATION' : 'PERSON';
+  const roleUpper = (ent.roleLabel || '').trim().toUpperCase();
+  const eyebrow = roleUpper && roleUpper !== kindLabel ? `${kindLabel} · ${roleUpper}` : kindLabel;
   doc.font('Helvetica-Bold').fontSize(8).fillColor(COLOR.amber)
-    .text(`${ent.kind === 'organization' ? 'ORGANIZATION' : 'PERSON'} · ${ent.roleLabel.toUpperCase()}`, textX, top + 14, { characterSpacing: 1.2, width: textW });
+    .text(eyebrow, textX, top + 14, { characterSpacing: 1.2, width: textW });
   doc.font('Helvetica-Bold').fontSize(14).fillColor(COLOR.ink)
     .text(ent.name, textX, top + 26, { width: textW });
   const meta: string[] = [];
@@ -1512,6 +1517,21 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
         'Prepared with Advottic. A factual chronology of the materials catalogued herein. Each exhibit is authenticated by a SHA-256 digest recorded at intake, and every page carries a unique Bates-style identifier. This document is not legal advice.',
         MARGIN, doc.y, { width: CONTENT_WIDTH },
       );
+      // Branded confidentiality band, anchored toward the foot of the cover so
+      // the page reads as a finished, premium work-product cover rather than a
+      // half-empty sheet. Gold accent rule + firm attribution + status line.
+      {
+        const bandY = Math.max(doc.y + 40, BOTTOM - 96);
+        doc.save().moveTo(MARGIN, bandY).lineTo(MARGIN + 56, bandY)
+          .lineWidth(2.5).stroke(COLOR.amber).restore();
+        const firmLine = input.preparedBy
+          ? `PREPARED EXCLUSIVELY FOR ${input.preparedBy.toUpperCase()}`
+          : 'CONFIDENTIAL ATTORNEY WORK PRODUCT';
+        doc.font('Helvetica-Bold').fontSize(9).fillColor(COLOR.ink)
+          .text(firmLine, MARGIN, bandY + 12, { characterSpacing: 1.4, width: CONTENT_WIDTH });
+        doc.font('Helvetica').fontSize(8.5).fillColor(COLOR.muted)
+          .text('CONFIDENTIAL ATTORNEY WORK PRODUCT  ·  NOT FOR DISTRIBUTION', MARGIN, bandY + 26, { characterSpacing: 1.2, width: CONTENT_WIDTH });
+      }
 
       // ── CERTIFICATION & AUTHENTICATION
       beginSection(doc, 'Certification & authentication');
