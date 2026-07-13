@@ -6,6 +6,7 @@ import { getCurrentUser, createServerSupabase } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
 import { safeStorageUpload } from './upload-safety';
 import { buildNarrative, aiConfigured } from './timeline-ai';
+import { toNormRules, normalizeString } from './text-normalize';
 import { resolveTimelineAccess } from './timeline-entitlement';
 import {
   kindFromMime,
@@ -347,7 +348,12 @@ export async function generateFirmTimelineNarrative(
   const admin = createAdminSupabase();
   if (!admin) return { ok: false, error: 'Service unavailable.' };
 
-  const { data: caseRow } = await admin.from('cases').select('title').eq('id', caseId).maybeSingle();
+  const { data: caseRow } = await admin
+    .from('cases')
+    .select('title, text_normalizations')
+    .eq('id', caseId)
+    .maybeSingle();
+  const normRules = toNormRules((caseRow as { text_normalizations?: unknown } | null)?.text_normalizations);
   const bundle = await getFirmTimelineBundle(firmId, caseId);
   if (bundle.events.length === 0) return { ok: false, error: 'Add some evidence first.' };
 
@@ -369,7 +375,9 @@ export async function generateFirmTimelineNarrative(
 
   await admin.from('case_timeline_narratives').upsert({
     case_id: caseId,
-    summary: res.summary, narrative: res.narrative, conclusion: res.conclusion,
+    summary: normalizeString(res.summary, normRules),
+    narrative: normalizeString(res.narrative, normRules),
+    conclusion: normalizeString(res.conclusion, normRules),
     event_count: bundle.events.length, generated_by: gate.userId,
     generated_at: new Date().toISOString(),
   });

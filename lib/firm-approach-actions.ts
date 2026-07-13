@@ -9,6 +9,7 @@ import { resolveTimelineAccess } from './timeline-entitlement';
 import { loadCaseEvidenceDigest } from './case-evidence-digest';
 import { generateApproachArgument, type ApproachArgument, type ApproachFacts } from './approach-ai';
 import { AI_UNAVAILABLE_MESSAGE } from './ai-errors';
+import { toNormRules, normalizeDeep } from './text-normalize';
 import { getFirmCaseTimeline } from './case-evidence-actions';
 import { guestCanReadCase } from './counsel-guest';
 import { exhibitLabel, fuzzyTitleMatch, mediaCategory, type TimelineEvent } from './timeline-types';
@@ -170,7 +171,7 @@ async function runGeneration(
   }
   const { data: caseRow } = await admin
     .from('cases')
-    .select('title, subject_name, case_type, posture, jurisdiction_state, jurisdiction_country, description')
+    .select('title, subject_name, case_type, posture, jurisdiction_state, jurisdiction_country, description, text_normalizations')
     .eq('id', caseId)
     .maybeSingle();
   if (!caseRow) return { error: 'That matter is not in this firm.' };
@@ -182,6 +183,7 @@ async function runGeneration(
     jurisdiction_state: string | null;
     jurisdiction_country: string | null;
     description: string | null;
+    text_normalizations: unknown;
   };
   const jurisdiction =
     [cr.jurisdiction_state, cr.jurisdiction_country].map((s) => (s ?? '').trim()).filter(Boolean).join(', ') || null;
@@ -216,7 +218,9 @@ async function runGeneration(
     evidence,
   });
   if ('error' in res) return { error: res.error };
-  return { generated: res };
+  // Apply the matter's naming conventions (e.g. SH -> STH) permanently, so a
+  // re-run can never reintroduce the wrong form.
+  return { generated: normalizeDeep(res, toNormRules(cr.text_normalizations)) };
 }
 
 // The AI gate on its own, so create / re-run can fail FAST (before marking a

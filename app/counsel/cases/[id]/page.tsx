@@ -163,11 +163,14 @@ export default async function CounselCaseDetailPage({
           posture={gCaseRow?.posture ?? null}
           hearingNotes={gCaseRow?.hearing_notes ?? null}
           partyImages={gPartyImages}
-          firstName={
-            (guestView.guest.displayName ?? '').trim().split(/\s+/)[0] ||
-            (guestView.guest.email ?? '').split('@')[0] ||
-            null
-          }
+          firstName={(() => {
+            // First name only, cleaned: strip any trailing punctuation (a stale
+            // JWT can carry "MUCHAI,") and title-case, so the greeting never
+            // shows "MUCHAI,," or a shouty all-caps token.
+            const raw = (guestView.guest.displayName ?? '').trim() || (guestView.guest.email ?? '').split('@')[0] || '';
+            const tok = raw.match(/[\p{L}\p{M}'’-]+/u)?.[0] ?? '';
+            return tok ? tok.charAt(0).toUpperCase() + tok.slice(1).toLowerCase() : null;
+          })()}
         />
       );
     }

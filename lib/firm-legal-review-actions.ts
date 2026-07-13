@@ -9,6 +9,7 @@ import { generateLegalReviewDraft, type LegalReviewFacts } from './legal-review-
 import { loadCaseEvidenceDigest } from './case-evidence-digest';
 import { verifyCases, type CitationCandidate } from './courtlistener';
 import { AI_UNAVAILABLE_MESSAGE } from './ai-errors';
+import { toNormRules, normalizeDeep } from './text-normalize';
 
 /**
  * Firm legal-review actions ("prove-the-case" layer). The firm surface that
@@ -130,7 +131,7 @@ export async function generateFirmLegalReviewAction(
 
   const { data: caseRow } = await admin
     .from('cases')
-    .select('title, subject_name, case_type, posture, jurisdiction_state, jurisdiction_country, description')
+    .select('title, subject_name, case_type, posture, jurisdiction_state, jurisdiction_country, description, text_normalizations')
     .eq('id', caseId)
     .maybeSingle();
   if (!caseRow) return { ok: false, error: 'That matter is not in this firm.' };
@@ -142,7 +143,9 @@ export async function generateFirmLegalReviewAction(
     jurisdiction_state: string | null;
     jurisdiction_country: string | null;
     description: string | null;
+    text_normalizations: unknown;
   };
+  const normRules = toNormRules(cr.text_normalizations);
   const facts: LegalReviewFacts = {
     title: cr.title,
     subjectName: cr.subject_name,
@@ -209,13 +212,18 @@ export async function generateFirmLegalReviewAction(
 
   const state = (cr.jurisdiction_state ?? '').trim() || (cr.jurisdiction_country ?? '').trim() || null;
   const now = new Date().toISOString();
-  const generated = {
-    overview: draft.overview,
-    state,
-    claims,
-    verifiedCitationCount,
-    droppedCitationCount,
-  };
+  // Apply the matter's naming conventions (e.g. SH -> STH) to the whole review
+  // before it is persisted, so a re-run can never reintroduce the wrong form.
+  const generated = normalizeDeep(
+    {
+      overview: draft.overview,
+      state,
+      claims,
+      verifiedCitationCount,
+      droppedCitationCount,
+    },
+    normRules,
+  );
 
   const { error } = await admin
     .from('case_legal_reviews')
@@ -234,6 +242,13 @@ export async function generateFirmLegalReviewAction(
   revalidatePath(`/counsel/cases/${caseId}`);
   return {
     ok: true,
-    review: { overview: draft.overview, state, claims, verifiedCitationCount, droppedCitationCount, generatedAt: now },
+    review: {
+      overview: generated.overview,
+      state,
+      claims: generated.claims,
+      verifiedCitationCount,
+      droppedCitationCount,
+      generatedAt: now,
+    },
   };
 }
