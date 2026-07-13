@@ -170,7 +170,7 @@ export async function generateLegalReviewDraft(input: {
   try {
     const res = await c.messages.create({
       model: MODEL,
-      max_tokens: 8000,
+      max_tokens: 12000,
       system: SYSTEM,
       messages: [
         {
