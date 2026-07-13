@@ -158,7 +158,9 @@ export function CounselHeader({
                 width={14494}
                 height={1699}
                 priority
-                className="h-6 sm:h-7 w-auto max-w-[35vw] block group-hover:opacity-90 transition-opacity"
+                // object-contain + flex-none: the wordmark can only scale
+                // proportionally, never stretch/squeeze, however tight the row.
+                className="h-6 sm:h-7 w-auto max-w-[52vw] object-contain flex-none block group-hover:opacity-90 transition-opacity"
               />
               <span
                 className="hidden sm:inline-block px-1.5 py-[1px] rounded text-[10px] font-semibold uppercase tracking-[0.2em] text-gold-300 ring-1 ring-gold-300/30"
@@ -213,7 +215,7 @@ export function CounselHeader({
                 alt="Advottic"
                 width={14494}
                 height={1699}
-                className="h-4 w-auto opacity-70"
+                className="h-4 w-auto object-contain opacity-70"
               />
             </ExternalLink>
           )}

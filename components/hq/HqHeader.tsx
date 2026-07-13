@@ -54,7 +54,7 @@ export function HqHeader({
               width={14494}
               height={1699}
               priority
-              className="h-6 sm:h-7 w-auto max-w-[40vw] block group-hover:opacity-90 transition-opacity"
+              className="h-6 sm:h-7 w-auto max-w-[52vw] object-contain flex-none block group-hover:opacity-90 transition-opacity"
             />
             <span
               className="hidden sm:inline-block px-1.5 py-[1px] rounded text-[10px] font-semibold uppercase tracking-[0.2em] text-cream-100/65 ring-1 ring-cream-100/20"

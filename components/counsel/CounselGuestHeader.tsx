@@ -37,7 +37,11 @@ export function CounselGuestHeader({
               width={14494}
               height={1699}
               priority
-              className="h-6 sm:h-7 w-auto max-w-[35vw] block group-hover:opacity-90 transition-opacity"
+              // object-contain + flex-none guarantee the wordmark can only ever
+              // scale proportionally, never stretch/squeeze, no matter how tight
+              // the header gets. max-w is generous so it also stays near full
+              // size next to the firm mark.
+              className="h-6 sm:h-7 w-auto max-w-[52vw] object-contain flex-none block group-hover:opacity-90 transition-opacity"
             />
           </Link>
           {firm && (

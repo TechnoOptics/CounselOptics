@@ -491,7 +491,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                       // drops below the natural width on any real phone, so the
                       // mark keeps its aspect ratio; it still caps growth as a
                       // safety net. w-auto + h-* keeps the ratio otherwise.
-                      className="h-6 sm:h-8 lg:h-9 w-auto max-w-[68vw] block group-hover:opacity-90 transition-opacity"
+                      className="h-6 sm:h-8 lg:h-9 w-auto max-w-[68vw] object-contain flex-none block group-hover:opacity-90 transition-opacity"
                     />
                   </Link>
                   <div className="flex items-center gap-1">
