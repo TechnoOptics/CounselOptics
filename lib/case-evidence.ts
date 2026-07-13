@@ -249,6 +249,13 @@ export async function computeEventAnalysis(input: {
         : { error: ext.error ?? 'Could not read text from this document.' };
     } else if (ev.description) {
       result = await analyzeText({ text: ev.description, userContext: null, kind: ev.kind, caseContext });
+    } else if (ev.media.some((m) => /^video\//i.test(m.mime))) {
+      // Video content is not machine-read. Give a clear, actionable status so
+      // the item is a visible coverage gap rather than a silent failure.
+      result = {
+        error:
+          'Video content is not read automatically. Add a short description or a transcript of what this recording shows so it can be included in the analysis.',
+      };
     } else {
       result = { error: 'Nothing to analyse - add a file or a description.' };
     }
