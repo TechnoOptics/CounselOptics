@@ -64,6 +64,10 @@ export function EvidenceViewer({
   const [url, setUrl] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
+  // Full screen: hide the info pane so the media fills the whole overlay. On
+  // mobile the details panel otherwise takes ~40% of the height and squeezes
+  // the preview; this lets the user read a document/photo edge to edge.
+  const [expanded, setExpanded] = useState(false);
   // Portal to <body> only after mount. Without the portal the dialog's
   // `fixed inset-0` is trapped by any transform ancestor (the route-fade
   // wrapper), so it pins to the page content instead of the viewport - which
@@ -78,6 +82,7 @@ export function EvidenceViewer({
     setUrl(null);
     setLoadError(null);
     setZoom(1);
+    setExpanded(false);
     if (!media) return;
     getFirmEvidenceMediaUrl(firmId, caseId, media.path).then((res) => {
       if (!on) return;
@@ -146,6 +151,31 @@ export function EvidenceViewer({
         </svg>
       </button>
 
+      {/* Full-screen toggle: hide the info pane so the media fills the overlay.
+          Only for media that actually renders a preview (image / PDF / video). */}
+      {(isImage || isPdf || isVideo) && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setExpanded((v) => !v);
+          }}
+          aria-label={expanded ? t('Exit full screen') : t('View full screen')}
+          className="fixed left-4 z-20 inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-cream-50 backdrop-blur hover:bg-white/20"
+          style={{ top: 'calc(0.75rem + var(--safe-top, 0px))' }}
+        >
+          {expanded ? (
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <path d="M3 8h5V3M21 8h-5V3M3 16h5v5M21 16h-5v5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          ) : (
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          )}
+        </button>
+      )}
+
       {/* Prev / next */}
       {hasPrev && (
         <button
@@ -202,12 +232,12 @@ export function EvidenceViewer({
                 data-no-translate
                 onDoubleClick={() => setZoom((z) => (z > 1 ? 1 : 2))}
                 style={{ transform: `scale(${zoom})`, transformOrigin: 'center', cursor: zoom > 1 ? 'zoom-out' : 'zoom-in' }}
-                className="max-h-[84vh] w-auto max-w-full rounded-lg object-contain shadow-2xl transition-transform"
+                className={`${expanded ? 'max-h-[94vh]' : 'max-h-[84vh]'} w-auto max-w-full rounded-lg object-contain shadow-2xl transition-transform`}
               />
               <ZoomControls zoom={zoom} onZoom={setZoom} />
             </div>
           ) : isVideo ? (
-            <video src={url} controls autoPlay playsInline className="max-h-[84vh] w-full rounded-lg bg-black shadow-2xl" data-no-translate />
+            <video src={url} controls autoPlay playsInline className={`${expanded ? 'max-h-[94vh]' : 'max-h-[84vh]'} w-full rounded-lg bg-black shadow-2xl`} data-no-translate />
           ) : isAudio ? (
             <div className="w-full max-w-lg rounded-2xl border border-cream-50/10 bg-forest-900/60 p-6">
               <div className="mb-4 flex justify-center text-cream-100/60">
@@ -246,7 +276,7 @@ export function EvidenceViewer({
 
         {/* Info pane — heading + full breakdown, beside the media on wide
             screens, below it on mobile; scrolls independently. */}
-        <div className="min-h-0 max-h-[42vh] shrink-0 space-y-3 overflow-y-auto pr-0.5 lg:max-h-none lg:w-[372px] lg:border-l lg:border-cream-50/10 lg:pl-5">
+        <div className={`min-h-0 max-h-[42vh] shrink-0 space-y-3 overflow-y-auto pr-0.5 lg:max-h-none lg:w-[372px] lg:border-l lg:border-cream-50/10 lg:pl-5 ${expanded ? 'hidden' : ''}`}>
           {/* Heading */}
           <div>
             <p className="flex flex-wrap items-center gap-2 text-[15px] font-medium text-cream-50" data-no-translate>
