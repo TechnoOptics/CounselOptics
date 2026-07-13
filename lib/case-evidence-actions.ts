@@ -919,3 +919,31 @@ export async function getFirmEvidenceMediaUrl(
   const { data } = await admin.storage.from('exhibits').createSignedUrl(path, 600);
   return data?.signedUrl ? { ok: true, url: data.signedUrl } : { ok: false, error: 'Could not open.' };
 }
+
+/**
+ * Batch signed URLs for a screenful of thumbnails in ONE request. The gallery
+ * coalesces every visible tile's URL need into a single call (see
+ * components/EvidencePreview.tsx), so a 400-exhibit case mints one request per
+ * screenful instead of hundreds of concurrent ones - which is what used to
+ * burst the serverless function into 503s. Returns a path -> URL map; paths that
+ * do not belong to this matter are silently dropped.
+ */
+export async function getFirmEvidenceMediaUrls(
+  firmId: string,
+  caseId: string,
+  paths: string[],
+): Promise<{ ok: boolean; urls?: Record<string, string>; error?: string }> {
+  const gate = await assertFirmCase(firmId, caseId);
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Service unavailable.' };
+  const safe = Array.from(new Set(paths)).filter((p) => p.includes(`/${caseId}/timeline/`));
+  if (safe.length === 0) return { ok: true, urls: {} };
+  const { data, error } = await admin.storage.from('exhibits').createSignedUrls(safe, 600);
+  if (error || !data) return { ok: false, error: error?.message ?? 'Could not open.' };
+  const urls: Record<string, string> = {};
+  for (const item of data) {
+    if (item.signedUrl && item.path) urls[item.path] = item.signedUrl;
+  }
+  return { ok: true, urls };
+}

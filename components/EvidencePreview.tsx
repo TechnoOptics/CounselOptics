@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { getFirmEvidenceMediaUrl } from '@/lib/case-evidence-actions';
+import { getFirmEvidenceMediaUrls } from '@/lib/case-evidence-actions';
 import {
   isDisplayableImage,
   mediaCategory,
@@ -13,52 +13,70 @@ import { KindIcon } from '@/components/counsel/KindIcon';
 /**
  * Thumbnails mint firm-scoped signed URLs through a server action. A gallery of
  * hundreds of tiles, each firing its own request the moment it scrolls into
- * view, bursts the serverless function hard enough that some invocations come
- * back 503 (especially right after a fresh deploy, when functions are cold) -
- * and a failed tile used to fall to a blank placeholder for good. Two guards
- * fix that: a small global concurrency cap so we never fire more than a handful
- * of URL requests at once, and a bounded retry with backoff so a transient 503
- * recovers instead of leaving a hole in the gallery.
+ * view, used to burst the serverless function hard enough that some invocations
+ * came back 503 (especially right after a fresh deploy, when functions are
+ * cold), and a failed tile fell to a blank placeholder for good.
+ *
+ * Fix: a DataLoader-style batcher. Every tile's URL need within a short window
+ * is coalesced into ONE `getFirmEvidenceMediaUrls` call per matter (chunked so a
+ * single request never gets unwieldy), so a screenful mints one request instead
+ * of dozens - essentially zero burst. The batch itself retries with backoff, so
+ * a transient 503 recovers instead of leaving holes.
  */
-const MAX_CONCURRENT_URL_FETCHES = 5;
-let activeUrlFetches = 0;
-const urlFetchQueue: Array<() => void> = [];
+const BATCH_WINDOW_MS = 60;
+const MAX_PATHS_PER_REQUEST = 100;
 
-function acquireUrlSlot(): Promise<void> {
-  if (activeUrlFetches < MAX_CONCURRENT_URL_FETCHES) {
-    activeUrlFetches++;
-    return Promise.resolve();
-  }
+type UrlWaiter = (url: string | null) => void;
+type CaseBatch = { firmId: string; caseId: string; waiters: Map<string, UrlWaiter[]> };
+const pendingBatches = new Map<string, CaseBatch>();
+let flushScheduled = false;
+
+function loadSignedUrl(firmId: string, caseId: string, path: string): Promise<string | null> {
   return new Promise((resolve) => {
-    urlFetchQueue.push(() => {
-      activeUrlFetches++;
-      resolve();
-    });
+    const key = `${firmId}::${caseId}`;
+    let batch = pendingBatches.get(key);
+    if (!batch) {
+      batch = { firmId, caseId, waiters: new Map() };
+      pendingBatches.set(key, batch);
+    }
+    const list = batch.waiters.get(path);
+    if (list) list.push(resolve);
+    else batch.waiters.set(path, [resolve]);
+    if (!flushScheduled) {
+      flushScheduled = true;
+      setTimeout(flushBatches, BATCH_WINDOW_MS);
+    }
   });
 }
 
-function releaseUrlSlot(): void {
-  activeUrlFetches = Math.max(0, activeUrlFetches - 1);
-  urlFetchQueue.shift()?.();
+function flushBatches(): void {
+  flushScheduled = false;
+  const batches = Array.from(pendingBatches.values());
+  pendingBatches.clear();
+  for (const batch of batches) {
+    const paths = Array.from(batch.waiters.keys());
+    for (let i = 0; i < paths.length; i += MAX_PATHS_PER_REQUEST) {
+      void resolveChunk(batch, paths.slice(i, i + MAX_PATHS_PER_REQUEST));
+    }
+  }
 }
 
-async function loadSignedUrl(firmId: string, caseId: string, path: string): Promise<string | null> {
-  await acquireUrlSlot();
-  try {
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        const res = await getFirmEvidenceMediaUrl(firmId, caseId, path);
-        if (res.ok && res.url) return res.url;
-      } catch {
-        /* transient (e.g. a 503 under burst / cold start) - fall through to retry */
+async function resolveChunk(batch: CaseBatch, chunk: string[]): Promise<void> {
+  let urls: Record<string, string> = {};
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await getFirmEvidenceMediaUrls(batch.firmId, batch.caseId, chunk);
+      if (res.ok && res.urls) {
+        urls = res.urls;
+        break;
       }
-      if (attempt < 2) {
-        await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
-      }
+    } catch {
+      /* transient 503 under cold start - fall through to retry */
     }
-    return null;
-  } finally {
-    releaseUrlSlot();
+    if (attempt < 2) await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+  }
+  for (const path of chunk) {
+    for (const resolve of batch.waiters.get(path) ?? []) resolve(urls[path] ?? null);
   }
 }
 
