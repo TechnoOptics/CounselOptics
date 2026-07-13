@@ -32,7 +32,7 @@ export type CaseEvidenceAnalytics = {
   dated: number;
   earliest: string | null;
   latest: string | null;
-  byYear: { year: string; n: number }[];
+  byYear: { year: string; n: number; avgRelevance: number | null }[];
   mapPoints: MapPoint[];
 };
 
@@ -86,7 +86,7 @@ export async function getCaseEvidenceAnalytics(
   const people = new Set<string>();
   const orgs = new Set<string>();
   const places = new Set<string>();
-  const years = new Map<string, number>();
+  const years = new Map<string, { n: number; relSum: number; relScored: number }>();
   const mapPts: MapPoint[] = [];
   let relSum = 0;
 
@@ -172,7 +172,13 @@ export async function getCaseEvidenceAnalytics(
       const iso = occ.slice(0, 10);
       if (!a.earliest || iso < a.earliest) a.earliest = iso;
       if (!a.latest || iso > a.latest) a.latest = iso;
-      years.set(ymd[1], (years.get(ymd[1]) ?? 0) + 1);
+      const prev = years.get(ymd[1]) ?? { n: 0, relSum: 0, relScored: 0 };
+      const scored = typeof ex.relevance_score === 'number' && Number.isFinite(ex.relevance_score);
+      years.set(ymd[1], {
+        n: prev.n + 1,
+        relSum: prev.relSum + (scored ? (ex.relevance_score as number) : 0),
+        relScored: prev.relScored + (scored ? 1 : 0),
+      });
     }
   }
 
@@ -181,7 +187,13 @@ export async function getCaseEvidenceAnalytics(
   a.entities = { people: people.size, organizations: orgs.size, locations: places.size };
   a.folders = topCounts(folders);
   a.docTypes = topCounts(docTypes, 10);
-  a.byYear = [...years.entries()].map(([year, n]) => ({ year, n })).sort((x, y) => x.year.localeCompare(y.year));
+  a.byYear = [...years.entries()]
+    .map(([year, v]) => ({
+      year,
+      n: v.n,
+      avgRelevance: v.relScored > 0 ? Math.round(v.relSum / v.relScored) : null,
+    }))
+    .sort((x, y) => x.year.localeCompare(y.year));
   a.mapPoints = mapPts;
   return a;
 }

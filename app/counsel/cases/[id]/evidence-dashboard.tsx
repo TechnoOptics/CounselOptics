@@ -199,34 +199,76 @@ function RelevanceBar({ a, base }: { a: CaseEvidenceAnalytics; base: string }) {
   );
 }
 
-/** Evidence-by-year columns; each column links to that year. The columns are
- *  full-height (items-stretch + a flex-1 plot area) so each bar's percentage
- *  height resolves against the panel height instead of collapsing to a sliver. */
-function YearColumns({ rows, base }: { rows: { year: string; n: number }[]; base: string }) {
+/** Bar colour by the average relevance of that year's evidence, using the same
+ *  High/Medium/Low palette as the relevance panel, so the chart reads as "which
+ *  years hold the most relevant evidence" at a glance. */
+function relevanceColor(avg: number | null): string {
+  if (avg == null) return NEUTRAL;
+  if (avg >= 67) return GOLD;
+  if (avg >= 34) return GOLD_MID;
+  return NEUTRAL;
+}
+
+/** Evidence-by-year columns; each column links to that year. Full-height
+ *  (items-stretch + a flex-1 plot area) so each bar's percentage height resolves
+ *  against the panel height. Labels show the full year and bars are graded by
+ *  average relevance. */
+function YearColumns({
+  rows,
+  base,
+}: {
+  rows: { year: string; n: number; avgRelevance: number | null }[];
+  base: string;
+}) {
   const max = Math.max(1, ...rows.map((r) => r.n));
   return (
-    <div className="flex items-stretch gap-1.5 h-40" role="img" aria-label="Evidence items by year">
-      {rows.map((r) => (
-        <Link
-          key={r.year}
-          href={`${base}?year=${r.year}&group=date`}
-          prefetch={false}
-          className="group flex-1 flex flex-col min-w-0"
-          title={`${r.year}: ${r.n}`}
-        >
-          <div className="flex-1 flex flex-col items-center justify-end gap-1 min-h-0">
-            <span className="text-[10px] tabular-nums text-ink-400 dark:text-cream-100/40">{r.n}</span>
-            <div
-              className="w-full rounded-t-[3px] min-h-[3px] transition-opacity group-hover:opacity-80"
-              style={{ height: `${(r.n / max) * 100}%`, backgroundColor: GOLD }}
-            />
-          </div>
-          <span className="mt-1 text-[9px] tabular-nums text-ink-400 dark:text-cream-100/40 truncate w-full text-center">
-            {r.year.slice(2)}
-          </span>
-        </Link>
-      ))}
+    <div>
+      <div
+        className="flex items-stretch gap-2 h-44"
+        role="img"
+        aria-label="Evidence items by year, coloured by average relevance"
+      >
+        {rows.map((r) => (
+          <Link
+            key={r.year}
+            href={`${base}?year=${r.year}&group=date`}
+            prefetch={false}
+            className="group flex-1 flex flex-col min-w-0"
+            title={`${r.year}: ${r.n} item${r.n === 1 ? '' : 's'}${
+              r.avgRelevance != null ? ` · avg relevance ${r.avgRelevance}/100` : ''
+            }`}
+          >
+            <div className="flex-1 flex flex-col items-center justify-end gap-1 min-h-0">
+              <span className="text-[10px] tabular-nums text-ink-400 dark:text-cream-100/40">{r.n}</span>
+              <div
+                className="w-full rounded-t-[3px] min-h-[3px] transition-opacity group-hover:opacity-80"
+                style={{ height: `${(r.n / max) * 100}%`, backgroundColor: relevanceColor(r.avgRelevance) }}
+              />
+            </div>
+            <span className="mt-1.5 w-full text-center text-[10px] font-medium tabular-nums text-ink-500 dark:text-cream-100/55">
+              {r.year}
+            </span>
+          </Link>
+        ))}
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10.5px] text-ink-400 dark:text-cream-100/45">
+        <span className="uppercase tracking-[0.1em] text-ink-400 dark:text-cream-100/40">
+          <T>Bar colour = relevance</T>
+        </span>
+        <LegendSwatch color={GOLD} label={<T>High</T>} />
+        <LegendSwatch color={GOLD_MID} label={<T>Medium</T>} />
+        <LegendSwatch color={NEUTRAL} label={<T>Low</T>} />
+      </div>
     </div>
+  );
+}
+
+function LegendSwatch({ color, label }: { color: string; label: React.ReactNode }) {
+  return (
+    <span className="inline-flex items-center gap-1">
+      <span className="h-2.5 w-2.5 rounded-[3px]" style={{ backgroundColor: color }} />
+      {label}
+    </span>
   );
 }
 

@@ -12,7 +12,7 @@ import {
   type Approach,
 } from '@/lib/firm-approach-actions';
 import type { ApproachArgument } from '@/lib/approach-ai';
-import type { TimelineEvent } from '@/lib/timeline-types';
+import { exhibitLabel, type TimelineEvent } from '@/lib/timeline-types';
 import { EvidencePreview } from '@/components/EvidencePreview';
 import { EvidenceViewer } from './evidence/evidence-viewer';
 
@@ -454,7 +454,7 @@ function ApproachCard({
           <AssembleProgress />
         ) : g ? (
           <>
-            <GeneratedArgument g={g} />
+            <GeneratedArgument g={g} firmId={firmId} caseId={caseId} approachId={approach.id} />
             <ApproachEvidence firmId={firmId} caseId={caseId} approachId={approach.id} />
           </>
         ) : (
@@ -517,7 +517,56 @@ function ConsoleLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-function GeneratedArgument({ g }: { g: ApproachArgument }) {
+function GeneratedArgument({
+  g,
+  firmId,
+  caseId,
+  approachId,
+}: {
+  g: ApproachArgument;
+  firmId: string;
+  caseId: string;
+  approachId: string;
+}) {
+  const t = useT();
+  // The cited evidence (resolved to the real uploads by exhibit label / title),
+  // so each "Exhibits marshalled" row can show a live thumbnail and open the
+  // full item in the viewer. Loaded once when the assembled argument mounts.
+  const [events, setEvents] = useState<TimelineEvent[]>([]);
+  const [viewerIdx, setViewerIdx] = useState<number | null>(null);
+  useEffect(() => {
+    let on = true;
+    getApproachEvidence(firmId, caseId, approachId)
+      .then((res) => {
+        if (on && res?.ok && res.events) setEvents(res.events);
+      })
+      .catch(() => {
+        /* leave exhibits as text-only if the lookup fails */
+      });
+    return () => {
+      on = false;
+    };
+  }, [firmId, caseId, approachId]);
+
+  // Resolve an exhibit citation ({exhibit label, title}) to an index in `events`.
+  const byLabel = new Map<string, number>();
+  const byTitle = new Map<string, number>();
+  events.forEach((e, i) => {
+    const lbl = exhibitLabel(e.aiExtracted?.exhibit_no);
+    if (lbl) byLabel.set(lbl.toUpperCase(), i);
+    const ttl = (e.title ?? '').trim().toLowerCase();
+    if (ttl && !byTitle.has(ttl)) byTitle.set(ttl, i);
+  });
+  const indexFor = (ex: { exhibit: string | null; title: string }): number | null => {
+    if (ex.exhibit) {
+      const i = byLabel.get(ex.exhibit.trim().toUpperCase());
+      if (i != null) return i;
+    }
+    const ttl = (ex.title ?? '').trim().toLowerCase();
+    const j = ttl ? byTitle.get(ttl) : undefined;
+    return j ?? null;
+  };
+
   return (
     <div className="space-y-5 border-t border-cream-50/10 pt-4">
       {g.thesis && (
@@ -541,22 +590,57 @@ function GeneratedArgument({ g }: { g: ApproachArgument }) {
       {(g.exhibits?.length ?? 0) > 0 && (
         <div>
           <ConsoleLabel><T>Exhibits marshalled</T></ConsoleLabel>
-          <ul className="space-y-1.5">
-            {g.exhibits.map((e, i) => (
-              <li key={i} className="flex gap-2.5 rounded-md bg-forest-950/40 px-2.5 py-1.5 text-[13px]">
-                {e.exhibit ? (
-                  <span className="h-fit shrink-0 rounded bg-gold-metal px-1.5 py-0.5 font-mono text-[10.5px] font-semibold text-forest-950" data-no-translate>
-                    {e.exhibit}
+          <ul className="grid gap-2 sm:grid-cols-2">
+            {g.exhibits.map((ex, i) => {
+              const idx = indexFor(ex);
+              const ev = idx != null ? events[idx] : null;
+              const inner = (
+                <>
+                  {ev ? (
+                    <span className="h-14 w-14 shrink-0 overflow-hidden rounded-md ring-1 ring-cream-50/10">
+                      <EvidencePreview firmId={firmId} caseId={caseId} event={ev} rounded="rounded-none" className="h-full w-full" />
+                    </span>
+                  ) : (
+                    <span aria-hidden className="grid h-14 w-14 shrink-0 place-items-center rounded-md bg-forest-950/60 text-[16px] text-cream-100/25">
+                      ▤
+                    </span>
+                  )}
+                  <span className="min-w-0 flex-1">
+                    <span className="flex flex-wrap items-center gap-1.5">
+                      {ex.exhibit && (
+                        <span className="rounded bg-gold-metal px-1.5 py-0.5 font-mono text-[10px] font-semibold text-forest-950" data-no-translate>
+                          {ex.exhibit}
+                        </span>
+                      )}
+                      <span className="min-w-0 truncate text-[13px] font-medium text-cream-50" data-no-translate>
+                        {ex.title}
+                      </span>
+                    </span>
+                    {ex.why && (
+                      <span className="mt-0.5 block text-[12px] leading-relaxed text-cream-100/60" data-no-translate>
+                        {ex.why}
+                      </span>
+                    )}
                   </span>
-                ) : (
-                  <span aria-hidden className="mt-2 h-1 w-1 shrink-0 rounded-full bg-cream-100/40" />
-                )}
-                <span className="leading-relaxed text-cream-100/85" data-no-translate>
-                  <span className="font-medium text-cream-50">{e.title}</span>
-                  {e.why && <span className="text-cream-100/60"> — {e.why}</span>}
-                </span>
-              </li>
-            ))}
+                </>
+              );
+              return (
+                <li key={i}>
+                  {idx != null ? (
+                    <button
+                      type="button"
+                      onClick={() => setViewerIdx(idx)}
+                      aria-label={`${t('Open')} ${ex.title || ex.exhibit || ''}`}
+                      className="flex w-full items-start gap-2.5 rounded-lg bg-forest-950/40 p-2 text-left ring-1 ring-transparent transition-colors hover:bg-forest-950/70 hover:ring-gold-metal/30"
+                    >
+                      {inner}
+                    </button>
+                  ) : (
+                    <div className="flex items-start gap-2.5 rounded-lg bg-forest-950/40 p-2">{inner}</div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
@@ -575,6 +659,21 @@ function GeneratedArgument({ g }: { g: ApproachArgument }) {
             ))}
           </ul>
         </div>
+      )}
+
+      {viewerIdx != null && events[viewerIdx] && (
+        <EvidenceViewer
+          firmId={firmId}
+          caseId={caseId}
+          event={events[viewerIdx]}
+          index={viewerIdx}
+          total={events.length}
+          hasPrev={viewerIdx > 0}
+          hasNext={viewerIdx < events.length - 1}
+          onPrev={() => setViewerIdx((i) => (i != null && i > 0 ? i - 1 : i))}
+          onNext={() => setViewerIdx((i) => (i != null && i < events.length - 1 ? i + 1 : i))}
+          onClose={() => setViewerIdx(null)}
+        />
       )}
     </div>
   );
