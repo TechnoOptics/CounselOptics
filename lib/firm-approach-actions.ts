@@ -11,7 +11,23 @@ import { generateApproachArgument, type ApproachArgument, type ApproachFacts } f
 import { AI_UNAVAILABLE_MESSAGE } from './ai-errors';
 import { getFirmCaseTimeline } from './case-evidence-actions';
 import { guestCanReadCase } from './counsel-guest';
-import { exhibitLabel, fuzzyTitleMatch, type TimelineEvent } from './timeline-types';
+import { exhibitLabel, fuzzyTitleMatch, mediaCategory, type TimelineEvent } from './timeline-types';
+
+/**
+ * An item is worth showing as a "relevant upload" thumbnail only if it can
+ * actually be displayed. Images, PDFs, docs, video, and audio all render a
+ * meaningful tile. An EMAIL only renders if it has extracted content (subject /
+ * sender / body); an encrypted or undecodable .eml has none, so it would show
+ * an empty "(no subject)" card. Drop those rather than surface a broken tile.
+ */
+function evidenceIsDisplayable(e: TimelineEvent): boolean {
+  if (mediaCategory(e.media?.[0], e.kind) !== 'email') return true;
+  const em = e.aiExtracted?.email ?? {};
+  const body = (e.aiExtracted?.ocr_text ?? '').trim();
+  return Boolean(
+    em.subject || em.from || (em.to && em.to.length) || (e.title ?? '').trim() || body,
+  );
+}
 
 /**
  * Firm approach-builder actions ("prove-the-case" layer). The lawyer writes a
@@ -468,12 +484,16 @@ export async function getApproachEvidence(
 
   const tl = await getFirmCaseTimeline(firmId, caseId);
   if (!tl.ok || !tl.events) return { ok: true, events: [] };
-  const events = tl.events.filter((e) => {
-    const label = exhibitLabel(e.aiExtracted?.exhibit_no);
-    if (label && citedLabels.has(label.toUpperCase())) return true;
-    const title = e.title ?? '';
-    return citedTitles.some((ct) => fuzzyTitleMatch(ct, title));
-  });
+  const events = tl.events
+    .filter((e) => {
+      const label = exhibitLabel(e.aiExtracted?.exhibit_no);
+      if (label && citedLabels.has(label.toUpperCase())) return true;
+      const title = e.title ?? '';
+      return citedTitles.some((ct) => fuzzyTitleMatch(ct, title));
+    })
+    // Never surface an upload we cannot actually display (e.g. an encrypted /
+    // undecodable .eml with no extracted content) as a "relevant upload" tile.
+    .filter(evidenceIsDisplayable);
   return { ok: true, events };
 }
 
