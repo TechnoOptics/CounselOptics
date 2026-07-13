@@ -444,6 +444,32 @@ export function exhibitLabel(n: number | null | undefined): string | null {
   return `EX-${String(Math.floor(n)).padStart(4, '0')}`;
 }
 
+/** Normalise a title for matching: lowercase, strip punctuation, collapse space. */
+function normTitle(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Fuzzy title match, used to line up an approach's cited exhibit (as the model
+ * phrased its title) with the real uploaded item. Exact after normalisation,
+ * or one contained in the other, or a strong overlap of significant words -
+ * so "Scott Hohag Email to Mike Anderson (Sept 11 2012)" still matches the
+ * upload titled "Email - Scott Hohag to Mike Anderson, 2012-09-11".
+ */
+export function fuzzyTitleMatch(a: string, b: string): boolean {
+  const na = normTitle(a);
+  const nb = normTitle(b);
+  if (!na || !nb) return false;
+  if (na === nb) return true;
+  if (na.length >= 6 && nb.length >= 6 && (na.includes(nb) || nb.includes(na))) return true;
+  const ta = na.split(' ').filter((w) => w.length > 2);
+  const tb = new Set(nb.split(' ').filter((w) => w.length > 2));
+  if (ta.length === 0 || tb.size === 0) return false;
+  let overlap = 0;
+  for (const w of ta) if (tb.has(w)) overlap++;
+  return overlap / Math.min(ta.length, tb.size) >= 0.6;
+}
+
 /**
  * The best "captured" date for an item, for grouping/sorting by when it happened
  * rather than by filing folder: the confirmed occurred_at, else the reader's

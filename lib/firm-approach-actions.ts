@@ -10,7 +10,7 @@ import { generateApproachArgument, type ApproachArgument, type ApproachFacts } f
 import { AI_UNAVAILABLE_MESSAGE } from './ai-errors';
 import { getFirmCaseTimeline } from './case-evidence-actions';
 import { guestCanReadCase } from './counsel-guest';
-import { exhibitLabel, type TimelineEvent } from './timeline-types';
+import { exhibitLabel, fuzzyTitleMatch, type TimelineEvent } from './timeline-types';
 
 /**
  * Firm approach-builder actions ("prove-the-case" layer). The lawyer writes a
@@ -325,20 +325,20 @@ export async function getApproachEvidence(
   const citedLabels = new Set(
     g.exhibits.map((e) => (e.exhibit ?? '').trim().toUpperCase()).filter(Boolean),
   );
-  const citedTitles = new Set(
-    g.exhibits
-      .filter((e) => !e.exhibit)
-      .map((e) => (e.title ?? '').trim().toLowerCase())
-      .filter(Boolean),
-  );
+  // Titles cited WITHOUT an exhibit label - matched fuzzily against the uploads
+  // so a slightly-reworded citation still resolves to its real item.
+  const citedTitles = g.exhibits
+    .filter((e) => !e.exhibit)
+    .map((e) => (e.title ?? '').trim())
+    .filter(Boolean);
 
   const tl = await getFirmCaseTimeline(firmId, caseId);
   if (!tl.ok || !tl.events) return { ok: true, events: [] };
   const events = tl.events.filter((e) => {
     const label = exhibitLabel(e.aiExtracted?.exhibit_no);
     if (label && citedLabels.has(label.toUpperCase())) return true;
-    const title = (e.title ?? '').trim().toLowerCase();
-    return !!title && citedTitles.has(title);
+    const title = e.title ?? '';
+    return citedTitles.some((ct) => fuzzyTitleMatch(ct, title));
   });
   return { ok: true, events };
 }

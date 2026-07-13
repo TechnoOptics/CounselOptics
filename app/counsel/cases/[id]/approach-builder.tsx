@@ -12,7 +12,7 @@ import {
   type Approach,
 } from '@/lib/firm-approach-actions';
 import type { ApproachArgument } from '@/lib/approach-ai';
-import { exhibitLabel, type TimelineEvent } from '@/lib/timeline-types';
+import { exhibitLabel, fuzzyTitleMatch, type TimelineEvent } from '@/lib/timeline-types';
 import { EvidencePreview } from '@/components/EvidencePreview';
 import { EvidenceViewer } from './evidence/evidence-viewer';
 
@@ -562,9 +562,15 @@ function GeneratedArgument({
       const i = byLabel.get(ex.exhibit.trim().toUpperCase());
       if (i != null) return i;
     }
-    const ttl = (ex.title ?? '').trim().toLowerCase();
-    const j = ttl ? byTitle.get(ttl) : undefined;
-    return j ?? null;
+    const ttl = (ex.title ?? '').trim();
+    if (!ttl) return null;
+    const exact = byTitle.get(ttl.toLowerCase());
+    if (exact != null) return exact;
+    // Fuzzy fallback: first cited item whose title fuzzily matches.
+    for (let i = 0; i < events.length; i++) {
+      if (fuzzyTitleMatch(ttl, events[i].title ?? '')) return i;
+    }
+    return null;
   };
 
   return (
