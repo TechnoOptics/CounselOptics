@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { waitUntil } from '@vercel/functions';
 import { getCurrentUser, createServerSupabase } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
 import { aiConfigured } from './timeline-ai';
@@ -25,6 +26,9 @@ import { exhibitLabel, fuzzyTitleMatch, type TimelineEvent } from './timeline-ty
  * when analysis is unavailable, and can be re-run later.
  */
 
+/** Background generation lifecycle for an approach's argument. */
+export type ApproachGenStatus = 'idle' | 'running' | 'done' | 'error';
+
 export type Approach = {
   id: string;
   caseId: string;
@@ -33,6 +37,10 @@ export type Approach = {
   /** Who is connected — parties, witnesses, roles — and how. */
   connections: string;
   generated: ApproachArgument | null;
+  /** 'running' while the (multi-minute) assembly is in flight; 'error' with a
+   *  calm genError when it could not complete. Drives the client's live state. */
+  genStatus: ApproachGenStatus;
+  genError: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -44,6 +52,8 @@ type Row = {
   prompt: string;
   connections: string | null;
   generated: ApproachArgument | null;
+  gen_status: ApproachGenStatus | null;
+  gen_error: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -68,6 +78,8 @@ const toApproach = (r: Row): Approach => ({
   prompt: r.prompt,
   connections: r.connections ?? '',
   generated: normalizeGenerated(r.generated ?? null),
+  genStatus: r.gen_status ?? (r.generated ? 'done' : 'idle'),
+  genError: r.gen_error ?? null,
   createdAt: r.created_at,
   updatedAt: r.updated_at,
 });
@@ -104,7 +116,8 @@ async function assertFirmCase(
   return { ok: false, error: 'You do not have access to this matter.' };
 }
 
-const SELECT = 'id, case_id, title, prompt, connections, generated, created_at, updated_at';
+const SELECT =
+  'id, case_id, title, prompt, connections, generated, gen_status, gen_error, created_at, updated_at';
 
 // ── List (admin, firm-scoped) ─────────────────────────────────────────────
 export async function listFirmApproaches(
@@ -190,6 +203,61 @@ async function runGeneration(
   return { generated: res };
 }
 
+// The AI gate on its own, so create / re-run can fail FAST (before marking a
+// job 'running') when analysis is unavailable, and show the calm message
+// immediately instead of leaving the user polling a job that can never run.
+async function canGenerate(caseId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!aiConfigured()) return { ok: false, error: AI_UNAVAILABLE_MESSAGE };
+  const firmAccess = (await resolveTimelineAccess()) === 'firm';
+  if (!firmAccess && !(await guestCanReadCase(caseId))) {
+    return { ok: false, error: AI_UNAVAILABLE_MESSAGE };
+  }
+  return { ok: true };
+}
+
+/**
+ * The background assembly job. Runs AFTER the response is sent (unstable_after),
+ * so the multi-minute deep-read + model call never blocks the request. It owns
+ * its own admin client (the request's may be torn down) and always lands the
+ * row on a terminal status ('done' or 'error') so the client's poll ends.
+ */
+async function runApproachJob(
+  caseId: string,
+  approachId: string,
+  theory: string,
+  connections: string,
+): Promise<void> {
+  const admin = createAdminSupabase();
+  if (!admin) return;
+  const now = () => new Date().toISOString();
+  try {
+    const gen = await runGeneration(admin, caseId, theory, connections);
+    if (gen.error) {
+      await admin
+        .from('case_approaches')
+        .update({ gen_status: 'error', gen_error: gen.error, updated_at: now() })
+        .eq('id', approachId)
+        .eq('case_id', caseId);
+      return;
+    }
+    await admin
+      .from('case_approaches')
+      .update({ generated: gen.generated, gen_status: 'done', gen_error: null, updated_at: now() })
+      .eq('id', approachId)
+      .eq('case_id', caseId);
+  } catch {
+    await admin
+      .from('case_approaches')
+      .update({
+        gen_status: 'error',
+        gen_error: 'The analysis did not finish. Please run it again.',
+        updated_at: now(),
+      })
+      .eq('id', approachId)
+      .eq('case_id', caseId);
+  }
+}
+
 // ── Create: save the approach, then attempt generation (graceful) ─────────
 export async function createFirmApproach(
   firmId: string,
@@ -215,8 +283,11 @@ export async function createFirmApproach(
     title = `Approach ${(count ?? 0) + 1}`;
   }
 
-  // Save first so the lawyer's theory is never lost, even if analysis is down.
-  const gen = await runGeneration(admin, caseId, prompt, connections);
+  // Save the theory first so it is never lost. Whether we then assemble in the
+  // background depends on the AI gate: if analysis is unavailable, save the
+  // approach in an 'idle' state with a calm note instead of a stuck 'running'.
+  const can = await canGenerate(caseId);
+  const willRun = can.ok;
   const { data, error } = await admin
     .from('case_approaches')
     .insert({
@@ -225,14 +296,27 @@ export async function createFirmApproach(
       title: title.slice(0, 200),
       prompt,
       connections,
-      generated: gen.generated ?? null,
+      generated: null,
+      gen_status: willRun ? 'running' : 'idle',
+      gen_started_at: willRun ? new Date().toISOString() : null,
       created_by: gate.userId,
     })
     .select(SELECT)
     .single();
   if (error || !data) return { ok: false, error: error?.message ?? 'Could not save the approach.' };
+
+  // Assemble the argument AFTER the response returns (can take a few minutes on
+  // a large matter); the client polls case_approaches for the result.
+  if (willRun) {
+    const approachId = (data as Row).id;
+    waitUntil(runApproachJob(caseId, approachId, prompt, connections));
+  }
   revalidatePath(`/counsel/cases/${caseId}`);
-  return { ok: true, approach: toApproach(data as Row), generateError: gen.error };
+  return {
+    ok: true,
+    approach: toApproach(data as Row),
+    generateError: can.ok ? undefined : can.error,
+  };
 }
 
 // ── Edit title/prompt (does not re-run; call regenerate for that) ─────────
@@ -296,18 +380,53 @@ export async function regenerateFirmApproach(
   if (!theory) return { ok: false, error: 'The approach cannot be empty.' };
   const connections = (stored?.connections ?? '').trim();
 
-  const gen = await runGeneration(admin, caseId, theory, connections);
-  if (gen.error) return { ok: false, error: gen.error };
+  // Fail fast (no 'running' state) when analysis is unavailable, so the user
+  // sees the calm message now instead of polling a job that can never finish.
+  const can = await canGenerate(caseId);
+  if (!can.ok) return { ok: false, error: can.error };
 
+  // Mark the job running and return immediately. The assembly runs AFTER the
+  // response (it can take a few minutes); the client polls getApproachGenState.
   const { data, error } = await admin
     .from('case_approaches')
-    .update({ prompt: theory, generated: gen.generated, updated_at: new Date().toISOString() })
+    .update({
+      prompt: theory,
+      gen_status: 'running',
+      gen_error: null,
+      gen_started_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
     .eq('id', approachId)
     .eq('case_id', caseId)
     .select(SELECT)
     .single();
-  if (error || !data) return { ok: false, error: error?.message ?? 'Could not save the argument.' };
-  revalidatePath(`/counsel/cases/${caseId}`);
+  if (error || !data) return { ok: false, error: error?.message ?? 'Could not start the re-run.' };
+
+  waitUntil(runApproachJob(caseId, approachId, theory, connections));
+  return { ok: true, approach: toApproach(data as Row) };
+}
+
+/**
+ * Poll one approach's live generation state. The client calls this every few
+ * seconds while an assembly is 'running' (including after a page reload), and
+ * stops when it reaches a terminal status.
+ */
+export async function getApproachGenState(
+  firmId: string,
+  caseId: string,
+  approachId: string,
+): Promise<{ ok: boolean; error?: string; approach?: Approach }> {
+  const gate = await assertFirmCase(firmId, caseId);
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Service unavailable.' };
+  const { data, error } = await admin
+    .from('case_approaches')
+    .select(SELECT)
+    .eq('id', approachId)
+    .eq('case_id', caseId)
+    .maybeSingle();
+  if (error || !data) return { ok: false, error: error?.message ?? 'Not found.' };
   return { ok: true, approach: toApproach(data as Row) };
 }
 

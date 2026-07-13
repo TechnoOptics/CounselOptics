@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
+import { useCallback, useEffect, useState, useTransition } from 'react';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import { isNativeApp } from '@/lib/platform';
 import {
@@ -9,6 +9,7 @@ import {
   updateFirmApproach,
   deleteFirmApproach,
   getApproachEvidence,
+  getApproachGenState,
   type Approach,
 } from '@/lib/firm-approach-actions';
 import type { ApproachArgument } from '@/lib/approach-ai';
@@ -91,10 +92,14 @@ export function ApproachBuilder({
     });
   }
 
-  const onUpdated = (a: Approach) =>
-    setApproaches((list) => list.map((x) => (x.id === a.id ? a : x)));
-  const onRemoved = (id: string) =>
-    setApproaches((list) => list.filter((x) => x.id !== id));
+  const onUpdated = useCallback(
+    (a: Approach) => setApproaches((list) => list.map((x) => (x.id === a.id ? a : x))),
+    [],
+  );
+  const onRemoved = useCallback(
+    (id: string) => setApproaches((list) => list.filter((x) => x.id !== id)),
+    [],
+  );
 
   return (
     <section
@@ -267,22 +272,45 @@ function ApproachCard({
 
   const g = approach.generated;
   const assembled = !!g;
+  // The assembly runs in the background (it can take a few minutes). While the
+  // row is 'running', poll for the result so the card fills in on its own and
+  // survives a page reload mid-run.
+  const running = approach.genStatus === 'running';
+
+  useEffect(() => {
+    if (!running) return;
+    let alive = true;
+    const tick = async () => {
+      try {
+        const res = await getApproachGenState(firmId, caseId, approach.id);
+        if (!alive || !res?.ok || !res.approach) return;
+        if (res.approach.genStatus !== 'running') {
+          onUpdated(res.approach); // done or error -> stops the poll (running flips)
+          if (res.approach.genStatus === 'error') setError(res.approach.genError ?? t('Could not re-run.'));
+        }
+      } catch {
+        /* transient; keep polling */
+      }
+    };
+    const id = setInterval(tick, 5000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, [running, firmId, caseId, approach.id, onUpdated, t]);
 
   function rerun(withPrompt?: string) {
     setError(null);
     startTransition(async () => {
       try {
+        // Returns immediately with the approach marked 'running'; the poll above
+        // then takes over and fills in the assembled argument when it lands.
         const res = await regenerateFirmApproach(firmId, caseId, approach.id, withPrompt);
         if (res?.ok && res.approach) {
           onUpdated(res.approach);
           setEditing(false);
         } else {
-          // An empty response (no res / no error) means the run did not finish
-          // in time on a large matter, not that anything is broken. Say so.
-          setError(
-            res?.error ??
-              t('This matter is large, so assembling the argument took longer than allowed. Please run it again.'),
-          );
+          setError(res?.error ?? t('Could not start the re-run. Please try again.'));
         }
       } catch {
         setError(t("Advottic's analysis is temporarily unavailable right now; try assembling the argument again shortly."));
@@ -353,11 +381,20 @@ function ApproachCard({
               </h3>
               <span
                 className={`mt-1.5 inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                  assembled ? 'bg-gold-metal/12 text-gold-metal/90' : 'bg-amber-500/12 text-amber-200/90'
+                  running
+                    ? 'bg-sky-500/12 text-sky-200/90'
+                    : assembled
+                    ? 'bg-gold-metal/12 text-gold-metal/90'
+                    : 'bg-amber-500/12 text-amber-200/90'
                 }`}
               >
-                <span aria-hidden className={`inline-block h-1.5 w-1.5 rounded-full ${assembled ? 'bg-gold-metal' : 'bg-amber-400'}`} />
-                {assembled ? <T>Assembled</T> : <T>Not yet assembled</T>}
+                <span
+                  aria-hidden
+                  className={`inline-block h-1.5 w-1.5 rounded-full ${
+                    running ? 'animate-pulse bg-sky-400' : assembled ? 'bg-gold-metal' : 'bg-amber-400'
+                  }`}
+                />
+                {running ? <T>Assembling…</T> : assembled ? <T>Assembled</T> : <T>Not yet assembled</T>}
               </span>
             </div>
           </div>
@@ -365,13 +402,13 @@ function ApproachCard({
             <button
               type="button"
               onClick={() => rerun()}
-              disabled={pending}
+              disabled={pending || running}
               className="inline-flex items-center gap-1.5 rounded-lg border border-gold-metal/50 bg-gold-metal/15 px-3 py-1.5 text-[12.5px] font-medium text-gold-metal transition-colors hover:bg-gold-metal/25 disabled:opacity-60"
             >
-              {pending ? (
+              {pending || running ? (
                 <>
                   <Spinner />
-                  <T>Working…</T>
+                  <T>Assembling…</T>
                 </>
               ) : assembled ? (
                 <T>Re-run</T>
@@ -380,14 +417,14 @@ function ApproachCard({
               )}
             </button>
             {assembled && (
-              <RailButton onClick={exportPacket} disabled={pending}>
+              <RailButton onClick={exportPacket} disabled={pending || running}>
                 <T>Export</T>
               </RailButton>
             )}
-            <RailButton onClick={() => setEditing((v) => !v)} disabled={pending}>
+            <RailButton onClick={() => setEditing((v) => !v)} disabled={pending || running}>
               {editing ? <T>Cancel</T> : <T>Edit</T>}
             </RailButton>
-            <RailButton onClick={remove} disabled={pending} tone="danger">
+            <RailButton onClick={remove} disabled={pending || running} tone="danger">
               <T>Delete</T>
             </RailButton>
           </div>
@@ -418,11 +455,11 @@ function ApproachCard({
               data-no-translate
             />
             <div className="flex justify-end gap-2">
-              <button onClick={saveEdits} disabled={pending} className="rounded-lg px-3 py-1.5 text-[13px] text-cream-100/75 hover:text-cream-100">
+              <button onClick={saveEdits} disabled={pending || running} className="rounded-lg px-3 py-1.5 text-[13px] text-cream-100/75 hover:text-cream-100">
                 <T>Save</T>
               </button>
-              <button onClick={() => rerun(prompt)} disabled={pending} className="inline-flex items-center gap-2 rounded-lg border border-gold-metal/50 bg-gold-metal/15 px-3 py-1.5 text-[13px] font-medium text-gold-metal hover:bg-gold-metal/25">
-                {pending && <Spinner />}
+              <button onClick={() => rerun(prompt)} disabled={pending || running} className="inline-flex items-center gap-2 rounded-lg border border-gold-metal/50 bg-gold-metal/15 px-3 py-1.5 text-[13px] font-medium text-gold-metal hover:bg-gold-metal/25">
+                {(pending || running) && <Spinner />}
                 <T>Save and re-run</T>
               </button>
             </div>
@@ -455,8 +492,16 @@ function ApproachCard({
           )
         )}
 
-        {pending ? (
-          <AssembleProgress />
+        {pending || running ? (
+          <div className="space-y-2">
+            <AssembleProgress />
+            <p className="text-[11.5px] leading-relaxed text-cream-100/55">
+              <T>
+                Advottic is reading the whole matter to assemble this argument. On a large matter this can
+                take a couple of minutes. You can leave this page; it keeps working and fills in when ready.
+              </T>
+            </p>
+          </div>
         ) : g ? (
           <>
             <GeneratedArgument g={g} firmId={firmId} caseId={caseId} approachId={approach.id} />
