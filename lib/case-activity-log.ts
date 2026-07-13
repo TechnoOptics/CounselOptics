@@ -1,6 +1,7 @@
 import 'server-only';
 import { getCurrentUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
+import { createNotification } from './notifications';
 
 /**
  * Case activity stream. A per-matter feed the firm can read to see when an
@@ -145,9 +146,71 @@ export async function logCaseActivity(opts: {
       action: opts.action,
       detail: opts.detail ?? {},
     });
+
+    // Notify the firm's leadership (owner + admins) when an OUTSIDE party
+    // (co-counsel guest / client) does something on the matter. The firm's own
+    // members don't get pinged about their own team's routine activity.
+    if (actor.kind !== 'firm' && actor.firmId) {
+      await fanOutActivityNotification(admin, actor, opts.caseId, opts.action, opts.detail ?? {});
+    }
   } catch {
     /* activity logging is best-effort - never surface an error to the caller */
   }
+}
+
+const ACTIVITY_VERB: Record<string, (d: Record<string, unknown>) => string> = {
+  view_matter: () => 'opened the matter',
+  login: () => 'signed in',
+  view_timeline: () => 'opened the timeline',
+  view_evidence: () => 'opened the evidence files',
+  open_section: (d) => (d.section ? `opened “${String(d.section)}”` : 'opened a section'),
+  comment: (d) => (d.where ? `commented in ${String(d.where)}` : 'left a comment'),
+  download: () => 'downloaded the packet',
+  export: () => 'downloaded the export packet',
+};
+
+/**
+ * Fan a case-activity event out to the firm's owner + admins as in-app
+ * notifications (which also drive the bell + web push). Best-effort.
+ */
+async function fanOutActivityNotification(
+  admin: NonNullable<ReturnType<typeof createAdminSupabase>>,
+  actor: CaseActor,
+  caseId: string,
+  action: CaseActivityAction,
+  detail: Record<string, unknown>,
+): Promise<void> {
+  const { data: leaders } = await admin
+    .from('firm_members')
+    .select('user_id, role')
+    .eq('firm_id', actor.firmId as string)
+    .in('role', ['owner', 'admin']);
+  const recipients = ((leaders ?? []) as { user_id: string }[])
+    .map((l) => l.user_id)
+    .filter((id) => id && id !== actor.userId);
+  if (recipients.length === 0) return;
+
+  const { data: caseRow } = await admin
+    .from('cases')
+    .select('title')
+    .eq('id', caseId)
+    .maybeSingle();
+  const caseTitle = (caseRow as { title: string | null } | null)?.title ?? 'a matter';
+  const verb = (ACTIVITY_VERB[action] ?? (() => action.replace(/_/g, ' ')))(detail);
+
+  await Promise.all(
+    recipients.map((userId) =>
+      createNotification({
+        userId,
+        type: 'case_activity',
+        title: `${actor.label} ${verb}`,
+        body: caseTitle,
+        link: `/counsel/cases/${caseId}`,
+        caseId,
+        actorUserId: actor.userId,
+      }).catch(() => null),
+    ),
+  );
 }
 
 /**

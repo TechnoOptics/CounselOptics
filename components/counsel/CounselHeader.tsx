@@ -4,6 +4,7 @@ import type { Firm, FirmMember } from '@/lib/firm-types';
 import { FIRM_ROLE_LABEL } from '@/lib/firm-types';
 import { CounselMobileNav } from './CounselMobileNav';
 import { CounselProfileMenu } from './CounselProfileMenu';
+import { CounselNotificationBell } from './CounselNotificationBell';
 import {
   applyMenuConfig,
   readMenuConfig,
@@ -219,6 +220,11 @@ export function CounselHeader({
               />
             </ExternalLink>
           )}
+          {/* Notification bell — case activity (co-counsel opened the matter,
+              a section, commented, downloaded the packet), signing, deadlines.
+              The consumer header's bell isn't shown on the counsel side, so it
+              lives here for firm users. */}
+          <CounselNotificationBell />
           {/* Consolidated account menu. The firm/owner switcher, the
               "View as" persona preview, the language picker, and the
               token balance all live inside this one dropdown now - the
