@@ -347,14 +347,6 @@ export default async function CounselCaseDetailPage({
               </>
             )}
           </div>
-          {c.subject_name && (
-            <p className="mt-1.5 text-[12.5px] text-ink-400 dark:text-cream-100/45">
-              <T>Subject</T>{' '}
-              <span className="text-forest-800 dark:text-cream-100/80" data-no-translate>
-                {c.subject_name}
-              </span>
-            </p>
-          )}
         </div>
         <div className="flex flex-col items-start gap-3 sm:items-end">
           {showTimeBilling && (
@@ -372,6 +364,60 @@ export default async function CounselCaseDetailPage({
           />
         </div>
       </header>
+
+      {/* Party dossier at the top: the subject's portrait + full record leads
+          the matter, standing in for the old plain "Subject" line. Its inline
+          "Edit details" editor (with the case-images panel) travels with it. */}
+      <MatterFacts
+        firmId={ctx.firm.id}
+        caseId={params.id}
+        posture={c.posture}
+        caseType={c.case_type}
+        subjectName={c.subject_name}
+        subjectType={c.subject_type}
+        subjectProfile={c.subject_profile}
+        partyImages={caseImages
+          .filter((i) => i.kind === 'party')
+          .map((i) => ({ id: i.id, storagePath: i.storagePath }))}
+        jurisdictionCountry={c.jurisdiction_country}
+        jurisdictionState={c.jurisdiction_state}
+        jurisdictionCity={c.jurisdiction_city}
+        description={c.description}
+        hearingAt={c.hearing_at}
+        hearingLocation={c.hearing_location}
+        hearingNotes={c.hearing_notes}
+      />
+
+      <div className="-mt-3">
+        <EditMatterForm
+          firmId={ctx.firm.id}
+          caseId={params.id}
+          initial={{
+            title: c.title,
+            subject: c.subject_name,
+            subjectType: (c.subject_type as 'person' | 'business' | 'entity' | 'state' | 'matter') ?? 'person',
+            caseType: c.case_type,
+            posture: (c.posture as 'claimant' | 'defendant') ?? 'claimant',
+            country: c.jurisdiction_country ?? 'US',
+            state: c.jurisdiction_state ?? '',
+            city: c.jurisdiction_city ?? '',
+            description: c.description ?? '',
+            profile: (c.subject_profile ?? {}) as Record<string, string>,
+            hearingAt: c.hearing_at ? c.hearing_at.slice(0, 16) : '',
+            hearingLocation: c.hearing_location ?? '',
+            hearingNotes: c.hearing_notes ?? '',
+          }}
+        >
+          {/* Party portraits + case-context images live inside the Edit
+              details editor (moved out of a standalone panel). */}
+          <CaseImagesPanel
+            firmId={ctx.firm.id}
+            caseId={params.id}
+            initial={caseImages}
+            featuredImageId={(c.subject_profile as { featuredImageId?: string } | null)?.featuredImageId ?? null}
+          />
+        </EditMatterForm>
+      </div>
 
       {/* Top stats (Time & Billing) - hidden when the firm turns the surface off */}
       {showTimeBilling && (
@@ -439,59 +485,6 @@ export default async function CounselCaseDetailPage({
           <span className="text-[13px] font-semibold"><T>Court packet</T></span>
         </a>
       </nav>
-
-      <MatterFacts
-        firmId={ctx.firm.id}
-        caseId={params.id}
-        posture={c.posture}
-        caseType={c.case_type}
-        subjectName={c.subject_name}
-        subjectType={c.subject_type}
-        subjectProfile={c.subject_profile}
-        partyImages={caseImages
-          .filter((i) => i.kind === 'party')
-          .map((i) => ({ id: i.id, storagePath: i.storagePath }))}
-        jurisdictionCountry={c.jurisdiction_country}
-        jurisdictionState={c.jurisdiction_state}
-        jurisdictionCity={c.jurisdiction_city}
-        description={c.description}
-        hearingAt={c.hearing_at}
-        hearingLocation={c.hearing_location}
-        hearingNotes={c.hearing_notes}
-      />
-
-      {/* Correct a typo / edit any case detail (name, business, jurisdiction,
-          hearing) in place - firm-gated admin write. */}
-      <div className="-mt-3">
-        <EditMatterForm
-          firmId={ctx.firm.id}
-          caseId={params.id}
-          initial={{
-            title: c.title,
-            subject: c.subject_name,
-            subjectType: (c.subject_type as 'person' | 'business' | 'entity' | 'state' | 'matter') ?? 'person',
-            caseType: c.case_type,
-            posture: (c.posture as 'claimant' | 'defendant') ?? 'claimant',
-            country: c.jurisdiction_country ?? 'US',
-            state: c.jurisdiction_state ?? '',
-            city: c.jurisdiction_city ?? '',
-            description: c.description ?? '',
-            profile: (c.subject_profile ?? {}) as Record<string, string>,
-            hearingAt: c.hearing_at ? c.hearing_at.slice(0, 16) : '',
-            hearingLocation: c.hearing_location ?? '',
-            hearingNotes: c.hearing_notes ?? '',
-          }}
-        >
-          {/* Party portraits + case-context images now live inside the
-              Edit details editor (moved out of a standalone panel). */}
-          <CaseImagesPanel
-            firmId={ctx.firm.id}
-            caseId={params.id}
-            initial={caseImages}
-            featuredImageId={(c.subject_profile as { featuredImageId?: string } | null)?.featuredImageId ?? null}
-          />
-        </EditMatterForm>
-      </div>
 
       {/* Evidence dashboard - a live, at-a-glance analytics read over the
           matter's evidence set (counts, processing status, relevance, folders,
