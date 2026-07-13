@@ -12,6 +12,7 @@ import {
 } from '@/lib/pdf';
 import { formatOccurred, KIND_LABEL, ROLE_LABEL, type TimelineMedia } from '@/lib/timeline-types';
 import { staticMapUrlServer } from '@/lib/maps';
+import { canonicalOrg } from '@/lib/entity-normalize';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -173,7 +174,10 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   const orgMap = new Map<string, { name: string; count: number }>();
   for (const e of chosen) {
     for (const raw of e.aiExtracted.organizations ?? []) {
-      const name = raw.trim();
+      // Drop non-party noise (Facebook, Amazon, Shop Pay, SAP Concur, etc.) and
+      // merge surface forms of the same entity ("RE+GEN Nutrition LLC." and
+      // "RE+GEN nutrition"; "Zinpro" and "Zinpro Corporation").
+      const name = canonicalOrg(raw);
       if (!name) continue;
       const key = name.toLowerCase();
       const cur = orgMap.get(key);

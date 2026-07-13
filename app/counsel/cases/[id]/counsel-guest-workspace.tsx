@@ -4,6 +4,7 @@ import type { CaseEvidenceAnalytics } from '@/lib/case-analytics';
 import type { Approach } from '@/lib/firm-approach-actions';
 import { T } from '@/components/i18n/LocaleProvider';
 import { SectionPanel } from '@/components/counsel/SectionPanel';
+import { ExportPacketTile } from '@/components/counsel/ExportPacketTile';
 import { EvidenceDashboard } from './evidence-dashboard';
 import { ApproachBuilder } from './approach-builder';
 import { MatterFacts } from './matter-facts';
@@ -126,7 +127,7 @@ export function CounselGuestWorkspace({
         <div className="grid gap-3 sm:grid-cols-3">
           <NavTile href={`/counsel/cases/${caseId}/timeline`} title="Timeline" blurb="The chronology of events on this matter." icon={<ClockIcon />} />
           <NavTile href={`/counsel/cases/${caseId}/evidence`} title="Evidence files" blurb="Documents and exhibits gathered for this matter." icon={<FolderIcon />} />
-          <NavTile href={`/counsel/cases/${caseId}/export`} title="Export packet" blurb="Download the evidentiary record as a PDF." icon={<DownloadIcon />} />
+          <ExportPacketTile href={`/counsel/cases/${caseId}/export`} title="Export packet" blurb="Download the evidentiary record as a PDF." icon={<DownloadIcon />} />
         </div>
 
         {/* Collapsible in-place sections — open one when you want it. */}

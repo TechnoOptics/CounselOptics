@@ -109,6 +109,9 @@ export function CaseMap({ points, title = 'Case map' }: { points: MapPoint[]; ti
 
   // Everyone who appears on a timed, located point — the person filter.
   const [person, setPerson] = useState<string | null>(null);
+  // The "Follow" chip list is collapsed by default so a long roster of names
+  // does not overwhelm the map; open it on demand (or when a person is active).
+  const [followOpen, setFollowOpen] = useState(false);
   // Optionally hide points whose owning event scored low relevance to the case.
   const [focusRelevant, setFocusRelevant] = useState(false);
   const hasLowRelevance = useMemo(
@@ -338,25 +341,52 @@ export function CaseMap({ points, title = 'Case map' }: { points: MapPoint[]; ti
         </div>
       )}
 
-      {/* Person filter */}
+      {/* Person filter — collapsed by default so a long roster does not
+          overwhelm; the header shows the active selection and a count. */}
       {allPeople.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 border-b border-forest-900/10 px-5 py-2.5 dark:border-cream-50/10">
-          <span className="mr-1 self-center text-[11px] font-medium text-ink-400 dark:text-cream-300/50">Follow:</span>
+        <div className="border-b border-forest-900/10 px-5 py-2.5 dark:border-cream-50/10">
           <button
-            type="button" onClick={() => setPerson(null)} aria-pressed={person === null}
-            className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${person === null ? 'bg-forest-900 text-cream-50 dark:bg-gold-metal dark:text-forest-950' : 'bg-forest-900/5 text-ink-600 hover:bg-forest-900/10 dark:bg-cream-50/10 dark:text-cream-300'}`}
+            type="button"
+            onClick={() => setFollowOpen((v) => !v)}
+            aria-expanded={followOpen}
+            className="flex w-full items-center gap-2 text-left"
           >
-            Everyone
+            <span className="text-[11px] font-medium text-ink-400 dark:text-cream-300/50">
+              Follow{person ? ':' : ''}
+            </span>
+            {person ? (
+              <span className="rounded-full bg-forest-900 px-2.5 py-1 text-xs font-medium text-cream-50 dark:bg-gold-metal dark:text-forest-950" data-no-translate>
+                {person}
+              </span>
+            ) : (
+              <span className="text-xs text-ink-500 dark:text-cream-300/70">Everyone</span>
+            )}
+            <span className="ml-auto text-[11px] text-ink-400 dark:text-cream-300/50">
+              {allPeople.length} {allPeople.length === 1 ? 'person' : 'people'}
+            </span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden className={`text-ink-400 dark:text-cream-300/50 transition-transform ${followOpen ? 'rotate-180' : ''}`}>
+              <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </button>
-          {allPeople.map((name) => (
-            <button
-              key={name} type="button" onClick={() => setPerson(name)} aria-pressed={person === name}
-              className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${person === name ? 'bg-forest-900 text-cream-50 dark:bg-gold-metal dark:text-forest-950' : 'bg-forest-900/5 text-ink-600 hover:bg-forest-900/10 dark:bg-cream-50/10 dark:text-cream-300'}`}
-              data-no-translate
-            >
-              {name}
-            </button>
-          ))}
+          {followOpen && (
+            <div className="mt-2.5 flex flex-wrap gap-1.5">
+              <button
+                type="button" onClick={() => setPerson(null)} aria-pressed={person === null}
+                className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${person === null ? 'bg-forest-900 text-cream-50 dark:bg-gold-metal dark:text-forest-950' : 'bg-forest-900/5 text-ink-600 hover:bg-forest-900/10 dark:bg-cream-50/10 dark:text-cream-300'}`}
+              >
+                Everyone
+              </button>
+              {allPeople.map((name) => (
+                <button
+                  key={name} type="button" onClick={() => setPerson(name)} aria-pressed={person === name}
+                  className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${person === name ? 'bg-forest-900 text-cream-50 dark:bg-gold-metal dark:text-forest-950' : 'bg-forest-900/5 text-ink-600 hover:bg-forest-900/10 dark:bg-cream-50/10 dark:text-cream-300'}`}
+                  data-no-translate
+                >
+                  {name}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
