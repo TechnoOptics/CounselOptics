@@ -159,6 +159,33 @@ export function mergeStickyExtracted(
  * doesn't stick in 'running'. `admin` is used only for storage downloads and
  * (optionally) forensic metadata, never for the write.
  */
+/**
+ * Postgres text/jsonb cannot store the NUL character (); parsed files,
+ * especially .eml with odd encodings, sometimes carry it, which made the
+ * analysis write fail with "unsupported Unicode escape sequence" and left the
+ * item stuck in 'running'. Strip NUL and other disallowed C0 control chars
+ * (keeping tab, newline, carriage return) from every string before we persist.
+ */
+function stripControlChars<T>(v: T): T {
+  if (typeof v === 'string') {
+    let out = '';
+    for (let i = 0; i < v.length; i++) {
+      const c = v.charCodeAt(i);
+      // Keep tab (9), newline (10), carriage return (13); drop NUL and other
+      // C0 control chars that Postgres text/jsonb rejects.
+      if (c === 9 || c === 10 || c === 13 || c >= 32) out += v[i];
+    }
+    return out as unknown as T;
+  }
+  if (Array.isArray(v)) return v.map((x) => stripControlChars(x)) as unknown as T;
+  if (v && typeof v === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, val] of Object.entries(v)) out[k] = stripControlChars(val);
+    return out as unknown as T;
+  }
+  return v;
+}
+
 export async function computeEventAnalysis(input: {
   ev: EventForAnalysis;
   admin: SupabaseClient | null;
@@ -274,14 +301,14 @@ export async function computeEventAnalysis(input: {
   }
 
   if ('error' in result) {
-    return { ok: false, error: result.error, patch: { ai_status: 'error', ai_error: result.error } };
+    return { ok: false, error: result.error, patch: { ai_status: 'error', ai_error: stripControlChars(result.error) } };
   }
 
   const patch: Record<string, unknown> = {
     ai_status: 'done',
     ai_error: emailError ?? null,
-    ai_summary: result.summary,
-    ai_extracted: result.extracted,
+    ai_summary: stripControlChars(result.summary),
+    ai_extracted: stripControlChars(result.extracted),
     updated_at: new Date().toISOString(),
   };
   if (!ev.occurredAt) {
@@ -292,7 +319,7 @@ export async function computeEventAnalysis(input: {
     }
   }
   if (!ev.title && result.extracted.suggested_title) {
-    patch.title = result.extracted.suggested_title.slice(0, 200);
+    patch.title = stripControlChars(result.extracted.suggested_title).slice(0, 200);
   }
   return { ok: true, patch };
 }
