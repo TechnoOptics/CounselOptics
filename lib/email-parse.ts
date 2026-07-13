@@ -1,6 +1,21 @@
 import 'server-only';
 import { simpleParser, type AddressObject } from 'mailparser';
 import type { AiExtracted } from './timeline-types';
+import { extractFileText } from './doc-review';
+
+/** True when a decoded string is mostly non-printable, i.e. a mis-encoded body
+ *  or raw binary we should not feed to the reader. */
+function looksBinary(s: string): boolean {
+  const sample = s.slice(0, 4000);
+  if (!sample) return false;
+  let bad = 0;
+  for (let i = 0; i < sample.length; i++) {
+    const c = sample.charCodeAt(i);
+    if (c === 9 || c === 10 || c === 13) continue;
+    if (c < 32 || c === 0xfffd) bad++;
+  }
+  return bad / sample.length > 0.15;
+}
 
 /**
  * Email evidence parser. Turns a raw email file into the same shape the rest of
@@ -113,13 +128,40 @@ export async function parseEmail(
     const subject = mail.subject?.trim() || null;
     const date = mail.date ? mail.date.toISOString() : null;
     // Prefer the text/plain part; fall back to flattening HTML so an HTML-only
-    // message still shows a readable body instead of a blank pane.
-    const body = (mail.text ?? '').trim() || htmlToPlain(mail.html);
-    const attachments = uniq(
-      (mail.attachments ?? [])
-        .map((a) => a.filename ?? '')
-        .filter(Boolean),
+    // message still shows a readable body instead of a blank pane. If the decoded
+    // body is mostly non-printable (a mis-encoded forward), drop it so binary
+    // junk never reaches the reader.
+    let body = (mail.text ?? '').trim() || htmlToPlain(mail.html);
+    if (looksBinary(body)) body = '';
+
+    const attList = (mail.attachments ?? []).filter(
+      (a): a is typeof a & { content: Buffer } => Boolean(a && a.content),
     );
+    const attachments = uniq(attList.map((a) => a.filename ?? '').filter(Boolean));
+
+    // Extract the TEXT of each attachment (the real documents forwarded inside
+    // the email) through the shared document reader, so a "Fw: Vendor Agreement"
+    // email is analysed on the agreement's actual content, not just the envelope.
+    const attachmentTexts: string[] = [];
+    let attBudget = 300_000;
+    for (const a of attList) {
+      if (attBudget <= 0) break;
+      const fname = a.filename || 'attachment';
+      try {
+        const file = new File([new Uint8Array(a.content)], fname, {
+          type: (a.contentType || 'application/octet-stream').toLowerCase(),
+        });
+        const ext = await extractFileText(file);
+        const t = (ext.text ?? '').trim();
+        if (t && !looksBinary(t)) {
+          const slice = t.slice(0, attBudget);
+          attBudget -= slice.length;
+          attachmentTexts.push(`--- Attachment: ${fname} ---\n${slice}`);
+        }
+      } catch {
+        /* skip an attachment we cannot read */
+      }
+    }
 
     // A .msg run that yields nothing usable: mailparser could not read the
     // binary container. Fall back to the best-effort branch.
@@ -137,7 +179,12 @@ export async function parseEmail(
       .filter(Boolean)
       .join('\n');
 
-    const text = `${headerBlock}\n\n${body}`.trim();
+    const text = [headerBlock, body, ...attachmentTexts].filter(Boolean).join('\n\n').trim();
+
+    // Nothing readable at all (no headers, no body, no attachment text) means the
+    // file is encrypted or otherwise undecodable (e.g. an AES/MSMAMARPCRYPT
+    // container). Surface a clear, actionable status instead of a silent blank.
+    const readable = Boolean(subject || fromNames.length || body || attachmentTexts.length);
 
     const extracted: Partial<AiExtracted> = {
       ocr_text: text,
@@ -158,7 +205,13 @@ export async function parseEmail(
       },
     };
 
-    return { text, extracted, error: isMsg ? undefined : undefined };
+    return {
+      text,
+      extracted,
+      error: readable
+        ? undefined
+        : 'This email file appears to be encrypted or otherwise unreadable, so its contents could not be extracted. Re-export the message without encryption, or upload the underlying documents directly.',
+    };
   } catch (err) {
     if (isMsg) return msgFallback(filename);
     return {
