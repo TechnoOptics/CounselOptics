@@ -138,16 +138,24 @@ export function EvidenceViewer({
         paddingBottom: 'var(--safe-bottom, 0px)',
       }}
     >
-      {/* Close */}
+      {/* Close — always legible: a black translucent disc + gold-gradient X, so
+          it never disappears against a white/light preview. */}
       <button
         type="button"
         onClick={onClose}
         aria-label={t('Close')}
-        className="fixed right-4 z-20 inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-cream-50 backdrop-blur hover:bg-white/20"
+        className="fixed right-4 z-20 inline-flex h-11 w-11 items-center justify-center rounded-full bg-forest-950/70 ring-1 ring-cream-50/20 shadow-lg backdrop-blur hover:bg-forest-950/85"
         style={{ top: 'calc(0.75rem + var(--safe-top, 0px))' }}
       >
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
-          <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          <defs>
+            <linearGradient id="advGoldClose" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+              <stop offset="0" stopColor="#f2d99a" />
+              <stop offset="0.5" stopColor="#d5bb7e" />
+              <stop offset="1" stopColor="#a9761f" />
+            </linearGradient>
+          </defs>
+          <path d="M6 6l12 12M18 6L6 18" stroke="url(#advGoldClose)" strokeWidth="2.5" strokeLinecap="round" />
         </svg>
       </button>
 
@@ -161,7 +169,7 @@ export function EvidenceViewer({
             setExpanded((v) => !v);
           }}
           aria-label={expanded ? t('Exit full screen') : t('View full screen')}
-          className="fixed left-4 z-20 inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-cream-50 backdrop-blur hover:bg-white/20"
+          className="fixed left-4 z-20 inline-flex h-11 w-11 items-center justify-center rounded-full bg-forest-950/70 text-cream-50 ring-1 ring-cream-50/15 backdrop-blur hover:bg-forest-950/85"
           style={{ top: 'calc(0.75rem + var(--safe-top, 0px))' }}
         >
           {expanded ? (
@@ -185,7 +193,7 @@ export function EvidenceViewer({
             onPrev();
           }}
           aria-label={t('Previous')}
-          className="fixed left-3 top-1/2 z-20 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-cream-50 backdrop-blur hover:bg-white/20"
+          className="fixed left-3 top-1/2 z-20 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-forest-950/70 text-cream-50 ring-1 ring-cream-50/15 backdrop-blur hover:bg-forest-950/85"
         >
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
             <path d="M15 6l-6 6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -200,7 +208,7 @@ export function EvidenceViewer({
             onNext();
           }}
           aria-label={t('Next')}
-          className="fixed right-3 top-1/2 z-20 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-cream-50 backdrop-blur hover:bg-white/20"
+          className="fixed right-3 top-1/2 z-20 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-forest-950/70 text-cream-50 ring-1 ring-cream-50/15 backdrop-blur hover:bg-forest-950/85"
         >
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
             <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />

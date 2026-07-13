@@ -3,6 +3,7 @@ import Image from 'next/image';
 import type { Firm } from '@/lib/firm-types';
 import { T } from '@/components/i18n/LocaleProvider';
 import { CounselGuestMenu } from './CounselGuestMenu';
+import { CounselGuestNav } from './CounselGuestNav';
 
 /**
  * Header for the case-scoped Counsel GUEST shell. Mirrors the co-brand of the
@@ -83,6 +84,9 @@ export function CounselGuestHeader({
           initials={computeInitials(displayName || email)}
         />
       </div>
+      {/* Section navigator — only when the guest's home is an actual matter, so
+          they can always get back to the matter landing from a section. */}
+      {homeHref.startsWith('/counsel/cases/') && <CounselGuestNav caseHref={homeHref} />}
       <div className="header-glow-line" aria-hidden />
     </header>
   );
