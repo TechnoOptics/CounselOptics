@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { HumanCheck } from './human-check';
 
 const TURNSTILE_CONFIGURED = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
@@ -111,8 +112,9 @@ export function UnlockForm({ token }: { token: string }) {
       </form>
 
       {/* Full-screen Advottic viewer: the document renders in the browser; no
-          file touches disk unless the reader chooses Download. */}
-      {doc && viewerOpen && (
+          file touches disk unless the reader chooses Download. Portaled to
+          document.body so a transformed ancestor can't trap the fixed overlay. */}
+      {doc && viewerOpen && createPortal(
         <div className="fixed inset-0 z-[70] flex flex-col bg-forest-950">
           <header className="flex items-center gap-3 border-b border-cream-50/10 bg-forest-950 px-4 py-2.5">
             <div className="min-w-0 flex-1">
@@ -146,7 +148,8 @@ export function UnlockForm({ token }: { token: string }) {
           <div className="relative flex-1 bg-forest-900/60">
             <iframe id="share-doc-frame" src={doc.url} title={doc.filename} className="absolute inset-0 h-full w-full border-0" />
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );
