@@ -2,6 +2,7 @@ import { adminListUsers } from '@/lib/storage';
 import { getCurrentUser } from '@/lib/supabase/server';
 import { TIER_LABEL, REPRESENTATION_LABEL } from '@/lib/types';
 import { UserToggles } from './user-toggles';
+import { LocaleTime } from '@/components/LocaleTime';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -115,13 +116,13 @@ export default async function AdminUsersPage() {
                 </Td>
                 <Td className="text-ink-700 dark:text-cream-100/75">
                   {u.lastSignInAt ? (
-                    new Date(u.lastSignInAt).toLocaleString()
+                    <LocaleTime iso={u.lastSignInAt} />
                   ) : (
                     <span className="text-ink-400 dark:text-cream-100/40">never</span>
                   )}
                 </Td>
                 <Td className="text-ink-700 dark:text-cream-100/75">
-                  {new Date(u.createdAt).toLocaleDateString()}
+                  <LocaleTime iso={u.createdAt} mode="date" />
                 </Td>
                 <Td>
                   <UserToggles
