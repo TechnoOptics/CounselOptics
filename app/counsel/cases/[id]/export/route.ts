@@ -4,8 +4,10 @@ import { getActiveFirmContext } from '@/lib/firm-storage';
 import { getCurrentUser, createServerSupabase } from '@/lib/supabase/server';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { getFirmTimelineBundle } from '@/lib/firm-timeline-actions';
+import { toNormRules } from '@/lib/text-normalize';
 import {
   generateTimelineExhibitPdf,
+  normalizeExhibitData,
   ALL_EXHIBIT_SECTIONS,
   type TimelineExhibitData,
   type ExhibitFile,
@@ -97,10 +99,10 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 
   const { data: caseRow } = await admin
     .from('cases')
-    .select('id, title, subject_name, firm_id')
+    .select('id, title, subject_name, firm_id, text_normalizations')
     .eq('id', params.id)
     .maybeSingle();
-  const c = caseRow as { id: string; title: string; subject_name: string | null; firm_id: string | null } | null;
+  const c = caseRow as { id: string; title: string; subject_name: string | null; firm_id: string | null; text_normalizations: unknown } | null;
   if (!c || c.firm_id !== firmId) return NextResponse.json({ error: 'Not found.' }, { status: 404 });
 
   // Include off-timeline evidence: the court packet reflects the whole matter,
@@ -334,7 +336,10 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     sections,
   };
 
-  const pdf = await generateTimelineExhibitPdf(data);
+  // Apply the matter's naming conventions (e.g. SH → STH) to all derived text
+  // so stored copy generated before the rule existed still renders correctly.
+  const normalized = normalizeExhibitData(data, toNormRules(c.text_normalizations));
+  const pdf = await generateTimelineExhibitPdf(normalized);
   const scopeSlug = sections && sections.length === 1 ? `-${sections[0]}` : '';
   const filename = `${c.title.replace(/[^a-z0-9]+/gi, '-').slice(0, 60) || 'case'}${scopeSlug}-exhibit.pdf`;
 

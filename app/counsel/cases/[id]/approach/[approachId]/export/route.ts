@@ -6,6 +6,7 @@ import { createAdminSupabase } from '@/lib/supabase/admin';
 import { getFirmTimelineBundle } from '@/lib/firm-timeline-actions';
 import {
   generateTimelineExhibitPdf,
+  normalizeExhibitData,
   ALL_EXHIBIT_SECTIONS,
   type TimelineExhibitData,
   type ExhibitFile,
@@ -14,6 +15,7 @@ import {
 } from '@/lib/pdf';
 import type { ApproachArgument } from '@/lib/approach-ai';
 import { parseExhibitSheet } from '@/lib/exhibit-sheet';
+import { toNormRules } from '@/lib/text-normalize';
 import {
   formatOccurred,
   exhibitLabel,
@@ -101,10 +103,10 @@ export async function GET(
 
   const { data: caseRow } = await admin
     .from('cases')
-    .select('id, title, subject_name, firm_id')
+    .select('id, title, subject_name, firm_id, text_normalizations')
     .eq('id', params.id)
     .maybeSingle();
-  const c = caseRow as { id: string; title: string; subject_name: string | null; firm_id: string | null } | null;
+  const c = caseRow as { id: string; title: string; subject_name: string | null; firm_id: string | null; text_normalizations: unknown } | null;
   if (!c || c.firm_id !== firmId) return NextResponse.json({ error: 'Not found.' }, { status: 404 });
 
   // Load the approach, scoped to this matter + firm.
@@ -294,7 +296,9 @@ export async function GET(
     sections,
   };
 
-  const pdf = await generateTimelineExhibitPdf(data);
+  // Apply the matter's naming conventions (e.g. SH → STH) to all derived text.
+  const normalized = normalizeExhibitData(data, toNormRules(c.text_normalizations));
+  const pdf = await generateTimelineExhibitPdf(normalized);
   const slug = (s: string) => s.replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').slice(0, 50);
   const scopeSlug = sections && sections.length === 1 ? `-${sections[0]}` : '';
   const filename = `${slug(c.title) || 'matter'}-approach-${slug(approach.title) || 'packet'}${scopeSlug}.pdf`;

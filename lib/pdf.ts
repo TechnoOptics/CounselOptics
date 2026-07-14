@@ -10,6 +10,7 @@ import type {
 } from './types';
 import type { CommunityExportData } from './community-types';
 import { getExhibitFileBuffer } from './storage';
+import { normalizeString, type NormRule } from './text-normalize';
 
 /**
  * Per-PDF-exhibit page cap. We splice the exhibit's actual PDF
@@ -1401,6 +1402,48 @@ export type TimelineExhibitData = {
   }[];
 };
 
+/**
+ * Apply the matter's naming conventions (e.g. "SH" → "STH") to every piece of
+ * DERIVED / narrative text in the exhibit before it is drawn — the narrative,
+ * timeline, party profiles, and per-item titles/summaries. Reproduced source
+ * files (filenames, embedded images, PDF pages, spreadsheet cells) are left
+ * VERBATIM, since the exhibit must reproduce the original evidence unaltered.
+ * This is the export-time guarantee that stored text generated before a rule
+ * existed still renders in the correct form.
+ */
+export function normalizeExhibitData(data: TimelineExhibitData, rules: NormRule[]): TimelineExhibitData {
+  if (!rules.length) return data;
+  const s = <T extends string | null | undefined>(t: T): T =>
+    (typeof t === 'string' ? (normalizeString(t, rules) as T) : t);
+  return {
+    ...data,
+    caseTitle: s(data.caseTitle),
+    subjectName: s(data.subjectName),
+    narrative: data.narrative
+      ? { summary: s(data.narrative.summary), narrative: s(data.narrative.narrative), conclusion: s(data.narrative.conclusion) }
+      : data.narrative,
+    narrativeTimeline: data.narrativeTimeline
+      ? data.narrativeTimeline.map((t) => ({ when: s(t.when), title: s(t.title), significance: s(t.significance) }))
+      : data.narrativeTimeline,
+    entities: data.entities.map((e) => ({
+      ...e,
+      name: s(e.name),
+      roleLabel: s(e.roleLabel),
+      aliases: e.aliases.map((a) => s(a)),
+      notes: s(e.notes),
+    })),
+    entries: data.entries.map((en) => ({
+      ...en,
+      title: s(en.title),
+      context: s(en.context),
+      summary: s(en.summary),
+      sourceLabel: s(en.sourceLabel),
+      people: en.people.map((p) => s(p)),
+      // exhibits (reproduced source files) are left verbatim
+    })),
+  };
+}
+
 const BATES_PREFIX = 'ADV';
 const batesLabel = (n: number) => `${BATES_PREFIX}-${String(n).padStart(6, '0')}`;
 const humanBytes = (n: number) => {
@@ -1959,15 +2002,7 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
         }
       }
 
-      // ── 3. PARTIES (persons & organizations of interest)
-      if (want('parties') && input.entities.length) {
-        beginSection(doc, 'Parties & entities');
-        body(doc, 'Reference profiles for the individuals and entities named in this matter. Any reference image assists identification only and is not a biometric determination.');
-        gap(doc, 14);
-        for (const ent of input.entities) drawEntityCard(doc, ent);
-      }
-
-      // ── 4. LOCATIONS (map of everywhere the evidence resolves to)
+      // ── 3. LOCATIONS (map of everywhere the evidence resolves to)
       if (want('locations') && input.caseMap?.image) {
         beginSection(doc, 'Locations of interest');
         body(doc, `Every location resolved from the catalogued evidence, plotted below. ${input.caseMap.count} location${input.caseMap.count === 1 ? '' : 's'} mapped. Coordinates are derived from embedded file GPS or from places named in the content, and are provided for orientation only.`);
@@ -2070,7 +2105,17 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
         body(doc, input.narrative.conclusion);
       }
 
-      // ── 7. CERTIFICATION & AUTHENTICATION (closing attestation). Placed last,
+      // ── 7. PARTIES (persons & organizations of interest). Placed as the last
+      //    content section — a reference "cast of characters" a reader consults
+      //    after the record, rather than an interruption near the front.
+      if (want('parties') && input.entities.length) {
+        beginSection(doc, 'Parties & entities');
+        body(doc, 'Reference profiles for the individuals and entities named in this matter. Any reference image assists identification only and is not a biometric determination.');
+        gap(doc, 14);
+        for (const ent of input.entities) drawEntityCard(doc, ent);
+      }
+
+      // ── 8. CERTIFICATION & AUTHENTICATION (closing attestation). Placed last,
       //    where a certification belongs. Also carries the required "counsel
       //    case-management software" note and the confidentiality line, so the
       //    document has ONE clean closing section instead of two overlapping
