@@ -128,7 +128,11 @@ export async function GET(
     );
   }
 
-  const bundle = await getFirmTimelineBundle(firmId, params.id);
+  // Include off-timeline evidence: an approach packet must contain every
+  // exhibit the approach CITES, even ones that live in the intake but were
+  // never pinned to the timeline (otherwise cited PDFs/spreadsheets silently
+  // drop out of the packet).
+  const bundle = await getFirmTimelineBundle(firmId, params.id, { includeOffTimeline: true });
 
   // ── Select ONLY the evidence this approach marshals: items whose exhibit
   //    label was cited, plus a title match for items the model referenced by

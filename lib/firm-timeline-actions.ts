@@ -116,9 +116,15 @@ function revalidateFirm(caseId: string) {
 }
 
 // ── Load the whole bundle (events + people + narrative) ───────────────────
+// By default only events flagged on_timeline are returned (the timeline view).
+// Pass { includeOffTimeline: true } to also return evidence that lives in the
+// intake but is NOT pinned to the timeline — used by the approach packet
+// export, which must include every exhibit the approach CITES regardless of
+// whether it was placed on the timeline.
 export async function getFirmTimelineBundle(
   firmId: string,
   caseId: string,
+  opts?: { includeOffTimeline?: boolean },
 ): Promise<TimelineBundle> {
   const gate = await assertFirmCase(firmId, caseId);
   if (!gate.ok) {
@@ -140,8 +146,9 @@ export async function getFirmTimelineBundle(
   // Everything else stays in the evidence intake. Legacy rows with no flag are
   // treated as on the timeline so existing cases are not emptied (see
   // isOnTimeline).
+  const mappedEvents = (ev ?? []).map((r) => toEvent(r as EventRow));
   const events = sortTimeline(
-    (ev ?? []).map((r) => toEvent(r as EventRow)).filter(isOnTimeline),
+    opts?.includeOffTimeline ? mappedEvents : mappedEvents.filter(isOnTimeline),
   );
   const people = (pl ?? []).map((r) => toPerson(r as PersonRow));
   const narrative = nr
