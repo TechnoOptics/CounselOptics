@@ -1560,8 +1560,7 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
             .text(t.title || '(event)', MARGIN, doc.y, { width: CONTENT_WIDTH });
           if (t.significance) {
             gap(doc, 1);
-            doc.font('Helvetica').fontSize(9.5).fillColor(COLOR.inkSoft)
-              .text(t.significance, MARGIN, doc.y, { width: CONTENT_WIDTH });
+            body(doc, t.significance);
           }
           gap(doc, 9);
         }
@@ -1576,10 +1575,7 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
       // ── PERSONS & ORGANIZATIONS OF INTEREST
       if (input.entities.length) {
         beginSection(doc, 'Persons & organizations of interest');
-        doc.font('Helvetica').fontSize(9.5).fillColor(COLOR.muted).text(
-          'Reference profiles for the individuals and entities catalogued in this matter. Reference images assist identification and are NOT a biometric determination.',
-          MARGIN, doc.y, { width: CONTENT_WIDTH },
-        );
+        body(doc, 'Reference profiles for the individuals and entities catalogued in this matter. Reference images assist identification and are NOT a biometric determination.');
         gap(doc, 12);
         for (const ent of input.entities) drawEntityCard(doc, ent);
       }
@@ -1587,10 +1583,7 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
       // ── LOCATIONS (themed map of everywhere the evidence pings)
       if (input.caseMap?.image) {
         beginSection(doc, 'Locations of interest');
-        doc.font('Helvetica').fontSize(9.5).fillColor(COLOR.muted).text(
-          `Every location resolved from the catalogued evidence, plotted below. ${input.caseMap.count} location${input.caseMap.count === 1 ? '' : 's'} mapped. Coordinates are derived from embedded file GPS or from places named in the content, and are provided for orientation only.`,
-          MARGIN, doc.y, { width: CONTENT_WIDTH },
-        );
+        body(doc, `Every location resolved from the catalogued evidence, plotted below. ${input.caseMap.count} location${input.caseMap.count === 1 ? '' : 's'} mapped. Coordinates are derived from embedded file GPS or from places named in the content, and are provided for orientation only.`);
         gap(doc, 12);
         try {
           const im = (doc as unknown as { openImage(src: Buffer): { width: number; height: number } }).openImage(input.caseMap.image);
@@ -1638,8 +1631,7 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
           doc.font('Helvetica-Bold').fontSize(8).fillColor(COLOR.muted)
             .text('SUMMARY', MARGIN, doc.y, { characterSpacing: 1.4 });
           gap(doc, 2);
-          doc.font('Helvetica').fontSize(10).fillColor(COLOR.inkSoft)
-            .text(e.summary, MARGIN, doc.y, { width: CONTENT_WIDTH });
+          body(doc, e.summary);
         }
         // Embedded evidence images + authentication captions.
         if (e.exhibits.some((x) => x.image)) {
@@ -1704,10 +1696,7 @@ function drawExhibitColophon(doc: Doc, preparedBy: string | null) {
   doc.font('Helvetica-Bold').fontSize(9).fillColor(COLOR.ink)
     .text('ABOUT THIS DOCUMENT', MARGIN, doc.y, { characterSpacing: 1.4 });
   gap(doc, 6);
-  doc.font('Helvetica').fontSize(9.5).fillColor(COLOR.inkSoft).text(
-    'This document is confidential attorney work product, compiled from the materials submitted in connection with the above matter and prepared using counsel case-management software. Each exhibit is identified by its original filename and a SHA-256 cryptographic digest recorded at intake, and every page carries a unique Bates-style identifier.',
-    MARGIN, doc.y, { width: CONTENT_WIDTH, lineGap: 2 },
-  );
+  body(doc, 'This document is confidential attorney work product, compiled from the materials submitted in connection with the above matter and prepared using counsel case-management software. Each exhibit is identified by its original filename and a SHA-256 cryptographic digest recorded at intake, and every page carries a unique Bates-style identifier.');
   gap(doc, 10);
   const line = preparedBy
     ? `Prepared exclusively for ${preparedBy}. Confidential — not for distribution.`
