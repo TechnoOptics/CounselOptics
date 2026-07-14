@@ -1643,6 +1643,11 @@ async function finalizeExhibit(
   pdfkitBuffer: Buffer,
   inserts: { afterPage: number; name: string; label: string; buf: Buffer }[],
   caseTitle: string,
+  index?: {
+    refs: { itemIndex: number; page: number; topY: number }[];
+    itemPages: Map<number, number>;
+    colRight: number;
+  },
 ): Promise<Buffer> {
   let out: PdfLibDoc;
   try {
@@ -1650,6 +1655,11 @@ async function finalizeExhibit(
   } catch {
     return pdfkitBuffer;
   }
+
+  // One entry per interleaved PDF page, holding the pdfkit page it was inserted
+  // after. Lets us map an item's pdfkit page → its final (post-splice) page for
+  // the Index of exhibits references.
+  const insertOffsets: number[] = [];
 
   // Interleave, ascending by target position. Each page inserted before a later
   // target shifts that target's index, so we track a running offset.
@@ -1690,6 +1700,7 @@ async function finalizeExhibit(
         const y = PAGE_HEIGHT - TOP_RESERVE - h; // top-aligned under the top margin
         page.drawPage(emb, { x, y, width: w, height: h });
         page.drawRectangle({ x, y, width: w, height: h, borderColor: rgb(0.85, 0.85, 0.87), borderWidth: 0.5 });
+        insertOffsets.push(ins.afterPage);
         at += 1;
         insertedSoFar += 1;
       }
@@ -1727,6 +1738,29 @@ async function finalizeExhibit(
         // A malformed page geometry shouldn't abort the whole export.
       }
     });
+
+    // Stamp the resolved Bates page onto each Index of exhibits row. An item's
+    // final page = its pdfkit page + the count of PDF pages spliced in BEFORE
+    // it. Index rows are front matter (before any item), so their own page is
+    // unshifted — ref.page is already the final page they live on.
+    if (index?.refs.length) {
+      const finalPageOf = (p: number) => p + insertOffsets.filter((a) => a < p).length;
+      const size = 8.5;
+      const ascent = size * 0.72; // top-anchored pdfkit y → pdf-lib baseline
+      for (const ref of index.refs) {
+        try {
+          const itemPage = index.itemPages.get(ref.itemIndex);
+          if (itemPage == null) continue;
+          const page = out.getPage(ref.page - 1);
+          const bates = batesLabel(finalPageOf(itemPage));
+          const w = fontBold.widthOfTextAtSize(bates, size);
+          const yy = page.getSize().height - ref.topY - ascent;
+          page.drawText(bates, { x: index.colRight - w, y: yy, size, font: fontBold, color: ink });
+        } catch {
+          // Skip a single unresolved row rather than abort the index.
+        }
+      }
+    }
   } catch {
     // Font embed failed — return the merged (unstamped) document rather than nothing.
   }
@@ -1770,10 +1804,17 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
       // on, then finalizeExhibit() splices the PDF's pages in at that position
       // and stamps a continuous footer across the whole document.
       const pdfInserts: { afterPage: number; name: string; label: string; buf: Buffer }[] = [];
+      // Index of exhibits: rows drawn during layout with the PAGE cell left
+      // blank; the resolved Bates page is stamped onto each row in the same
+      // post-pass that numbers the footers (final pages aren't known until the
+      // PDF interleave is done). `itemPages` maps item index → its pdfkit page.
+      const indexRefs: { itemIndex: number; page: number; topY: number }[] = [];
+      const itemPages = new Map<number, number>();
+      const indexPageColRight = PAGE_WIDTH - MARGIN;
       doc.on('data', (c: Buffer) => chunks.push(c));
       doc.on('end', () => {
         const base = Buffer.concat(chunks);
-        finalizeExhibit(base, pdfInserts, input.caseTitle)
+        finalizeExhibit(base, pdfInserts, input.caseTitle, { refs: indexRefs, itemPages, colRight: indexPageColRight })
           .then(resolve)
           .catch(() => resolve(base)); // fail-safe: still return the exhibit
       });
@@ -1845,10 +1886,47 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
       }
 
       // The exhibit reads as one planned document, front to back:
-      //   Cover → Overview → Timeline → Parties → Locations → detailed
-      //   Record of exhibits → Conclusion → Certification. Each major section
-      //   begins on its own page (beginSection), so the flow never runs two
-      //   unrelated blocks together on a single sheet.
+      //   Cover → Index of exhibits → Overview → Timeline → Parties → Locations
+      //   → detailed Record of exhibits → Conclusion → Certification. Each major
+      //   section begins on its own page (beginSection).
+
+      // ── INDEX OF EXHIBITS (front matter for quick referencing). Each item is
+      //   listed with its date, description, and the page it appears on. The
+      //   PAGE cell is left blank here and stamped with the resolved Bates page
+      //   in finalizeExhibit (final pages aren't known until PDF interleave).
+      if (want('exhibits') && input.entries.length) {
+        beginSection(doc, 'Index of exhibits');
+        body(doc, 'Every catalogued item and the page on which it appears in this exhibit.');
+        gap(doc, 12);
+        const IROW = 16;
+        const ITEM_X = MARGIN;
+        const DATE_X = MARGIN + 46;
+        const DESC_X = MARGIN + 150;
+        const PAGE_LABEL_X = PAGE_WIDTH - MARGIN - 66;
+        const descW = PAGE_LABEL_X - DESC_X - 8;
+        let ry = doc.y;
+        const idxRow = (num: string, date: string, desc: string, head: boolean): number => {
+          if (ry + IROW > BOTTOM) { doc.addPage(); ry = doc.y; }
+          doc.font(head ? 'Helvetica-Bold' : 'Helvetica').fontSize(head ? 8 : 8.5)
+            .fillColor(head ? COLOR.muted : COLOR.ink);
+          const one = { height: 11, lineBreak: false as const, ellipsis: true as const };
+          doc.text(num, ITEM_X, ry + 3, { width: DATE_X - ITEM_X - 4, ...one, characterSpacing: head ? 1 : 0 });
+          doc.text(date, DATE_X, ry + 3, { width: DESC_X - DATE_X - 6, ...one, characterSpacing: head ? 1 : 0 });
+          doc.text(desc.length > 96 ? desc.slice(0, 95) + '…' : desc, DESC_X, ry + 3, { width: descW, ...one, characterSpacing: head ? 1 : 0 });
+          if (head) doc.text('PAGE', PAGE_LABEL_X, ry + 3, { width: 66, align: 'right', lineBreak: false, characterSpacing: 1 });
+          doc.save().strokeColor(COLOR.rule).lineWidth(0.3)
+            .moveTo(MARGIN, ry + IROW).lineTo(PAGE_WIDTH - MARGIN, ry + IROW).stroke().restore();
+          const rowTop = ry + 3;
+          ry += IROW;
+          return rowTop;
+        };
+        idxRow('ITEM', 'DATE', 'DESCRIPTION', true);
+        for (const e of input.entries) {
+          const topY = idxRow(String(e.index), e.when, e.title || '(untitled item)', false);
+          indexRefs.push({ itemIndex: e.index, page: pageCount, topY });
+        }
+        doc.y = ry + 4;
+      }
 
       // ── 1. OVERVIEW (narrative summary opens the document, court-ready)
       if (want('overview') && (input.narrative?.summary || input.narrative?.narrative)) {
@@ -1924,6 +2002,7 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
         // One item per page: each entry starts on its own fresh page so the
         // record reads as a clean, uniform sequence of exhibits.
         doc.addPage();
+        itemPages.set(e.index, pageCount); // for the Index of exhibits page refs
         // Item number + date.
         doc.font('Helvetica-Bold').fontSize(9).fillColor(COLOR.amber)
           .text(`ITEM ${e.index}  ·  ${e.when}`, MARGIN, doc.y, { characterSpacing: 0.8 });
