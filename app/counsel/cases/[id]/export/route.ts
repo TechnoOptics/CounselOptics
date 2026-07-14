@@ -6,9 +6,11 @@ import { createAdminSupabase } from '@/lib/supabase/admin';
 import { getFirmTimelineBundle } from '@/lib/firm-timeline-actions';
 import {
   generateTimelineExhibitPdf,
+  ALL_EXHIBIT_SECTIONS,
   type TimelineExhibitData,
   type ExhibitFile,
   type ExhibitEntity,
+  type ExhibitSectionKey,
 } from '@/lib/pdf';
 import { formatOccurred, KIND_LABEL, ROLE_LABEL, relevanceBand, type TimelineMedia } from '@/lib/timeline-types';
 import { parseExhibitSheet } from '@/lib/exhibit-sheet';
@@ -105,6 +107,18 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   const url = new URL(req.url);
   const raw = url.searchParams.get('ids');
   const includeAll = url.searchParams.get('all') === '1';
+
+  // Section selection: ?section=timeline (or a comma list). Omitted ⇒ full
+  // packet. Only the requested sections render, and we skip the heavy work
+  // (file downloads, avatar photos, the map fetch) for sections left out.
+  const sectionRaw = url.searchParams.get('section') || url.searchParams.get('sections');
+  const known = new Set<string>(ALL_EXHIBIT_SECTIONS);
+  const sections: ExhibitSectionKey[] | null = sectionRaw
+    ? (sectionRaw.split(',').map((s) => s.trim().toLowerCase()).filter((s) => known.has(s)) as ExhibitSectionKey[])
+    : null;
+  const wantExhibits = !sections || sections.includes('exhibits');
+  const wantParties = !sections || sections.includes('parties');
+  const wantLocations = !sections || sections.includes('locations');
   const selected = raw
     ? new Set(raw.split(',').map((s) => s.trim()).filter(Boolean))
     : null;
@@ -180,9 +194,10 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 
   const peopleById = new Map(bundle.people.map((p) => [p.id, p.displayName]));
 
-  // ── Persons of interest: only those who appear in the chosen items.
+  // ── Persons of interest: only those who appear in the chosen items. Skipped
+  //    entirely (no avatar downloads) when the Parties section isn't exported.
   const chosenPersonIds = new Set(chosen.flatMap((e) => e.people));
-  const personEntities: ExhibitEntity[] = await Promise.all(
+  const personEntities: ExhibitEntity[] = !wantParties ? [] : await Promise.all(
     bundle.people
       .filter((p) => chosenPersonIds.has(p.id))
       .map(async (p) => ({
@@ -211,7 +226,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       else orgMap.set(key, { name, count: 1 });
     }
   }
-  const orgEntities: ExhibitEntity[] = [...orgMap.values()]
+  const orgEntities: ExhibitEntity[] = (!wantParties ? [] : [...orgMap.values()])
     .sort((a, b) => b.count - a.count)
     .slice(0, 12)
     .map((o) => ({
@@ -229,7 +244,10 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   const entries: TimelineExhibitData['entries'] = [];
   for (let i = 0; i < chosen.length; i++) {
     const e = chosen[i];
-    const exhibits = await Promise.all(e.media.map(loadExhibit));
+    // Only download + hash the files when the Record of exhibits is exported;
+    // otherwise the entry is metadata-only (still used for cover/certification
+    // counts).
+    const exhibits = wantExhibits ? await Promise.all(e.media.map(loadExhibit)) : [];
     entries.push({
       index: i + 1,
       when: formatOccurred(e.occurredAt, e.occurredPrecision),
@@ -247,7 +265,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   // ── Case map: a themed static image of every geocoded location across the
   //    chosen items, framed to the pinged area. Gated on the Maps key.
   let caseMap: TimelineExhibitData['caseMap'] = null;
-  const allPoints = chosen.flatMap((e) => e.aiExtracted.geo_points ?? []);
+  const allPoints = wantLocations ? chosen.flatMap((e) => e.aiExtracted.geo_points ?? []) : [];
   if (allPoints.length) {
     const seen = new Set<string>();
     const uniq = allPoints.filter((p) => {
@@ -287,10 +305,12 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       : null,
     entities: [...personEntities, ...orgEntities],
     entries,
+    sections,
   };
 
   const pdf = await generateTimelineExhibitPdf(data);
-  const filename = `${c.title.replace(/[^a-z0-9]+/gi, '-').slice(0, 60) || 'case'}-timeline-exhibit.pdf`;
+  const scopeSlug = sections && sections.length === 1 ? `-${sections[0]}` : '';
+  const filename = `${c.title.replace(/[^a-z0-9]+/gi, '-').slice(0, 60) || 'case'}${scopeSlug}-exhibit.pdf`;
 
   return new NextResponse(new Uint8Array(pdf), {
     status: 200,

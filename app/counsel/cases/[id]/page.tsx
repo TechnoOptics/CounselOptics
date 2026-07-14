@@ -17,7 +17,8 @@ import { MatterChatPanel } from './matter-chat-panel';
 import { CaseInvitePanel } from './case-invite-panel';
 import { LinkedProjectsPanel } from './linked-projects-panel';
 import { MatterFacts } from './matter-facts';
-import { TimelineIcon, EvidenceIcon, PacketIcon, ApproachIcon } from '@/components/counsel/CaseSectionIcons';
+import { TimelineIcon, EvidenceIcon, ApproachIcon } from '@/components/counsel/CaseSectionIcons';
+import { ExportMenu } from '@/components/counsel/ExportMenu';
 import { EditMatterForm } from './edit-matter-form';
 import { listCaseImages } from '@/lib/case-images-actions';
 import { CaseImagesPanel } from './case-images-panel';
@@ -550,15 +551,10 @@ export default async function CounselCaseDetailPage({
           </span>
           <span className="text-[13px] font-semibold"><T>Case approach</T></span>
         </a>
-        <a
-          href={`/counsel/cases/${params.id}/export`}
-          className="group flex items-center justify-center gap-2.5 rounded-lg px-4 py-3 ring-1 ring-transparent text-forest-900 dark:text-cream-100 hover:bg-white dark:hover:bg-forest-800/60 hover:ring-gold-500/60 hover:shadow-sm transition-all"
-        >
-          <span className="grid h-8 w-8 place-items-center rounded-lg bg-gold-500/10 text-gold-600 ring-1 ring-gold-500/20 transition-colors group-hover:bg-gold-500/20 group-hover:text-gold-500 dark:text-gold-400/90">
-            <PacketIcon />
-          </span>
-          <span className="text-[13px] font-semibold"><T>Court packet</T></span>
-        </a>
+        <ExportMenu
+          caseId={params.id}
+          approaches={approaches.map((a) => ({ id: a.id, title: a.title }))}
+        />
       </nav>
 
       {/* Evidence dashboard - a live, at-a-glance analytics read over the

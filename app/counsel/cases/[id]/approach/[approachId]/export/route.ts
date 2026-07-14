@@ -6,9 +6,11 @@ import { createAdminSupabase } from '@/lib/supabase/admin';
 import { getFirmTimelineBundle } from '@/lib/firm-timeline-actions';
 import {
   generateTimelineExhibitPdf,
+  ALL_EXHIBIT_SECTIONS,
   type TimelineExhibitData,
   type ExhibitFile,
   type ExhibitEntity,
+  type ExhibitSectionKey,
 } from '@/lib/pdf';
 import type { ApproachArgument } from '@/lib/approach-ai';
 import { parseExhibitSheet } from '@/lib/exhibit-sheet';
@@ -153,6 +155,17 @@ export async function GET(
     .eq('id', user.id)
     .maybeSingle();
 
+  // Section selection: ?section=timeline (or a comma list). Omitted ⇒ the full
+  // approach packet. Skip the heavy work for omitted sections.
+  const url = new URL(req.url);
+  const sectionRaw = url.searchParams.get('section') || url.searchParams.get('sections');
+  const known = new Set<string>(ALL_EXHIBIT_SECTIONS);
+  const sections: ExhibitSectionKey[] | null = sectionRaw
+    ? (sectionRaw.split(',').map((s) => s.trim().toLowerCase()).filter((s) => known.has(s)) as ExhibitSectionKey[])
+    : null;
+  const wantExhibits = !sections || sections.includes('exhibits');
+  const wantParties = !sections || sections.includes('parties');
+
   let downloads = 0;
 
   async function loadExhibit(m: TimelineMedia): Promise<ExhibitFile> {
@@ -202,7 +215,7 @@ export async function GET(
   const peopleById = new Map(bundle.people.map((p) => [p.id, p.displayName]));
 
   const chosenPersonIds = new Set(chosen.flatMap((e) => e.people));
-  const personEntities: ExhibitEntity[] = await Promise.all(
+  const personEntities: ExhibitEntity[] = !wantParties ? [] : await Promise.all(
     bundle.people
       .filter((p) => chosenPersonIds.has(p.id))
       .map(async (p) => ({
@@ -227,7 +240,7 @@ export async function GET(
       else orgMap.set(key, { name, count: 1 });
     }
   }
-  const orgEntities: ExhibitEntity[] = [...orgMap.values()]
+  const orgEntities: ExhibitEntity[] = (!wantParties ? [] : [...orgMap.values()])
     .sort((a, b) => b.count - a.count)
     .slice(0, 12)
     .map((o) => ({
@@ -243,7 +256,7 @@ export async function GET(
   const entries: TimelineExhibitData['entries'] = [];
   for (let i = 0; i < chosen.length; i++) {
     const e = chosen[i];
-    const exhibits = await Promise.all(e.media.map(loadExhibit));
+    const exhibits = wantExhibits ? await Promise.all(e.media.map(loadExhibit)) : [];
     entries.push({
       index: i + 1,
       when: formatOccurred(e.occurredAt, e.occurredPrecision),
@@ -274,11 +287,13 @@ export async function GET(
       .map((t) => ({ when: t.when ?? '', title: t.title ?? '', significance: t.significance ?? null })),
     entities: [...personEntities, ...orgEntities],
     entries,
+    sections,
   };
 
   const pdf = await generateTimelineExhibitPdf(data);
   const slug = (s: string) => s.replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').slice(0, 50);
-  const filename = `${slug(c.title) || 'matter'}-approach-${slug(approach.title) || 'packet'}.pdf`;
+  const scopeSlug = sections && sections.length === 1 ? `-${sections[0]}` : '';
+  const filename = `${slug(c.title) || 'matter'}-approach-${slug(approach.title) || 'packet'}${scopeSlug}.pdf`;
 
   return new NextResponse(new Uint8Array(pdf), {
     status: 200,

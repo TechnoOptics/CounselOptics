@@ -1336,12 +1336,41 @@ export type ExhibitEntity = {
   appearances: number;
 };
 
+/** A selectable section of the exhibit. The cover and the closing
+ *  Certification always render; everything else can be included or omitted so
+ *  the user can export a single section (e.g. just the timeline, or just the
+ *  exhibits) instead of the whole packet. */
+export type ExhibitSectionKey =
+  | 'overview'
+  | 'timeline'
+  | 'parties'
+  | 'locations'
+  | 'exhibits'
+  | 'conclusion';
+
+export const ALL_EXHIBIT_SECTIONS: ExhibitSectionKey[] = [
+  'overview', 'timeline', 'parties', 'locations', 'exhibits', 'conclusion',
+];
+
+/** Human labels for the cover's scope line + the export menu. */
+export const EXHIBIT_SECTION_LABEL: Record<ExhibitSectionKey, string> = {
+  overview: 'Case summary',
+  timeline: 'Timeline of events',
+  parties: 'Parties & entities',
+  locations: 'Locations of interest',
+  exhibits: 'Record of exhibits',
+  conclusion: 'Conclusion',
+};
+
 export type TimelineExhibitData = {
   caseTitle: string;
   caseRef: string | null;
   subjectName: string | null;
   preparedBy: string | null;
   generatedAt: string; // ISO
+  /** Which sections to include. Omitted/empty ⇒ the full packet. The cover and
+   *  the closing Certification always render regardless. */
+  sections?: ExhibitSectionKey[] | null;
   narrative: { summary: string | null; narrative: string | null; conclusion: string | null } | null;
   /** A structured, court-facing timeline shown up front (e.g. an approach's
    *  supporting timeline). Rendered as a visible "Timeline of events" section
@@ -1696,6 +1725,17 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
       let pageCount = 1; // page 1 already exists (autoFirstPage)
       doc.on('pageAdded', () => { pageCount += 1; });
 
+      // Section selection: omitted/empty ⇒ full packet. The cover + closing
+      // Certification always render. `scopeLabel` names the scope on the cover
+      // when the user exported a subset.
+      const picked = input.sections && input.sections.length ? input.sections : null;
+      const want = (k: ExhibitSectionKey) => !picked || picked.includes(k);
+      const scopeLabel = picked
+        ? picked.length === 1
+          ? EXHIBIT_SECTION_LABEL[picked[0]]
+          : picked.map((k) => EXHIBIT_SECTION_LABEL[k]).join('  ·  ')
+        : null;
+
       // ── COVER
       if (logoBuffer) { try { doc.image(logoBuffer, MARGIN, MARGIN, { width: 34 }); } catch { /* ignore */ } }
       doc.y = MARGIN + 64;
@@ -1718,6 +1758,16 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
         'A factual chronology of the materials catalogued in connection with this matter. Each exhibit is authenticated by a SHA-256 digest recorded at intake, and every page carries a unique Bates-style identifier.',
         MARGIN, doc.y, { width: CONTENT_WIDTH },
       );
+      // When a subset was exported, name the scope on the cover so the reader
+      // knows this is one section of the matter, not the whole packet.
+      if (scopeLabel) {
+        gap(doc, 14);
+        doc.font('Helvetica-Bold').fontSize(8).fillColor(COLOR.muted)
+          .text('SCOPE OF THIS EXPORT', MARGIN, doc.y, { characterSpacing: 1.6 });
+        gap(doc, 3);
+        doc.font('Helvetica-Bold').fontSize(12).fillColor(COLOR.amber)
+          .text(scopeLabel, MARGIN, doc.y, { width: CONTENT_WIDTH });
+      }
       // Branded confidentiality band, anchored toward the foot of the cover so
       // the page reads as a finished, premium work-product cover rather than a
       // half-empty sheet. Gold accent rule + firm attribution + status line.
@@ -1741,7 +1791,7 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
       //   unrelated blocks together on a single sheet.
 
       // ── 1. OVERVIEW (narrative summary opens the document, court-ready)
-      if (input.narrative?.summary || input.narrative?.narrative) {
+      if (want('overview') && (input.narrative?.summary || input.narrative?.narrative)) {
         beginSection(doc, 'Overview');
         if (input.narrative.summary) body(doc, input.narrative.summary);
         if (input.narrative.narrative) {
@@ -1752,7 +1802,7 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
       }
 
       // ── 2. TIMELINE OF EVENTS (structured, at-a-glance chronology)
-      if (input.narrativeTimeline && input.narrativeTimeline.length) {
+      if (want('timeline') && input.narrativeTimeline && input.narrativeTimeline.length) {
         beginSection(doc, 'Timeline of events');
         body(doc, 'A chronological overview of the key events in this matter. The full supporting record for each event appears in the Record of exhibits that follows.');
         gap(doc, 14);
@@ -1772,7 +1822,7 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
       }
 
       // ── 3. PARTIES (persons & organizations of interest)
-      if (input.entities.length) {
+      if (want('parties') && input.entities.length) {
         beginSection(doc, 'Parties & entities');
         body(doc, 'Reference profiles for the individuals and entities named in this matter. Any reference image assists identification only and is not a biometric determination.');
         gap(doc, 14);
@@ -1780,7 +1830,7 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
       }
 
       // ── 4. LOCATIONS (map of everywhere the evidence resolves to)
-      if (input.caseMap?.image) {
+      if (want('locations') && input.caseMap?.image) {
         beginSection(doc, 'Locations of interest');
         body(doc, `Every location resolved from the catalogued evidence, plotted below. ${input.caseMap.count} location${input.caseMap.count === 1 ? '' : 's'} mapped. Coordinates are derived from embedded file GPS or from places named in the content, and are provided for orientation only.`);
         gap(doc, 14);
@@ -1806,6 +1856,7 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
 
       // ── 5. RECORD OF EXHIBITS (the detailed, dated record — one item per page,
       //    with embedded evidence images and authenticated attachment cards)
+      if (want('exhibits')) {
       beginSection(doc, 'Record of exhibits');
       body(doc, 'The dated record of every catalogued item. Each item is numbered, its supporting files are embedded or reproduced, and every file carries a SHA-256 digest recorded at intake.');
       gap(doc, 6);
@@ -1872,9 +1923,10 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
           }
         }
       }
+      } // end want('exhibits')
 
       // ── 6. CONCLUSION
-      if (input.narrative?.conclusion) {
+      if (want('conclusion') && input.narrative?.conclusion) {
         beginSection(doc, 'Conclusion');
         body(doc, input.narrative.conclusion);
       }
