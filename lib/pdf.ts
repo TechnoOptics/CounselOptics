@@ -1,5 +1,5 @@
 import PDFDocument from 'pdfkit';
-import { PDFDocument as PdfLibDoc, type PDFPage } from 'pdf-lib';
+import { PDFDocument as PdfLibDoc, StandardFonts, rgb, type PDFPage } from 'pdf-lib';
 import path from 'node:path';
 import { promises as fs } from 'node:fs';
 import type {
@@ -1511,6 +1511,7 @@ function drawAttachmentCard(doc: Doc, ex: ExhibitFile, reproducedInFull: boolean
 async function appendPdfAttachments(
   pdfkitBuffer: Buffer,
   attachments: { label: string; name: string; buf: Buffer }[],
+  caseTitle: string,
 ): Promise<Buffer> {
   if (!attachments.length) return pdfkitBuffer;
   let out: PdfLibDoc;
@@ -1519,6 +1520,20 @@ async function appendPdfAttachments(
   } catch {
     return pdfkitBuffer;
   }
+  // Continue the exhibit's running page number and Bates sequence onto the
+  // appended pages, so a reader can cite any page uniformly. pdfkit already
+  // stamped pages 1..N; the first appended page is N+1.
+  const startPage = out.getPageCount();
+  let font: Awaited<ReturnType<PdfLibDoc['embedFont']>> | null = null;
+  let fontBold: Awaited<ReturnType<PdfLibDoc['embedFont']>> | null = null;
+  try {
+    font = await out.embedFont(StandardFonts.Helvetica);
+    fontBold = await out.embedFont(StandardFonts.HelveticaBold);
+  } catch {
+    font = null;
+  }
+
+  const appended: PDFPage[] = [];
   for (const a of attachments) {
     if (out.getPageCount() >= MAX_PACKET_PAGES) break;
     try {
@@ -1531,11 +1546,48 @@ async function appendPdfAttachments(
       }
       if (!idxs.length) continue;
       const copied = await out.copyPages(src, idxs);
-      for (const p of copied) out.addPage(p);
+      for (const p of copied) {
+        out.addPage(p);
+        appended.push(p);
+      }
     } catch {
       // Encrypted / corrupt PDF — skip; it's already carded and referenced.
     }
   }
+
+  // Stamp the same page-number / matter / Bates footer that the exhibit body
+  // carries onto every appended page (best-effort; skip on font failure).
+  if (font && fontBold) {
+    const muted = rgb(0.44, 0.44, 0.47);
+    const ink = rgb(0.094, 0.094, 0.106);
+    const ruleC = rgb(0.894, 0.894, 0.906);
+    const title = truncate(caseTitle, 40);
+    appended.forEach((page, i) => {
+      try {
+        const { width } = page.getSize();
+        const pageNo = startPage + i + 1;
+        const bates = batesLabel(pageNo);
+        const y = 22;
+        // Soften the band behind the footer so it stays legible over dense
+        // page content, without fully erasing anything beneath it.
+        page.drawRectangle({ x: 0, y: 0, width, height: 30, color: rgb(1, 1, 1), opacity: 0.72 });
+        page.drawLine({
+          start: { x: MARGIN, y: y + 12 },
+          end: { x: width - MARGIN, y: y + 12 },
+          thickness: 0.5,
+          color: ruleC,
+        });
+        page.drawText(`Page ${pageNo}`, { x: MARGIN, y, size: 8, font: font!, color: muted });
+        const tW = font!.widthOfTextAtSize(title, 8);
+        page.drawText(title, { x: (width - tW) / 2, y, size: 8, font: font!, color: muted });
+        const bW = fontBold!.widthOfTextAtSize(bates, 8);
+        page.drawText(bates, { x: width - MARGIN - bW, y, size: 8, font: fontBold!, color: ink });
+      } catch {
+        // A malformed page geometry shouldn't abort the whole export.
+      }
+    });
+  }
+
   try {
     return Buffer.from(await out.save());
   } catch {
@@ -1573,7 +1625,7 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
       doc.on('data', (c: Buffer) => chunks.push(c));
       doc.on('end', () => {
         const base = Buffer.concat(chunks);
-        appendPdfAttachments(base, pdfAttachments)
+        appendPdfAttachments(base, pdfAttachments, input.caseTitle)
           .then(resolve)
           .catch(() => resolve(base)); // fail-safe: still return the exhibit
       });
