@@ -126,15 +126,30 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const link = `${origin}/share/${token}`;
   const shownKey = formatKey(key);
 
-  // Email the recipient the link + key. Firm-branded sender name.
-  const email = await sendEmail({
+  // TWO separate emails by default: the link in one, the key in another. A
+  // single forwarded/leaked message then never contains both credentials.
+  const linkEmail = await sendEmail({
     to: recipientEmail,
     fromName: ctx.firm.name || undefined,
     subject: `${c.title} — secure document`,
     replyTo: user.email || undefined,
-    text: shareEmailText({ caseTitle: c.title, senderName, link, key: shownKey, expiresAt, note: body.note }),
-    html: shareEmailHtml({ caseTitle: c.title, senderName, firmName: ctx.firm.name || null, link, key: shownKey, expiresAt, note: body.note }),
+    text: linkEmailText({ caseTitle: c.title, senderName, link, expiresAt, note: body.note }),
+    html: linkEmailHtml({ caseTitle: c.title, senderName, firmName: ctx.firm.name || null, link, expiresAt, note: body.note }),
   });
+  const keyEmail = await sendEmail({
+    to: recipientEmail,
+    fromName: ctx.firm.name || undefined,
+    subject: `Your decryption key`,
+    replyTo: user.email || undefined,
+    text: keyEmailText({ caseTitle: c.title, key: shownKey }),
+    html: keyEmailHtml({ caseTitle: c.title, firmName: ctx.firm.name || null, key: shownKey }),
+  });
+  const emailSent = linkEmail.ok && keyEmail.ok;
+  const emailError = emailSent
+    ? null
+    : [!linkEmail.ok ? `link email: ${linkEmail.error}` : null, !keyEmail.ok ? `key email: ${keyEmail.error}` : null]
+        .filter(Boolean)
+        .join('; ');
 
   void logCaseActivity({ caseId: params.id, action: 'export', skipFirm: true });
 
@@ -143,8 +158,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     link,
     key: shownKey,
     recipientEmail,
-    emailSent: email.ok,
-    emailError: email.ok ? null : email.error,
+    emailSent,
+    emailError,
     expiresAt: expiresAt.toISOString(),
   });
 }
@@ -153,19 +168,19 @@ function fmtDate(d: Date): string {
   return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 }
 
-function shareEmailText(o: { caseTitle: string; senderName: string | null; link: string; key: string; expiresAt: Date; note?: string }): string {
+const esc = (s: string) => s.replace(/[&<>"]/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m] as string));
+
+function linkEmailText(o: { caseTitle: string; senderName: string | null; link: string; expiresAt: Date; note?: string }): string {
   return [
     `${o.senderName || 'A colleague'} has securely shared a document with you: ${o.caseTitle}.`,
     o.note ? `\nNote: ${o.note}` : '',
     `\nOpen it here:\n${o.link}`,
-    `\nYou will be asked for this key to unlock it:\n${o.key}`,
-    `\nThe document is encrypted; the key is required to open it. This link expires ${fmtDate(o.expiresAt)}.`,
-    `\nConfidential — please do not forward.`,
+    `\nThe document is encrypted. Your decryption key arrives in a separate email — you will need it to open the document.`,
+    `\nThis link expires ${fmtDate(o.expiresAt)}. Confidential — please do not forward.`,
   ].filter(Boolean).join('\n');
 }
 
-function shareEmailHtml(o: { caseTitle: string; senderName: string | null; firmName: string | null; link: string; key: string; expiresAt: Date; note?: string }): string {
-  const esc = (s: string) => s.replace(/[&<>"]/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m] as string));
+function linkEmailHtml(o: { caseTitle: string; senderName: string | null; firmName: string | null; link: string; expiresAt: Date; note?: string }): string {
   return `<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:520px;margin:0 auto;color:#18181b">
   <p style="font-size:15px;line-height:1.5">${esc(o.senderName || 'A colleague')} has securely shared a document with you.</p>
   <p style="font-size:15px;font-weight:600;margin:0 0 4px">${esc(o.caseTitle)}</p>
@@ -173,9 +188,27 @@ function shareEmailHtml(o: { caseTitle: string; senderName: string | null; firmN
   <p style="margin:22px 0">
     <a href="${esc(o.link)}" style="background:#0a0a0a;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-size:14px;font-weight:600;display:inline-block">Open the secure document</a>
   </p>
-  <p style="font-size:13px;color:#52525b;margin:0 0 6px">You will be asked for this key to unlock it:</p>
+  <p style="font-size:13px;color:#52525b;line-height:1.5">The document is encrypted. <strong>Your decryption key arrives in a separate email</strong> — you will need it to open the document.</p>
+  <p style="font-size:12px;color:#71717a;line-height:1.5;margin-top:18px">This secure link expires ${fmtDate(o.expiresAt)}. Confidential — please do not forward.</p>
+  ${o.firmName ? `<p style="font-size:12px;color:#a1a1aa;margin-top:16px">Sent via ${esc(o.firmName)} on Advottic.</p>` : ''}
+</div>`;
+}
+
+function keyEmailText(o: { caseTitle: string; key: string }): string {
+  return [
+    `Here is your decryption key for the secure document "${o.caseTitle}":`,
+    `\n${o.key}`,
+    `\nEnter it on the secure page from the previous email to unlock the document.`,
+    `Keep this key confidential and do not forward it.`,
+  ].join('\n');
+}
+
+function keyEmailHtml(o: { caseTitle: string; firmName: string | null; key: string }): string {
+  return `<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:520px;margin:0 auto;color:#18181b">
+  <p style="font-size:15px;line-height:1.5">Here is your decryption key for the secure document <strong>${esc(o.caseTitle)}</strong>:</p>
   <p style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:16px;font-weight:700;letter-spacing:1px;background:#f4f4f5;border:1px solid #e4e4e7;border-radius:8px;padding:12px 14px;text-align:center">${esc(o.key)}</p>
-  <p style="font-size:12px;color:#71717a;line-height:1.5;margin-top:18px">The document is encrypted and cannot be opened without this key. This secure link expires ${fmtDate(o.expiresAt)}. Confidential — please do not forward.</p>
+  <p style="font-size:13px;color:#52525b;line-height:1.5">Enter it on the secure page from the previous email to unlock the document.</p>
+  <p style="font-size:12px;color:#71717a;line-height:1.5;margin-top:18px">Keep this key confidential and do not forward it.</p>
   ${o.firmName ? `<p style="font-size:12px;color:#a1a1aa;margin-top:16px">Sent via ${esc(o.firmName)} on Advottic.</p>` : ''}
 </div>`;
 }
