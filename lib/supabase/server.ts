@@ -1,7 +1,20 @@
 import { createServerClient } from '@supabase/ssr';
-import type { User } from '@supabase/supabase-js';
+import { createClient, type User } from '@supabase/supabase-js';
 import { cookies, headers } from 'next/headers';
 import { cookieDomainForHost } from './cookie-domain';
+import { readActAs } from '../act-as';
+
+/**
+ * Build a user-scoped client authenticated as a specific user via a bearer
+ * access token (used by the HQ "act as" overlay). PostgREST requests carry the
+ * token, so RLS resolves auth.uid() to that user and returns their rows.
+ */
+function createBearerSupabase(url: string, anon: string, accessToken: string) {
+  return createClient(url, anon, {
+    global: { headers: { Authorization: `Bearer ${accessToken}` } },
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
 
 export function getSupabaseUrl(): string | undefined {
   return process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() || undefined;
@@ -15,13 +28,25 @@ export function isSupabaseConfigured(): boolean {
   return Boolean(getSupabaseUrl() && getSupabaseAnonKey());
 }
 
-export function createServerSupabase() {
+export function createServerSupabase(opts?: { real?: boolean }) {
   const url = getSupabaseUrl();
   const anon = getSupabaseAnonKey();
   if (!url || !anon) {
     throw new Error(
       'Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local.',
     );
+  }
+  // HQ "act as" overlay: when a valid overlay cookie is present, render this
+  // request AS the target user (bearer token) instead of the admin's own
+  // cookie session. `real: true` bypasses the overlay to reach the underlying
+  // admin session. Fails closed — any problem falls through to normal auth.
+  if (!opts?.real) {
+    try {
+      const actAs = readActAs();
+      if (actAs) return createBearerSupabase(url, anon, actAs.accessToken);
+    } catch {
+      /* ignore — behave exactly as the un-impersonated path */
+    }
   }
   const cookieStore = cookies();
   // Read the request host so cookie writes can promote Domain to
@@ -81,12 +106,35 @@ export type CurrentUserResult = { user: User | null } | { error: unknown };
  * signed-out visitor and softly retrying a transient failure. When a
  * plain null-or-user is enough, getCurrentUser() remains fine.
  */
-export async function getCurrentUserResult(): Promise<CurrentUserResult> {
+export async function getCurrentUserResult(
+  opts?: { real?: boolean },
+): Promise<CurrentUserResult> {
   // Not configured is a definitive "no session", not an error: there
   // is no auth on this deployment, so the visitor is signed out.
   if (!isSupabaseConfigured()) return { user: null };
+  // HQ "act as" overlay: resolve the TARGET user when a valid overlay cookie is
+  // present. Validating the target token here (getUser) means an expired/invalid
+  // overlay transparently falls back to the admin's real session below.
+  if (!opts?.real) {
+    try {
+      const actAs = readActAs();
+      if (actAs) {
+        const url = getSupabaseUrl();
+        const anon = getSupabaseAnonKey();
+        if (url && anon) {
+          const target = createBearerSupabase(url, anon, actAs.accessToken);
+          const {
+            data: { user },
+          } = await target.auth.getUser();
+          if (user) return { user };
+        }
+      }
+    } catch {
+      /* fall through to the real session — never break normal auth */
+    }
+  }
   try {
-    const supabase = createServerSupabase();
+    const supabase = createServerSupabase({ real: true });
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -123,6 +171,16 @@ export async function getCurrentUserResult(): Promise<CurrentUserResult> {
  */
 export async function getCurrentUser() {
   const result = await getCurrentUserResult();
+  return 'error' in result ? null : result.user;
+}
+
+/**
+ * The REAL signed-in user, ignoring any active "act as" overlay. Use when you
+ * must know who is actually operating the browser (the admin), not the target
+ * they are viewing as.
+ */
+export async function getRealCurrentUser(): Promise<User | null> {
+  const result = await getCurrentUserResult({ real: true });
   return 'error' in result ? null : result.user;
 }
 

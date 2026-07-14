@@ -33,6 +33,7 @@ import { NativeBackGesture } from '@/components/NativeBackGesture';
 import { WatchNoteInbox } from '@/components/WatchNoteInbox';
 import { DistressOverlay } from '@/components/DistressOverlay';
 import { ImpersonationBanner } from '@/components/ImpersonationBanner';
+import { readActAs } from '@/lib/act-as';
 import { NativeDeepLinkRouter } from '@/components/NativeDeepLinkRouter';
 import { BiometricSessionSync } from '@/components/BiometricSessionSync';
 import { DeviceFingerprintRecorder } from '@/components/DeviceFingerprintRecorder';
@@ -445,13 +446,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <SafeMount label="deeplink">
           <NativeDeepLinkRouter />
         </SafeMount>
-        {/* Impersonation warning. Sticky top banner, rendered on
-            every page (consumer + counsel + admin chrome) so an HQ
-            operator who's used "Sign in as user" cannot forget they
-            are acting as someone else. The component is a no-op
-            until the impersonating=1 query string is seen on first
-            load; after that it persists per-tab via sessionStorage. */}
-        {signedIn && <ImpersonationBanner targetEmail={userEmail} />}
+        {/* "Act as" warning. Sticky top banner, rendered on every page
+            (consumer + counsel + admin chrome) so an HQ operator viewing the
+            app as another user cannot forget it. Visibility is driven from the
+            server: readActAs() is non-null only while a valid act-as overlay
+            cookie is present for this request. */}
+        {signedIn && (
+          <ImpersonationBanner targetEmail={userEmail} active={readActAs() !== null} />
+        )}
         {/* Counsel mode renders its own header / sidebar / footer in
             app/counsel/layout.tsx and reuses none of the consumer
             chrome. Find counsel, Public defender, Billing, and the

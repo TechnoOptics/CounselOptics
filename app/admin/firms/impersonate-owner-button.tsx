@@ -63,7 +63,9 @@ export function ImpersonateOwnerButton({
         setErr(j.detail || j.error || `HTTP ${r.status}`);
         return;
       }
-      window.open(j.url, '_blank', 'noopener,noreferrer');
+      // Overlay is armed server-side; navigate this tab to the owner's
+      // workspace. The admin's own session stays intact (separate cookie).
+      window.location.assign(j.url);
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Network error.');
     } finally {
@@ -78,7 +80,7 @@ export function ImpersonateOwnerButton({
         onClick={go}
         disabled={pending}
         className="inline-flex items-center gap-1 text-[11px] font-medium text-forest-700 dark:text-gold-300 underline underline-offset-2 hover:text-gold-700 dark:hover:text-gold-200 disabled:opacity-60 disabled:cursor-not-allowed"
-        title="Open this firm's workspace as the firm's owner in a new tab. Audited."
+        title="View this firm's workspace as its owner (your admin session stays intact). Audited."
       >
         {pending ? 'Generating…' : 'View as owner →'}
       </button>

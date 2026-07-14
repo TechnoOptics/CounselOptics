@@ -146,10 +146,10 @@ function ImpersonateButton({ userId }: { userId: string }) {
         setErr(j.detail || j.error || `HTTP ${r.status}`);
         return;
       }
-      // Open in a NEW tab so the admin's own session in this tab
-      // stays signed in. The new tab's magic-link exchange will
-      // mint a fresh session bound to the target user.
-      window.open(j.url, '_blank', 'noopener,noreferrer');
+      // Navigate this tab to the target's workspace. The overlay is already
+      // armed server-side (a separate cookie); the admin's own session is
+      // untouched, and the red banner + "End" returns them to HQ.
+      window.location.assign(j.url);
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Network error.');
     } finally {
@@ -163,9 +163,9 @@ function ImpersonateButton({ userId }: { userId: string }) {
         onClick={go}
         disabled={pending}
         className="inline-flex items-center gap-1 text-[11px] font-medium text-forest-900 dark:text-gold-300 underline underline-offset-2 hover:text-gold-700 dark:hover:text-gold-200 disabled:opacity-60 disabled:cursor-not-allowed"
-        title="Open a one-hour magic-link sign-in for this user in a new tab. Audited."
+        title="View the app as this user (your admin session stays intact). Audited."
       >
-        {pending ? 'Generating…' : 'Sign in as →'}
+        {pending ? 'Starting…' : 'View as →'}
       </button>
       {err && (
         <p className="text-[10.5px] text-rose-700 dark:text-rose-300 leading-snug mt-0.5">
