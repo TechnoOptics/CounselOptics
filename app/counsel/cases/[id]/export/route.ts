@@ -11,6 +11,7 @@ import {
   type ExhibitEntity,
 } from '@/lib/pdf';
 import { formatOccurred, KIND_LABEL, ROLE_LABEL, relevanceBand, type TimelineMedia } from '@/lib/timeline-types';
+import { parseExhibitSheet } from '@/lib/exhibit-sheet';
 import { staticMapUrlServer } from '@/lib/maps';
 import { canonicalOrg } from '@/lib/entity-normalize';
 import { logCaseActivity } from '@/lib/case-activity-log';
@@ -150,12 +151,14 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       const buf = Buffer.from(await data.arrayBuffer());
       const sha256 = createHash('sha256').update(buf).digest('hex');
       const isPdf = buf.length > 4 && buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46;
+      const sheet = await parseExhibitSheet(buf, base.name, base.mime);
       return {
         ...base,
         sizeBytes: buf.length || base.sizeBytes,
         sha256,
         image: isJpegOrPng(buf) ? buf : null,
         pdf: isPdf ? buf : null,
+        sheet,
       };
     } catch {
       return { ...base, sha256: '(file unavailable)' };

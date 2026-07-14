@@ -1298,6 +1298,15 @@ function drawWitnessSubmission(
 // ===========================================================================
 
 /** One catalogued file, authenticated by a SHA-256 digest computed at intake. */
+/** A compact preview of a spreadsheet's first populated worksheet, parsed at
+ *  export time so its contents can be rendered as a table in the exhibit. */
+export type ExhibitSheet = {
+  name: string;
+  rows: string[][]; // first row is treated as the header
+  totalRows: number;
+  totalCols: number;
+};
+
 export type ExhibitFile = {
   name: string;
   mime: string;
@@ -1306,9 +1315,12 @@ export type ExhibitFile = {
   /** Embeddable JPEG/PNG bytes, or null for non-image / unsupported media. */
   image: Buffer | null;
   /** Raw PDF bytes when the file is a PDF (e.g. an emailed statement or a PDF
-   *  email), so the exhibit can reproduce the document in full in an appendix.
-   *  Null for non-PDF files. */
+   *  email), so the exhibit reproduces the document in full, inline, right
+   *  after the item that cites it. Null for non-PDF files. */
   pdf?: Buffer | null;
+  /** Parsed spreadsheet preview (xlsx/xlsm), rendered inline as a table so the
+   *  data itself is on the record. Null for non-spreadsheet files. */
+  sheet?: ExhibitSheet | null;
 };
 
 /** A profiled individual or entity referenced across the matter. */
@@ -1439,11 +1451,15 @@ function drawExhibitImage(doc: Doc, ex: ExhibitFile) {
   } catch { return; }
   if (!iw || !ih) return;
   const maxW = CONTENT_WIDTH;
-  const maxH = 360;
+  const capH = 14;
+  // Keep the image on the SAME page as the item's summary whenever there is
+  // reasonable room: scale it to the space left on the page (down to a floor);
+  // only spill to a fresh page when almost nothing is left.
+  if (BOTTOM - doc.y - capH - 12 < 150) doc.addPage();
+  const avail = BOTTOM - doc.y - capH - 12;
+  const maxH = Math.min(360, Math.max(150, avail));
   let w = maxW, h = (w * ih) / iw;
   if (h > maxH) { h = maxH; w = (h * iw) / ih; }
-  const capH = 14;
-  if (doc.y + h + capH + 10 > BOTTOM) doc.addPage();
   const x = MARGIN + (CONTENT_WIDTH - w) / 2;
   try {
     doc.save().roundedRect(x, doc.y, w, h, 6).clip();
@@ -1474,13 +1490,12 @@ function attachmentKindLabel(ex: ExhibitFile): string {
 }
 
 /**
- * A prominent, authenticated exhibit card for a non-image file (PDF email,
- * spreadsheet, document, video). Unlike a faint reference line, this makes the
- * attachment unmistakably part of the record: a type chip, the filename, and a
- * verification line (MIME · size · SHA-256). PDF files additionally note that
- * they are reproduced in full in the Attached documents appendix.
+ * A prominent, authenticated exhibit card for a non-image file (PDF, spreadsheet,
+ * document, video). A type chip, the filename, and a verification line (MIME ·
+ * size · SHA-256), plus an optional note (e.g. that the PDF is reproduced in
+ * full on the pages that follow).
  */
-function drawAttachmentCard(doc: Doc, ex: ExhibitFile, reproducedInFull: boolean) {
+function drawAttachmentCard(doc: Doc, ex: ExhibitFile, note?: string | null) {
   const cardH = 52;
   if (doc.y + cardH + 8 > BOTTOM) doc.addPage();
   const top = doc.y;
@@ -1493,7 +1508,7 @@ function drawAttachmentCard(doc: Doc, ex: ExhibitFile, reproducedInFull: boolean
   doc.font('Helvetica-Bold').fontSize(11).fillColor(COLOR.ink)
     .text(ex.name, MARGIN + 14, top + 21, { width: CONTENT_WIDTH - 28, lineBreak: false, ellipsis: true });
   const meta = `${ex.mime || 'file'}  ·  ${humanBytes(ex.sizeBytes)}  ·  SHA-256 ${ex.sha256.slice(0, 24)}${
-    reproducedInFull ? '  ·  reproduced in full in Attached documents' : ''
+    note ? `  ·  ${note}` : ''
   }`;
   doc.font('Helvetica').fontSize(8).fillColor(COLOR.muted)
     .text(meta, MARGIN + 14, top + 36, { width: CONTENT_WIDTH - 28, lineBreak: false, ellipsis: true });
@@ -1501,43 +1516,80 @@ function drawAttachmentCard(doc: Doc, ex: ExhibitFile, reproducedInFull: boolean
 }
 
 /**
- * Splice PDF attachments (e.g. PDF emails / statements) into the finished
- * exhibit, in full, after the "Attached documents" lead-in page. Uses pdf-lib
- * (PDFKit can't import external PDFs). Fail-safe throughout: an encrypted or
- * corrupt attachment is skipped (it's still carded + referenced inline), and
- * any load/save failure returns the original exhibit unchanged. Honors the same
- * per-exhibit and per-packet page caps as mergeExhibitPdfs.
+ * Render a spreadsheet's parsed contents as a compact table, inline, so the
+ * data is on the record rather than merely referenced. Rows are capped at parse
+ * time; the whole block is kept on one page (paginating before it starts if it
+ * would not fit) so the column rules stay aligned.
  */
-async function appendPdfAttachments(
+function drawSheetTable(doc: Doc, sheet: ExhibitSheet) {
+  if (!sheet.rows.length) return;
+  const cols = Math.max(1, Math.min(sheet.rows[0].length || 1, 8));
+  const colW = CONTENT_WIDTH / cols;
+  const rowH = 15;
+  const shown = sheet.rows.length;
+  const caption =
+    `SPREADSHEET CONTENT — ${sheet.name}` +
+    (sheet.totalRows > shown ? `  (first ${shown} of ${sheet.totalRows} rows)` : '');
+  // Reserve room for the caption + the whole grid so it never splits.
+  ensureSpace(doc, 22 + shown * rowH + 10);
+  doc.font('Helvetica-Bold').fontSize(7.5).fillColor(COLOR.muted)
+    .text(caption, MARGIN, doc.y, { characterSpacing: 1, width: CONTENT_WIDTH });
+  gap(doc, 5);
+  const startY = doc.y;
+  let y = startY;
+  sheet.rows.forEach((row, ri) => {
+    if (ri === 0) doc.save().rect(MARGIN, y, CONTENT_WIDTH, rowH).fill(COLOR.tint).restore();
+    for (let c = 0; c < cols; c++) {
+      const val = (row[c] ?? '').toString();
+      doc.font(ri === 0 ? 'Helvetica-Bold' : 'Helvetica').fontSize(7.5)
+        .fillColor(ri === 0 ? COLOR.ink : COLOR.inkSoft)
+        .text(val, MARGIN + c * colW + 3, y + 4, { width: colW - 6, height: rowH - 5, ellipsis: true, lineBreak: false });
+    }
+    doc.save().strokeColor(COLOR.rule).lineWidth(0.4)
+      .moveTo(MARGIN, y + rowH).lineTo(MARGIN + CONTENT_WIDTH, y + rowH).stroke().restore();
+    y += rowH;
+  });
+  // Column separators + top border (single page, so lines are contiguous).
+  doc.save().strokeColor(COLOR.rule).lineWidth(0.4);
+  for (let c = 0; c <= cols; c++) doc.moveTo(MARGIN + c * colW, startY).lineTo(MARGIN + c * colW, y).stroke();
+  doc.moveTo(MARGIN, startY).lineTo(MARGIN + CONTENT_WIDTH, startY).stroke();
+  doc.restore();
+  doc.y = y + 8;
+}
+
+/**
+ * Finalize the exhibit: interleave each PDF's real pages IN FULL immediately
+ * after the item that cites it (so the document itself carries the evidence,
+ * not a distant appendix), then stamp a continuous page-number / matter / Bates
+ * footer onto every page in the final order. Uses pdf-lib because PDFKit can't
+ * import external PDFs. Fail-safe throughout: an encrypted or corrupt PDF is
+ * skipped (its item still carries the authenticated card), and any load/save
+ * failure returns the pdfkit document unchanged. Honors the per-document and
+ * per-packet page caps.
+ *
+ * `inserts[i].afterPage` is the 1-based pdfkit page number after which that
+ * PDF's pages belong (captured when the item finished drawing).
+ */
+async function finalizeExhibit(
   pdfkitBuffer: Buffer,
-  attachments: { label: string; name: string; buf: Buffer }[],
+  inserts: { afterPage: number; name: string; label: string; buf: Buffer }[],
   caseTitle: string,
 ): Promise<Buffer> {
-  if (!attachments.length) return pdfkitBuffer;
   let out: PdfLibDoc;
   try {
     out = await PdfLibDoc.load(pdfkitBuffer, { ignoreEncryption: true });
   } catch {
     return pdfkitBuffer;
   }
-  // Continue the exhibit's running page number and Bates sequence onto the
-  // appended pages, so a reader can cite any page uniformly. pdfkit already
-  // stamped pages 1..N; the first appended page is N+1.
-  const startPage = out.getPageCount();
-  let font: Awaited<ReturnType<PdfLibDoc['embedFont']>> | null = null;
-  let fontBold: Awaited<ReturnType<PdfLibDoc['embedFont']>> | null = null;
-  try {
-    font = await out.embedFont(StandardFonts.Helvetica);
-    fontBold = await out.embedFont(StandardFonts.HelveticaBold);
-  } catch {
-    font = null;
-  }
 
-  const appended: PDFPage[] = [];
-  for (const a of attachments) {
+  // Interleave, ascending by target position. Each page inserted before a later
+  // target shifts that target's index, so we track a running offset.
+  const ordered = [...inserts].sort((a, b) => a.afterPage - b.afterPage);
+  let insertedSoFar = 0;
+  for (const ins of ordered) {
     if (out.getPageCount() >= MAX_PACKET_PAGES) break;
     try {
-      const src = await PdfLibDoc.load(a.buf, { ignoreEncryption: true });
+      const src = await PdfLibDoc.load(ins.buf, { ignoreEncryption: true });
       const total = src.getPageCount();
       const budget = Math.min(MAX_PDF_EXHIBIT_PAGES, MAX_PACKET_PAGES - out.getPageCount());
       const idxs: number[] = [];
@@ -1546,46 +1598,48 @@ async function appendPdfAttachments(
       }
       if (!idxs.length) continue;
       const copied = await out.copyPages(src, idxs);
+      let at = ins.afterPage + insertedSoFar; // 0-based index just after the item
       for (const p of copied) {
-        out.addPage(p);
-        appended.push(p);
+        out.insertPage(at, p);
+        at += 1;
+        insertedSoFar += 1;
       }
     } catch {
-      // Encrypted / corrupt PDF — skip; it's already carded and referenced.
+      // Encrypted / corrupt PDF — skip; the item still carries its card.
     }
   }
 
-  // Stamp the same page-number / matter / Bates footer that the exhibit body
-  // carries onto every appended page (best-effort; skip on font failure).
-  if (font && fontBold) {
+  // Stamp the running footer onto EVERY page in final order — pdfkit pages and
+  // interleaved PDF pages alike — so numbering is continuous regardless of how
+  // the documents were merged. (pdfkit no longer draws its own footer.)
+  try {
+    const font = await out.embedFont(StandardFonts.Helvetica);
+    const fontBold = await out.embedFont(StandardFonts.HelveticaBold);
     const muted = rgb(0.44, 0.44, 0.47);
     const ink = rgb(0.094, 0.094, 0.106);
     const ruleC = rgb(0.894, 0.894, 0.906);
     const title = truncate(caseTitle, 40);
-    appended.forEach((page, i) => {
+    out.getPages().forEach((page, i) => {
       try {
         const { width } = page.getSize();
-        const pageNo = startPage + i + 1;
+        const pageNo = i + 1;
         const bates = batesLabel(pageNo);
         const y = 22;
-        // Soften the band behind the footer so it stays legible over dense
-        // page content, without fully erasing anything beneath it.
+        // Soften the band behind the footer so it stays legible over dense page
+        // content, without fully erasing anything beneath it.
         page.drawRectangle({ x: 0, y: 0, width, height: 30, color: rgb(1, 1, 1), opacity: 0.72 });
-        page.drawLine({
-          start: { x: MARGIN, y: y + 12 },
-          end: { x: width - MARGIN, y: y + 12 },
-          thickness: 0.5,
-          color: ruleC,
-        });
-        page.drawText(`Page ${pageNo}`, { x: MARGIN, y, size: 8, font: font!, color: muted });
-        const tW = font!.widthOfTextAtSize(title, 8);
-        page.drawText(title, { x: (width - tW) / 2, y, size: 8, font: font!, color: muted });
-        const bW = fontBold!.widthOfTextAtSize(bates, 8);
-        page.drawText(bates, { x: width - MARGIN - bW, y, size: 8, font: fontBold!, color: ink });
+        page.drawLine({ start: { x: MARGIN, y: y + 12 }, end: { x: width - MARGIN, y: y + 12 }, thickness: 0.5, color: ruleC });
+        page.drawText(`Page ${pageNo}`, { x: MARGIN, y, size: 8, font, color: muted });
+        const tW = font.widthOfTextAtSize(title, 8);
+        page.drawText(title, { x: (width - tW) / 2, y, size: 8, font, color: muted });
+        const bW = fontBold.widthOfTextAtSize(bates, 8);
+        page.drawText(bates, { x: width - MARGIN - bW, y, size: 8, font: fontBold, color: ink });
       } catch {
         // A malformed page geometry shouldn't abort the whole export.
       }
     });
+  } catch {
+    // Font embed failed — return the merged (unstamped) document rather than nothing.
   }
 
   try {
@@ -1599,10 +1653,10 @@ async function appendPdfAttachments(
  * Court-ready evidentiary exhibit, laid out as one planned document:
  *   Cover → Overview (narrative) → Timeline of events → Parties & entities →
  *   Locations → Record of exhibits (one dated item per page, with embedded
- *   evidence images + authenticated attachment cards + per-file SHA-256
- *   digests) → Conclusion → Certification & authentication → Attached
- *   documents appendix. Each major section opens on its own page and every
- *   page carries a Bates-style identifier. Reuses the shared
+ *   evidence images, inline spreadsheet tables, and each PDF reproduced in
+ *   full on the pages that immediately follow its item) → Conclusion →
+ *   Certification & authentication. Each major section opens on its own page
+ *   and every page carries a Bates-style identifier. Reuses the shared
  *   section/body/drawMetaGrid typography.
  */
 export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Promise<Buffer> {
@@ -1622,35 +1676,25 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
         },
       });
       const chunks: Buffer[] = [];
-      // PDF attachments (e.g. PDF emails / statements) are reproduced IN FULL in
-      // an appendix, spliced in after the pdfkit document is finished.
-      const pdfAttachments: { label: string; name: string; buf: Buffer }[] = [];
+      // Each PDF exhibit is reproduced IN FULL, inline, right after the item
+      // that cites it. We record the running pdfkit page number the item ends
+      // on, then finalizeExhibit() splices the PDF's pages in at that position
+      // and stamps a continuous footer across the whole document.
+      const pdfInserts: { afterPage: number; name: string; label: string; buf: Buffer }[] = [];
       doc.on('data', (c: Buffer) => chunks.push(c));
       doc.on('end', () => {
         const base = Buffer.concat(chunks);
-        appendPdfAttachments(base, pdfAttachments, input.caseTitle)
+        finalizeExhibit(base, pdfInserts, input.caseTitle)
           .then(resolve)
           .catch(() => resolve(base)); // fail-safe: still return the exhibit
       });
       doc.on('error', reject);
 
-      // Footer drawn per page as it's created (running page # + Bates
-      // identifier). This replaces the bufferPages + switchToPage post-pass,
-      // which duplicated every page 4× under pdfkit 0.15.2 — the actual cause
-      // of "more pages than content".
-      let pageNo = 0;
-      let inFooter = false;
-      const footPage = () => {
-        if (inFooter) return; // guard: footer text must never re-trigger pageAdded
-        inFooter = true;
-        pageNo += 1;
-        const sx = doc.x, sy = doc.y;
-        try { drawExhibitFooter(doc, pageNo, input.caseTitle, batesLabel(pageNo)); } catch { /* ignore */ }
-        doc.x = sx; doc.y = sy;
-        inFooter = false;
-      };
-      doc.on('pageAdded', footPage);
-      footPage(); // page 1 exists (autoFirstPage) before the listener attached
+      // Running count of pdfkit pages. The footer is NOT drawn here — every page
+      // (pdfkit pages and the interleaved PDF pages) is stamped uniformly in the
+      // finalizeExhibit() post-pass, so numbering stays continuous after splice.
+      let pageCount = 1; // page 1 already exists (autoFirstPage)
+      doc.on('pageAdded', () => { pageCount += 1; });
 
       // ── COVER
       if (logoBuffer) { try { doc.image(logoBuffer, MARGIN, MARGIN, { width: 34 }); } catch { /* ignore */ } }
@@ -1801,17 +1845,30 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
           gap(doc, 10);
           for (const ex of e.exhibits) drawExhibitImage(doc, ex);
         }
-        // Non-image files (PDF emails, spreadsheets, documents, video): each
-        // gets a prominent, authenticated exhibit card so it is unmistakably
-        // part of the record. PDFs are additionally reproduced in full in the
-        // Attached documents appendix.
+        // Non-image files: each gets an authenticated card, and its CONTENT is
+        // put on the record — spreadsheets as an inline table, PDFs reproduced
+        // in full on the pages that immediately follow this item.
         const nonImg = e.exhibits.filter((x) => !x.image);
         if (nonImg.length) {
           gap(doc, 10);
           for (const ex of nonImg) {
-            const isPdf = Boolean(ex.pdf);
-            if (isPdf && ex.pdf) pdfAttachments.push({ label: `Item ${e.index}`, name: ex.name, buf: ex.pdf });
-            drawAttachmentCard(doc, ex, isPdf);
+            const note = ex.pdf
+              ? 'reproduced in full on the pages that follow'
+              : ex.sheet
+                ? 'contents shown below'
+                : null;
+            drawAttachmentCard(doc, ex, note);
+            if (ex.sheet) { gap(doc, 6); drawSheetTable(doc, ex.sheet); }
+          }
+        }
+        // Record where this item's PDF pages should be spliced in: right after
+        // the last page the item occupies. Captured after all inline drawing so
+        // any overflow pages are counted.
+        const itemPdfs = e.exhibits.filter((x) => x.pdf);
+        if (itemPdfs.length) {
+          const afterPage = pageCount;
+          for (const ex of itemPdfs) {
+            pdfInserts.push({ afterPage, name: ex.name, label: `Item ${e.index}`, buf: ex.pdf as Buffer });
           }
         }
       }
@@ -1842,27 +1899,8 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
           .text(line.toUpperCase(), MARGIN, doc.y, { characterSpacing: 0.8, width: CONTENT_WIDTH });
       }
 
-      // ── ATTACHED DOCUMENTS (labeled lead-in). The PDF emails / statements
-      //    themselves are spliced in, in full, after doc.end() by
-      //    appendPdfAttachments. This page names them and their order.
-      if (pdfAttachments.length) {
-        doc.addPage();
-        section(doc, 'Attached documents');
-        body(
-          doc,
-          `The following ${pdfAttachments.length} document${
-            pdfAttachments.length === 1 ? ' is' : 's are'
-          } reproduced in full on the pages that follow, in the order below.`,
-        );
-        gap(doc, 8);
-        for (const p of pdfAttachments) {
-          ensureSpace(doc, 16);
-          doc.font('Helvetica-Bold').fontSize(11).fillColor(COLOR.ink)
-            .text(`${p.label}  —  ${p.name}`, MARGIN, doc.y, { width: CONTENT_WIDTH, lineBreak: false });
-          gap(doc, 5);
-        }
-      }
-
+      // PDF exhibits are spliced in inline (right after their item) by
+      // finalizeExhibit once the pdfkit document is finished — no end appendix.
       doc.end();
     } catch (err) {
       reject(err instanceof Error ? err : new Error('Timeline PDF generation failed.'));
@@ -1870,23 +1908,3 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
   });
 }
 
-/** Footer: page number left, matter centre, Bates identifier right. */
-function drawExhibitFooter(doc: Doc, page: number, caseTitle: string, bates: string) {
-  const y = PAGE_HEIGHT - MARGIN / 2 - 6;
-  // Drawing text below the content area leaves pdfkit in an "overflowed" state
-  // that paginates on the next write (which, via the pageAdded listener, would
-  // multiply pages). Zeroing the bottom margin for the duration prevents that.
-  const pageObj = (doc as unknown as { page: { margins: { bottom: number } } }).page;
-  const savedBottom = pageObj.margins.bottom;
-  pageObj.margins.bottom = 0;
-  doc.save();
-  doc.strokeColor(COLOR.rule).lineWidth(0.5);
-  doc.moveTo(MARGIN, y - 10).lineTo(PAGE_WIDTH - MARGIN, y - 10).stroke();
-  doc.font('Helvetica').fontSize(8).fillColor(COLOR.muted);
-  doc.text(`Page ${page}`, MARGIN, y - 4, { width: 220, align: 'left', lineBreak: false });
-  doc.text(truncate(caseTitle, 40), 0, y - 4, { width: PAGE_WIDTH, align: 'center', lineBreak: false });
-  doc.font('Helvetica-Bold').fontSize(8).fillColor(COLOR.ink);
-  doc.text(bates, PAGE_WIDTH - MARGIN - 200, y - 4, { width: 200, align: 'right', lineBreak: false });
-  doc.restore();
-  pageObj.margins.bottom = savedBottom;
-}
