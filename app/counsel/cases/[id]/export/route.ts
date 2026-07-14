@@ -36,6 +36,10 @@ export const maxDuration = 60;
 // Bound the work so a huge selection can't blow the 60s budget: cap how many
 // files we download + hash, and don't inline anything above ~15 MB.
 const MAX_DOWNLOADS = 150;
+// Documents (PDF / spreadsheet) get their OWN download budget so a matter with
+// hundreds of photos can't starve the handful of court-critical documents out
+// of the packet under the shared image cap.
+const MAX_DOC_DOWNLOADS = 80;
 const MAX_INLINE_BYTES = 15 * 1024 * 1024;
 
 function isJpegOrPng(buf: Buffer): boolean {
@@ -43,6 +47,14 @@ function isJpegOrPng(buf: Buffer): boolean {
     (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) || // JPEG
     (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) // PNG
   );
+}
+
+/** A court-critical document we reproduce/render in full (PDF or spreadsheet),
+ *  identified before download from its name/mime so it can use the doc budget. */
+function isDocMedia(m: TimelineMedia): boolean {
+  const n = (m.name || '').toLowerCase();
+  const mime = (m.mime || '').toLowerCase();
+  return /\.(pdf|xlsx|xlsm)$/.test(n) || mime.includes('pdf') || mime.includes('spreadsheet');
 }
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
@@ -91,7 +103,12 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   const c = caseRow as { id: string; title: string; subject_name: string | null; firm_id: string | null } | null;
   if (!c || c.firm_id !== firmId) return NextResponse.json({ error: 'Not found.' }, { status: 404 });
 
-  const bundle = await getFirmTimelineBundle(firmId, params.id);
+  // Include off-timeline evidence: the court packet reflects the whole matter,
+  // so evidence that lives in the intake but was never pinned to the timeline
+  // (e.g. PDFs / spreadsheets) is exported too. The narrative summary is the
+  // stored case narrative and is unaffected; only the exhibit/record set (and
+  // the parties/locations derived from it) widens to the full evidence record.
+  const bundle = await getFirmTimelineBundle(firmId, params.id, { includeOffTimeline: true });
   if (bundle.events.length === 0) {
     return NextResponse.json({ error: 'Add evidence before exporting.' }, { status: 400 });
   }
@@ -141,6 +158,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     .maybeSingle();
 
   let downloads = 0;
+  let docDownloads = 0;
 
   // Download a file from the exhibits bucket via admin, hash it, and keep the
   // bytes for embedding when it's a JPEG/PNG.
@@ -155,10 +173,18 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     if (m.size && m.size > MAX_INLINE_BYTES) {
       return { ...base, sha256: '(not computed — large file)' };
     }
-    if (downloads >= MAX_DOWNLOADS) {
-      return { ...base, sha256: '(not computed — export limit reached)' };
+    // Documents draw from their own budget; images/other from the shared cap.
+    if (isDocMedia(m)) {
+      if (docDownloads >= MAX_DOC_DOWNLOADS) {
+        return { ...base, sha256: '(not computed — export limit reached)' };
+      }
+      docDownloads++;
+    } else {
+      if (downloads >= MAX_DOWNLOADS) {
+        return { ...base, sha256: '(not computed — export limit reached)' };
+      }
+      downloads++;
     }
-    downloads++;
     try {
       const { data, error } = await admin!.storage.from('exhibits').download(m.path);
       if (error || !data) return { ...base, sha256: '(file unavailable)' };
