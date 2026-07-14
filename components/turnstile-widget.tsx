@@ -12,8 +12,16 @@ declare global {
           callback: (token: string) => void;
           'expired-callback'?: () => void;
           'error-callback'?: () => void;
+          /** 'render' (default) runs immediately; 'execute' waits for execute(). */
+          execution?: 'render' | 'execute';
+          /** 'interaction-only' keeps the widget invisible unless Cloudflare
+           *  actually needs the user to interact with a challenge. */
+          appearance?: 'always' | 'execute' | 'interaction-only';
+          size?: 'normal' | 'flexible' | 'compact';
         },
       ) => string;
+      execute: (container: string | HTMLElement) => void;
+      reset: (widgetId: string) => void;
       remove: (widgetId: string) => void;
     };
   }
@@ -22,7 +30,7 @@ declare global {
 const SCRIPT_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
 let scriptPromise: Promise<void> | null = null;
 
-function loadTurnstileScript(): Promise<void> {
+export function loadTurnstileScript(): Promise<void> {
   if (window.turnstile) return Promise.resolve();
   if (scriptPromise) return scriptPromise;
   scriptPromise = new Promise((resolve, reject) => {
