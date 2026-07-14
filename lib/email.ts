@@ -491,7 +491,7 @@ function secureShareShell(input: { eyebrow: string; headline: string; bodyHtml: 
     <tr><td align="center">
       <table role="presentation" width="500" cellpadding="0" cellspacing="0" style="max-width:500px;background:#ffffff;border-radius:18px;overflow:hidden;box-shadow:0 10px 34px -6px rgba(0,0,0,0.55);border:1px solid #1c1c1e;">
         <tr><td align="center" style="background:linear-gradient(135deg,#0b0b0c 0%,#14140f 55%,#1b1710 100%);padding:30px 34px 24px;border-bottom:2px solid #e8c878;">
-          <img src="https://advottic.com/advottic-wordmark.png" alt="Advottic" width="150" style="display:block;margin:0 auto;width:150px;height:auto;border:0;outline:none;text-decoration:none;" />
+          <img src="https://advottic.com/advottic-wordmark-email.png" alt="ADVOTTIC" width="150" height="18" style="display:block;margin:0 auto;width:150px;height:18px;border:0;outline:none;text-decoration:none;color:#e8c878;font-size:20px;font-weight:700;letter-spacing:0.3em;font-family:-apple-system,Segoe UI,sans-serif;" />
           <p style="margin:16px 0 0;color:#e8c878;font-size:10.5px;font-weight:700;letter-spacing:0.22em;text-transform:uppercase;">${escapeHtml(input.eyebrow)}</p>
           <p style="margin:8px 0 0;color:#f4f0e6;font-size:17px;font-weight:600;letter-spacing:-0.005em;">${escapeHtml(input.headline)}</p>
         </td></tr>
