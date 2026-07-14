@@ -80,7 +80,13 @@ export function CoCounselTour({ firstName }: { firstName?: string | null }) {
 
   const node = (
     <div
-      className="fixed inset-0 z-[70] flex items-end justify-center bg-black/70 p-0 backdrop-blur-sm animate-fade-in sm:items-center sm:p-4"
+      // `dark counsel-shell` is essential: the modal is portaled to document.body,
+      // OUTSIDE the .counsel-shell wrapper. Without these classes the forest tokens
+      // fall back to the consumer :root values (a dark GREEN, #0a1f19) instead of
+      // the counsel shell's neutral black (--forest-950: #080808), so the tour
+      // looked green against the black firm UI. Re-applying the class here pulls the
+      // same black palette into the portal subtree.
+      className="dark counsel-shell fixed inset-0 z-[70] flex items-end justify-center bg-black/70 p-0 backdrop-blur-sm animate-fade-in sm:items-center sm:p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="cocounsel-tour-title"
