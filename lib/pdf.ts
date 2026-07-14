@@ -1298,13 +1298,19 @@ function drawWitnessSubmission(
 // ===========================================================================
 
 /** One catalogued file, authenticated by a SHA-256 digest computed at intake. */
-/** A compact preview of a spreadsheet's first populated worksheet, parsed at
- *  export time so its contents can be rendered as a table in the exhibit. */
-export type ExhibitSheet = {
+/** One populated worksheet of a spreadsheet, parsed at export time. */
+export type ExhibitTab = {
   name: string;
   rows: string[][]; // first row is treated as the header
   totalRows: number;
   totalCols: number;
+};
+
+/** A spreadsheet exhibit: EVERY populated worksheet (a workbook often keeps the
+ *  actual figures on a later tab than the first), each rendered as its own
+ *  table so no data is silently dropped. */
+export type ExhibitSheet = {
+  tabs: ExhibitTab[];
 };
 
 export type ExhibitFile = {
@@ -1552,15 +1558,25 @@ function drawAttachmentCard(doc: Doc, ex: ExhibitFile, note?: string | null) {
  * aligned across the break.
  */
 function drawSheetTable(doc: Doc, sheet: ExhibitSheet) {
-  if (!sheet.rows.length) return;
-  const cols = Math.max(1, Math.min(sheet.rows[0].length || 1, 8));
+  const tabs = sheet.tabs.filter((t) => t.rows.length);
+  if (!tabs.length) return;
+  const multi = tabs.length > 1;
+  tabs.forEach((tab, ti) => {
+    if (ti > 0) gap(doc, 12);
+    drawSheetTab(doc, tab, multi);
+  });
+}
+
+/** Render one worksheet as a page-spanning table (header repeated per page). */
+function drawSheetTab(doc: Doc, tab: ExhibitTab, labelAsTab: boolean) {
+  if (!tab.rows.length) return;
+  const cols = Math.max(1, Math.min(tab.rows[0].length || 1, 8));
   const colW = CONTENT_WIDTH / cols;
   const rowH = 15;
-  const shown = sheet.rows.length;
-  const header = sheet.rows[0];
-  const caption =
-    `SPREADSHEET CONTENT — ${sheet.name}` +
-    (sheet.totalRows > shown ? `  (${shown} of ${sheet.totalRows} rows)` : '');
+  const shown = tab.rows.length;
+  const header = tab.rows[0];
+  const rowsNote = tab.totalRows > shown ? `  (${shown} of ${tab.totalRows} rows)` : '';
+  const caption = (labelAsTab ? `TAB "${tab.name}"` : `SPREADSHEET CONTENT — ${tab.name}`) + rowsNote;
 
   const drawCaption = (cont: boolean) => {
     doc.font('Helvetica-Bold').fontSize(7.5).fillColor(COLOR.muted)
@@ -1593,7 +1609,7 @@ function drawSheetTable(doc: Doc, sheet: ExhibitSheet) {
   drawRow(header, y, true);
   y += rowH;
 
-  for (let i = 1; i < sheet.rows.length; i++) {
+  for (let i = 1; i < tab.rows.length; i++) {
     if (y + rowH > BOTTOM) {
       closeSegment(segTop, y);      // finish this page's grid
       doc.addPage();
@@ -1603,7 +1619,7 @@ function drawSheetTable(doc: Doc, sheet: ExhibitSheet) {
       drawRow(header, y, true);     // repeat the header on the new page
       y += rowH;
     }
-    drawRow(sheet.rows[i], y, false);
+    drawRow(tab.rows[i], y, false);
     y += rowH;
   }
   closeSegment(segTop, y);

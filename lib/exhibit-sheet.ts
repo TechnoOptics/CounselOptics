@@ -1,19 +1,22 @@
 import ExcelJS from 'exceljs';
-import type { ExhibitSheet } from './pdf';
+import type { ExhibitSheet, ExhibitTab } from './pdf';
 
 /**
- * Parse a spreadsheet exhibit (.xlsx / .xlsm) into a compact, court-legible
- * preview of its first populated worksheet, so the export can render the data
- * itself as an inline table rather than a bare reference. Bounded on every axis
- * (rows, cols, cell length, file size) and fail-safe: any parse problem returns
- * null and the exhibit falls back to its authenticated card.
+ * Parse a spreadsheet exhibit (.xlsx / .xlsm) into court-legible tables — one
+ * per POPULATED worksheet, because a workbook routinely keeps the actual
+ * figures on a later tab (e.g. an "Income Statement" or "Operating Expenses"
+ * sheet) while the first tab is a blank input template. Bounded on every axis
+ * (rows, cols, cell length, sheet count, total rows, file size) and fail-safe:
+ * any parse problem returns null and the exhibit falls back to its card.
  */
 
-// The table spans pages in the exhibit, so we can reproduce the whole sheet.
-// Bounded generously to keep a runaway sheet from ballooning the packet.
-const MAX_ROWS = 500;
+// Tables span pages in the exhibit, so we can reproduce whole sheets. Bounded
+// so a runaway workbook can't balloon the packet.
+const MAX_ROWS = 500;      // per worksheet
 const MAX_COLS = 8;
 const MAX_CELL = 60;
+const MAX_TABS = 8;        // worksheets rendered per workbook
+const MAX_TOTAL_ROWS = 700; // across all worksheets combined
 const MAX_PARSE_BYTES = 12 * 1024 * 1024;
 
 /** Format a scalar cell value the way a reader expects to see it. Numbers get
@@ -65,31 +68,38 @@ export async function parseExhibitSheet(
   try {
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(buf as unknown as ArrayBuffer);
-    const ws = wb.worksheets.find((w) => (w.actualRowCount ?? 0) > 0) ?? wb.worksheets[0];
-    if (!ws) return null;
-    const totalRows = ws.actualRowCount || ws.rowCount || 0;
-    const totalCols = ws.actualColumnCount || ws.columnCount || 0;
-    const cols = Math.max(1, Math.min(totalCols || MAX_COLS, MAX_COLS));
-    const rows: string[][] = [];
-    ws.eachRow({ includeEmpty: false }, (row) => {
-      if (rows.length >= MAX_ROWS) return;
-      const cells: string[] = [];
-      for (let c = 1; c <= cols; c++) {
-        cells.push(cellText(row.getCell(c).value).replace(/\s+/g, ' ').trim().slice(0, MAX_CELL));
+    const tabs: ExhibitTab[] = [];
+    let totalRowsAcross = 0;
+    for (const ws of wb.worksheets) {
+      if (tabs.length >= MAX_TABS || totalRowsAcross >= MAX_TOTAL_ROWS) break;
+      if ((ws.actualRowCount ?? 0) === 0) continue; // skip blank worksheets
+      const totalRows = ws.actualRowCount || ws.rowCount || 0;
+      const totalCols = ws.actualColumnCount || ws.columnCount || 0;
+      const cols = Math.max(1, Math.min(totalCols || MAX_COLS, MAX_COLS));
+      const rowBudget = Math.min(MAX_ROWS, MAX_TOTAL_ROWS - totalRowsAcross);
+      const rows: string[][] = [];
+      ws.eachRow({ includeEmpty: false }, (row) => {
+        if (rows.length >= rowBudget) return;
+        const cells: string[] = [];
+        for (let c = 1; c <= cols; c++) {
+          cells.push(cellText(row.getCell(c).value).replace(/\s+/g, ' ').trim().slice(0, MAX_CELL));
+        }
+        if (cells.some((x) => x)) rows.push(cells);
+      });
+      if (!rows.length) continue;
+      // Drop columns that are empty across EVERY shown row (a blank template's
+      // value column, or a leading spacer) so the table reads as real data.
+      const width = Math.max(...rows.map((r) => r.length));
+      const keep: number[] = [];
+      for (let c = 0; c < width; c++) {
+        if (rows.some((r) => (r[c] ?? '').trim() !== '')) keep.push(c);
       }
-      if (cells.some((x) => x)) rows.push(cells);
-    });
-    if (!rows.length) return null;
-    // Drop columns that are empty across EVERY shown row (e.g. a blank budget
-    // template's value column, or a leading spacer column) so the table reads
-    // as real data instead of a sea of empty cells. Keep at least one column.
-    const width = Math.max(...rows.map((r) => r.length));
-    const keep: number[] = [];
-    for (let c = 0; c < width; c++) {
-      if (rows.some((r) => (r[c] ?? '').trim() !== '')) keep.push(c);
+      const trimmed = keep.length ? rows.map((r) => keep.map((c) => r[c] ?? '')) : rows;
+      tabs.push({ name: ws.name || `Sheet ${tabs.length + 1}`, rows: trimmed, totalRows, totalCols });
+      totalRowsAcross += trimmed.length;
     }
-    const trimmed = keep.length ? rows.map((r) => keep.map((c) => r[c] ?? '')) : rows;
-    return { name: ws.name || 'Sheet 1', rows: trimmed, totalRows, totalCols };
+    if (!tabs.length) return null;
+    return { tabs };
   } catch {
     return null;
   }
