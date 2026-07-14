@@ -1327,6 +1327,10 @@ export type TimelineExhibitData = {
   preparedBy: string | null;
   generatedAt: string; // ISO
   narrative: { summary: string | null; narrative: string | null; conclusion: string | null } | null;
+  /** A structured, court-facing timeline shown up front (e.g. an approach's
+   *  supporting timeline). Rendered as a visible "Timeline of events" section
+   *  right after the narrative summary. */
+  narrativeTimeline?: { when: string; title: string; significance?: string | null }[] | null;
   entities: ExhibitEntity[];
   /** Themed static map of every geocoded location in the case, framed to the
    *  pinged area. Null when no locations resolved or Maps is not configured. */
@@ -1468,7 +1472,7 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
         autoFirstPage: true,
         info: {
           Title: `${input.caseTitle}: Timeline exhibit`,
-          Author: 'Advottic',
+          Author: input.preparedBy || 'Confidential work product',
           Subject: 'Case timeline evidentiary exhibit',
         },
       });
@@ -1514,7 +1518,7 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
       ]);
       gap(doc, 16);
       doc.font('Helvetica-Oblique').fontSize(9).fillColor(COLOR.muted).text(
-        'Prepared with Advottic. A factual chronology of the materials catalogued herein. Each exhibit is authenticated by a SHA-256 digest recorded at intake, and every page carries a unique Bates-style identifier. This document is not legal advice.',
+        'A factual chronology of the materials catalogued in connection with this matter. Each exhibit is authenticated by a SHA-256 digest recorded at intake, and every page carries a unique Bates-style identifier.',
         MARGIN, doc.y, { width: CONTENT_WIDTH },
       );
       // Branded confidentiality band, anchored toward the foot of the cover so
@@ -1533,11 +1537,41 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
           .text('CONFIDENTIAL ATTORNEY WORK PRODUCT  ·  NOT FOR DISTRIBUTION', MARGIN, bandY + 26, { characterSpacing: 1.2, width: CONTENT_WIDTH });
       }
 
+      // ── NARRATIVE SUMMARY (opens the document, court-ready)
+      if (input.narrative?.summary || input.narrative?.narrative) {
+        beginSection(doc, 'Narrative summary');
+        if (input.narrative.summary) body(doc, input.narrative.summary);
+        if (input.narrative.narrative) {
+          gap(doc, 10);
+          subsection(doc, 'Statement of facts');
+          body(doc, input.narrative.narrative);
+        }
+      }
+
+      // ── TIMELINE OF EVENTS (structured, visible)
+      if (input.narrativeTimeline && input.narrativeTimeline.length) {
+        beginSection(doc, 'Timeline of events');
+        for (const t of input.narrativeTimeline) {
+          ensureSpace(doc, 42);
+          doc.font('Helvetica-Bold').fontSize(9).fillColor(COLOR.amber)
+            .text(t.when || '', MARGIN, doc.y, { characterSpacing: 0.5, width: CONTENT_WIDTH });
+          gap(doc, 1);
+          doc.font('Helvetica-Bold').fontSize(11).fillColor(COLOR.ink)
+            .text(t.title || '(event)', MARGIN, doc.y, { width: CONTENT_WIDTH });
+          if (t.significance) {
+            gap(doc, 1);
+            doc.font('Helvetica').fontSize(9.5).fillColor(COLOR.inkSoft)
+              .text(t.significance, MARGIN, doc.y, { width: CONTENT_WIDTH });
+          }
+          gap(doc, 9);
+        }
+      }
+
       // ── CERTIFICATION & AUTHENTICATION
       beginSection(doc, 'Certification & authentication');
       body(doc, `This exhibit was assembled from ${input.entries.length} catalogued item(s) and ${totalExhibits} source file(s) submitted in connection with the above matter. Each file reproduced or referenced herein is identified by its original filename, media type, byte size, and a SHA-256 cryptographic digest computed at the time of intake. A digest that matches the original file establishes that the file has not been altered since it was catalogued.`);
       gap(doc, 8);
-      body(doc, 'Entries are numbered sequentially and paginated with a unique Bates-style identifier in the footer of every page. Any description, transcription, or observation labelled Advottic Review is provided for organisational assistance only. It is not a determination of identity, authenticity, or legal significance, and must be independently verified by counsel.');
+      body(doc, 'Entries are numbered sequentially and paginated with a unique Bates-style identifier in the footer of every page. Any description, transcription, or observation provided as a summary is included for organisational assistance only, and must be independently verified by counsel.');
 
       // ── PERSONS & ORGANIZATIONS OF INTEREST
       if (input.entities.length) {
@@ -1602,7 +1636,7 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
         if (e.summary) {
           gap(doc, 6);
           doc.font('Helvetica-Bold').fontSize(8).fillColor(COLOR.muted)
-            .text('ADVOTTIC REVIEW', MARGIN, doc.y, { characterSpacing: 1.4 });
+            .text('SUMMARY', MARGIN, doc.y, { characterSpacing: 1.4 });
           gap(doc, 2);
           doc.font('Helvetica').fontSize(10).fillColor(COLOR.inkSoft)
             .text(e.summary, MARGIN, doc.y, { width: CONTENT_WIDTH });
@@ -1638,32 +1672,48 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
         }
       }
 
-      // ── NARRATIVE
-      if (input.narrative?.summary || input.narrative?.narrative) {
-        beginSection(doc, 'Narrative summary');
-        if (input.narrative.summary) body(doc, input.narrative.summary);
-        if (input.narrative.narrative) {
-          gap(doc, 10);
-          subsection(doc, 'Chronological account');
-          body(doc, input.narrative.narrative);
-        }
-      }
-
       // ── CONCLUSION
       if (input.narrative?.conclusion) {
         beginSection(doc, 'Conclusion');
         body(doc, input.narrative.conclusion);
       }
 
-      // ── DISCLAIMER (drawDisclaimer resets to top + draws its own header)
-      if (doc.y > MARGIN + 2) doc.addPage();
-      drawDisclaimer(doc);
+      // ── COLOPHON: a neutral work-product note. Court-ready: no
+      //    informational-only hedging, no AI/authorship attribution, nothing
+      //    that could be read to discredit the compiled findings.
+      gap(doc, 24);
+      ensureSpace(doc, 130);
+      drawExhibitColophon(doc, input.preparedBy);
 
       doc.end();
     } catch (err) {
       reject(err instanceof Error ? err : new Error('Timeline PDF generation failed.'));
     }
   });
+}
+
+/**
+ * Neutral closing note for the court-ready exhibit. Mentions that the document
+ * was prepared with counsel case-management software, but carries NO
+ * informational-only hedging, NO authorship/AI attribution, and nothing that
+ * could be read to discredit the compiled findings.
+ */
+function drawExhibitColophon(doc: Doc, preparedBy: string | null) {
+  doc.save().moveTo(MARGIN, doc.y).lineTo(MARGIN + 56, doc.y).lineWidth(2.5).stroke(COLOR.amber).restore();
+  gap(doc, 12);
+  doc.font('Helvetica-Bold').fontSize(9).fillColor(COLOR.ink)
+    .text('ABOUT THIS DOCUMENT', MARGIN, doc.y, { characterSpacing: 1.4 });
+  gap(doc, 6);
+  doc.font('Helvetica').fontSize(9.5).fillColor(COLOR.inkSoft).text(
+    'This document is confidential attorney work product, compiled from the materials submitted in connection with the above matter and prepared using counsel case-management software. Each exhibit is identified by its original filename and a SHA-256 cryptographic digest recorded at intake, and every page carries a unique Bates-style identifier.',
+    MARGIN, doc.y, { width: CONTENT_WIDTH, lineGap: 2 },
+  );
+  gap(doc, 10);
+  const line = preparedBy
+    ? `Prepared exclusively for ${preparedBy}. Confidential — not for distribution.`
+    : 'Confidential attorney work product — not for distribution.';
+  doc.font('Helvetica-Bold').fontSize(8.5).fillColor(COLOR.muted)
+    .text(line.toUpperCase(), MARGIN, doc.y, { characterSpacing: 0.8, width: CONTENT_WIDTH });
 }
 
 /** Footer: page number left, matter centre, Bates identifier right. */
@@ -1679,7 +1729,7 @@ function drawExhibitFooter(doc: Doc, page: number, caseTitle: string, bates: str
   doc.strokeColor(COLOR.rule).lineWidth(0.5);
   doc.moveTo(MARGIN, y - 10).lineTo(PAGE_WIDTH - MARGIN, y - 10).stroke();
   doc.font('Helvetica').fontSize(8).fillColor(COLOR.muted);
-  doc.text(`Advottic  ·  Page ${page}`, MARGIN, y - 4, { width: 220, align: 'left', lineBreak: false });
+  doc.text(`Page ${page}`, MARGIN, y - 4, { width: 220, align: 'left', lineBreak: false });
   doc.text(truncate(caseTitle, 40), 0, y - 4, { width: PAGE_WIDTH, align: 'center', lineBreak: false });
   doc.font('Helvetica-Bold').fontSize(8).fillColor(COLOR.ink);
   doc.text(bates, PAGE_WIDTH - MARGIN - 200, y - 4, { width: 200, align: 'right', lineBreak: false });

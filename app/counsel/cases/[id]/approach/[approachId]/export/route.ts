@@ -24,13 +24,13 @@ export const maxDuration = 60;
 
 /**
  * Approach packet export. Builds a court-ready PDF for ONE saved approach:
- * the assembled argument (thesis + argument + gaps) as the packet's opening
- * work-product narrative, followed by ONLY the evidence that approach marshals
- * - the exhibits Advottic cited when it assembled the argument - each embedded
- * with its context and a content hash. Mirrors the matter export's firm
+ * the narrative summary (thesis) and statement of facts (argument) open the
+ * packet, followed by the approach's supporting timeline and ONLY the evidence
+ * that approach marshals - the cited exhibits - each embedded with its context
+ * and a content hash. The attorney's input/prompt and the internal
+ * "gaps to close" analysis are never included. Mirrors the matter export's firm
  * admin-path + guest access model; differs only in WHAT it selects (the
- * approach's cited exhibits, not a manual selection) and the narrative (the
- * approach's own argument, not the matter narrative).
+ * approach's cited exhibits, not a manual selection) and the narrative.
  */
 
 const MAX_DOWNLOADS = 150;
@@ -43,27 +43,18 @@ function isJpegOrPng(buf: Buffer): boolean {
   );
 }
 
-/** The approach's argument, formatted as the packet's opening narrative. */
-function approachNarrative(
-  title: string,
-  g: ApproachArgument,
-  connections?: string,
-): TimelineExhibitData['narrative'] {
-  const conn = (connections ?? '').trim();
-  const summary = [
-    `Approach: ${title}`.trim(),
-    g.thesis?.trim(),
-    conn ? `Connected parties:\n${conn}` : null,
-  ]
-    .filter(Boolean)
-    .join('\n\n');
-  const conclusion = g.gaps.length
-    ? `Gaps still to close:\n${g.gaps.map((x) => `• ${x}`).join('\n')}`
-    : '';
+/**
+ * The approach's argument, formatted as the packet's opening narrative. This is
+ * a COURT-READY document: it shows only the finished work product (the thesis
+ * as a narrative summary and the argument as the statement of facts). It never
+ * includes the attorney's input/prompt, the "gaps still to close" (internal
+ * evidentiary-weakness analysis), or any authorship/AI attribution.
+ */
+function approachNarrative(g: ApproachArgument): TimelineExhibitData['narrative'] {
   return {
-    summary: summary || title,
+    summary: g.thesis?.trim() || '',
     narrative: g.argument?.trim() || '',
-    conclusion,
+    conclusion: '',
   };
 }
 
@@ -265,7 +256,12 @@ export async function GET(
     preparedBy:
       (profile as { display_name?: string | null } | null)?.display_name || user.email || null,
     generatedAt: new Date().toISOString(),
-    narrative: approachNarrative(approach.title, g, approach.connections ?? undefined),
+    narrative: approachNarrative(g),
+    // The approach's own supporting timeline, rendered as a visible
+    // "Timeline of events" section right after the narrative summary.
+    narrativeTimeline: (g.timeline ?? [])
+      .filter((t) => (t.when || t.title))
+      .map((t) => ({ when: t.when ?? '', title: t.title ?? '', significance: t.significance ?? null })),
     entities: [...personEntities, ...orgEntities],
     entries,
   };
