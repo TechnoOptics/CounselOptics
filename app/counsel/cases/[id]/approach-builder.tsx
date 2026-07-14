@@ -590,11 +590,34 @@ function Collapsible({
         <span className="flex-1 text-[10.5px] font-semibold uppercase tracking-[0.13em] text-gold-metal/70">
           {label}
         </span>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden className={`shrink-0 text-gold-metal/60 transition-transform ${open ? 'rotate-180' : ''}`}>
-          <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+        <span
+          aria-hidden
+          className={`grid h-6 w-6 shrink-0 place-items-center rounded-full bg-gold-metal text-forest-950 shadow-sm ring-1 ring-gold-300/40 transition-transform ${
+            open ? 'rotate-180' : ''
+          }`}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+            <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
       </button>
-      {open && <div className="px-3 pb-3.5">{children}</div>}
+      {open && (
+        <div className="px-3 pb-3.5">
+          {children}
+          <div className="mt-3 flex justify-center border-t border-cream-50/10 pt-3">
+            <button
+              type="button"
+              onClick={onToggle}
+              className="inline-flex items-center gap-1 rounded-full bg-gold-metal/12 px-3 py-1 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-gold-metal ring-1 ring-gold-metal/30 hover:bg-gold-metal/20"
+            >
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden>
+                <path d="M18 15l-6-6-6 6" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Collapse
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

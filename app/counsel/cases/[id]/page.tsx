@@ -25,6 +25,7 @@ import { T } from '@/components/i18n/LocaleProvider';
 import { listFirmApproaches } from '@/lib/firm-approach-actions';
 import { ApproachBuilder } from './approach-builder';
 import { EvidenceDashboard } from './evidence-dashboard';
+import { SectionPanel } from '@/components/counsel/SectionPanel';
 import { getCaseEvidenceAnalytics } from '@/lib/case-analytics';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { getGuestCaseSummary } from '@/lib/counsel-guest';
@@ -570,7 +571,20 @@ export default async function CounselCaseDetailPage({
           we just need the aggregate to be present. The component self-hides
           when nothing has been uploaded yet. Server-rendered from the
           admin-scoped aggregate, so it is always current on load. */}
-      {caseAnalytics ? <EvidenceDashboard analytics={caseAnalytics} caseId={params.id} /> : null}
+      {caseAnalytics ? (
+        <SectionPanel
+          title="Evidence analytics"
+          blurb="Volume, coverage, relevance, and the year-by-year read of the evidence."
+          meta={`${caseAnalytics.total} item${caseAnalytics.total === 1 ? '' : 's'}`}
+          icon={
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <path d="M4 20V10M10 20V4M16 20v-8M22 20H2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          }
+        >
+          <EvidenceDashboard analytics={caseAnalytics} caseId={params.id} />
+        </SectionPanel>
+      ) : null}
 
 
       {/* Case approach — the lawyer's theory in, a structured argument with

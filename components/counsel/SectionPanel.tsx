@@ -76,14 +76,39 @@ export function SectionPanel({
             {meta}
           </span>
         )}
-        <svg
-          width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden
-          className={`shrink-0 text-gold-metal/70 transition-transform ${open ? 'rotate-180' : ''}`}
+        {/* Gold-gradient chevron badge - a solid champagne pill so the
+            expand/collapse affordance is unmistakable on the black surface. */}
+        <span
+          aria-hidden
+          className={`grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gold-metal text-forest-950 shadow-sm ring-1 ring-gold-300/40 transition-transform ${
+            open ? 'rotate-180' : ''
+          }`}
         >
-          <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+            <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
       </button>
-      {open && <div className="border-t border-cream-50/10 p-4 sm:p-5">{children}</div>}
+      {open && (
+        <div className="border-t border-cream-50/10 p-4 sm:p-5">
+          {children}
+          {/* Reach-down collapse: once the reader has scrolled through the
+              section, they can close it right here instead of scrolling back
+              up to the header. */}
+          <div className="mt-5 flex justify-center border-t border-cream-50/10 pt-4">
+            <button
+              type="button"
+              onClick={toggle}
+              className="inline-flex items-center gap-1.5 rounded-full bg-gold-metal/12 px-4 py-1.5 text-[12px] font-semibold text-gold-metal ring-1 ring-gold-metal/30 transition-colors hover:bg-gold-metal/20"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden>
+                <path d="M18 15l-6-6-6 6" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <T>Collapse</T> <span data-no-translate>{title}</span>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
