@@ -9,7 +9,9 @@ import type { ExhibitSheet } from './pdf';
  * null and the exhibit falls back to its authenticated card.
  */
 
-const MAX_ROWS = 24;
+// The table spans pages in the exhibit, so we can reproduce the whole sheet.
+// Bounded generously to keep a runaway sheet from ballooning the packet.
+const MAX_ROWS = 500;
 const MAX_COLS = 8;
 const MAX_CELL = 60;
 const MAX_PARSE_BYTES = 12 * 1024 * 1024;

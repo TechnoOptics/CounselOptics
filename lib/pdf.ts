@@ -1545,10 +1545,11 @@ function drawAttachmentCard(doc: Doc, ex: ExhibitFile, note?: string | null) {
 }
 
 /**
- * Render a spreadsheet's parsed contents as a compact table, inline, so the
- * data is on the record rather than merely referenced. Rows are capped at parse
- * time; the whole block is kept on one page (paginating before it starts if it
- * would not fit) so the column rules stay aligned.
+ * Render a spreadsheet's parsed contents as a table, inline, so the data is on
+ * the record rather than merely referenced. The table SPANS PAGES: when it fills
+ * the page it continues on the next one, repeating the header row so every page
+ * is readable on its own. Column rules are drawn per page-segment so they stay
+ * aligned across the break.
  */
 function drawSheetTable(doc: Doc, sheet: ExhibitSheet) {
   if (!sheet.rows.length) return;
@@ -1556,33 +1557,56 @@ function drawSheetTable(doc: Doc, sheet: ExhibitSheet) {
   const colW = CONTENT_WIDTH / cols;
   const rowH = 15;
   const shown = sheet.rows.length;
+  const header = sheet.rows[0];
   const caption =
     `SPREADSHEET CONTENT — ${sheet.name}` +
-    (sheet.totalRows > shown ? `  (first ${shown} of ${sheet.totalRows} rows)` : '');
-  // Reserve room for the caption + the whole grid so it never splits.
-  ensureSpace(doc, 22 + shown * rowH + 10);
-  doc.font('Helvetica-Bold').fontSize(7.5).fillColor(COLOR.muted)
-    .text(caption, MARGIN, doc.y, { characterSpacing: 1, width: CONTENT_WIDTH });
-  gap(doc, 5);
-  const startY = doc.y;
-  let y = startY;
-  sheet.rows.forEach((row, ri) => {
-    if (ri === 0) doc.save().rect(MARGIN, y, CONTENT_WIDTH, rowH).fill(COLOR.tint).restore();
+    (sheet.totalRows > shown ? `  (${shown} of ${sheet.totalRows} rows)` : '');
+
+  const drawCaption = (cont: boolean) => {
+    doc.font('Helvetica-Bold').fontSize(7.5).fillColor(COLOR.muted)
+      .text(caption + (cont ? '  (continued)' : ''), MARGIN, doc.y, { characterSpacing: 1, width: CONTENT_WIDTH });
+    gap(doc, 5);
+  };
+  const drawRow = (row: string[], y: number, isHeader: boolean) => {
+    if (isHeader) doc.save().rect(MARGIN, y, CONTENT_WIDTH, rowH).fill(COLOR.tint).restore();
     for (let c = 0; c < cols; c++) {
-      const val = (row[c] ?? '').toString();
-      doc.font(ri === 0 ? 'Helvetica-Bold' : 'Helvetica').fontSize(7.5)
-        .fillColor(ri === 0 ? COLOR.ink : COLOR.inkSoft)
-        .text(val, MARGIN + c * colW + 3, y + 4, { width: colW - 6, height: rowH - 5, ellipsis: true, lineBreak: false });
+      doc.font(isHeader ? 'Helvetica-Bold' : 'Helvetica').fontSize(7.5)
+        .fillColor(isHeader ? COLOR.ink : COLOR.inkSoft)
+        .text((row[c] ?? '').toString(), MARGIN + c * colW + 3, y + 4, { width: colW - 6, height: rowH - 5, ellipsis: true, lineBreak: false });
     }
     doc.save().strokeColor(COLOR.rule).lineWidth(0.4)
       .moveTo(MARGIN, y + rowH).lineTo(MARGIN + CONTENT_WIDTH, y + rowH).stroke().restore();
+  };
+  // Vertical column rules + top border for one page-segment (segTop..segBot).
+  const closeSegment = (segTop: number, segBot: number) => {
+    doc.save().strokeColor(COLOR.rule).lineWidth(0.4);
+    for (let c = 0; c <= cols; c++) doc.moveTo(MARGIN + c * colW, segTop).lineTo(MARGIN + c * colW, segBot).stroke();
+    doc.moveTo(MARGIN, segTop).lineTo(MARGIN + CONTENT_WIDTH, segTop).stroke();
+    doc.restore();
+  };
+
+  // Start the table; if barely any room remains, begin on a fresh page.
+  if (BOTTOM - doc.y < 22 + rowH * 3) doc.addPage();
+  drawCaption(false);
+  let segTop = doc.y;
+  let y = doc.y;
+  drawRow(header, y, true);
+  y += rowH;
+
+  for (let i = 1; i < sheet.rows.length; i++) {
+    if (y + rowH > BOTTOM) {
+      closeSegment(segTop, y);      // finish this page's grid
+      doc.addPage();
+      drawCaption(true);
+      segTop = doc.y;
+      y = doc.y;
+      drawRow(header, y, true);     // repeat the header on the new page
+      y += rowH;
+    }
+    drawRow(sheet.rows[i], y, false);
     y += rowH;
-  });
-  // Column separators + top border (single page, so lines are contiguous).
-  doc.save().strokeColor(COLOR.rule).lineWidth(0.4);
-  for (let c = 0; c <= cols; c++) doc.moveTo(MARGIN + c * colW, startY).lineTo(MARGIN + c * colW, y).stroke();
-  doc.moveTo(MARGIN, startY).lineTo(MARGIN + CONTENT_WIDTH, startY).stroke();
-  doc.restore();
+  }
+  closeSegment(segTop, y);
   doc.y = y + 8;
 }
 
