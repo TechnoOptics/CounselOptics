@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { updateEnterpriseInquiryAction } from '@/lib/actions';
+import { LocaleTime } from '@/components/LocaleTime';
 
 const STATUS_OPTIONS = [
   { value: 'new', label: 'New' },
@@ -93,7 +94,7 @@ export function InquiryRow(props: {
             {props.sector}
             {props.teamSize && ` · ${props.teamSize}`}
             {' · '}
-            received {new Date(props.createdAt).toLocaleString()}
+            received <LocaleTime iso={props.createdAt} />
           </p>
         </div>
         <button

@@ -1,4 +1,5 @@
 import { adminListHealthChecks } from '@/lib/storage';
+import { LocaleTime } from '@/components/LocaleTime';
 import { adminGetHqHealthExtras, adminGetLiveHealth } from '@/lib/hq-storage';
 
 export const dynamic = 'force-dynamic';
@@ -64,7 +65,7 @@ export default async function HqHealthPage() {
         ) : (
           <>
             <p className="text-[12.5px] text-cream-100/55">
-              Last run {new Date(latest.ranAt).toLocaleString()}
+              Last run <LocaleTime iso={latest.ranAt} />
               {typeof latest.durationMs === 'number' && ` (${latest.durationMs} ms)`}
             </p>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">

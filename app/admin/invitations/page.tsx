@@ -1,4 +1,5 @@
 import { adminListGrants } from '@/lib/hq-storage';
+import { LocaleTime } from '@/components/LocaleTime';
 import { FIRM_TYPE_LABEL } from '@/lib/firm-types';
 import { InviteForm } from './invite-form';
 import { GrantActions } from './grant-actions';
@@ -115,12 +116,18 @@ function GrantCard({ g }: { g: Awaited<ReturnType<typeof adminListGrants>>[numbe
         </p>
       )}
       <p className="text-[11px] text-ink-500 dark:text-cream-100/70 font-mono tabular-nums">
-        Sent {new Date(g.grantedAt).toLocaleString()}
-        {g.acceptedAt
-          ? ` · Redeemed ${new Date(g.acceptedAt).toLocaleString()}`
-          : expiresIn !== null
-            ? ` · ${expiresIn} day${expiresIn === 1 ? '' : 's'} left`
-            : ` · Expired ${new Date(g.expiresAt).toLocaleDateString()}`}
+        Sent <LocaleTime iso={g.grantedAt} />
+        {g.acceptedAt ? (
+          <>
+            {' · '}Redeemed <LocaleTime iso={g.acceptedAt} />
+          </>
+        ) : expiresIn !== null ? (
+          ` · ${expiresIn} day${expiresIn === 1 ? '' : 's'} left`
+        ) : (
+          <>
+            {' · '}Expired <LocaleTime iso={g.expiresAt} mode="date" />
+          </>
+        )}
       </p>
       {g.status === 'pending' && <GrantActions grantId={g.id} />}
     </li>

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { LocaleTime } from '@/components/LocaleTime';
 import { adminListFirms } from '@/lib/hq-storage';
 import { FIRM_TYPE_LABEL } from '@/lib/firm-types';
 import { SubdomainToggle } from './subdomain-toggle';
@@ -145,13 +146,13 @@ export default async function HqFirmsPage() {
                   </Td>
                   <Td className="text-xs text-ink-600 dark:text-cream-100/70">
                     {f.lastActivityAt ? (
-                      new Date(f.lastActivityAt).toLocaleDateString()
+                      <LocaleTime iso={f.lastActivityAt} mode="date" />
                     ) : (
                       <span className="text-ink-400">-</span>
                     )}
                   </Td>
                   <Td className="text-xs text-ink-600 dark:text-cream-100/70">
-                    {new Date(f.createdAt).toLocaleDateString()}
+                    <LocaleTime iso={f.createdAt} mode="date" />
                   </Td>
                 </tr>
               ))}

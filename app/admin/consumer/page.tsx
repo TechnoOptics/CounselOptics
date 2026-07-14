@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { LocaleTime } from '@/components/LocaleTime';
 import { adminGetCounts, adminListFeedback } from '@/lib/storage';
 import { adminGetHqDashboardCounts } from '@/lib/hq-storage';
 
@@ -104,7 +105,7 @@ export default async function HqConsumerOverviewPage() {
                         {ageDays === 0 ? 'Today' : `${ageDays}d open`}
                       </span>
                       <p className="text-[11px] text-cream-100/45 font-mono tabular-nums">
-                        {new Date(f.createdAt).toLocaleDateString()}
+                        <LocaleTime iso={f.createdAt} mode="date" />
                       </p>
                     </div>
                   </div>

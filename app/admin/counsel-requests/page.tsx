@@ -3,6 +3,7 @@ import { isCurrentUserAdmin } from '@/lib/supabase/server';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { FIRM_TYPE_LABEL, type FirmType } from '@/lib/firm-types';
 import { RequestActions } from './request-actions';
+import { LocaleTime } from '@/components/LocaleTime';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: { absolute: 'Counsel access requests · Advottic HQ' } };
@@ -162,8 +163,12 @@ function RequestCard({ req }: { req: RequestRow }) {
           </p>
         )}
         <p className="text-[11px] text-ink-500 dark:text-cream-100/70 font-mono tabular-nums mt-2">
-          Submitted {new Date(req.created_at).toLocaleString()}
-          {req.reviewed_at && ` · Reviewed ${new Date(req.reviewed_at).toLocaleString()}`}
+          Submitted <LocaleTime iso={req.created_at} />
+          {req.reviewed_at && (
+            <>
+              {' · '}Reviewed <LocaleTime iso={req.reviewed_at} />
+            </>
+          )}
         </p>
       </div>
       {(req.status === 'pending' || req.status === 'scheduled') && (

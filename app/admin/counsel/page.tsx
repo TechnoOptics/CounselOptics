@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { LocaleTime } from '@/components/LocaleTime';
 import { adminGetHqDashboardCounts, adminListFirms, adminListGrants } from '@/lib/hq-storage';
 
 export const dynamic = 'force-dynamic';
@@ -115,7 +116,7 @@ export default async function HqCounselOverviewPage() {
                       </p>
                     </div>
                     <p className="text-[11px] text-cream-100/45 font-mono tabular-nums">
-                      {new Date(f.createdAt).toLocaleDateString()}
+                      <LocaleTime iso={f.createdAt} mode="date" />
                     </p>
                   </div>
                 </li>

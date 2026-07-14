@@ -4,6 +4,7 @@ import {
   adminListCrashReports,
 } from '@/lib/storage';
 import { revalidatePath } from 'next/cache';
+import { LocaleTime } from '@/components/LocaleTime';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: { absolute: 'Crash reports · Advottic HQ' } };
@@ -281,13 +282,13 @@ export default async function HqCrashesPage({
                 <span>
                   first seen:{' '}
                   <span className="font-mono">
-                    {new Date(g.firstSeen).toLocaleString()}
+                    <LocaleTime iso={g.firstSeen} />
                   </span>
                 </span>
                 <span>
                   last seen:{' '}
                   <span className="font-mono">
-                    {new Date(g.lastSeen).toLocaleString()}
+                    <LocaleTime iso={g.lastSeen} />
                   </span>
                 </span>
                 {g.users > 0 && (
@@ -348,7 +349,7 @@ export default async function HqCrashesPage({
                   {c.message}
                 </p>
                 <p className="text-[11px] text-cream-100/55 font-mono tabular-nums">
-                  {new Date(c.reportedAt).toLocaleString()}
+                  <LocaleTime iso={c.reportedAt} />
                 </p>
               </div>
               <div className="text-[11.5px] text-cream-100/55 space-x-3">
@@ -369,7 +370,7 @@ export default async function HqCrashesPage({
                 )}
                 {c.acknowledgedAt && (
                   <span className="text-emerald-300">
-                    acknowledged {new Date(c.acknowledgedAt).toLocaleDateString()}
+                    acknowledged <LocaleTime iso={c.acknowledgedAt} mode="date" />
                   </span>
                 )}
               </div>

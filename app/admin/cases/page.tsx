@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { LocaleTime } from '@/components/LocaleTime';
 import { adminListCases } from '@/lib/storage';
 import { STATUS_LABEL, SUBJECT_TYPE_LABEL, type CaseStatus } from '@/lib/types';
 
@@ -180,7 +181,7 @@ function CasesTable({
                 </span>
               </Td>
               <Td className="text-ink-700 dark:text-cream-100/75">
-                {new Date(c.updatedAt).toLocaleString()}
+                <LocaleTime iso={c.updatedAt} />
               </Td>
             </tr>
           ))}
