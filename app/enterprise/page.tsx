@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { EnterpriseInquiryForm } from '@/components/EnterpriseInquiryForm';
 import { EnterpriseSectorTabs } from '@/components/EnterpriseSectorTabs';
+import { BrowserFrame, LegalReviewMock } from '@/components/marketing/PortalMocks';
 
 const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://advottic.com';
@@ -57,6 +58,7 @@ export default function EnterprisePage() {
         <EnterpriseHero />
         <EnterpriseSectorTabs />
         <Workflow />
+        <ProveTheCase />
         <FirmCapabilities />
         <Compliance />
         <CompareTable />
@@ -64,6 +66,50 @@ export default function EnterprisePage() {
         <EnterpriseStructuredData />
       </div>
     </div>
+  );
+}
+
+/**
+ * Prove-the-case showcase: the CourtListener-verified legal review, the firm
+ * differentiator the rest of the page did not yet show. A calm two-column
+ * layout, copy left, a faithful legal-review screen right.
+ */
+function ProveTheCase() {
+  const bullets = [
+    'Claim-by-claim analysis with elements, statutes, and recommended actions',
+    'Every citation verified against CourtListener before it appears',
+    'Unverified cites are dropped, never shown',
+  ];
+  return (
+    <section className="grid items-center gap-8 lg:grid-cols-2 lg:gap-14">
+      <div>
+        <p className="eyebrow">Prove the case</p>
+        <h2 className="mt-2 font-display text-3xl font-medium leading-[1.05] tracking-[-0.02em] text-cream-100 sm:text-[40px] text-balance">
+          Case law you can actually cite.
+        </h2>
+        <p className="mt-4 max-w-md text-[15px] leading-relaxed text-cream-100/70">
+          Legal review reads the matter and lays out each claim in full. Every case it surfaces is checked
+          against CourtListener first, so nothing unverified ever reaches your brief.
+        </p>
+        <ul className="mt-6 space-y-2.5">
+          {bullets.map((b) => (
+            <li key={b} className="flex items-start gap-2.5 text-[14px] text-cream-100/80">
+              <span className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full bg-gold-metal/15 text-gold-300">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" aria-hidden>
+                  <path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </span>
+              {b}
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div className="animate-fade-up">
+        <BrowserFrame url="yourfirm.advottic.com/matters/northwind/legal-review" tone="firm">
+          <LegalReviewMock />
+        </BrowserFrame>
+      </div>
+    </section>
   );
 }
 

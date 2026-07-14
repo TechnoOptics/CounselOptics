@@ -11,6 +11,7 @@ import { AboutTeaser } from '@/components/AboutTeaser';
 import { AudienceSplit } from '@/components/AudienceSplit';
 import { FeatureGallery } from '@/components/FeatureGallery';
 import { BrowserFrame, PersonalCaseRoomMock } from '@/components/marketing/PortalMocks';
+import { ProductShowcaseBand } from '@/components/marketing/ProductShowcaseBand';
 import { TechTrustStrip } from '@/components/TechTrustStrip';
 import { AppJsonLd, FaqJsonLd } from '@/components/seo/JsonLd';
 
@@ -126,6 +127,9 @@ export default async function HomePage() {
             <span aria-hidden>&rarr;</span>
           </Link>
         </div>
+      </div>
+      <div className="cv-auto">
+        <ProductShowcaseBand />
       </div>
       <div className="cv-auto">
         <BellaShowcase />
