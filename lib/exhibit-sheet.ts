@@ -34,6 +34,16 @@ function scalarText(v: unknown): string {
   return String(v);
 }
 
+/** True when a formatted cell string is a real numeric figure — a number,
+ *  optionally with a sign, thousands separators, or decimals — but NOT an
+ *  account code ("4000-00-…", excluded by the dashes) or a bare 4-digit year. */
+function isFigure(s: string): boolean {
+  const t = s.trim();
+  if (!/^-?[\d,]+(\.\d+)?$/.test(t)) return false;
+  if (/^\d{4}$/.test(t)) { const y = Number(t); if (y >= 1900 && y <= 2100) return false; }
+  return true;
+}
+
 function cellText(v: unknown): string {
   if (v == null) return '';
   if (typeof v === 'object' && !(v instanceof Date)) {
@@ -95,6 +105,11 @@ export async function parseExhibitSheet(
         if (rows.some((r) => (r[c] ?? '').trim() !== '')) keep.push(c);
       }
       const trimmed = keep.length ? rows.map((r) => keep.map((c) => r[c] ?? '')) : rows;
+      // Skip worksheets whose data columns are all empty — a blank input
+      // template or a labels-only account list carries no figures, so it just
+      // clutters the exhibit. A tab is kept only if it holds at least one real
+      // numeric value (a figure, not a code like "4000-00-…" or a bare year).
+      if (!trimmed.some((r) => r.some(isFigure))) continue;
       tabs.push({ name: ws.name || `Sheet ${tabs.length + 1}`, rows: trimmed, totalRows, totalCols });
       totalRowsAcross += trimmed.length;
     }
