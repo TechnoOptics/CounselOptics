@@ -1943,19 +1943,17 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
         gap(doc, 12);
         const IROW = 16;
         const ITEM_X = MARGIN;
-        const DATE_X = MARGIN + 46;
-        const DESC_X = MARGIN + 150;
+        const DESC_X = MARGIN + 46;
         const PAGE_LABEL_X = PAGE_WIDTH - MARGIN - 66;
         const descW = PAGE_LABEL_X - DESC_X - 8;
         let ry = doc.y;
-        const idxRow = (num: string, date: string, desc: string, head: boolean): number => {
+        const idxRow = (num: string, desc: string, head: boolean): number => {
           if (ry + IROW > BOTTOM) { doc.addPage(); ry = doc.y; }
           doc.font(head ? 'Helvetica-Bold' : 'Helvetica').fontSize(head ? 8 : 8.5)
             .fillColor(head ? COLOR.muted : COLOR.ink);
           const one = { height: 11, lineBreak: false as const, ellipsis: true as const };
-          doc.text(num, ITEM_X, ry + 3, { width: DATE_X - ITEM_X - 4, ...one, characterSpacing: head ? 1 : 0 });
-          doc.text(date, DATE_X, ry + 3, { width: DESC_X - DATE_X - 6, ...one, characterSpacing: head ? 1 : 0 });
-          doc.text(desc.length > 96 ? desc.slice(0, 95) + '…' : desc, DESC_X, ry + 3, { width: descW, ...one, characterSpacing: head ? 1 : 0 });
+          doc.text(num, ITEM_X, ry + 3, { width: DESC_X - ITEM_X - 4, ...one, characterSpacing: head ? 1 : 0 });
+          doc.text(desc.length > 120 ? desc.slice(0, 119) + '…' : desc, DESC_X, ry + 3, { width: descW, ...one, characterSpacing: head ? 1 : 0 });
           if (head) doc.text('PAGE', PAGE_LABEL_X, ry + 3, { width: 66, align: 'right', lineBreak: false, characterSpacing: 1 });
           doc.save().strokeColor(COLOR.rule).lineWidth(0.3)
             .moveTo(MARGIN, ry + IROW).lineTo(PAGE_WIDTH - MARGIN, ry + IROW).stroke().restore();
@@ -1963,9 +1961,9 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
           ry += IROW;
           return rowTop;
         };
-        idxRow('ITEM', 'DATE', 'DESCRIPTION', true);
+        idxRow('ITEM', 'DESCRIPTION', true);
         for (const e of input.entries) {
-          const topY = idxRow(String(e.index), e.when, e.title || '(untitled item)', false);
+          const topY = idxRow(String(e.index), e.title || '(untitled item)', false);
           indexRefs.push({ itemIndex: e.index, page: pageCount, topY });
         }
         doc.y = ry + 4;

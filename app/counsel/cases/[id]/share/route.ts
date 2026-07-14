@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { getCurrentUser, createServerSupabase } from '@/lib/supabase/server';
 import { createAdminSupabase } from '@/lib/supabase/admin';
-import { sendEmail } from '@/lib/email';
+import { sendEmail, buildShareLinkEmailHtml, buildShareKeyEmailHtml } from '@/lib/email';
 import { logCaseActivity } from '@/lib/case-activity-log';
 import {
   encryptDocument,
@@ -134,7 +134,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     subject: `${c.title} — secure document`,
     replyTo: user.email || undefined,
     text: linkEmailText({ caseTitle: c.title, senderName, link, expiresAt, note: body.note }),
-    html: linkEmailHtml({ caseTitle: c.title, senderName, firmName: ctx.firm.name || null, link, expiresAt, note: body.note }),
+    html: buildShareLinkEmailHtml({ caseTitle: c.title, senderName, firmName: ctx.firm.name || null, link, expiresAt, note: body.note }),
   });
   const keyEmail = await sendEmail({
     to: recipientEmail,
@@ -142,7 +142,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     subject: `Your decryption key`,
     replyTo: user.email || undefined,
     text: keyEmailText({ caseTitle: c.title, key: shownKey }),
-    html: keyEmailHtml({ caseTitle: c.title, firmName: ctx.firm.name || null, key: shownKey }),
+    html: buildShareKeyEmailHtml({ caseTitle: c.title, firmName: ctx.firm.name || null, key: shownKey }),
   });
   const emailSent = linkEmail.ok && keyEmail.ok;
   const emailError = emailSent
@@ -168,8 +168,6 @@ function fmtDate(d: Date): string {
   return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 }
 
-const esc = (s: string) => s.replace(/[&<>"]/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m] as string));
-
 function linkEmailText(o: { caseTitle: string; senderName: string | null; link: string; expiresAt: Date; note?: string }): string {
   return [
     `${o.senderName || 'A colleague'} has securely shared a document with you: ${o.caseTitle}.`,
@@ -180,20 +178,6 @@ function linkEmailText(o: { caseTitle: string; senderName: string | null; link: 
   ].filter(Boolean).join('\n');
 }
 
-function linkEmailHtml(o: { caseTitle: string; senderName: string | null; firmName: string | null; link: string; expiresAt: Date; note?: string }): string {
-  return `<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:520px;margin:0 auto;color:#18181b">
-  <p style="font-size:15px;line-height:1.5">${esc(o.senderName || 'A colleague')} has securely shared a document with you.</p>
-  <p style="font-size:15px;font-weight:600;margin:0 0 4px">${esc(o.caseTitle)}</p>
-  ${o.note ? `<p style="font-size:13px;color:#52525b;background:#faf8f2;border-radius:8px;padding:10px 12px">${esc(o.note)}</p>` : ''}
-  <p style="margin:22px 0">
-    <a href="${esc(o.link)}" style="background:#0a0a0a;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-size:14px;font-weight:600;display:inline-block">Open the secure document</a>
-  </p>
-  <p style="font-size:13px;color:#52525b;line-height:1.5">The document is encrypted. <strong>Your decryption key arrives in a separate email</strong> — you will need it to open the document.</p>
-  <p style="font-size:12px;color:#71717a;line-height:1.5;margin-top:18px">This secure link expires ${fmtDate(o.expiresAt)}. Confidential — please do not forward.</p>
-  ${o.firmName ? `<p style="font-size:12px;color:#a1a1aa;margin-top:16px">Sent via ${esc(o.firmName)} on Advottic.</p>` : ''}
-</div>`;
-}
-
 function keyEmailText(o: { caseTitle: string; key: string }): string {
   return [
     `Here is your decryption key for the secure document "${o.caseTitle}":`,
@@ -201,14 +185,4 @@ function keyEmailText(o: { caseTitle: string; key: string }): string {
     `\nEnter it on the secure page from the previous email to unlock the document.`,
     `Keep this key confidential and do not forward it.`,
   ].join('\n');
-}
-
-function keyEmailHtml(o: { caseTitle: string; firmName: string | null; key: string }): string {
-  return `<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:520px;margin:0 auto;color:#18181b">
-  <p style="font-size:15px;line-height:1.5">Here is your decryption key for the secure document <strong>${esc(o.caseTitle)}</strong>:</p>
-  <p style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:16px;font-weight:700;letter-spacing:1px;background:#f4f4f5;border:1px solid #e4e4e7;border-radius:8px;padding:12px 14px;text-align:center">${esc(o.key)}</p>
-  <p style="font-size:13px;color:#52525b;line-height:1.5">Enter it on the secure page from the previous email to unlock the document.</p>
-  <p style="font-size:12px;color:#71717a;line-height:1.5;margin-top:18px">Keep this key confidential and do not forward it.</p>
-  ${o.firmName ? `<p style="font-size:12px;color:#a1a1aa;margin-top:16px">Sent via ${esc(o.firmName)} on Advottic.</p>` : ''}
-</div>`;
 }

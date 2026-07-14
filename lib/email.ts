@@ -477,6 +477,77 @@ export function buildSignInCodeEmailHtml(input: {
 </body></html>`;
 }
 
+/**
+ * Shared premium shell for the secure-share emails: near-black outer canvas,
+ * white card, black-gradient masthead carrying the REAL Advottic wordmark (the
+ * same /advottic-wordmark.png the app header renders) over a gold rule, and a
+ * gold security eyebrow. Matches the sign-in code email's executive look.
+ */
+function secureShareShell(input: { eyebrow: string; headline: string; bodyHtml: string; firmName?: string | null }): string {
+  const year = new Date().getFullYear();
+  return `<!doctype html>
+<html><body style="margin:0;padding:0;background:#0a0a0b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif;color:#1a1a1a;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0a0a0b;padding:36px 16px;">
+    <tr><td align="center">
+      <table role="presentation" width="500" cellpadding="0" cellspacing="0" style="max-width:500px;background:#ffffff;border-radius:18px;overflow:hidden;box-shadow:0 10px 34px -6px rgba(0,0,0,0.55);border:1px solid #1c1c1e;">
+        <tr><td align="center" style="background:linear-gradient(135deg,#0b0b0c 0%,#14140f 55%,#1b1710 100%);padding:30px 34px 24px;border-bottom:2px solid #e8c878;">
+          <img src="https://advottic.com/advottic-wordmark.png" alt="Advottic" width="150" style="display:block;margin:0 auto;width:150px;height:auto;border:0;outline:none;text-decoration:none;" />
+          <p style="margin:16px 0 0;color:#e8c878;font-size:10.5px;font-weight:700;letter-spacing:0.22em;text-transform:uppercase;">${escapeHtml(input.eyebrow)}</p>
+          <p style="margin:8px 0 0;color:#f4f0e6;font-size:17px;font-weight:600;letter-spacing:-0.005em;">${escapeHtml(input.headline)}</p>
+        </td></tr>
+        <tr><td style="padding:28px 34px 8px;">${input.bodyHtml}</td></tr>
+        <tr><td style="padding:16px 34px 28px;">
+          <hr style="border:none;border-top:1px solid #e4e4e7;margin:0 0 12px;" />
+          ${input.firmName ? `<p style="margin:0 0 4px;color:#71717a;font-size:11.5px;">Sent on behalf of <span style="font-weight:600;color:#3f3f46;">${escapeHtml(input.firmName)}</span></p>` : ''}
+          <p style="margin:0;color:#a1a1aa;font-size:11px;letter-spacing:0.04em;">© ${year} Advottic LLC &middot; End-to-end encrypted document delivery.</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
+export function buildShareLinkEmailHtml(input: {
+  caseTitle: string;
+  senderName: string | null;
+  firmName: string | null;
+  link: string;
+  expiresAt: Date;
+  note?: string;
+}): string {
+  const expires = input.expiresAt.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+  const body = `
+    <p style="margin:0 0 6px;color:#3f3f46;font-size:14.5px;line-height:1.6;">${escapeHtml(input.senderName || 'A colleague')} has shared an encrypted document with you.</p>
+    <p style="margin:0 0 18px;color:#0b0b0c;font-size:15.5px;font-weight:700;line-height:1.4;">${escapeHtml(input.caseTitle)}</p>
+    ${input.note ? `<p style="margin:0 0 18px;color:#52525b;font-size:13px;line-height:1.6;background:#faf7ef;border:1px solid #e6d9b6;border-radius:12px;padding:12px 14px;">${escapeHtml(input.note)}</p>` : ''}
+    <div style="margin:0 0 20px;text-align:center;">
+      <a href="${escapeAttribute(input.link)}" style="display:inline-block;background:linear-gradient(135deg,#e8c878 0%,#d5bb7e 100%);color:#0b0b0c;text-decoration:none;padding:14px 30px;border-radius:12px;font-size:14.5px;font-weight:700;letter-spacing:0.01em;">Open the secure document</a>
+    </div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 16px;background:#0b0b0c;border-radius:12px;">
+      <tr><td style="padding:14px 16px;">
+        <p style="margin:0 0 3px;color:#e8c878;font-size:10.5px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;">Encrypted &middot; AES-256</p>
+        <p style="margin:0;color:#d4d4d8;font-size:12.5px;line-height:1.6;">This document is sealed with a one-time key. <span style="color:#f4f0e6;font-weight:600;">Your decryption key arrives in a separate email</span> — you will need it to open the document.</p>
+      </td></tr>
+    </table>
+    <p style="margin:0;color:#a1a1aa;font-size:11.5px;line-height:1.6;">This secure link expires ${escapeHtml(expires)}. Confidential — please do not forward.</p>`;
+  return secureShareShell({ eyebrow: 'Secure document delivery', headline: 'A document has been shared with you', bodyHtml: body, firmName: input.firmName });
+}
+
+export function buildShareKeyEmailHtml(input: {
+  caseTitle: string;
+  firmName: string | null;
+  key: string;
+}): string {
+  const body = `
+    <p style="margin:0 0 18px;color:#3f3f46;font-size:14.5px;line-height:1.6;">Here is your decryption key for the secure document <span style="font-weight:700;color:#0b0b0c;">${escapeHtml(input.caseTitle)}</span>:</p>
+    <div style="margin:0 0 18px;text-align:center;">
+      <span style="display:inline-block;max-width:100%;padding:16px 20px;background:#faf7ef;border:1px solid #e6d9b6;border-radius:14px;color:#0b0b0c;font-size:15px;font-weight:700;letter-spacing:0.06em;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;word-break:break-all;">${escapeHtml(input.key)}</span>
+    </div>
+    <p style="margin:0 0 6px;color:#71717a;font-size:12.5px;line-height:1.6;">Enter it on the secure page from the previous email, then complete the quick human-verification step to unlock the document.</p>
+    <p style="margin:0;color:#a1a1aa;font-size:11.5px;line-height:1.6;">Never share this key. Advottic will never ask for it by phone or email reply.</p>`;
+  return secureShareShell({ eyebrow: 'Encrypted · AES-256', headline: 'Your decryption key', bodyHtml: body, firmName: input.firmName });
+}
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, '&amp;')
