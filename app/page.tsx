@@ -10,6 +10,7 @@ import { BellaAvatar } from '@/components/BellaAvatar';
 import { AboutTeaser } from '@/components/AboutTeaser';
 import { AudienceSplit } from '@/components/AudienceSplit';
 import { FeatureGallery } from '@/components/FeatureGallery';
+import { BrowserFrame, PersonalCaseRoomMock } from '@/components/marketing/PortalMocks';
 import { TechTrustStrip } from '@/components/TechTrustStrip';
 import { AppJsonLd, FaqJsonLd } from '@/components/seo/JsonLd';
 
@@ -116,6 +117,15 @@ export default async function HomePage() {
           read the detail, jump straight to that surface. */}
       <div className="cv-auto">
         <FeatureGallery />
+        <div className="mt-8 text-center">
+          <Link
+            href="/features"
+            className="inline-flex items-center gap-1.5 text-[14px] font-semibold text-forest-800 underline-offset-4 hover:text-gold-700 hover:underline dark:text-cream-100 dark:hover:text-gold-300"
+          >
+            See the full feature sheet, for people and firms
+            <span aria-hidden>&rarr;</span>
+          </Link>
+        </div>
       </div>
       <div className="cv-auto">
         <BellaShowcase />
@@ -329,7 +339,25 @@ function Hero({
 
         {/* Right: floating product preview "card stack" */}
         <div className="lg:col-span-5 relative">
-          <ProductPreview />
+          {process.env.NEXT_PUBLIC_HERO_SCREENSHOT_URL ? (
+            <ProductPreview />
+          ) : (
+            <div className="relative">
+              <div
+                aria-hidden
+                className="pointer-events-none absolute -inset-6 rounded-[3rem] opacity-60 blur-3xl"
+                style={{
+                  background:
+                    'radial-gradient(60% 50% at 60% 40%, rgba(213,187,126,0.45), transparent 70%)',
+                }}
+              />
+              <div className="relative animate-float">
+                <BrowserFrame url="advottic.com/cases/security-deposit">
+                  <PersonalCaseRoomMock />
+                </BrowserFrame>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </section>
