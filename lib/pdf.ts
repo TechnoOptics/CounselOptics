@@ -1596,11 +1596,14 @@ async function appendPdfAttachments(
 }
 
 /**
- * Court-ready evidentiary exhibit. Cover → certification/authentication →
- * persons & organizations of interest (profiles + reference photos) → numbered
- * dated chronology with EMBEDDED evidence images + per-file SHA-256 digests →
- * narrative → conclusion → disclaimer. Every page carries a Bates-style
- * identifier. Reuses the shared section/body/drawMetaGrid typography.
+ * Court-ready evidentiary exhibit, laid out as one planned document:
+ *   Cover → Overview (narrative) → Timeline of events → Parties & entities →
+ *   Locations → Record of exhibits (one dated item per page, with embedded
+ *   evidence images + authenticated attachment cards + per-file SHA-256
+ *   digests) → Conclusion → Certification & authentication → Attached
+ *   documents appendix. Each major section opens on its own page and every
+ *   page carries a Bates-style identifier. Reuses the shared
+ *   section/body/drawMetaGrid typography.
  */
 export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Promise<Buffer> {
   const logoBuffer = await loadLogoBuffer();
@@ -1687,54 +1690,56 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
           .text('CONFIDENTIAL ATTORNEY WORK PRODUCT  ·  NOT FOR DISTRIBUTION', MARGIN, bandY + 26, { characterSpacing: 1.2, width: CONTENT_WIDTH });
       }
 
-      // ── NARRATIVE SUMMARY (opens the document, court-ready)
+      // The exhibit reads as one planned document, front to back:
+      //   Cover → Overview → Timeline → Parties → Locations → detailed
+      //   Record of exhibits → Conclusion → Certification. Each major section
+      //   begins on its own page (beginSection), so the flow never runs two
+      //   unrelated blocks together on a single sheet.
+
+      // ── 1. OVERVIEW (narrative summary opens the document, court-ready)
       if (input.narrative?.summary || input.narrative?.narrative) {
-        beginSection(doc, 'Narrative summary');
+        beginSection(doc, 'Overview');
         if (input.narrative.summary) body(doc, input.narrative.summary);
         if (input.narrative.narrative) {
-          gap(doc, 10);
+          gap(doc, 14);
           subsection(doc, 'Statement of facts');
           body(doc, input.narrative.narrative);
         }
       }
 
-      // ── TIMELINE OF EVENTS (structured, visible)
+      // ── 2. TIMELINE OF EVENTS (structured, at-a-glance chronology)
       if (input.narrativeTimeline && input.narrativeTimeline.length) {
         beginSection(doc, 'Timeline of events');
+        body(doc, 'A chronological overview of the key events in this matter. The full supporting record for each event appears in the Record of exhibits that follows.');
+        gap(doc, 14);
         for (const t of input.narrativeTimeline) {
-          ensureSpace(doc, 42);
+          ensureSpace(doc, 44);
           doc.font('Helvetica-Bold').fontSize(9).fillColor(COLOR.amber)
             .text(t.when || '', MARGIN, doc.y, { characterSpacing: 0.5, width: CONTENT_WIDTH });
-          gap(doc, 1);
+          gap(doc, 2);
           doc.font('Helvetica-Bold').fontSize(11).fillColor(COLOR.ink)
             .text(t.title || '(event)', MARGIN, doc.y, { width: CONTENT_WIDTH });
           if (t.significance) {
-            gap(doc, 1);
+            gap(doc, 2);
             body(doc, t.significance);
           }
-          gap(doc, 9);
+          gap(doc, 12);
         }
       }
 
-      // ── CERTIFICATION & AUTHENTICATION
-      beginSection(doc, 'Certification & authentication');
-      body(doc, `This exhibit was assembled from ${input.entries.length} catalogued item(s) and ${totalExhibits} source file(s) submitted in connection with the above matter. Each file reproduced or referenced herein is identified by its original filename, media type, byte size, and a SHA-256 cryptographic digest computed at the time of intake. A digest that matches the original file establishes that the file has not been altered since it was catalogued.`);
-      gap(doc, 8);
-      body(doc, 'Entries are numbered sequentially and paginated with a unique Bates-style identifier in the footer of every page. Any description, transcription, or observation provided as a summary is included for organisational assistance only, and must be independently verified by counsel.');
-
-      // ── PERSONS & ORGANIZATIONS OF INTEREST
+      // ── 3. PARTIES (persons & organizations of interest)
       if (input.entities.length) {
-        beginSection(doc, 'Persons & organizations of interest');
-        body(doc, 'Reference profiles for the individuals and entities catalogued in this matter. Reference images assist identification and are NOT a biometric determination.');
-        gap(doc, 12);
+        beginSection(doc, 'Parties & entities');
+        body(doc, 'Reference profiles for the individuals and entities named in this matter. Any reference image assists identification only and is not a biometric determination.');
+        gap(doc, 14);
         for (const ent of input.entities) drawEntityCard(doc, ent);
       }
 
-      // ── LOCATIONS (themed map of everywhere the evidence pings)
+      // ── 4. LOCATIONS (map of everywhere the evidence resolves to)
       if (input.caseMap?.image) {
         beginSection(doc, 'Locations of interest');
         body(doc, `Every location resolved from the catalogued evidence, plotted below. ${input.caseMap.count} location${input.caseMap.count === 1 ? '' : 's'} mapped. Coordinates are derived from embedded file GPS or from places named in the content, and are provided for orientation only.`);
-        gap(doc, 12);
+        gap(doc, 14);
         try {
           const im = (doc as unknown as { openImage(src: Buffer): { width: number; height: number } }).openImage(input.caseMap.image);
           const iw = im.width || 640, ih = im.height || 360;
@@ -1755,37 +1760,45 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
         }
       }
 
-      // ── CHRONOLOGY (with embedded exhibits)
-      beginSection(doc, 'Chronology of events');
-      let firstEntry = true;
+      // ── 5. RECORD OF EXHIBITS (the detailed, dated record — one item per page,
+      //    with embedded evidence images and authenticated attachment cards)
+      beginSection(doc, 'Record of exhibits');
+      body(doc, 'The dated record of every catalogued item. Each item is numbered, its supporting files are embedded or reproduced, and every file carries a SHA-256 digest recorded at intake.');
+      gap(doc, 6);
       for (const e of input.entries) {
-        // One exhibit / thought per page: the first entry shares the section
-        // header's page; every subsequent entry starts on its own fresh page.
-        if (!firstEntry) doc.addPage();
-        firstEntry = false;
-        ensureSpace(doc, 96);
+        // One item per page: each entry starts on its own fresh page so the
+        // record reads as a clean, uniform sequence of exhibits.
+        doc.addPage();
+        // Item number + date.
         doc.font('Helvetica-Bold').fontSize(9).fillColor(COLOR.amber)
-          .text(`${e.index}.  ${e.when}`, MARGIN, doc.y, { characterSpacing: 0.5 });
-        gap(doc, 2);
-        doc.font('Helvetica-Bold').fontSize(13).fillColor(COLOR.ink)
-          .text(e.title || '(untitled entry)', MARGIN, doc.y, { width: CONTENT_WIDTH });
-        gap(doc, 2);
+          .text(`ITEM ${e.index}  ·  ${e.when}`, MARGIN, doc.y, { characterSpacing: 0.8 });
+        gap(doc, 3);
+        // Title.
+        doc.font('Helvetica-Bold').fontSize(15).fillColor(COLOR.ink)
+          .text(e.title || '(untitled item)', MARGIN, doc.y, { width: CONTENT_WIDTH });
+        gap(doc, 3);
+        // Kind / source / people metadata line, above a hairline that separates
+        // the header from the body so each item reads as a self-contained card.
         const metaBits = [e.kind];
         if (e.sourceLabel) metaBits.push(`Source: ${e.sourceLabel}`);
         if (e.people.length) metaBits.push(`People: ${e.people.join(', ')}`);
         doc.font('Helvetica').fontSize(8.5).fillColor(COLOR.muted)
           .text(metaBits.join('  ·  '), MARGIN, doc.y, { width: CONTENT_WIDTH });
-        if (e.context) { gap(doc, 4); body(doc, e.context); }
+        gap(doc, 8);
+        doc.save().strokeColor(COLOR.rule).lineWidth(0.5)
+          .moveTo(MARGIN, doc.y).lineTo(PAGE_WIDTH - MARGIN, doc.y).stroke().restore();
+        gap(doc, 12);
+        if (e.context) { body(doc, e.context); gap(doc, 4); }
         if (e.summary) {
-          gap(doc, 6);
+          gap(doc, 4);
           doc.font('Helvetica-Bold').fontSize(8).fillColor(COLOR.muted)
             .text('SUMMARY', MARGIN, doc.y, { characterSpacing: 1.4 });
-          gap(doc, 2);
+          gap(doc, 3);
           body(doc, e.summary);
         }
         // Embedded evidence images + authentication captions.
         if (e.exhibits.some((x) => x.image)) {
-          gap(doc, 8);
+          gap(doc, 10);
           for (const ex of e.exhibits) drawExhibitImage(doc, ex);
         }
         // Non-image files (PDF emails, spreadsheets, documents, video): each
@@ -1794,40 +1807,40 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
         // Attached documents appendix.
         const nonImg = e.exhibits.filter((x) => !x.image);
         if (nonImg.length) {
-          gap(doc, 8);
+          gap(doc, 10);
           for (const ex of nonImg) {
             const isPdf = Boolean(ex.pdf);
             if (isPdf && ex.pdf) pdfAttachments.push({ label: `Item ${e.index}`, name: ex.name, buf: ex.pdf });
             drawAttachmentCard(doc, ex, isPdf);
           }
         }
-        // Forensic core details extracted from the file (EXIF/GPS/device/authoring).
-        if (e.coreDetails.length) {
-          gap(doc, 6);
-          ensureSpace(doc, 16 + e.coreDetails.length * 11);
-          doc.font('Helvetica-Bold').fontSize(7.5).fillColor(COLOR.emerald)
-            .text('CORE DETAILS (EXTRACTED FROM FILE METADATA)', MARGIN, doc.y, { characterSpacing: 1 });
-          gap(doc, 3);
-          for (const d of e.coreDetails) {
-            ensureSpace(doc, 11);
-            doc.font('Courier').fontSize(8).fillColor(COLOR.inkSoft)
-              .text(`${(d.label + ':').padEnd(16)}${d.value}`, MARGIN + 4, doc.y, { width: CONTENT_WIDTH - 4 });
-          }
-        }
       }
 
-      // ── CONCLUSION
+      // ── 6. CONCLUSION
       if (input.narrative?.conclusion) {
         beginSection(doc, 'Conclusion');
         body(doc, input.narrative.conclusion);
       }
 
-      // ── COLOPHON: a neutral work-product note. Court-ready: no
-      //    informational-only hedging, no AI/authorship attribution, nothing
-      //    that could be read to discredit the compiled findings.
-      gap(doc, 24);
-      ensureSpace(doc, 130);
-      drawExhibitColophon(doc, input.preparedBy);
+      // ── 7. CERTIFICATION & AUTHENTICATION (closing attestation). Placed last,
+      //    where a certification belongs. Also carries the required "counsel
+      //    case-management software" note and the confidentiality line, so the
+      //    document has ONE clean closing section instead of two overlapping
+      //    ones (this replaces the former standalone colophon).
+      beginSection(doc, 'Certification & authentication');
+      body(doc, `This exhibit was assembled from ${input.entries.length} catalogued item(s) and ${totalExhibits} source file(s) submitted in connection with the above matter, and was prepared using counsel case-management software. Each file reproduced or referenced herein is identified by its original filename, media type, byte size, and a SHA-256 cryptographic digest computed at the time of intake. A digest that matches the original file establishes that the file has not been altered since it was catalogued.`);
+      gap(doc, 8);
+      body(doc, 'Items are numbered sequentially and every page carries a unique Bates-style identifier. Any description, transcription, or observation provided as a summary is included for organisational assistance only, and must be independently verified by counsel.');
+      gap(doc, 18);
+      doc.save().moveTo(MARGIN, doc.y).lineTo(MARGIN + 56, doc.y).lineWidth(2.5).stroke(COLOR.amber).restore();
+      gap(doc, 12);
+      {
+        const line = input.preparedBy
+          ? `Prepared exclusively for ${input.preparedBy}. Confidential attorney work product — not for distribution.`
+          : 'Confidential attorney work product — not for distribution.';
+        doc.font('Helvetica-Bold').fontSize(8.5).fillColor(COLOR.muted)
+          .text(line.toUpperCase(), MARGIN, doc.y, { characterSpacing: 0.8, width: CONTENT_WIDTH });
+      }
 
       // ── ATTACHED DOCUMENTS (labeled lead-in). The PDF emails / statements
       //    themselves are spliced in, in full, after doc.end() by
@@ -1855,27 +1868,6 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
       reject(err instanceof Error ? err : new Error('Timeline PDF generation failed.'));
     }
   });
-}
-
-/**
- * Neutral closing note for the court-ready exhibit. Mentions that the document
- * was prepared with counsel case-management software, but carries NO
- * informational-only hedging, NO authorship/AI attribution, and nothing that
- * could be read to discredit the compiled findings.
- */
-function drawExhibitColophon(doc: Doc, preparedBy: string | null) {
-  doc.save().moveTo(MARGIN, doc.y).lineTo(MARGIN + 56, doc.y).lineWidth(2.5).stroke(COLOR.amber).restore();
-  gap(doc, 12);
-  doc.font('Helvetica-Bold').fontSize(9).fillColor(COLOR.ink)
-    .text('ABOUT THIS DOCUMENT', MARGIN, doc.y, { characterSpacing: 1.4 });
-  gap(doc, 6);
-  body(doc, 'This document is confidential attorney work product, compiled from the materials submitted in connection with the above matter and prepared using counsel case-management software. Each exhibit is identified by its original filename and a SHA-256 cryptographic digest recorded at intake, and every page carries a unique Bates-style identifier.');
-  gap(doc, 10);
-  const line = preparedBy
-    ? `Prepared exclusively for ${preparedBy}. Confidential — not for distribution.`
-    : 'Confidential attorney work product — not for distribution.';
-  doc.font('Helvetica-Bold').fontSize(8.5).fillColor(COLOR.muted)
-    .text(line.toUpperCase(), MARGIN, doc.y, { characterSpacing: 0.8, width: CONTENT_WIDTH });
 }
 
 /** Footer: page number left, matter centre, Bates identifier right. */
