@@ -670,6 +670,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 </Link>
               </div>
               <FooterCol title="Product">
+                <Link href="/features" className="hover:text-forest-900 dark:hover:text-cream-100 block">Features</Link>
                 <Link href="/cases" className="hover:text-forest-900 dark:hover:text-cream-100 block">Cases</Link>
                 <Link href="/cases/new" className="hover:text-forest-900 dark:hover:text-cream-100 block">New case</Link>
                 <Link href="/find-counsel" className="hover:text-forest-900 dark:hover:text-cream-100 block">Find counsel</Link>

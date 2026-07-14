@@ -33,6 +33,7 @@ const ENTRIES: Entry[] = [
   // Tier 1: cornerstone marketing
   { path: '/', changeFrequency: 'weekly', priority: 1.0 },
   { path: '/pricing', changeFrequency: 'monthly', priority: 0.95 },
+  { path: '/features', changeFrequency: 'monthly', priority: 0.95 },
   { path: '/about', changeFrequency: 'monthly', priority: 0.9 },
   // Canonical brand-definition page. Lifted to Tier 1 priority
   // because it's the single source we want search engines + LLMs
