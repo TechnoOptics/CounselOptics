@@ -1613,6 +1613,17 @@ async function finalizeExhibit(
 
   // Interleave, ascending by target position. Each page inserted before a later
   // target shifts that target's index, so we track a running offset.
+  //
+  // Each source page is EMBEDDED onto a fresh Letter page, scaled to fit inside
+  // a content box that reserves a bottom margin for the Bates footer (and a top
+  // margin), then framed with a hairline. This is what keeps the reproduced
+  // document from running edge-to-edge into the footer, and normalizes every
+  // reproduced page to the exhibit's own Letter geometry so it paginates
+  // uniformly — instead of copying source pages verbatim (which collided with
+  // the footer and could be any size).
+  const TOP_RESERVE = 30;   // clean margin above the reproduced page
+  const BOT_RESERVE = 42;   // clean band below it for the footer
+  const SIDE = 44;
   const ordered = [...inserts].sort((a, b) => a.afterPage - b.afterPage);
   let insertedSoFar = 0;
   for (const ins of ordered) {
@@ -1626,10 +1637,19 @@ async function finalizeExhibit(
         if (!isPageLikelyBlank(src.getPage(i))) idxs.push(i);
       }
       if (!idxs.length) continue;
-      const copied = await out.copyPages(src, idxs);
+      const embedded = await out.embedPages(idxs.map((i) => src.getPage(i)));
       let at = ins.afterPage + insertedSoFar; // 0-based index just after the item
-      for (const p of copied) {
-        out.insertPage(at, p);
+      for (const emb of embedded) {
+        const page = out.insertPage(at, [PAGE_WIDTH, PAGE_HEIGHT]);
+        const availW = PAGE_WIDTH - SIDE * 2;
+        const availH = PAGE_HEIGHT - TOP_RESERVE - BOT_RESERVE;
+        const scale = Math.min(availW / emb.width, availH / emb.height, 1);
+        const w = emb.width * scale;
+        const h = emb.height * scale;
+        const x = (PAGE_WIDTH - w) / 2;
+        const y = PAGE_HEIGHT - TOP_RESERVE - h; // top-aligned under the top margin
+        page.drawPage(emb, { x, y, width: w, height: h });
+        page.drawRectangle({ x, y, width: w, height: h, borderColor: rgb(0.85, 0.85, 0.87), borderWidth: 0.5 });
         at += 1;
         insertedSoFar += 1;
       }

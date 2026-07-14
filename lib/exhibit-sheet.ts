@@ -14,19 +14,39 @@ const MAX_COLS = 8;
 const MAX_CELL = 60;
 const MAX_PARSE_BYTES = 12 * 1024 * 1024;
 
-function cellText(v: unknown): string {
+/** Format a scalar cell value the way a reader expects to see it. Numbers get
+ *  thousands separators (but 4-digit year-like integers are left bare so a year
+ *  or a numeric code isn't mangled into "2,014"). */
+function scalarText(v: unknown): string {
   if (v == null) return '';
   if (v instanceof Date) return v.toISOString().slice(0, 10);
-  if (typeof v === 'object') {
+  if (typeof v === 'boolean') return v ? 'TRUE' : 'FALSE';
+  if (typeof v === 'number') {
+    if (!Number.isFinite(v)) return '';
+    if (Number.isInteger(v) && Math.abs(v) < 10000) return String(v); // year / small code
+    return v.toLocaleString('en-US', { maximumFractionDigits: 2 });
+  }
+  return String(v);
+}
+
+function cellText(v: unknown): string {
+  if (v == null) return '';
+  if (typeof v === 'object' && !(v instanceof Date)) {
     const o = v as Record<string, unknown>;
+    // Formula cell: show ONLY the cached computed result, never the raw formula
+    // (a bare "=SUM(...)" reads as corruption). Blank when no result is stored.
+    if ('formula' in o || 'sharedFormula' in o) {
+      const r = o.result;
+      if (r == null || (typeof r === 'object' && 'error' in (r as object))) return '';
+      return scalarText(r);
+    }
     if (typeof o.text === 'string') return o.text;
     if (Array.isArray(o.richText)) return o.richText.map((r) => (r as { text?: string }).text ?? '').join('');
-    if ('result' in o && o.result != null) return String(o.result);
-    if ('formula' in o) return o.result != null ? String(o.result) : `=${String(o.formula)}`;
+    if ('result' in o && o.result != null) return scalarText(o.result);
     if (typeof o.hyperlink === 'string') return String(o.text ?? o.hyperlink);
     try { return JSON.stringify(o); } catch { return ''; }
   }
-  return String(v);
+  return scalarText(v);
 }
 
 export async function parseExhibitSheet(
@@ -58,7 +78,16 @@ export async function parseExhibitSheet(
       if (cells.some((x) => x)) rows.push(cells);
     });
     if (!rows.length) return null;
-    return { name: ws.name || 'Sheet 1', rows, totalRows, totalCols };
+    // Drop columns that are empty across EVERY shown row (e.g. a blank budget
+    // template's value column, or a leading spacer column) so the table reads
+    // as real data instead of a sea of empty cells. Keep at least one column.
+    const width = Math.max(...rows.map((r) => r.length));
+    const keep: number[] = [];
+    for (let c = 0; c < width; c++) {
+      if (rows.some((r) => (r[c] ?? '').trim() !== '')) keep.push(c);
+    }
+    const trimmed = keep.length ? rows.map((r) => keep.map((c) => r[c] ?? '')) : rows;
+    return { name: ws.name || 'Sheet 1', rows: trimmed, totalRows, totalCols };
   } catch {
     return null;
   }
