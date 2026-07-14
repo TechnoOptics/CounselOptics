@@ -170,7 +170,14 @@ export async function GET(
       if (error || !data) return { ...base, sha256: '(file unavailable)' };
       const buf = Buffer.from(await data.arrayBuffer());
       const sha256 = createHash('sha256').update(buf).digest('hex');
-      return { ...base, sizeBytes: buf.length || base.sizeBytes, sha256, image: isJpegOrPng(buf) ? buf : null };
+      const isPdf = buf.length > 4 && buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46;
+      return {
+        ...base,
+        sizeBytes: buf.length || base.sizeBytes,
+        sha256,
+        image: isJpegOrPng(buf) ? buf : null,
+        pdf: isPdf ? buf : null,
+      };
     } catch {
       return { ...base, sha256: '(file unavailable)' };
     }

@@ -1305,6 +1305,10 @@ export type ExhibitFile = {
   sha256: string; // hex digest (or a short "(unavailable)" note)
   /** Embeddable JPEG/PNG bytes, or null for non-image / unsupported media. */
   image: Buffer | null;
+  /** Raw PDF bytes when the file is a PDF (e.g. an emailed statement or a PDF
+   *  email), so the exhibit can reproduce the document in full in an appendix.
+   *  Null for non-PDF files. */
+  pdf?: Buffer | null;
 };
 
 /** A profiled individual or entity referenced across the matter. */
@@ -1453,6 +1457,92 @@ function drawExhibitImage(doc: Doc, ex: ExhibitFile) {
   doc.y += 10;
 }
 
+/** A human, court-legible type label for a non-image exhibit file. */
+function attachmentKindLabel(ex: ExhibitFile): string {
+  const m = (ex.mime || '').toLowerCase();
+  const n = (ex.name || '').toLowerCase();
+  if (ex.pdf || m.includes('pdf') || n.endsWith('.pdf')) return 'PDF DOCUMENT';
+  if (
+    m.includes('spreadsheet') || m.includes('excel') || m.includes('csv') ||
+    /\.(xlsx|xlsm|xls|csv|numbers|ods)$/.test(n)
+  ) return 'SPREADSHEET';
+  if (m.startsWith('video/') || /\.(mov|mp4|m4v|avi|mkv|webm)$/.test(n)) return 'VIDEO';
+  if (m.startsWith('audio/') || /\.(mp3|m4a|wav|aac)$/.test(n)) return 'AUDIO RECORDING';
+  if (m.includes('word') || /\.(docx?|rtf|odt|pages)$/.test(n)) return 'DOCUMENT';
+  if (m.includes('message') || /\.(eml|msg)$/.test(n)) return 'EMAIL';
+  return 'FILE';
+}
+
+/**
+ * A prominent, authenticated exhibit card for a non-image file (PDF email,
+ * spreadsheet, document, video). Unlike a faint reference line, this makes the
+ * attachment unmistakably part of the record: a type chip, the filename, and a
+ * verification line (MIME · size · SHA-256). PDF files additionally note that
+ * they are reproduced in full in the Attached documents appendix.
+ */
+function drawAttachmentCard(doc: Doc, ex: ExhibitFile, reproducedInFull: boolean) {
+  const cardH = 52;
+  if (doc.y + cardH + 8 > BOTTOM) doc.addPage();
+  const top = doc.y;
+  doc.save()
+    .roundedRect(MARGIN, top, CONTENT_WIDTH, cardH, 8)
+    .fillAndStroke(COLOR.tint, COLOR.rule)
+    .restore();
+  doc.font('Helvetica-Bold').fontSize(7.5).fillColor(COLOR.amber)
+    .text(attachmentKindLabel(ex), MARGIN + 14, top + 11, { characterSpacing: 1.1 });
+  doc.font('Helvetica-Bold').fontSize(11).fillColor(COLOR.ink)
+    .text(ex.name, MARGIN + 14, top + 21, { width: CONTENT_WIDTH - 28, lineBreak: false, ellipsis: true });
+  const meta = `${ex.mime || 'file'}  ·  ${humanBytes(ex.sizeBytes)}  ·  SHA-256 ${ex.sha256.slice(0, 24)}${
+    reproducedInFull ? '  ·  reproduced in full in Attached documents' : ''
+  }`;
+  doc.font('Helvetica').fontSize(8).fillColor(COLOR.muted)
+    .text(meta, MARGIN + 14, top + 36, { width: CONTENT_WIDTH - 28, lineBreak: false, ellipsis: true });
+  doc.y = top + cardH + 8;
+}
+
+/**
+ * Splice PDF attachments (e.g. PDF emails / statements) into the finished
+ * exhibit, in full, after the "Attached documents" lead-in page. Uses pdf-lib
+ * (PDFKit can't import external PDFs). Fail-safe throughout: an encrypted or
+ * corrupt attachment is skipped (it's still carded + referenced inline), and
+ * any load/save failure returns the original exhibit unchanged. Honors the same
+ * per-exhibit and per-packet page caps as mergeExhibitPdfs.
+ */
+async function appendPdfAttachments(
+  pdfkitBuffer: Buffer,
+  attachments: { label: string; name: string; buf: Buffer }[],
+): Promise<Buffer> {
+  if (!attachments.length) return pdfkitBuffer;
+  let out: PdfLibDoc;
+  try {
+    out = await PdfLibDoc.load(pdfkitBuffer, { ignoreEncryption: true });
+  } catch {
+    return pdfkitBuffer;
+  }
+  for (const a of attachments) {
+    if (out.getPageCount() >= MAX_PACKET_PAGES) break;
+    try {
+      const src = await PdfLibDoc.load(a.buf, { ignoreEncryption: true });
+      const total = src.getPageCount();
+      const budget = Math.min(MAX_PDF_EXHIBIT_PAGES, MAX_PACKET_PAGES - out.getPageCount());
+      const idxs: number[] = [];
+      for (let i = 0; i < total && idxs.length < budget; i++) {
+        if (!isPageLikelyBlank(src.getPage(i))) idxs.push(i);
+      }
+      if (!idxs.length) continue;
+      const copied = await out.copyPages(src, idxs);
+      for (const p of copied) out.addPage(p);
+    } catch {
+      // Encrypted / corrupt PDF — skip; it's already carded and referenced.
+    }
+  }
+  try {
+    return Buffer.from(await out.save());
+  } catch {
+    return pdfkitBuffer;
+  }
+}
+
 /**
  * Court-ready evidentiary exhibit. Cover → certification/authentication →
  * persons & organizations of interest (profiles + reference photos) → numbered
@@ -1477,8 +1567,16 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
         },
       });
       const chunks: Buffer[] = [];
+      // PDF attachments (e.g. PDF emails / statements) are reproduced IN FULL in
+      // an appendix, spliced in after the pdfkit document is finished.
+      const pdfAttachments: { label: string; name: string; buf: Buffer }[] = [];
       doc.on('data', (c: Buffer) => chunks.push(c));
-      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('end', () => {
+        const base = Buffer.concat(chunks);
+        appendPdfAttachments(base, pdfAttachments)
+          .then(resolve)
+          .catch(() => resolve(base)); // fail-safe: still return the exhibit
+      });
       doc.on('error', reject);
 
       // Footer drawn per page as it's created (running page # + Bates
@@ -1638,15 +1736,17 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
           gap(doc, 8);
           for (const ex of e.exhibits) drawExhibitImage(doc, ex);
         }
-        // Non-image files: authenticated reference lines.
+        // Non-image files (PDF emails, spreadsheets, documents, video): each
+        // gets a prominent, authenticated exhibit card so it is unmistakably
+        // part of the record. PDFs are additionally reproduced in full in the
+        // Attached documents appendix.
         const nonImg = e.exhibits.filter((x) => !x.image);
         if (nonImg.length) {
-          gap(doc, 4);
+          gap(doc, 8);
           for (const ex of nonImg) {
-            ensureSpace(doc, 16);
-            doc.font('Helvetica').fontSize(8.5).fillColor(COLOR.faint)
-              .text(`Attachment: ${ex.name}  ·  ${ex.mime || 'file'}  ·  ${humanBytes(ex.sizeBytes)}  ·  SHA-256 ${ex.sha256.slice(0, 24)}`, MARGIN, doc.y, { width: CONTENT_WIDTH });
-            gap(doc, 2);
+            const isPdf = Boolean(ex.pdf);
+            if (isPdf && ex.pdf) pdfAttachments.push({ label: `Item ${e.index}`, name: ex.name, buf: ex.pdf });
+            drawAttachmentCard(doc, ex, isPdf);
           }
         }
         // Forensic core details extracted from the file (EXIF/GPS/device/authoring).
@@ -1676,6 +1776,27 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
       gap(doc, 24);
       ensureSpace(doc, 130);
       drawExhibitColophon(doc, input.preparedBy);
+
+      // ── ATTACHED DOCUMENTS (labeled lead-in). The PDF emails / statements
+      //    themselves are spliced in, in full, after doc.end() by
+      //    appendPdfAttachments. This page names them and their order.
+      if (pdfAttachments.length) {
+        doc.addPage();
+        section(doc, 'Attached documents');
+        body(
+          doc,
+          `The following ${pdfAttachments.length} document${
+            pdfAttachments.length === 1 ? ' is' : 's are'
+          } reproduced in full on the pages that follow, in the order below.`,
+        );
+        gap(doc, 8);
+        for (const p of pdfAttachments) {
+          ensureSpace(doc, 16);
+          doc.font('Helvetica-Bold').fontSize(11).fillColor(COLOR.ink)
+            .text(`${p.label}  —  ${p.name}`, MARGIN, doc.y, { width: CONTENT_WIDTH, lineBreak: false });
+          gap(doc, 5);
+        }
+      }
 
       doc.end();
     } catch (err) {
