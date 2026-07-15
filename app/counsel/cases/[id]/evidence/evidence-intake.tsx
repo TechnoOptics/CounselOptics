@@ -49,6 +49,7 @@ import { EvidenceDashboard } from './evidence-dashboard';
 import { DuplicatePanel, findDuplicateGroups } from './duplicate-panel';
 import { DuplicateDialog, type DuplicateAction, type DuplicateEntry } from './duplicate-dialog';
 import { ShareExportDialog } from './share-export-dialog';
+import { ShareDialog, type ShareTarget } from '@/components/counsel/ShareDialog';
 
 // How often the list re-syncs from the server as a fallback to Realtime, so
 // items and scores another member (or the background scorer) produced appear
@@ -179,28 +180,51 @@ function copyName(name: string): string {
   return `${name.slice(0, dot)} (copy)${name.slice(dot)}`;
 }
 
-/** Everything an item's text could be searched by, lowercased once. */
-function searchHaystack(e: TimelineEvent): string {
+/**
+ * Field-aware, token-based search scoring. Every whitespace token must match
+ * SOMEWHERE (AND semantics - "hohag budget 2014" narrows with each word), and
+ * each token is scored by WHERE it hits: exhibit number > title > filename /
+ * people / organizations > place / folder / kind / date > summary > extracted
+ * text - so results can rank the strongest matches first. Exhibit numbers are
+ * understood however they're typed: "1451", "ex1451", "EX-1451".
+ */
+function scoreEventForQuery(e: TimelineEvent, tokens: string[]): number {
   const ext = e.aiExtracted ?? {};
-  return [
-    e.title,
-    exhibitLabel(ext.exhibit_no),
-    e.aiSummary,
-    ext.ocr_text,
-    ext.document_type,
-    e.sourceLabel,
-    KIND_LABEL[e.kind],
-    folderForEvent(e),
-    ...(ext.detected_people ?? []),
-    ...(ext.organizations ?? []),
-    ...(ext.locations ?? []),
-    ...(ext.detected_dates ?? []),
-    ...(ext.objects ?? []),
-    e.media[0]?.name,
-  ]
-    .filter(Boolean)
-    .join('  ')
+  const exh = (exhibitLabel(ext.exhibit_no) || '').toLowerCase();
+  const title = (e.title || '').toLowerCase();
+  const files = e.media.map((m) => m.name || '').join(' ').toLowerCase();
+  const people = (ext.detected_people ?? []).join(' ').toLowerCase();
+  const orgs = (ext.organizations ?? []).join(' ').toLowerCase();
+  const places = (ext.locations ?? []).join(' ').toLowerCase();
+  const folder = folderForEvent(e).toLowerCase();
+  const kind = `${KIND_LABEL[e.kind]} ${ext.document_type ?? ''} ${e.sourceLabel ?? ''}`.toLowerCase();
+  const dates = [formatOccurred(e.occurredAt, e.occurredPrecision), ...(ext.detected_dates ?? [])]
+    .join(' ')
     .toLowerCase();
+  const summary = (e.aiSummary || '').toLowerCase();
+  const deepText = `${ext.ocr_text ?? ''} ${(ext.objects ?? []).join(' ')}`.toLowerCase();
+
+  let total = 0;
+  for (const t of tokens) {
+    let s = 0;
+    // Exhibit-number awareness: "1451" / "ex1451" / "ex-1451" all hit EX-1451
+    // exactly, scored above everything else.
+    const exm = t.match(/^(?:ex-?)?0*(\d{1,5})$/);
+    if (exm && typeof ext.exhibit_no === 'number' && String(Math.floor(ext.exhibit_no)) === exm[1]) {
+      s = 12;
+    } else if (exh && exh.includes(t)) s = 10;
+    else if (title.includes(t)) s = 8;
+    else if (files.includes(t)) s = 6;
+    else if (people.includes(t) || orgs.includes(t)) s = 6;
+    else if (places.includes(t)) s = 5;
+    else if (folder.includes(t) || kind.includes(t)) s = 4;
+    else if (dates.includes(t)) s = 4;
+    else if (summary.includes(t)) s = 3;
+    else if (deepText.includes(t)) s = 2;
+    if (s === 0) return 0; // every token must land somewhere
+    total += s;
+  }
+  return total;
 }
 
 /** A month bucket key + label for date grouping. */
@@ -406,12 +430,26 @@ export function EvidenceIntake({
   // toggle to bring them back into view (to restore or delete them).
   const [showExcluded, setShowExcluded] = useState(false);
   const [dupDismissed, setDupDismissed] = useState(false);
+  // Add-evidence section: expanded on an empty matter, otherwise collapsed so
+  // the page leads with search + the evidence itself. Dragging files over the
+  // collapsed row expands it. The one-line "at a glance" strip expands into
+  // the full dashboard on demand.
+  const [showIntake, setShowIntake] = useState<boolean | null>(null);
+  const intakeOpen = showIntake ?? events.length === 0;
+  const intakeRef = useRef<HTMLElement | null>(null);
+  const [glanceOpen, setGlanceOpen] = useState(false);
+  const openIntake = useCallback(() => {
+    setShowIntake(true);
+    setTimeout(() => intakeRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 60);
+  }, []);
 
   // Selection + viewer + dialogs
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [dedupe, setDedupe] = useState<{ entries: DuplicateEntry[]; all: { file: File; hash: string | null }[] } | null>(null);
   const [shareData, setShareData] = useState<{ matter: string; items: EvidenceExportItem[] } | null>(null);
+  // Secure encrypt-and-send of the selected exhibits' ORIGINAL files.
+  const [secureShare, setSecureShare] = useState<ShareTarget | null>(null);
 
   const refresh = useCallback(async (): Promise<TimelineEvent[]> => {
     // Best-effort list re-sync. It's awaited mid-upload while `busy` is
@@ -962,16 +1000,37 @@ export function EvidenceIntake({
   const excludedCount = events.length - activeEvents.length;
   const baseEvents = showExcluded ? events : activeEvents;
 
-  const filtered = useMemo(() => {
+  // Numbers for the one-line "Case evidence" strip.
+  const glanceStats = useMemo(() => {
+    let onTl = 0;
+    let high = 0;
+    for (const e of activeEvents) {
+      if (isOnTimeline(e)) onTl++;
+      if (relevanceBand(e.aiExtracted?.relevance_score) === 'high') high++;
+    }
+    return { total: activeEvents.length, onTl, high };
+  }, [activeEvents]);
+
+  // Token-scored search: `scores` holds per-item strength while a query is
+  // active, so the results can rank best-match-first.
+  const searchResult = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return baseEvents.filter((e) => {
+    const tokens = q ? q.split(/\s+/).filter(Boolean) : [];
+    const scores = new Map<string, number>();
+    const list = baseEvents.filter((e) => {
       if (!matchesFocus(e, focus)) return false;
       if (hiddenFolders.has(folderForEvent(e))) return false;
       if (hiddenKinds.has(e.kind)) return false;
-      if (q && !searchHaystack(e).includes(q)) return false;
+      if (tokens.length) {
+        const s = scoreEventForQuery(e, tokens);
+        if (s <= 0) return false;
+        scores.set(e.id, s);
+      }
       return true;
     });
+    return { list, scores };
   }, [baseEvents, query, hiddenFolders, hiddenKinds, focus]);
+  const filtered = searchResult.list;
 
   // Possible duplicates within the working evidence (exact by content hash, or
   // similar by filename + size). Recomputed as items land.
@@ -1048,16 +1107,23 @@ export function EvidenceIntake({
   }, [filtered]);
 
   // The flat display order (used by the grid and the viewer's next/prev).
-  const ordered = useMemo(
-    () =>
-      (groupMode === 'folder'
-        ? folderGroups
-        : groupMode === 'date'
-          ? dateGroups
-          : relevanceGroups
-      ).flatMap((g) => g.items),
-    [groupMode, folderGroups, dateGroups, relevanceGroups],
-  );
+  // While a search is active the strongest matches rank FIRST (score desc,
+  // newest as the tiebreak) instead of the grouping order.
+  const ordered = useMemo(() => {
+    const flat = (groupMode === 'folder'
+      ? folderGroups
+      : groupMode === 'date'
+        ? dateGroups
+        : relevanceGroups
+    ).flatMap((g) => g.items);
+    const scores = searchResult.scores;
+    if (scores.size === 0) return flat;
+    return [...flat].sort((a, b) => {
+      const d = (scores.get(b.id) ?? 0) - (scores.get(a.id) ?? 0);
+      if (d !== 0) return d;
+      return (b.occurredAt ? new Date(b.occurredAt).getTime() : 0) - (a.occurredAt ? new Date(a.occurredAt).getTime() : 0);
+    });
+  }, [groupMode, folderGroups, dateGroups, relevanceGroups, searchResult.scores]);
 
   // Counts for the filter chips are taken from the base list, so hiding one
   // folder still shows the others' real totals.
@@ -1202,6 +1268,20 @@ export function EvidenceIntake({
       window.open(url, '_blank', 'noopener');
     }
   }, [selectedIds, caseId]);
+
+  // Encrypt-and-send the selected exhibits' ORIGINAL files (one file direct,
+  // several as an exhibit-numbered ZIP) via the secure two-email share.
+  const bulkSecureShare = useCallback(() => {
+    const ids = selectedIds;
+    if (ids.length === 0) return;
+    setSecureShare({
+      path: `/counsel/cases/${caseId}/evidence/download?ids=${encodeURIComponent(ids.join(','))}`,
+      label:
+        ids.length === 1
+          ? t('1 exhibit file')
+          : t('{n} exhibit files').replace('{n}', String(ids.length)),
+    });
+  }, [selectedIds, caseId, t]);
 
   // Download the ORIGINAL files of the selected items (no court packet): each
   // file named with its exhibit number; several arrive as one ZIP.
@@ -1409,76 +1489,28 @@ export function EvidenceIntake({
         </div>
       )}
 
-      {/* Dropzone */}
-      <div
-        onDragOver={(e) => {
-          e.preventDefault();
-          setDragOver(true);
-        }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={onDrop}
-        className={`rounded-2xl border-2 border-dashed p-6 text-center transition-colors ${
-          dragOver
-            ? 'border-forest-500 bg-forest-50/60 dark:bg-forest-900/40'
-            : 'border-ink-200 dark:border-forest-700/40'
-        }`}
-      >
-        <p className="text-2xl">🗂️</p>
-        <p className="mt-1 text-[14px] font-medium text-forest-900 dark:text-cream-100">
-          <T>Drop evidence here</T>
-        </p>
-        <p className="mt-0.5 text-[12px] text-ink-500 dark:text-cream-100/55">
-          <T>Photos, video, PDFs and documents, and email files (.eml, .msg) — or a .zip of a whole folder. Drop many at once.</T>
-        </p>
-        <p className="mt-0.5 text-[11.5px] text-ink-400 dark:text-cream-100/45">
-          <T>Advottic reads each item, files it into a folder, and scores how it bears on the case. Thousands at once is fine.</T>
-        </p>
-        <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+      {/* Case evidence at a glance - a single line; expand for the full
+          dashboard so search + the evidence itself stay the main focus. */}
+      {activeEvents.length > 0 && (
+        <div className="overflow-hidden rounded-lg ring-1 ring-ink-100 dark:ring-forest-800/40">
           <button
             type="button"
-            disabled={busy}
-            onClick={() => fileRef.current?.click()}
-            className="btn-primary disabled:opacity-50"
+            onClick={() => setGlanceOpen((v) => !v)}
+            aria-expanded={glanceOpen}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-[12.5px] hover:bg-cream-50/60 dark:hover:bg-forest-900/30"
           >
-            {busy
-              ? progress
-                ? t('Working {d}/{n}…').replace('{d}', String(progress.done)).replace('{n}', String(progress.total))
-                : t('Working…')
-              : t('Choose files')}
+            <span className="font-semibold text-forest-900 dark:text-cream-100"><T>Case evidence</T></span>
+            <span className="min-w-0 truncate text-ink-500 dark:text-cream-100/55" data-no-translate>
+              {glanceStats.total} {t('items')} · {glanceStats.onTl} {t('on timeline')} · {glanceStats.high} {t('high relevance')}
+            </span>
+            <span aria-hidden className="ml-auto text-[11px] text-ink-400 dark:text-cream-100/45">{glanceOpen ? '▾' : '▸'}</span>
           </button>
-          {pendingCount > 0 && (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void analyzePending()}
-              className="inline-flex items-center min-h-[38px] px-3 rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 text-[13px] text-ink-700 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/30 disabled:opacity-50"
-            >
-              {t('Reprocess unscanned ({n})').replace('{n}', String(pendingCount))}
-            </button>
+          {glanceOpen && (
+            <div className="border-t border-ink-100 p-3 dark:border-forest-800/40">
+              <EvidenceDashboard events={activeEvents} caseId={caseId} aiEnabled={aiEnabled} />
+            </div>
           )}
         </div>
-        <input
-          ref={fileRef}
-          type="file"
-          multiple
-          accept="image/*,video/*,application/pdf,.doc,.docx,.xlsx,.xlsm,.xls,.csv,.tsv,.ods,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/*,audio/*,.eml,.msg,message/rfc822,.zip,application/zip,application/x-zip-compressed"
-          className="hidden"
-          onChange={(e) => {
-            const files = Array.from(e.target.files ?? []);
-            if (files.length) void upload(files);
-            e.target.value = '';
-          }}
-        />
-        {!aiEnabled && (
-          <p className="mt-2 text-[11px] text-ink-400 dark:text-cream-100/40">
-            <T>Files are stored on the timeline. AI analysis and relevance scoring need a firm plan.</T>
-          </p>
-        )}
-      </div>
-
-      {/* Dashboard: analysis progress, count tiles, evidence types, coverage. */}
-      {activeEvents.length > 0 && (
-        <EvidenceDashboard events={activeEvents} caseId={caseId} aiEnabled={aiEnabled} />
       )}
 
       {/* The case map moved to the matter Evidence dashboard (rendered from the
@@ -1491,13 +1523,22 @@ export function EvidenceIntake({
             <T>Evidence</T>{' '}
             <span className="text-ink-400 dark:text-cream-100/40">({activeEvents.length})</span>
           </h2>
-          <Link
-            href={`/counsel/cases/${caseId}/timeline`}
-            prefetch={false}
-            className="text-[12px] text-ink-500 dark:text-cream-100/55 hover:underline"
-          >
-            <T>Open full timeline builder</T> →
-          </Link>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={openIntake}
+              className="inline-flex items-center gap-1 rounded-md bg-gold-500/10 px-2.5 py-1 text-[12px] font-semibold text-gold-700 ring-1 ring-gold-500/25 hover:bg-gold-500/20 dark:text-gold-300"
+            >
+              + <T>Add evidence</T>
+            </button>
+            <Link
+              href={`/counsel/cases/${caseId}/timeline`}
+              prefetch={false}
+              className="text-[12px] text-ink-500 dark:text-cream-100/55 hover:underline"
+            >
+              <T>Open full timeline builder</T> →
+            </Link>
+          </div>
         </div>
 
         {/* Keyset stream status: the first page is interactive immediately;
@@ -1602,7 +1643,7 @@ export function EvidenceIntake({
 
         {events.length === 0 ? (
           <p className="text-[13px] text-ink-500 dark:text-cream-100/55">
-            <T>No evidence yet. Drop files above to begin.</T>
+            <T>No evidence yet. Use Add evidence below to begin.</T>
           </p>
         ) : filtered.length === 0 ? (
           <p className="text-[13px] text-ink-500 dark:text-cream-100/55">
@@ -1669,6 +1710,101 @@ export function EvidenceIntake({
         )}
       </section>
 
+      {/* Add evidence - its own section, collapsed once the matter already has
+          items so the page leads with search and the evidence itself. Dragging
+          files over it expands it automatically. */}
+      <section
+        id="add-evidence"
+        ref={intakeRef}
+        onDragOver={(e) => {
+          e.preventDefault();
+          if (!intakeOpen) setShowIntake(true);
+        }}
+        className="scroll-mt-4 overflow-hidden rounded-xl ring-1 ring-ink-100 dark:ring-forest-800/40"
+      >
+        <button
+          type="button"
+          onClick={() => setShowIntake(!intakeOpen)}
+          aria-expanded={intakeOpen}
+          className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left hover:bg-cream-50/60 dark:hover:bg-forest-900/30"
+        >
+          <span aria-hidden className="grid h-6 w-6 place-items-center rounded-md bg-gold-500/10 text-[13px] font-semibold text-gold-600 ring-1 ring-gold-500/25">+</span>
+          <span className="text-[13.5px] font-semibold text-forest-900 dark:text-cream-100"><T>Add evidence</T></span>
+          <span className="hidden text-[12px] text-ink-400 dark:text-cream-100/45 sm:inline"><T>drop files here, or browse</T></span>
+          <span aria-hidden className="ml-auto text-[11px] text-ink-400 dark:text-cream-100/45">{intakeOpen ? '▾' : '▸'}</span>
+        </button>
+        {intakeOpen && (
+          <div className="border-t border-ink-100 p-3 dark:border-forest-800/40">
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragOver(true);
+              }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={onDrop}
+              className={`rounded-2xl border-2 border-dashed p-6 text-center transition-colors ${
+                dragOver
+                  ? 'border-forest-500 bg-forest-50/60 dark:bg-forest-900/40'
+                  : 'border-ink-200 dark:border-forest-700/40'
+              }`}
+            >
+              <p className="text-2xl">🗂️</p>
+              <p className="mt-1 text-[14px] font-medium text-forest-900 dark:text-cream-100">
+                <T>Drop evidence here</T>
+              </p>
+              <p className="mt-0.5 text-[12px] text-ink-500 dark:text-cream-100/55">
+                <T>Photos, video, PDFs and documents, and email files (.eml, .msg) — or a .zip of a whole folder. Drop many at once.</T>
+              </p>
+              <p className="mt-0.5 text-[11.5px] text-ink-400 dark:text-cream-100/45">
+                <T>Advottic reads each item, files it into a folder, and scores how it bears on the case. Thousands at once is fine.</T>
+              </p>
+              <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => fileRef.current?.click()}
+                  className="btn-primary disabled:opacity-50"
+                >
+                  {busy
+                    ? progress
+                      ? t('Working {d}/{n}…').replace('{d}', String(progress.done)).replace('{n}', String(progress.total))
+                      : t('Working…')
+                    : t('Choose files')}
+                </button>
+                {pendingCount > 0 && (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void analyzePending()}
+                    className="inline-flex items-center min-h-[38px] px-3 rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 text-[13px] text-ink-700 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/30 disabled:opacity-50"
+                  >
+                    {t('Reprocess unscanned ({n})').replace('{n}', String(pendingCount))}
+                  </button>
+                )}
+              </div>
+              <input
+                ref={fileRef}
+                type="file"
+                multiple
+                accept="image/*,video/*,application/pdf,.doc,.docx,.xlsx,.xlsm,.xls,.csv,.tsv,.ods,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/*,audio/*,.eml,.msg,message/rfc822,.zip,application/zip,application/x-zip-compressed"
+                className="hidden"
+                onChange={(e) => {
+                  const files = Array.from(e.target.files ?? []);
+                  if (files.length) void upload(files);
+                  e.target.value = '';
+                }}
+              />
+              {!aiEnabled && (
+                <p className="mt-2 text-[11px] text-ink-400 dark:text-cream-100/40">
+                  <T>Files are stored on the timeline. AI analysis and relevance scoring need a firm plan.</T>
+                </p>
+              )}
+            </div>
+
+          </div>
+        )}
+      </section>
+
       {/* Selection action bar: surfaces the moment the first box is checked */}
       {selected.size > 0 && (
         <BulkBar
@@ -1683,9 +1819,10 @@ export function EvidenceIntake({
           onClear={clearSelection}
           onDelete={() => void bulkDelete()}
           onReanalyze={() => void bulkReanalyze()}
-          onShare={() => void bulkShare()}
-          onDownload={() => void bulkDownload()}
-          onExport={() => void bulkExport()}
+          onShare={bulkSecureShare}
+          onIndex={() => void bulkShare()}
+          onExportOne={() => void bulkExport()}
+          onExportIndividual={() => void bulkDownload()}
           onExclude={() => void bulkSetExcluded(!selectedAllExcluded)}
           onToggleTimeline={() => void bulkSetOnTimeline(!selectedAllOnTimeline)}
         />
@@ -1721,9 +1858,14 @@ export function EvidenceIntake({
         />
       )}
 
-      {/* Share export */}
+      {/* Evidence index hand-off (links + mined facts, exported deliberately) */}
       {shareData && (
         <ShareExportDialog matter={shareData.matter} items={shareData.items} onClose={() => setShareData(null)} />
+      )}
+
+      {/* Secure encrypt-and-send of the selected exhibits' original files */}
+      {secureShare && (
+        <ShareDialog caseId={caseId} target={secureShare} onClose={() => setSecureShare(null)} />
       )}
     </div>
   );
@@ -1971,8 +2113,9 @@ function BulkBar({
   onDelete,
   onReanalyze,
   onShare,
-  onDownload,
-  onExport,
+  onIndex,
+  onExportOne,
+  onExportIndividual,
   onExclude,
   onToggleTimeline,
 }: {
@@ -1988,12 +2131,14 @@ function BulkBar({
   onDelete: () => void;
   onReanalyze: () => void;
   onShare: () => void;
-  onDownload: () => void;
-  onExport: () => void;
+  onIndex: () => void;
+  onExportOne: () => void;
+  onExportIndividual: () => void;
   onExclude: () => void;
   onToggleTimeline: () => void;
 }) {
   const t = useT();
+  const [exportOpen, setExportOpen] = useState(false);
   const act = 'rounded-full px-3 py-1.5 text-[13px] hover:bg-white/10 disabled:opacity-50';
   return (
     <div
@@ -2024,17 +2169,52 @@ function BulkBar({
         <button
           type="button"
           disabled={busy}
-          onClick={onDownload}
+          onClick={onShare}
           className="rounded-full bg-gold-metal/90 px-3 py-1.5 text-[13px] font-semibold text-forest-950 hover:bg-gold-metal disabled:opacity-50"
         >
-          <T>Download files</T>
-        </button>
-        <button type="button" disabled={busy} onClick={onShare} className={act}>
           <T>Share</T>
         </button>
-        <button type="button" disabled={busy} onClick={onExport} className={act}>
-          <T>Court packet</T>
-        </button>
+        {/* Export: one combined court document, or each exhibit as its own
+            file - numbering (ITEM n / EX-####) is kept either way. */}
+        <div className="relative">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setExportOpen((v) => !v)}
+            aria-expanded={exportOpen}
+            className={act}
+          >
+            <T>Export</T> ▾
+          </button>
+          {exportOpen && (
+            <div className="absolute bottom-full left-1/2 z-10 mb-2 w-72 -translate-x-1/2 rounded-xl bg-forest-900 p-1.5 shadow-2xl ring-1 ring-forest-700/60">
+              <button
+                type="button"
+                onClick={() => { setExportOpen(false); onExportOne(); }}
+                className="block w-full rounded-lg px-3 py-2 text-left hover:bg-white/10"
+              >
+                <span className="block text-[13px] font-semibold"><T>One document</T></span>
+                <span className="block text-[11.5px] text-cream-100/60"><T>Court-ready PDF - items keep their ITEM and EX-numbers</T></span>
+              </button>
+              <button
+                type="button"
+                onClick={() => { setExportOpen(false); onExportIndividual(); }}
+                className="block w-full rounded-lg px-3 py-2 text-left hover:bg-white/10"
+              >
+                <span className="block text-[13px] font-semibold"><T>Individual documents</T></span>
+                <span className="block text-[11.5px] text-cream-100/60"><T>Each original file, named with its exhibit number</T></span>
+              </button>
+              <button
+                type="button"
+                onClick={() => { setExportOpen(false); onIndex(); }}
+                className="block w-full rounded-lg px-3 py-2 text-left hover:bg-white/10"
+              >
+                <span className="block text-[13px] font-semibold"><T>Evidence index</T></span>
+                <span className="block text-[11.5px] text-cream-100/60"><T>A hand-over list with exhibit numbers and short-lived links</T></span>
+              </button>
+            </div>
+          )}
+        </div>
         <button type="button" disabled={busy} onClick={onExclude} className={act}>
           {excludeMode === 'restore' ? <T>Restore</T> : <T>Exclude</T>}
         </button>
