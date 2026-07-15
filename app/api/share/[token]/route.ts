@@ -48,7 +48,8 @@ export async function POST(req: Request, { params }: { params: { token: string }
   return new NextResponse(new Uint8Array(pdf), {
     status: 200,
     headers: {
-      'Content-Type': 'application/pdf',
+      // Older shares predate the mime field and are always court-packet PDFs.
+      'Content-Type': share.meta.mime || 'application/pdf',
       'Content-Disposition': `attachment; filename="${share.meta.filename.replace(/[^\w.-]+/g, '_')}"`,
       'Cache-Control': 'no-store',
     },

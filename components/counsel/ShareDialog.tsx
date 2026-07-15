@@ -48,7 +48,7 @@ export function ShareDialog({ caseId, target, onClose }: { caseId: string; targe
   };
 
   return (
-    <Dialog onClose={onClose} ariaLabel="Share securely" size="sm">
+    <Dialog onClose={onClose} ariaLabel="Share securely" size="sm" elevated>
       <div className="p-5">
         <h2 className="text-[15px] font-semibold text-forest-900 dark:text-cream-50">Share securely</h2>
         <p className="mt-1 text-[12.5px] text-forest-500 dark:text-cream-100/50" data-no-translate>{target.label}</p>

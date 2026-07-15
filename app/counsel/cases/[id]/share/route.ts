@@ -13,6 +13,7 @@ import {
 } from '@/lib/secure-share';
 import { GET as matterExportGET } from '../export/route';
 import { GET as approachExportGET } from '../approach/[approachId]/export/route';
+import { GET as evidenceDownloadGET } from '../evidence/download/route';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -79,14 +80,19 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const matterBase = `/counsel/cases/${params.id}/export`;
   const approachRe = new RegExp(`^/counsel/cases/${params.id}/approach/([0-9a-f-]{36})/export$`, 'i');
   const approachMatch = target.pathname.match(approachRe);
+  // Sharing an exhibit's ORIGINAL file(s) reuses the evidence download route
+  // (single file direct, several zipped, exhibit-numbered names).
+  const evidenceBase = `/counsel/cases/${params.id}/evidence/download`;
 
-  // Rebuild the export bytes via the real handler (auth + scope reused).
+  // Rebuild the document bytes via the real handler (auth + scope reused).
   const synthetic = new Request(target.toString(), { headers: req.headers });
   let exportRes: Response;
   if (target.pathname === matterBase) {
     exportRes = await matterExportGET(synthetic, { params: { id: params.id } });
   } else if (approachMatch) {
     exportRes = await approachExportGET(synthetic, { params: { id: params.id, approachId: approachMatch[1] } });
+  } else if (target.pathname === evidenceBase) {
+    exportRes = await evidenceDownloadGET(synthetic, { params: { id: params.id } });
   } else {
     return NextResponse.json({ error: 'Invalid export target.' }, { status: 400 });
   }
@@ -114,6 +120,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     createdByName: senderName,
     recipientEmail,
     filename,
+    mime: exportRes.headers.get('content-type') || 'application/pdf',
     caseTitle: c.title,
     scopeLabel: (body.scopeLabel || 'Court packet').slice(0, 80),
     sizeBytes: pdf.length,

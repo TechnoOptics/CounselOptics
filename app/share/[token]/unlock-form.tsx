@@ -20,7 +20,7 @@ export function UnlockForm({ token }: { token: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
-  const [doc, setDoc] = useState<{ url: string; filename: string } | null>(null);
+  const [doc, setDoc] = useState<{ url: string; filename: string; viewable: boolean } | null>(null);
   const [viewerOpen, setViewerOpen] = useState(false);
 
   const needsHuman = TURNSTILE_CONFIGURED && !turnstileToken;
@@ -47,9 +47,22 @@ export function UnlockForm({ token }: { token: string }) {
       const blob = await res.blob();
       const filename =
         /filename="([^"]+)"/.exec(res.headers.get('content-disposition') || '')?.[1] || 'document.pdf';
-      const url = URL.createObjectURL(blob.type === 'application/pdf' ? blob : new Blob([blob], { type: 'application/pdf' }));
-      setDoc({ url, filename });
-      setViewerOpen(true);
+      // The browser can render PDFs and images in the viewer; anything else
+      // (a spreadsheet, a ZIP of exhibits) downloads directly instead.
+      const mime = res.headers.get('content-type') || blob.type || 'application/pdf';
+      const viewable = mime.includes('pdf') || mime.startsWith('image/');
+      const url = URL.createObjectURL(blob.type === mime ? blob : new Blob([blob], { type: mime }));
+      setDoc({ url, filename, viewable });
+      if (viewable) {
+        setViewerOpen(true);
+      } else {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
     } catch {
       setError('Something went wrong. Please try again.');
     } finally {
@@ -73,9 +86,11 @@ export function UnlockForm({ token }: { token: string }) {
       <div className="rounded-lg border border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 p-4 text-[13px] text-emerald-800 dark:text-emerald-300">
         Document unlocked. It stays available on this page until you close the tab.
         <div className="mt-3 flex gap-2">
-          <button type="button" onClick={() => setViewerOpen(true)} className="flex-1 rounded-lg bg-forest-900 dark:bg-gold-metal px-3 py-2 text-[12.5px] font-semibold text-cream-50 dark:text-forest-950 hover:brightness-110">
-            View document
-          </button>
+          {doc.viewable && (
+            <button type="button" onClick={() => setViewerOpen(true)} className="flex-1 rounded-lg bg-forest-900 dark:bg-gold-metal px-3 py-2 text-[12.5px] font-semibold text-cream-50 dark:text-forest-950 hover:brightness-110">
+              View document
+            </button>
+          )}
           <button type="button" onClick={download} className="flex-1 rounded-lg border border-emerald-600/40 px-3 py-2 text-[12.5px] font-semibold hover:bg-emerald-100/50 dark:hover:bg-emerald-500/15">
             Download
           </button>

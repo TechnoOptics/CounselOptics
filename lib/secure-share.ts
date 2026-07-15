@@ -24,6 +24,10 @@ export type ShareMeta = {
   createdByName: string | null;
   recipientEmail: string;
   filename: string;
+  /** Content type of the shared document (defaults to PDF for older shares).
+   *  Lets an exhibit's ORIGINAL file (image, spreadsheet, …) round-trip with
+   *  the right type instead of being mislabelled as a PDF. */
+  mime?: string | null;
   caseTitle: string;
   scopeLabel: string; // e.g. "Full court packet"
   sizeBytes: number;

@@ -43,11 +43,15 @@ export function Dialog({
   children,
   /** Tighter max-width for narrow forms; defaults to 2xl. */
   size = 'md',
+  /** Stack above full-screen viewers (evidence viewer z-100, document preview
+   *  z-70). Default dialogs sit at z-60. */
+  elevated = false,
 }: {
   onClose: () => void;
   ariaLabel?: string;
   children: React.ReactNode;
   size?: 'sm' | 'md' | 'lg';
+  elevated?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -121,7 +125,7 @@ export function Dialog({
       // visible viewport, even when the page is scrolled. The
       // visualViewport effect overrides this height when an on-screen
       // keyboard appears.
-      className="fixed inset-x-0 top-0 z-[60] bg-forest-950/70 backdrop-blur overflow-y-auto"
+      className={`fixed inset-x-0 top-0 ${elevated ? 'z-[120]' : 'z-[60]'} bg-forest-950/70 backdrop-blur overflow-y-auto`}
       style={{ height: '100dvh' }}
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();

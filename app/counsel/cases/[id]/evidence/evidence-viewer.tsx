@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { ShareDialog } from '@/components/counsel/ShareDialog';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import { RelevanceBadge } from '@/components/RelevanceBadge';
 import { getFirmEvidenceMediaUrl } from '@/lib/case-evidence-actions';
@@ -130,6 +131,9 @@ export function EvidenceViewer({
   // ("EX-1451 - statement.pdf"). Fetched as a blob so the filename is ours —
   // a plain link to the signed URL would keep the storage object's name.
   const [downloading, setDownloading] = useState(false);
+  // Secure-share this exhibit's ORIGINAL file: encrypt-and-send via the same
+  // two-email flow as the court packet, targeting the evidence download route.
+  const [share, setShare] = useState(false);
   const downloadOriginal = useCallback(async () => {
     if (!media || !url || downloading) return;
     setDownloading(true);
@@ -362,6 +366,19 @@ export function EvidenceViewer({
                   {exhibit && <span className="font-mono text-[10.5px] opacity-80" data-no-translate>{exhibit}</span>}
                 </button>
               )}
+              {media && (
+                <button
+                  type="button"
+                  onClick={() => setShare(true)}
+                  className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-medium text-cream-100/85 ring-1 ring-cream-50/25 hover:bg-white/10"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
+                    <path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                    <path d="M12 15V4m0 0L8 8m4-4 4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  <T>Share</T>
+                </button>
+              )}
             </div>
           </div>
 
@@ -398,6 +415,20 @@ export function EvidenceViewer({
           )}
         </div>
       </div>
+      {/* Encrypt-and-send this exhibit's original file. stopPropagation so
+          clicks inside the dialog never reach the viewer's close-on-backdrop. */}
+      {share && (
+        <div onClick={(e) => e.stopPropagation()}>
+          <ShareDialog
+            caseId={caseId}
+            target={{
+              path: `/counsel/cases/${caseId}/evidence/download?ids=${event.id}`,
+              label: exhibit ? `${exhibit} — ${title}` : title,
+            }}
+            onClose={() => setShare(false)}
+          />
+        </div>
+      )}
     </div>
   );
 
