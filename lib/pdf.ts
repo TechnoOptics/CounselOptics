@@ -1877,6 +1877,25 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
       // when the user exported a subset.
       const picked = input.sections && input.sections.length ? input.sections : null;
       const want = (k: ExhibitSectionKey) => !picked || picked.includes(k);
+      // A pure exhibits pull (the evidence page's "One document" export) is a
+      // hand-over artifact, not a briefing: Cover -> Index -> Certification ->
+      // the exhibits, and nothing else. The certification moves UP so all the
+      // prose sits before the record.
+      const exhibitsOnly = picked?.length === 1 && picked[0] === 'exhibits';
+      const drawCertification = () => {
+        beginSection(doc, 'Certification & authentication');
+        body(doc, `This exhibit was assembled from ${input.entries.length} catalogued item(s) and ${totalExhibits} source file(s) submitted in connection with the above matter, and was prepared using counsel case-management software. Each file reproduced or referenced herein is identified by its original filename, media type, byte size, and a SHA-256 cryptographic digest computed at the time of intake. A digest that matches the original file establishes that the file has not been altered since it was catalogued.`);
+        gap(doc, 8);
+        body(doc, 'Items are numbered sequentially and every page carries a unique Bates-style identifier. Any description, transcription, or observation provided as a summary is included for organisational assistance only, and must be independently verified by counsel.');
+        gap(doc, 18);
+        doc.save().moveTo(MARGIN, doc.y).lineTo(MARGIN + 56, doc.y).lineWidth(2.5).stroke(COLOR.amber).restore();
+        gap(doc, 12);
+        const line = input.preparedBy
+          ? `Prepared exclusively for ${input.preparedBy}. Confidential attorney work product — not for distribution.`
+          : 'Confidential attorney work product — not for distribution.';
+        doc.font('Helvetica-Bold').fontSize(8.5).fillColor(COLOR.muted)
+          .text(line.toUpperCase(), MARGIN, doc.y, { characterSpacing: 0.8, width: CONTENT_WIDTH });
+      };
       const scopeLabel = picked
         ? picked.length === 1
           ? EXHIBIT_SECTION_LABEL[picked[0]]
@@ -1975,6 +1994,10 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
         }
         doc.y = ry + 4;
       }
+
+      // Exhibits-only: certification comes right after the index, so the
+      // record that follows is uninterrupted evidence.
+      if (exhibitsOnly) drawCertification();
 
       // ── 1. OVERVIEW (narrative summary opens the document, court-ready)
       if (want('overview') && (input.narrative?.summary || input.narrative?.narrative)) {
@@ -2123,25 +2146,9 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
         for (const ent of input.entities) drawEntityCard(doc, ent);
       }
 
-      // ── 8. CERTIFICATION & AUTHENTICATION (closing attestation). Placed last,
-      //    where a certification belongs. Also carries the required "counsel
-      //    case-management software" note and the confidentiality line, so the
-      //    document has ONE clean closing section instead of two overlapping
-      //    ones (this replaces the former standalone colophon).
-      beginSection(doc, 'Certification & authentication');
-      body(doc, `This exhibit was assembled from ${input.entries.length} catalogued item(s) and ${totalExhibits} source file(s) submitted in connection with the above matter, and was prepared using counsel case-management software. Each file reproduced or referenced herein is identified by its original filename, media type, byte size, and a SHA-256 cryptographic digest computed at the time of intake. A digest that matches the original file establishes that the file has not been altered since it was catalogued.`);
-      gap(doc, 8);
-      body(doc, 'Items are numbered sequentially and every page carries a unique Bates-style identifier. Any description, transcription, or observation provided as a summary is included for organisational assistance only, and must be independently verified by counsel.');
-      gap(doc, 18);
-      doc.save().moveTo(MARGIN, doc.y).lineTo(MARGIN + 56, doc.y).lineWidth(2.5).stroke(COLOR.amber).restore();
-      gap(doc, 12);
-      {
-        const line = input.preparedBy
-          ? `Prepared exclusively for ${input.preparedBy}. Confidential attorney work product — not for distribution.`
-          : 'Confidential attorney work product — not for distribution.';
-        doc.font('Helvetica-Bold').fontSize(8.5).fillColor(COLOR.muted)
-          .text(line.toUpperCase(), MARGIN, doc.y, { characterSpacing: 0.8, width: CONTENT_WIDTH });
-      }
+      // ── 8. CERTIFICATION & AUTHENTICATION (closing attestation) — for full
+      //    packets. Exhibits-only packets drew it right after the index.
+      if (!exhibitsOnly) drawCertification();
 
       // PDF exhibits are spliced in inline (right after their item) by
       // finalizeExhibit once the pdfkit document is finished — no end appendix.

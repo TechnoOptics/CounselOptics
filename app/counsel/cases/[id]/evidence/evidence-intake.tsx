@@ -1258,10 +1258,12 @@ export function EvidenceIntake({
 
   // Build a court-ready file from just the selected items, via the firm export
   // route (admin-path, so it renders the same evidence the firm sees here).
+  // section=exhibits keeps it a LEAN hand-over packet: Cover → Index →
+  // Certification → the exhibits, with none of the narrative sections.
   const bulkExport = useCallback(async () => {
     const ids = selectedIds;
     if (ids.length === 0) return;
-    const url = `/counsel/cases/${caseId}/export?ids=${encodeURIComponent(ids.join(','))}`;
+    const url = `/counsel/cases/${caseId}/export?ids=${encodeURIComponent(ids.join(','))}&section=exhibits`;
     if (isNativeApp()) {
       const { Browser } = await import('@capacitor/browser');
       await Browser.open({ url, toolbarColor: '#0b0b0d' });
