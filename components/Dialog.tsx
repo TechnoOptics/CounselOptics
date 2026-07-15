@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 /**
  * Mobile-first modal shell. Replaces the ad-hoc `fixed inset-0`
@@ -115,9 +116,16 @@ export function Dialog({
     };
   }, []);
 
+  // Portal to <body> after mount: several pages wrap their content in a
+  // transformed route-fade container, and a transform ancestor turns `fixed`
+  // into "fixed to the content" — the modal then renders mid-page instead of
+  // over the viewport. Portaling makes every dialog immune.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   const maxW = size === 'sm' ? 'max-w-md' : size === 'lg' ? 'max-w-3xl' : 'max-w-2xl';
 
-  return (
+  const node = (
     <div
       ref={containerRef}
       role="presentation"
@@ -157,4 +165,7 @@ export function Dialog({
       </div>
     </div>
   );
+
+  if (!mounted || typeof document === 'undefined') return node;
+  return createPortal(node, document.body);
 }

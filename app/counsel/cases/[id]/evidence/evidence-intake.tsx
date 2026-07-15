@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { T, useT } from '@/components/i18n/LocaleProvider';
@@ -1728,7 +1729,7 @@ export function EvidenceIntake({
           aria-expanded={intakeOpen}
           className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left hover:bg-cream-50/60 dark:hover:bg-forest-900/30"
         >
-          <span aria-hidden className="grid h-6 w-6 place-items-center rounded-md bg-gold-500/10 text-[13px] font-semibold text-gold-600 ring-1 ring-gold-500/25">+</span>
+          <span aria-hidden className="grid h-6 w-6 place-items-center rounded-md bg-gold-500/10 text-[13px] font-semibold text-gold-600 ring-1 ring-gold-500/25 dark:text-gold-300">+</span>
           <span className="text-[13.5px] font-semibold text-forest-900 dark:text-cream-100"><T>Add evidence</T></span>
           <span className="hidden text-[12px] text-ink-400 dark:text-cream-100/45 sm:inline"><T>drop files here, or browse</T></span>
           <span aria-hidden className="ml-auto text-[11px] text-ink-400 dark:text-cream-100/45">{intakeOpen ? '▾' : '▸'}</span>
@@ -1927,34 +1928,49 @@ function Toolbar({
 
   return (
     <div className="space-y-2">
-      {/* Search gets its own full-width row — the primary way into a large
-          evidence set deserves more than a slot squeezed between toggles. */}
-      <div className="relative">
-        <input
-          type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={t('Search evidence — name, exhibit number, people, places, text…')}
-          className={`w-full rounded-xl bg-white dark:bg-forest-900/40 pl-10 pr-9 py-2.5 text-[14px] text-forest-900 dark:text-cream-50 outline-none transition-shadow ${
+      {/* Search is the front door to the evidence set — a full-width,
+          search-engine-grade pill: tall, soft shadow that lifts on focus, a
+          real magnifier, a round clear control, and a hint of what it
+          understands underneath. */}
+      <div>
+        <div
+          className={`relative rounded-full bg-white transition-shadow dark:bg-forest-900 ${
             query
-              ? 'ring-2 ring-gold-500/60'
-              : 'ring-1 ring-ink-200 dark:ring-forest-700/40 focus:ring-2 focus:ring-gold-500/50'
+              ? 'shadow-lg ring-2 ring-gold-500/60'
+              : 'shadow-sm ring-1 ring-ink-200 hover:shadow-md focus-within:shadow-lg focus-within:ring-2 focus-within:ring-gold-500/50 dark:ring-forest-700/50'
           }`}
-          data-no-translate
-        />
-        <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[16px] text-ink-400 dark:text-cream-100/40">
-          ⌕
-        </span>
-        {query && (
-          <button
-            type="button"
-            onClick={() => setQuery('')}
-            aria-label={t('Clear search')}
-            className="absolute right-3 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-full text-ink-400 hover:bg-ink-100 hover:text-ink-600 dark:text-cream-100/40 dark:hover:bg-forest-800"
-          >
-            ✕
-          </button>
-        )}
+        >
+          <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ink-400 dark:text-cream-100/40">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
+              <path d="m20 20-3.6-3.6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          </span>
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t('Search this matter’s evidence…')}
+            aria-label={t('Search evidence')}
+            className="w-full rounded-full bg-transparent py-3 pl-12 pr-12 text-[15px] text-forest-900 outline-none placeholder:text-ink-400 dark:text-cream-50 dark:placeholder:text-cream-100/40"
+            data-no-translate
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => setQuery('')}
+              aria-label={t('Clear search')}
+              className="absolute right-3 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full text-ink-400 hover:bg-ink-100 hover:text-ink-700 dark:text-cream-100/50 dark:hover:bg-forest-800 dark:hover:text-cream-50"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+                <path d="M6 6l12 12M18 6 6 18" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+              </svg>
+            </button>
+          )}
+        </div>
+        <p className="mt-1.5 pl-4 text-[11.5px] text-ink-400 dark:text-cream-100/40">
+          <T>Try an exhibit number (“EX-1451”), a name, a place, a date, or several words together — “hohag budget 2014”.</T>
+        </p>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -2139,8 +2155,28 @@ function BulkBar({
 }) {
   const t = useT();
   const [exportOpen, setExportOpen] = useState(false);
+  // Portal to <body>: a transformed route wrapper otherwise turns this "fixed"
+  // bar into "pinned to the bottom of the page CONTENT", so users had to
+  // scroll to reach their selection actions. Portaled, it floats over the
+  // viewport wherever they are.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!exportOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setExportOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setExportOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [exportOpen]);
   const act = 'rounded-full px-3 py-1.5 text-[13px] hover:bg-white/10 disabled:opacity-50';
-  return (
+  const node = (
     <div
       className="fixed inset-x-0 z-40 flex justify-center px-4"
       style={{ bottom: 'calc(1rem + var(--safe-bottom, 0px))' }}
@@ -2176,7 +2212,7 @@ function BulkBar({
         </button>
         {/* Export: one combined court document, or each exhibit as its own
             file - numbering (ITEM n / EX-####) is kept either way. */}
-        <div className="relative">
+        <div ref={menuRef} className="relative">
           <button
             type="button"
             disabled={busy}
@@ -2237,6 +2273,8 @@ function BulkBar({
       </div>
     </div>
   );
+  if (!mounted || typeof document === 'undefined') return node;
+  return createPortal(node, document.body);
 }
 
 /** A collapsible section (a folder, or a date bucket) wrapping its entries. */

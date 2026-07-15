@@ -91,7 +91,13 @@ export function UnlockForm({ token }: { token: string }) {
               View document
             </button>
           )}
-          <button type="button" onClick={download} className="flex-1 rounded-lg border border-emerald-600/40 px-3 py-2 text-[12.5px] font-semibold hover:bg-emerald-100/50 dark:hover:bg-emerald-500/15">
+          {/* Solid, high-contrast in both themes — the previous emerald outline
+              vanished against the dark background. */}
+          <button
+            type="button"
+            onClick={download}
+            className="flex-1 rounded-lg bg-white px-3 py-2 text-[12.5px] font-semibold text-forest-900 ring-1 ring-ink-200 hover:bg-cream-50 dark:bg-forest-800 dark:text-cream-50 dark:ring-forest-600 dark:hover:bg-forest-700"
+          >
             Download
           </button>
         </div>
