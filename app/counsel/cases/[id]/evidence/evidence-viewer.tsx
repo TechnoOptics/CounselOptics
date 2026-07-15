@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import { RelevanceBadge } from '@/components/RelevanceBadge';
@@ -125,6 +125,33 @@ export function EvidenceViewer({
 
   const title = (event.title ?? '').trim() || media?.name || t('Untitled item');
   const exhibit = exhibitLabel(ext.exhibit_no);
+
+  // Download the ORIGINAL file, saved under its exhibit number
+  // ("EX-1451 - statement.pdf"). Fetched as a blob so the filename is ours —
+  // a plain link to the signed URL would keep the storage object's name.
+  const [downloading, setDownloading] = useState(false);
+  const downloadOriginal = useCallback(async () => {
+    if (!media || !url || downloading) return;
+    setDownloading(true);
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('fetch failed');
+      const blob = await res.blob();
+      const base = (media.name || title || 'file').replace(/[\\/:*?"<>|]+/g, '_');
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = exhibit ? `${exhibit} - ${base}` : base;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 30_000);
+    } catch {
+      // Fallback: open the signed URL directly (name comes from storage).
+      window.open(url, '_blank', 'noopener');
+    } finally {
+      setDownloading(false);
+    }
+  }, [media, url, downloading, exhibit, title]);
 
   const node = (
     <div
@@ -304,8 +331,8 @@ export function EvidenceViewer({
               <RelevanceBadge score={ext.relevance_score} reason={ext.relevance_reason} size="xs" />
               <span className="text-cream-100/40">{index + 1} / {total}</span>
             </p>
-            {onToggleTimeline && (
-              <div className="mt-2.5">
+            <div className="mt-2.5 flex flex-wrap items-center gap-2">
+              {onToggleTimeline && (
                 <button
                   type="button"
                   onClick={onToggleTimeline}
@@ -319,8 +346,23 @@ export function EvidenceViewer({
                   <span aria-hidden>{onTimeline ? '✓' : '+'}</span>
                   {onTimeline ? <T>On timeline</T> : <T>Add to timeline</T>}
                 </button>
-              </div>
-            )}
+              )}
+              {media && url && (
+                <button
+                  type="button"
+                  disabled={downloading}
+                  onClick={() => void downloadOriginal()}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-gold-metal/90 px-3 py-1 text-[12px] font-semibold text-forest-950 hover:bg-gold-metal disabled:opacity-60"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
+                    <path d="M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                    <path d="M12 4v11m0 0-4-4m4 4 4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  {downloading ? <T>Downloading…</T> : <T>Download</T>}
+                  {exhibit && <span className="font-mono text-[10.5px] opacity-80" data-no-translate>{exhibit}</span>}
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Breakdown: summary, facts, transcript */}

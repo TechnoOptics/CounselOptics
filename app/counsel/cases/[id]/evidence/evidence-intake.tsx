@@ -387,6 +387,18 @@ export function EvidenceIntake({
     if (pathname) router.replace(pathname, { scroll: false });
   }, [pathname, router]);
   const [query, setQuery] = useState('');
+  const searching = query.trim().length > 0;
+  // When a search begins, bring the results into view and keep them the main
+  // focus (the search bar sits above analytics/upload zones that would
+  // otherwise leave the matches below the fold).
+  const resultsRef = useRef<HTMLElement | null>(null);
+  const wasSearching = useRef(false);
+  useEffect(() => {
+    if (searching && !wasSearching.current) {
+      resultsRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    }
+    wasSearching.current = searching;
+  }, [searching]);
   const [hiddenFolders, setHiddenFolders] = useState<Set<string>>(new Set());
   const [hiddenKinds, setHiddenKinds] = useState<Set<TimelineKind>>(new Set());
   const [showFilters, setShowFilters] = useState(false);
@@ -1071,8 +1083,18 @@ export function EvidenceIntake({
   }, []);
   const selectAllVisible = useCallback(() => setSelected(new Set(ordered.map((e) => e.id))), [ordered]);
   const clearSelection = useCallback(() => setSelected(new Set()), []);
-  const selectedEvents = useMemo(() => ordered.filter((e) => selected.has(e.id)), [ordered, selected]);
+  // Selection is resolved against ALL events, not the filtered view — so
+  // searching or filtering never silently drops already-selected items from a
+  // bulk action. Items selected but currently hidden are surfaced as a count.
+  const selectedEvents = useMemo(() => events.filter((e) => selected.has(e.id)), [events, selected]);
   const selectedIds = useMemo(() => selectedEvents.map((e) => e.id), [selectedEvents]);
+  const hiddenSelectedCount = useMemo(() => {
+    if (selected.size === 0) return 0;
+    const visible = new Set(ordered.map((e) => e.id));
+    let n = 0;
+    for (const id of selected) if (!visible.has(id)) n++;
+    return n;
+  }, [ordered, selected]);
   // When every selected item is already set aside, the bulk control restores
   // rather than excludes.
   const selectedAllExcluded =
@@ -1178,6 +1200,25 @@ export function EvidenceIntake({
       await Browser.open({ url, toolbarColor: '#0b0b0d' });
     } else {
       window.open(url, '_blank', 'noopener');
+    }
+  }, [selectedIds, caseId]);
+
+  // Download the ORIGINAL files of the selected items (no court packet): each
+  // file named with its exhibit number; several arrive as one ZIP.
+  const bulkDownload = useCallback(async () => {
+    const ids = selectedIds;
+    if (ids.length === 0) return;
+    const url = `/counsel/cases/${caseId}/evidence/download?ids=${encodeURIComponent(ids.join(','))}`;
+    if (isNativeApp()) {
+      const { Browser } = await import('@capacitor/browser');
+      await Browser.open({ url, toolbarColor: '#0b0b0d' });
+    } else {
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = '';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
     }
   }, [selectedIds, caseId]);
 
@@ -1444,7 +1485,7 @@ export function EvidenceIntake({
           server-side analytics aggregate), so it is no longer duplicated here. */}
 
       {/* Evidence */}
-      <section className="space-y-3">
+      <section ref={resultsRef} className="scroll-mt-4 space-y-3">
         <div className="flex items-center justify-between gap-2">
           <h2 className="font-display text-lg font-medium text-forest-900 dark:text-cream-100">
             <T>Evidence</T>{' '}
@@ -1536,13 +1577,36 @@ export function EvidenceIntake({
           </div>
         )}
 
+        {/* Search-results banner: makes the matches unmistakably the focus. */}
+        {searching && (
+          <div className="flex items-center gap-2 rounded-lg border border-gold-500/40 bg-gold-500/10 px-3 py-2 text-[13.5px]">
+            <span aria-hidden className="text-gold-600 dark:text-gold-400">⌕</span>
+            <span className="font-semibold text-forest-900 dark:text-cream-100" data-no-translate>
+              {filtered.length}
+            </span>
+            <span className="text-ink-500 dark:text-cream-100/55">
+              <T>result(s) for</T>
+            </span>
+            <span className="min-w-0 truncate font-semibold text-forest-900 dark:text-cream-100" data-no-translate>
+              “{query.trim()}”
+            </span>
+            <button
+              type="button"
+              onClick={() => setQuery('')}
+              className="ml-auto inline-flex items-center gap-1 rounded-md px-2 py-1 text-[12px] font-medium text-gold-700 hover:bg-gold-500/15 dark:text-gold-300"
+            >
+              ✕ <T>Clear search</T>
+            </button>
+          </div>
+        )}
+
         {events.length === 0 ? (
           <p className="text-[13px] text-ink-500 dark:text-cream-100/55">
             <T>No evidence yet. Drop files above to begin.</T>
           </p>
         ) : filtered.length === 0 ? (
           <p className="text-[13px] text-ink-500 dark:text-cream-100/55">
-            <T>Nothing matches the current filters.</T>
+            {searching ? <T>No evidence matches this search.</T> : <T>Nothing matches the current filters.</T>}
           </p>
         ) : view === 'gallery' ? (
           <div className="grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
@@ -1554,6 +1618,22 @@ export function EvidenceIntake({
           <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
             {ordered.map((e) => (
               <GridCard key={e.id} {...cardProps(e)} />
+            ))}
+          </div>
+        ) : searching ? (
+          // While searching, folders/date buckets get out of the way: matches
+          // render as ONE flat list so no result hides in a collapsed group.
+          <div className="space-y-3">
+            {ordered.map((e) => (
+              <EvidenceCard
+                key={e.id}
+                {...cardProps(e)}
+                editing={editingId === e.id}
+                onEdit={() => setEditingId(e.id)}
+                onCancelEdit={() => setEditingId(null)}
+                onSave={(edit) => saveEdit(e.id, edit)}
+                onMoveFolder={(folderName) => moveFolder(e.id, folderName)}
+              />
             ))}
           </div>
         ) : (
@@ -1593,6 +1673,7 @@ export function EvidenceIntake({
       {selected.size > 0 && (
         <BulkBar
           count={selectedIds.length}
+          hiddenCount={hiddenSelectedCount}
           busy={busy}
           aiEnabled={aiEnabled}
           allVisibleSelected={allVisibleSelected}
@@ -1603,6 +1684,7 @@ export function EvidenceIntake({
           onDelete={() => void bulkDelete()}
           onReanalyze={() => void bulkReanalyze()}
           onShare={() => void bulkShare()}
+          onDownload={() => void bulkDownload()}
           onExport={() => void bulkExport()}
           onExclude={() => void bulkSetExcluded(!selectedAllExcluded)}
           onToggleTimeline={() => void bulkSetOnTimeline(!selectedAllOnTimeline)}
@@ -1703,30 +1785,37 @@ function Toolbar({
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-[180px] flex-1">
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={t('Search name, exhibit, people, places, text…')}
-            className="w-full rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 bg-white dark:bg-forest-900/40 pl-8 pr-7 py-1.5 text-[13px]"
-            data-no-translate
-          />
-          <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-400 dark:text-cream-100/40">
-            ⌕
-          </span>
-          {query && (
-            <button
-              type="button"
-              onClick={() => setQuery('')}
-              aria-label={t('Clear search')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-400 hover:text-ink-600 dark:text-cream-100/40"
-            >
-              ✕
-            </button>
-          )}
-        </div>
+      {/* Search gets its own full-width row — the primary way into a large
+          evidence set deserves more than a slot squeezed between toggles. */}
+      <div className="relative">
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={t('Search evidence — name, exhibit number, people, places, text…')}
+          className={`w-full rounded-xl bg-white dark:bg-forest-900/40 pl-10 pr-9 py-2.5 text-[14px] text-forest-900 dark:text-cream-50 outline-none transition-shadow ${
+            query
+              ? 'ring-2 ring-gold-500/60'
+              : 'ring-1 ring-ink-200 dark:ring-forest-700/40 focus:ring-2 focus:ring-gold-500/50'
+          }`}
+          data-no-translate
+        />
+        <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[16px] text-ink-400 dark:text-cream-100/40">
+          ⌕
+        </span>
+        {query && (
+          <button
+            type="button"
+            onClick={() => setQuery('')}
+            aria-label={t('Clear search')}
+            className="absolute right-3 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-full text-ink-400 hover:bg-ink-100 hover:text-ink-600 dark:text-cream-100/40 dark:hover:bg-forest-800"
+          >
+            ✕
+          </button>
+        )}
+      </div>
 
+      <div className="flex flex-wrap items-center gap-2">
         {/* Group by */}
         <div className="inline-flex overflow-hidden rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40">
           <button type="button" onClick={() => setGroupMode('folder')} className={`${seg} ${groupMode === 'folder' ? segOn : segOff}`}>
@@ -1871,6 +1960,7 @@ function Toolbar({
 /** The floating bulk-action bar shown the moment items are selected. */
 function BulkBar({
   count,
+  hiddenCount,
   busy,
   aiEnabled,
   allVisibleSelected,
@@ -1881,11 +1971,13 @@ function BulkBar({
   onDelete,
   onReanalyze,
   onShare,
+  onDownload,
   onExport,
   onExclude,
   onToggleTimeline,
 }: {
   count: number;
+  hiddenCount: number;
   busy: boolean;
   aiEnabled: boolean;
   allVisibleSelected: boolean;
@@ -1896,6 +1988,7 @@ function BulkBar({
   onDelete: () => void;
   onReanalyze: () => void;
   onShare: () => void;
+  onDownload: () => void;
   onExport: () => void;
   onExclude: () => void;
   onToggleTimeline: () => void;
@@ -1910,6 +2003,11 @@ function BulkBar({
       <div className="flex max-w-[calc(100vw-2rem)] flex-wrap items-center justify-center gap-1 rounded-2xl bg-forest-900 px-3 py-2 text-cream-50 shadow-2xl ring-1 ring-forest-700/50">
         <span className="pl-1 text-[13px] font-medium" data-no-translate>
           {count} {t('selected')}
+          {hiddenCount > 0 && (
+            <span className="ml-1 text-[11.5px] font-normal text-gold-metal/90">
+              · {t('{n} hidden by search').replace('{n}', String(hiddenCount))}
+            </span>
+          )}
         </span>
         <button type="button" onClick={allVisibleSelected ? onClear : onSelectAll} className={act}>
           {allVisibleSelected ? <T>None</T> : <T>All</T>}
@@ -1923,11 +2021,19 @@ function BulkBar({
             <T>Reanalyse</T>
           </button>
         )}
+        <button
+          type="button"
+          disabled={busy}
+          onClick={onDownload}
+          className="rounded-full bg-gold-metal/90 px-3 py-1.5 text-[13px] font-semibold text-forest-950 hover:bg-gold-metal disabled:opacity-50"
+        >
+          <T>Download files</T>
+        </button>
         <button type="button" disabled={busy} onClick={onShare} className={act}>
           <T>Share</T>
         </button>
         <button type="button" disabled={busy} onClick={onExport} className={act}>
-          <T>Export</T>
+          <T>Court packet</T>
         </button>
         <button type="button" disabled={busy} onClick={onExclude} className={act}>
           {excludeMode === 'restore' ? <T>Restore</T> : <T>Exclude</T>}

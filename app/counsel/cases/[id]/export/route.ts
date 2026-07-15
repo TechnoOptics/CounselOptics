@@ -14,7 +14,7 @@ import {
   type ExhibitEntity,
   type ExhibitSectionKey,
 } from '@/lib/pdf';
-import { formatOccurred, KIND_LABEL, ROLE_LABEL, relevanceBand, type TimelineMedia } from '@/lib/timeline-types';
+import { formatOccurred, exhibitLabel, KIND_LABEL, ROLE_LABEL, relevanceBand, type TimelineMedia } from '@/lib/timeline-types';
 import { parseExhibitSheet } from '@/lib/exhibit-sheet';
 import { staticMapUrlServer } from '@/lib/maps';
 import { canonicalOrg } from '@/lib/entity-normalize';
@@ -278,6 +278,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     const exhibits = wantExhibits ? await Promise.all(e.media.map(loadExhibit)) : [];
     entries.push({
       index: i + 1,
+      exhibitNo: exhibitLabel(e.aiExtracted.exhibit_no),
       when: formatOccurred(e.occurredAt, e.occurredPrecision),
       kind: KIND_LABEL[e.kind],
       title: e.title,

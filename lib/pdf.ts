@@ -1389,6 +1389,9 @@ export type TimelineExhibitData = {
   caseMap?: { image: Buffer; count: number; places: string[] } | null;
   entries: {
     index: number;
+    /** The item's exhibit number label (e.g. "EX-1451"), shown in the Index of
+     *  exhibits and beside the item header so every exhibit is citable. */
+    exhibitNo?: string | null;
     when: string;
     kind: string;
     title: string;
@@ -1943,17 +1946,21 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
         gap(doc, 12);
         const IROW = 16;
         const ITEM_X = MARGIN;
-        const DESC_X = MARGIN + 46;
+        const EXH_X = MARGIN + 40;
+        const DESC_X = MARGIN + 108;
         const PAGE_LABEL_X = PAGE_WIDTH - MARGIN - 66;
         const descW = PAGE_LABEL_X - DESC_X - 8;
         let ry = doc.y;
-        const idxRow = (num: string, desc: string, head: boolean): number => {
+        const idxRow = (num: string, exh: string, desc: string, head: boolean): number => {
           if (ry + IROW > BOTTOM) { doc.addPage(); ry = doc.y; }
           doc.font(head ? 'Helvetica-Bold' : 'Helvetica').fontSize(head ? 8 : 8.5)
             .fillColor(head ? COLOR.muted : COLOR.ink);
           const one = { height: 11, lineBreak: false as const, ellipsis: true as const };
-          doc.text(num, ITEM_X, ry + 3, { width: DESC_X - ITEM_X - 4, ...one, characterSpacing: head ? 1 : 0 });
-          doc.text(desc.length > 120 ? desc.slice(0, 119) + '…' : desc, DESC_X, ry + 3, { width: descW, ...one, characterSpacing: head ? 1 : 0 });
+          doc.text(num, ITEM_X, ry + 3, { width: EXH_X - ITEM_X - 4, ...one, characterSpacing: head ? 1 : 0 });
+          if (!head) doc.font('Helvetica-Bold').fillColor(COLOR.amber);
+          doc.text(exh, EXH_X, ry + 3, { width: DESC_X - EXH_X - 6, ...one, characterSpacing: head ? 1 : 0.3 });
+          doc.font(head ? 'Helvetica-Bold' : 'Helvetica').fillColor(head ? COLOR.muted : COLOR.ink);
+          doc.text(desc.length > 110 ? desc.slice(0, 109) + '…' : desc, DESC_X, ry + 3, { width: descW, ...one, characterSpacing: head ? 1 : 0 });
           if (head) doc.text('PAGE', PAGE_LABEL_X, ry + 3, { width: 66, align: 'right', lineBreak: false, characterSpacing: 1 });
           doc.save().strokeColor(COLOR.rule).lineWidth(0.3)
             .moveTo(MARGIN, ry + IROW).lineTo(PAGE_WIDTH - MARGIN, ry + IROW).stroke().restore();
@@ -1961,9 +1968,9 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
           ry += IROW;
           return rowTop;
         };
-        idxRow('ITEM', 'DESCRIPTION', true);
+        idxRow('ITEM', 'EXHIBIT', 'DESCRIPTION', true);
         for (const e of input.entries) {
-          const topY = idxRow(String(e.index), e.title || '(untitled item)', false);
+          const topY = idxRow(String(e.index), e.exhibitNo || '—', e.title || '(untitled item)', false);
           indexRefs.push({ itemIndex: e.index, page: pageCount, topY });
         }
         doc.y = ry + 4;
@@ -2036,9 +2043,12 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
         // record reads as a clean, uniform sequence of exhibits.
         doc.addPage();
         itemPages.set(e.index, pageCount); // for the Index of exhibits page refs
-        // Item number + date.
+        // Item number + exhibit number + date, so every exhibit is citable in place.
         doc.font('Helvetica-Bold').fontSize(9).fillColor(COLOR.amber)
-          .text(`ITEM ${e.index}  ·  ${e.when}`, MARGIN, doc.y, { characterSpacing: 0.8 });
+          .text(
+            `ITEM ${e.index}${e.exhibitNo ? `  ·  ${e.exhibitNo}` : ''}  ·  ${e.when}`,
+            MARGIN, doc.y, { characterSpacing: 0.8 },
+          );
         gap(doc, 3);
         // Title.
         doc.font('Helvetica-Bold').fontSize(15).fillColor(COLOR.ink)

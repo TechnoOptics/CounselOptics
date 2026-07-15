@@ -265,6 +265,7 @@ export async function GET(
     const exhibits = wantExhibits ? await Promise.all(e.media.map(loadExhibit)) : [];
     entries.push({
       index: i + 1,
+      exhibitNo: exhibitLabel(e.aiExtracted.exhibit_no),
       when: formatOccurred(e.occurredAt, e.occurredPrecision),
       kind: KIND_LABEL[e.kind],
       title: e.title,
