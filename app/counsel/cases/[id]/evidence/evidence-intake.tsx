@@ -454,6 +454,25 @@ export function EvidenceIntake({
   const [tab, setTab] = useState<'evidence' | 'folders'>('evidence');
   const [openCollection, setOpenCollection] = useState<string | null>(null);
   const [folderDialogOpen, setFolderDialogOpen] = useState(false);
+
+  // Deep links from the header search / Folders nav: ?q= prefills the smart
+  // search, ?tab=folders opens the Folders tab (optionally ?open=<name> jumps
+  // straight into that folder). Tracked by value so the effect re-applies on
+  // client-side navigation but never fights the user's own typing.
+  const lastDeepLinkRef = useRef<string | null>(null);
+  useEffect(() => {
+    const key = `${searchParams?.get('q') ?? ''}|${searchParams?.get('tab') ?? ''}|${searchParams?.get('open') ?? ''}`;
+    if (lastDeepLinkRef.current === key) return;
+    lastDeepLinkRef.current = key;
+    const q = searchParams?.get('q');
+    if (searchParams?.get('tab') === 'folders') {
+      setTab('folders');
+      setOpenCollection(searchParams?.get('open') ?? null);
+    } else if (q) {
+      setTab('evidence');
+      setQuery(q);
+    }
+  }, [searchParams]);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [dedupe, setDedupe] = useState<{ entries: DuplicateEntry[]; all: { file: File; hash: string | null }[] } | null>(null);
   const [shareData, setShareData] = useState<{ matter: string; items: EvidenceExportItem[] } | null>(null);
