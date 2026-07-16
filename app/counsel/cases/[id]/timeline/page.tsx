@@ -184,6 +184,7 @@ export default async function FirmTimelinePage({
         caseId={params.id}
         initialBundle={bundle}
         aiEnabled={aiEnabled}
+        showChat={!isGuest}
         collab={{
           currentUserId: user?.id ?? '',
           participants,

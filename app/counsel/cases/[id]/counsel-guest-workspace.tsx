@@ -160,7 +160,7 @@ export function CounselGuestWorkspace({
         </p>
         <div className="grid gap-3 sm:grid-cols-3">
           <NavTile href={`/counsel/cases/${caseId}/timeline`} title="Timeline" blurb="The chronology of events on this matter." icon={<ClockIcon />} />
-          <NavTile href={`/counsel/cases/${caseId}/evidence`} title="Evidence files" blurb="Documents and exhibits gathered for this matter." icon={<FolderIcon />} />
+          <NavTile href={`/counsel/cases/${caseId}/evidence`} title="Evidence Center" blurb="Search, review, and share the exhibits on this matter." icon={<FolderIcon />} />
           <ExportPacketTile href={`/counsel/cases/${caseId}/export`} title="Export packet" blurb="Download the evidentiary record as a PDF." icon={<DownloadIcon />} />
         </div>
       </div>

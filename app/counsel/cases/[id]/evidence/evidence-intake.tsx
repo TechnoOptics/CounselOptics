@@ -1861,19 +1861,6 @@ export function EvidenceIntake({
         )}
 
         {tab === 'evidence' && (<>
-        {/* Keyset stream status: the first page is interactive immediately;
-            the rest arrive in the background. */}
-        {!loadedAll && (
-          <div className="flex items-center gap-2 rounded-lg border border-ink-100 bg-cream-50/60 px-3 py-1.5 text-[12px] text-ink-500 dark:border-forest-700/40 dark:bg-forest-900/40 dark:text-cream-100/55">
-            <span
-              aria-hidden
-              className="inline-block h-3 w-3 animate-spin rounded-full border-[1.5px] border-ink-300 border-t-forest-600 dark:border-forest-700 dark:border-t-gold-metal"
-            />
-            <span data-no-translate>
-              {t('Loading more evidence… {n} so far').replace('{n}', String(events.length))}
-            </span>
-          </div>
-        )}
 
         {/* Proactive duplicate review */}
         {duplicateGroups.length > 0 && !dupDismissed && (
@@ -1959,6 +1946,20 @@ export function EvidenceIntake({
             >
               ✕ <T>Clear search</T>
             </button>
+          </div>
+        )}
+
+        {/* Keyset stream status: the first page is interactive immediately;
+            the rest arrive in the background. */}
+        {!loadedAll && (
+          <div className="flex items-center gap-2 rounded-lg border border-ink-100 bg-cream-50/60 px-3 py-1.5 text-[12px] text-ink-500 dark:border-forest-700/40 dark:bg-forest-900/40 dark:text-cream-100/55">
+            <span
+              aria-hidden
+              className="inline-block h-3 w-3 animate-spin rounded-full border-[1.5px] border-ink-300 border-t-forest-600 dark:border-forest-700 dark:border-t-gold-metal"
+            />
+            <span data-no-translate>
+              {t('Loading more evidence… {n} so far').replace('{n}', String(events.length))}
+            </span>
           </div>
         )}
 
@@ -2377,34 +2378,35 @@ function Toolbar({
           <T>Filter</T>
           {anyFilter ? ` (${hiddenFolders.size + hiddenKinds.size})` : ''}
         </button>
-      </div>
 
-      {/* Row 2: counts + select all */}
-      <div className="flex flex-wrap items-center gap-3 text-[12px] text-ink-500 dark:text-cream-100/55">
-        <span data-no-translate>
-          {shownCount === totalCount
-            ? t('Showing all {n}').replace('{n}', String(totalCount))
-            : `${t('Showing')} ${shownCount} / ${totalCount}`}
-        </span>
-        <button
-          type="button"
-          onClick={allVisibleSelected ? onClearSelection : onSelectAll}
-          className="text-forest-700 dark:text-cream-100/80 hover:underline"
-        >
-          {allVisibleSelected ? <T>Deselect all</T> : <T>Select all shown</T>}
-        </button>
-        {excludedCount > 0 && (
+        {/* Counts + select-all live on the SAME control row, right-aligned,
+            so the toolbar is one line instead of two stacked strips. */}
+        <div className="ml-auto flex flex-wrap items-center gap-3 text-[12px] text-ink-500 dark:text-cream-100/55">
+          <span data-no-translate>
+            {shownCount === totalCount
+              ? t('Showing all {n}').replace('{n}', String(totalCount))
+              : `${t('Showing')} ${shownCount} / ${totalCount}`}
+          </span>
           <button
             type="button"
-            onClick={() => setShowExcluded(!showExcluded)}
-            className="text-ink-500 dark:text-cream-100/55 hover:underline"
-            data-no-translate
+            onClick={allVisibleSelected ? onClearSelection : onSelectAll}
+            className="text-forest-700 dark:text-cream-100/80 hover:underline"
           >
-            {showExcluded
-              ? t('Hide set-aside ({n})').replace('{n}', String(excludedCount))
-              : t('Show set-aside ({n})').replace('{n}', String(excludedCount))}
+            {allVisibleSelected ? <T>Deselect all</T> : <T>Select all shown</T>}
           </button>
-        )}
+          {excludedCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowExcluded(!showExcluded)}
+              className="text-ink-500 dark:text-cream-100/55 hover:underline"
+              data-no-translate
+            >
+              {showExcluded
+                ? t('Hide set-aside ({n})').replace('{n}', String(excludedCount))
+                : t('Show set-aside ({n})').replace('{n}', String(excludedCount))}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Filter panel */}

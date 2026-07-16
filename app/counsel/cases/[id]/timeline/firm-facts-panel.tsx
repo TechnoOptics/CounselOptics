@@ -81,8 +81,13 @@ export function FirmFactsPanel({
           <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-gold-700 dark:text-gold-500">
             <T>Facts of the case</T>
           </span>
-          <span className="mt-0.5 block truncate font-display text-lg font-semibold text-forest-900 dark:text-cream-50" data-no-translate>
-            {facts.title}
+          {/* The page h1 directly above already carries the matter title -
+              repeating it here read as a triple title (breadcrumb + h1 + this).
+              Show the scannable particulars instead. */}
+          <span className="mt-0.5 block truncate text-[13.5px] text-ink-600 dark:text-cream-100/70" data-no-translate>
+            {[facts.caseType, facts.jurisdiction, facts.posture, facts.status]
+              .filter(Boolean)
+              .join(' · ') || facts.title}
           </span>
         </span>
         <span className="shrink-0 text-[11px] text-ink-400 dark:text-cream-300/50">

@@ -53,6 +53,7 @@ export function FirmTimeline({
   initialBundle,
   aiEnabled,
   collab,
+  showChat = true,
 }: {
   firmId: string;
   caseId: string;
@@ -65,6 +66,8 @@ export function FirmTimeline({
     authors: AuthorCard[];
     generalChat: ChatMessage[];
   };
+  /** False for a case-scoped guest - collaboration is firm-only. */
+  showChat?: boolean;
 }) {
   const t = useT();
   const [allEvents] = useState<TimelineEvent[]>(initialBundle.events);
@@ -499,10 +502,13 @@ export function FirmTimeline({
         </div>
       )}
     </div>
-    {/* Chat + presence dock (desktop). */}
-    <aside className="hidden lg:block w-80 flex-none sticky top-24 self-start">
-      <CaseChatPanel initialGeneralChat={collab.generalChat} />
-    </aside>
+    {/* Chat + presence dock (desktop, firm members only - a guest gets no
+        collaboration, so the empty panel was just reserving 320px of width). */}
+    {showChat && (
+      <aside className="hidden lg:block w-80 flex-none sticky top-24 self-start">
+        <CaseChatPanel initialGeneralChat={collab.generalChat} />
+      </aside>
+    )}
     </div>
     {exportOpen && (
       <ExportDialog caseId={caseId} events={ordered} onClose={() => setExportOpen(false)} />
