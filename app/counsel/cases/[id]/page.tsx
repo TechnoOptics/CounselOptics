@@ -385,6 +385,60 @@ export default async function CounselCaseDetailPage({
 
   return (
     <div className="space-y-8 animate-fade-up">
+      {/* Case menu - the four primary case surfaces, pinned to the very top
+          of the matter so they sit directly under the header's gold glow
+          line and read as the page's navigation. The court packet uses <a>
+          (a route handler that streams a PDF); the others are client-nav
+          <Link>s. A gold hairline below separates the menu from the matter
+          content. */}
+      <div className="-mt-1 space-y-4">
+      <nav className="grid grid-cols-2 lg:grid-cols-4 gap-2 rounded-xl border border-ink-200 dark:border-forest-700/50 bg-cream-50/70 dark:bg-forest-900/40 p-1.5">
+        <Link
+          href={`/counsel/cases/${params.id}/timeline`}
+          prefetch={false}
+          className="group flex items-center gap-2.5 rounded-lg px-4 py-3 ring-1 ring-transparent text-forest-900 dark:text-cream-100 hover:bg-white dark:hover:bg-forest-800/60 hover:ring-gold-500/60 hover:shadow-sm transition-all"
+        >
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gold-500/10 text-gold-600 ring-1 ring-gold-500/20 transition-colors group-hover:bg-gold-500/20 group-hover:text-gold-500 dark:text-gold-400/90">
+            <TimelineIcon />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-[13px] font-semibold"><T>Case Timeline</T></span>
+            <span className="block truncate text-[11px] text-ink-500 dark:text-cream-100/50"><T>Build the story of events</T></span>
+          </span>
+        </Link>
+        <Link
+          href={`/counsel/cases/${params.id}/evidence`}
+          prefetch={false}
+          className="group flex items-center gap-2.5 rounded-lg px-4 py-3 ring-1 ring-transparent text-forest-900 dark:text-cream-100 hover:bg-white dark:hover:bg-forest-800/60 hover:ring-gold-500/60 hover:shadow-sm transition-all"
+        >
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gold-500/10 text-gold-600 ring-1 ring-gold-500/20 transition-colors group-hover:bg-gold-500/20 group-hover:text-gold-500 dark:text-gold-400/90">
+            <EvidenceIcon />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-[13px] font-semibold"><T>Evidence Center</T></span>
+            <span className="block truncate text-[11px] text-ink-500 dark:text-cream-100/50"><T>Search, review, share exhibits</T></span>
+          </span>
+        </Link>
+        <a
+          href="#case-approaches"
+          className="group flex items-center gap-2.5 rounded-lg px-4 py-3 ring-1 ring-transparent text-forest-900 dark:text-cream-100 hover:bg-white dark:hover:bg-forest-800/60 hover:ring-gold-500/60 hover:shadow-sm transition-all"
+        >
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gold-500/10 text-gold-600 ring-1 ring-gold-500/20 transition-colors group-hover:bg-gold-500/20 group-hover:text-gold-500 dark:text-gold-400/90">
+            <ApproachIcon />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-[13px] font-semibold"><T>Case approach</T></span>
+            <span className="block truncate text-[11px] text-ink-500 dark:text-cream-100/50"><T>Argue your theory from exhibits</T></span>
+          </span>
+        </a>
+        <ExportMenu
+          caseId={params.id}
+          approaches={approaches.map((a) => ({ id: a.id, title: a.title }))}
+        />
+      </nav>
+      <div className="gold-rule" aria-hidden />
+      </div>
+
       <p className="text-sm">
         <Link
           href="/counsel/cases"
@@ -513,58 +567,6 @@ export default async function CounselCaseDetailPage({
       </section>
       )}
 
-      {/* Case work - the substantive surfaces a firm case shares with a
-          personal case: the interactive Timeline (firm-tier = full builder),
-          bulk Evidence intake, court-ready Packet, and export. Framed as
-          case tools, not client guidance. */}
-      {/* Prominent tab bar for the three primary case surfaces, so they read
-          as clear destinations rather than blending into the page. The court
-          packet uses <a> (a route handler that streams a PDF); the others are
-          client-nav <Link>s. */}
-      <nav className="grid grid-cols-2 lg:grid-cols-4 gap-2 rounded-xl border border-ink-200 dark:border-forest-700/50 bg-cream-50/70 dark:bg-forest-900/40 p-1.5">
-        <Link
-          href={`/counsel/cases/${params.id}/timeline`}
-          prefetch={false}
-          className="group flex items-center gap-2.5 rounded-lg px-4 py-3 ring-1 ring-transparent text-forest-900 dark:text-cream-100 hover:bg-white dark:hover:bg-forest-800/60 hover:ring-gold-500/60 hover:shadow-sm transition-all"
-        >
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gold-500/10 text-gold-600 ring-1 ring-gold-500/20 transition-colors group-hover:bg-gold-500/20 group-hover:text-gold-500 dark:text-gold-400/90">
-            <TimelineIcon />
-          </span>
-          <span className="min-w-0">
-            <span className="block text-[13px] font-semibold"><T>Case Timeline</T></span>
-            <span className="block truncate text-[11px] text-ink-500 dark:text-cream-100/50"><T>Build the story of events</T></span>
-          </span>
-        </Link>
-        <Link
-          href={`/counsel/cases/${params.id}/evidence`}
-          prefetch={false}
-          className="group flex items-center gap-2.5 rounded-lg px-4 py-3 ring-1 ring-transparent text-forest-900 dark:text-cream-100 hover:bg-white dark:hover:bg-forest-800/60 hover:ring-gold-500/60 hover:shadow-sm transition-all"
-        >
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gold-500/10 text-gold-600 ring-1 ring-gold-500/20 transition-colors group-hover:bg-gold-500/20 group-hover:text-gold-500 dark:text-gold-400/90">
-            <EvidenceIcon />
-          </span>
-          <span className="min-w-0">
-            <span className="block text-[13px] font-semibold"><T>Evidence Center</T></span>
-            <span className="block truncate text-[11px] text-ink-500 dark:text-cream-100/50"><T>Search, review, share exhibits</T></span>
-          </span>
-        </Link>
-        <a
-          href="#case-approaches"
-          className="group flex items-center gap-2.5 rounded-lg px-4 py-3 ring-1 ring-transparent text-forest-900 dark:text-cream-100 hover:bg-white dark:hover:bg-forest-800/60 hover:ring-gold-500/60 hover:shadow-sm transition-all"
-        >
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gold-500/10 text-gold-600 ring-1 ring-gold-500/20 transition-colors group-hover:bg-gold-500/20 group-hover:text-gold-500 dark:text-gold-400/90">
-            <ApproachIcon />
-          </span>
-          <span className="min-w-0">
-            <span className="block text-[13px] font-semibold"><T>Case approach</T></span>
-            <span className="block truncate text-[11px] text-ink-500 dark:text-cream-100/50"><T>Argue your theory from exhibits</T></span>
-          </span>
-        </a>
-        <ExportMenu
-          caseId={params.id}
-          approaches={approaches.map((a) => ({ id: a.id, title: a.title }))}
-        />
-      </nav>
 
       {/* Evidence dashboard - a live, at-a-glance analytics read over the
           matter's evidence set (counts, processing status, relevance, folders,
