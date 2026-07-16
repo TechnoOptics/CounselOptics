@@ -13,6 +13,8 @@ import { FirmFactsPanel } from './firm-facts-panel';
 import { type EditMatterInitial } from '../edit-matter-form';
 import { FirmTimeline } from './firm-timeline';
 import { RequestSidebarFocus } from '@/components/counsel/SidebarFocus';
+import { CaseMenu } from '@/components/counsel/CaseMenu';
+import { listFirmApproaches } from '@/lib/firm-approach-actions';
 import { T } from '@/components/i18n/LocaleProvider';
 import { getGuestCaseSummary } from '@/lib/counsel-guest';
 import { createAdminSupabase } from '@/lib/supabase/admin';
@@ -123,7 +125,7 @@ export default async function FirmTimelinePage({
     hearingNotes: c.hearing_notes ?? '',
   };
 
-  const [bundle, access, participants, commentBundle, generalChat, user] = await Promise.all([
+  const [bundle, access, participants, commentBundle, generalChat, user, approachesRes] = await Promise.all([
     getFirmTimelineBundle(firmId, params.id),
     resolveTimelineAccess(),
     isGuest ? Promise.resolve([]) : getCaseParticipants(firmId, params.id),
@@ -132,7 +134,13 @@ export default async function FirmTimelinePage({
       : getSectionComments(firmId, params.id),
     isGuest ? Promise.resolve([]) : getChatThread(firmId, params.id, GENERAL_THREAD_KEY),
     getCurrentUser(),
+    // Approach titles for the case menu's Export dropdown (firm members only).
+    isGuest
+      ? Promise.resolve({ ok: false as const })
+      : listFirmApproaches(firmId, params.id).catch(() => ({ ok: false as const })),
   ]);
+  const approaches =
+    'approaches' in approachesRes ? (approachesRes.approaches ?? []) : [];
   // AI (bulk re-analyze, suggestions) and collaboration stay firm-only; a guest
   // co-counsel still gets the full manual timeline builder.
   const aiEnabled = aiConfigured() && access === 'firm' && !isGuest;
@@ -145,6 +153,13 @@ export default async function FirmTimelinePage({
     <div className="mx-auto max-w-6xl space-y-6 pb-16">
       {/* Focus mode: slide the counsel rail out on this route. */}
       <RequestSidebarFocus />
+      {!isGuest && (
+        <CaseMenu
+          caseId={params.id}
+          active="timeline"
+          approaches={approaches.map((a) => ({ id: a.id, title: a.title }))}
+        />
+      )}
       <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1.5 text-sm text-ink-500 dark:text-cream-100/60">
         <Link href="/counsel/cases" className="hover:text-forest-900 dark:hover:text-cream-100"><T>Matters</T></Link>
         <span aria-hidden>/</span>

@@ -12,6 +12,8 @@ import { BulkReanalyze } from './bulk-reanalyze';
 import { getGuestCaseSummary } from '@/lib/counsel-guest';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { logCaseActivity } from '@/lib/case-activity-log';
+import { CaseMenu } from '@/components/counsel/CaseMenu';
+import { listFirmApproaches } from '@/lib/firm-approach-actions';
 
 export const dynamic = 'force-dynamic';
 // A heavy matter (hundreds of evidence rows) can push the assemble past the
@@ -50,7 +52,7 @@ export default async function CaseEvidencePage({
   const admin = isGuest ? createAdminSupabase() : null;
   // One parallel wave: the case row (for the header + ownership guard), the
   // timeline, and the access tier.
-  const [caseRes, timeline, access] = await Promise.all([
+  const [caseRes, timeline, access, approachesRes] = await Promise.all([
     isGuest
       ? (admin
           ? admin.from('cases').select('id, title, firm_id').eq('id', params.id).maybeSingle()
@@ -58,7 +60,13 @@ export default async function CaseEvidencePage({
       : supabase.from('cases').select('id, title, firm_id').eq('id', params.id).maybeSingle(),
     getFirmCaseTimelinePage(firmId, params.id, { limit: 120 }),
     resolveTimelineAccess(),
+    // Approach titles for the case menu's Export dropdown (firm members only).
+    isGuest
+      ? Promise.resolve({ ok: false as const })
+      : listFirmApproaches(firmId, params.id).catch(() => ({ ok: false as const })),
   ]);
+  const approaches =
+    'approaches' in approachesRes ? (approachesRes.approaches ?? []) : [];
   const c = caseRes.data as { id: string; title: string; firm_id: string | null } | null;
   if (!c || c.firm_id !== firmId) notFound();
   const aiEnabled = aiConfigured() && access === 'firm' && !isGuest;
@@ -69,6 +77,13 @@ export default async function CaseEvidencePage({
 
   return (
     <div className="space-y-5">
+      {!isGuest && (
+        <CaseMenu
+          caseId={params.id}
+          active="evidence"
+          approaches={approaches.map((a) => ({ id: a.id, title: a.title }))}
+        />
+      )}
       <header className="min-w-0">
         <Link
           href={`/counsel/cases/${params.id}`}
