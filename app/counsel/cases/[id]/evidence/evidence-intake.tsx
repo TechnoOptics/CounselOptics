@@ -1001,6 +1001,31 @@ export function EvidenceIntake({
   const excludedCount = events.length - activeEvents.length;
   const baseEvents = showExcluded ? events : activeEvents;
 
+  // Live search suggestions drawn from the matter's OWN data — a real exhibit
+  // number, the most-mentioned person and organization, and the most common
+  // evidence kind — so the suggestions always lead somewhere.
+  const searchSuggestions = useMemo(() => {
+    const out: string[] = [];
+    const withEx = activeEvents.find((e) => typeof e.aiExtracted?.exhibit_no === 'number');
+    const exh = withEx ? exhibitLabel(withEx.aiExtracted?.exhibit_no) : null;
+    if (exh) out.push(exh);
+    const top = (pick: (e: TimelineEvent) => string[]) => {
+      const counts = new Map<string, number>();
+      for (const e of activeEvents) for (const v of pick(e)) {
+        const k = v.trim();
+        if (k) counts.set(k, (counts.get(k) ?? 0) + 1);
+      }
+      return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+    };
+    const person = top((e) => e.aiExtracted?.detected_people ?? []);
+    if (person) out.push(person);
+    const org = top((e) => e.aiExtracted?.organizations ?? []);
+    if (org && org !== person) out.push(org);
+    const kind = top((e) => [KIND_LABEL[e.kind]]);
+    if (kind) out.push(kind);
+    return out.slice(0, 4);
+  }, [activeEvents]);
+
   // Numbers for the one-line "Case evidence" strip.
   const glanceStats = useMemo(() => {
     let onTl = 0;
@@ -1583,6 +1608,7 @@ export function EvidenceIntake({
             setGroupMode={setGroupMode}
             query={query}
             setQuery={setQuery}
+            suggestions={searchSuggestions}
             showFilters={showFilters}
             setShowFilters={setShowFilters}
             hiddenFolders={hiddenFolders}
@@ -1882,6 +1908,7 @@ function Toolbar({
   setGroupMode,
   query,
   setQuery,
+  suggestions,
   showFilters,
   setShowFilters,
   hiddenFolders,
@@ -1905,6 +1932,7 @@ function Toolbar({
   setGroupMode: (g: GroupMode) => void;
   query: string;
   setQuery: (q: string) => void;
+  suggestions: string[];
   showFilters: boolean;
   setShowFilters: (b: boolean) => void;
   hiddenFolders: Set<string>;
@@ -1970,9 +1998,33 @@ function Toolbar({
             </button>
           )}
         </div>
-        <p className="mt-1.5 pl-4 text-[11.5px] text-ink-400 dark:text-cream-100/40">
-          <T>Try an exhibit number (“EX-1451”), a name, a place, a date, or several words together — “hohag budget 2014”.</T>
-        </p>
+        {/* Live suggestions from THIS matter's data + a hint of what to do
+            next — hidden once a search is underway (the results banner takes
+            over). */}
+        {!query && (
+          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5 pl-2">
+            {suggestions.length > 0 && (
+              <>
+                <span className="text-[11.5px] text-ink-400 dark:text-cream-100/40"><T>Try:</T></span>
+                {suggestions.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setQuery(s)}
+                    className="rounded-full bg-cream-50 px-2.5 py-1 text-[11.5px] font-medium text-forest-700 ring-1 ring-ink-200 hover:bg-gold-500/10 hover:text-gold-700 hover:ring-gold-500/40 dark:bg-forest-900/50 dark:text-cream-100/75 dark:ring-forest-700/50 dark:hover:text-gold-300"
+                    data-no-translate
+                  >
+                    {s}
+                  </button>
+                ))}
+                <span aria-hidden className="hidden h-3 w-px bg-ink-200 dark:bg-forest-700/60 sm:inline-block" />
+              </>
+            )}
+            <span className="text-[11.5px] text-ink-400 dark:text-cream-100/40">
+              <T>Select items to share or export · click any item to preview it</T>
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">

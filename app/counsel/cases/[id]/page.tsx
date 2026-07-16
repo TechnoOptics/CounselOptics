@@ -525,31 +525,40 @@ export default async function CounselCaseDetailPage({
         <Link
           href={`/counsel/cases/${params.id}/timeline`}
           prefetch={false}
-          className="group flex items-center justify-center gap-2.5 rounded-lg px-4 py-3 ring-1 ring-transparent text-forest-900 dark:text-cream-100 hover:bg-white dark:hover:bg-forest-800/60 hover:ring-gold-500/60 hover:shadow-sm transition-all"
+          className="group flex items-center gap-2.5 rounded-lg px-4 py-3 ring-1 ring-transparent text-forest-900 dark:text-cream-100 hover:bg-white dark:hover:bg-forest-800/60 hover:ring-gold-500/60 hover:shadow-sm transition-all"
         >
-          <span className="grid h-8 w-8 place-items-center rounded-lg bg-gold-500/10 text-gold-600 ring-1 ring-gold-500/20 transition-colors group-hover:bg-gold-500/20 group-hover:text-gold-500 dark:text-gold-400/90">
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gold-500/10 text-gold-600 ring-1 ring-gold-500/20 transition-colors group-hover:bg-gold-500/20 group-hover:text-gold-500 dark:text-gold-400/90">
             <TimelineIcon />
           </span>
-          <span className="text-[13px] font-semibold"><T>Case Timeline</T></span>
+          <span className="min-w-0">
+            <span className="block text-[13px] font-semibold"><T>Case Timeline</T></span>
+            <span className="block truncate text-[11px] text-ink-500 dark:text-cream-100/50"><T>Build the story of events</T></span>
+          </span>
         </Link>
         <Link
           href={`/counsel/cases/${params.id}/evidence`}
           prefetch={false}
-          className="group flex items-center justify-center gap-2.5 rounded-lg px-4 py-3 ring-1 ring-transparent text-forest-900 dark:text-cream-100 hover:bg-white dark:hover:bg-forest-800/60 hover:ring-gold-500/60 hover:shadow-sm transition-all"
+          className="group flex items-center gap-2.5 rounded-lg px-4 py-3 ring-1 ring-transparent text-forest-900 dark:text-cream-100 hover:bg-white dark:hover:bg-forest-800/60 hover:ring-gold-500/60 hover:shadow-sm transition-all"
         >
-          <span className="grid h-8 w-8 place-items-center rounded-lg bg-gold-500/10 text-gold-600 ring-1 ring-gold-500/20 transition-colors group-hover:bg-gold-500/20 group-hover:text-gold-500 dark:text-gold-400/90">
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gold-500/10 text-gold-600 ring-1 ring-gold-500/20 transition-colors group-hover:bg-gold-500/20 group-hover:text-gold-500 dark:text-gold-400/90">
             <EvidenceIcon />
           </span>
-          <span className="text-[13px] font-semibold"><T>Evidence intake</T></span>
+          <span className="min-w-0">
+            <span className="block text-[13px] font-semibold"><T>Evidence Center</T></span>
+            <span className="block truncate text-[11px] text-ink-500 dark:text-cream-100/50"><T>Search, review, share exhibits</T></span>
+          </span>
         </Link>
         <a
           href="#case-approaches"
-          className="group flex items-center justify-center gap-2.5 rounded-lg px-4 py-3 ring-1 ring-transparent text-forest-900 dark:text-cream-100 hover:bg-white dark:hover:bg-forest-800/60 hover:ring-gold-500/60 hover:shadow-sm transition-all"
+          className="group flex items-center gap-2.5 rounded-lg px-4 py-3 ring-1 ring-transparent text-forest-900 dark:text-cream-100 hover:bg-white dark:hover:bg-forest-800/60 hover:ring-gold-500/60 hover:shadow-sm transition-all"
         >
-          <span className="grid h-8 w-8 place-items-center rounded-lg bg-gold-500/10 text-gold-600 ring-1 ring-gold-500/20 transition-colors group-hover:bg-gold-500/20 group-hover:text-gold-500 dark:text-gold-400/90">
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gold-500/10 text-gold-600 ring-1 ring-gold-500/20 transition-colors group-hover:bg-gold-500/20 group-hover:text-gold-500 dark:text-gold-400/90">
             <ApproachIcon />
           </span>
-          <span className="text-[13px] font-semibold"><T>Case approach</T></span>
+          <span className="min-w-0">
+            <span className="block text-[13px] font-semibold"><T>Case approach</T></span>
+            <span className="block truncate text-[11px] text-ink-500 dark:text-cream-100/50"><T>Argue your theory from exhibits</T></span>
+          </span>
         </a>
         <ExportMenu
           caseId={params.id}
@@ -799,7 +808,7 @@ export default async function CounselCaseDetailPage({
               href={`/counsel/cases/${params.id}/evidence`}
               className="text-[12px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-3 py-1.5 text-ink-700 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/40"
             >
-              <T>Evidence intake</T>
+              <T>Evidence Center</T>
             </Link>
             <Link
               href={`/counsel/projects?caseId=${params.id}`}

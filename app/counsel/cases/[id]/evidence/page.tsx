@@ -20,7 +20,7 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 export function generateMetadata() {
-  return { title: 'Evidence intake · Counsel' };
+  return { title: 'Evidence Center · Counsel' };
 }
 
 export default async function CaseEvidencePage({
@@ -77,7 +77,7 @@ export default async function CaseEvidencePage({
           ← <T>Back to matter</T>
         </Link>
         <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100 mt-1">
-          <T>Evidence intake</T>
+          <T>Evidence Center</T>
         </h1>
         <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 break-words" data-no-translate>
           {c.title}
