@@ -84,10 +84,10 @@ export function CounselGuestHeader({
           initials={computeInitials(displayName || email)}
         />
       </div>
-      {/* Section navigator — only when the guest's home is an actual matter, so
-          they can always get back to the matter landing from a section. */}
-      {homeHref.startsWith('/counsel/cases/') && <CounselGuestNav caseHref={homeHref} />}
+      {/* The gold glow line closes the brand header; the matter tools (section
+          tabs + case search) sit BELOW it as their own band. */}
       <div className="header-glow-line" aria-hidden />
+      {homeHref.startsWith('/counsel/cases/') && <CounselGuestNav caseHref={homeHref} />}
     </header>
   );
 }

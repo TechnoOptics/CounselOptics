@@ -83,7 +83,7 @@ export function CounselGuestNav({ caseHref }: { caseHref: string }) {
     <>
       <nav
         aria-label="Matter sections"
-        className="mx-auto max-w-none px-4 sm:px-6 lg:px-10 -mt-0.5 flex items-center gap-1 overflow-x-auto pb-2"
+        className="mx-auto max-w-none px-4 sm:px-6 lg:px-10 pt-2 flex items-center gap-1 overflow-x-auto pb-2"
       >
         {items.map((it) => (
           <Link
