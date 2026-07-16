@@ -2,7 +2,7 @@ import 'server-only';
 import type { User } from '@supabase/supabase-js';
 import { getCurrentUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
-import { getFirmById } from './firm-storage';
+import { getFirmById, getFirmByIdAdmin } from './firm-storage';
 import type { Firm } from './firm-types';
 import type { OccurredPrecision } from './timeline-types';
 import { relevanceBand } from './timeline-types';
@@ -133,7 +133,13 @@ export async function resolveGuestContextForUser(
     }
   }
 
-  const firm = firmId ? await getFirmById(firmId).catch(() => null) : null;
+  // A guest is not a firm member, so the RLS read of `firms` returns nothing;
+  // fall back to the admin path (the guest's link to firmId was already
+  // verified above) so the shell gets the firm's name/logo and trial clock.
+  const firm = firmId
+    ? (await getFirmById(firmId).catch(() => null)) ??
+      (await getFirmByIdAdmin(firmId).catch(() => null))
+    : null;
 
   return {
     userId: user.id,

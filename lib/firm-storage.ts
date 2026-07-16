@@ -416,6 +416,22 @@ export async function getFirmById(id: string): Promise<Firm | null> {
 }
 
 /**
+ * Admin-path variant of getFirmById for callers whose entitlement is verified
+ * OUTSIDE the firms RLS - e.g. a case-scoped co-counsel guest, who is not a
+ * firm member (so the RLS read returns nothing) but is entitled to the firm's
+ * identity (name, logo, accent) and trial clock for the guest shell chrome.
+ * Callers must have already verified the user's link to this firm.
+ */
+export async function getFirmByIdAdmin(id: string): Promise<Firm | null> {
+  const { createAdminSupabase } = await import('./supabase/admin');
+  const admin = createAdminSupabase();
+  if (!admin) return null;
+  const { data } = await admin.from('firms').select('*').eq('id', id).maybeSingle();
+  if (!data) return null;
+  return firmFromRow(data as FirmRow);
+}
+
+/**
  * Lists members of the active firm, hydrated with email + display
  * name from auth.users / profiles for the team-management UI.
  */
