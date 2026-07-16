@@ -9,9 +9,10 @@ import { T, useT } from '@/components/i18n/LocaleProvider';
  * Section navigator + case-wide smart search for the case-scoped Counsel
  * GUEST shell. A guest is locked to a single matter, so this gives them an
  * always-present way around it: Matter overview · Timeline · Evidence Center
- * (· Folders once any exist), then — separated by a gold gradient hairline so
- * the two read as distinct rows — a search that works from the very first
- * screen. Suggestions come from THIS matter's own data (exhibit numbers,
+ * (· Folders once any exist), with a case-wide search right-aligned on the
+ * same row — available from the very first screen, except on the Evidence
+ * Center, which carries its own bigger search.
+ * Suggestions come from THIS matter's own data (exhibit numbers,
  * item titles, people, places, organizations, folders) via the lightweight
  * /search-index route; picking one lands in the Evidence Center with the
  * query (or folder) already applied.
@@ -79,11 +80,15 @@ export function CounselGuestNav({ caseHref }: { caseHref: string }) {
       : []),
   ];
 
+  // The Evidence Center carries its own (bigger) smart search, so the header
+  // search would be a confusing duplicate there.
+  const onEvidence = pathname.startsWith(`${caseHref}/evidence`);
+
   return (
-    <>
+    <div className="mx-auto max-w-none px-4 sm:px-6 lg:px-10 pt-2 pb-2 flex items-center gap-2">
       <nav
         aria-label="Matter sections"
-        className="mx-auto max-w-none px-4 sm:px-6 lg:px-10 pt-2 flex items-center gap-1 overflow-x-auto pb-2"
+        className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto"
       >
         {items.map((it) => (
           <Link
@@ -100,11 +105,12 @@ export function CounselGuestNav({ caseHref }: { caseHref: string }) {
           </Link>
         ))}
       </nav>
-      {/* Gold gradient hairline: keeps the section tabs and the search visually
-          distinct rows inside the same header. */}
-      <div className="gold-rule" aria-hidden />
-      <GuestCaseSearch caseHref={caseHref} docs={docs} folderNames={folderNames} />
-    </>
+      {/* Right-aligned, OUTSIDE the scrollable tab strip so its dropdown is
+          never clipped by the overflow container. */}
+      {!onEvidence && (
+        <GuestCaseSearch caseHref={caseHref} docs={docs} folderNames={folderNames} />
+      )}
+    </div>
   );
 }
 
@@ -184,8 +190,8 @@ function GuestCaseSearch({
     'flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-[13px] text-cream-100/85 hover:bg-cream-100/10 hover:text-cream-100';
 
   return (
-    <div className="mx-auto max-w-none px-4 sm:px-6 lg:px-10 py-2">
-      <div ref={boxRef} className="relative mx-auto max-w-2xl">
+    <div className="shrink-0">
+      <div ref={boxRef} className="relative">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -206,15 +212,15 @@ function GuestCaseSearch({
               setOpen(true);
             }}
             onFocus={() => setOpen(true)}
-            placeholder={t('Search this matter — a name, a place, an exhibit number, anything…')}
+            placeholder={t('Search this matter…')}
             aria-label={t('Search this matter')}
-            className="w-full rounded-full bg-forest-900/80 py-2 pl-9 pr-4 text-[13.5px] text-cream-100 placeholder:text-cream-100/40 ring-1 ring-forest-700/60 outline-none transition-shadow focus:ring-2 focus:ring-gold-metal/50"
+            className="w-44 rounded-full bg-forest-900/80 py-1.5 pl-9 pr-3 text-[13px] text-cream-100 placeholder:text-cream-100/40 ring-1 ring-forest-700/60 outline-none transition-all focus:w-64 focus:ring-2 focus:ring-gold-metal/50 sm:w-56 sm:focus:w-80"
             data-no-translate
           />
         </form>
 
         {open && hasAny && (
-          <div className="absolute inset-x-0 top-full z-40 mt-2 max-h-[60vh] overflow-y-auto rounded-xl bg-forest-950 p-1.5 shadow-2xl ring-1 ring-forest-700/60">
+          <div className="absolute right-0 top-full z-40 mt-2 max-h-[60vh] w-[min(26rem,calc(100vw-2rem))] overflow-y-auto rounded-xl bg-forest-950 p-1.5 shadow-2xl ring-1 ring-forest-700/60">
             {groups.items.length > 0 && (
               <>
                 <p className={groupLabel}><T>Evidence</T></p>
