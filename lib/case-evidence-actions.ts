@@ -684,6 +684,106 @@ export async function setFirmEvidenceOnTimelineAction(
   return { ok: true, updated };
 }
 
+/** Trim + collapse whitespace + cap a user-typed folder (collection) name. */
+function normalizeCollectionName(name: string): string {
+  return (name ?? '').replace(/\s+/g, ' ').trim().slice(0, 60);
+}
+
+/**
+ * Add or remove a set of evidence entries to/from a named evidence folder
+ * (the Evidence Center's Folders tab). Membership is a pure filter carried in
+ * ai_extracted.collections: the file, its upload folder, and its exhibit
+ * number are untouched, and one item can belong to many folders at once.
+ */
+export async function updateFirmEvidenceCollectionsAction(
+  firmId: string,
+  caseId: string,
+  eventIds: string[],
+  name: string,
+  op: 'add' | 'remove',
+): Promise<{ ok: boolean; error?: string; name?: string; updated?: number }> {
+  const gate = await assertFirmCase(firmId, caseId);
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const folder = normalizeCollectionName(name);
+  if (!folder) return { ok: false, error: 'Give the folder a name.' };
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Service unavailable.' };
+  const ids = Array.from(new Set((eventIds ?? []).filter((s) => typeof s === 'string'))).slice(0, 500);
+  if (ids.length === 0) return { ok: false, error: 'Select at least one item.' };
+
+  const { data } = await admin
+    .from('case_timeline_events')
+    .select('id, ai_extracted')
+    .eq('case_id', caseId)
+    .in('id', ids);
+  const rows = (data ?? []) as { id: string; ai_extracted: AiExtracted | null }[];
+
+  let updated = 0;
+  for (const r of rows) {
+    const prior = Array.isArray(r.ai_extracted?.collections) ? r.ai_extracted!.collections! : [];
+    const next =
+      op === 'add'
+        ? prior.includes(folder)
+          ? prior
+          : [...prior, folder]
+        : prior.filter((c) => c !== folder);
+    if (next.length === prior.length && op === 'add' && prior.includes(folder)) {
+      updated++; // already a member - count it as done, no write needed
+      continue;
+    }
+    const ext: AiExtracted = { ...(r.ai_extracted ?? {}), collections: next };
+    if (next.length === 0) delete ext.collections;
+    const { error } = await admin
+      .from('case_timeline_events')
+      .update({ ai_extracted: ext, updated_at: new Date().toISOString() })
+      .eq('id', r.id)
+      .eq('case_id', caseId);
+    if (!error) updated++;
+  }
+  revalidatePath(`/counsel/cases/${caseId}/evidence`);
+  return { ok: true, name: folder, updated };
+}
+
+/**
+ * Delete a named evidence folder across the matter: strips the name from every
+ * entry that carries it. The evidence itself is untouched - only the grouping
+ * disappears.
+ */
+export async function deleteFirmEvidenceCollectionAction(
+  firmId: string,
+  caseId: string,
+  name: string,
+): Promise<{ ok: boolean; error?: string; updated?: number }> {
+  const gate = await assertFirmCase(firmId, caseId);
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const folder = normalizeCollectionName(name);
+  if (!folder) return { ok: false, error: 'Unknown folder.' };
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Service unavailable.' };
+
+  const { data } = await admin
+    .from('case_timeline_events')
+    .select('id, ai_extracted')
+    .eq('case_id', caseId);
+  const rows = (data ?? []) as { id: string; ai_extracted: AiExtracted | null }[];
+  const hits = rows.filter((r) => Array.isArray(r.ai_extracted?.collections) && r.ai_extracted!.collections!.includes(folder));
+
+  let updated = 0;
+  for (const r of hits) {
+    const next = (r.ai_extracted?.collections ?? []).filter((c) => c !== folder);
+    const ext: AiExtracted = { ...(r.ai_extracted ?? {}), collections: next };
+    if (next.length === 0) delete ext.collections;
+    const { error } = await admin
+      .from('case_timeline_events')
+      .update({ ai_extracted: ext, updated_at: new Date().toISOString() })
+      .eq('id', r.id)
+      .eq('case_id', caseId);
+    if (!error) updated++;
+  }
+  revalidatePath(`/counsel/cases/${caseId}/evidence`);
+  return { ok: true, updated };
+}
+
 /**
  * Delete one evidence entry + its stored media (admin, firm-scoped). A full row
  * delete: because evidence and the timeline share case_timeline_events rows,

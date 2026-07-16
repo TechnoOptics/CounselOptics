@@ -143,6 +143,13 @@ export type AiExtracted = {
   /** A person put this item in its folder by hand; re-analysis must not move it. */
   folder_locked?: boolean;
   /**
+   * Named evidence folders (the Evidence Center's Folders tab) this item was
+   * added to by hand. Pure filters, NOT storage: membership never moves the
+   * file or changes `folder` above, and one item can sit in many folders at
+   * once. Sticky across re-analysis (see mergeStickyExtracted).
+   */
+  collections?: string[];
+  /**
    * Whether the firm has explicitly placed this item on the case TIMELINE.
    * Evidence lives in the evidence intake regardless; the timeline shows only
    * items the firm chose to add. Newly imported evidence is stamped `false`

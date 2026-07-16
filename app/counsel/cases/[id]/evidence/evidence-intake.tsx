@@ -38,6 +38,8 @@ import {
   deleteFirmCaseEventAction,
   setFirmEvidenceExcludedAction,
   setFirmEvidenceOnTimelineAction,
+  updateFirmEvidenceCollectionsAction,
+  deleteFirmEvidenceCollectionAction,
   checkEvidenceDuplicatesAction,
   listCaseEvidenceNamesAction,
   exportSelectedEvidenceAction,
@@ -51,6 +53,7 @@ import { DuplicatePanel, findDuplicateGroups } from './duplicate-panel';
 import { DuplicateDialog, type DuplicateAction, type DuplicateEntry } from './duplicate-dialog';
 import { ShareExportDialog } from './share-export-dialog';
 import { ShareDialog, type ShareTarget } from '@/components/counsel/ShareDialog';
+import { Dialog } from '@/components/Dialog';
 
 // How often the list re-syncs from the server as a fallback to Realtime, so
 // items and scores another member (or the background scorer) produced appear
@@ -446,6 +449,11 @@ export function EvidenceIntake({
 
   // Selection + viewer + dialogs
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Folders (collections) tab: named, hand-built groupings of evidence.
+  // Membership is a pure filter (ai_extracted.collections) - nothing moves.
+  const [tab, setTab] = useState<'evidence' | 'folders'>('evidence');
+  const [openCollection, setOpenCollection] = useState<string | null>(null);
+  const [folderDialogOpen, setFolderDialogOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [dedupe, setDedupe] = useState<{ entries: DuplicateEntry[]; all: { file: File; hash: string | null }[] } | null>(null);
   const [shareData, setShareData] = useState<{ matter: string; items: EvidenceExportItem[] } | null>(null);
@@ -1001,6 +1009,19 @@ export function EvidenceIntake({
   const excludedCount = events.length - activeEvents.length;
   const baseEvents = showExcluded ? events : activeEvents;
 
+  // name -> member events, for the Folders tab (sorted by name).
+  const collectionsMap = useMemo(() => {
+    const m = new Map<string, TimelineEvent[]>();
+    for (const e of activeEvents) {
+      for (const c of e.aiExtracted?.collections ?? []) {
+        const list = m.get(c);
+        if (list) list.push(e);
+        else m.set(c, [e]);
+      }
+    }
+    return new Map([...m.entries()].sort((a, b) => a[0].localeCompare(b[0])));
+  }, [activeEvents]);
+
   // Live search suggestions drawn from the matter's OWN data — a real exhibit
   // number, the most-mentioned person and organization, and the most common
   // evidence kind — so the suggestions always lead somewhere.
@@ -1330,6 +1351,153 @@ export function EvidenceIntake({
     }
   }, [selectedIds, caseId]);
 
+  // ---- Folders (collections) ------------------------------------------------
+  // Add the current selection to a named folder (creating it on first use).
+  const addSelectionToFolder = useCallback(
+    async (name: string) => {
+      const ids = selectedIds;
+      if (ids.length === 0) return;
+      setBusy(true);
+      const res = await updateFirmEvidenceCollectionsAction(firmId, caseId, ids, name, 'add');
+      setBusy(false);
+      if (!res.ok || !res.name) {
+        setError(res.error ?? t('Could not add those items to the folder.'));
+        return;
+      }
+      const folder = res.name;
+      const idSet = new Set(ids);
+      setEvents((list) =>
+        list.map((e) => {
+          if (!idSet.has(e.id)) return e;
+          const prior = e.aiExtracted?.collections ?? [];
+          if (prior.includes(folder)) return e;
+          return { ...e, aiExtracted: { ...(e.aiExtracted ?? {}), collections: [...prior, folder] } };
+        }),
+      );
+      setFolderDialogOpen(false);
+      clearSelection();
+      setNotice(
+        t('Added {n} item(s) to “{f}”.').replace('{n}', String(ids.length)).replace('{f}', folder),
+      );
+    },
+    [selectedIds, firmId, caseId, clearSelection, t],
+  );
+
+  // Remove the current selection from the folder that is open.
+  const removeSelectionFromFolder = useCallback(
+    async (name: string) => {
+      const ids = selectedIds;
+      if (ids.length === 0) return;
+      setBusy(true);
+      const res = await updateFirmEvidenceCollectionsAction(firmId, caseId, ids, name, 'remove');
+      setBusy(false);
+      if (!res.ok) {
+        setError(res.error ?? t('Could not update the folder.'));
+        return;
+      }
+      const idSet = new Set(ids);
+      setEvents((list) =>
+        list.map((e) =>
+          idSet.has(e.id)
+            ? {
+                ...e,
+                aiExtracted: {
+                  ...(e.aiExtracted ?? {}),
+                  collections: (e.aiExtracted?.collections ?? []).filter((c) => c !== name),
+                },
+              }
+            : e,
+        ),
+      );
+      clearSelection();
+      setNotice(t('Removed {n} item(s) from “{f}”.').replace('{n}', String(ids.length)).replace('{f}', name));
+    },
+    [selectedIds, firmId, caseId, clearSelection, t],
+  );
+
+  // Delete a folder (the grouping only - every item stays in the evidence).
+  const deleteCollection = useCallback(
+    async (name: string) => {
+      setBusy(true);
+      const res = await deleteFirmEvidenceCollectionAction(firmId, caseId, name);
+      setBusy(false);
+      if (!res.ok) {
+        setError(res.error ?? t('Could not delete the folder.'));
+        return;
+      }
+      setEvents((list) =>
+        list.map((e) =>
+          e.aiExtracted?.collections?.includes(name)
+            ? {
+                ...e,
+                aiExtracted: {
+                  ...(e.aiExtracted ?? {}),
+                  collections: (e.aiExtracted.collections ?? []).filter((c) => c !== name),
+                },
+              }
+            : e,
+        ),
+      );
+      setOpenCollection(null);
+      setNotice(t('Deleted the folder “{f}”. Its items stay in the evidence.').replace('{f}', name));
+    },
+    [firmId, caseId, t],
+  );
+
+  // The same export features the selection bar offers, for a whole folder.
+  const exportIdsAsOneDoc = useCallback(
+    async (ids: string[]) => {
+      if (ids.length === 0) return;
+      const url = `/counsel/cases/${caseId}/export?ids=${encodeURIComponent(ids.join(','))}&section=exhibits`;
+      if (isNativeApp()) {
+        const { Browser } = await import('@capacitor/browser');
+        await Browser.open({ url, toolbarColor: '#0b0b0d' });
+      } else {
+        window.open(url, '_blank', 'noopener');
+      }
+    },
+    [caseId],
+  );
+  const downloadIds = useCallback(
+    async (ids: string[]) => {
+      if (ids.length === 0) return;
+      const url = `/counsel/cases/${caseId}/evidence/download?ids=${encodeURIComponent(ids.join(','))}`;
+      if (isNativeApp()) {
+        const { Browser } = await import('@capacitor/browser');
+        await Browser.open({ url, toolbarColor: '#0b0b0d' });
+      } else {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = '';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
+    },
+    [caseId],
+  );
+  const indexShareIds = useCallback(
+    async (ids: string[]) => {
+      if (ids.length === 0) return;
+      setBusy(true);
+      const res = await exportSelectedEvidenceAction(firmId, caseId, ids);
+      setBusy(false);
+      if (res.ok && res.items) setShareData({ matter: res.matter ?? 'Matter', items: res.items });
+      else setError(res.error ?? t('Could not prepare the share.'));
+    },
+    [firmId, caseId, t],
+  );
+  const secureShareIds = useCallback(
+    (ids: string[], label: string) => {
+      if (ids.length === 0) return;
+      setSecureShare({
+        path: `/counsel/cases/${caseId}/evidence/download?ids=${encodeURIComponent(ids.join(','))}`,
+        label,
+      });
+    },
+    [caseId],
+  );
+
   // Add (or remove) the selected items to the timeline in one pass.
   const bulkSetOnTimeline = useCallback(
     async (onTimeline: boolean) => {
@@ -1546,11 +1714,41 @@ export function EvidenceIntake({
 
       {/* Evidence */}
       <section ref={resultsRef} className="scroll-mt-4 space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="font-display text-lg font-medium text-forest-900 dark:text-cream-100">
-            <T>Evidence</T>{' '}
-            <span className="text-ink-400 dark:text-cream-100/40">({activeEvents.length})</span>
-          </h2>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          {/* Evidence / Folders tabs. Folders are hand-built, named groupings
+              (one item can be in many); opening one filters the view to it. */}
+          <div className="inline-flex overflow-hidden rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40" role="tablist">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === 'evidence'}
+              onClick={() => setTab('evidence')}
+              className={
+                (tab === 'evidence'
+                  ? 'bg-forest-900/10 dark:bg-cream-100/10 font-semibold text-forest-900 dark:text-cream-100 '
+                  : 'text-ink-600 dark:text-cream-100/70 hover:bg-cream-50 dark:hover:bg-forest-800/40 ') +
+                'px-3.5 py-1.5 text-[13px] transition-colors'
+              }
+            >
+              <T>Evidence</T>{' '}
+              <span className="text-ink-400 dark:text-cream-100/40" data-no-translate>({activeEvents.length})</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === 'folders'}
+              onClick={() => { setTab('folders'); setOpenCollection(null); }}
+              className={
+                (tab === 'folders'
+                  ? 'bg-forest-900/10 dark:bg-cream-100/10 font-semibold text-forest-900 dark:text-cream-100 '
+                  : 'text-ink-600 dark:text-cream-100/70 hover:bg-cream-50 dark:hover:bg-forest-800/40 ') +
+                'px-3.5 py-1.5 text-[13px] transition-colors'
+              }
+            >
+              <T>Folders</T>{' '}
+              <span className="text-ink-400 dark:text-cream-100/40" data-no-translate>({collectionsMap.size})</span>
+            </button>
+          </div>
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -1569,6 +1767,81 @@ export function EvidenceIntake({
           </div>
         </div>
 
+        {tab === 'folders' && (
+          openCollection === null ? (
+            collectionsMap.size === 0 ? (
+              <div className="rounded-xl border border-dashed border-ink-200 px-4 py-8 text-center dark:border-forest-700/40">
+                <p className="text-2xl" aria-hidden>📁</p>
+                <p className="mt-1 text-[14px] font-medium text-forest-900 dark:text-cream-100"><T>No folders yet</T></p>
+                <p className="mx-auto mt-1 max-w-md text-[12.5px] text-ink-500 dark:text-cream-100/55">
+                  <T>Select items on the Evidence tab, then choose “Add to folder” in the selection bar. A folder never moves anything — it is a saved view, and one item can sit in many folders.</T>
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                {[...collectionsMap.entries()].map(([name, items]) => (
+                  <button
+                    key={name}
+                    type="button"
+                    onClick={() => setOpenCollection(name)}
+                    className="group flex flex-col items-start gap-1 rounded-xl border border-ink-200 bg-cream-50/60 p-3.5 text-left transition-all hover:border-gold-500/60 hover:bg-white hover:shadow-sm dark:border-forest-700/50 dark:bg-forest-900/40 dark:hover:bg-forest-800/60"
+                  >
+                    <span aria-hidden className="grid h-8 w-8 place-items-center rounded-lg bg-gold-500/10 text-[15px] ring-1 ring-gold-500/20 transition-colors group-hover:bg-gold-500/20">📁</span>
+                    <span className="mt-1 w-full truncate text-[13.5px] font-semibold text-forest-900 dark:text-cream-100" data-no-translate>{name}</span>
+                    <span className="text-[11.5px] text-ink-500 dark:text-cream-100/50" data-no-translate>
+                      {items.length} {t('item(s)')}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )
+          ) : (
+            (() => {
+              const members = collectionsMap.get(openCollection) ?? [];
+              const memberIds = members.map((e) => e.id);
+              return (
+                <div className="space-y-3">
+                  <FolderHeader
+                    name={openCollection}
+                    count={members.length}
+                    busy={busy}
+                    onBack={() => setOpenCollection(null)}
+                    onSelectAll={() => setSelected(new Set(memberIds))}
+                    onExportOne={() => void exportIdsAsOneDoc(memberIds)}
+                    onExportIndividual={() => void downloadIds(memberIds)}
+                    onIndex={() => void indexShareIds(memberIds)}
+                    onShare={() =>
+                      secureShareIds(
+                        memberIds,
+                        `${openCollection} — ${members.length === 1 ? t('1 exhibit file') : t('{n} exhibit files').replace('{n}', String(members.length))}`,
+                      )
+                    }
+                    onDelete={() => void deleteCollection(openCollection)}
+                  />
+                  {members.length === 0 ? (
+                    <p className="text-[13px] text-ink-500 dark:text-cream-100/55"><T>This folder is empty.</T></p>
+                  ) : (
+                    <div className="space-y-3">
+                      {members.map((e) => (
+                        <EvidenceCard
+                          key={e.id}
+                          {...cardProps(e)}
+                          editing={editingId === e.id}
+                          onEdit={() => setEditingId(e.id)}
+                          onCancelEdit={() => setEditingId(null)}
+                          onSave={(edit) => saveEdit(e.id, edit)}
+                          onMoveFolder={(folderName) => moveFolder(e.id, folderName)}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()
+          )
+        )}
+
+        {tab === 'evidence' && (<>
         {/* Keyset stream status: the first page is interactive immediately;
             the rest arrive in the background. */}
         {!loadedAll && (
@@ -1737,6 +2010,7 @@ export function EvidenceIntake({
             />
           ))
         )}
+        </>)}
       </section>
 
       {/* Add evidence - its own section, collapsed once the matter already has
@@ -1854,6 +2128,13 @@ export function EvidenceIntake({
           onExportIndividual={() => void bulkDownload()}
           onExclude={() => void bulkSetExcluded(!selectedAllExcluded)}
           onToggleTimeline={() => void bulkSetOnTimeline(!selectedAllOnTimeline)}
+          onAddToFolder={() => setFolderDialogOpen(true)}
+          folderName={tab === 'folders' ? openCollection : null}
+          onRemoveFromFolder={
+            tab === 'folders' && openCollection
+              ? () => void removeSelectionFromFolder(openCollection)
+              : undefined
+          }
         />
       )}
 
@@ -1895,6 +2176,17 @@ export function EvidenceIntake({
       {/* Secure encrypt-and-send of the selected exhibits' original files */}
       {secureShare && (
         <ShareDialog caseId={caseId} target={secureShare} onClose={() => setSecureShare(null)} />
+      )}
+
+      {/* Add the selection to a named folder (create new, or pick existing) */}
+      {folderDialogOpen && (
+        <AddToFolderDialog
+          count={selectedIds.length}
+          existing={[...collectionsMap.keys()]}
+          busy={busy}
+          onAdd={(name) => void addSelectionToFolder(name)}
+          onClose={() => setFolderDialogOpen(false)}
+        />
       )}
     </div>
   );
@@ -2188,6 +2480,9 @@ function BulkBar({
   onExportIndividual,
   onExclude,
   onToggleTimeline,
+  onAddToFolder,
+  folderName,
+  onRemoveFromFolder,
 }: {
   count: number;
   hiddenCount: number;
@@ -2206,6 +2501,10 @@ function BulkBar({
   onExportIndividual: () => void;
   onExclude: () => void;
   onToggleTimeline: () => void;
+  onAddToFolder: () => void;
+  /** Set when a folder is open - enables "Remove from folder". */
+  folderName?: string | null;
+  onRemoveFromFolder?: () => void;
 }) {
   const t = useT();
   const [exportOpen, setExportOpen] = useState(false);
@@ -2239,7 +2538,7 @@ function BulkBar({
         <span className="pl-1 text-[13px] font-medium" data-no-translate>
           {count} {t('selected')}
           {hiddenCount > 0 && (
-            <span className="ml-1 text-[11.5px] font-normal text-gold-metal/90">
+            <span className="ml-1 text-[11.5px] font-normal text-gold-300">
               · {t('{n} hidden by search').replace('{n}', String(hiddenCount))}
             </span>
           )}
@@ -2256,11 +2555,19 @@ function BulkBar({
             <T>Reanalyse</T>
           </button>
         )}
+        <button type="button" disabled={busy} onClick={onAddToFolder} className={act}>
+          <T>Add to folder</T>
+        </button>
+        {folderName && onRemoveFromFolder && (
+          <button type="button" disabled={busy} onClick={onRemoveFromFolder} className={act}>
+            <T>Remove from folder</T>
+          </button>
+        )}
         <button
           type="button"
           disabled={busy}
           onClick={onShare}
-          className="rounded-full bg-gold-metal/90 px-3 py-1.5 text-[13px] font-semibold text-forest-950 hover:bg-gold-metal disabled:opacity-50"
+          className="rounded-full bg-gold-metal px-3 py-1.5 text-[13px] font-semibold text-black shadow-sm hover:brightness-110 disabled:opacity-50"
         >
           <T>Share</T>
         </button>
@@ -2329,6 +2636,245 @@ function BulkBar({
   );
   if (!mounted || typeof document === 'undefined') return node;
   return createPortal(node, document.body);
+}
+
+/**
+ * Header row for an OPEN evidence folder: back link, name + count, and the
+ * full export feature set (one court document / individual files / evidence
+ * index / secure share) applied to every item in the folder, plus a two-step
+ * folder delete that never touches the evidence itself.
+ */
+function FolderHeader({
+  name,
+  count,
+  busy,
+  onBack,
+  onSelectAll,
+  onExportOne,
+  onExportIndividual,
+  onIndex,
+  onShare,
+  onDelete,
+}: {
+  name: string;
+  count: number;
+  busy: boolean;
+  onBack: () => void;
+  onSelectAll: () => void;
+  onExportOne: () => void;
+  onExportIndividual: () => void;
+  onIndex: () => void;
+  onShare: () => void;
+  onDelete: () => void;
+}) {
+  const t = useT();
+  const [exportOpen, setExportOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!exportOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setExportOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setExportOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [exportOpen]);
+  const btn =
+    'rounded-md px-2.5 py-1.5 text-[12.5px] ring-1 ring-ink-200 text-ink-700 hover:bg-cream-50 dark:ring-forest-700/40 dark:text-cream-100/85 dark:hover:bg-forest-800/40 disabled:opacity-50';
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-ink-200 bg-cream-50/70 px-3 py-2.5 dark:border-forest-700/50 dark:bg-forest-900/40">
+      <button type="button" onClick={onBack} className="text-[12.5px] text-ink-500 hover:underline dark:text-cream-100/55">
+        ← <T>All folders</T>
+      </button>
+      <span aria-hidden className="text-[15px]">📁</span>
+      <span className="min-w-0 truncate text-[14px] font-semibold text-forest-900 dark:text-cream-100" data-no-translate>
+        {name}
+      </span>
+      <span className="text-[12px] text-ink-500 dark:text-cream-100/50" data-no-translate>
+        ({count})
+      </span>
+      <div className="ml-auto flex flex-wrap items-center gap-1.5">
+        <button type="button" disabled={busy || count === 0} onClick={onSelectAll} className={btn}>
+          <T>Select all</T>
+        </button>
+        <div ref={menuRef} className="relative">
+          <button
+            type="button"
+            disabled={busy || count === 0}
+            onClick={() => setExportOpen((v) => !v)}
+            aria-expanded={exportOpen}
+            className={btn}
+          >
+            <T>Export</T> ▾
+          </button>
+          {exportOpen && (
+            <div className="absolute right-0 top-full z-30 mt-2 w-72 rounded-xl bg-white p-1.5 shadow-2xl ring-1 ring-ink-200 dark:bg-forest-900 dark:ring-forest-700/60">
+              <button
+                type="button"
+                onClick={() => { setExportOpen(false); onExportOne(); }}
+                className="block w-full rounded-lg px-3 py-2 text-left hover:bg-gold-500/10"
+              >
+                <span className="block text-[13px] font-semibold text-forest-900 dark:text-cream-100"><T>One document</T></span>
+                <span className="block text-[11.5px] text-ink-500 dark:text-cream-100/60"><T>Court-ready PDF - items keep their ITEM and EX-numbers</T></span>
+              </button>
+              <button
+                type="button"
+                onClick={() => { setExportOpen(false); onExportIndividual(); }}
+                className="block w-full rounded-lg px-3 py-2 text-left hover:bg-gold-500/10"
+              >
+                <span className="block text-[13px] font-semibold text-forest-900 dark:text-cream-100"><T>Individual documents</T></span>
+                <span className="block text-[11.5px] text-ink-500 dark:text-cream-100/60"><T>Each original file, named with its exhibit number</T></span>
+              </button>
+              <button
+                type="button"
+                onClick={() => { setExportOpen(false); onIndex(); }}
+                className="block w-full rounded-lg px-3 py-2 text-left hover:bg-gold-500/10"
+              >
+                <span className="block text-[13px] font-semibold text-forest-900 dark:text-cream-100"><T>Evidence index</T></span>
+                <span className="block text-[11.5px] text-ink-500 dark:text-cream-100/60"><T>A hand-over list with exhibit numbers and short-lived links</T></span>
+              </button>
+            </div>
+          )}
+        </div>
+        <button
+          type="button"
+          disabled={busy || count === 0}
+          onClick={onShare}
+          className="rounded-md bg-gold-metal px-2.5 py-1.5 text-[12.5px] font-semibold text-black shadow-sm hover:brightness-110 disabled:opacity-50"
+        >
+          <T>Share</T>
+        </button>
+        {confirmDelete ? (
+          <span className="inline-flex items-center gap-1.5">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={onDelete}
+              className="rounded-md bg-rose-600 px-2.5 py-1.5 text-[12.5px] font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
+            >
+              <T>Delete folder?</T>
+            </button>
+            <button type="button" onClick={() => setConfirmDelete(false)} className={btn}>
+              <T>Keep</T>
+            </button>
+          </span>
+        ) : (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setConfirmDelete(true)}
+            title={t('Deletes only the folder - every item stays in the evidence')}
+            className="rounded-md px-2.5 py-1.5 text-[12.5px] text-rose-600 ring-1 ring-rose-200 hover:bg-rose-50 dark:text-rose-300 dark:ring-rose-700/40 dark:hover:bg-rose-950/30 disabled:opacity-50"
+          >
+            <T>Delete folder</T>
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * "Add to folder" for the current selection: pick an existing folder or name a
+ * new one. Membership is additive - the items also stay wherever else they are.
+ */
+function AddToFolderDialog({
+  count,
+  existing,
+  busy,
+  onAdd,
+  onClose,
+}: {
+  count: number;
+  existing: string[];
+  busy: boolean;
+  onAdd: (name: string) => void;
+  onClose: () => void;
+}) {
+  const t = useT();
+  const [draft, setDraft] = useState('');
+  return (
+    <Dialog onClose={onClose} ariaLabel={t('Add to folder')} size="sm" elevated>
+      <div className="p-4">
+        <h3 className="font-display text-lg font-medium text-forest-900 dark:text-cream-100">
+          <T>Add to folder</T>
+        </h3>
+        <p className="mt-1 text-[12.5px] text-ink-500 dark:text-cream-100/55" data-no-translate>
+          {count === 1 ? t('1 selected item') : t('{n} selected items').replace('{n}', String(count))}
+          {' · '}
+          {t('a folder is a saved view — items stay where they are and can sit in several folders')}
+        </p>
+
+        {existing.length > 0 && (
+          <div className="mt-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-400 dark:text-cream-100/40">
+              <T>Existing folders</T>
+            </p>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {existing.map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  disabled={busy}
+                  onClick={() => onAdd(name)}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-cream-50 px-3 py-1.5 text-[12.5px] font-medium text-forest-700 ring-1 ring-ink-200 hover:bg-gold-500/10 hover:text-gold-700 hover:ring-gold-500/40 disabled:opacity-50 dark:bg-forest-900/50 dark:text-cream-100/80 dark:ring-forest-700/50 dark:hover:text-gold-300"
+                  data-no-translate
+                >
+                  <span aria-hidden>📁</span> {name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <form
+          className="mt-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (draft.trim()) onAdd(draft);
+          }}
+        >
+          <label className="text-[11px] font-semibold uppercase tracking-wider text-ink-400 dark:text-cream-100/40">
+            <T>New folder</T>
+          </label>
+          <div className="mt-1.5 flex items-center gap-2">
+            <input
+              type="text"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              maxLength={60}
+              placeholder={t('e.g. Hearing prep, Key financials…')}
+              className="w-full rounded-md border border-ink-200 bg-white px-3 py-2 text-[13.5px] text-forest-900 outline-none focus:border-gold-500/60 focus:ring-2 focus:ring-gold-500/25 dark:border-forest-700/50 dark:bg-forest-900/60 dark:text-cream-100"
+              data-no-translate
+              autoFocus
+            />
+            <button
+              type="submit"
+              disabled={busy || !draft.trim()}
+              className="shrink-0 rounded-md bg-gold-metal px-3.5 py-2 text-[13px] font-semibold text-black shadow-sm hover:brightness-110 disabled:opacity-50"
+            >
+              <T>Create</T>
+            </button>
+          </div>
+        </form>
+
+        <div className="mt-4 flex justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md px-3 py-1.5 text-[13px] text-ink-600 ring-1 ring-ink-200 hover:bg-cream-50 dark:text-cream-100/70 dark:ring-forest-700/40 dark:hover:bg-forest-800/40"
+          >
+            <T>Cancel</T>
+          </button>
+        </div>
+      </div>
+    </Dialog>
+  );
 }
 
 /** A collapsible section (a folder, or a date bucket) wrapping its entries. */

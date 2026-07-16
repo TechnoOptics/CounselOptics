@@ -150,6 +150,11 @@ export function mergeStickyExtracted(
   if (typeof p.on_timeline === 'boolean' && out.on_timeline === undefined) {
     out.on_timeline = p.on_timeline;
   }
+  // Hand-built folder memberships (Evidence Center Folders tab) are deliberate
+  // curation and must survive a re-analysis the same way.
+  if (Array.isArray(p.collections) && p.collections.length > 0 && out.collections === undefined) {
+    out.collections = p.collections;
+  }
   return out;
 }
 
