@@ -241,9 +241,11 @@ export default async function CounselLayout({
         <CounselTrialBanner
           firmName={active.firm.name}
           daysLeft={(() => {
+            // Same clock as the guest shell: 30 days from firm creation, and
+            // NULL (no countdown claim) when the start date is unknown.
             const created = (active.firm as { createdAt?: string }).createdAt;
             const ms = created ? Date.parse(created) : NaN;
-            if (Number.isNaN(ms)) return 30;
+            if (Number.isNaN(ms)) return null;
             const elapsed = Math.floor((Date.now() - ms) / 86_400_000);
             return Math.max(0, 30 - elapsed);
           })()}

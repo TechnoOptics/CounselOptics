@@ -80,18 +80,22 @@ export function CounselTrialBanner({
               <span className="font-semibold text-cream-100" data-no-translate>
                 {firmName}
               </span>{' '}
-              is on a 30‑day free trial, with all features included. Your trial{' '}
-              {days != null && days > 0 ? (
-                <>
-                  expires in{' '}
-                  <span className="font-semibold text-gold-200">
-                    {days} {dayLabel}
-                  </span>
-                  .
-                </>
-              ) : (
-                <>has ended, but your access continues.</>
-              )}
+              is on a 30‑day free trial, with all features included.
+              {/* Only make a claim about expiry when the clock is actually
+                  known - an unparseable start date must not read as either
+                  "30 days left" or "ended". */}
+              {days != null &&
+                (days > 0 ? (
+                  <>
+                    {' '}Your trial expires in{' '}
+                    <span className="font-semibold text-gold-200">
+                      {days} {dayLabel}
+                    </span>
+                    .
+                  </>
+                ) : (
+                  <> Your trial has ended, but your access continues.</>
+                ))}
             </>
           )}
         </p>
