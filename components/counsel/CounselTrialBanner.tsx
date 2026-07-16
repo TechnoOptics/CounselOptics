@@ -15,7 +15,9 @@ export function CounselTrialBanner({
   guest = false,
 }: {
   firmName: string;
-  daysLeft: number;
+  /** Null when the trial start is unknown (e.g. a guest whose firm link
+   *  could not be resolved) - the notice then omits the countdown. */
+  daysLeft: number | null;
   /** Co-counsel guest shell: phrase it as the FIRM's trial workspace. */
   guest?: boolean;
 }) {
@@ -33,7 +35,7 @@ export function CounselTrialBanner({
 
   if (hidden) return null;
 
-  const days = Math.max(0, Math.round(daysLeft));
+  const days = daysLeft == null ? null : Math.max(0, Math.round(daysLeft));
   const dayLabel = days === 1 ? 'day' : 'days';
 
   return (
@@ -48,12 +50,20 @@ export function CounselTrialBanner({
         <p className="min-w-0 flex-1 text-[12.5px] leading-snug text-cream-100/90">
           {guest ? (
             <>
-              You&rsquo;re working in{' '}
-              <span className="font-semibold text-cream-100" data-no-translate>
-                {firmName}
-              </span>
-              &rsquo;s Advottic trial workspace
-              {days > 0 ? (
+              {firmName ? (
+                <>
+                  You&rsquo;re working in{' '}
+                  <span className="font-semibold text-cream-100" data-no-translate>
+                    {firmName}
+                  </span>
+                  &rsquo;s Advottic trial workspace
+                </>
+              ) : (
+                <>You&rsquo;re working in an Advottic trial workspace</>
+              )}
+              {days == null ? (
+                <>, with all features included.</>
+              ) : days > 0 ? (
                 <>
                   {' '}&mdash;{' '}
                   <span className="font-semibold text-gold-200">
@@ -71,7 +81,7 @@ export function CounselTrialBanner({
                 {firmName}
               </span>{' '}
               is on a 30‑day free trial, with all features included. Your trial{' '}
-              {days > 0 ? (
+              {days != null && days > 0 ? (
                 <>
                   expires in{' '}
                   <span className="font-semibold text-gold-200">
