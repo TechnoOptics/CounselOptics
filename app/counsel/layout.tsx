@@ -140,6 +140,19 @@ export default async function CounselLayout({
           }
         >
           <LocaleProvider initialLocale={locale}>
+            {guest.firm && (
+              <CounselTrialBanner
+                guest
+                firmName={guest.firm.name}
+                daysLeft={(() => {
+                  const created = (guest.firm as { createdAt?: string }).createdAt;
+                  const ms = created ? Date.parse(created) : NaN;
+                  if (Number.isNaN(ms)) return 30;
+                  const elapsed = Math.floor((Date.now() - ms) / 86_400_000);
+                  return Math.max(0, 30 - elapsed);
+                })()}
+              />
+            )}
             <CounselGuestHeader
               firm={guest.firm}
               homeHref={guestFallbackPath(guest)}

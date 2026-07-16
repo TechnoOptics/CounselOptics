@@ -12,9 +12,12 @@ import { useEffect, useState } from 'react';
 export function CounselTrialBanner({
   firmName,
   daysLeft,
+  guest = false,
 }: {
   firmName: string;
   daysLeft: number;
+  /** Co-counsel guest shell: phrase it as the FIRM's trial workspace. */
+  guest?: boolean;
 }) {
   const [hidden, setHidden] = useState(true);
 
@@ -43,20 +46,43 @@ export function CounselTrialBanner({
           Free trial
         </span>
         <p className="min-w-0 flex-1 text-[12.5px] leading-snug text-cream-100/90">
-          <span className="font-semibold text-cream-100" data-no-translate>
-            {firmName}
-          </span>{' '}
-          is on a 30‑day free trial, with all features included. Your trial{' '}
-          {days > 0 ? (
+          {guest ? (
             <>
-              expires in{' '}
-              <span className="font-semibold text-gold-200">
-                {days} {dayLabel}
+              You&rsquo;re working in{' '}
+              <span className="font-semibold text-cream-100" data-no-translate>
+                {firmName}
               </span>
-              .
+              &rsquo;s Advottic trial workspace
+              {days > 0 ? (
+                <>
+                  {' '}&mdash;{' '}
+                  <span className="font-semibold text-gold-200">
+                    {days} {dayLabel}
+                  </span>{' '}
+                  left, with all features included.
+                </>
+              ) : (
+                <>. The trial period has ended, but your access continues.</>
+              )}
             </>
           ) : (
-            <>has ended, but your access continues.</>
+            <>
+              <span className="font-semibold text-cream-100" data-no-translate>
+                {firmName}
+              </span>{' '}
+              is on a 30‑day free trial, with all features included. Your trial{' '}
+              {days > 0 ? (
+                <>
+                  expires in{' '}
+                  <span className="font-semibold text-gold-200">
+                    {days} {dayLabel}
+                  </span>
+                  .
+                </>
+              ) : (
+                <>has ended, but your access continues.</>
+              )}
+            </>
           )}
         </p>
         <button
