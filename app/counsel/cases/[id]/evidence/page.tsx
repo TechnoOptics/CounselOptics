@@ -11,6 +11,8 @@ import { BulkReanalyze } from './bulk-reanalyze';
 import { getGuestCaseSummary } from '@/lib/counsel-guest';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { logCaseActivity } from '@/lib/case-activity-log';
+import { getCurrentUser } from '@/lib/supabase/server';
+import { readEvidenceFolderRegistry } from '@/lib/evidence-folders';
 import { CaseMenu } from '@/components/counsel/CaseMenu';
 import { listFirmApproaches } from '@/lib/firm-approach-actions';
 
@@ -68,6 +70,14 @@ export default async function CaseEvidencePage({
     'approaches' in approachesRes ? (approachesRes.approaches ?? []) : [];
   const c = caseRes.data as { id: string; title: string; firm_id: string | null } | null;
   if (!c || c.firm_id !== firmId) notFound();
+
+  // Folder visibility registry + who is looking, so the client can hide
+  // another user's private folders (and show the toggle on your own).
+  const viewer = await getCurrentUser();
+  const registryAdmin = admin ?? createAdminSupabase();
+  const folderRegistry = registryAdmin
+    ? await readEvidenceFolderRegistry(registryAdmin, params.id)
+    : {};
   const aiEnabled = aiConfigured() && access === 'firm' && !isGuest;
 
   // Record a guest's evidence-files visit (skipFirm so firm-member visits are
@@ -103,6 +113,8 @@ export default async function CaseEvidencePage({
         initialEvents={timeline.events ?? []}
         initialCursor={timeline.nextCursor ?? null}
         aiEnabled={aiEnabled}
+        viewerId={viewer?.id ?? null}
+        initialFolderMeta={folderRegistry}
       />
 
       {!isGuest && access === 'firm' && <RecurringPeople firmId={firmId} caseId={params.id} />}

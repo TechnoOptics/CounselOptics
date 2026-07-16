@@ -40,6 +40,7 @@ import {
   setFirmEvidenceOnTimelineAction,
   updateFirmEvidenceCollectionsAction,
   deleteFirmEvidenceCollectionAction,
+  setEvidenceFolderVisibilityAction,
   checkEvidenceDuplicatesAction,
   listCaseEvidenceNamesAction,
   exportSelectedEvidenceAction,
@@ -332,12 +333,16 @@ function matchesFocus(e: TimelineEvent, f: Focus): boolean {
 }
 type ViewMode = 'gallery' | 'list' | 'grid';
 
+type FolderMeta = { createdBy: string | null; isPublic: boolean; createdAt?: string };
+
 export function EvidenceIntake({
   firmId,
   caseId,
   initialEvents,
   initialCursor = null,
   aiEnabled,
+  viewerId = null,
+  initialFolderMeta = {},
 }: {
   firmId: string;
   caseId: string;
@@ -346,6 +351,10 @@ export function EvidenceIntake({
    *  was the whole matter. When present the client streams the rest. */
   initialCursor?: EvidencePageCursor | null;
   aiEnabled: boolean;
+  /** Signed-in user, for private-folder visibility + the folder toggle. */
+  viewerId?: string | null;
+  /** Folder visibility registry (who created each folder; public/private). */
+  initialFolderMeta?: Record<string, FolderMeta>;
 }) {
   const t = useT();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -454,6 +463,7 @@ export function EvidenceIntake({
   const [tab, setTab] = useState<'evidence' | 'folders'>('evidence');
   const [openCollection, setOpenCollection] = useState<string | null>(null);
   const [folderDialogOpen, setFolderDialogOpen] = useState(false);
+  const [folderMeta, setFolderMeta] = useState<Record<string, FolderMeta>>(initialFolderMeta);
 
   // Deep links from the header search / Folders nav: ?q= prefills the smart
   // search, ?tab=folders opens the Folders tab (optionally ?open=<name> jumps
@@ -1038,8 +1048,14 @@ export function EvidenceIntake({
         else m.set(c, [e]);
       }
     }
+    // Private folders are visible to their creator only; folders without a
+    // registry entry (legacy) and public folders show for every case viewer.
+    for (const name of m.keys()) {
+      const meta = folderMeta[name];
+      if (meta && !meta.isPublic && meta.createdBy !== viewerId) m.delete(name);
+    }
     return new Map([...m.entries()].sort((a, b) => a[0].localeCompare(b[0])));
-  }, [activeEvents]);
+  }, [activeEvents, folderMeta, viewerId]);
 
   // Live search suggestions drawn from the matter's OWN data — a real exhibit
   // number, the most-mentioned person and organization, and the most common
@@ -1393,13 +1409,16 @@ export function EvidenceIntake({
           return { ...e, aiExtracted: { ...(e.aiExtracted ?? {}), collections: [...prior, folder] } };
         }),
       );
+      setFolderMeta((m) =>
+        m[folder] ? m : { ...m, [folder]: { createdBy: viewerId, isPublic: true } },
+      );
       setFolderDialogOpen(false);
       clearSelection();
       setNotice(
         t('Added {n} item(s) to “{f}”.').replace('{n}', String(ids.length)).replace('{f}', folder),
       );
     },
-    [selectedIds, firmId, caseId, clearSelection, t],
+    [selectedIds, firmId, caseId, clearSelection, viewerId, t],
   );
 
   // Remove the current selection from the folder that is open.
@@ -1457,8 +1476,34 @@ export function EvidenceIntake({
             : e,
         ),
       );
+      setFolderMeta((m) => {
+        if (!m[name]) return m;
+        const next = { ...m };
+        delete next[name];
+        return next;
+      });
       setOpenCollection(null);
       setNotice(t('Deleted the folder “{f}”. Its items stay in the evidence.').replace('{f}', name));
+    },
+    [firmId, caseId, t],
+  );
+
+  // Public/private toggle for a folder (creator only; server re-checks).
+  const setFolderVisibility = useCallback(
+    async (name: string, isPublic: boolean) => {
+      setBusy(true);
+      const res = await setEvidenceFolderVisibilityAction(firmId, caseId, name, isPublic);
+      setBusy(false);
+      if (!res.ok || !res.meta) {
+        setError(res.error ?? t('Could not change who sees the folder.'));
+        return;
+      }
+      setFolderMeta((m) => ({ ...m, [name]: res.meta as FolderMeta }));
+      setNotice(
+        isPublic
+          ? t('“{f}” is now visible to everyone on this matter.').replace('{f}', name)
+          : t('“{f}” is now visible only to you.').replace('{f}', name),
+      );
     },
     [firmId, caseId, t],
   );
@@ -1807,8 +1852,13 @@ export function EvidenceIntake({
                   >
                     <span aria-hidden className="grid h-8 w-8 place-items-center rounded-lg bg-gold-500/10 text-[15px] ring-1 ring-gold-500/20 transition-colors group-hover:bg-gold-500/20">📁</span>
                     <span className="mt-1 w-full truncate text-[13.5px] font-semibold text-forest-900 dark:text-cream-100" data-no-translate>{name}</span>
-                    <span className="text-[11.5px] text-ink-500 dark:text-cream-100/50" data-no-translate>
+                    <span className="flex items-center gap-1.5 text-[11.5px] text-ink-500 dark:text-cream-100/50" data-no-translate>
                       {items.length} {t('item(s)')}
+                      {folderMeta[name] && !folderMeta[name].isPublic && (
+                        <span className="inline-flex items-center gap-0.5 rounded-full bg-ink-100 px-1.5 py-[1px] text-[10px] font-medium text-ink-600 dark:bg-forest-800/70 dark:text-cream-100/60">
+                          🔒 <T>Only you</T>
+                        </span>
+                      )}
                     </span>
                   </button>
                 ))}
@@ -1824,6 +1874,12 @@ export function EvidenceIntake({
                     name={openCollection}
                     count={members.length}
                     busy={busy}
+                    isPublic={folderMeta[openCollection]?.isPublic !== false}
+                    canToggle={
+                      !folderMeta[openCollection]?.createdBy ||
+                      folderMeta[openCollection]?.createdBy === viewerId
+                    }
+                    onToggleVisibility={(pub) => void setFolderVisibility(openCollection, pub)}
                     onBack={() => setOpenCollection(null)}
                     onSelectAll={() => setSelected(new Set(memberIds))}
                     onExportOne={() => void exportIdsAsOneDoc(memberIds)}
@@ -2669,6 +2725,9 @@ function FolderHeader({
   name,
   count,
   busy,
+  isPublic,
+  canToggle,
+  onToggleVisibility,
   onBack,
   onSelectAll,
   onExportOne,
@@ -2680,6 +2739,11 @@ function FolderHeader({
   name: string;
   count: number;
   busy: boolean;
+  /** True = every case viewer sees this folder; false = creator only. */
+  isPublic: boolean;
+  /** Only the folder's creator may flip visibility. */
+  canToggle: boolean;
+  onToggleVisibility: (isPublic: boolean) => void;
   onBack: () => void;
   onSelectAll: () => void;
   onExportOne: () => void;
@@ -2719,6 +2783,42 @@ function FolderHeader({
       <span className="text-[12px] text-ink-500 dark:text-cream-100/50" data-no-translate>
         ({count})
       </span>
+      {/* Who sees this folder. Public = everyone viewing the case; private =
+          only its creator. A pure view preference - the items themselves stay
+          in the shared evidence either way. */}
+      {canToggle ? (
+        <button
+          type="button"
+          role="switch"
+          aria-checked={isPublic}
+          disabled={busy}
+          onClick={() => onToggleVisibility(!isPublic)}
+          title={t('Public: everyone viewing this case sees the folder. Off: only you see it.')}
+          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-medium ring-1 transition-colors disabled:opacity-50 ${
+            isPublic
+              ? 'bg-gold-500/10 text-gold-700 ring-gold-500/40 dark:text-gold-300'
+              : 'bg-ink-100 text-ink-600 ring-ink-200 dark:bg-forest-800/70 dark:text-cream-100/65 dark:ring-forest-700/50'
+          }`}
+        >
+          <span
+            aria-hidden
+            className={`relative inline-block h-3.5 w-6 rounded-full transition-colors ${
+              isPublic ? 'bg-gold-500/70' : 'bg-ink-300 dark:bg-forest-700'
+            }`}
+          >
+            <span
+              className={`absolute top-[2px] h-2.5 w-2.5 rounded-full bg-white shadow transition-all ${
+                isPublic ? 'left-[13px]' : 'left-[2px]'
+              }`}
+            />
+          </span>
+          {isPublic ? <T>Public</T> : <T>Only you</T>}
+        </button>
+      ) : (
+        <span className="inline-flex items-center rounded-full bg-gold-500/10 px-2.5 py-1 text-[11.5px] font-medium text-gold-700 ring-1 ring-gold-500/40 dark:text-gold-300">
+          <T>Public</T>
+        </span>
+      )}
       <div className="ml-auto flex flex-wrap items-center gap-1.5">
         <button type="button" disabled={busy || count === 0} onClick={onSelectAll} className={btn}>
           <T>Select all</T>

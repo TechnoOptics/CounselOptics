@@ -3,6 +3,7 @@ import { getActiveFirmContext } from '@/lib/firm-storage';
 import { getCurrentUser, createServerSupabase } from '@/lib/supabase/server';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { exhibitLabel, type AiExtracted } from '@/lib/timeline-types';
+import { readEvidenceFolderRegistry, canSeeEvidenceFolder } from '@/lib/evidence-folders';
 
 export const runtime = 'nodejs';
 
@@ -56,12 +57,15 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   const c = caseRow as { id: string; firm_id: string | null } | null;
   if (!c || c.firm_id !== firmId) return NextResponse.json({ error: 'Not found.' }, { status: 404 });
 
-  const { data: rows } = await admin
-    .from('case_timeline_events')
-    .select('id, title, kind, ai_extracted')
-    .eq('case_id', params.id)
-    .order('created_at', { ascending: false })
-    .limit(2000);
+  const [{ data: rows }, folderRegistry] = await Promise.all([
+    admin
+      .from('case_timeline_events')
+      .select('id, title, kind, ai_extracted')
+      .eq('case_id', params.id)
+      .order('created_at', { ascending: false })
+      .limit(2000),
+    readEvidenceFolderRegistry(admin, params.id),
+  ]);
 
   const docs = ((rows ?? []) as { id: string; title: string; kind: string; ai_extracted: AiExtracted | null }[])
     .filter((r) => !r.ai_extracted?.excluded)
@@ -75,7 +79,10 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
         people: ext.detected_people ?? [],
         places: ext.locations ?? [],
         orgs: ext.organizations ?? [],
-        folders: ext.collections ?? [],
+        // Another user's PRIVATE folders never leave the server.
+        folders: (ext.collections ?? []).filter((f) =>
+          canSeeEvidenceFolder(folderRegistry[f], user.id),
+        ),
       };
     });
 

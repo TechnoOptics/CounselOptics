@@ -145,6 +145,7 @@ export default async function CounselLayout({
               homeHref={guestFallbackPath(guest)}
               displayName={guest.displayName ?? guest.email ?? 'Guest'}
               email={guest.email ?? ''}
+              avatarUrl={await resolveGuestAvatar(guest.userId)}
             />
             <div className="flex-1 flex w-full max-w-none mx-auto px-4 sm:px-6 lg:px-10 py-6 sm:py-8">
               <main className="flex-1 min-w-0">{children}</main>
@@ -296,4 +297,32 @@ export default async function CounselLayout({
      </LocaleProvider>
     </div>
   );
+}
+
+/**
+ * The guest's profile picture, from the account they signed in with:
+ * profiles.avatar_url is seeded from the auth provider's avatar at signup,
+ * with the live auth metadata (Google/OAuth picture) as fallback. Null when
+ * the account has no picture - the menu then falls back to initials.
+ */
+async function resolveGuestAvatar(userId: string): Promise<string | null> {
+  try {
+    const { createAdminSupabase } = await import('@/lib/supabase/admin');
+    const admin = createAdminSupabase();
+    if (admin) {
+      const { data } = await admin
+        .from('profiles')
+        .select('avatar_url')
+        .eq('id', userId)
+        .maybeSingle();
+      const fromProfile = (data as { avatar_url: string | null } | null)?.avatar_url;
+      if (fromProfile) return fromProfile;
+    }
+    const { getCurrentUser } = await import('@/lib/supabase/server');
+    const user = await getCurrentUser();
+    const meta = (user?.user_metadata ?? {}) as Record<string, unknown>;
+    return (meta.avatar_url as string | undefined) || (meta.picture as string | undefined) || null;
+  } catch {
+    return null;
+  }
 }

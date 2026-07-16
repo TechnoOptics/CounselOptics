@@ -17,11 +17,14 @@ export function CounselGuestHeader({
   homeHref,
   displayName,
   email,
+  avatarUrl = null,
 }: {
   firm: Firm | null;
   homeHref: string;
   displayName: string;
   email: string;
+  /** Profile picture from the account the guest signed in with. */
+  avatarUrl?: string | null;
 }) {
   return (
     <header className="bg-forest-950 sticky top-0 z-30 pt-[var(--safe-top)] border-b border-forest-800/70 shadow-[0_6px_20px_-12px_rgba(0,0,0,0.9)]">
@@ -82,6 +85,7 @@ export function CounselGuestHeader({
           displayName={displayName}
           email={email}
           initials={computeInitials(displayName || email)}
+          avatarUrl={avatarUrl}
         />
       </div>
       {/* The gold glow line closes the brand header; the matter tools (section

@@ -14,10 +14,13 @@ export function CounselGuestMenu({
   displayName,
   email,
   initials,
+  avatarUrl = null,
 }: {
   displayName: string;
   email: string;
   initials: string;
+  /** Sign-in account's profile picture; initials are the fallback. */
+  avatarUrl?: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -36,12 +39,17 @@ export function CounselGuestMenu({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="h-9 w-9 rounded-full bg-forest-800 text-cream-100 text-xs font-semibold inline-flex items-center justify-center ring-1 ring-cream-100/15 hover:ring-cream-100/30 transition"
+        className="h-9 w-9 overflow-hidden rounded-full bg-forest-800 text-cream-100 text-xs font-semibold inline-flex items-center justify-center ring-1 ring-cream-100/15 hover:ring-cream-100/30 transition"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label="Account menu"
       >
-        {initials}
+        {avatarUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={avatarUrl} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+        ) : (
+          initials
+        )}
       </button>
       {open && (
         <div

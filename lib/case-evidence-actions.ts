@@ -2,6 +2,11 @@
 
 import { revalidatePath } from 'next/cache';
 import { createServerSupabase, getCurrentUser } from './supabase/server';
+import {
+  readEvidenceFolderRegistry,
+  writeEvidenceFolderRegistry,
+  type EvidenceFolderMeta,
+} from './evidence-folders';
 import { createAdminSupabase } from './supabase/admin';
 import { aiConfigured } from './timeline-ai';
 import { resolveTimelineAccess } from './timeline-entitlement';
@@ -740,8 +745,61 @@ export async function updateFirmEvidenceCollectionsAction(
       .eq('case_id', caseId);
     if (!error) updated++;
   }
+
+  // First use of a NEW folder name registers who created it (public by
+  // default - the creator can flip it to private from the folder view).
+  if (op === 'add') {
+    const user = await getCurrentUser();
+    const registry = await readEvidenceFolderRegistry(admin, caseId);
+    if (!registry[folder]) {
+      registry[folder] = {
+        createdBy: user?.id ?? null,
+        isPublic: true,
+        createdAt: new Date().toISOString(),
+      };
+      await writeEvidenceFolderRegistry(admin, caseId, registry);
+    }
+  }
+
   revalidatePath(`/counsel/cases/${caseId}/evidence`);
   return { ok: true, name: folder, updated };
+}
+
+/**
+ * Flip a folder between public (every case viewer sees it) and private (its
+ * creator only). Only the creator may change it; an unowned/legacy folder is
+ * claimed by whoever flips it first.
+ */
+export async function setEvidenceFolderVisibilityAction(
+  firmId: string,
+  caseId: string,
+  name: string,
+  isPublic: boolean,
+): Promise<{ ok: boolean; error?: string; meta?: EvidenceFolderMeta }> {
+  const gate = await assertFirmCase(firmId, caseId);
+  if (!gate.ok) return { ok: false, error: gate.error };
+  const folder = normalizeCollectionName(name);
+  if (!folder) return { ok: false, error: 'Unknown folder.' };
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Service unavailable.' };
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: 'Sign in first.' };
+
+  const registry = await readEvidenceFolderRegistry(admin, caseId);
+  const current = registry[folder];
+  if (current && current.createdBy && current.createdBy !== user.id) {
+    return { ok: false, error: 'Only the folder’s creator can change who sees it.' };
+  }
+  const meta: EvidenceFolderMeta = {
+    createdBy: current?.createdBy ?? user.id,
+    isPublic,
+    createdAt: current?.createdAt ?? new Date().toISOString(),
+  };
+  registry[folder] = meta;
+  const wrote = await writeEvidenceFolderRegistry(admin, caseId, registry);
+  if (!wrote) return { ok: false, error: 'Could not save the change.' };
+  revalidatePath(`/counsel/cases/${caseId}/evidence`);
+  return { ok: true, meta };
 }
 
 /**
@@ -780,6 +838,13 @@ export async function deleteFirmEvidenceCollectionAction(
       .eq('case_id', caseId);
     if (!error) updated++;
   }
+
+  const registry = await readEvidenceFolderRegistry(admin, caseId);
+  if (registry[folder]) {
+    delete registry[folder];
+    await writeEvidenceFolderRegistry(admin, caseId, registry);
+  }
+
   revalidatePath(`/counsel/cases/${caseId}/evidence`);
   return { ok: true, updated };
 }
