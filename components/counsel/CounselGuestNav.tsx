@@ -214,7 +214,7 @@ function GuestCaseSearch({
             onFocus={() => setOpen(true)}
             placeholder={t('Search this matter…')}
             aria-label={t('Search this matter')}
-            className="w-44 rounded-full bg-forest-900/80 py-1.5 pl-9 pr-3 text-[13px] text-cream-100 placeholder:text-cream-100/40 ring-1 ring-forest-700/60 outline-none transition-all focus:w-64 focus:ring-2 focus:ring-gold-metal/50 sm:w-56 sm:focus:w-80"
+            className="search-pill-gold search-pill-gold-dark w-44 rounded-full py-1.5 pl-9 pr-3 text-[13px] text-cream-100 placeholder:text-cream-100/40 outline-none transition-all focus:w-64 focus:ring-2 focus:ring-gold-metal/40 sm:w-56 sm:focus:w-80"
             data-no-translate
           />
         </form>

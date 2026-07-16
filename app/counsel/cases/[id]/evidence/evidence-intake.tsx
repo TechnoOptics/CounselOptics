@@ -2275,10 +2275,10 @@ function Toolbar({
           understands underneath. */}
       <div>
         <div
-          className={`relative rounded-full bg-white transition-shadow dark:bg-forest-900 ${
+          className={`search-pill-gold relative rounded-full transition-shadow ${
             query
-              ? 'shadow-lg ring-2 ring-gold-500/60'
-              : 'shadow-sm ring-1 ring-ink-200 hover:shadow-md focus-within:shadow-lg focus-within:ring-2 focus-within:ring-gold-500/50 dark:ring-forest-700/50'
+              ? 'shadow-lg ring-2 ring-gold-500/40'
+              : 'hover:shadow-md focus-within:shadow-lg focus-within:ring-2 focus-within:ring-gold-500/35'
           }`}
         >
           <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ink-400 dark:text-cream-100/40">

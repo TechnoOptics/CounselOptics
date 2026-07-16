@@ -456,6 +456,51 @@ body > * {
   animation: co-header-shimmer 12s linear infinite;
 }
 
+/* Animated gold gradient BORDER for search pills - the same champagne
+   palette and calm 12s motion as the header glow line, so search reads as
+   a branded, luminous control on any background. Works via the two-layer
+   background trick: the top layer paints the pill's own fill (--pill-bg)
+   inside the padding box, the bottom layer pans a gold gradient through
+   the transparent border. Dark surfaces set --pill-bg themselves (the
+   .dark override covers the standard dark theme; .search-pill-gold-dark
+   is for always-dark chrome like the guest header). */
+@keyframes co-gold-border-pan {
+  0% { background-position: 0 0, 0% 50%; }
+  100% { background-position: 0 0, 200% 50%; }
+}
+.search-pill-gold {
+  border: 1.5px solid transparent;
+  background-image:
+    linear-gradient(var(--pill-bg, #ffffff), var(--pill-bg, #ffffff)),
+    linear-gradient(
+      90deg,
+      rgba(213, 187, 126, 0.55) 0%,
+      rgba(245, 237, 214, 0.95) 20%,
+      rgba(196, 149, 50, 0.85) 40%,
+      rgba(213, 187, 126, 0.55) 60%,
+      rgba(245, 237, 214, 0.95) 80%,
+      rgba(213, 187, 126, 0.55) 100%
+    );
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+  background-size: auto, 200% 100%;
+  animation: co-gold-border-pan 12s linear infinite;
+  box-shadow:
+    0 1px 6px rgba(213, 187, 126, 0.3),
+    0 4px 14px rgba(213, 187, 126, 0.14);
+}
+.dark .search-pill-gold {
+  --pill-bg: rgb(var(--forest-900));
+}
+.search-pill-gold-dark {
+  --pill-bg: rgb(var(--forest-900));
+}
+@media (prefers-reduced-motion: reduce) {
+  .search-pill-gold {
+    animation: none;
+  }
+}
+
 /*
  * Tenant variant of the header glow line - used on <slug>.advottic.com
  * (counsel layout in tenant mode). Reads var(--firm-accent) which the
