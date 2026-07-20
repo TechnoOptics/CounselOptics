@@ -1,8 +1,11 @@
 'use client';
 
 import { useEffect, useRef, useState, useTransition } from 'react';
+import Link from 'next/link';
 import { runReviewAction } from '@/lib/actions';
 import type { AIReview } from '@/lib/types';
+import type { ReviewLockedCounts } from '@/lib/review-teaser';
+import { isNativeApp } from '@/lib/platform';
 import { BellaPrompt } from '@/components/BellaPrompt';
 import { CallALawyerCallout } from '@/components/CallALawyerCallout';
 
@@ -11,9 +14,18 @@ export function ReviewPanel({
   review,
   variant = 'consumer',
   showBella = true,
+  locked = false,
+  lockedCounts = null,
 }: {
   caseId: string;
   review: AIReview | null;
+  /**
+   * Freemium teaser mode: `review` is already SERVER-REDACTED (summary +
+   * one item per section); `lockedCounts` says how much more each section
+   * holds so the UI can show honest locks and an upgrade path.
+   */
+  locked?: boolean;
+  lockedCounts?: ReviewLockedCounts | null;
   /**
    * Whether to render the contextual post-review Bella launcher inside
    * the panel. The counsel matter page sets this false because it shows
@@ -140,7 +152,35 @@ export function ReviewPanel({
         </div>
       )}
 
-      {review && <ReviewCarousel review={review} />}
+      {review && locked && lockedCounts && lockedCounts.total > 0 && (
+        <div className="rounded-xl border border-gold-500/40 bg-gradient-to-r from-gold-500/10 via-gold-400/5 to-gold-500/10 px-5 py-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <span aria-hidden className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gold-500/15 text-gold-600 ring-1 ring-gold-500/30">
+              <LockIcon />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[14px] font-semibold text-ink-950 dark:text-cream-100">
+                This is a preview of your Advottic Review
+              </p>
+              <p className="mt-0.5 text-[13px] leading-relaxed text-ink-600 dark:text-cream-100/70">
+                {isNativeApp()
+                  ? `The full breakdown - ${lockedCounts.total} more insights across the timeline, key facts, legal issues, evidence plan, and next steps - is included with a subscription on your account.`
+                  : `The full breakdown - ${lockedCounts.total} more insights across the timeline, key facts, legal issues, evidence plan, and next steps - is included with Personal Plus.`}
+              </p>
+            </div>
+            {!isNativeApp() && (
+              <Link
+                href="/billing"
+                className="btn bg-gold-metal text-forest-950 hover:brightness-110 shadow-gold-glow font-semibold px-4 py-2 shrink-0"
+              >
+                Unlock the full review
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
+
+      {review && <ReviewCarousel review={review} lockedCounts={locked ? lockedCounts : null} />}
 
       {/* Once the review is done, plant a quiet "this is a good
           moment to loop in counsel" callout. The review just gave
@@ -196,12 +236,18 @@ export function ReviewPanel({
  * scrolling is minimal and there's no tab-inside-a-tab. The card height
  * eases to fit the active section.
  */
-function ReviewCarousel({ review }: { review: AIReview }) {
+function ReviewCarousel({
+  review,
+  lockedCounts = null,
+}: {
+  review: AIReview;
+  lockedCounts?: ReviewLockedCounts | null;
+}) {
   const slides: { label: string; body: React.ReactNode }[] = [
     { label: 'Overview', body: <Overview review={review} /> },
-    { label: 'Facts & issues', body: <Facts review={review} /> },
-    { label: 'Evidence & discovery', body: <Evidence review={review} /> },
-    { label: 'Next steps', body: <Actions review={review} /> },
+    { label: 'Facts & issues', body: <Facts review={review} locked={lockedCounts} /> },
+    { label: 'Evidence & discovery', body: <Evidence review={review} locked={lockedCounts} /> },
+    { label: 'Next steps', body: <Actions review={review} locked={lockedCounts} /> },
   ];
   const trackRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
@@ -370,25 +416,26 @@ function Overview({ review }: { review: AIReview }) {
   );
 }
 
-function Facts({ review }: { review: AIReview }) {
+function Facts({ review, locked }: { review: AIReview; locked?: ReviewLockedCounts | null }) {
   return (
     <div className="grid gap-4 md:grid-cols-2">
-      <Panel title="Timeline" items={review.timeline} />
-      <Panel title="Key facts" items={review.keyFacts} />
-      <Panel title="Possible legal issues" items={review.possibleIssues} />
+      <Panel title="Timeline" items={review.timeline} lockedMore={locked?.timeline} />
+      <Panel title="Key facts" items={review.keyFacts} lockedMore={locked?.keyFacts} />
+      <Panel title="Possible legal issues" items={review.possibleIssues} lockedMore={locked?.possibleIssues} />
       <Panel
         title="Applicable doctrines"
         subtitle="Attorney to verify against current statutes"
         items={review.applicableLegalReferences}
+        lockedMore={locked?.legalReferences}
       />
     </div>
   );
 }
 
-function Evidence({ review }: { review: AIReview }) {
-  const hasEvidence = (review.evidenceToStrengthen ?? []).length > 0;
-  const hasSubpoena = (review.subpoenaTargets ?? []).length > 0;
-  const hasMapping = review.evidenceMapping.length > 0;
+function Evidence({ review, locked }: { review: AIReview; locked?: ReviewLockedCounts | null }) {
+  const hasEvidence = (review.evidenceToStrengthen ?? []).length > 0 || (locked?.evidenceToStrengthen ?? 0) > 0;
+  const hasSubpoena = (review.subpoenaTargets ?? []).length > 0 || (locked?.subpoenaTargets ?? 0) > 0;
+  const hasMapping = review.evidenceMapping.length > 0 || (locked?.evidenceMapping ?? 0) > 0;
 
   if (!hasEvidence && !hasSubpoena && !hasMapping) {
     return <p className="text-sm text-ink-500">No evidence recommendations in this review.</p>;
@@ -400,25 +447,27 @@ function Evidence({ review }: { review: AIReview }) {
         title="Evidence to strengthen the case"
         items={review.evidenceToStrengthen}
         accent="emerald"
+        lockedMore={locked?.evidenceToStrengthen}
       />
       <AccentList
         title="Possible subpoena / records targets"
         subtitle="Attorney must confirm the appropriate legal process."
         items={review.subpoenaTargets}
         accent="sky"
+        lockedMore={locked?.subpoenaTargets}
       />
-      <Panel title="Evidence mapping to exhibits" items={review.evidenceMapping} />
+      <Panel title="Evidence mapping to exhibits" items={review.evidenceMapping} lockedMore={locked?.evidenceMapping} />
     </div>
   );
 }
 
-function Actions({ review }: { review: AIReview }) {
+function Actions({ review, locked }: { review: AIReview; locked?: ReviewLockedCounts | null }) {
   return (
     <div className="grid gap-4 md:grid-cols-2">
-      <Panel title="Missing information" items={review.missingInformation} />
-      <Panel title="Suggested next steps" items={review.suggestedNextSteps} />
+      <Panel title="Missing information" items={review.missingInformation} lockedMore={locked?.missingInformation} />
+      <Panel title="Suggested next steps" items={review.suggestedNextSteps} lockedMore={locked?.suggestedNextSteps} />
       <div className="md:col-span-2">
-        <Panel title="Questions to ask an attorney" items={review.questionsForAttorney} />
+        <Panel title="Questions to ask an attorney" items={review.questionsForAttorney} lockedMore={locked?.questionsForAttorney} />
       </div>
     </div>
   );
@@ -428,12 +477,15 @@ function Panel({
   title,
   subtitle,
   items,
+  lockedMore = 0,
 }: {
   title: string;
   subtitle?: string;
   items: string[] | undefined;
+  /** Teaser mode: how many more items exist but are held behind the plan. */
+  lockedMore?: number;
 }) {
-  if (!items || items.length === 0) return null;
+  if ((!items || items.length === 0) && !lockedMore) return null;
   return (
     <div className="rounded-lg border border-ink-100 bg-white p-5">
       <div className="mb-3">
@@ -441,7 +493,7 @@ function Panel({
         {subtitle && <p className="text-xs text-ink-400 mt-0.5">{subtitle}</p>}
       </div>
       <ul className="space-y-2 text-[14px] text-ink-800">
-        {items.map((item, i) => (
+        {(items ?? []).map((item, i) => (
           <li key={i} className="flex gap-2.5">
             <span
               aria-hidden
@@ -451,7 +503,52 @@ function Panel({
           </li>
         ))}
       </ul>
+      {lockedMore > 0 && <LockedRows count={lockedMore} />}
     </div>
+  );
+}
+
+/**
+ * Placeholder rows for teaser mode. The hidden items are NOT in the page
+ * (the server redacted them) - these skeleton lines just show their shape,
+ * with an honest count and a quiet path to unlock. Inside the native apps
+ * the row stays informational (no purchase push - reader model).
+ */
+function LockedRows({ count }: { count: number }) {
+  const native = isNativeApp();
+  return (
+    <div className="mt-3 space-y-2" aria-label={`${count} more items included with a subscription`}>
+      {Array.from({ length: Math.min(count, 3) }, (_, i) => (
+        <div key={i} className="flex items-center gap-2.5" aria-hidden>
+          <span className="h-1 w-1 flex-none rounded-full bg-ink-300" />
+          <span
+            className="h-3 rounded bg-gradient-to-r from-ink-200/80 to-ink-100/40 dark:from-forest-700/50 dark:to-forest-800/30"
+            style={{ width: `${82 - i * 14}%` }}
+          />
+        </div>
+      ))}
+      <p className="flex items-center gap-1.5 pt-1 text-[12px] text-ink-500">
+        <LockIcon />
+        {native ? (
+          <span>
+            {count} more included with a subscription on your account
+          </span>
+        ) : (
+          <Link href="/billing" className="hover:underline">
+            {count} more - unlock with Personal Plus
+          </Link>
+        )}
+      </p>
+    </div>
+  );
+}
+
+function LockIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect x="5" y="11" width="14" height="9" rx="2" stroke="currentColor" strokeWidth="2" />
+      <path d="M8 11V8a4 4 0 1 1 8 0v3" stroke="currentColor" strokeWidth="2" />
+    </svg>
   );
 }
 
@@ -460,13 +557,16 @@ function AccentList({
   subtitle,
   items,
   accent,
+  lockedMore = 0,
 }: {
   title: string;
   subtitle?: string;
   items: string[] | undefined;
   accent: 'emerald' | 'sky';
+  /** Teaser mode: how many more items exist but are held behind the plan. */
+  lockedMore?: number;
 }) {
-  if (!items || items.length === 0) return null;
+  if ((!items || items.length === 0) && !lockedMore) return null;
   const styles = {
     emerald: {
       border: 'border-emerald-300/80',
@@ -488,7 +588,7 @@ function AccentList({
       <ul
         className={`rounded-lg border ${styles.border} ${styles.bg} divide-y divide-ink-100/70 overflow-hidden`}
       >
-        {items.map((item, i) => (
+        {(items ?? []).map((item, i) => (
           <li key={i} className="relative px-4 py-3 text-[14px] text-ink-800 leading-relaxed">
             <span
               aria-hidden
@@ -497,6 +597,11 @@ function AccentList({
             <span className="whitespace-pre-wrap block pl-1.5">{item}</span>
           </li>
         ))}
+        {lockedMore > 0 && (
+          <li className="px-4 py-3">
+            <LockedRows count={lockedMore} />
+          </li>
+        )}
       </ul>
     </div>
   );

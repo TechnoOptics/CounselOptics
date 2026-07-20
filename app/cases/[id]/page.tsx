@@ -13,6 +13,9 @@ import { storageUnavailable } from '@/lib/setup-status';
 import { STATUS_LABEL, SUBJECT_TYPE_LABEL, type CaseStatus, type SubjectProfile, type SubjectType } from '@/lib/types';
 import { UploadForm } from './upload-form';
 import { ReviewPanel } from './review-panel';
+import { hasFeature, isFullAccessTrial } from '@/lib/tier';
+import { getEffectiveTrialState, getCurrentSubscription } from '@/lib/storage';
+import { redactReviewForTeaser } from '@/lib/review-teaser';
 import { CollaboratorsPanel } from './collaborators-panel';
 import { WitnessStatementEditor } from './witness-statement-editor';
 import { CloseCaseControl } from './close-case-control';
@@ -69,13 +72,24 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
   const c = await getCase(params.id);
   if (!c) notFound();
 
-  const [exhibits, review, collaborators, currentUser, activity] = await Promise.all([
+  const [exhibits, review, collaborators, currentUser, activity, trialState, sub] = await Promise.all([
     listExhibits(c.id),
     getLatestReview(c.id),
     usingSupabase() ? listCollaborators(c.id) : Promise.resolve([]),
     usingSupabase() ? getCurrentUser() : Promise.resolve(null),
     usingSupabase() ? listCaseAuditEvents(c.id, 50) : Promise.resolve([]),
+    getEffectiveTrialState().catch(() => null),
+    getCurrentSubscription().catch(() => null),
   ]);
+
+  // Freemium Advottic Review: anyone can GENERATE a review, but the full
+  // breakdown belongs to Standard/Pro (or an active full-access trial). An
+  // unentitled viewer gets a SERVER-REDACTED teaser - summary whole, one item
+  // per section, the rest reported only as counts - so the locked content
+  // never reaches the browser. Mirrors the export route's gate.
+  const reviewEntitled =
+    (trialState ? isFullAccessTrial(trialState) : false) || hasFeature(sub, 'aiReview');
+  const reviewTeaser = review && !reviewEntitled ? redactReviewForTeaser(review) : null;
 
   // Profile of the current viewer for the presence chip avatar/initials.
   const myProfile = currentUser ? await getProfile().catch(() => null) : null;
@@ -666,7 +680,12 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
                   title="AI read of your case"
                   subtitle="Issue-spotting, evidence gaps, possible subpoena targets."
                 >
-                  <ReviewPanel caseId={c.id} review={review} />
+                  <ReviewPanel
+                    caseId={c.id}
+                    review={reviewTeaser ? reviewTeaser.review : review}
+                    locked={Boolean(reviewTeaser)}
+                    lockedCounts={reviewTeaser?.lockedCounts ?? null}
+                  />
                 </CaseSection>
 
                 <CaseSection
