@@ -355,6 +355,17 @@ remote-URL binary immediately on deploy):**
   "nothing to buy in the app" note. Removes Apple's basis for "IAP products
   not submitted / purchase button missing".
 
+**⚠️ Widget claim removed from the reply (2026-07-19):** the WidgetKit source
+files exist (`ios/App/AdvotticWidget/`) but the widget target was NEVER added to
+`App.xcodeproj` — `project.pbxproj` has zero references to it — so the reviewed
+binary 1.0.16 (20) contains no widget. Do not claim widgets to App Review until
+the one-time Xcode target setup in docs/WIDGETS.md is done AND a new build is
+uploaded. Every other 4.2 claim in the reply is verified in-repo: Sign in with
+Apple (sign-in page), Face ID/Touch ID app lock (@aparajita/capacitor-biometric-auth
++ BiometricUnlockGate/BiometricSettings), Safe Alert (Core Location + SMS),
+camera capture, offline (cache-first service worker). Optional stronger path:
+do the widget setup first, upload build (21), and restore the widget claim.
+
 **App Store Connect actions the Account Holder must do before resubmit:**
 1. App Privacy → confirm "Data is Not Used to Track You" (no tracking declared).
 2. Do NOT create/submit any In-App Purchase products (reader model — none exist).
@@ -394,15 +405,14 @@ remote-URL binary immediately on deploy):**
 >
 > **Guideline 4.2 — Minimum Functionality.** Advottic is a full legal
 > case-management application, not a repackaged website. Native, device-level
-> functionality includes: Home-Screen Widgets (WidgetKit) showing the user's open
-> matters and recent activity; Sign in with Apple and Face ID / Touch ID app
-> lock; "Safe Alert" — background Core Location with one-tap emergency SMS to the
-> user's trusted contacts; native camera capture for adding evidence to a matter;
-> and offline access to previously loaded case content. These sit on top of the
-> substantive product itself: guided case building, an evidentiary timeline,
-> document/evidence management, e-signature, and court-packet export. We'd
-> welcome the chance to walk a reviewer through any of these — a test account and
-> a step-by-step flow are in the App Review Notes.
+> functionality in this build includes: Sign in with Apple; Face ID / Touch ID
+> app lock; "Safe Alert" — background Core Location with one-tap emergency SMS to
+> the user's trusted contacts; native camera capture for adding evidence to a
+> matter; and offline access to previously loaded case content. These sit on top
+> of the substantive product itself: guided case building, an evidentiary
+> timeline, document/evidence management, e-signature, and court-packet export.
+> We'd welcome the chance to walk a reviewer through any of these — a test
+> account and a step-by-step flow are in the App Review Notes.
 >
 > If any specific screen still needs adjustment, tell us exactly which and we'll
 > turn around a change quickly. Thank you for your time.
