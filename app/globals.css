@@ -366,6 +366,18 @@ html:not(.dark) .bg-cream-200 > .text-cream-100 {
   color: #0f2d24; /* forest-900 - the project's "dark green" */
 }
 
+/* Always-dark shells (the Hub/portal and any surface wrapped in a `.dark
+   ... ` container) paint their panels dark via the wrapper class even when
+   the USER's theme is light (html without .dark). The light-on-light guards
+   above — and their compiled per-surface variants (.card, .popup-panel,
+   .btn-secondary, .input) — don't know about wrapper-dark and were forcing
+   forest-900 text onto near-black panels: dark-on-dark. Inside a `.dark`
+   wrapper, cream text is ALWAYS correct, so restore it with a
+   higher-specificity rule that only fires in exactly that combination. */
+html:not(.dark) .dark :is(.bg-white, .bg-cream-50, .bg-cream-100, .bg-cream-200, .card, .popup-panel, .btn-secondary, .input) > :is(.text-cream-50, .text-cream-100, .text-cream-200) {
+  color: #fbf7e9; /* cream-50 */
+}
+
 html.dark .bg-forest-900 > .text-forest-900,
 html.dark .bg-forest-900 > .text-forest-800,
 html.dark .bg-forest-900 > .text-forest-700,
