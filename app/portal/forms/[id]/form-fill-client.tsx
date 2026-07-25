@@ -40,6 +40,10 @@ export function FormFillClient({
   const [signature, setSignature] = useState(employeeName);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareEmail, setShareEmail] = useState('');
+  const [shareNote, setShareNote] = useState('');
+  const [shareDone, setShareDone] = useState<string | null>(null);
 
   const missing = template.fields.filter((f) => f.required && !(values[f.key] ?? '').trim());
 
@@ -54,25 +58,58 @@ export function FormFillClient({
     return text;
   }, [template, values, signature, employeeEmail]);
 
+  const buildPdf = async (): Promise<Blob> => {
+    const res = await fetch('/api/counsel/draft-template/pdf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        document: merged,
+        title: template.name,
+        brandName: firmName,
+        firmName,
+        accent: firmAccent ?? undefined,
+        letterheadUrl: letterheadUrl ?? undefined,
+        logoUrl: logoUrl ?? undefined,
+      }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return res.blob();
+  };
+
+  const secureShare = async () => {
+    setBusy(true);
+    setError(null);
+    setShareDone(null);
+    try {
+      const pdf = await buildPdf();
+      const fd = new FormData();
+      fd.set('file', new File([pdf], `${template.name.replace(/[^\w -]+/g, '')}.pdf`, { type: 'application/pdf' }));
+      fd.set('recipientEmail', shareEmail);
+      fd.set('label', template.name);
+      if (shareNote.trim()) fd.set('note', shareNote);
+      const res = await fetch('/portal/share', { method: 'POST', body: fd });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? 'Could not share the document.');
+      setShareDone(
+        body.emailSent
+          ? `Sent. ${shareEmail} received the secure link and, in a separate email, the decryption key.`
+          : `The encrypted link is ready (${body.link}) but the emails could not be sent — copy the link and this key to the recipient yourself: ${body.key}`,
+      );
+      setShareOpen(false);
+      setShareEmail('');
+      setShareNote('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not share the document.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const exportPdf = async (print: boolean) => {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch('/api/counsel/draft-template/pdf', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          document: merged,
-          title: template.name,
-          brandName: firmName,
-          firmName,
-          accent: firmAccent ?? undefined,
-          letterheadUrl: letterheadUrl ?? undefined,
-          logoUrl: logoUrl ?? undefined,
-        }),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      const blob = await res.blob();
+      const blob = await buildPdf();
       const url = URL.createObjectURL(blob);
       if (print) {
         const w = window.open(url, '_blank');
@@ -192,7 +229,52 @@ export function FormFillClient({
             >
               Share via email
             </button>
+            <button
+              type="button"
+              disabled={busy || missing.length > 0 || !signature.trim()}
+              onClick={() => setShareOpen((v) => !v)}
+              className="rounded-lg border border-gold-500/50 bg-gold-500/10 px-4 py-2 text-[14px] font-medium text-gold-700 hover:bg-gold-500/20 disabled:opacity-50 dark:text-gold-300"
+            >
+              Share securely
+            </button>
           </div>
+
+          {shareDone && (
+            <p className="rounded-lg border border-forest-200 bg-forest-50 px-3 py-2 text-[13px] text-forest-800 dark:border-forest-700/40 dark:bg-forest-900/60 dark:text-cream-100/85">
+              {shareDone}
+            </p>
+          )}
+
+          {shareOpen && (
+            <div className="space-y-3 rounded-xl border border-gold-500/40 bg-gold-500/5 p-4">
+              <p className="text-[13px] text-ink-700 dark:text-cream-100/80">
+                The document is encrypted before it leaves Advottic. The recipient gets the secure
+                link in one email and the decryption key in a <strong>separate</strong> email.
+              </p>
+              <input
+                type="email"
+                value={shareEmail}
+                onChange={(e) => setShareEmail(e.target.value)}
+                placeholder="recipient@company.com"
+                className={inputCls}
+              />
+              <input
+                type="text"
+                value={shareNote}
+                onChange={(e) => setShareNote(e.target.value)}
+                placeholder="Optional note for the recipient"
+                className={inputCls}
+              />
+              <button
+                type="button"
+                disabled={busy || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(shareEmail)}
+                onClick={() => void secureShare()}
+                className="btn-primary disabled:opacity-50"
+              >
+                {busy ? 'Encrypting & sending…' : 'Encrypt & send'}
+              </button>
+            </div>
+          )}
           {missing.length > 0 && (
             <p className="text-[12px] text-ink-500 dark:text-cream-100/55">
               Fill the required fields to enable export: {missing.map((f) => f.label).join(', ')}.
