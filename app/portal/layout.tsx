@@ -144,6 +144,11 @@ export default async function PortalLayout({
       label: 'Forms',
       hint: 'Fill, sign & download',
     });
+    primary.push({
+      href: '/portal/check',
+      label: 'Check a document',
+      hint: 'Score it against policy',
+    });
   }
   if (!externalView && can('review')) {
     primary.push({

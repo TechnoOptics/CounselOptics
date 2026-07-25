@@ -56,6 +56,7 @@ export const DEFAULT_MENU: MenuSection[] = [
       { href: '/counsel/intake', label: 'New intake', hint: 'Open a new request + conflict check' },
       { href: '/counsel/templates', label: 'Templates', hint: 'Branded document drafting' },
       { href: '/counsel/forms', label: 'Form templates', hint: 'Self-service forms for employees' },
+      { href: '/counsel/policies', label: 'Policy library', hint: 'Powers the employee doc checker' },
       { href: '/counsel/letters', label: 'Letters', hint: 'AI letters on your letterhead' },
       { href: '/counsel/analyze', label: 'Analyze', hint: 'Contract breakdown + risk' },
       { href: '/counsel/cases', label: 'Cases', hint: 'All firm matters' },
