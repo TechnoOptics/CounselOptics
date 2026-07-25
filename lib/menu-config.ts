@@ -54,9 +54,6 @@ export const DEFAULT_MENU: MenuSection[] = [
     items: [
       { href: '/counsel/inbox', label: 'Request inbox', hint: 'Triage internal + external requests' },
       { href: '/counsel/intake', label: 'New intake', hint: 'Open a new request + conflict check' },
-      { href: '/counsel/templates', label: 'Templates', hint: 'Branded document drafting' },
-      { href: '/counsel/forms', label: 'Form templates', hint: 'Self-service forms for employees' },
-      { href: '/counsel/policies', label: 'Policy library', hint: 'Powers the employee doc checker' },
       { href: '/counsel/letters', label: 'Letters', hint: 'AI letters on your letterhead' },
       { href: '/counsel/analyze', label: 'Analyze', hint: 'Contract breakdown + risk' },
       { href: '/counsel/cases', label: 'Cases', hint: 'All firm matters' },
@@ -64,6 +61,14 @@ export const DEFAULT_MENU: MenuSection[] = [
       { href: '/counsel/documents', label: 'Documents', hint: 'Case-linked vault' },
       { href: '/counsel/contracts', label: 'Contracts', hint: 'Repo + Bella review' },
       { href: '/counsel/signing', label: 'Signing', hint: 'E-sign requests' },
+    ],
+  },
+  {
+    section: 'Self-service',
+    items: [
+      { href: '/counsel/templates', label: 'Document templates', hint: 'Branded document drafting' },
+      { href: '/counsel/forms', label: 'Employee forms', hint: 'Self-service forms for employees' },
+      { href: '/counsel/policies', label: 'Policy library', hint: 'Powers the employee document checker' },
     ],
   },
   {

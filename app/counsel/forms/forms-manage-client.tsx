@@ -84,9 +84,11 @@ export function FormsManageClient({
             + New template
           </button>
           {templates.length === 0 ? (
-            <p className="text-[13px] text-ink-500 dark:text-cream-100/55">
-              No templates yet. Create your first — an NDA is the classic starting point.
-            </p>
+            <div className="card p-8 text-center">
+              <p className="text-[13px] leading-relaxed text-ink-600 dark:text-cream-100/70">
+                No templates yet. Create your first — an NDA is the classic starting point.
+              </p>
+            </div>
           ) : (
             <ul className="divide-y divide-ink-100 overflow-hidden rounded-xl border border-ink-200 dark:divide-forest-800/50 dark:border-forest-700/50">
               {templates.map((t) => (
@@ -283,14 +285,14 @@ function TemplateEditor({
           type="button"
           disabled={busy || !name.trim() || !body.trim()}
           onClick={() => onSave({ id: initial?.id, name, description, category, body, fields, status: 'draft' })}
-          className="rounded-lg border border-ink-200 px-4 py-2 text-[14px] font-medium text-forest-900 hover:bg-cream-50 disabled:opacity-50 dark:border-forest-700/50 dark:text-cream-100 dark:hover:bg-forest-800/50"
+          className="btn-secondary text-sm disabled:opacity-50"
         >
           Save as draft
         </button>
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-lg px-4 py-2 text-[14px] text-ink-500 hover:bg-cream-50 dark:text-cream-100/55 dark:hover:bg-forest-800/50"
+          className="btn-ghost text-sm"
         >
           Cancel
         </button>

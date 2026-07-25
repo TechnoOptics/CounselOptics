@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { listFirmPoliciesAction } from '@/lib/firm-policies';
 import { PoliciesManageClient } from './policies-manage-client';
+import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,11 +18,11 @@ export default async function CounselPoliciesPage() {
   if (!ctx) redirect('/counsel');
   const res = await listFirmPoliciesAction(ctx.firm.id);
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="space-y-6 animate-fade-up">
       <header>
-        <p className="eyebrow mb-1">Counsel · self-service</p>
+        <p className="eyebrow mb-1"><T>Counsel · self-service</T></p>
         <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          Policy library
+          <T>Policy library</T>
         </h1>
         <p className="mt-1 max-w-2xl text-sm text-ink-600 dark:text-cream-100/70">
           Paste the company&apos;s policies here. Employees check drafts and questions against them

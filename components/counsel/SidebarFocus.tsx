@@ -110,7 +110,7 @@ export function CounselSidebarShell({ children }: { children: React.ReactNode })
             (collapsed ? 'w-0' : 'w-56')
           }
         >
-          <div className="w-56 max-h-[calc(100dvh-7rem)] overflow-y-auto pr-0.5">
+          <div className="w-56">
             <div className="flex justify-end pb-1">
               <button
                 type="button"
@@ -129,7 +129,7 @@ export function CounselSidebarShell({ children }: { children: React.ReactNode })
             </div>
             {/* Content only renders when expanded, so collapsed nav links are
                 never left hidden-but-focusable for keyboard / screen readers. */}
-            <div id="counsel-sidebar-panel">{!collapsed && children}</div>
+            <div id="counsel-sidebar-panel" className="max-h-[calc(100dvh-8rem)] overflow-y-auto pr-0.5 pb-4">{!collapsed && children}</div>
           </div>
         </div>
 

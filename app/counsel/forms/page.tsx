@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { listFirmTemplatesAction } from '@/lib/firm-templates';
 import { FormsManageClient } from './forms-manage-client';
+import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,11 +18,11 @@ export default async function CounselFormsPage() {
   if (!ctx) redirect('/counsel');
   const res = await listFirmTemplatesAction(ctx.firm.id);
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
+    <div className="space-y-6 animate-fade-up">
       <header>
-        <p className="eyebrow mb-1">Counsel · self-service</p>
+        <p className="eyebrow mb-1"><T>Counsel · self-service</T></p>
         <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          Form templates
+          <T>Form templates</T>
         </h1>
         <p className="mt-1 max-w-2xl text-sm text-ink-600 dark:text-cream-100/70">
           Publish configured documents — an NDA, a vendor form — and employees fill, sign, and

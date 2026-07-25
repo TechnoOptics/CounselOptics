@@ -206,7 +206,7 @@ function TileFrame({
         ? 'sm:col-span-2 lg:col-span-2'
         : '';
   const inner = (
-    <div className="card p-5 h-full hover:shadow-card-hover transition-all">
+    <div className="card p-5 h-full hover:shadow-card-hover hover:-translate-y-0.5 transition-all">
       <div className="flex items-center justify-between mb-1">
         <p
           className="text-[10px] uppercase tracking-[0.22em] font-semibold"

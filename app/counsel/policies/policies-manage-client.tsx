@@ -88,7 +88,7 @@ export function PoliciesManageClient({
             <button type="button" disabled={busy || !name.trim() || !content.trim()} onClick={() => void save()} className="btn-primary disabled:opacity-50">
               {busy ? 'Saving…' : 'Save policy'}
             </button>
-            <button type="button" onClick={() => setEditing(null)} className="rounded-lg px-4 py-2 text-[14px] text-ink-500 hover:bg-cream-50 dark:text-cream-100/55 dark:hover:bg-forest-800/50">
+            <button type="button" onClick={() => setEditing(null)} className="btn-ghost text-sm">
               Cancel
             </button>
           </div>
@@ -99,9 +99,11 @@ export function PoliciesManageClient({
             + Add policy
           </button>
           {policies.length === 0 ? (
-            <p className="text-[13px] text-ink-500 dark:text-cream-100/55">
+            <div className="card p-8 text-center">
+              <p className="text-[13px] leading-relaxed text-ink-600 dark:text-cream-100/70">
               No policies yet. Until you add some, the employee checker tells people to file a request.
-            </p>
+              </p>
+            </div>
           ) : (
             <ul className="divide-y divide-ink-100 overflow-hidden rounded-xl border border-ink-200 dark:divide-forest-800/50 dark:border-forest-700/50">
               {policies.map((p) => (
