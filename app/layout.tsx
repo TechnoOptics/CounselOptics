@@ -677,7 +677,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <Link href="/public-defender" className="hover:text-forest-900 dark:hover:text-cream-100 block">Public defender</Link>
                 <Link href="/file-exhibits" className="hover:text-forest-900 dark:hover:text-cream-100 block">File exhibits</Link>
                 <Link href="/review-my-document" className="hover:text-forest-900 dark:hover:text-cream-100 block">Review my document</Link>
-                <Link href="/pricing" className="hover:text-forest-900 dark:hover:text-cream-100 block">Pricing</Link>
+                <Link href="/pricing" data-hide-in-app className="hover:text-forest-900 dark:hover:text-cream-100 block">Pricing</Link>
                 <Link href="/about" className="hover:text-forest-900 dark:hover:text-cream-100 block">About Advottic</Link>
                 {/* Brand-page links. /what-is-advottic + /glossary +
                     /changelog + /press carry our canonical brand

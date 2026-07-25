@@ -104,12 +104,17 @@ export default async function TimelinePage({
             </h1>
             <p className="mx-auto mt-2 max-w-md text-sm text-ink-600 dark:text-cream-300/80">
               Gather a lifetime of evidence — photos, documents, receipts, messages — into one
-              organised, dated record your legal team can act on. Available on{' '}
-              <span className="font-medium text-forest-900 dark:text-cream-100">Personal Plus</span>{' '}
-              (submit &amp; overview) and firm plans (full AI build).
+              organised, dated record your legal team can act on.{' '}
+              <span data-hide-on-ios>
+                Available on{' '}
+                <span className="font-medium text-forest-900 dark:text-cream-100">Personal Plus</span>{' '}
+                (submit &amp; overview) and firm plans (full AI build).
+              </span>
+              <span data-show-in-app>Included with a subscription on your account.</span>
             </p>
             <Link
               href="/billing"
+              data-hide-on-ios
               className="mt-5 inline-block rounded-lg bg-forest-900 px-5 py-2.5 text-sm font-semibold text-cream-50 dark:bg-gold-metal dark:text-forest-950"
             >
               See plans

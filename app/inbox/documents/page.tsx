@@ -44,12 +44,12 @@ export default async function ConsumerInboxDocumentsPage() {
   if (!isPro) {
     return (
       <div className="max-w-2xl mx-auto card p-8 space-y-4">
-        <p className="eyebrow mb-1">Pro feature</p>
+        <p className="eyebrow mb-1"><span data-hide-on-ios>Pro feature</span><span data-show-in-app>Included with your account</span></p>
         <h1 className="font-display text-3xl font-medium tracking-[-0.01em]">
           Receive documents from your law firm in one place
         </h1>
         <p className="text-sm text-ink-600 dark:text-cream-100/75 leading-relaxed">
-          With Advottic Pro, every law firm using Advottic Counsel can send
+          <span data-hide-on-ios>With Advottic Pro, </span><span data-show-in-app>With your subscription, </span>every law firm using Advottic Counsel can send
           documents directly into your secure inbox here. Review, sign, and
           send back without printing or scanning. Each document carries a
           tamper-evident audit trail you can hand back to anyone who asks.
@@ -61,7 +61,7 @@ export default async function ConsumerInboxDocumentsPage() {
           <li>- Notifications when something needs your action</li>
         </ul>
         <div className="flex gap-3 pt-2">
-          <Link href="/billing" className="btn-primary">
+          <Link href="/billing" data-hide-on-ios className="btn-primary">
             Upgrade to Pro
           </Link>
           <Link href="/cases" className="btn-secondary">

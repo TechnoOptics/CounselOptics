@@ -155,8 +155,11 @@ export function GiftForm({
         </label>
       </fieldset>
 
+      <p data-show-in-app className="rounded-lg border border-ink-200 px-3 py-2 text-[13px] text-ink-600 dark:border-forest-700/50 dark:text-cream-100/70">
+        Gifting is not available in the app.
+      </p>
       {/* Tier */}
-      <fieldset className="space-y-2">
+      <fieldset data-hide-on-ios className="space-y-2">
         <legend className="text-[11px] uppercase tracking-[0.2em] text-ink-500 dark:text-cream-100/55">
           Plan
         </legend>
@@ -199,7 +202,7 @@ export function GiftForm({
       </fieldset>
 
       {/* Duration */}
-      <fieldset className="space-y-2">
+      <fieldset data-hide-on-ios className="space-y-2">
         <legend className="text-[11px] uppercase tracking-[0.2em] text-ink-500 dark:text-cream-100/55">
           Duration
         </legend>

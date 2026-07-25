@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import {
   checkAgainstPoliciesAction,
+  extractCheckTextAction,
   type PolicyCheckResult,
 } from '@/lib/firm-policies';
 
@@ -41,11 +42,27 @@ export function PolicyCheckClient({ firmId, policyCount }: { firmId: string; pol
   };
 
   const onFile = async (file: File) => {
+    setError(null);
     if (file.type === 'text/plain' || /\.(txt|md)$/i.test(file.name)) {
       setText((await file.text()).slice(0, 40000));
       setLabel(file.name);
-    } else {
-      setError('For now, paste the document text (or upload a .txt file). PDF upload is coming.');
+      return;
+    }
+    // PDF, Word, spreadsheets, and photos go through the server reader
+    // (OCR for pictures), then land in the text box ready to check.
+    setBusy(true);
+    try {
+      const fd = new FormData();
+      fd.set('file', file);
+      const res = await extractCheckTextAction(firmId, fd);
+      if (!res.ok || !res.text) {
+        setError(res.error ?? 'Could not read that file.');
+        return;
+      }
+      setText(res.text);
+      setLabel(file.name);
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -100,10 +117,10 @@ export function PolicyCheckClient({ firmId, policyCount }: { firmId: string; pol
                 {busy ? 'Checking against your policies…' : 'Check it'}
               </button>
               <label className="cursor-pointer text-[13px] text-ink-500 underline dark:text-cream-100/55">
-                Upload a .txt file
+                Upload a file (PDF, Word, text, or a photo)
                 <input
                   type="file"
-                  accept=".txt,.md,text/plain"
+                  accept=".txt,.md,.pdf,.docx,.csv,.xlsx,image/*,text/plain,application/pdf"
                   className="hidden"
                   onChange={(e) => {
                     const f = e.target.files?.[0];

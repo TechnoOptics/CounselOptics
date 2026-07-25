@@ -429,7 +429,7 @@ binary).
 **Shipped for this round:** the AdvotticWidget WidgetKit extension is now
 wired into the Xcode project (`ios/App/add_widget_target.rb`, idempotent)
 and verified embedded in the built app (`App.app/PlugIns/AdvotticWidget.appex`).
-Versions set to 1.0.16 (21) on both targets.
+Versions set to 1.0.16 (22) on both targets.
 
 **Account-holder steps before replying (Xcode, one-time):**
 1. Open `ios/App/App.xcodeproj` → App target → Signing & Capabilities:
@@ -437,8 +437,8 @@ Versions set to 1.0.16 (21) on both targets.
    registers `group.com.advottic.app` on the App ID (or register it at
    developer.apple.com → Identifiers → App Groups first).
 2. Repeat for the AdvotticWidget target (same App Group).
-3. Product → Archive → Distribute → App Store Connect (build 1.0.16 (21)).
-4. In the submission, swap the rejected build 20 for build 21.
+3. Product → Archive → Distribute → App Store Connect (build 1.0.16 (22)).
+4. In the submission, swap the rejected build 20 for build 22.
 5. Post the reply below, then Resubmit.
 
 **Ready-to-paste reply:**
@@ -476,18 +476,29 @@ Versions set to 1.0.16 (21) on both targets.
 > not direct users to an external purchase mechanism.
 >
 > **Guideline 4.2 — Minimum Functionality.** We've taken this feedback
-> seriously and build 1.0.16 (21) adds a native WidgetKit Home Screen and
+> seriously and build 1.0.16 (22) adds a native WidgetKit Home Screen and
 > Lock Screen widget ("Open cases"): small and medium home-screen
 > families plus inline/circular/rectangular lock-screen accessories,
 > showing the user's open matters, the next hearing as a countdown, and
 > the latest case activity — rendered natively from an App Group snapshot,
 > visible without opening the app. This joins the existing native
-> functionality: Sign in with Apple, Face ID / Touch ID app lock, Safe
+> functionality: Sign in with Apple, Face ID / Touch ID biometric sign-in lock, Safe
 > Alert (background Core Location with one-tap emergency SMS to trusted
 > contacts), native camera capture for evidence, and offline access to
 > previously loaded case content. To try the widget: sign in with the
 > review account, open the Cases list once, then long-press the Home
 > Screen → + → Advottic → "Open cases."
+>
+> Separately, we have re-audited every screen reachable inside the iOS app —
+> the pricing page, promotional banners, gifting, and feature pages — and
+> removed every named plan (Plus / Pro / Ultra), price, trial offer, and
+> subscribe control. The iOS app now contains no purchase UI of any kind;
+> entitlements simply follow the account. Build 22 also adds the standard
+> iOS privacy purpose strings for the camera, location, microphone, photo
+> library, and Face ID features described above.
+>
+> A demo account is provided in the App Review Notes with data already
+> populated, so each feature can be exercised immediately.
 >
 > Thank you again — if anything else needs adjustment we will turn it
 > around quickly.

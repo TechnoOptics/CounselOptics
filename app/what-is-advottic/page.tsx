@@ -345,7 +345,7 @@ export default function WhatIsAdvotticPage() {
         <p>
           Free tier ($0), personal plans from $19/month, law-firm
           plans from $59/seat/month, Enterprise from $1,800/month. See{' '}
-          <Link href="/pricing" className="underline">
+          <Link href="/pricing" data-hide-on-ios className="underline">
             advottic.com/pricing
           </Link>{' '}
           for the full breakdown including the annual prepay discount

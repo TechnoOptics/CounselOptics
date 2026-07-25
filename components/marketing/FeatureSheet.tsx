@@ -319,6 +319,7 @@ export function FeatureSheet() {
           </Link>
           <Link
             href="/pricing"
+            data-hide-on-ios
             className="btn-ghost px-3 py-2.5 font-semibold text-forest-900 underline-offset-4 hover:underline dark:text-cream-100"
           >
             See pricing

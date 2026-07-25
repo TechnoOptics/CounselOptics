@@ -6,6 +6,8 @@ import { authorizeFirmActor } from './portal-entitlements';
 import { bellaGenerate } from './bella';
 import { AiUnavailableError } from './ai-errors';
 import { checkRateLimit } from './rate-limit';
+import { extractFileText } from './doc-review';
+import { analyzeImage } from './timeline-ai';
 
 /**
  * Firm policy library + the employee "Check a document" tool.
@@ -205,4 +207,58 @@ export async function checkAgainstPoliciesAction(
           : 'Could not complete the check. Try again, or file a request with legal.',
     };
   }
+}
+
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+const IMAGE_MIMES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
+
+/**
+ * Turn an uploaded document into text for the policy check. PDF, Word
+ * (.docx), text/markdown, and spreadsheets go through extractFileText;
+ * PNG/JPEG/WebP photos (including iPhone photos, which iOS converts from
+ * HEIC to JPEG on upload) are read with OCR. Employee-gated + rate limited
+ * alongside the check itself.
+ */
+export async function extractCheckTextAction(
+  firmId: string,
+  formData: FormData,
+): Promise<{ ok: boolean; error?: string; text?: string; kind?: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: 'Sign in first.' };
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Service unavailable.' };
+  const actor = await authorizeFirmActor(admin, firmId, user.id, 'requests.view');
+  if (!actor.ok) return { ok: false, error: 'No access.' };
+  const allowed = await checkRateLimit(`policy-extract:${user.id}`, { limit: 30, windowSeconds: 3600 });
+  if (!allowed) return { ok: false, error: 'Too many uploads this hour. Try again later.' };
+
+  const file = formData.get('file');
+  if (!(file instanceof File)) return { ok: false, error: 'Attach a file first.' };
+  if (file.size > MAX_UPLOAD_BYTES) return { ok: false, error: 'That file is over 10 MB. Try a smaller file or paste the text.' };
+
+  const mime = (file.type || '').toLowerCase();
+  const name = (file.name || '').toLowerCase();
+  if (mime.includes('heic') || mime.includes('heif') || name.endsWith('.heic') || name.endsWith('.heif')) {
+    return { ok: false, error: 'This photo is in HEIC format. Share it from Photos (which converts it to JPEG) or screenshot it, then upload again.' };
+  }
+
+  if (IMAGE_MIMES.has(mime) || /\.(png|jpe?g|webp|gif)$/.test(name)) {
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const res = await analyzeImage({
+      buffer,
+      mime: mime || 'image/jpeg',
+      userContext: 'Transcribe every word of text visible in this document photo, preserving reading order.',
+      kind: 'photo',
+    });
+    if ('error' in res) return { ok: false, error: 'Could not read the photo. Try a clearer picture or paste the text.' };
+    const text = (res.extracted.ocr_text ?? '').trim();
+    if (text.length < 20) return { ok: false, error: 'No readable text found in the photo. Try a clearer picture.' };
+    return { ok: true, text: text.slice(0, 40000), kind: 'image' };
+  }
+
+  const out = await extractFileText(file);
+  if (out.error) return { ok: false, error: out.error };
+  const text = out.text.trim();
+  if (text.length < 20) return { ok: false, error: 'No readable text found in that file. Paste the text instead.' };
+  return { ok: true, text: text.slice(0, 40000), kind: out.kind };
 }

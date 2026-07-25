@@ -265,7 +265,7 @@ export default function ComparePage({ params }: Props) {
           marketplace.
         </p>
         <div className="flex flex-wrap gap-3 pt-2">
-          <Link href="/sign-in?next=/counsel/onboarding" className="btn-primary">
+          <Link data-hide-on-ios href="/sign-in?next=/counsel/onboarding" className="btn-primary">
             Start 7-day trial
           </Link>
           <Link href="/pricing" className="btn-secondary">

@@ -218,7 +218,7 @@ export default function EsQueEsAdvotticPage() {
         <p>
           Plan gratuito ($0), planes personales desde $19/mes, planes
           para despachos desde $59 por usuario al mes. Consulta{' '}
-          <Link href="/pricing" className="underline">
+          <Link href="/pricing" data-hide-on-ios className="underline">
             advottic.com/pricing
           </Link>{' '}
           para ver el desglose completo.

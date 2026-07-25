@@ -115,9 +115,9 @@ function ItemCapBanner({
     return (
       <div className="rounded-lg ring-1 ring-rose-200 dark:ring-rose-700/40 bg-rose-50 dark:bg-rose-950/30 px-4 py-3 text-[13px] text-rose-900 dark:text-rose-100 leading-relaxed">
         <strong>You&rsquo;re on Free with {itemLimit} item.</strong> Creating
-        another item requires a paid tier - the Pro plan ($19/mo) gives you 20
-        items + 500K Bella tokens.{' '}
-        <Link href="/pricing" className="underline font-semibold">
+        another item requires a paid tier<span data-hide-on-ios> - the Pro plan ($19/mo) gives you 20
+        items + 500K Bella tokens</span>.{' '}
+        <Link href="/pricing" data-hide-on-ios className="underline font-semibold">
           Compare tiers &rarr;
         </Link>
       </div>
@@ -134,7 +134,7 @@ function ItemCapBanner({
         {(monthlyOverageTokens + (ITEM_OVERAGE_TOKENS_PER_MONTH[tier] ?? 0)).toLocaleString()}{' '}
         tokens to next month&rsquo;s overage debit (it&rsquo;s small, but it
         adds up).{' '}
-        <Link href="/pricing" className="underline font-semibold">
+        <Link href="/pricing" data-hide-on-ios className="underline font-semibold">
           See if upgrading saves you money &rarr;
         </Link>
       </div>
@@ -152,6 +152,7 @@ function ItemCapBanner({
         item / month.{' '}
         <Link
           href="/pricing"
+          data-hide-on-ios
           className="underline hover:text-forest-900 dark:hover:text-cream-100"
         >
           Tier comparison

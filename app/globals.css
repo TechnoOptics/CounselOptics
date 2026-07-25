@@ -70,6 +70,11 @@ body {
 */
 .is-native-app [data-hide-in-app] { display: none !important; }
 .is-ios-app [data-hide-on-ios] { display: none !important; }
+/* Inverse: content that must appear ONLY inside the native shells (e.g. the
+   neutral reader-model wording that replaces a hidden purchase CTA). Hidden
+   by default, revealed by the server-set html class - SSR-safe, no JS race. */
+[data-show-in-app] { display: none !important; }
+.is-native-app [data-show-in-app] { display: revert !important; }
 .is-android-app [data-hide-on-android] { display: none !important; }
 
 /*

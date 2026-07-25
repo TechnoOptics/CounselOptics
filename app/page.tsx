@@ -759,7 +759,7 @@ function Outcome({ big, label, sub }: { big: string; label: string; sub: string 
 
 function PricingCta() {
   return (
-    <section>
+    <section data-hide-on-ios>
       <div className="card p-7 sm:p-10 grid gap-6 sm:grid-cols-[1fr_auto] items-end">
         <div>
           <p className="eyebrow mb-2">Subscription</p>

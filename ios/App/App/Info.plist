@@ -24,6 +24,22 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Advottic uses the camera so you can photograph documents and capture evidence for your case.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Advottic lets you attach photos from your library as evidence on your case.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Advottic can save exported documents and images to your photo library.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Advottic uses the microphone to record voice notes for your case.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Advottic uses Face ID to unlock the app and keep your case information private.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Advottic uses your location for Safe Alert, so your trusted contacts can find you in an emergency.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Safe Alert can share your location with your trusted contacts in an emergency, even when the app is in the background.</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

@@ -238,7 +238,7 @@ export default function AffiliatePage() {
           >
             Apply now
           </a>
-          <Link href="/pricing" className="btn-secondary">
+          <Link href="/pricing" data-hide-on-ios className="btn-secondary">
             See the plans
           </Link>
         </div>

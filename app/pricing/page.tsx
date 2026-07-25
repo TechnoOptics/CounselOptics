@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { headers } from 'next/headers';
+import { nativePlatformFromUserAgent } from '@/lib/platform';
 import {
   BreadcrumbJsonLd,
   FaqJsonLd,
@@ -285,6 +287,25 @@ const PRICING_FAQ: Array<{ q: string; a: string }> = [
 ];
 
 export default function PricingPage() {
+  // Reader model (App Review 2.1(b)/3.1.1): inside the iOS app the plan
+  // ladder, prices, and trial CTAs must not render. The shell shares this
+  // page's route, so gate on the server-read user agent - no client race.
+  const serverPlatform = nativePlatformFromUserAgent(headers().get('user-agent'));
+  if (serverPlatform === 'ios') {
+    return (
+      <div className="mx-auto max-w-xl space-y-4 px-4 pb-20 pt-16 text-center animate-fade-up">
+        <h1 className="font-display text-3xl font-medium text-forest-900 dark:text-cream-100">Plans</h1>
+        <p className="text-[15px] leading-relaxed text-ink-600 dark:text-cream-100/70">
+          Your Advottic plan is managed on your account. Whatever your account
+          includes unlocks here automatically — there is nothing to buy in the
+          app.
+        </p>
+        <p className="text-[13px] text-ink-500 dark:text-cream-100/55">
+          You can see your current plan under Billing in your account menu.
+        </p>
+      </div>
+    );
+  }
   return (
     <div className="space-y-16 sm:space-y-24 pb-20 animate-fade-up">
       <BreadcrumbJsonLd

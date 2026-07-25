@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { runReviewAction } from '@/lib/actions';
 import type { AIReview } from '@/lib/types';
 import type { ReviewLockedCounts } from '@/lib/review-teaser';
-import { isNativeApp } from '@/lib/platform';
 import { BellaPrompt } from '@/components/BellaPrompt';
 import { CallALawyerCallout } from '@/components/CallALawyerCallout';
 
@@ -162,20 +161,22 @@ export function ReviewPanel({
               <p className="text-[14px] font-semibold text-ink-950 dark:text-cream-100">
                 This is a preview of your Advottic Review
               </p>
+              {/* SSR-safe: both variants render; the server-set html class
+                  picks one. A client-only branch here painted the web copy
+                  (tier name + billing CTA) on first load in the iOS shell -
+                  the same race behind earlier App Review rejections. */}
               <p className="mt-0.5 text-[13px] leading-relaxed text-ink-600 dark:text-cream-100/70">
-                {isNativeApp()
-                  ? `The full breakdown - ${lockedCounts.total} more insights across the timeline, key facts, legal issues, evidence plan, and next steps - is included with a subscription on your account.`
-                  : `The full breakdown - ${lockedCounts.total} more insights across the timeline, key facts, legal issues, evidence plan, and next steps - is included with Personal Plus.`}
+                <span data-show-in-app>{`The full breakdown - ${lockedCounts.total} more insights across the timeline, key facts, legal issues, evidence plan, and next steps - is included with a subscription on your account.`}</span>
+                <span data-hide-on-ios>{`The full breakdown - ${lockedCounts.total} more insights across the timeline, key facts, legal issues, evidence plan, and next steps - is included with Personal Plus.`}</span>
               </p>
             </div>
-            {!isNativeApp() && (
-              <Link
-                href="/billing"
-                className="btn bg-gold-metal text-forest-950 hover:brightness-110 shadow-gold-glow font-semibold px-4 py-2 shrink-0"
-              >
-                Unlock the full review
-              </Link>
-            )}
+            <Link
+              href="/billing"
+              data-hide-on-ios
+              className="btn bg-gold-metal text-forest-950 hover:brightness-110 shadow-gold-glow font-semibold px-4 py-2 shrink-0"
+            >
+              Unlock the full review
+            </Link>
           </div>
         </div>
       )}
@@ -515,7 +516,6 @@ function Panel({
  * the row stays informational (no purchase push - reader model).
  */
 function LockedRows({ count }: { count: number }) {
-  const native = isNativeApp();
   return (
     <div className="mt-3 space-y-2" aria-label={`${count} more items included with a subscription`}>
       {Array.from({ length: Math.min(count, 3) }, (_, i) => (
@@ -529,15 +529,12 @@ function LockedRows({ count }: { count: number }) {
       ))}
       <p className="flex items-center gap-1.5 pt-1 text-[12px] text-ink-500">
         <LockIcon />
-        {native ? (
-          <span>
-            {count} more included with a subscription on your account
-          </span>
-        ) : (
-          <Link href="/billing" className="hover:underline">
-            {count} more - unlock with Personal Plus
-          </Link>
-        )}
+        <span data-show-in-app>
+          {count} more included with a subscription on your account
+        </span>
+        <Link href="/billing" data-hide-on-ios className="hover:underline">
+          {count} more - unlock with Personal Plus
+        </Link>
       </p>
     </div>
   );

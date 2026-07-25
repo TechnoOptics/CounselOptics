@@ -125,8 +125,9 @@ export function TrialBanner({
 
   if (isExpired) {
     return (
-      // Visible on iOS too: "Subscribe" routes to /billing, which sells
-      // subscriptions via Apple In-App Purchase there (Guideline 3.1.1).
+      // Reader model: the banner itself may show on iOS, but the Subscribe
+      // CTA and tier name are hidden there (data-hide-on-ios) - the app sells
+      // nothing and names no purchasable tiers (Guidelines 2.1(b)/3.1.1).
       <div className="fixed left-[calc(0.75rem+var(--safe-left))] right-[calc(0.75rem+var(--safe-right))] sm:left-auto sm:right-[calc(1.5rem+var(--safe-right))] bottom-[calc(5rem+var(--safe-bottom))] sm:bottom-[calc(6rem+var(--safe-bottom))] sm:max-w-md z-[55]">
         <div
           role="status"
@@ -143,6 +144,7 @@ export function TrialBanner({
           </div>
           <Link
             href="/billing"
+            data-hide-on-ios
             className="flex-none rounded-md bg-gold-metal text-forest-950 px-3 py-1.5 text-[12px] font-semibold hover:brightness-110"
           >
             Subscribe
@@ -172,7 +174,7 @@ export function TrialBanner({
             {daysRemaining <= 1
               ? 'Last day of your free trial'
               : `${daysRemaining} days left on your free trial`}
-            {tier ? ` · ${tier[0].toUpperCase()}${tier.slice(1)}` : ''}
+            {tier ? <span data-hide-on-ios>{` · ${tier[0].toUpperCase()}${tier.slice(1)}`}</span> : null}
           </p>
           <p className="text-[11.5px] text-cream-100/70 leading-snug">
             {mode === 'free_trial'
@@ -192,6 +194,7 @@ export function TrialBanner({
         <div className="flex-none flex flex-col items-end gap-1">
           <Link
             href="/billing"
+            data-hide-on-ios
             className="rounded-md bg-gold-metal text-forest-950 px-3 py-1.5 text-[12px] font-semibold hover:brightness-110"
           >
             Subscribe
