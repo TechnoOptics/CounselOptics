@@ -138,6 +138,13 @@ export default async function PortalLayout({
       hint: 'Ask legal',
     });
   }
+  if (!externalView) {
+    primary.push({
+      href: '/portal/forms',
+      label: 'Forms',
+      hint: 'Fill, sign & download',
+    });
+  }
   if (!externalView && can('review')) {
     primary.push({
       href: '/review-my-document',

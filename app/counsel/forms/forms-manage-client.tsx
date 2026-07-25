@@ -1,0 +1,300 @@
+'use client';
+
+import { useState } from 'react';
+import {
+  createFirmTemplateAction,
+  updateFirmTemplateAction,
+  type FirmTemplate,
+  type TemplateField,
+} from '@/lib/firm-templates';
+
+/**
+ * Create/edit/publish firm form templates. The field list is derived FROM the
+ * body: every {{placeholder}} found becomes a configurable field row (label,
+ * type, required), so authors never have to keep two lists in sync.
+ */
+export function FormsManageClient({
+  firmId,
+  initialTemplates,
+}: {
+  firmId: string;
+  initialTemplates: FirmTemplate[];
+}) {
+  const [templates, setTemplates] = useState(initialTemplates);
+  const [editing, setEditing] = useState<FirmTemplate | 'new' | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const save = async (draft: {
+    id?: string;
+    name: string;
+    description: string;
+    category: string;
+    body: string;
+    fields: TemplateField[];
+    status: 'draft' | 'published';
+  }) => {
+    setBusy(true);
+    setError(null);
+    const res = draft.id
+      ? await updateFirmTemplateAction(firmId, draft.id, draft)
+      : await createFirmTemplateAction(firmId, draft);
+    setBusy(false);
+    if (!res.ok || !res.template) {
+      setError(res.error ?? 'Could not save.');
+      return;
+    }
+    const t = res.template;
+    setTemplates((list) => {
+      const i = list.findIndex((x) => x.id === t.id);
+      if (i === -1) return [t, ...list];
+      const next = [...list];
+      next[i] = t;
+      return next;
+    });
+    setEditing(null);
+  };
+
+  const archive = async (id: string) => {
+    setBusy(true);
+    const res = await updateFirmTemplateAction(firmId, id, { status: 'archived' });
+    setBusy(false);
+    if (res.ok) setTemplates((list) => list.filter((t) => t.id !== id));
+    else setError(res.error ?? 'Could not archive.');
+  };
+
+  return (
+    <div className="space-y-4">
+      {error && (
+        <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[13px] text-rose-800 dark:border-rose-700/40 dark:bg-rose-950/40 dark:text-rose-200">
+          {error}
+        </p>
+      )}
+
+      {editing ? (
+        <TemplateEditor
+          initial={editing === 'new' ? null : editing}
+          busy={busy}
+          onCancel={() => setEditing(null)}
+          onSave={save}
+        />
+      ) : (
+        <>
+          <button type="button" onClick={() => setEditing('new')} className="btn-primary">
+            + New template
+          </button>
+          {templates.length === 0 ? (
+            <p className="text-[13px] text-ink-500 dark:text-cream-100/55">
+              No templates yet. Create your first — an NDA is the classic starting point.
+            </p>
+          ) : (
+            <ul className="divide-y divide-ink-100 overflow-hidden rounded-xl border border-ink-200 dark:divide-forest-800/50 dark:border-forest-700/50">
+              {templates.map((t) => (
+                <li key={t.id} className="flex items-center gap-3 bg-white px-4 py-3 dark:bg-forest-900/40">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[14px] font-semibold text-forest-900 dark:text-cream-100">
+                      {t.name}
+                      {t.category && (
+                        <span className="ml-2 rounded-full bg-gold-500/10 px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-wider text-gold-700 ring-1 ring-gold-500/25 dark:text-gold-300">
+                          {t.category}
+                        </span>
+                      )}
+                    </p>
+                    <p className="truncate text-[12px] text-ink-500 dark:text-cream-100/55">
+                      {t.fields.length} field{t.fields.length === 1 ? '' : 's'}
+                      {t.description ? ` · ${t.description}` : ''}
+                    </p>
+                  </div>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                      t.status === 'published'
+                        ? 'bg-forest-100 text-forest-800 dark:bg-forest-800/60 dark:text-cream-100/85'
+                        : 'bg-cream-100 text-ink-500 dark:bg-forest-800/40 dark:text-cream-100/55'
+                    }`}
+                  >
+                    {t.status}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setEditing(t)}
+                    className="text-[13px] font-medium text-gold-700 hover:underline dark:text-gold-300"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void archive(t.id)}
+                    className="text-[13px] text-ink-400 hover:text-rose-600 dark:text-cream-100/40"
+                  >
+                    Archive
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function extractKeys(body: string): string[] {
+  const keys: string[] = [];
+  const seen = new Set<string>();
+  for (const m of body.matchAll(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g)) {
+    const k = m[1].toLowerCase();
+    if (!seen.has(k)) {
+      seen.add(k);
+      keys.push(k);
+    }
+  }
+  return keys;
+}
+
+function TemplateEditor({
+  initial,
+  busy,
+  onCancel,
+  onSave,
+}: {
+  initial: FirmTemplate | null;
+  busy: boolean;
+  onCancel: () => void;
+  onSave: (draft: {
+    id?: string;
+    name: string;
+    description: string;
+    category: string;
+    body: string;
+    fields: TemplateField[];
+    status: 'draft' | 'published';
+  }) => void;
+}) {
+  const [name, setName] = useState(initial?.name ?? '');
+  const [description, setDescription] = useState(initial?.description ?? '');
+  const [category, setCategory] = useState(initial?.category ?? '');
+  const [body, setBody] = useState(
+    initial?.body ??
+      'NON-DISCLOSURE AGREEMENT\n\nThis Agreement is made on {{date}} between {{company}} and {{recipient_name}} ("Recipient").\n\n1. ...',
+  );
+  const [fieldMeta, setFieldMeta] = useState<Record<string, TemplateField>>(() => {
+    const m: Record<string, TemplateField> = {};
+    for (const f of initial?.fields ?? []) m[f.key] = f;
+    return m;
+  });
+
+  const keys = extractKeys(body);
+  const fields: TemplateField[] = keys.map(
+    (k) =>
+      fieldMeta[k] ?? {
+        key: k,
+        label: k.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+        type: /date/.test(k) ? 'date' : 'text',
+        required: true,
+      },
+  );
+
+  const inputCls =
+    'w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-[14px] text-forest-900 outline-none focus:border-gold-500/70 focus:ring-2 focus:ring-gold-500/25 dark:border-forest-700/50 dark:bg-forest-900/60 dark:text-cream-100';
+
+  return (
+    <div className="space-y-4 rounded-xl border border-ink-200 bg-white p-5 dark:border-forest-700/50 dark:bg-forest-900/40">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <label className="sm:col-span-1">
+          <span className="mb-1 block text-[13px] font-medium text-forest-900 dark:text-cream-100">Name</span>
+          <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder="Mutual NDA" />
+        </label>
+        <label className="sm:col-span-1">
+          <span className="mb-1 block text-[13px] font-medium text-forest-900 dark:text-cream-100">Category</span>
+          <input className={inputCls} value={category} onChange={(e) => setCategory(e.target.value)} placeholder="NDA" />
+        </label>
+        <label className="sm:col-span-1">
+          <span className="mb-1 block text-[13px] font-medium text-forest-900 dark:text-cream-100">Description</span>
+          <input
+            className={inputCls}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Standard mutual NDA for pilots and vendor talks"
+          />
+        </label>
+      </div>
+
+      <label className="block">
+        <span className="mb-1 block text-[13px] font-medium text-forest-900 dark:text-cream-100">
+          Body — use {'{{field_key}}'} where the employee should fill something in
+        </span>
+        <textarea rows={14} className={`${inputCls} font-mono text-[12.5px]`} value={body} onChange={(e) => setBody(e.target.value)} />
+      </label>
+
+      {fields.length > 0 && (
+        <div>
+          <p className="mb-2 text-[13px] font-semibold uppercase tracking-wider text-ink-500 dark:text-cream-100/55">
+            Fields (from the body)
+          </p>
+          <div className="space-y-2">
+            {fields.map((f) => (
+              <div key={f.key} className="flex flex-wrap items-center gap-2">
+                <code className="rounded bg-cream-100 px-1.5 py-0.5 text-[11.5px] dark:bg-forest-800" data-no-translate>
+                  {'{{'}{f.key}{'}}'}
+                </code>
+                <input
+                  className={`${inputCls} !w-56`}
+                  value={f.label}
+                  onChange={(e) => setFieldMeta((m) => ({ ...m, [f.key]: { ...f, label: e.target.value } }))}
+                />
+                <select
+                  className={`${inputCls} !w-32`}
+                  value={f.type}
+                  onChange={(e) =>
+                    setFieldMeta((m) => ({ ...m, [f.key]: { ...f, type: e.target.value as TemplateField['type'] } }))
+                  }
+                >
+                  <option value="text">Text</option>
+                  <option value="date">Date</option>
+                  <option value="textarea">Paragraph</option>
+                </select>
+                <label className="flex items-center gap-1.5 text-[12.5px] text-ink-600 dark:text-cream-100/70">
+                  <input
+                    type="checkbox"
+                    checked={f.required}
+                    onChange={(e) => setFieldMeta((m) => ({ ...m, [f.key]: { ...f, required: e.target.checked } }))}
+                  />
+                  Required
+                </label>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-2 border-t border-ink-100 pt-4 dark:border-forest-800/50">
+        <button
+          type="button"
+          disabled={busy || !name.trim() || !body.trim()}
+          onClick={() =>
+            onSave({ id: initial?.id, name, description, category, body, fields, status: 'published' })
+          }
+          className="btn-primary disabled:opacity-50"
+        >
+          {busy ? 'Saving…' : 'Save & publish'}
+        </button>
+        <button
+          type="button"
+          disabled={busy || !name.trim() || !body.trim()}
+          onClick={() => onSave({ id: initial?.id, name, description, category, body, fields, status: 'draft' })}
+          className="rounded-lg border border-ink-200 px-4 py-2 text-[14px] font-medium text-forest-900 hover:bg-cream-50 disabled:opacity-50 dark:border-forest-700/50 dark:text-cream-100 dark:hover:bg-forest-800/50"
+        >
+          Save as draft
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-lg px-4 py-2 text-[14px] text-ink-500 hover:bg-cream-50 dark:text-cream-100/55 dark:hover:bg-forest-800/50"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}

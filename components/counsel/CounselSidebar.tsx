@@ -24,6 +24,7 @@ const ICONS: Record<string, React.ReactNode> = {
   '/counsel/import': <ImportIcon />,
   '/counsel/intake': <InboxIcon />,
   '/counsel/templates': <TemplateIcon />,
+  '/counsel/forms': <TemplateIcon />,
   '/counsel/letters': <MailIcon />,
   '/counsel/analyze': <MagnifyIcon />,
   '/counsel/cases': <CaseIcon />,
