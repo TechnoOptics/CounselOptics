@@ -416,3 +416,78 @@ do the widget setup first, upload build (21), and restore the widget claim.
 >
 > If any specific screen still needs adjustment, tell us exactly which and we'll
 > turn around a change quickly. Thank you for your time.
+
+## 14. Resolution Center reply — rejection of 2026-07-21 (2.1(b) info needed + 4.2)
+
+Round 3 on submission `864667fd`. 5.1.2(i) CLEARED (cookie fix accepted).
+Remaining: 2.1(b) downgraded to "Information Needed" (4 business-model
+questions — Apple is evaluating the reader-model claim), and 4.2 still
+standing (reviewer: push/location/sharing "not robust enough"; the
+reply-only defense failed — real native functionality must be IN the
+binary).
+
+**Shipped for this round:** the AdvotticWidget WidgetKit extension is now
+wired into the Xcode project (`ios/App/add_widget_target.rb`, idempotent)
+and verified embedded in the built app (`App.app/PlugIns/AdvotticWidget.appex`).
+Versions set to 1.0.16 (21) on both targets.
+
+**Account-holder steps before replying (Xcode, one-time):**
+1. Open `ios/App/App.xcodeproj` → App target → Signing & Capabilities:
+   with automatic signing signed in as the Account Holder, Xcode
+   registers `group.com.advottic.app` on the App ID (or register it at
+   developer.apple.com → Identifiers → App Groups first).
+2. Repeat for the AdvotticWidget target (same App Group).
+3. Product → Archive → Distribute → App Store Connect (build 1.0.16 (21)).
+4. In the submission, swap the rejected build 20 for build 21.
+5. Post the reply below, then Resubmit.
+
+**Ready-to-paste reply:**
+
+> Hello, and thank you for the follow-up questions — answers below.
+>
+> **1. Who are the users that will use the paid content, subscriptions,
+> features, and services in the app?**
+> Advottic's customers: individual consumers documenting a legal matter
+> (Personal plans) and law firms (Firm plans). They create an Advottic
+> account on our website, advottic.com, and can then use that same account
+> on the web, on Android, or in this iOS app.
+>
+> **2. Where can users purchase the content, subscriptions, features, and
+> services that can be accessed in the app?**
+> Exclusively on our website, advottic.com, via our web checkout. Nothing
+> is sold inside the iOS app, and the iOS app contains no purchase
+> buttons, price lists, or links to external purchase flows.
+>
+> **3. What specific types of previously purchased content, subscriptions,
+> features, and services can a user access in the app?**
+> The features of their existing account subscription: AI-assisted case
+> review and analysis, the evidentiary timeline builder, document and
+> evidence storage, court-packet PDF exports, e-signature, and (for firm
+> accounts) the firm's case-management workspace. Entitlements attach to
+> the account and unlock automatically wherever the user signs in.
+>
+> **4. What paid content, subscriptions, or features are unlocked within
+> the app that do not use In-App Purchase?**
+> The account subscriptions described above (Personal and Firm plans,
+> purchased on our website). These are multiplatform services within the
+> meaning of Guideline 3.1.3(b): purchases made outside the app are
+> accessible in the app because they are accessible on the other
+> platforms too. The app itself sells nothing, shows no pricing, and does
+> not direct users to an external purchase mechanism.
+>
+> **Guideline 4.2 — Minimum Functionality.** We've taken this feedback
+> seriously and build 1.0.16 (21) adds a native WidgetKit Home Screen and
+> Lock Screen widget ("Open cases"): small and medium home-screen
+> families plus inline/circular/rectangular lock-screen accessories,
+> showing the user's open matters, the next hearing as a countdown, and
+> the latest case activity — rendered natively from an App Group snapshot,
+> visible without opening the app. This joins the existing native
+> functionality: Sign in with Apple, Face ID / Touch ID app lock, Safe
+> Alert (background Core Location with one-tap emergency SMS to trusted
+> contacts), native camera capture for evidence, and offline access to
+> previously loaded case content. To try the widget: sign in with the
+> review account, open the Cases list once, then long-press the Home
+> Screen → + → Advottic → "Open cases."
+>
+> Thank you again — if anything else needs adjustment we will turn it
+> around quickly.
