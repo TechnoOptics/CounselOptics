@@ -45,7 +45,7 @@ function toneOf(status: FirmDocumentStatus) {
 export default async function CounselDocumentsPage({
   searchParams,
 }: {
-  searchParams?: { status?: string; case?: string };
+  searchParams?: { status?: string; case?: string; q?: string };
 }) {
   const ctx = await getActiveFirmContext();
   if (!ctx) redirect('/counsel');
@@ -56,10 +56,15 @@ export default async function CounselDocumentsPage({
 
   const statusFilter = searchParams?.status ?? null;
   const caseFilter = searchParams?.case ?? null;
+  const query = (searchParams?.q ?? '').trim().toLowerCase();
 
   const documents = allDocs.filter((d) => {
     if (statusFilter && d.status !== statusFilter) return false;
     if (caseFilter && d.caseId !== caseFilter) return false;
+    if (query) {
+      const hay = [d.name, d.description ?? '', ...(d.tags ?? [])].join(' ').toLowerCase();
+      if (!hay.includes(query)) return false;
+    }
     return true;
   });
 
@@ -117,6 +122,30 @@ export default async function CounselDocumentsPage({
       </header>
 
       {canUpload && <UploadDocumentForm firmId={ctx.firm.id} cases={cases} />}
+
+      {/* Search - name, description, or tag (e.g. "NDA", "Templates").
+          Plain GET form so the ?q= filter is server-rendered and linkable;
+          the pill wears the house animated gold border. */}
+      <form action="/counsel/documents" method="get" className="max-w-xl">
+        {statusFilter && <input type="hidden" name="status" value={statusFilter} />}
+        {caseFilter && <input type="hidden" name="case" value={caseFilter} />}
+        <div className="search-pill-gold relative rounded-full transition-shadow focus-within:shadow-lg">
+          <span aria-hidden className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ink-400 dark:text-cream-100/40">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+              <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
+              <path d="m20 20-3.6-3.6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          </span>
+          <input
+            type="search"
+            name="q"
+            defaultValue={query}
+            placeholder="Search documents - a name, a tag, a description…"
+            className="w-full rounded-full bg-transparent py-2.5 pl-11 pr-4 text-[14px] text-forest-900 outline-none placeholder:text-ink-400 dark:text-cream-50 dark:placeholder:text-cream-100/40"
+            data-no-translate
+          />
+        </div>
+      </form>
 
       {/* Status filter pills */}
       <section className="flex flex-wrap gap-2 items-center">
