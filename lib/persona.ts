@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers';
+import { claimPartnerTickets } from './partner-tickets';
 import type { User } from '@supabase/supabase-js';
 import { getCurrentUserResult } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
@@ -252,6 +253,10 @@ async function resolvePersonaForUser(user: User): Promise<WorkspacePersona> {
             .eq('id', candidate.id);
           candidate.user_id = user.id;
           row = candidate;
+          // Partner-filed tickets (e.g. from the Zinpro companion app) were
+          // provisionally attributed; hand them to their real owner now so
+          // the Hub portal shows the full history on first sign-in.
+          if (user.email) void claimPartnerTickets(candidate.firm_id, user.email, user.id);
         }
       }
       // Domain auto-membership. If the firm marked their email

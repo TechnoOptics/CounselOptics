@@ -1,0 +1,376 @@
+import 'server-only';
+import crypto from 'crypto';
+import { createAdminSupabase } from './supabase/admin';
+import { verifyApiToken, tokenHasScope, type VerifiedToken } from './api-tokens';
+import { classifyEmail } from './access-requests';
+import { checkRateLimit } from './rate-limit';
+import type { ThreadMessage } from './intake-thread';
+
+/**
+ * Partner ticketing bridge — the server core behind /api/partner/v1/*.
+ *
+ * Purpose: a corporate companion app (first partner: the Zinpro employee app)
+ * files legal requests on behalf of a company's employees. The company holds a
+ * firm/enterprise Advottic license; the partner app authenticates with a
+ * firm-scoped API token (`api_tokens`, `adv_...`, scope `write`). Each ticket:
+ *
+ *   1. JIT-provisions the employee in `firm_employees` (keyed by email; the
+ *      email domain must be one of the firm's registered `emailDomains`).
+ *      `user_id` stays null until the employee first signs in via SSO —
+ *      lib/persona.ts links the row and `claimPartnerTickets` re-attributes
+ *      their tickets, so the portal shows everything they filed from the
+ *      partner app.
+ *   2. Creates a `firm_matter_intakes` row — the SAME intake object the legal
+ *      team already works in the counsel Intake inbox (kanban, conflict check,
+ *      convert-to-case, uploads, thread). No parallel pipeline.
+ *   3. Conversation flows through the intake thread (`intake_answers.thread`),
+ *      readable/writable from both the portal and the partner API.
+ *
+ * Every ticket carries `intake_answers.partner = { source, externalId,
+ * employeeEmail }` so the partner app can correlate by its own ticket id and
+ * the portal can claim rows on first sign-in.
+ */
+
+export type PartnerAuth = {
+  token: VerifiedToken;
+  firmId: string;
+};
+
+export type PartnerTicket = {
+  id: string;
+  status: string;
+  subject: string | null;
+  summary: string | null;
+  category: string | null;
+  priority: string | null;
+  createdAt: string;
+  updatedAt: string | null;
+  externalId: string | null;
+  employeeEmail: string | null;
+  caseId: string | null;
+  messages: { id: string; author: string; role: 'employee' | 'legal'; at: string; text: string }[];
+};
+
+const TICKETS_PER_WINDOW = 60; // per firm per 5 min — generous for a workforce, blunt for a loop
+const MESSAGES_PER_WINDOW = 240;
+
+/** Authenticate a partner request: valid token + firm scope + write scope. */
+export async function authenticatePartner(
+  authorizationHeader: string | null,
+): Promise<{ ok: true; auth: PartnerAuth } | { ok: false; status: number; error: string }> {
+  const verified = await verifyApiToken(authorizationHeader);
+  if (!verified) return { ok: false, status: 401, error: 'Invalid or revoked API token.' };
+  if (!verified.firmId) {
+    return { ok: false, status: 403, error: 'This token is not firm-scoped. Mint a firm token for the integration.' };
+  }
+  if (!tokenHasScope(verified, 'write')) {
+    return { ok: false, status: 403, error: 'This token lacks the write scope.' };
+  }
+  return { ok: true, auth: { token: verified, firmId: verified.firmId } };
+}
+
+/** Per-firm rate limits so a partner-side loop can never flood the inbox. */
+export async function partnerRateLimit(
+  firmId: string,
+  kind: 'ticket' | 'message',
+): Promise<boolean> {
+  return checkRateLimit(`partner:${kind}:${firmId}`, {
+    limit: kind === 'ticket' ? TICKETS_PER_WINDOW : MESSAGES_PER_WINDOW,
+    windowSeconds: 300,
+  });
+}
+
+/**
+ * JIT employee provisioning. The email's domain must belong to the firm
+ * (firms.metadata.emailDomains via classifyEmail) — a partner token can never
+ * introduce accounts outside the company's own domain. Returns the
+ * firm_employees row id (existing or newly created).
+ */
+export async function ensureEmployee(
+  firmId: string,
+  employee: { email: string; name?: string | null; department?: string | null },
+): Promise<{ ok: true; employeeId: string; userId: string | null } | { ok: false; status: number; error: string }> {
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, status: 500, error: 'Server not configured.' };
+  const email = employee.email.trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    return { ok: false, status: 400, error: 'employee.email is not a valid email address.' };
+  }
+
+  const { data: firm } = await admin.from('firms').select('id, metadata').eq('id', firmId).maybeSingle();
+  if (!firm) return { ok: false, status: 404, error: 'Firm not found.' };
+  const cls = classifyEmail((firm as { metadata: Record<string, unknown> | null }).metadata, email);
+  if (cls !== 'internal') {
+    return {
+      ok: false,
+      status: 403,
+      error: `The domain of ${email} is not registered as an internal domain for this firm. Add it under Counsel → Settings → Access.`,
+    };
+  }
+
+  const { data: existing } = await admin
+    .from('firm_employees')
+    .select('id, user_id, deactivated_at')
+    .eq('firm_id', firmId)
+    .eq('email', email)
+    .maybeSingle();
+  if (existing) {
+    const row = existing as { id: string; user_id: string | null; deactivated_at: string | null };
+    if (row.deactivated_at) {
+      return { ok: false, status: 403, error: 'This employee account is deactivated.' };
+    }
+    return { ok: true, employeeId: row.id, userId: row.user_id };
+  }
+
+  const { data: created, error } = await admin
+    .from('firm_employees')
+    .insert({
+      firm_id: firmId,
+      email,
+      display_name: employee.name?.trim() || email.split('@')[0],
+      department: employee.department?.trim() || null,
+      role_key: 'employee',
+      source: 'partner',
+      user_id: null,
+    })
+    .select('id')
+    .single();
+  if (error || !created) {
+    return { ok: false, status: 500, error: error?.message ?? 'Could not provision the employee.' };
+  }
+  return { ok: true, employeeId: (created as { id: string }).id, userId: null };
+}
+
+type IntakeRow = {
+  id: string;
+  status: string;
+  matter_type: string | null;
+  matter_summary: string | null;
+  client_name: string | null;
+  client_email: string | null;
+  case_id: string | null;
+  created_at: string;
+  updated_at: string | null;
+  intake_answers: Record<string, unknown> | null;
+};
+
+function toTicket(row: IntakeRow): PartnerTicket {
+  const a = row.intake_answers ?? {};
+  const partner = (a.partner ?? {}) as Record<string, unknown>;
+  const thread = Array.isArray(a.thread) ? (a.thread as ThreadMessage[]) : [];
+  return {
+    id: row.id,
+    status: row.status,
+    subject: (a.subject as string) ?? row.matter_type,
+    summary: row.matter_summary,
+    category: row.matter_type,
+    priority: (a.priority as string) ?? null,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    externalId: (partner.externalId as string) ?? null,
+    employeeEmail: (partner.employeeEmail as string) ?? row.client_email,
+    caseId: row.case_id,
+    messages: thread.map((m) => ({ id: m.id, author: m.name, role: m.role, at: m.at, text: m.text })),
+  };
+}
+
+const INTAKE_COLS =
+  'id, status, matter_type, matter_summary, client_name, client_email, case_id, created_at, updated_at, intake_answers';
+
+/** Create a ticket (idempotent per (firm, externalId) when externalId given). */
+export async function createPartnerTicket(
+  auth: PartnerAuth,
+  input: {
+    employee: { email: string; name?: string | null; department?: string | null };
+    subject: string;
+    description: string;
+    category?: string | null;
+    priority?: 'low' | 'normal' | 'high' | 'urgent' | null;
+    externalId?: string | null;
+  },
+): Promise<{ ok: true; ticket: PartnerTicket; created: boolean } | { ok: false; status: number; error: string }> {
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, status: 500, error: 'Server not configured.' };
+  const subject = (input.subject ?? '').trim().slice(0, 200);
+  const description = (input.description ?? '').trim().slice(0, 20000);
+  if (!subject || !description) {
+    return { ok: false, status: 400, error: 'subject and description are required.' };
+  }
+
+  const emp = await ensureEmployee(auth.firmId, input.employee);
+  if (!emp.ok) return emp;
+
+  const externalId = input.externalId?.trim() || null;
+  if (externalId) {
+    const { data: dupe } = await admin
+      .from('firm_matter_intakes')
+      .select(INTAKE_COLS)
+      .eq('firm_id', auth.firmId)
+      .contains('intake_answers', { partner: { externalId } })
+      .maybeSingle();
+    if (dupe) return { ok: true, ticket: toTicket(dupe as IntakeRow), created: false };
+  }
+
+  const email = input.employee.email.trim().toLowerCase();
+  const name = input.employee.name?.trim() || email.split('@')[0];
+  const row = {
+    firm_id: auth.firmId,
+    client_name: name,
+    client_email: email,
+    matter_type: input.category?.trim() || 'Legal request',
+    matter_summary: description,
+    opposing_parties: [],
+    related_parties: [],
+    intake_answers: {
+      subject,
+      priority: input.priority ?? 'normal',
+      inhouse: true,
+      partner: {
+        source: 'zinpro',
+        externalId,
+        employeeEmail: email,
+        tokenId: auth.token.id,
+      },
+    },
+    // Attributed to the linked auth user when the employee has signed in
+    // before; otherwise to the token owner until claimPartnerTickets
+    // re-attributes on the employee's first SSO sign-in.
+    created_by: emp.userId ?? auth.token.userId,
+    status: 'in_progress',
+  };
+  const { data: created, error } = await admin
+    .from('firm_matter_intakes')
+    .insert(row)
+    .select(INTAKE_COLS)
+    .single();
+  if (error || !created) {
+    return { ok: false, status: 500, error: error?.message ?? 'Could not create the ticket.' };
+  }
+  return { ok: true, ticket: toTicket(created as IntakeRow), created: true };
+}
+
+/** List tickets, optionally for one employee, newest first. */
+export async function listPartnerTickets(
+  auth: PartnerAuth,
+  filter: { employeeEmail?: string | null; limit?: number },
+): Promise<{ ok: true; tickets: PartnerTicket[] } | { ok: false; status: number; error: string }> {
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, status: 500, error: 'Server not configured.' };
+  let q = admin
+    .from('firm_matter_intakes')
+    .select(INTAKE_COLS)
+    .eq('firm_id', auth.firmId)
+    .not('intake_answers->partner', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(Math.min(Math.max(filter.limit ?? 50, 1), 200));
+  if (filter.employeeEmail) {
+    q = q.eq('client_email', filter.employeeEmail.trim().toLowerCase());
+  }
+  const { data, error } = await q;
+  if (error) return { ok: false, status: 500, error: error.message };
+  return { ok: true, tickets: ((data ?? []) as IntakeRow[]).map(toTicket) };
+}
+
+/** Fetch one ticket (must belong to the token's firm AND be partner-born). */
+export async function getPartnerTicket(
+  auth: PartnerAuth,
+  ticketId: string,
+): Promise<{ ok: true; ticket: PartnerTicket } | { ok: false; status: number; error: string }> {
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, status: 500, error: 'Server not configured.' };
+  const { data } = await admin
+    .from('firm_matter_intakes')
+    .select(INTAKE_COLS)
+    .eq('firm_id', auth.firmId)
+    .eq('id', ticketId)
+    .maybeSingle();
+  if (!data) return { ok: false, status: 404, error: 'Ticket not found.' };
+  const t = toTicket(data as IntakeRow);
+  if (!t.employeeEmail || !(data as IntakeRow).intake_answers?.partner) {
+    return { ok: false, status: 404, error: 'Ticket not found.' };
+  }
+  return { ok: true, ticket: t };
+}
+
+/** Append an employee message to the ticket thread (mirrors intake-thread). */
+export async function postPartnerTicketMessage(
+  auth: PartnerAuth,
+  ticketId: string,
+  input: { employeeEmail: string; text: string },
+): Promise<{ ok: true; ticket: PartnerTicket } | { ok: false; status: number; error: string }> {
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, status: 500, error: 'Server not configured.' };
+  const text = (input.text ?? '').trim().slice(0, 8000);
+  if (!text) return { ok: false, status: 400, error: 'text is required.' };
+
+  const { data } = await admin
+    .from('firm_matter_intakes')
+    .select(INTAKE_COLS)
+    .eq('firm_id', auth.firmId)
+    .eq('id', ticketId)
+    .maybeSingle();
+  if (!data) return { ok: false, status: 404, error: 'Ticket not found.' };
+  const row = data as IntakeRow;
+  const answers = row.intake_answers ?? {};
+  const partner = (answers.partner ?? {}) as Record<string, unknown>;
+  const email = input.employeeEmail.trim().toLowerCase();
+  if ((partner.employeeEmail as string)?.toLowerCase() !== email) {
+    return { ok: false, status: 403, error: 'This ticket belongs to a different employee.' };
+  }
+
+  const { data: empRow } = await admin
+    .from('firm_employees')
+    .select('user_id, display_name')
+    .eq('firm_id', auth.firmId)
+    .eq('email', email)
+    .maybeSingle();
+  const emp = empRow as { user_id: string | null; display_name: string | null } | null;
+
+  const thread = Array.isArray(answers.thread) ? (answers.thread as ThreadMessage[]) : [];
+  const msg: ThreadMessage = {
+    id: crypto.randomUUID(),
+    byUserId: emp?.user_id ?? auth.token.userId ?? 'partner',
+    name: emp?.display_name || email.split('@')[0],
+    role: 'employee',
+    at: new Date().toISOString(),
+    text,
+  };
+  const { data: updated, error } = await admin
+    .from('firm_matter_intakes')
+    .update({
+      intake_answers: { ...answers, thread: [...thread, msg] },
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', row.id)
+    .eq('firm_id', auth.firmId)
+    .select(INTAKE_COLS)
+    .single();
+  if (error || !updated) return { ok: false, status: 500, error: error?.message ?? 'Could not post the message.' };
+  return { ok: true, ticket: toTicket(updated as IntakeRow) };
+}
+
+/**
+ * Called from lib/persona.ts the moment a firm employee's auth account is
+ * linked (first SSO sign-in): every partner ticket filed for their email is
+ * re-attributed to them, so the Hub portal lists their full history.
+ */
+export async function claimPartnerTickets(firmId: string, email: string, userId: string): Promise<void> {
+  const admin = createAdminSupabase();
+  if (!admin) return;
+  try {
+    const { data } = await admin
+      .from('firm_matter_intakes')
+      .select('id, created_by')
+      .eq('firm_id', firmId)
+      .eq('client_email', email.trim().toLowerCase())
+      .not('intake_answers->partner', 'is', null);
+    const rows = (data ?? []) as { id: string; created_by: string | null }[];
+    for (const r of rows) {
+      if (r.created_by !== userId) {
+        await admin.from('firm_matter_intakes').update({ created_by: userId }).eq('id', r.id);
+      }
+    }
+  } catch {
+    // Claiming is best-effort; the tickets stay reachable via the partner API.
+  }
+}
