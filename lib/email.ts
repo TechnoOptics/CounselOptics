@@ -281,7 +281,7 @@ export function buildMeetingInviteEmailHtml(input: {
           <hr style="border:none;border-top:1px solid #e4e4e7;margin:0 0 12px;" />
           <p style="margin:0;color:#a1a1aa;font-size:11px;letter-spacing:0.04em;">© ${year} ${escapeHtml(
             brand,
-          )} &middot; Powered by Advottic</p>
+          )} &middot; Powered by Techno Optics</p>
         </td></tr>
       </table>
     </td></tr>
@@ -360,7 +360,7 @@ export function buildSigningRequestEmailHtml(input: {
           <hr style="border:none;border-top:1px solid #e4e4e7;margin:0 0 12px;" />
           <p style="margin:0;color:#a1a1aa;font-size:11px;letter-spacing:0.04em;">© ${year} ${escapeHtml(
     brand,
-  )} &middot; Powered by Advottic</p>
+  )} &middot; Powered by Techno Optics</p>
         </td></tr>
       </table>
     </td></tr>
@@ -420,7 +420,7 @@ export function buildSigningCodeEmailHtml(input: {
           <hr style="border:none;border-top:1px solid #e4e4e7;margin:0 0 12px;" />
           <p style="margin:0;color:#a1a1aa;font-size:11px;letter-spacing:0.04em;">© ${year} ${escapeHtml(
     brand,
-  )} &middot; Powered by Advottic</p>
+  )} &middot; Powered by Techno Optics</p>
         </td></tr>
       </table>
     </td></tr>

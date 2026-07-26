@@ -162,8 +162,9 @@ export default async function CounselLayout({
               <main className="flex-1 min-w-0">{children}</main>
             </div>
             <footer className="border-t border-forest-700/40 bg-forest-950/80 backdrop-blur">
-              <div className="mx-auto max-w-none px-4 sm:px-6 lg:px-10 py-4 text-[11px] text-cream-100/55">
-                Advottic &middot; Guest access to your assigned matter.
+              <div className="mx-auto max-w-none px-4 sm:px-6 lg:px-10 py-4 text-[11px] text-cream-100/55 flex flex-wrap items-center justify-between gap-2">
+                <p>Advottic &middot; Guest access to your assigned matter.</p>
+                <p>Powered by Techno Optics</p>
               </div>
             </footer>
           </LocaleProvider>
@@ -303,7 +304,8 @@ export default async function CounselLayout({
               className="underline hover:text-cream-100"
             >
               What Advottic is, and isn&rsquo;t
-            </Link>
+            </Link>{' '}
+            &middot; Powered by Techno Optics
           </p>
         </div>
       </footer>

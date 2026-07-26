@@ -334,7 +334,7 @@ export default async function PortalLayout({
                   >
                     {firm.name}
                   </span>{' '}
-                  · <T>Powered by Advottic</T>
+                  · <T>Powered by Techno Optics</T>
                 </>
               )}
             </p>

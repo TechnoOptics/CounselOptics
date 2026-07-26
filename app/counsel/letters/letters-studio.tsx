@@ -11,6 +11,7 @@ import {
 } from '@/lib/letter-compose';
 import { saveLetterToCaseAction } from '@/lib/letters-actions';
 import { T, useT } from '@/components/i18n/LocaleProvider';
+import { PdfPreviewDialog } from '@/components/PdfPreviewDialog';
 
 type Brand = {
   firmName: string;
@@ -63,6 +64,7 @@ export function LettersStudio({
   const [saving, startSaving] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const closer = {
     signerName: signerName || null,
@@ -101,6 +103,23 @@ export function LettersStudio({
     } finally {
       setBusy(false);
     }
+  }
+
+  async function buildPdfBlob(): Promise<Blob> {
+    const res = await fetch('/api/counsel/draft-template/pdf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        document: composed,
+        title,
+        firmName: brand.firmName,
+        accent: brand.accent,
+        letterheadUrl: brand.letterheadUrl ?? undefined,
+        logoUrl: brand.logoUrl ?? undefined,
+      }),
+    });
+    if (!res.ok) throw new Error(`PDF ${t('export failed.')}`);
+    return res.blob();
   }
 
   async function exportFile(format: 'pdf' | 'docx') {
@@ -327,12 +346,27 @@ export function LettersStudio({
               </button>
               <button
                 type="button"
+                onClick={() => setPreviewOpen(true)}
+                className="text-[13px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-3 py-1.5 text-ink-700 dark:text-cream-100/85"
+              >
+                <T>Preview PDF</T>
+              </button>
+              <button
+                type="button"
                 onClick={() => exportFile('pdf')}
                 disabled={exporting !== null}
                 className="text-[13px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-3 py-1.5 text-ink-700 dark:text-cream-100/85"
               >
                 {exporting === 'pdf' ? <T>Exporting…</T> : <T>Export PDF</T>}
               </button>
+              {previewOpen && (
+                <PdfPreviewDialog
+                  title={title || 'Letter'}
+                  filename={`${(title || 'letter').replace(/[^a-z0-9]+/gi, '-')}.pdf`}
+                  buildPdf={buildPdfBlob}
+                  onClose={() => setPreviewOpen(false)}
+                />
+              )}
               <button
                 type="button"
                 onClick={save}

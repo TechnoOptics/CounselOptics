@@ -235,7 +235,7 @@ export default async function JoinPage({
                 <span className="font-semibold text-cream-100">
                   {firmName}
                 </span>{' '}
-                · Powered by Advottic
+                · Powered by Techno Optics
               </>
             ) : (
               <span className="font-semibold text-cream-100">Advottic</span>

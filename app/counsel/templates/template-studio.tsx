@@ -8,6 +8,7 @@ import {
   cleanLegalText,
 } from '@/lib/legal-templates';
 import { T, useT } from '@/components/i18n/LocaleProvider';
+import { PdfPreviewDialog } from '@/components/PdfPreviewDialog';
 
 type Meta = {
   title: string;
@@ -28,6 +29,7 @@ export function TemplateStudio({ brand }: { brand: Meta }) {
   const [error, setError] = useState<string | null>(null);
   const [doc, setDoc] = useState<string>('');
   const [meta, setMeta] = useState<Meta>(brand);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
 
   const tpl = getTemplate(tplId);
@@ -68,26 +70,33 @@ export function TemplateStudio({ brand }: { brand: Meta }) {
     }
   }
 
+  async function buildPdfBlob(): Promise<Blob> {
+    const res = await fetch('/api/counsel/draft-template/pdf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        document: doc,
+        title: meta.title,
+        brandName: meta.brandName,
+        firmName: meta.firmName,
+        accent: meta.accent,
+        letterheadUrl: meta.letterheadUrl,
+      }),
+    });
+    if (!res.ok) throw new Error(t('PDF export failed.'));
+    return res.blob();
+  }
+
   async function exportPdf() {
     setExporting(true);
     try {
-      const res = await fetch('/api/counsel/draft-template/pdf', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          document: doc,
-          title: meta.title,
-          brandName: meta.brandName,
-          firmName: meta.firmName,
-          accent: meta.accent,
-          letterheadUrl: meta.letterheadUrl,
-        }),
-      });
-      if (!res.ok) {
+      let blob: Blob;
+      try {
+        blob = await buildPdfBlob();
+      } catch {
         setError(t('PDF export failed.'));
         return;
       }
-      const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -219,6 +228,13 @@ export function TemplateStudio({ brand }: { brand: Meta }) {
               </button>
               <button
                 type="button"
+                onClick={() => setPreviewOpen(true)}
+                className="text-[13px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-3 py-1.5 text-ink-700 dark:text-cream-100/85"
+              >
+                <T>Preview PDF</T>
+              </button>
+              <button
+                type="button"
                 onClick={exportPdf}
                 disabled={exporting}
                 className="btn-primary !py-1.5 text-[13px]"
@@ -226,6 +242,14 @@ export function TemplateStudio({ brand }: { brand: Meta }) {
                 {exporting ? <T>Exporting...</T> : <T>Export PDF</T>}
               </button>
             </div>
+            {previewOpen && (
+              <PdfPreviewDialog
+                title={meta.title || 'Document'}
+                filename={`${(meta.title || 'document').replace(/[^a-z0-9]+/gi, '-')}.pdf`}
+                buildPdf={buildPdfBlob}
+                onClose={() => setPreviewOpen(false)}
+              />
+            )}
             <article
               id="print-block"
               className="bg-white text-[#15110a] rounded-lg ring-1 ring-ink-200 shadow-card overflow-hidden"

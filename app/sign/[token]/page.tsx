@@ -220,7 +220,7 @@ export default async function SignPage({ params }: { params: { token: string } }
             href="/about"
             className="underline hover:text-forest-900 dark:hover:text-cream-100"
           >
-            Advottic
+            Techno Optics
           </Link>
           . The document and your signature stay in this app and are not shared with
           third parties.

@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import type { FirmTemplate } from '@/lib/firm-templates';
+import { PdfPreviewDialog } from '@/components/PdfPreviewDialog';
 
 /**
  * Employee fill-and-sign for a firm template. Fields render as inputs, the
@@ -44,6 +45,7 @@ export function FormFillClient({
   const [shareEmail, setShareEmail] = useState('');
   const [shareNote, setShareNote] = useState('');
   const [shareDone, setShareDone] = useState<string | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const missing = template.fields.filter((f) => f.required && !(values[f.key] ?? '').trim());
 
@@ -209,8 +211,16 @@ export function FormFillClient({
             <button
               type="button"
               disabled={busy || missing.length > 0 || !signature.trim()}
-              onClick={() => void exportPdf(false)}
+              onClick={() => setPreviewOpen(true)}
               className="btn-primary disabled:opacity-50"
+            >
+              Preview PDF
+            </button>
+            <button
+              type="button"
+              disabled={busy || missing.length > 0 || !signature.trim()}
+              onClick={() => void exportPdf(false)}
+              className="rounded-lg border border-ink-200 px-4 py-2 text-[14px] font-medium text-forest-900 hover:bg-cream-50 disabled:opacity-50 dark:border-forest-700/50 dark:text-cream-100 dark:hover:bg-forest-800/50"
             >
               {busy ? 'Preparing…' : 'Download PDF'}
             </button>
@@ -292,6 +302,27 @@ export function FormFillClient({
           </div>
         </section>
       </div>
+
+      {previewOpen && (
+        <PdfPreviewDialog
+          title={template.name}
+          filename={`${template.name.replace(/[^\w -]+/g, '')}.pdf`}
+          buildPdf={buildPdf}
+          onClose={() => setPreviewOpen(false)}
+          actions={
+            <button
+              type="button"
+              onClick={() => {
+                setPreviewOpen(false);
+                setShareOpen(true);
+              }}
+              className="rounded-lg border border-gold-500/50 bg-gold-500/10 px-4 py-2 text-[14px] font-medium text-gold-700 hover:bg-gold-500/20 dark:text-gold-300"
+            >
+              Looks good — share securely
+            </button>
+          }
+        />
+      )}
     </div>
   );
 }
