@@ -227,6 +227,13 @@ from Zinpro One, plus the full self-service toolset:
 - **Check a document** — paste text or upload PDF/Word/photo; it is scored
   against the firm's policies.
 
+> **Demo tip (verified working):** during the call, one person signed in as
+> `contact@technooptics.com` can toggle both sides live — the Counsel
+> workspace ("Welcome to Zinpro", Request inbox) as the firm owner, then
+> profile menu → **View as → Employee** to show the Zinpro Client Hub
+> (My requests, Forms → NDA, Check a document), and **Exit preview** to
+> jump back. No second account or browser needed.
+
 ### Step 6 — Reminder (optional, passive)
 
 Leave a second `[TEST]` ticket unanswered; after 24 h the legal team gets
