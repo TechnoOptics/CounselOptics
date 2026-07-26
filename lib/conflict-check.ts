@@ -254,6 +254,14 @@ export async function runConflictCheckAction(
     })
     .eq('id', intakeId);
 
+  // Partner-born tickets push the status change to the partner app.
+  try {
+    const { partnerTicketEvent } = await import('./partner-notify');
+    await partnerTicketEvent(intakeId, 'ticket.status_changed');
+  } catch {
+    /* best-effort */
+  }
+
   revalidatePath(`/counsel/intake/${intakeId}`);
   return { ok: true, hits };
 }
@@ -312,6 +320,12 @@ export async function clearConflictAction(
     .eq('id', intakeId)
     .eq('firm_id', firmId);
   if (error) return { ok: false, error: error.message };
+  try {
+    const { partnerTicketEvent } = await import('./partner-notify');
+    await partnerTicketEvent(intakeId, 'ticket.status_changed');
+  } catch {
+    /* best-effort */
+  }
   revalidatePath(`/counsel/intake/${intakeId}`);
   return { ok: true };
 }

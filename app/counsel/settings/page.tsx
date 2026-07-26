@@ -3,8 +3,10 @@ import { getActiveFirmContext } from '@/lib/firm-storage';
 import { listFirmWebhooksAction } from '@/lib/firm-actions';
 import { readMenuConfig } from '@/lib/menu-config';
 import { getFirmSurfaceSettings } from '@/lib/firm-settings';
+import { readPartnerConfig } from '@/lib/partner-config-core';
 import { SettingsForm } from './settings-form';
 import { WebhookManager } from './webhook-manager';
+import { PartnerIntegrationManager } from './partner-integration-manager';
 import { MenuCustomizer } from './menu-customizer';
 import { FirmSurfaceToggles } from './firm-surface-toggles';
 import { T } from '@/components/i18n/LocaleProvider';
@@ -22,6 +24,7 @@ export default async function CounselSettingsPage() {
   // and the operator never sees the empty-list flicker.
   const webhooksResult = await listFirmWebhooksAction(ctx.firm.id);
   const surface = await getFirmSurfaceSettings(ctx.firm.id);
+  const partnerConfig = readPartnerConfig(ctx.firm.metadata);
   return (
     <div className="space-y-10 animate-fade-up">
       <header>
@@ -91,6 +94,22 @@ export default async function CounselSettingsPage() {
           firmId={ctx.firm.id}
           initialWebhooks={webhooksResult.webhooks ?? []}
         />
+      </section>
+      <section className="space-y-3 pt-2 border-t border-ink-200 dark:border-forest-700/40">
+        <header>
+          <p className="eyebrow mb-1"><T>Partner app integration</T></p>
+          <h2 className="font-display text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
+            <T>Legal requests filed from your company app</T>
+          </h2>
+          <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
+            <T>When employees file legal requests from a company app connected
+            through the partner API, these settings control what they are asked,
+            the confirmation they see (state your usual response time), how
+            events are pushed back to the app, and when the team is reminded
+            about unanswered requests.</T>
+          </p>
+        </header>
+        <PartnerIntegrationManager firmId={ctx.firm.id} initial={partnerConfig} />
       </section>
       <section className="space-y-3 pt-2 border-t border-ink-200 dark:border-forest-700/40">
         <header>

@@ -175,6 +175,18 @@ export async function postIntakeThreadMessageAction(
     /* notifications are best-effort */
   }
 
+  // Partner-born tickets (filed from a company app like Zinpro): a legal
+  // reply also emails the employee and fires the partner webhook so the
+  // companion app can update without polling. No-op for ordinary intakes.
+  if (role === 'legal' && (answers as { partner?: unknown }).partner) {
+    try {
+      const { partnerTicketEvent } = await import('./partner-notify');
+      await partnerTicketEvent(intakeId, 'ticket.legal_replied', { message: msg });
+    } catch {
+      /* best-effort */
+    }
+  }
+
   revalidatePath(`/portal/${intakeId}`);
   revalidatePath('/portal');
   revalidatePath(`/counsel/intake/${intakeId}`);

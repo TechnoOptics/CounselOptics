@@ -5,6 +5,8 @@ import { verifyApiToken, tokenHasScope, type VerifiedToken } from './api-tokens'
 import { classifyEmail } from './access-requests';
 import { checkRateLimit } from './rate-limit';
 import type { ThreadMessage } from './intake-thread';
+import { readPartnerConfig, type PartnerQuestion } from './partner-config-core';
+import { partnerTicketEvent } from './partner-notify';
 
 /**
  * Partner ticketing bridge — the server core behind /api/partner/v1/*.
@@ -187,8 +189,14 @@ export async function createPartnerTicket(
     category?: string | null;
     priority?: 'low' | 'normal' | 'high' | 'urgent' | null;
     externalId?: string | null;
+    /** Answers to the firm-configured intake questions, keyed by question id
+     *  (fetch the questions from GET /api/partner/v1/config). */
+    answers?: Record<string, string> | null;
   },
-): Promise<{ ok: true; ticket: PartnerTicket; created: boolean } | { ok: false; status: number; error: string }> {
+): Promise<
+  | { ok: true; ticket: PartnerTicket; created: boolean; acknowledgment: string }
+  | { ok: false; status: number; error: string }
+> {
   const admin = createAdminSupabase();
   if (!admin) return { ok: false, status: 500, error: 'Server not configured.' };
   const subject = (input.subject ?? '').trim().slice(0, 200);
@@ -200,6 +208,15 @@ export async function createPartnerTicket(
   const emp = await ensureEmployee(auth.firmId, input.employee);
   if (!emp.ok) return emp;
 
+  // Firm-configured intake questions + the acknowledgment popup message.
+  const { data: firmRow } = await admin
+    .from('firms')
+    .select('name, metadata')
+    .eq('id', auth.firmId)
+    .maybeSingle();
+  const firm = firmRow as { name: string; metadata: Record<string, unknown> | null } | null;
+  const config = readPartnerConfig(firm?.metadata);
+
   const externalId = input.externalId?.trim() || null;
   if (externalId) {
     const { data: dupe } = await admin
@@ -208,8 +225,20 @@ export async function createPartnerTicket(
       .eq('firm_id', auth.firmId)
       .contains('intake_answers', { partner: { externalId } })
       .maybeSingle();
-    if (dupe) return { ok: true, ticket: toTicket(dupe as IntakeRow), created: false };
+    if (dupe) {
+      return {
+        ok: true,
+        ticket: toTicket(dupe as IntakeRow),
+        created: false,
+        acknowledgment: config.ackMessage,
+      };
+    }
   }
+
+  // Validate + label the question answers so the intake detail can render
+  // them without re-reading the (possibly since-edited) question config.
+  const questionAnswers = resolveQuestionAnswers(config.questions, input.answers);
+  if (!questionAnswers.ok) return { ok: false, status: 400, error: questionAnswers.error };
 
   const email = input.employee.email.trim().toLowerCase();
   const name = input.employee.name?.trim() || email.split('@')[0];
@@ -225,6 +254,7 @@ export async function createPartnerTicket(
       subject,
       priority: input.priority ?? 'normal',
       inhouse: true,
+      ...(questionAnswers.list.length > 0 ? { questionAnswers: questionAnswers.list } : {}),
       partner: {
         source: 'zinpro',
         externalId,
@@ -246,7 +276,47 @@ export async function createPartnerTicket(
   if (error || !created) {
     return { ok: false, status: 500, error: error?.message ?? 'Could not create the ticket.' };
   }
-  return { ok: true, ticket: toTicket(created as IntakeRow), created: true };
+  // Wake the legal team (bell + email) — an API-born ticket has no one
+  // staring at a screen when it lands. Best-effort, never fails the create.
+  await partnerTicketEvent((created as IntakeRow & { firm_id: string }).id, 'ticket.created', {
+    firmName: firm?.name ?? null,
+  });
+  return {
+    ok: true,
+    ticket: toTicket(created as IntakeRow),
+    created: true,
+    acknowledgment: config.ackMessage,
+  };
+}
+
+/** Match submitted answers to the configured questions; missing required
+ *  answers reject the create so the legal team always gets what they asked
+ *  for. Unknown ids are dropped (a stale partner-side form can't inject). */
+function resolveQuestionAnswers(
+  questions: PartnerQuestion[],
+  answers: Record<string, string> | null | undefined,
+):
+  | { ok: true; list: Array<{ id: string; label: string; value: string }> }
+  | { ok: false; error: string } {
+  const given = answers ?? {};
+  const list: Array<{ id: string; label: string; value: string }> = [];
+  for (const q of questions) {
+    const value = String(given[q.id] ?? '').trim().slice(0, 2000);
+    if (!value) {
+      if (q.required) {
+        return { ok: false, error: `Missing required answer: "${q.label}" (question id ${q.id}).` };
+      }
+      continue;
+    }
+    if (q.type === 'select' && q.options && q.options.length > 0 && !q.options.includes(value)) {
+      return {
+        ok: false,
+        error: `Answer for "${q.label}" must be one of: ${q.options.join(', ')}.`,
+      };
+    }
+    list.push({ id: q.id, label: q.label, value });
+  }
+  return { ok: true, list };
 }
 
 /** List tickets, optionally for one employee, newest first. */
@@ -346,6 +416,8 @@ export async function postPartnerTicketMessage(
     .select(INTAKE_COLS)
     .single();
   if (error || !updated) return { ok: false, status: 500, error: error?.message ?? 'Could not post the message.' };
+  // Ping the legal team about the new employee reply. Best-effort.
+  await partnerTicketEvent(row.id, 'ticket.employee_replied', { message: msg });
   return { ok: true, ticket: toTicket(updated as IntakeRow) };
 }
 

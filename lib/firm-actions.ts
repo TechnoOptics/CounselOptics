@@ -1461,6 +1461,15 @@ export async function convertIntakeToCaseAction(
     })
     .eq('id', intakeId);
 
+  // Partner-born tickets: tell the partner app (webhook) and the
+  // employee (email) that their request became a matter. Best-effort.
+  try {
+    const { partnerTicketEvent } = await import('./partner-notify');
+    await partnerTicketEvent(intakeId, 'ticket.status_changed');
+  } catch {
+    /* best-effort */
+  }
+
   revalidatePath(`/counsel/intake/${intakeId}`);
   revalidatePath('/counsel/cases');
   return { ok: true, caseId };

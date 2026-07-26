@@ -36,6 +36,7 @@ export async function POST(req: Request) {
     category?: string;
     priority?: 'low' | 'normal' | 'high' | 'urgent';
     externalId?: string;
+    answers?: Record<string, string>;
   };
   if (!b.employee?.email) {
     return NextResponse.json({ error: 'employee.email is required.' }, { status: 400 });
@@ -47,9 +48,15 @@ export async function POST(req: Request) {
     category: b.category,
     priority: b.priority,
     externalId: b.externalId,
+    answers: b.answers,
   });
   if (!res.ok) return NextResponse.json({ error: res.error }, { status: res.status });
-  return NextResponse.json({ ticket: res.ticket }, { status: res.created ? 201 : 200 });
+  // `acknowledgment` is the legal team's configured confirmation message —
+  // show it to the employee in a popup right after filing.
+  return NextResponse.json(
+    { ticket: res.ticket, acknowledgment: res.acknowledgment },
+    { status: res.created ? 201 : 200 },
+  );
 }
 
 export async function GET(req: Request) {

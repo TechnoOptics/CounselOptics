@@ -99,6 +99,20 @@ export default async function IntakeDetailPage({
     ? (ans.thread as ThreadMessage[])
     : [];
 
+  // Answers to the firm-configured partner-app intake questions (labels
+  // are stored with the answers, so renaming a question later can't
+  // mislabel historical requests).
+  const questionAnswers = (Array.isArray(ans.questionAnswers) ? ans.questionAnswers : [])
+    .map((qa) => {
+      const q = (qa ?? {}) as Record<string, unknown>;
+      return {
+        id: String(q.id ?? ''),
+        label: String(q.label ?? '').trim(),
+        value: String(q.value ?? '').trim(),
+      };
+    })
+    .filter((q) => q.label && q.value);
+
   // @mention pool: every legal-team member + the requester.
   const members = await listFirmMembers(ctx.firm.id).catch(() => []);
   const mDedupe = new Map<string, string>();
@@ -186,6 +200,24 @@ export default async function IntakeDetailPage({
                           </dt>
                           <dd className="text-[13px] text-ink-800 dark:text-cream-100/85">
                             {m.value}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </section>
+                )}
+
+                {questionAnswers.length > 0 && (
+                  <section className="card p-5">
+                    <p className="eyebrow mb-3"><T>Intake questions</T></p>
+                    <dl className="grid sm:grid-cols-2 gap-x-4 gap-y-3">
+                      {questionAnswers.map((qa) => (
+                        <div key={qa.id}>
+                          <dt className="text-[10px] uppercase tracking-[0.16em] font-semibold text-ink-400 dark:text-cream-100/40 mb-0.5">
+                            {qa.label}
+                          </dt>
+                          <dd className="text-[13px] text-ink-800 dark:text-cream-100/85 whitespace-pre-wrap">
+                            {qa.value}
                           </dd>
                         </div>
                       ))}
