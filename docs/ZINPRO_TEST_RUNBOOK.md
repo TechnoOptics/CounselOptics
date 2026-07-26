@@ -69,14 +69,22 @@ curl -s https://advottic.com/api/partner/v1/config \
   -H "Authorization: Bearer $ADVOTTIC_PARTNER_TOKEN"
 ```
 
-**Expect** `200` with:
+**Expect** `200` with (this is the exact live shape — it matches
+ADVOTTIC-INTEGRATION-CONTRACT.md §5.1; an earlier draft of this runbook
+showed a `config`-wrapped shape that does NOT exist — code to this):
 
 ```json
 {
-  "config": {
-    "ackMessage": "Thanks — your request has reached the legal team. ...",
-    "questions": [ { "id": "business-unit", "...": "..." }, "… 5 total" ]
-  }
+  "firmName": "Zinpro",
+  "acknowledgment": "Thanks — your request has reached the legal team. We usually respond within 2 business days; urgent matters are triaged first.",
+  "questions": [
+    { "id": "business-unit", "label": "Which business unit or team is this for?", "type": "text", "options": null, "required": true },
+    { "id": "hard-deadline", "label": "Is there a hard deadline? If so, when and why?", "type": "text", "options": null, "required": false },
+    { "id": "signed-already", "label": "Has anything already been signed or agreed to?", "type": "yesno", "options": null, "required": true },
+    { "id": "deal-value", "label": "Approximate deal value, if applicable", "type": "text", "options": null, "required": false },
+    { "id": "confidentiality", "label": "Confidentiality level", "type": "select", "options": ["Standard", "Sensitive", "Highly confidential"], "required": true }
+  ],
+  "webhook": { "configured": true }
 }
 ```
 
@@ -177,8 +185,9 @@ curl -s -X POST https://advottic.com/api/partner/v1/tickets \
 ```
 
 **Expect, in order:**
-- `201` with the full ticket JSON (rerun the same command → `200`, same
-  ticket — idempotency by `externalId`).
+- `201` with `{ "ticket": { … }, "acknowledgment": "…" }` — the ticket
+  object wrapped alongside the popup text, per the contract §6 (rerun the
+  same command → `200`, same ticket — idempotency by `externalId`).
 - Your endpoint receives a signed `ticket.created` webhook.
 - The employee sees the confirmation popup (your app shows `ackMessage`).
 - **Advottic side (we confirm on the call):** the request appears in
