@@ -1452,7 +1452,11 @@ export async function convertIntakeToCaseAction(
   }
   const caseId = (created as { id: string }).id;
 
-  await admin
+  // Never let this fail silently: if the intake cannot be marked converted,
+  // the partner webhook announces a stale status and the companion app shows
+  // the request stuck forever (this exact bug shipped once, via a status
+  // CHECK constraint that predated the partner lifecycle).
+  const { error: convErr } = await admin
     .from('firm_matter_intakes')
     .update({
       case_id: caseId,
@@ -1460,6 +1464,10 @@ export async function convertIntakeToCaseAction(
       updated_at: new Date().toISOString(),
     })
     .eq('id', intakeId);
+  if (convErr) {
+    console.error('intake convert update failed:', convErr.message);
+    return { ok: false, error: `Matter created, but the request could not be marked converted: ${convErr.message}` };
+  }
 
   // Partner-born tickets: tell the partner app (webhook) and the
   // employee (email) that their request became a matter. Best-effort.
