@@ -26,6 +26,21 @@ export default async function ApiTokensPage() {
     )
     .order('created_at', { ascending: false })
     .limit(50);
+  // Firms this user can mint an integration token for (owner/admin only).
+  const { data: memberships } = await supabase
+    .from('firm_members')
+    .select('firm_id, role, firms(name)')
+    .eq('user_id', user.id)
+    .in('role', ['owner', 'admin']);
+  const adminFirms = ((memberships ?? []) as Array<{
+    firm_id: string;
+    firms: { name: string } | { name: string }[] | null;
+  }>).map((m) => ({
+    id: m.firm_id,
+    name:
+      (Array.isArray(m.firms) ? m.firms[0]?.name : m.firms?.name) ??
+      'Unnamed firm',
+  }));
   const tokens = (data ?? []) as Array<{
     id: string;
     name: string;
@@ -63,7 +78,7 @@ export default async function ApiTokensPage() {
         </p>
       </header>
 
-      <NewTokenForm />
+      <NewTokenForm adminFirms={adminFirms} />
 
       <section className="space-y-3">
         <h2 className="font-display text-lg font-medium text-forest-900 dark:text-cream-100">

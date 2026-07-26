@@ -2,12 +2,18 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { createTokenAction } from './actions';
+import { createFirmTokenAction, createTokenAction } from './actions';
 
-export function NewTokenForm() {
+export function NewTokenForm({
+  adminFirms = [],
+}: {
+  adminFirms?: { id: string; name: string }[];
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [kind, setKind] = useState<'personal' | 'firm'>('personal');
+  const [firmId, setFirmId] = useState(adminFirms[0]?.id ?? '');
   const [created, setCreated] = useState<{ token: string; prefix: string } | null>(
     null,
   );
@@ -19,8 +25,15 @@ export function NewTokenForm() {
       setError('Name is required.');
       return;
     }
+    if (kind === 'firm' && !firmId) {
+      setError('Pick the firm this integration token belongs to.');
+      return;
+    }
     startTransition(async () => {
-      const res = await createTokenAction(name);
+      const res =
+        kind === 'firm'
+          ? await createFirmTokenAction(name, firmId)
+          : await createTokenAction(name);
       if (res.ok && res.token) {
         setCreated({ token: res.token, prefix: res.prefix ?? '' });
         router.refresh();
@@ -66,6 +79,55 @@ export function NewTokenForm() {
   return (
     <form action={submit} className="card p-5 space-y-3">
       <p className="eyebrow">Issue a new token</p>
+      {adminFirms.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setKind('personal')}
+            className={`rounded-full px-3 py-1.5 text-[12.5px] font-medium ring-1 transition-colors ${
+              kind === 'personal'
+                ? 'bg-gold-500/20 ring-gold-500/40 text-gold-700 dark:text-gold-200'
+                : 'ring-ink-200 dark:ring-forest-700/40 text-ink-700 dark:text-cream-100/85'
+            }`}
+          >
+            Personal (read-only)
+          </button>
+          <button
+            type="button"
+            onClick={() => setKind('firm')}
+            className={`rounded-full px-3 py-1.5 text-[12.5px] font-medium ring-1 transition-colors ${
+              kind === 'firm'
+                ? 'bg-gold-500/20 ring-gold-500/40 text-gold-700 dark:text-gold-200'
+                : 'ring-ink-200 dark:ring-forest-700/40 text-ink-700 dark:text-cream-100/85'
+            }`}
+          >
+            Firm integration (read + write)
+          </button>
+        </div>
+      )}
+      {kind === 'firm' && (
+        <label className="block">
+          <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+            Firm
+          </span>
+          <select
+            value={firmId}
+            onChange={(e) => setFirmId(e.target.value)}
+            className="input"
+          >
+            {adminFirms.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.name}
+              </option>
+            ))}
+          </select>
+          <span className="mt-1 block text-[11.5px] text-ink-500 dark:text-cream-100/55">
+            For partner apps (e.g. the Zinpro One integration). The token is
+            bound to this firm and carries the write scope the partner API
+            requires.
+          </span>
+        </label>
+      )}
       <label className="block">
         <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
           Name
@@ -73,7 +135,11 @@ export function NewTokenForm() {
         <input
           name="name"
           required
-          placeholder="Browser extension on my laptop"
+          placeholder={
+            kind === 'firm'
+              ? 'Zinpro One integration'
+              : 'Browser extension on my laptop'
+          }
           className="input"
         />
       </label>
@@ -84,9 +150,19 @@ export function NewTokenForm() {
       )}
       <div className="flex items-center justify-between gap-3">
         <p className="text-[11px] text-ink-500 dark:text-cream-100/55">
-          Default scope is <code className="font-mono">read</code>. Tokens
-          never expire automatically; revoke them from the list below when
-          you&rsquo;re done.
+          {kind === 'firm' ? (
+            <>
+              Scopes: <code className="font-mono">read, write</code>,
+              firm-bound. Hand it to the partner over a password-manager
+              share, never email or chat.
+            </>
+          ) : (
+            <>
+              Default scope is <code className="font-mono">read</code>. Tokens
+              never expire automatically; revoke them from the list below when
+              you&rsquo;re done.
+            </>
+          )}
         </p>
         <button type="submit" className="btn-primary" disabled={pending}>
           {pending ? 'Creating...' : 'Create token'}
