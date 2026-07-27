@@ -38,9 +38,14 @@ export default async function CounselInboxPage() {
   const intakes = (rows ?? []) as InboxIntake[];
   const folders = readRequestFolders(ctx.firm.metadata);
 
-  const isInternal = (i: InboxIntake): boolean =>
-    String(((i.intake_answers ?? {}) as Record<string, unknown>).submitted_by ?? '')
-      .trim().length > 0;
+  // Employee-filed means filed BY an employee, whichever door they used: the
+  // Hub stamps submitted_by, and a partner app (Zinpro One) stamps
+  // intake_answers.partner. Both are the client's own people - only matters
+  // with neither stamp are genuinely outside traffic.
+  const isInternal = (i: InboxIntake): boolean => {
+    const a = (i.intake_answers ?? {}) as Record<string, unknown>;
+    return String(a.submitted_by ?? '').trim().length > 0 || a.partner != null;
+  };
   const internal = intakes.filter(isInternal);
   const external = intakes.filter((i) => !isInternal(i));
 
@@ -54,13 +59,13 @@ export default async function CounselInboxPage() {
   const tabs: TabDef[] = [
     {
       id: 'internal',
-      label: 'Internal',
+      label: 'Employees',
       badge: openInternal > 0 ? openInternal : undefined,
       content: (
         <IntakeInbox
           intakes={internal}
           folders={folders}
-          emptyMessage="No internal requests yet. When an employee files a request from the Hub, it lands here."
+          emptyMessage="No employee requests yet. Requests filed from the Hub or a connected workplace app (like Zinpro One) land here."
         />
       ),
     },
@@ -72,7 +77,7 @@ export default async function CounselInboxPage() {
         <IntakeInbox
           intakes={external}
           folders={folders}
-          emptyMessage="No external requests yet. Outside-client matters and anything not filed by an employee will appear here."
+          emptyMessage="No external requests yet. Only outside-client matters appear here - employee requests never do."
         />
       ),
     },
@@ -86,10 +91,10 @@ export default async function CounselInboxPage() {
           <T>Request inbox</T>
         </h1>
         <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-          <T>Where everything lands.</T> <strong><T>Internal</T></strong> <T>is what
-          employees filed from the Hub.</T>{' '}
-          <strong><T>External</T></strong> <T>is outside-client matters and
-          anything not employee-filed. Need to create one yourself?</T>{' '}
+          <T>Where everything lands.</T> <strong><T>Employees</T></strong> <T>is what
+          your people filed - from the Hub or a connected workplace app.</T>{' '}
+          <strong><T>External</T></strong> <T>is outside-client matters only.
+          Need to create one yourself?</T>{' '}
           <Link
             href="/counsel/intake"
             className="underline text-forest-900 dark:text-cream-100"
