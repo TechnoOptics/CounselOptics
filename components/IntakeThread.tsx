@@ -126,22 +126,45 @@ export function IntakeThread({
         <ul className="space-y-3">
           {messages.map((m) => {
             const mine = m.role === viewerRole;
+            const isLegal = m.role === 'legal';
+            // Who is speaking has to be obvious at a glance: an initial chip in
+            // the side's colour, a named role badge ABOVE the words, and a
+            // coloured edge down the bubble. The old thread said it only in a
+            // 10px caption underneath, which read as decoration.
+            const initials = (m.name || '?')
+              .split(/\s+/).slice(0, 2).map((w) => w[0] ?? '').join('').toUpperCase();
             return (
-              <li
-                key={m.id}
-                className={`flex flex-col ${mine ? 'items-end' : 'items-start'}`}
-              >
+              <li key={m.id} className={`flex flex-col ${mine ? 'items-end' : 'items-start'}`}>
+                <div className={`flex items-center gap-2 mb-1 ${mine ? 'flex-row-reverse' : ''}`}>
+                  <span
+                    aria-hidden
+                    className={`grid h-6 w-6 place-items-center rounded-full text-[10px] font-bold ${
+                      isLegal ? 'bg-gold-500 text-forest-900' : 'bg-forest-700 text-cream-50'
+                    }`}
+                  >
+                    {initials}
+                  </span>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] ${
+                      isLegal
+                        ? 'bg-gold-500/20 text-gold-700 dark:text-gold-300 ring-1 ring-gold-500/40'
+                        : 'bg-forest-700/20 text-forest-800 dark:text-cream-100/90 ring-1 ring-forest-700/40'
+                    }`}
+                  >
+                    {isLegal ? 'Legal team' : 'Employee'}
+                  </span>
+                  <span className="text-[11px] font-medium text-ink-600 dark:text-cream-100/70">{m.name}</span>
+                </div>
                 <div
                   className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed whitespace-pre-wrap ${
-                    m.role === 'legal'
-                      ? 'bg-gold-500/15 text-ink-800 dark:text-cream-100/90 ring-1 ring-gold-500/25'
-                      : 'bg-forest-900/40 text-ink-800 dark:text-cream-100/90 ring-1 ring-forest-700/40'
+                    isLegal
+                      ? 'border-r-4 border-gold-500 bg-gold-500/10 text-ink-800 dark:text-cream-100/90 ring-1 ring-gold-500/25'
+                      : 'border-l-4 border-forest-700 bg-forest-900/30 text-ink-800 dark:text-cream-100/90 ring-1 ring-forest-700/40'
                   }`}
                 >
                   {renderWithMentions(m.text, names)}
                 </div>
-                <p className="mt-1 text-[10px] uppercase tracking-[0.14em] text-ink-400 dark:text-cream-100/60">
-                  {m.role === 'legal' ? 'Legal' : 'Requester'} · {m.name} ·{' '}
+                <p className="mt-1 text-[10px] text-ink-400 dark:text-cream-100/55">
                   {new Date(m.at).toLocaleString()}
                 </p>
               </li>
