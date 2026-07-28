@@ -65,15 +65,25 @@ export function RecordSection({
           aria-expanded={open}
           className="flex w-full items-center gap-2 px-5 py-3 text-left transition-colors hover:bg-cream-50/70 dark:hover:bg-forest-800/30"
         >
-          <span
+          <svg
             aria-hidden
-            className={`text-[10px] text-ink-400 transition-transform dark:text-cream-100/40 ${
+            width="11"
+            height="11"
+            viewBox="0 0 24 24"
+            fill="none"
+            className={`shrink-0 text-ink-400 transition-transform duration-200 dark:text-cream-100/45 ${
               open ? 'rotate-90' : ''
             }`}
           >
-            ▶
-          </span>
-          <span className="text-[12px] font-semibold uppercase tracking-[0.14em] text-ink-500 dark:text-cream-100/60">
+            <path
+              d="M9 6l6 6-6 6"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          <span className="text-[12px] font-semibold uppercase tracking-[0.14em] text-ink-600 dark:text-cream-100/75">
             {title}
           </span>
           {typeof count === 'number' && count > 0 && (

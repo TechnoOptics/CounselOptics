@@ -410,7 +410,10 @@ export function IntakeConversation({
                     >
                       {m.authorRole === 'legal' ? 'Legal' : 'Requester'}
                     </span>
-                    <span className="text-ink-400 dark:text-cream-100/35">
+                    <span
+                      className="text-ink-400 dark:text-cream-100/35"
+                      title={new Date(m.createdAt).toLocaleString()}
+                    >
                       {relativeTime(m.createdAt)}
                     </span>
                   </p>

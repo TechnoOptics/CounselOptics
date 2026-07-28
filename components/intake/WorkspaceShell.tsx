@@ -54,7 +54,10 @@ export function WorkspaceShell({
       }
       const top = el.getBoundingClientRect().top + window.scrollY;
       const footer = document.querySelector('footer')?.getBoundingClientRect().height ?? 0;
-      const h = `calc(100dvh - ${Math.round(top + footer + 12)}px)`;
+      const pad = parseFloat(
+        getComputedStyle(el.parentElement ?? el).paddingBottom || '0',
+      );
+      const h = `calc(100dvh - ${Math.round(top + footer + pad + 8)}px)`;
       setHeight(h);
       // The left nav rail sizes itself independently and was taller than the
       // workspace, which kept the document scrolling behind the pinned panes.
@@ -89,7 +92,7 @@ export function WorkspaceShell({
       <main
         aria-label={mainLabel}
         tabIndex={0}
-        className={`min-w-0 min-h-0 rounded-2xl border border-ink-200 bg-white dark:border-forest-700/50 dark:bg-forest-900/30 ${
+        className={`relative min-w-0 min-h-0 rounded-2xl border border-ink-200 bg-white shadow-sm dark:border-forest-700/60 dark:bg-forest-900/55 ${
           stacked ? '' : 'overflow-y-auto overscroll-contain [scrollbar-gutter:stable]'
         } [scroll-padding-top:4rem]`}
       >
