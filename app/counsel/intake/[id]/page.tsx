@@ -5,6 +5,10 @@ import { createServerSupabase } from '@/lib/supabase/server';
 import { ConflictCheckPanel } from './conflict-check-panel';
 import { IntakeConversation } from '@/components/intake/IntakeConversation';
 import { IntakeWorkPanel } from '@/components/intake/IntakeWorkPanel';
+import { WorkspaceShell } from '@/components/intake/WorkspaceShell';
+import { RecordSection } from '@/components/intake/RecordSection';
+import { AskAdvottic } from '@/components/counsel/AskAdvottic';
+import { ticketRef } from '@/lib/intake-conversation-types';
 import { loadIntakeConversationAction } from '@/lib/intake-conversation';
 import type { ThreadMessage } from '@/lib/intake-thread';
 import {
@@ -134,253 +138,168 @@ export default async function IntakeDetailPage({
   // The live conversation, the people on it, and its documents.
   const conv = await loadIntakeConversationAction(intake.id);
 
-  return (
-    <div className="space-y-6 animate-fade-up">
-      <p className="text-sm">
-        <Link
-          href="/counsel/intake"
-          className="text-ink-500 hover:text-forest-900 dark:hover:text-cream-100"
-        >
-          <T>&larr; Intake</T>
-        </Link>
-      </p>
+  const ref = String((ans.partner as Record<string, unknown> | undefined)?.externalId ?? '').trim()
+    || ticketRef(intake.id);
+  const priority = String(ans.priority ?? '').trim();
+  const dueBy = String(ans.due_by ?? '').trim();
 
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="eyebrow mb-1">
-            {isEmployeeReq ? <T>Employee request</T> : <T>Intake</T>}
-          </p>
-          <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100 break-words">
-            {intake.client_name}
-          </h1>
-          {isEmployeeReq && (
-            <span className="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-gold-500/15 ring-1 ring-gold-500/30 px-2.5 py-0.5 text-[11px] font-semibold text-gold-700 dark:text-gold-200">
-              <T>In-house · submitted by</T> {submittedBy}
-            </span>
-          )}
-          <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-1 font-mono">
-            {intake.matter_type ?? <T>Matter type not set</T>}
-            {intake.jurisdiction_state && ` · ${intake.jurisdiction_state}`}
-            {' · '}<T>created</T>{' '}
-            {new Date(intake.created_at).toLocaleString()}
-          </p>
-        </div>
+  const rail = (
+    <>
+      {/* Global ask lives in the rail, not across the top: a full-width bar
+          spans every pane, implies it searches all of them, and steals height
+          from each scroller at once. */}
+      <div className="shrink-0 [&>div]:!mb-0">
+        <AskAdvottic />
+      </div>
+      {conv.ok && (
+        <IntakeConversation
+          fill
+          intakeId={intake.id}
+          viewerRole="legal"
+          viewerUserId={conv.userId}
+          canPost={conv.canPost}
+          canUseInternal={conv.canUseInternal}
+          initialMessages={conv.messages}
+          mentionables={conv.mentionables}
+          emptyHint="No messages yet. Reply here and the requester is notified straight away."
+        />
+      )}
+    </>
+  );
+
+  return (
+    <div className="flex min-h-0 flex-col gap-3 animate-fade-up">
+      {/* Compact identity bar. Everything below scrolls; this does not. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        <Link
+          href="/counsel/inbox"
+          className="text-[12.5px] text-ink-500 hover:text-forest-900 dark:hover:text-cream-100"
+        >
+          <T>&larr; Requests</T>
+        </Link>
+        <span className="font-mono text-[12px] font-semibold text-gold-700 dark:text-gold-300">
+          {ref}
+        </span>
+        <h1 className="min-w-0 flex-1 truncate font-display text-xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
+          {intake.client_name}
+        </h1>
+        {isEmployeeReq && (
+          <span className="rounded-full bg-gold-500/15 px-2.5 py-0.5 text-[11px] font-semibold text-gold-700 ring-1 ring-gold-500/30 dark:text-gold-200">
+            <T>In-house</T> · {submittedBy}
+          </span>
+        )}
         <span
-          className={`shrink-0 inline-flex items-center px-2 py-1 rounded text-[11px] font-semibold uppercase tracking-[0.12em] ring-1 ${tone}`}
+          className={`inline-flex shrink-0 items-center rounded px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ring-1 ${tone}`}
         >
           {intake.status.replace(/_/g, ' ')}
         </span>
-      </header>
-
-      <div className="flex flex-wrap items-center gap-3">
-        <FolderPicker
-          firmId={ctx.firm.id}
-          intakeId={intake.id}
-          current={currentFolder}
-          folders={requestFolders}
-        />
       </div>
 
-      {/* The record sits in the centre; the live conversation and the working
-          panel run down the right so replying never means leaving the detail. */}
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(360px,440px)]">
-        <div className="min-w-0 space-y-6">
-          <Tabs
-            swipe
-            storageKey={`counsel-intake-${intake.id}`}
-        tabs={(() => {
-          const hasReview =
-            ans.review != null &&
-            typeof ans.review === 'object' &&
-            'grade' in (ans.review as object);
-          const overview: TabDef = {
-            id: 'overview',
-            label: 'Overview',
-            content: (
-              <div className="space-y-6">
-                {meta.length > 0 && (
-                  <section className="card p-5">
-                    <p className="eyebrow mb-3"><T>Request details</T></p>
-                    <dl className="grid sm:grid-cols-3 gap-x-4 gap-y-3">
-                      {meta.map((m) => (
-                        <div key={m.label}>
-                          <dt className="text-[10px] uppercase tracking-[0.16em] font-semibold text-ink-400 dark:text-cream-100/40 mb-0.5">
-                            <T>{m.label}</T>
-                          </dt>
-                          <dd className="text-[13px] text-ink-800 dark:text-cream-100/85">
-                            {m.value}
-                          </dd>
-                        </div>
-                      ))}
-                    </dl>
-                  </section>
-                )}
-
-                {questionAnswers.length > 0 && (
-                  <section className="card p-5">
-                    <p className="eyebrow mb-3"><T>Intake questions</T></p>
-                    <dl className="grid sm:grid-cols-2 gap-x-4 gap-y-3">
-                      {questionAnswers.map((qa) => (
-                        <div key={qa.id}>
-                          <dt className="text-[10px] uppercase tracking-[0.16em] font-semibold text-ink-400 dark:text-cream-100/40 mb-0.5">
-                            {qa.label}
-                          </dt>
-                          <dd className="text-[13px] text-ink-800 dark:text-cream-100/85 whitespace-pre-wrap">
-                            {qa.value}
-                          </dd>
-                        </div>
-                      ))}
-                    </dl>
-                  </section>
-                )}
-
-                <section className="card p-5 grid sm:grid-cols-2 gap-3">
-                  <div>
-                    <p className="eyebrow text-[10px] mb-1"><T>Email</T></p>
-                    <p className="text-[13px]">
-                      {intake.client_email ? (
-                        <a
-                          href={`mailto:${intake.client_email}`}
-                          className="underline"
-                        >
-                          {intake.client_email}
-                        </a>
-                      ) : (
-                        <span className="italic text-ink-500 dark:text-cream-100/55">
-                          <T>Not set</T>
-                        </span>
-                      )}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="eyebrow text-[10px] mb-1"><T>Phone</T></p>
-                    <p className="text-[13px]">
-                      {intake.client_phone ?? (
-                        <span className="italic text-ink-500 dark:text-cream-100/55">
-                          <T>Not set</T>
-                        </span>
-                      )}
-                    </p>
-                  </div>
-                  <div className="sm:col-span-2">
-                    <p className="eyebrow text-[10px] mb-1">
-                      <T>Matter summary</T>
-                    </p>
-                    <p className="text-[13px] text-ink-700 dark:text-cream-100/85 leading-relaxed whitespace-pre-wrap">
-                      {intake.matter_summary ?? <T>(none)</T>}
-                    </p>
-                  </div>
-                </section>
-
-                <section className="grid sm:grid-cols-2 gap-3">
-                  <div className="card p-4">
-                    <p className="eyebrow mb-2"><T>Other parties</T></p>
-                    {intake.opposing_parties.length === 0 ? (
-                      <p className="text-[13px] italic text-ink-500 dark:text-cream-100/55">
-                        <T>None listed.</T>
-                      </p>
-                    ) : (
-                      <ul className="space-y-1 text-[13px]">
-                        {intake.opposing_parties.map((p) => (
-                          <li key={p}>{p}</li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                  <div className="card p-4">
-                    <p className="eyebrow mb-2"><T>Related parties</T></p>
-                    {intake.related_parties.length === 0 ? (
-                      <p className="text-[13px] italic text-ink-500 dark:text-cream-100/55">
-                        <T>None listed.</T>
-                      </p>
-                    ) : (
-                      <ul className="space-y-1 text-[13px]">
-                        {intake.related_parties.map((p) => (
-                          <li key={p}>{p}</li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                </section>
-
-                <ConflictCheckPanel
-                  firmId={ctx.firm.id}
-                  intakeId={intake.id}
-                  status={intake.status}
-                  results={intake.conflict_results}
-                  notes={intake.conflict_check_notes}
-                />
-
-                <RequestActions
-                  firmId={ctx.firm.id}
-                  intakeId={intake.id}
-                  currentReminder={String(ans.reminder_at ?? '')}
-                  caseId={
-                    (intake as { case_id?: string | null }).case_id ?? null
-                  }
-                />
-              </div>
-            ),
-          };
-          const tabs: TabDef[] = [overview];
-          if (hasReview) {
-            tabs.push({
-              id: 'review',
-              label: 'Review',
-              content: (
-                <ReviewScorecard
-                  data={ans.review as DocScorecard}
-                  audience="legal"
-                />
-              ),
-            });
-          }
-          tabs.push({
-            id: 'analyze',
-            label: 'Analyze',
-            content: (
-              <div className="space-y-2">
-                <p className="eyebrow"><T>Analyze the submission</T></p>
-                <p className="text-[12px] text-ink-500 dark:text-cream-100/55 -mt-1">
-                  <T>Run an AI breakdown of what the submitted document /
-                  contract means, how the law applies, its bias, and
-                  the risky clauses.</T>
-                </p>
-                <AnalyzeStudio
-                  embedded
-                  initialText={String(intake.matter_summary ?? '')}
-                />
-              </div>
-            ),
-          });
-          tabs.push({
-            id: 'meeting',
-            label: 'Meeting',
-            content: (
-              <ScheduleMeetingPanel
-                firmId={ctx.firm.id}
-                intakeId={intake.id}
-                defaultTitle={`Advottic: ${intake.client_name}`}
-              />
-            ),
-          });
-          return tabs;
-        })()}
+      <WorkspaceShell side={rail}>
+        {/* Highlights: the few facts you need on every scroll position. */}
+        <div className="sticky top-0 z-10 flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-ink-100 bg-white/95 px-5 py-3 backdrop-blur dark:border-forest-800/60 dark:bg-forest-900/90">
+          <Highlight label="Type" value={intake.matter_type ?? '—'} />
+          {priority && <Highlight label="Priority" value={priority} />}
+          {dueBy && <Highlight label="Due" value={dueBy} />}
+          <Highlight
+            label="Owner"
+            value={conv.ok && conv.assignee ? conv.assignee.name : 'Unassigned'}
           />
+          <div className="ml-auto">
+            <FolderPicker
+              firmId={ctx.firm.id}
+              intakeId={intake.id}
+              current={currentFolder}
+              folders={requestFolders}
+            />
+          </div>
         </div>
 
+        {meta.length > 0 && (
+          <RecordSection id="details" title="Request details">
+            <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-3">
+              {meta.map((m) => (
+                <div key={m.label}>
+                  <dt className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-400 dark:text-cream-100/40">
+                    <T>{m.label}</T>
+                  </dt>
+                  <dd className="text-[13.5px] text-forest-900 dark:text-cream-100">{m.value}</dd>
+                </div>
+              ))}
+            </dl>
+          </RecordSection>
+        )}
+
+        {questionAnswers.length > 0 && (
+          <RecordSection id="questions" title="Intake questions" count={questionAnswers.length}>
+            <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+              {questionAnswers.map((q) => (
+                <div key={q.id}>
+                  <dt className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-400 dark:text-cream-100/40">
+                    {q.label}
+                  </dt>
+                  <dd className="text-[13.5px] text-forest-900 dark:text-cream-100">{q.value}</dd>
+                </div>
+              ))}
+            </dl>
+          </RecordSection>
+        )}
+
+        <RecordSection id="summary" title="Summary &amp; contact">
+          <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+            <div>
+              <dt className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-400 dark:text-cream-100/40">
+                <T>Email</T>
+              </dt>
+              <dd className="break-words text-[13.5px] text-forest-900 dark:text-cream-100">
+                {intake.client_email ?? '—'}
+              </dd>
+            </div>
+            <div>
+              <dt className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-400 dark:text-cream-100/40">
+                <T>Phone</T>
+              </dt>
+              <dd className="text-[13.5px] text-forest-900 dark:text-cream-100">
+                {intake.client_phone ?? '—'}
+              </dd>
+            </div>
+          </dl>
+          {intake.matter_summary && (
+            <p className="mt-4 max-w-[70ch] whitespace-pre-wrap text-[14px] leading-relaxed text-ink-700 dark:text-cream-100/85">
+              {intake.matter_summary}
+            </p>
+          )}
+        </RecordSection>
+
+        {(intake.opposing_parties?.length > 0 || intake.related_parties?.length > 0) && (
+          <RecordSection id="parties" title="Parties" defaultOpen={false}>
+            <div className="grid gap-6 sm:grid-cols-2">
+              <div>
+                <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-400 dark:text-cream-100/40">
+                  <T>Other parties</T>
+                </p>
+                <p className="text-[13.5px] text-forest-900 dark:text-cream-100">
+                  {intake.opposing_parties?.length ? intake.opposing_parties.join(', ') : '—'}
+                </p>
+              </div>
+              <div>
+                <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-400 dark:text-cream-100/40">
+                  <T>Related parties</T>
+                </p>
+                <p className="text-[13.5px] text-forest-900 dark:text-cream-100">
+                  {intake.related_parties?.length ? intake.related_parties.join(', ') : '—'}
+                </p>
+              </div>
+            </div>
+          </RecordSection>
+        )}
+
         {conv.ok && (
-          <aside className="space-y-4 lg:sticky lg:top-4">
-            <IntakeConversation
-              intakeId={intake.id}
-              viewerRole="legal"
-              viewerUserId={conv.userId}
-              canPost={conv.canPost}
-              canUseInternal={conv.canUseInternal}
-              initialMessages={conv.messages}
-              mentionables={conv.mentionables}
-              emptyHint="No messages yet. Reply here and the requester is notified straight away."
-            />
+          <RecordSection
+            id="people-docs"
+            title="People &amp; documents"
+            count={conv.documents.length}
+          >
             <IntakeWorkPanel
               intakeId={intake.id}
               canManage
@@ -390,9 +309,83 @@ export default async function IntakeDetailPage({
               documents={conv.documents}
               uploadRequests={conv.uploadRequests}
             />
-          </aside>
+          </RecordSection>
         )}
-      </div>
+
+        <RecordSection id="conflict" title="Conflict check">
+          <ConflictCheckPanel
+            firmId={ctx.firm.id}
+            intakeId={intake.id}
+            status={intake.status}
+            results={intake.conflict_results}
+            notes={intake.conflict_check_notes}
+          />
+        </RecordSection>
+
+        <RecordSection id="actions" title="Matter &amp; next steps">
+          <RequestActions
+            firmId={ctx.firm.id}
+            intakeId={intake.id}
+            currentReminder={String(ans.reminder_at ?? '')}
+            caseId={(intake as { case_id?: string | null }).case_id ?? null}
+          />
+        </RecordSection>
+
+        {ans.review != null && typeof ans.review === 'object' && 'grade' in (ans.review as object) && (
+          <RecordSection id="review" title="Advottic Review" defaultOpen={false}>
+            <ReviewScorecard data={ans.review as DocScorecard} audience="legal" />
+          </RecordSection>
+        )}
+
+        {/* Genuinely separate tools, each a full workspace of its own — the one
+            place tabs earn their keep here. */}
+        <RecordSection id="tools" title="Tools" defaultOpen={false}>
+          <Tabs
+            swipe
+            storageKey={`counsel-intake-tools-${intake.id}`}
+            tabs={[
+              {
+                id: 'analyze',
+                label: 'Analyze',
+                content: (
+                  <div className="space-y-2">
+                    <p className="text-[12px] text-ink-500 dark:text-cream-100/55">
+                      <T>Run an AI breakdown of what the submitted document means, how the law
+                      applies, its bias, and the risky clauses.</T>
+                    </p>
+                    <AnalyzeStudio embedded initialText={String(intake.matter_summary ?? '')} />
+                  </div>
+                ),
+              },
+              {
+                id: 'meeting',
+                label: 'Meeting',
+                content: (
+                  <ScheduleMeetingPanel
+                    firmId={ctx.firm.id}
+                    intakeId={intake.id}
+                    defaultTitle={`Advottic: ${intake.client_name}`}
+                  />
+                ),
+              },
+            ]}
+          />
+        </RecordSection>
+      </WorkspaceShell>
+    </div>
+  );
+}
+
+/** One fact in the sticky highlights strip. */
+function Highlight({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[9.5px] font-semibold uppercase tracking-[0.16em] text-ink-400 dark:text-cream-100/40">
+        <T>{label}</T>
+      </p>
+      <p className="truncate text-[13px] font-medium text-forest-900 dark:text-cream-100">
+        {value}
+      </p>
     </div>
   );
 }

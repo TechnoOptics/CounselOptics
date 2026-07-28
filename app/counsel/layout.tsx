@@ -279,7 +279,13 @@ export default async function CounselLayout({
                 welcome banner above the Ask bar and then handles its
                 own ordering, so we skip rendering it from the layout
                 for that one route. */}
-            {active && pathname !== '/counsel' && !surface.hideSearch ? (
+            {active &&
+            pathname !== '/counsel' &&
+            // A request detail is a two-pane workspace: it renders the Ask bar
+            // inside its right rail instead, so a full-width bar can't span
+            // both panes or steal height from either scroller.
+            !/^\/counsel\/intake\/[^/]+$/.test(pathname) &&
+            !surface.hideSearch ? (
               <AskAdvottic />
             ) : null}
             {children}

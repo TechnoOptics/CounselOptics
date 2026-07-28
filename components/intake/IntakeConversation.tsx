@@ -39,6 +39,7 @@ export function IntakeConversation({
   initialMessages,
   mentionables,
   emptyHint,
+  fill = false,
 }: {
   intakeId: string;
   viewerRole: 'legal' | 'employee';
@@ -48,6 +49,8 @@ export function IntakeConversation({
   initialMessages: IntakeMessage[];
   mentionables: IntakePerson[];
   emptyHint?: string;
+  /** Fill the parent pane's height instead of capping at a share of the viewport. */
+  fill?: boolean;
 }) {
   const [messages, setMessages] = useState<IntakeMessage[]>(initialMessages);
   const [text, setText] = useState('');
@@ -252,7 +255,11 @@ export function IntakeConversation({
   const internalCount = messages.filter((m) => m.visibility === 'internal').length;
 
   return (
-    <section className="flex flex-col overflow-hidden rounded-2xl border border-ink-200 bg-white dark:border-forest-700/50 dark:bg-forest-900/40">
+    <section
+      className={`flex flex-col overflow-hidden rounded-2xl border border-ink-200 bg-white dark:border-forest-700/50 dark:bg-forest-900/40 ${
+        fill ? 'h-full min-h-0' : ''
+      }`}
+    >
       <header className="flex flex-wrap items-center justify-between gap-2 border-b border-ink-100 px-4 py-3 dark:border-forest-800/60">
         <div className="flex items-center gap-2">
           <h2 className="text-[13px] font-semibold uppercase tracking-wider text-ink-500 dark:text-cream-100/55">
@@ -292,7 +299,13 @@ export function IntakeConversation({
         )}
       </header>
 
-      <div ref={scrollerRef} className="max-h-[62vh] min-h-[220px] space-y-1 overflow-y-auto px-4 py-4">
+      <div
+        ref={scrollerRef}
+        tabIndex={0}
+        className={`space-y-1 overflow-y-auto overscroll-contain px-4 py-4 ${
+          fill ? 'min-h-0 flex-1' : 'max-h-[62vh] min-h-[220px]'
+        }`}
+      >
         {visible.length === 0 && (
           <p className="py-10 text-center text-[13px] text-ink-400 dark:text-cream-100/40">
             {emptyHint ?? 'No messages yet.'}
