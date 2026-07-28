@@ -181,21 +181,10 @@ export default async function IntakeDetailPage({
         />
       </div>
 
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+      {/* The record sits in the centre; the live conversation and the working
+          panel run down the right so replying never means leaving the detail. */}
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(360px,440px)]">
         <div className="min-w-0 space-y-6">
-          {conv.ok && (
-            <IntakeConversation
-              intakeId={intake.id}
-              viewerRole="legal"
-              viewerUserId={conv.userId}
-              canPost={conv.canPost}
-              canUseInternal={conv.canUseInternal}
-              initialMessages={conv.messages}
-              mentionables={conv.mentionables}
-              emptyHint="No messages yet. Reply here and the requester is notified straight away."
-            />
-          )}
-
           <Tabs
             swipe
             storageKey={`counsel-intake-${intake.id}`}
@@ -381,7 +370,17 @@ export default async function IntakeDetailPage({
         </div>
 
         {conv.ok && (
-          <aside className="lg:sticky lg:top-4">
+          <aside className="space-y-4 lg:sticky lg:top-4">
+            <IntakeConversation
+              intakeId={intake.id}
+              viewerRole="legal"
+              viewerUserId={conv.userId}
+              canPost={conv.canPost}
+              canUseInternal={conv.canUseInternal}
+              initialMessages={conv.messages}
+              mentionables={conv.mentionables}
+              emptyHint="No messages yet. Reply here and the requester is notified straight away."
+            />
             <IntakeWorkPanel
               intakeId={intake.id}
               canManage

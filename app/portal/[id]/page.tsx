@@ -185,21 +185,9 @@ export default async function PortalRequestPage({
         </ol>
       </section>
 
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+      {/* Your request in the centre, the conversation with legal down the right. */}
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(340px,420px)]">
         <div className="min-w-0 space-y-6">
-          {conv.ok && (
-            <IntakeConversation
-              intakeId={intake.id}
-              viewerRole="employee"
-              viewerUserId={conv.userId}
-              canPost={conv.canPost}
-              canUseInternal={false}
-              initialMessages={conv.messages}
-              mentionables={conv.mentionables}
-              emptyHint="No messages yet. Ask a question here and your legal team is notified right away."
-            />
-          )}
-
           <Tabs
             swipe
             storageKey={`portal-request-${intake.id}`}
@@ -263,7 +251,17 @@ export default async function PortalRequestPage({
         </div>
 
         {conv.ok && (
-          <aside className="lg:sticky lg:top-4">
+          <aside className="space-y-4 lg:sticky lg:top-4">
+            <IntakeConversation
+              intakeId={intake.id}
+              viewerRole="employee"
+              viewerUserId={conv.userId}
+              canPost={conv.canPost}
+              canUseInternal={false}
+              initialMessages={conv.messages}
+              mentionables={conv.mentionables}
+              emptyHint="No messages yet. Ask a question here and your legal team is notified right away."
+            />
             <IntakeWorkPanel
               intakeId={intake.id}
               canManage={false}
