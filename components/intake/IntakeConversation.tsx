@@ -14,6 +14,7 @@ import {
   formatBytes,
   initialsOf,
   mergeMessages,
+  participantStyle,
   relativeTime,
   shouldGroupWithPrevious,
   type IntakeAttachment,
@@ -319,24 +320,43 @@ export function IntakeConversation({
             );
           }
 
+          // Classic two-sided chat: the requester speaks on the left, the
+          // legal team on the right — the same way round on both surfaces, so
+          // a screenshot of a thread always reads identically.
+          const onRight = m.authorRole === 'legal';
+          const style = participantStyle(m.authorUserId ?? m.authorName);
+
           return (
-            <div key={m.id} id={`m-${m.id}`} className={`flex gap-2.5 ${grouped ? 'pt-0.5' : 'pt-3'}`}>
+            <div
+              key={m.id}
+              id={`m-${m.id}`}
+              className={`flex gap-2.5 ${grouped ? 'pt-0.5' : 'pt-3'} ${
+                onRight ? 'flex-row-reverse' : 'flex-row'
+              }`}
+            >
               <div className="w-8 shrink-0">
                 {!grouped && (
                   <span
-                    className={`flex h-8 w-8 items-center justify-center rounded-full text-[11px] font-semibold ${avatarTint(
-                      m.authorUserId ?? m.authorName,
-                    )}`}
+                    className={`flex h-8 w-8 items-center justify-center rounded-full text-[11px] font-semibold ${style.avatar}`}
                     aria-hidden
                   >
                     {initialsOf(m.authorName)}
                   </span>
                 )}
               </div>
-              <div className="min-w-0 flex-1">
+
+              <div
+                className={`flex min-w-0 max-w-[82%] flex-col ${
+                  onRight ? 'items-end' : 'items-start'
+                }`}
+              >
                 {!grouped && (
-                  <p className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px]">
-                    <span className="font-semibold text-forest-900 dark:text-cream-100">
+                  <p
+                    className={`mb-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] ${
+                      onRight ? 'flex-row-reverse' : ''
+                    }`}
+                  >
+                    <span className={`font-semibold ${style.name}`}>
                       {mine ? 'You' : m.authorName}
                     </span>
                     <span
@@ -348,14 +368,19 @@ export function IntakeConversation({
                     >
                       {m.authorRole === 'legal' ? 'Legal' : 'Requester'}
                     </span>
-                    <span className="text-ink-400 dark:text-cream-100/35">{relativeTime(m.createdAt)}</span>
+                    <span className="text-ink-400 dark:text-cream-100/35">
+                      {relativeTime(m.createdAt)}
+                    </span>
                   </p>
                 )}
+
                 <div
-                  className={`rounded-xl px-3 py-2 text-[13.5px] leading-relaxed ${
+                  className={`border px-3 py-2 text-[13.5px] leading-relaxed text-forest-900 dark:text-cream-100/90 ${
+                    onRight ? 'rounded-2xl rounded-tr-sm' : 'rounded-2xl rounded-tl-sm'
+                  } ${
                     isInternal
-                      ? 'border border-amber-400/40 bg-amber-500/[0.07] text-forest-900 dark:text-cream-100/90'
-                      : 'bg-ink-50 text-forest-900 dark:bg-forest-950/50 dark:text-cream-100/90'
+                      ? 'border-amber-400/45 bg-amber-500/[0.09]'
+                      : `${style.bubble}`
                   }`}
                 >
                   {isInternal && (
@@ -363,7 +388,9 @@ export function IntakeConversation({
                       Internal note · not visible to the requester
                     </p>
                   )}
-                  {m.body && <p className="whitespace-pre-wrap">{highlightMentions(m.body, mentionables)}</p>}
+                  {m.body && (
+                    <p className="whitespace-pre-wrap">{highlightMentions(m.body, mentionables)}</p>
+                  )}
                   {m.attachments.length > 0 && (
                     <ul className={`flex flex-wrap gap-1.5 ${m.body ? 'mt-2' : ''}`}>
                       {m.attachments.map((a) => (
@@ -371,12 +398,14 @@ export function IntakeConversation({
                           <button
                             type="button"
                             onClick={() => void openFile(a.path)}
-                            className="flex items-center gap-1.5 rounded-lg border border-ink-200 bg-white px-2.5 py-1.5 text-[12px] text-forest-900 hover:border-gold-500/60 dark:border-forest-700/50 dark:bg-forest-900 dark:text-cream-100"
+                            className="flex items-center gap-1.5 rounded-lg border border-ink-200 bg-white/80 px-2.5 py-1.5 text-[12px] text-forest-900 hover:border-gold-500/60 dark:border-forest-700/50 dark:bg-forest-900/70 dark:text-cream-100"
                           >
                             <span aria-hidden>📎</span>
-                            <span className="max-w-[190px] truncate">{a.name}</span>
+                            <span className="max-w-[170px] truncate">{a.name}</span>
                             {a.size > 0 && (
-                              <span className="text-ink-400 dark:text-cream-100/40">{formatBytes(a.size)}</span>
+                              <span className="text-ink-400 dark:text-cream-100/40">
+                                {formatBytes(a.size)}
+                              </span>
                             )}
                           </button>
                         </li>

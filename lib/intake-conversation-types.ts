@@ -87,20 +87,73 @@ export function initialsOf(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-/** Deterministic avatar tint so the same person keeps the same colour. */
-export function avatarTint(seed: string): string {
-  const palette = [
-    'bg-gold-500/20 text-gold-800 dark:text-gold-200',
-    'bg-forest-500/20 text-forest-800 dark:text-forest-100',
-    'bg-sky-500/20 text-sky-800 dark:text-sky-200',
-    'bg-violet-500/20 text-violet-800 dark:text-violet-200',
-    'bg-rose-500/20 text-rose-800 dark:text-rose-200',
-    'bg-amber-500/20 text-amber-800 dark:text-amber-200',
-    'bg-emerald-500/20 text-emerald-800 dark:text-emerald-200',
-  ];
+/**
+ * Every participant gets their own colour, held stable by hashing their id,
+ * so you can tell who is speaking at a glance in a busy thread. Which SIDE a
+ * message sits on carries the role (employee left, legal right), so the
+ * colour is free to identify the person rather than their team.
+ */
+export type ParticipantStyle = {
+  /** Message bubble background + border. */
+  bubble: string;
+  /** Avatar chip. */
+  avatar: string;
+  /** The author's name in the message header. */
+  name: string;
+};
+
+const PARTICIPANT_PALETTE: ParticipantStyle[] = [
+  {
+    bubble: 'bg-gold-500/[0.12] border-gold-500/25',
+    avatar: 'bg-gold-500/25 text-gold-800 dark:text-gold-100',
+    name: 'text-gold-800 dark:text-gold-200',
+  },
+  {
+    bubble: 'bg-sky-500/[0.12] border-sky-500/25',
+    avatar: 'bg-sky-500/25 text-sky-800 dark:text-sky-100',
+    name: 'text-sky-800 dark:text-sky-200',
+  },
+  {
+    bubble: 'bg-emerald-500/[0.12] border-emerald-500/25',
+    avatar: 'bg-emerald-500/25 text-emerald-800 dark:text-emerald-100',
+    name: 'text-emerald-800 dark:text-emerald-200',
+  },
+  {
+    bubble: 'bg-violet-500/[0.12] border-violet-500/25',
+    avatar: 'bg-violet-500/25 text-violet-800 dark:text-violet-100',
+    name: 'text-violet-800 dark:text-violet-200',
+  },
+  {
+    bubble: 'bg-rose-500/[0.12] border-rose-500/25',
+    avatar: 'bg-rose-500/25 text-rose-800 dark:text-rose-100',
+    name: 'text-rose-800 dark:text-rose-200',
+  },
+  {
+    bubble: 'bg-teal-500/[0.12] border-teal-500/25',
+    avatar: 'bg-teal-500/25 text-teal-800 dark:text-teal-100',
+    name: 'text-teal-800 dark:text-teal-200',
+  },
+  {
+    bubble: 'bg-indigo-500/[0.12] border-indigo-500/25',
+    avatar: 'bg-indigo-500/25 text-indigo-800 dark:text-indigo-100',
+    name: 'text-indigo-800 dark:text-indigo-200',
+  },
+  {
+    bubble: 'bg-amber-500/[0.12] border-amber-500/25',
+    avatar: 'bg-amber-500/25 text-amber-800 dark:text-amber-100',
+    name: 'text-amber-800 dark:text-amber-200',
+  },
+];
+
+export function participantStyle(seed: string): ParticipantStyle {
   let h = 0;
   for (let i = 0; i < seed.length; i += 1) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
-  return palette[h % palette.length];
+  return PARTICIPANT_PALETTE[h % PARTICIPANT_PALETTE.length];
+}
+
+/** Just the avatar classes — same colour the chat gives this person. */
+export function avatarTint(seed: string): string {
+  return participantStyle(seed).avatar;
 }
 
 export function formatBytes(bytes: number | null | undefined): string {
