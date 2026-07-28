@@ -3,7 +3,9 @@ import { notFound, redirect } from 'next/navigation';
 import { getActiveFirmContext, listFirmMembers } from '@/lib/firm-storage';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { ConflictCheckPanel } from './conflict-check-panel';
-import { IntakeThread } from '@/components/IntakeThread';
+import { IntakeConversation } from '@/components/intake/IntakeConversation';
+import { IntakeWorkPanel } from '@/components/intake/IntakeWorkPanel';
+import { loadIntakeConversationAction } from '@/lib/intake-conversation';
 import type { ThreadMessage } from '@/lib/intake-thread';
 import {
   readRequestFolders,
@@ -129,6 +131,9 @@ export default async function IntakeDetailPage({
   }
   const mentionables = [...mDedupe].map(([id, name]) => ({ id, name }));
 
+  // The live conversation, the people on it, and its documents.
+  const conv = await loadIntakeConversationAction(intake.id);
+
   return (
     <div className="space-y-6 animate-fade-up">
       <p className="text-sm">
@@ -176,9 +181,24 @@ export default async function IntakeDetailPage({
         />
       </div>
 
-      <Tabs
-        swipe
-        storageKey={`counsel-intake-${intake.id}`}
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="min-w-0 space-y-6">
+          {conv.ok && (
+            <IntakeConversation
+              intakeId={intake.id}
+              viewerRole="legal"
+              viewerUserId={conv.userId}
+              canPost={conv.canPost}
+              canUseInternal={conv.canUseInternal}
+              initialMessages={conv.messages}
+              mentionables={conv.mentionables}
+              emptyHint="No messages yet. Reply here and the requester is notified straight away."
+            />
+          )}
+
+          <Tabs
+            swipe
+            storageKey={`counsel-intake-${intake.id}`}
         tabs={(() => {
           const hasReview =
             ans.review != null &&
@@ -355,22 +375,25 @@ export default async function IntakeDetailPage({
               />
             ),
           });
-          tabs.push({
-            id: 'messages',
-            label: 'Messages',
-            badge: thread.length > 0 ? thread.length : undefined,
-            content: (
-              <IntakeThread
-                intakeId={intake.id}
-                messages={thread}
-                viewerRole="legal"
-                mentionables={mentionables}
-              />
-            ),
-          });
           return tabs;
         })()}
-      />
+          />
+        </div>
+
+        {conv.ok && (
+          <aside className="lg:sticky lg:top-4">
+            <IntakeWorkPanel
+              intakeId={intake.id}
+              canManage
+              assignee={conv.assignee}
+              participants={conv.participants}
+              people={conv.mentionables}
+              documents={conv.documents}
+              uploadRequests={conv.uploadRequests}
+            />
+          </aside>
+        )}
+      </div>
     </div>
   );
 }

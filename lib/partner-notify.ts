@@ -208,7 +208,17 @@ async function firePartnerWebhook(
 export async function partnerTicketEvent(
   intakeIdOrRow: string | IntakeLite,
   event: PartnerEvent,
-  opts?: { message?: ThreadMessage; firmName?: string | null },
+  opts?: {
+    message?: ThreadMessage;
+    firmName?: string | null;
+    /**
+     * Fire the outbound partner webhook but skip every bell + email. The
+     * conversation surface (lib/intake-conversation.ts) sends its own
+     * ticket-branded notifications, so it opts out here rather than having
+     * people receive two emails for one reply.
+     */
+    webhookOnly?: boolean;
+  },
 ): Promise<void> {
   try {
     const admin = createAdminSupabase();
@@ -241,8 +251,11 @@ export async function partnerTicketEvent(
     const who = row.client_name || row.client_email || 'An employee';
     const link = `/counsel/intake/${row.id}`;
 
+    const quiet = opts?.webhookOnly === true;
+
     switch (event) {
       case 'ticket.created':
+        if (quiet) break;
         await notifyLegalTeam(admin, row.firm_id, {
           title: 'New legal request from the company app',
           body: `${who} filed "${subject}" from the partner app.`,
@@ -251,6 +264,7 @@ export async function partnerTicketEvent(
         });
         break;
       case 'ticket.employee_replied':
+        if (quiet) break;
         await notifyLegalTeam(admin, row.firm_id, {
           title: `${who} replied to a request`,
           body:
@@ -262,14 +276,16 @@ export async function partnerTicketEvent(
         });
         break;
       case 'ticket.legal_replied':
-        await emailEmployee(row, {
-          subject: `Legal replied to your request: ${subject}`,
-          body:
-            opts?.message?.text && opts.message.text.length > 0
-              ? `${opts.message.name || 'The legal team'} replied: "${opts.message.text.slice(0, 200)}${opts.message.text.length > 200 ? '…' : ''}"`
-              : 'The legal team replied to your request.',
-          firmName,
-        });
+        if (!quiet) {
+          await emailEmployee(row, {
+            subject: `Legal replied to your request: ${subject}`,
+            body:
+              opts?.message?.text && opts.message.text.length > 0
+                ? `${opts.message.name || 'The legal team'} replied: "${opts.message.text.slice(0, 200)}${opts.message.text.length > 200 ? '…' : ''}"`
+                : 'The legal team replied to your request.',
+            firmName,
+          });
+        }
         await firePartnerWebhook(admin, row, event, {
           message: opts?.message
             ? {
@@ -285,7 +301,7 @@ export async function partnerTicketEvent(
       case 'ticket.status_changed': {
         await firePartnerWebhook(admin, row, event, {});
         // Terminal states also close the loop with the employee directly.
-        if (row.status === 'converted' || row.status === 'rejected') {
+        if (!quiet && (row.status === 'converted' || row.status === 'rejected')) {
           await emailEmployee(row, {
             subject:
               row.status === 'converted'

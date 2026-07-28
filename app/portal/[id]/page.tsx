@@ -3,7 +3,9 @@ import { notFound, redirect } from 'next/navigation';
 import { getCurrentUser } from '@/lib/supabase/server';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { getWorkspacePersona } from '@/lib/persona';
-import { IntakeThread, } from '@/components/IntakeThread';
+import { IntakeConversation } from '@/components/intake/IntakeConversation';
+import { IntakeWorkPanel } from '@/components/intake/IntakeWorkPanel';
+import { loadIntakeConversationAction } from '@/lib/intake-conversation';
 import { ReviewScorecard } from '@/components/ReviewScorecard';
 import type { DocScorecard } from '@/lib/doc-review';
 import { Tabs, type TabDef } from '@/components/Tabs';
@@ -99,6 +101,7 @@ export default async function PortalRequestPage({
     .select('user_id, display_name')
     .eq('firm_id', persona.firm.id)
     .limit(100);
+  const conv = await loadIntakeConversationAction(intake.id);
   const mentionables = ((memRows ?? []) as Array<{
     user_id: string | null;
     display_name: string | null;
@@ -182,9 +185,24 @@ export default async function PortalRequestPage({
         </ol>
       </section>
 
-      <Tabs
-        swipe
-        storageKey={`portal-request-${intake.id}`}
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="min-w-0 space-y-6">
+          {conv.ok && (
+            <IntakeConversation
+              intakeId={intake.id}
+              viewerRole="employee"
+              viewerUserId={conv.userId}
+              canPost={conv.canPost}
+              canUseInternal={false}
+              initialMessages={conv.messages}
+              mentionables={conv.mentionables}
+              emptyHint="No messages yet. Ask a question here and your legal team is notified right away."
+            />
+          )}
+
+          <Tabs
+            swipe
+            storageKey={`portal-request-${intake.id}`}
         tabs={(() => {
           const hasReview =
             ans.review != null &&
@@ -239,23 +257,25 @@ export default async function PortalRequestPage({
               ),
             });
           }
-          tabs.push({
-            id: 'messages',
-            label: 'Messages',
-            badge: thread.length > 0 ? thread.length : undefined,
-            content: (
-              <IntakeThread
-                intakeId={intake.id}
-                messages={thread}
-                viewerRole="employee"
-                readOnly={!persona.entitlements.includes('requests.message')}
-                mentionables={mentionables}
-              />
-            ),
-          });
           return tabs;
         })()}
-      />
+          />
+        </div>
+
+        {conv.ok && (
+          <aside className="lg:sticky lg:top-4">
+            <IntakeWorkPanel
+              intakeId={intake.id}
+              canManage={false}
+              assignee={conv.assignee}
+              participants={conv.participants}
+              people={conv.mentionables}
+              documents={conv.documents}
+              uploadRequests={[]}
+            />
+          </aside>
+        )}
+      </div>
     </div>
   );
 }

@@ -1,0 +1,159 @@
+/**
+ * Shared types + pure helpers for the intake (legal request) conversation.
+ * Deliberately outside the `'use server'` action module so client components
+ * can import them without pulling server-only code into the bundle.
+ */
+
+export type MessageVisibility = 'shared' | 'internal';
+export type MessageAuthorRole = 'employee' | 'legal' | 'system';
+
+export type IntakeAttachment = {
+  name: string;
+  path: string;
+  size: number;
+  type: string;
+  /** firm_documents.id — set when the file was filed into the ticket's documents. */
+  documentId?: string | null;
+};
+
+export type IntakeMessage = {
+  id: string;
+  intakeId: string;
+  authorUserId: string | null;
+  authorName: string;
+  authorRole: MessageAuthorRole;
+  visibility: MessageVisibility;
+  body: string;
+  attachments: IntakeAttachment[];
+  mentions: string[];
+  kind: 'message' | 'event';
+  eventType: string | null;
+  createdAt: string;
+};
+
+/** Someone who can be @-mentioned or invited onto a ticket. */
+export type IntakePerson = {
+  userId: string;
+  name: string;
+  avatarUrl: string | null;
+  /** 'legal' = firm member, 'employee' = the requester or an invited colleague. */
+  side: 'legal' | 'employee';
+  role?: string | null;
+};
+
+export type IntakeParticipant = IntakePerson & {
+  participantRole: 'watcher' | 'assignee';
+};
+
+export type IntakeDocument = {
+  id: string;
+  name: string;
+  path: string;
+  size: number | null;
+  mimeType: string | null;
+  status: string;
+  uploadedAt: string;
+  /** 'filed' = came in with the original request, 'chat' = shared in the conversation. */
+  origin: 'filed' | 'chat' | 'requested';
+};
+
+export type IntakeUploadRequest = {
+  id: string;
+  label: string;
+  note: string | null;
+  token: string;
+  expiresAt: string;
+  revokedAt: string | null;
+  completedAt: string | null;
+  uploadCount: number;
+  createdAt: string;
+};
+
+/**
+ * A short, human-quotable reference for a ticket ("REQ-4F2A9C"). Derived from
+ * the uuid so it needs no column and never collides in practice. Partner
+ * tickets keep their own externalId — show that instead when present.
+ */
+export function ticketRef(intakeId: string): string {
+  const hex = intakeId.replace(/-/g, '').slice(0, 6).toUpperCase();
+  return `REQ-${hex}`;
+}
+
+/** Up to two initials for an avatar chip. */
+export function initialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+/** Deterministic avatar tint so the same person keeps the same colour. */
+export function avatarTint(seed: string): string {
+  const palette = [
+    'bg-gold-500/20 text-gold-800 dark:text-gold-200',
+    'bg-forest-500/20 text-forest-800 dark:text-forest-100',
+    'bg-sky-500/20 text-sky-800 dark:text-sky-200',
+    'bg-violet-500/20 text-violet-800 dark:text-violet-200',
+    'bg-rose-500/20 text-rose-800 dark:text-rose-200',
+    'bg-amber-500/20 text-amber-800 dark:text-amber-200',
+    'bg-emerald-500/20 text-emerald-800 dark:text-emerald-200',
+  ];
+  let h = 0;
+  for (let i = 0; i < seed.length; i += 1) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  return palette[h % palette.length];
+}
+
+export function formatBytes(bytes: number | null | undefined): string {
+  if (!bytes || bytes <= 0) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/** "just now" / "12 min ago" / "Tue 3:40 PM" — quiet, never alarming. */
+export function relativeTime(iso: string, now: number = Date.now()): string {
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return '';
+  const diff = Math.max(0, now - t);
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return 'just now';
+  if (min < 60) return `${min} min ago`;
+  const hrs = Math.floor(min / 60);
+  if (hrs < 24) return `${hrs} hr${hrs === 1 ? '' : 's'} ago`;
+  const d = new Date(iso);
+  const days = Math.floor(hrs / 24);
+  if (days < 7) {
+    return d.toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' });
+  }
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+/** Group consecutive messages by the same author within 5 minutes. */
+export function shouldGroupWithPrevious(
+  msg: IntakeMessage,
+  prev: IntakeMessage | undefined,
+): boolean {
+  if (!prev) return false;
+  if (prev.kind === 'event' || msg.kind === 'event') return false;
+  if (prev.authorUserId !== msg.authorUserId || prev.authorName !== msg.authorName) return false;
+  if (prev.visibility !== msg.visibility) return false;
+  const gap = new Date(msg.createdAt).getTime() - new Date(prev.createdAt).getTime();
+  return gap >= 0 && gap < 5 * 60 * 1000;
+}
+
+/** Merge incoming rows into a list, de-duped by id and sorted oldest-first. */
+export function mergeMessages(
+  existing: IntakeMessage[],
+  incoming: IntakeMessage[],
+): IntakeMessage[] {
+  if (incoming.length === 0) return existing;
+  const byId = new Map(existing.map((m) => [m.id, m]));
+  for (const m of incoming) byId.set(m.id, m);
+  return [...byId.values()].sort((a, b) =>
+    a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0,
+  );
+}
+
+export const MAX_MESSAGE_CHARS = 8000;
+export const MAX_CHAT_FILES = 6;
+export const MAX_CHAT_FILE_BYTES = 25 * 1024 * 1024;

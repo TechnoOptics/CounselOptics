@@ -559,3 +559,116 @@ function escapeHtml(s: string): string {
 function escapeAttribute(s: string): string {
   return escapeHtml(s);
 }
+
+/**
+ * The one branded template for everything that happens on a legal request:
+ * a reply, an @-mention, a document, an invitation, a status change.
+ *
+ * Design goals (these are the difference between "an alert" and "a tool
+ * people trust"): the firm's own logo at the top so it reads as coming from
+ * their legal team, the ticket reference and title so it is obvious what
+ * this is about without opening anything, exactly WHO did WHAT, a quoted
+ * excerpt of the message itself, and a single button that lands on the
+ * precise message rather than a generic inbox.
+ */
+export function buildIntakeActivityEmailHtml(input: {
+  firmName: string;
+  logoUrl?: string | null;
+  /** Small uppercase kicker, e.g. "New reply". */
+  eyebrow: string;
+  /** The sentence that says what happened, e.g. "Dana replied to your request". */
+  headline: string;
+  ticketRef: string;
+  ticketTitle: string;
+  actorName: string;
+  actorRole: string;
+  bodyPreview?: string | null;
+  attachments?: string[];
+  meta?: { label: string; value: string }[];
+  link: string;
+  ctaLabel: string;
+  footerNote?: string | null;
+  /** Marks the email as legal-team-only (internal note fan-out). */
+  internal?: boolean;
+}): string {
+  const brand = (input.firmName || 'Advottic').trim() || 'Advottic';
+  const header = input.logoUrl
+    ? `<img src="${escapeAttribute(input.logoUrl)}" alt="${escapeAttribute(brand)}" height="40" style="display:block;max-height:40px;width:auto;border:0;outline:none;text-decoration:none;" />`
+    : `<p style="margin:0;color:#e8c878;font-size:18px;letter-spacing:0.16em;text-transform:uppercase;font-weight:700;">${escapeHtml(brand)}</p>`;
+
+  const quoted = input.bodyPreview?.trim()
+    ? `<div style="margin:0 0 20px;padding:12px 16px;border-left:3px solid #c9a24a;background:#faf8f2;border-radius:0 8px 8px 0;">
+         <p style="margin:0;color:#3f3f46;font-size:14px;line-height:1.6;white-space:pre-wrap;">${escapeHtml(
+           input.bodyPreview.length > 600
+             ? `${input.bodyPreview.slice(0, 600)}…`
+             : input.bodyPreview,
+         )}</p>
+       </div>`
+    : '';
+
+  const files = (input.attachments ?? []).filter(Boolean);
+  const fileList = files.length
+    ? `<p style="margin:0 0 18px;color:#52525b;font-size:13px;line-height:1.7;">
+         <strong style="color:#3f3f46;">${files.length === 1 ? 'Attached file' : `${files.length} attached files`}:</strong><br />
+         ${files.map((f) => `&#128206;&nbsp;${escapeHtml(f)}`).join('<br />')}
+       </p>`
+    : '';
+
+  const metaRows = (input.meta ?? []).filter((m) => m.value);
+  const metaTable = metaRows.length
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:0 0 22px;border-top:1px solid #e4e4e7;">
+         ${metaRows
+           .map(
+             (m) => `<tr>
+               <td style="padding:8px 0 0;color:#a1a1aa;font-size:11px;text-transform:uppercase;letter-spacing:0.1em;width:38%;">${escapeHtml(m.label)}</td>
+               <td style="padding:8px 0 0;color:#3f3f46;font-size:13px;font-weight:600;">${escapeHtml(m.value)}</td>
+             </tr>`,
+           )
+           .join('')}
+       </table>`
+    : '';
+
+  const internalBadge = input.internal
+    ? `<span style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#fef3c7;color:#92400e;font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;">Internal only</span>`
+    : '';
+
+  return `<!doctype html>
+<html><body style="margin:0;padding:0;background:#0a0a0b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif;color:#0f2d24;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0a0a0b;padding:32px 16px;">
+    <tr><td align="center">
+      <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden;">
+        <tr><td style="background:#0b0b0c;border-bottom:2px solid #e8c878;padding:20px 32px;">${header}</td></tr>
+        <tr><td style="padding:26px 32px 8px;">
+          <p style="margin:0 0 6px;color:#a1a1aa;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;font-weight:700;">${escapeHtml(input.eyebrow)}${internalBadge}</p>
+          <h1 style="margin:0 0 4px;color:#0f2d24;font-size:20px;line-height:1.3;font-weight:600;letter-spacing:-0.01em;">${escapeHtml(input.headline)}</h1>
+          <p style="margin:0 0 18px;color:#71717a;font-size:13px;line-height:1.5;">
+            <span style="font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:#c9a24a;font-weight:700;">${escapeHtml(input.ticketRef)}</span>
+            &nbsp;&middot;&nbsp;${escapeHtml(input.ticketTitle)}
+          </p>
+          <p style="margin:0 0 14px;color:#3f3f46;font-size:13px;">
+            <strong>${escapeHtml(input.actorName)}</strong>
+            <span style="color:#a1a1aa;">&middot; ${escapeHtml(input.actorRole)}</span>
+          </p>
+          ${quoted}
+          ${fileList}
+          ${metaTable}
+          <p style="margin:0 0 22px;">
+            <a href="${escapeAttribute(input.link)}" style="display:inline-block;background:#0b0b0c;color:#e8c878;text-decoration:none;padding:13px 26px;border-radius:10px;font-weight:700;font-size:14px;letter-spacing:-0.005em;">${escapeHtml(input.ctaLabel)}</a>
+          </p>
+          <p style="margin:0 0 6px;color:#a1a1aa;font-size:11.5px;">Or paste this link into your browser:</p>
+          <p style="margin:0 0 20px;word-break:break-all;color:#71717a;font-size:11px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;">${escapeHtml(input.link)}</p>
+          ${
+            input.footerNote
+              ? `<p style="margin:0;color:#a1a1aa;font-size:11.5px;line-height:1.6;">${escapeHtml(input.footerNote)}</p>`
+              : ''
+          }
+        </td></tr>
+        <tr><td style="padding:0 32px 26px;">
+          <hr style="border:none;border-top:1px solid #e4e4e7;margin:0 0 12px;" />
+          <p style="margin:0;color:#a1a1aa;font-size:11px;letter-spacing:0.04em;">&copy; ${new Date().getFullYear()} ${escapeHtml(brand)} &middot; Powered by Techno Optics</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+}

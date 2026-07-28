@@ -7,6 +7,14 @@ import { checkRateLimit } from './rate-limit';
 import type { ThreadMessage } from './intake-thread';
 import { readPartnerConfig, type PartnerQuestion } from './partner-config-core';
 import { partnerTicketEvent } from './partner-notify';
+import {
+  INTAKE_COLS as CONV_INTAKE_COLS,
+  insertIntakeMessage,
+  notifyIntakeActivity,
+  refFor,
+  revalidateIntake,
+  type IntakeRow as ConversationIntakeRow,
+} from './intake-notify';
 
 /**
  * Partner ticketing bridge — the server core behind /api/partner/v1/*.
@@ -156,10 +164,37 @@ type IntakeRow = {
   intake_answers: Record<string, unknown> | null;
 };
 
-function toTicket(row: IntakeRow): PartnerTicket {
+/**
+ * Messages now live in firm_intake_messages. The partner API only ever sees
+ * `shared` rows, so the legal team's internal notes can never leak to the
+ * company app — that separation is enforced here and in RLS, not in the UI.
+ */
+async function loadSharedMessages(
+  admin: NonNullable<ReturnType<typeof createAdminSupabase>>,
+  intakeId: string,
+): Promise<PartnerTicket['messages']> {
+  const { data } = await admin
+    .from('firm_intake_messages')
+    .select('id, author_name, author_role, created_at, body, kind')
+    .eq('intake_id', intakeId)
+    .eq('visibility', 'shared')
+    .is('deleted_at', null)
+    .order('created_at', { ascending: true })
+    .limit(500);
+  return ((data ?? []) as Record<string, unknown>[])
+    .filter((m) => m.kind !== 'event')
+    .map((m) => ({
+      id: String(m.id),
+      author: String(m.author_name ?? 'Someone'),
+      role: (m.author_role === 'legal' ? 'legal' : 'employee') as 'legal' | 'employee',
+      at: String(m.created_at),
+      text: String(m.body ?? ''),
+    }));
+}
+
+function toTicket(row: IntakeRow, messages: PartnerTicket['messages'] = []): PartnerTicket {
   const a = row.intake_answers ?? {};
   const partner = (a.partner ?? {}) as Record<string, unknown>;
-  const thread = Array.isArray(a.thread) ? (a.thread as ThreadMessage[]) : [];
   return {
     id: row.id,
     status: row.status,
@@ -172,7 +207,7 @@ function toTicket(row: IntakeRow): PartnerTicket {
     externalId: (partner.externalId as string) ?? null,
     employeeEmail: (partner.employeeEmail as string) ?? row.client_email,
     caseId: row.case_id,
-    messages: thread.map((m) => ({ id: m.id, author: m.name, role: m.role, at: m.at, text: m.text })),
+    messages,
   };
 }
 
@@ -228,7 +263,7 @@ export async function createPartnerTicket(
     if (dupe) {
       return {
         ok: true,
-        ticket: toTicket(dupe as IntakeRow),
+        ticket: toTicket(dupe as IntakeRow, await loadSharedMessages(admin, (dupe as IntakeRow).id)),
         created: false,
         acknowledgment: config.ackMessage,
       };
@@ -338,7 +373,7 @@ export async function listPartnerTickets(
   }
   const { data, error } = await q;
   if (error) return { ok: false, status: 500, error: error.message };
-  return { ok: true, tickets: ((data ?? []) as IntakeRow[]).map(toTicket) };
+  return { ok: true, tickets: ((data ?? []) as IntakeRow[]).map((r) => toTicket(r as IntakeRow)) };
 }
 
 /** Fetch one ticket (must belong to the token's firm AND be partner-born). */
@@ -355,7 +390,7 @@ export async function getPartnerTicket(
     .eq('id', ticketId)
     .maybeSingle();
   if (!data) return { ok: false, status: 404, error: 'Ticket not found.' };
-  const t = toTicket(data as IntakeRow);
+  const t = toTicket(data as IntakeRow, await loadSharedMessages(admin, (data as IntakeRow).id));
   if (!t.employeeEmail || !(data as IntakeRow).intake_answers?.partner) {
     return { ok: false, status: 404, error: 'Ticket not found.' };
   }
@@ -396,29 +431,62 @@ export async function postPartnerTicketMessage(
     .maybeSingle();
   const emp = empRow as { user_id: string | null; display_name: string | null } | null;
 
-  const thread = Array.isArray(answers.thread) ? (answers.thread as ThreadMessage[]) : [];
-  const msg: ThreadMessage = {
-    id: crypto.randomUUID(),
-    byUserId: emp?.user_id ?? auth.token.userId ?? 'partner',
-    name: emp?.display_name || email.split('@')[0],
-    role: 'employee',
-    at: new Date().toISOString(),
-    text,
-  };
-  const { data: updated, error } = await admin
+  const authorName = emp?.display_name || email.split('@')[0];
+  const authorUserId = emp?.user_id ?? null;
+
+  // Messages live in firm_intake_messages now, so a reply filed from the
+  // company app appears in the legal team's live conversation immediately.
+  const { data: full } = await admin
     .from('firm_matter_intakes')
-    .update({
-      intake_answers: { ...answers, thread: [...thread, msg] },
-      updated_at: new Date().toISOString(),
-    })
+    .select(CONV_INTAKE_COLS)
     .eq('id', row.id)
-    .eq('firm_id', auth.firmId)
+    .maybeSingle();
+  if (!full) return { ok: false, status: 404, error: 'Ticket not found.' };
+  const intake = full as ConversationIntakeRow;
+
+  const message = await insertIntakeMessage({
+    admin,
+    intake,
+    authorUserId,
+    authorName,
+    authorRole: 'employee',
+    visibility: 'shared',
+    body: text,
+  });
+  if (!message) return { ok: false, status: 500, error: 'Could not post the message.' };
+
+  // Branded, ticket-aware notification to the legal team; the webhook fan-out
+  // stays with partnerTicketEvent so the partner app still gets its event.
+  await notifyIntakeActivity({
+    admin,
+    intake,
+    message,
+    actor: { userId: authorUserId ?? 'partner', name: authorName, avatarUrl: null, side: 'employee' },
+    eyebrow: 'New reply on a request',
+    headline: () => `${authorName} replied on ${refFor(intake)}`,
+  });
+  await partnerTicketEvent(row.id, 'ticket.employee_replied', {
+    webhookOnly: true,
+    message: {
+      id: message.id,
+      byUserId: authorUserId ?? 'partner',
+      name: authorName,
+      role: 'employee',
+      at: message.createdAt,
+      text,
+    },
+  });
+  revalidateIntake(row.id);
+
+  const { data: refreshed } = await admin
+    .from('firm_matter_intakes')
     .select(INTAKE_COLS)
-    .single();
-  if (error || !updated) return { ok: false, status: 500, error: error?.message ?? 'Could not post the message.' };
-  // Ping the legal team about the new employee reply. Best-effort.
-  await partnerTicketEvent(row.id, 'ticket.employee_replied', { message: msg });
-  return { ok: true, ticket: toTicket(updated as IntakeRow) };
+    .eq('id', row.id)
+    .maybeSingle();
+  return {
+    ok: true,
+    ticket: toTicket((refreshed ?? row) as IntakeRow, await loadSharedMessages(admin, row.id)),
+  };
 }
 
 /**
