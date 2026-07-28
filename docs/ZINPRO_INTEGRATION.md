@@ -167,9 +167,23 @@ arrives (or when polling shows a new message with `role: "legal"`).
 
 `GET /tickets/:id`. Render `messages[]` as a chat thread:
 
-- `role: "employee"` → right-aligned bubbles (the requester's side).
-- `role: "legal"` → left-aligned, labeled with `author` (the lawyer's name).
+- `role: "employee"` → the requester's side.
+- `role: "legal"` → the other side, labeled with `author` (the lawyer's name).
 - A reply box at the bottom → `POST /tickets/:id/messages`.
+
+**`messages[]` contains only what the requester is allowed to see.** The legal
+team can write internal notes on a request that are visible to firm staff
+alone; those are filtered out of this endpoint and out of every webhook
+payload, so nothing you render from the API can leak them. You do not need to
+filter anything yourself. The same applies to the system's own activity
+entries (assignments, status changes) — they are omitted here, so the array
+is purely human messages.
+
+Advottic's own conversation surface additionally carries file attachments and
+"send us this document" links. Those are exchanged inside Advottic rather than
+over the partner API in v1 (see §7), so a thread may reference a document that
+does not appear in `messages[]`. Deep-link the employee to their Hub portal
+when they need it.
 - Show the status badge (table above) as a banner at the top; when `caseId`
   becomes non-null, show "The legal team opened a matter from this request."
 

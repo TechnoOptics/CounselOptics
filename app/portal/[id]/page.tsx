@@ -4,12 +4,12 @@ import { getCurrentUser } from '@/lib/supabase/server';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { getWorkspacePersona } from '@/lib/persona';
 import { IntakeConversation } from '@/components/intake/IntakeConversation';
+import { WorkspaceShell } from '@/components/intake/WorkspaceShell';
+import { RecordSection } from '@/components/intake/RecordSection';
 import { IntakeWorkPanel } from '@/components/intake/IntakeWorkPanel';
 import { loadIntakeConversationAction } from '@/lib/intake-conversation';
 import { ReviewScorecard } from '@/components/ReviewScorecard';
 import type { DocScorecard } from '@/lib/doc-review';
-import { Tabs, type TabDef } from '@/components/Tabs';
-import type { ThreadMessage } from '@/lib/intake-thread';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Request · Portal' };
@@ -91,9 +91,6 @@ export default async function PortalRequestPage({
   )
     .map(([l, k]) => ({ label: l, value: String(ans[k] ?? '').trim() }))
     .filter((m) => m.value.length > 0);
-  const thread: ThreadMessage[] = Array.isArray(ans.thread)
-    ? (ans.thread as ThreadMessage[])
-    : [];
 
   // Let the employee @mention a specific person on the legal team.
   const { data: memRows } = await admin
@@ -102,15 +99,7 @@ export default async function PortalRequestPage({
     .eq('firm_id', persona.firm.id)
     .limit(100);
   const conv = await loadIntakeConversationAction(intake.id);
-  const mentionables = ((memRows ?? []) as Array<{
-    user_id: string | null;
-    display_name: string | null;
-  }>)
-    .filter((m) => m.user_id)
-    .map((m) => ({
-      id: m.user_id as string,
-      name: m.display_name || 'Legal',
-    }));
+  void memRows; // the conversation resolves its own mentionable people
 
   return (
     <div className="space-y-6 animate-fade-up">
@@ -185,74 +174,15 @@ export default async function PortalRequestPage({
         </ol>
       </section>
 
-      {/* Your request in the centre, the conversation with legal down the right. */}
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(340px,420px)]">
-        <div className="min-w-0 space-y-6">
-          <Tabs
-            swipe
-            storageKey={`portal-request-${intake.id}`}
-        tabs={(() => {
-          const hasReview =
-            ans.review != null &&
-            typeof ans.review === 'object' &&
-            'grade' in (ans.review as object);
-          const tabs: TabDef[] = [
-            {
-              id: 'overview',
-              label: 'Overview',
-              content: (
-                <div className="space-y-6">
-                  {meta.length > 0 && (
-                    <section className="card p-5">
-                      <p className="eyebrow mb-3">Request details</p>
-                      <dl className="grid sm:grid-cols-3 gap-x-4 gap-y-3">
-                        {meta.map((m) => (
-                          <div key={m.label}>
-                            <dt className="text-[10px] uppercase tracking-[0.16em] font-semibold text-cream-100/60 mb-0.5">
-                              {m.label}
-                            </dt>
-                            <dd className="text-[13px] text-cream-100/85">
-                              {m.value}
-                            </dd>
-                          </div>
-                        ))}
-                      </dl>
-                    </section>
-                  )}
-                  {intake.matter_summary && (
-                    <section className="card p-5">
-                      <p className="eyebrow text-[10px] mb-1">
-                        What you submitted
-                      </p>
-                      <p className="text-[13px] text-cream-100/85 leading-relaxed whitespace-pre-wrap">
-                        {intake.matter_summary}
-                      </p>
-                    </section>
-                  )}
-                </div>
-              ),
-            },
-          ];
-          if (hasReview) {
-            tabs.push({
-              id: 'review',
-              label: 'Review',
-              content: (
-                <ReviewScorecard
-                  data={ans.review as DocScorecard}
-                  audience="employee"
-                />
-              ),
-            });
-          }
-          return tabs;
-        })()}
-          />
-        </div>
-
-        {conv.ok && (
-          <aside className="space-y-4 lg:sticky lg:top-4">
+      {/* Same shape as the legal team's view: the request in the centre with
+          its own scroll, the conversation with legal down the right. */}
+      <WorkspaceShell
+        mainLabel="Your request"
+        sideLabel="Conversation with legal"
+        side={
+          conv.ok ? (
             <IntakeConversation
+              fill
               intakeId={intake.id}
               viewerRole="employee"
               viewerUserId={conv.userId}
@@ -262,18 +192,68 @@ export default async function PortalRequestPage({
               mentionables={conv.mentionables}
               emptyHint="No messages yet. Ask a question here and your legal team is notified right away."
             />
+          ) : null
+        }
+      >
+        {meta.length > 0 && (
+          <RecordSection id="portal-details" title="Request details">
+            <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-3">
+              {meta.map((m) => (
+                <div key={m.label}>
+                  <dt className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-cream-100/50">
+                    {m.label}
+                  </dt>
+                  <dd className="text-[13.5px] text-cream-100/90">{m.value}</dd>
+                </div>
+              ))}
+            </dl>
+          </RecordSection>
+        )}
+
+        {intake.matter_summary && (
+          <RecordSection id="portal-summary" title="What you submitted">
+            <p className="max-w-[70ch] whitespace-pre-wrap text-[14px] leading-relaxed text-cream-100/85">
+              {intake.matter_summary}
+            </p>
+          </RecordSection>
+        )}
+
+        {conv.ok && (
+          <RecordSection id="portal-documents" title="Documents" count={conv.documents.length}>
             <IntakeWorkPanel
               intakeId={intake.id}
               canManage={false}
+              sections={['documents']}
               assignee={conv.assignee}
               participants={conv.participants}
               people={conv.mentionables}
               documents={conv.documents}
               uploadRequests={[]}
             />
-          </aside>
+          </RecordSection>
         )}
-      </div>
+
+        {conv.ok && (
+          <RecordSection id="portal-people" title="Who is on this" count={conv.participants.length}>
+            <IntakeWorkPanel
+              intakeId={intake.id}
+              canManage={false}
+              sections={['people']}
+              assignee={conv.assignee}
+              participants={conv.participants}
+              people={conv.mentionables}
+              documents={conv.documents}
+              uploadRequests={[]}
+            />
+          </RecordSection>
+        )}
+
+        {ans.review != null && typeof ans.review === 'object' && 'grade' in (ans.review as object) && (
+          <RecordSection id="portal-review" title="Advottic Review" defaultOpen={false}>
+            <ReviewScorecard data={ans.review as DocScorecard} audience="employee" />
+          </RecordSection>
+        )}
+      </WorkspaceShell>
     </div>
   );
 }
