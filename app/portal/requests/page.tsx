@@ -3,27 +3,13 @@ import { redirect } from 'next/navigation';
 import { getCurrentUser } from '@/lib/supabase/server';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { getWorkspacePersona } from '@/lib/persona';
+import { portalStatusLabel, portalStatusTone } from '@/lib/portal-status';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'My requests · Hub' };
 
-const STATUS_TONE: Record<string, string> = {
-  in_progress: 'bg-forest-800/50 text-cream-100/85 ring-forest-700/40',
-  conflict_check_passed:
-    'bg-emerald-950/30 text-emerald-200 ring-emerald-700/40',
-  conflict_check_flagged:
-    'bg-amber-950/30 text-amber-200 ring-amber-700/40',
-  engaged: 'bg-emerald-950/30 text-emerald-200 ring-emerald-700/40',
-  rejected: 'bg-forest-800/50 text-cream-100/85 ring-forest-700/40',
-};
-
-const STATUS_LABEL: Record<string, string> = {
-  in_progress: 'Received',
-  conflict_check_passed: 'In review',
-  conflict_check_flagged: 'In review',
-  engaged: 'Accepted',
-  rejected: 'Closed',
-};
+// Status label + tone are shared with the request page - see
+// lib/portal-status.ts.
 
 export default async function PortalRequestsPage() {
   const user = await getCurrentUser();
@@ -109,9 +95,10 @@ export default async function PortalRequestsPage() {
         ) : (
           <ul className="space-y-2">
             {requests.map((r) => {
-              const tone = STATUS_TONE[r.status] ?? STATUS_TONE.in_progress;
-              const label =
-                STATUS_LABEL[r.status] ?? r.status.replace(/_/g, ' ');
+              // Never fall back to the raw status: that printed the firm's
+              // internal vocabulary ("converted") straight at the employee.
+              const label = portalStatusLabel(r.status);
+              const tone = portalStatusTone(label);
               const ans = (r.intake_answers ?? {}) as Record<string, unknown>;
               const due = String(ans.due_by ?? '').trim();
               const priority = String(ans.priority ?? '').trim();

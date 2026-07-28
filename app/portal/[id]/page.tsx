@@ -8,30 +8,22 @@ import { WorkspaceShell } from '@/components/intake/WorkspaceShell';
 import { RecordSection } from '@/components/intake/RecordSection';
 import { IntakeWorkPanel } from '@/components/intake/IntakeWorkPanel';
 import { loadIntakeConversationAction } from '@/lib/intake-conversation';
+import {
+  PORTAL_STEPS,
+  isPortalDecision,
+  portalStatusLabel,
+  portalStatusTone,
+  portalStepIndex,
+} from '@/lib/portal-status';
 import { ReviewScorecard } from '@/components/ReviewScorecard';
 import type { DocScorecard } from '@/lib/doc-review';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Request · Portal' };
 
-// Plain-language status for employees - never the firm's internal
-// conflict-check vocabulary.
-const STATUS_LABEL: Record<string, string> = {
-  in_progress: 'Received',
-  conflict_check_passed: 'In review',
-  conflict_check_flagged: 'In review',
-  engaged: 'Accepted',
-  rejected: 'Closed',
-};
-const STATUS_TONE: Record<string, string> = {
-  Received: 'bg-forest-800/50 text-cream-100/85 ring-forest-700/40',
-  'In review': 'bg-amber-950/30 text-amber-200 ring-amber-700/40',
-  Accepted: 'bg-emerald-950/30 text-emerald-200 ring-emerald-700/40',
-  Closed: 'bg-forest-800/50 text-cream-100/70 ring-forest-700/40',
-};
-// The employee-visible journey. We collapse the firm's internal
-// states onto three legible milestones.
-const STEPS = ['Received', 'In review', 'Decision'] as const;
+// Plain-language status mapping is shared with the requests list - see
+// lib/portal-status.ts for why it must not be duplicated here again.
+const STEPS = PORTAL_STEPS;
 
 export default async function PortalRequestPage({
   params,
@@ -82,10 +74,10 @@ export default async function PortalRequestPage({
   }
   if (!mayView) notFound();
 
-  const label = STATUS_LABEL[intake.status] ?? 'Received';
-  const tone = STATUS_TONE[label] ?? STATUS_TONE.Received;
-  const isDecision = label === 'Accepted' || label === 'Closed';
-  const currentStep = isDecision ? 2 : label === 'In review' ? 1 : 0;
+  const label = portalStatusLabel(intake.status);
+  const tone = portalStatusTone(label);
+  const isDecision = isPortalDecision(label);
+  const currentStep = portalStepIndex(label);
 
   const ans = (intake.intake_answers ?? {}) as Record<string, unknown>;
   // The heading is what you asked for, not your own name.
