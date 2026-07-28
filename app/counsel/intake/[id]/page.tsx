@@ -7,6 +7,7 @@ import { IntakeConversation } from '@/components/intake/IntakeConversation';
 import { IntakeWorkPanel } from '@/components/intake/IntakeWorkPanel';
 import { WorkspaceShell } from '@/components/intake/WorkspaceShell';
 import { RecordSection } from '@/components/intake/RecordSection';
+import { SectionJump } from '@/components/intake/SectionJump';
 import { ticketRef } from '@/lib/intake-conversation-types';
 import { loadIntakeConversationAction } from '@/lib/intake-conversation';
 import type { ThreadMessage } from '@/lib/intake-thread';
@@ -20,7 +21,6 @@ import { RequestActions } from './request-actions';
 import { AnalyzeStudio } from '@/app/counsel/analyze/analyze-studio';
 import { ReviewScorecard } from '@/components/ReviewScorecard';
 import type { DocScorecard } from '@/lib/doc-review';
-import { Tabs, type TabDef } from '@/components/Tabs';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -186,6 +186,19 @@ export default async function IntakeDetailPage({
             <T>In-house</T> · {submittedBy}
           </span>
         )}
+        <SectionJump target="meeting">
+          <span aria-hidden>📅</span>
+          <T>Schedule meeting</T>
+        </SectionJump>
+        <SectionJump target="documents">
+          <span aria-hidden>📄</span>
+          <T>Documents</T>
+          {conv.ok && conv.documents.length > 0 && (
+            <span className="rounded-full bg-ink-100 px-1.5 text-[10.5px] font-semibold text-ink-600 dark:bg-forest-800 dark:text-cream-100/70">
+              {conv.documents.length}
+            </span>
+          )}
+        </SectionJump>
         <span
           className={`inline-flex shrink-0 items-center rounded px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ring-1 ${tone}`}
         >
@@ -364,40 +377,22 @@ export default async function IntakeDetailPage({
           </RecordSection>
         )}
 
-        {/* Genuinely separate tools, each a full workspace of its own — the one
-            place tabs earn their keep here. */}
-        <RecordSection id="tools" title="Tools" defaultOpen={false}>
-          <Tabs
-            swipe
-            storageKey={`counsel-intake-tools-${intake.id}`}
-            tabs={[
-              {
-                id: 'analyze',
-                label: 'Analyze',
-                content: (
-                  <div className="space-y-2">
-                    <p className="text-[12px] text-ink-500 dark:text-cream-100/55">
-                      <T>Run an AI breakdown of what the submitted document means, how the law
-                      applies, its bias, and the risky clauses.</T>
-                    </p>
-                    <AnalyzeStudio embedded initialText={String(intake.matter_summary ?? '')} />
-                  </div>
-                ),
-              },
-              {
-                id: 'meeting',
-                label: 'Meeting',
-                content: (
-                  <ScheduleMeetingPanel
-                    firmId={ctx.firm.id}
-                    intakeId={intake.id}
-                    defaultTitle={`Advottic: ${intake.client_name}`}
-                  />
-                ),
-              },
-            ]}
+        <RecordSection id="meeting" title="Schedule a meeting" defaultOpen={false}>
+          <ScheduleMeetingPanel
+            firmId={ctx.firm.id}
+            intakeId={intake.id}
+            defaultTitle={`Advottic: ${ticketTitle}`}
           />
         </RecordSection>
+
+        <RecordSection id="analyze" title="Analyze" defaultOpen={false}>
+          <p className="mb-2 text-[12px] text-ink-500 dark:text-cream-100/55">
+            <T>Run an AI breakdown of what the submitted document means, how the law
+            applies, its bias, and the risky clauses.</T>
+          </p>
+          <AnalyzeStudio embedded initialText={String(intake.matter_summary ?? '')} />
+        </RecordSection>
+
       </WorkspaceShell>
     </div>
   );

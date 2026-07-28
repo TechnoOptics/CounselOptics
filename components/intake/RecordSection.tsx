@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { OPEN_SECTION_EVENT } from './SectionJump';
 
 /**
  * A collapsible section of the request record.
@@ -32,6 +33,22 @@ export function RecordSection({
   const storageKey = `adv-section:${id}`;
   const [open, setOpen] = useState(defaultOpen);
   const [hydrated, setHydrated] = useState(false);
+  const ref = useRef<HTMLElement>(null);
+
+  // A header button can ask for this section: open it and bring it into view,
+  // even if the reader had collapsed it earlier.
+  useEffect(() => {
+    function onJump(e: Event) {
+      const wanted = (e as CustomEvent<{ id?: string }>).detail?.id;
+      if (wanted !== id) return;
+      setOpen(true);
+      requestAnimationFrame(() =>
+        ref.current?.scrollIntoView({ block: 'start', behavior: 'smooth' }),
+      );
+    }
+    window.addEventListener(OPEN_SECTION_EVENT, onJump);
+    return () => window.removeEventListener(OPEN_SECTION_EVENT, onJump);
+  }, [id]);
 
   useEffect(() => {
     try {
@@ -57,7 +74,10 @@ export function RecordSection({
   }
 
   return (
-    <section className="border-b border-ink-100 last:border-b-0 dark:border-forest-800/60">
+    <section
+      ref={ref}
+      className="scroll-mt-16 border-b border-ink-100 last:border-b-0 dark:border-forest-800/60"
+    >
       <h2>
         <button
           type="button"

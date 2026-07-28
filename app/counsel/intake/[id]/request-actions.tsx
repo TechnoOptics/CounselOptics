@@ -86,11 +86,12 @@ export function RequestActions({
    <div className="space-y-4">
     <section className="card p-5 flex flex-wrap items-center justify-between gap-4">
       <div className="min-w-0">
-        <p className="eyebrow"><T>Matter</T></p>
+        <p className="eyebrow"><T>Take it on</T></p>
         <p className="text-[13px] text-ink-700 dark:text-cream-100/85 mt-1 max-w-xl leading-relaxed">
           {caseId
-            ? <T>This request has been opened as a matter in your caseload.</T>
-            : <T>Accept this request and open it as a matter. It joins the firm caseload with the client, summary, and jurisdiction pre-filled.</T>}
+            ? <T>This request is in the team&rsquo;s active queue.</T>
+            : <T>Move this into the team&rsquo;s active queue. The requester, summary and
+              jurisdiction carry over, so nothing needs re-keying.</T>}
         </p>
         {convertError && (
           <p className="text-[12px] text-rose-600 dark:text-rose-300 mt-1">
@@ -103,7 +104,7 @@ export function RequestActions({
           href={`/counsel/cases/${caseId}`}
           className="btn-secondary !py-1.5 text-[13px] text-center whitespace-nowrap"
         >
-          <T>View matter &rarr;</T>
+          <T>Open it &rarr;</T>
         </a>
       ) : (
         <button
@@ -112,7 +113,7 @@ export function RequestActions({
           disabled={convertPending}
           className="btn-primary !py-1.5 text-[13px] whitespace-nowrap disabled:opacity-60"
         >
-          {convertPending ? <T>Opening…</T> : <T>Open as a matter</T>}
+          {convertPending ? <T>Moving…</T> : <T>Move to active queue</T>}
         </button>
       )}
     </section>
