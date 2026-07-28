@@ -64,15 +64,23 @@ export default async function PortalRequestPage({
     created_at: string;
     intake_answers: Record<string, unknown> | null;
   };
-  // Hard ownership gate: an employee may only ever see THEIR OWN
-  // request in THEIR firm. Anything else is a 404 (never leak that
-  // the row exists).
-  if (
-    intake.firm_id !== persona.firm.id ||
-    intake.created_by !== user.id
-  ) {
-    notFound();
+  // Access gate: your own request, or one you were explicitly invited onto.
+  // Anything else is a 404 — never leak that the row exists.
+  //
+  // The participant branch matters: legal can add a colleague to a request,
+  // and that person is emailed a link straight here. Without it the invite
+  // notification led to a 404, so the feature could not work at all.
+  let mayView = intake.firm_id === persona.firm.id && intake.created_by === user.id;
+  if (!mayView && intake.firm_id === persona.firm.id) {
+    const { data: participant } = await admin
+      .from('firm_intake_participants')
+      .select('id')
+      .eq('intake_id', intake.id)
+      .eq('user_id', user.id)
+      .maybeSingle();
+    mayView = Boolean(participant);
   }
+  if (!mayView) notFound();
 
   const label = STATUS_LABEL[intake.status] ?? 'Received';
   const tone = STATUS_TONE[label] ?? STATUS_TONE.Received;
