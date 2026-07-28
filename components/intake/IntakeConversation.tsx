@@ -64,6 +64,9 @@ export function IntakeConversation({
   const [live, setLive] = useState(false);
 
   const scrollerRef = useRef<HTMLDivElement>(null);
+  const channelRef = useRef<ReturnType<
+    NonNullable<ReturnType<typeof createBrowserSupabase>>['channel']
+  > | null>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const typingSentAt = useRef(0);
@@ -107,12 +110,14 @@ export function IntakeConversation({
         }, 3500);
       })
       .subscribe((status) => setLive(status === 'SUBSCRIBED'));
+    channelRef.current = channel;
 
     // Safety net: if the socket never connects (or drops), keep the thread
     // current anyway. 20s matches the case-timeline chat.
     const poll = window.setInterval(() => void pull(), 20_000);
     return () => {
       window.clearInterval(poll);
+      channelRef.current = null;
       void supabase.removeChannel(channel);
     };
   }, [intakeId, pull, viewerUserId]);
@@ -121,15 +126,15 @@ export function IntakeConversation({
     const now = Date.now();
     if (now - typingSentAt.current < 2000) return;
     typingSentAt.current = now;
-    const supabase = createBrowserSupabase();
-    if (!supabase) return;
+    const channel = channelRef.current;
+    if (!channel) return;
     const me = mentionables.find((p) => p.userId === viewerUserId);
-    void supabase.channel(`intake-conv:${intakeId}`).send({
+    void channel.send({
       type: 'broadcast',
       event: 'typing',
       payload: { userId: viewerUserId, name: me?.name ?? 'Someone' },
     });
-  }, [intakeId, mentionables, viewerUserId]);
+  }, [mentionables, viewerUserId]);
 
   const visible = useMemo(
     () =>
@@ -139,10 +144,26 @@ export function IntakeConversation({
     [messages, filter],
   );
 
-  useEffect(() => {
+  // Pin to the newest message only when the reader is already at the bottom.
+  // Otherwise they are reading history and being scrolled away is hostile —
+  // surface a pill instead and let them choose.
+  const [atBottom, setAtBottom] = useState(true);
+  const [unseen, setUnseen] = useState(0);
+  const lastCount = useRef(visible.length);
+
+  const scrollToEnd = useCallback((smooth = false) => {
     const el = scrollerRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [visible.length]);
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
+    setUnseen(0);
+  }, []);
+
+  useEffect(() => {
+    const grew = visible.length - lastCount.current;
+    lastCount.current = visible.length;
+    if (atBottom) scrollToEnd();
+    else if (grew > 0) setUnseen((n) => n + grew);
+  }, [visible.length, atBottom, scrollToEnd]);
 
   // Deep links from email land on a specific message.
   useEffect(() => {
@@ -302,10 +323,18 @@ export function IntakeConversation({
       <div
         ref={scrollerRef}
         tabIndex={0}
-        className={`space-y-0.5 overflow-y-auto overscroll-contain px-3.5 py-3 ${
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          const near = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+          setAtBottom(near);
+          if (near) setUnseen(0);
+        }}
+        className={`flex flex-col overflow-y-auto overscroll-contain px-3.5 py-3 ${
           fill ? 'min-h-0 flex-1' : 'max-h-[62vh] min-h-[220px]'
         }`}
       >
+        {/* Short threads hug the composer rather than floating at the top. */}
+        <div className="mt-auto space-y-0.5">
         {visible.length === 0 && (
           <p className="py-10 text-center text-[13px] text-ink-400 dark:text-cream-100/40">
             {emptyHint ?? 'No messages yet.'}
@@ -432,11 +461,24 @@ export function IntakeConversation({
         })}
 
         {typing.length > 0 && (
-          <p className="pl-11 pt-2 text-[12px] italic text-ink-400 dark:text-cream-100/40">
+          <p className="pl-9 pt-2 text-[12px] italic text-ink-400 dark:text-cream-100/40">
             {typing.join(', ')} {typing.length === 1 ? 'is' : 'are'} typing…
           </p>
         )}
+        </div>
       </div>
+
+      {unseen > 0 && !atBottom && (
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => scrollToEnd(true)}
+            className="absolute inset-x-0 -top-11 mx-auto w-fit rounded-full bg-forest-900 px-3.5 py-1.5 text-[12px] font-medium text-cream-50 shadow-lg dark:bg-gold-500 dark:text-forest-950"
+          >
+            {unseen} new message{unseen === 1 ? '' : 's'} ↓
+          </button>
+        </div>
+      )}
 
       {canPost ? (
         <div className="shrink-0 border-t border-ink-100 px-3.5 py-2.5 dark:border-forest-800/60">
@@ -578,7 +620,7 @@ export function IntakeConversation({
             </p>
           )}
 
-          <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2">
+          <div className="mt-1.5 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <input
                 ref={fileRef}
@@ -591,13 +633,11 @@ export function IntakeConversation({
                 type="button"
                 onClick={() => fileRef.current?.click()}
                 disabled={uploading}
-                className="rounded-lg border border-ink-200 px-3 py-1.5 text-[12.5px] font-medium text-forest-900 hover:bg-cream-50 disabled:opacity-50 dark:border-forest-700/50 dark:text-cream-100 dark:hover:bg-forest-800/50"
+                title="Attach a file — it is saved to this request's documents"
+                className="rounded-lg border border-ink-200 px-2.5 py-1 text-[12.5px] font-medium text-forest-900 hover:bg-cream-50 disabled:opacity-50 dark:border-forest-700/50 dark:text-cream-100 dark:hover:bg-forest-800/50"
               >
                 {uploading ? 'Attaching…' : '📎 Attach'}
               </button>
-              <span className="hidden text-[11.5px] text-ink-400 xl:inline dark:text-cream-100/35">
-                Saved to documents.
-              </span>
             </div>
             <button
               type="button"

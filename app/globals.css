@@ -1753,3 +1753,11 @@ select:focus-visible,
     animation: none;
   }
 }
+
+/* The counsel nav rail sizes itself from the viewport, so on a pinned
+   two-pane workspace it ended up taller than the panes and kept the
+   document scrolling behind them. When a workspace is on the page it
+   publishes its own height and the rail matches it. */
+body:has([data-workspace-shell]) #counsel-sidebar-panel {
+  max-height: var(--adv-workspace-h, calc(100dvh - 8rem));
+}

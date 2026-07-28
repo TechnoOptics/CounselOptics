@@ -34,6 +34,7 @@ export function IntakeWorkPanel({
   documents,
   uploadRequests,
   sections = ['people', 'documents', 'requests'],
+  embedded = false,
 }: {
   intakeId: string;
   canManage: boolean;
@@ -44,6 +45,8 @@ export function IntakeWorkPanel({
   uploadRequests: IntakeUploadRequest[];
   /** Which blocks to render, so the record pane and the rail can split them. */
   sections?: Array<'people' | 'documents' | 'requests'>;
+  /** Inside a RecordSection: drop our own card chrome and headings. */
+  embedded?: boolean;
 }) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -77,6 +80,10 @@ export function IntakeWorkPanel({
   }
 
   const activeRequests = uploadRequests.filter((r) => !r.revokedAt);
+  const card = embedded
+    ? ''
+    : 'rounded-2xl border border-ink-200 bg-white p-4 dark:border-forest-700/50 dark:bg-forest-900/40';
+  const heading = 'mb-3 text-[13px] font-semibold uppercase tracking-wider text-ink-500 dark:text-cream-100/55';
 
   return (
     <div className="space-y-4">
@@ -88,10 +95,8 @@ export function IntakeWorkPanel({
 
       {/* People */}
       {sections.includes('people') && (
-      <section className="rounded-2xl border border-ink-200 bg-white p-4 dark:border-forest-700/50 dark:bg-forest-900/40">
-        <h2 className="mb-3 text-[13px] font-semibold uppercase tracking-wider text-ink-500 dark:text-cream-100/55">
-          People
-        </h2>
+      <section className={card}>
+        {!embedded && <h2 className={heading}>People</h2>}
 
         <div className="mb-3">
           <p className="mb-1.5 text-[11px] uppercase tracking-wider text-ink-400 dark:text-cream-100/40">
@@ -190,10 +195,8 @@ export function IntakeWorkPanel({
 
       {/* Documents */}
       {sections.includes('documents') && (
-      <section className="rounded-2xl border border-ink-200 bg-white p-4 dark:border-forest-700/50 dark:bg-forest-900/40">
-        <h2 className="mb-3 text-[13px] font-semibold uppercase tracking-wider text-ink-500 dark:text-cream-100/55">
-          Documents ({documents.length})
-        </h2>
+      <section className={card}>
+        {!embedded && <h2 className={heading}>Documents ({documents.length})</h2>}
         {documents.length === 0 ? (
           <p className="text-[12.5px] text-ink-400 dark:text-cream-100/40">
             Nothing attached yet. Files shared in the conversation land here.
@@ -230,8 +233,8 @@ export function IntakeWorkPanel({
 
       {/* Request a document */}
       {sections.includes('requests') && canManage && (
-        <section className="rounded-2xl border border-ink-200 bg-white p-4 dark:border-forest-700/50 dark:bg-forest-900/40">
-          <h2 className="mb-1 text-[13px] font-semibold uppercase tracking-wider text-ink-500 dark:text-cream-100/55">
+        <section className={embedded ? 'mt-5 border-t border-ink-100 pt-4 dark:border-forest-800/60' : card}>
+          <h2 className={embedded ? 'mb-1 text-[12px] font-semibold uppercase tracking-wider text-ink-500 dark:text-cream-100/55' : 'mb-1 text-[13px] font-semibold uppercase tracking-wider text-ink-500 dark:text-cream-100/55'}>
             Ask for a document
           </h2>
           <p className="mb-3 text-[12px] text-ink-500 dark:text-cream-100/55">

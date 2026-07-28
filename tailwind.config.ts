@@ -8,6 +8,9 @@ const config: Config = {
   content: [
     './app/**/*.{js,ts,jsx,tsx,mdx}',
     './components/**/*.{js,ts,jsx,tsx,mdx}',
+    // lib/ holds shared style maps (e.g. the intake participant palette).
+    // Without this glob those classes are silently never generated.
+    './lib/**/*.{js,ts,jsx,tsx}',
   ],
   theme: {
     extend: {

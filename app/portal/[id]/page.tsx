@@ -228,6 +228,7 @@ export default async function PortalRequestPage({
             <IntakeWorkPanel
               intakeId={intake.id}
               canManage={false}
+              embedded
               sections={['documents']}
               assignee={conv.assignee}
               participants={conv.participants}
@@ -243,6 +244,7 @@ export default async function PortalRequestPage({
             <IntakeWorkPanel
               intakeId={intake.id}
               canManage={false}
+              embedded
               sections={['people']}
               assignee={conv.assignee}
               participants={conv.participants}

@@ -49,16 +49,24 @@ export function WorkspaceShell({
       setStacked(narrow);
       if (narrow) {
         setHeight(undefined);
+        document.documentElement.style.removeProperty('--adv-workspace-h');
         return;
       }
       const top = el.getBoundingClientRect().top + window.scrollY;
       const footer = document.querySelector('footer')?.getBoundingClientRect().height ?? 0;
-      setHeight(`calc(100dvh - ${Math.round(top + footer + 12)}px)`);
+      const h = `calc(100dvh - ${Math.round(top + footer + 12)}px)`;
+      setHeight(h);
+      // The left nav rail sizes itself independently and was taller than the
+      // workspace, which kept the document scrolling behind the pinned panes.
+      document.documentElement.style.setProperty('--adv-workspace-h', h);
     };
 
     measure();
     window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
+    return () => {
+      window.removeEventListener('resize', measure);
+      document.documentElement.style.removeProperty('--adv-workspace-h');
+    };
   }, []);
 
   // Re-measure once fonts/images settle, so the first paint isn't off by a row.
@@ -71,6 +79,7 @@ export function WorkspaceShell({
     <div
       ref={ref}
       style={height ? { height } : undefined}
+      data-workspace-shell
       className={`grid min-h-0 gap-5 ${
         stacked
           ? 'grid-cols-1'

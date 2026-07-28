@@ -308,6 +308,7 @@ export default async function IntakeDetailPage({
             <IntakeWorkPanel
               intakeId={intake.id}
               canManage
+              embedded
               sections={['people']}
               assignee={conv.assignee}
               participants={conv.participants}
@@ -352,6 +353,7 @@ export default async function IntakeDetailPage({
             <IntakeWorkPanel
               intakeId={intake.id}
               canManage
+              embedded
               sections={['documents', 'requests']}
               assignee={conv.assignee}
               participants={conv.participants}
