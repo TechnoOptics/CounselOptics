@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { ExternalLink } from '@/components/ExternalLink';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { nativePlatformFromUserAgent } from '@/lib/platform';
 import {
@@ -311,7 +312,15 @@ export default async function BillingPage({
           </p>
           <p className="mt-3 text-[13px] leading-relaxed text-ink-600 dark:text-cream-100/70">
             Your subscription is managed from your Advottic account. Whatever plan
-            you have unlocks here automatically — there is nothing to buy in the app.
+            you have unlocks here automatically.
+          </p>
+          <p className="mt-2 text-[13px]">
+            <ExternalLink
+              href="https://advottic.com/pricing"
+              className="font-semibold text-gold-700 underline underline-offset-2 dark:text-gold-300"
+            >
+              View plans and subscribe at advottic.com
+            </ExternalLink>
           </p>
         </div>
       ) : (

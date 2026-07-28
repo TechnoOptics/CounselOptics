@@ -1,6 +1,7 @@
 'use client';
 
 import { useIsNativeApp } from '@/components/useIsNativeApp';
+import { ExternalLink } from '@/components/ExternalLink';
 import type { NativePlatform } from '@/lib/platform';
 
 /**
@@ -31,7 +32,14 @@ export function RestorePurchases({
       <p className="text-[13px] text-ink-700 dark:text-cream-100/80 leading-relaxed">
         Your Advottic plan is tied to your account. When your account has an
         active subscription, all of your features unlock here automatically.
-        There is nothing to buy inside the app.
+      </p>
+      <p className="mt-2 text-[13px]">
+        <ExternalLink
+          href="https://advottic.com/pricing"
+          className="font-semibold text-gold-700 underline underline-offset-2 dark:text-gold-300"
+        >
+          View plans and subscribe at advottic.com
+        </ExternalLink>
       </p>
     </div>
   );

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useIsNativeApp } from '@/components/useIsNativeApp';
+import { ExternalLink } from '@/components/ExternalLink';
 import type { NativePlatform } from '@/lib/platform';
 import type { PersonalTier, PersonalTierKey } from '@/lib/personal-tiers';
 
@@ -135,12 +136,17 @@ export function PersonalTierCard({
           Free forever
         </span>
       ) : isIOS ? (
-        // Reader model on iOS / iPadOS (same AdvotticApp/ios shell): no in-app
-        // purchase and NO external-purchase steering. Describes subscription
-        // STATUS only (no website named, no "subscribe on the web") to stay
-        // clearly inside guideline 3.1.3(b). Matches the firm tier-card.
-        <div className="rounded-lg border border-ink-200 bg-ink-50 px-3.5 py-3 text-[12.5px] leading-snug text-ink-700 dark:border-forest-700/40 dark:bg-forest-950/40 dark:text-cream-100/80">
-          Your access unlocks here automatically once your account is subscribed.
+        // US-storefront link-out (guideline 3.1.1, post-injunction): the app
+        // is distributed on the United States storefront only, where linking
+        // out to the web for purchase is permitted without In-App Purchase.
+        <div className="space-y-2 rounded-lg border border-ink-200 bg-ink-50 px-3.5 py-3 text-[12.5px] leading-snug text-ink-700 dark:border-forest-700/40 dark:bg-forest-950/40 dark:text-cream-100/80">
+          <p>Your access unlocks here automatically once your account is subscribed.</p>
+          <ExternalLink
+            href="https://advottic.com/pricing"
+            className="inline-block font-semibold text-gold-700 underline underline-offset-2 dark:text-gold-300"
+          >
+            View plans and subscribe at advottic.com
+          </ExternalLink>
         </div>
       ) : !priceConfigured ? (
         <span className="rounded-lg border border-dashed border-ink-300 px-4 py-2 text-center text-sm text-ink-400 dark:border-forest-700/50 dark:text-cream-100/40">

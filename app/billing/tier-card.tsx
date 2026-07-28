@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { TIER_FEATURES, TIER_LABEL, type Tier } from '@/lib/types';
 import { useIsNativeApp } from '@/components/useIsNativeApp';
+import { ExternalLink } from '@/components/ExternalLink';
 import type { NativePlatform } from '@/lib/platform';
 
 const TIER_TAGLINE: Record<Tier, string> = {
@@ -203,10 +204,16 @@ export function TierCard({
       ) : isIOS ? (
         // Reader model: no in-app purchase on iOS.
         isPaidTier ? (
-          <div className="rounded-lg border border-forest-900/15 bg-forest-900/[0.03] px-3.5 py-3 text-[12.5px] leading-snug text-ink-700 dark:border-cream-50/15 dark:bg-cream-50/[0.04] dark:text-cream-200/90">
-            {/* Status only, no external-purchase steering (guideline 3.1.3(b)):
-                no website named, no "subscribe on the web". */}
-            Your access unlocks here automatically once your account is subscribed.
+          <div className="space-y-2 rounded-lg border border-forest-900/15 bg-forest-900/[0.03] px-3.5 py-3 text-[12.5px] leading-snug text-ink-700 dark:border-cream-50/15 dark:bg-cream-50/[0.04] dark:text-cream-200/90">
+            {/* US-storefront link-out (guideline 3.1.1, post-injunction):
+                app is US-only, so linking to web purchase is permitted. */}
+            <p>Your access unlocks here automatically once your account is subscribed.</p>
+            <ExternalLink
+              href="https://advottic.com/pricing"
+              className="inline-block font-semibold text-gold-700 underline underline-offset-2 dark:text-gold-300"
+            >
+              View plans and subscribe at advottic.com
+            </ExternalLink>
           </div>
         ) : null
       ) : (

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { headers } from 'next/headers';
+import { ExternalLink } from '@/components/ExternalLink';
 import { nativePlatformFromUserAgent } from '@/lib/platform';
 import {
   BreadcrumbJsonLd,
@@ -297,8 +298,15 @@ export default function PricingPage() {
         <h1 className="font-display text-3xl font-medium text-forest-900 dark:text-cream-100">Plans</h1>
         <p className="text-[15px] leading-relaxed text-ink-600 dark:text-cream-100/70">
           Your Advottic plan is managed on your account. Whatever your account
-          includes unlocks here automatically — there is nothing to buy in the
-          app.
+          includes unlocks here automatically.
+        </p>
+        <p className="text-[15px]">
+          <ExternalLink
+            href="https://advottic.com/pricing"
+            className="inline-block rounded-xl bg-forest-900 px-5 py-2.5 font-medium text-cream-50 no-underline hover:bg-forest-800 dark:bg-cream-50 dark:text-forest-900"
+          >
+            View plans &amp; subscribe at advottic.com
+          </ExternalLink>
         </p>
         <p className="text-[13px] text-ink-500 dark:text-cream-100/55">
           You can see your current plan under Billing in your account menu.
