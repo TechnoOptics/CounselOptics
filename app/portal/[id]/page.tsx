@@ -80,6 +80,11 @@ export default async function PortalRequestPage({
   const currentStep = isDecision ? 2 : label === 'In review' ? 1 : 0;
 
   const ans = (intake.intake_answers ?? {}) as Record<string, unknown>;
+  // The heading is what you asked for, not your own name.
+  const ticketTitle =
+    String(ans.subject ?? '').trim() ||
+    (intake.matter_type ?? '').trim() ||
+    intake.client_name;
   const meta: Array<{ label: string; value: string }> = (
     [
       ['Request type', 'request_type'],
@@ -115,8 +120,8 @@ export default async function PortalRequestPage({
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="eyebrow mb-1">{persona.firm.name}</p>
-          <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-cream-100 break-words">
-            {intake.client_name}
+          <h1 className="font-display text-2xl font-medium tracking-[-0.01em] text-cream-100 break-words">
+            {ticketTitle}
           </h1>
           <p className="text-[12px] text-cream-100/55 mt-1">
             {intake.matter_type ?? 'Request'}

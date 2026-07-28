@@ -140,6 +140,13 @@ export default async function IntakeDetailPage({
   const ref = String((ans.partner as Record<string, unknown> | undefined)?.externalId ?? '').trim()
     || ticketRef(intake.id);
   const priority = String(ans.priority ?? '').trim();
+  // What this request IS, not who filed it — partner tickets carry their own
+  // subject; everything else falls back to the matter type.
+  const ticketTitle =
+    String(ans.subject ?? '').trim() ||
+    (intake.matter_type ?? '').trim() ||
+    intake.client_name;
+  const requester = intake.client_name;
   const dueBy = String(ans.due_by ?? '').trim();
 
   // The rail is the conversation and nothing else, so the thread gets the
@@ -172,7 +179,7 @@ export default async function IntakeDetailPage({
           {ref}
         </span>
         <h1 className="min-w-0 flex-1 truncate font-display text-xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          {intake.client_name}
+          {ticketTitle}
         </h1>
         {isEmployeeReq && (
           <span className="rounded-full bg-gold-500/15 px-2.5 py-0.5 text-[11px] font-semibold text-gold-700 ring-1 ring-gold-500/30 dark:text-gold-200">
@@ -189,6 +196,7 @@ export default async function IntakeDetailPage({
       <WorkspaceShell side={rail}>
         {/* Highlights: the few facts you need on every scroll position. */}
         <div className="sticky top-0 z-10 flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-ink-100 bg-white/95 px-5 py-3 backdrop-blur dark:border-forest-800/60 dark:bg-forest-900/90">
+          <Highlight label="Requester" value={requester} />
           <Highlight label="Type" value={intake.matter_type ?? '—'} />
           {priority && <Highlight label="Priority" value={priority} />}
           {dueBy && <Highlight label="Due" value={dueBy} />}
@@ -205,6 +213,20 @@ export default async function IntakeDetailPage({
             />
           </div>
         </div>
+
+        {/* Lead with the matter itself: what was actually asked for, before
+            any of the metadata about it. */}
+        <RecordSection id="matter" title="The matter">
+          {intake.matter_summary ? (
+            <p className="max-w-[70ch] whitespace-pre-wrap text-[14.5px] leading-relaxed text-ink-800 dark:text-cream-100/90">
+              {intake.matter_summary}
+            </p>
+          ) : (
+            <p className="text-[13px] text-ink-400 dark:text-cream-100/40">
+              <T>No summary was provided with this request.</T>
+            </p>
+          )}
+        </RecordSection>
 
         {meta.length > 0 && (
           <RecordSection id="details" title="Request details">
@@ -236,7 +258,8 @@ export default async function IntakeDetailPage({
           </RecordSection>
         )}
 
-        <RecordSection id="summary" title="Summary &amp; contact">
+
+        <RecordSection id="contact" title="Contact" defaultOpen={false}>
           <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
             <div>
               <dt className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-400 dark:text-cream-100/40">
@@ -255,11 +278,6 @@ export default async function IntakeDetailPage({
               </dd>
             </div>
           </dl>
-          {intake.matter_summary && (
-            <p className="mt-4 max-w-[70ch] whitespace-pre-wrap text-[14px] leading-relaxed text-ink-700 dark:text-cream-100/85">
-              {intake.matter_summary}
-            </p>
-          )}
         </RecordSection>
 
         {(intake.opposing_parties?.length > 0 || intake.related_parties?.length > 0) && (
