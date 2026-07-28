@@ -7,7 +7,6 @@ import { IntakeConversation } from '@/components/intake/IntakeConversation';
 import { IntakeWorkPanel } from '@/components/intake/IntakeWorkPanel';
 import { WorkspaceShell } from '@/components/intake/WorkspaceShell';
 import { RecordSection } from '@/components/intake/RecordSection';
-import { AskAdvottic } from '@/components/counsel/AskAdvottic';
 import { ticketRef } from '@/lib/intake-conversation-types';
 import { loadIntakeConversationAction } from '@/lib/intake-conversation';
 import type { ThreadMessage } from '@/lib/intake-thread';
@@ -145,12 +144,6 @@ export default async function IntakeDetailPage({
 
   const rail = (
     <>
-      {/* Global ask lives in the rail, not across the top: a full-width bar
-          spans every pane, implies it searches all of them, and steals height
-          from each scroller at once. */}
-      <div className="shrink-0 [&>div]:!mb-0">
-        <AskAdvottic />
-      </div>
       {conv.ok && (
         <IntakeConversation
           fill
@@ -163,6 +156,22 @@ export default async function IntakeDetailPage({
           mentionables={conv.mentionables}
           emptyHint="No messages yet. Reply here and the requester is notified straight away."
         />
+      )}
+      {/* Attachments sit with the conversation, because that is where they
+          arrive — files dropped in the chat land straight in this list. */}
+      {conv.ok && (
+        <div className="max-h-[38%] shrink-0 overflow-y-auto overscroll-contain">
+          <IntakeWorkPanel
+            intakeId={intake.id}
+            canManage
+            sections={['documents', 'requests']}
+            assignee={conv.assignee}
+            participants={conv.participants}
+            people={conv.mentionables}
+            documents={conv.documents}
+            uploadRequests={conv.uploadRequests}
+          />
+        </div>
       )}
     </>
   );
@@ -295,14 +304,11 @@ export default async function IntakeDetailPage({
         )}
 
         {conv.ok && (
-          <RecordSection
-            id="people-docs"
-            title="People &amp; documents"
-            count={conv.documents.length}
-          >
+          <RecordSection id="people" title="People" count={conv.participants.length}>
             <IntakeWorkPanel
               intakeId={intake.id}
               canManage
+              sections={['people']}
               assignee={conv.assignee}
               participants={conv.participants}
               people={conv.mentionables}

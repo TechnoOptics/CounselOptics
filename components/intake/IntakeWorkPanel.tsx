@@ -33,6 +33,7 @@ export function IntakeWorkPanel({
   people,
   documents,
   uploadRequests,
+  sections = ['people', 'documents', 'requests'],
 }: {
   intakeId: string;
   canManage: boolean;
@@ -41,6 +42,8 @@ export function IntakeWorkPanel({
   people: IntakePerson[];
   documents: IntakeDocument[];
   uploadRequests: IntakeUploadRequest[];
+  /** Which blocks to render, so the record pane and the rail can split them. */
+  sections?: Array<'people' | 'documents' | 'requests'>;
 }) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -84,6 +87,7 @@ export function IntakeWorkPanel({
       )}
 
       {/* People */}
+      {sections.includes('people') && (
       <section className="rounded-2xl border border-ink-200 bg-white p-4 dark:border-forest-700/50 dark:bg-forest-900/40">
         <h2 className="mb-3 text-[13px] font-semibold uppercase tracking-wider text-ink-500 dark:text-cream-100/55">
           People
@@ -182,7 +186,10 @@ export function IntakeWorkPanel({
         )}
       </section>
 
+      )}
+
       {/* Documents */}
+      {sections.includes('documents') && (
       <section className="rounded-2xl border border-ink-200 bg-white p-4 dark:border-forest-700/50 dark:bg-forest-900/40">
         <h2 className="mb-3 text-[13px] font-semibold uppercase tracking-wider text-ink-500 dark:text-cream-100/55">
           Documents ({documents.length})
@@ -219,8 +226,10 @@ export function IntakeWorkPanel({
         )}
       </section>
 
+      )}
+
       {/* Request a document */}
-      {canManage && (
+      {sections.includes('requests') && canManage && (
         <section className="rounded-2xl border border-ink-200 bg-white p-4 dark:border-forest-700/50 dark:bg-forest-900/40">
           <h2 className="mb-1 text-[13px] font-semibold uppercase tracking-wider text-ink-500 dark:text-cream-100/55">
             Ask for a document

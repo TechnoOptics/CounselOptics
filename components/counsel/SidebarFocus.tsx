@@ -133,13 +133,18 @@ export function CounselSidebarShell({ children }: { children: React.ReactNode })
           </div>
         </div>
 
-        {/* Page-keeper tab - visible only when collapsed. Hover or click to
-            slide the rail back in. */}
+        {/* Page-keeper tab - visible only when collapsed. Click to slide the
+            rail back in.
+
+            It deliberately does NOT expand on hover or focus. The tab renders
+            flush against the panel's right edge — which is exactly where the
+            collapse button (and therefore the cursor) just was — and then
+            slides left as the panel animates shut. A hover handler fires on
+            the very first frame, so collapsing appeared to do nothing: it
+            closed and sprang straight back open under the stationary mouse. */}
         {collapsed && (
           <button
             type="button"
-            onMouseEnter={() => setCollapsed(false)}
-            onFocus={() => setCollapsed(false)}
             onClick={() => setCollapsed(false)}
             aria-expanded={false}
             aria-controls="counsel-sidebar-panel"
