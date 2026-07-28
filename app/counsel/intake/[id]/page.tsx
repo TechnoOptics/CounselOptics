@@ -168,42 +168,52 @@ export default async function IntakeDetailPage({
   return (
     <div className="flex min-h-0 flex-col gap-3 animate-fade-up">
       {/* Compact identity bar. Everything below scrolls; this does not. */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-        <Link
-          href="/counsel/inbox"
-          className="text-[12.5px] text-ink-500 hover:text-forest-900 dark:hover:text-cream-100"
-        >
-          <T>&larr; Requests</T>
-        </Link>
-        <span className="font-mono text-[12px] font-semibold text-gold-700 dark:text-gold-300">
-          {ref}
-        </span>
-        <h1 className="min-w-0 flex-1 truncate font-display text-xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          {ticketTitle}
-        </h1>
-        {isEmployeeReq && (
-          <span className="rounded-full bg-gold-500/15 px-2.5 py-0.5 text-[11px] font-semibold text-gold-700 ring-1 ring-gold-500/30 dark:text-gold-200">
-            <T>In-house</T> · {submittedBy}
+      {/* The title and the controls are two groups, not one flat row. Flat, the
+          title was the only shrinkable item and so absorbed every pixel the
+          buttons wanted — it truncated to nothing on a narrow window while the
+          buttons stayed full width. Below `lg` the title group claims a whole
+          line and the controls wrap beneath it. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <div className="flex min-w-0 flex-1 basis-full items-center gap-x-3 lg:basis-auto">
+          <Link
+            href="/counsel/inbox"
+            className="shrink-0 text-[12.5px] text-ink-500 hover:text-forest-900 dark:hover:text-cream-100"
+          >
+            <T>&larr; Requests</T>
+          </Link>
+          <span className="shrink-0 font-mono text-[12px] font-semibold text-gold-700 dark:text-gold-300">
+            {ref}
           </span>
-        )}
-        <SectionJump target="meeting">
-          <span aria-hidden>📅</span>
-          <T>Schedule meeting</T>
-        </SectionJump>
-        <SectionJump target="documents">
-          <span aria-hidden>📄</span>
-          <T>Documents</T>
-          {conv.ok && conv.documents.length > 0 && (
-            <span className="rounded-full bg-ink-100 px-1.5 text-[10.5px] font-semibold text-ink-600 dark:bg-forest-800 dark:text-cream-100/70">
-              {conv.documents.length}
+          <h1 className="min-w-0 truncate font-display text-xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
+            {ticketTitle}
+          </h1>
+          {isEmployeeReq && (
+            <span className="shrink-0 rounded-full bg-gold-500/15 px-2.5 py-0.5 text-[11px] font-semibold text-gold-700 ring-1 ring-gold-500/30 dark:text-gold-200">
+              <T>In-house</T> · {submittedBy}
             </span>
           )}
-        </SectionJump>
-        <span
-          className={`inline-flex shrink-0 items-center rounded px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ring-1 ${tone}`}
-        >
-          {intake.status.replace(/_/g, ' ')}
-        </span>
+        </div>
+
+        <div className="flex shrink-0 items-center gap-2">
+          <SectionJump target="meeting">
+            <CalendarIcon />
+            <T>Schedule meeting</T>
+          </SectionJump>
+          <SectionJump target="documents">
+            <DocumentIcon />
+            <T>Documents</T>
+            {conv.ok && conv.documents.length > 0 && (
+              <span className="rounded-full bg-ink-100 px-1.5 text-[10.5px] font-semibold text-ink-600 dark:bg-forest-800 dark:text-cream-100/70">
+                {conv.documents.length}
+              </span>
+            )}
+          </SectionJump>
+          <span
+            className={`inline-flex shrink-0 items-center rounded px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ring-1 ${tone}`}
+          >
+            {intake.status.replace(/_/g, ' ')}
+          </span>
+        </div>
       </div>
 
       <WorkspaceShell side={rail}>
@@ -395,6 +405,47 @@ export default async function IntakeDetailPage({
 
       </WorkspaceShell>
     </div>
+  );
+}
+
+/**
+ * Header-button glyphs. Drawn rather than emoji: emoji render at a different
+ * weight and colour on every platform, and a picture-book calendar next to a
+ * matter reference reads wrong for legal work.
+ */
+function CalendarIcon() {
+  return (
+    <svg aria-hidden width="13" height="13" viewBox="0 0 24 24" fill="none" className="shrink-0">
+      <rect
+        x="3"
+        y="5"
+        width="18"
+        height="16"
+        rx="2"
+        stroke="currentColor"
+        strokeWidth="1.9"
+      />
+      <path
+        d="M3 10h18M8 3v4M16 3v4"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function DocumentIcon() {
+  return (
+    <svg aria-hidden width="13" height="13" viewBox="0 0 24 24" fill="none" className="shrink-0">
+      <path
+        d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinejoin="round"
+      />
+      <path d="M14 3v5h5" stroke="currentColor" strokeWidth="1.9" strokeLinejoin="round" />
+    </svg>
   );
 }
 
