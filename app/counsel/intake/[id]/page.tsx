@@ -142,39 +142,21 @@ export default async function IntakeDetailPage({
   const priority = String(ans.priority ?? '').trim();
   const dueBy = String(ans.due_by ?? '').trim();
 
-  const rail = (
-    <>
-      {conv.ok && (
-        <IntakeConversation
-          fill
-          intakeId={intake.id}
-          viewerRole="legal"
-          viewerUserId={conv.userId}
-          canPost={conv.canPost}
-          canUseInternal={conv.canUseInternal}
-          initialMessages={conv.messages}
-          mentionables={conv.mentionables}
-          emptyHint="No messages yet. Reply here and the requester is notified straight away."
-        />
-      )}
-      {/* Attachments sit with the conversation, because that is where they
-          arrive — files dropped in the chat land straight in this list. */}
-      {conv.ok && (
-        <div className="max-h-[38%] shrink-0 overflow-y-auto overscroll-contain">
-          <IntakeWorkPanel
-            intakeId={intake.id}
-            canManage
-            sections={['documents', 'requests']}
-            assignee={conv.assignee}
-            participants={conv.participants}
-            people={conv.mentionables}
-            documents={conv.documents}
-            uploadRequests={conv.uploadRequests}
-          />
-        </div>
-      )}
-    </>
-  );
+  // The rail is the conversation and nothing else, so the thread gets the
+  // entire column height. Documents live at the foot of the record instead.
+  const rail = conv.ok ? (
+    <IntakeConversation
+      fill
+      intakeId={intake.id}
+      viewerRole="legal"
+      viewerUserId={conv.userId}
+      canPost={conv.canPost}
+      canUseInternal={conv.canUseInternal}
+      initialMessages={conv.messages}
+      mentionables={conv.mentionables}
+      emptyHint="No messages yet. Reply here and the requester is notified straight away."
+    />
+  ) : null;
 
   return (
     <div className="flex min-h-0 flex-col gap-3 animate-fade-up">
@@ -340,6 +322,25 @@ export default async function IntakeDetailPage({
         {ans.review != null && typeof ans.review === 'object' && 'grade' in (ans.review as object) && (
           <RecordSection id="review" title="Advottic Review" defaultOpen={false}>
             <ReviewScorecard data={ans.review as DocScorecard} audience="legal" />
+          </RecordSection>
+        )}
+
+        {conv.ok && (
+          <RecordSection
+            id="documents"
+            title="Documents"
+            count={conv.documents.length}
+          >
+            <IntakeWorkPanel
+              intakeId={intake.id}
+              canManage
+              sections={['documents', 'requests']}
+              assignee={conv.assignee}
+              participants={conv.participants}
+              people={conv.mentionables}
+              documents={conv.documents}
+              uploadRequests={conv.uploadRequests}
+            />
           </RecordSection>
         )}
 

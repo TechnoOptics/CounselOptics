@@ -260,7 +260,7 @@ export function IntakeConversation({
         fill ? 'h-full min-h-0' : ''
       }`}
     >
-      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-ink-100 px-4 py-3 dark:border-forest-800/60">
+      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-ink-100 px-3.5 py-2 dark:border-forest-800/60">
         <div className="flex items-center gap-2">
           <h2 className="text-[13px] font-semibold uppercase tracking-wider text-ink-500 dark:text-cream-100/55">
             Conversation
@@ -302,7 +302,7 @@ export function IntakeConversation({
       <div
         ref={scrollerRef}
         tabIndex={0}
-        className={`space-y-1 overflow-y-auto overscroll-contain px-4 py-4 ${
+        className={`space-y-0.5 overflow-y-auto overscroll-contain px-3.5 py-3 ${
           fill ? 'min-h-0 flex-1' : 'max-h-[62vh] min-h-[220px]'
         }`}
       >
@@ -343,14 +343,14 @@ export function IntakeConversation({
             <div
               key={m.id}
               id={`m-${m.id}`}
-              className={`flex gap-2.5 ${grouped ? 'pt-0.5' : 'pt-3'} ${
+              className={`flex gap-2 ${grouped ? 'pt-0.5' : 'pt-2.5'} ${
                 onRight ? 'flex-row-reverse' : 'flex-row'
               }`}
             >
-              <div className="w-8 shrink-0">
+              <div className="w-7 shrink-0">
                 {!grouped && (
                   <span
-                    className={`flex h-8 w-8 items-center justify-center rounded-full text-[11px] font-semibold ${style.avatar}`}
+                    className={`flex h-7 w-7 items-center justify-center rounded-full text-[10.5px] font-semibold ${style.avatar}`}
                     aria-hidden
                   >
                     {initialsOf(m.authorName)}
@@ -359,7 +359,7 @@ export function IntakeConversation({
               </div>
 
               <div
-                className={`flex min-w-0 max-w-[82%] flex-col ${
+                className={`flex min-w-0 max-w-[calc(100%-0.5rem)] flex-col ${
                   onRight ? 'items-end' : 'items-start'
                 }`}
               >
@@ -439,9 +439,9 @@ export function IntakeConversation({
       </div>
 
       {canPost ? (
-        <div className="border-t border-ink-100 px-4 py-3 dark:border-forest-800/60">
+        <div className="shrink-0 border-t border-ink-100 px-3.5 py-2.5 dark:border-forest-800/60">
           {canUseInternal && (
-            <div className="mb-2 flex items-center gap-1 rounded-lg bg-ink-50 p-0.5 dark:bg-forest-950/50">
+            <div className="mb-1.5 flex items-center gap-1 rounded-lg bg-ink-50 p-0.5 dark:bg-forest-950/50">
               <button
                 type="button"
                 onClick={() => setVisibility('shared')}
@@ -525,7 +525,7 @@ export function IntakeConversation({
 
             <textarea
               ref={taRef}
-              rows={3}
+              rows={2}
               value={text}
               onChange={(e) => {
                 setText(e.target.value);
@@ -578,7 +578,7 @@ export function IntakeConversation({
             </p>
           )}
 
-          <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+          <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <input
                 ref={fileRef}
@@ -595,8 +595,8 @@ export function IntakeConversation({
               >
                 {uploading ? 'Attaching…' : '📎 Attach'}
               </button>
-              <span className="text-[11.5px] text-ink-400 dark:text-cream-100/35">
-                Files are saved to this request&rsquo;s documents.
+              <span className="hidden text-[11.5px] text-ink-400 xl:inline dark:text-cream-100/35">
+                Saved to documents.
               </span>
             </div>
             <button

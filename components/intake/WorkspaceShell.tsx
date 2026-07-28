@@ -74,7 +74,7 @@ export function WorkspaceShell({
       className={`grid min-h-0 gap-5 ${
         stacked
           ? 'grid-cols-1'
-          : 'grid-cols-[minmax(0,1fr)_minmax(360px,400px)] xl:grid-cols-[minmax(0,1fr)_minmax(400px,440px)]'
+          : 'grid-cols-[minmax(0,1fr)_minmax(400px,440px)] xl:grid-cols-[minmax(0,1fr)_minmax(440px,500px)]'
       }`}
     >
       <main
