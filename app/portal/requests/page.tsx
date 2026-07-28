@@ -41,6 +41,24 @@ export default async function PortalRequestsPage() {
     requests = (data ?? []) as typeof requests;
   }
 
+  // Reply counts come from firm_intake_messages, not the legacy
+  // intake_answers.thread jsonb - that array stopped being written when the
+  // conversation moved to its own table, so newer requests silently showed
+  // no messages at all. Only 'shared' counts: counting internal notes would
+  // leak both their existence and how many there are.
+  const replyCounts = new Map<string, number>();
+  if (admin && requests.length > 0) {
+    const { data: msgRows } = await admin
+      .from('firm_intake_messages')
+      .select('intake_id')
+      .in('intake_id', requests.map((r) => r.id))
+      .eq('visibility', 'shared')
+      .is('deleted_at', null);
+    for (const m of (msgRows ?? []) as { intake_id: string }[]) {
+      replyCounts.set(m.intake_id, (replyCounts.get(m.intake_id) ?? 0) + 1);
+    }
+  }
+
   return (
     <div className="space-y-7 animate-fade-up">
       <header>
@@ -102,9 +120,14 @@ export default async function PortalRequestsPage() {
               const ans = (r.intake_answers ?? {}) as Record<string, unknown>;
               const due = String(ans.due_by ?? '').trim();
               const priority = String(ans.priority ?? '').trim();
-              const msgCount = Array.isArray(ans.thread)
-                ? (ans.thread as unknown[]).length
-                : 0;
+              const msgCount = replyCounts.get(r.id) ?? 0;
+              // Lead with what you asked for. This showed client_name, which
+              // for an in-house requester is their own name - so every row on
+              // the employee's own list read identically.
+              const title =
+                String(ans.subject ?? '').trim() ||
+                (r.matter_type ?? '').trim() ||
+                r.client_name;
               return (
                 <li key={r.id}>
                   <Link
@@ -113,7 +136,7 @@ export default async function PortalRequestsPage() {
                   >
                     <div className="flex items-center justify-between gap-2">
                       <p className="font-semibold text-cream-100 truncate">
-                        {r.client_name}
+                        {title}
                       </p>
                       <span
                         className={`shrink-0 inline-flex items-center px-1.5 py-[1px] rounded text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ${tone}`}
