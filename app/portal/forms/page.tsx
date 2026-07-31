@@ -9,7 +9,7 @@ export const metadata = { title: 'Forms · Hub' };
 
 /**
  * Employee Forms: the templates the legal team published (NDA, vendor form,
- * …). Pick one, fill the fields, sign, and export — no ticket needed.
+ * …). Pick one, fill the fields, sign, and export. No ticket needed.
  */
 export default async function PortalFormsPage() {
   const persona = await getWorkspacePersona();
@@ -24,7 +24,7 @@ export default async function PortalFormsPage() {
         <h1 className="font-display text-2xl font-medium text-forest-900 dark:text-cream-100">Forms</h1>
         <p className="mt-1 text-sm text-ink-600 dark:text-cream-100/70">
           Documents your legal team has prepared for self-service. Fill one in, sign it, and
-          download it — no request needed. If your situation doesn&apos;t fit a form,{' '}
+          download it, no request needed. If your situation doesn&apos;t fit a form,{' '}
           <Link href="/portal/new" className="text-gold-700 underline dark:text-gold-300">
             file a request
           </Link>{' '}

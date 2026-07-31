@@ -3,7 +3,7 @@ import exifr from 'exifr';
 import { PDFDocument } from 'pdf-lib';
 
 /**
- * Forensic "core details" extraction — pull whatever a file quietly carries
+ * Forensic "core details" extraction: pull whatever a file quietly carries
  * (device, capture time, GPS, camera settings, PDF authoring metadata) so the
  * firm can surface it as evidence/clues. Best-effort: an image with its EXIF
  * stripped, or a flat PDF, simply returns fewer fields. Never throws.
@@ -66,7 +66,7 @@ export async function extractImageMetadata(buffer: Buffer): Promise<MediaMetadat
     }
     if (gps) fields.unshift({ label: 'GPS', value: `${gps.lat.toFixed(6)}, ${gps.lng.toFixed(6)}` });
   } catch {
-    /* no/unsupported EXIF — return what we have */
+    /* no/unsupported EXIF: return what we have */
   }
   return { fields, gps };
 }

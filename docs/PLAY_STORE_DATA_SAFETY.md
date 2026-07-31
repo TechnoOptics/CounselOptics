@@ -1,4 +1,4 @@
-# Play Store Data Safety form — Advottic v1.0
+# Play Store Data Safety form: Advottic v1.0
 
 The Data Safety form lives in Play Console under
 **App content -> Data safety**. Google rejects apps with mismatched answers,

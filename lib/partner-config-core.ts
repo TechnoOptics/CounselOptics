@@ -6,7 +6,7 @@ import crypto from 'crypto';
  * firms.metadata.partnerIntegration (schema-less, no migration):
  *
  *   - ackMessage: the confirmation popup the partner app shows the
- *     employee right after filing ("Thanks — legal typically replies
+ *     employee right after filing ("Thanks, legal typically replies
  *     within 2 business days"). Returned by the ticket-create API and
  *     by GET /api/partner/v1/config.
  *   - questions: the intake questions the partner app renders on its
@@ -35,7 +35,7 @@ export type PartnerIntegrationConfig = {
 };
 
 export const DEFAULT_ACK_MESSAGE =
-  'Thanks — your request has reached the legal team. We usually respond within 2 business days; urgent matters are triaged first.';
+  'Thanks, your request has reached the legal team. We usually respond within 2 business days; urgent matters are triaged first.';
 
 export function readPartnerConfig(
   metadata: Record<string, unknown> | null | undefined,

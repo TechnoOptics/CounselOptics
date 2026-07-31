@@ -30,8 +30,8 @@ export default async function GuestProfilePage() {
       </header>
 
       <section className="card p-5 space-y-2">
-        <Row label="Name" value={guest.displayName ?? '—'} />
-        <Row label="Sign-in" value={guest.email ?? '—'} />
+        <Row label="Name" value={guest.displayName ?? <T>Not set</T>} />
+        <Row label="Sign-in" value={guest.email ?? <T>Not set</T>} />
         {guest.firm && <Row label="Working with" value={guest.firm.name} />}
       </section>
 
@@ -50,7 +50,7 @@ export default async function GuestProfilePage() {
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
       <span className="text-[11px] uppercase tracking-[0.12em] font-semibold text-cream-100/55">

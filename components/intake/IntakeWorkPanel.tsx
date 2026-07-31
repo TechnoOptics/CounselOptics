@@ -109,7 +109,7 @@ export function IntakeWorkPanel({
               onChange={(e) => run(() => assignIntakeAction(intakeId, e.target.value || null))}
               className="w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-[13px] text-forest-900 outline-none focus:border-gold-500/70 dark:border-forest-700/50 dark:bg-forest-900/60 dark:text-cream-100"
             >
-              <option value="">Unassigned — anyone can pick this up</option>
+              <option value="">Unassigned, anyone can pick this up</option>
               {legalPeople.map((p) => (
                 <option key={p.userId} value={p.userId}>
                   {p.name}
@@ -238,7 +238,7 @@ export function IntakeWorkPanel({
             Ask for a document
           </h2>
           <p className="mb-3 text-[12px] text-ink-500 dark:text-cream-100/55">
-            Sends a secure link. Whoever opens it can send the file straight into this request — no
+            Sends a secure link. Whoever opens it can send the file straight into this request. No
             account needed.
           </p>
 

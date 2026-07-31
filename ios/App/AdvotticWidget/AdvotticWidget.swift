@@ -141,10 +141,10 @@ struct SmallView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .lastTextBaseline, spacing: 8) {
-                Text(s.hasData ? "\(s.openCount)" : "—")
+                Text(s.hasData ? "\(s.openCount)" : "")
                     .font(.system(size: 34, weight: .bold, design: .rounded))
                     .foregroundColor(.advCream)
-                Text(s.openCount == 1 ? "OPEN\nCASE" : "OPEN\nCASES")
+                Text(s.hasData ? (s.openCount == 1 ? "OPEN\nCASE" : "OPEN\nCASES") : "NOT\nSYNCED")
                     .font(.system(size: 10, weight: .semibold))
                     .tracking(0.8)
                     .foregroundColor(.advGold)
@@ -183,10 +183,10 @@ struct MediumView: View {
     var body: some View {
         HStack(alignment: .top, spacing: 16) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(s.hasData ? "\(s.openCount)" : "—")
+                Text(s.hasData ? "\(s.openCount)" : "")
                     .font(.system(size: 40, weight: .bold, design: .rounded))
                     .foregroundColor(.advCream)
-                Text(s.openCount == 1 ? "OPEN CASE" : "OPEN CASES")
+                Text(s.hasData ? (s.openCount == 1 ? "OPEN CASE" : "OPEN CASES") : "NOT SYNCED")
                     .font(.system(size: 10, weight: .semibold))
                     .tracking(0.8)
                     .foregroundColor(.advGold)

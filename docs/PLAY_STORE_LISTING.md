@@ -1,4 +1,4 @@
-# Play Store listing copy — Advottic v1.0
+# Play Store listing copy: Advottic v1.0
 
 Drafted for Google Play Console -> Main store listing. Copy-paste ready.
 Character counts respect Google's hard limits (title 30, short 80, full 4000).

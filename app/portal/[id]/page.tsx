@@ -58,7 +58,7 @@ export default async function PortalRequestPage({
     intake_answers: Record<string, unknown> | null;
   };
   // Access gate: your own request, or one you were explicitly invited onto.
-  // Anything else is a 404 — never leak that the row exists.
+  // Anything else is a 404: never leak that the row exists.
   //
   // The participant branch matters: legal can add a colleague to a request,
   // and that person is emailed a link straight here. Without it the invite

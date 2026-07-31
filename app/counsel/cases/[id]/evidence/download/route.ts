@@ -132,8 +132,8 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     });
   }
 
-  // Several: bundle into a ZIP (stored, not recompressed — media is already
-  // compressed and this keeps large selections inside the time budget).
+  // Several: bundle into a ZIP (stored, not recompressed, since media is
+  // already compressed and this keeps large selections inside the time budget).
   const entries: Record<string, [Uint8Array, { level: 0 }]> = {};
   for (const f of files) entries[f.name] = [new Uint8Array(f.buf), { level: 0 }];
   const zip = zipSync(entries);

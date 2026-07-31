@@ -20,7 +20,7 @@ export function SubmissionsList({
   return (
     <div className="card p-5 sm:p-6 space-y-4">
       <p className="eyebrow">
-        Submissions ({submissions.length}) — private to you and your attorney
+        Submissions ({submissions.length}), private to you and your attorney
       </p>
       {submissions.length === 0 ? (
         <p className="text-sm text-ink-500 dark:text-cream-100/55">
@@ -168,7 +168,7 @@ function SubmissionRow({ caseId, submission }: { caseId: string; submission: Wit
                 className="btn-secondary text-xs"
                 onClick={() => setConfirmedRisk(true)}
               >
-                I understand — show file options
+                I understand, show file options
               </button>
             </div>
           ) : (

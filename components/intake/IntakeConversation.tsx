@@ -24,7 +24,7 @@ import {
 } from '@/lib/intake-conversation-types';
 
 /**
- * The conversation on a legal request — the surface both sides actually live
+ * The conversation on a legal request: the surface both sides actually live
  * in. Messages stream in over Supabase Realtime (with a poll as a safety
  * net), each person carries an avatar, files dropped here are filed into the
  * ticket's documents, and the legal team can switch the composer to an
@@ -145,8 +145,8 @@ export function IntakeConversation({
   );
 
   // Pin to the newest message only when the reader is already at the bottom.
-  // Otherwise they are reading history and being scrolled away is hostile —
-  // surface a pill instead and let them choose.
+  // Otherwise they are reading history and being scrolled away is hostile.
+  // Surface a pill instead and let them choose.
   const [atBottom, setAtBottom] = useState(true);
   const [unseen, setUnseen] = useState(0);
   const lastCount = useRef(visible.length);
@@ -290,7 +290,7 @@ export function IntakeConversation({
             className={`inline-flex items-center gap-1.5 text-[11px] ${
               live ? 'text-emerald-600 dark:text-emerald-300' : 'text-ink-400 dark:text-cream-100/40'
             }`}
-            title={live ? 'Updating live' : 'Reconnecting — messages still refresh'}
+            title={live ? 'Updating live' : 'Reconnecting, messages still refresh'}
           >
             <span
               className={`inline-block h-1.5 w-1.5 rounded-full ${
@@ -363,7 +363,7 @@ export function IntakeConversation({
           }
 
           // Classic two-sided chat: the requester speaks on the left, the
-          // legal team on the right — the same way round on both surfaces, so
+          // legal team on the right (the same way round on both surfaces), so
           // a screenshot of a thread always reads identically.
           const onRight = m.authorRole === 'legal';
           const style = participantStyle(m.authorUserId ?? m.authorName);
@@ -606,7 +606,7 @@ export function IntakeConversation({
               }}
               placeholder={
                 visibility === 'internal'
-                  ? 'Internal note for the legal team — the requester will not see this…'
+                  ? 'Internal note for the legal team. The requester will not see this…'
                   : 'Write a reply…  @ to mention someone, Enter to send'
               }
               className={`w-full rounded-xl border px-3 py-2.5 text-[14px] outline-none transition-colors focus:ring-2 ${
@@ -636,7 +636,7 @@ export function IntakeConversation({
                 type="button"
                 onClick={() => fileRef.current?.click()}
                 disabled={uploading}
-                title="Attach a file — it is saved to this request's documents"
+                title="Attach a file: it is saved to this request's documents"
                 className="rounded-lg border border-ink-200 px-2.5 py-1 text-[12.5px] font-medium text-forest-900 hover:bg-cream-50 disabled:opacity-50 dark:border-forest-700/50 dark:text-cream-100 dark:hover:bg-forest-800/50"
               >
                 {uploading ? 'Attaching…' : '📎 Attach'}

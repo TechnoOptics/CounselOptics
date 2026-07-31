@@ -270,7 +270,7 @@ export function ProjectWorkspace({
                   className="rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 p-3 space-y-2 bg-cream-50/40 dark:bg-forest-900/40"
                   action={(fd) => run(() => uploadProjectDocumentAction(firmId, project.id, folderId, fd))}
                 >
-                  <input name="title" maxLength={200} placeholder={t('Title (optional — defaults to file name)')} className="input" />
+                  <input name="title" maxLength={200} placeholder={t('Title (optional, defaults to file name)')} className="input" />
                   <input name="file" type="file" required className="text-[13px] file:mr-3 file:rounded-md file:border-0 file:bg-forest-600 file:px-3 file:py-1.5 file:text-cream-50 file:cursor-pointer" />
                   <div className="flex justify-end gap-2">
                     <button type="button" onClick={() => setComposer(null)} className="inline-flex items-center min-h-[36px] px-3 rounded-md text-[13px] text-ink-600 dark:text-cream-100/70"><T>Cancel</T></button>

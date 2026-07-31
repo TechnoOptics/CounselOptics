@@ -1,5 +1,5 @@
 /**
- * Case Timeline Builder — shared types.
+ * Case Timeline Builder: shared types.
  *
  * A chronological evidence builder: the user drops media + context, Bella
  * analyses each item (OCR, dates, people, chat sender/recipient), and Advottic
@@ -89,7 +89,7 @@ export type AiExtracted = {
   suggested_precision?: OccurredPrecision;
   confidence?: 'high' | 'medium' | 'low';
   /**
-   * Forensic "core details" pulled from the file itself — EXIF/GPS/device for
+   * Forensic "core details" pulled from the file itself: EXIF/GPS/device for
    * images, authoring metadata for PDFs. Best-effort; empty when the file
    * carries none. See lib/media-metadata.ts.
    */
@@ -550,7 +550,7 @@ export function kindFromMime(mime: string, name: string): TimelineKind {
   return 'note';
 }
 
-/** Analysable-as-an-image (Claude vision) — photos, receipts, message screenshots. */
+/** Analysable-as-an-image (Claude vision): photos, receipts, message screenshots. */
 export function isVisionAnalyzable(mime: string): boolean {
   return /^image\/(jpe?g|png|webp|gif|heic|heif)$/i.test(mime);
 }

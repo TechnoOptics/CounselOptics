@@ -7,11 +7,11 @@ import { authorizeFirmActor } from './portal-entitlements';
 /**
  * Firm-owned form templates ("Forms"): the legal team configures reusable
  * documents (NDA, vendor form, …) with {{field}} placeholders; employees fill,
- * sign, and export them from the Hub portal — self-service for request types
+ * sign, and export them from the Hub portal: self-service for request types
  * that used to become tickets.
  *
  * firm_templates carries RLS with NO policies: every path below runs on the
- * service-role client behind an explicit gate — firm membership for authoring,
+ * service-role client behind an explicit gate: firm membership for authoring,
  * authorizeFirmActor (employee entitlement) for reading published templates.
  */
 

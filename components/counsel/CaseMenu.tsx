@@ -4,11 +4,11 @@ import { TimelineIcon, EvidenceIcon, ApproachIcon } from '@/components/counsel/C
 import { ExportMenu } from '@/components/counsel/ExportMenu';
 
 /**
- * Case menu — the four primary case surfaces, pinned to the very top of every
+ * Case menu: the four primary case surfaces, pinned to the very top of every
  * case page (matter, Case Timeline, Evidence Center) so it sits directly under
  * the counsel header's gold glow line and reads as the case's navigation. The
  * current surface is highlighted; a gold hairline below separates the menu
- * from the page content. Firm members only — a co-counsel guest keeps the
+ * from the page content. Firm members only. A co-counsel guest keeps the
  * stripped guest shell.
  */
 export function CaseMenu({

@@ -1,5 +1,5 @@
 /**
- * "Facts of the case" — a concise, single place that surfaces everything
+ * "Facts of the case": a concise, single place that surfaces everything
  * captured when the case was created (subject, jurisdiction, type, posture,
  * status, hearing, description) at the top of the Timeline, so the whole
  * matter reads at a glance before the evidence.

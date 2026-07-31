@@ -1,4 +1,4 @@
-# Sign in with Apple failure — diagnosis
+# Sign in with Apple failure: diagnosis
 
 App Review rejection, 2026-07-29, Guideline 2.1(a), build 22:
 
@@ -62,7 +62,7 @@ GoTrue deletes a flow state when its code is redeemed, so neither code
 was ever redeemed.
 
 At 06:01:28Z, ninety seconds after the second failed Apple attempt, a
-session was created for a *different* user — the reviewer falling back
+session was created for a *different* user, the reviewer falling back
 to another sign-in path to get into the app. They then filed the bug.
 
 `auth.identities` by provider (whole project, all time):
@@ -84,7 +84,7 @@ a feature that never worked.
 
 ## 3. Candidate causes, ruled in and out
 
-### 3.1 Expired Apple client secret JWT — RULED OUT
+### 3.1 Expired Apple client secret JWT: RULED OUT
 
 This was the prime suspect and it is wrong.
 
@@ -112,7 +112,7 @@ of headroom.
 
 Note for later: nothing watches that date. See remediation item R4.
 
-### 3.2 Redirect URI / Service ID mismatch — RULED OUT
+### 3.2 Redirect URI / Service ID mismatch: RULED OUT
 
 The project uses a **custom Supabase auth domain**, `auth.advottic.com`.
 Probing the live authorize endpoint:
@@ -127,7 +127,7 @@ GET https://hpmtlhpyvbreyfimftgt.supabase.co/auth/v1/authorize?provider=apple&re
 
 So Supabase sends Apple `https://auth.advottic.com/auth/v1/callback`,
 not the `*.supabase.co` URL. Following that link to Apple returns the
-real sign-in page. The control test is what makes this conclusive —
+real sign-in page. The control test is what makes this conclusive:
 Apple embeds a JSON error in the page when a Return URL is not
 registered:
 
@@ -143,7 +143,7 @@ configured. Worth knowing: the *old* `*.supabase.co` return URL is **not**
 registered, so if the custom auth domain is ever removed, Apple sign-in
 breaks instantly.
 
-### 3.3 Supabase redirect allowlist rejecting the custom scheme — RULED OUT
+### 3.3 Supabase redirect allowlist rejecting the custom scheme: RULED OUT
 
 Probed with `/auth/v1/verify`, whose 302 reveals whether `redirect_to`
 was honoured or silently replaced by the Site URL:
@@ -158,7 +158,7 @@ was honoured or silently replaced by the Site URL:
 The custom scheme is allowlisted. Supabase really did 302 the reviewer's
 browser to `com.advottic.app://auth/callback?code=…`.
 
-### 3.4 AAL2 / MFA step-up added at sign-in — RULED OUT
+### 3.4 AAL2 / MFA step-up added at sign-in: RULED OUT
 
 `a0ba5e9` added the check to `lib/supabase/middleware.ts`, gated behind
 the server-only `MFA_AAL2_ENFORCEMENT` flag, unset by default. Even if it
@@ -169,19 +169,19 @@ fires. The reviewer never got a session at all, so middleware was never
 reached with one. Independently, the one session created that morning
 (06:01:28Z) is recorded at `aal1` and was not bounced.
 
-### 3.5 Apple blocking its auth page in an embedded WebView — RULED OUT
+### 3.5 Apple blocking its auth page in an embedded WebView: RULED OUT
 
 Apple's page loaded and the reviewer authenticated successfully; Supabase
 holds the resulting identity. Whatever browser surface it was shown in,
 it worked.
 
-### 3.6 Provider disabled / button not rendered — RULED OUT
+### 3.6 Provider disabled / button not rendered: RULED OUT
 
 `NEXT_PUBLIC_APPLE_ENABLED=1` is live: production `/sign-in` server-renders
 the copy "Continue with Google, Microsoft, or Apple". Supabase's Apple
 provider is enabled (it redirects to Apple rather than erroring).
 
-### 3.7 Recent code change — RULED OUT as the trigger
+### 3.7 Recent code change: RULED OUT as the trigger
 
 Nothing in `app/sign-in`, `app/auth`, `middleware.ts`, `lib/supabase`,
 `public/sw.js`, `next.config.mjs` or `vercel.json` changed between
@@ -192,7 +192,7 @@ to `app/layout.tsx`.
 What *did* change in that window is native: `8f58a32` (2026-07-25)
 rewired the Xcode project, and a new binary went to review after it.
 
-### 3.8 The return hop from the Safari sheet into the app — THE CAUSE
+### 3.8 The return hop from the Safari sheet into the app: THE CAUSE
 
 Everything above leaves exactly one step unaccounted for, and it is the
 step the data shows failing:
@@ -243,11 +243,11 @@ Native pieces that were checked and are *not* at fault:
 the database. That the specific mechanism is the POST-originated
 custom-scheme redirect out of `SFSafariViewController`: high but not
 proven, because it cannot be observed without a device. Any alternative
-explanation has to account for the same observable — the app never
-receives the callback — and the remediation below is written to survive
+explanation has to account for the same observable (the app never
+receives the callback), and the remediation below is written to survive
 being wrong about the mechanism.
 
-### 3.9 Error surfacing — CONTRIBUTING, NOT CAUSAL
+### 3.9 Error surfacing: CONTRIBUTING, NOT CAUSAL
 
 Worth fixing regardless, because it is what the reviewer actually saw.
 When the callback never arrives, the old code left `LoadingOverlay`
@@ -269,19 +269,19 @@ Both changes are web-side. The iOS shell is a remote-URL Capacitor
 wrapper, so they reach every installed build the moment Vercel deploys,
 with no new binary and no App Store round-trip.
 
-**`app/auth/callback/route.ts` — native return bridge.**
+**`app/auth/callback/route.ts`: native return bridge.**
 `/auth/callback?native=1` no longer attempts a server-side exchange. It
 returns a small branded https page that navigates to
 `com.advottic.app://auth/callback?code=…&next=…`, with a real
 "Return to Advottic" button behind the automatic attempt. The page
 deliberately runs no exchange of its own: the PKCE verifier cookie lives
 in the app WebView's cookie jar, not the Safari sheet's, so the exchange
-can only succeed back inside the app — which `app/sign-in` already does
+can only succeed back inside the app, which `app/sign-in` already does
 in its `appUrlOpen` handler. Carries `Cache-Control: no-store`,
 `Referrer-Policy: no-referrer` and `X-Frame-Options: DENY`, since the
 markup contains a single-use auth code.
 
-**`app/sign-in/sign-in-buttons.tsx` — Apple routed through the bridge.**
+**`app/sign-in/sign-in-buttons.tsx`: Apple routed through the bridge.**
 Apple's native `redirectTo` becomes
 `https://advottic.com/auth/callback?native=1&next=…` instead of the raw
 custom scheme. Google and Microsoft are untouched and keep the direct
@@ -294,14 +294,14 @@ Verified: `https://advottic.com/auth/callback?native=1&next=%2Fcases` is
 already accepted by Supabase's redirect allowlist (section 3.3), so this
 needs no dashboard change.
 
-**Same file — dismissal watchdog.** A `Browser.addListener('browserFinished')`
+**Same file: dismissal watchdog.** A `Browser.addListener('browserFinished')`
 handler clears the full-screen veil and shows recoverable copy if the
 OAuth sheet closes without a callback ever arriving, instead of spinning
 forever. Guarded so that closing the sheet ourselves after a successful
 handoff does not trip it.
 
 Verification run: `npx tsc --noEmit` clean; `npx vitest run` 137 passed,
-4 failed — the same 4 failures are present on unmodified `main`
+4 failed; the same 4 failures are present on unmodified `main`
 (`git stash` comparison), so they pre-date this work and are unrelated
 (timeline exhibit PDF page counts).
 
@@ -312,7 +312,7 @@ separate them.
 
 ---
 
-## 5. Remediation — what a human has to do
+## 5. Remediation: what a human has to do
 
 ### R1. Deploy and verify on a real device (required before resubmitting)
 
@@ -323,7 +323,7 @@ physical iPhone before the binary goes back to Apple.
    (only those two from the current working tree) and let Vercel deploy.
 2. On a physical iPhone running the TestFlight build, force-quit Advottic
    and relaunch it, so the cache-first service worker picks up the new
-   deploy. If the "Advottic just updated — Reload" banner appears, take it.
+   deploy. If the "Advottic just updated" reload banner appears, take it.
 3. Sign out. Tap **Sign in with Apple**. Complete Apple's sheet.
 4. Expected: a brief dark "Signing you in" screen, then the app returns
    and lands on `/cases` signed in.
@@ -344,14 +344,14 @@ physical iPhone before the binary goes back to Apple.
 Use a physical, unlocked device. iPhone Mirroring keeps the phone locked
 and system sheets will not present properly.
 
-### R2. If R1 still fails — switch Apple to the native sheet
+### R2. If R1 still fails: switch Apple to the native sheet
 
 If the bridge does not get the app reopened, the remaining correct fix is
 to stop using a browser for Apple at all: `ASAuthorizationController`
 via `@capgo/capacitor-social-login`, which is already installed and
 already wired in `sign-in-buttons.tsx` behind `NATIVE_APPLE_ENABLED`.
 This needs a new binary, and before flipping that flag the previously
-reported hang must be reproduced and fixed — a hang neither resolves nor
+reported hang must be reproduced and fixed. A hang neither resolves nor
 rejects, so the existing catch-based fallback never fires and the button
 spins forever, which is a worse review outcome than today. Requires, in
 the Supabase dashboard: Authentication → Providers → Apple →
@@ -367,7 +367,7 @@ now would change a working input while the real fault is elsewhere.
 
 Nothing in the codebase or CI watches it, and when it does lapse the
 symptom is Apple sign-in failing for everyone while Google, Microsoft and
-email keep working — the failure this investigation initially expected.
+email keep working, the failure this investigation initially expected.
 Set a reminder for **2026-10-25**, ahead of the ~2026-11-09 expiry:
 
 ```
@@ -398,7 +398,7 @@ Developer portal so there is a fallback.
 `rm -rf ios && npx cap add ios && npx cap sync ios`, which discards the
 committed `App.xcodeproj` that `8f58a32` edited to add the WidgetKit
 target. If the shipped binary is expected to contain
-`App.app/PlugIns/AdvotticWidget.appex`, verify that it actually does —
+`App.app/PlugIns/AdvotticWidget.appex`, verify that it actually does;
 the 4.2 defence depends on it. Not related to sign-in.
 
 ---

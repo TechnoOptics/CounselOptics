@@ -10,7 +10,7 @@ import {
  *
  * These pin the EXACT current behavior of the two parallel maps before
  * they are consolidated behind a single source of truth (lib/entitlements.ts).
- * The refactor is only allowed to keep these green — any change here is a
+ * The refactor is only allowed to keep these green. Any change here is a
  * change in who gets what plan / how many tokens, i.e. a money decision.
  *
  * The load-bearing invariant is the *intentional divergence* on the legacy
@@ -73,7 +73,7 @@ describe('tierFromPriceId (coarse Tier for the subscriptions row)', () => {
     ['STRIPE_PRICE_COUNSEL_GROWING', 'pro'],
     ['STRIPE_PRICE_COUNSEL_ENTERPRISE', 'pro'],
     // Annual prices now resolve to the same coarse tier as their monthly
-    // sibling (previously null — the fixed annual gap).
+    // sibling (previously null, the fixed annual gap).
     ['STRIPE_PRICE_PERSONAL_PRO_ANNUAL', 'pro'],
     ['STRIPE_PRICE_PERSONAL_PLUS_ANNUAL', 'pro'],
     ['STRIPE_PRICE_COUNSEL_SOLO_ANNUAL', 'pro'],

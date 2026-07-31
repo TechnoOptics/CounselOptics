@@ -1,8 +1,8 @@
-# Security audit — Advottic
+# Security audit: Advottic
 
 Audit date: 2026-04-27. Methodology: source-code scan, npm audit,
 git-history secret scan, manual review of every API route, RLS
-coverage check, HTTP headers inspection. Honest framing — nothing
+coverage check, HTTP headers inspection. Honest framing: nothing
 is "fully secure," but the gap between "should we ship?" and "is
 this safe enough for v1?" is bigger than people think.
 
@@ -22,7 +22,7 @@ effort.
 ### Source code & secrets
 
 - ✅ `.env`, `.env.local` listed in `.gitignore`. Only
-  `.env.local.example` is tracked — verified no real values in it.
+  `.env.local.example` is tracked, verified no real values in it.
 - ✅ Git history scanned: zero committed `sk_live_`, `sk_test_`,
   `whsec_`, `rk_live_`, or `sbp_` strings across all branches.
 - ✅ `SUPABASE_SERVICE_ROLE_KEY` only referenced in server-side
@@ -66,27 +66,27 @@ effort.
 ### API surface
 
 - ✅ Every API route has appropriate auth:
-  - `bella` — public (limited mode for unauthed) + per-IP rate
+  - `bella`: public (limited mode for unauthed) + per-IP rate
     limit (30/min)
-  - `review-document` — public free tool, rate-limited
-  - `account/{delete,export}` — `getCurrentUser()` required
-  - `cron/health` — `Authorization: Bearer ${CRON_SECRET}`
-  - `files/[id]` — RLS gates which exhibit metadata is readable;
+  - `review-document`: public free tool, rate-limited
+  - `account/{delete,export}`: `getCurrentUser()` required
+  - `cron/health`: `Authorization: Bearer ${CRON_SECRET}`
+  - `files/[id]`: RLS gates which exhibit metadata is readable;
     signed URL completes the chain
-  - `search` — RLS-aware (`listCases` only returns user's cases)
-  - `stripe/{checkout,portal,topup}` — auth required; tier checks
+  - `search`: RLS-aware (`listCases` only returns user's cases)
+  - `stripe/{checkout,portal,topup}`: auth required; tier checks
     enforced server-side
-  - `stripe/webhook` — `stripe.webhooks.constructEvent(rawBody,
+  - `stripe/webhook`: `stripe.webhooks.constructEvent(rawBody,
     sig, secret)` verifies signature
-  - `crash` — read-only insert; throttled by client SDK
-  - `version` — public read of `VERCEL_GIT_COMMIT_SHA` (no risk)
+  - `crash`: read-only insert; throttled by client SDK
+  - `version`: public read of `VERCEL_GIT_COMMIT_SHA` (no risk)
 - ✅ Server-action body size capped at 50MB
   (`experimental.serverActions.bodySizeLimit`).
 - ✅ Exhibit upload capped at 50MB
   (`MAX_BYTES = 50 * 1024 * 1024` in `lib/actions.ts`).
 - ✅ PDF embed cap at 20MB (`MAX_EMBED_BYTES` in `lib/pdf.ts`).
 - ✅ Stripe webhook uses raw body for signature verification
-  (correct order — verify before parse).
+  (correct order: verify before parse).
 
 ### Transport & headers
 
@@ -132,13 +132,13 @@ effort.
 
 #### 1. Next.js 14.2.35 has 5 known DoS vulnerabilities
 
-Severity: **High** in npm-audit terms. Real-world risk: medium —
+Severity: **High** in npm-audit terms. Real-world risk: medium.
 DoS attacks against the image optimizer, RSC HTTP request
 smuggling, and unbounded image-cache growth.
 
 Fix: upgrade to Next 16.x. Breaking change (App Router APIs
 shifted, `experimental.serverComponentsExternalPackages` renamed).
-Plan a dedicated migration session — half-day of work.
+Plan a dedicated migration session, half a day of work.
 
 Mitigations until then:
 - Vercel's edge already enforces request-rate caps and per-IP
@@ -150,7 +150,7 @@ Mitigations until then:
 #### 2. CSP is in Report-Only mode
 
 The starter policy is shipped today as `Content-Security-Policy-
-Report-Only`. It does not enforce — it only logs violations. This
+Report-Only`. It does not enforce; it only logs violations. This
 is intentional (so we don't break anything we forgot about), but
 the protection only kicks in once we promote it.
 
@@ -214,7 +214,7 @@ impact order.
   Next 15+ migration plus per-page nonce plumbing. Significant
   refactor; defer.
 - **Subresource Integrity (SRI) on third-party scripts.** Mostly
-  redundant given strict CSP — only matters if we add a
+  redundant given strict CSP; only matters if we add a
   third-party CDN.
 - **Two-factor auth for end users.** Supabase supports TOTP;
   not yet wired into the UI.
@@ -261,11 +261,11 @@ the team grows past one person.
 3. **[Done in this audit]** Tighten `.gitignore` to explicitly
    exclude Capacitor sync targets.
 4. **Promote CSP to enforcing mode** in 1 week.
-5. **Plan Next 16 migration** for next sprint — closes 5 high
+5. **Plan Next 16 migration** for next sprint; closes 5 high
    severity DoS vulns.
-6. **Extract rate-limit helper** and apply to all API routes —
+6. **Extract rate-limit helper** and apply to all API routes,
    ~30 min.
-7. **Add failed-auth threshold alert** — ~1 hour.
+7. **Add failed-auth threshold alert**, ~1 hour.
 8. **Consider Cloudflare WAF** when traffic justifies $20/mo.
 
 The first three are shipped in this commit. The rest are

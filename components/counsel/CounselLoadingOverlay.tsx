@@ -6,7 +6,7 @@ import { createPortal } from 'react-dom';
 
 /**
  * Firm/enterprise loading veil. Identical in behaviour to the consumer
- * LoadingOverlay, but hard-locked to the counsel shell's premium near-black —
+ * LoadingOverlay, but hard-locked to the counsel shell's premium near-black,
  * never the cream/green consumer theme.
  *
  * Why a separate component: the overlay portals to document.body so a

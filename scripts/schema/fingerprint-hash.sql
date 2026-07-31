@@ -6,7 +6,7 @@
 -- server-side. The CI drift gate compares this value against the committed
 -- baseline supabase/schema-fingerprint.sha256. Because the hash is computed
 -- entirely inside Postgres both when the baseline is generated and in CI, the
--- comparison is immune to psql client formatting / locale -- it differs only
+-- comparison is immune to psql client formatting / locale; it differs only
 -- when the schema itself differs.
 --
 -- Regenerate the baseline after an intentional schema change:

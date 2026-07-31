@@ -3,7 +3,7 @@
 **Last updated:** 2026-07-01 · Supports HIPAA §164.308(a)(1) risk analysis and the [SRA](security-risk-assessment.md).
 
 ## Where PHI enters
-- **Web/mobile app** (`advottic.com` / Capacitor shells) — user types case details or uploads medical documents over TLS 1.2+.
+- **Web/mobile app** (`advottic.com` / Capacitor shells): user types case details or uploads medical documents over TLS 1.2+.
 
 ## Where PHI rests
 | Store | Contents | Protection |
@@ -20,19 +20,19 @@
 | Resend | Transactional email | Recipient email, message body | TLS | **Required** |
 
 ## Where PHI leaves the system
-- **User export** (`/api/account/export`) — JSON to the authenticated user; exhibit files fetched separately via signed URL.
-- **Account deletion** (`/api/account/delete`) — cascades DB rows + best-effort storage purge; audit records retained per 6-year HIPAA rule.
+- **User export** (`/api/account/export`): JSON to the authenticated user; exhibit files fetched separately via signed URL.
+- **Account deletion** (`/api/account/delete`): cascades DB rows + best-effort storage purge; audit records retained per 6-year HIPAA rule.
 
 ## Trust boundaries & key risks
-1. **App ↔ Anthropic** — PHI leaves to a third party for AI; mitigated by zero-retention terms, must be covered by BAA.
-2. **App ↔ Twilio SMS** — *(resolved 2026-07-01)* the SMS now sends a secure tracker link (unguessable UUID) instead of raw GPS coordinates + plaintext PIN; offline `tel:` 911/call links retained. Residual: the link still reveals location to whoever holds the SMS — accepted as necessary for the emergency function, and server-side revocable/expirable.
-3. **Consumer ↔ Firm isolation** — enforced at the Bella tool layer + RLS; PHI in one portal is not visible to the other.
+1. **App ↔ Anthropic**: PHI leaves to a third party for AI; mitigated by zero-retention terms, must be covered by BAA.
+2. **App ↔ Twilio SMS**: *(resolved 2026-07-01)* the SMS now sends a secure tracker link (unguessable UUID) instead of raw GPS coordinates + plaintext PIN; offline `tel:` 911/call links retained. Residual: the link still reveals location to whoever holds the SMS; accepted as necessary for the emergency function, and server-side revocable/expirable.
+3. **Consumer ↔ Firm isolation**: enforced at the Bella tool layer + RLS; PHI in one portal is not visible to the other.
 
 ## Diagram (textual)
 ```
 User (TLS) ──▶ Vercel (compute) ──▶ Supabase (Postgres + Storage)   [PHI at rest]
                     │
                     ├──▶ Anthropic (AI: Bella / Review)   [PHI processed, zero-retention]
-                    ├──▶ Twilio (Safe Witness SMS)        [PHI in transit — hardening needed]
+                    ├──▶ Twilio (Safe Witness SMS)        [PHI in transit, hardening needed]
                     └──▶ Resend (email)                   [PHI in transit]
 ```

@@ -1,6 +1,6 @@
 # Advottic SEO Content Plan
 
-*Self-help legal content strategy. Tone throughout: plain, calm, reassuring. Every brief and title below is written for someone in real legal stress — no alarmist language, no jokes, no "scary." Reassure, orient, and give the next concrete step.*
+*Self-help legal content strategy. Tone throughout: plain, calm, reassuring. Every brief and title below is written for someone in real legal stress: no alarmist language, no jokes, no "scary." Reassure, orient, and give the next concrete step.*
 
 ---
 
@@ -14,37 +14,37 @@ A note on the most important rule for this niche: **we are not a law firm and we
 
 ## 1. Topic Clusters
 
-### Cluster A — Small Claims Court (anchor cluster, builds on the 50-state pages)
+### Cluster A: Small Claims Court (anchor cluster, builds on the 50-state pages)
 **Pillar:** "How to File a Small Claims Case: A Calm, Step-by-Step Guide"
 - Supporting: how to fill out a small-claims complaint; what evidence you actually need; what happens on your court date; how to collect a judgment after you win; suing vs. settling; small-claims dollar limits by state (existing 50-state pages link up here).
 - Existing assets that link in: 50-state small-claims pages, court-deadline calculator, statute-of-limitations checker.
 
-### Cluster B — Deadlines & Time Limits
+### Cluster B: Deadlines & Time Limits
 **Pillar:** "Understanding Legal Deadlines: Statutes of Limitations and Court Dates"
 - Supporting: what a statute of limitations means in plain terms; what happens if you miss a deadline; how court deadlines are counted (calendar vs. business days); deadline differences by case type.
 - Existing assets that link in: statute-of-limitations checker, court-deadline calculator.
 
-### Cluster C — Security Deposits & Renters
+### Cluster C: Security Deposits & Renters
 **Pillar:** "Getting Your Security Deposit Back: A Renter's Guide"
 - Supporting: what landlords can and can't deduct; how to write a deposit demand letter; deposit return deadlines by state; what to do if your landlord won't respond; move-out documentation checklist.
 - Existing assets that link in: security-deposit-deduction checker, demand-letter template, small-claims pillar (deposit disputes often go to small claims).
 
-### Cluster D — Demand Letters & Pre-Court Communication
+### Cluster D: Demand Letters & Pre-Court Communication
 **Pillar:** "How to Write a Demand Letter (With Templates)"
 - Supporting: demand letter for unpaid money owed; demand letter for a security deposit; demand letter for a defective product/service; what to do after you send one; certified mail and proof of delivery.
 - Existing assets that link in: template library, security-deposit cluster, small-claims cluster.
 
-### Cluster E — Organizing Your Case & Evidence
+### Cluster E: Organizing Your Case & Evidence
 **Pillar:** "How to Organize Your Case: Documents, Evidence, and a Timeline"
 - Supporting: building a timeline of events; what counts as evidence; how to organize exhibits; keeping records safely; preparing to tell your story clearly.
 - Existing assets that link in: the case-organization product, exhibits feature, Advottic Review feature.
 
-### Cluster F — Representing Yourself (Pro Se)
+### Cluster F: Representing Yourself (Pro Se)
 **Pillar:** "Representing Yourself in Court: What to Expect"
 - Supporting: courtroom etiquette and what to wear; how to address the judge; how to present your evidence; common mistakes to avoid; where to find free legal aid; when you should talk to a lawyer instead.
 - Existing assets that link in: small-claims cluster, case-organization cluster, counsel/firm side (handoff for "when to get a lawyer").
 
-### Cluster G — Consumer & Everyday Disputes
+### Cluster G: Consumer & Everyday Disputes
 **Pillar:** "Resolving Common Consumer Disputes Without a Lawyer"
 - Supporting: disputing a charge or refund; contractor/home-repair disputes; car repair and lemon issues; neighbor and property disputes; when to use small claims vs. mediation.
 - Existing assets that link in: demand-letter cluster, small-claims cluster.
@@ -84,7 +84,7 @@ A note on the most important rule for this niche: **we are not a law firm and we
 
 **Hub-and-spoke per cluster.** Each pillar links down to all of its supporting articles and tools; every supporting article links back up to its pillar with consistent anchor text (e.g., "filing a small claims case"). This concentrates topical authority on the pillar.
 
-**Tools are link magnets — point articles at them, and tools back at articles.**
+**Tools are link magnets: point articles at them, and tools back at articles.**
 - Statute-of-limitations article (#4) ↔ statute-of-limitations checker (existing).
 - "Missed deadline" article (#7) ↔ court-deadline calculator (existing).
 - Deposit articles (#3, #6, #9) ↔ security-deposit-deduction checker (existing).
@@ -97,7 +97,7 @@ A note on the most important rule for this niche: **we are not a law firm and we
 
 **Connect the 50-state pages into Cluster A.** Each state small-claims page should link up to pillar #1 ("the general steps") and across to #13 (dollar limits by state). Pillar #1 should link down to the state pages via a "Find your state's filing rules" module. This turns the existing programmatic pages from orphans into a reinforced cluster.
 
-**Tasteful handoff to the counsel/firm side.** Articles #11, #18, and #20 are natural places for a calm "When it may be time to talk to a lawyer" link to the counsel side — never pushy, framed as one option among several.
+**Tasteful handoff to the counsel/firm side.** Articles #11, #18, and #20 are natural places for a calm "When it may be time to talk to a lawyer" link to the counsel side, never pushy, framed as one option among several.
 
 **Anchor-text discipline.** Use descriptive, varied, human anchors ("how to write a demand letter," "check your filing deadline"), not "click here." Keep each article to a handful of meaningful internal links rather than stuffing.
 
@@ -109,7 +109,7 @@ A note on the most important rule for this niche: **we are not a law firm and we
 
 ---
 
-### Brief 1 — "How to File a Small Claims Case: Step-by-Step Guide" (Pillar, Cluster A, P1)
+### Brief 1: "How to File a Small Claims Case: Step-by-Step Guide" (Pillar, Cluster A, P1)
 
 - **Target keyword:** how to file a small claims case (secondary: small claims court process, filing small claims)
 - **Search intent:** Informational leading to transactional. The reader is deciding whether and how to file; they want a clear, ordered path and reassurance that it's manageable.
@@ -122,37 +122,37 @@ A note on the most important rule for this niche: **we are not a law firm and we
 **Outline:**
 - **H1: How to File a Small Claims Case**
 - Intro: who small claims is for, what kinds of disputes it handles, the reassurance that it's built to be navigated without a lawyer. One-line disclaimer (general information, not legal advice).
-- **H2: Before you file — is small claims the right path?** (dollar limits, link to #13 and #20; consider a demand letter first, link to pillar D)
-- **H2: Step 1 — Confirm you're within the time limit** (define statute of limitations in one sentence; link to checker tool and #4)
-- **H2: Step 2 — Gather your evidence** (brief overview; link to #5 and #10)
-- **H2: Step 3 — Find the right court and complete the complaint form** (link to state pages)
-- **H2: Step 4 — Pay the filing fee (and fee-waiver options)**
-- **H2: Step 5 — Serve the other party** (link to #19)
-- **H2: Step 6 — Prepare for your court date** (link to #11)
-- **H2: Step 7 — After the hearing: what a judgment means** (link to #8)
+- **H2: Before you file, is small claims the right path?** (dollar limits, link to #13 and #20; consider a demand letter first, link to pillar D)
+- **H2: Step 1. Confirm you're within the time limit** (define statute of limitations in one sentence; link to checker tool and #4)
+- **H2: Step 2. Gather your evidence** (brief overview; link to #5 and #10)
+- **H2: Step 3. Find the right court and complete the complaint form** (link to state pages)
+- **H2: Step 4. Pay the filing fee (and fee-waiver options)**
+- **H2: Step 5. Serve the other party** (link to #19)
+- **H2: Step 6. Prepare for your court date** (link to #11)
+- **H2: Step 7. After the hearing: what a judgment means** (link to #8)
 - **H2: Frequently asked questions** (Can I bring a lawyer? What if they don't show up? How long does it take?)
 - **Closing:** reassuring recap + "Start with our free [court-deadline calculator] and [statute-of-limitations checker]."
 - **Internal links:** #4, #5, #8, #10, #11, #13, #19, #20, both deadline tools, state pages.
 
 ---
 
-### Brief 2 — "How to Write a Demand Letter (Free Templates)" (Pillar, Cluster D, P1)
+### Brief 2: "How to Write a Demand Letter (Free Templates)" (Pillar, Cluster D, P1)
 
 - **Target keyword:** how to write a demand letter (secondary: demand letter template, demand letter before legal action)
 - **Search intent:** Transactional. The reader wants a template plus enough guidance to fill it in correctly today.
-- **Audience:** Someone owed money or stuck in a dispute who wants to resolve it before court — deposits, unpaid debts, refunds, contractor issues.
+- **Audience:** Someone owed money or stuck in a dispute who wants to resolve it before court: deposits, unpaid debts, refunds, contractor issues.
 - **Word count:** 1,400–2,000
 - **Meta description:** Learn how to write a clear demand letter before going to court, with free templates you can adapt to your situation.
 - **JSON-LD:** HowTo (steps = the anatomy section) + BreadcrumbList
-- **Tone note:** Frame the demand letter as a calm, reasonable first step that often resolves things without court — relieving, not adversarial.
+- **Tone note:** Frame the demand letter as a calm, reasonable first step that often resolves things without court; relieving, not adversarial.
 
 **Outline:**
 - **H1: How to Write a Demand Letter**
 - Intro: what a demand letter is, why it often works, and that it keeps your options open. Disclaimer line.
 - **H2: When a demand letter makes sense** (and when to skip straight to other steps)
-- **H2: What to include — the anatomy of a demand letter** (the parties, the facts, what you want, a clear deadline, what happens next — kept measured, never threatening)
+- **H2: What to include: the anatomy of a demand letter** (the parties, the facts, what you want, a clear deadline, what happens next; kept measured, never threatening)
 - **H2: A simple template you can copy** (link to template library; offer the variations below)
-- **H2: Tone — firm but respectful** (why a calm tone helps your case)
+- **H2: A firm but respectful tone** (why a calm tone helps your case)
 - **H2: How to send it and keep proof** (certified mail, delivery confirmation; link to #19 concepts)
 - **H2: What to do after you send it** (waiting period, responses, next steps → link to pillar A)
 - **H2: Templates for common situations** (links to #6 deposit, #14 money owed, and a defective-product variant)
@@ -162,7 +162,7 @@ A note on the most important rule for this niche: **we are not a law firm and we
 
 ---
 
-### Brief 3 — "How to Get Your Security Deposit Back" (Pillar, Cluster C, P1)
+### Brief 3: "How to Get Your Security Deposit Back" (Pillar, Cluster C, P1)
 
 - **Target keyword:** how to get security deposit back (secondary: landlord won't return deposit, security deposit deductions)
 - **Search intent:** Transactional/informational. The reader's deposit hasn't been returned (or was partly kept) and they want to know if that's allowed and what to do.
@@ -178,9 +178,9 @@ A note on the most important rule for this niche: **we are not a law firm and we
 - **H2: Know your state's deposit return deadline** (landlords usually must return or itemize within a set window; note it varies by state)
 - **H2: What a landlord can legitimately deduct** (link to #9 and the deduction checker)
 - **H2: Check your itemized statement** (walk through using the free security-deposit-deduction checker)
-- **H2: Step 1 — Document everything from move-out** (photos, walkthrough, condition records)
-- **H2: Step 2 — Send a deposit demand letter** (link to #6 template and pillar D)
-- **H2: Step 3 — If they still won't return it: small claims** (link to pillar #1; mention some states allow extra damages for wrongful withholding, stated carefully and generally)
+- **H2: Step 1. Document everything from move-out** (photos, walkthrough, condition records)
+- **H2: Step 2. Send a deposit demand letter** (link to #6 template and pillar D)
+- **H2: Step 3. If they still won't return it: small claims** (link to pillar #1; mention some states allow extra damages for wrongful withholding, stated carefully and generally)
 - **H2: Frequently asked questions** (How long does my landlord have? Can they keep it for normal wear and tear? What if I never got an itemized list?)
 - **Closing:** reassuring recap; "Start by running your itemized statement through our free [deposit-deduction checker]."
 - **Internal links:** #1, #6, #9, security-deposit-deduction checker, demand-letter pillar D.

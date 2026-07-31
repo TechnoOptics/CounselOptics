@@ -767,7 +767,7 @@ function ResiliencePanel({
             Open incident backlog
           </p>
           <p className="font-display text-2xl text-cream-100">
-            {resilience.crashTableMissing ? '—' : resilience.crashOpen}
+            {resilience.crashTableMissing ? 'No data' : resilience.crashOpen}
           </p>
           <p className="text-[11px] text-cream-100/55 mt-1">
             {resilience.crashTableMissing

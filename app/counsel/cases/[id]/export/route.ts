@@ -173,17 +173,17 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       image: null,
     };
     if (m.size && m.size > MAX_INLINE_BYTES) {
-      return { ...base, sha256: '(not computed — large file)' };
+      return { ...base, sha256: '(not computed: large file)' };
     }
     // Documents draw from their own budget; images/other from the shared cap.
     if (isDocMedia(m)) {
       if (docDownloads >= MAX_DOC_DOWNLOADS) {
-        return { ...base, sha256: '(not computed — export limit reached)' };
+        return { ...base, sha256: '(not computed: export limit reached)' };
       }
       docDownloads++;
     } else {
       if (downloads >= MAX_DOWNLOADS) {
-        return { ...base, sha256: '(not computed — export limit reached)' };
+        return { ...base, sha256: '(not computed: export limit reached)' };
       }
       downloads++;
     }

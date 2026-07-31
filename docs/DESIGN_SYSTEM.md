@@ -1,4 +1,4 @@
-# Advottic Design System — Portable Prompt
+# Advottic Design System: Portable Prompt
 
 This is a self-contained spec to replicate Advottic's exact look-and-feel
 on another product. It is written as a paste-able prompt for AI coding
@@ -23,7 +23,7 @@ different product; the rest of the system stays as-is.
 ## 1. PRODUCT BRAND COLORS (the only thing you swap per product)
 
 Replace the four values below for a new product. Everything else stays
-constant — that's how the whole family looks consistent.
+constant. That's how the whole family looks consistent.
 
 ```
 Brand primary (dark)   = #0F2D24   // forest-900 in Advottic
@@ -43,7 +43,7 @@ Suggested swaps for related products in the family:
 
 Keep the *relative luminosity* identical to Advottic's pair: a primary that
 reads as "deep, serious, grown-up" and an accent that reads as "warm,
-human, hand-crafted." Avoid bright tech-blue or neon — Advottic feels
+human, hand-crafted." Avoid bright tech-blue or neon. Advottic feels
 trustworthy because its palette is what a quiet boutique law office would
 choose, not what a startup pitch deck would choose.
 
@@ -119,22 +119,22 @@ export default config;
 Three fonts. Load from Google Fonts via `next/font/google` (Next.js)
 or `@import` (vanilla):
 
-- **Inter** — body, UI labels, small text. Default sans.
+- **Inter**: body, UI labels, small text. Default sans.
   ```ts
   Inter({ subsets: ['latin'], display: 'swap', variable: '--font-sans' });
   ```
-- **Fraunces** — display headlines, hero text. Variable serif with strong
+- **Fraunces**: display headlines, hero text. Variable serif with strong
   optical sizing; reads "editorial," not "tech." Weights 400, 500, 600, 700.
   ```ts
   Fraunces({ subsets: ['latin'], weight: ['400', '500', '600', '700'],
     display: 'swap', variable: '--font-display' });
   ```
-- **Saira Condensed** — only the wordmark / logo. Weights 700, 800.
+- **Saira Condensed**: only the wordmark / logo. Weights 700, 800.
   Skip if you have a custom wordmark font.
 
 **Display headlines** always use `font-display` + tight tracking (`-0.01em`
 to `-0.02em`) + the `display-md` / `lg` / `xl` font-size tokens. Never set
-the size in pixels at the call site — use the tokens so headings stay
+the size in pixels at the call site. Use the tokens so headings stay
 consistent across pages.
 
 **Italics on display:** italic body parts of hero headlines should be the
@@ -709,7 +709,7 @@ Three states per item in edit mode:
 
 ### 6g. Gold-shine italic display flourish
 
-The signature display headline pattern. Use sparingly — once per page
+The signature display headline pattern. Use sparingly: once per page
 maximum, ideally only in the hero:
 
 ```tsx
@@ -724,7 +724,7 @@ maximum, ideally only in the hero:
 ```
 
 The italic clause shimmers slowly via the `gold-pan` animation. Don't
-animate the entire headline — only the italic display fragment.
+animate the entire headline, only the italic display fragment.
 
 ---
 
@@ -738,8 +738,8 @@ copy across Advottic:
   are built quietly, one note and one document at a time." (feature)
 - **One number per claim, no superlatives.** "7-day free trial" not
   "industry-leading trial." "AES-256 at rest" not "bank-grade security."
-- **Plural-aware copy.** "1 case" / "20 cases" — not "1 case(s)."
-- **No em-dashes (—) anywhere user-facing.** Replace with hyphen, comma,
+- **Plural-aware copy.** "1 case" / "20 cases", not "1 case(s)."
+- **No em-dashes anywhere user-facing.** Replace with a hyphen, comma,
   colon, or rephrase. Em-dashes read as machine-generated.
 - **No marketing fluff.** Replace "leverage", "synergize", "world-class",
   "best-in-class" with the specific thing the feature does.
@@ -802,18 +802,18 @@ Things that break the Advottic feel:
 
 Three patterns that work well:
 
-**Pattern A — full re-skin from scratch:**
+**Pattern A, full re-skin from scratch:**
 > "Build the [feature] following the Advottic design system attached.
 > Brand colors for this product are [primary] / [accent]. Everything else
 > in the design system stays as-is. Start with the Tailwind config, then
 > globals.css, then the feature components."
 
-**Pattern B — adapt an existing component:**
+**Pattern B, adapt an existing component:**
 > "Take this existing [Button / Card / Modal] and rewrite it to match the
 > Advottic design system attached. Keep the props and behavior; replace
 > only the visual surface."
 
-**Pattern C — quick palette swap:**
+**Pattern C, quick palette swap:**
 > "Re-skin this Advottic-styled component for [new product]. The only
 > change is the four brand colors: primary `#NEW`, deep `#NEW`, accent
 > `#NEW`, accent-deep `#NEW`. Everything else (typography, motion,

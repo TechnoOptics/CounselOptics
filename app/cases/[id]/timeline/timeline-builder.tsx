@@ -110,7 +110,7 @@ export function TimelineBuilder({
   }, [upsertEvent]);
 
   // Drop a pile of evidence → one event per file, each auto-analysed by Bella.
-  // `occurredAt` (a YYYY-MM-DD string) pre-dates the entries — used when files
+  // `occurredAt` (a YYYY-MM-DD string) pre-dates the entries, and is used when files
   // are dropped onto a specific day in the calendar view.
   const ingestFiles = useCallback(async (files: File[], occurredAt?: string) => {
     setError(null);
@@ -699,7 +699,7 @@ function EventCard({
             </div>
           )}
 
-          {/* Forensic "core details" — EXIF/GPS/device/authoring metadata pulled
+          {/* Forensic "core details": EXIF/GPS/device/authoring metadata pulled
               from the file itself. Collapsed, terminal-styled. */}
           {meta.length > 0 && (
             <details className="group mt-2">

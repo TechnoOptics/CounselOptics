@@ -9,12 +9,12 @@ import {
 export const runtime = 'nodejs';
 
 /**
- * Partner ticketing API (v1) — see docs/ZINPRO_INTEGRATION.md.
+ * Partner ticketing API (v1). See docs/ZINPRO_INTEGRATION.md.
  *
  *   POST /api/partner/v1/tickets   create a ticket (JIT-provisions the employee)
  *   GET  /api/partner/v1/tickets   list tickets (?employeeEmail= to scope)
  *
- * Auth: `Authorization: Bearer adv_...` — a FIRM-scoped api_tokens token with
+ * Auth: `Authorization: Bearer adv_...`, a FIRM-scoped api_tokens token with
  * the `write` scope. All access is confined to that firm.
  */
 export async function POST(req: Request) {
@@ -51,7 +51,7 @@ export async function POST(req: Request) {
     answers: b.answers,
   });
   if (!res.ok) return NextResponse.json({ error: res.error }, { status: res.status });
-  // `acknowledgment` is the legal team's configured confirmation message —
+  // `acknowledgment` is the legal team's configured confirmation message:
   // show it to the employee in a popup right after filing.
   return NextResponse.json(
     { ticket: res.ticket, acknowledgment: res.acknowledgment },

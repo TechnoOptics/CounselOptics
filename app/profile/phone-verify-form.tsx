@@ -43,7 +43,7 @@ export function PhoneVerifyForm({
       <div className="card p-5 sm:p-6">
         <p className="eyebrow mb-2">Phone verification</p>
         <p className="text-sm text-ink-700 dark:text-cream-100/80">
-          {verifiedPhone} — verified {new Date(verifiedAt).toLocaleDateString()}
+          {verifiedPhone}, verified {new Date(verifiedAt).toLocaleDateString()}
         </p>
         <button type="button" className="btn-ghost text-sm mt-3" onClick={() => setStep('idle')}>
           Verify a different number
@@ -56,7 +56,7 @@ export function PhoneVerifyForm({
     <div className="card p-5 sm:p-6 space-y-4">
       <p className="eyebrow">Phone verification</p>
       {justVerified ? (
-        <p className="text-sm text-ink-700 dark:text-cream-100/80">Verified — thank you.</p>
+        <p className="text-sm text-ink-700 dark:text-cream-100/80">Verified. Thank you.</p>
       ) : step === 'idle' ? (
         <>
           <div>

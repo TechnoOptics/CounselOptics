@@ -4,9 +4,9 @@
  * Any source platform (a CSV/JSON export, ServiceNow, Clio, a custom
  * API, ...) is normalized into one platform-agnostic `MigrationBundle`,
  * which the ingest action writes into the firm workspace. The point is
- * that customers moving to Advottic keep EVERYTHING — the records, their
+ * that customers moving to Advottic keep EVERYTHING: the records, their
  * attachments/images, their notes, and their history/timeline with the
- * ORIGINAL dates — so the move doesn't feel like a fresh, empty start.
+ * ORIGINAL dates, so the move doesn't feel like a fresh, empty start.
  *
  * Adding a new source = adding one adapter that returns a MigrationBundle.
  * The ingest path never changes.
@@ -19,7 +19,7 @@ export type MigrationAttachment = {
   dataBase64?: string;
   /** A fetchable URL the connector can pull the bytes from. */
   url?: string;
-  /** Original capture/upload date (ISO) — preserved on the exhibit. */
+  /** Original capture/upload date (ISO), preserved on the exhibit. */
   capturedAt?: string;
   description?: string;
 };
@@ -44,7 +44,7 @@ export type MigrationCase = {
   description?: string;
   jurisdictionState?: string;
   jurisdictionCity?: string;
-  /** Original creation date (ISO) — preserved as the case created_at. */
+  /** Original creation date (ISO), preserved as the case created_at. */
   openedAt?: string;
   attachments?: MigrationAttachment[];
   history?: MigrationHistoryEvent[];

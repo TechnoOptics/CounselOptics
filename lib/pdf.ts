@@ -1407,7 +1407,7 @@ export type TimelineExhibitData = {
 
 /**
  * Apply the matter's naming conventions (e.g. "SH" → "STH") to every piece of
- * DERIVED / narrative text in the exhibit before it is drawn — the narrative,
+ * DERIVED / narrative text in the exhibit before it is drawn: the narrative,
  * timeline, party profiles, and per-item titles/summaries. Reproduced source
  * files (filenames, embedded images, PDF pages, spreadsheet cells) are left
  * VERBATIM, since the exhibit must reproduce the original evidence unaltered.
@@ -1456,7 +1456,7 @@ const humanBytes = (n: number) => {
 };
 const BOTTOM = PAGE_HEIGHT - MARGIN - 28;
 
-/** Add a page only if fewer than `needed` points remain — never leaves a blank. */
+/** Add a page only if fewer than `needed` points remain, never leaving a blank. */
 function ensureSpace(doc: Doc, needed: number) {
   if (doc.y + needed > BOTTOM) doc.addPage();
 }
@@ -1622,7 +1622,7 @@ function drawSheetTab(doc: Doc, tab: ExhibitTab, labelAsTab: boolean) {
   const shown = tab.rows.length;
   const header = tab.rows[0];
   const rowsNote = tab.totalRows > shown ? `  (${shown} of ${tab.totalRows} rows)` : '';
-  const caption = (labelAsTab ? `TAB "${tab.name}"` : `SPREADSHEET CONTENT — ${tab.name}`) + rowsNote;
+  const caption = (labelAsTab ? `TAB "${tab.name}"` : `SPREADSHEET CONTENT: ${tab.name}`) + rowsNote;
 
   const drawCaption = (cont: boolean) => {
     doc.font('Helvetica-Bold').fontSize(7.5).fillColor(COLOR.muted)
@@ -1715,7 +1715,7 @@ async function finalizeExhibit(
   // margin), then framed with a hairline. This is what keeps the reproduced
   // document from running edge-to-edge into the footer, and normalizes every
   // reproduced page to the exhibit's own Letter geometry so it paginates
-  // uniformly — instead of copying source pages verbatim (which collided with
+  // uniformly, instead of copying source pages verbatim (which collided with
   // the footer and could be any size).
   const TOP_RESERVE = 30;   // clean margin above the reproduced page
   const BOT_RESERVE = 42;   // clean band below it for the footer
@@ -1751,12 +1751,12 @@ async function finalizeExhibit(
         insertedSoFar += 1;
       }
     } catch {
-      // Encrypted / corrupt PDF — skip; the item still carries its card.
+      // Encrypted / corrupt PDF: skip; the item still carries its card.
     }
   }
 
-  // Stamp the running footer onto EVERY page in final order — pdfkit pages and
-  // interleaved PDF pages alike — so numbering is continuous regardless of how
+  // Stamp the running footer onto EVERY page in final order (pdfkit pages and
+  // interleaved PDF pages alike), so numbering is continuous regardless of how
   // the documents were merged. (pdfkit no longer draws its own footer.)
   try {
     const font = await out.embedFont(StandardFonts.Helvetica);
@@ -1788,7 +1788,7 @@ async function finalizeExhibit(
     // Stamp the resolved Bates page onto each Index of exhibits row. An item's
     // final page = its pdfkit page + the count of PDF pages spliced in BEFORE
     // it. Index rows are front matter (before any item), so their own page is
-    // unshifted — ref.page is already the final page they live on.
+    // unshifted: ref.page is already the final page they live on.
     if (index?.refs.length) {
       const finalPageOf = (p: number) => p + insertOffsets.filter((a) => a < p).length;
       const size = 8.5;
@@ -1808,7 +1808,7 @@ async function finalizeExhibit(
       }
     }
   } catch {
-    // Font embed failed — return the merged (unstamped) document rather than nothing.
+    // Font embed failed: return the merged (unstamped) document rather than nothing.
   }
 
   try {
@@ -1866,7 +1866,7 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
       });
       doc.on('error', reject);
 
-      // Running count of pdfkit pages. The footer is NOT drawn here — every page
+      // Running count of pdfkit pages. The footer is NOT drawn here; every page
       // (pdfkit pages and the interleaved PDF pages) is stamped uniformly in the
       // finalizeExhibit() post-pass, so numbering stays continuous after splice.
       let pageCount = 1; // page 1 already exists (autoFirstPage)
@@ -1891,8 +1891,8 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
         doc.save().moveTo(MARGIN, doc.y).lineTo(MARGIN + 56, doc.y).lineWidth(2.5).stroke(COLOR.amber).restore();
         gap(doc, 12);
         const line = input.preparedBy
-          ? `Prepared exclusively for ${input.preparedBy}. Confidential attorney work product — not for distribution.`
-          : 'Confidential attorney work product — not for distribution.';
+          ? `Prepared exclusively for ${input.preparedBy}. Confidential attorney work product. Not for distribution.`
+          : 'Confidential attorney work product. Not for distribution.';
         doc.font('Helvetica-Bold').fontSize(8.5).fillColor(COLOR.muted)
           .text(line.toUpperCase(), MARGIN, doc.y, { characterSpacing: 0.8, width: CONTENT_WIDTH });
       };
@@ -1989,7 +1989,7 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
         };
         idxRow('ITEM', 'EXHIBIT', 'DESCRIPTION', true);
         for (const e of input.entries) {
-          const topY = idxRow(String(e.index), e.exhibitNo || '—', e.title || '(untitled item)', false);
+          const topY = idxRow(String(e.index), e.exhibitNo || 'Not assigned', e.title || '(untitled item)', false);
           indexRefs.push({ itemIndex: e.index, page: pageCount, topY });
         }
         doc.y = ry + 4;
@@ -2055,7 +2055,7 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
         }
       }
 
-      // ── 5. RECORD OF EXHIBITS (the detailed, dated record — one item per page,
+      // ── 5. RECORD OF EXHIBITS (the detailed, dated record: one item per page,
       //    with embedded evidence images and authenticated attachment cards)
       if (want('exhibits')) {
       beginSection(doc, 'Record of exhibits');
@@ -2102,7 +2102,7 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
           for (const ex of e.exhibits) drawExhibitImage(doc, ex);
         }
         // Non-image files: each gets an authenticated card, and its CONTENT is
-        // put on the record — spreadsheets as an inline table, PDFs reproduced
+        // put on the record: spreadsheets as an inline table, PDFs reproduced
         // in full on the pages that immediately follow this item.
         const nonImg = e.exhibits.filter((x) => !x.image);
         if (nonImg.length) {
@@ -2137,7 +2137,7 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
       }
 
       // ── 7. PARTIES (persons & organizations of interest). Placed as the last
-      //    content section — a reference "cast of characters" a reader consults
+      //    content section, a reference "cast of characters" a reader consults
       //    after the record, rather than an interruption near the front.
       if (want('parties') && input.entities.length) {
         beginSection(doc, 'Parties & entities');
@@ -2146,12 +2146,12 @@ export async function generateTimelineExhibitPdf(input: TimelineExhibitData): Pr
         for (const ent of input.entities) drawEntityCard(doc, ent);
       }
 
-      // ── 8. CERTIFICATION & AUTHENTICATION (closing attestation) — for full
+      // ── 8. CERTIFICATION & AUTHENTICATION (closing attestation), included in full
       //    packets. Exhibits-only packets drew it right after the index.
       if (!exhibitsOnly) drawCertification();
 
       // PDF exhibits are spliced in inline (right after their item) by
-      // finalizeExhibit once the pdfkit document is finished — no end appendix.
+      // finalizeExhibit once the pdfkit document is finished, with no end appendix.
       doc.end();
     } catch (err) {
       reject(err instanceof Error ? err : new Error('Timeline PDF generation failed.'));

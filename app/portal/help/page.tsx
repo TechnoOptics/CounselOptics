@@ -34,7 +34,7 @@ export default async function HubHelpPage() {
           <a href="/portal/new" className="underline">
             New request
           </a>{' '}
-          — this form goes to Advottic, not {persona.firm.name}.
+          (this form goes to Advottic, not {persona.firm.name}).
         </p>
       </header>
 

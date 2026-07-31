@@ -21,7 +21,7 @@ const MAX_BYTES = 15 * 1024 * 1024;
 const emailOk = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 
 /** Magic-byte allowlist: an employee can securely share the documents the
- *  portal itself produces or common evidence types — never executables. */
+ *  portal itself produces or common evidence types, never executables. */
 function sniffMime(buf: Buffer, declared: string): string | null {
   if (buf.subarray(0, 5).toString('latin1') === '%PDF-') return 'application/pdf';
   if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return 'image/png';
@@ -32,7 +32,7 @@ function sniffMime(buf: Buffer, declared: string): string | null {
 
 /**
  * Employee secure share (Hub): encrypt a document with a one-time AES-256-GCM
- * key and email the recipient a key-gated link — the LINK in one email, the
+ * key and email the recipient a key-gated link: the LINK in one email, the
  * KEY in a second, so no single message ever contains both. Same machinery as
  * the counsel-side secure share, opened to the firm's employees for their own
  * documents (a filled form, a photo, a draft).
@@ -105,14 +105,14 @@ export async function POST(req: Request) {
   const linkEmail = await sendEmail({
     to: recipientEmail,
     fromName: firmName ?? undefined,
-    subject: `${label} — secure document`,
+    subject: `${label}: secure document`,
     replyTo: user.email || undefined,
     text: [
       `${senderName || 'A colleague'} has securely shared a document with you: ${label}.`,
       note ? `\nNote: ${note}` : '',
       `\nOpen it here:\n${link}`,
-      `\nThe document is encrypted. Your decryption key arrives in a separate email — you will need it to open the document.`,
-      `\nThis link expires in ${SHARE_TTL_DAYS} days. Confidential — please do not forward.`,
+      `\nThe document is encrypted. Your decryption key arrives in a separate email. You will need it to open the document.`,
+      `\nThis link expires in ${SHARE_TTL_DAYS} days. Confidential: please do not forward.`,
     ]
       .filter(Boolean)
       .join('\n'),

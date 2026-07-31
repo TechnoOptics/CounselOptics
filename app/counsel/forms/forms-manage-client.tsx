@@ -86,7 +86,7 @@ export function FormsManageClient({
           {templates.length === 0 ? (
             <div className="card p-8 text-center">
               <p className="text-[13px] leading-relaxed text-ink-600 dark:text-cream-100/70">
-                No templates yet. Create your first — an NDA is the classic starting point.
+                No templates yet. Create your first: an NDA is the classic starting point.
               </p>
             </div>
           ) : (
@@ -224,7 +224,7 @@ function TemplateEditor({
 
       <label className="block">
         <span className="mb-1 block text-[13px] font-medium text-forest-900 dark:text-cream-100">
-          Body — use {'{{field_key}}'} where the employee should fill something in
+          Body: use {'{{field_key}}'} where the employee should fill something in
         </span>
         <textarea rows={14} className={`${inputCls} font-mono text-[12.5px]`} value={body} onChange={(e) => setBody(e.target.value)} />
       </label>

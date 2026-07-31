@@ -7,7 +7,7 @@ import { ShareDialog, type ShareTarget } from '@/components/counsel/ShareDialog'
 
 /**
  * Court-packet export control. Each export target opens in the Advottic PDF
- * PREVIEW by default (proofread first — share, download, or print from there);
+ * PREVIEW by default (proofread first, then share, download, or print there);
  * the row also carries direct Download and Share actions. Section scope is
  * passed to the export route as `?section=<key>`; the share endpoint rebuilds
  * the same export before encrypting it.
@@ -115,7 +115,7 @@ export function ExportMenu({
           className="absolute right-0 z-40 mt-2 w-72 max-h-[70vh] overflow-y-auto rounded-xl border border-ink-200 dark:border-forest-700/60 bg-white dark:bg-forest-900 p-1.5 shadow-xl"
         >
           <p className="px-3 pt-1.5 pb-1 text-[11px] text-forest-400 dark:text-cream-100/35">
-            <T>Click a document to preview it — or download / share it directly with the buttons.</T>
+            <T>Click a document to preview it, or download / share it directly with the buttons.</T>
           </p>
           <Row path={base} label="Full court packet" strong />
 

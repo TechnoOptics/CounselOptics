@@ -63,8 +63,8 @@ public class CasesWidgetProvider extends AppWidgetProvider {
             prefs.getString(WidgetBridgePlugin.KEY_ACTIONS_JSON, "[]");
 
         if (!hasData) {
-            views.setTextViewText(R.id.widget_open_count, "—");
-            views.setTextViewText(R.id.widget_open_label, "Open cases");
+            views.setTextViewText(R.id.widget_open_count, "");
+            views.setTextViewText(R.id.widget_open_label, "Not synced");
             views.setTextViewText(R.id.widget_latest, "Open Advottic to sync");
             views.setTextViewText(R.id.widget_hearing, "");
             views.setTextViewText(R.id.widget_action, "");

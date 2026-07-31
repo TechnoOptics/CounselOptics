@@ -92,13 +92,13 @@ export default async function ContractDetailPage({
 
       <section className="card p-5 grid sm:grid-cols-2 gap-3 text-[13px]">
         <Field label="Parties">
-          {c.parties.length > 0 ? c.parties.join(', ') : '—'}
+          {c.parties.length > 0 ? c.parties.join(', ') : 'None'}
         </Field>
         <Field label="Signed">
-          {c.signed_at ? new Date(c.signed_at).toLocaleDateString() : '—'}
+          {c.signed_at ? new Date(c.signed_at).toLocaleDateString() : 'Not signed'}
         </Field>
         <Field label="Expires">
-          {c.expiry_at ? new Date(c.expiry_at).toLocaleDateString() : '—'}
+          {c.expiry_at ? new Date(c.expiry_at).toLocaleDateString() : 'Not set'}
         </Field>
         <Field label="Tags">
           {c.tags.length > 0 ? (
@@ -113,7 +113,7 @@ export default async function ContractDetailPage({
               ))}
             </span>
           ) : (
-            '—'
+            'None'
           )}
         </Field>
         {c.notes && (

@@ -85,8 +85,8 @@ export function ShareDialog({ caseId, target, onClose }: { caseId: string; targe
           <div className="mt-4 space-y-3">
             <div className="rounded-lg border border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 p-3 text-[12.5px] text-emerald-800 dark:text-emerald-300">
               {result.emailSent
-                ? <>Sent to <span className="font-semibold" data-no-translate>{result.recipientEmail}</span> as two emails — the link in one, the key in the other.</>
-                : <>Encrypted and stored, but the email could not be sent — copy the link and key below and send them to the recipient yourself (ideally through two different channels).</>}
+                ? <>Sent to <span className="font-semibold" data-no-translate>{result.recipientEmail}</span> as two emails: the link in one, the key in the other.</>
+                : <>Encrypted and stored, but the email could not be sent. Copy the link and key below and send them to the recipient yourself (ideally through two different channels).</>}
             </div>
             <Field label="Secure link" value={result.link} copied={copied === 'link'} onCopy={() => copy(result.link, 'link')} />
             <Field label="Decryption key" value={result.key} mono copied={copied === 'key'} onCopy={() => copy(result.key, 'key')} />

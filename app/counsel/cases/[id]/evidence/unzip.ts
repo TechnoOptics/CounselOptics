@@ -4,7 +4,7 @@ import { unzip as fflateUnzip, type Unzipped } from 'fflate';
  * Client-side zip expansion for the evidence intake. A firm can zip a folder of
  * exhibits and drop the single archive; we expand it in the browser into the
  * individual files and hand them to the SAME upload pipeline as a normal
- * multi-file drop — so every extracted item flows through name-dedup, batch
+ * multi-file drop, so every extracted item flows through name-dedup, batch
  * upload, AI analysis, and exhibit-number assignment with no special path.
  *
  * Kept out of the initial bundle: import this module lazily (only when a zip is
@@ -91,7 +91,7 @@ export async function expandZips(
     try {
       const inner = await unzipOne(f);
       if (inner.length === 0) {
-        // Empty / all-junk archive — keep the original so the user sees it fail
+        // Empty / all-junk archive: keep the original so the user sees it fail
         // rather than a silent no-op.
         result.push(f);
         continue;

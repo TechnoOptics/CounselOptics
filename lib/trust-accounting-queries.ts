@@ -135,7 +135,7 @@ export async function reconcileTrustAccount(
     p_account_id: accountId,
   });
   if (error) {
-    // Never silently render $0.00 balances on a money page — a failed aggregate
+    // Never silently render $0.00 balances on a money page: a failed aggregate
     // must surface as an error, not masquerade as an empty/zeroed account.
     throw new Error(`Trust reconciliation summary failed: ${error.message}`);
   }

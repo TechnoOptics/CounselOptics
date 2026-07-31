@@ -16,7 +16,7 @@ import { createAdminSupabase } from './supabase/admin';
  *    codes, the reviewer login) where an attacker who can induce DB
  *    errors must NOT be handed an uncapped bypass. We still allow when
  *    the store is simply *not configured* (no service-role key, i.e.
- *    local dev) — that's a deploy-config state, not an attack, and
+ *    local dev), since that's a deploy-config state, not an attack, and
  *    failing closed there would break every dev sign-in.
  *
  * @param key   stable identifier for the bucket, e.g. `bella:<ip>`

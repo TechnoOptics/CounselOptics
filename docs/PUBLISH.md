@@ -27,7 +27,7 @@ You need **two paid accounts**, **one Mac with Xcode** for iOS, and **Android St
 | Apple Developer Program | https://developer.apple.com/programs/enroll | $99 / year |
 | Google Play Console | https://play.google.com/console/signup | $25 one-time |
 
-Both ask for legal entity info — use **Techno Optics LLC**, EIN, Minnesota address. Apple may take 24-48 hours to approve; Google is usually same-day.
+Both ask for legal entity info: use **Techno Optics LLC**, EIN, Minnesota address. Apple may take 24-48 hours to approve; Google is usually same-day.
 
 ---
 
@@ -104,7 +104,7 @@ npx cap open android
 ```
 
 In Android Studio:
-1. Wait for Gradle sync to finish (first run downloads ~300 MB of dependencies — be patient)
+1. Wait for Gradle sync to finish (first run downloads ~300 MB of dependencies, so be patient)
 2. Build → **Generate Signed Bundle / APK** → *Android App Bundle*
 3. Pick your keystore, enter passwords
 4. Choose **release** build variant
@@ -135,7 +135,7 @@ npx cap sync ios
 npx cap open ios
 ```
 
-`npx cap add ios` creates the `ios/` directory (don't worry about it not being in the repo — it generates fresh from `capacitor.config.ts`).
+`npx cap add ios` creates the `ios/` directory (don't worry about it not being in the repo; it generates fresh from `capacitor.config.ts`).
 
 ### 3b. In Xcode
 
@@ -244,20 +244,20 @@ Both stores require screenshots. **Take them on a real device after installing y
 
 ### Screenshot script - what to capture (in order)
 
-1. **Hero / sign-in** — open landing page, scroll to "Your case, ready to be heard." Capture the full hero with the gold-shine title.
-2. **Cases dashboard** — sign in, capture the KPI tiles + "Your cases" section with at least 2 example cases.
-3. **Case detail header** — open one case, capture the dark forest hero with the gold-shine title + KPI strip (Exhibits / Hearing / Advottic Review / Sharing).
-4. **Hearing tab** — capture the countdown card + prioritized checklist with mixed urgency (some items completed).
-5. **Exhibits tab with auto-scan** — capture an exhibit row showing the auto-detected ticket type, identifiers, parties, and dates accordion expanded.
-6. **Advottic Review** — capture the AI review tab with summary + possible issues + evidence-to-strengthen lists visible.
-7. **Bella in action** — open Bella, capture a conversation with at least 2 exchanges showing markdown rendering.
-8. **Find counsel** — capture the find-counsel page with the embedded Google Maps result + practice-area filter.
+1. **Hero / sign-in**: open landing page, scroll to "Your case, ready to be heard." Capture the full hero with the gold-shine title.
+2. **Cases dashboard**: sign in, capture the KPI tiles + "Your cases" section with at least 2 example cases.
+3. **Case detail header**: open one case, capture the dark forest hero with the gold-shine title + KPI strip (Exhibits / Hearing / Advottic Review / Sharing).
+4. **Hearing tab**: capture the countdown card + prioritized checklist with mixed urgency (some items completed).
+5. **Exhibits tab with auto-scan**: capture an exhibit row showing the auto-detected ticket type, identifiers, parties, and dates accordion expanded.
+6. **Advottic Review**: capture the AI review tab with summary + possible issues + evidence-to-strengthen lists visible.
+7. **Bella in action**: open Bella, capture a conversation with at least 2 exchanges showing markdown rendering.
+8. **Find counsel**: capture the find-counsel page with the embedded Google Maps result + practice-area filter.
 
 ---
 
 ## Step 6 - Privacy data collection (App Privacy / Data Safety)
 
-Both stores ask you to declare what data you collect. **Be honest** — these answers must match your `/privacy` page.
+Both stores ask you to declare what data you collect. **Be honest**: these answers must match your `/privacy` page.
 
 | Data type | Collected? | Linked to user? | Used for tracking? | Purpose |
 |---|---|---|---|---|
@@ -279,14 +279,14 @@ Tracking declaration: **No**. We do not run third-party trackers and do not sell
 
 ## Step 7 - Update flow
 
-Once both apps are live, content updates ship **automatically** — push to `main`, Vercel deploys, the in-app webview picks up the change on next load. App Store / Play Store submission is **only** required when:
+Once both apps are live, content updates ship **automatically**: push to `main`, Vercel deploys, the in-app webview picks up the change on next load. App Store / Play Store submission is **only** required when:
 
 - A native plugin is added (camera, push, biometrics, etc.)
 - Permission set changes
 - Icons / splash change
 - The bundle ID or signing changes
 
-For "shell-only" updates, bump `versionCode` (Android) and `version`/`build` (iOS) in the native projects, archive, and upload — no review re-required if no permission/plugin changes.
+For "shell-only" updates, bump `versionCode` (Android) and `version`/`build` (iOS) in the native projects, archive, and upload. No review is re-required if no permission/plugin changes.
 
 ---
 
@@ -298,7 +298,7 @@ For "shell-only" updates, bump `versionCode` (Android) and `version`/`build` (iO
 | Apple rejects for using Stripe outside their IAP system | Stripe in-app purchases for digital goods are NOT allowed inside iOS apps. Either: keep payment on the web only, or migrate Pro tier to use Apple In-App Purchase. **For first launch: keep all subscription flows web-only.** Hide the `/billing` page inside the iOS shell, or open it in an external Safari window. |
 | Google rejects for missing Privacy Policy | Make sure `https://advottic.com/privacy` returns 200 from outside your network. Already done. |
 | iOS rejects for "Sign in with Apple" missing | If you offer Google or Microsoft sign-in, you **must** also offer Sign in with Apple. Currently the app has Google + Microsoft + magic link. Either: add Sign in with Apple to Supabase Auth before submitting iOS, OR remove Google + Microsoft from the iOS build and only show magic link. |
-| App Tracking Transparency missing on iOS | Not required — we don't track. Declare "No" in the privacy questionnaire. |
+| App Tracking Transparency missing on iOS | Not required, we don't track. Declare "No" in the privacy questionnaire. |
 
 ---
 

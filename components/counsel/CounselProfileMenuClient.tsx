@@ -299,7 +299,7 @@ export function CounselProfileMenuClient(props: CounselProfileMenuClientProps) {
             </MenuLink>
           </div>
 
-          {/* Switch portal — only the staff HQ portal. The consumer/personal
+          {/* Switch portal: only the staff HQ portal. The consumer/personal
               dashboard link is intentionally NOT offered from the firm side:
               nothing in the firm workspace routes a user into the personal
               view. */}

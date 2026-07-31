@@ -2438,7 +2438,7 @@ export async function createSigningRequestAction(
     await sendEmail({
       to: signer.email,
       fromName: firmName,
-      subject: `${firmName}: signature requested — ${docName}`,
+      subject: `${firmName}: signature requested for ${docName}`,
       html: buildSigningRequestEmailHtml({
         firmName,
         logoUrl: firmLogo,
@@ -2461,7 +2461,7 @@ export async function createSigningRequestAction(
       await sendEmail({
         to: signer.email,
         fromName: firmName,
-        subject: `${firmName}: your access code — ${docName}`,
+        subject: `${firmName}: your access code for ${docName}`,
         html: buildSigningCodeEmailHtml({
           firmName,
           logoUrl: firmLogo,

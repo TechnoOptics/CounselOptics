@@ -2,7 +2,7 @@ import type { TierSlug } from './token-packages';
 
 /**
  * Sentinel price id for a lifetime, comped Ultra grant (founder / owner / QA
- * accounts — see COMP_EMAILS in lib/storage.ts). It never exists in Stripe;
+ * accounts; see COMP_EMAILS in lib/storage.ts). It never exists in Stripe;
  * resolvePriceEntitlement() special-cases it to the Ultra slug so these
  * accounts get every Ultra feature for free, forever, and caseLimit() treats
  * it as uncapped.
@@ -14,7 +14,7 @@ export const COMP_ULTRA_PRICE_ID = 'comp_lifetime_ultra';
  * billing cards AND the feature gates. The coarse `Tier` enum only has three
  * values, which cannot express five distinct case caps or "Bella unlocks at
  * rung 3", so personal gating (case cap, Bella, Advottic Review) reads THIS
- * config by the subscription's fine TierSlug instead — see lib/tier.ts.
+ * config by the subscription's fine TierSlug instead. See lib/tier.ts.
  *
  * Ladder (confirmed 2026-07-07): Free $0 / Starter $19 / Plus $29 / Pro $59 /
  * Ultra $99, with case caps 1 / 3 / 8 / 15 / 40 and Bella unlocking at Plus.
@@ -22,7 +22,7 @@ export const COMP_ULTRA_PRICE_ID = 'comp_lifetime_ultra';
  * lower tiers see what an upgrade buys.
  *
  * Each paid rung maps to its OWN new TierSlug (starter/plus/premium/ultra) so
- * the legacy basic/standard/pro/pro_plus slugs — and anyone still on them —
+ * the legacy basic/standard/pro/pro_plus slugs (and anyone still on them)
  * keep their existing caps untouched.
  */
 

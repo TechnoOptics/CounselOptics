@@ -138,7 +138,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const linkEmail = await sendEmail({
     to: recipientEmail,
     fromName: ctx.firm.name || undefined,
-    subject: `${c.title} — secure document`,
+    subject: `${c.title}: secure document`,
     replyTo: user.email || undefined,
     text: linkEmailText({ caseTitle: c.title, senderName, link, expiresAt, note: body.note }),
     html: buildShareLinkEmailHtml({ caseTitle: c.title, senderName, firmName: ctx.firm.name || null, link, expiresAt, note: body.note }),
@@ -180,8 +180,8 @@ function linkEmailText(o: { caseTitle: string; senderName: string | null; link: 
     `${o.senderName || 'A colleague'} has securely shared a document with you: ${o.caseTitle}.`,
     o.note ? `\nNote: ${o.note}` : '',
     `\nOpen it here:\n${o.link}`,
-    `\nThe document is encrypted. Your decryption key arrives in a separate email — you will need it to open the document.`,
-    `\nThis link expires ${fmtDate(o.expiresAt)}. Confidential — please do not forward.`,
+    `\nThe document is encrypted. Your decryption key arrives in a separate email. You will need it to open the document.`,
+    `\nThis link expires ${fmtDate(o.expiresAt)}. Confidential: please do not forward.`,
   ].filter(Boolean).join('\n');
 }
 

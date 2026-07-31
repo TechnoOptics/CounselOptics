@@ -2,8 +2,8 @@
 
 **Hand this document to the Zinpro app team.** It is self-contained: everything
 needed to file and follow legal requests in Advottic on behalf of company
-employees — the API, the event webhooks, the screens the app should present,
-and what the legal team controls from their side.
+employees. That covers the API, the event webhooks, the screens the app
+should present, and what the legal team controls from their side.
 
 ---
 
@@ -12,14 +12,14 @@ and what the legal team controls from their side.
 The company holds a **firm/enterprise Advottic license**. The Zinpro app talks
 to Advottic with one **firm-scoped API token**. When an employee files a legal
 request in Zinpro, Advottic **provisions that employee automatically** (their
-email domain must match the company's registered domains — that is the trust
+email domain must match the company's registered domains, which is the trust
 anchor) and creates the ticket straight into the legal team's **Intake inbox**,
 where lawyers triage, respond, request documents, run conflict checks, and
 convert requests into full matters. The legal team is **notified instantly**
 (in-app bell + email) when a ticket or reply arrives. Replies flow back over
-the same API — and over a **signed webhook**, so Zinpro can update its UI and
+the same API and over a **signed webhook**, so Zinpro can update its UI and
 push-notify the employee without polling. When the employee later signs in to
-Advottic itself — via **SSO/SAML with their work email** — their account
+Advottic itself (via **SSO/SAML with their work email**), their account
 already exists and every ticket they ever filed from Zinpro is waiting in
 their Hub portal, along with the full employee toolset (documents, templates,
 signatures, secure sharing, @-mentions, chat).
@@ -45,7 +45,7 @@ sequenceDiagram
     E->>Z: Respond
     Z->>A: POST /tickets/:id/messages
     A->>L: Bell + email: employee replied
-    Note over E,A: Later: employee signs in at advottic.com via SSO —<br/>account already linked, all tickets in their Hub portal
+    Note over E,A: Later: employee signs in at advottic.com via SSO,<br/>account already linked, all tickets in their Hub portal
 ```
 
 ---
@@ -54,20 +54,20 @@ sequenceDiagram
 
 | Capability | How it works |
 |---|---|
-| File a legal request from Zinpro | `POST /tickets` — JIT-provisions the employee, lands in the legal Intake inbox |
+| File a legal request from Zinpro | `POST /tickets`: JIT-provisions the employee, lands in the legal Intake inbox |
 | **Legal-team-configured intake questions** | Legal defines them in Advottic; Zinpro fetches them from `GET /config` and renders them on the request form |
-| **Acknowledgment popup** | Legal writes the message (usually their response-time promise); returned on every ticket create — show it to the employee immediately |
+| **Acknowledgment popup** | Legal writes the message (usually their response-time promise); returned on every ticket create; show it to the employee immediately |
 | Two-way conversation | Employee replies via API; legal replies appear in `GET /tickets/:id` and arrive via webhook |
 | **Instant legal-team notification** | Every new ticket and employee reply rings the legal team's in-app bell **and** emails the firm's owners/admins |
-| **Employee email notifications** | Advottic emails the employee directly when legal replies, and when the request is converted to a matter or closed — even if they never reopen the app |
-| **Outbound webhooks** | HMAC-SHA256-signed POSTs to the Zinpro backend on legal replies and status changes — drive real-time UI updates and your own push notifications |
+| **Employee email notifications** | Advottic emails the employee directly when legal replies, and when the request is converted to a matter or closed, even if they never reopen the app |
+| **Outbound webhooks** | HMAC-SHA256-signed POSTs to the Zinpro backend on legal replies and status changes, to drive real-time UI updates and your own push notifications |
 | **Stale-request reminders** | If a ticket sits unanswered past the window legal configured, the legal team is automatically nudged (bell + email); repeats at most once per window |
 | Status pipeline | `in_progress → conflict_check_passed/flagged → engaged → converted` (or `rejected`), all visible via API and webhook |
 | Full experience on the web | On first SSO sign-in the employee's Zinpro-filed tickets are already in their Advottic Hub portal, with @-mentions, document library, forms, signatures, secure sharing |
 
 > Note on @-mentions and chat: inside Advottic, intake threads and firm chat
 > support @-mentions with notifications and email. Over the partner API,
-> messages are plain text — employees get the full mention/chat experience
+> messages are plain text. Employees get the full mention/chat experience
 > when they sign in at advottic.com; Zinpro is the quick companion.
 
 ---
@@ -78,22 +78,22 @@ sequenceDiagram
    internal domains (e.g. `zinpro.com`). The Partner API refuses to provision
    any employee outside these domains.
 2. **Mint the integration token**: Profile → API tokens → create a token with
-   the **firm scope** and **write** scope. It looks like `adv_...` — shown
-   once. Store it in the Zinpro backend's secret manager. (Rotate/revoke from
+   the **firm scope** and **write** scope. It looks like `adv_...` and is
+   shown once. Store it in the Zinpro backend's secret manager. (Rotate/revoke from
    the same screen at any time.)
 3. **Configure the partner panel**: Counsel → Settings → **Partner app
    integration**:
-   - **Confirmation message after filing** — the popup text the employee sees
+   - **Confirmation message after filing**: the popup text the employee sees
      the moment their request is filed. Most teams state their response time,
-     e.g. *"Thanks — your request has reached the legal team. We usually
+     e.g. *"Thanks, your request has reached the legal team. We usually
      respond within 2 business days; urgent matters are triaged first."*
-   - **Intake questions** — up to 12 questions (free text, choice list, or
+   - **Intake questions**: up to 12 questions (free text, choice list, or
      yes/no; each optionally required) that the Zinpro form must ask. Answers
      show on the request in the Intake inbox.
-   - **Event webhook** — paste the Zinpro backend's https endpoint; Advottic
+   - **Event webhook**: paste the Zinpro backend's https endpoint; Advottic
      mints a signing secret (`whsec_...`) you can reveal and rotate here. Give
      both the URL and the secret to the Zinpro team.
-   - **Reminder window** — hours before an unanswered request nudges the
+   - **Reminder window**: hours before an unanswered request nudges the
      team again (default 24; 0 turns reminders off).
 4. **(Recommended) SSO**: connect the company IdP via SAML (Counsel →
    Settings → SSO & provisioning). Employees then sign in to advottic.com
@@ -109,7 +109,7 @@ Four surfaces. Each maps to exactly one API call (plus the webhook feed).
 
 - On screen load (or app start, cached), call `GET /config`. Render, in
   order:
-  1. **Subject** (single line) and **Description** (multi-line) — always.
+  1. **Subject** (single line) and **Description** (multi-line), always.
   2. **Category** (optional single line or your own picker) and **Priority**
      (`low / normal / high / urgent`, default `normal`).
   3. **The firm's configured questions**, in the order returned. Render by
@@ -119,7 +119,7 @@ Four surfaces. Each maps to exactly one API call (plus the webhook feed).
        `options`,
      - `yesno` → toggle or two buttons (send the answer as `"Yes"`/`"No"`).
      Mark `required: true` questions with an asterisk and block submit until
-     they are answered — the API also rejects a missing required answer with
+     they are answered. The API also rejects a missing required answer with
      a 400 naming the question.
 - On submit, `POST /tickets` with the fields plus
   `answers: { [question.id]: value }` and your own `externalId`.
@@ -127,14 +127,14 @@ Four surfaces. Each maps to exactly one API call (plus the webhook feed).
 ### 4.2 The acknowledgment popup (after filing)
 
 Every successful create (201, and idempotent 200 replays) returns an
-`acknowledgment` string — **the message the legal team wrote, usually their
+`acknowledgment` string, **the message the legal team wrote, usually their
 response-time promise**. Show it in a confirmation dialog/toast immediately:
 
 ```
 ┌─────────────────────────────────────────────┐
 │  ✓  Request filed                           │
 │                                             │
-│  Thanks — your request has reached the      │
+│  Thanks, your request has reached the       │
 │  legal team. We usually respond within      │
 │  2 business days; urgent matters are        │
 │  triaged first.                             │
@@ -143,7 +143,7 @@ response-time promise**. Show it in a confirmation dialog/toast immediately:
 └─────────────────────────────────────────────┘
 ```
 
-Don't hard-code the text — legal edits it in Advottic and expects the app to
+Don't hard-code the text; legal edits it in Advottic and expects the app to
 show the current version. Fall back to a generic "Request filed" if the field
 is ever empty.
 
@@ -155,7 +155,7 @@ is ever empty.
 |---|---|---|
 | `in_progress` | "With legal" | neutral |
 | `conflict_check_passed` | "In review" | neutral |
-| `conflict_check_flagged` | "In review" | neutral (internal legal step — don't alarm the employee) |
+| `conflict_check_flagged` | "In review" | neutral (internal legal step, don't alarm the employee) |
 | `engaged` | "In progress" | positive |
 | `converted` | "Matter opened" | positive |
 | `rejected` | "Closed" | muted |
@@ -176,7 +176,7 @@ team can write internal notes on a request that are visible to firm staff
 alone; those are filtered out of this endpoint and out of every webhook
 payload, so nothing you render from the API can leak them. You do not need to
 filter anything yourself. The same applies to the system's own activity
-entries (assignments, status changes) — they are omitted here, so the array
+entries (assignments, status changes). They are omitted here, so the array
 is purely human messages.
 
 Advottic's own conversation surface additionally carries file attachments and
@@ -189,7 +189,7 @@ when they need it.
 
 ### 4.5 Keeping it live
 
-Two complementary channels — use both:
+Two complementary channels. Use both:
 
 - **Webhooks (preferred)**: Advottic POSTs to your backend on every legal
   reply and status change (§6). Relay to the app via your own push channel.
@@ -215,7 +215,7 @@ Rate limits: 60 ticket creations / 240 messages per 5 minutes per firm.
 ```json
 {
   "firmName": "Zinpro Legal",
-  "acknowledgment": "Thanks — your request has reached the legal team. We usually respond within 2 business days; urgent matters are triaged first.",
+  "acknowledgment": "Thanks, your request has reached the legal team. We usually respond within 2 business days; urgent matters are triaged first.",
   "questions": [
     { "id": "q-bu", "label": "Which business unit is this for?", "type": "select", "options": ["Sales", "R&D", "Operations", "Other"], "required": true },
     { "id": "q-deadline", "label": "Is there a hard deadline?", "type": "text", "options": null, "required": false },
@@ -225,7 +225,7 @@ Rate limits: 60 ticket creations / 240 messages per 5 minutes per firm.
 }
 ```
 
-Fetch on app start and cache; refresh at least daily — the legal team can
+Fetch on app start and cache; refresh at least daily; the legal team can
 change questions and the acknowledgment at any time.
 
 ### 5.2 Create a ticket
@@ -244,12 +244,12 @@ change questions and the acknowledgment at any time.
 }
 ```
 
-- `employee.email` (required) — must be on a registered company domain.
+- `employee.email` (required): must be on a registered company domain.
   First ticket from a new employee **creates their Advottic account record**.
-- `externalId` (recommended) — your ticket id. Makes the call **idempotent**:
+- `externalId` (recommended): your ticket id. Makes the call **idempotent**:
   retries return the existing ticket (HTTP 200) instead of duplicating (201).
 - `priority`: `low | normal | high | urgent`.
-- `answers` — keyed by the `id`s from `GET /config`. Unknown ids are ignored;
+- `answers`: keyed by the `id`s from `GET /config`. Unknown ids are ignored;
   a missing **required** answer is a 400 naming the question; a `select`
   answer must be one of the listed options.
 
@@ -258,12 +258,12 @@ Response `201` (or `200` on idempotent replay):
 ```json
 {
   "ticket": { "id": "…", "status": "in_progress", "subject": "…", "messages": [], "externalId": "ZIN-4821", "caseId": null },
-  "acknowledgment": "Thanks — your request has reached the legal team. We usually respond within 2 business days; urgent matters are triaged first."
+  "acknowledgment": "Thanks, your request has reached the legal team. We usually respond within 2 business days; urgent matters are triaged first."
 }
 ```
 
 Show `acknowledgment` to the employee immediately (§4.2). Creating a ticket
-also rings the legal team's bell and emails the firm's owners/admins — no
+also rings the legal team's bell and emails the firm's owners/admins; no
 action needed on your side.
 
 ### 5.3 List tickets
@@ -284,7 +284,7 @@ Omit `employeeEmail` for all partner-filed tickets in the firm (newest first).
 `POST /api/partner/v1/tickets/{id}/messages`
 
 ```json
-{ "employeeEmail": "jane@zinpro.com", "text": "Attached the draft to my request — can we get this signed by Friday?" }
+{ "employeeEmail": "jane@zinpro.com", "text": "Attached the draft to my request. Can we get this signed by Friday?" }
 ```
 
 The message lands in the same thread the lawyer sees in the Intake inbox and
@@ -330,7 +330,7 @@ X-Advottic-Signature: 3f1a…e9   (hex HMAC-SHA256)
     "author": "Sam Attorney",
     "role": "legal",
     "at": "2026-07-25T18:30:00.000Z",
-    "text": "Reviewed — two changes needed before signature. See my notes."
+    "text": "Reviewed. Two changes needed before signature. See my notes."
   }
 }
 ```
@@ -363,7 +363,7 @@ re-serialization).
 
 Delivery is **at-most-once, best-effort** (10-second timeout, no automatic
 retries in v1). Respond `200` quickly and process async. Keep the 60–120 s
-polling as the safety net — the polled `GET /tickets/{id}` is always the
+polling as the safety net; the polled `GET /tickets/{id}` is always the
 source of truth. The signing secret can be rotated in the Advottic settings
 panel at any time; coordinate rotation with the firm admin.
 
@@ -373,14 +373,14 @@ panel at any time; coordinate rotation with the firm admin.
 
 | Trigger | Legal team | Employee | Zinpro backend |
 |---|---|---|---|
-| Ticket created from Zinpro | Bell + email (owners/admins) | Acknowledgment popup (API response) | — (it made the call) |
-| Employee replies from Zinpro | Bell + email | — | — (it made the call) |
-| Legal replies | — | **Email** ("Legal replied…", link to portal) | **Webhook** `ticket.legal_replied` |
-| Conflict check runs / clears | (visible in Counsel) | — | **Webhook** `ticket.status_changed` |
-| Request converted to a matter | — | **Email** ("Your request became a matter") | **Webhook** `ticket.status_changed` |
-| Request closed/rejected | — | **Email** (neutral wording) | **Webhook** `ticket.status_changed` |
-| No legal reply past the reminder window | **Bell + email nudge** (hourly cron, at most once per window) | — | — |
-| @-mention inside Advottic (web) | Bell (+ email for chat mentions) | Bell when mentioned (after SSO sign-in) | — |
+| Ticket created from Zinpro | Bell + email (owners/admins) | Acknowledgment popup (API response) | None (it made the call) |
+| Employee replies from Zinpro | Bell + email | None | None (it made the call) |
+| Legal replies | None | **Email** ("Legal replied…", link to portal) | **Webhook** `ticket.legal_replied` |
+| Conflict check runs / clears | (visible in Counsel) | None | **Webhook** `ticket.status_changed` |
+| Request converted to a matter | None | **Email** ("Your request became a matter") | **Webhook** `ticket.status_changed` |
+| Request closed/rejected | None | **Email** (neutral wording) | **Webhook** `ticket.status_changed` |
+| No legal reply past the reminder window | **Bell + email nudge** (hourly cron, at most once per window) | None | None |
+| @-mention inside Advottic (web) | Bell (+ email for chat mentions) | Bell when mentioned (after SSO sign-in) | None |
 
 All notifications are best-effort and never block the underlying write; email
 requires the firm's email provider to be configured (it is, for Zinpro).
@@ -417,7 +417,7 @@ export const advottic = {
     category?: string; priority?: 'low'|'normal'|'high'|'urgent'; externalId?: string;
     answers?: Record<string, string>;
   }) => api('/api/partner/v1/tickets', { method: 'POST', body: JSON.stringify(t) }),
-  // → { ticket, acknowledgment } — show `acknowledgment` to the employee.
+  // → { ticket, acknowledgment }. Show `acknowledgment` to the employee.
 
   listTickets: (employeeEmail?: string) =>
     api(`/api/partner/v1/tickets${employeeEmail ? `?employeeEmail=${encodeURIComponent(employeeEmail)}` : ''}`),
@@ -450,7 +450,7 @@ curl -s https://advottic.com/api/partner/v1/config \
 ## 9. What each side sees
 
 - **Legal team (Advottic Counsel)**: partner tickets are ordinary intake
-  requests — kanban triage, priority, the employee's question answers,
+  requests: kanban triage, priority, the employee's question answers,
   conflict check, document requests and uploads, thread replies with
   @-mentions, meeting scheduling, convert-to-case. New tickets and replies
   ring their bell and email the admins; stale ones nudge automatically.
@@ -458,7 +458,7 @@ curl -s https://advottic.com/api/partner/v1/config \
   legal team's acknowledgment → track status → read/answer the lawyer's
   messages, kept fresh by webhook-driven updates. Zinpro is the quick
   companion.
-- **Employee (advottic.com, SSO)**: full Hub portal — every ticket (including
+- **Employee (advottic.com, SSO)**: full Hub portal: every ticket (including
   Zinpro-filed ones, auto-claimed on first sign-in), the conversation with
   @-mentions and bell notifications, document library, templates/forms,
   signature requests, secure sharing. Zinpro never blocks the full
@@ -478,9 +478,9 @@ curl -s https://advottic.com/api/partner/v1/config \
 - Outbound webhooks are **HMAC-SHA256 signed** with a rotatable secret and a
   timestamp; verify both (§6.2) and use an https endpoint only.
 - Question answers are validated server-side against the firm's configured
-  question set (unknown ids dropped, select options enforced) — a stale or
+  question set (unknown ids dropped, select options enforced), so a stale or
   modified client can't inject arbitrary labeled data into legal's inbox.
-- No document bytes flow through the partner API in v1 — attachments are
+- No document bytes flow through the partner API in v1; attachments are
   exchanged in Advottic itself (roadmap: pre-signed upload URLs).
 
 ---

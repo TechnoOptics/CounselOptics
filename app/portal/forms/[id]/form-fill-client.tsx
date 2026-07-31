@@ -95,7 +95,7 @@ export function FormFillClient({
       setShareDone(
         body.emailSent
           ? `Sent. ${shareEmail} received the secure link and, in a separate email, the decryption key.`
-          : `The encrypted link is ready (${body.link}) but the emails could not be sent — copy the link and this key to the recipient yourself: ${body.key}`,
+          : `The encrypted link is ready (${body.link}) but the emails could not be sent. Copy the link and this key to the recipient yourself: ${body.key}`,
       );
       setShareOpen(false);
       setShareEmail('');
@@ -133,7 +133,7 @@ export function FormFillClient({
   };
 
   const emailDraft = () => {
-    const subject = encodeURIComponent(`${template.name} — ${signature || employeeName}`);
+    const subject = encodeURIComponent(`${template.name} - ${signature || employeeName}`);
     const body = encodeURIComponent(
       `Hi,\n\nPlease find the completed "${template.name}" attached.\n\n(Download it from the Hub first, then attach it to this email.)\n\nBest,\n${signature || employeeName}`,
     );
@@ -318,7 +318,7 @@ export function FormFillClient({
               }}
               className="rounded-lg border border-gold-500/50 bg-gold-500/10 px-4 py-2 text-[14px] font-medium text-gold-700 hover:bg-gold-500/20 dark:text-gold-300"
             >
-              Looks good — share securely
+              Looks good, share securely
             </button>
           }
         />

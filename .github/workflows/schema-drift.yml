@@ -16,7 +16,7 @@ on:
     branches: [main]
   pull_request:
   schedule:
-    - cron: '0 7 * * 1' # Mondays 07:00 UTC — catches out-of-band dashboard edits
+    - cron: '0 7 * * 1' # Mondays 07:00 UTC, catches out-of-band dashboard edits
 
 permissions:
   contents: read

@@ -44,7 +44,7 @@ async function requireFirmAdmin(): Promise<
  * Issue a new per-firm SCIM bearer token. Owner/admin only. The plaintext
  * token is returned ONCE (only its hash is stored); the admin pastes it
  * into their IdP's provisioning config. The token expires after one year;
- * generating a new token does not revoke old ones — use listScimTokensAction
+ * generating a new token does not revoke old ones; use listScimTokensAction
  * / revokeScimTokenAction to rotate and retire them.
  */
 export async function generateScimTokenAction(): Promise<{
@@ -79,7 +79,7 @@ export type ScimTokenSummary = {
 };
 
 /**
- * List the firm's issued SCIM tokens (never the token or its hash — those are
+ * List the firm's issued SCIM tokens (never the token or its hash, which are
  * write-only). Owner/admin only, scoped to the active firm.
  */
 export async function listScimTokensAction(): Promise<{
@@ -120,7 +120,7 @@ export async function listScimTokensAction(): Promise<{
 
 /**
  * Revoke a SCIM token by id. Owner/admin only. The `firm_id` filter ensures a
- * caller can only revoke tokens belonging to their own firm — an id from
+ * caller can only revoke tokens belonging to their own firm; an id from
  * another firm matches no row and is a no-op.
  */
 export async function revokeScimTokenAction(tokenId: string): Promise<{

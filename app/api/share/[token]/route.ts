@@ -7,7 +7,7 @@ export const runtime = 'nodejs';
 export const maxDuration = 30;
 
 /**
- * Open a secure share. Public by design — the token (URL) and the key together
+ * Open a secure share. Public by design: the token (URL) and the key together
  * are the only credentials, plus a human-verification challenge (Turnstile)
  * that is re-verified server-side before any decrypt attempt (env-gated: when
  * TURNSTILE_SECRET_KEY is unset the check is skipped). POST { key,

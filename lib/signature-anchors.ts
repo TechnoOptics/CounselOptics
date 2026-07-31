@@ -354,7 +354,7 @@ async function appendSignatureBoxes(
     // so it doesn't fight the signature. Hyphen (not em-dash) is
     // intentional - the app brand standard forbids em-dashes in
     // user-facing strings (this label is stamped onto every signable
-    // PDF, so a stray "—" would propagate forever).
+    // PDF, so a stray em-dash would propagate forever).
     const labelName = (signer.name?.trim() || signer.email).slice(0, 60);
     page.drawText(`Signature - ${labelName}`, {
       x: x + 2,

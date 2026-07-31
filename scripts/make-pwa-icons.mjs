@@ -6,14 +6,14 @@
 // the dark header benefits from a tile rather than a bleeding pillar).
 //
 // Outputs:
-//   public/advottic-tile.png      512x512 — branded tile with rounded corners
+//   public/advottic-tile.png      512x512: branded tile with rounded corners
 //                                  (used in the website header).
-//   public/icon-192.png           192x192 — PWA standard icon, green BG.
-//   public/icon-512.png           512x512 — PWA standard icon, green BG.
-//   public/icon-maskable-512.png  512x512 — Android maskable, green BG.
-//   public/apple-icon.png         180x180 — iOS Apple-touch-icon, green BG.
-//   app/icon.png                  64x64   — Browser tab favicon, green BG.
-//   app/apple-icon.png            180x180 — Same image for the iOS browser
+//   public/icon-192.png           192x192: PWA standard icon, green BG.
+//   public/icon-512.png           512x512: PWA standard icon, green BG.
+//   public/icon-maskable-512.png  512x512: Android maskable, green BG.
+//   public/apple-icon.png         180x180: iOS Apple-touch-icon, green BG.
+//   app/icon.png                  64x64:   Browser tab favicon, green BG.
+//   app/apple-icon.png            180x180: Same image for the iOS browser
 //                                  add-to-home flow.
 //
 // Run with: node scripts/make-pwa-icons.mjs

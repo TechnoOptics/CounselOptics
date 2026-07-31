@@ -272,7 +272,7 @@ function Tile({
           active ? 'text-gold-700 dark:text-gold-300' : 'text-ink-400 dark:text-cream-100/35 group-hover:text-gold-700 dark:group-hover:text-gold-300'
         }`}
       >
-        {active ? '— Open' : 'Learn →'}
+        {active ? 'Open' : 'Learn →'}
       </span>
     </button>
   );

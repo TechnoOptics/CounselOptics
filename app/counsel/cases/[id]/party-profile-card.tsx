@@ -7,12 +7,12 @@ import { getCaseImageUrl } from '@/lib/case-images-actions';
 import type { SubjectProfile } from '@/lib/types';
 
 /**
- * Party dossier — the investigative centerpiece of the matter facts. Presents
+ * Party dossier, the investigative centerpiece of the matter facts. Presents
  * the opposing party as a proper case file: a large ring-framed portrait (or
  * business logo) with survey-style corner ticks, a classification header, and
- * the ENTIRE subject record laid out beside it — posture, party, legal name,
+ * the ENTIRE subject record laid out beside it (posture, party, legal name,
  * aliases, relationship, physical descriptors, contact, address, jurisdiction,
- * hearing — followed by the free-text relevance / role blocks. The matter
+ * hearing), followed by the free-text relevance / role blocks. The matter
  * summary sits beneath this card (in MatterFacts), never inside it.
  *
  * Read-only; edits live in Edit details, and the featured image is chosen in
@@ -198,7 +198,7 @@ export function PartyProfileCard({
         <div className="min-w-0 flex-1 space-y-3">
           <div>
             <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-ink-400 dark:text-cream-100/40">
-              <T>{isBusiness ? 'Opposing party — business' : 'Opposing party'}</T>
+              <T>{isBusiness ? 'Opposing party (business)' : 'Opposing party'}</T>
             </p>
             <p
               className="mt-0.5 font-display text-[22px] font-semibold leading-tight text-forest-900 dark:text-cream-100"

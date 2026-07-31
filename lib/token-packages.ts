@@ -15,7 +15,7 @@
 
 export type TierSlug =
   | 'free'
-  // Consumer ("personal") paid ladder — see lib/personal-tiers.ts for the
+  // Consumer ("personal") paid ladder. See lib/personal-tiers.ts for the
   // canonical prices / case caps / feature unlocks keyed off these slugs.
   | 'starter'
   | 'plus'

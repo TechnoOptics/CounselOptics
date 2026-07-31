@@ -10,7 +10,7 @@ import { T, useT } from '@/components/i18n/LocaleProvider';
  * GUEST shell. A guest is locked to a single matter, so this gives them an
  * always-present way around it: Matter overview · Timeline · Evidence Center
  * (· Folders once any exist), with a case-wide search right-aligned on the
- * same row — available from the very first screen, except on the Evidence
+ * same row, available from the very first screen, except on the Evidence
  * Center, which carries its own bigger search.
  * Suggestions come from THIS matter's own data (exhibit numbers,
  * item titles, people, places, organizations, folders) via the lightweight

@@ -544,7 +544,7 @@ export default async function CounselCaseDetailPage({
       ) : null}
 
 
-      {/* Case approach — the lawyer's theory in, a structured argument with
+      {/* Case approach: the lawyer's theory in, a structured argument with
           cited exhibits + supporting timeline out. Rendered UNCONDITIONALLY (it
           shows its own "add credits" state when AI is off) so the "Case
           approach" tab's #case-approaches anchor always has a target. */}
@@ -572,7 +572,7 @@ export default async function CounselCaseDetailPage({
         canProvisionGuests={['owner', 'admin'].includes(ctx.membership.role)}
       />
 
-      {/* Activity stream — firm-leadership-only view of who's been on the
+      {/* Activity stream: firm-leadership-only view of who's been on the
           matter (guest logins, section opens, comments, downloads). */}
       {canSeeActivity && <CaseActivityStream events={activityEvents} />}
 

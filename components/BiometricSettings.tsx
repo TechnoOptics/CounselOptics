@@ -14,7 +14,7 @@
  */
 
 import { useEffect, useState } from 'react';
-// Capacitor + plugin types only — runtime modules are loaded lazily
+// Capacitor + plugin types only. Runtime modules are loaded lazily
 // inside the handlers below so that this component's module graph
 // doesn't pull native code into the SSR pass. See lib/biometric.ts
 // for the canonical rationale (audit V3 CR-22 / V5 CR-22).

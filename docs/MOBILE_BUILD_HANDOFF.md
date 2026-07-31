@@ -1,4 +1,4 @@
-# Mobile build handoff — Advottic v1.0.4
+# Mobile build handoff: Advottic v1.0.4
 
 Single-session playbook for producing the **signed Android AAB** and the
 **signed iOS IPA** for Play Store Internal Testing + App Store Connect
@@ -8,11 +8,11 @@ Android Studio installed, signed in to your Apple Developer + Google
 Play accounts.
 
 Companion to:
-- `docs/MOBILE.md` — long-form architecture (why we chose remote-URL
+- `docs/MOBILE.md`: long-form architecture (why we chose remote-URL
   Capacitor, what the native shell does and doesn't do).
-- `docs/IOS_APP_STORE.md` — detailed iOS App Store Connect listing copy.
-- `docs/PLAY_STORE_LISTING.md` — copy-paste listing copy.
-- `docs/PLAY_STORE_DATA_SAFETY.md` — Play Console Data Safety form
+- `docs/IOS_APP_STORE.md`: detailed iOS App Store Connect listing copy.
+- `docs/PLAY_STORE_LISTING.md`: copy-paste listing copy.
+- `docs/PLAY_STORE_DATA_SAFETY.md`: Play Console Data Safety form
   answers.
 
 Read each of those before clicking Publish in either portal. This file
@@ -81,7 +81,7 @@ That `.aab` is what Google Play wants. If the build fails:
 
 ### Upload to Play Console (Internal Testing track)
 
-1. Open https://play.google.com/console — pick the existing Advottic
+1. Open https://play.google.com/console and pick the existing Advottic
    app entry.
 2. Left sidebar → **Testing** → **Internal testing**.
 3. **Create new release** button on the right.
@@ -100,7 +100,7 @@ That `.aab` is what Google Play wants. If the build fails:
    ```
 
 7. **Next** → review the **Pre-launch report** warnings. The Capacitor
-   stack always shows a few "deprecated API" warnings — they're noise.
+   stack always shows a few "deprecated API" warnings; they're noise.
 8. **Save** → **Review release** → **Start rollout to Internal testing**.
 9. Add testers under **Testers** tab → email list. Maximum 100. Use
    the **Opt-in URL** to share access.
@@ -155,7 +155,7 @@ npx cap open ios
    min after upload). Then in App Store Connect → **TestFlight**, the
    new build appears as "Processing" → becomes available ~30 min.
 
-### App Store Connect — first TestFlight setup
+### App Store Connect: first TestFlight setup
 
 (Skip if you've done this for a prior build.)
 
@@ -180,7 +180,7 @@ npx cap open ios
    or Platform** → **iOS** → version 1.0.4.
 3. Fill out the listing using `docs/IOS_APP_STORE.md` as the source.
 4. Upload screenshots (sizes documented in IOS_APP_STORE.md; we have
-   none yet — capture from the TestFlight build).
+   none yet, so capture from the TestFlight build).
 5. **Add for Review** → answer the App Review questions:
    - *Sign-in required?* → Yes → provide a demo account (create a
      dedicated `appreview+ios@advottic.com` account; Apple needs to
@@ -222,7 +222,7 @@ npx cap open ios
 
 2. **Sign in with Apple (Guideline 4.8)**. We MUST offer it because we
    also offer Google + Microsoft OAuth. The sign-in screen already
-   does — verify visually on the TestFlight build.
+   does, but verify visually on the TestFlight build.
 
 3. **Privacy manifest (`PrivacyInfo.xcprivacy`)**. iOS 17+ requires
    declaring which "required reason APIs" the app uses
@@ -235,7 +235,7 @@ npx cap open ios
 
 5. **Demo account credentials**. Apple will not approve an app they
    can't sign into. The credentials we paste in "Notes for reviewer"
-   above must work — test them yourself on the TestFlight build
+   above must work, so test them yourself on the TestFlight build
    from a clean device first.
 
 ### Google Play Review will check

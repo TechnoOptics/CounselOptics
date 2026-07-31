@@ -14,12 +14,12 @@ import { analyzeImage } from './timeline-ai';
  *
  * Legal uploads the company's policies once (paste or file text). Employees
  * then check a draft document or a question against those policies and get a
- * confidence score with the specific passages legal has said no to, flagged —
+ * confidence score with the specific passages legal has said no to, flagged, as
  * self-service research that keeps routine "can I do this?" tickets out of
  * the intake queue. The verdict is explicitly NOT legal advice; the closing
  * line always points to filing a request when in doubt.
  *
- * firm_policies carries RLS with no policies — service-role only, gated here.
+ * firm_policies carries RLS with no policies: service-role only, gated here.
  */
 
 export type FirmPolicy = {
@@ -166,7 +166,7 @@ export async function checkAgainstPoliciesAction(
     .order('name');
   const policies = (data ?? []) as { name: string; content: string }[];
   if (policies.length === 0) {
-    return { ok: false, error: 'Your legal team has not uploaded any policies yet — file a request instead.' };
+    return { ok: false, error: 'Your legal team has not uploaded any policies yet. File a request instead.' };
   }
 
   let corpus = '';

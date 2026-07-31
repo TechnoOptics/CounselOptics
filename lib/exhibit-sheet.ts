@@ -2,7 +2,7 @@ import ExcelJS from 'exceljs';
 import type { ExhibitSheet, ExhibitTab } from './pdf';
 
 /**
- * Parse a spreadsheet exhibit (.xlsx / .xlsm) into court-legible tables — one
+ * Parse a spreadsheet exhibit (.xlsx / .xlsm) into court-legible tables, one
  * per POPULATED worksheet, because a workbook routinely keeps the actual
  * figures on a later tab (e.g. an "Income Statement" or "Operating Expenses"
  * sheet) while the first tab is a blank input template. Bounded on every axis
@@ -34,8 +34,8 @@ function scalarText(v: unknown): string {
   return String(v);
 }
 
-/** True when a formatted cell string is a real numeric figure — a number,
- *  optionally with a sign, thousands separators, or decimals — but NOT an
+/** True when a formatted cell string is a real numeric figure: a number,
+ *  optionally with a sign, thousands separators, or decimals, but NOT an
  *  account code ("4000-00-…", excluded by the dashes) or a bare 4-digit year. */
 function isFigure(s: string): boolean {
   const t = s.trim();
@@ -73,7 +73,7 @@ export async function parseExhibitSheet(
   const looksXlsx = /\.(xlsx|xlsm)$/.test(n) || (mime || '').includes('spreadsheetml');
   if (!looksXlsx) return null;
   if (buf.length > MAX_PARSE_BYTES) return null;
-  // Office Open XML is a ZIP container — magic bytes "PK".
+  // Office Open XML is a ZIP container with magic bytes "PK".
   if (buf.length < 4 || buf[0] !== 0x50 || buf[1] !== 0x4b) return null;
   try {
     const wb = new ExcelJS.Workbook();
@@ -105,7 +105,7 @@ export async function parseExhibitSheet(
         if (rows.some((r) => (r[c] ?? '').trim() !== '')) keep.push(c);
       }
       const trimmed = keep.length ? rows.map((r) => keep.map((c) => r[c] ?? '')) : rows;
-      // Skip worksheets whose data columns are all empty — a blank input
+      // Skip worksheets whose data columns are all empty: a blank input
       // template or a labels-only account list carries no figures, so it just
       // clutters the exhibit. A tab is kept only if it holds at least one real
       // numeric value (a figure, not a code like "4000-00-…" or a bare year).

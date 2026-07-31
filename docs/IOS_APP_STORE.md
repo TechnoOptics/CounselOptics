@@ -1,4 +1,4 @@
-# iOS App Store submission — Advottic
+# iOS App Store submission: Advottic
 
 Concrete step-by-step checklist for shipping the Advottic iOS app to the
 Apple App Store. Companion to `docs/MOBILE.md` (which covers the broader
@@ -16,7 +16,7 @@ push to `main` and the in-app webview picks them up on next launch.
 
 ## 0. Prerequisites
 
-- **Apple Developer Program** — $99/yr, enrollment at
+- **Apple Developer Program**: $99/yr, enrollment at
   https://developer.apple.com/programs/enroll. Approval takes 24-48
   hours. Use your Techno Optics LLC if you want the publisher to read
   as a company; an individual enrollment is faster but lists under
@@ -93,7 +93,7 @@ the curl loop above is faster for one shot.)
 
 ---
 
-## 4. Sign in with Apple — Apple Developer + Supabase wiring
+## 4. Sign in with Apple: Apple Developer + Supabase wiring
 
 The button is already in the sign-in page. Server-side, you need to
 hook the Supabase Apple OAuth provider to your Apple Developer account.
@@ -129,7 +129,7 @@ hook the Supabase Apple OAuth provider to your Apple Developer account.
 
 ---
 
-## 5. App Store Connect — create the listing
+## 5. App Store Connect: create the listing
 
 At https://appstoreconnect.apple.com:
 
@@ -149,7 +149,7 @@ At https://appstoreconnect.apple.com:
    - Free with In-App Purchases (Stripe still handles billing on
      the web; Apple does NOT take a cut of services rendered on
      the web, only of digital goods). Important: **do NOT add an
-     Apple In-App Purchase for the Pro subscription** — Apple's
+     Apple In-App Purchase for the Pro subscription**. Apple's
      guideline 3.1.3(b) ("Multiplatform Services") explicitly
      allows web-purchased subscriptions to be used inside the app
      so long as you don't link to a payment page from inside the
@@ -216,7 +216,7 @@ provided.
 
 ---
 
-## 8. TestFlight (recommended — catch issues before review)
+## 8. TestFlight (recommended, catch issues before review)
 
 1. App Store Connect → your app → **TestFlight** tab.
 2. Add yourself as an internal tester. You'll get an email + the
@@ -226,7 +226,7 @@ provided.
    Eye, open `/billing`, force airplane mode to confirm the
    `offline.html` fallback shows.
 4. Catch any issues (sign-in failures, blank screens, crashes)
-   before submitting to review — fixes after rejection cost a
+   before submitting to review; fixes after rejection cost a
    round-trip of 1-2 days.
 
 ---
@@ -236,7 +236,7 @@ provided.
 1. App Store Connect → your app → **+** next to "iOS App" → fill
    the version form (1.0.0).
 2. **Build**: pick the build that just uploaded.
-3. **What to test (review notes)** — this is the box where you
+3. **What to test (review notes)**: this is the box where you
    tell the Apple reviewer how to use your app. Suggested copy:
 
    > Advottic helps users organize legal case files. The app is a
@@ -264,7 +264,7 @@ provided.
 
 | Reason | Status |
 |---|---|
-| Missing Sign in with Apple when other social logins offered (4.8) | Already shipped — black "Sign in with Apple" button on /sign-in. |
+| Missing Sign in with Apple when other social logins offered (4.8) | Already shipped: black "Sign in with Apple" button on /sign-in. |
 | Blank screen / app freeze when offline | `public/offline.html` is the Capacitor fallback. |
 | Privacy policy URL missing or 404 | `/privacy` returns 200, has iOS-specific clauses. |
 | Privacy nutrition label mismatch with privacy policy | Nutrition label questionnaire above is aligned with the policy. |
@@ -286,7 +286,7 @@ provided.
 
 ---
 
-## 12. Resolution Center reply — subscription / IAP (3.1.3(b))
+## 12. Resolution Center reply: subscription / IAP (3.1.3(b))
 
 Ready-to-paste reply for an App Review rejection questioning the
 subscription model / missing In-App Purchase. It restates the
@@ -336,7 +336,7 @@ inside 3.1.3(b) anti-steering). The reader-model note now reads: "Your
 access unlocks here automatically once your account is subscribed."
 Web + Android keep the real Stripe checkout button.
 
-## 13. Resolution Center reply — rejection of 2026-07-09 (2.1(b) + 4.2 + 5.1.2(i))
+## 13. Resolution Center reply: rejection of 2026-07-09 (2.1(b) + 4.2 + 5.1.2(i))
 
 Submission `864667fd-c47b-4005-8434-4ce3860062f6`, reviewed 2026-07-09 on
 iPhone 17 Pro Max / iPad Air (M3), iOS/iPadOS 26.5.2. Four issues:
@@ -357,7 +357,7 @@ remote-URL binary immediately on deploy):**
 
 **⚠️ Widget claim removed from the reply (2026-07-19):** the WidgetKit source
 files exist (`ios/App/AdvotticWidget/`) but the widget target was NEVER added to
-`App.xcodeproj` — `project.pbxproj` has zero references to it — so the reviewed
+`App.xcodeproj` (`project.pbxproj` has zero references to it), so the reviewed
 binary 1.0.16 (20) contains no widget. Do not claim widgets to App Review until
 the one-time Xcode target setup in docs/WIDGETS.md is done AND a new build is
 uploaded. Every other 4.2 claim in the reply is verified in-repo: Sign in with
@@ -368,11 +368,11 @@ do the widget setup first, upload build (21), and restore the widget claim.
 
 **App Store Connect actions the Account Holder must do before resubmit:**
 1. App Privacy → confirm "Data is Not Used to Track You" (no tracking declared).
-2. Do NOT create/submit any In-App Purchase products (reader model — none exist).
+2. Do NOT create/submit any In-App Purchase products (reader model, none exist).
 3. Confirm the App Review Notes describe the multiplatform/reader model + test
-   account, then Resubmit to App Review (no new binary strictly required — the
-   remote-URL shell picks up the deployed web fixes; a version/build bump is
-   optional but fine).
+   account, then Resubmit to App Review (no new binary strictly required,
+   since the remote-URL shell picks up the deployed web fixes; a version/build
+   bump is optional but fine).
 
 **Ready-to-paste reply:**
 
@@ -382,7 +382,7 @@ do the widget setup first, upload build (21), and restore the widget claim.
 > legal case-management service; the iOS app is the native client for accounts
 > people create on our multiplatform service (web + Android + iOS).
 >
-> **Guideline 2.1(b) — In-App Purchase / purchase button.** Advottic does not
+> **Guideline 2.1(b): In-App Purchase / purchase button.** Advottic does not
 > sell any digital goods or subscriptions inside the iOS app, and by design there
 > is no in-app purchase button. Subscriptions (and token top-ups) are purchased
 > and managed by the account holder on our service; the paid entitlement then
@@ -393,9 +393,9 @@ do the widget setup first, upload build (21), and restore the widget claim.
 > of named, purchasable plans (Plus / Pro / Ultra); on iOS it now shows only the
 > account's current plan status and a neutral note that the subscription is
 > managed from the user's account, with nothing to buy in the app. No purchase
-> button is missing — there is intentionally none.
+> button is missing; there is intentionally none.
 >
-> **Guideline 5.1.2(i) — Privacy / tracking.** Advottic does not track users. We
+> **Guideline 5.1.2(i): Privacy / tracking.** Advottic does not track users. We
 > use only strictly-necessary, first-party cookies to keep the user signed in and
 > the session secure. We use no advertising SDKs, share no data with data
 > brokers, and never link user data with third-party data for advertising.
@@ -403,27 +403,27 @@ do the widget setup first, upload build (21), and restore the widget claim.
 > the iOS app, per your guidance, and our App Privacy information reflects "Data
 > Not Used to Track You."
 >
-> **Guideline 4.2 — Minimum Functionality.** Advottic is a full legal
+> **Guideline 4.2: Minimum Functionality.** Advottic is a full legal
 > case-management application, not a repackaged website. Native, device-level
 > functionality in this build includes: Sign in with Apple; Face ID / Touch ID
-> app lock; "Safe Alert" — background Core Location with one-tap emergency SMS to
-> the user's trusted contacts; native camera capture for adding evidence to a
+> app lock; "Safe Alert" (background Core Location with one-tap emergency SMS to
+> the user's trusted contacts); native camera capture for adding evidence to a
 > matter; and offline access to previously loaded case content. These sit on top
 > of the substantive product itself: guided case building, an evidentiary
 > timeline, document/evidence management, e-signature, and court-packet export.
-> We'd welcome the chance to walk a reviewer through any of these — a test
+> We'd welcome the chance to walk a reviewer through any of these. A test
 > account and a step-by-step flow are in the App Review Notes.
 >
 > If any specific screen still needs adjustment, tell us exactly which and we'll
 > turn around a change quickly. Thank you for your time.
 
-## 14. Resolution Center reply — rejection of 2026-07-21 (2.1(b) info needed + 4.2)
+## 14. Resolution Center reply: rejection of 2026-07-21 (2.1(b) info needed + 4.2)
 
 Round 3 on submission `864667fd`. 5.1.2(i) CLEARED (cookie fix accepted).
 Remaining: 2.1(b) downgraded to "Information Needed" (4 business-model
-questions — Apple is evaluating the reader-model claim), and 4.2 still
+questions; Apple is evaluating the reader-model claim), and 4.2 still
 standing (reviewer: push/location/sharing "not robust enough"; the
-reply-only defense failed — real native functionality must be IN the
+reply-only defense failed, and real native functionality must be IN the
 binary).
 
 **Shipped for this round:** the AdvotticWidget WidgetKit extension is now
@@ -443,7 +443,7 @@ Versions set to 1.0.16 (22) on both targets.
 
 **Ready-to-paste reply:**
 
-> Hello, and thank you for the follow-up questions — answers below.
+> Hello, and thank you for the follow-up questions. Answers below.
 >
 > **1. Who are the users that will use the paid content, subscriptions,
 > features, and services in the app?**
@@ -475,12 +475,12 @@ Versions set to 1.0.16 (22) on both targets.
 > platforms too. The app itself sells nothing, shows no pricing, and does
 > not direct users to an external purchase mechanism.
 >
-> **Guideline 4.2 — Minimum Functionality.** We've taken this feedback
+> **Guideline 4.2: Minimum Functionality.** We've taken this feedback
 > seriously and build 1.0.16 (22) adds a native WidgetKit Home Screen and
 > Lock Screen widget ("Open cases"): small and medium home-screen
 > families plus inline/circular/rectangular lock-screen accessories,
 > showing the user's open matters, the next hearing as a countdown, and
-> the latest case activity — rendered natively from an App Group snapshot,
+> the latest case activity, rendered natively from an App Group snapshot,
 > visible without opening the app. This joins the existing native
 > functionality: Sign in with Apple, Face ID / Touch ID biometric sign-in lock, Safe
 > Alert (background Core Location with one-tap emergency SMS to trusted
@@ -489,8 +489,8 @@ Versions set to 1.0.16 (22) on both targets.
 > review account, open the Cases list once, then long-press the Home
 > Screen → + → Advottic → "Open cases."
 >
-> Separately, we have re-audited every screen reachable inside the iOS app —
-> the pricing page, promotional banners, gifting, and feature pages — and
+> Separately, we have re-audited every screen reachable inside the iOS app
+> (the pricing page, promotional banners, gifting, and feature pages) and
 > removed every named plan (Plus / Pro / Ultra), price, trial offer, and
 > subscribe control. The iOS app now contains no purchase UI of any kind;
 > entitlements simply follow the account. Build 22 also adds the standard
@@ -500,5 +500,5 @@ Versions set to 1.0.16 (22) on both targets.
 > A demo account is provided in the App Review Notes with data already
 > populated, so each feature can be exercised immediately.
 >
-> Thank you again — if anything else needs adjustment we will turn it
+> Thank you again. If anything else needs adjustment we will turn it
 > around quickly.

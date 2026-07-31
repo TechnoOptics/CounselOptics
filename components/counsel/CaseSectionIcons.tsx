@@ -10,7 +10,7 @@ type IconProps = { className?: string };
 
 const base = 'h-[18px] w-[18px]';
 
-/** Case Timeline — a chronology rail with beaded events. */
+/** Case Timeline: a chronology rail with beaded events. */
 export function TimelineIcon({ className }: IconProps) {
   return (
     <svg
@@ -32,7 +32,7 @@ export function TimelineIcon({ className }: IconProps) {
   );
 }
 
-/** Evidence Intake — a document dropping into an intake tray. */
+/** Evidence Intake: a document dropping into an intake tray. */
 export function EvidenceIcon({ className }: IconProps) {
   return (
     <svg
@@ -54,7 +54,7 @@ export function EvidenceIcon({ className }: IconProps) {
   );
 }
 
-/** Case Approach — a target: the theory you are setting out to prove. */
+/** Case Approach: a target, the theory you are setting out to prove. */
 export function ApproachIcon({ className }: IconProps) {
   return (
     <svg
@@ -74,7 +74,7 @@ export function ApproachIcon({ className }: IconProps) {
   );
 }
 
-/** Court Packet — a bound, sealed dossier ready to file. */
+/** Court Packet: a bound, sealed dossier ready to file. */
 export function PacketIcon({ className }: IconProps) {
   return (
     <svg

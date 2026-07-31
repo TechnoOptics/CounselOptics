@@ -1,4 +1,4 @@
-# Auth provider setup — checklist for fixing OAuth sign-in failures
+# Auth provider setup: checklist for fixing OAuth sign-in failures
 
 This document is the operator-side checklist for the two errors that
 surfaced 2026-05-12:

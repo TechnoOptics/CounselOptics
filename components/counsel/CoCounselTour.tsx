@@ -207,7 +207,7 @@ function getSteps(firstName?: string | null): {
       title: 'Welcome to the matter',
       body: (
         <>
-          {hi} is your co-counsel workspace — everything you need on this matter,
+          {hi} is your co-counsel workspace: everything you need on this matter,
           and nothing from the firm&rsquo;s internal billing. It&rsquo;s laid out
           top to bottom: the party and case facts first, then the analysis and
           evidence. Here&rsquo;s how to move through it.
@@ -222,14 +222,14 @@ function getSteps(firstName?: string | null): {
           The <strong className="text-cream-50">Case analysis</strong> and{' '}
           <strong className="text-cream-50">Evidence overview</strong> sections
           start collapsed to keep the page calm. Tap a section&rsquo;s header and
-          it expands — the little chevron flips to show it&rsquo;s open. Try it
+          it expands. The little chevron flips to show it&rsquo;s open. Try it
           right here:
         </>
       ),
       visual: <CollapsibleDemo />,
     },
     {
-      title: 'Move around — and come back',
+      title: 'Move around, and come back',
       body: (
         <>
           The bar at the top of every page has{' '}
@@ -320,7 +320,7 @@ function MiniTile({ children }: { children: ReactNode }) {
   );
 }
 
-/** A REAL collapsible styled exactly like SectionPanel — reader can toggle it. */
+/** A REAL collapsible styled exactly like SectionPanel: reader can toggle it. */
 function CollapsibleDemo() {
   const [open, setOpen] = useState(false);
   return (
@@ -393,7 +393,7 @@ function NavVisual() {
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden>
           <path d="M11 17l-5-5 5-5M6 12h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
-        Always here — tap to come home
+        Always here, tap to come home
       </p>
     </div>
   );

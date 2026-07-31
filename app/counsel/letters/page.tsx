@@ -40,7 +40,7 @@ export default async function CounselLettersPage({
               <a href="/counsel/settings" className="underline">
                 <T>Firm settings</T>
               </a>{' '}
-              <T>— until then we compose one from your logo and firm name.</T>
+              <T>(until then we compose one from your logo and firm name).</T>
             </>
           )}
         </p>

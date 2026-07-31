@@ -6,7 +6,7 @@ Key things I'm reconciling from the groundwork: founder is Abel Muchai, Techno O
 
 # Advottic Marketing Launch Kit
 
-Polished, ready-to-post. Extends the groundwork in `.local/launch-copy.md`, `docs/GO_TO_MARKET.md`, `docs/MARKETING_LAUNCH.md`, and `docs/DIRECTORY_LISTINGS.md` — refined for tone and consistency, not duplicated. All copy leads with how Advottic helps real people stay organized and understand their rights. Calm, plain, reassuring throughout.
+Polished, ready-to-post. Extends the groundwork in `.local/launch-copy.md`, `docs/GO_TO_MARKET.md`, `docs/MARKETING_LAUNCH.md`, and `docs/DIRECTORY_LISTINGS.md`, refined for tone and consistency, not duplicated. All copy leads with how Advottic helps real people stay organized and understand their rights. Calm, plain, reassuring throughout.
 
 ---
 
@@ -57,7 +57,7 @@ Stack: Next.js 14, Supabase, Stripe, Twilio, Wear OS (Kotlin Compose),
 pdf-lib + PDFKit for packet export. Capacitor shells for iOS/Android.
 
 This is information and organization, not legal advice. I'd genuinely value
-feedback on the consumer experience and on the SOL data — happy to talk shop
+feedback on the consumer experience and on the SOL data. Happy to talk shop
 on any of the stack.
 ```
 
@@ -70,13 +70,13 @@ on any of the stack.
 
 **Tagline (under 60 chars):**
 ```
-Stay organized and know your rights — for people and firms
+Stay organized and know your rights, for people and firms
 ```
 
 **Description:**
 ```
 Advottic helps people facing a legal matter stay organized and understand the
-process — and gives law firms one place to run their practice.
+process, and gives law firms one place to run their practice.
 
 If you're handling something on your own, Advottic gives you a calm, single
 home for it: a clear timeline, labeled exhibits, guided document drafts, and
@@ -98,7 +98,7 @@ statute-of-limitations checker are open to everyone with no signup.
 
 **First comment (founder, under 800 chars):**
 ```
-Hi everyone — Abel here, founder of Advottic.
+Hi everyone. Abel here, founder of Advottic.
 
 I built this after watching how hard it is for ordinary people to stay
 organized when a legal problem lands in their lap. Not everyone can afford an
@@ -107,7 +107,7 @@ and a legal pad. Advottic gives you one calm place: a timeline, labeled
 exhibits, guided drafts, plain-English answers, and a clean packet you can hand
 to a judge or a lawyer.
 
-There's also a full side for law firms — case management, IOLTA, e-sign, and an
+There's also a full side for law firms: case management, IOLTA, e-sign, and an
 AI assistant that helps with routine work under supervision.
 
 Free to start, no card. The templates and the 50-state statute-of-limitations
@@ -126,7 +126,7 @@ Today I'm sharing what we've been building at Techno Optics: Advottic.
 A legal problem is one of the most disorienting things that can land in an
 ordinary person's life. Most people can't afford an attorney for every step, so
 they end up trying to track everything in a folder of screenshots and a legal
-pad — and walking into court unsure of what they're even allowed to ask for.
+pad, and walking into court unsure of what they're even allowed to ask for.
 
 Advottic is built for that person first. It's a calm, single place to:
 • Organize a matter in one clear timeline, with exhibits labeled and dated
@@ -135,7 +135,7 @@ Advottic is built for that person first. It's a calm, single place to:
 • Run Advottic Review over your own documents to spot gaps before a hearing
 • Export a case packet a reader can understand in about five minutes
 
-There's also a full platform for law firms — Advottic Counsel — with case
+There's also a full platform for law firms, Advottic Counsel, with case
 management, time and billing, IOLTA trust accounting, e-signature, and an AI
 assistant that handles routine work under the attorney's supervision.
 
@@ -146,7 +146,7 @@ And some things are simply free and open to everyone, no signup:
 
 Advottic provides information and organization, not legal advice. If you're a
 lawyer, a builder, or someone navigating a matter of your own, I'd love for you
-to try it: advottic.com — free to start, no credit card.
+to try it: advottic.com. Free to start, no credit card.
 
 Built and operated by Techno Optics LLC, Minneapolis.
 
@@ -166,7 +166,7 @@ rights. advottic.com
 ```
 2/ The core idea is simple: one home for your matter. A clear timeline of what
 happened, with every exhibit labeled and dated, so the story is easy to follow
-— for you, for a judge, or for an attorney.
+for you, for a judge, or for an attorney.
 ```
 ```
 3/ Need to send a demand letter or a notice? Start from a guided template and
@@ -179,7 +179,7 @@ and next steps and get a calm, clear answer. Advottic Review reads over your own
 documents to help you spot gaps before a hearing.
 ```
 ```
-5/ When you're ready, export a case packet — a clean summary a reader can absorb
+5/ When you're ready, export a case packet: a clean summary a reader can absorb
 in about five minutes. Walk into court, or your attorney's office, prepared
 instead of overwhelmed.
 ```
@@ -189,7 +189,7 @@ location sharing from a phone or a Wear OS watch. Quiet, simple, there if you
 need it.
 ```
 ```
-7/ And for law firms, Advottic Counsel runs the whole practice — case
+7/ And for law firms, Advottic Counsel runs the whole practice: case
 management, IOLTA, e-sign, time and billing, and an AI assistant under attorney
 supervision. Free to start, no card. (Information and organization, not legal
 advice.) advottic.com
@@ -199,7 +199,7 @@ advice.) advottic.com
 
 ## 5. Reddit (value-first, rules-aware)
 
-> Post to a community that permits sharing free tools (e.g. r/legaltech, r/legaladviceofftopic, or a state-specific sub that allows resources). **Do not post to r/legaladvice — its rules forbid self-promotion.** Read each sub's rules and lead with the free resource, not the product.
+> Post to a community that permits sharing free tools (e.g. r/legaltech, r/legaladviceofftopic, or a state-specific sub that allows resources). **Do not post to r/legaladvice; its rules forbid self-promotion.** Read each sub's rules and lead with the free resource, not the product.
 
 **Title:**
 ```
@@ -223,7 +223,7 @@ sites or other tools can reuse it freely:
 https://advottic.com/open-data
 
 Two honest caveats: deadlines can turn on facts specific to your situation, and
-this is general information, not legal advice — if a deadline might be close,
+this is general information, not legal advice. If a deadline might be close,
 talk to a licensed attorney in your state. Happy to fix anything that looks off
 in the data; corrections are welcome.
 ```
@@ -236,9 +236,9 @@ in the data; corrections are welcome.
 FOR IMMEDIATE RELEASE
 
 Advottic Launches to Help People Stay Organized and Understand Their Rights
-in a Legal Matter — and Gives Law Firms a Single Place to Work
+in a Legal Matter, and Gives Law Firms a Single Place to Work
 
-MINNEAPOLIS — June 26, 2026 — Techno Optics LLC today announced the public
+MINNEAPOLIS, June 26, 2026: Techno Optics LLC today announced the public
 launch of Advottic, a legal-help platform built first for the ordinary person
 trying to navigate a legal matter, alongside a full practice-management product
 for law firms.
@@ -249,7 +249,7 @@ single, calm place to organize a matter in one timeline, label and date their
 exhibits, draft clear documents from guided templates, and ask plain-English
 questions of Bella, the platform's in-app assistant. Advottic Review reads over
 a person's own documents to help them spot gaps before a hearing, and an
-exportable case packet lets someone walk into court — or an attorney's office —
+exportable case packet lets someone walk into court, or an attorney's office,
 with a summary a reader can understand in about five minutes.
 
 For people who feel unsafe, an optional feature called Safe Witness provides a
@@ -322,4 +322,4 @@ Three lengths each (≈50 / ≈100 / ≈200 characters), tone-aligned. Pick by f
 
 ---
 
-*Tone note for whoever posts these: keep replies and comments in the same register — calm, plain, and respectful. Always include the gentle reminder that Advottic provides information and organization, not legal advice, wherever a reader might mistake it for counsel.*
+*Tone note for whoever posts these: keep replies and comments in the same register: calm, plain, and respectful. Always include the gentle reminder that Advottic provides information and organization, not legal advice, wherever a reader might mistake it for counsel.*

@@ -5,7 +5,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
  * Secure document sharing. A court packet (or any exported PDF) is encrypted
  * with a one-time AES-256-GCM key, stored as ciphertext in the private
  * `exhibits` bucket, and reachable only via a random token URL. The recipient
- * must supply the key to decrypt it — the server never persists the key, so a
+ * must supply the key to decrypt it. The server never persists the key, so a
  * leaked storage path or token alone yields only ciphertext.
  *
  * Storage is used instead of a DB table so the feature needs no migration:
@@ -46,7 +46,7 @@ export function isValidToken(t: string): boolean {
 }
 
 /** Encrypt a PDF; returns the stored blob and the HEX key to hand out. Hex is
- *  used (not base64url) so the key's own alphabet contains no dashes/spaces —
+ *  used (not base64url) so the key's own alphabet contains no dashes/spaces,
  *  which means dash-grouping for readability is pure formatting we can strip. */
 export function encryptDocument(pdf: Buffer): { blob: Buffer; key: string } {
   const key = crypto.randomBytes(32); // AES-256
@@ -58,7 +58,7 @@ export function encryptDocument(pdf: Buffer): { blob: Buffer; key: string } {
 }
 
 /** Decrypt a stored blob with the recipient's key (hex, any grouping/spacing).
- *  Throws on a wrong/tampered key (GCM auth failure) — callers treat a throw as
+ *  Throws on a wrong/tampered key (GCM auth failure); callers treat a throw as
  *  "incorrect key". */
 export function decryptDocument(blob: Buffer, keyHex: string): Buffer {
   const key = Buffer.from(unformatKey(keyHex), 'hex');

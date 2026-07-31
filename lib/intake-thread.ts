@@ -11,8 +11,8 @@ import { postIntakeMessageAction } from './intake-conversation';
  * can stream live, carry attachments, and separate internal legal notes from
  * what the requester sees.
  *
- * This wrapper stays so existing callers — notably Bella's `post_intake_message`
- * tool — keep working unchanged. All authorization, rate limiting, and
+ * This wrapper stays so existing callers (notably Bella's `post_intake_message`
+ * tool) keep working unchanged. All authorization, rate limiting, and
  * notification fan-out happen inside `postIntakeMessageAction`.
  */
 

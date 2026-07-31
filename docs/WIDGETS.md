@@ -26,22 +26,22 @@ app/cases/page.tsx  ──(props)──▶  <WidgetSync/>  ──Capacitor──
 ```
 
 - The snapshot is the **same** data already computed for the Wear OS
-  glance (open count, latest case, upcoming hearings, recent actions) —
-  no new query or endpoint.
+  glance (open count, latest case, upcoming hearings, recent actions),
+  so there is no new query or endpoint.
 - `WidgetSync` is a no-op on the web and when the `WidgetBridge` plugin
   isn't present, so it never affects the browser experience.
 - After the app writes the snapshot it refreshes the widget
   (`AppWidgetManager` on Android, `WidgetCenter.reloadAllTimelines()` on
   iOS), so the widget updates whenever the user opens the cases list.
 
-## Android — fully wired, no manual steps
+## Android: fully wired, no manual steps
 
 Everything is in the repo and picked up by `npx cap sync android` + a
 normal build:
 
-- `WidgetBridgePlugin.java` — writes the snapshot to SharedPreferences,
+- `WidgetBridgePlugin.java`: writes the snapshot to SharedPreferences,
   registered in `MainActivity.java`.
-- `CasesWidgetProvider.java` — renders `res/layout/widget_cases.xml`.
+- `CasesWidgetProvider.java`: renders `res/layout/widget_cases.xml`.
 - `res/xml/widget_cases_info.xml` + the `<receiver>` in
   `AndroidManifest.xml`.
 
@@ -49,7 +49,7 @@ Build the app, then long-press the home screen → **Widgets** → Advottic
 → "Open cases". Open the app's cases list once so the first snapshot
 syncs.
 
-## iOS — one-time Xcode + Apple Developer setup
+## iOS: one-time Xcode + Apple Developer setup
 
 WidgetKit **requires an app-extension target and an App Group**, which
 can only be created in Xcode / the Apple Developer portal. All the

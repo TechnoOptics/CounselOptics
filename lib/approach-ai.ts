@@ -254,7 +254,7 @@ function evidenceBlock(items: EvidenceDigestItem[]): string {
 export async function generateApproachArgument(input: {
   facts: ApproachFacts;
   approach: string;
-  /** Who is connected — parties, witnesses, roles — and how. Optional. */
+  /** Who is connected (parties, witnesses, roles) and how. Optional. */
   connections?: string;
   evidence: EvidenceDigestItem[];
 }): Promise<ApproachArgument | { error: string }> {
@@ -264,7 +264,7 @@ export async function generateApproachArgument(input: {
   if (!approach) return { error: 'Write what you are trying to prove first.' };
   const connections = (input.connections ?? '').trim();
   const connectionsBlock = connections
-    ? `\n\nCONNECTED PARTIES (who is involved and how — use these roles when weighing the evidence, but never invent facts beyond them):\n${connections}`
+    ? `\n\nCONNECTED PARTIES (who is involved and how; use these roles when weighing the evidence, but never invent facts beyond them):\n${connections}`
     : '';
 
   try {

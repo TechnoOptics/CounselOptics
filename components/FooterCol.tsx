@@ -5,7 +5,7 @@ import { useState } from 'react';
 /**
  * Collapsible footer column.
  *
- * The link list is collapsed by default on every viewport — the footer
+ * The link list is collapsed by default on every viewport. The footer
  * shows just the clickable section headings (with a + that rotates to ×),
  * and selecting one expands its links in place. This keeps the footer
  * compact on desktop and mobile alike instead of dumping a long section

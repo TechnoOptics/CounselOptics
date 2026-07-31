@@ -1,5 +1,5 @@
 /**
- * /admin/operations — canonical URL for the System Health / Operations
+ * /admin/operations: canonical URL for the System Health / Operations
  * lens. The page content lives at /admin/health for backward
  * compatibility (internal alerts and runbooks link there), so both
  * URLs render the same view via the re-export below.

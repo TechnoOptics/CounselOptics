@@ -40,9 +40,9 @@ function CopyField({ label, value }: { label: string; value: string }) {
 
 /** dd Mon yyyy, locale-agnostic enough for an admin table. */
 function fmtDate(iso: string | null): string {
-  if (!iso) return '—';
+  if (!iso) return 'Not set';
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
+  if (Number.isNaN(d.getTime())) return 'Not set';
   return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
@@ -209,7 +209,7 @@ export function ScimSettings({ baseUrl }: { baseUrl: string }) {
           <p className="mt-1 text-xs text-ink-600 dark:text-cream-100/70 leading-relaxed">
             <T>
               Every token that can provision your directory. Revoke any you no
-              longer use — revoked and expired tokens stop working immediately.
+              longer use. Revoked and expired tokens stop working immediately.
             </T>
           </p>
           <div className="mt-3">

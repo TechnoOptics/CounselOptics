@@ -107,7 +107,7 @@ export function CaseMap({ points, title = 'Case map' }: { points: MapPoint[]; ti
   const lastFitRef = useRef<string>('');
   const [failed, setFailed] = useState(false);
 
-  // Everyone who appears on a timed, located point — the person filter.
+  // Everyone who appears on a timed, located point (the person filter).
   const [person, setPerson] = useState<string | null>(null);
   // The "Follow" chip list is collapsed by default so a long roster of names
   // does not overwhelm the map; open it on demand (or when a person is active).
@@ -341,7 +341,7 @@ export function CaseMap({ points, title = 'Case map' }: { points: MapPoint[]; ti
         </div>
       )}
 
-      {/* Person filter — collapsed by default so a long roster does not
+      {/* Person filter, collapsed by default so a long roster does not
           overwhelm; the header shows the active selection and a count. */}
       {allPeople.length > 0 && (
         <div className="border-b border-forest-900/10 px-5 py-2.5 dark:border-cream-50/10">

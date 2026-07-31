@@ -29,7 +29,7 @@ function Svg({ className, title, children }: Props & { children: React.ReactNode
   );
 }
 
-/** Photo — framed image with a sun and horizon. */
+/** Photo: framed image with a sun and horizon. */
 function Photo(p: Props) {
   return (
     <Svg {...p}>
@@ -40,7 +40,7 @@ function Photo(p: Props) {
   );
 }
 
-/** Document — a page with a folded corner and text lines. */
+/** Document: a page with a folded corner and text lines. */
 function Document(p: Props) {
   return (
     <Svg {...p}>
@@ -51,7 +51,7 @@ function Document(p: Props) {
   );
 }
 
-/** Receipt — a slip with a torn base and lines. */
+/** Receipt: a slip with a torn base and lines. */
 function Receipt(p: Props) {
   return (
     <Svg {...p}>
@@ -61,7 +61,7 @@ function Receipt(p: Props) {
   );
 }
 
-/** Audio — a five-bar waveform. */
+/** Audio: a five-bar waveform. */
 function Audio(p: Props) {
   return (
     <Svg {...p}>
@@ -70,7 +70,7 @@ function Audio(p: Props) {
   );
 }
 
-/** Video — a frame with a play triangle. */
+/** Video: a frame with a play triangle. */
 function Video(p: Props) {
   return (
     <Svg {...p}>
@@ -80,7 +80,7 @@ function Video(p: Props) {
   );
 }
 
-/** Message — a speech bubble with a tail. */
+/** Message: a speech bubble with a tail. */
 function Message(p: Props) {
   return (
     <Svg {...p}>
@@ -90,7 +90,7 @@ function Message(p: Props) {
   );
 }
 
-/** Note — a folded sticky with a couple of lines. */
+/** Note: a folded sticky with a couple of lines. */
 function Note(p: Props) {
   return (
     <Svg {...p}>
@@ -101,7 +101,7 @@ function Note(p: Props) {
   );
 }
 
-/** Event — a milestone flag on a staff. */
+/** Event: a milestone flag on a staff. */
 function Event(p: Props) {
   return (
     <Svg {...p}>

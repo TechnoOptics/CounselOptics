@@ -262,7 +262,7 @@ export function ChatShell({
       <section className="card flex flex-col min-h-0">
         <header className="px-4 py-3 border-b border-ink-100 dark:border-forest-700/40">
           <p className="font-semibold text-forest-900 dark:text-cream-100">
-            #{active?.name ?? '—'}
+            {active ? `#${active.name}` : <T>No channel selected</T>}
           </p>
           {active?.topic && (
             <p className="text-[11px] text-ink-500 dark:text-cream-100/55 mt-0.5">

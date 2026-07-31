@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
   title: 'Migrate from another platform',
   description:
-    'Bring your matters, attachments, notes, and history into Advottic from CSV, a universal JSON bundle, or ServiceNow — with original dates preserved.',
+    'Bring your matters, attachments, notes, and history into Advottic from CSV, a universal JSON bundle, or ServiceNow, with original dates preserved.',
 };
 
 export default async function MigratePage() {
@@ -30,8 +30,8 @@ export default async function MigratePage() {
           <T>Migrate from another platform</T>
         </h1>
         <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 leading-relaxed max-w-2xl">
-          <T>Move everything that matters — matters, attachments and images,
-          notes, and the history behind them — with the original dates kept
+          <T>Move everything that matters (matters, attachments and images,
+          notes, and the history behind them) with the original dates kept
           intact. Start with a universal bundle or connect ServiceNow; more
           connectors plug into the same pipeline.</T>
         </p>

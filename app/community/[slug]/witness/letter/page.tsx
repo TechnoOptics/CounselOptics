@@ -66,7 +66,7 @@ export default async function CommunityLetterPage({
             This becomes a signed letter for the case&rsquo;s attorney. Because it&rsquo;s a
             formal, signed statement, we ask for your name, mailing address, a signature, and a
             photo of a government ID (front and back) to confirm you&rsquo;re a real person. None
-            of this is ever shown publicly — it goes only to the organizer and their attorney. If
+            of this is ever shown publicly. It goes only to the organizer and their attorney. If
             you&rsquo;d rather not share an ID, you can{' '}
             <Link href={`/community/${params.slug}/witness/evidence`} className="underline">
               share evidence or a testimonial

@@ -6,7 +6,7 @@ import { createAdminSupabase } from '@/lib/supabase/admin';
 export const runtime = 'nodejs';
 
 /**
- * GET /api/partner/v1/config — the firm's partner-app configuration:
+ * GET /api/partner/v1/config returns the firm's partner-app configuration:
  *
  *   - `questions`: the intake questions the legal team wants asked on the
  *     partner app's "New legal request" form. Render them in order and
@@ -16,8 +16,8 @@ export const runtime = 'nodejs';
  *     usually about response time) to show the employee after filing.
  *   - `webhook.configured`: whether outbound event webhooks are set up.
  *
- * Fetch on app start / periodically — the legal team can change these at
- * any time from Counsel → Settings.
+ * Fetch on app start / periodically, since the legal team can change these
+ * at any time from Counsel → Settings.
  */
 export async function GET(req: Request) {
   const auth = await authenticatePartner(req.headers.get('authorization'));

@@ -166,7 +166,7 @@ export async function logManualEntryAction(
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: 'Sign in first.' };
   // A back-filled entry must be a positive whole number of seconds, capped at
-  // 24h — guards against a negative/absurd duration inflating an invoice.
+  // 24h, which guards against a negative/absurd duration inflating an invoice.
   const dur = input.durationSeconds;
   if (!Number.isFinite(dur) || !Number.isInteger(dur) || dur <= 0 || dur > 86_400) {
     return { ok: false, error: 'Enter a duration between 1 second and 24 hours.' };

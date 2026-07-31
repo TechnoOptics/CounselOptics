@@ -147,7 +147,7 @@ export function CounselSidebar({
             data-testid={`counsel-sidebar-${item.href.replace(/^\//, '').replace(/\//g, '-') || 'root'}`}
             className={active ? NAV_ROW_ACTIVE : NAV_ROW_IDLE}
           >
-            {/* Duotone gold glyphs (soft gold body + burnished gold line) — a
+            {/* Duotone gold glyphs (soft gold body + burnished gold line), a
                 crafted, on-brand set. No per-row colour tile (that read cheap).
                 The active row shows at full strength; others sit slightly back. */}
             <span

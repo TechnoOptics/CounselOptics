@@ -19,7 +19,7 @@
  *   Instead we MIRROR the canonical logic from lib/counsel-routing.ts
  *   below. The type-check (`npx tsc --noEmit`) guards the source; this
  *   script guards the behavior contract. If you change one, change
- *   both — there's a sanity assertion at the end that fails loudly if
+ *   both. There's a sanity assertion at the end that fails loudly if
  *   the source string in lib/counsel-routing.ts has drifted.
  *
  * History:
@@ -32,7 +32,7 @@
  *     tenant mode.
  *
  * Every assertion below maps to a real user click path. DO NOT delete
- * the cases — they are the regression contract.
+ * the cases: they are the regression contract.
  */
 
 import { readFileSync } from 'node:fs';

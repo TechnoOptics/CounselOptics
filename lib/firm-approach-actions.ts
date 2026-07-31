@@ -51,7 +51,7 @@ export type Approach = {
   caseId: string;
   title: string;
   prompt: string;
-  /** Who is connected — parties, witnesses, roles — and how. */
+  /** Who is connected (parties, witnesses, roles) and how. */
   connections: string;
   generated: ApproachArgument | null;
   /** 'running' while the (multi-minute) assembly is in flight; 'error' with a
@@ -451,7 +451,7 @@ export async function getApproachGenState(
 }
 
 /**
- * The actual evidence items an approach marshals — the real uploads Advottic
+ * The actual evidence items an approach marshals: the real uploads Advottic
  * cited when it assembled the argument (by exhibit label, with a title fallback
  * for label-less citations). Powers the in-app "Relevant uploads" gallery on
  * the approach card, so the firm sees only the evidence that bears on that

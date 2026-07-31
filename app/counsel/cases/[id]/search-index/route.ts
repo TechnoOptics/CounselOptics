@@ -10,8 +10,8 @@ export const runtime = 'nodejs';
 /**
  * Lightweight, matter-scoped search index for the case-wide smart search in
  * the guest shell header (and any other type-ahead over this matter). Returns
- * compact docs — titles, exhibit labels, people, places, organizations, and
- * folder names — never file contents or signed URLs, so it is safe to hold
+ * compact docs (titles, exhibit labels, people, places, organizations, and
+ * folder names), never file contents or signed URLs, so it is safe to hold
  * client-side for instant suggestions. Same authorization model as the
  * evidence download/export routes: a member of the matter's firm OR a
  * case-scoped co-counsel guest.

@@ -122,7 +122,7 @@ export function SupportTicketForm({ tone = 'light' }: { tone?: 'light' | 'dark' 
           name="subject"
           required
           maxLength={200}
-          placeholder="Short summary — e.g. “Signing link 404s on mobile”"
+          placeholder="Short summary, e.g. “Signing link 404s on mobile”"
           className="input"
         />
       </div>

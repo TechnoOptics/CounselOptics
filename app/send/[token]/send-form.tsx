@@ -18,7 +18,7 @@ export function SendForm({ token, remaining }: { token: string; remaining: numbe
           ✓
         </p>
         <p className="mt-2 font-display text-lg text-forest-900 dark:text-cream-100">
-          Sent — thank you
+          Sent. Thank you.
         </p>
         <p className="mt-1 text-[13.5px] text-ink-600 dark:text-cream-100/70">
           {done} file{done === 1 ? '' : 's'} went straight to the legal team. You can close this page.

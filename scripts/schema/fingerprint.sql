@@ -14,7 +14,7 @@
 -- Run in CI with: psql "$SUPABASE_DB_URL" -X -q -t -A -f scripts/schema/fingerprint.sql
 -- (-t no header/footer, -A unaligned -> one bare field per line, exactly the
 -- format the committed baseline is stored in). Regenerate the baseline the same
--- way after an intentional schema change -- see scripts/schema/README.md.
+-- way after an intentional schema change; see scripts/schema/README.md.
 --
 -- Ordering and hashing are server-side, so the baseline (generated against the
 -- live DB) and the CI dump (same live DB) match unless the schema truly changed.

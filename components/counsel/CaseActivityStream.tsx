@@ -48,7 +48,7 @@ export function CaseActivityStream({ events }: { events: CaseActivityEvent[] }) 
         <div>
           <h2 className="font-display text-lg font-medium text-cream-100">Activity</h2>
           <p className="mt-0.5 text-[12.5px] text-cream-100/55">
-            Who’s been on this matter — visible only to your firm.
+            Who’s been on this matter, visible only to your firm.
           </p>
         </div>
         <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-gold-metal/12 text-gold-metal ring-1 ring-gold-metal/25">

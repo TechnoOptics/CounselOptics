@@ -10,7 +10,7 @@ import { OPEN_SECTION_EVENT } from './SectionJump';
  * scroll of collapsible sections rather than tabs: content behind an
  * unselected tab is frequently never discovered, and every click is a cost.
  * Jira Service Management landed in the same place and persists each
- * section's collapsed state per user — so do we, keyed by section id, which
+ * section's collapsed state per user, and so do we, keyed by section id, which
  * means a team member who never needs "Other parties" collapses it once and
  * it stays that way.
  */
@@ -56,7 +56,7 @@ export function RecordSection({
       if (saved === 'open') setOpen(true);
       else if (saved === 'closed') setOpen(false);
     } catch {
-      /* private mode — fall back to the default */
+      /* private mode, fall back to the default */
     }
     setHydrated(true);
   }, [storageKey]);

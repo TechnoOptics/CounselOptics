@@ -8,11 +8,11 @@ type AdminSupabase = NonNullable<ReturnType<typeof createAdminSupabase>>;
 
 /**
  * Event hub for the partner ticketing bridge (lib/partner-tickets.ts).
- * One entry point — partnerTicketEvent() — fans out to:
+ * One entry point, partnerTicketEvent(), fans out to:
  *
  *   1. The legal team: in-app bell notification + email to every firm
  *      owner/admin (partner tickets arrive from an API, so nobody is
- *      watching a screen when they land — without this they are easy
+ *      watching a screen when they land, and without this they are easy
  *      to miss).
  *   2. The employee: email when legal replies (they may never open the
  *      partner app again; email closes the loop even so).
@@ -21,7 +21,7 @@ type AdminSupabase = NonNullable<ReturnType<typeof createAdminSupabase>>;
  *
  * Everything here is best-effort and bounded: a dead webhook endpoint
  * or an unconfigured Resend key must never fail the ticket write that
- * triggered it. Callers just `await` — errors are swallowed.
+ * triggered it. Callers just `await`; errors are swallowed.
  */
 
 export type PartnerEvent =
@@ -235,7 +235,7 @@ export async function partnerTicketEvent(
     } else {
       row = intakeIdOrRow;
     }
-    if (!row || !partnerMeta(row)) return; // not a partner ticket — nothing to do
+    if (!row || !partnerMeta(row)) return; // not a partner ticket, nothing to do
 
     let firmName = opts?.firmName ?? null;
     if (!firmName) {

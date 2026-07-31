@@ -699,7 +699,7 @@ export function SmartAssistForm() {
             />
             <div className="min-w-0">
               <p className="text-sm font-semibold text-forest-900 dark:text-cream-100">
-                Start in Group mode — rally community support
+                Start in Group mode: rally community support
               </p>
               <p className="text-[12.5px] text-ink-600 dark:text-cream-100/70 mt-1 leading-relaxed">
                 Publish a shareable public page so friends, family, and the

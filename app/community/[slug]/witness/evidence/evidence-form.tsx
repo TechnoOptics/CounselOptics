@@ -51,7 +51,7 @@ export function EvidenceForm({ slug }: { slug: string }) {
     return (
       <div className="card p-6 text-center">
         <p className="font-display text-xl text-forest-900 dark:text-cream-100">
-          Thank you — this was shared privately with the organizer and their attorney.
+          Thank you. This was shared privately with the organizer and their attorney.
         </p>
         <button type="button" className="btn-secondary mt-4" onClick={() => setDone(false)}>
           Submit another

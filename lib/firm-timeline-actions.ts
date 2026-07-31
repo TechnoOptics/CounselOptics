@@ -118,7 +118,7 @@ function revalidateFirm(caseId: string) {
 // ── Load the whole bundle (events + people + narrative) ───────────────────
 // By default only events flagged on_timeline are returned (the timeline view).
 // Pass { includeOffTimeline: true } to also return evidence that lives in the
-// intake but is NOT pinned to the timeline — used by the approach packet
+// intake but is NOT pinned to the timeline, used by the approach packet
 // export, which must include every exhibit the approach CITES regardless of
 // whether it was placed on the timeline.
 export async function getFirmTimelineBundle(

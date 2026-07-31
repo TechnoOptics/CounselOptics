@@ -9,9 +9,9 @@ import { T, useT } from '@/components/i18n/LocaleProvider';
 
 /**
  * "Migrate from another platform" panel. Two ways in:
- *  - Universal JSON bundle (records + attachments + history + notes) — the
+ *  - Universal JSON bundle (records + attachments + history + notes): the
  *    richest path; other tools export to it or we map their export to it.
- *  - ServiceNow connector — pulls records + attachments live via the API.
+ *  - ServiceNow connector: pulls records + attachments live via the API.
  * Both call the same firm-scoped ingest, which preserves original dates.
  */
 export function MigrateClient() {

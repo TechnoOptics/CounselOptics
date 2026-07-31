@@ -1,27 +1,27 @@
 # Schema-drift gate
 
 Catches the case where the live Supabase `public` schema drifts from what git
-records — a dashboard edit, a manual `SQL editor` change, or an applied
+records: a dashboard edit, a manual `SQL editor` change, or an applied
 migration that nobody committed a fingerprint update for.
 
 ## How it works
 
-- **`fingerprint-hash.sql`** — returns a single `sha256` over a deterministic,
+- **`fingerprint-hash.sql`**: returns a single `sha256` over a deterministic,
   per-object fingerprint of the `public` schema (tables + their column set,
   constraints, indexes, RLS policies, triggers, functions). Definitions are
   folded into `md5`s so the fingerprint is compact and immune to cosmetic
   formatting; object identities stay in plaintext. The hash is computed
   **entirely server-side**, so the value the baseline was generated with and
-  the value CI reads match unless the schema truly changed — no dependency on
-  `psql`/locale formatting.
-- **`fingerprint.sql`** — returns the same fingerprint as one line per object
+  the value CI reads match unless the schema truly changed, with no dependency
+  on `psql`/locale formatting.
+- **`fingerprint.sql`**: returns the same fingerprint as one line per object
   (not hashed). Used only for human inspection when the gate fails, so you can
   see which objects exist now. **Keep it in sync with `fingerprint-hash.sql`.**
-- **`../../supabase/schema-fingerprint.sha256`** — the committed baseline hash.
-- **`../../.github/workflows/schema-drift.yml`** — CI job that recomputes the
+- **`../../supabase/schema-fingerprint.sha256`**: the committed baseline hash.
+- **`../../.github/workflows/schema-drift.yml`**: CI job that recomputes the
   live hash and fails on mismatch. It self-skips until the `SUPABASE_DB_URL`
-  repo secret is set (a **read-only** connection string is enough — the check
-  only reads catalog metadata).
+  repo secret is set (a **read-only** connection string is enough, since the
+  check only reads catalog metadata).
 
 ## Enabling the gate
 

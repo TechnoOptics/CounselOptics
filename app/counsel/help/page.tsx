@@ -31,7 +31,7 @@ export default async function CounselHelpPage() {
           better for</T> {ctx.firm.name}?{' '}
           <T>Open a ticket and we&rsquo;ll follow
           up by email. For anything about a matter or a client, use your
-          firm&rsquo;s own channels — this goes to Advottic, not your firm.</T>
+          firm&rsquo;s own channels. This goes to Advottic, not your firm.</T>
         </p>
       </header>
 

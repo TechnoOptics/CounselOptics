@@ -60,7 +60,7 @@ export async function generateCommunitySubmissionsDocx(input: CommunityExportDat
   // lib/pdf.ts: this is the concrete artifact that lets an attorney or a
   // fraud investigation trace a page back to a real, verified account.
   // Confidential; never rendered on the public page.
-  children.push(heading('Organizer (verified Advottic account) — for your records only'));
+  children.push(heading('Organizer (verified Advottic account): for your records only'));
   children.push(
     new Paragraph({
       text: `${input.organizer.name} · ${input.organizer.email}${
@@ -178,7 +178,7 @@ async function submissionSection(
   const out: Array<Paragraph | Table> = [];
   out.push(
     new Paragraph({
-      children: [new TextRun({ text: 'SUBMISSION — CONFIDENTIAL, NOT FOR PUBLIC DISTRIBUTION', size: 16, color: '71717A', bold: true })],
+      children: [new TextRun({ text: 'SUBMISSION: CONFIDENTIAL, NOT FOR PUBLIC DISTRIBUTION', size: 16, color: '71717A', bold: true })],
     }),
   );
   out.push(new Paragraph({ heading: HeadingLevel.HEADING_1, text: s.fullName || 'Anonymous submitter' }));
@@ -209,12 +209,12 @@ async function submissionSection(
     }
 
     if (s.idFrontBuffer) {
-      out.push(heading('ID — front'));
+      out.push(heading('ID (front)'));
       out.push(imageParagraph(s.idFrontBuffer, 460, 260));
       out.push(spacer());
     }
     if (s.idBackBuffer) {
-      out.push(heading('ID — back'));
+      out.push(heading('ID (back)'));
       out.push(imageParagraph(s.idBackBuffer, 460, 260));
       out.push(spacer());
     }

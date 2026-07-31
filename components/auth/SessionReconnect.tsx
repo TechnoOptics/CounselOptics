@@ -70,7 +70,7 @@ export function SessionReconnect({
         </div>
         <p className="text-sm text-cream-100/70 leading-relaxed">
           {exhausted
-            ? "We're having trouble restoring your session right now. You're still signed in — give it another moment, or try again."
+            ? "We're having trouble restoring your session right now. You're still signed in. Give it another moment, or try again."
             : "One moment while we restore your session. You haven't been signed out."}
         </p>
         {exhausted && (

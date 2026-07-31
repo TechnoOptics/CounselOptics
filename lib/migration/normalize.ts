@@ -41,7 +41,7 @@ function jsonToBundle(text: string): MigrationBundle {
   };
 }
 
-/** Flat CSV of records (no binaries — use JSON/connector for attachments). */
+/** Flat CSV of records (no binaries; use JSON/connector for attachments). */
 function csvToBundle(text: string, mapping: Record<string, string>): MigrationBundle {
   const { rows } = parseCsv(text);
   // mapping maps our field -> the CSV header; rows are keyed by header.

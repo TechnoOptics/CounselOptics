@@ -18,7 +18,7 @@ import { Children, useState } from 'react';
  *   </ul>
  *
  * Copy is intentionally plain and reassuring (this app helps people through
- * stressful legal situations) — no alarming or jokey wording.
+ * stressful legal situations), with no alarming or jokey wording.
  */
 export function ShowMore({
   children,
@@ -34,7 +34,7 @@ export function ShowMore({
   const items = Children.toArray(children);
   const [expanded, setExpanded] = useState(false);
 
-  // Nothing to collapse — render as-is.
+  // Nothing to collapse, so render as-is.
   if (items.length <= initial) return <>{children}</>;
 
   const hiddenCount = items.length - initial;

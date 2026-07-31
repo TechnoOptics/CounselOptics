@@ -61,8 +61,14 @@ export function LegalReviewPanel({
           <p className="text-sm text-ink-500 mt-0.5 max-w-2xl leading-relaxed">
             {review ? (
               <>
-                <T>Generated for</T>{' '}
-                <span data-no-translate>{review.state ?? '—'}</span>
+                {review.state ? (
+                  <>
+                    <T>Generated for</T>{' '}
+                    <span data-no-translate>{review.state}</span>
+                  </>
+                ) : (
+                  <T>Jurisdiction not set</T>
+                )}
                 {' · '}
                 <span className="text-emerald-700 dark:text-emerald-400" data-no-translate>
                   {review.verifiedCitationCount}

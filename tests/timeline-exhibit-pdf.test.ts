@@ -2,12 +2,12 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { generateTimelineExhibitPdf, type TimelineExhibitData } from '../lib/pdf';
 
-// A real PNG shipped in the repo — exercises the actual image-embed path.
+// A real PNG shipped in the repo, so this exercises the actual image-embed path.
 const png = readFileSync('public/icon-192.png');
 
 function sample(entryCount: number): TimelineExhibitData {
   return {
-    caseTitle: 'Doe v. Roe — Unlawful Eviction',
+    caseTitle: 'Doe v. Roe: Unlawful Eviction',
     caseRef: 'AB12CD34',
     subjectName: 'Jane Doe',
     preparedBy: 'Test Attorney',
@@ -74,7 +74,7 @@ describe('generateTimelineExhibitPdf', () => {
     expect(buf.length).toBeGreaterThan(8000);
   });
 
-  it('does not explode into blank pages — page count tracks content', async () => {
+  it('does not explode into blank pages: page count tracks content', async () => {
     const small = pageCount(await generateTimelineExhibitPdf(sample(2)));
     const big = pageCount(await generateTimelineExhibitPdf(sample(10)));
     // Sane bounds: cover + cert + POI + chronology + narrative + conclusion +

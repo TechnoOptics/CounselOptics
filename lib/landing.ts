@@ -48,7 +48,7 @@ export async function resolveDefaultLanding(): Promise<string> {
  * True when the given post-sign-in destination is the generic consumer
  * dashboard default (`/cases`) rather than a deliberate deep link. Only
  * the bare default is eligible to be redirected to `/counsel` for firm
- * members — a specific consumer deep link (e.g. `/cases/<id>`, `/inbox`)
+ * members; a specific consumer deep link (e.g. `/cases/<id>`, `/inbox`)
  * is always honoured.
  */
 export function isDefaultConsumerLanding(next: string): boolean {

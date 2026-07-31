@@ -24,19 +24,19 @@ See [PHI data-flow map](phi-data-flow.md). PHI at rest lives only in Supabase; i
 | # | Threat | Current safeguard | Residual risk | Remediation (ref §6 of readiness) |
 |---|---|---|---|---|
 | R1 | Unauthorized DB access | RLS on all case tables; service-role guarded | Low | Maintain; add PHI-view audit (P1-7) |
-| R2 | Stolen credentials | Passwordless + SSO | **Med** — no MFA | Implement MFA (P0-3) |
-| R3 | Unattended session on shared device | — | **Med** | Automatic logoff (P0-4) |
-| R4 | No BAA with subprocessor handling PHI | — | **High** | Execute BAAs (P0-1) |
-| R5 | PHI leaked via Safe Witness SMS | **RESOLVED** — SMS now links to the secure tracker (opaque UUID); raw GPS + plaintext PIN removed from the SMS body; TLS to Twilio | Low | Done (2026-07-01). tel: 911/call links retained for offline contacts |
-| R6 | Data loss / outage | Supabase managed backups (defaults) | **High** — untested, no RPO/RTO | PITR + DR drill (P0-5) |
-| R7 | Insufficient audit trail of PHI access | Append-only case-activity log | **Med** — no view/export/login events, no IP | Expand audit logging (P1-7) |
+| R2 | Stolen credentials | Passwordless + SSO | **Med**: no MFA | Implement MFA (P0-3) |
+| R3 | Unattended session on shared device | None | **Med** | Automatic logoff (P0-4) |
+| R4 | No BAA with subprocessor handling PHI | None | **High** | Execute BAAs (P0-1) |
+| R5 | PHI leaked via Safe Witness SMS | **RESOLVED**: SMS now links to the secure tracker (opaque UUID); raw GPS + plaintext PIN removed from the SMS body; TLS to Twilio | Low | Done (2026-07-01). tel: 911/call links retained for offline contacts |
+| R6 | Data loss / outage | Supabase managed backups (defaults) | **High**: untested, no RPO/RTO | PITR + DR drill (P0-5) |
+| R7 | Insufficient audit trail of PHI access | Append-only case-activity log | **Med**: no view/export/login events, no IP | Expand audit logging (P1-7) |
 | R8 | AI processor trains on PHI | Zero-retention commercial terms (documented) | Low | Confirm in BAA; keep evidence |
-| R9 | Malware in uploaded exhibit | — | **Med** | Upload scanning (P2-15) |
+| R9 | Malware in uploaded exhibit | None | **Med** | Upload scanning (P2-15) |
 | R10 | Improper disposal / over-retention | Deletion endpoint; cascade + storage cleanup | **Med** | Retention schedule + guaranteed purge (P1-10) |
-| R11 | Config/schema drift (unauditable change) | — | **Med** | IaC in version control (P1-9) |
+| R11 | Config/schema drift (unauditable change) | None | **Med** | IaC in version control (P1-9) |
 
 ## 4. Determination
-Advottic has **strong technical safeguards** (encryption, RLS, append-only logs) but is **not yet HIPAA-ready to accept PHI in production** until the P0 items — chiefly **executed BAAs, MFA, automatic logoff, tested backups, and the Safe Witness transmission fix** — are complete. Until then, PHI intake should be limited/avoided or gated to non-production pilots under written agreement.
+Advottic has **strong technical safeguards** (encryption, RLS, append-only logs) but is **not yet HIPAA-ready to accept PHI in production** until the P0 items (chiefly **executed BAAs, MFA, automatic logoff, tested backups, and the Safe Witness transmission fix**) are complete. Until then, PHI intake should be limited/avoided or gated to non-production pilots under written agreement.
 
 ## 5. Sign-off
 | Role | Name | Date |

@@ -16,7 +16,7 @@ import {
  * Shared server internals for the intake conversation: loading people,
  * inserting a message row, and fanning out ticket-branded notifications.
  *
- * Deliberately NOT a `'use server'` module — every export in one of those
+ * Deliberately NOT a `'use server'` module: every export in one of those
  * becomes a callable HTTP endpoint, and these functions write messages and
  * send mail without checking who the caller is. They are for trusted server
  * callers only (the conversation actions, the partner API), each of which
@@ -209,7 +209,7 @@ export async function insertIntakeMessage(input: {
 }
 
 /**
- * Notify the right people about one piece of ticket activity — bell, push,
+ * Notify the right people about one piece of ticket activity: bell, push,
  * and a ticket-branded email that deep-links to the exact message.
  *
  * The visibility rule is absolute: an internal note never reaches the
@@ -254,7 +254,7 @@ export async function notifyIntakeActivity(input: {
     const recipients = new Set<string>();
 
     if (isInternal) {
-      // Legal team only — plus any invited person who is themselves firm-side.
+      // Legal team only, plus any invited person who is themselves firm-side.
       for (const id of legalIds) recipients.add(id);
       for (const id of participantIds) if (memberIdSet.has(id)) recipients.add(id);
     } else if (message.authorRole === 'legal') {
@@ -303,7 +303,7 @@ export async function notifyIntakeActivity(input: {
           userId,
           type: 'system',
           title: mentioned ? `${actor.name} mentioned you` : input.eyebrow,
-          body: `${title} — ${preview.slice(0, 140)}${preview.length > 140 ? '…' : ''}`,
+          body: `${title}: ${preview.slice(0, 140)}${preview.length > 140 ? '…' : ''}`,
           link: path,
           actorUserId: actor.userId,
         });
@@ -313,7 +313,7 @@ export async function notifyIntakeActivity(input: {
         await sendEmail({
           to,
           fromName: brand.name,
-          subject: `${ref}: ${mentioned ? `${actor.name} mentioned you` : input.eyebrow} — ${title}`,
+          subject: `${ref}: ${mentioned ? `${actor.name} mentioned you` : input.eyebrow} (${title})`,
           html: buildIntakeActivityEmailHtml({
             firmName: brand.name,
             logoUrl: brand.logoUrl,

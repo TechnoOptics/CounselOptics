@@ -182,8 +182,8 @@ export async function GET(
       sha256: '(not computed)',
       image: null,
     };
-    if (m.size && m.size > MAX_INLINE_BYTES) return { ...base, sha256: '(not computed — large file)' };
-    if (downloads >= MAX_DOWNLOADS) return { ...base, sha256: '(not computed — export limit reached)' };
+    if (m.size && m.size > MAX_INLINE_BYTES) return { ...base, sha256: '(not computed: large file)' };
+    if (downloads >= MAX_DOWNLOADS) return { ...base, sha256: '(not computed: export limit reached)' };
     downloads++;
     try {
       const { data, error } = await admin!.storage.from('exhibits').download(m.path);

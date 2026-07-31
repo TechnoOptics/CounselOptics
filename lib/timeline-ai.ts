@@ -7,8 +7,8 @@ import type { CaseContext } from './case-evidence';
 
 /**
  * Timeline AI engine (Bella). Uses the multimodal model to OCR an image,
- * extract the date it likely occurred, detect the people present, and — for a
- * chat / group-chat screenshot — parse who sent and received each message. It
+ * extract the date it likely occurred, detect the people present, and, for a
+ * chat / group-chat screenshot, parse who sent and received each message. It
  * also builds the chronological narrative + reasoned conclusion for the export.
  *
  * Honesty notes baked into the prompts: the model READS names/handles visible

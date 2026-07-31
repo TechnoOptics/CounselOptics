@@ -21,7 +21,7 @@
             android:id="@+id/widget_open_count"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="—"
+            android:text=""
             android:textColor="#FBF7E9"
             android:textSize="34sp"
             android:textStyle="bold"

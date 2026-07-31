@@ -5,7 +5,7 @@ import { PRECISION_GRAINS, type OccurredPrecision } from '@/lib/timeline-types';
 
 /**
  * Smart timeline picker. The user first chooses how precisely they can place a
- * moment — second, minute, hour, day, week, month, year, or undated — and the
+ * moment (second, minute, hour, day, week, month, year, or undated) and the
  * field adapts to ask for exactly that much and no more. It stores a full UTC
  * timestamp plus the chosen grain, so the timeline can render "2:07:33 PM" or
  * just "March 2023" from the same value. Wall-clock entries are treated as UTC
@@ -14,7 +14,7 @@ import { PRECISION_GRAINS, type OccurredPrecision } from '@/lib/timeline-types';
 
 export type PickerValue = { occurredAt: string | null; precision: OccurredPrecision };
 
-// Grains offered in the compact (personal) variant — no sub-day noise.
+// Grains offered in the compact (personal) variant: no sub-day noise.
 const MINIMAL_GRAINS: OccurredPrecision[] = ['day', 'week', 'month', 'year', 'unknown'];
 
 function pad(n: number, w = 2): string {
@@ -119,7 +119,7 @@ export function SmartDatePicker({
 
       <div className="flex flex-wrap items-center gap-2">
         {grain === 'unknown' && (
-          <span className="text-xs text-ink-500 dark:text-cream-300/70">No date — this entry sorts to the end until dated.</span>
+          <span className="text-xs text-ink-500 dark:text-cream-300/70">No date. This entry sorts to the end until dated.</span>
         )}
 
         {grain === 'year' && (

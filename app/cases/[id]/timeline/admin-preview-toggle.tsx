@@ -4,7 +4,7 @@ import { useState } from 'react';
 
 /**
  * Admin-only QA control: preview the timeline as a firm, a consumer (minimal
- * submit view), or a locked/upsell viewer — without giving up admin status.
+ * submit view), or a locked/upsell viewer, without giving up admin status.
  * Sets the adv_tl_preview cookie (read server-side by resolveTimelineAccess)
  * and reloads. Rendered only for admins.
  */

@@ -79,7 +79,7 @@ export function PolicyCheckClient({ firmId, policyCount }: { firmId: string; pol
         <h1 className="font-display text-2xl font-medium text-forest-900 dark:text-cream-100">Check a document</h1>
         <p className="mt-1 max-w-2xl text-sm text-ink-600 dark:text-cream-100/70">
           Paste a draft or ask a question, and it is compared against your company&apos;s own
-          policies — with a confidence score and the passages legal has said no to. A quick
+          policies, with a confidence score and the passages legal has said no to. A quick
           self-check, not legal advice: when in doubt,{' '}
           <Link href="/portal/new" className="text-gold-700 underline dark:text-gold-300">
             file a request

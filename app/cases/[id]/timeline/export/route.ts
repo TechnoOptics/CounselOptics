@@ -67,10 +67,10 @@ export async function GET(
       image: null,
     };
     if (m.size && m.size > MAX_INLINE_BYTES) {
-      return { ...base, sha256: '(not computed — large file)' };
+      return { ...base, sha256: '(not computed: large file)' };
     }
     if (downloads >= MAX_DOWNLOADS) {
-      return { ...base, sha256: '(not computed — export limit reached)' };
+      return { ...base, sha256: '(not computed: export limit reached)' };
     }
     downloads++;
     try {

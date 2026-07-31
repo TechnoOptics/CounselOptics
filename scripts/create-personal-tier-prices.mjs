@@ -1,6 +1,6 @@
 /**
  * One-time setup: create the four NEW consumer ("personal") plan Products and
- * their monthly + annual (20%-off prepay) Prices in Stripe — Starter ($19),
+ * their monthly + annual (20%-off prepay) Prices in Stripe: Starter ($19),
  * Plus ($29), Pro ($59), Ultra ($99). Free needs no Stripe price.
  *
  * Run from the repo root with STRIPE_SECRET_KEY in process.env:
@@ -11,7 +11,7 @@
  * finds the existing product and reuses it (it still mints fresh Price rows,
  * so run once, capture the ids, and paste them into Vercel).
  *
- * At the end it prints the exact Vercel env vars to set — copy those in.
+ * At the end it prints the exact Vercel env vars to set. Copy those in.
  */
 
 import https from 'node:https';

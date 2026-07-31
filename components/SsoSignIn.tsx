@@ -11,7 +11,7 @@ import { createBrowserSupabase } from '@/lib/supabase/client';
  * and let them fall back to the other sign-in options above.
  *
  * The per-domain SAML connection itself is provisioned in Supabase (with
- * the customer's IdP metadata) — once it exists, this flow "just works".
+ * the customer's IdP metadata). Once it exists, this flow "just works".
  */
 export function SsoSignIn() {
   const [open, setOpen] = useState(false);

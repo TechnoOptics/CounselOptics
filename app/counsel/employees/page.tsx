@@ -97,7 +97,7 @@ export default async function CounselEmployeesPage() {
                       className={inactive ? 'opacity-60' : undefined}
                     >
                       <td className="px-4 py-2.5 font-medium text-forest-900 dark:text-cream-100">
-                        {e.displayName || '—'}
+                        {e.displayName || <T>Not set</T>}
                         {!e.linked && (
                           <Tt
                             className="ml-2 align-middle text-[10px] uppercase tracking-[0.12em] text-ink-400 dark:text-cream-100/40"
@@ -111,7 +111,7 @@ export default async function CounselEmployeesPage() {
                         {e.email}
                       </td>
                       <td className="px-4 py-2.5 text-ink-600 dark:text-cream-100/70">
-                        {e.department || '—'}
+                        {e.department || <T>Not set</T>}
                       </td>
                       <td className="px-4 py-2.5 text-ink-600 dark:text-cream-100/70">
                         {roleName(e.roleKey)}

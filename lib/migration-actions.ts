@@ -4,7 +4,7 @@
  * Universal migration ingest. Takes a normalized bundle (from any source
  * adapter) and writes it into the active firm workspace: cases, their
  * attachments (as exhibits in the 'exhibits' bucket), and their history +
- * notes — preserving the ORIGINAL timestamps so a migrated workspace looks
+ * notes, preserving the ORIGINAL timestamps so a migrated workspace looks
  * lived-in, not freshly created. Firm-scoped + best-effort per record so
  * one bad row never sinks the whole import.
  */
@@ -147,7 +147,7 @@ export async function importMigrationBundleAction(
           actor_display_name: h.actor || bundle.source,
           event_type: 'imported',
           metadata: {
-            summary: h.detail ? `${h.event} — ${h.detail}` : h.event,
+            summary: h.detail ? `${h.event}: ${h.detail}` : h.event,
             source: bundle.source,
           },
           ...(safeIso(h.at)

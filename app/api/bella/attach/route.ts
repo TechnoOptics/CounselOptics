@@ -16,7 +16,7 @@ type ImageMediaType = 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
  * (for PDFs / Word docs / plain text). The chat client then passes the
  * result back to /api/bella as the turn's `attachment`.
  *
- * Copy here is plain and reassuring — people use Bella during stressful
+ * Copy here is plain and reassuring, because people use Bella during stressful
  * situations, so errors stay calm and tell them exactly what to try next.
  */
 export async function POST(req: NextRequest) {
@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     'unknown';
   if (!(await checkRateLimit(`bella-attach:${ip}`, { limit: 8, windowSeconds: 60 }))) {
     return NextResponse.json(
-      { error: 'Just a moment — please wait before attaching another file.' },
+      { error: 'Just a moment. Please wait before attaching another file.' },
       { status: 429 },
     );
   }

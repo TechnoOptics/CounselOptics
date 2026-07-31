@@ -155,14 +155,14 @@ async function ensureConfigured(userId: string) {
       'In-app purchase is misconfigured: NEXT_PUBLIC_REVENUECAT_IOS_KEY must be the RevenueCat public Apple key (starts with "appl_").',
     );
   }
-  // We do NOT call setLogLevel — firing it concurrently with configure()
+  // We do NOT call setLogLevel, because firing it concurrently with configure()
   // deadlocked the native plugin on the stale TestFlight binary, and its
   // output doesn't reach idevicesyslog anyway.
   //
   // configure() is bounded by withTimeout so a healthy-but-slow handshake
   // surfaces a clear error instead of an infinite spinner (Guideline 2.1(b)).
   // NOTE: on-device tracing proved that a *version-skewed* native plugin makes
-  // configure() freeze the WebView JS thread SYNCHRONOUSLY — which no JS guard
+  // configure() freeze the WebView JS thread SYNCHRONOUSLY, which no JS guard
   // can interrupt. That is fixed only by shipping a fresh native build whose
   // @revenuecat/purchases-capacitor matches the JS SDK served from advottic.com
   // (both 13.2.0 as of this writing). Keep the app binary's plugin in lockstep
@@ -277,7 +277,7 @@ export async function purchaseTier(
     const product = products?.[0];
     if (!product) {
       throw new Error(
-        `App Store returned NO product for "${productId}". This means the product isn't fetchable — usually the Paid Apps agreement isn't fully active, the product isn't "Ready to Submit"/Approved, or the bundle id / RevenueCat offering is mismatched.`,
+        `App Store returned NO product for "${productId}". This means the product isn't fetchable. Usually the Paid Apps agreement isn't fully active, the product isn't "Ready to Submit"/Approved, or the bundle id / RevenueCat offering is mismatched.`,
       );
     }
     log('got product ✓');
@@ -302,7 +302,7 @@ export async function purchaseTier(
       log('user cancelled');
       return { active: false, cancelled: true };
     }
-    // Surface RevenueCat's structured error fields — code + underlying StoreKit
+    // Surface RevenueCat's structured error fields: code + underlying StoreKit
     // message are what actually pinpoint the cause.
     const e = err as {
       message?: string;

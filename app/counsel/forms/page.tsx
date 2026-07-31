@@ -10,7 +10,7 @@ export const metadata = { title: 'Form templates · Counsel' };
 
 /**
  * Legal-team management of self-service form templates. Everything published
- * here appears in every employee's Hub under Forms — fill, sign, export —
+ * here appears in every employee's Hub under Forms (fill, sign, export),
  * which is the whole point: NDA-class requests stop arriving as tickets.
  */
 export default async function CounselFormsPage() {
@@ -25,7 +25,7 @@ export default async function CounselFormsPage() {
           <T>Form templates</T>
         </h1>
         <p className="mt-1 max-w-2xl text-sm text-ink-600 dark:text-cream-100/70">
-          Publish configured documents — an NDA, a vendor form — and employees fill, sign, and
+          Publish configured documents (an NDA, a vendor form) and employees fill, sign, and
           export them from their Hub without opening a ticket. Use{' '}
           <code className="rounded bg-cream-100 px-1 text-[12px] dark:bg-forest-800">{'{{field_key}}'}</code>{' '}
           placeholders in the body; each becomes an input on the employee&apos;s form.

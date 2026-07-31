@@ -1057,9 +1057,9 @@ export function EvidenceIntake({
     return new Map([...m.entries()].sort((a, b) => a[0].localeCompare(b[0])));
   }, [activeEvents, folderMeta, viewerId]);
 
-  // Live search suggestions drawn from the matter's OWN data — a real exhibit
+  // Live search suggestions drawn from the matter's OWN data: a real exhibit
   // number, the most-mentioned person and organization, and the most common
-  // evidence kind — so the suggestions always lead somewhere.
+  // evidence kind, so the suggestions always lead somewhere.
   const searchSuggestions = useMemo(() => {
     const out: string[] = [];
     const withEx = activeEvents.find((e) => typeof e.aiExtracted?.exhibit_no === 'number');
@@ -1231,7 +1231,7 @@ export function EvidenceIntake({
   }, []);
   const selectAllVisible = useCallback(() => setSelected(new Set(ordered.map((e) => e.id))), [ordered]);
   const clearSelection = useCallback(() => setSelected(new Set()), []);
-  // Selection is resolved against ALL events, not the filtered view — so
+  // Selection is resolved against ALL events, not the filtered view, so
   // searching or filtering never silently drops already-selected items from a
   // bulk action. Items selected but currently hidden are surfaced as a count.
   const selectedEvents = useMemo(() => events.filter((e) => selected.has(e.id)), [events, selected]);
@@ -1838,7 +1838,7 @@ export function EvidenceIntake({
                 <p className="text-2xl" aria-hidden>📁</p>
                 <p className="mt-1 text-[14px] font-medium text-forest-900 dark:text-cream-100"><T>No folders yet</T></p>
                 <p className="mx-auto mt-1 max-w-md text-[12.5px] text-ink-500 dark:text-cream-100/55">
-                  <T>Select items on the Evidence tab, then choose “Add to folder” in the selection bar. A folder never moves anything — it is a saved view, and one item can sit in many folders.</T>
+                  <T>Select items on the Evidence tab, then choose “Add to folder” in the selection bar. A folder never moves anything. It is a saved view, and one item can sit in many folders.</T>
                 </p>
               </div>
             ) : (
@@ -1888,7 +1888,7 @@ export function EvidenceIntake({
                     onShare={() =>
                       secureShareIds(
                         memberIds,
-                        `${openCollection} — ${members.length === 1 ? t('1 exhibit file') : t('{n} exhibit files').replace('{n}', String(members.length))}`,
+                        `${openCollection} (${members.length === 1 ? t('1 exhibit file') : t('{n} exhibit files').replace('{n}', String(members.length))})`,
                       )
                     }
                     onDelete={() => void deleteCollection(openCollection)}
@@ -2132,7 +2132,7 @@ export function EvidenceIntake({
                 <T>Drop evidence here</T>
               </p>
               <p className="mt-0.5 text-[12px] text-ink-500 dark:text-cream-100/55">
-                <T>Photos, video, PDFs and documents, and email files (.eml, .msg) — or a .zip of a whole folder. Drop many at once.</T>
+                <T>Photos, video, PDFs and documents, and email files (.eml, .msg), or a .zip of a whole folder. Drop many at once.</T>
               </p>
               <p className="mt-0.5 text-[11.5px] text-ink-400 dark:text-cream-100/45">
                 <T>Advottic reads each item, files it into a folder, and scores how it bears on the case. Thousands at once is fine.</T>
@@ -2326,7 +2326,7 @@ function Toolbar({
 
   return (
     <div className="space-y-2">
-      {/* Search is the front door to the evidence set — a full-width,
+      {/* Search is the front door to the evidence set. A full-width,
           search-engine-grade pill: tall, soft shadow that lifts on focus, a
           real magnifier, a round clear control, and a hint of what it
           understands underneath. */}
@@ -2367,7 +2367,7 @@ function Toolbar({
           )}
         </div>
         {/* Live suggestions from THIS matter's data + a hint of what to do
-            next — hidden once a search is underway (the results banner takes
+            next, hidden once a search is underway (the results banner takes
             over). */}
         {!query && (
           <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5 pl-2">
@@ -2928,7 +2928,7 @@ function AddToFolderDialog({
         <p className="mt-1 text-[12.5px] text-ink-500 dark:text-cream-100/55" data-no-translate>
           {count === 1 ? t('1 selected item') : t('{n} selected items').replace('{n}', String(count))}
           {' · '}
-          {t('a folder is a saved view — items stay where they are and can sit in several folders')}
+          {t('a folder is a saved view: items stay where they are and can sit in several folders')}
         </p>
 
         {existing.length > 0 && (

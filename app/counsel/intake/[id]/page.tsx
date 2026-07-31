@@ -139,7 +139,7 @@ export default async function IntakeDetailPage({
   const ref = String((ans.partner as Record<string, unknown> | undefined)?.externalId ?? '').trim()
     || ticketRef(intake.id);
   const priority = String(ans.priority ?? '').trim();
-  // What this request IS, not who filed it — partner tickets carry their own
+  // What this request IS, not who filed it. Partner tickets carry their own
   // subject; everything else falls back to the matter type.
   const ticketTitle =
     String(ans.subject ?? '').trim() ||
@@ -169,7 +169,7 @@ export default async function IntakeDetailPage({
       {/* Compact identity bar. Everything below scrolls; this does not. */}
       {/* The title and the controls are two groups, not one flat row. Flat, the
           title was the only shrinkable item and so absorbed every pixel the
-          buttons wanted — it truncated to nothing on a narrow window while the
+          buttons wanted, so it truncated to nothing on a narrow window while the
           buttons stayed full width. Below `lg` the title group claims a whole
           line and the controls wrap beneath it. */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -217,7 +217,7 @@ export default async function IntakeDetailPage({
         {/* Highlights: the few facts you need on every scroll position. */}
         <div className="sticky top-0 z-10 flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-ink-100 bg-white/95 px-5 py-3 backdrop-blur dark:border-forest-800/60 dark:bg-forest-900/90">
           <Highlight label="Requester" value={requester} />
-          <Highlight label="Type" value={intake.matter_type ?? '—'} />
+          <Highlight label="Type" value={intake.matter_type ?? <T>Not set</T>} />
           {priority && <Highlight label="Priority" value={priority} />}
           {dueBy && <Highlight label="Due" value={dueBy} />}
           <Highlight
@@ -286,7 +286,7 @@ export default async function IntakeDetailPage({
                 <T>Email</T>
               </dt>
               <dd className="break-words text-[13.5px] text-forest-900 dark:text-cream-100">
-                {intake.client_email ?? '—'}
+                {intake.client_email ?? <T>Not provided</T>}
               </dd>
             </div>
             <div>
@@ -294,7 +294,7 @@ export default async function IntakeDetailPage({
                 <T>Phone</T>
               </dt>
               <dd className="text-[13.5px] text-forest-900 dark:text-cream-100">
-                {intake.client_phone ?? '—'}
+                {intake.client_phone ?? <T>Not provided</T>}
               </dd>
             </div>
           </dl>
@@ -308,7 +308,7 @@ export default async function IntakeDetailPage({
                   <T>Other parties</T>
                 </p>
                 <p className="text-[13.5px] text-forest-900 dark:text-cream-100">
-                  {intake.opposing_parties?.length ? intake.opposing_parties.join(', ') : '—'}
+                  {intake.opposing_parties?.length ? intake.opposing_parties.join(', ') : <T>None</T>}
                 </p>
               </div>
               <div>
@@ -316,7 +316,7 @@ export default async function IntakeDetailPage({
                   <T>Related parties</T>
                 </p>
                 <p className="text-[13.5px] text-forest-900 dark:text-cream-100">
-                  {intake.related_parties?.length ? intake.related_parties.join(', ') : '—'}
+                  {intake.related_parties?.length ? intake.related_parties.join(', ') : <T>None</T>}
                 </p>
               </div>
             </div>
@@ -447,7 +447,7 @@ function DocumentIcon() {
 }
 
 /** One fact in the sticky highlights strip. */
-function Highlight({ label, value }: { label: string; value: string }) {
+function Highlight({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="min-w-0">
       <p className="text-[9.5px] font-semibold uppercase tracking-[0.16em] text-ink-400 dark:text-cream-100/40">

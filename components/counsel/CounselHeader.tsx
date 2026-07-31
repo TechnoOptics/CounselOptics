@@ -220,7 +220,7 @@ export function CounselHeader({
               />
             </ExternalLink>
           )}
-          {/* Notification bell — case activity (co-counsel opened the matter,
+          {/* Notification bell: case activity (co-counsel opened the matter,
               a section, commented, downloaded the packet), signing, deadlines.
               The consumer header's bell isn't shown on the counsel side, so it
               lives here for firm users. */}

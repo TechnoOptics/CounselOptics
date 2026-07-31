@@ -17,7 +17,7 @@ import {
 } from './intake-notify';
 
 /**
- * Partner ticketing bridge — the server core behind /api/partner/v1/*.
+ * Partner ticketing bridge: the server core behind /api/partner/v1/*.
  *
  * Purpose: a corporate companion app (first partner: the Zinpro employee app)
  * files legal requests on behalf of a company's employees. The company holds a
@@ -26,11 +26,11 @@ import {
  *
  *   1. JIT-provisions the employee in `firm_employees` (keyed by email; the
  *      email domain must be one of the firm's registered `emailDomains`).
- *      `user_id` stays null until the employee first signs in via SSO —
+ *      `user_id` stays null until the employee first signs in via SSO;
  *      lib/persona.ts links the row and `claimPartnerTickets` re-attributes
  *      their tickets, so the portal shows everything they filed from the
  *      partner app.
- *   2. Creates a `firm_matter_intakes` row — the SAME intake object the legal
+ *   2. Creates a `firm_matter_intakes` row, the SAME intake object the legal
  *      team already works in the counsel Intake inbox (kanban, conflict check,
  *      convert-to-case, uploads, thread). No parallel pipeline.
  *   3. Conversation flows through the intake thread (`intake_answers.thread`),
@@ -61,7 +61,7 @@ export type PartnerTicket = {
   messages: { id: string; author: string; role: 'employee' | 'legal'; at: string; text: string }[];
 };
 
-const TICKETS_PER_WINDOW = 60; // per firm per 5 min — generous for a workforce, blunt for a loop
+const TICKETS_PER_WINDOW = 60; // per firm per 5 min: generous for a workforce, blunt for a loop
 const MESSAGES_PER_WINDOW = 240;
 
 /** Authenticate a partner request: valid token + firm scope + write scope. */
@@ -92,7 +92,7 @@ export async function partnerRateLimit(
 
 /**
  * JIT employee provisioning. The email's domain must belong to the firm
- * (firms.metadata.emailDomains via classifyEmail) — a partner token can never
+ * (firms.metadata.emailDomains via classifyEmail), so a partner token can never
  * introduce accounts outside the company's own domain. Returns the
  * firm_employees row id (existing or newly created).
  */
@@ -167,7 +167,7 @@ type IntakeRow = {
 /**
  * Messages now live in firm_intake_messages. The partner API only ever sees
  * `shared` rows, so the legal team's internal notes can never leak to the
- * company app — that separation is enforced here and in RLS, not in the UI.
+ * company app. That separation is enforced here and in RLS, not in the UI.
  */
 async function loadSharedMessages(
   admin: NonNullable<ReturnType<typeof createAdminSupabase>>,
@@ -311,7 +311,7 @@ export async function createPartnerTicket(
   if (error || !created) {
     return { ok: false, status: 500, error: error?.message ?? 'Could not create the ticket.' };
   }
-  // Wake the legal team (bell + email) — an API-born ticket has no one
+  // Wake the legal team (bell + email) because an API-born ticket has no one
   // staring at a screen when it lands. Best-effort, never fails the create.
   await partnerTicketEvent((created as IntakeRow & { firm_id: string }).id, 'ticket.created', {
     firmName: firm?.name ?? null,

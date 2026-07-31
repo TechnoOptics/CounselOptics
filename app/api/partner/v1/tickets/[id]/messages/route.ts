@@ -7,7 +7,7 @@ import {
 
 export const runtime = 'nodejs';
 
-/** POST /api/partner/v1/tickets/:id/messages — employee reply into the
+/** POST /api/partner/v1/tickets/:id/messages: employee reply into the
  *  intake thread the legal team already works in. */
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const auth = await authenticatePartner(req.headers.get('authorization'));

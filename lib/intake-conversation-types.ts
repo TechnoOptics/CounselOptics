@@ -12,7 +12,7 @@ export type IntakeAttachment = {
   path: string;
   size: number;
   type: string;
-  /** firm_documents.id — set when the file was filed into the ticket's documents. */
+  /** firm_documents.id, set when the file was filed into the ticket's documents. */
   documentId?: string | null;
 };
 
@@ -72,7 +72,7 @@ export type IntakeUploadRequest = {
 /**
  * A short, human-quotable reference for a ticket ("REQ-4F2A9C"). Derived from
  * the uuid so it needs no column and never collides in practice. Partner
- * tickets keep their own externalId — show that instead when present.
+ * tickets keep their own externalId; show that instead when present.
  */
 export function ticketRef(intakeId: string): string {
   const hex = intakeId.replace(/-/g, '').slice(0, 6).toUpperCase();
@@ -151,7 +151,7 @@ export function participantStyle(seed: string): ParticipantStyle {
   return PARTICIPANT_PALETTE[h % PARTICIPANT_PALETTE.length];
 }
 
-/** Just the avatar classes — same colour the chat gives this person. */
+/** Just the avatar classes, the same colour the chat gives this person. */
 export function avatarTint(seed: string): string {
   return participantStyle(seed).avatar;
 }
@@ -163,7 +163,7 @@ export function formatBytes(bytes: number | null | undefined): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-/** "just now" / "12 min ago" / "Tue 3:40 PM" — quiet, never alarming. */
+/** "just now" / "12 min ago" / "Tue 3:40 PM": quiet, never alarming. */
 export function relativeTime(iso: string, now: number = Date.now()): string {
   const t = new Date(iso).getTime();
   if (!Number.isFinite(t)) return '';

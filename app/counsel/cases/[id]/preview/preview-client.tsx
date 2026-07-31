@@ -8,7 +8,7 @@ import { ShareDialog } from '@/components/counsel/ShareDialog';
 /**
  * The viewer itself: fetches the export once (session cookies authorize it),
  * holds the bytes as a blob URL, and renders them in the browser's PDF engine
- * inside Advottic-themed chrome. The same bytes back every toolbar action —
+ * inside Advottic-themed chrome. The same bytes back every toolbar action:
  * Print reuses the loaded document instead of re-downloading, Download saves
  * it, Share opens the encrypt-and-send dialog for the same export target.
  */
@@ -75,7 +75,7 @@ export function PreviewClient({ caseId, src, label }: { caseId: string; src: str
 
   return (
     <div className="flex h-[100dvh] flex-col bg-forest-950">
-      {/* Toolbar — firm black + gold chrome. */}
+      {/* Toolbar: firm black + gold chrome. */}
       <header className="flex items-center gap-3 border-b border-cream-50/10 bg-forest-950 px-4 py-2.5">
         <Link
           href={`/counsel/cases/${caseId}`}

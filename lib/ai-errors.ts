@@ -17,7 +17,7 @@ import 'server-only';
  * "try again shortly," never a scary technical dump.
  *
  * The underlying cause of the credit/quota case is the app's own
- * ANTHROPIC_API_KEY running out of balance — a human must top it up —
+ * ANTHROPIC_API_KEY running out of balance (a human must top it up),
  * but the UI degrades gracefully regardless.
  */
 
@@ -105,7 +105,7 @@ export function classifyAiError(err: unknown): AiErrorKind {
 /**
  * Map any AI-provider failure to a calm, branded, user-safe message.
  * NEVER returns raw provider JSON. Logs the real error server-side (to
- * Vercel runtime logs, not the user) so operators can still diagnose —
+ * Vercel runtime logs, not the user) so operators can still diagnose;
  * pass a short `context` label to make the log line searchable.
  */
 export function friendlyAiError(err: unknown, context?: string): string {

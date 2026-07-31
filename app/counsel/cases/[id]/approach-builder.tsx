@@ -18,7 +18,7 @@ import { EvidencePreview } from '@/components/EvidencePreview';
 import { EvidenceViewer } from './evidence/evidence-viewer';
 
 /**
- * Case Theory Console — the firm "prove-the-case" approach board, styled as a
+ * Case Theory Console: the firm "prove-the-case" approach board, styled as a
  * premium investigative terminal. The lawyer opens an APPROACH VECTOR: the
  * theory they mean to prove, who is connected, and anything relevant. Advottic
  * marshals the matter's own evidence into a structured argument with cited
@@ -28,7 +28,7 @@ import { EvidenceViewer } from './evidence/evidence-viewer';
  * AI-gated + graceful: the approach is always saved; when analysis is
  * unavailable the dossier shows a calm "awaiting analysis" state and a re-run
  * control, never a raw error. Pure presentation change over the existing
- * actions — no behavioural wiring changed.
+ * actions, with no behavioural wiring changed.
  */
 
 const AI_UNAVAILABLE = "Advottic's analysis is temporarily unavailable. Please try again shortly.";
@@ -159,7 +159,7 @@ export function ApproachBuilder({
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder={t(
-                  'The theory you are proving. Example: The landlord knew about the mold for months and failed to act — tie together the inspection report (EX-03), the tenant emails, and the maintenance logs.',
+                  'The theory you are proving. Example: The landlord knew about the mold for months and failed to act. Tie together the inspection report (EX-03), the tenant emails, and the maintenance logs.',
                 )}
                 rows={4}
                 className="w-full resize-y rounded-lg border border-cream-50/12 bg-forest-950/70 px-3 py-2.5 text-sm leading-relaxed text-cream-50 placeholder:text-cream-100/35 outline-none transition-colors focus:border-gold-metal/50 focus:shadow-[0_0_0_3px_rgba(198,161,91,0.10)]"
@@ -173,7 +173,7 @@ export function ApproachBuilder({
                   value={connections}
                   onChange={(e) => setConnections(e.target.value)}
                   placeholder={t(
-                    'Who is connected and how — parties, witnesses, roles. Example: Jane Doe (tenant, claimant); Acme Property LLC (landlord, defendant); Bob Smith (building super, saw the leak).',
+                    'Who is connected and how: parties, witnesses, roles. Example: Jane Doe (tenant, claimant); Acme Property LLC (landlord, defendant); Bob Smith (building super, saw the leak).',
                   )}
                   rows={3}
                   className="w-full resize-y rounded-lg border border-cream-50/12 bg-forest-950/70 px-3 py-2.5 text-sm leading-relaxed text-cream-50 placeholder:text-cream-100/35 outline-none transition-colors focus:border-gold-metal/50 focus:shadow-[0_0_0_3px_rgba(198,161,91,0.10)]"
@@ -450,7 +450,7 @@ function ApproachCard({
               value={connections}
               onChange={(e) => setConnections(e.target.value)}
               rows={3}
-              placeholder={t('Connected parties — who is involved and how')}
+              placeholder={t('Connected parties: who is involved and how')}
               className="w-full resize-y rounded-lg border border-cream-50/12 bg-forest-950/70 px-3 py-2.5 text-sm leading-relaxed text-cream-50 outline-none focus:border-gold-metal/50"
               data-no-translate
             />
@@ -867,7 +867,7 @@ function parseWhen(when: string | null | undefined): ParsedWhen {
     return { key: `${m[1]}-00`, monthLabel: m[1], day: null, sortMs: d.getTime(), relative: false };
   }
 
-  // Worded dates ("March 2024", "March 15, 2024") — let Date parse them (these
+  // Worded dates ("March 2024", "March 15, 2024"): let Date parse them (these
   // parse as local, no UTC trap). A day chip only when the text carried a day.
   const ms = new Date(raw).getTime();
   if (!Number.isNaN(ms)) {
@@ -886,8 +886,8 @@ function parseWhen(when: string | null | undefined): ParsedWhen {
 
 /**
  * The approach's supporting timeline, as a List (vertical rail) or a Calendar
- * (month-grouped agenda). The calendar is the approach's OWN chronology — only
- * the events Advottic marshalled for this theory — grouped into month blocks in
+ * (month-grouped agenda). The calendar is the approach's OWN chronology, only
+ * the events Advottic marshalled for this theory, grouped into month blocks in
  * chronological order, with day chips where the date is day-precise.
  */
 function TimelinePanel({ timeline, hideHeading }: { timeline: ApproachTimelineEntry[]; hideHeading?: boolean }) {
@@ -996,7 +996,7 @@ function TimelinePanel({ timeline, hideHeading }: { timeline: ApproachTimelineEn
 }
 
 /**
- * The real uploads this approach marshals — only the evidence Advottic cited
+ * The real uploads this approach marshals: only the evidence Advottic cited
  * when assembling the argument. Lazy-loaded on expand (so a page of approaches
  * doesn't fetch every gallery up front); each thumbnail opens the in-window
  * evidence viewer with prev/next scoped to this approach's set.

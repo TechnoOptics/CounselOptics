@@ -16,10 +16,10 @@ import { mintTargetSession, startActAs } from '@/lib/act-as';
  * target session server-side and stash it in a signed, HTTP-only `adv_act_as`
  * cookie; lib/supabase/server.ts then renders the app as the target for this
  * browser without touching the admin's real Supabase cookie. Ending (see
- * /api/admin/impersonate/stop) just deletes that one cookie — no logout, no
+ * /api/admin/impersonate/stop) just deletes that one cookie: no logout, no
  * cross-tab collision.
  *
- * Returns { url } — the target's own workspace landing — for a same-tab
+ * Returns { url }, the target's own workspace landing, for a same-tab
  * navigation.
  *
  * Hardening: caller must be an admin (checked against the REAL session, not any
@@ -32,7 +32,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'server_misconfigured' }, { status: 503 });
   }
 
-  // Caller must be an authenticated admin — resolved from the REAL session so an
+  // Caller must be an authenticated admin, resolved from the REAL session so an
   // already-active overlay can't be used to bootstrap another impersonation.
   const caller = await getRealCurrentUser();
   if (!caller) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });

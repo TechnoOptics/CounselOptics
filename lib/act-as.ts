@@ -18,7 +18,7 @@ import { cookieDomainForHost } from './supabase/cookie-domain';
  * session cookie untouched. A SEPARATE, signed, HTTP-only cookie (`adv_act_as`)
  * carries a freshly-minted target ACCESS TOKEN. lib/supabase/server.ts, when it
  * sees a valid overlay, builds the request's user-scoped Supabase client with
- * the target's token instead of the admin's cookie — so the whole app renders
+ * the target's token instead of the admin's cookie, so the whole app renders
  * as the target (RLS returns their rows, getCurrentUser() returns them). Ending
  * just deletes this one cookie; the admin is instantly back, no logout.
  *
@@ -26,7 +26,7 @@ import { cookieDomainForHost } from './supabase/cookie-domain';
  * by the service-role secret, which only the server knows) verifies AND it
  * hasn't expired. The cookie is HTTP-only and set solely by the admin-gated
  * impersonate route, so a non-admin can neither read nor forge it. Every reader
- * fails CLOSED — any problem → the overlay is treated as absent and normal auth
+ * fails CLOSED: any problem → the overlay is treated as absent and normal auth
  * proceeds unchanged.
  */
 
@@ -146,7 +146,7 @@ export function startActAs(input: {
   return true;
 }
 
-/** Clear the overlay cookie — instantly restores the admin's own session. */
+/** Clear the overlay cookie, instantly restoring the admin's own session. */
 export function stopActAs(): void {
   try {
     const host = headers().get('host');

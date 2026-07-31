@@ -7,7 +7,7 @@ const SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
 /**
  * Advottic's own "Confirm you are human" control. The visible UI is entirely
- * ours — a black+gold verification tile with a checkbox that animates through
+ * ours: a black+gold verification tile with a checkbox that animates through
  * verifying → verified. Underneath, Cloudflare Turnstile runs INVISIBLY
  * (execution: 'execute' + appearance: 'interaction-only') to produce the token
  * the server requires before decrypting; its widget only surfaces if
@@ -111,11 +111,11 @@ export function HumanCheck({ onToken }: { onToken: (token: string | null) => voi
         </span>
         <span className="min-w-0 flex-1">
           <span className="block text-[13px] font-semibold text-forest-900 dark:text-cream-50">
-            {state === 'verified' ? 'Verified — you are human' : state === 'verifying' ? 'Verifying…' : 'Confirm you are human'}
+            {state === 'verified' ? 'Verified: you are human' : state === 'verifying' ? 'Verifying…' : 'Confirm you are human'}
           </span>
           <span className="block text-[11px] text-forest-400 dark:text-cream-100/40">
             {state === 'error'
-              ? 'Verification failed — tap to try again.'
+              ? 'Verification failed. Tap to try again.'
               : 'Advottic Secure Access · required to decrypt'}
           </span>
         </span>

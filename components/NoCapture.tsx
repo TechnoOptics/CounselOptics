@@ -77,7 +77,7 @@ export function NoCapture() {
           typeof navigator.clipboard.writeText === 'function'
         ) {
           navigator.clipboard.writeText('').catch(() => {
-            // No clipboard write permission — nothing to do.
+            // No clipboard write permission, nothing to do.
           });
         }
         return;
@@ -105,7 +105,7 @@ export function NoCapture() {
       const sel = window.getSelection()?.toString() ?? '';
       if (!sel) return;
       e.preventDefault();
-      const stamp = `\n\n— Copied from Advottic at ${new Date().toISOString()}`;
+      const stamp = `\n\nCopied from Advottic at ${new Date().toISOString()}`;
       e.clipboardData?.setData('text/plain', sel + stamp);
     };
 

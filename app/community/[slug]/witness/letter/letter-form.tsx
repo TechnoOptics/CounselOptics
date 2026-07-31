@@ -241,7 +241,7 @@ export function LetterForm({ slug }: { slug: string }) {
         </h2>
         <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 leading-relaxed">
           Your letter of support has been recorded privately. It goes only to the organizer and
-          their attorney — it is never shown publicly.
+          their attorney, and it is never shown publicly.
         </p>
       </section>
     );
@@ -349,7 +349,7 @@ export function LetterForm({ slug }: { slug: string }) {
           </p>
           <p>
             By proceeding, you confirm you can access this disclosure electronically and consent
-            to sign this letter electronically. You are not yet signing — that happens next.
+            to sign this letter electronically. You are not yet signing. That happens next.
           </p>
         </div>
 
@@ -472,7 +472,7 @@ export function LetterForm({ slug }: { slug: string }) {
         </h2>
         <p className="text-[13px] text-ink-600 dark:text-cream-100/70 mt-1.5 leading-relaxed">
           A photo of the front and back of a government ID (driver&rsquo;s license, state ID, or
-          passport). This is never shown publicly — only the organizer and their attorney can see
+          passport). This is never shown publicly. Only the organizer and their attorney can see
           it, and it&rsquo;s deleted once the case is closed.
         </p>
       </header>

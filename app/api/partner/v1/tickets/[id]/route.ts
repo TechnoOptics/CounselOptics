@@ -3,7 +3,7 @@ import { authenticatePartner, getPartnerTicket } from '@/lib/partner-tickets';
 
 export const runtime = 'nodejs';
 
-/** GET /api/partner/v1/tickets/:id — one ticket incl. the full thread. */
+/** GET /api/partner/v1/tickets/:id: one ticket incl. the full thread. */
 export async function GET(req: Request, { params }: { params: { id: string } }) {
   const auth = await authenticatePartner(req.headers.get('authorization'));
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });

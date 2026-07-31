@@ -11,8 +11,8 @@ export const dynamic = 'force-dynamic';
  * GET /api/cron/partner-reminders
  *
  * Hourly Vercel Cron. Finds partner-app tickets that are still waiting on
- * the legal team — open status, and the last word in the thread belongs to
- * the employee (or the thread is empty) — past the firm's configured
+ * the legal team (open status, and the last word in the thread belongs to
+ * the employee, or the thread is empty) past the firm's configured
  * remindAfterHours. Sends the legal team a bell + email nudge via
  * partnerTicketEvent('ticket.reminder').
  *

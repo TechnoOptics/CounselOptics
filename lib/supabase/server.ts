@@ -39,13 +39,13 @@ export function createServerSupabase(opts?: { real?: boolean }) {
   // HQ "act as" overlay: when a valid overlay cookie is present, render this
   // request AS the target user (bearer token) instead of the admin's own
   // cookie session. `real: true` bypasses the overlay to reach the underlying
-  // admin session. Fails closed — any problem falls through to normal auth.
+  // admin session. Fails closed: any problem falls through to normal auth.
   if (!opts?.real) {
     try {
       const actAs = readActAs();
       if (actAs) return createBearerSupabase(url, anon, actAs.accessToken);
     } catch {
-      /* ignore — behave exactly as the un-impersonated path */
+      /* ignore: behave exactly as the un-impersonated path */
     }
   }
   const cookieStore = cookies();
@@ -130,7 +130,7 @@ export async function getCurrentUserResult(
         }
       }
     } catch {
-      /* fall through to the real session — never break normal auth */
+      /* fall through to the real session, never break normal auth */
     }
   }
   try {

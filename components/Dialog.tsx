@@ -118,7 +118,7 @@ export function Dialog({
 
   // Portal to <body> after mount: several pages wrap their content in a
   // transformed route-fade container, and a transform ancestor turns `fixed`
-  // into "fixed to the content" — the modal then renders mid-page instead of
+  // into "fixed to the content", so the modal then renders mid-page instead of
   // over the viewport. Portaling makes every dialog immune.
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);

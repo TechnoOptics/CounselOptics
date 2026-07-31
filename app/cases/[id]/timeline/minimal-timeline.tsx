@@ -152,7 +152,7 @@ export function MinimalTimeline({
 
       {/* Firm upsell */}
       <div className="mt-6 rounded-2xl border border-gold-500/30 bg-gradient-to-b from-gold-500/[0.07] to-transparent p-4 text-sm text-ink-700 dark:border-gold-500/25 dark:text-cream-200/90">
-        <p><span className="font-semibold text-forest-900 dark:text-cream-100">Working with a firm?</span> On a firm plan, Advottic reads every item — OCR, dates, people, locations, chat senders — tags who&apos;s who, and generates a court-ready timeline document. You just submit; they build.</p>
+        <p><span className="font-semibold text-forest-900 dark:text-cream-100">Working with a firm?</span> On a firm plan, Advottic reads every item (OCR, dates, people, locations, chat senders), tags who&apos;s who, and generates a court-ready timeline document. You just submit; they build.</p>
       </div>
     </div>
   );
@@ -178,7 +178,7 @@ function AddWithContext({ caseId, onAdded }: { caseId: string; onAdded: (ev: Tim
       <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title (e.g. Text from landlord)"
         className="mb-2 w-full rounded-lg border border-ink-200 px-3 py-2 text-sm dark:border-cream-50/20 dark:bg-forest-950" />
       <div className="mb-2 flex items-start gap-2">
-        <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder="Context — what is this, and why it matters (type or dictate)"
+        <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder="Context: what is this, and why it matters (type or dictate)"
           className="w-full rounded-lg border border-ink-200 px-3 py-2 text-sm dark:border-cream-50/20 dark:bg-forest-950" />
         <MicButton onAppend={(t) => setDescription((d) => (d ? d + ' ' : '') + t)} />
       </div>

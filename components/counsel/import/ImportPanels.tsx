@@ -81,7 +81,7 @@ function readFileAsBase64(file: File): Promise<string> {
     reader.onerror = () => reject(reader.error);
     reader.onload = () => {
       const result = String(reader.result ?? '');
-      // dataURL: "data:<mime>;base64,XXXX" — strip the prefix.
+      // dataURL: "data:<mime>;base64,XXXX", so strip the prefix.
       const idx = result.indexOf(',');
       resolve(idx >= 0 ? result.slice(idx + 1) : result);
     };

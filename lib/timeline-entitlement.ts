@@ -16,7 +16,7 @@ export const TIMELINE_PREVIEW_COOKIE = 'adv_tl_preview';
  *  - 'firm'   → the FULL build experience: Bella analysis (OCR, dates, people,
  *               locations, chat parsing), dictation, people tagging, the
  *               generated narrative, and the court-ready export. Exclusive to
- *               firm/counsel plans — the professionals do the sense-making.
+ *               firm/counsel plans, where the professionals do the sense-making.
  *  - 'submit' → the top PERSONAL plan (Personal Plus): upload bulk or individual
  *               evidence, add context, and see the timeline + calendar overview,
  *               so a client can hand their firm an organised, contextual record.
@@ -38,7 +38,7 @@ export function timelineAccessFor(sub: Subscription | null | undefined): Timelin
   if (!sub || (sub.status !== 'active' && sub.status !== 'trialing')) return 'locked';
   // Comp / founder / support / QA accounts (lifetime Ultra) get the full
   // firm build everywhere, including the consumer timeline. The comp is
-  // meant to be unconditional access — not a personal-tier ceiling — so a
+  // meant to be unconditional access, not a personal-tier ceiling, so a
   // comped account switching into the consumer view must never hit the
   // "firm-plan feature" gate. Mirrors the admin short-circuit in
   // resolveTimelineAccess.

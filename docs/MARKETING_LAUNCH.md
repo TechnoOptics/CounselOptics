@@ -1,4 +1,4 @@
-# Marketing launch playbook — Advottic
+# Marketing launch playbook: Advottic
 
 The technical SEO foundation is shipped. These three platform tasks
 require logging into your accounts, so I cannot do them for you, but
@@ -42,11 +42,11 @@ and shows you which queries you rank for. **Do this first.**
 ### Once you're in Search Console
 
 - **Performance** report: queries, clicks, impressions, CTR. The
-  single most useful page in this whole tool — check it weekly.
+  single most useful page in this whole tool, so check it weekly.
 - **URL Inspection**: paste `https://www.advottic.com/about` (or any
   page) → **Test Live URL**. Confirms whether Google can see and
   index the page. Useful when you push a new content piece and want
-  it crawled fast — click **Request indexing**.
+  it crawled fast: click **Request indexing**.
 - **Enhancements → FAQs / Sitelinks**: shows when our JSON-LD picks
   up rich-result eligibility. Wait 2–3 weeks for the first signal.
 
@@ -55,7 +55,7 @@ and shows you which queries you rank for. **Do this first.**
 ## 2. Bing Webmaster Tools (≈ 5 min, free)
 
 Bing/Yahoo/DuckDuckGo all draw from this index. Smaller traffic but
-also less competitive — easy wins on long-tail queries.
+also less competitive, so there are easy wins on long-tail queries.
 
 ### Steps
 
@@ -81,7 +81,7 @@ also less competitive — easy wins on long-tail queries.
 
 Owns branded searches ("Advottic"), gets you a Knowledge Panel,
 and lets you collect reviews. **You do not need a physical
-storefront** — service-area businesses are eligible.
+storefront**: service-area businesses are eligible.
 
 ### Steps
 
@@ -118,7 +118,7 @@ storefront** — service-area businesses are eligible.
 
 - ✅ Will: dominate "Advottic" branded searches, show a Knowledge
   Panel, collect 5-star reviews.
-- ❌ Won't: rank for "lawyer near me" — and we don't want it to.
+- ❌ Won't: rank for "lawyer near me", and we don't want it to.
   That's UPL territory and Google would eventually flag us.
 
 ---
@@ -127,8 +127,8 @@ storefront** — service-area businesses are eligible.
 
 These each take 10–15 min and stack:
 
-- **Apple Business Connect**: https://businessconnect.apple.com —
-  shows in Apple Maps and Siri results. Same data as GBP.
+- **Apple Business Connect**: https://businessconnect.apple.com
+  Shows in Apple Maps and Siri results. Same data as GBP.
 - **Bing Places**: same drill at https://www.bingplaces.com.
 - **Product Hunt launch**: schedule for a Tuesday, post at 12:01 AM
   PT, line up 30+ supporters in advance. Pre-launch playbook:
@@ -146,8 +146,8 @@ These each take 10–15 min and stack:
 Once Search Console is verified, run these checks:
 
 1. **Google Rich Results Test**:
-   https://search.google.com/test/rich-results — paste
-   `https://www.advottic.com/`. Should detect `Organization`,
+   https://search.google.com/test/rich-results
+   Paste `https://www.advottic.com/`. Should detect `Organization`,
    `SoftwareApplication`, and `FAQPage`.
 2. **Sitemap reachability**:
    `https://www.advottic.com/sitemap.xml` should return XML.
@@ -155,7 +155,7 @@ Once Search Console is verified, run these checks:
    `https://www.advottic.com/robots.txt` should return rules.
 4. **OpenGraph preview**:
    https://www.opengraph.xyz/?url=https%3A%2F%2Fwww.advottic.com%2F
-   — check the home and /about previews look good.
+   Check the home and /about previews look good.
 5. **Mobile-Friendly Test**:
    https://search.google.com/test/mobile-friendly
 6. **Lighthouse** (Chrome DevTools → Lighthouse tab) → SEO

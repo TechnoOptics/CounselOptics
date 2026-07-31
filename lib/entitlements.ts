@@ -14,7 +14,7 @@ import { COMP_ULTRA_PRICE_ID } from './personal-tiers';
  * delegate here.
  *
  * Behavior is pinned by tests/entitlement-mapping.test.ts. One irregularity in
- * the table below is DELIBERATE and money-critical — do not "clean it up"
+ * the table below is DELIBERATE and money-critical. Do not "clean it up"
  * without changing those tests on purpose:
  *
  *   Legacy STRIPE_PRICE_PRO has tier 'pro' but tierSlug `null`. The null slug
@@ -27,7 +27,7 @@ import { COMP_ULTRA_PRICE_ID } from './personal-tiers';
  * annual subscriber's subscriptions.tier was written null. That gap is now
  * fixed: each _ANNUAL row carries the same coarse tier as its monthly sibling.
  * Safe because both webhook grant sites resolve the TierSlug FIRST and only
- * fall back to the coarse-'pro' legacy grant when there is no slug — every
+ * fall back to the coarse-'pro' legacy grant when there is no slug, and every
  * annual price has a slug, so it never reaches that fallback.)
  */
 
@@ -44,7 +44,7 @@ const PRICE_TABLE: readonly PriceRow[] = [
   // Legacy consumer tiers.
   { env: 'STRIPE_PRICE_BASIC', tier: 'basic', tierSlug: 'basic' },
   { env: 'STRIPE_PRICE_STANDARD', tier: 'standard', tierSlug: 'standard' },
-  // Legacy Pro: coarse tier 'pro', but NO slug — see irregularity (1).
+  // Legacy Pro: coarse tier 'pro', but NO slug. See irregularity (1).
   { env: 'STRIPE_PRICE_PRO', tier: 'pro', tierSlug: null },
   { env: 'STRIPE_MONTHLY_PRICE_ID', tier: 'standard', tierSlug: 'standard' },
   // Consumer ladder (new billing model). Each _ANNUAL row carries the same
@@ -79,14 +79,14 @@ const PRICE_TABLE: readonly PriceRow[] = [
 /**
  * Resolve a Stripe Price ID to both the coarse Tier (for the subscriptions
  * row) and the fine TierSlug (for the token grant), in one lookup. Either
- * field can independently be null — see the two irregularities above.
+ * field can independently be null. See the two irregularities above.
  */
 export function resolvePriceEntitlement(
   priceId: string | null | undefined,
 ): BillingEntitlement {
   if (!priceId) return { tier: null, tierSlug: null };
   // Lifetime comp accounts (founder/owner/QA) carry a sentinel price id that
-  // never exists in Stripe — grant Ultra. See lib/personal-tiers.ts.
+  // never exists in Stripe, so grant Ultra. See lib/personal-tiers.ts.
   if (priceId === COMP_ULTRA_PRICE_ID) return { tier: 'pro', tierSlug: 'ultra' };
   for (const row of PRICE_TABLE) {
     const configured = process.env[row.env]?.trim();

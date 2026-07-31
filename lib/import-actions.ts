@@ -42,7 +42,7 @@ async function requireFirmMember(): Promise<
   if (!admin) return { error: 'Service role not configured on this deployment.' };
   // Bulk import runs through the service-role client (RLS-bypassing) and can
   // mass-create clients / cases / employees and seed role entitlements, so it
-  // must be owner/admin-only — not any member (a read-only staff member could
+  // must be owner/admin-only, not any member (a read-only staff member could
   // otherwise provision the whole firm).
   const { data: membership } = await admin
     .from('firm_members')

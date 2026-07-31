@@ -121,7 +121,7 @@
       }, delay);
     }
     if (navigator.onLine) {
-      // We got here despite being "online" — likely a transient abort.
+      // We got here despite being "online", so this is likely a transient abort.
       status.textContent = 'Retrying automatically…';
       setTimeout(go, 2500);
     } else {

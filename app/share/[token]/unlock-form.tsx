@@ -10,8 +10,8 @@ const TURNSTILE_CONFIGURED = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY)
  * Key entry for a secure share. Once a key is pasted, Advottic's own
  * "Confirm you are human" tile appears (Turnstile runs invisibly beneath it;
  * the server re-verifies before decrypting). On the correct key the decrypted
- * PDF opens IN THE BROWSER in a full-screen Advottic viewer — no forced
- * download — with Download and Print available from the viewer's toolbar. The
+ * PDF opens IN THE BROWSER in a full-screen Advottic viewer (no forced
+ * download), with Download and Print available from the viewer's toolbar. The
  * decrypted bytes live only in memory (a blob URL) and are never written to
  * disk unless the reader chooses Download.
  */
@@ -80,7 +80,7 @@ export function UnlockForm({ token }: { token: string }) {
     a.remove();
   }
 
-  // Unlocked: the document stays in memory — reopen, download, or print at will.
+  // Unlocked: the document stays in memory, so reopen, download, or print at will.
   if (doc && !viewerOpen) {
     return (
       <div className="rounded-lg border border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 p-4 text-[13px] text-emerald-800 dark:text-emerald-300">
@@ -91,7 +91,7 @@ export function UnlockForm({ token }: { token: string }) {
               View document
             </button>
           )}
-          {/* Solid, high-contrast in both themes — the previous emerald outline
+          {/* Solid, high-contrast in both themes, because the previous emerald outline
               vanished against the dark background. */}
           <button
             type="button"
@@ -119,7 +119,7 @@ export function UnlockForm({ token }: { token: string }) {
             className="w-full rounded-lg border border-ink-200 dark:border-forest-700/60 bg-white dark:bg-forest-950 px-3 py-2.5 font-mono text-[13px] text-forest-900 dark:text-cream-50 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-500/20"
           />
         </label>
-        {/* Advottic's own human-verification tile — appears once a key is
+        {/* Advottic's own human-verification tile, which appears once a key is
             entered, and must be passed before the unlock button activates. */}
         {key.trim() && <HumanCheck onToken={setTurnstileToken} />}
         {error && <p className="text-[12.5px] text-red-600 dark:text-red-400">{error}</p>}

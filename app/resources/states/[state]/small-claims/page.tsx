@@ -416,7 +416,7 @@ function faqsFor(s: StateSmallClaims): Array<{ question: string; answer: string 
     },
     {
       question: `Can a lawyer represent me in ${s.name} small claims court?`,
-      answer: `${s.attorneysNote} Either way, most people handle small claims on their own — the process is designed to be used without a lawyer.`,
+      answer: `${s.attorneysNote} Either way, most people handle small claims on their own, and the process is designed to be used without a lawyer.`,
     },
     {
       question: `How long do I have to appeal a small claims decision in ${s.name}?`,
@@ -432,7 +432,7 @@ function faqsFor(s: StateSmallClaims): Array<{ question: string; answer: string 
 /**
  * Build the HowTo steps from the same five-step process shown on the
  * page, so the HowTo schema never describes a step the reader can't
- * see. Plain, reassuring language — people read this before their
+ * see. Plain, reassuring language, because people read this before their
  * first time in court.
  */
 function stepsFor(s: StateSmallClaims): Array<{ name: string; text: string }> {
@@ -456,7 +456,7 @@ function stepsFor(s: StateSmallClaims): Array<{ name: string; text: string }> {
     },
     {
       name: 'Collect your judgment',
-      text: `Winning is a piece of paper until you collect. In ${s.name}, collection happens through wage garnishment, a bank levy, or a property lien — a separate step that can take a few months.`,
+      text: `Winning is a piece of paper until you collect. In ${s.name}, collection happens through wage garnishment, a bank levy, or a property lien, a separate step that can take a few months.`,
     },
   ];
 }

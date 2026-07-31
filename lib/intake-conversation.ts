@@ -198,7 +198,7 @@ export async function loadIntakeConversationAction(intakeId: string): Promise<
   }));
 
   // Files attached when the request was originally filed used to be invisible
-  // to the legal team entirely — surface them alongside the rest.
+  // to the legal team entirely, so surface them alongside the rest.
   const filed = Array.isArray((intake.intake_answers ?? {}).attachments)
     ? ((intake.intake_answers as Record<string, unknown>).attachments as IntakeAttachment[])
     : [];
@@ -323,7 +323,7 @@ export async function postIntakeMessageAction(
           : `${actor.name} replied on ${refFor(access.intake)}`,
   });
 
-  // Partner apps get the webhook only — the branded email above is better
+  // Partner apps get the webhook only; the branded email above is better
   // than the plain one partner-notify would otherwise send.
   if (visibility === 'shared' && access.role === 'legal') {
     await partnerTicketEvent(access.intake.id, 'ticket.legal_replied', {
@@ -358,7 +358,7 @@ export async function postIntakeMessageAction(
 /**
  * Upload files from the conversation composer. Each file is screened, stored,
  * and filed into the ticket's documents so the legal team has one place to
- * look — the chat is not a separate silo.
+ * look; the chat is not a separate silo.
  */
 export async function uploadIntakeChatFilesAction(
   intakeId: string,
@@ -531,7 +531,7 @@ export async function inviteToIntakeAction(
     authorUserId: access.userId,
     authorName: actor?.name ?? 'Someone',
     authorRole: 'system',
-    // Adding a person is shared context — the requester should see who is helping.
+    // Adding a person is shared context: the requester should see who is helping.
     visibility: target.side === 'legal' ? 'internal' : 'shared',
     body: `${actor?.name ?? 'Someone'} added ${target.name} to this request.`,
     kind: 'event',
@@ -572,7 +572,7 @@ export async function removeIntakeParticipantAction(
 
 /**
  * Create a "send us this file" link. The recipient does not need an Advottic
- * account — they open the link, drop the file, and it lands in the ticket.
+ * account; they open the link, drop the file, and it lands in the ticket.
  */
 export async function createIntakeUploadRequestAction(
   intakeId: string,

@@ -10,7 +10,7 @@ export const metadata = { title: 'Check a document · Hub' };
 /**
  * Employee self-service policy check: paste a draft or a question, get a
  * confidence score against the company's own policies with the risky
- * passages flagged — research the employee can do themselves before (or
+ * passages flagged. This is research the employee can do themselves before (or
  * instead of) opening a ticket with legal.
  */
 export default async function PortalCheckPage() {

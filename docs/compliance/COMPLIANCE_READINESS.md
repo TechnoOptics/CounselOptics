@@ -1,14 +1,14 @@
-# Advottic — SOC 2 / ISO 27001 / HIPAA Readiness Assessment
+# Advottic: SOC 2 / ISO 27001 / HIPAA Readiness Assessment
 
-**Prepared:** 2026-07-01 · **System:** Advottic (CounselOptics) — Next.js 14 on Vercel + Supabase (Auth/Postgres/Storage), Capacitor iOS/Android WebView · **Owner:** Techno Optics LLC
+**Prepared:** 2026-07-01 · **System:** Advottic (CounselOptics), running Next.js 14 on Vercel + Supabase (Auth/Postgres/Storage), Capacitor iOS/Android WebView · **Owner:** Techno Optics LLC
 
-> **Read this first — what "compliant" actually means.**
+> **Read this first: what "compliant" actually means.**
 > Code alone cannot make a product "SOC 2 / ISO 27001 / HIPAA compliant." These are earned as follows, and this document is the map to each:
-> - **SOC 2** — a CPA firm examines your controls and issues a report. **Type II** requires an *observation window* (typically 3–12 months) proving the controls operate over time. There is no certificate; there is a report.
-> - **ISO 27001** — an accredited registrar audits your Information Security Management System (ISMS) in two stages and issues a certificate (3-year cycle with annual surveillance).
-> - **HIPAA** — a *legal* framework, not a certification. It applies because Advottic stores Protected Health Information (PHI). It requires signed **Business Associate Agreements (BAAs)** with Advottic's customers *and* with every subprocessor that touches PHI, plus a documented Security Risk Assessment and safeguards.
+> - **SOC 2**: a CPA firm examines your controls and issues a report. **Type II** requires an *observation window* (typically 3–12 months) proving the controls operate over time. There is no certificate; there is a report.
+> - **ISO 27001**: an accredited registrar audits your Information Security Management System (ISMS) in two stages and issues a certificate (3-year cycle with annual surveillance).
+> - **HIPAA**: a *legal* framework, not a certification. It applies because Advottic stores Protected Health Information (PHI). It requires signed **Business Associate Agreements (BAAs)** with Advottic's customers *and* with every subprocessor that touches PHI, plus a documented Security Risk Assessment and safeguards.
 >
-> This engagement delivers the ~80% that is in our control: the technical safeguards, the control-to-requirement mapping, and the policy/evidence documentation. The remaining ~20% — the audit engagements and the legal agreements — only you can execute, and they are listed explicitly in §7.
+> This engagement delivers the ~80% that is in our control: the technical safeguards, the control-to-requirement mapping, and the policy/evidence documentation. The remaining ~20% (the audit engagements and the legal agreements) only you can execute, and they are listed explicitly in §7.
 
 ---
 
@@ -20,18 +20,18 @@ The gaps that matter for the three frameworks are concentrated in a few areas:
 
 | Theme | State |
 |---|---|
-| Encryption, transport, RLS access control | **Strong** — largely audit-ready |
-| Audit logging | **Partial** — append-only + hash-chained where present, but no login/export/permission-change events and no IP capture on `audit_events` |
-| MFA | **Gap** — not implemented (roadmap only); HIPAA/SOC 2 expect it, especially for admins |
-| Session controls | **Gap** — no idle/absolute timeout, no re-auth for sensitive actions |
-| Backup / DR | **Gap** — relies on Supabase defaults; no documented RPO/RTO or tested restore |
-| Data retention / disposal | **Gap** — no retention schedule; erasure leaves audit + some security rows (partly *correct* for HIPAA, see §5) |
-| HIPAA BAAs & PHI handling | **Gap** — no BAAs executed; no PHI tagging or PHI-specific access logging; Safe Witness sends geolocation over SMS |
-| Governance / policies / IaC in version control | **Gap** — policies now drafted here; live DB schema (`firms`, `firm_members`, `audit_events`, etc.) is **not** in `schema.sql` (change-management drift) |
+| Encryption, transport, RLS access control | **Strong**: largely audit-ready |
+| Audit logging | **Partial**: append-only + hash-chained where present, but no login/export/permission-change events and no IP capture on `audit_events` |
+| MFA | **Gap**: not implemented (roadmap only); HIPAA/SOC 2 expect it, especially for admins |
+| Session controls | **Gap**: no idle/absolute timeout, no re-auth for sensitive actions |
+| Backup / DR | **Gap**: relies on Supabase defaults; no documented RPO/RTO or tested restore |
+| Data retention / disposal | **Gap**: no retention schedule; erasure leaves audit + some security rows (partly *correct* for HIPAA, see §5) |
+| HIPAA BAAs & PHI handling | **Gap**: no BAAs executed; no PHI tagging or PHI-specific access logging; Safe Witness sends geolocation over SMS |
+| Governance / policies / IaC in version control | **Gap**: policies now drafted here; live DB schema (`firms`, `firm_members`, `audit_events`, etc.) is **not** in `schema.sql` (change-management drift) |
 
 **Two false alarms from the automated scan, corrected for the record:**
-1. `.env.local` is **not** committed and never was — it is git-ignored; only `.env.local.example` (placeholders) is tracked. **No secret exposure.**
-2. `audit_events` / `firm_signature_events` are **not** un-protected — RLS is enabled with INSERT/SELECT policies and **no** UPDATE/DELETE policies, so they are effectively **append-only** for all non-service roles.
+1. `.env.local` is **not** committed and never was. It is git-ignored; only `.env.local.example` (placeholders) is tracked. **No secret exposure.**
+2. `audit_events` / `firm_signature_events` are **not** un-protected. RLS is enabled with INSERT/SELECT policies and **no** UPDATE/DELETE policies, so they are effectively **append-only** for all non-service roles.
 
 ---
 
@@ -44,7 +44,7 @@ The gaps that matter for the three frameworks are concentrated in a few areas:
 
 ---
 
-## 3. SOC 2 (Trust Services Criteria) — control status
+## 3. SOC 2 (Trust Services Criteria): control status
 
 Status legend: ✅ Implemented · 🟡 Partial · ❌ Gap · 🔒 Requires external/organizational action
 
@@ -55,7 +55,7 @@ Status legend: ✅ Implemented · 🟡 Partial · ❌ Gap · 🔒 Requires exter
 | CC3 | Risk assessment | 🟡 | [Risk register](policies/risk-register.md) drafted; needs periodic review cadence |
 | CC4 | Monitoring | 🟡 | Security-pulse dashboard + crash instrumentation exist; no formal control-monitoring cadence |
 | CC5 | Control activities | 🟡 | RLS + server-side guards strong; change-management (IaC in VCS) is a gap |
-| CC6.1 | Logical access — auth | ✅/🟡 | SSO, OAuth, magic-link, SCIM; **MFA missing** |
+| CC6.1 | Logical access (auth) | ✅/🟡 | SSO, OAuth, magic-link, SCIM; **MFA missing** |
 | CC6.2 | Access provisioning/de-provisioning | 🟡 | SCIM soft-deletes; provisioning events not audited |
 | CC6.3 | Least privilege / RBAC | ✅/🟡 | Firm roles + RLS; global `is_admin` flag is broad (see [Access Control](policies/access-control-policy.md)) |
 | CC6.6 | Boundary protection | ✅ | TLS 1.2+, HSTS, security headers, WAF via Vercel edge |
@@ -71,7 +71,7 @@ Status legend: ✅ Implemented · 🟡 Partial · ❌ Gap · 🔒 Requires exter
 
 ---
 
-## 4. ISO 27001:2022 Annex A — key control status
+## 4. ISO 27001:2022 Annex A: key control status
 
 | Annex A | Control | Status | Note |
 |---|---|---|---|
@@ -93,7 +93,7 @@ Status legend: ✅ Implemented · 🟡 Partial · ❌ Gap · 🔒 Requires exter
 
 ---
 
-## 5. HIPAA Security Rule — safeguard status
+## 5. HIPAA Security Rule: safeguard status
 
 Advottic is a **Business Associate** (it processes PHI on behalf of covered-entity / professional customers). It must satisfy 45 CFR §164.308/310/312/314/316. See the full [HIPAA Security Risk Assessment](hipaa/security-risk-assessment.md).
 
@@ -116,7 +116,7 @@ Advottic is a **Business Associate** (it processes PHI on behalf of covered-enti
 ### Technical safeguards (§164.312)
 | Requirement | Status | Note |
 |---|---|---|
-| Access control §164.312(a)(1) | ✅/🟡 | RLS + roles; add automatic logoff (idle timeout) — currently **missing** |
+| Access control §164.312(a)(1) | ✅/🟡 | RLS + roles; add automatic logoff (idle timeout), currently **missing** |
 | Unique user ID | ✅ | Per-user Supabase identities |
 | Emergency access | 🟡 | Service-role admin path exists; document procedure |
 | **Automatic logoff** §164.312(a)(2)(iii) | ❌ | No idle/absolute session timeout |
@@ -136,31 +136,31 @@ Advottic is a **Business Associate** (it processes PHI on behalf of covered-enti
 
 ## 6. Prioritized remediation roadmap
 
-**P0 — do before representing HIPAA compliance or signing an enterprise BAA**
+**P0: do before representing HIPAA compliance or signing an enterprise BAA**
 1. 🔒 Execute **BAAs** with every PHI subprocessor (Supabase, Vercel, Anthropic, Twilio, Resend) and upgrade Supabase/Vercel to HIPAA-eligible plans. *(Legal/owner)*
 2. 🔒 Name a **Security Official** and adopt the drafted policy set. *(Owner)*
-3. 🟡 **MFA** — ✅ opt-in TOTP enrollment shipped (Profile → Two-factor authentication). **Remaining:** sign-in-time AAL2 enforcement for firm admins + HQ, after on-device validation of the enroll/verify loop. *(Code — medium)*
-4. ✅ **Automatic logoff** shipped — 30-min idle timeout + 60s warning + 12h absolute cap (`components/IdleLogout.tsx`, mounted in root layout). *Remaining:* re-auth prompt for sensitive actions (deletion, export, admin impersonation). *(Code — small)*
-5. ❌→ Define + test **backup/DR**: enable Supabase PITR, document RPO/RTO, run one restore drill. *(Infra/owner — small)*
-6. ✅ **Safe Witness transmission fixed** — SMS now links to the secure tracker (opaque UUID) instead of raw GPS + plaintext PIN; offline `tel:` 911/call links retained. *(Done 2026-07-01)*
+3. 🟡 **MFA**: ✅ opt-in TOTP enrollment shipped (Profile → Two-factor authentication). **Remaining:** sign-in-time AAL2 enforcement for firm admins + HQ, after on-device validation of the enroll/verify loop. *(Code: medium)*
+4. ✅ **Automatic logoff** shipped: 30-min idle timeout + 60s warning + 12h absolute cap (`components/IdleLogout.tsx`, mounted in root layout). *Remaining:* re-auth prompt for sensitive actions (deletion, export, admin impersonation). *(Code: small)*
+5. ❌→ Define + test **backup/DR**: enable Supabase PITR, document RPO/RTO, run one restore drill. *(Infra/owner: small)*
+6. ✅ **Safe Witness transmission fixed**: SMS now links to the secure tracker (opaque UUID) instead of raw GPS + plaintext PIN; offline `tel:` 911/call links retained. *(Done 2026-07-01)*
 
-**P1 — audit-readiness hardening**
-7. 🟡 Extend **audit logging** — ✅ shipped: **login**, **data export**, **account deletion**, **role change**, and **employee (de)activation** now write to the append-only `security_events` table with IP + user-agent via `lib/security-audit.ts` (routine events auto-acknowledged so they don't flood triage). **Remaining:** PHI/exhibit *view* logging and adding `ip_address`/`user_agent` to the case-scoped `audit_events`. *(Code)*
+**P1: audit-readiness hardening**
+7. 🟡 Extend **audit logging**. ✅ Shipped: **login**, **data export**, **account deletion**, **role change**, and **employee (de)activation** now write to the append-only `security_events` table with IP + user-agent via `lib/security-audit.ts` (routine events auto-acknowledged so they don't flood triage). **Remaining:** PHI/exhibit *view* logging and adding `ip_address`/`user_agent` to the case-scoped `audit_events`. *(Code)*
 8. Add **PHI tagging** (`contains_phi` flag on cases/exhibits) + minimum-necessary access notes; segregate PHI-view audit. *(Code + schema)*
-9. Bring **live DB schema into version control** (dump `firms`, `firm_members`, `audit_events`, etc. into `schema.sql`/migrations) — resolves the CC8.1 / A.8.9 change-management gap. *(Code)*
+9. Bring **live DB schema into version control** (dump `firms`, `firm_members`, `audit_events`, etc. into `schema.sql`/migrations). This resolves the CC8.1 / A.8.9 change-management gap. *(Code)*
 10. Add **data-retention schedule** + soft-delete/purge jobs; reconcile HIPAA 6-year audit retention vs. GDPR/CCPA erasure (see note below). *(Code + policy)*
-11. Move **`/api/intake` (voice-notes)** to the shared DB-backed rate limiter; extend rate limiting to remaining public routes. *(Code — small)*
-12. Promote **CSP from Report-Only to enforcing** after a quiet observation window. *(Code — small, needs monitoring)*
+11. Move **`/api/intake` (voice-notes)** to the shared DB-backed rate limiter; extend rate limiting to remaining public routes. *(Code: small)*
+12. Promote **CSP from Report-Only to enforcing** after a quiet observation window. *(Code: small, needs monitoring)*
 13. Add **failed-login anomaly alerting** + optional CAPTCHA on repeated failures. *(Code)*
 
-**P2 — maturity**
+**P2: maturity**
 14. Third-party **penetration test** + remediate findings. *(External)*
 15. **Malware scanning** on `exhibits` uploads. *(Code/infra)*
 16. **Structured logging** with PII/PHI redaction + defined log retention. *(Code)*
 17. Adopt **Zod** (or similar) schema validation across API routes. *(Code)*
 18. **Security awareness training** program + records. *(Owner)*
 
-> **Retention vs. erasure note:** HIPAA §164.316(b)(2) requires audit logs and policies be retained **6 years**. That can lawfully override a GDPR/CCPA erasure request for those *specific* records. So "audit_events survive account deletion" is not simply a bug — it must be documented as an intentional legal-retention exception (see [Data Retention & Disposal](policies/data-retention-and-disposal.md)).
+> **Retention vs. erasure note:** HIPAA §164.316(b)(2) requires audit logs and policies be retained **6 years**. That can lawfully override a GDPR/CCPA erasure request for those *specific* records. So "audit_events survive account deletion" is not simply a bug; it must be documented as an intentional legal-retention exception (see [Data Retention & Disposal](policies/data-retention-and-disposal.md)).
 
 ---
 
@@ -190,7 +190,7 @@ Advottic is a **Business Associate** (it processes PHI on behalf of covered-enti
 - Policy set: Information Security, Access Control, Incident Response, Business Continuity/DR, Data Retention & Disposal, Vendor & Subprocessor Management (+ BAA tracker), Risk Register.
 - HIPAA: Security Risk Assessment, Breach Notification Policy, PHI data-flow map.
 
-**Not done (and why):** the P0/P1 *code* items (MFA, session timeout, expanded audit logging, PHI tagging) are scoped in §6 but not yet built — several are sizable features and one (Safe Witness SMS change) affects an emergency-safety flow that must be changed carefully. Tell me which to implement next and I'll drive them. The §7 items are external by nature.
+**Not done (and why):** the P0/P1 *code* items (MFA, session timeout, expanded audit logging, PHI tagging) are scoped in §6 but not yet built. Several are sizable features and one (Safe Witness SMS change) affects an emergency-safety flow that must be changed carefully. Tell me which to implement next and I'll drive them. The §7 items are external by nature.
 
 ---
 *This document reflects the codebase as of 2026-07-01 and must be re-reviewed after each P0/P1 item lands and at least annually.*

@@ -128,7 +128,7 @@ export function EvidenceViewer({
   const exhibit = exhibitLabel(ext.exhibit_no);
 
   // Download the ORIGINAL file, saved under its exhibit number
-  // ("EX-1451 - statement.pdf"). Fetched as a blob so the filename is ours —
+  // ("EX-1451 - statement.pdf"). Fetched as a blob so the filename is ours;
   // a plain link to the signed URL would keep the storage object's name.
   const [downloading, setDownloading] = useState(false);
   // Secure-share this exhibit's ORIGINAL file: encrypt-and-send via the same
@@ -169,7 +169,7 @@ export function EvidenceViewer({
         paddingBottom: 'var(--safe-bottom, 0px)',
       }}
     >
-      {/* Close — always legible: a black translucent disc + gold-gradient X, so
+      {/* Close, always legible: a black translucent disc + gold-gradient X, so
           it never disappears against a white/light preview. */}
       <button
         type="button"
@@ -251,7 +251,7 @@ export function EvidenceViewer({
         onClick={(e) => e.stopPropagation()}
         className="mx-auto flex h-full w-full max-w-7xl flex-col gap-4 overflow-hidden px-3 py-4 sm:px-8 lg:flex-row lg:items-stretch lg:gap-6"
       >
-        {/* Media pane — always in view; the info pane scrolls on its own so the
+        {/* Media pane, always in view; the info pane scrolls on its own so the
             preview is never pushed off-screen. */}
         <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden">
           {isEmail ? (
@@ -313,7 +313,7 @@ export function EvidenceViewer({
           )}
         </div>
 
-        {/* Info pane — heading + full breakdown, beside the media on wide
+        {/* Info pane: heading + full breakdown, beside the media on wide
             screens, below it on mobile; scrolls independently. */}
         <div className={`min-h-0 max-h-[42vh] shrink-0 space-y-3 overflow-y-auto pr-0.5 lg:max-h-none lg:w-[372px] lg:border-l lg:border-cream-50/10 lg:pl-5 ${expanded ? 'hidden' : ''}`}>
           {/* Heading */}
@@ -423,7 +423,7 @@ export function EvidenceViewer({
             caseId={caseId}
             target={{
               path: `/counsel/cases/${caseId}/evidence/download?ids=${event.id}`,
-              label: exhibit ? `${exhibit} — ${title}` : title,
+              label: exhibit ? `${exhibit} - ${title}` : title,
             }}
             onClose={() => setShare(false)}
           />

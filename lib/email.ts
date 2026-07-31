@@ -526,10 +526,10 @@ export function buildShareLinkEmailHtml(input: {
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 16px;background:#0b0b0c;border-radius:12px;">
       <tr><td style="padding:14px 16px;">
         <p style="margin:0 0 3px;color:#e8c878;font-size:10.5px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;">Encrypted &middot; AES-256</p>
-        <p style="margin:0;color:#d4d4d8;font-size:12.5px;line-height:1.6;">This document is sealed with a one-time key. <span style="color:#f4f0e6;font-weight:600;">Your decryption key arrives in a separate email</span> — you will need it to open the document.</p>
+        <p style="margin:0;color:#d4d4d8;font-size:12.5px;line-height:1.6;">This document is sealed with a one-time key. <span style="color:#f4f0e6;font-weight:600;">Your decryption key arrives in a separate email</span>. You will need it to open the document.</p>
       </td></tr>
     </table>
-    <p style="margin:0;color:#a1a1aa;font-size:11.5px;line-height:1.6;">This secure link expires ${escapeHtml(expires)}. Confidential — please do not forward.</p>`;
+    <p style="margin:0;color:#a1a1aa;font-size:11.5px;line-height:1.6;">This secure link expires ${escapeHtml(expires)}. Confidential. Please do not forward.</p>`;
   return secureShareShell({ eyebrow: 'Secure document delivery', headline: 'A document has been shared with you', bodyHtml: body, firmName: input.firmName });
 }
 

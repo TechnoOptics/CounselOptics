@@ -9,7 +9,7 @@ Retain personal data and PHI only as long as needed for the service or as requir
 | Data | Retention | Basis |
 |---|---|---|
 | Account + case data, exhibits, AI reviews | While account is active; deleted on account deletion | Contract / user control |
-| **Audit logs** (`audit_events`, `firm_signature_events`, `admin_impersonations`) | **6 years** | **HIPAA §164.316(b)(2)** — overrides erasure for these records |
+| **Audit logs** (`audit_events`, `firm_signature_events`, `admin_impersonations`) | **6 years** | **HIPAA §164.316(b)(2)**: overrides erasure for these records |
 | Security event logs | 1 year (target) | Security monitoring |
 | Billing records (Stripe) | As required by tax/finance law (typically 7 years) | Legal obligation |
 | Backups | Per Supabase PITR window; then rotated | Continuity |

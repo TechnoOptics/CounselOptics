@@ -116,7 +116,7 @@ function LeadCard({
         <div className="flex items-start justify-between gap-2">
           <p className="font-semibold text-forest-900 dark:text-cream-100 truncate flex-1 min-w-0">
             {lead.practiceAreas.slice(0, 3).join(', ') || <T>Legal matter</T>} ·{' '}
-            {lead.jurisdictionState ?? '—'}
+            {lead.jurisdictionState ?? <T>State not set</T>}
           </p>
           <span
             className={`shrink-0 inline-flex items-center px-1.5 py-[1px] rounded text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ${

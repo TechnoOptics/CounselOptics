@@ -4,14 +4,14 @@ I have everything needed. Here is the complete, compile-ready scaffold.
 
 ## Recommended stack
 
-- **Vitest** for pure-logic unit tests — zero-config with TS/ESM, fast, Jest-compatible API. The three calculators are pure functions (no React, no Supabase), so they run in a plain Node environment with no DOM.
-- **Playwright** for the public-page smoke spec — drives a real browser against a running `next start`, the most faithful way to assert a 200 status + rendered `<h1>`.
+- **Vitest** for pure-logic unit tests: zero-config with TS/ESM, fast, Jest-compatible API. The three calculators are pure functions (no React, no Supabase), so they run in a plain Node environment with no DOM.
+- **Playwright** for the public-page smoke spec: drives a real browser against a running `next start`, the most faithful way to assert a 200 status + rendered `<h1>`.
 
 One refactor is required first. The court-deadline math currently lives **inline inside the client component** `app/tools/court-deadline-calculator/CourtDeadlineCalculator.tsx` (functions `isWeekend`, `rollForwardOffWeekend`, `rollBackOffWeekend`, and the `useMemo` body). None of it is exported, so it cannot be unit-tested as-is. The scaffold below **extracts that logic verbatim into a new pure module `lib/court-deadlines.ts`** (preserving the existing behavior, including the documented local-date parsing and weekend-roll convention) and the component should then import from it. The SOL and security-deposit calculators already export pure functions, so those tests bind directly to the real signatures: `suggestSOL(accrualDateISO, state, claimType)`, `formatYears(years)`, `getState(slug)`, `getDepositRule(slug)`.
 
 ---
 
-### `lib/court-deadlines.ts` (new — extracted pure logic)
+### `lib/court-deadlines.ts` (new, extracted pure logic)
 
 ```ts
 // lib/court-deadlines.ts
@@ -496,7 +496,7 @@ for (const { path, name } of PUBLIC_PAGES) {
 }
 ```
 
-> The list contains 13 entries (home + 12 key pages) — trim to whichever exact 12 the lead verified; every path above was confirmed to render an inline `<h1>`.
+> The list contains 13 entries (home + 12 key pages). Trim to whichever exact 12 the lead verified; every path above was confirmed to render an inline `<h1>`.
 
 ---
 
@@ -516,7 +516,7 @@ Add these scripts (merge into the existing `scripts` block):
 }
 ```
 
-Add these `devDependencies` (versions current as of the toolchain in this repo — Vitest 2.x, Playwright 1.4x; pin to whatever `npm install` resolves):
+Add these `devDependencies` (versions current as of the toolchain in this repo: Vitest 2.x, Playwright 1.4x; pin to whatever `npm install` resolves):
 
 ```json
 {

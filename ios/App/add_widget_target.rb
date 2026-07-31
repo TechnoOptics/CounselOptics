@@ -1,5 +1,5 @@
 # One-time wiring of the AdvotticWidget WidgetKit extension into the
-# Capacitor Xcode project — the programmatic equivalent of the manual
+# Capacitor Xcode project. This is the programmatic equivalent of the manual
 # Xcode steps in docs/WIDGETS.md §iOS. Idempotent: safe to re-run.
 #
 #   ruby add_widget_target.rb

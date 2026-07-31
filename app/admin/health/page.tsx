@@ -118,7 +118,7 @@ function UptimeTile({
   return (
     <Tile label="24h uptime" sub={`${uptime.passedRuns}/${uptime.totalRuns} probe runs all-pass`}>
       <p className={`font-display text-4xl font-medium tabular-nums ${tone}`}>
-        {uptime.totalRuns === 0 ? '—' : `${pct}%`}
+        {uptime.totalRuns === 0 ? 'No data' : `${pct}%`}
       </p>
     </Tile>
   );
@@ -232,7 +232,7 @@ function GdprTile({
       titleHint="Computed from profiles.consented_at. Old test accounts may inflate the denominator; archive them in /admin/users to clean up."
     >
       <p className={`font-display text-4xl font-medium tabular-nums ${tone}`}>
-        {gdpr.total === 0 ? '—' : `${pct}%`}
+        {gdpr.total === 0 ? 'No data' : `${pct}%`}
       </p>
       {pending > 0 && (
         <p className="mt-1.5">
@@ -358,7 +358,7 @@ function LiveStatusBanner({ live }: { live: Awaited<ReturnType<typeof adminGetLi
         <ul className="mt-3 space-y-1 text-[12px] text-rose-200">
           {failed.map((p) => (
             <li key={p.name}>
-              <span className="font-mono">{p.name}</span> — {p.error ?? 'unknown error'}
+              <span className="font-mono">{p.name}</span>: {p.error ?? 'unknown error'}
             </li>
           ))}
         </ul>

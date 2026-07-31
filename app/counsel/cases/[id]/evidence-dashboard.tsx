@@ -183,7 +183,7 @@ function RelevanceBar({ a, base }: { a: CaseEvidenceAnalytics; base: string }) {
     <div>
       <div className="flex items-baseline gap-2 mb-3">
         <span className="font-display text-2xl leading-none text-forest-900 dark:text-cream-100 tabular-nums">
-          {avg ?? '--'}
+          {avg ?? <T>No data</T>}
         </span>
         <span className="text-[12px] text-ink-400 dark:text-cream-100/45"><T>avg score / 100</T></span>
       </div>
@@ -320,7 +320,7 @@ export function EvidenceDashboard({ analytics: a, caseId }: { analytics: CaseEvi
         <Kpi label={<T>Analyzed</T>} value={a.status.done.toLocaleString()} href={q({ status: 'done' })} sub={<>{a.analyzedPct}% <T>complete</T></>} />
         <Kpi label={<T>High relevance</T>} value={a.relevance.high.toLocaleString()} href={q({ relevance: 'high' })} sub={a.relevance.avg != null ? <><T>avg</T> {a.relevance.avg}/100</> : undefined} />
         <Kpi label={<T>Data volume</T>} value={fmtBytes(a.totalBytes)} href={base} sub={<>{a.duplicates} <T>duplicates</T></>} />
-        <Kpi label={<T>Date span</T>} value={span > 0 ? <>{span} <span className="text-[15px] text-ink-400 dark:text-cream-100/40"><T>yrs</T></span></> : '--'} href={q({ group: 'date' })} sub={a.earliest && a.latest ? `${yearFrom(a.earliest)} - ${yearFrom(a.latest)}` : <T>no dates yet</T>} />
+        <Kpi label={<T>Date span</T>} value={span > 0 ? <>{span} <span className="text-[15px] text-ink-400 dark:text-cream-100/40"><T>yrs</T></span></> : <T>No data</T>} href={q({ group: 'date' })} sub={a.earliest && a.latest ? `${yearFrom(a.earliest)} - ${yearFrom(a.latest)}` : <T>no dates yet</T>} />
         <Kpi label={<T>People</T>} value={a.entities.people.toLocaleString()} href={base} sub={<>{a.entities.organizations} <T>orgs</T> · {a.entities.locations} <T>places</T></>} />
       </div>
 

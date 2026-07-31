@@ -7,7 +7,7 @@ import { useState } from 'react';
  * via the "act as" overlay (see lib/act-as.ts + /api/admin/impersonate).
  *
  * Unlike the old magic-link impersonation, the admin's OWN session is never
- * touched — the overlay lives in a separate `adv_act_as` cookie. So `active` is
+ * touched: the overlay lives in a separate `adv_act_as` cookie. So `active` is
  * driven from the SERVER (the layout passes `readActAs() !== null`), and
  * "End impersonation" simply deletes that cookie: the admin is instantly back as
  * themselves, with no sign-out and no effect on any other tab or user.
@@ -60,7 +60,7 @@ export function ImpersonationBanner({
             <>You are viewing the app as another user.</>
           )}{' '}
           <span className="opacity-90">
-            Your admin account is untouched — anything you do here is attributed
+            Your admin account is untouched. Anything you do here is attributed
             to them. End when you&rsquo;re finished.
           </span>
         </p>

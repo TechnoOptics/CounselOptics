@@ -156,12 +156,15 @@ export function ReconcileForm({
 
       {/* Live summary */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-px rounded-lg overflow-hidden ring-1 ring-ink-200 dark:ring-forest-700/40 bg-ink-200 dark:bg-forest-700/40">
-        <SummaryCell label={t('Bank balance')} value={bankCents === null ? '—' : fmtCents(bankCents)} />
+        <SummaryCell
+          label={t('Bank balance')}
+          value={bankCents === null ? t('Not entered') : fmtCents(bankCents)}
+        />
         <SummaryCell label={t('Cleared total')} value={fmtCents(clearedTotal)} />
         <SummaryCell label={t('Outstanding')} value={fmtCents(outstanding)} muted />
         <SummaryCell
           label={t('Difference')}
-          value={difference === null ? '—' : fmtCents(difference)}
+          value={difference === null ? t('No data') : fmtCents(difference)}
           tone={difference === null ? undefined : balanced ? 'good' : 'bad'}
         />
       </div>
@@ -175,7 +178,7 @@ export function ReconcileForm({
           }`}
         >
           {balanced
-            ? t('Balanced — the cleared total matches the bank statement.')
+            ? t('Balanced: the cleared total matches the bank statement.')
             : `Off by ${fmtCents(Math.abs(difference ?? 0))}. Check off the transactions that have cleared, or investigate the gap before saving.`}
         </p>
       )}

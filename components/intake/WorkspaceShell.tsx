@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 /**
  * A two-pane workspace that fills the viewport and scrolls per pane instead
- * of scrolling the document — the pattern behind Linear, Front, Intercom and
+ * of scrolling the document: the pattern behind Linear, Front, Intercom and
  * the Salesforce console.
  *
  * Why measured height rather than a hard-coded `calc()`: this sits inside the
@@ -44,7 +44,7 @@ export function WorkspaceShell({
 
     const measure = () => {
       // Below the two-pane breakpoint the panes stack and the document
-      // scrolls normally — pinning height there would trap content.
+      // scrolls normally, so pinning height there would trap content.
       const narrow = window.innerWidth < 1024;
       setStacked(narrow);
       if (narrow) {

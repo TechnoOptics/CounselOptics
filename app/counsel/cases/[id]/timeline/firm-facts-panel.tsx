@@ -69,7 +69,7 @@ export function FirmFactsPanel({
 
   return (
     <section className="mb-6 overflow-hidden rounded-2xl border border-forest-900/10 bg-white shadow-card dark:border-cream-50/10 dark:bg-forest-900/50">
-      {/* Heading row — always visible, toggles the body. */}
+      {/* Heading row, always visible, toggles the body. */}
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -129,7 +129,7 @@ export function FirmFactsPanel({
             </div>
           )}
 
-          {/* Inline edit — fix a typo or a name without leaving the timeline.
+          {/* Inline edit: fix a typo or a name without leaving the timeline.
               Firm members only; co-counsel guests see the facts read-only. */}
           {canEdit && (
             <div className="border-t border-forest-900/10 px-5 py-3 dark:border-cream-50/10">

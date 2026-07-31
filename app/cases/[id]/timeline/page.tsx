@@ -103,7 +103,7 @@ export default async function TimelinePage({
               Case Timeline
             </h1>
             <p className="mx-auto mt-2 max-w-md text-sm text-ink-600 dark:text-cream-300/80">
-              Gather a lifetime of evidence — photos, documents, receipts, messages — into one
+              Gather a lifetime of evidence (photos, documents, receipts, messages) into one
               organised, dated record your legal team can act on.{' '}
               <span data-hide-on-ios>
                 Available on{' '}

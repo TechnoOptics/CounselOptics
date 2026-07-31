@@ -2,12 +2,12 @@ import type { AIReview } from './types';
 
 /**
  * Freemium teaser for the Advottic Review. A Basic (free) user can GENERATE
- * a review — that's the hook — but the full breakdown is part of a
+ * a review (that's the hook), but the full breakdown is part of a
  * subscription. This helper redacts a stored review SERVER-SIDE before it is
  * handed to the client: the summary and classification stay whole (the
  * tease), every list keeps only its first item, and the hidden remainder is
  * reported as per-section counts so the UI can show honest "N more" locks.
- * The full review never reaches an unentitled browser — locking with CSS
+ * The full review never reaches an unentitled browser; locking with CSS
  * alone would leak the content to anyone who opens dev tools.
  */
 
