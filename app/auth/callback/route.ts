@@ -30,6 +30,39 @@ export async function GET(request: NextRequest) {
   // Anything else falls back to /cases to keep open-redirect closed.
   const next = sanitizeNextRedirect(nextParam);
 
+  // NATIVE RETURN BRIDGE (?native=1) - see docs/APPLE_SIGNIN_DIAGNOSIS.md.
+  //
+  // Sign in with Apple is the one provider whose response comes back to
+  // Supabase as a cross-site form POST (Apple sets response_mode=form_post
+  // whenever `name email` scopes are requested). The 302 Supabase then
+  // issues in reply to that POST is what has to carry the browser out of
+  // the SFSafariViewController the app opened and back into the app. A
+  // redirect straight to the com.advottic.app:// custom scheme does not
+  // reliably make that jump on iOS, so the auth code Supabase minted is
+  // simply never handed to the app: on 2026-07-29 App Review completed
+  // Apple sign-in twice, Supabase issued a code both times, and zero
+  // sessions were created.
+  //
+  // So Apple now redirects here, to a plain https URL the Safari sheet is
+  // always willing to load, and THIS page performs the hop into the app.
+  // It runs no exchange of its own on purpose: the PKCE verifier lives in
+  // the app WebView's cookie jar, not the Safari sheet's, so the exchange
+  // can only succeed back inside the app (which app/sign-in already does
+  // in its appUrlOpen handler). The page auto-navigates to the custom
+  // scheme and also offers a real button, because a user tap is the one
+  // navigation iOS always honours.
+  //
+  // Only the native shell ever sets native=1, so the web flow below is
+  // untouched.
+  if (url.searchParams.get('native') === '1') {
+    return nativeReturnBridge({
+      code,
+      oauthError,
+      oauthErrorDesc,
+      next,
+    });
+  }
+
   if (oauthError) {
     console.error('[auth/callback] provider returned error', {
       oauthError,
@@ -302,6 +335,112 @@ export async function GET(request: NextRequest) {
   }
 
   return successResponse;
+}
+
+/**
+ * Custom scheme the iOS and Android shells register for deep links. Kept
+ * in sync with CFBundleURLSchemes in .github/workflows/ios-release.yml
+ * and the Android intent-filter, and with the redirect the sign-in page
+ * builds for Google and Microsoft.
+ */
+const NATIVE_SCHEME = 'com.advottic.app';
+
+/**
+ * Hand an OAuth result back to the native shell.
+ *
+ * Returns a small https page (which the in-app Safari sheet will always
+ * load) that immediately navigates to com.advottic.app://auth/callback
+ * carrying the auth code. The app's appUrlOpen listener picks it up and
+ * runs exchangeCodeForSession inside the WebView, where the PKCE verifier
+ * cookie actually lives.
+ *
+ * The visible button is not decoration. If the automatic hop is blocked,
+ * a tap is a user gesture, and iOS opens app URLs from a user gesture
+ * even where it declines to follow an automatic redirect.
+ */
+function nativeReturnBridge({
+  code,
+  oauthError,
+  oauthErrorDesc,
+  next,
+}: {
+  code: string | null;
+  oauthError: string | null;
+  oauthErrorDesc: string | null;
+  next: string;
+}) {
+  const params = new URLSearchParams();
+  if (code) params.set('code', code);
+  if (oauthError) params.set('error', oauthError);
+  if (oauthErrorDesc) params.set('error_description', oauthErrorDesc);
+  params.set('next', next);
+  // Built as a string rather than through the URL constructor: this is a
+  // non-http scheme and we want the exact shape the app matches on.
+  const deepLink = `${NATIVE_SCHEME}://auth/callback?${params.toString()}`;
+  // Only ever interpolated into an href and a JS string literal, both of
+  // which are escaped here. code/error/next are already query-encoded by
+  // URLSearchParams; this closes the HTML and script-context holes.
+  const hrefSafe = deepLink
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+  const jsSafe = JSON.stringify(deepLink).replace(/</g, '\\u003c');
+
+  const html = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Returning to Advottic</title>
+<style>
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: #0F2D24;
+    color: #F6F3EC;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px; box-sizing: border-box; text-align: center;
+  }
+  .card { max-width: 22rem; }
+  h1 { font-size: 1.125rem; font-weight: 600; margin: 0 0 0.5rem; }
+  p { font-size: 0.875rem; line-height: 1.6; margin: 0 0 1.5rem; opacity: 0.8; }
+  a.btn {
+    display: block; padding: 0.875rem 1.25rem; border-radius: 0.625rem;
+    background: #F6F3EC; color: #0F2D24; font-size: 0.9375rem;
+    font-weight: 600; text-decoration: none;
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>Signing you in</h1>
+    <p>One moment while we take you back to Advottic. If nothing happens, use the button below.</p>
+    <a class="btn" id="return" href="${hrefSafe}">Return to Advottic</a>
+  </div>
+  <script>
+    (function () {
+      var target = ${jsSafe};
+      try { window.location.replace(target); } catch (e) {}
+      setTimeout(function () {
+        try { document.getElementById('return').click(); } catch (e) {}
+      }, 900);
+    })();
+  </script>
+</body>
+</html>`;
+
+  return new NextResponse(html, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store, max-age=0',
+      // The page carries a single-use auth code in its markup. Keep it
+      // out of any referrer and out of frames.
+      'Referrer-Policy': 'no-referrer',
+      'X-Frame-Options': 'DENY',
+    },
+  });
 }
 
 function redirectWithError(

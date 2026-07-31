@@ -348,11 +348,18 @@ export function SignInButtons({ next }: { next: string }) {
           import('@capacitor/browser'),
         ]);
 
+        // True once the deep link has come back and we have taken over.
+        // Guards the dismissal watchdog below so closing the sheet
+        // ourselves does not look like the user giving up.
+        let handedBack = false;
+
         // Arm the deep-link listener BEFORE asking for the OAuth URL,
         // so we never miss the redirect even if the provider is fast.
         const sub = await App.addListener('appUrlOpen', async ({ url }) => {
           if (!url.includes('/auth/callback')) return;
+          handedBack = true;
           await sub.remove();
+          await dismissSub.remove();
           // Close the OAuth tab so the user is no longer staring at
           // the spinner in the browser - the app takes over from here.
           try {
@@ -425,6 +432,27 @@ export function SignInButtons({ next }: { next: string }) {
           }
         });
 
+        // If the OAuth sheet closes and no callback ever reached us, the
+        // sign-in did not happen: the person backed out, or the hop back
+        // into the app failed. Either way the page was left showing the
+        // full-screen "Bringing you in" veil forever, with no way out but
+        // force-quitting. That endless spinner is a large part of what
+        // reads as "an error occurred" to someone testing the app. Clear
+        // it and point at the path that always works.
+        const dismissSub = await Browser.addListener('browserFinished', () => {
+          // Give the deep link a moment: iOS fires browserFinished as the
+          // sheet dismisses, which can land just before appUrlOpen.
+          setTimeout(() => {
+            if (handedBack) return;
+            void sub.remove();
+            void dismissSub.remove();
+            setPending(null);
+            setError(
+              'Sign-in did not finish. You can try again, or use the email code below, which works on any device.',
+            );
+          }, 1200);
+        });
+
         // The native redirect should be a CUSTOM URL SCHEME
         // (com.advottic.app://...): iOS suppresses Universal Links back
         // to the app that presented the SFSafariViewController, so an
@@ -455,10 +483,40 @@ export function SignInButtons({ next }: { next: string }) {
         let nativeRedirectTo = `com.advottic.app://auth/callback?next=${encodeURIComponent(
           next,
         )}`;
+        // APPLE GOES BACK VIA AN HTTPS BRIDGE, NOT STRAIGHT TO THE SCHEME.
+        //
+        // Apple is the only provider that answers with a cross-site form
+        // POST (it forces response_mode=form_post whenever `name email`
+        // scopes are asked for). The 302 Supabase writes in reply to that
+        // POST is the navigation that has to leave the Safari sheet and
+        // re-enter the app, and iOS does not reliably follow a custom
+        // scheme in that position. The result was silent: on 2026-07-29
+        // App Review completed Sign in with Apple twice, Supabase minted
+        // an auth code both times (auth.flow_state.auth_code_issued_at is
+        // set on both rows), and not one session was created, because the
+        // code never reached the app. That is the 2.1(a) rejection.
+        //
+        // /auth/callback?native=1 is a plain https URL the sheet will
+        // always load, and it hops into com.advottic.app:// from there,
+        // with a real button behind the automatic attempt. See
+        // docs/APPLE_SIGNIN_DIAGNOSIS.md.
+        //
+        // Google and Microsoft keep the direct custom scheme: they come
+        // back over a normal GET redirect, that path is what installed
+        // builds use today, and there is no evidence it is broken.
+        if (provider === 'apple') {
+          nativeRedirectTo = `${origin}/auth/callback?native=1&next=${encodeURIComponent(
+            next,
+          )}`;
+        }
         try {
           const info = await App.getInfo();
           const buildNum = parseInt(info.build, 10);
-          if (Number.isFinite(buildNum) && buildNum < 10) {
+          // Apple is exempt from the legacy fallback: its bridge above is
+          // already a plain https URL, and on a pre-10 build the bridge's
+          // own hop into the scheme is the only thing that degrades, not
+          // the redirect itself.
+          if (provider !== 'apple' && Number.isFinite(buildNum) && buildNum < 10) {
             // Confirmed genuinely old build - it never registered the
             // custom scheme (iOS CFBundleURLSchemes / Android
             // intent-filter landed in versionCode 10), so using it
@@ -483,10 +541,12 @@ export function SignInButtons({ next }: { next: string }) {
         });
         if (authError) {
           await sub.remove();
+          await dismissSub.remove();
           throw authError;
         }
         if (!data?.url) {
           await sub.remove();
+          await dismissSub.remove();
           throw new Error('Sign-in URL was not returned by the auth provider.');
         }
         await Browser.open({ url: data.url, presentationStyle: 'fullscreen' });
