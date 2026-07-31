@@ -295,16 +295,19 @@ export function DistressOverlay() {
             </div>
           ) : triggered && !triggerError ? (
             <p className="text-[13px] text-emerald-300 leading-snug">
-              <strong>Alert sent.</strong> Your contacts have been notified
-              by email and (when carrier-verified) SMS. They can see your
-              live location on the alert page.
+              <strong>Alert sent.</strong> It went out to your saved
+              contacts by email, and by SMS where that is set up. We
+              cannot confirm they have received it. Where you were when
+              you pressed is on the alert page, if a location fix was
+              available.
             </p>
           ) : (
             <>
               <p className="text-[13px] text-rose-100/85 leading-snug">
-                Press and hold to alert every trusted contact you've
-                saved. They'll see a verification PIN, your location,
-                and a tap-to-call link.
+                Press and hold to alert every trusted contact you have
+                saved. The alert carries your location and a
+                tap-to-call link, and a verification PIN if you have
+                set one.
               </p>
               <button
                 type="button"
@@ -359,7 +362,7 @@ export function DistressOverlay() {
             </li>
             <li>
               <strong className="text-cream-100">Crisis Text Line</strong> - text{' '}
-              <a href="sms:741741&body=HOME" className="underline">
+              <a href="sms:741741?&body=HOME" className="underline">
                 HOME to 741741
               </a>
             </li>

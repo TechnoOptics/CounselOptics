@@ -122,19 +122,19 @@ export default function EsGuidePage({
       </nav>
 
       {g.crisis && (
-        <div className="rounded-xl bg-rose-500/10 ring-1 ring-rose-400/40 p-4 space-y-2">
-          <p className="text-[11px] uppercase tracking-[0.2em] text-rose-300 font-semibold">
+        <div className="rounded-xl bg-rose-50 dark:bg-rose-500/10 ring-1 ring-rose-400 dark:ring-rose-400/40 p-4 space-y-2">
+          <p className="text-[11px] uppercase tracking-[0.2em] text-rose-800 dark:text-rose-300 font-semibold">
             Recursos de emergencia
           </p>
-          <ul className="text-[14px] text-rose-100/90 space-y-1.5">
+          <ul className="text-[14px] text-rose-900/85 dark:text-rose-100/90 space-y-1.5">
             <li>
-              <strong className="text-cream-100">Emergencia:</strong>{' '}
+              <strong className="text-rose-950 dark:text-cream-100">Emergencia:</strong>{' '}
               <a href="tel:911" className="underline">
                 911
               </a>
             </li>
             <li>
-              <strong className="text-cream-100">
+              <strong className="text-rose-950 dark:text-cream-100">
                 Línea Nacional de Violencia Doméstica:
               </strong>{' '}
               <a href="tel:18007997233" className="underline">
@@ -143,7 +143,7 @@ export default function EsGuidePage({
               · envía START al 88788 · en español
             </li>
             <li>
-              <strong className="text-cream-100">
+              <strong className="text-rose-950 dark:text-cream-100">
                 Línea 988 de Crisis y Suicidio:
               </strong>{' '}
               <a href="tel:988" className="underline">
@@ -152,9 +152,9 @@ export default function EsGuidePage({
               (marca 2 para español)
             </li>
             <li>
-              <strong className="text-cream-100">Crisis Text Line:</strong>{' '}
+              <strong className="text-rose-950 dark:text-cream-100">Crisis Text Line:</strong>{' '}
               envía HOLA al{' '}
-              <a href="sms:741741&body=HOLA" className="underline">
+              <a href="sms:741741?&body=HOLA" className="underline">
                 741741
               </a>
             </li>

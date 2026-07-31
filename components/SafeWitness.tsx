@@ -3,12 +3,25 @@
 /**
  * Safe Witness - personal-safety flagship (responsible design).
  *
- * You press it when you feel unsafe. It immediately captures
- * geo-tagged audio/video, computes a tamper-evident SHA-256 of the
- * recording, and - after a short CANCELABLE countdown - has the
- * server alert YOUR chosen emergency contact (and your own email)
- * with a live map link, so the evidence and your location exist
- * off-device even if your phone is taken.
+ * You press it when you feel unsafe. It captures geo-tagged
+ * audio/video, computes a tamper-evident SHA-256 of the recording,
+ * and - after a short CANCELABLE countdown - asks the server to
+ * alert the emergency contacts saved to your account with a live map
+ * link that keeps updating while you move.
+ *
+ * What the copy in this file may NOT claim, because none of it is
+ * true on web:
+ *   - that the recording left the phone. /api/safe/audio is only
+ *     called by the Wear OS client; from the browser the blob lives
+ *     in blobRef and leaves only via the local download() button.
+ *   - that the SHA-256 travelled with the alert. finalize() computes
+ *     it after stopAll(), which runs after fireAlert(), and
+ *     fireAlert's POST body carries no hash field.
+ *   - that a contact received anything. /api/safe/alert returns
+ *     contacts_alerted = the number of CONFIGURED contacts, and only
+ *     fails when EVERY dispatch fails, so a success response proves
+ *     the request went out, never that it arrived.
+ * Location pings are the one thing that genuinely leaves the device.
  *
  * Deliberately NOT built: defeating the OS camera/mic indicator,
  * truly covert recording, or any automatic contact with police.
@@ -257,7 +270,7 @@ export function SafeWitness() {
 
   async function fireAlert() {
     if (!contact) return;
-    setStatus('Alerting your contact...');
+    setStatus('Alerting your saved contacts...');
     try {
       // Use the modern /api/safe/alert endpoint - same one the watch
       // hits. Session-cookie auth path. It fans out via the multi-
@@ -281,10 +294,17 @@ export function SafeWitness() {
         error?: string;
       };
       if (j.ok) {
+        // contacts_alerted is the number of contacts the server was
+        // configured to reach, not the number it reached, so the copy
+        // describes the attempt and stops short of claiming delivery.
+        // Live tracking is deliberately NOT promised here: the ping
+        // loop only starts if alert_id came back, and each tick is a
+        // no-op while posRef is null, so the trackingActive indicator
+        // below is the only honest place to say it is running.
         setStatus(
           j.contacts_alerted
-            ? `Alert sent to ${j.contacts_alerted} contact${j.contacts_alerted === 1 ? '' : 's'} with your live location. Pinging every 30s.`
-            : 'Alert sent with your live location. Pinging every 30s.',
+            ? `Advottic tried to reach your ${j.contacts_alerted} saved contact${j.contacts_alerted === 1 ? '' : 's'}. We cannot confirm they have received it.`
+            : 'Advottic tried to send your alert. We cannot confirm they have received it.',
         );
         if (j.alert_id) {
           startPingLoop(j.alert_id);
@@ -357,8 +377,13 @@ export function SafeWitness() {
           Set your emergency contact
         </h1>
         <p className="text-sm text-cream-100/70 mt-1 leading-relaxed">
-          One person Advottic will alert with your live location when you
-          trigger Safe Witness. Stored on this device only.
+          This name stays on this device so the screen can show you who
+          you are about to alert. The alert itself goes to the emergency
+          contacts saved to your account, which you can add or change{' '}
+          <a href="/profile#safe-witness" className="underline">
+            in your profile under Safe Witness
+          </a>
+          .
         </p>
         <div className="mt-5 space-y-3">
           <input
@@ -428,7 +453,7 @@ export function SafeWitness() {
         {phase === 'arming' ? (
           <div className="mt-4 rounded-xl bg-rose-500/10 ring-1 ring-rose-400/30 p-4 text-center">
             <p className="text-sm text-cream-100">
-              Alerting <strong>{contact?.name}</strong> in
+              Alerting your saved contacts in
             </p>
             <p className="text-4xl font-bold tabular-nums text-rose-300 my-1">
               {count}
@@ -487,8 +512,8 @@ export function SafeWitness() {
                   className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse flex-none"
                 />
                 <p className="text-[12.5px] text-emerald-100 leading-snug">
-                  Live tracking on. Your contacts see your moving dot.
-                  Updates every 30 seconds.
+                  Live tracking on. Your location updates every 30
+                  seconds on the alert page your contacts were sent.
                 </p>
               </div>
               <button
@@ -530,12 +555,12 @@ export function SafeWitness() {
     return (
       <Shell>
         <h1 className="font-display text-2xl font-medium text-cream-100">
-          Evidence secured
+          Recording finished
         </h1>
         <p className="text-sm text-cream-100/70 mt-1 leading-relaxed">
           {blobRef.current
-            ? 'Recording captured. Your contact was alerted with your location. Keep a copy somewhere safe.'
-            : 'Session ended. If an alert was sent, your contact has your location.'}
+            ? 'The recording stays on this device. It has not been uploaded, so download it and keep a copy somewhere the other person cannot reach.'
+            : 'The session ended before a recording was saved on this device.'}
         </p>
         {hash && (
           <div className="mt-4 rounded-xl bg-forest-950/60 ring-1 ring-cream-100/10 p-3">
@@ -546,8 +571,11 @@ export function SafeWitness() {
               {hash}
             </p>
             <p className="text-[11px] text-cream-100/60 mt-1">
-              Proves this file is unaltered. It was emailed with your
-              alert for off-device proof.
+              Write this fingerprint down somewhere separate from the
+              recording, with today&rsquo;s date. If the file is ever
+              questioned, recomputing it and getting the same value
+              shows the file still matches the one you had then. It was
+              not sent with your alert.
             </p>
           </div>
         )}
@@ -590,12 +618,9 @@ export function SafeWitness() {
       </h1>
       <p className="text-sm text-cream-100/70 mt-1.5 leading-relaxed">
         If you feel unsafe, press the button. Advottic starts a
-        geo-tagged recording and, after a short countdown you can
-        cancel, alerts{' '}
-        <strong className="text-cream-100">
-          {contact?.name || 'your contact'}
-        </strong>{' '}
-        with your live location.
+        recording that stays on this device and, after a short countdown
+        you can cancel, alerts the emergency contacts saved to your
+        account with your live location.
       </p>
       <button
         type="button"
@@ -665,7 +690,8 @@ function Disclaimer() {
       Recording-consent laws vary by place - in some states all parties
       must consent. Use this to protect yourself responsibly. Advottic
       never contacts law enforcement for you; calling 911 is always
-      your explicit choice. The alert goes only to the contact you set.
+      your explicit choice. The alert goes to the emergency contacts
+      saved to your account.
     </p>
   );
 }
