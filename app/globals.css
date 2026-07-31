@@ -648,22 +648,26 @@ body > * {
    Consumer Advottic is untouched (its :root tokens stay green). */
 .counsel-shell,
 .enterprise-shell {
-  --forest-950: 8 8 8;
-  --forest-900: 18 18 18;
-  --forest-800: 26 26 26;
-  --forest-700: 33 33 33;
-  --forest-600: 45 45 45;
-  --forest-500: 64 64 64;
-  --forest-400: 92 92 92;
-  --forest-300: 140 140 140;
-  --forest-200: 200 200 200;
-  --forest-100: 230 230 230;
-  --forest-50: 244 244 244;
+  /* Very slightly blue-shifted zinc rather than pure grey. The shift is
+     small enough that nobody names it, but it is what stops the shell
+     reading as flat "black" and makes it read as a chosen neutral.
+     Slot semantics are unchanged, so no call site moves. */
+  --forest-950: 10 10 11;
+  --forest-900: 16 16 18;
+  --forest-800: 23 23 26;
+  --forest-700: 35 35 39;
+  --forest-600: 51 51 58;
+  --forest-500: 72 72 80;
+  --forest-400: 110 110 120;
+  --forest-300: 156 156 166;
+  --forest-200: 202 202 210;
+  --forest-100: 232 232 236;
+  --forest-50: 244 244 245;
 }
 
 /* Scoped neutralization of the hard-coded green repaint hexes from
    the dark-mode layer (those use literal #hex, so the token swap
-   above can't reach them). Same luminance, hue removed. */
+   above can't reach them). Same luminance, hue removed, matched to the zinc ramp above. */
 .counsel-shell .bg-white,
 .enterprise-shell .bg-white,
 .counsel-shell .bg-ink-100,
@@ -671,7 +675,7 @@ body > * {
 .counsel-shell .hover\:bg-white:hover,
 .enterprise-shell .hover\:bg-white:hover,
 .counsel-shell .hover\:bg-ink-100:hover,
-.enterprise-shell .hover\:bg-ink-100:hover { background-color: #1e1e1e; }
+.enterprise-shell .hover\:bg-ink-100:hover { background-color: #1e1e22; }
 .counsel-shell .bg-cream-50,
 .enterprise-shell .bg-cream-50,
 .counsel-shell .bg-forest-50,
@@ -679,11 +683,11 @@ body > * {
 .counsel-shell .hover\:bg-cream-50:hover,
 .enterprise-shell .hover\:bg-cream-50:hover,
 .counsel-shell .hover\:bg-forest-50:hover,
-.enterprise-shell .hover\:bg-forest-50:hover { background-color: #1a1a1a; }
+.enterprise-shell .hover\:bg-forest-50:hover { background-color: #1a1a1e; }
 .counsel-shell .bg-cream-50\/40,
-.enterprise-shell .bg-cream-50\/40 { background-color: rgba(26, 26, 26, 0.4); }
+.enterprise-shell .bg-cream-50\/40 { background-color: rgba(26, 26, 30, 0.4); }
 .counsel-shell .bg-cream-50\/50,
-.enterprise-shell .bg-cream-50\/50 { background-color: rgba(26, 26, 26, 0.5); }
+.enterprise-shell .bg-cream-50\/50 { background-color: rgba(26, 26, 30, 0.5); }
 .counsel-shell .bg-cream-100,
 .enterprise-shell .bg-cream-100,
 .counsel-shell .bg-forest-100,
@@ -691,17 +695,17 @@ body > * {
 .counsel-shell .hover\:bg-cream-100:hover,
 .enterprise-shell .hover\:bg-cream-100:hover,
 .counsel-shell .hover\:bg-forest-100:hover,
-.enterprise-shell .hover\:bg-forest-100:hover { background-color: #242424; }
+.enterprise-shell .hover\:bg-forest-100:hover { background-color: #242428; }
 .counsel-shell .bg-cream-200,
-.enterprise-shell .bg-cream-200 { background-color: #2c2c2c; }
+.enterprise-shell .bg-cream-200 { background-color: #2c2c31; }
 .counsel-shell .bg-ink-50,
 .enterprise-shell .bg-ink-50,
 .counsel-shell .hover\:bg-ink-50:hover,
-.enterprise-shell .hover\:bg-ink-50:hover { background-color: #141414; }
+.enterprise-shell .hover\:bg-ink-50:hover { background-color: #141417; }
 .counsel-shell .bg-ink-50\/40,
-.enterprise-shell .bg-ink-50\/40 { background-color: rgba(20, 20, 20, 0.4); }
+.enterprise-shell .bg-ink-50\/40 { background-color: rgba(20, 20, 23, 0.4); }
 .counsel-shell .bg-ink-50\/50,
-.enterprise-shell .bg-ink-50\/50 { background-color: rgba(20, 20, 20, 0.5); }
+.enterprise-shell .bg-ink-50\/50 { background-color: rgba(20, 20, 23, 0.5); }
 /* Same-shade tile hairline: swap the dark-green glow for a neutral
    one so a card on a band still separates. */
 .counsel-shell .bg-forest-900 > .card,
@@ -712,12 +716,15 @@ body > * {
     0 8px 24px -4px rgba(0, 0, 0, 0.5);
 }
 
+/* One fixed wash, not three stacked gradients. Three layers cost more
+   than the effect is worth: they fight the card surface for contrast
+   and they make every card look like it is sitting on a different
+   shade depending on where it lands on the page. A single gold wash in
+   the top-right corner is the whole atmosphere budget. */
 .counsel-shell {
-  background-color: #050505;
+  background-color: #0a0a0b;
   background-image:
-    radial-gradient(ellipse at 18% 12%, rgba(213, 187, 126, 0.08), rgba(213, 187, 126, 0) 55%),
-    radial-gradient(ellipse at 88% 92%, rgba(22, 22, 22, 0.85), rgba(22, 22, 22, 0) 60%),
-    linear-gradient(180deg, #0d0d0d 0%, #0a0a0a 55%, #050505 100%);
+    radial-gradient(900px 420px at 75% -12%, rgba(213, 187, 126, 0.05), transparent 65%);
   background-attachment: fixed;
 }
 
