@@ -153,8 +153,13 @@ export default function EsGuidePage({
             </li>
             <li>
               <strong className="text-rose-950 dark:text-cream-100">Crisis Text Line:</strong>{' '}
-              envía HOLA al{' '}
-              <a href="sms:741741?&body=HOLA" className="underline">
+              {/* AYUDA, not HOLA. Crisis Text Line's Spanish keyword is
+                  AYUDA (crisistextline.org/es-espanol). "Hola" is the title of
+                  their launch announcement, not the word that routes a person
+                  to a Spanish-speaking counsellor. Verify against their site
+                  before ever changing this: someone types it in a crisis. */}
+              envía AYUDA al{' '}
+              <a href="sms:741741?&body=AYUDA" className="underline">
                 741741
               </a>
             </li>

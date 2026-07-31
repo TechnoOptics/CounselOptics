@@ -342,7 +342,7 @@ export const ES_GUIDES: EsGuide[] = [
       {
         question: 'Tengo miedo de irme. ¿Hay alguien que me ayude a planear?',
         answer:
-          'Sí. La Línea Nacional de Violencia Doméstica (1-800-799-7233) y la Crisis Text Line (envía HOLA al 741741) están disponibles las 24 horas, son gratuitas y confidenciales, y atienden en español. Si no puedes hacer una llamada, la línea de ayuda tiene una opción de chat en thehotline.org.',
+          'Sí. La Línea Nacional de Violencia Doméstica (1-800-799-7233) y la Crisis Text Line (envía AYUDA al 741741) están disponibles las 24 horas, son gratuitas y confidenciales, y atienden en español. Si no puedes hacer una llamada, la línea de ayuda tiene una opción de chat en thehotline.org.',
       },
       {
         question: '¿Qué hace Advottic en estos casos?',
