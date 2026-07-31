@@ -45,6 +45,19 @@ const ICONS: Record<string, React.ReactNode> = {
   '/counsel/help': <HelpIcon />,
 };
 
+// Nav row treatment. The active row carries exactly three signals:
+// background tint, a border, and a heavier weight. It used to stack a
+// fourth (a ring on top of a left border), which read as two competing
+// outlines on the same 1px edge.
+//
+// `border border-transparent` on the idle row is load-bearing: without
+// it the row gains a border only when it becomes active and every
+// sibling shifts a pixel on navigation.
+const NAV_ROW_BASE =
+  'flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-sm transition-colors border';
+const NAV_ROW_ACTIVE = `${NAV_ROW_BASE} font-semibold text-forest-900 dark:text-gold-200 bg-forest-900/10 dark:bg-gold-500/15 border-forest-900/20 dark:border-gold-500/30`;
+const NAV_ROW_IDLE = `${NAV_ROW_BASE} border-transparent text-ink-800 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/60 hover:text-forest-900 dark:hover:text-cream-100`;
+
 // `isCounselItemActive` and `tenantHref` live in lib/counsel-routing.ts
 // so the URL logic can be unit-tested without bundling React. The
 // regression script in scripts/test/counsel-routing.mjs runs in CI and
@@ -132,11 +145,7 @@ export function CounselSidebar({
             prefetch={false}
             aria-current={active ? 'page' : undefined}
             data-testid={`counsel-sidebar-${item.href.replace(/^\//, '').replace(/\//g, '-') || 'root'}`}
-            className={
-              active
-                ? 'flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-sm font-semibold text-forest-900 dark:text-cream-100 bg-forest-900/10 dark:bg-cream-100/10 ring-1 ring-forest-900/15 dark:ring-cream-100/15 border-l-2 border-forest-900 dark:border-gold-400 transition-colors'
-                : 'flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-sm text-ink-800 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/60 hover:text-forest-900 dark:hover:text-cream-100 transition-colors'
-            }
+            className={active ? NAV_ROW_ACTIVE : NAV_ROW_IDLE}
           >
             {/* Duotone gold glyphs (soft gold body + burnished gold line) — a
                 crafted, on-brand set. No per-row colour tile (that read cheap).
@@ -167,11 +176,7 @@ export function CounselSidebar({
                 prefetch={false}
                 data-testid="counsel-sidebar-settings"
                 aria-current={active ? 'page' : undefined}
-                className={
-                  active
-                    ? 'flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-sm font-semibold text-forest-900 dark:text-cream-100 bg-forest-900/10 dark:bg-cream-100/10 ring-1 ring-forest-900/15 dark:ring-cream-100/15 border-l-2 border-forest-900 dark:border-gold-400 transition-colors'
-                    : 'flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-sm text-ink-800 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/60 hover:text-forest-900 dark:hover:text-cream-100 transition-colors'
-                }
+                className={active ? NAV_ROW_ACTIVE : NAV_ROW_IDLE}
               >
                 <span
                   className={`inline-flex h-[18px] w-[18px] flex-none items-center justify-center transition-opacity ${
