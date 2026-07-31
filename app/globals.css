@@ -706,14 +706,17 @@ body > * {
 .enterprise-shell .bg-ink-50\/40 { background-color: rgba(20, 20, 23, 0.4); }
 .counsel-shell .bg-ink-50\/50,
 .enterprise-shell .bg-ink-50\/50 { background-color: rgba(20, 20, 23, 0.5); }
-/* Same-shade tile hairline: swap the dark-green glow for a neutral
-   one so a card on a band still separates. */
+/* Same-shade tile separation: a card sitting directly on a band of its
+   own shade needs help. It used to get a 1px gold ring, which now reads
+   as a doubled edge because the card already carries a gold hairline
+   border. Brighten the border it already has instead, and keep the one
+   flat shadow. One edge, one shadow, no stacking. */
 .counsel-shell .bg-forest-900 > .card,
 .counsel-shell .bg-forest-950 > .card,
 .enterprise-shell .bg-forest-900 > .card,
 .enterprise-shell .bg-forest-950 > .card {
-  box-shadow: 0 0 0 1px rgba(213, 187, 126, 0.35),
-    0 8px 24px -4px rgba(0, 0, 0, 0.5);
+  border-color: rgba(213, 187, 126, 0.28);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
 }
 
 /* One fixed wash, not three stacked gradients. Three layers cost more
@@ -728,13 +731,24 @@ body > * {
   background-attachment: fixed;
 }
 
-/* Card surface inside counsel-shell: sit slightly above the gradient
-   with a soft luminous edge so they read as elevated cards instead
-   of disappearing into the background. */
+/* Card surface inside counsel-shell.
+
+   This used to be a 62%-opaque panel with a 6px backdrop blur. Two
+   problems. First, a translucent blurred surface takes its contrast
+   from whatever happens to be behind it, so body text on a card sitting
+   over the gold wash measured worse than the same text three hundred
+   pixels lower. Second, backdrop-filter forces the compositor to
+   re-sample the backdrop for every card, and a matter page can carry
+   thirty of them.
+
+   So: an opaque-enough surface, no blur, and elevation carried by the
+   gold hairline plus one flat shadow. Blur stays where it belongs, on
+   floating chrome (sticky headers, menus, modal scrims), which is a
+   handful of elements rather than every tile on the page. */
 .counsel-shell .card {
-  background-color: rgba(24, 24, 24, 0.62);
+  background-color: rgba(22, 22, 26, 0.92);
   border-color: rgba(213, 187, 126, 0.12);
-  backdrop-filter: blur(6px);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
 }
 .counsel-shell .card:hover {
   border-color: rgba(213, 187, 126, 0.32);
