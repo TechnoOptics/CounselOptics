@@ -21,7 +21,10 @@ export type CaseActivityAction =
   | 'open_section'
   | 'comment'
   | 'download'
-  | 'export';
+  | 'export'
+  // Destroying evidence in a legal matter is irreversible, so it is recorded
+  // for the firm's own members too (never with skipFirm).
+  | 'delete_evidence';
 
 export type CaseActor = {
   userId: string;
@@ -167,6 +170,8 @@ const ACTIVITY_VERB: Record<string, (d: Record<string, unknown>) => string> = {
   comment: (d) => (d.where ? `commented in ${String(d.where)}` : 'left a comment'),
   download: () => 'downloaded the packet',
   export: () => 'downloaded the export packet',
+  delete_evidence: (d) =>
+    d.title ? `deleted evidence: ${String(d.title)}` : 'deleted evidence from the matter',
 };
 
 /**

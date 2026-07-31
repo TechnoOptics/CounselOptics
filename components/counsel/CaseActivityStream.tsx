@@ -29,6 +29,12 @@ const ACTION_META: Record<
   },
   download: { icon: <DownloadIcon />, verb: () => 'downloaded the packet', tone: 'download' },
   export: { icon: <DownloadIcon />, verb: () => 'downloaded the export packet', tone: 'download' },
+  delete_evidence: {
+    icon: <FolderIcon />,
+    verb: (d) =>
+      d.title ? `deleted evidence: ${String(d.title)}` : 'deleted evidence from the matter',
+    tone: 'act',
+  },
 };
 
 const KIND_LABEL: Record<string, string> = {

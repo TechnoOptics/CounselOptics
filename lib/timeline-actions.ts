@@ -341,8 +341,16 @@ export async function getTimelineMediaUrl(path: string): Promise<string | null> 
   if (!user) return null;
   const admin = createAdminSupabase();
   if (!admin) return null;
-  // Membership is enforced by the path convention (userId/caseId/...) + the
-  // caller already passing our RLS-guarded page; mint a short-lived URL.
+  // This is a public endpoint that mints a signed URL into the private
+  // `exhibits` bucket, which holds consumer AND firm-matter evidence. The path
+  // is caller-supplied, so being signed in cannot be the only gate: read the
+  // case id out of the path convention (userId/caseId/timeline/...) and confirm
+  // the caller can actually see that case before signing anything. Anything
+  // that does not match the convention is refused.
+  const segments = path.split('/');
+  if (segments.length < 3 || segments.some((s) => !s || s === '.' || s === '..')) return null;
+  const caseId = segments[1];
+  if (!(await assertCaseMember(caseId))) return null;
   const { data } = await admin.storage.from(BUCKET).createSignedUrl(path, 600);
   return data?.signedUrl ?? null;
 }

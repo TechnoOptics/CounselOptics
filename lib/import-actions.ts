@@ -586,6 +586,30 @@ export async function importBulkDocumentAction(input: {
     return { ok: false, error: 'File too large (50 MB cap on this surface).' };
   }
 
+  // The matter and client ids come from the caller and are written through the
+  // service-role client, so confirm both belong to this firm before they are
+  // stamped onto a document row.
+  const linkedCaseId = input.options?.caseId ?? null;
+  if (linkedCaseId) {
+    const { data: kase } = await admin
+      .from('cases')
+      .select('id')
+      .eq('id', linkedCaseId)
+      .eq('firm_id', firmId)
+      .maybeSingle();
+    if (!kase) return { ok: false, error: 'That matter is not in this firm.' };
+  }
+  const linkedClientUserId = input.options?.clientUserId ?? null;
+  if (linkedClientUserId) {
+    const { data: client } = await admin
+      .from('firm_clients')
+      .select('id')
+      .eq('firm_id', firmId)
+      .eq('user_id', linkedClientUserId)
+      .maybeSingle();
+    if (!client) return { ok: false, error: 'That client is not on this firm.' };
+  }
+
   const id = crypto.randomUUID();
   const safeName = fileName.slice(0, 120).replace(/[^a-zA-Z0-9.\-_ ]/g, '_');
   const filePath = `${firmId}/${id}/${safeName}`;
@@ -610,8 +634,8 @@ export async function importBulkDocumentAction(input: {
     version: 1,
     uploaded_by: userId,
     tags,
-    case_id: input.options?.caseId ?? null,
-    client_user_id: input.options?.clientUserId ?? null,
+    case_id: linkedCaseId,
+    client_user_id: linkedClientUserId,
     status: 'received',
     description: 'Uploaded via /counsel/import bulk uploader.',
   });

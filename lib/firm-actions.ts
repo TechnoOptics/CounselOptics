@@ -7,6 +7,12 @@ import { redirect } from 'next/navigation';
 import { createServerSupabase, getCurrentUser, requireUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
 import {
+  callerHasFirmRole,
+  callerIsFirmAdmin,
+  callerIsFirmMember,
+  FIRM_MANAGE_ROLES,
+} from './firm-authz';
+import {
   sendEmail,
   buildMeetingInviteEmailHtml,
   buildSigningRequestEmailHtml,
@@ -873,34 +879,9 @@ export type FirmEmployeeListItem = {
   createdAt: string;
 };
 
-/** True if the signed-in user is ANY member of `firmId` (legal team). */
-async function callerIsFirmMember(firmId: string): Promise<boolean> {
-  const user = await getCurrentUser();
-  if (!user) return false;
-  const supabase = createServerSupabase();
-  const { data } = await supabase
-    .from('firm_members')
-    .select('id')
-    .eq('firm_id', firmId)
-    .eq('user_id', user.id)
-    .maybeSingle();
-  return Boolean(data);
-}
-
-/** True only if the signed-in user is owner/admin of `firmId`. */
-async function callerIsFirmAdmin(firmId: string): Promise<boolean> {
-  const user = await getCurrentUser();
-  if (!user) return false;
-  const supabase = createServerSupabase();
-  const { data } = await supabase
-    .from('firm_members')
-    .select('role')
-    .eq('firm_id', firmId)
-    .eq('user_id', user.id)
-    .maybeSingle();
-  const role = (data as { role?: string } | null)?.role;
-  return role === 'owner' || role === 'admin';
-}
+// callerIsFirmMember / callerIsFirmAdmin / callerHasFirmRole now live in
+// lib/firm-authz.ts so every module that gates on a caller-supplied firmId
+// uses the same check. They are imported at the top of this file.
 
 export async function addFirmEmployeeAction(
   firmId: string,
@@ -1847,6 +1828,17 @@ export async function inviteFirmClientAction(
   formData: FormData,
 ): Promise<{ ok: boolean; error?: string }> {
   const user = await requireUser();
+  // The roster this writes to is the corpus lib/conflict-check.ts searches,
+  // and the invitation email below is branded as this firm. Both make an
+  // unchecked caller-supplied firmId unacceptable: gate on the same roles the
+  // firm_clients insert policy allows (owner, admin, attorney), since the
+  // service-role write further down bypasses that policy.
+  if (!(await callerHasFirmRole(firmId, FIRM_MANAGE_ROLES))) {
+    return {
+      ok: false,
+      error: 'Only an owner, admin, or attorney at this firm can invite clients.',
+    };
+  }
   const email = String(formData.get('email') ?? '').trim().toLowerCase();
   const displayName = String(formData.get('displayName') ?? '').trim() || null;
   if (!email || !email.includes('@')) return { ok: false, error: 'Enter a valid email.' };
@@ -3082,6 +3074,12 @@ export async function getOrCreateMatterChannelAction(
   fallbackName: string,
 ): Promise<{ ok: boolean; error?: string; channelId?: string }> {
   await requireUser();
+  // The slow path below writes through the service-role client, which the
+  // firm_channels insert policy cannot see, so membership has to be checked
+  // here or any signed-in user could open channels inside another firm.
+  if (!(await callerIsFirmMember(firmId))) {
+    return { ok: false, error: 'You do not have access to this firm.' };
+  }
   const supabase = createServerSupabase();
 
   // Fast path: existing matter channel.
@@ -3098,6 +3096,16 @@ export async function getOrCreateMatterChannelAction(
   // even if the caller's RLS would normally not permit that.
   const admin = createAdminSupabase();
   if (!admin) return { ok: false, error: 'Server missing service role key.' };
+  // The matter has to belong to this firm, or a member of one firm could
+  // stamp another firm's matter id onto a channel in their own workspace.
+  const { data: matterRow } = await admin
+    .from('cases')
+    .select('firm_id')
+    .eq('id', caseId)
+    .maybeSingle();
+  if ((matterRow as { firm_id: string | null } | null)?.firm_id !== firmId) {
+    return { ok: false, error: 'That matter is not in this firm.' };
+  }
   const slug = slugify(fallbackName) || `matter-${caseId.slice(0, 8)}`;
   const { data: created, error: createErr } = await admin
     .from('firm_channels')
@@ -3993,17 +4001,7 @@ const FIRM_INVITE_ROLE_MAP: Record<string, CollaboratorRole> = {
 
 /** True only if the signed-in user is owner/admin/attorney of `firmId`. */
 async function callerCanManageMatter(firmId: string): Promise<boolean> {
-  const user = await getCurrentUser();
-  if (!user) return false;
-  const supabase = createServerSupabase();
-  const { data } = await supabase
-    .from('firm_members')
-    .select('role')
-    .eq('firm_id', firmId)
-    .eq('user_id', user.id)
-    .maybeSingle();
-  const role = (data as { role?: FirmRole } | null)?.role;
-  return role === 'owner' || role === 'admin' || role === 'attorney';
+  return callerHasFirmRole(firmId, FIRM_MANAGE_ROLES);
 }
 
 /**

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { createServerSupabase, getCurrentUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
+import { callerHasFirmRole, FIRM_MANAGE_ROLES } from './firm-authz';
 
 /**
  * Co-counsel referral actions. The proposing firm files a referral
@@ -45,14 +46,16 @@ export async function proposeReferralAction(
     return { ok: false, error: 'Cannot refer to your own firm.' };
   }
 
+  // Same role set the cocounsel_referrals write policy allows, so a read-only
+  // staff account gets calm copy instead of a raw policy error.
+  if (!(await callerHasFirmRole(referringFirmId, FIRM_MANAGE_ROLES))) {
+    return {
+      ok: false,
+      error: 'Only an owner, admin, or attorney at that firm can propose a referral.',
+    };
+  }
+
   const supabase = createServerSupabase();
-  const { data: member } = await supabase
-    .from('firm_members')
-    .select('role')
-    .eq('firm_id', referringFirmId)
-    .eq('user_id', user.id)
-    .maybeSingle();
-  if (!member) return { ok: false, error: 'You are not a member of that firm.' };
 
   const { data, error } = await supabase
     .from('cocounsel_referrals')
@@ -109,6 +112,17 @@ export async function respondToReferralAction(
 ): Promise<{ ok: boolean; error?: string }> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: 'Sign in first.' };
+  // The referral RLS policy admits an owner/admin/attorney of EITHER firm, so
+  // matching the row's referred_firm_id against a caller-supplied firmId is not
+  // enough on its own: without this check an attorney at the referring firm
+  // could accept (and file the client-consent record) on the other firm's
+  // behalf.
+  if (!(await callerHasFirmRole(firmId, FIRM_MANAGE_ROLES))) {
+    return {
+      ok: false,
+      error: 'Only an owner, admin, or attorney at that firm can respond to a referral.',
+    };
+  }
   const supabase = createServerSupabase();
 
   const { data: ref } = await supabase
@@ -186,9 +200,24 @@ export async function recordReferralPaymentAction(
   side: 'referring' | 'referred',
   paidCents: number,
 ): Promise<{ ok: boolean; error?: string }> {
-  if (paidCents < 0) return { ok: false, error: 'Amount must be non-negative.' };
+  // Whole non-negative cents only. `NaN < 0` is false, so a bare `< 0` guard
+  // lets NaN through and writes a null figure into a fee-split record (the
+  // same trap lib/trust-accounting.ts documents avoiding).
+  if (!Number.isInteger(paidCents) || paidCents < 0) {
+    return { ok: false, error: 'Enter the amount paid in whole cents.' };
+  }
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: 'Sign in first.' };
+  // firmId is caller-supplied and was previously only compared against the
+  // referral row, never against the caller's own memberships. Because the RLS
+  // policy admits either firm's owner/admin/attorney, that let one side record
+  // (or zero out) the counterparty firm's fee-split receipts.
+  if (!(await callerHasFirmRole(firmId, FIRM_MANAGE_ROLES))) {
+    return {
+      ok: false,
+      error: 'Only an owner, admin, or attorney at that firm can record a payment.',
+    };
+  }
   const supabase = createServerSupabase();
   const { data: ref } = await supabase
     .from('cocounsel_referrals')
@@ -202,6 +231,10 @@ export async function recordReferralPaymentAction(
     referred_firm_id: string;
     status: string;
   };
+  // A fee split only exists once both firms have agreed to it.
+  if (r.status !== 'accepted') {
+    return { ok: false, error: 'Payments can only be recorded on an accepted referral.' };
+  }
   // Only the side recording its own payment can update its column.
   if (side === 'referring' && r.referring_firm_id !== firmId) {
     return { ok: false, error: 'Wrong firm for that side.' };

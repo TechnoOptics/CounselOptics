@@ -428,12 +428,32 @@ export async function getIntakeFileUrlAction(
 ): Promise<{ ok: boolean; url?: string; error?: string }> {
   const access = await resolveAccess(intakeId);
   if (!access.ok) return { ok: false, error: access.error };
-  // Confine the path to this ticket's own storage prefixes.
-  const okPrefix =
-    path.startsWith(`intake-chat/${access.intake.firm_id}/${intakeId}/`) ||
-    path.startsWith(`intake-uploads/${access.intake.firm_id}/`) ||
-    path.startsWith(`${access.intake.firm_id}/`);
-  if (!okPrefix) return { ok: false, error: 'That file is not part of this request.' };
+  // Confine the path. This ticket's own chat prefix is always fine. The two
+  // broader prefixes are NOT ticket-scoped: `intake-uploads/<firm>/` covers
+  // every employee's attachments firm-wide and `<firm>/` is the whole
+  // firm-documents tree (letters, contracts, imports). Only the legal team,
+  // which may read the firm's documents anyway, gets those; an employee is
+  // held to this ticket plus their own uploads.
+  const firmId = access.intake.firm_id;
+  let allowed =
+    path.startsWith(`intake-chat/${firmId}/${intakeId}/`) ||
+    (access.role === 'legal'
+      ? path.startsWith(`intake-uploads/${firmId}/`) || path.startsWith(`${firmId}/`)
+      : path.startsWith(`intake-uploads/${firmId}/${access.userId}/`));
+  if (!allowed && access.role !== 'legal') {
+    // An employee can still open a document the legal team attached to THIS
+    // ticket, which lives under the firm-wide documents prefix. Resolve it by
+    // the row rather than by the prefix, so the rest of that tree stays shut.
+    const { data: doc } = await access.admin
+      .from('firm_documents')
+      .select('id')
+      .eq('intake_id', intakeId)
+      .eq('firm_id', firmId)
+      .eq('file_path', path)
+      .maybeSingle();
+    allowed = Boolean(doc);
+  }
+  if (!allowed) return { ok: false, error: 'That file is not part of this request.' };
 
   const { data, error } = await access.admin.storage.from(BUCKET).createSignedUrl(path, 600);
   if (error || !data?.signedUrl) return { ok: false, error: 'Could not open that file.' };

@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 import { getCurrentUser, createServerSupabase } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
+import { callerHasFirmRole, FIRM_POSTING_ROLES } from './firm-authz';
 import { safeStorageUpload } from './upload-safety';
 import { buildNarrative, aiConfigured } from './timeline-ai';
 import { toNormRules, normalizeString } from './text-normalize';
@@ -332,6 +333,11 @@ export async function deleteFirmPerson(
 ): Promise<{ ok: boolean; error?: string }> {
   const gate = await assertFirmCase(firmId, caseId);
   if (!gate.ok) return { ok: false, error: gate.error };
+  // assertFirmCase admits any firm role and outside co-counsel guests, which is
+  // right for building the timeline but not for removing part of it.
+  if (!(await callerHasFirmRole(firmId, FIRM_POSTING_ROLES))) {
+    return { ok: false, error: 'Your role cannot remove people from this matter.' };
+  }
   const admin = createAdminSupabase();
   if (!admin) return { ok: false, error: 'Service unavailable.' };
   const { error } = await admin

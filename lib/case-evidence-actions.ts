@@ -8,6 +8,8 @@ import {
   type EvidenceFolderMeta,
 } from './evidence-folders';
 import { createAdminSupabase } from './supabase/admin';
+import type { FirmRole } from './firm-types';
+import { logCaseActivity } from './case-activity-log';
 import { aiConfigured } from './timeline-ai';
 import { resolveTimelineAccess } from './timeline-entitlement';
 import {
@@ -44,10 +46,37 @@ import {
  * reason.
  */
 
-/** The current user is a member of `firmId` AND `caseId` belongs to that firm. */
+/**
+ * What the caller is about to do with the matter's evidence:
+ *
+ *   'read'    - list, preview, export. Any member of the firm, plus an
+ *               outside co-counsel guest scoped to this matter.
+ *   'write'   - add or edit evidence. Firm posting roles (owner, admin,
+ *               attorney, paralegal) plus co-counsel guests, who are on the
+ *               matter to do exactly this work. Excludes `staff`, which is
+ *               advertised to firm owners as read-only.
+ *   'destroy' - permanently remove evidence rows and the underlying bytes.
+ *               Firm posting roles only. An outside guest can add to the
+ *               record but cannot irreversibly destroy the firm's evidence.
+ */
+type EvidenceIntent = 'read' | 'write' | 'destroy';
+
+const EVIDENCE_POSTING_ROLES: readonly FirmRole[] = [
+  'owner',
+  'admin',
+  'attorney',
+  'paralegal',
+];
+
+/**
+ * The current user may act on `caseId` as `intent`, AND `caseId` belongs to
+ * `firmId`. Every read and write in this module goes through the service-role
+ * client, which bypasses RLS, so this gate is the only authorization there is.
+ */
 async function assertFirmCase(
   firmId: string,
   caseId: string,
+  intent: EvidenceIntent = 'write',
 ): Promise<{ ok: true; userId: string } | { ok: false; error: string }> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: 'Sign in first.' };
@@ -57,17 +86,35 @@ async function assertFirmCase(
   // 15 firm evidence actions (list/upload/delete/analyze), so shaving a
   // round-trip here compounds across the whole intake.
   const [memberRes, caseRes] = await Promise.all([
-    supabase.from('firm_members').select('id').eq('firm_id', firmId).eq('user_id', user.id).maybeSingle(),
+    supabase.from('firm_members').select('role').eq('firm_id', firmId).eq('user_id', user.id).maybeSingle(),
     supabase.from('cases').select('id').eq('id', caseId).eq('firm_id', firmId).maybeSingle(),
   ]);
   if (!caseRes.data) return { ok: false, error: 'That matter is not in this firm.' };
-  if (memberRes.data) return { ok: true, userId: user.id };
-  // Co-counsel GUEST scoped to this matter: co-counsel may edit the evidence on
-  // their assigned matter. guestCanReadCase verifies both the case grant AND
-  // that the case belongs to `firmId`, so a guest can never reach another
-  // matter or firm through this gate.
+  const role = (memberRes.data as { role?: FirmRole } | null)?.role ?? null;
+  if (role) {
+    if (intent === 'read' || EVIDENCE_POSTING_ROLES.includes(role)) {
+      return { ok: true, userId: user.id };
+    }
+    return {
+      ok: false,
+      error:
+        intent === 'destroy'
+          ? 'Your role cannot delete evidence from this matter.'
+          : 'Your role cannot change evidence on this matter.',
+    };
+  }
+  // Co-counsel GUEST scoped to this matter: co-counsel may add to and edit the
+  // evidence on their assigned matter, but not destroy it. guestCanReadCase
+  // verifies both the case grant AND that the case belongs to `firmId`, so a
+  // guest can never reach another matter or firm through this gate.
   const { guestCanReadCase } = await import('./counsel-guest');
-  if (await guestCanReadCase(caseId, firmId)) return { ok: true, userId: user.id };
+  if (await guestCanReadCase(caseId, firmId)) {
+    if (intent !== 'destroy') return { ok: true, userId: user.id };
+    return {
+      ok: false,
+      error: 'Only the firm can delete evidence from this matter.',
+    };
+  }
   return { ok: false, error: 'You do not have access to this matter.' };
 }
 
@@ -151,7 +198,7 @@ export async function getFirmCaseTimeline(
   firmId: string,
   caseId: string,
 ): Promise<{ ok: boolean; error?: string; events?: TimelineEvent[] }> {
-  const gate = await assertFirmCase(firmId, caseId);
+  const gate = await assertFirmCase(firmId, caseId, 'read');
   if (!gate.ok) return { ok: false, error: gate.error };
   const admin = createAdminSupabase();
   if (!admin) return { ok: false, error: 'Service unavailable.' };
@@ -198,7 +245,7 @@ export async function getFirmCaseTimelinePage(
   events?: TimelineEvent[];
   nextCursor?: EvidencePageCursor | null;
 }> {
-  const gate = await assertFirmCase(firmId, caseId);
+  const gate = await assertFirmCase(firmId, caseId, 'read');
   if (!gate.ok) return { ok: false, error: gate.error };
   const admin = createAdminSupabase();
   if (!admin) return { ok: false, error: 'Service unavailable.' };
@@ -812,7 +859,7 @@ export async function deleteFirmEvidenceCollectionAction(
   caseId: string,
   name: string,
 ): Promise<{ ok: boolean; error?: string; updated?: number }> {
-  const gate = await assertFirmCase(firmId, caseId);
+  const gate = await assertFirmCase(firmId, caseId, 'destroy');
   if (!gate.ok) return { ok: false, error: gate.error };
   const folder = normalizeCollectionName(name);
   if (!folder) return { ok: false, error: 'Unknown folder.' };
@@ -845,6 +892,12 @@ export async function deleteFirmEvidenceCollectionAction(
     await writeEvidenceFolderRegistry(admin, caseId, registry);
   }
 
+  void logCaseActivity({
+    caseId,
+    action: 'delete_evidence',
+    detail: { collection: folder, items: updated },
+  });
+
   revalidatePath(`/counsel/cases/${caseId}/evidence`);
   return { ok: true, updated };
 }
@@ -861,19 +914,31 @@ export async function deleteFirmCaseEventAction(
   caseId: string,
   eventId: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  const gate = await assertFirmCase(firmId, caseId);
+  const gate = await assertFirmCase(firmId, caseId, 'destroy');
   if (!gate.ok) return { ok: false, error: gate.error };
   const admin = createAdminSupabase();
   if (!admin) return { ok: false, error: 'Service unavailable.' };
   const { data: row } = await admin
-    .from('case_timeline_events').select('media').eq('id', eventId).eq('case_id', caseId).maybeSingle();
-  const media = (row as { media: TimelineMedia[] | null } | null)?.media;
+    .from('case_timeline_events').select('title, media').eq('id', eventId).eq('case_id', caseId).maybeSingle();
+  const evidenceRow = row as { title: string | null; media: TimelineMedia[] | null } | null;
+  const media = evidenceRow?.media;
   if (Array.isArray(media) && media.length) {
     await admin.storage.from('exhibits').remove(media.map((m) => m.path)).catch(() => {});
   }
   const { error } = await admin
     .from('case_timeline_events').delete().eq('id', eventId).eq('case_id', caseId);
   if (error) return { ok: false, error: error.message };
+  // Destroying evidence is irreversible, so it goes on the matter's activity
+  // record for the firm's own members too, not only outside collaborators.
+  void logCaseActivity({
+    caseId,
+    action: 'delete_evidence',
+    detail: {
+      eventId,
+      title: evidenceRow?.title ?? null,
+      files: Array.isArray(media) ? media.length : 0,
+    },
+  });
   // Revalidate every surface the row could appear on: the evidence intake, the
   // firm timeline builder, AND the matter overview (which shows evidence /
   // timeline counts + a preview). Missing the overview is what left a deleted
@@ -931,7 +996,7 @@ export async function checkEvidenceDuplicatesAction(
   error?: string;
   duplicates?: Record<string, { id: string; title: string; exhibit: string | null }>;
 }> {
-  const gate = await assertFirmCase(firmId, caseId);
+  const gate = await assertFirmCase(firmId, caseId, 'read');
   if (!gate.ok) return { ok: false, error: gate.error };
   const admin = createAdminSupabase();
   if (!admin) return { ok: false, error: 'Service unavailable.' };
@@ -973,7 +1038,7 @@ export async function listCaseEvidenceNamesAction(
   firmId: string,
   caseId: string,
 ): Promise<{ ok: boolean; error?: string; names?: string[] }> {
-  const gate = await assertFirmCase(firmId, caseId);
+  const gate = await assertFirmCase(firmId, caseId, 'read');
   if (!gate.ok) return { ok: false, error: gate.error };
   const admin = createAdminSupabase();
   if (!admin) return { ok: false, error: 'Service unavailable.' };
@@ -1021,7 +1086,7 @@ export async function exportSelectedEvidenceAction(
   caseId: string,
   eventIds: string[],
 ): Promise<{ ok: boolean; error?: string; matter?: string; items?: EvidenceExportItem[] }> {
-  const gate = await assertFirmCase(firmId, caseId);
+  const gate = await assertFirmCase(firmId, caseId, 'read');
   if (!gate.ok) return { ok: false, error: gate.error };
   const admin = createAdminSupabase();
   if (!admin) return { ok: false, error: 'Service unavailable.' };
@@ -1074,7 +1139,7 @@ export async function getFirmEvidenceMediaUrl(
   caseId: string,
   path: string,
 ): Promise<{ ok: boolean; url?: string; error?: string }> {
-  const gate = await assertFirmCase(firmId, caseId);
+  const gate = await assertFirmCase(firmId, caseId, 'read');
   if (!gate.ok) return { ok: false, error: gate.error };
   // The path is namespaced under the case (userId/caseId/timeline/...); confirm
   // it belongs to this case before minting a URL.
@@ -1098,7 +1163,7 @@ export async function getFirmEvidenceMediaUrls(
   caseId: string,
   paths: string[],
 ): Promise<{ ok: boolean; urls?: Record<string, string>; error?: string }> {
-  const gate = await assertFirmCase(firmId, caseId);
+  const gate = await assertFirmCase(firmId, caseId, 'read');
   if (!gate.ok) return { ok: false, error: gate.error };
   const admin = createAdminSupabase();
   if (!admin) return { ok: false, error: 'Service unavailable.' };

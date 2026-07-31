@@ -312,13 +312,42 @@ const IMAGE_EXT_BY_MIME: Record<string, string> = {
   'image/webp': 'webp',
 };
 
+/**
+ * assertOrganizerEligible answers "may this user run a Community Case page",
+ * not "does this user own THIS one". Both image uploads below write into a
+ * path derived from a caller-supplied community case id through the
+ * service-role client, which no RLS policy sees, so ownership has to be
+ * confirmed here or one organizer could write into another organizer's public
+ * prefix (the id is readable from the published page's image URL).
+ */
+async function callerOrganizesCommunityCase(
+  communityCaseId: string,
+  caseId: string,
+  userId: string,
+): Promise<boolean> {
+  const supabase = createServerSupabase();
+  const { data } = await supabase
+    .from('community_cases')
+    .select('id')
+    .eq('id', communityCaseId)
+    .eq('case_id', caseId)
+    .eq('organizer_user_id', userId)
+    .maybeSingle();
+  return Boolean(data);
+}
+
+const NOT_YOUR_PAGE = 'That Community Case page is not yours to edit.';
+
 export async function uploadCommunityBannerAction(
   communityCaseId: string,
   caseId: string,
   formData: FormData,
 ): Promise<CommunityActionResult> {
   try {
-    await assertOrganizerEligible();
+    const user = await assertOrganizerEligible();
+    if (!(await callerOrganizesCommunityCase(communityCaseId, caseId, user.id))) {
+      return { ok: false, error: NOT_YOUR_PAGE };
+    }
     const file = formData.get('file');
     if (!(file instanceof File) || file.size === 0) {
       return { ok: false, error: 'Please choose an image.' };
@@ -374,7 +403,10 @@ export async function addCommunityGalleryImageAction(
   formData: FormData,
 ): Promise<CommunityActionResult> {
   try {
-    await assertOrganizerEligible();
+    const user = await assertOrganizerEligible();
+    if (!(await callerOrganizesCommunityCase(communityCaseId, caseId, user.id))) {
+      return { ok: false, error: NOT_YOUR_PAGE };
+    }
     const file = formData.get('file');
     if (!(file instanceof File) || file.size === 0) {
       return { ok: false, error: 'Please choose an image.' };
