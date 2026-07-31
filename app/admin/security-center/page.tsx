@@ -36,6 +36,24 @@ type HealthRow = {
   failures: { probe: string; error: string }[];
 };
 
+/**
+ * A monitoring surface has to be able to say "I could not look".
+ *
+ * All three of these used to collapse into one boolean that rendered as
+ * "nothing suspicious to triage", so a missing service role, a dropped
+ * table, a permissions failure and a timeout all looked identical to a
+ * clean bill of health. Only `ok` with zero rows may be reported as quiet.
+ */
+type FeedState =
+  /** The service-role client is absent, so the check never ran. */
+  | { kind: 'unconfigured' }
+  /** The table does not exist in this environment. */
+  | { kind: 'missing' }
+  /** The query ran and failed. `reason` is shown to the operator. */
+  | { kind: 'error'; reason: string }
+  /** The query succeeded. Rows may still be zero, which is genuinely good. */
+  | { kind: 'ok' };
+
 type ThreatMonitor = {
   openEvents: number;
   events24h: SecurityEventRow[];
@@ -43,13 +61,23 @@ type ThreatMonitor = {
   failedLogins24h: number;
   recent: SecurityEventRow[];
   impersonations: ImpersonationRow[];
-  eventsTableMissing: boolean;
+  state: FeedState;
 };
 type Resilience = {
   health: HealthRow | null;
   crashOpen: number;
-  crashTableMissing: boolean;
+  crashState: FeedState;
 };
+
+function isMissingTable(message: string | null | undefined): boolean {
+  return (message ?? '').toLowerCase().includes('does not exist');
+}
+
+function errorText(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  const s = String(e ?? '').trim();
+  return s.length > 0 ? s : 'Unknown error.';
+}
 
 async function gatherThreatMonitor(
   admin: ReturnType<typeof createAdminSupabase>,
@@ -61,9 +89,9 @@ async function gatherThreatMonitor(
     failedLogins24h: 0,
     recent: [],
     impersonations: [],
-    eventsTableMissing: !admin,
+    state: { kind: 'ok' },
   };
-  if (!admin) return base;
+  if (!admin) return { ...base, state: { kind: 'unconfigured' } };
   const since = SINCE_24H();
   try {
     const [openResp, recentResp, impResp] = await Promise.all([
@@ -82,11 +110,14 @@ async function gatherThreatMonitor(
         .order('created_at', { ascending: false })
         .limit(8),
     ]);
-    if (
-      openResp.error &&
-      (openResp.error.message ?? '').toLowerCase().includes('does not exist')
-    ) {
-      return { ...base, eventsTableMissing: true };
+    const firstError = openResp.error ?? recentResp.error ?? impResp.error;
+    if (firstError) {
+      return {
+        ...base,
+        state: isMissingTable(firstError.message)
+          ? { kind: 'missing' }
+          : { kind: 'error', reason: firstError.message },
+      };
     }
     base.openEvents = openResp.count ?? 0;
     const rows = (recentResp.data ?? []) as SecurityEventRow[];
@@ -100,8 +131,8 @@ async function gatherThreatMonitor(
       (r) => r.kind === 'login_failed',
     ).length;
     base.impersonations = (impResp.data ?? []) as ImpersonationRow[];
-  } catch {
-    return { ...base, eventsTableMissing: true };
+  } catch (e) {
+    return { ...base, state: { kind: 'error', reason: errorText(e) } };
   }
   return base;
 }
@@ -112,9 +143,9 @@ async function gatherResilience(
   const base: Resilience = {
     health: null,
     crashOpen: 0,
-    crashTableMissing: !admin,
+    crashState: { kind: 'ok' },
   };
-  if (!admin) return base;
+  if (!admin) return { ...base, crashState: { kind: 'unconfigured' } };
   try {
     const [healthResp, crashResp] = await Promise.all([
       admin
@@ -129,17 +160,16 @@ async function gatherResilience(
         .is('acknowledged_at', null),
     ]);
     base.health = (healthResp.data as HealthRow | null) ?? null;
-    if (
-      crashResp.error &&
-      (crashResp.error.message ?? '').toLowerCase().includes('does not exist')
-    ) {
-      base.crashTableMissing = true;
+    if (crashResp.error) {
+      base.crashState = isMissingTable(crashResp.error.message)
+        ? { kind: 'missing' }
+        : { kind: 'error', reason: crashResp.error.message };
     } else {
       base.crashOpen = crashResp.count ?? 0;
-      base.crashTableMissing = false;
+      base.crashState = { kind: 'ok' };
     }
-  } catch {
-    base.crashTableMissing = true;
+  } catch (e) {
+    base.crashState = { kind: 'error', reason: errorText(e) };
   }
   return base;
 }
@@ -173,8 +203,10 @@ export default async function SecurityCenterPage() {
           application, the data, the documents, and every account. It runs the
           full control battery, scans every stored attachment for threats,
           tracks privileged access, and reports the encryption and isolation
-          posture in real time. Nothing here is fabricated: every number is a
-          live read of the production platform.
+          posture in real time. Every number on this page is a live read of
+          the production platform, and a check that cannot run says so rather
+          than reporting all clear. The closing panel is the one exception:
+          it is a fixed statement of design commitments, labelled as such.
         </p>
       </header>
 
@@ -347,18 +379,43 @@ function ControlBattery({ results }: { results: PulseCheckResult[] }) {
   );
 }
 
+/**
+ * The one place that decides how a non-`ok` feed reads on screen.
+ *
+ * Every wording here says the check did not run. None of them says the
+ * platform is quiet, because from a failed query we do not know that.
+ */
+function FeedFailure({ state, what }: { state: FeedState; what: string }) {
+  if (state.kind === 'ok') return null;
+  const missing = state.kind === 'missing';
+  const unconfigured = state.kind === 'unconfigured';
+  return (
+    <div className="card p-4 ring-1 ring-amber-700/40 bg-amber-950/20 text-[12.5px] text-amber-100/90 space-y-1">
+      <p className="font-semibold">This check could not run.</p>
+      <p className="text-amber-100/75 leading-snug">
+        {unconfigured
+          ? `The service-role key is not set in this environment, so ${what} was never read. Treat the panel below as unknown, not clear.`
+          : missing
+            ? `The ${what} table is not provisioned in this environment, so there is nothing to read. This is not the same as having no findings.`
+            : `Reading ${what} failed, so nothing below reflects the current state.`}
+      </p>
+      {state.kind === 'error' && (
+        <p className="font-mono text-[11px] text-amber-100/60 break-words">
+          {state.reason}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function ThreatPanel({ threat }: { threat: ThreatMonitor }) {
-  if (threat.eventsTableMissing) {
+  if (threat.state.kind !== 'ok') {
     return (
       <Panel
         title="Threat & access monitor"
         blurb="Suspicious-activity feed, severity triage, and the privileged-access log."
       >
-        <div className="card p-4 ring-1 ring-white/10 bg-white/5 text-[12.5px] text-cream-100/65">
-          The security-events feed is provisioned but has no rows yet, so there
-          is nothing suspicious to triage. Detections (login spikes, anomalous
-          access) append here automatically as they happen.
-        </div>
+        <FeedFailure state={threat.state} what="the security-events feed" />
       </Panel>
     );
   }
@@ -758,30 +815,53 @@ function ResiliencePanel({
         />
         <article
           className={`card p-4 ring-1 ${
-            resilience.crashOpen > 0
-              ? 'ring-amber-700/40 bg-amber-950/15'
-              : 'ring-emerald-700/30 bg-emerald-950/12'
+            resilience.crashState.kind !== 'ok'
+              ? 'ring-amber-700/40 bg-amber-950/20'
+              : resilience.crashOpen > 0
+                ? 'ring-amber-700/40 bg-amber-950/15'
+                : 'ring-emerald-700/30 bg-emerald-950/12'
           }`}
         >
           <p className="text-[12px] font-semibold text-cream-100 mb-1">
             Open incident backlog
           </p>
           <p className="font-display text-2xl text-cream-100">
-            {resilience.crashTableMissing ? 'No data' : resilience.crashOpen}
+            {resilience.crashState.kind === 'ok'
+              ? resilience.crashOpen
+              : 'Could not read'}
           </p>
           <p className="text-[11px] text-cream-100/55 mt-1">
-            {resilience.crashTableMissing
-              ? 'Crash reporting not provisioned in this environment.'
-              : resilience.crashOpen === 0
-                ? 'No unacknowledged crash reports.'
-                : 'Unacknowledged crash reports awaiting triage.'}
+            {resilience.crashState.kind === 'unconfigured'
+              ? 'The service-role key is not set here, so the backlog was never read.'
+              : resilience.crashState.kind === 'missing'
+                ? 'Crash reporting is not provisioned in this environment.'
+                : resilience.crashState.kind === 'error'
+                  ? 'Reading the crash backlog failed, so this count is unknown.'
+                  : resilience.crashOpen === 0
+                    ? 'No unacknowledged crash reports.'
+                    : 'Unacknowledged crash reports awaiting triage.'}
           </p>
+          {resilience.crashState.kind === 'error' && (
+            <p className="font-mono text-[10.5px] text-amber-100/60 mt-1 break-words">
+              {resilience.crashState.reason}
+            </p>
+          )}
         </article>
       </div>
     </Panel>
   );
 }
 
+/**
+ * A static list of the design commitments the platform is built on.
+ *
+ * This used to render ten hardcoded green checkmarks, which read exactly
+ * like ten live control results and were nothing of the kind: the array is
+ * a literal and no query has ever been run against it. The live control
+ * results are the Control battery panel above, which does read the pulse.
+ * These are kept because the statements are useful, but they are labelled
+ * as what they are and carry no pass/fail styling.
+ */
 function ControlsChecklist({ signals }: { signals: PostureSignal[] }) {
   const controls: string[] = [
     'Tenant data isolated by Postgres row-level security; the browser never holds a privileged key.',
@@ -798,18 +878,19 @@ function ControlsChecklist({ signals }: { signals: PostureSignal[] }) {
   const configured = signals.filter((s) => s.ok).length;
   return (
     <Panel
-      title="Implemented controls"
-      blurb={`Defense-in-depth posture. ${configured} of ${signals.length} environment-scoped secrets verified present this sweep.`}
+      title="Design commitments"
+      blurb={`A fixed statement of how the platform is built. These lines are not checks and are not read from the database: for live pass/fail see the control battery above, where ${configured} of ${signals.length} environment-scoped secrets were verified present this sweep.`}
     >
       <div className="grid gap-2 sm:grid-cols-2">
         {controls.map((c, i) => (
           <div
             key={i}
-            className="flex items-start gap-2.5 text-[12px] text-cream-100/80 leading-snug"
+            className="flex items-start gap-2.5 text-[12px] text-cream-100/75 leading-snug"
           >
-            <span className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-300 text-[10px]">
-              ✓
-            </span>
+            <span
+              aria-hidden
+              className="mt-1.5 inline-flex h-1 w-1 shrink-0 rounded-full bg-cream-100/35"
+            />
             <span>{c}</span>
           </div>
         ))}

@@ -26,7 +26,9 @@ export type SecurityEventKind =
   | 'employee_deactivated'
   | 'mfa_enrolled'
   | 'mfa_removed'
-  | 'admin_impersonation';
+  | 'admin_impersonation'
+  /** An HQ operator opened a case they do not own, via the service role. */
+  | 'admin_case_view';
 
 export type SecuritySeverity = 'info' | 'warning' | 'critical';
 

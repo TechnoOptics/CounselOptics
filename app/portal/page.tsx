@@ -6,6 +6,7 @@ import { getWorkspacePersona } from '@/lib/persona';
 import { LocaleTime } from '@/components/LocaleTime';
 import { ExternalLink } from '@/components/ExternalLink';
 import { parseDueBy, isDueCurrent } from '@/lib/portal-due';
+import { visibleIntakeIds, intakesAwaitingReply } from '@/lib/portal-scope';
 import { PageHeader, SectionTitle, StatCard, EmptyState } from '@/components/counsel/ui';
 import { StatusPill, PILL_COLORS } from '@/components/counsel/StatusPill';
 
@@ -40,6 +41,7 @@ export default async function PortalDashboardPage() {
 
   const admin = createAdminSupabase();
   let intakes: IntakeRow[] = [];
+  let awaitingIds = new Set<string>();
   let meetings: Array<{
     topic: string;
     provider: string;
@@ -48,16 +50,28 @@ export default async function PortalDashboardPage() {
     intake_id: string | null;
   }> = [];
   if (admin) {
-    const { data } = await admin
-      .from('firm_matter_intakes')
-      .select('id, client_name, matter_type, status, created_at, intake_answers')
-      .eq('firm_id', persona.firm.id)
-      .eq('created_by', user.id)
-      .order('created_at', { ascending: false })
-      .limit(100);
-    intakes = (data ?? []) as IntakeRow[];
+    // Requests you filed AND requests you were invited onto - see
+    // lib/portal-scope.ts. Filtering on created_by alone left invited
+    // colleagues with a permanently empty Home.
+    const visible = await visibleIntakeIds(admin, user.id, persona.firm.id);
+    if (visible.length > 0) {
+      const { data } = await admin
+        .from('firm_matter_intakes')
+        .select('id, client_name, matter_type, status, created_at, intake_answers')
+        .eq('firm_id', persona.firm.id)
+        .in('id', visible)
+        .order('created_at', { ascending: false })
+        .limit(100);
+      intakes = (data ?? []) as IntakeRow[];
+    }
 
     const ids = intakes.map((i) => i.id);
+    // "Awaiting you" reads firm_intake_messages, not the legacy
+    // intake_answers.thread jsonb. That array stopped being written when the
+    // conversation moved to its own table, so this counted zero forever and
+    // the page told an employee they were all caught up while legal was
+    // waiting on them.
+    awaitingIds = await intakesAwaitingReply(admin, ids);
     if (ids.length > 0) {
       const { data: mtg } = await admin
         .from('firm_meetings')
@@ -72,14 +86,8 @@ export default async function PortalDashboardPage() {
   }
 
   const now = Date.now();
-  const lastRole = (r: IntakeRow): string | null => {
-    const t = (r.intake_answers ?? {}).thread;
-    if (!Array.isArray(t) || t.length === 0) return null;
-    const last = t[t.length - 1] as { role?: string };
-    return last?.role ?? null;
-  };
   const active = intakes.filter((r) => ACTIVE(r.status));
-  const awaitingYou = active.filter((r) => lastRole(r) === 'legal');
+  const awaitingYou = active.filter((r) => awaitingIds.has(r.id));
   const dueSoon = active
     .map((r) => ({ r, due: parseDueBy(r.intake_answers) }))
     .filter(

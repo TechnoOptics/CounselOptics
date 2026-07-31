@@ -16,7 +16,9 @@
  * no longer contributes any class names to the build.
  */
 
-import { PILL_COLORS } from '@/components/counsel/StatusPill';
+// Relative, not '@/': lib modules are imported by the test runner without
+// the Next.js path alias, so an aliased import here breaks the suite.
+import { PILL_COLORS } from './pill-colors';
 
 /** The employee-facing milestones, in order. */
 export const PORTAL_STEPS = ['Received', 'In review', 'Decision'] as const;

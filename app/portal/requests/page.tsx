@@ -4,6 +4,7 @@ import { getCurrentUser } from '@/lib/supabase/server';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { getWorkspacePersona } from '@/lib/persona';
 import { portalStatusLabel, portalStatusColor } from '@/lib/portal-status';
+import { visibleIntakeIds } from '@/lib/portal-scope';
 import { StatusPill } from '@/components/counsel/StatusPill';
 
 export const dynamic = 'force-dynamic';
@@ -32,14 +33,18 @@ export default async function PortalRequestsPage() {
     intake_answers: Record<string, unknown> | null;
   }> = [];
   if (admin) {
-    const { data } = await admin
-      .from('firm_matter_intakes')
-      .select('id, client_name, matter_type, status, created_at, intake_answers')
-      .eq('firm_id', persona.firm.id)
-      .eq('created_by', user.id)
-      .order('created_at', { ascending: false })
-      .limit(100);
-    requests = (data ?? []) as typeof requests;
+    // Yours and the ones you were invited onto - see lib/portal-scope.ts.
+    const visible = await visibleIntakeIds(admin, user.id, persona.firm.id);
+    if (visible.length > 0) {
+      const { data } = await admin
+        .from('firm_matter_intakes')
+        .select('id, client_name, matter_type, status, created_at, intake_answers')
+        .eq('firm_id', persona.firm.id)
+        .in('id', visible)
+        .order('created_at', { ascending: false })
+        .limit(100);
+      requests = (data ?? []) as typeof requests;
+    }
   }
 
   // Reply counts come from firm_intake_messages, not the legacy

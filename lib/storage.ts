@@ -1224,6 +1224,38 @@ export async function adminListCases(
   }));
 }
 
+/**
+ * One case, read with the service-role client for HQ.
+ *
+ * `getCase` is user-scoped, and `public.cases` has no admin bypass in its
+ * SELECT policies, so an operator opening a case they do not personally own
+ * or collaborate on got a 404 from a table that had just listed the row.
+ * This is the deliberate privileged read path instead: it is admin-only at
+ * the route, and the route writes an audit row for every view. No RLS
+ * policy was widened to make it work.
+ */
+export async function adminGetCase(id: string): Promise<AdminCaseRow | null> {
+  const admin = createAdminSupabase();
+  if (!admin) return null;
+  const { data, error } = await admin.from('cases').select('*').eq('id', id).maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  const row = data as CaseRow;
+
+  const [userResp, profileResp] = await Promise.all([
+    admin.auth.admin.getUserById(row.user_id),
+    admin.from('profiles').select('display_name').eq('id', row.user_id).maybeSingle(),
+  ]);
+
+  return {
+    ...caseFromRow(row),
+    ownerId: row.user_id,
+    ownerEmail: userResp.data?.user?.email ?? '',
+    ownerDisplayName:
+      ((profileResp.data as { display_name: string | null } | null)?.display_name) ?? null,
+  };
+}
+
 export async function adminGetCounts(): Promise<{
   users: number;
   cases: number;

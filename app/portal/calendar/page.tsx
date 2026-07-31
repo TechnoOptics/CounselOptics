@@ -5,6 +5,7 @@ import { getWorkspacePersona } from '@/lib/persona';
 import { LocaleTime } from '@/components/LocaleTime';
 import { ExternalLink } from '@/components/ExternalLink';
 import { parseDueBy, isDueCurrent } from '@/lib/portal-due';
+import { visibleIntakeIds } from '@/lib/portal-scope';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Calendar · Hub' };
@@ -23,12 +24,16 @@ export default async function HubCalendarPage() {
   type Item = { at: number; title: string; sub: string; href?: string; kind: 'meeting' | 'due' };
   const items: Item[] = [];
   if (admin) {
-    const { data: intakes } = await admin
-      .from('firm_matter_intakes')
-      .select('id, client_name, matter_type, status, intake_answers')
-      .eq('firm_id', persona.firm.id)
-      .eq('created_by', user.id)
-      .limit(100);
+    // Yours and the ones you were invited onto - see lib/portal-scope.ts.
+    const visible = await visibleIntakeIds(admin, user.id, persona.firm.id);
+    const { data: intakes } = visible.length
+      ? await admin
+          .from('firm_matter_intakes')
+          .select('id, client_name, matter_type, status, intake_answers')
+          .eq('firm_id', persona.firm.id)
+          .in('id', visible)
+          .limit(100)
+      : { data: [] };
     const rows = (intakes ?? []) as Array<{
       id: string;
       client_name: string;

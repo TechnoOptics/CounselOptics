@@ -8,6 +8,7 @@ import { WorkspaceShell } from '@/components/intake/WorkspaceShell';
 import { RecordSection } from '@/components/intake/RecordSection';
 import { IntakeWorkPanel } from '@/components/intake/IntakeWorkPanel';
 import { loadIntakeConversationAction } from '@/lib/intake-conversation';
+import { canViewIntake } from '@/lib/portal-scope';
 import {
   PORTAL_STEPS,
   isPortalDecision,
@@ -58,21 +59,10 @@ export default async function PortalRequestPage({
     intake_answers: Record<string, unknown> | null;
   };
   // Access gate: your own request, or one you were explicitly invited onto.
-  // Anything else is a 404: never leak that the row exists.
-  //
-  // The participant branch matters: legal can add a colleague to a request,
-  // and that person is emailed a link straight here. Without it the invite
-  // notification led to a 404, so the feature could not work at all.
-  let mayView = intake.firm_id === persona.firm.id && intake.created_by === user.id;
-  if (!mayView && intake.firm_id === persona.firm.id) {
-    const { data: participant } = await admin
-      .from('firm_intake_participants')
-      .select('id')
-      .eq('intake_id', intake.id)
-      .eq('user_id', user.id)
-      .maybeSingle();
-    mayView = Boolean(participant);
-  }
+  // Anything else is a 404: never leak that the row exists. The rule itself
+  // lives in lib/portal-scope.ts, shared with every Hub list, so the page
+  // that opens a request and the pages that list it cannot disagree.
+  const mayView = await canViewIntake(admin, intake, user.id, persona.firm.id);
   if (!mayView) notFound();
 
   const label = portalStatusLabel(intake.status);

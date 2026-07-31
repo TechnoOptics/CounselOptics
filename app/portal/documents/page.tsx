@@ -4,6 +4,7 @@ import { getCurrentUser } from '@/lib/supabase/server';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { getWorkspacePersona } from '@/lib/persona';
 import { ExternalLink } from '@/components/ExternalLink';
+import { visibleIntakeIds } from '@/lib/portal-scope';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Documents · Hub' };
@@ -29,13 +30,17 @@ export default async function HubDocumentsPage({
     size?: number;
   }> = [];
   if (admin) {
-    const { data } = await admin
-      .from('firm_matter_intakes')
-      .select('id, client_name, intake_answers')
-      .eq('firm_id', persona.firm.id)
-      .eq('created_by', user.id)
-      .order('created_at', { ascending: false })
-      .limit(100);
+    // Yours and the ones you were invited onto - see lib/portal-scope.ts.
+    const visible = await visibleIntakeIds(admin, user.id, persona.firm.id);
+    const { data } = visible.length
+      ? await admin
+          .from('firm_matter_intakes')
+          .select('id, client_name, intake_answers')
+          .eq('firm_id', persona.firm.id)
+          .in('id', visible)
+          .order('created_at', { ascending: false })
+          .limit(100)
+      : { data: [] };
     // Flatten every attachment across every request first, then sign
     // all paths in ONE storage call. The old per-attachment await made
     // this page's latency scale linearly with the employee's document

@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { createAdminSupabase } from './supabase/admin';
 import { createNotification } from './notifications';
 import { sendEmail, buildIntakeActivityEmailHtml } from './email';
+import { portalStatusLabel } from './portal-status';
 import {
   ticketRef,
   type IntakeAttachment,
@@ -283,9 +284,20 @@ export async function notifyIntakeActivity(input: {
     const emails = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
     const emailBy = new Map((emails.data?.users ?? []).map((u) => [u.id, u.email ?? null] as const));
 
-    const meta = [
+    // The status line is built per recipient, not once for everybody.
+    // `intake.status` is the firm's internal vocabulary: an employee was
+    // being emailed "conflict check passed" or "converted", which is exactly
+    // what lib/portal-status.ts exists to translate away. The in-app fix
+    // landed and the email path was missed. Firm-side readers keep the real
+    // status because that is the word they work in.
+    const metaFor = (onCounselSide: boolean) => [
       { label: 'Reference', value: ref },
-      { label: 'Status', value: intake.status.replace(/_/g, ' ') },
+      {
+        label: 'Status',
+        value: onCounselSide
+          ? intake.status.replace(/_/g, ' ')
+          : portalStatusLabel(intake.status),
+      },
     ];
 
     await Promise.allSettled(
@@ -325,7 +337,7 @@ export async function notifyIntakeActivity(input: {
             actorRole: actor.side === 'legal' ? 'Legal team' : 'Requester',
             bodyPreview: preview,
             attachments: message.attachments.map((a) => a.name),
-            meta,
+            meta: metaFor(onCounselSide),
             link,
             ctaLabel: input.ctaLabel ?? 'Open the conversation',
             internal: isInternal,

@@ -154,8 +154,12 @@ function CasesTable({
               className="hover:bg-ink-50/40 dark:hover:bg-white/5"
             >
               <Td>
+                {/* Links to the HQ read view, not /cases/[id]. That route
+                    reads through the user-scoped client and public.cases
+                    has no admin bypass, so every case the operator did not
+                    personally own opened as a 404. */}
                 <Link
-                  href={`/cases/${c.id}`}
+                  href={`/admin/cases/${c.id}`}
                   className="font-medium text-ink-950 dark:text-cream-100 hover:underline"
                 >
                   {c.title}

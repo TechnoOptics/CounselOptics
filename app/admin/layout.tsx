@@ -45,7 +45,14 @@ const SECURITY_PATHS = new Set([
 
 function detectPerspective(pathname: string): Perspective {
   if (pathname === '/admin') return 'overview';
-  if (CONSUMER_PATHS.has(pathname) || pathname.startsWith('/admin/consumer/')) return 'consumer';
+  if (
+    CONSUMER_PATHS.has(pathname) ||
+    pathname.startsWith('/admin/consumer/') ||
+    // The HQ case read view lives under /admin/cases/[id] and belongs to
+    // the Consumer perspective, so its chrome matches the list it came from.
+    pathname.startsWith('/admin/cases/')
+  )
+    return 'consumer';
   if (COUNSEL_PATHS.has(pathname) || pathname.startsWith('/admin/counsel/')) return 'counsel';
   if (SECURITY_PATHS.has(pathname)) return 'security';
   if (OPERATIONS_PATHS.has(pathname)) return 'operations';
