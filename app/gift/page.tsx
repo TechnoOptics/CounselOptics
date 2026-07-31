@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { GiftForm } from './gift-form';
 import { GIFT_TIERS, GIFT_DURATIONS } from '@/lib/gift';
 import { getCurrentUser } from '@/lib/supabase/server';
+import { isIosAppRequest } from '@/lib/ios-gate';
 
 export const metadata: Metadata = {
   title: { absolute: 'Gift Advottic · Advottic' },
@@ -35,6 +36,26 @@ export const dynamic = 'force-dynamic';
  * any refund correspondence.
  */
 export default async function GiftPage() {
+  // App Store Guideline 3.1.1 / 3.1.3(c) Enterprise Services. This route
+  // exists only to sell: the H1 is literally "Buy Advottic for someone you
+  // care about", and beneath it sit plan names, a "Total today" amount and a
+  // Stripe checkout. Nothing survives stripping, so inside the iOS app the
+  // route does not exist. middleware.ts redirects it to the home screen
+  // before this component runs; this branch is the second, independent line
+  // of defence and states the fact without naming anywhere to go instead.
+  if (isIosAppRequest()) {
+    return (
+      <main className="max-w-xl mx-auto px-4 sm:px-6 py-14 text-center space-y-3">
+        <h1 className="font-display text-3xl font-medium text-forest-900 dark:text-cream-100">
+          Gifting
+        </h1>
+        <p className="text-[15px] leading-relaxed text-ink-600 dark:text-cream-100/70">
+          Gifting is not available in the app.
+        </p>
+      </main>
+    );
+  }
+
   const user = await getCurrentUser().catch(() => null);
   return (
     <main className="max-w-3xl mx-auto px-4 sm:px-6 py-10 sm:py-14 space-y-8">

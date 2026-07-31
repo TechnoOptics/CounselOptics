@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { isIosAppRequest } from '@/lib/ios-gate';
 
 /**
  * /es/que-es-advottic - Spanish translation of /what-is-advottic.
@@ -128,6 +129,7 @@ const jsonLd = {
 };
 
 export default function EsQueEsAdvotticPage() {
+  const isIos = isIosAppRequest();
   return (
     <article className="max-w-3xl mx-auto px-4 sm:px-6 py-10 sm:py-14 space-y-10 text-ink-800 dark:text-cream-100/85 leading-relaxed">
       <script
@@ -214,16 +216,23 @@ export default function EsQueEsAdvotticPage() {
         </p>
       </Section>
 
-      <Section title="Precio en una línea">
-        <p>
-          Plan gratuito ($0), planes personales desde $19/mes, planes
-          para despachos desde $59 por usuario al mes. Consulta{' '}
-          <Link href="/pricing" data-hide-on-ios className="underline">
-            advottic.com/pricing
-          </Link>{' '}
-          para ver el desglose completo.
-        </p>
-      </Section>
+      {/* Guideline 3.1.1 / 3.1.3(c) Enterprise Services, same as the English page: no prices and
+          no pointer to where to buy inside the iOS app. Whole section dropped
+          on iOS, with data-hide-on-ios as the second signal. */}
+      {!isIos && (
+        <span data-hide-on-ios className="contents">
+          <Section title="Precio en una línea">
+            <p>
+              Plan gratuito ($0), planes personales desde $19/mes, planes
+              para despachos desde $59 por usuario al mes. Consulta{' '}
+              <Link href="/pricing" className="underline">
+                advottic.com/pricing
+              </Link>{' '}
+              para ver el desglose completo.
+            </p>
+          </Section>
+        </span>
+      )}
 
       <Section title="Confianza y seguridad">
         <p>

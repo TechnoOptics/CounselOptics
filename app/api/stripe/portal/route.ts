@@ -2,11 +2,19 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { getStripe, isStripeConfigured } from '@/lib/stripe';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { getCurrentSubscription } from '@/lib/storage';
+import { blockedIosAppPurchase } from '@/lib/iap-guard';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest) {
+  // App Store Guideline 3.1.1. The Stripe Customer Portal is not just
+  // "manage" - depending on portal configuration it can switch plan, resume
+  // a cancelled subscription, or start a new one, so it is a purchase
+  // surface. Fail closed for the iOS app, same as checkout.
+  const blockedIos = blockedIosAppPurchase(req);
+  if (blockedIos) return blockedIos;
+
   if (!isSupabaseConfigured() || !isStripeConfigured()) {
     return NextResponse.json({ error: 'Billing is not configured.' }, { status: 503 });
   }

@@ -1,17 +1,19 @@
 'use client';
 
 import { useIsNativeApp } from '@/components/useIsNativeApp';
-import { ExternalLink } from '@/components/ExternalLink';
 import type { NativePlatform } from '@/lib/platform';
 
 /**
- * iOS subscription note (reader model).
+ * iOS subscription status note.
  *
- * Advottic does NOT sell subscriptions inside the iOS app — there is no Apple
- * In-App Purchase. Plans are purchased on the web (advottic.com via Stripe)
- * and the app unlocks based on the signed-in account's entitlement. So instead
- * of an Apple "Restore Purchases" control (only required when you sell IAP),
- * iOS users get a short note telling them where their subscription lives.
+ * Advottic on iOS is a free client for a service the customer buys and
+ * administers outside the app. Under App Store Guideline 3.1.1 / 3.1.3(c)
+ * Enterprise Services the app sells nothing, and it must also carry no call
+ * to action to purchase outside it. There is therefore no Apple
+ * "Restore Purchases" control (only required when you sell IAP), no price, no
+ * plan choice, and no pointer to where a subscription can be bought - naming
+ * the place to buy is itself a call to action. What is left is a plain
+ * statement of how access resolves.
  *
  * On web + Android this returns null. `serverPlatform` is the authoritative,
  * non-racy signal (see TierCard for the full rationale) so a lost bridge race
@@ -32,14 +34,6 @@ export function RestorePurchases({
       <p className="text-[13px] text-ink-700 dark:text-cream-100/80 leading-relaxed">
         Your Advottic plan is tied to your account. When your account has an
         active subscription, all of your features unlock here automatically.
-      </p>
-      <p className="mt-2 text-[13px]">
-        <ExternalLink
-          href="https://advottic.com/pricing"
-          className="font-semibold text-gold-700 underline underline-offset-2 dark:text-gold-300"
-        >
-          View plans and subscribe at advottic.com
-        </ExternalLink>
       </p>
     </div>
   );

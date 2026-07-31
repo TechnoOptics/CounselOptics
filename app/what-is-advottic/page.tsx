@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { isIosAppRequest } from '@/lib/ios-gate';
 
 /**
  * /what-is-advottic - the canonical "what is X?" page.
@@ -251,6 +252,7 @@ const jsonLd = {
 };
 
 export default function WhatIsAdvotticPage() {
+  const isIos = isIosAppRequest();
   return (
     <article className="max-w-3xl mx-auto px-4 sm:px-6 py-10 sm:py-14 space-y-10 text-ink-800 dark:text-cream-100/85 leading-relaxed">
       <script
@@ -341,17 +343,26 @@ export default function WhatIsAdvotticPage() {
         </p>
       </Section>
 
-      <Section title="Pricing in one line">
-        <p>
-          Free tier ($0), personal plans from $19/month, law-firm
-          plans from $59/seat/month, Enterprise from $1,800/month. See{' '}
-          <Link href="/pricing" data-hide-on-ios className="underline">
-            advottic.com/pricing
-          </Link>{' '}
-          for the full breakdown including the annual prepay discount
-          and bar-association discount.
-        </p>
-      </Section>
+      {/* Guideline 3.1.1 / 3.1.3(c) Enterprise Services: no prices and no pointer to where to
+          buy inside the iOS app. Only the /pricing link used to be gated,
+          which left the prices visible AND a dangling "See ... for the full
+          breakdown". The whole section is now dropped on iOS (server signal)
+          and marked data-hide-on-ios as the second signal. */}
+      {!isIos && (
+        <span data-hide-on-ios className="contents">
+          <Section title="Pricing in one line">
+            <p>
+              Free tier ($0), personal plans from $19/month, law-firm
+              plans from $59/seat/month, Enterprise from $1,800/month. See{' '}
+              <Link href="/pricing" className="underline">
+                advottic.com/pricing
+              </Link>{' '}
+              for the full breakdown including the annual prepay discount
+              and bar-association discount.
+            </p>
+          </Section>
+        </span>
+      )}
 
       <Section title="Where Advottic sits in the legal-tech market">
         <p>

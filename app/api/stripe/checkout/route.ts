@@ -8,11 +8,20 @@ import {
 } from '@/lib/storage';
 import type { Tier } from '@/lib/types';
 import { PERSONAL_TIERS, type PersonalTierKey } from '@/lib/personal-tiers';
+import { blockedIosAppPurchase } from '@/lib/iap-guard';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest) {
+  // App Store Guideline 3.1.1. This is the PRIMARY subscription route - it
+  // creates the live Stripe Checkout session for both the personal ladder
+  // and the legacy tiers - and it had no iOS guard at all. It must fail
+  // closed before anything else runs: no subscription may be started from
+  // inside the iOS app by any means, including a hand-crafted POST.
+  const blockedIos = blockedIosAppPurchase(req);
+  if (blockedIos) return blockedIos;
+
   if (!isSupabaseConfigured()) {
     return NextResponse.json({ error: 'Auth is not configured.' }, { status: 503 });
   }
@@ -48,7 +57,7 @@ export async function POST(req: NextRequest) {
   const personal = body.slug ? PERSONAL_TIERS.find((t) => t.key === body.slug) : undefined;
   if (personal) {
     if (personal.priceUsd === 0 || !personal.stripeEnv) {
-      return NextResponse.json({ error: 'That plan is free — no checkout needed.' }, { status: 400 });
+      return NextResponse.json({ error: 'That plan is free, no checkout needed.' }, { status: 400 });
     }
     priceId = process.env[personal.stripeEnv]?.trim() || undefined;
     tierLabel = personal.key;

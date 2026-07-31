@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { ExternalLink } from '@/components/ExternalLink';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { nativePlatformFromUserAgent } from '@/lib/platform';
 import {
@@ -81,6 +80,13 @@ export default async function BillingPage({
   // `serverPlatform` prop for why this replaces relying solely on the
   // client-side window.Capacitor bridge check.
   const serverPlatform = nativePlatformFromUserAgent(headers().get('user-agent'));
+  // App Store Guideline 3.1.1 / 3.1.3(c) Enterprise Services. /billing stays reachable on iOS
+  // as a READ-ONLY status page - an existing subscriber must be able to see
+  // what their account includes - but every price, plan choice, comparison,
+  // upgrade prompt, trial offer, checkout result banner and billing-management
+  // control is removed. Each of those is gated on this server signal AND
+  // carries data-hide-on-ios so a missed UA token still hides it.
+  const isIos = serverPlatform === 'ios';
   const rawStatus = sub?.status ?? 'inactive';
   const currentTier: Tier | null = sub?.tier ?? null;
 
@@ -130,35 +136,53 @@ export default async function BillingPage({
             ? `You're on ${currentTier ? TIER_LABEL[currentTier] : 'an Advottic'} plan`
             : status === 'trialing'
               ? `${currentTier ? TIER_LABEL[currentTier] : 'Your'} trial is in progress`
-              : 'Choose your tier'}
+              : isIos
+                ? 'Your account'
+                : 'Choose your tier'}
         </h1>
-        <p className="text-sm text-ink-600 mt-1 max-w-2xl">
-          {status === 'active'
-            ? 'Manage your billing, top up tokens, or switch tiers from the customer portal.'
-            : 'Five plans, monthly billing, 7-day free trial for first-time subscribers. Cancel any time.'}
-        </p>
+        {/* Guideline 3.1.1 / 3.1.3(c) Enterprise Services: inside the iOS app the subhead may
+            state the current entitlement as fact but may not offer plans,
+            count them, quote a trial, or describe billing management. Both
+            web strings do one of those, so on iOS there is no subhead at
+            all. Gated on the server signal AND data-hide-on-ios. */}
+        {!isIos && (
+          <p data-hide-on-ios className="text-sm text-ink-600 mt-1 max-w-2xl">
+            {status === 'active'
+              ? 'Manage your billing, top up tokens, or switch tiers from the customer portal.'
+              : 'Five plans, monthly billing, 7-day free trial for first-time subscribers. Cancel any time.'}
+          </p>
+        )}
       </div>
 
-      {searchParams?.success === '1' && (
-        <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-          Subscription confirmed. It can take a moment for the status to refresh while Stripe
-          sends the confirmation event.
-        </p>
-      )}
-      {searchParams?.canceled === '1' && (
-        <p className="rounded-lg border border-ink-200 bg-ink-50 px-4 py-3 text-sm text-ink-700">
-          Checkout canceled. You can subscribe whenever you're ready.
-        </p>
-      )}
-      {searchParams?.topup === 'success' && (
-        <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-          Top-up confirmed. Your tokens will appear on the gauge below within a few seconds.
-        </p>
-      )}
-      {searchParams?.topup === 'canceled' && (
-        <p className="rounded-lg border border-ink-200 bg-ink-50 px-4 py-3 text-sm text-ink-700">
-          Top-up canceled. No charge has been made.
-        </p>
+      {/* Checkout / top-up result banners. These are query-param driven, so
+          they could otherwise be surfaced inside the app by a crafted URL,
+          and every one of them names a purchase ("subscribe", "checkout",
+          "no charge has been made"). No checkout can start from the iOS app
+          in the first place, so on iOS they simply do not render. */}
+      {!isIos && (
+        <div data-hide-on-ios className="contents">
+          {searchParams?.success === '1' && (
+            <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+              Subscription confirmed. It can take a moment for the status to refresh while Stripe
+              sends the confirmation event.
+            </p>
+          )}
+          {searchParams?.canceled === '1' && (
+            <p className="rounded-lg border border-ink-200 bg-ink-50 px-4 py-3 text-sm text-ink-700">
+              Checkout canceled. You can subscribe whenever you&rsquo;re ready.
+            </p>
+          )}
+          {searchParams?.topup === 'success' && (
+            <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+              Top-up confirmed. Your tokens will appear on the gauge below within a few seconds.
+            </p>
+          )}
+          {searchParams?.topup === 'canceled' && (
+            <p className="rounded-lg border border-ink-200 bg-ink-50 px-4 py-3 text-sm text-ink-700">
+              Top-up canceled. No charge has been made.
+            </p>
+          )}
+        </div>
       )}
       {/* Auto-surface a "trial ended" notice when the Stripe row still
           reads trialing/active but the local clock says the period is
@@ -169,9 +193,10 @@ export default async function BillingPage({
         rawStatus !== 'inactive' &&
         searchParams?.gate !== 'trial-ended' && (
           <p className="rounded-lg border border-gold-300/50 bg-cream-50 px-4 py-3 text-sm text-forest-900">
-            <strong>Your trial has ended.</strong> Subscribe below to keep creating cases and
-            using Bella + Advottic Review. You can still view your existing cases and look up
-            counsel without a subscription.
+            <strong>Your trial has ended.</strong>{' '}
+            {isIos
+              ? 'Creating new cases and using Bella + Advottic Review now need an active subscription on your account. You can still view your existing cases and look up counsel.'
+              : 'Subscribe below to keep creating cases and using Bella + Advottic Review. You can still view your existing cases and look up counsel without a subscription.'}
           </p>
         )}
       {/* The ?gate=file-exhibits and ?gate=public-defender URL params
@@ -180,9 +205,10 @@ export default async function BillingPage({
           both directories are now free across every tier. */}
       {searchParams?.gate === 'trial-ended' && (
         <p className="rounded-lg border border-gold-300/50 bg-cream-50 px-4 py-3 text-sm text-forest-900 leading-relaxed">
-          <strong>Your trial has ended.</strong> Subscribe below to keep creating cases and
-          using Bella + Advottic Review. You can still view your existing cases and look up
-          counsel without a subscription.
+          <strong>Your trial has ended.</strong>{' '}
+          {isIos
+            ? 'Creating new cases and using Bella + Advottic Review now need an active subscription on your account. You can still view your existing cases and look up counsel.'
+            : 'Subscribe below to keep creating cases and using Bella + Advottic Review. You can still view your existing cases and look up counsel without a subscription.'}
         </p>
       )}
       {(searchParams?.gate === 'file-exhibits' ||
@@ -246,8 +272,11 @@ export default async function BillingPage({
         )}
       </div>
 
-      {!stripeReady && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+      {/* Operator-facing misconfiguration notice. Names Stripe and
+          "Subscribe buttons", so it is iOS-gated like every other
+          purchase-adjacent string on this page. */}
+      {!stripeReady && !isIos && (
+        <div data-hide-on-ios className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
           <p className="font-medium mb-1">Stripe is not connected</p>
           <p className="leading-relaxed">
             Add <code className="font-mono">STRIPE_SECRET_KEY</code>,{' '}
@@ -268,6 +297,11 @@ export default async function BillingPage({
           users see an upgrade nudge that explains what top-ups are
           for. The Pro path lives inside the section below; this is
           just navigation. */}
+      {/* Token top-up navigation row. "Top up tokens" / "Upgrade to enable
+          top-ups" are both purchase CTAs, so this is now removed from the
+          markup on iOS rather than merely CSS-hidden - the CSS attribute
+          stays as the second signal. */}
+      {!isIos && (
       <div data-hide-on-ios className="flex flex-wrap items-baseline justify-between gap-3 rounded-2xl border border-gold-300/40 bg-gradient-to-br from-cream-50 to-white dark:from-forest-900 dark:to-forest-950 p-4 sm:p-5 ring-1 ring-gold-400/20">
         <div className="min-w-0">
           <p className="eyebrow mb-1 text-gold-700 dark:text-gold-300">
@@ -294,8 +328,9 @@ export default async function BillingPage({
           </a>
         )}
       </div>
+      )}
 
-      {/* Personal plan ladder — five rungs, features unlock as you climb.
+      {/* Personal plan ladder: five rungs, features unlock as you climb.
           On iOS/iPadOS we do NOT render the purchasable ladder at all: Apple
           reads a list of named tiers (Plus/Pro/Ultra) with no in-app purchase
           as "IAP products missing" (Guideline 2.1(b)). Reader model: the iOS
@@ -308,23 +343,20 @@ export default async function BillingPage({
             Your plan
           </p>
           <p className="mt-1.5 font-display text-xl text-forest-900 dark:text-cream-100">
-            {isActive && currentTier ? `${TIER_LABEL[currentTier]} — active` : 'Free plan'}
+            {isActive && currentTier ? `${TIER_LABEL[currentTier]} (active)` : 'Free plan'}
           </p>
           <p className="mt-3 text-[13px] leading-relaxed text-ink-600 dark:text-cream-100/70">
-            Your subscription is managed from your Advottic account. Whatever plan
-            you have unlocks here automatically.
-          </p>
-          <p className="mt-2 text-[13px]">
-            <ExternalLink
-              href="https://advottic.com/pricing"
-              className="font-semibold text-gold-700 underline underline-offset-2 dark:text-gold-300"
-            >
-              View plans and subscribe at advottic.com
-            </ExternalLink>
+            Whatever your account includes unlocks here automatically.
           </p>
         </div>
       ) : (
-        <div id="tiers" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5 items-stretch stagger scroll-mt-20">
+        // Defence in depth. This branch previously relied on the server UA
+        // token alone, which fails OPEN: no token means 'web', which would
+        // have rendered the full five-rung ladder with live Subscribe buttons
+        // inside the app. data-hide-on-ios adds the independent client-side
+        // Capacitor signal (globals.css `.is-ios-app`), so a missed token
+        // degrades to a hidden ladder rather than a price list.
+        <div data-hide-on-ios id="tiers" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5 items-stretch stagger scroll-mt-20">
           {PERSONAL_TIERS.map((t) => (
             <PersonalTierCard
               key={t.key}
@@ -354,6 +386,7 @@ export default async function BillingPage({
         monthlyOverageTokens={overage.monthlyOverageTokens}
         isApproaching={overage.isApproaching}
         isOver={overage.isOver}
+        isIos={isIos}
       />
 
       {/* Pro-only token gauge + top-up + ledger. Renders only when the
@@ -422,6 +455,7 @@ function ItemsGauge({
   monthlyOverageTokens,
   isApproaching,
   isOver,
+  isIos,
 }: {
   count: { cases: number; contracts: number; total: number };
   itemLimit: number | null;
@@ -429,6 +463,15 @@ function ItemsGauge({
   monthlyOverageTokens: number;
   isApproaching: boolean;
   isOver: boolean;
+  /**
+   * App Store Guideline 3.1.1 / 3.1.3(c) Enterprise Services. This gauge renders for EVERY
+   * signed-in user, and its over-cap state carried the two most explicit
+   * purchase CTAs left in the app ("Buy a Boost pack", "Compare tiers")
+   * completely ungated. On iOS the usage numbers stay - they are a factual
+   * statement about the account - and every buy / compare / upgrade prompt
+   * is removed.
+   */
+  isIos: boolean;
 }) {
   const pct = itemLimit && itemLimit > 0
     ? Math.min(100, (count.total / itemLimit) * 100)
@@ -487,27 +530,30 @@ function ItemsGauge({
             <strong>{monthlyOverageTokens.toLocaleString()}</strong> tokens
             from your monthly grant.
           </p>
-          <div className="flex flex-wrap gap-2">
-            <a
-              href="#topup"
-              className="inline-flex items-center gap-1 rounded-md bg-gold-metal text-forest-950 px-3 py-1.5 text-[12px] font-semibold hover:brightness-110"
-            >
-              Buy a Boost pack &rarr;
-            </a>
-            <Link
-              href="/pricing"
-              className="inline-flex items-center gap-1 rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 bg-white dark:bg-forest-900/40 px-3 py-1.5 text-[12px] font-medium text-forest-900 dark:text-cream-100 hover:bg-cream-50 dark:hover:bg-forest-800/60"
-            >
-              Compare tiers
-            </Link>
-          </div>
+          {!isIos && (
+            <div data-hide-on-ios className="flex flex-wrap gap-2">
+              <a
+                href="#topup"
+                className="inline-flex items-center gap-1 rounded-md bg-gold-metal text-forest-950 px-3 py-1.5 text-[12px] font-semibold hover:brightness-110"
+              >
+                Buy a Boost pack &rarr;
+              </a>
+              <Link
+                href="/pricing"
+                className="inline-flex items-center gap-1 rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 bg-white dark:bg-forest-900/40 px-3 py-1.5 text-[12px] font-medium text-forest-900 dark:text-cream-100 hover:bg-cream-50 dark:hover:bg-forest-800/60"
+              >
+                Compare tiers
+              </Link>
+            </div>
+          )}
         </div>
       )}
       {isApproaching && !isOver && (
         <p className="text-[12.5px] text-amber-900 dark:text-amber-200 leading-relaxed">
           Heads up &mdash; you&rsquo;re close to your plan&rsquo;s item limit.
           Items past the cap will start charging from your Bella token balance
-          at month-end. Consider upgrading if you&rsquo;ll keep growing.
+          at month-end.
+          {!isIos && <span data-hide-on-ios> Consider upgrading if you&rsquo;ll keep growing.</span>}
         </p>
       )}
       {!isOver && !isApproaching && itemLimit !== null && (

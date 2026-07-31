@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { BreadcrumbJsonLd } from '@/components/seo/JsonLd';
+import { isIosAppRequest } from '@/lib/ios-gate';
 
 export const metadata = {
   title: 'Press kit',
@@ -44,6 +45,7 @@ const FACTS: Array<{ label: string; value: string }> = [
 ];
 
 export default function PressPage() {
+  const isIos = isIosAppRequest();
   return (
     <div className="space-y-16 sm:space-y-20 pb-20 animate-fade-up">
       <BreadcrumbJsonLd
@@ -107,9 +109,14 @@ export default function PressPage() {
           Fast facts
         </h2>
         <dl className="grid sm:grid-cols-2 gap-3">
-          {FACTS.map((f) => (
+          {/* The "Pricing" fact is a price list. Guideline 3.1.1: no prices
+              inside the iOS app. Dropped from the iOS render (server signal)
+              and marked data-hide-on-ios as the second signal. Every other
+              fact is unchanged on every platform. */}
+          {FACTS.filter((f) => !(isIos && f.label === 'Pricing')).map((f) => (
             <div
               key={f.label}
+              {...(f.label === 'Pricing' ? { 'data-hide-on-ios': '' } : {})}
               className="rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 bg-cream-50/30 dark:bg-forest-900/40 p-4"
             >
               <dt className="text-[10.5px] font-mono uppercase tracking-[0.18em] text-ink-500 dark:text-cream-100/55">

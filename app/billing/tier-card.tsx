@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { TIER_FEATURES, TIER_LABEL, type Tier } from '@/lib/types';
 import { useIsNativeApp } from '@/components/useIsNativeApp';
-import { ExternalLink } from '@/components/ExternalLink';
 import type { NativePlatform } from '@/lib/platform';
 
 const TIER_TAGLINE: Record<Tier, string> = {
@@ -109,7 +108,7 @@ export function TierCard({
   // Advottic uses the "reader" model on iOS: the app does NOT sell
   // subscriptions in-app. Plans are purchased on the web (advottic.com via
   // Stripe) and the iOS app simply unlocks based on the signed-in account's
-  // entitlement. This removes Apple IAP entirely — sidestepping the StoreKit
+  // entitlement. This removes Apple IAP entirely, sidestepping the StoreKit
   // issues that blocked review AND Apple's 30% cut. On iOS we show an
   // informational note in place of a buy button; web/Android use Stripe.
   //
@@ -162,10 +161,17 @@ export function TierCard({
         <h3 className="font-display text-[26px] font-medium tracking-[-0.01em] leading-[1.1] text-forest-900">
           {TIER_TAGLINE[tier]}
         </h3>
-        <p className="mt-3 flex items-baseline gap-1.5">
-          <span className="text-3xl font-bold text-ink-950 tabular-nums">${f.monthlyPriceUsd}</span>
-          <span className="text-sm text-ink-500">/ month</span>
-        </p>
+        {/* The price sat above the isIOS branch and so rendered inside the
+            iOS app regardless of it. Guideline 3.1.1: no prices in the app.
+            Gated twice - the server/client-confirmed isIOS check, plus the
+            data-hide-on-ios CSS backstop for a session where neither signal
+            resolved. */}
+        {!isIOS && (
+          <p data-hide-on-ios className="mt-3 flex items-baseline gap-1.5">
+            <span className="text-3xl font-bold text-ink-950 tabular-nums">${f.monthlyPriceUsd}</span>
+            <span className="text-sm text-ink-500">/ month</span>
+          </p>
+        )}
       </div>
 
       <ul className="space-y-2 mb-4 text-sm flex-1">
@@ -202,19 +208,14 @@ export function TierCard({
           Your current plan
         </button>
       ) : isIOS ? (
-        // Reader model: no in-app purchase on iOS.
+        // App Store Guideline 3.1.1 / 3.1.3(c) Enterprise Services: no purchase control and no
+        // call to action to purchase outside the app. Naming where to buy
+        // is itself a call to action, so this is a bare statement of fact
+        // about how access works and nothing more.
         isPaidTier ? (
-          <div className="space-y-2 rounded-lg border border-forest-900/15 bg-forest-900/[0.03] px-3.5 py-3 text-[12.5px] leading-snug text-ink-700 dark:border-cream-50/15 dark:bg-cream-50/[0.04] dark:text-cream-200/90">
-            {/* US-storefront link-out (guideline 3.1.1, post-injunction):
-                app is US-only, so linking to web purchase is permitted. */}
-            <p>Your access unlocks here automatically once your account is subscribed.</p>
-            <ExternalLink
-              href="https://advottic.com/pricing"
-              className="inline-block font-semibold text-gold-700 underline underline-offset-2 dark:text-gold-300"
-            >
-              View plans and subscribe at advottic.com
-            </ExternalLink>
-          </div>
+          <p className="rounded-lg border border-forest-900/15 bg-forest-900/[0.03] px-3.5 py-3 text-[12.5px] leading-snug text-ink-700 dark:border-cream-50/15 dark:bg-cream-50/[0.04] dark:text-cream-200/90">
+            Your access unlocks here automatically when your account is subscribed.
+          </p>
         ) : null
       ) : (
         <button

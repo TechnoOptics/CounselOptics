@@ -4,6 +4,7 @@ import { getActiveFirmContext } from '@/lib/firm-storage';
 import { getFirmSurfaceSettings } from '@/lib/firm-settings';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { ExternalLink } from '@/components/ExternalLink';
+import { isIosAppRequest } from '@/lib/ios-gate';
 import { MarkPaidButton } from './mark-paid-button';
 import { InvoiceRowActions } from './invoice-actions';
 import { T } from '@/components/i18n/LocaleProvider';
@@ -30,6 +31,9 @@ function fmtCents(cents: number) {
 }
 
 export default async function CounselBillingPage() {
+  // App Store Guideline 3.1.1. See the "Pay link" comment below - this page
+  // surfaced the only raw, live Stripe URL anywhere in the app.
+  const isIos = isIosAppRequest();
   const ctx = await getActiveFirmContext();
   if (!ctx) redirect('/counsel');
   if ((await getFirmSurfaceSettings(ctx.firm.id)).hideTimeBilling) {
@@ -219,8 +223,21 @@ export default async function CounselBillingPage() {
                     <p className="font-mono tabular-nums text-forest-900 dark:text-cream-100 font-semibold">
                       {fmtCents(i.total_cents)}
                     </p>
-                    {i.status === 'sent' && i.stripe_payment_link && (
+                    {/* Raw, live Stripe payment URL. ExternalLink routes
+                        through @capacitor/browser, which is an IN-APP
+                        SFSafariViewController on iOS, so a payment could be
+                        completed without ever leaving the app process. Even
+                        though this is firm-to-client invoicing for
+                        professional services rather than digital goods, an
+                        unguarded Stripe checkout opening inside the app is
+                        indefensible under Guideline 3.1.1, so it is removed
+                        from the iOS render entirely (server signal) and
+                        carries data-hide-on-ios as the second signal. The
+                        invoice stays fully visible and the firm can still
+                        send it by email from the row actions. */}
+                    {i.status === 'sent' && i.stripe_payment_link && !isIos && (
                       <ExternalLink
+                        data-hide-on-ios
                         href={i.stripe_payment_link}
                         className="text-[11px] underline text-forest-900 dark:text-cream-100"
                       >

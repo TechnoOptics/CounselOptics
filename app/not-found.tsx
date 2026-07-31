@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { headers } from 'next/headers';
 import type { Metadata } from 'next';
+import { isIosAppRequest } from '@/lib/ios-gate';
 
 /**
  * Branded 404. Replaces the default Next.js fallback the audit
@@ -89,7 +90,14 @@ const NOT_FOUND_HOME_LINK: Record<Audience, { href: string; label: string }> = {
 
 export default function NotFound() {
   const audience = detectAudience();
-  const links = NOT_FOUND_LINKS[audience];
+  // App Store Guideline 3.1.1 / 3.1.3(c) Enterprise Services. Any mistyped or dead URL inside the
+  // iOS app landed here and offered a "Pricing" card - a direct route to the
+  // plan ladder from a page a reviewer is quite likely to reach. Drop it on
+  // iOS; every other suggestion is unchanged on every platform.
+  const isIos = isIosAppRequest();
+  const links = NOT_FOUND_LINKS[audience].filter(
+    (l) => !(isIos && l.href === '/pricing'),
+  );
   return (
     <section className="mx-auto max-w-2xl py-16 sm:py-24 text-center px-4">
       <p className="eyebrow text-gold-700 dark:text-amber-300">404</p>
@@ -102,7 +110,13 @@ export default function NotFound() {
 
       <ul className="mt-8 grid sm:grid-cols-2 gap-3 text-left">
         {links.map((l) => (
-          <NotFoundLink key={l.href} href={l.href} title={l.title} blurb={l.blurb} />
+          <NotFoundLink
+            key={l.href}
+            href={l.href}
+            title={l.title}
+            blurb={l.blurb}
+            hideOnIos={l.href === '/pricing'}
+          />
         ))}
       </ul>
 
@@ -124,13 +138,16 @@ function NotFoundLink({
   href,
   title,
   blurb,
+  hideOnIos,
 }: {
   href: string;
   title: string;
   blurb: string;
+  /** Second, client-side signal for the Pricing card (see NotFound). */
+  hideOnIos?: boolean;
 }) {
   return (
-    <li>
+    <li {...(hideOnIos ? { 'data-hide-on-ios': '' } : {})}>
       <Link
         href={href}
         className="block rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 bg-white dark:bg-forest-950/60 p-4 hover:ring-gold-metal dark:hover:ring-amber-500/60 transition-colors"

@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { headers } from 'next/headers';
-import { ExternalLink } from '@/components/ExternalLink';
 import { nativePlatformFromUserAgent } from '@/lib/platform';
 import {
   BreadcrumbJsonLd,
@@ -51,7 +50,7 @@ type Tier = {
   emphasized?: boolean;
 };
 
-// Consumer ("personal") ladder. Kept in lockstep with lib/personal-tiers.ts —
+// Consumer ("personal") ladder. Kept in lockstep with lib/personal-tiers.ts:
 // case caps 1/3/8/15/40, Bella unlocks at Plus ($29), Advottic Review + invite-
 // firm at Pro ($59), and the case timeline + group cases at Ultra ($99).
 const CONSUMER_TIERS: Tier[] = [
@@ -94,7 +93,7 @@ const CONSUMER_TIERS: Tier[] = [
     features: [
       'Everything in Starter, plus:',
       '8 cases',
-      'Bella AI assistant — chat + document drafting from templates',
+      'Bella AI assistant: chat + document drafting from templates',
       '500K Bella tokens / month',
       'Wear OS companion app',
     ],
@@ -105,11 +104,11 @@ const CONSUMER_TIERS: Tier[] = [
     name: 'Pro',
     price: '$59',
     cadence: '/ month',
-    blurb: 'The full toolkit — AI review and bring your own law firm in.',
+    blurb: 'The full toolkit: AI review and bring your own law firm in.',
     features: [
       'Everything in Plus, plus:',
       '15 cases',
-      'Advottic Review — AI plain-English document review',
+      'Advottic Review: AI plain-English document review',
       'Invite your law firm to collaborate on a case',
       '1.5M Bella tokens / month',
     ],
@@ -121,11 +120,11 @@ const CONSUMER_TIERS: Tier[] = [
     name: 'Ultra',
     price: '$99',
     cadence: '/ month',
-    blurb: 'Everything, at scale — the case timeline and group cases.',
+    blurb: 'Everything, at scale, with the case timeline and group cases.',
     features: [
       'Everything in Pro, plus:',
       '40 cases',
-      'Case Timeline — turn evidence into a court-ready chronology',
+      'Case Timeline: turn evidence into a court-ready chronology',
       'Group / community cases',
       '3M Bella tokens / month (highest grant)',
     ],
@@ -288,28 +287,29 @@ const PRICING_FAQ: Array<{ q: string; a: string }> = [
 ];
 
 export default function PricingPage() {
-  // Reader model (App Review 2.1(b)/3.1.1): inside the iOS app the plan
-  // ladder, prices, and trial CTAs must not render. The shell shares this
-  // page's route, so gate on the server-read user agent - no client race.
+  // App Store Guideline 3.1.1 / 3.1.3(c) Enterprise Services: this whole route is a sell page,
+  // so inside the iOS app it does not exist. middleware.ts redirects it to
+  // the home screen before this component ever runs. This branch is the
+  // second, independent line of defence for the case where the redirect is
+  // ever missed: it renders nothing purchasable, nothing priced, and no
+  // pointer to where a subscription could be bought.
   const serverPlatform = nativePlatformFromUserAgent(headers().get('user-agent'));
   if (serverPlatform === 'ios') {
     return (
       <div className="mx-auto max-w-xl space-y-4 px-4 pb-20 pt-16 text-center animate-fade-up">
-        <h1 className="font-display text-3xl font-medium text-forest-900 dark:text-cream-100">Plans</h1>
+        <h1 className="font-display text-3xl font-medium text-forest-900 dark:text-cream-100">
+          Your account
+        </h1>
         <p className="text-[15px] leading-relaxed text-ink-600 dark:text-cream-100/70">
-          Your Advottic plan is managed on your account. Whatever your account
-          includes unlocks here automatically.
+          Whatever your account includes unlocks here automatically.
         </p>
         <p className="text-[15px]">
-          <ExternalLink
-            href="https://advottic.com/pricing"
+          <Link
+            href="/cases"
             className="inline-block rounded-xl bg-forest-900 px-5 py-2.5 font-medium text-cream-50 no-underline hover:bg-forest-800 dark:bg-cream-50 dark:text-forest-900"
           >
-            View plans &amp; subscribe at advottic.com
-          </ExternalLink>
-        </p>
-        <p className="text-[13px] text-ink-500 dark:text-cream-100/55">
-          You can see your current plan under Billing in your account menu.
+            Go to your cases
+          </Link>
         </p>
       </div>
     );

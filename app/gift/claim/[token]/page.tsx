@@ -5,6 +5,7 @@ import { createAdminSupabase } from '@/lib/supabase/admin';
 import { getCurrentUser } from '@/lib/supabase/server';
 import { GIFT_TIERS, formatDollars } from '@/lib/gift';
 import { ClaimButton } from './claim-button';
+import { isIosAppRequest } from '@/lib/ios-gate';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -41,6 +42,7 @@ export default async function ClaimGiftPage({
 }: {
   params: { token: string };
 }) {
+  const isIos = isIosAppRequest();
   const token = params.token;
   // Token format is base64url of 32 bytes = ~43 characters. Reject
   // obvious garbage before hitting the DB.
@@ -127,13 +129,22 @@ export default async function ClaimGiftPage({
         duration={gift.duration_months}
         gifter={gift.gifter_name ?? gift.gifter_email}
       >
+        {/* Guideline 3.1.1 / 3.1.3(c) Enterprise Services: pointing at
+            /pricing is a call to action to purchase. Claiming a gift is not
+            a purchase, so this route stays available on iOS, but its two
+            outbound routes into the plan ladder do not. */}
         <p className="text-[14px] text-ink-700 dark:text-cream-100/75">
-          The subscription this gift unlocked has run its course. You
-          can pick it back up any time from{' '}
-          <Link href="/pricing" className="underline">
-            /pricing
-          </Link>
-          .
+          The subscription this gift unlocked has run its course.
+          {!isIos && (
+            <span data-hide-on-ios>
+              {' '}
+              You can pick it back up any time from{' '}
+              <Link href="/pricing" className="underline">
+                /pricing
+              </Link>
+              .
+            </span>
+          )}
         </p>
       </ClaimShell>
     );
@@ -161,11 +172,17 @@ export default async function ClaimGiftPage({
               month: 'long',
               day: 'numeric',
             })}
-            . Upgrade or extend any time from{' '}
-            <Link href="/billing" className="underline">
-              /billing
-            </Link>
             .
+            {!isIos && (
+              <span data-hide-on-ios>
+                {' '}
+                Upgrade or extend any time from{' '}
+                <Link href="/billing" className="underline">
+                  /billing
+                </Link>
+                .
+              </span>
+            )}
           </p>
         ) : null}
       </ClaimShell>

@@ -272,8 +272,12 @@ export function GiftForm({
         </fieldset>
       )}
 
-      {/* Total + submit */}
-      <div className="rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 p-4 space-y-2 bg-cream-50/40 dark:bg-forest-900/40">
+      {/* Total + submit. The order summary carries a plan name, a discount
+          line and a "Total today" dollar amount, and it was the one block in
+          this form with no gating at all - the plan/duration fieldsets and
+          the submit button were hidden on iOS while the price stayed
+          visible. Guideline 3.1.1: no prices in the app. */}
+      <div data-hide-on-ios className="rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 p-4 space-y-2 bg-cream-50/40 dark:bg-forest-900/40">
         <div className="flex items-baseline justify-between">
           <span className="text-[13px] text-ink-700 dark:text-cream-100/75">
             {selectedTier.name} · {duration} {duration === 1 ? 'month' : 'months'}
@@ -303,7 +307,9 @@ export function GiftForm({
       <button type="submit" data-hide-on-ios className="btn-primary w-full" disabled={busy}>
         {busy ? 'Redirecting to checkout…' : `Continue to checkout`}
       </button>
-      <p className="text-[11.5px] text-ink-500 dark:text-cream-100/55 leading-snug text-center">
+      {/* Names an external payment processor and describes a purchase, so it
+          is iOS-gated like the rest of the checkout path. */}
+      <p data-hide-on-ios className="text-[11.5px] text-ink-500 dark:text-cream-100/55 leading-snug text-center">
         Stripe handles the payment. We never see your card. By
         continuing you agree to our{' '}
         <a className="underline" href="/terms">
