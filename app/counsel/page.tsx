@@ -19,6 +19,7 @@ import {
   type DashboardTileData,
 } from '@/components/counsel/CounselDashboardTiles';
 import { getCounselDashboardConfig } from '@/lib/counsel-dashboard';
+import { PageHeader, EmptyState } from '@/components/counsel/ui';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -285,20 +286,21 @@ export default async function CounselDashboard() {
   return (
     <div className="space-y-6 animate-fade-up">
       {/* Welcome - always at the top. */}
-      <header>
-        <p className="eyebrow mb-2"><T>Counsel</T></p>
-        <h1 className="font-display text-3xl sm:text-4xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          <T>Welcome to</T> {ctx.firm.name}.
-        </h1>
-        <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 max-w-2xl leading-relaxed">
-          <T>You&rsquo;re signed in as</T>{' '}
-          {ctx.membership.displayName ??
-            ctx.membership.email ??
-            'a team member'}{' '}
-          ({FIRM_ROLE_LABEL[ctx.membership.role].toLowerCase()}).{' '}
-          <T>Pick the tiles that matter to you - hide the rest.</T>
-        </p>
-      </header>
+      <PageHeader
+        size="lg"
+        eyebrow={<T>Counsel</T>}
+        title={<><T>Welcome to</T> {ctx.firm.name}.</>}
+        subtitle={
+          <>
+            <T>You&rsquo;re signed in as</T>{' '}
+            {ctx.membership.displayName ??
+              ctx.membership.email ??
+              'a team member'}{' '}
+            ({FIRM_ROLE_LABEL[ctx.membership.role].toLowerCase()}).{' '}
+            <T>Pick the tiles that matter to you - hide the rest.</T>
+          </>
+        }
+      />
 
       {/* Ask Advottic - immediately below the welcome. */}
       <AskAdvottic />
@@ -313,16 +315,19 @@ export default async function CounselDashboard() {
       {/* User-selected tiles. Empty state gives a hint about the
           customizer when the user has hidden everything. */}
       {enabled.length === 0 ? (
-        <div className="card p-6 text-center">
-          <p className="text-[13px] text-cream-100/65 leading-relaxed">
-            <T>Your dashboard is empty. Click</T>{' '}
-            <strong><T>Customize dashboard</T></strong>{' '}
-            <T>
-              up top to add tiles - action center, assigned to me,
-              cases, clients, meetings, and more.
-            </T>
-          </p>
-        </div>
+        <EmptyState
+          title={<T>Your dashboard is empty</T>}
+          sub={
+            <>
+              <T>Click</T>{' '}
+              <strong><T>Customize dashboard</T></strong>{' '}
+              <T>
+                up top to add tiles - action center, assigned to me,
+                cases, clients, meetings, and more.
+              </T>
+            </>
+          }
+        />
       ) : (
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {enabled.map((id) => (

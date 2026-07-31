@@ -6,6 +6,8 @@ import { getWorkspacePersona } from '@/lib/persona';
 import { LocaleTime } from '@/components/LocaleTime';
 import { ExternalLink } from '@/components/ExternalLink';
 import { parseDueBy, isDueCurrent } from '@/lib/portal-due';
+import { PageHeader, SectionTitle, StatCard, EmptyState } from '@/components/counsel/ui';
+import { StatusPill, PILL_COLORS } from '@/components/counsel/StatusPill';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Home · Hub' };
@@ -89,23 +91,22 @@ export default async function PortalDashboardPage() {
     (m) => Date.parse(m.start_at) >= now - 3600_000,
   );
 
+  // A stat is coloured only when its number is asking for something.
+  // At zero every tile reads neutral, so the ones that are not zero are
+  // the ones the eye lands on.
   const stats = [
-    { label: 'Open requests', value: active.length, tone: 'slate' as const },
+    { label: 'Open requests', value: active.length },
     {
       label: 'Awaiting you',
       value: awaitingYou.length,
-      tone: awaitingYou.length > 0 ? ('gold' as const) : ('slate' as const),
+      color: awaitingYou.length > 0 ? PILL_COLORS.gold : undefined,
     },
     {
       label: 'Due soon',
       value: dueSoon.length,
-      tone: dueSoon.length > 0 ? ('amber' as const) : ('slate' as const),
+      color: dueSoon.length > 0 ? PILL_COLORS.waiting : undefined,
     },
-    {
-      label: 'Meetings',
-      value: upcomingMeetings.length,
-      tone: 'slate' as const,
-    },
+    { label: 'Meetings', value: upcomingMeetings.length },
   ];
 
   const hasAnything =
@@ -113,48 +114,28 @@ export default async function PortalDashboardPage() {
 
   return (
     <div className="space-y-8 animate-fade-up">
-      <header>
-        <p className="eyebrow mb-1">{persona.firm.name} · Client hub</p>
-        <h1 className="font-display text-3xl sm:text-4xl font-medium tracking-[-0.015em] text-cream-100">
-          Welcome back, {firstName}.
-        </h1>
-        <p className="text-sm text-cream-100/65 mt-1.5 max-w-2xl leading-relaxed">
-          {awaitingYou.length > 0
+      <PageHeader
+        size="lg"
+        eyebrow={`${persona.firm.name} · Client hub`}
+        title={`Welcome back, ${firstName}.`}
+        subtitle={
+          awaitingYou.length > 0
             ? `${awaitingYou.length} ${
                 awaitingYou.length === 1 ? 'request needs' : 'requests need'
               } your reply. Here's everything that wants your attention.`
-            : "You're all caught up. Here's where everything stands."}
-        </p>
-      </header>
+            : "You're all caught up. Here's where everything stands."
+        }
+      />
 
       {/* Stat tiles */}
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {stats.map((s) => (
-          <div
+          <StatCard
             key={s.label}
-            className={`popup-panel p-4 ring-1 ${
-              s.tone === 'gold'
-                ? 'ring-gold-500/40'
-                : s.tone === 'amber'
-                  ? 'ring-amber-700/40'
-                  : 'ring-forest-700/40'
-            }`}
-          >
-            <p className="text-[11px] uppercase tracking-[0.16em] text-cream-100/60">
-              {s.label}
-            </p>
-            <p
-              className={`font-display text-3xl mt-1.5 ${
-                s.tone === 'gold'
-                  ? 'text-gold-300'
-                  : s.tone === 'amber'
-                    ? 'text-amber-300'
-                    : 'text-cream-100'
-              }`}
-            >
-              {s.value}
-            </p>
-          </div>
+            label={s.label}
+            value={s.value}
+            color={s.color}
+          />
         ))}
       </section>
 
@@ -185,30 +166,25 @@ export default async function PortalDashboardPage() {
       </section>
 
       {!hasAnything ? (
-        <div className="popup-panel p-8 text-center space-y-3">
-          <p className="font-display text-xl text-cream-100">
-            Nothing on your plate yet
-          </p>
-          <p className="text-[13px] text-cream-100/60 max-w-md mx-auto leading-relaxed">
-            When you file a request, message legal, or have a meeting
-            scheduled, it shows up here so you never miss a thing.
-          </p>
-          {canCreate && (
-            <Link
-              href="/portal/new"
-              className="inline-block btn bg-gold-400 hover:bg-gold-300 text-forest-950 font-semibold mt-1"
-            >
-              File your first request
-            </Link>
-          )}
-        </div>
+        <EmptyState
+          title="Nothing on your plate yet"
+          sub="When you file a request, message legal, or have a meeting scheduled, it shows up here so you never miss a thing."
+          action={
+            canCreate ? (
+              <Link
+                href="/portal/new"
+                className="btn bg-gold-400 hover:bg-gold-300 text-forest-950 font-semibold"
+              >
+                File your first request
+              </Link>
+            ) : undefined
+          }
+        />
       ) : (
         <div className="grid lg:grid-cols-2 gap-5">
           {/* Needs your attention */}
           <section className="space-y-3">
-            <h2 className="font-display text-lg text-cream-100">
-              Needs your attention
-            </h2>
+            <SectionTitle>Needs your attention</SectionTitle>
             {awaitingYou.length === 0 ? (
               <p className="popup-panel p-5 text-[13px] text-cream-100/55 italic">
                 Nothing waiting on you. Legal will ping you here when
@@ -226,9 +202,7 @@ export default async function PortalDashboardPage() {
                         <p className="font-semibold text-cream-100 truncate">
                           {r.client_name}
                         </p>
-                        <span className="shrink-0 inline-flex items-center px-1.5 py-[1px] rounded text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ring-gold-500/40 bg-gold-500/15 text-gold-200">
-                          Reply
-                        </span>
+                        <StatusPill size="sm">Reply</StatusPill>
                       </div>
                       <p className="text-[12px] text-cream-100/55 mt-1">
                         {r.matter_type ?? 'Request'} · legal responded
@@ -242,9 +216,7 @@ export default async function PortalDashboardPage() {
 
           {/* Coming up */}
           <section className="space-y-3">
-            <h2 className="font-display text-lg text-cream-100">
-              Coming up
-            </h2>
+            <SectionTitle>Coming up</SectionTitle>
             {upcomingMeetings.length === 0 && dueSoon.length === 0 ? (
               <p className="popup-panel p-5 text-[13px] text-cream-100/55 italic">
                 No deadlines or meetings on the horizon.
@@ -283,15 +255,14 @@ export default async function PortalDashboardPage() {
                         <p className="font-semibold text-cream-100 truncate">
                           {r.client_name}
                         </p>
-                        <span
-                          className={`shrink-0 inline-flex items-center px-1.5 py-[1px] rounded text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ${
-                            due < now
-                              ? 'ring-rose-700/40 bg-rose-950/30 text-rose-200'
-                              : 'ring-amber-700/40 bg-amber-950/30 text-amber-200'
-                          }`}
+                        <StatusPill
+                          size="sm"
+                          color={
+                            due < now ? PILL_COLORS.flagged : PILL_COLORS.waiting
+                          }
                         >
                           {due < now ? 'Overdue' : 'Due'}
-                        </span>
+                        </StatusPill>
                       </div>
                       <p className="text-[12px] text-cream-100/55 mt-1">
                         {r.matter_type ?? 'Request'} · due{' '}
