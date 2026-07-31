@@ -3,12 +3,13 @@ import { redirect } from 'next/navigation';
 import { getCurrentUser } from '@/lib/supabase/server';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { getWorkspacePersona } from '@/lib/persona';
-import { portalStatusLabel, portalStatusTone } from '@/lib/portal-status';
+import { portalStatusLabel, portalStatusColor } from '@/lib/portal-status';
+import { StatusPill } from '@/components/counsel/StatusPill';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'My requests · Hub' };
 
-// Status label + tone are shared with the request page - see
+// Status label + colour are shared with the request page - see
 // lib/portal-status.ts.
 
 export default async function PortalRequestsPage() {
@@ -116,7 +117,7 @@ export default async function PortalRequestsPage() {
               // Never fall back to the raw status: that printed the firm's
               // internal vocabulary ("converted") straight at the employee.
               const label = portalStatusLabel(r.status);
-              const tone = portalStatusTone(label);
+              const color = portalStatusColor(label);
               const ans = (r.intake_answers ?? {}) as Record<string, unknown>;
               const due = String(ans.due_by ?? '').trim();
               const priority = String(ans.priority ?? '').trim();
@@ -138,11 +139,9 @@ export default async function PortalRequestsPage() {
                       <p className="font-semibold text-cream-100 truncate">
                         {title}
                       </p>
-                      <span
-                        className={`shrink-0 inline-flex items-center px-1.5 py-[1px] rounded text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ${tone}`}
-                      >
+                      <StatusPill color={color} size="sm">
                         {label}
-                      </span>
+                      </StatusPill>
                     </div>
                     <p className="text-[12px] text-cream-100/60 mt-1">
                       {r.matter_type ?? 'Request'}

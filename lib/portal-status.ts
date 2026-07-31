@@ -11,9 +11,12 @@
  * Employees never see the firm's conflict-check vocabulary. Statuses collapse
  * onto three legible milestones: Received -> In review -> Decision.
  *
- * NOTE: the Tailwind classes below live in `lib/`, which is only scanned
- * because `./lib/**` is in tailwind.config.ts `content`. Don't remove it.
+ * Colour is now one hex per state rather than a triple of Tailwind classes;
+ * StatusPill derives the background and border from it. That is why this file
+ * no longer contributes any class names to the build.
  */
+
+import { PILL_COLORS } from '@/components/counsel/StatusPill';
 
 /** The employee-facing milestones, in order. */
 export const PORTAL_STEPS = ['Received', 'In review', 'Decision'] as const;
@@ -36,19 +39,20 @@ const LABELS: Record<string, PortalStatusLabel> = {
   rejected: 'Closed',
 };
 
-const TONES: Record<PortalStatusLabel, string> = {
-  Received: 'bg-forest-800/50 text-cream-100/85 ring-forest-700/40',
-  'In review': 'bg-amber-950/30 text-amber-200 ring-amber-700/40',
-  Accepted: 'bg-emerald-950/30 text-emerald-200 ring-emerald-700/40',
-  Closed: 'bg-forest-800/50 text-cream-100/70 ring-forest-700/40',
+const COLORS: Record<PortalStatusLabel, string> = {
+  Received: PILL_COLORS.neutral,
+  'In review': PILL_COLORS.waiting,
+  Accepted: PILL_COLORS.good,
+  Closed: PILL_COLORS.quiet,
 };
 
 export function portalStatusLabel(status: string | null | undefined): PortalStatusLabel {
   return LABELS[String(status ?? '')] ?? 'Received';
 }
 
-export function portalStatusTone(label: PortalStatusLabel): string {
-  return TONES[label] ?? TONES.Received;
+/** The one hex a StatusPill needs. Text, fill and border all come from it. */
+export function portalStatusColor(label: PortalStatusLabel): string {
+  return COLORS[label] ?? COLORS.Received;
 }
 
 /** True once the firm has made a call either way. */

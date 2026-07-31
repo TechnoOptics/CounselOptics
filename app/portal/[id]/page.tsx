@@ -12,9 +12,10 @@ import {
   PORTAL_STEPS,
   isPortalDecision,
   portalStatusLabel,
-  portalStatusTone,
+  portalStatusColor,
   portalStepIndex,
 } from '@/lib/portal-status';
+import { StatusPill } from '@/components/counsel/StatusPill';
 import { ReviewScorecard } from '@/components/ReviewScorecard';
 import type { DocScorecard } from '@/lib/doc-review';
 
@@ -75,7 +76,7 @@ export default async function PortalRequestPage({
   if (!mayView) notFound();
 
   const label = portalStatusLabel(intake.status);
-  const tone = portalStatusTone(label);
+  const color = portalStatusColor(label);
   const isDecision = isPortalDecision(label);
   const currentStep = portalStepIndex(label);
 
@@ -129,11 +130,7 @@ export default async function PortalRequestPage({
             {new Date(intake.created_at).toLocaleDateString()}
           </p>
         </div>
-        <span
-          className={`shrink-0 inline-flex items-center px-2 py-1 rounded text-[11px] font-semibold uppercase tracking-[0.12em] ring-1 ${tone}`}
-        >
-          {label}
-        </span>
+        <StatusPill color={color}>{label}</StatusPill>
       </header>
 
       {/* Milestone strip */}

@@ -19,6 +19,7 @@ import { FolderPicker } from './folder-picker';
 import { ScheduleMeetingPanel } from './schedule-meeting';
 import { RequestActions } from './request-actions';
 import { AnalyzeStudio } from '@/app/counsel/analyze/analyze-studio';
+import { StatusPill, PILL_COLORS, PILL_DEFAULT } from '@/components/counsel/StatusPill';
 import { ReviewScorecard } from '@/components/ReviewScorecard';
 import type { DocScorecard } from '@/lib/doc-review';
 import { T } from '@/components/i18n/LocaleProvider';
@@ -26,15 +27,13 @@ import { T } from '@/components/i18n/LocaleProvider';
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Intake · Counsel' };
 
-const STATUS_TONE: Record<string, string> = {
-  in_progress:
-    'bg-ink-100 dark:bg-forest-800/50 text-ink-700 dark:text-cream-100/85 ring-ink-200 dark:ring-forest-700/40',
-  conflict_check_passed:
-    'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-200 ring-emerald-200 dark:ring-emerald-700/40',
-  conflict_check_flagged:
-    'bg-rose-50 dark:bg-rose-950/30 text-rose-800 dark:text-rose-200 ring-rose-200 dark:ring-rose-700/40',
-  engaged:
-    'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-200 ring-emerald-200 dark:ring-emerald-700/40',
+// One hex per status; StatusPill derives the fill and the border from
+// it. An unlisted status falls back to gold rather than to silence.
+const STATUS_COLOR: Record<string, string> = {
+  in_progress: PILL_COLORS.neutral,
+  conflict_check_passed: PILL_COLORS.good,
+  conflict_check_flagged: PILL_COLORS.flagged,
+  engaged: PILL_COLORS.good,
 };
 
 export default async function IntakeDetailPage({
@@ -76,7 +75,7 @@ export default async function IntakeDetailPage({
   };
   if (intake.firm_id !== ctx.firm.id) notFound();
 
-  const tone = STATUS_TONE[intake.status] ?? STATUS_TONE.in_progress;
+  const statusColor = STATUS_COLOR[intake.status] ?? PILL_DEFAULT;
 
   // In-house metadata captured by the typed intake form. Stored in the
   // schema-less intake_answers JSON column so it renders without a
@@ -208,11 +207,9 @@ export default async function IntakeDetailPage({
               </span>
             )}
           </SectionJump>
-          <span
-            className={`inline-flex shrink-0 items-center rounded px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ring-1 ${tone}`}
-          >
+          <StatusPill color={statusColor}>
             {intake.status.replace(/_/g, ' ')}
-          </span>
+          </StatusPill>
         </div>
       </div>
 
