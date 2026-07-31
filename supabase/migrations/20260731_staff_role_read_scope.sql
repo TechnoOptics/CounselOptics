@@ -1,11 +1,18 @@
 -- Scope the `staff` firm role out of matter and document reads.
 --
--- ============================ NOT APPLIED ================================
--- This migration is deliberately UNAPPLIED in production as of 2026-07-31.
--- Tightening SELECT on a live legal product can lock real users out of
--- their own matters, so a human has to decide when it lands and who it
--- affects. Do not run it as part of a routine deploy without reading the
--- "Who loses access" section below and checking the live membership counts.
+-- ============================== APPLIED ==================================
+-- Applied to production 2026-07-31, with the owner's explicit go-ahead.
+--
+-- The affected-user count was re-run immediately before applying, as the
+-- note below instructs: firm_members held 3 owners and 1 admin and no staff
+-- rows, so this removed access from nobody. The live policy bodies were also
+-- checked first and were byte-identical to what is recreated here apart from
+-- the missing role filter, so the drop and recreate lost no other condition.
+-- Verified afterwards: both policies now carry the role filter.
+--
+-- Kept unapplied for a while first because tightening SELECT on a live legal
+-- product can lock real users out of their own matters. That judgement still
+-- applies to any future change of this shape.
 -- =========================================================================
 --
 -- The problem it fixes (docs/audit/UX_AUDIT_COUNSEL.md, finding B3):
