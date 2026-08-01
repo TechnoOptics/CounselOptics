@@ -281,6 +281,7 @@ export default async function CounselCaseDetailPage({
 
   const [
     { data: timeRaw },
+    { data: unbilledRaw },
     { data: deadlinesRaw },
     { data: invoicesRaw },
     { data: signingRaw },
@@ -294,6 +295,20 @@ export default async function CounselCaseDetailPage({
       .eq('case_id', params.id)
       .order('started_at', { ascending: false })
       .limit(50),
+    // The Unbilled figure and the "Draft for $X" button must state the
+    // amount the invoice will ACTUALLY be for, so this query is separate
+    // from the display list above (capped at 50 rows) and unbounded, and
+    // its filters mirror buildDraftInvoiceAction's selection exactly:
+    // billable, ended, positive duration, not yet on an invoice.
+    supabase
+      .from('firm_time_entries')
+      .select('duration_seconds, rate_cents')
+      .eq('firm_id', ctx.firm.id)
+      .eq('case_id', params.id)
+      .eq('billable', true)
+      .is('invoice_id', null)
+      .not('ended_at', 'is', null)
+      .gt('duration_seconds', 0),
     supabase
       .from('case_deadlines')
       .select('id, kind, title, due_at, completed_at')
@@ -369,13 +384,16 @@ export default async function CounselCaseDetailPage({
   const billableSeconds = time
     .filter((e) => e.billable && e.duration_seconds)
     .reduce((s, e) => s + (e.duration_seconds ?? 0), 0);
-  const unbilledCents = time
-    .filter((e) => e.billable && !e.invoice_id && (e.duration_seconds ?? 0) > 0)
-    .reduce(
-      (s, e) =>
-        s + Math.round((e.rate_cents ?? 0) * ((e.duration_seconds ?? 0) / 3600)),
-      0,
-    );
+  const unbilledCents = (
+    (unbilledRaw ?? []) as Array<{
+      duration_seconds: number | null;
+      rate_cents: number | null;
+    }>
+  ).reduce(
+    (s, e) =>
+      s + Math.round((e.rate_cents ?? 0) * ((e.duration_seconds ?? 0) / 3600)),
+    0,
+  );
   const trustBalance = trustEntries.reduce((s, t) => {
     const positive =
       t.kind === 'deposit' || t.kind === 'refund' || t.kind === 'interest';

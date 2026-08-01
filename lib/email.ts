@@ -672,3 +672,57 @@ export function buildIntakeActivityEmailHtml(input: {
   </table>
 </body></html>`;
 }
+
+/**
+ * The invoice a firm sends its client. Plain and factual: who it is from,
+ * what it covers, how much, and how to pay. No urgency language and no
+ * chasing copy - this is the first notice, not a reminder.
+ */
+export function buildInvoiceEmailHtml(input: {
+  firmName: string | null;
+  invoiceNumber: string;
+  totalCents: number;
+  currency: string;
+  matterTitle?: string | null;
+  payLink?: string | null;
+}): string {
+  const year = new Date().getFullYear();
+  const amount = (input.totalCents / 100).toLocaleString('en-US', {
+    style: 'currency',
+    currency: input.currency || 'USD',
+  });
+  const from = input.firmName || 'your legal team';
+  const body = `
+    <p style="margin:0 0 6px;color:#3f3f46;font-size:14.5px;line-height:1.6;">${escapeHtml(from)} has issued invoice <span style="font-weight:700;color:#0b0b0c;">${escapeHtml(input.invoiceNumber)}</span>.</p>
+    ${input.matterTitle ? `<p style="margin:0 0 18px;color:#52525b;font-size:13px;line-height:1.6;">For work on <span style="font-weight:600;color:#0b0b0c;">${escapeHtml(input.matterTitle)}</span>.</p>` : '<div style="height:12px;"></div>'}
+    <div style="margin:0 0 20px;text-align:center;">
+      <span style="display:inline-block;padding:16px 24px;background:#faf7ef;border:1px solid #e6d9b6;border-radius:14px;color:#0b0b0c;font-size:24px;font-weight:700;letter-spacing:-0.01em;">${escapeHtml(amount)}</span>
+    </div>
+    ${
+      input.payLink
+        ? `<div style="margin:0 0 18px;text-align:center;">
+      <a href="${escapeAttribute(input.payLink)}" style="display:inline-block;background:linear-gradient(135deg,#e8c878 0%,#d5bb7e 100%);color:#0b0b0c;text-decoration:none;padding:14px 30px;border-radius:12px;font-size:14.5px;font-weight:700;">Pay this invoice</a>
+    </div>`
+        : `<p style="margin:0 0 18px;color:#52525b;font-size:13px;line-height:1.6;">Reply to this email for payment instructions.</p>`
+    }
+    <p style="margin:0;color:#a1a1aa;font-size:11.5px;line-height:1.6;">Questions about this invoice should go to ${escapeHtml(from)} directly.</p>`;
+  return `<!doctype html>
+<html><body style="margin:0;padding:0;background:#0a0a0b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif;color:#1a1a1a;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0a0a0b;padding:36px 16px;">
+    <tr><td align="center">
+      <table role="presentation" width="500" cellpadding="0" cellspacing="0" style="max-width:500px;background:#ffffff;border-radius:18px;overflow:hidden;box-shadow:0 10px 34px -6px rgba(0,0,0,0.55);border:1px solid #1c1c1e;">
+        <tr><td align="center" style="background:linear-gradient(135deg,#0b0b0c 0%,#14140f 55%,#1b1710 100%);padding:30px 34px 24px;border-bottom:2px solid #e8c878;">
+          <img src="https://advottic.com/advottic-wordmark-email.png" alt="ADVOTTIC" width="150" height="18" style="display:block;margin:0 auto;width:150px;height:18px;border:0;outline:none;text-decoration:none;color:#e8c878;font-size:20px;font-weight:700;letter-spacing:0.3em;font-family:-apple-system,Segoe UI,sans-serif;" />
+          <p style="margin:16px 0 0;color:#e8c878;font-size:10.5px;font-weight:700;letter-spacing:0.22em;text-transform:uppercase;">Invoice</p>
+          <p style="margin:8px 0 0;color:#f4f0e6;font-size:17px;font-weight:600;letter-spacing:-0.005em;">${escapeHtml(input.invoiceNumber)}</p>
+        </td></tr>
+        <tr><td style="padding:28px 34px 8px;">${body}</td></tr>
+        <tr><td style="padding:16px 34px 28px;">
+          <hr style="border:none;border-top:1px solid #e4e4e7;margin:0 0 12px;" />
+          <p style="margin:0;color:#a1a1aa;font-size:11px;letter-spacing:0.04em;">&copy; ${year} Advottic LLC &middot; Sent on behalf of ${escapeHtml(from)}.</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+}

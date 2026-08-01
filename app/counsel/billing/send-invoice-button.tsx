@@ -1,0 +1,110 @@
+'use client';
+
+import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import { sendInvoiceAction } from '@/lib/invoicing';
+import { T, useT } from '@/components/i18n/LocaleProvider';
+
+/**
+ * Issue a draft invoice to the client. Confirm-gated, because this is the
+ * point at which a bill actually leaves the firm: the client email is shown
+ * on the confirm step so a wrong address is caught before it is used.
+ *
+ * Feedback is honest either way. The action only reports success when the
+ * client was actually reached, and when the email did not go out but the
+ * client was notified in the app, that is said plainly rather than hidden
+ * behind a green tick.
+ */
+export function SendInvoiceButton({
+  invoiceId,
+  clientEmail,
+}: {
+  invoiceId: string;
+  clientEmail: string;
+}) {
+  const t = useT();
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [confirming, setConfirming] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  function go() {
+    setError(null);
+    setNotice(null);
+    startTransition(async () => {
+      const res = await sendInvoiceAction(invoiceId);
+      if (res.ok) {
+        setConfirming(false);
+        if (res.emailed === false) {
+          setNotice(
+            t(
+              'Invoice marked sent and the client was notified in the app, but the email did not go out.',
+            ),
+          );
+        }
+        router.refresh();
+      } else {
+        setError(res.error ?? t('Could not send this invoice.'));
+      }
+    });
+  }
+
+  if (notice) {
+    return (
+      <p className="text-[11px] text-amber-700 dark:text-amber-300 text-right max-w-[18rem]">
+        {notice}
+      </p>
+    );
+  }
+
+  if (!confirming) {
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          setError(null);
+          setConfirming(true);
+        }}
+        className="inline-flex items-center min-h-[40px] px-3 rounded-md text-[11px] font-semibold text-forest-900 dark:text-cream-100 ring-1 ring-ink-200 dark:ring-forest-700/40 hover:bg-ink-50 dark:hover:bg-forest-800/40"
+        title={t('Email this invoice to the client and mark it sent')}
+      >
+        <T>Send invoice</T>
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <div className="flex items-center gap-1.5">
+        <span className="text-[11px] text-ink-600 dark:text-cream-100/70">
+          <T>Email to</T> {clientEmail}?
+        </span>
+        <button
+          type="button"
+          onClick={go}
+          disabled={pending}
+          className="inline-flex items-center min-h-[36px] px-2.5 rounded-md text-[11px] font-semibold text-white bg-forest-800 hover:bg-forest-900 disabled:opacity-50"
+        >
+          {pending ? <T>Sending...</T> : <T>Send</T>}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setConfirming(false);
+            setError(null);
+          }}
+          disabled={pending}
+          className="inline-flex items-center min-h-[36px] px-2.5 rounded-md text-[11px] font-semibold text-ink-700 dark:text-cream-100/85 ring-1 ring-ink-200 dark:ring-forest-700/40 disabled:opacity-50"
+        >
+          <T>Cancel</T>
+        </button>
+      </div>
+      {error && (
+        <p className="text-[11px] text-rose-700 dark:text-rose-300 text-right max-w-[18rem]">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}

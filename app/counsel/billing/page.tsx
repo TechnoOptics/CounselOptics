@@ -6,6 +6,7 @@ import { createServerSupabase } from '@/lib/supabase/server';
 import { ExternalLink } from '@/components/ExternalLink';
 import { isIosAppRequest } from '@/lib/ios-gate';
 import { MarkPaidButton } from './mark-paid-button';
+import { SendInvoiceButton } from './send-invoice-button';
 import { InvoiceRowActions } from './invoice-actions';
 import { T } from '@/components/i18n/LocaleProvider';
 
@@ -243,6 +244,12 @@ export default async function CounselBillingPage() {
                       >
                         <T>Pay link</T>
                       </ExternalLink>
+                    )}
+                    {i.status === 'draft' && (
+                      <SendInvoiceButton
+                        invoiceId={i.id}
+                        clientEmail={i.client_email}
+                      />
                     )}
                     {i.status !== 'paid' && i.status !== 'void' && (
                       <MarkPaidButton invoiceId={i.id} />

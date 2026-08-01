@@ -15,10 +15,11 @@ import { createAdminSupabase } from './supabase/admin';
  *       invoice_id.
  *
  *   sendInvoiceAction(invoiceId)
- *     - Marks status=sent, sets sent_at.
- *     - Creates a Stripe payment link if STRIPE_SECRET_KEY is set;
- *       falls back to a marker URL otherwise.
- *     - Notifies the client (notification + email).
+ *     - Moves status draft -> sent via an atomic guard, sets sent_at.
+ *     - Creates a Stripe payment link if STRIPE_SECRET_KEY is set.
+ *     - Emails the client, and adds an in-app notification when the
+ *       client has an account. If neither reaches them the invoice goes
+ *       back to draft.
  *
  *   markInvoicePaidAction(invoiceId)
  *     - Manual mark-paid (eg. wire received outside Stripe).
@@ -105,6 +106,23 @@ export async function buildDraftInvoiceAction(
     return { ok: false, error: 'Your role cannot send invoices.' };
   }
 
+  // The service-role client is REQUIRED here, not a nice-to-have. The
+  // subtotal below is computed from every attorney's billable time on the
+  // matter, but the firm_time_entries write policy is self-scoped
+  // (user_id = auth.uid()), so an RLS-scoped stamp would mark only the
+  // drafter's own entries. A colleague's hours would then sit inside this
+  // invoice's total while still reading as unbilled, and get pulled onto
+  // next month's invoice too - the client billed twice for one piece of
+  // work. Refuse to draft rather than draft something half-claimed.
+  const admin = createAdminSupabase();
+  if (!admin) {
+    return {
+      ok: false,
+      error:
+        'Invoicing is not configured on this deployment. Ask an administrator to set the Supabase service role key before drafting invoices.',
+    };
+  }
+
   // Pull billable, completed, not-yet-invoiced entries.
   const { data: entriesRaw } = await supabase
     .from('firm_time_entries')
@@ -171,9 +189,8 @@ export async function buildDraftInvoiceAction(
   let nextSeq = (lastSeqMatch ? parseInt(lastSeqMatch[1], 10) : 0) + 1;
 
   // Try to resolve a client_user_id from the email.
-  const admin = createAdminSupabase();
   let clientUserId: string | null = null;
-  if (admin) {
+  {
     const { data: usersResp } = await admin.auth.admin.listUsers({
       page: 1,
       perPage: 200,
@@ -184,7 +201,7 @@ export async function buildDraftInvoiceAction(
     if (matched) clientUserId = matched.id;
   }
 
-  let inv: { id: string } | null = null;
+  let inv: { id: string; number: string } | null = null;
   let invErr: { code?: string; message?: string } | null = null;
   for (let attempt = 0; attempt < 6; attempt++) {
     const number = `INV-${String(nextSeq).padStart(5, '0')}`;
@@ -203,10 +220,10 @@ export async function buildDraftInvoiceAction(
         currency: 'USD',
         created_by: user.id,
       })
-      .select('id')
+      .select('id, number')
       .single();
     if (!res.error) {
-      inv = res.data as { id: string };
+      inv = res.data as { id: string; number: string };
       invErr = null;
       break;
     }
@@ -224,20 +241,52 @@ export async function buildDraftInvoiceAction(
   }
   const invoiceId = inv.id;
 
-  // Stamp each entry with the invoice_id. The subtotal above was
-  // computed from every billable entry on the case (across all
-  // attorneys), so stamp that same set - via the admin client, because
-  // the self-scoped RLS write policy (user_id = auth.uid()) would only
-  // mark the caller's own entries, leaving colleagues' billed time
-  // un-stamped and re-invoiceable. The caller was already verified as
-  // an owner/admin/attorney of this firm, and the ids come from a
-  // firm-scoped, billable, not-yet-invoiced query, so this is safe.
-  // Falls back to the RLS client if the service role isn't configured.
+  // CLAIM the time entries, atomically. The subtotal above was computed
+  // from every billable entry on the case (across all attorneys), so the
+  // invoice is only honest if that exact same set is now attached to it.
+  //
+  // `.is('invoice_id', null)` is the claim guard and it is what makes this
+  // safe under concurrency: Postgres re-evaluates an UPDATE's WHERE clause
+  // against the committed row under read-committed, so if a second drafter
+  // claimed an entry between our SELECT and this UPDATE, that row simply
+  // is not matched here - it cannot be silently re-pointed at our invoice
+  // and billed a second time. This is the same guarded-write pattern used
+  // by voidInvoiceAction and deleteDraftInvoiceAction below.
+  //
+  // `.select('id')` returns exactly the rows we won, so a short count means
+  // we lost a race and the draft does not represent the time it claims to.
   const ids = entries.map((e) => e.id);
-  await (admin ?? supabase)
+  const { data: claimedRaw, error: claimErr } = await admin
     .from('firm_time_entries')
     .update({ invoice_id: invoiceId })
-    .in('id', ids);
+    .in('id', ids)
+    .is('invoice_id', null)
+    .select('id');
+  const claimed = (claimedRaw ?? []) as Array<{ id: string }>;
+
+  if (claimErr || claimed.length !== ids.length) {
+    // Roll the whole draft back. The firm_time_entries.invoice_id FK is
+    // ON DELETE SET NULL, so deleting the invoice releases everything we
+    // did manage to claim; the entries a concurrent drafter took stay with
+    // them. Either the invoice covers all of its time or it does not exist.
+    const { error: rollbackErr } = await admin
+      .from('firm_invoices')
+      .delete()
+      .eq('id', invoiceId);
+
+    revalidatePath(`/counsel/cases/${caseId}`);
+    revalidatePath('/counsel/billing');
+
+    const base = claimErr
+      ? 'The time entries could not be attached to this invoice, so nothing was billed.'
+      : 'Some of this time was invoiced by someone else while this draft was being prepared, so nothing was billed. Reload the matter and draft again.';
+    return {
+      ok: false,
+      error: rollbackErr
+        ? `${base} Draft ${inv.number} could not be removed automatically and should be deleted from the billing page.`
+        : base,
+    };
+  }
 
   revalidatePath(`/counsel/cases/${caseId}`);
   revalidatePath('/counsel/billing');
@@ -251,9 +300,29 @@ export async function buildDraftInvoiceAction(
   };
 }
 
+/**
+ * Issue a draft invoice to the client.
+ *
+ * "Sent" here means the client was actually told, not just that a column
+ * flipped: the status moves draft -> sent through an ATOMIC guard, and only
+ * then do we mint a payment link and deliver. If nothing at all reached the
+ * client (no email, and no in-app notification because they have no
+ * account), the invoice is put back to draft and the caller is told - a
+ * receivable that shows as "sent" while the client never heard of it is the
+ * reason the Outstanding figure can't be trusted.
+ *
+ * The status claim comes FIRST, before the Stripe call, so a double click
+ * cannot mint two payment links or mail the client the same bill twice.
+ */
 export async function sendInvoiceAction(
   invoiceId: string,
-): Promise<{ ok: boolean; error?: string; paymentLink?: string }> {
+): Promise<{
+  ok: boolean;
+  error?: string;
+  paymentLink?: string;
+  emailed?: boolean;
+  emailError?: string;
+}> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: 'Sign in first.' };
   const supabase = createServerSupabase();
@@ -282,7 +351,32 @@ export async function sendInvoiceAction(
   const sendAuth = await assertInvoicePoster(supabase, invoice.firm_id, user.id);
   if (!sendAuth.ok) return sendAuth;
   if (invoice.status !== 'draft') {
-    return { ok: false, error: 'Only draft invoices can be sent.' };
+    return {
+      ok: false,
+      error:
+        invoice.status === 'sent'
+          ? 'This invoice has already been sent.'
+          : `An invoice that is ${invoice.status} cannot be sent.`,
+    };
+  }
+
+  // Atomic transition: only flips while the invoice is still a draft, so a
+  // second click (or a colleague on another screen) loses the race here,
+  // before anything is charged for or mailed.
+  const { data: claimedRows, error: claimErr } = await supabase
+    .from('firm_invoices')
+    .update({ status: 'sent', sent_at: new Date().toISOString() })
+    .eq('id', invoice.id)
+    .eq('status', 'draft')
+    .select('id');
+  if (claimErr) {
+    return { ok: false, error: claimErr.message ?? 'Could not send invoice.' };
+  }
+  if (!claimedRows || claimedRows.length === 0) {
+    return {
+      ok: false,
+      error: 'This invoice changed while sending. Reload and try again.',
+    };
   }
 
   // Best-effort Stripe payment link. Falls back to a placeholder URL
@@ -317,31 +411,100 @@ export async function sendInvoiceAction(
     }
   }
 
-  await supabase
-    .from('firm_invoices')
-    .update({
-      status: 'sent',
-      sent_at: new Date().toISOString(),
-      stripe_payment_link: paymentLink,
-    })
-    .eq('id', invoice.id);
+  if (paymentLink) {
+    await supabase
+      .from('firm_invoices')
+      .update({ stripe_payment_link: paymentLink })
+      .eq('id', invoice.id);
+  }
 
-  // Notify the client when we know who they are.
+  // Who the invoice is from, so the mail reads as the firm's rather than
+  // as a generic Advottic notice.
+  const { data: firmRow } = await supabase
+    .from('firms')
+    .select('name')
+    .eq('id', invoice.firm_id)
+    .maybeSingle();
+  const firmName = (firmRow as { name?: string } | null)?.name ?? null;
+  let matterTitle: string | null = null;
+  if (invoice.case_id) {
+    const { data: caseRow } = await supabase
+      .from('cases')
+      .select('title')
+      .eq('id', invoice.case_id)
+      .maybeSingle();
+    matterTitle = (caseRow as { title?: string } | null)?.title ?? null;
+  }
+
+  const amount = (invoice.total_cents / 100).toLocaleString('en-US', {
+    style: 'currency',
+    currency: invoice.currency || 'USD',
+  });
+
+  const { sendEmail, buildInvoiceEmailHtml } = await import('./email');
+  const emailRes = await sendEmail({
+    to: invoice.client_email,
+    subject: `Invoice ${invoice.number} from ${firmName ?? 'your legal team'}`,
+    html: buildInvoiceEmailHtml({
+      firmName,
+      invoiceNumber: invoice.number,
+      totalCents: invoice.total_cents,
+      currency: invoice.currency,
+      matterTitle,
+      payLink: paymentLink,
+    }),
+    text: `Invoice ${invoice.number} for ${amount}.${
+      paymentLink ? ` Pay: ${paymentLink}` : ' Reply for payment instructions.'
+    }`,
+    fromName: firmName ?? undefined,
+  });
+
+  // Notify the client in the app too when they have an account here.
+  let notified = false;
   if (invoice.client_user_id) {
     const { createNotification } = await import('./notifications');
-    await createNotification({
+    const note = await createNotification({
       userId: invoice.client_user_id,
       type: 'system',
       title: `New invoice ${invoice.number}`,
-      body: `$${(invoice.total_cents / 100).toFixed(2)} due. ${
-        paymentLink ? 'Click to pay securely.' : 'Open the invoice for payment instructions.'
+      body: `${amount} due. ${
+        paymentLink
+          ? 'Open to pay securely.'
+          : 'Contact the firm for payment instructions.'
       }`,
-      link: paymentLink ?? `/inbox/invoices/${invoice.id}`,
+      // There is no client-facing invoice detail page yet, so link to the
+      // payment link when there is one and to the inbox otherwise. Never
+      // link somewhere that 404s.
+      link: paymentLink ?? '/inbox',
     });
+    notified = note !== null;
+  }
+
+  if (!emailRes.ok && !notified) {
+    // Nothing reached the client, so this invoice is not sent. Put it back
+    // rather than let it sit in Outstanding as money the client has never
+    // been asked for.
+    await supabase
+      .from('firm_invoices')
+      .update({ status: 'draft', sent_at: null, stripe_payment_link: null })
+      .eq('id', invoice.id)
+      .eq('status', 'sent');
+    revalidatePath('/counsel/billing');
+    return {
+      ok: false,
+      emailed: false,
+      emailError: emailRes.error,
+      error: `The invoice could not be delivered to ${invoice.client_email}, so it is still a draft. Check the client email address and try again.`,
+    };
   }
 
   revalidatePath('/counsel/billing');
-  return { ok: true, paymentLink: paymentLink ?? undefined };
+  return {
+    ok: true,
+    paymentLink: paymentLink ?? undefined,
+    emailed: emailRes.ok,
+    emailError: emailRes.ok ? undefined : emailRes.error,
+  };
 }
 
 export async function markInvoicePaidAction(
