@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { lockScroll } from '@/lib/scroll-lock';
 import { getTimelineMediaUrl } from '@/lib/timeline-actions';
 import type { TimelineMedia } from '@/lib/timeline-types';
 
@@ -36,11 +37,12 @@ export function MediaLightbox({
       if (e.key === 'Escape') onClose();
     };
     document.addEventListener('keydown', onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    // Locks <html> as well as <body>; a body-only lock silently does
+    // nothing in this app - see lib/scroll-lock.ts.
+    const unlockScroll = lockScroll();
     return () => {
       document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = prev;
+      unlockScroll();
     };
   }, [onClose]);
 

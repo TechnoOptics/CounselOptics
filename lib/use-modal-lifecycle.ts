@@ -2,6 +2,7 @@
 
 import { useEffect, type RefObject } from 'react';
 import { focusWhenReady } from '@/lib/focus-when-ready';
+import { lockScroll } from '@/lib/scroll-lock';
 
 /**
  * Lightweight modal-lifecycle hook for components that don't want
@@ -9,7 +10,7 @@ import { focusWhenReady } from '@/lib/focus-when-ready';
  * BiometricEnrollPrompt all have custom backdrops + click-out
  * rules). Pull this hook in to get:
  *
- *   - Body scroll lock while open
+ *   - Page scroll lock while open (root element included)
  *   - ESC handler that calls onClose
  *   - Scrollbar-width compensation so the page doesn't shift
  *   - Moves focus onto the panel (pass `focusRef`) so keyboard /
@@ -30,14 +31,10 @@ export function useModalLifecycle({
 }): void {
   useEffect(() => {
     if (!enabled) return;
-    const prevOverflow = document.body.style.overflow;
-    const prevPaddingRight = document.body.style.paddingRight;
-    const scrollbarWidth =
-      window.innerWidth - document.documentElement.clientWidth;
-    document.body.style.overflow = 'hidden';
-    if (scrollbarWidth > 0) {
-      document.body.style.paddingRight = `${scrollbarWidth}px`;
-    }
+    // Locks <html> as well as <body> - see lib/scroll-lock.ts for why a
+    // body-only lock silently does nothing in this app. Also handles
+    // scrollbar-width compensation.
+    const unlockScroll = lockScroll();
 
     // Focus the panel after it has painted/animated in (rAF), so the
     // pop-up is the focal point. tabIndex={-1} on the panel makes it
@@ -60,8 +57,7 @@ export function useModalLifecycle({
     }
 
     return () => {
-      document.body.style.overflow = prevOverflow;
-      document.body.style.paddingRight = prevPaddingRight;
+      unlockScroll();
       if (listener) window.removeEventListener('keydown', listener);
     };
   }, [enabled, onClose, focusRef]);

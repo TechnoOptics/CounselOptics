@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { Firm } from '@/lib/firm-types';
+import { lockScroll } from '@/lib/scroll-lock';
 import type { MenuSection } from '@/lib/menu-config';
 import { isCounselItemActive, tenantHref } from '@/lib/counsel-routing';
 import { useT } from '@/components/i18n/LocaleProvider';
@@ -112,15 +113,13 @@ export function CounselMobileNav({
     // here: globals.css puts `overflow-x: clip` on <html>, and a root element
     // whose overflow is not `visible` stops the body's overflow propagating
     // to the viewport - so the page kept scrolling under the open drawer.
-    const prev = document.body.style.overflow;
-    const prevRoot = document.documentElement.style.overflow;
-    document.body.style.overflow = 'hidden';
-    document.documentElement.style.overflow = 'hidden';
+    // That reasoning now lives in lib/scroll-lock.ts, which every overlay
+    // in the app shares.
+    const unlockScroll = lockScroll();
     return () => {
       window.removeEventListener('keydown', onKey);
       wide.removeEventListener('change', onWide);
-      document.body.style.overflow = prev;
-      document.documentElement.style.overflow = prevRoot;
+      unlockScroll();
       const previous = lastFocusedRef.current;
       if (previous instanceof HTMLElement && document.contains(previous)) {
         previous.focus();

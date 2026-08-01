@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { lockScroll } from '@/lib/scroll-lock';
 
 /**
  * Mobile-first modal shell. Replaces the ad-hoc `fixed inset-0`
@@ -10,8 +11,9 @@ import { createPortal } from 'react-dom';
  *
  * What this gets right that homemade modals miss:
  *
- *   1. Body-scroll lock. Pages behind the modal can't be
- *      accidentally scrolled by touch on mobile.
+ *   1. Page-scroll lock. Pages behind the modal can't be
+ *      accidentally scrolled by touch on mobile. Locks the root
+ *      element too, which this app requires - lib/scroll-lock.ts.
  *
  *   2. Anchored to the visual viewport, not the document. Uses
  *      `100dvh` (dynamic viewport height) plus the visualViewport
@@ -60,16 +62,9 @@ export function Dialog({
   // Body scroll lock + ESC handler + focus trap entry. Runs once
   // on mount, undoes on unmount.
   useEffect(() => {
-    const prevOverflow = document.body.style.overflow;
-    const prevPaddingRight = document.body.style.paddingRight;
-    // Compensate for the disappearing scrollbar so content doesn't
-    // shift on desktop.
-    const scrollbarWidth =
-      window.innerWidth - document.documentElement.clientWidth;
-    document.body.style.overflow = 'hidden';
-    if (scrollbarWidth > 0) {
-      document.body.style.paddingRight = `${scrollbarWidth}px`;
-    }
+    // Locks <html> as well as <body>, which is load-bearing here - see
+    // lib/scroll-lock.ts. It also handles scrollbar-width compensation.
+    const unlockScroll = lockScroll();
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -88,8 +83,7 @@ export function Dialog({
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener('keydown', onKey);
-      document.body.style.overflow = prevOverflow;
-      document.body.style.paddingRight = prevPaddingRight;
+      unlockScroll();
     };
   }, [onClose]);
 

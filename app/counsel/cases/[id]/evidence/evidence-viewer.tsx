@@ -6,6 +6,7 @@ import { ShareDialog } from '@/components/counsel/ShareDialog';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import { RelevanceBadge } from '@/components/RelevanceBadge';
 import { getFirmEvidenceMediaUrl } from '@/lib/case-evidence-actions';
+import { lockScroll } from '@/lib/scroll-lock';
 import { KindIcon } from '@/components/counsel/KindIcon';
 import {
   exhibitLabel,
@@ -108,11 +109,12 @@ export function EvidenceViewer({
       }
     };
     document.addEventListener('keydown', onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    // Locks <html> as well as <body>; a body-only lock silently does
+    // nothing in this app - see lib/scroll-lock.ts.
+    const unlockScroll = lockScroll();
     return () => {
       document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = prev;
+      unlockScroll();
     };
   }, [onClose, onNext, onPrev, hasNext, hasPrev]);
 

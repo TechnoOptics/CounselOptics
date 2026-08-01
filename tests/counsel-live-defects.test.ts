@@ -153,8 +153,8 @@ describe('counsel mobile navigation drawer', () => {
     expect(nav).toContain("'Tab'");
   });
 
-  it('still locks body scroll and closes on Escape', () => {
-    expect(nav).toContain("document.body.style.overflow = 'hidden'");
+  it('still locks page scroll and closes on Escape', () => {
+    expect(nav).toContain('lockScroll()');
     expect(nav).toContain("e.key === 'Escape'");
   });
 
@@ -162,8 +162,12 @@ describe('counsel mobile navigation drawer', () => {
     // app/globals.css sets `overflow-x: clip` on html AND body. A root element
     // whose overflow is not `visible` stops the body's overflow propagating to
     // the viewport, so the body-only lock never actually held the page still.
+    // The lock itself now lives in lib/scroll-lock.ts, which every overlay in
+    // the app shares; tests/scroll-lock.test.ts covers its behavior.
     expect(read('app/globals.css')).toContain('overflow-x: clip');
-    expect(nav).toContain("document.documentElement.style.overflow = 'hidden'");
+    expect(read('lib/scroll-lock.ts')).toContain(
+      "root.style.overflow = 'hidden'",
+    );
   });
 
   it('closes itself if the viewport grows past the md breakpoint', () => {
