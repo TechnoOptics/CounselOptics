@@ -4,6 +4,7 @@ import { getActiveFirmContext } from '@/lib/firm-storage';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { listFirmProjects } from '@/lib/projects-actions';
 import { NewProjectForm } from './new-project-form';
+import { EmptyState } from '@/components/counsel/ui';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -78,12 +79,14 @@ export default async function CounselProjectsPage({
       </header>
 
       {active.length === 0 && archived.length === 0 ? (
-        <p className="card p-6 text-[13px] text-ink-500 dark:text-cream-100/55 italic">
-          <T>
-            No projects yet. Create one to start organizing folders, notes,
-            and documents.
-          </T>
-        </p>
+        <EmptyState
+          title={<T>No projects yet</T>}
+          sub={
+            <T>
+              Create one to start organizing folders, notes, and documents.
+            </T>
+          }
+        />
       ) : (
         <>
           {active.length > 0 && (
