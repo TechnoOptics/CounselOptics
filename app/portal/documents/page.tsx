@@ -5,6 +5,7 @@ import { createAdminSupabase } from '@/lib/supabase/admin';
 import { getWorkspacePersona } from '@/lib/persona';
 import { ExternalLink } from '@/components/ExternalLink';
 import { visibleIntakeIds } from '@/lib/portal-scope';
+import { PageHeader, EmptyState } from '@/components/counsel/ui';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Documents · Hub' };
@@ -98,17 +99,16 @@ export default async function HubDocumentsPage({
 
   return (
     <div className="space-y-7 animate-fade-up">
-      <header>
-        <p className="eyebrow mb-1">{persona.firm.name}</p>
-        <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-cream-100">
-          Documents
-        </h1>
-        <p className="text-sm text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-          Everything you&rsquo;ve attached to a request. To add a
-          document, attach it when you file or message legal on a
-          request.
-        </p>
-      </header>
+      <PageHeader
+        eyebrow={persona.firm.name}
+        title="Documents"
+        subtitle={
+          <>
+            Everything you&rsquo;ve attached to a request. To add a document,
+            attach it when you file or message legal on a request.
+          </>
+        }
+      />
       <form action="/portal/documents" method="get" className="max-w-xl">
         <div className="search-pill-gold search-pill-gold-dark relative rounded-full">
           <span aria-hidden className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-cream-100/40">
@@ -129,20 +129,23 @@ export default async function HubDocumentsPage({
       </form>
 
       {shown.length === 0 && query ? (
-        <div className="popup-panel p-6 text-[13px] text-cream-100/60 italic">
-          Nothing matches “{query}”.
-        </div>
+        <EmptyState title={<>Nothing matches “{query}”.</>} />
       ) : docs.length === 0 ? (
-        <div className="popup-panel p-6 text-[13px] text-cream-100/60 italic">
-          No documents yet. Attach files on the{' '}
-          <Link
-            href="/portal/new"
-            className="underline text-gold-300 hover:text-gold-200 not-italic"
-          >
-            new request
-          </Link>{' '}
-          form and they&rsquo;ll appear here.
-        </div>
+        <EmptyState
+          title="No documents yet"
+          sub={
+            <>
+              Attach files on the{' '}
+              <Link
+                href="/portal/new"
+                className="underline text-gold-300 hover:text-gold-200"
+              >
+                new request
+              </Link>{' '}
+              form and they&rsquo;ll appear here.
+            </>
+          }
+        />
       ) : (
         <ul className="space-y-2">
           {shown.map((d, i) => (

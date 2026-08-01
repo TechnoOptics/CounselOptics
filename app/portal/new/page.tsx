@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getWorkspacePersona } from '@/lib/persona';
 import { CreateIntakeForm } from '@/app/counsel/intake/create-intake-form';
+import { PageHeader } from '@/components/counsel/ui';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'New request · Portal' };
@@ -28,14 +29,12 @@ export default async function PortalNewRequestPage() {
             &larr; Back to my requests
           </Link>
         </div>
-        <p className="eyebrow mb-2">{persona.firm.name}</p>
-        <h1 className="font-display text-3xl sm:text-4xl font-medium tracking-[-0.01em] text-cream-100">
-          File a request to legal
-        </h1>
-        <p className="text-sm text-cream-100/70 mt-1.5 leading-relaxed">
-          Pick the type, give legal what they need to act, and submit.
-          You can track it from My requests.
-        </p>
+        <PageHeader
+          size="lg"
+          eyebrow={persona.firm.name}
+          title="File a request to legal"
+          subtitle="Pick the type, give legal what they need to act, and submit. You can track it from My requests."
+        />
       </div>
 
       <CreateIntakeForm

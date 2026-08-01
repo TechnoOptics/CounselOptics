@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getWorkspacePersona } from '@/lib/persona';
 import { listPortalTemplatesAction } from '@/lib/firm-templates';
+import { PageHeader, EmptyState } from '@/components/counsel/ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,27 +21,31 @@ export default async function PortalFormsPage() {
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="font-display text-2xl font-medium text-forest-900 dark:text-cream-100">Forms</h1>
-        <p className="mt-1 text-sm text-ink-600 dark:text-cream-100/70">
-          Documents your legal team has prepared for self-service. Fill one in, sign it, and
-          download it, no request needed. If your situation doesn&apos;t fit a form,{' '}
-          <Link href="/portal/new" className="text-gold-700 underline dark:text-gold-300">
-            file a request
-          </Link>{' '}
-          instead.
-        </p>
-      </header>
+      <PageHeader
+        title="Forms"
+        subtitle={
+          <>
+            Documents your legal team has prepared for self-service. Fill one in,
+            sign it, and download it, no request needed. If your situation
+            doesn&apos;t fit a form,{' '}
+            <Link href="/portal/new" className="text-gold-700 underline dark:text-gold-300">
+              file a request
+            </Link>{' '}
+            instead.
+          </>
+        }
+      />
 
       {templates.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-ink-200 px-4 py-10 text-center dark:border-forest-700/40">
-          <p className="text-2xl" aria-hidden>📄</p>
-          <p className="mt-1 text-[14px] font-medium text-forest-900 dark:text-cream-100">No forms yet</p>
-          <p className="mx-auto mt-1 max-w-md text-[12.5px] text-ink-500 dark:text-cream-100/55">
-            Your legal team hasn&apos;t published any form templates. Ask them, or file a request
-            for what you need.
-          </p>
-        </div>
+        <EmptyState
+          title="No forms yet"
+          sub={
+            <>
+              Your legal team hasn&apos;t published any form templates. Ask them,
+              or file a request for what you need.
+            </>
+          }
+        />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {templates.map((t) => (
