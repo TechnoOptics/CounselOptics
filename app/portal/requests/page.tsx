@@ -6,6 +6,7 @@ import { getWorkspacePersona } from '@/lib/persona';
 import { portalStatusLabel, portalStatusColor } from '@/lib/portal-status';
 import { visibleIntakeIds } from '@/lib/portal-scope';
 import { StatusPill } from '@/components/counsel/StatusPill';
+import { PageHeader, EmptyState } from '@/components/counsel/ui';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'My requests · Hub' };
@@ -67,15 +68,11 @@ export default async function PortalRequestsPage() {
 
   return (
     <div className="space-y-7 animate-fade-up">
-      <header>
-        <p className="eyebrow mb-1">{persona.firm.name}</p>
-        <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-cream-100">
-          My requests
-        </h1>
-        <p className="text-sm text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-          Everything you&rsquo;ve sent to legal and where it stands.
-        </p>
-      </header>
+      <PageHeader
+        eyebrow={persona.firm.name}
+        title="My requests"
+        subtitle={<>Everything you&rsquo;ve sent to legal and where it stands.</>}
+      />
 
       {(persona.entitlements.includes('requests.create') ||
         persona.entitlements.includes('review')) && (
@@ -101,21 +98,23 @@ export default async function PortalRequestsPage() {
 
       <section className="space-y-3">
         {requests.length === 0 ? (
-          <div className="popup-panel p-6 text-center space-y-2">
-            <p className="text-sm text-cream-100/70">
-              {persona.entitlements.includes('requests.create')
+          <EmptyState
+            title={
+              persona.entitlements.includes('requests.create')
                 ? 'You haven’t filed anything yet.'
-                : 'Nothing here yet.'}
-            </p>
-            {persona.entitlements.includes('requests.create') && (
-              <Link
-                href="/portal/new"
-                className="inline-block text-[13px] underline text-gold-300 hover:text-gold-200"
-              >
-                File your first request
-              </Link>
-            )}
-          </div>
+                : 'Nothing here yet.'
+            }
+            action={
+              persona.entitlements.includes('requests.create') ? (
+                <Link
+                  href="/portal/new"
+                  className="inline-block text-[13px] underline text-gold-300 hover:text-gold-200"
+                >
+                  File your first request
+                </Link>
+              ) : undefined
+            }
+          />
         ) : (
           <ul className="space-y-2">
             {requests.map((r) => {

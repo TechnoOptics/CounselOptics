@@ -5,6 +5,8 @@ import { getWorkspacePersona } from '@/lib/persona';
 import { LocaleTime } from '@/components/LocaleTime';
 import { ExternalLink } from '@/components/ExternalLink';
 import { CompleteTrainingButton } from './complete-button';
+import { PageHeader, SectionTitle, EmptyState } from '@/components/counsel/ui';
+import { StatusPill, PILL_COLORS } from '@/components/counsel/StatusPill';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Trainings · Hub' };
@@ -57,31 +59,21 @@ export default async function HubTrainingsPage() {
 
   return (
     <div className="space-y-7 animate-fade-up">
-      <header>
-        <p className="eyebrow mb-1">{persona.firm.name}</p>
-        <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-cream-100">
-          Trainings
-        </h1>
-        <p className="text-sm text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-          Trainings your legal team has assigned. Open each one, then
-          mark it complete.
-        </p>
-      </header>
+      <PageHeader
+        eyebrow={persona.firm.name}
+        title="Trainings"
+        subtitle="Trainings your legal team has assigned. Open each one, then mark it complete."
+      />
 
       {assignments.length === 0 ? (
-        <div className="popup-panel p-6 text-[13px] text-cream-100/60 italic">
-          No trainings assigned yet. When legal assigns a required
-          training, it will appear here with its due date.
-        </div>
+        <EmptyState
+          title="No trainings assigned yet"
+          sub="When legal assigns a required training, it will appear here with its due date."
+        />
       ) : (
         <>
           <section className="space-y-2">
-            <h2 className="font-display text-lg text-cream-100">
-              To do{' '}
-              <span className="text-[12px] text-cream-100/60">
-                ({open.length})
-              </span>
-            </h2>
+            <SectionTitle>To do ({open.length})</SectionTitle>
             {open.length === 0 ? (
               <p className="popup-panel p-5 text-[13px] text-cream-100/55 italic">
                 All caught up - nothing outstanding.
@@ -127,9 +119,7 @@ export default async function HubTrainingsPage() {
 
           {done.length > 0 && (
             <section className="space-y-2">
-              <h2 className="font-display text-lg text-cream-100">
-                Completed
-              </h2>
+              <SectionTitle>Completed</SectionTitle>
               <ul className="space-y-1.5">
                 {done.map((a) => (
                   <li
@@ -139,9 +129,9 @@ export default async function HubTrainingsPage() {
                     <span className="text-cream-100/75 truncate">
                       {a.title}
                     </span>
-                    <span className="shrink-0 inline-flex items-center px-2 py-[2px] rounded text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ring-emerald-700/40 bg-emerald-950/30 text-emerald-200">
+                    <StatusPill size="sm" color={PILL_COLORS.good}>
                       Done
-                    </span>
+                    </StatusPill>
                   </li>
                 ))}
               </ul>

@@ -6,6 +6,7 @@ import { LocaleTime } from '@/components/LocaleTime';
 import { ExternalLink } from '@/components/ExternalLink';
 import { parseDueBy, isDueCurrent } from '@/lib/portal-due';
 import { visibleIntakeIds } from '@/lib/portal-scope';
+import { PageHeader, EmptyState } from '@/components/counsel/ui';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Calendar · Hub' };
@@ -85,21 +86,16 @@ export default async function HubCalendarPage() {
 
   return (
     <div className="space-y-7 animate-fade-up">
-      <header>
-        <p className="eyebrow mb-1">{persona.firm.name}</p>
-        <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-cream-100">
-          Calendar
-        </h1>
-        <p className="text-sm text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-          Your meetings with legal and anything coming due, in one
-          place.
-        </p>
-      </header>
+      <PageHeader
+        eyebrow={persona.firm.name}
+        title="Calendar"
+        subtitle="Your meetings with legal and anything coming due, in one place."
+      />
       {items.length === 0 ? (
-        <div className="popup-panel p-6 text-[13px] text-cream-100/60 italic">
-          Nothing scheduled yet. When legal sets up a meeting or a due
-          date on one of your requests, it shows here.
-        </div>
+        <EmptyState
+          title="Nothing scheduled yet"
+          sub="When legal sets up a meeting or a due date on one of your requests, it shows here."
+        />
       ) : (
         <ul className="space-y-2">
           {items.map((it, i) => (

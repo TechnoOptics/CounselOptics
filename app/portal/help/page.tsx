@@ -4,6 +4,7 @@ import { getWorkspacePersona } from '@/lib/persona';
 import { listMyFeedback } from '@/lib/storage';
 import { SupportTicketForm } from '@/components/SupportTicketForm';
 import { TicketHistory } from '@/components/TicketHistory';
+import { PageHeader } from '@/components/counsel/ui';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Help · Hub' };
@@ -22,21 +23,21 @@ export default async function HubHelpPage() {
 
   return (
     <div className="space-y-6 animate-fade-up max-w-3xl">
-      <header>
-        <p className="eyebrow mb-1">Help &amp; support</p>
-        <h1 className="font-display text-3xl font-medium text-cream-100">
-          Talk to the Advottic team
-        </h1>
-        <p className="text-sm text-cream-100/70 mt-1 leading-relaxed">
-          Something in the app not working, or a suggestion? Open a ticket
-          and we&rsquo;ll follow up by email. Need something from your
-          legal team instead? Use{' '}
-          <a href="/portal/new" className="underline">
-            New request
-          </a>{' '}
-          (this form goes to Advottic, not {persona.firm.name}).
-        </p>
-      </header>
+      <PageHeader
+        eyebrow={<>Help &amp; support</>}
+        title="Talk to the Advottic team"
+        subtitle={
+          <>
+            Something in the app not working, or a suggestion? Open a ticket and
+            we&rsquo;ll follow up by email. Need something from your legal team
+            instead? Use{' '}
+            <a href="/portal/new" className="underline">
+              New request
+            </a>{' '}
+            (this form goes to Advottic, not {persona.firm.name}).
+          </>
+        }
+      />
 
       <SupportTicketForm tone="dark" />
 

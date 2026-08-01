@@ -8,6 +8,7 @@ import {
   RESERVED_FIRM_KEYS,
   isSelfNameField,
 } from '@/lib/firm-template-placeholders';
+import { SectionTitle } from '@/components/counsel/ui';
 
 /**
  * Employee fill-and-sign for a firm template. Fields render as inputs, the
@@ -183,9 +184,7 @@ export function FormFillClient({
         {/* Fields */}
         <div className="space-y-4">
           <section className="space-y-3 rounded-xl border border-ink-200 bg-white p-4 dark:border-forest-700/50 dark:bg-forest-900/40">
-            <h2 className="text-[13px] font-semibold uppercase tracking-wider text-ink-500 dark:text-cream-100/55">
-              Your details
-            </h2>
+            <SectionTitle>Your details</SectionTitle>
             {template.fields.map((f) => (
               <label key={f.key} className="block">
                 <span className="mb-1 block text-[13px] font-medium text-forest-900 dark:text-cream-100">
@@ -310,9 +309,7 @@ export function FormFillClient({
 
         {/* Live preview */}
         <section className="rounded-xl border border-ink-200 bg-white p-6 dark:border-forest-700/50 dark:bg-forest-900/40">
-          <h2 className="mb-3 text-[13px] font-semibold uppercase tracking-wider text-ink-500 dark:text-cream-100/55">
-            Preview
-          </h2>
+          <SectionTitle className="mb-3">Preview</SectionTitle>
           <div className="max-h-[70vh] overflow-y-auto whitespace-pre-wrap font-serif text-[13.5px] leading-relaxed text-forest-900 dark:text-cream-100/90">
             {merged}
           </div>

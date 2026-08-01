@@ -3,6 +3,7 @@ import { getCurrentUser } from '@/lib/supabase/server';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { getWorkspacePersona } from '@/lib/persona';
 import { ProfileForm } from './profile-form';
+import { PageHeader } from '@/components/counsel/ui';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Profile · Hub' };
@@ -41,16 +42,16 @@ export default async function HubProfilePage() {
 
   return (
     <div className="max-w-2xl space-y-7 animate-fade-up">
-      <header>
-        <p className="eyebrow mb-1">{persona.firm.name}</p>
-        <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-cream-100">
-          Profile &amp; notifications
-        </h1>
-        <p className="text-sm text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-          Choose how {persona.firm.name}&rsquo;s legal team reaches you
-          about replies, meetings, and anything due.
-        </p>
-      </header>
+      <PageHeader
+        eyebrow={persona.firm.name}
+        title={<>Profile &amp; notifications</>}
+        subtitle={
+          <>
+            Choose how {persona.firm.name}&rsquo;s legal team reaches you about
+            replies, meetings, and anything due.
+          </>
+        }
+      />
 
       <div className="popup-panel p-5 sm:p-6">
         <p className="text-[12px] text-cream-100/55 mb-1">Signed in as</p>
