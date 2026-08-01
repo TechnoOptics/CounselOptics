@@ -97,8 +97,16 @@ function computeOwnVisibility(
  * question (enforced at publish time), so each question's controller is
  * already resolved in `visible` by the time we reach it: no recursion, no
  * risk of a loop, and each question is evaluated exactly once.
+ *
+ * Exported because a renderer needs every question's visibility at once.
+ * `isQuestionVisible` builds this whole map on each call, so a renderer that
+ * asked it per field would be quadratic in the number of questions. Build the
+ * map once per render and read from it.
  */
-function computeVisibilityMap(payload: FormPayload, answers: Answers): Map<string, boolean> {
+export function computeVisibilityMap(
+  payload: FormPayload,
+  answers: Answers,
+): Map<string, boolean> {
   const visible = new Map<string, boolean>();
   for (const row of payload.rows) {
     for (const q of row.fields) {
