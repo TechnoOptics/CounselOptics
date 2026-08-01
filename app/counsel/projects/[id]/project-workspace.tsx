@@ -7,6 +7,7 @@ import { isNativeApp } from '@/lib/platform';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import type { Project, ProjectFolder, ProjectItem } from '@/lib/project-types';
 import { LinkCasePanel } from './link-case-panel';
+import { PageHeader } from '@/components/counsel/ui';
 import {
   addProjectNoteAction,
   uploadProjectDocumentAction,
@@ -106,47 +107,45 @@ export function ProjectWorkspace({
 
   return (
     <div className="space-y-6 animate-fade-up">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
+      <PageHeader
+        align="start"
+        backLink={
           <Link
             href="/counsel/projects"
             className="text-[12px] text-ink-500 dark:text-cream-100/55 hover:underline"
           >
             ← <T>All projects</T>
           </Link>
-          <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100 mt-1">
-            {project.name}
-          </h1>
-          {project.description && (
-            <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1">
-              {project.description}
-            </p>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <label className="inline-flex items-center gap-1.5 text-[12px] text-ink-600 dark:text-cream-100/70">
-            <input
-              type="checkbox"
-              checked={showArchived}
-              onChange={(e) => setShowArchived(e.target.checked)}
-              className="h-4 w-4 accent-forest-700"
-            />
-            <T>Show archived</T>
-          </label>
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() =>
-              run(() =>
-                setProjectArchivedAction(firmId, project.id, project.status !== 'archived'),
-              )
-            }
-            className="inline-flex items-center min-h-[40px] px-3 rounded-md text-[12px] ring-1 ring-ink-200 dark:ring-forest-700/40 hover:bg-cream-50 dark:hover:bg-forest-800/30 disabled:opacity-50"
-          >
-            {project.status === 'archived' ? <T>Unarchive project</T> : <T>Archive project</T>}
-          </button>
-        </div>
-      </header>
+        }
+        title={project.name}
+        subtitleClassName="mt-1"
+        subtitle={project.description || undefined}
+        action={
+          <div className="flex items-center gap-2">
+            <label className="inline-flex items-center gap-1.5 text-[12px] text-ink-600 dark:text-cream-100/70">
+              <input
+                type="checkbox"
+                checked={showArchived}
+                onChange={(e) => setShowArchived(e.target.checked)}
+                className="h-4 w-4 accent-forest-700"
+              />
+              <T>Show archived</T>
+            </label>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() =>
+                run(() =>
+                  setProjectArchivedAction(firmId, project.id, project.status !== 'archived'),
+                )
+              }
+              className="inline-flex items-center min-h-[40px] px-3 rounded-md text-[12px] ring-1 ring-ink-200 dark:ring-forest-700/40 hover:bg-cream-50 dark:hover:bg-forest-800/30 disabled:opacity-50"
+            >
+              {project.status === 'archived' ? <T>Unarchive project</T> : <T>Archive project</T>}
+            </button>
+          </div>
+        }
+      />
 
       {error && (
         <p className="rounded-lg border border-rose-200 dark:border-rose-700/40 bg-rose-50 dark:bg-rose-950/30 px-3 py-2 text-sm text-rose-800 dark:text-rose-200">

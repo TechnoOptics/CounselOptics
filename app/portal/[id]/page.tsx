@@ -17,6 +17,7 @@ import {
   portalStepIndex,
 } from '@/lib/portal-status';
 import { StatusPill } from '@/components/counsel/StatusPill';
+import { PageHeader } from '@/components/counsel/ui';
 import { ReviewScorecard } from '@/components/ReviewScorecard';
 import type { DocScorecard } from '@/lib/doc-review';
 
@@ -108,20 +109,21 @@ export default async function PortalRequestPage({
         </Link>
       </p>
 
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="eyebrow mb-1">{persona.firm.name}</p>
-          <h1 className="font-display text-2xl font-medium tracking-[-0.01em] text-cream-100 break-words">
-            {ticketTitle}
-          </h1>
-          <p className="text-[12px] text-cream-100/55 mt-1">
-            {intake.matter_type ?? 'Request'}
-            {' · filed '}
-            {new Date(intake.created_at).toLocaleDateString()}
-          </p>
-        </div>
-        <StatusPill color={color}>{label}</StatusPill>
-      </header>
+      {/* The particulars line goes through `children` rather than
+          `meta`: `meta` is the mono version, and this one is not mono. */}
+      <PageHeader
+        align="start"
+        size="sm"
+        eyebrow={persona.firm.name}
+        title={ticketTitle}
+        action={<StatusPill color={color}>{label}</StatusPill>}
+      >
+        <p className="text-[12px] text-cream-100/55 mt-1">
+          {intake.matter_type ?? 'Request'}
+          {' · filed '}
+          {new Date(intake.created_at).toLocaleDateString()}
+        </p>
+      </PageHeader>
 
       {/* Milestone strip */}
       <section className="card p-5">

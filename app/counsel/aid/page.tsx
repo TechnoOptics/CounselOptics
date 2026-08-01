@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { AidChat } from './aid-chat';
+import { PageHeader } from '@/components/counsel/ui';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -21,19 +22,23 @@ export default async function CounselAidPage() {
     // counsel header, footer, and layout padding. min-h keeps it usable
     // on very short screens (where the page may scroll, which is fine).
     <div className="flex flex-col gap-4 animate-fade-up h-[calc(100dvh-9.5rem)] min-h-[28rem]">
-      <header className="flex-none">
-        <p className="eyebrow mb-1"><T>Counsel · Advottic Aid</T></p>
-        <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          <T>Advottic Aid</T>
-        </h1>
-        <p className="hidden sm:block text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-          <T>Ask questions about your matters and get answers grounded in
-          real case law for</T> <strong>{where}</strong>,{' '}
-          <T>plus instant
-          retrieval of your firm&rsquo;s past items. Powered by Bella
-          with live CourtListener case-law search.</T>
-        </p>
-      </header>
+      <PageHeader
+        className="flex-none"
+        eyebrow={<T>Counsel · Advottic Aid</T>}
+        title={<T>Advottic Aid</T>}
+        // Hidden under sm on purpose: this page is sized to one screen
+        // and the chat needs the room a phone would give the blurb.
+        subtitleClassName="mt-1 max-w-2xl hidden sm:block"
+        subtitle={
+          <>
+            <T>Ask questions about your matters and get answers grounded in
+            real case law for</T> <strong>{where}</strong>,{' '}
+            <T>plus instant
+            retrieval of your firm&rsquo;s past items. Powered by Bella
+            with live CourtListener case-law search.</T>
+          </>
+        }
+      />
       <div className="flex-1 min-h-0">
         <AidChat />
       </div>

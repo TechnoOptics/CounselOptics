@@ -18,10 +18,10 @@ export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Cases · Counsel' };
 
 // One hex per case status; StatusPill derives the fill and the border
-// from it. `archived` shared `closed`'s grey before and still does:
-// PILL_COLORS.quiet, the dimmer grey that would have set it apart,
-// measures about 3.9:1 on a counsel card and so fails AA at chip size.
-// The label already says which of the two a matter is.
+// from it. `archived` used to share `closed`'s grey because the dimmer
+// grey that sets it apart, PILL_COLORS.quiet, measured about 3.9:1 on a
+// counsel card and failed AA at chip size. `quiet` has since been lifted
+// to 4.71:1, so archived can read as the quieter of the two again.
 const STATUS_COLOR: Record<CaseStatus, string> = {
   draft: PILL_COLORS.neutral,
   open: PILL_COLORS.good,
@@ -29,7 +29,7 @@ const STATUS_COLOR: Record<CaseStatus, string> = {
   needs_evidence: PILL_COLORS.waiting,
   export_ready: PILL_COLORS.good,
   closed: PILL_COLORS.neutral,
-  archived: PILL_COLORS.neutral,
+  archived: PILL_COLORS.quiet,
 };
 
 export default async function CounselCasesPage({

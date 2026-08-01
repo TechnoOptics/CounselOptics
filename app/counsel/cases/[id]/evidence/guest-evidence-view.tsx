@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { GuestTimelineBundle } from '@/lib/counsel-guest';
 import { T } from '@/components/i18n/LocaleProvider';
 import { StatusPill, PILL_COLORS } from '@/components/counsel/StatusPill';
+import { PageHeader } from '@/components/counsel/ui';
 
 /**
  * Read-only Evidence list for a case-scoped Counsel GUEST (co-counsel). Guests
@@ -22,20 +23,19 @@ export function GuestEvidenceView({
   const items = bundle.events.filter((e) => e.attachments > 0);
   return (
     <div className="space-y-6">
-      <header className="min-w-0">
-        <Link
-          href={`/counsel/cases/${caseId}`}
-          className="text-[12px] text-cream-100/55 hover:underline"
-        >
-          ← <T>Back to matter</T>
-        </Link>
-        <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-cream-100 mt-1">
-          <T>Evidence</T>
-        </h1>
-        <p className="text-sm text-cream-100/70 mt-1 break-words" data-no-translate>
-          {caseTitle}
-        </p>
-      </header>
+      <PageHeader
+        backLink={
+          <Link
+            href={`/counsel/cases/${caseId}`}
+            className="text-[12px] text-cream-100/55 hover:underline"
+          >
+            ← <T>Back to matter</T>
+          </Link>
+        }
+        title={<T>Evidence</T>}
+        subtitleClassName="mt-1"
+        subtitle={<span data-no-translate>{caseTitle}</span>}
+      />
 
       <div className="flex flex-wrap items-center gap-3">
         <Link

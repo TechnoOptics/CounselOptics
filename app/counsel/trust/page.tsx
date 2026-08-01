@@ -166,40 +166,40 @@ export default async function CounselTrustPage({
 
   return (
     <div className="space-y-8 animate-fade-up">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="eyebrow mb-1"><T>Counsel · trust</T></p>
-          <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-            {account.name}
-          </h1>
-          <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-1 font-mono">
+      <PageHeader
+        eyebrow={<T>Counsel · trust</T>}
+        title={account.name}
+        meta={
+          <>
             {account.bank_name ?? <T>Bank not set</T>} ·{' '}
             {account.is_iolta ? 'IOLTA' : 'Trust'} · {account.state}
             {account.account_number_masked && ` · ${account.account_number_masked}`}
-          </p>
-        </div>
-        {accounts.length > 1 && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            {accounts.map((a) => {
-              const active = a.id === account.id;
-              return (
-                <Link
-                  key={a.id}
-                  href={`/counsel/trust?account=${a.id}`}
-                  aria-current={active ? 'page' : undefined}
-                  className={`inline-flex items-center min-h-[36px] px-3 rounded-lg text-[12px] font-medium ring-1 transition-colors ${
-                    active
-                      ? 'bg-forest-900 text-cream-100 ring-forest-900 dark:bg-cream-100 dark:text-forest-950 dark:ring-cream-100'
-                      : 'text-ink-600 dark:text-cream-100/70 ring-ink-200 dark:ring-forest-700/40 hover:bg-cream-50 dark:hover:bg-forest-800/30'
-                  }`}
-                >
-                  {a.name}
-                </Link>
-              );
-            })}
-          </div>
-        )}
-      </header>
+          </>
+        }
+        action={
+          accounts.length > 1 ? (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {accounts.map((a) => {
+                const active = a.id === account.id;
+                return (
+                  <Link
+                    key={a.id}
+                    href={`/counsel/trust?account=${a.id}`}
+                    aria-current={active ? 'page' : undefined}
+                    className={`inline-flex items-center min-h-[36px] px-3 rounded-lg text-[12px] font-medium ring-1 transition-colors ${
+                      active
+                        ? 'bg-forest-900 text-cream-100 ring-forest-900 dark:bg-cream-100 dark:text-forest-950 dark:ring-cream-100'
+                        : 'text-ink-600 dark:text-cream-100/70 ring-ink-200 dark:ring-forest-700/40 hover:bg-cream-50 dark:hover:bg-forest-800/30'
+                    }`}
+                  >
+                    {a.name}
+                  </Link>
+                );
+              })}
+            </div>
+          ) : undefined
+        }
+      />
 
       {/* Three-way reconciliation summary */}
       <section className="grid gap-3 sm:grid-cols-3">

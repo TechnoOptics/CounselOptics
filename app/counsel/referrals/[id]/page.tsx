@@ -6,6 +6,7 @@ import { RespondToReferralForm } from './respond-form';
 import { RecordPaymentForm } from './record-payment-form';
 import { referralStatusColor } from '@/lib/referral-status';
 import { StatusPill } from '@/components/counsel/StatusPill';
+import { PageHeader } from '@/components/counsel/ui';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -71,23 +72,28 @@ export default async function ReferralDetailPage({
         </Link>
       </p>
 
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="eyebrow mb-1"><T>Referral</T></p>
-          <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
+      <PageHeader
+        align="start"
+        eyebrow={<T>Referral</T>}
+        title={
+          <>
             {names.get(r.referring_firm_id)} &rarr;{' '}
             {names.get(r.referred_firm_id)}
-          </h1>
-          <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-1 font-mono">
+          </>
+        }
+        meta={
+          <>
             {r.state} · <T>proposed split</T> {r.proposed_split_percent}% ·{' '}
             <T>created</T>{' '}
             {new Date(r.created_at).toLocaleString()}
-          </p>
-        </div>
-        <StatusPill color={referralStatusColor(r.status)}>
-          {r.status}
-        </StatusPill>
-      </header>
+          </>
+        }
+        action={
+          <StatusPill color={referralStatusColor(r.status)}>
+            {r.status}
+          </StatusPill>
+        }
+      />
 
       <section className="card p-5 space-y-2">
         <p className="eyebrow text-[10px]"><T>Matter brief</T></p>

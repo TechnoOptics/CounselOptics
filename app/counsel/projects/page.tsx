@@ -4,7 +4,7 @@ import { getActiveFirmContext } from '@/lib/firm-storage';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { listFirmProjects } from '@/lib/projects-actions';
 import { NewProjectForm } from './new-project-form';
-import { EmptyState } from '@/components/counsel/ui';
+import { EmptyState, PageHeader } from '@/components/counsel/ui';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -61,22 +61,20 @@ export default async function CounselProjectsPage({
           </Link>
         </div>
       )}
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="eyebrow mb-1"><T>Projects</T></p>
-          <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-            <T>Projects &amp; folders</T>
-          </h1>
-          <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-            <T>
-              Keep related notes and documents together. Create folders
-              inside a project, drop things in, and archive what you want
-              out of the way but not gone.
-            </T>
-          </p>
-        </div>
-        <NewProjectForm firmId={ctx.firm.id} caseId={caseId} />
-      </header>
+      <PageHeader
+        align="start"
+        eyebrow={<T>Projects</T>}
+        title={<T>Projects &amp; folders</T>}
+        subtitleClassName="mt-1 max-w-2xl"
+        subtitle={
+          <T>
+            Keep related notes and documents together. Create folders
+            inside a project, drop things in, and archive what you want
+            out of the way but not gone.
+          </T>
+        }
+        action={<NewProjectForm firmId={ctx.firm.id} caseId={caseId} />}
+      />
 
       {active.length === 0 && archived.length === 0 ? (
         <EmptyState

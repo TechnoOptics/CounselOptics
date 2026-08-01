@@ -3,6 +3,7 @@ import type { GuestCaseSummary } from '@/lib/counsel-guest';
 import type { CaseEvidenceAnalytics } from '@/lib/case-analytics';
 import type { Approach } from '@/lib/firm-approach-actions';
 import { T } from '@/components/i18n/LocaleProvider';
+import { PageHeader } from '@/components/counsel/ui';
 import { SectionPanel } from '@/components/counsel/SectionPanel';
 import { ExportPacketTile } from '@/components/counsel/ExportPacketTile';
 import { CoCounselTour, CoCounselTourReplay } from '@/components/counsel/CoCounselTour';
@@ -64,21 +65,15 @@ export function CounselGuestWorkspace({
     <div className="space-y-8">
       {/* First-run walkthrough (auto-opens once; replayable from the chip below). */}
       <CoCounselTour firstName={firstName} />
-      <header className="min-w-0">
-        <div className="flex items-start justify-between gap-3">
-          <p className="text-[11px] uppercase tracking-[0.16em] font-semibold text-gold-300">
-            <T>Co-counsel</T>
-          </p>
-          <CoCounselTourReplay className="shrink-0" />
-        </div>
-        <h1
-          className="font-display text-3xl font-medium tracking-[-0.01em] text-cream-100 mt-1 break-words"
-          data-no-translate
-        >
-          {kase.title}
-        </h1>
-        <p className="text-sm text-cream-100/70 mt-2 max-w-2xl">
-          {firstName ? (
+      <PageHeader
+        align="start"
+        eyebrowVariant="plain"
+        eyebrow={<T>Co-counsel</T>}
+        action={<CoCounselTourReplay className="shrink-0" />}
+        title={<span data-no-translate>{kase.title}</span>}
+        subtitleClassName="mt-2 max-w-2xl"
+        subtitle={
+          firstName ? (
             <>
               <span data-no-translate>{firstName}</span>
               <T>, you are co-counsel on this matter. Start with the party and the
@@ -91,9 +86,9 @@ export function CounselGuestWorkspace({
               facts below, then open any section to work it. Firm billing and
               internal operations are not shown.
             </T>
-          )}
-        </p>
-      </header>
+          )
+        }
+      />
 
       {/* Party dossier + case facts lead the workspace. */}
       {firmId ? (
