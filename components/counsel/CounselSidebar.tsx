@@ -178,13 +178,14 @@ export function CounselSidebar({
             data-testid={`counsel-sidebar-${item.href.replace(/^\//, '').replace(/\//g, '-') || 'root'}`}
             className={active ? NAV_ROW_ACTIVE : NAV_ROW_IDLE}
           >
-            {/* Duotone gold glyphs (soft gold body + burnished gold line), a
-                crafted, on-brand set. No per-row colour tile (that read cheap).
-                The active row shows at full strength; others sit slightly back. */}
+            {/* Single-weight stroke glyphs on currentColor, so the icon takes
+                its colour from the row and gold marks where you are. No
+                per-row colour tile (that read cheap). Deliberately no opacity
+                modifier: the idle row is already text-cream-100/85, and
+                dimming on top of that put the glyph at 0.68 against a 0.85
+                label, which read as a broken icon rather than a quiet one. */}
             <span
-              className={`inline-flex h-[18px] w-[18px] flex-none items-center justify-center transition-opacity ${
-                active ? 'opacity-100' : 'opacity-80'
-              }`}
+              className="inline-flex h-[18px] w-[18px] flex-none items-center justify-center"
               aria-hidden
             >
               {ICONS[item.href] ?? <DocIcon />}
