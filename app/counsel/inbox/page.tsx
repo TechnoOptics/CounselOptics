@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { readRequestFolders } from '@/lib/request-folders';
+import { isIntakeOpen } from '@/lib/intake-lanes';
 import { IntakeInbox, type InboxIntake } from '@/components/counsel/IntakeInbox';
 import { Tabs, type TabDef } from '@/components/Tabs';
 import { PageHeader } from '@/components/counsel/ui';
@@ -50,12 +51,13 @@ export default async function CounselInboxPage() {
   const internal = intakes.filter(isInternal);
   const external = intakes.filter((i) => !isInternal(i));
 
-  const openInternal = internal.filter(
-    (i) => i.status !== 'rejected' && i.status !== 'engaged',
-  ).length;
-  const openExternal = external.filter(
-    (i) => i.status !== 'rejected' && i.status !== 'engaged',
-  ).length;
+  // The tab badge counts OPEN requests: needs attention plus in review. That
+  // is deliberately a wider measure than the "Needs attention" lane tile
+  // below it, and the subtitle now says so - the two numbers disagreeing with
+  // no explanation was the confusing part, not the numbers themselves. (It
+  // also used to count converted and closed requests as open.)
+  const openInternal = internal.filter((i) => isIntakeOpen(i.status)).length;
+  const openExternal = external.filter((i) => isIntakeOpen(i.status)).length;
 
   const tabs: TabDef[] = [
     {
@@ -95,7 +97,9 @@ export default async function CounselInboxPage() {
             <T>is what your people filed - from the Hub or a connected
             workplace app.</T>{' '}
             <strong><T>External</T></strong> <T>is outside-client matters
-            only. Need to create one yourself?</T>{' '}
+            only. The number on each tab counts every open request, which is the
+            Needs attention lane plus the In review lane. Need to create
+            one yourself?</T>{' '}
             <Link
               href="/counsel/intake"
               className="underline text-forest-900 dark:text-cream-100"

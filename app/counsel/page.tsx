@@ -19,6 +19,7 @@ import {
   type DashboardTileData,
 } from '@/components/counsel/CounselDashboardTiles';
 import { getCounselDashboardConfig } from '@/lib/counsel-dashboard';
+import { tallyIntakeLanes } from '@/lib/intake-lanes';
 import { PageHeader, EmptyState } from '@/components/counsel/ui';
 import { T } from '@/components/i18n/LocaleProvider';
 
@@ -100,9 +101,11 @@ export default async function CounselDashboard() {
   );
   const clientsActive = clients.filter((c) => c.status === 'active');
 
-  // Intake lanes. Match the laneOf logic in IntakeInbox: "engaged" /
-  // "accepted" -> Accepted, "rejected" -> Closed, "in_review" -> In
-  // review, everything else -> Needs attention.
+  // Intake lanes come from lib/intake-lanes, the one definition the inbox
+  // lanes and the Impact "Open requests" KPI also use. This block used to
+  // hand-roll the map and tested for a status named `in_review` that the
+  // schema has never allowed, so every conflict-cleared request landed in
+  // "needs attention" and the dashboard reported 5 where the inbox showed 4.
   const sinceMs = Date.now() - 24 * 60 * 60 * 1000;
   const { data: intakeRows } = await supabase
     .from('firm_matter_intakes')
@@ -121,18 +124,15 @@ export default async function CounselDashboard() {
     intake_answers: Record<string, unknown> | null;
   };
   const intakes = (intakeRows ?? []) as IntakeRow[];
-  const lanes = { needsAttention: 0, inReview: 0, accepted: 0, closed: 0 };
+  const tally = tallyIntakeLanes(intakes.map((i) => i.status));
+  const lanes = {
+    needsAttention: tally.attention,
+    inReview: tally.review,
+    accepted: tally.accepted,
+    closed: tally.closed,
+  };
   let newToday = 0;
   for (const i of intakes) {
-    if (i.status === 'engaged' || i.status === 'accepted') {
-      lanes.accepted += 1;
-    } else if (i.status === 'rejected') {
-      lanes.closed += 1;
-    } else if (i.status === 'in_review') {
-      lanes.inReview += 1;
-    } else {
-      lanes.needsAttention += 1;
-    }
     if (new Date(i.created_at).getTime() >= sinceMs) newToday += 1;
   }
   const recentNew = intakes.slice(0, 5).map((i) => ({

@@ -276,26 +276,38 @@ function SimpleCountTile({
 /* ----- Action center: only-renders-when-there's-something tile ----- */
 
 function ActionCenterTile({ data }: { data: DashboardTileData }) {
+  // Each row carries the number of work items behind it, and the title is
+  // their sum. The title used to count ROWS, so a tile headed "1 thing needs
+  // a human" sat directly above a row reading "5 requests need attention".
+  // The rows are kept disjoint for that sum to be honest. "New in the last
+  // 24 hours" counts arrivals in every lane, so it is NOT a work-item row of
+  // its own (it would double-count); it rides along as a clause that names
+  // itself as the separate measure it is.
   const items: Array<{
     label: string;
     href: string;
     detail: string;
     tone: 'warn' | 'ok';
+    workItems: number;
   }> = [];
   if (data.intake.needsAttention > 0) {
     items.push({
       label: `${data.intake.needsAttention} request${data.intake.needsAttention === 1 ? '' : 's'} need attention`,
       href: '/counsel/inbox',
-      detail: 'Untriaged matters waiting on legal.',
+      detail:
+        data.intake.newToday > 0
+          ? `Untriaged or flagged, waiting on legal. Separately, ${data.intake.newToday} request${data.intake.newToday === 1 ? '' : 's'} arrived in the last 24 hours, in any lane.`
+          : 'Untriaged or flagged, waiting on legal.',
       tone: 'warn',
+      workItems: data.intake.needsAttention,
     });
-  }
-  if (data.intake.newToday > 0) {
+  } else if (data.intake.newToday > 0) {
     items.push({
-      label: `${data.intake.newToday} new in the last 24h`,
+      label: `${data.intake.newToday} new in the last 24 hours`,
       href: '/counsel/inbox',
-      detail: 'Hot off the press - check before the day fills up.',
+      detail: 'Already triaged, but worth a look before the day fills up.',
       tone: 'warn',
+      workItems: data.intake.newToday,
     });
   }
   if (data.signing.mineAwaiting.length > 0) {
@@ -304,6 +316,7 @@ function ActionCenterTile({ data }: { data: DashboardTileData }) {
       href: '/counsel/signing',
       detail: 'Send a reminder or escalate if the deadline is close.',
       tone: 'warn',
+      workItems: data.signing.mineAwaiting.length,
     });
   }
   if (data.counts.invitations > 0 && data.isAdmin) {
@@ -312,8 +325,10 @@ function ActionCenterTile({ data }: { data: DashboardTileData }) {
       href: '/counsel/team',
       detail: 'Members invited but not yet accepted.',
       tone: 'warn',
+      workItems: data.counts.invitations,
     });
   }
+  const workItems = items.reduce((sum, i) => sum + i.workItems, 0);
 
   return (
     <TileFrame
@@ -323,9 +338,9 @@ function ActionCenterTile({ data }: { data: DashboardTileData }) {
           <T>All clear</T>
         ) : (
           <>
-            {items.length}{' '}
+            {workItems}{' '}
             <T>
-              {items.length === 1
+              {workItems === 1
                 ? 'thing needs a human'
                 : 'things need a human'}
             </T>
@@ -414,10 +429,14 @@ function AssignedToMeTile({ data }: { data: DashboardTileData }) {
               </p>
             ) : (
               <ul className="space-y-1">
+                {/* There is no /counsel/clients/[id] route. Every row here
+                    used to link at one, so Next prefetched a 404 on dashboard
+                    render and the console carried the failure before anyone
+                    clicked. The client list is the real destination. */}
                 {data.assigned.clients.slice(0, 5).map((c) => (
                   <li key={c.id}>
                     <Link
-                      href={`/counsel/clients/${c.id}`}
+                      href="/counsel/clients"
                       className="block rounded px-2 py-1 text-[13px] text-cream-100 hover:bg-cream-100/5"
                     >
                       {c.displayName}
@@ -476,7 +495,9 @@ function AssignedToMeTile({ data }: { data: DashboardTileData }) {
 
 function QuickActionsTile({ data }: { data: DashboardTileData }) {
   const actions = [
-    { href: '/counsel/cases/new', label: 'New case' },
+    // There is no dedicated "new matter" route - the control lives on the
+    // caseload page itself, so this shortcut used to 404 on click.
+    { href: '/counsel/cases', label: 'New matter' },
     { href: '/counsel/intake', label: 'New intake' },
     { href: '/counsel/calendar', label: 'Schedule meeting' },
     { href: '/counsel/documents', label: 'Upload document' },

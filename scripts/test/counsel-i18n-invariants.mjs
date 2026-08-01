@@ -134,7 +134,7 @@ const ALLOWED_DYNAMIC_WRAPS = new Set([
   "emptyMessage ?? 'No requests here yet.'",
   "allDocs.length === 1 ? 'document' : 'documents'",
   "data.counts.members === 1 ? 'member' : 'members'",
-  "items.length === 1 ? 'thing needs a human' : 'things need a human'",
+  "workItems === 1 ? 'thing needs a human' : 'things need a human'",
   "total === 1 ? 'thing in your name' : 'things in your name'",
   "preview.totalRows === 1 ? 'client' : 'clients'",
   "preview.totalRows === 1 ? 'case' : 'cases'",

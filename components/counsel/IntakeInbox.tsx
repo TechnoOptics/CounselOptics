@@ -1,5 +1,11 @@
 import Link from 'next/link';
 import { readIntakeFolder } from '@/lib/request-folders';
+import {
+  INTAKE_LANE_BLURB,
+  INTAKE_LANE_LABEL,
+  intakeLaneOf,
+  type IntakeLane,
+} from '@/lib/intake-lanes';
 import { T } from '@/components/i18n/LocaleProvider';
 import { Tt } from '@/components/i18n/Tt';
 
@@ -22,6 +28,10 @@ const STATUS_TONE: Record<string, string> = {
     'bg-rose-50 dark:bg-rose-950/30 text-rose-800 dark:text-rose-200 ring-rose-200 dark:ring-rose-700/40',
   engaged:
     'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-200 ring-emerald-200 dark:ring-emerald-700/40',
+  converted:
+    'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-200 ring-emerald-200 dark:ring-emerald-700/40',
+  closed:
+    'bg-ink-100 dark:bg-forest-800/50 text-ink-700 dark:text-cream-100/85 ring-ink-200 dark:ring-forest-700/40',
   rejected:
     'bg-ink-100 dark:bg-forest-800/50 text-ink-700 dark:text-cream-100/85 ring-ink-200 dark:ring-forest-700/40',
 };
@@ -30,24 +40,28 @@ const STATUS_LABEL: Record<string, string> = {
   conflict_check_passed: 'In review',
   conflict_check_flagged: 'Conflict flag',
   engaged: 'Accepted',
+  converted: 'Converted to a matter',
+  closed: 'Closed',
   rejected: 'Closed',
 };
-type Lane = 'attention' | 'review' | 'accepted' | 'closed';
+// Lanes come from lib/intake-lanes, the one definition the dashboard row and
+// the Impact "Open requests" KPI also read. The local copy here classified
+// `converted` and `closed` as "needs attention", which is why a CONVERTED
+// request sat in the triage lane.
+type Lane = IntakeLane;
 const LANE_META: Record<Lane, { name: string; blurb: string }> = {
   attention: {
-    name: 'Needs attention',
-    blurb: 'New and flagged - triage these first',
+    name: INTAKE_LANE_LABEL.attention,
+    blurb: INTAKE_LANE_BLURB.attention,
   },
-  review: { name: 'In review', blurb: 'Cleared conflict check, being worked' },
-  accepted: { name: 'Accepted', blurb: 'Engaged and active' },
-  closed: { name: 'Closed', blurb: 'Rejected or completed' },
+  review: { name: INTAKE_LANE_LABEL.review, blurb: INTAKE_LANE_BLURB.review },
+  accepted: {
+    name: INTAKE_LANE_LABEL.accepted,
+    blurb: INTAKE_LANE_BLURB.accepted,
+  },
+  closed: { name: INTAKE_LANE_LABEL.closed, blurb: INTAKE_LANE_BLURB.closed },
 };
-function laneOf(status: string): Lane {
-  if (status === 'conflict_check_passed') return 'review';
-  if (status === 'engaged') return 'accepted';
-  if (status === 'rejected') return 'closed';
-  return 'attention';
-}
+const laneOf = intakeLaneOf;
 const PRIORITY_RANK: Record<string, number> = {
   Urgent: 0,
   High: 1,

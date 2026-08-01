@@ -4,6 +4,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { T, useT } from '@/components/i18n/LocaleProvider';
+import {
+  FolderIcon,
+  OrgIcon,
+  PersonIcon,
+  PlaceIcon,
+} from '@/components/counsel/EntityIcons';
 
 /**
  * Section navigator + case-wide smart search for the case-scoped Counsel
@@ -241,7 +247,7 @@ function GuestCaseSearch({
                 <p className={groupLabel}><T>People</T></p>
                 {groups.people.map((v) => (
                   <button key={v} type="button" onClick={() => goSearch(v)} className={row}>
-                    <span aria-hidden className="text-cream-100/40">👤</span>
+                    <PersonIcon className="text-cream-100/40" />
                     <span className="min-w-0 truncate" data-no-translate>{v}</span>
                   </button>
                 ))}
@@ -252,7 +258,7 @@ function GuestCaseSearch({
                 <p className={groupLabel}><T>Places</T></p>
                 {groups.places.map((v) => (
                   <button key={v} type="button" onClick={() => goSearch(v)} className={row}>
-                    <span aria-hidden className="text-cream-100/40">📍</span>
+                    <PlaceIcon className="text-cream-100/40" />
                     <span className="min-w-0 truncate" data-no-translate>{v}</span>
                   </button>
                 ))}
@@ -263,7 +269,7 @@ function GuestCaseSearch({
                 <p className={groupLabel}><T>Organizations</T></p>
                 {groups.orgs.map((v) => (
                   <button key={v} type="button" onClick={() => goSearch(v)} className={row}>
-                    <span aria-hidden className="text-cream-100/40">🏢</span>
+                    <OrgIcon className="text-cream-100/40" />
                     <span className="min-w-0 truncate" data-no-translate>{v}</span>
                   </button>
                 ))}
@@ -274,7 +280,7 @@ function GuestCaseSearch({
                 <p className={groupLabel}><T>Folders</T></p>
                 {groups.folders.map((v) => (
                   <button key={v} type="button" onClick={() => goFolder(v)} className={row}>
-                    <span aria-hidden className="text-cream-100/40">📁</span>
+                    <FolderIcon className="text-cream-100/40" />
                     <span className="min-w-0 truncate" data-no-translate>{v}</span>
                   </button>
                 ))}

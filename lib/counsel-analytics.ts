@@ -1,4 +1,5 @@
 import { createServerSupabase } from './supabase/server';
+import { isIntakeOpen } from './intake-lanes';
 
 /**
  * Firm-wide analytics for the Counsel dashboard. One call fans out
@@ -136,7 +137,10 @@ export async function getFirmAnalytics(firmId: string): Promise<FirmAnalytics> {
     created_at: string;
     updated_at: string | null;
   }>;
-  const isResolved = (s: string | null) => s === 'engaged' || s === 'rejected';
+  // "Open" is the shared definition: needs attention plus in review. It used
+  // to mean "not engaged and not rejected", which counted converted and
+  // closed requests as still open.
+  const isResolved = (s: string | null) => !isIntakeOpen(s);
   const monthly: MonthPoint[] = [];
   const buckets = new Map<string, number>();
   for (let i = 5; i >= 0; i--) {

@@ -136,7 +136,7 @@ export default async function CounselImpactPage() {
         <Kpi
           label="Open requests"
           value={String(a.requests.open)}
-          sub={`${a.requests.thisMonth} new this month`}
+          sub={`Needs attention plus in review · ${a.requests.thisMonth} new this month`}
           tone="sky"
           href="/counsel/inbox"
         />

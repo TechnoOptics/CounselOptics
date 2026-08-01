@@ -55,6 +55,16 @@ import { DuplicateDialog, type DuplicateAction, type DuplicateEntry } from './du
 import { ShareExportDialog } from './share-export-dialog';
 import { ShareDialog, type ShareTarget } from '@/components/counsel/ShareDialog';
 import { Dialog } from '@/components/Dialog';
+import {
+  ArchiveIcon,
+  CalendarIcon,
+  DetailIcon,
+  FolderIcon,
+  LockIcon,
+  OrgIcon,
+  PersonIcon,
+  PlaceIcon,
+} from '@/components/counsel/EntityIcons';
 
 // How often the list re-syncs from the server as a fallback to Realtime, so
 // items and scores another member (or the background scorer) produced appear
@@ -1835,7 +1845,7 @@ export function EvidenceIntake({
           openCollection === null ? (
             collectionsMap.size === 0 ? (
               <div className="rounded-xl border border-dashed border-ink-200 px-4 py-8 text-center dark:border-forest-700/40">
-                <p className="text-2xl" aria-hidden>📁</p>
+                <FolderIcon size={26} className="mx-auto text-ink-400 dark:text-cream-100/40" />
                 <p className="mt-1 text-[14px] font-medium text-forest-900 dark:text-cream-100"><T>No folders yet</T></p>
                 <p className="mx-auto mt-1 max-w-md text-[12.5px] text-ink-500 dark:text-cream-100/55">
                   <T>Select items on the Evidence tab, then choose “Add to folder” in the selection bar. A folder never moves anything. It is a saved view, and one item can sit in many folders.</T>
@@ -1850,13 +1860,13 @@ export function EvidenceIntake({
                     onClick={() => setOpenCollection(name)}
                     className="group flex flex-col items-start gap-1 rounded-xl border border-ink-200 bg-cream-50/60 p-3.5 text-left transition-all hover:border-gold-500/60 hover:bg-white hover:shadow-sm dark:border-forest-700/50 dark:bg-forest-900/40 dark:hover:bg-forest-800/60"
                   >
-                    <span aria-hidden className="grid h-8 w-8 place-items-center rounded-lg bg-gold-500/10 text-[15px] ring-1 ring-gold-500/20 transition-colors group-hover:bg-gold-500/20">📁</span>
+                    <span aria-hidden className="grid h-8 w-8 place-items-center rounded-lg bg-gold-500/10 text-gold-700 ring-1 ring-gold-500/20 transition-colors group-hover:bg-gold-500/20 dark:text-gold-300"><FolderIcon size={15} /></span>
                     <span className="mt-1 w-full truncate text-[13.5px] font-semibold text-forest-900 dark:text-cream-100" data-no-translate>{name}</span>
                     <span className="flex items-center gap-1.5 text-[11.5px] text-ink-500 dark:text-cream-100/50" data-no-translate>
                       {items.length} {t('item(s)')}
                       {folderMeta[name] && !folderMeta[name].isPublic && (
                         <span className="inline-flex items-center gap-0.5 rounded-full bg-ink-100 px-1.5 py-[1px] text-[10px] font-medium text-ink-600 dark:bg-forest-800/70 dark:text-cream-100/60">
-                          🔒 <T>Only you</T>
+                          <LockIcon size={11} /> <T>Only you</T>
                         </span>
                       )}
                     </span>
@@ -2127,7 +2137,7 @@ export function EvidenceIntake({
                   : 'border-ink-200 dark:border-forest-700/40'
               }`}
             >
-              <p className="text-2xl">🗂️</p>
+              <ArchiveIcon size={26} className="mx-auto text-ink-400 dark:text-cream-100/40" />
               <p className="mt-1 text-[14px] font-medium text-forest-900 dark:text-cream-100">
                 <T>Drop evidence here</T>
               </p>
@@ -2776,7 +2786,7 @@ function FolderHeader({
       <button type="button" onClick={onBack} className="text-[12.5px] text-ink-500 hover:underline dark:text-cream-100/55">
         ← <T>All folders</T>
       </button>
-      <span aria-hidden className="text-[15px]">📁</span>
+      <FolderIcon size={15} className="text-ink-500 dark:text-cream-100/60" />
       <span className="min-w-0 truncate text-[14px] font-semibold text-forest-900 dark:text-cream-100" data-no-translate>
         {name}
       </span>
@@ -2946,7 +2956,7 @@ function AddToFolderDialog({
                   className="inline-flex items-center gap-1.5 rounded-full bg-cream-50 px-3 py-1.5 text-[12.5px] font-medium text-forest-700 ring-1 ring-ink-200 hover:bg-gold-500/10 hover:text-gold-700 hover:ring-gold-500/40 disabled:opacity-50 dark:bg-forest-900/50 dark:text-cream-100/80 dark:ring-forest-700/50 dark:hover:text-gold-300"
                   data-no-translate
                 >
-                  <span aria-hidden>📁</span> {name}
+                  <FolderIcon /> {name}
                 </button>
               ))}
             </div>
@@ -3079,11 +3089,11 @@ function FolderSection({
 }
 
 /** A row of small labelled chips for one extracted field (people, orgs, ...). */
-function ChipRow({ icon, label, items }: { icon: string; label: string; items?: string[] | null }) {
+function ChipRow({ icon, label, items }: { icon: React.ReactNode; label: string; items?: string[] | null }) {
   if (!items || items.length === 0) return null;
   return (
     <div className="flex flex-wrap items-center gap-1" data-no-translate>
-      <span className="text-[10px] uppercase tracking-[0.06em] text-ink-400 dark:text-cream-100/40">
+      <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.06em] text-ink-400 dark:text-cream-100/40">
         {icon} {label}
       </span>
       {items.slice(0, 12).map((it, i) => (
@@ -3306,9 +3316,9 @@ function GridCard({
           />
         ) : null}
         <div className="space-y-1 pt-0.5">
-          <ChipRow icon="👤" label={t('People')} items={ext.detected_people} />
-          <ChipRow icon="🏢" label={t('Orgs')} items={ext.organizations} />
-          <ChipRow icon="📍" label={t('Places')} items={ext.locations} />
+          <ChipRow icon={<PersonIcon size={11} />} label={t('People')} items={ext.detected_people} />
+          <ChipRow icon={<OrgIcon size={11} />} label={t('Orgs')} items={ext.organizations} />
+          <ChipRow icon={<PlaceIcon size={11} />} label={t('Places')} items={ext.locations} />
         </div>
         <div className="flex flex-wrap items-center gap-2 pt-1">
           <TimelineToggle on={onTimeline} busy={busy} onToggle={onToggleTimeline} />
@@ -3495,11 +3505,11 @@ function EvidenceCard({
           ) : null}
 
           <div className="space-y-1">
-            <ChipRow icon="👤" label={t('People')} items={ext.detected_people} />
-            <ChipRow icon="🏢" label={t('Organizations')} items={ext.organizations} />
-            <ChipRow icon="📍" label={t('Locations')} items={ext.locations} />
-            <ChipRow icon="📅" label={t('Dates')} items={ext.detected_dates} />
-            <ChipRow icon="🔎" label={t('Details')} items={ext.objects} />
+            <ChipRow icon={<PersonIcon size={11} />} label={t('People')} items={ext.detected_people} />
+            <ChipRow icon={<OrgIcon size={11} />} label={t('Organizations')} items={ext.organizations} />
+            <ChipRow icon={<PlaceIcon size={11} />} label={t('Locations')} items={ext.locations} />
+            <ChipRow icon={<CalendarIcon size={11} />} label={t('Dates')} items={ext.detected_dates} />
+            <ChipRow icon={<DetailIcon size={11} />} label={t('Details')} items={ext.objects} />
           </div>
 
           {aiEnabled && (

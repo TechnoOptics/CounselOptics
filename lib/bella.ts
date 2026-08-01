@@ -4,6 +4,7 @@ import path from 'node:path';
 import { createServerSupabase, getCurrentUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
 import { AiUnavailableError, friendlyAiError } from './ai-errors';
+import { INTAKE_LANE_STATUSES, tallyIntakeLanes } from './intake-lanes';
 
 const MODEL = 'claude-sonnet-4-6';
 
@@ -753,7 +754,7 @@ const LIST_INTAKE_INBOX_TOOL: Anthropic.Messages.Tool = {
         type: 'string',
         enum: ['needs_attention', 'in_review', 'accepted', 'closed', 'all'],
         description:
-          'Filter to a lane. Default "all". needs_attention = untriaged matters; in_review = legal team is looking; accepted = engaged; closed = rejected.',
+          'Filter to a lane. Default "all". Lane names here are the public API; they map onto lib/intake-lanes. needs_attention = untriaged or conflict-flagged; in_review = conflict check cleared, legal team is looking; accepted = engaged or converted to a matter; closed = rejected or closed.',
       },
       source: {
         type: 'string',
@@ -2135,14 +2136,16 @@ async function loadFirmOverview(
   ]);
   const casesOpen = cases.filter((c) => openCaseStatuses.has(c.status)).length;
 
-  // Intake lanes
-  const lanes = { needs_attention: 0, in_review: 0, accepted: 0, closed: 0 };
+  // Intake lanes, from the same map the dashboard and the inbox use.
+  const tally = tallyIntakeLanes(intakes.map((i) => i.status));
+  const lanes = {
+    needs_attention: tally.attention,
+    in_review: tally.review,
+    accepted: tally.accepted,
+    closed: tally.closed,
+  };
   let newToday = 0;
   for (const i of intakes) {
-    if (i.status === 'engaged' || i.status === 'accepted') lanes.accepted += 1;
-    else if (i.status === 'rejected') lanes.closed += 1;
-    else if (i.status === 'in_review') lanes.in_review += 1;
-    else lanes.needs_attention += 1;
     if (new Date(i.created_at).getTime() >= sinceMs) newToday += 1;
   }
   const recentNew = intakes.slice(0, 5).map((i) => ({
@@ -2295,16 +2298,15 @@ async function loadIntakeInbox(
     .order('created_at', { ascending: false })
     .limit(Math.max(limit * 2, 30)); // overscan for client-side lane filter
 
-  // Status -> lane mapping.
+  // Status -> lane mapping, from lib/intake-lanes.
   if (lane === 'accepted') {
-    q = q.in('status', ['accepted', 'engaged']);
+    q = q.in('status', INTAKE_LANE_STATUSES.accepted);
   } else if (lane === 'closed') {
-    q = q.eq('status', 'rejected');
+    q = q.in('status', INTAKE_LANE_STATUSES.closed);
   } else if (lane === 'in_review') {
-    q = q.eq('status', 'in_review');
+    q = q.in('status', INTAKE_LANE_STATUSES.review);
   } else if (lane === 'needs_attention') {
-    // Anything that isn't engaged/accepted/in_review/rejected.
-    q = q.not('status', 'in', '(engaged,accepted,in_review,rejected)');
+    q = q.in('status', INTAKE_LANE_STATUSES.attention);
   }
 
   const { data, error } = await q;

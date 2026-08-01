@@ -39,6 +39,7 @@ const LABELS: Record<string, PortalStatusLabel> = {
   accepted: 'Accepted',
   converted: 'Accepted',
   rejected: 'Closed',
+  closed: 'Closed',
 };
 
 const COLORS: Record<PortalStatusLabel, string> = {
