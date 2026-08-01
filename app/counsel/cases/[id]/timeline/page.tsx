@@ -14,6 +14,7 @@ import { type EditMatterInitial } from '../edit-matter-form';
 import { FirmTimeline } from './firm-timeline';
 import { RequestSidebarFocus } from '@/components/counsel/SidebarFocus';
 import { CaseMenu } from '@/components/counsel/CaseMenu';
+import { PageHeader } from '@/components/counsel/ui';
 import { listFirmApproaches } from '@/lib/firm-approach-actions';
 import { T } from '@/components/i18n/LocaleProvider';
 import { getGuestCaseSummary } from '@/lib/counsel-guest';
@@ -170,12 +171,10 @@ export default async function FirmTimelinePage({
         <span className="font-medium text-forest-900 dark:text-cream-100" aria-current="page"><T>Timeline</T></span>
       </nav>
 
-      <div>
-        <p className="eyebrow mb-1"><T>Counsel · timeline</T></p>
-        <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100 break-words" data-no-translate>
-          {c.title}
-        </h1>
-      </div>
+      <PageHeader
+        eyebrow={<T>Counsel · timeline</T>}
+        title={<span data-no-translate>{c.title}</span>}
+      />
 
       <FirmFactsPanel facts={facts} firmId={firmId} caseId={params.id} editInitial={editInitial} canEdit={!isGuest} />
 

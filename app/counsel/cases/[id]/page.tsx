@@ -9,7 +9,15 @@ import { listOpenTimer } from '@/lib/time-tracking';
 import { listTrustTransactions } from '@/lib/trust-accounting-queries';
 import { getFirmSurfaceSettings, DEFAULT_FIRM_SURFACE_SETTINGS } from '@/lib/firm-settings';
 import { TimerWidget } from '@/components/TimerWidget';
-import type { FirmMessage } from '@/lib/firm-types';
+import {
+  FIRM_DOCUMENT_STATUS_LABEL,
+  FIRM_DOCUMENT_STATUS_TONE,
+  FIRM_TONE_COLOR,
+  type FirmDocumentStatus,
+  type FirmMessage,
+} from '@/lib/firm-types';
+import { SectionTitle } from '@/components/counsel/ui';
+import { StatusPill } from '@/components/counsel/StatusPill';
 import { DraftInvoiceButton } from './draft-invoice-button';
 import { AddDeadlineForm } from './add-deadline-form';
 import { CompleteDeadlineButton } from './complete-deadline-button';
@@ -373,7 +381,7 @@ export default async function CounselCaseDetailPage({
   const docs = (docsRaw ?? []) as Array<{
     id: string;
     name: string;
-    status: string;
+    status: FirmDocumentStatus;
     status_updated_at: string;
     due_at: string | null;
   }>;
@@ -597,11 +605,7 @@ export default async function CounselCaseDetailPage({
 
       {/* Deadlines */}
       <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="font-display text-lg font-medium text-forest-900 dark:text-cream-100">
-            <T>Deadlines</T>
-          </h2>
-        </div>
+        <SectionTitle variant="display"><T>Deadlines</T></SectionTitle>
         {deadlines.length === 0 ? (
           <p className="card p-4 text-[13px] text-ink-500 dark:text-cream-100/55 italic">
             <T>No deadlines on this matter yet.</T>
@@ -657,19 +661,21 @@ export default async function CounselCaseDetailPage({
        <>
       {/* Time entries */}
       <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="font-display text-lg font-medium text-forest-900 dark:text-cream-100">
-            <T>Time on this matter</T>
-          </h2>
-          {unbilledCents > 0 && (
-            <DraftInvoiceButton
-              firmId={ctx.firm.id}
-              caseId={params.id}
-              caseTitle={c.title}
-              unbilledCents={unbilledCents}
-            />
-          )}
-        </div>
+        <SectionTitle
+          variant="display"
+          action={
+            unbilledCents > 0 ? (
+              <DraftInvoiceButton
+                firmId={ctx.firm.id}
+                caseId={params.id}
+                caseTitle={c.title}
+                unbilledCents={unbilledCents}
+              />
+            ) : undefined
+          }
+        >
+          <T>Time on this matter</T>
+        </SectionTitle>
         {time.length === 0 ? (
           <p className="card p-4 text-[13px] text-ink-500 dark:text-cream-100/55 italic">
             <T>No time entries yet. Start the timer in the header.</T>
@@ -705,9 +711,7 @@ export default async function CounselCaseDetailPage({
       {/* Invoices */}
       {invoices.length > 0 && (
         <section className="space-y-3">
-          <h2 className="font-display text-lg font-medium text-forest-900 dark:text-cream-100">
-            <T>Invoices</T>
-          </h2>
+          <SectionTitle variant="display"><T>Invoices</T></SectionTitle>
           <ul className="space-y-2">
             {invoices.map((i) => (
               <li
@@ -734,9 +738,9 @@ export default async function CounselCaseDetailPage({
       {/* Trust ledger snippet */}
       {trustEntries.length > 0 && (
         <section className="space-y-3">
-          <h2 className="font-display text-lg font-medium text-forest-900 dark:text-cream-100">
+          <SectionTitle variant="display">
             <T>Trust ledger (this matter)</T>
-          </h2>
+          </SectionTitle>
           <ul className="space-y-1.5">
             {trustEntries.slice(0, 10).map((t) => (
               <li
@@ -770,11 +774,10 @@ export default async function CounselCaseDetailPage({
 
       {/* Documents on this case */}
       <section className="space-y-3">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="font-display text-lg font-medium text-forest-900 dark:text-cream-100">
-            <T>Documents</T>
-          </h2>
-          <div className="flex items-center gap-2">
+        <SectionTitle
+          variant="display"
+          action={
+            <div className="flex items-center gap-2">
             <Link
               href={`/counsel/cases/${params.id}/evidence`}
               className="text-[12px] rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 px-3 py-1.5 text-ink-700 dark:text-cream-100/85 hover:bg-cream-50 dark:hover:bg-forest-800/40"
@@ -793,8 +796,11 @@ export default async function CounselCaseDetailPage({
             >
               <T>Draft a letter</T>
             </Link>
-          </div>
-        </div>
+            </div>
+          }
+        >
+          <T>Documents</T>
+        </SectionTitle>
         {docs.length > 0 ? (
           <ul className="space-y-1.5">
             {docs.map((d) => (
@@ -808,9 +814,15 @@ export default async function CounselCaseDetailPage({
                 >
                   {d.name}
                 </Link>
-                <span className="shrink-0 inline-flex items-center px-1.5 py-[1px] rounded text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 bg-ink-100 dark:bg-forest-800/50 text-ink-700 dark:text-cream-100/85 ring-ink-200 dark:ring-forest-700/40">
-                  {d.status}
-                </span>
+                <StatusPill
+                  size="sm"
+                  color={
+                    FIRM_TONE_COLOR[FIRM_DOCUMENT_STATUS_TONE[d.status]] ??
+                    FIRM_TONE_COLOR.gray
+                  }
+                >
+                  {FIRM_DOCUMENT_STATUS_LABEL[d.status] ?? d.status}
+                </StatusPill>
               </li>
             ))}
           </ul>

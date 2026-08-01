@@ -42,6 +42,27 @@ export function pillStyle(color: string = PILL_DEFAULT): CSSProperties {
   };
 }
 
+/**
+ * The fill and the edge of a state, without its foreground.
+ *
+ * A control that carries a status rather than reporting one (the
+ * document status changer, the document filter pills) needs the state's
+ * colour behind it but has to keep a bright label. At chip size the
+ * tone hex reads fine, but on a 12px control sitting in a row of
+ * unselected siblings in cream, the tone hex reads dimmer than its
+ * neighbours and the selected item looks like the disabled one.
+ *
+ * The edge is a shadow rather than a border so a selected control does
+ * not grow a pixel on each side against its unselected siblings, which
+ * is what `ring-1` was doing for these call sites before.
+ */
+export function pillSurface(color: string = PILL_DEFAULT): CSSProperties {
+  return {
+    background: `${color}1a`,
+    boxShadow: `0 0 0 1px ${color}40`,
+  };
+}
+
 export function StatusPill({
   children,
   color = PILL_DEFAULT,

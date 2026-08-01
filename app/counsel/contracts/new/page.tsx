@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { ContractUploadForm } from '@/app/contracts/new/upload-form';
+import { PageHeader } from '@/components/counsel/ui';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -20,17 +21,15 @@ export default async function NewFirmContractPage() {
           <T>&larr; Contracts</T>
         </Link>
       </p>
-      <header>
-        <p className="eyebrow mb-1"><T>New contract</T></p>
-        <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          <T>Add to firm contract repository</T>
-        </h1>
-        <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-xl leading-relaxed">
+      <PageHeader
+        eyebrow={<T>New contract</T>}
+        title={<T>Add to firm contract repository</T>}
+        subtitle={
           <T>Stored in the firm vault, visible to firm members per your role
           permissions. Use Bella review on the next page for a structured
           read.</T>
-        </p>
-      </header>
+        }
+      />
       <ContractUploadForm firmId={ctx.firm.id} redirectAfter="/counsel/contracts" />
     </div>
   );

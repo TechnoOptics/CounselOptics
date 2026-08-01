@@ -11,6 +11,7 @@ import {
 } from '@/lib/guest-account-actions';
 import type { CaseGuestAccount } from '@/lib/counsel-guest';
 import type { Collaborator, CollaboratorRole } from '@/lib/types';
+import { StatusPill, PILL_COLORS } from '@/components/counsel/StatusPill';
 
 /**
  * Firm-facing labels for the four invite roles, keyed by the underlying
@@ -276,17 +277,17 @@ export function MatterInviteForm({
                   <span className="text-[13px] font-semibold text-forest-900 dark:text-cream-100 truncate">
                     {c.email}
                   </span>
-                  <span className="inline-flex items-center px-1.5 py-[1px] rounded text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 bg-forest-50 dark:bg-forest-800/50 text-forest-900 dark:text-cream-100/85 ring-forest-200 dark:ring-forest-700/40">
+                  <StatusPill size="sm" color={PILL_COLORS.neutral}>
                     {FIRM_ROLE_LABEL[c.role] ?? c.role}
-                  </span>
+                  </StatusPill>
                   {c.acceptedAt ? (
-                    <span className="inline-flex items-center px-1.5 py-[1px] rounded text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 ring-emerald-200 dark:ring-emerald-900/50">
+                    <StatusPill size="sm" color={PILL_COLORS.good}>
                       Active
-                    </span>
+                    </StatusPill>
                   ) : (
-                    <span className="inline-flex items-center px-1.5 py-[1px] rounded text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 ring-amber-200 dark:ring-amber-900/50">
+                    <StatusPill size="sm" color={PILL_COLORS.waiting}>
                       Pending signup
-                    </span>
+                    </StatusPill>
                   )}
                 </div>
                 <p className="text-[11px] text-ink-500 dark:text-cream-100/55 font-mono tabular-nums mt-1">
@@ -417,18 +418,18 @@ export function MatterInviteForm({
                         {g.username}
                       </span>
                       {g.deactivatedAt ? (
-                        <span className="inline-flex items-center px-1.5 py-[1px] rounded text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 bg-ink-100 dark:bg-forest-800/50 text-ink-600 dark:text-cream-100/70 ring-ink-200 dark:ring-forest-700/40">
+                        <StatusPill size="sm" color={PILL_COLORS.neutral}>
                           Deactivated
-                        </span>
+                        </StatusPill>
                       ) : (
-                        <span className="inline-flex items-center px-1.5 py-[1px] rounded text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 ring-emerald-200 dark:ring-emerald-900/50">
+                        <StatusPill size="sm" color={PILL_COLORS.good}>
                           Active
-                        </span>
+                        </StatusPill>
                       )}
                       {g.mustChangePassword && !g.deactivatedAt && (
-                        <span className="inline-flex items-center px-1.5 py-[1px] rounded text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 ring-amber-200 dark:ring-amber-900/50">
+                        <StatusPill size="sm" color={PILL_COLORS.waiting}>
                           Password not set
-                        </span>
+                        </StatusPill>
                       )}
                     </div>
                   </div>

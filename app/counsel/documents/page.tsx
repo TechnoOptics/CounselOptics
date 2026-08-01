@@ -8,9 +8,12 @@ import {
 import {
   FIRM_DOCUMENT_STATUS_LABEL,
   FIRM_DOCUMENT_STATUS_TONE,
+  FIRM_TONE_COLOR,
   type FirmDocumentStatus,
 } from '@/lib/firm-types';
 import { UploadDocumentForm } from './upload-form';
+import { PageHeader, EmptyState } from '@/components/counsel/ui';
+import { StatusPill, pillSurface } from '@/components/counsel/StatusPill';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -22,24 +25,10 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-const STATUS_TONE_CLASSES: Record<
-  ReturnType<typeof toneOf>,
-  string
-> = {
-  gray:
-    'bg-ink-100 dark:bg-forest-800/50 text-ink-700 dark:text-cream-100/80 ring-ink-200 dark:ring-forest-700/40',
-  blue:
-    'bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-200 ring-sky-200 dark:ring-sky-700/40',
-  amber:
-    'bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200 ring-amber-200 dark:ring-amber-700/40',
-  green:
-    'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-200 ring-emerald-200 dark:ring-emerald-700/40',
-  rose:
-    'bg-rose-50 dark:bg-rose-950/30 text-rose-800 dark:text-rose-200 ring-rose-200 dark:ring-rose-700/40',
-};
-
-function toneOf(status: FirmDocumentStatus) {
-  return FIRM_DOCUMENT_STATUS_TONE[status];
+// A row whose status is outside the union (an older write, a hand-edited
+// value) still gets a readable chip rather than a blank one.
+function colorOf(status: FirmDocumentStatus) {
+  return FIRM_TONE_COLOR[FIRM_DOCUMENT_STATUS_TONE[status]] ?? FIRM_TONE_COLOR.gray;
 }
 
 export default async function CounselDocumentsPage({
@@ -100,26 +89,24 @@ export default async function CounselDocumentsPage({
 
   return (
     <div className="space-y-6 animate-fade-up">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="eyebrow mb-1"><T>Documents</T></p>
-          <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-            <T>Document vault</T>
-          </h1>
-          <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-            <T>
-              Contracts, motions, exhibits, anything the firm needs to keep.
-              Every document attaches to a case or matter and moves through a
-              lifecycle - received, ready, sent, signed (internal / employee /
-              client / other party), or on hold / overdue / canceled.
-            </T>
+      <PageHeader
+        eyebrow={<T>Documents</T>}
+        title={<T>Document vault</T>}
+        subtitle={
+          <T>
+            Contracts, motions, exhibits, anything the firm needs to keep.
+            Every document attaches to a case or matter and moves through a
+            lifecycle - received, ready, sent, signed (internal / employee /
+            client / other party), or on hold / overdue / canceled.
+          </T>
+        }
+        action={
+          <p className="text-[12px] text-ink-500 dark:text-cream-100/55 font-mono uppercase tracking-wider">
+            {documents.length} <T>of</T> {allDocs.length}{' '}
+            <T>{allDocs.length === 1 ? 'document' : 'documents'}</T>
           </p>
-        </div>
-        <p className="text-[12px] text-ink-500 dark:text-cream-100/55 font-mono uppercase tracking-wider">
-          {documents.length} <T>of</T> {allDocs.length}{' '}
-          <T>{allDocs.length === 1 ? 'document' : 'documents'}</T>
-        </p>
-      </header>
+        }
+      />
 
       {canUpload && <UploadDocumentForm firmId={ctx.firm.id} cases={cases} />}
 
@@ -157,7 +144,7 @@ export default async function CounselDocumentsPage({
             key={s}
             href={`/counsel/documents?status=${s}${caseFilter ? `&case=${caseFilter}` : ''}`}
             active={statusFilter === s}
-            tone={toneOf(s)}
+            color={colorOf(s)}
           >
             {FIRM_DOCUMENT_STATUS_LABEL[s]} ({statusCounts.get(s)})
           </FilterPill>
@@ -196,25 +183,24 @@ export default async function CounselDocumentsPage({
       )}
 
       {documents.length === 0 ? (
-        <div className="card p-8 text-center">
-          <p className="font-display text-2xl text-forest-900 dark:text-cream-100">
-            {statusFilter || caseFilter ? (
+        <EmptyState
+          title={
+            statusFilter || caseFilter ? (
               <T>No documents match this filter.</T>
             ) : (
               <T>No documents yet.</T>
-            )}
-          </p>
-          <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 max-w-md mx-auto leading-relaxed">
+            )
+          }
+          sub={
             <T>
               Upload contracts, court filings, or evidence packets above. Files
               up to 50 MB each.
             </T>
-          </p>
-        </div>
+          }
+        />
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {documents.map((d) => {
-            const tone = toneOf(d.status);
             const caseTitle = d.caseId
               ? caseTitleById.get(d.caseId) ?? 'Unknown case'
               : null;
@@ -233,11 +219,9 @@ export default async function CounselDocumentsPage({
                     <p className="font-semibold text-forest-900 dark:text-cream-100 truncate flex-1 min-w-0">
                       {d.name}
                     </p>
-                    <span
-                      className={`shrink-0 inline-flex items-center px-1.5 py-[1px] rounded text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ${STATUS_TONE_CLASSES[tone]}`}
-                    >
-                      {FIRM_DOCUMENT_STATUS_LABEL[d.status]}
-                    </span>
+                    <StatusPill size="sm" color={colorOf(d.status)}>
+                      {FIRM_DOCUMENT_STATUS_LABEL[d.status] ?? d.status}
+                    </StatusPill>
                   </div>
                   {caseTitle && (
                     <p className="text-[11.5px] text-ink-600 dark:text-cream-100/70 truncate">
@@ -288,25 +272,32 @@ export default async function CounselDocumentsPage({
   );
 }
 
+// The active pill wears the status colour through the same fill/edge
+// arithmetic StatusPill uses, so a filter and the chips it selects read
+// as the same state. Its label stays bright rather than taking the tone
+// hex: at this size the tone reads dimmer than the unselected pills
+// beside it, and the selected filter would look like the disabled one.
 function FilterPill({
   href,
   active,
-  tone = 'gray',
+  color = FIRM_TONE_COLOR.gray,
   children,
 }: {
   href: string;
   active: boolean;
-  tone?: ReturnType<typeof toneOf>;
+  color?: string;
   children: React.ReactNode;
 }) {
   const inactive =
-    'bg-white dark:bg-forest-900/50 text-ink-700 dark:text-cream-100/80 ring-ink-200 dark:ring-forest-700/40';
+    'ring-1 bg-white dark:bg-forest-900/50 text-ink-700 dark:text-cream-100/80 ring-ink-200 dark:ring-forest-700/40';
   return (
     <Link
       href={href}
-      className={`px-2.5 py-1 rounded-md ring-1 text-[12px] font-medium ${
-        active ? STATUS_TONE_CLASSES[tone] : inactive
+      aria-current={active ? 'page' : undefined}
+      className={`px-2.5 py-1 rounded-md text-[12px] font-medium ${
+        active ? 'text-forest-900 dark:text-cream-100' : inactive
       }`}
+      style={active ? pillSurface(color) : undefined}
     >
       {children}
     </Link>

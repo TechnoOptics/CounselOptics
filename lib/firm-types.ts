@@ -6,6 +6,8 @@
  * See docs/LAW_FIRM_MODE.md for the architecture overview.
  */
 
+import { PILL_COLORS } from '@/lib/pill-colors';
+
 // ---------------------------------------------------------------------------
 // Firm type
 // ---------------------------------------------------------------------------
@@ -247,6 +249,24 @@ export const FIRM_DOCUMENT_STATUS_LABEL: Record<FirmDocumentStatus, string> = {
   canceled: 'Canceled',
 };
 
+/**
+ * The five tone names, as the one hex each. Two files used to carry a
+ * private five-entry map of Tailwind classes keyed by these names (the
+ * document list and the status changer) and they had already drifted
+ * apart on `gray`. A tone is a colour, so it resolves to a colour here
+ * and the chip derives its fill and border from it.
+ */
+export const FIRM_TONE_COLOR: Record<
+  'gray' | 'blue' | 'amber' | 'green' | 'rose',
+  string
+> = {
+  gray: PILL_COLORS.neutral,
+  blue: PILL_COLORS.info,
+  amber: PILL_COLORS.waiting,
+  green: PILL_COLORS.good,
+  rose: PILL_COLORS.flagged,
+};
+
 export const FIRM_DOCUMENT_STATUS_TONE: Record<FirmDocumentStatus, 'gray' | 'blue' | 'amber' | 'green' | 'rose'> = {
   received: 'blue',
   submitted: 'gray',
@@ -300,6 +320,24 @@ export const FIRM_SIGNING_STATUS_LABEL: Record<FirmSigningStatus, string> = {
   canceled: 'Recalled',
   rejected: 'Rejected',
   changes_requested: 'Changes requested',
+};
+
+/**
+ * One colour per signing state. The list and the detail page each
+ * decided this for themselves and did not agree: the list coloured
+ * completed green and awaiting/partial amber, while the detail page
+ * painted every state the same neutral. Neither gave `rejected` or
+ * `changes_requested` a colour, so a declined request read as
+ * unremarkable on the list and invisible on the detail page.
+ */
+export const FIRM_SIGNING_STATUS_COLOR: Record<FirmSigningStatus, string> = {
+  draft: PILL_COLORS.neutral,
+  sent: PILL_COLORS.waiting,
+  partial: PILL_COLORS.waiting,
+  completed: PILL_COLORS.good,
+  canceled: PILL_COLORS.neutral,
+  rejected: PILL_COLORS.flagged,
+  changes_requested: PILL_COLORS.waiting,
 };
 
 export type FirmSigningRequest = {

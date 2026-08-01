@@ -3,18 +3,19 @@ import { redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { getContractType } from '@/lib/contract-types';
+import { PageHeader, EmptyState } from '@/components/counsel/ui';
+import { StatusPill, PILL_COLORS } from '@/components/counsel/StatusPill';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Contracts · Counsel' };
 
-const STATUS_TONE: Record<string, string> = {
-  stored:
-    'bg-ink-100 dark:bg-forest-800/50 text-ink-700 dark:text-cream-100/85 ring-ink-200 dark:ring-forest-700/40',
-  reviewed:
-    'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-200 ring-emerald-200 dark:ring-emerald-700/40',
-  expired:
-    'bg-rose-50 dark:bg-rose-950/30 text-rose-800 dark:text-rose-200 ring-rose-200 dark:ring-rose-700/40',
+// One hex per status; StatusPill derives the fill and the border from
+// it. An unlisted status falls back to the stored neutral.
+const STATUS_COLOR: Record<string, string> = {
+  stored: PILL_COLORS.neutral,
+  reviewed: PILL_COLORS.good,
+  expired: PILL_COLORS.flagged,
 };
 
 export default async function CounselContractsPage() {
@@ -45,44 +46,38 @@ export default async function CounselContractsPage() {
 
   return (
     <div className="space-y-8 animate-fade-up">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="eyebrow mb-1"><T>Counsel · contracts</T></p>
-          <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-            <T>Contract repository</T>
-          </h1>
-          <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-            <T>Standalone contracts (not tied to a specific case). Useful for
-            firm operating docs, vendor agreements, employment offers, and
-            any document you want Bella to review in seconds.</T>
-          </p>
-        </div>
-        <Link href="/counsel/contracts/new" className="btn-primary text-sm">
-          <T>Add a contract</T>
-        </Link>
-      </header>
+      <PageHeader
+        eyebrow={<T>Counsel · contracts</T>}
+        title={<T>Contract repository</T>}
+        subtitle={
+          <T>Standalone contracts (not tied to a specific case). Useful for
+          firm operating docs, vendor agreements, employment offers, and
+          any document you want Bella to review in seconds.</T>
+        }
+        action={
+          <Link href="/counsel/contracts/new" className="btn-primary text-sm">
+            <T>Add a contract</T>
+          </Link>
+        }
+      />
 
       {rows.length === 0 ? (
-        <div className="card p-8 text-center">
-          <p className="font-display text-2xl text-forest-900 dark:text-cream-100">
-            <T>No contracts stored yet.</T>
-          </p>
-          <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 max-w-md mx-auto leading-relaxed">
+        <EmptyState
+          title={<T>No contracts stored yet.</T>}
+          sub={
             <T>Upload an NDA, MSA, lease, or anything else not yet associated
             with a matter.</T>
-          </p>
-          <Link
-            href="/counsel/contracts/new"
-            className="btn-primary mt-5 inline-flex"
-          >
-            <T>Upload your first contract</T>
-          </Link>
-        </div>
+          }
+          action={
+            <Link href="/counsel/contracts/new" className="btn-primary">
+              <T>Upload your first contract</T>
+            </Link>
+          }
+        />
       ) : (
         <ul className="space-y-2">
           {rows.map((r) => {
             const type = getContractType(r.contract_type);
-            const tone = STATUS_TONE[r.status] ?? STATUS_TONE.stored;
             return (
               <li
                 key={r.id}
@@ -96,11 +91,12 @@ export default async function CounselContractsPage() {
                     <p className="font-semibold text-forest-900 dark:text-cream-100 truncate">
                       {r.name}
                     </p>
-                    <span
-                      className={`shrink-0 inline-flex items-center px-1.5 py-[1px] rounded text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ${tone}`}
+                    <StatusPill
+                      size="sm"
+                      color={STATUS_COLOR[r.status] ?? STATUS_COLOR.stored}
                     >
                       {r.status.replace(/_/g, ' ')}
-                    </span>
+                    </StatusPill>
                   </div>
                   <p className="text-[12px] text-ink-500 dark:text-cream-100/55 font-mono">
                     {r.custom_type ?? type?.label ?? r.contract_type}

@@ -8,28 +8,14 @@ import {
   FIRM_DOCUMENT_STATUSES,
   FIRM_DOCUMENT_STATUS_LABEL,
   FIRM_DOCUMENT_STATUS_TONE,
+  FIRM_TONE_COLOR,
   type FirmDocumentStatus,
 } from '@/lib/firm-types';
+import { pillSurface } from '@/components/counsel/StatusPill';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 
-const TONE_CLASSES: Record<
-  ReturnType<typeof toneOf>,
-  string
-> = {
-  gray:
-    'bg-ink-100 dark:bg-forest-800/50 text-ink-700 dark:text-cream-100/85 ring-ink-200 dark:ring-forest-700/40',
-  blue:
-    'bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-200 ring-sky-200 dark:ring-sky-700/40',
-  amber:
-    'bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200 ring-amber-200 dark:ring-amber-700/40',
-  green:
-    'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-200 ring-emerald-200 dark:ring-emerald-700/40',
-  rose:
-    'bg-rose-50 dark:bg-rose-950/30 text-rose-800 dark:text-rose-200 ring-rose-200 dark:ring-rose-700/40',
-};
-
-function toneOf(s: FirmDocumentStatus) {
-  return FIRM_DOCUMENT_STATUS_TONE[s];
+function colorOf(s: FirmDocumentStatus) {
+  return FIRM_TONE_COLOR[FIRM_DOCUMENT_STATUS_TONE[s]] ?? FIRM_TONE_COLOR.gray;
 }
 
 /**
@@ -80,8 +66,6 @@ export function DocumentStatusChanger({
     });
   }
 
-  const tone = toneOf(currentStatus);
-
   return (
     <div className="relative inline-block" ref={boxRef}>
       <button
@@ -90,7 +74,8 @@ export function DocumentStatusChanger({
         disabled={pending}
         aria-haspopup="menu"
         aria-expanded={open}
-        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md ring-1 text-[12px] font-semibold uppercase tracking-[0.12em] transition-colors ${TONE_CLASSES[tone]} disabled:opacity-50`}
+        style={pillSurface(colorOf(currentStatus))}
+        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] font-semibold uppercase tracking-[0.12em] text-forest-900 dark:text-cream-100 transition-colors disabled:opacity-50"
       >
         {FIRM_DOCUMENT_STATUS_LABEL[currentStatus]}
         <span aria-hidden className="text-[9px]">▾</span>
@@ -101,7 +86,6 @@ export function DocumentStatusChanger({
             className="absolute z-40 mt-2 w-72 right-0 sm:left-0 sm:right-auto rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 bg-white dark:bg-forest-900 shadow-xl p-2 space-y-0.5"
           >
             {FIRM_DOCUMENT_STATUSES.map((s) => {
-              const rowTone = toneOf(s);
               const active = s === currentStatus;
               return (
                 <button
@@ -109,9 +93,10 @@ export function DocumentStatusChanger({
                   type="button"
                   onClick={() => pick(s)}
                   disabled={pending}
+                  style={active ? pillSurface(colorOf(s)) : undefined}
                   className={`w-full text-left px-2.5 py-1.5 rounded-md text-[12.5px] transition-colors ${
                     active
-                      ? TONE_CLASSES[rowTone] + ' ring-1'
+                      ? 'text-forest-900 dark:text-cream-100'
                       : 'hover:bg-ink-50 dark:hover:bg-forest-800/40 text-ink-800 dark:text-cream-100/85'
                   } disabled:opacity-50`}
                 >

@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { TemplateStudio } from './template-studio';
+import { PageHeader } from '@/components/counsel/ui';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -17,19 +18,19 @@ export default async function CounselTemplatesPage() {
 
   return (
     <div className="space-y-6 animate-fade-up">
-      <header>
-        <p className="eyebrow mb-1"><T>Counsel · templates</T></p>
-        <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          <T>Document templates</T>
-        </h1>
-        <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-          <T>Generate a complete, professionally drafted contract or
-          legal document on</T> {ctx.firm.name}
-          <T>&rsquo;s letterhead.
-          Branded, clean prose (no AI tells), viewable and exportable
-          as PDF.</T>
-        </p>
-      </header>
+      <PageHeader
+        eyebrow={<T>Counsel · templates</T>}
+        title={<T>Document templates</T>}
+        subtitle={
+          <>
+            <T>Generate a complete, professionally drafted contract or
+            legal document on</T> {ctx.firm.name}
+            <T>&rsquo;s letterhead.
+            Branded, clean prose (no AI tells), viewable and exportable
+            as PDF.</T>
+          </>
+        }
+      />
       <TemplateStudio
         brand={{
           title: 'Document',

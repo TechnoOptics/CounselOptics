@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { GuestTimelineBundle } from '@/lib/counsel-guest';
 import { T } from '@/components/i18n/LocaleProvider';
+import { StatusPill, PILL_COLORS } from '@/components/counsel/StatusPill';
 
 /**
  * Read-only Evidence list for a case-scoped Counsel GUEST (co-counsel). Guests
@@ -78,9 +79,9 @@ export function GuestEvidenceView({
                 </p>
               )}
               <div className="flex flex-wrap gap-2 mt-2 items-center">
-                <span className="inline-flex items-center px-1.5 py-[1px] rounded text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 bg-forest-800/50 text-cream-100/85 ring-forest-700/40">
+                <StatusPill size="sm" color={PILL_COLORS.neutral}>
                   {e.kind}
-                </span>
+                </StatusPill>
                 <span className="text-[11px] text-cream-100/55">
                   {e.attachments}{' '}
                   <T>{e.attachments === 1 ? 'file' : 'files'}</T>

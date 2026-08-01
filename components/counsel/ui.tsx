@@ -18,12 +18,39 @@
 
 import type { CSSProperties, ReactNode } from 'react';
 
+const TITLE_SIZE = {
+  sm: 'text-2xl',
+  md: 'text-3xl',
+  lg: 'text-3xl sm:text-4xl',
+} as const;
+
 /**
  * Page title block. `items-end` is what makes a trailing action sit on
  * the title's baseline instead of floating above it.
  *
  * `size` exists because the dashboards run a step larger than the
- * working pages. It is the only knob; everything else is fixed.
+ * working pages, and the sub-detail pages (a signing request) run a
+ * step smaller than both.
+ *
+ * `align="start"` is the detail-page header: a control beside a title
+ * that is a name somebody typed, so it can run long. It does two things
+ * the list pages must not do. It top-aligns, because baseline-aligning
+ * a control against a title that wraps to two lines drops the control
+ * to the second line. And it lets the title column grow, so a long
+ * filename wraps under a control that stays pinned to the right rather
+ * than pushing the control onto its own row. The list pages want the
+ * opposite: their action drops below the title on a narrow window,
+ * which a growing column would prevent.
+ *
+ * `children` is the slot under the title for a line the `subtitle`
+ * cannot hold. `subtitle` renders a <p>, so a caller with its own
+ * paragraph (the document detail's mono version/size line, and its tag
+ * chips under it) would be nesting block content inside a <p>. Anything
+ * passed here sits below the subtitle, unstyled.
+ *
+ * The title and subtitle break long words because both routinely carry
+ * a name somebody typed - a matter title, a document filename - and an
+ * unbroken one used to run out past the card edge.
  */
 export function PageHeader({
   eyebrow,
@@ -31,58 +58,84 @@ export function PageHeader({
   subtitle,
   action,
   size = 'md',
+  align = 'end',
   className = '',
+  children,
 }: {
   eyebrow?: ReactNode;
   title: ReactNode;
   subtitle?: ReactNode;
   action?: ReactNode;
-  size?: 'md' | 'lg';
+  size?: 'sm' | 'md' | 'lg';
+  align?: 'end' | 'start';
   className?: string;
+  children?: ReactNode;
 }) {
   return (
     <header
-      className={`flex flex-wrap items-end justify-between gap-3 ${className}`}
+      className={`flex flex-wrap justify-between gap-3 ${
+        align === 'start' ? 'items-start' : 'items-end'
+      } ${className}`}
     >
-      <div className="min-w-0">
+      <div className={`min-w-0 ${align === 'start' ? 'flex-1' : ''}`}>
         {eyebrow != null && <p className="eyebrow mb-1">{eyebrow}</p>}
         <h1
-          className={`font-display font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100 ${
-            size === 'lg' ? 'text-3xl sm:text-4xl' : 'text-3xl'
-          }`}
+          className={`font-display font-medium tracking-[-0.01em] break-words text-forest-900 dark:text-cream-100 ${TITLE_SIZE[size]}`}
         >
           {title}
         </h1>
         {subtitle != null && (
-          <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-ink-600 dark:text-cream-100/70">
+          <p className="mt-1.5 max-w-2xl break-words text-sm leading-relaxed text-ink-600 dark:text-cream-100/70">
             {subtitle}
           </p>
         )}
+        {children}
       </div>
       {action}
     </header>
   );
 }
 
+const SECTION_VARIANT = {
+  label:
+    'text-sm font-semibold uppercase tracking-wider text-ink-500 dark:text-cream-100/60',
+  display:
+    'font-display text-lg font-medium text-forest-900 dark:text-cream-100',
+} as const;
+
 /**
- * A heading for a band within a page. Deliberately small, uppercase and
- * muted: it separates without competing with the page title, which is
- * the one thing on screen allowed to be large.
+ * A heading for a band within a page.
+ *
+ * `label`, the default, is deliberately small, uppercase and muted: it
+ * separates without competing with the page title, which is the one
+ * thing on screen allowed to be large.
+ *
+ * `display` is the other heading the product actually uses, and it was
+ * the more common of the two: the matter page alone wrote the same
+ * serif card heading five times, for Deadlines, Time, Invoices, Trust
+ * and Documents. It reads as the head of a stack of cards rather than
+ * as a divider, so it is a variant here and not a second component.
  */
 export function SectionTitle({
   children,
   action,
+  variant = 'label',
   className = '',
 }: {
   children: ReactNode;
   action?: ReactNode;
+  variant?: 'label' | 'display';
   className?: string;
 }) {
   return (
-    <div className={`flex items-center justify-between gap-3 ${className}`}>
-      <h2 className="text-sm font-semibold uppercase tracking-wider text-ink-500 dark:text-cream-100/60">
-        {children}
-      </h2>
+    // flex-wrap because a section's controls can outgrow the row: the
+    // chronology heading sits beside four filter buttons, and without a
+    // wrap they ran off the side of a narrow window instead of dropping
+    // to the next line.
+    <div
+      className={`flex flex-wrap items-center justify-between gap-3 ${className}`}
+    >
+      <h2 className={SECTION_VARIANT[variant]}>{children}</h2>
       {action}
     </div>
   );

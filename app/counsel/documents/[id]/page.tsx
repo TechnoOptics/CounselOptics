@@ -6,9 +6,16 @@ import {
   getFirmDocumentSignedUrl,
   listFirmCases,
 } from '@/lib/firm-storage';
+import {
+  FIRM_DOCUMENT_STATUS_LABEL,
+  FIRM_DOCUMENT_STATUS_TONE,
+  FIRM_TONE_COLOR,
+} from '@/lib/firm-types';
 import { CreateSigningRequestForm } from './signing-form';
 import { DocumentStatusChanger } from './status-changer';
 import { ExternalLink } from '@/components/ExternalLink';
+import { PageHeader } from '@/components/counsel/ui';
+import { pillSurface } from '@/components/counsel/StatusPill';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -54,44 +61,52 @@ export default async function FirmDocumentDetail({
           <T>&larr; Documents</T>
         </Link>
       </p>
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="eyebrow mb-1"><T>Document</T></p>
-          <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100 break-words">
-            {doc.name}
-          </h1>
-          <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-1 font-mono">
-            v{doc.version} &middot; {doc.mimeType} &middot; <T>uploaded</T>{' '}
-            {new Date(doc.uploadedAt).toLocaleString()}
-          </p>
-          {doc.tags.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1">
-              {doc.tags.map((t) => (
-                <span
-                  key={t}
-                  className="badge bg-ink-100 dark:bg-forest-800/60 text-ink-700 dark:text-cream-100/80 text-[10px]"
-                >
-                  {t}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-        <div className="shrink-0">
-          {canEdit ? (
-            <DocumentStatusChanger
-              firmId={ctx.firm.id}
-              documentId={doc.id}
-              currentStatus={doc.status}
-              statusUpdatedAt={doc.statusUpdatedAt}
-            />
-          ) : (
-            <span className="inline-flex items-center px-2.5 py-1 rounded-md ring-1 text-[12px] font-semibold uppercase tracking-[0.12em] bg-ink-100 dark:bg-forest-800/50 text-ink-700 dark:text-cream-100/80 ring-ink-200 dark:ring-forest-700/40">
-              {doc.status}
-            </span>
-          )}
-        </div>
-      </header>
+      <PageHeader
+        align="start"
+        eyebrow={<T>Document</T>}
+        title={doc.name}
+        action={
+          <div className="shrink-0">
+            {canEdit ? (
+              <DocumentStatusChanger
+                firmId={ctx.firm.id}
+                documentId={doc.id}
+                currentStatus={doc.status}
+                statusUpdatedAt={doc.statusUpdatedAt}
+              />
+            ) : (
+              // Same surface as the status changer this stands in for,
+              // so a member who cannot edit sees the state the editors
+              // see rather than a different-looking chip.
+              <span
+                style={pillSurface(
+                  FIRM_TONE_COLOR[FIRM_DOCUMENT_STATUS_TONE[doc.status]],
+                )}
+                className="inline-flex items-center px-2.5 py-1 rounded-md text-[12px] font-semibold uppercase tracking-[0.12em] text-forest-900 dark:text-cream-100"
+              >
+                {FIRM_DOCUMENT_STATUS_LABEL[doc.status] ?? doc.status}
+              </span>
+            )}
+          </div>
+        }
+      >
+        <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-1 font-mono">
+          v{doc.version} &middot; {doc.mimeType} &middot; <T>uploaded</T>{' '}
+          {new Date(doc.uploadedAt).toLocaleString()}
+        </p>
+        {doc.tags.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {doc.tags.map((t) => (
+              <span
+                key={t}
+                className="badge bg-ink-100 dark:bg-forest-800/60 text-ink-700 dark:text-cream-100/80 text-[10px]"
+              >
+                {t}
+              </span>
+            ))}
+          </div>
+        )}
+      </PageHeader>
 
       {/* Context strip: case linkage, due date, description */}
       <section className="card p-4 sm:p-5 grid gap-3 sm:grid-cols-3">

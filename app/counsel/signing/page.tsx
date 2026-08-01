@@ -4,7 +4,12 @@ import {
   getActiveFirmContext,
   listFirmSigningRequestsWithSummary,
 } from '@/lib/firm-storage';
-import { FIRM_SIGNING_STATUS_LABEL } from '@/lib/firm-types';
+import {
+  FIRM_SIGNING_STATUS_COLOR,
+  FIRM_SIGNING_STATUS_LABEL,
+} from '@/lib/firm-types';
+import { PageHeader, EmptyState } from '@/components/counsel/ui';
+import { StatusPill } from '@/components/counsel/StatusPill';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -17,19 +22,19 @@ export default async function CounselSigningPage() {
 
   return (
     <div className="space-y-6 animate-fade-up">
-      <header>
-        <p className="eyebrow mb-1"><T>Signing</T></p>
-        <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          <T>E-signature requests</T>
-        </h1>
-        <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-          <T>Review status of every signing request you&rsquo;ve sent. Open a document from</T>{' '}
-          <Link href="/counsel/documents" className="underline">
-            <T>Documents</T>
-          </Link>{' '}
-          <T>to send a new request.</T>
-        </p>
-      </header>
+      <PageHeader
+        eyebrow={<T>Signing</T>}
+        title={<T>E-signature requests</T>}
+        subtitle={
+          <>
+            <T>Review status of every signing request you&rsquo;ve sent. Open a document from</T>{' '}
+            <Link href="/counsel/documents" className="underline">
+              <T>Documents</T>
+            </Link>{' '}
+            <T>to send a new request.</T>
+          </>
+        }
+      />
       <section className="card p-5 sm:p-6 ring-1 ring-emerald-300/30 dark:ring-emerald-500/25 bg-emerald-50/30 dark:bg-emerald-950/15">
         <p className="text-sm text-ink-700 dark:text-cream-100/85 leading-relaxed">
           <strong><T>UETA-aligned signing.</T></strong>{' '}
@@ -45,14 +50,10 @@ export default async function CounselSigningPage() {
       </section>
 
       {requests.length === 0 ? (
-        <div className="card p-8 text-center">
-          <p className="font-display text-2xl text-forest-900 dark:text-cream-100">
-            <T>No signing requests yet.</T>
-          </p>
-          <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 max-w-md mx-auto leading-relaxed">
-            <T>Open a document and use &ldquo;Send for signature&rdquo;.</T>
-          </p>
-        </div>
+        <EmptyState
+          title={<T>No signing requests yet.</T>}
+          sub={<T>Open a document and use &ldquo;Send for signature&rdquo;.</T>}
+        />
       ) : (
         <ul className="card divide-y divide-ink-100 dark:divide-forest-700/40">
           {requests.map((req) => (
@@ -88,17 +89,9 @@ export default async function CounselSigningPage() {
                     )}
                   </p>
                 </div>
-                <span
-                  className={`badge text-[10px] tracking-wider ${
-                    req.status === 'completed'
-                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-100'
-                      : req.status === 'sent' || req.status === 'partial'
-                        ? 'bg-amber-50 text-amber-900 border border-amber-200 dark:bg-amber-950/30 dark:text-amber-100'
-                        : 'bg-ink-100 text-ink-600 dark:bg-forest-800/60 dark:text-cream-100/55'
-                  }`}
-                >
-                  {FIRM_SIGNING_STATUS_LABEL[req.status].toUpperCase()}
-                </span>
+                <StatusPill size="sm" color={FIRM_SIGNING_STATUS_COLOR[req.status]}>
+                  {FIRM_SIGNING_STATUS_LABEL[req.status]}
+                </StatusPill>
               </Link>
             </li>
           ))}
