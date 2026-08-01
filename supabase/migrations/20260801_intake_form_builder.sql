@@ -1,10 +1,13 @@
 -- Intake form builder: request types, forms, immutable published versions,
 -- and the version binding on a submitted intake.
 --
--- ============================ NOT YET APPLIED ============================
--- Written 2026-08-01. NOT applied to production. The owner applies it after
--- review. Re-run the two verification queries below immediately before
--- applying, because the backfill row count depends on live data.
+-- ============================== APPLIED ==================================
+-- Written and applied to production 2026-08-01. Live counts were re-verified
+-- immediately before applying and matched the predictions below exactly:
+-- 3 firms, 4 partner slugs on Zinpro -> 40 rows in firm_request_types
+-- (Advottic 12, ANDERSON ENTERPRISE 12, Zinpro 16), 0 forms, 0 versions,
+-- and form_version_id null on all 5 existing intakes.
+-- supabase/schema-fingerprint.sha256 was regenerated in the same commit.
 -- =========================================================================
 --
 -- What this is for (docs/superpowers/specs/2026-08-01-intake-form-builder-design.md):
