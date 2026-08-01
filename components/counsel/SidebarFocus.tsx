@@ -100,8 +100,41 @@ export function CounselSidebarShell({ children }: { children: React.ReactNode })
   const t = useT();
   const { collapsed, setCollapsed } = useSidebarCollapse();
 
+  // The rail never scrolls on its own. It is sticky, and a sticky box that is
+  // taller than the viewport can only ever show whatever its top offset admits,
+  // so with a fixed `top: 6rem` the lower nav rows would be unreachable.
+  //
+  // Instead the top offset is derived from the rail's own height:
+  //   min(6rem, 100dvh - railHeight - 1rem)
+  // A rail that fits resolves to 6rem and pins below the header exactly as
+  // before. A rail taller than the viewport resolves to a negative offset, so
+  // it rides up with the page until its last row clears the bottom edge and
+  // then holds there. Every destination stays reachable through ordinary page
+  // scrolling, and the panel itself has no scrollbar.
+  //
+  // Only the height needs measuring; CSS re-evaluates 100dvh on its own, so a
+  // window resize needs no listener. The SSR default matches the old `top-24`.
+  const railRef = useRef<HTMLDivElement>(null);
+  const [stickyTop, setStickyTop] = useState('6rem');
+
+  useEffect(() => {
+    const el = railRef.current;
+    if (!el) return;
+    const measure = () =>
+      setStickyTop(`min(6rem, calc(100dvh - ${el.offsetHeight}px - 1rem))`);
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   return (
-    <div className="hidden md:block flex-none sticky top-24 self-start">
+    <div
+      ref={railRef}
+      className="hidden md:block flex-none sticky self-start"
+      style={{ top: stickyTop }}
+    >
       <div className="relative flex items-start">
         {/* Sidebar panel */}
         <div
@@ -129,7 +162,7 @@ export function CounselSidebarShell({ children }: { children: React.ReactNode })
             </div>
             {/* Content only renders when expanded, so collapsed nav links are
                 never left hidden-but-focusable for keyboard / screen readers. */}
-            <div id="counsel-sidebar-panel" className="max-h-[calc(100dvh-8rem)] overflow-y-auto pr-0.5 pb-4">{!collapsed && children}</div>
+            <div id="counsel-sidebar-panel" className="pr-0.5 pb-4">{!collapsed && children}</div>
           </div>
         </div>
 
