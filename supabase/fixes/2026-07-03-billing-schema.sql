@@ -35,6 +35,12 @@ create table if not exists firm_invoices (
   paid_at timestamptz,
   stripe_payment_intent_id text,
   stripe_payment_link text,
+  -- The plink_ ID behind stripe_payment_link. Added
+  -- 2026-08-01; a payment link stays payable until it is explicitly
+  -- deactivated, and deactivating one needs this ID (the buy.stripe.com
+  -- URL does not contain it). See
+  -- supabase/migrations/20260801_firm_invoice_payment_link_id.sql.
+  stripe_payment_link_id text,
   created_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()

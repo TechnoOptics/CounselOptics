@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * Money-critical: a firm's client must be billed for a piece of work exactly
@@ -15,7 +15,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  *   - a concurrent drafter that takes an entry mid-flight causes the whole
  *     draft to roll back, so nothing is billed twice,
  *   - sending flips draft -> sent exactly once, so a double click cannot mint
- *     two payment links or mail the client twice.
+ *     two payment links or mail the client twice,
+ *   - no invoice that has left the live-and-unpaid state leaves a payable
+ *     Stripe link behind, and a payment made through one of those links is
+ *     reconciled back onto the invoice instead of waiting for someone to
+ *     notice the money and click "Mark paid".
  */
 
 type Row = Record<string, unknown>;
@@ -248,14 +252,88 @@ vi.mock('../lib/email', () => ({
     return { ok: true, id: 'email-1' };
   },
   buildInvoiceEmailHtml: () => '<p>invoice</p>',
+  invoiceEmailIdempotencyKey: (i: { invoiceId: string }) =>
+    `invoice-${i.invoiceId}`,
 }));
 
-const { buildDraftInvoiceAction, sendInvoiceAction } = await import(
-  '../lib/invoicing'
-);
+const {
+  buildDraftInvoiceAction,
+  sendInvoiceAction,
+  markInvoicePaidAction,
+  voidInvoiceAction,
+  deleteDraftInvoiceAction,
+} = await import('../lib/invoicing');
+const { applyStripeInvoicePayment } = await import('../lib/invoicing-stripe');
 
 const FIRM = 'firm-1';
 const CASE = 'case-1';
+
+/**
+ * Stand-in for the Stripe REST calls the payment-link lifecycle makes.
+ * Records which links were minted and which were deactivated, because
+ * "was this link switched off" is the whole assertion for half of these
+ * tests - a Stripe payment link is REUSABLE, so one left live on a voided
+ * or already-paid invoice is a second charge waiting to happen.
+ */
+const stripe = {
+  created: [] as Array<Record<string, string>>,
+  deactivated: [] as string[],
+  seq: 0,
+  reset() {
+    this.created = [];
+    this.deactivated = [];
+    this.seq = 0;
+  },
+};
+
+function installStripeStub() {
+  process.env.STRIPE_SECRET_KEY = 'sk_test_fake';
+  vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+    const body = Object.fromEntries(
+      new URLSearchParams(String(init?.body ?? '')),
+    ) as Record<string, string>;
+
+    const deactivate = /\/v1\/payment_links\/(plink_[^/]+)$/.exec(String(url));
+    if (deactivate) {
+      stripe.deactivated.push(deactivate[1]);
+      return new Response(JSON.stringify({ id: deactivate[1], active: false }), {
+        status: 200,
+      });
+    }
+    if (String(url).endsWith('/v1/payment_links')) {
+      const id = `plink_${++stripe.seq}`;
+      stripe.created.push(body);
+      return new Response(
+        JSON.stringify({ id, url: `https://buy.stripe.com/${id}` }),
+        { status: 200 },
+      );
+    }
+    throw new Error(`unexpected fetch to ${url}`);
+  });
+}
+
+function seedSentInvoiceWithLink(over: Row = {}) {
+  db.tables.firm_invoices.push({
+    id: 'inv-1',
+    firm_id: FIRM,
+    case_id: CASE,
+    client_user_id: null,
+    client_email: 'client@example.com',
+    client_name: 'Acme Ltd',
+    number: 'INV-00001',
+    status: 'sent',
+    subtotal_cents: 45000,
+    total_cents: 45000,
+    currency: 'USD',
+    created_by: 'attorney-1',
+    sent_at: '2026-07-05T09:00:00Z',
+    paid_at: null,
+    stripe_payment_link: 'https://buy.stripe.com/plink_live',
+    stripe_payment_link_id: 'plink_live',
+    stripe_payment_intent_id: null,
+    ...over,
+  });
+}
 
 function seedFirmAndTime() {
   db.tables.firms.push({ id: FIRM, name: 'Anderson Foundation' });
@@ -448,5 +526,267 @@ describe('sendInvoiceAction', () => {
     const inv = db.tables.firm_invoices[0];
     expect(inv.status).toBe('draft');
     expect(inv.sent_at).toBeNull();
+  });
+});
+
+/**
+ * A Stripe payment link is reusable and lives until it is explicitly
+ * deactivated. Every exit from "live and unpaid" therefore has to switch
+ * the link off, or the client keeps a working Pay button for an invoice
+ * that was voided, replaced, or already settled.
+ */
+describe('the payment link dies with the invoice', () => {
+  beforeEach(() => {
+    db.reset();
+    mail.reset();
+    stripe.reset();
+    seedFirmAndTime();
+    installStripeStub();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete process.env.STRIPE_SECRET_KEY;
+  });
+
+  it('records the link id alongside the URL when sending', async () => {
+    db.tables.firm_invoices.push({
+      id: 'inv-1',
+      firm_id: FIRM,
+      case_id: CASE,
+      client_user_id: null,
+      client_email: 'client@example.com',
+      number: 'INV-00001',
+      status: 'draft',
+      total_cents: 45000,
+      currency: 'USD',
+      created_by: 'attorney-1',
+      sent_at: null,
+    });
+
+    const res = await sendInvoiceAction('inv-1');
+
+    expect(res.ok).toBe(true);
+    const inv = db.tables.firm_invoices[0];
+    // The URL alone cannot be turned off later: deactivation needs the
+    // plink_ id, and buy.stripe.com/... does not contain it.
+    expect(inv.stripe_payment_link).toBe('https://buy.stripe.com/plink_1');
+    expect(inv.stripe_payment_link_id).toBe('plink_1');
+    // ...and the link has to carry the invoice, or a payment made through
+    // it arrives at the webhook with nothing to reconcile against.
+    expect(stripe.created[0]['metadata[advottic_invoice_id]']).toBe('inv-1');
+  });
+
+  it('switches the link off when the invoice is voided', async () => {
+    seedSentInvoiceWithLink();
+
+    const res = await voidInvoiceAction(FIRM, 'inv-1');
+
+    expect(res.ok).toBe(true);
+    expect(stripe.deactivated).toEqual(['plink_live']);
+    expect(db.tables.firm_invoices[0].stripe_payment_link).toBeNull();
+  });
+
+  it('switches the link off when a failed send rolls back to draft', async () => {
+    // Nothing reached the client, so the invoice returns to draft and will
+    // be sent again. The link minted on this attempt must not stay payable:
+    // the retry mints a fresh one, and two live links for one invoice is
+    // how a client pays twice.
+    mail.deliverable = false;
+    db.tables.firm_invoices.push({
+      id: 'inv-1',
+      firm_id: FIRM,
+      case_id: CASE,
+      client_user_id: null,
+      client_email: 'client@example.com',
+      number: 'INV-00001',
+      status: 'draft',
+      total_cents: 45000,
+      currency: 'USD',
+      created_by: 'attorney-1',
+      sent_at: null,
+    });
+
+    const res = await sendInvoiceAction('inv-1');
+
+    expect(res.ok).toBe(false);
+    expect(stripe.created).toHaveLength(1);
+    expect(stripe.deactivated).toEqual(['plink_1']);
+    const inv = db.tables.firm_invoices[0];
+    expect(inv.status).toBe('draft');
+    expect(inv.stripe_payment_link).toBeNull();
+    expect(inv.stripe_payment_link_id).toBeNull();
+  });
+
+  it('switches the link off when the firm marks the invoice paid by hand', async () => {
+    // The wire landed, so the firm marks it paid. The Stripe link is still
+    // a working Pay button until we say otherwise, and the client has it
+    // in their inbox.
+    seedSentInvoiceWithLink();
+
+    const res = await markInvoicePaidAction('inv-1');
+
+    expect(res.ok).toBe(true);
+    expect(db.tables.firm_invoices[0].status).toBe('paid');
+    expect(stripe.deactivated).toEqual(['plink_live']);
+  });
+
+  it('switches the link off when a draft carrying one is deleted', async () => {
+    seedSentInvoiceWithLink({ status: 'draft', sent_at: null });
+
+    const res = await deleteDraftInvoiceAction(FIRM, 'inv-1');
+
+    expect(res.ok).toBe(true);
+    expect(stripe.deactivated).toEqual(['plink_live']);
+  });
+
+  it('still voids the invoice when Stripe will not take the deactivation', async () => {
+    // Stripe being down must not block the firm from voiding a mis-sent
+    // invoice. The void is the important half; the dead link is reported.
+    seedSentInvoiceWithLink();
+    vi.stubGlobal('fetch', async () => new Response('{}', { status: 500 }));
+
+    const res = await voidInvoiceAction(FIRM, 'inv-1');
+
+    expect(res.ok).toBe(true);
+    expect(db.tables.firm_invoices[0].status).toBe('void');
+    expect(res.error).toMatch(/payment link/i);
+  });
+});
+
+/**
+ * Money that arrives through a Stripe link has to land back on the
+ * invoice. Without this the firm's Outstanding figure counts revenue it
+ * has already been paid, and someone has to spot the payout in Stripe and
+ * click "Mark paid" by hand.
+ */
+describe('applyStripeInvoicePayment', () => {
+  beforeEach(() => {
+    db.reset();
+    mail.reset();
+    stripe.reset();
+    seedFirmAndTime();
+    installStripeStub();
+    seedSentInvoiceWithLink();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete process.env.STRIPE_SECRET_KEY;
+  });
+
+  it('marks the invoice paid and records the payment intent', async () => {
+    const res = await applyStripeInvoicePayment({
+      invoiceId: 'inv-1',
+      paymentLinkId: 'plink_live',
+      paymentIntentId: 'pi_123',
+      amountCents: 45000,
+      currency: 'usd',
+    });
+
+    expect(res.outcome).toBe('paid');
+    const inv = db.tables.firm_invoices[0];
+    expect(inv.status).toBe('paid');
+    expect(inv.paid_at).toBeTruthy();
+    expect(inv.stripe_payment_intent_id).toBe('pi_123');
+  });
+
+  it('finds the invoice from the link id when the session carries no metadata', async () => {
+    // Links minted before the metadata existed, and any event where Stripe
+    // hands us the link but not the copied metadata, still have to reconcile.
+    const res = await applyStripeInvoicePayment({
+      invoiceId: null,
+      paymentLinkId: 'plink_live',
+      paymentIntentId: 'pi_123',
+      amountCents: 45000,
+      currency: 'usd',
+    });
+
+    expect(res.outcome).toBe('paid');
+    expect(db.tables.firm_invoices[0].status).toBe('paid');
+  });
+
+  it('deactivates the link so the same invoice cannot be paid twice', async () => {
+    await applyStripeInvoicePayment({
+      invoiceId: 'inv-1',
+      paymentLinkId: 'plink_live',
+      paymentIntentId: 'pi_123',
+      amountCents: 45000,
+      currency: 'usd',
+    });
+
+    expect(stripe.deactivated).toEqual(['plink_live']);
+  });
+
+  it('is a no-op on redelivery, because Stripe delivers at least once', async () => {
+    const first = await applyStripeInvoicePayment({
+      invoiceId: 'inv-1',
+      paymentLinkId: 'plink_live',
+      paymentIntentId: 'pi_123',
+      amountCents: 45000,
+      currency: 'usd',
+    });
+    const second = await applyStripeInvoicePayment({
+      invoiceId: 'inv-1',
+      paymentLinkId: 'plink_live',
+      paymentIntentId: 'pi_123',
+      amountCents: 45000,
+      currency: 'usd',
+    });
+
+    expect(first.outcome).toBe('paid');
+    expect(second.outcome).toBe('already_paid');
+    // The redelivery must not restamp paid_at either: "when did this clear"
+    // is the date the firm reconciles against, not the date Stripe last
+    // happened to retry.
+    const inv = db.tables.firm_invoices[0];
+    expect(inv.paid_at).toBe(first.outcome === 'paid' ? first.paidAt : null);
+  });
+
+  it('does not resurrect a voided invoice, and says so', async () => {
+    // Real money against a receivable that was written off. Flipping it to
+    // paid would put the void back in AR as collected; the correct move is
+    // to leave the status alone and make sure a person hears about it.
+    db.tables.firm_invoices[0].status = 'void';
+
+    const res = await applyStripeInvoicePayment({
+      invoiceId: 'inv-1',
+      paymentLinkId: 'plink_live',
+      paymentIntentId: 'pi_123',
+      amountCents: 45000,
+      currency: 'usd',
+    });
+
+    expect(res.outcome).toBe('not_live');
+    expect(db.tables.firm_invoices[0].status).toBe('void');
+  });
+
+  it('reports a payment it cannot match rather than swallowing it', async () => {
+    const res = await applyStripeInvoicePayment({
+      invoiceId: null,
+      paymentLinkId: 'plink_from_some_other_product',
+      paymentIntentId: 'pi_123',
+      amountCents: 45000,
+      currency: 'usd',
+    });
+
+    expect(res.outcome).toBe('unmatched');
+  });
+
+  it('asks to be retried rather than dropping the payment when the service role is missing', async () => {
+    // Returning "handled" here would 2xx the webhook and lose the only
+    // notice we get that this invoice was paid.
+    db.adminAvailable = false;
+
+    const res = await applyStripeInvoicePayment({
+      invoiceId: 'inv-1',
+      paymentLinkId: 'plink_live',
+      paymentIntentId: 'pi_123',
+      amountCents: 45000,
+      currency: 'usd',
+    });
+
+    expect(res.outcome).toBe('unavailable');
+    expect(db.tables.firm_invoices[0].status).toBe('sent');
   });
 });

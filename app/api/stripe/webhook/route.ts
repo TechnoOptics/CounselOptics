@@ -79,6 +79,41 @@ function topupForPriceId(priceId: string | null): {
   return null;
 }
 
+/**
+ * Is this checkout session a firm invoice being paid through its Stripe
+ * payment link? Returns the handles needed to reconcile it, or null.
+ *
+ * Two ways in, because either can be missing. Stripe copies a payment
+ * link's metadata onto the sessions it creates, which is the direct
+ * answer; the link id is the fallback, and it also covers invoices whose
+ * links were minted before the metadata existed. Sessions from our own
+ * checkout flows have neither, so they fall through untouched.
+ */
+function firmInvoiceHandles(session: Stripe.Checkout.Session): {
+  invoiceId: string | null;
+  paymentLinkId: string | null;
+  paymentIntentId: string | null;
+  amountCents: number | null;
+  currency: string | null;
+} | null {
+  const invoiceId = session.metadata?.advottic_invoice_id ?? null;
+  const paymentLinkId =
+    typeof session.payment_link === 'string'
+      ? session.payment_link
+      : (session.payment_link?.id ?? null);
+  if (!invoiceId && !paymentLinkId) return null;
+  return {
+    invoiceId,
+    paymentLinkId,
+    paymentIntentId:
+      typeof session.payment_intent === 'string'
+        ? session.payment_intent
+        : (session.payment_intent?.id ?? null),
+    amountCents: session.amount_total ?? null,
+    currency: session.currency ?? null,
+  };
+}
+
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
@@ -142,6 +177,36 @@ export async function POST(req: NextRequest) {
         // Legacy path: older topup-* SKUs without our metadata fall
         // through to the price-id map below for backwards compat.
         const sessionMeta = session.metadata ?? {};
+
+        // A firm invoice paid through its Stripe payment link.
+        //
+        // Without this branch the money simply arrives in Stripe and the
+        // invoice stays "sent" until somebody notices the payout and
+        // clicks Mark paid. That inflates Outstanding, keeps dunning a
+        // client who has already paid, and depends on a person spotting
+        // it at all.
+        //
+        // Checked before the gift and top-up paths because those are
+        // identified by metadata WE set on sessions we create; a payment
+        // link session is never one of them. When nothing matches, this
+        // falls through and the rest of the handler runs as before.
+        const invoiceHandles = firmInvoiceHandles(session);
+        if (invoiceHandles && session.payment_status === 'paid') {
+          const { applyStripeInvoicePayment } = await import(
+            '@/lib/invoicing-stripe'
+          );
+          const applied = await applyStripeInvoicePayment(invoiceHandles);
+          // Could not reach the database. Do NOT acknowledge: a 2xx here
+          // discards the only notice we get that this invoice was paid.
+          // Stripe redelivers on a non-2xx, and the apply is idempotent.
+          if (applied.outcome === 'unavailable') {
+            return NextResponse.json(
+              { error: 'Invoice reconciliation unavailable.' },
+              { status: 500 },
+            );
+          }
+          if (applied.outcome !== 'unmatched') break;
+        }
 
         // Gift subscription path: a gifter paid for someone else.
         // metadata.product === 'gift_subscription' and metadata.gift_id
@@ -342,6 +407,26 @@ export async function POST(req: NextRequest) {
             subscriptionId: subscriptionId ?? null,
             sessionId: session.id,
           });
+        }
+        break;
+      }
+      // A payment method that settles later (bank debit) does not make the
+      // session "paid" at completion time - it clears here, sometimes days
+      // afterwards. Only the invoice path cares: our own checkout flows do
+      // not offer delayed methods.
+      case 'checkout.session.async_payment_succeeded': {
+        const session = event.data.object as Stripe.Checkout.Session;
+        const handles = firmInvoiceHandles(session);
+        if (!handles) break;
+        const { applyStripeInvoicePayment } = await import(
+          '@/lib/invoicing-stripe'
+        );
+        const applied = await applyStripeInvoicePayment(handles);
+        if (applied.outcome === 'unavailable') {
+          return NextResponse.json(
+            { error: 'Invoice reconciliation unavailable.' },
+            { status: 500 },
+          );
         }
         break;
       }

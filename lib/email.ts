@@ -9,6 +9,8 @@
  * surface "we'll resend manually" copy to the user.
  */
 
+import { createHash } from 'node:crypto';
+
 const DEFAULT_FROM = 'Advottic <invites@advottic.com>';
 
 export type EmailResult =
@@ -27,6 +29,23 @@ export async function sendEmail(input: {
    * mail read as the firm, e.g. "Zinpro Legal <invites@advottic.com>".
    */
   fromName?: string;
+  /**
+   * Provider-side dedup key. Resend replays the original response for a
+   * repeated key (24h window) instead of sending a second message.
+   *
+   * This matters because of the timeout below: a Resend call that is
+   * ACCEPTED but answers slowly aborts at 8s and reports ok:false, so the
+   * caller believes nothing was sent and retries. Without a key the
+   * recipient gets two copies. Only pass one for mail that means "this
+   * exact message, once" - most transactional mail here (a second invite,
+   * a reminder) is genuinely meant to be re-sendable.
+   *
+   * The key must be derived from the payload, never from the send attempt:
+   * reusing a key with different content is an error at Resend, and a key
+   * that ignores the recipient would suppress the correction the firm is
+   * usually retrying to make. See invoiceEmailIdempotencyKey.
+   */
+  idempotencyKey?: string;
 }): Promise<EmailResult> {
   const apiKey = process.env.RESEND_API_KEY?.trim();
   if (!apiKey) return { ok: false, error: 'RESEND_API_KEY not configured.' };
@@ -46,6 +65,9 @@ export async function sendEmail(input: {
       headers: {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
+        ...(input.idempotencyKey
+          ? { 'Idempotency-Key': input.idempotencyKey }
+          : {}),
       },
       body: JSON.stringify({
         from,
@@ -75,6 +97,34 @@ export async function sendEmail(input: {
       error: err instanceof Error ? err.message : 'unknown email error',
     };
   }
+}
+
+/**
+ * Dedup key for the invoice email, derived from what the client would
+ * actually receive.
+ *
+ * The retry this guards against is specific: sendEmail aborts at 8s, the
+ * invoice rolls back to draft, and the firm presses Send again. If nothing
+ * about the bill changed, that second press must not put a second copy in
+ * the client's inbox - the key is identical, and Resend replays the first
+ * response.
+ *
+ * But the OTHER common reason a firm re-sends is that the first address was
+ * wrong, or the total was. Those are real second sends and have to go out,
+ * so the recipient and the amount are both in the key. Recipients are
+ * lowercased because that is how they are stored, and hashed because an
+ * address can be far longer than the 256-character key limit.
+ */
+export function invoiceEmailIdempotencyKey(input: {
+  invoiceId: string;
+  totalCents: number;
+  clientEmail: string;
+}): string {
+  const recipient = createHash('sha256')
+    .update(input.clientEmail.trim().toLowerCase())
+    .digest('hex')
+    .slice(0, 32);
+  return `invoice-${input.invoiceId}-${input.totalCents}-${recipient}`;
 }
 
 /** Brand-styled invite email with a single CTA link. */

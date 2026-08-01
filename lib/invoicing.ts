@@ -3,6 +3,11 @@
 import { revalidatePath } from 'next/cache';
 import { createServerSupabase, getCurrentUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
+import {
+  createInvoicePaymentLink,
+  deactivatePaymentLink,
+  formatMoney,
+} from './invoicing-stripe';
 
 /**
  * Invoicing on top of time tracking. Three operations:
@@ -46,25 +51,11 @@ import { createAdminSupabase } from './supabase/admin';
  */
 const CLAIM_BATCH_SIZE = 100;
 
-/**
- * Cents to a display amount. Falls back to USD rather than throwing if the
- * stored currency code is ever malformed: this runs after an invoice has
- * been marked sent, and a RangeError there would strand it.
- */
-function formatMoney(cents: number, currency: string): string {
-  const dollars = cents / 100;
-  try {
-    return dollars.toLocaleString('en-US', {
-      style: 'currency',
-      currency: currency || 'USD',
-    });
-  } catch {
-    return dollars.toLocaleString('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    });
-  }
-}
+// formatMoney moved to lib/invoicing-stripe.ts (imported above) so the
+// webhook path and this one render an amount the same way. A client
+// reading "$450.00" in the emailed invoice and the firm reading something
+// else in the paid notification is the kind of drift worth spending an
+// import on.
 
 export type InvoiceLine = {
   entryId: string;
@@ -369,10 +360,16 @@ export async function buildDraftInvoiceAction(
  *
  * The status claim comes FIRST, before the Stripe call, so a double click
  * cannot mint two payment links or mail the client the same bill twice.
- * Note this does NOT cover the retry-after-rollback path: if the mail
+ *
+ * The retry-after-rollback path is covered too, from both ends. If the mail
  * provider accepts the message but answers too slowly (sendEmail aborts at
- * 8s), the invoice returns to draft and a firm that sends again can reach
- * the client twice. Worth revisiting with a provider idempotency key.
+ * 8s) the invoice returns to draft and the firm sends again, so: the link
+ * minted on the failed attempt is DEACTIVATED before the rollback, and the
+ * mail carries a provider idempotency key derived from the payload. The
+ * retry therefore mints exactly one live link and, if the first message did
+ * go out, Resend replays that send instead of putting a second copy of the
+ * same bill in the client's inbox. Correcting the client's address changes
+ * the key, so a genuine re-send is never suppressed.
  */
 export async function sendInvoiceAction(
   invoiceId: string,
@@ -439,47 +436,38 @@ export async function sendInvoiceAction(
     };
   }
 
-  // Best-effort Stripe payment link. Falls back to a placeholder URL
-  // if STRIPE_SECRET_KEY is missing - the firm can still mark paid
-  // manually when payment arrives outside Stripe.
-  let paymentLink: string | null = null;
-  const stripeKey = process.env.STRIPE_SECRET_KEY?.trim();
-  if (stripeKey) {
-    try {
-      const formBody = new URLSearchParams({
-        'line_items[0][price_data][currency]': invoice.currency.toLowerCase(),
-        'line_items[0][price_data][unit_amount]': String(invoice.total_cents),
-        'line_items[0][price_data][product_data][name]': `Invoice ${invoice.number}`,
-        'line_items[0][quantity]': '1',
-        'after_completion[type]': 'redirect',
-        'after_completion[redirect][url]': `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://advottic.com'}/inbox`,
-      });
-      const resp = await fetch('https://api.stripe.com/v1/payment_links', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${stripeKey}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: formBody.toString(),
-      });
-      if (resp.ok) {
-        const json = (await resp.json()) as { url?: string };
-        paymentLink = json.url ?? null;
-      }
-    } catch {
-      /* non-fatal */
-    }
-  }
+  // Best-effort Stripe payment link. When Stripe is not configured the
+  // invoice still sends, just without a Pay button - the firm marks it
+  // paid manually when the money arrives another way.
+  const minted = await createInvoicePaymentLink({
+    invoiceId: invoice.id,
+    firmId: invoice.firm_id,
+    number: invoice.number,
+    totalCents: invoice.total_cents,
+    currency: invoice.currency,
+  });
+  let paymentLink: string | null = minted?.url ?? null;
+  // The plink_ id, kept so the link can be switched off later. The
+  // buy.stripe.com URL does not contain it, and a payment link stays
+  // payable until Stripe is told otherwise.
+  let paymentLinkId: string | null = minted?.id ?? null;
 
-  if (paymentLink) {
+  if (minted) {
     const { error: linkErr } = await supabase
       .from('firm_invoices')
-      .update({ stripe_payment_link: paymentLink })
+      .update({
+        stripe_payment_link: minted.url,
+        stripe_payment_link_id: minted.id,
+      })
       .eq('id', invoice.id);
     // If we could not record the link, do not put it in the client's
     // email either. A pay link the invoice record has never heard of is
-    // a payment nobody can reconcile.
-    if (linkErr) paymentLink = null;
+    // a payment nobody can reconcile - and one nobody can revoke.
+    if (linkErr) {
+      await deactivatePaymentLink(minted.id);
+      paymentLink = null;
+      paymentLinkId = null;
+    }
   }
 
   // Everything from here to the delivery check runs inside a try, because
@@ -511,7 +499,8 @@ export async function sendInvoiceAction(
 
     const amount = formatMoney(invoice.total_cents, invoice.currency);
 
-    const { sendEmail, buildInvoiceEmailHtml } = await import('./email');
+    const { sendEmail, buildInvoiceEmailHtml, invoiceEmailIdempotencyKey } =
+      await import('./email');
     const emailRes = await sendEmail({
       to: invoice.client_email,
       subject: `Invoice ${invoice.number} from ${firmName ?? 'your legal team'}`,
@@ -527,6 +516,17 @@ export async function sendInvoiceAction(
         paymentLink ? ` Pay: ${paymentLink}` : ' Reply for payment instructions.'
       }`,
       fromName: firmName ?? undefined,
+      // Closes the slow-provider window. sendEmail gives up at 8s, so a
+      // message Resend accepted but was slow to confirm reads as a
+      // failure here, rolls the invoice back, and gets sent again. The
+      // key is derived from the invoice, its total and the recipient, so
+      // that identical retry is deduped by Resend while a corrected
+      // address or an edited total still goes out as a real second send.
+      idempotencyKey: invoiceEmailIdempotencyKey({
+        invoiceId: invoice.id,
+        totalCents: invoice.total_cents,
+        clientEmail: invoice.client_email,
+      }),
     });
     emailed = emailRes.ok;
     if (!emailRes.ok) emailError = emailRes.error;
@@ -560,9 +560,20 @@ export async function sendInvoiceAction(
     // Nothing reached the client, so this invoice is not sent. Put it back
     // rather than let it sit in Outstanding as money the client has never
     // been asked for.
+    //
+    // Kill the link this attempt minted BEFORE clearing the columns that
+    // point at it, or its id is gone and it stays payable forever. The
+    // firm will send again and mint a fresh one; two live links for one
+    // invoice is how a client ends up paying twice.
+    await deactivatePaymentLink(paymentLinkId);
     const { data: rolledBack, error: rollbackErr } = await supabase
       .from('firm_invoices')
-      .update({ status: 'draft', sent_at: null, stripe_payment_link: null })
+      .update({
+        status: 'draft',
+        sent_at: null,
+        stripe_payment_link: null,
+        stripe_payment_link_id: null,
+      })
       .eq('id', invoice.id)
       .eq('status', 'sent')
       .select('id');
@@ -604,7 +615,9 @@ export async function markInvoicePaidAction(
   const supabase = createServerSupabase();
   const { data: inv } = await supabase
     .from('firm_invoices')
-    .select('id, firm_id, status, created_by, number, total_cents')
+    .select(
+      'id, firm_id, status, created_by, number, total_cents, currency, stripe_payment_link_id',
+    )
     .eq('id', invoiceId)
     .maybeSingle();
   if (!inv) return { ok: false, error: 'Invoice not found.' };
@@ -615,6 +628,8 @@ export async function markInvoicePaidAction(
     created_by: string | null;
     number: string;
     total_cents: number;
+    currency: string;
+    stripe_payment_link_id: string | null;
   };
   const paidAuth = await assertInvoicePoster(supabase, invoice.firm_id, user.id);
   if (!paidAuth.ok) return paidAuth;
@@ -632,8 +647,18 @@ export async function markInvoicePaidAction(
 
   await supabase
     .from('firm_invoices')
-    .update({ status: 'paid', paid_at: new Date().toISOString() })
+    .update({
+      status: 'paid',
+      paid_at: new Date().toISOString(),
+      // The Pay button in the client's inbox has to stop working. This
+      // invoice is settled, and a Stripe payment link is reusable: leaving
+      // it live after a wire has already been received is a second charge
+      // waiting to happen, not just an untidy record.
+      stripe_payment_link: null,
+    })
     .eq('id', invoice.id);
+
+  const linkOff = await deactivatePaymentLink(invoice.stripe_payment_link_id);
 
   if (invoice.created_by) {
     const { createNotification } = await import('./notifications');
@@ -641,12 +666,17 @@ export async function markInvoicePaidAction(
       userId: invoice.created_by,
       type: 'system',
       title: `Invoice ${invoice.number} paid`,
-      body: `$${(invoice.total_cents / 100).toFixed(2)} cleared.`,
+      body: `${formatMoney(invoice.total_cents, invoice.currency)} cleared.`,
       link: '/counsel/billing',
     });
   }
   revalidatePath('/counsel/billing');
-  return { ok: true };
+  return {
+    ok: true,
+    error: linkOff
+      ? undefined
+      : 'Marked paid, but the Stripe payment link could not be switched off. Deactivate it in Stripe so the client cannot pay it again.',
+  };
 }
 
 /**
@@ -692,11 +722,16 @@ export async function voidInvoiceAction(
 
   const { data: inv } = await supabase
     .from('firm_invoices')
-    .select('id, firm_id, status')
+    .select('id, firm_id, status, stripe_payment_link_id')
     .eq('id', invoiceId)
     .maybeSingle();
   if (!inv) return { ok: false, error: 'Invoice not found.' };
-  const invoice = inv as { id: string; firm_id: string; status: string };
+  const invoice = inv as {
+    id: string;
+    firm_id: string;
+    status: string;
+    stripe_payment_link_id: string | null;
+  };
   if (invoice.firm_id !== firmId) {
     return { ok: false, error: 'Invoice does not belong to this firm.' };
   }
@@ -719,7 +754,15 @@ export async function voidInvoiceAction(
   // Atomic transition: only flips if the status is still `prior`.
   const { data: updated, error: updateErr } = await supabase
     .from('firm_invoices')
-    .update({ status: 'void', updated_at: new Date().toISOString() })
+    .update({
+      status: 'void',
+      // Drop the payable URL in the same guarded write that voids the
+      // invoice, so the billing page and the matter page stop offering a
+      // Pay button the moment the status flips. The plink_ id stays as
+      // the trail for which link was revoked.
+      stripe_payment_link: null,
+      updated_at: new Date().toISOString(),
+    })
     .eq('id', invoice.id)
     .eq('status', prior)
     .select('id');
@@ -733,15 +776,33 @@ export async function voidInvoiceAction(
     };
   }
 
+  // Clearing our own column is not enough: the client already has the URL
+  // in their inbox and it keeps working until Stripe is told to stop
+  // honouring it. Only after the status has flipped, so a void that lost
+  // the race never kills a link belonging to a live invoice.
+  const linkOff = await deactivatePaymentLink(invoice.stripe_payment_link_id);
   const released = await releaseInvoiceEntries(createAdminSupabase(), invoice.id);
 
   revalidatePath('/counsel/billing');
+  // Both follow-ups are reported, but neither undoes the void: a firm that
+  // voided a mis-sent invoice needs it to stay voided even when Stripe is
+  // unreachable.
+  const warnings = [
+    released
+      ? null
+      : 'its time entries could not be released automatically',
+    linkOff
+      ? null
+      : 'the Stripe payment link could not be switched off, so deactivate it in Stripe',
+  ].filter(Boolean);
+
   return {
     ok: true,
     releasedEntries: released,
-    error: released
-      ? undefined
-      : 'Invoice voided, but its time entries could not be released automatically.',
+    error:
+      warnings.length > 0
+        ? `Invoice voided, but ${warnings.join(', and ')}.`
+        : undefined,
   };
 }
 
@@ -766,11 +827,16 @@ export async function deleteDraftInvoiceAction(
 
   const { data: inv } = await supabase
     .from('firm_invoices')
-    .select('id, firm_id, status')
+    .select('id, firm_id, status, stripe_payment_link_id')
     .eq('id', invoiceId)
     .maybeSingle();
   if (!inv) return { ok: false, error: 'Invoice not found.' };
-  const invoice = inv as { id: string; firm_id: string; status: string };
+  const invoice = inv as {
+    id: string;
+    firm_id: string;
+    status: string;
+    stripe_payment_link_id: string | null;
+  };
   if (invoice.firm_id !== firmId) {
     return { ok: false, error: 'Invoice does not belong to this firm.' };
   }
@@ -805,6 +871,18 @@ export async function deleteDraftInvoiceAction(
     };
   }
 
+  // A draft normally has no link - one is only minted at send. It does
+  // carry one when a send failed and rolled back before the deactivation
+  // could run. Deleting the row would otherwise take the only record of
+  // that link with it and leave it payable with nothing to reconcile
+  // against.
+  const linkOff = await deactivatePaymentLink(invoice.stripe_payment_link_id);
+
   revalidatePath('/counsel/billing');
-  return { ok: true };
+  return {
+    ok: true,
+    error: linkOff
+      ? undefined
+      : 'Draft deleted, but a Stripe payment link left over from an earlier send could not be switched off. Deactivate it in Stripe.',
+  };
 }
