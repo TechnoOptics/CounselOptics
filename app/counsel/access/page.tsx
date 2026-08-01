@@ -4,6 +4,8 @@ import { createAdminSupabase } from '@/lib/supabase/admin';
 import type { SignupRequestRow } from '@/lib/access-requests';
 import { LocaleTime } from '@/components/LocaleTime';
 import { ReviewButtons } from './review-buttons';
+import { PageHeader } from '@/components/counsel/ui';
+import { StatusPill, PILL_COLORS } from '@/components/counsel/StatusPill';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -33,19 +35,17 @@ export default async function CounselAccessPage() {
 
   return (
     <div className="space-y-8 animate-fade-up">
-      <header>
-        <p className="eyebrow mb-1"><T>People</T></p>
-        <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          <T>Access requests</T>
-        </h1>
-        <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
+      <PageHeader
+        eyebrow={<T>People</T>}
+        title={<T>Access requests</T>}
+        subtitle={
           <T>People with a work email on the firm&rsquo;s allowed domains
           are set up automatically. Everyone else - outside clients,
           vendors, counterparties - lands here for you to approve or
           decline before any account exists. Approved external accounts
           get the request loop only, never internal tools.</T>
-        </p>
-      </header>
+        }
+      />
 
       <section className="space-y-3">
         <div className="flex items-center gap-2">
@@ -101,15 +101,16 @@ export default async function CounselAccessPage() {
                     {r.email}
                   </span>
                 </span>
-                <span
-                  className={`shrink-0 inline-flex items-center px-2 py-[2px] rounded text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ${
+                <StatusPill
+                  size="sm"
+                  color={
                     r.status === 'approved'
-                      ? 'text-emerald-700 dark:text-emerald-200 ring-emerald-300/50 dark:ring-emerald-700/40 bg-emerald-50 dark:bg-emerald-950/30'
-                      : 'text-ink-600 dark:text-cream-100/60 ring-ink-200 dark:ring-forest-700/40 bg-ink-50 dark:bg-forest-800/40'
-                  }`}
+                      ? PILL_COLORS.good
+                      : PILL_COLORS.neutral
+                  }
                 >
                   {r.status}
-                </span>
+                </StatusPill>
               </li>
             ))}
           </ul>

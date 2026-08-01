@@ -3,6 +3,7 @@ import { headers } from 'next/headers';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { ScimSettings } from '@/components/counsel/ScimSettings';
 import { SamlSsoSetup } from '@/components/counsel/SamlSsoSetup';
+import { PageHeader } from '@/components/counsel/ui';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -43,19 +44,19 @@ export default async function ScimSettingsPage() {
 
   return (
     <div className="space-y-8 animate-fade-up">
-      <header>
-        <p className="eyebrow mb-1"><T>Enterprise · SSO &amp; provisioning</T></p>
-        <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          <T>Single sign-on &amp; automatic provisioning</T>
-        </h1>
-        <p className="mt-1 max-w-2xl text-sm leading-relaxed text-ink-600 dark:text-cream-100/70">
-          <T>Let</T> {ctx.firm.name}
-          <T>&rsquo;s people sign in with your identity provider
-          (SAML SSO) and keep your firm directory in sync automatically (SCIM).
-          When someone joins or leaves in Microsoft Entra ID or Okta, their
-          access here keeps pace without manual steps.</T>
-        </p>
-      </header>
+      <PageHeader
+        eyebrow={<T>Enterprise · SSO &amp; provisioning</T>}
+        title={<T>Single sign-on &amp; automatic provisioning</T>}
+        subtitle={
+          <>
+            <T>Let</T> {ctx.firm.name}
+            <T>&rsquo;s people sign in with your identity provider
+            (SAML SSO) and keep your firm directory in sync automatically (SCIM).
+            When someone joins or leaves in Microsoft Entra ID or Okta, their
+            access here keeps pace without manual steps.</T>
+          </>
+        }
+      />
 
       {sso && (
         <section className="space-y-3">

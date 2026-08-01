@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { getFirmAnalytics, type StatusCount, type MonthPoint } from '@/lib/counsel-analytics';
 import { getFirmImpact, type Bucket, type FirmImpact } from '@/lib/counsel-impact';
+import { PageHeader } from '@/components/counsel/ui';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -68,20 +69,20 @@ export default async function CounselImpactPage() {
 
   return (
     <div className="space-y-8 animate-fade-up">
-      <header>
-        <p className="eyebrow mb-1"><T>Impact</T></p>
-        <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          <T>Firm impact</T>
-        </h1>
-        <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-          <T>The work</T> {ctx.firm.name}{' '}
-          <T>
-            is carrying right now, at a glance: matters, evidence, the
-            calendar ahead, and the money in motion. Live from your own
-            data.
-          </T>
-        </p>
-      </header>
+      <PageHeader
+        eyebrow={<T>Impact</T>}
+        title={<T>Firm impact</T>}
+        subtitle={
+          <>
+            <T>The work</T> {ctx.firm.name}{' '}
+            <T>
+              is carrying right now, at a glance: matters, evidence, the
+              calendar ahead, and the money in motion. Live from your own
+              data.
+            </T>
+          </>
+        }
+      />
 
       {/* Impact KPI row */}
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">

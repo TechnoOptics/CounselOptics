@@ -4,23 +4,12 @@ import { getActiveFirmContext } from '@/lib/firm-storage';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { RespondToReferralForm } from './respond-form';
 import { RecordPaymentForm } from './record-payment-form';
+import { referralStatusColor } from '@/lib/referral-status';
+import { StatusPill } from '@/components/counsel/StatusPill';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Referral · Counsel' };
-
-const STATUS_TONE: Record<string, string> = {
-  proposed:
-    'bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200 ring-amber-200 dark:ring-amber-700/40',
-  accepted:
-    'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-200 ring-emerald-200 dark:ring-emerald-700/40',
-  declined:
-    'bg-ink-100 dark:bg-forest-800/50 text-ink-700 dark:text-cream-100/85 ring-ink-200 dark:ring-forest-700/40',
-  closed:
-    'bg-sky-50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-200 ring-sky-200 dark:ring-sky-700/40',
-  withdrawn:
-    'bg-rose-50 dark:bg-rose-950/30 text-rose-800 dark:text-rose-200 ring-rose-200 dark:ring-rose-700/40',
-};
 
 function fmtCents(cents: number) {
   return (cents / 100).toLocaleString('en-US', {
@@ -71,8 +60,6 @@ export default async function ReferralDetailPage({
     ((firmRows ?? []) as Array<{ id: string; name: string }>).map((f) => [f.id, f.name]),
   );
 
-  const tone = STATUS_TONE[r.status] ?? STATUS_TONE.proposed;
-
   return (
     <div className="space-y-6 animate-fade-up">
       <p className="text-sm">
@@ -97,11 +84,9 @@ export default async function ReferralDetailPage({
             {new Date(r.created_at).toLocaleString()}
           </p>
         </div>
-        <span
-          className={`shrink-0 inline-flex items-center px-2 py-1 rounded text-[11px] font-semibold uppercase tracking-[0.12em] ring-1 ${tone}`}
-        >
+        <StatusPill color={referralStatusColor(r.status)}>
           {r.status}
-        </span>
+        </StatusPill>
       </header>
 
       <section className="card p-5 space-y-2">

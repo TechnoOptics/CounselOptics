@@ -2,6 +2,8 @@ import { redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { listFirmEmployeeDirectory } from '@/lib/firm-actions';
 import { readPortalRoles } from '@/lib/portal-features';
+import { PageHeader } from '@/components/counsel/ui';
+import { StatusPill, PILL_COLORS } from '@/components/counsel/StatusPill';
 import { T } from '@/components/i18n/LocaleProvider';
 import { Tt } from '@/components/i18n/Tt';
 
@@ -35,19 +37,19 @@ export default async function CounselEmployeesPage() {
 
   return (
     <div className="space-y-6 animate-fade-up">
-      <header>
-        <p className="eyebrow mb-1"><T>People</T></p>
-        <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          <T>Employees</T>
-        </h1>
-        <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-          <T>Everyone with an employee-portal account at</T> {ctx.firm.name}{' '}
-          <T>
-            - staff, contractors, and any guest accounts. To add, deactivate,
-            or change a role, an owner or admin uses the Team page.
-          </T>
-        </p>
-      </header>
+      <PageHeader
+        eyebrow={<T>People</T>}
+        title={<T>Employees</T>}
+        subtitle={
+          <>
+            <T>Everyone with an employee-portal account at</T> {ctx.firm.name}{' '}
+            <T>
+              - staff, contractors, and any guest accounts. To add, deactivate,
+              or change a role, an owner or admin uses the Team page.
+            </T>
+          </>
+        }
+      />
 
       {employees.length === 0 ? (
         <p className="card p-6 text-[13px] text-ink-500 dark:text-cream-100/55 italic">
@@ -120,15 +122,14 @@ export default async function CounselEmployeesPage() {
                         {SOURCE_LABEL[e.source] ?? e.source}
                       </td>
                       <td className="px-4 py-2.5">
-                        <span
-                          className={`inline-flex items-center px-2 py-[2px] rounded text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ${
-                            inactive
-                              ? 'bg-ink-100 dark:bg-forest-800/50 text-ink-600 dark:text-cream-100/55 ring-ink-200 dark:ring-forest-700/40'
-                              : 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-200 ring-emerald-200 dark:ring-emerald-700/40'
-                          }`}
+                        <StatusPill
+                          size="sm"
+                          color={
+                            inactive ? PILL_COLORS.neutral : PILL_COLORS.good
+                          }
                         >
                           {inactive ? <T>Deactivated</T> : <T>Active</T>}
-                        </span>
+                        </StatusPill>
                       </td>
                     </tr>
                   );

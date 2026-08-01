@@ -11,6 +11,7 @@ import { InviteMemberForm } from './invite-form';
 import { TeamMemberRow } from './member-row';
 import { EmployeesPanel } from './employees-panel';
 import { RolesManager } from './roles-manager';
+import { PageHeader } from '@/components/counsel/ui';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -32,18 +33,16 @@ export default async function CounselTeamPage() {
 
   return (
     <div className="space-y-6 animate-fade-up">
-      <header>
-        <p className="eyebrow mb-1"><T>Team</T></p>
-        <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          <T>Members & roles</T>
-        </h1>
-        <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
+      <PageHeader
+        eyebrow={<T>Team</T>}
+        title={<T>Members & roles</T>}
+        subtitle={
           <T>
             Roles control what each person can do across cases, documents,
             signing, and chat.
           </T>
-        </p>
-      </header>
+        }
+      />
 
       {canManage && <InviteMemberForm firmId={ctx.firm.id} />}
 

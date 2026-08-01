@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { TokenTopUpButton } from './topup-button';
+import { PageHeader } from '@/components/counsel/ui';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -92,21 +93,17 @@ export default async function FirmTokenPoolPage() {
         </Link>
       </p>
 
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="eyebrow mb-1"><T>Counsel · Bella tokens</T></p>
-          <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-            <T>Firm pool</T>
-          </h1>
-          <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-            <T>One pool everyone on the firm draws from when they ask Bella.
-            Heavy users on a litigation week absorb light users&rsquo;
-            unused share. Top up here when the pool runs low; charges go
-            to the firm&rsquo;s payment method.</T>
-          </p>
-        </div>
-        <TokenTopUpButton />
-      </header>
+      <PageHeader
+        eyebrow={<T>Counsel · Bella tokens</T>}
+        title={<T>Firm pool</T>}
+        subtitle={
+          <T>One pool everyone on the firm draws from when they ask Bella.
+          Heavy users on a litigation week absorb light users&rsquo;
+          unused share. Top up here when the pool runs low; charges go
+          to the firm&rsquo;s payment method.</T>
+        }
+        action={<TokenTopUpButton />}
+      />
 
       <section className="grid gap-3 sm:grid-cols-3">
         <Stat

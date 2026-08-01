@@ -8,20 +8,19 @@ import { isIosAppRequest } from '@/lib/ios-gate';
 import { MarkPaidButton } from './mark-paid-button';
 import { SendInvoiceButton } from './send-invoice-button';
 import { InvoiceRowActions } from './invoice-actions';
+import { PageHeader } from '@/components/counsel/ui';
+import { StatusPill, PILL_COLORS } from '@/components/counsel/StatusPill';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Billing · Counsel' };
 
-const STATUS_TONE: Record<string, string> = {
-  draft:
-    'bg-ink-100 dark:bg-forest-800/50 text-ink-700 dark:text-cream-100/85 ring-ink-200 dark:ring-forest-700/40',
-  sent:
-    'bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200 ring-amber-200 dark:ring-amber-700/40',
-  paid:
-    'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-200 ring-emerald-200 dark:ring-emerald-700/40',
-  void:
-    'bg-rose-50 dark:bg-rose-950/30 text-rose-800 dark:text-rose-200 ring-rose-200 dark:ring-rose-700/40',
+/** One hex per invoice state; StatusPill derives fill and border from it. */
+const STATUS_COLOR: Record<string, string> = {
+  draft: PILL_COLORS.neutral,
+  sent: PILL_COLORS.waiting,
+  paid: PILL_COLORS.good,
+  void: PILL_COLORS.flagged,
 };
 
 function fmtCents(cents: number) {
@@ -135,19 +134,17 @@ export default async function CounselBillingPage() {
 
   return (
     <div className="space-y-8 animate-fade-up">
-      <header>
-        <p className="eyebrow mb-1"><T>Counsel · billing</T></p>
-        <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          <T>Billing</T>
-        </h1>
-        <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
+      <PageHeader
+        eyebrow={<T>Counsel · billing</T>}
+        title={<T>Billing</T>}
+        subtitle={
           <T>
             Invoices issued from this firm, plus billable time that&rsquo;s
             ready to invoice. Click into a case to draft an invoice from its
             unbilled time entries.
           </T>
-        </p>
-      </header>
+        }
+      />
 
       {/* Top stats */}
       <section className="grid gap-3 sm:grid-cols-4">
@@ -219,7 +216,7 @@ export default async function CounselBillingPage() {
         ) : (
           <ul className="space-y-2">
             {invoices.map((i) => {
-              const tone = STATUS_TONE[i.status] ?? STATUS_TONE.draft;
+              const color = STATUS_COLOR[i.status] ?? STATUS_COLOR.draft;
               return (
                 <li
                   key={i.id}
@@ -230,11 +227,9 @@ export default async function CounselBillingPage() {
                       <p className="font-semibold text-forest-900 dark:text-cream-100">
                         {i.number}
                       </p>
-                      <span
-                        className={`inline-flex items-center px-1.5 py-[1px] rounded text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ${tone}`}
-                      >
+                      <StatusPill color={color} size="sm">
                         {i.status}
-                      </span>
+                      </StatusPill>
                     </div>
                     <p className="text-[12.5px] text-ink-600 dark:text-cream-100/70 truncate">
                       {i.client_name ?? i.client_email} ·{' '}
