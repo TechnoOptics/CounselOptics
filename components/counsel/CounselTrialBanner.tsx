@@ -37,15 +37,21 @@ export function CounselTrialBanner({
 
   const days = daysLeft == null ? null : Math.max(0, Math.round(daysLeft));
   const dayLabel = days === 1 ? 'day' : 'days';
+  // Only an actually-known clock that has run out counts as ended. An
+  // unparseable start date must not read as either "30 days left" or "ended".
+  const ended = days != null && days <= 0;
 
   return (
     <div className="relative z-30 border-b border-gold-500/30 bg-gradient-to-r from-gold-500/15 via-gold-400/10 to-gold-500/15">
       <div className="mx-auto flex w-full max-w-none items-center gap-3 px-4 py-2 sm:px-6 lg:px-10">
+        {/* The chip has to agree with the sentence. It used to read "Free
+            trial" even in the ended state, so the banner announced a trial
+            that the next line said was over. */}
         <span
           className="hidden h-5 items-center rounded-full bg-gold-400/20 px-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-gold-200 sm:inline-flex"
           aria-hidden
         >
-          Free trial
+          {ended ? 'Trial ended' : 'Free trial'}
         </span>
         <p className="min-w-0 flex-1 text-[12.5px] leading-snug text-cream-100/90">
           {guest ? (
@@ -64,8 +70,10 @@ export function CounselTrialBanner({
               {days == null ? (
                 <>, with all features included.</>
               ) : days > 0 ? (
+                /* Was an &mdash; entity, which is why the em dash sweep did
+                   not catch it. Grep for the literal character misses these. */
                 <>
-                  {' '}&mdash;{' '}
+                  {', '}
                   <span className="font-semibold text-gold-200">
                     {days} {dayLabel}
                   </span>{' '}
@@ -76,16 +84,26 @@ export function CounselTrialBanner({
               )}
             </>
           ) : (
-            <>
-              <span className="font-semibold text-cream-100" data-no-translate>
-                {firmName}
-              </span>{' '}
-              is on a 30‑day free trial, with all features included.
-              {/* Only make a claim about expiry when the clock is actually
-                  known - an unparseable start date must not read as either
-                  "30 days left" or "ended". */}
-              {days != null &&
-                (days > 0 ? (
+            /* Present tense and past tense used to run together here: the
+               sentence opened with "is on a 30-day free trial" and then
+               appended "Your trial has ended". Once the clock has run out the
+               opening clause is simply false, so the ended state gets its own
+               sentence rather than a correction bolted onto the wrong one. */
+            ended ? (
+              <>
+                <span className="font-semibold text-cream-100" data-no-translate>
+                  {firmName}
+                </span>
+                &rsquo;s free trial has ended. Your access continues, with all
+                features included.
+              </>
+            ) : (
+              <>
+                <span className="font-semibold text-cream-100" data-no-translate>
+                  {firmName}
+                </span>{' '}
+                is on a 30-day free trial, with all features included.
+                {days != null && days > 0 && (
                   <>
                     {' '}Your trial expires in{' '}
                     <span className="font-semibold text-gold-200">
@@ -93,10 +111,9 @@ export function CounselTrialBanner({
                     </span>
                     .
                   </>
-                ) : (
-                  <> Your trial has ended, but your access continues.</>
-                ))}
-            </>
+                )}
+              </>
+            )
           )}
         </p>
         <button
