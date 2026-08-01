@@ -8,6 +8,31 @@ Let a firm's legal team build and maintain their own legal intake forms: add and
 remove questions, choose data types, set validation, lay fields out up to three
 per row, and keep a different form per type of legal request.
 
+## v1 scope
+
+**One request type, end to end: `nda`, for the Zinpro firm.**
+
+The full machinery is built once, because the tables, schema, builder, renderer
+and partner projection are all shared. What v1 constrains is how many request
+types have a published form, and therefore how much has to be proved correct
+before it is in front of anyone.
+
+`nda` was chosen because it exercises nearly the whole feature honestly:
+counterparty name (text), mutual or one-way (select), effective date (date),
+term length (number), governing law (select), contract value (currency), and a
+conditional driven by "is there a counterparty?". `hr` and `incident` are mostly
+free text and would prove much less. The firm also already has an NDA template
+in `firm_templates`, so this is the path with existing gravity.
+
+**Done means:** legal builds the NDA form in the builder, publishes it, an
+employee files an NDA request through `/portal/new` against it, Zinpro's app
+receives the projected questions from `/api/partner/v1/config` and files a
+ticket whose answers arrive validated, and the counsel intake page renders the
+result bound to its version. Anything short of that whole loop is not done.
+
+The other request types keep today's behaviour, which is the existing
+`partnerIntegration.questions` list, until someone builds a form for them.
+
 ## Context: what exists today
 
 Configurable intake questions already exist, in a narrower form than this spec
@@ -330,20 +355,36 @@ change rather than case work.
 ## Migration and compatibility
 
 1. Create the three tables and the `form_version_id` column.
-2. Backfill `firm_request_types` for every firm from the hardcoded 12,
-   preserving `mode`. `key` is a slug of the current value string
-   (`'NDA review'` becomes `'nda_review'`); `label` is the current value string
-   verbatim.
+2. Backfill `firm_request_types` from **two** sources, because two different
+   vocabularies are already in the data.
 
-   Historical intakes store the value string itself in `matter_type` or
-   `intake_answers.request_type`, not an id. They are therefore matched to a
-   type by comparing that string to `label`, which is exactly why the seeded
-   `label` must start as the verbatim string. From this feature onward,
-   intakes carry `form_version_id`, and the type is reached through the form.
+   **The hardcoded 12.** `key` is a slug of the value string (`'NDA review'`
+   becomes `'nda_review'`); `label` is the value string verbatim. Intakes filed
+   through Advottic's own form store that string in `matter_type` and
+   `intake_answers.request_type`, so they match a type by comparing the stored
+   string to `label`, which is why the seeded label must start verbatim.
+
+   **The partner's own slugs.** Every ticket filed through
+   `/api/partner/v1/*` carries a lowercase slug of the partner's choosing in
+   `matter_type` and leaves `request_type` null. Zinpro is already using `nda`,
+   `hr`, `contract-review` and `incident`, none of which appear in the
+   hardcoded 12. For these, seed one type per distinct slug observed for that
+   firm, with `key` set to the slug **verbatim** and `label` humanised.
+
+   So `key` is not merely an internal stable id. For partner-facing types it is
+   the join key with the partner's vocabulary and must equal their slug exactly,
+   or projected forms and arriving tickets will not meet.
+
+   **Known wart:** Zinpro will end up with both `nda` (from the partner) and
+   `nda_review` (from the defaults). They are not merged automatically, because
+   merging would guess at intent and the two may genuinely differ. Legal can
+   hide the unused one in the builder. Auto-merging near-duplicate labels is
+   explicitly rejected.
+
    Renaming a seeded type after backfill detaches it from its pre-existing
-   intakes; that is accepted, because the alternative is freezing labels
-   forever, and the counsel intake page reads the stored string directly
-   rather than resolving the type.
+   intakes. Accepted, because the alternative is freezing labels forever, and
+   the counsel intake page reads the stored string directly rather than
+   resolving the type.
 3. No form rows are created. Every firm starts with zero published forms and
    therefore identical behaviour to today.
 4. `intake_answers.questionAnswers` keeps its existing `{id, label, value}`
@@ -378,11 +419,13 @@ change rather than case work.
 
 ## Risks
 
-**The feature may have no user yet.** `firm_intake_participants` has zero rows
-and `firm_invoices` is empty; several firm features have shipped and never been
-exercised once. This is a large surface. Before building all of it, it is worth
-confirming a firm is waiting to use it, or scoping v1 to the single request
-type Zinpro actually files under and growing from there.
+**Several firm features have shipped and never been exercised once.**
+`firm_intake_participants` has zero rows and `firm_invoices` is empty. Trust
+accounting and invoicing were both found broken in ways that would have
+surfaced on first real use, and nobody had reached them. This is what the v1
+scope above exists to prevent: one request type proved through the entire loop,
+including a real ticket arriving from Zinpro's app, rather than a broad surface
+that compiles and has never been used.
 
 **The partner contract is live.** Every change to the projection is a change
 felt by a shipped third-party app. The projection is the piece to test hardest.
