@@ -62,15 +62,19 @@ export function asList(value: string | string[] | undefined): string[] {
 }
 
 /**
- * `aria-hidden` on the marker because `aria-required` already tells a screen
- * reader the field is required. Without it the label is read as "Counterparty
- * name Required required", which is noise.
+ * `silent` hides the marker from assistive tech, for the controls where
+ * `aria-required` already carries the same fact and repeating it would have
+ * the label read as "Counterparty name Required required".
+ *
+ * It is NOT silent on a plain `group`: `aria-required` is not supported on
+ * that role, so on a multiselect the word in the legend is the only thing
+ * telling a screen reader user the question must be answered.
  */
-function RequiredMark({ required }: { required: boolean }) {
+function RequiredMark({ required, silent }: { required: boolean; silent: boolean }) {
   if (!required) return null;
   return (
     <span
-      aria-hidden
+      aria-hidden={silent || undefined}
       className="ml-1.5 text-[11px] font-normal text-ink-500 dark:text-cream-100/55"
     >
       Required
@@ -88,7 +92,7 @@ export function FieldLabel({
   return (
     <label htmlFor={htmlFor} className="label">
       {question.label}
-      <RequiredMark required={question.required} />
+      <RequiredMark required={question.required} silent />
     </label>
   );
 }
@@ -97,11 +101,17 @@ export function FieldLabel({
  * The same label for a group of controls. A `<legend>` cannot use `htmlFor`;
  * being the first child of the `<fieldset>` is what binds it to the group.
  */
-export function GroupLabel({ question }: { question: Question }) {
+export function GroupLabel({
+  question,
+  silentRequired,
+}: {
+  question: Question;
+  silentRequired: boolean;
+}) {
   return (
     <legend className="label">
       {question.label}
-      <RequiredMark required={question.required} />
+      <RequiredMark required={question.required} silent={silentRequired} />
     </legend>
   );
 }
@@ -112,6 +122,12 @@ export function GroupLabel({ question }: { question: Question }) {
  * `group` for checkboxes, where several are. A screen reader announces the
  * two differently, which is how someone who cannot see the controls knows
  * whether picking a second option replaces the first.
+ *
+ * `aria-required` and `aria-invalid` are only set on `radiogroup`. ARIA does
+ * not support either on a plain `group`, so setting them there would look
+ * correct in the source and announce nothing. The legend carries the required
+ * word instead, and `aria-describedby` (which is global, so it does apply)
+ * carries the error message either way.
  */
 export function FieldGroup({
   question,
@@ -126,15 +142,16 @@ export function FieldGroup({
   role?: 'group' | 'radiogroup';
   children: ReactNode;
 }) {
+  const statesApply = role === 'radiogroup';
   return (
     <fieldset
       role={role}
-      aria-required={question.required || undefined}
-      aria-invalid={invalid || undefined}
+      aria-required={(statesApply && question.required) || undefined}
+      aria-invalid={(statesApply && invalid) || undefined}
       aria-describedby={describedBy}
       className="min-w-0"
     >
-      <GroupLabel question={question} />
+      <GroupLabel question={question} silentRequired={statesApply} />
       <div className="flex flex-wrap gap-x-5 gap-y-2">{children}</div>
     </fieldset>
   );

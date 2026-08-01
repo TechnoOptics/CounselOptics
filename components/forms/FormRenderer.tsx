@@ -40,6 +40,14 @@ import { ShortTextField } from './fields/ShortTextField';
 
 export type FormRendererProps = {
   payload: FormPayload;
+  /**
+   * Keyed by question `key`. This renderer never deletes an answer: hiding a
+   * question leaves whatever was typed into it sitting here, so that flipping
+   * the controlling answer back does not lose the work. `validateAnswers`
+   * ignores a hidden question's answer, so it cannot block a submission, but
+   * the submit path owns the decision of whether to strip those answers
+   * before storing them.
+   */
   answers: Answers;
   onChange: (key: string, value: string | string[]) => void;
   /** Keyed by question `key`, as `validateAnswers` returns them. */
@@ -56,24 +64,56 @@ export type FormRendererProps = {
 
 /**
  * The builder hands its draft over verbatim rather than through
- * `readFormPayload`, because the lenient reader drops the half-written
- * question the author is still editing. So a payload reaching this component
- * may be incomplete, and every read below tolerates that instead of throwing
- * a blank screen at the author mid-keystroke.
+ * `readFormPayload`, because the lenient reader drops a question whose label
+ * or type the author has not filled in yet. So a payload reaching this
+ * component may be incomplete, and this tolerates that instead of throwing a
+ * blank screen at the author mid-keystroke.
+ *
+ * It still enforces the two invariants the render depends on, because a draft
+ * has not been through the publish gate:
+ *
+ *   - one question per `key`. A duplicate key means two questions reading and
+ *     writing one answer, so the later one is dropped rather than rendered.
+ *   - a non-empty `id`. `computeVisibilityMap` keys on `id`, so a question
+ *     without one would share a map entry with every other question missing
+ *     one, and could be hidden by a rule that has nothing to do with it.
+ *
+ * A duplicate non-empty `id` is left alone: a rule may point at it, and
+ * rewriting it here would silently break that rule. `validateFormPayload`
+ * rejects it at publish time.
  */
 function safeRows(payload: FormPayload | null | undefined): Row[] {
   if (!payload || !Array.isArray(payload.rows)) return [];
-  return payload.rows
-    .filter((row): row is Row => !!row && Array.isArray(row.fields))
-    .map((row) => ({
-      ...row,
-      fields: row.fields.filter((q): q is Question => !!q && typeof q.key === 'string' && q.key !== ''),
-    }));
+
+  const seenKeys = new Set<string>();
+  const rows: Row[] = [];
+
+  payload.rows.forEach((row, rowIndex) => {
+    if (!row || !Array.isArray(row.fields)) return;
+
+    const fields: Question[] = [];
+    row.fields.forEach((q, fieldIndex) => {
+      if (fields.length >= 3) return;
+      if (!q || typeof q.key !== 'string' || q.key === '') return;
+      if (seenKeys.has(q.key)) return;
+      seenKeys.add(q.key);
+      fields.push(q.id ? q : { ...q, id: `draft-${rowIndex}-${fieldIndex}` });
+    });
+
+    if (fields.length > 0) rows.push({ ...row, fields });
+  });
+
+  return rows;
 }
 
-/** DOM ids may not contain whitespace, and a question key is free text. */
-function slug(value: string): string {
-  return value.replace(/[^A-Za-z0-9_-]+/g, '-');
+/**
+ * A DOM id for one question's control. Built from the question's position as
+ * well as its key: a key is free text, so two different keys can slug to the
+ * same string, and a colliding id would bind a label to the wrong control and
+ * merge two yesno questions into one radio group.
+ */
+function domId(prefix: string, key: string, rowIndex: number, fieldIndex: number): string {
+  return `${prefix}-${rowIndex}-${fieldIndex}-${key.replace(/[^A-Za-z0-9_-]+/g, '-')}`;
 }
 
 /**
@@ -90,8 +130,11 @@ function formatAnswer(q: Question, value: string | string[] | undefined): string
   if (Array.isArray(value)) return value.join(', ');
   if (value === '') return '';
   if (q.type === 'currency') {
+    // The stored answer is whatever the employee typed, and the validator
+    // accepts a leading symbol, so strip one before prefixing the code rather
+    // than reading back "USD $2,500.00".
     const code = (q.config.currency ?? 'USD').toUpperCase();
-    return `${code} ${value}`;
+    return `${code} ${value.trim().replace(/^\$\s*/, '')}`;
   }
   return value;
 }
@@ -114,10 +157,13 @@ export function FormRenderer({
   return (
     <div className={`space-y-5 ${className}`}>
       {rows.map((row, rowIndex) => {
-        // Absent from the map means the question carries no rule, or came
-        // from a draft with no id yet. Show it: only an evaluated `false`
-        // hides a question.
-        const shown = row.fields.filter((q) => visible.get(q.id) !== false);
+        // `!visible.get(id)` rather than `!== false`, matching the server's
+        // test in `validateAnswers`. The two only ever differ if the map were
+        // built from a different set of questions than the one being
+        // rendered, and where they differ, treating an unknown question as
+        // hidden is the safe direction: showing something the server counts
+        // as hidden is what breaks requiredness.
+        const shown = row.fields.filter((q) => visible.get(q.id));
         if (shown.length === 0) return null;
 
         return (
@@ -128,9 +174,9 @@ export function FormRenderer({
                 question={q}
                 answers={answers}
                 onChange={onChange}
-                error={errors?.[q.key]}
+                error={errors[q.key]}
                 readOnly={readOnly}
-                idPrefix={idPrefix}
+                inputId={domId(idPrefix, q.key, rowIndex, row.fields.indexOf(q))}
                 className={shown.length === 1 ? FULL_SPAN : undefined}
               />
             ))}
@@ -147,7 +193,7 @@ function Field({
   onChange,
   error,
   readOnly,
-  idPrefix,
+  inputId,
   className,
 }: {
   question: Question;
@@ -155,10 +201,9 @@ function Field({
   onChange: (key: string, value: string | string[]) => void;
   error?: string;
   readOnly: boolean;
-  idPrefix: string;
+  inputId: string;
   className?: string;
 }) {
-  const inputId = `${idPrefix}-${slug(question.id || question.key)}`;
   const helpId = question.help ? `${inputId}-help` : undefined;
   const errorId = error ? `${inputId}-error` : undefined;
   const describedBy = [helpId, errorId].filter(Boolean).join(' ') || undefined;
