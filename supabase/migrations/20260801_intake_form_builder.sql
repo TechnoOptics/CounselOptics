@@ -301,16 +301,18 @@ do $$ begin
     with check (private.can_manage_intake_forms(private.intake_form_firm_id(form_id)));
 exception when duplicate_object then null; end $$;
 
--- A published version is immutable. There is deliberately no UPDATE policy:
--- correcting a published form means publishing the next version, which is
--- the whole point of versioning. Republishing v3 must leave v2 byte
--- identical.
-
-do $$ begin
-  create policy firm_intake_form_versions_delete on public.firm_intake_form_versions
-    for delete to authenticated
-    using (private.can_manage_intake_forms(private.intake_form_firm_id(form_id)));
-exception when duplicate_object then null; end $$;
+-- A published version is immutable. There is deliberately no UPDATE policy
+-- and no DELETE policy: correcting a published form means publishing the next
+-- version, which is the whole point of versioning. Republishing v3 must leave
+-- v2 byte identical.
+--
+-- The DELETE policy was written and then removed on the owner's ruling
+-- (2026-08-01). The task brief asked for delete on all three tables, but
+-- delete-then-reinsert reproduces exactly what the absent UPDATE policy
+-- forbids, and it would null form_version_id on any intake bound to that
+-- version, silently detaching a submitted request from the questions it was
+-- actually asked. Nothing operational is lost: deleting a form still cascades
+-- to its versions, so only the delete-one-version path is gone.
 
 -- ── 4. backfill source 1: the hardcoded 12, per firm ──────────────────────
 -- Copied verbatim from REQUEST_TYPES in
