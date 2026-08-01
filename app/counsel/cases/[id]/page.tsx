@@ -308,7 +308,8 @@ export default async function CounselCaseDetailPage({
       .eq('billable', true)
       .is('invoice_id', null)
       .not('ended_at', 'is', null)
-      .gt('duration_seconds', 0),
+      .gt('duration_seconds', 0)
+      .order('id', { ascending: true }),
     supabase
       .from('case_deadlines')
       .select('id, kind, title, due_at, completed_at')

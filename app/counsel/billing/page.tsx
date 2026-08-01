@@ -42,8 +42,12 @@ export default async function CounselBillingPage() {
   }
   const supabase = createServerSupabase();
 
-  const [{ data: invoicesRaw }, { data: openTimerRaw }, { data: unbilledRaw }] =
-    await Promise.all([
+  const [
+    { data: invoicesRaw },
+    { data: allInvoiceTotalsRaw },
+    { data: openTimerRaw },
+    { data: unbilledRaw },
+  ] = await Promise.all([
       supabase
         .from('firm_invoices')
         .select(
@@ -52,6 +56,14 @@ export default async function CounselBillingPage() {
         .eq('firm_id', ctx.firm.id)
         .order('created_at', { ascending: false })
         .limit(100),
+      // Outstanding and Collected are the firm's receivables, so they are
+      // summed over EVERY invoice, not over the 100 most recent shown
+      // below. Reducing the capped display list understated what clients
+      // owed as soon as a firm passed its 100th invoice.
+      supabase
+        .from('firm_invoices')
+        .select('status, total_cents')
+        .eq('firm_id', ctx.firm.id),
       supabase
         .from('firm_time_entries')
         .select('id, description, started_at, duration_seconds, rate_cents, case_id')
@@ -90,18 +102,17 @@ export default async function CounselBillingPage() {
     billable: boolean;
   }>;
 
-  const totals = invoices.reduce(
+  const allInvoiceTotals = (allInvoiceTotalsRaw ?? []) as Array<{
+    status: string;
+    total_cents: number;
+  }>;
+  const totals = allInvoiceTotals.reduce(
     (acc, i) => {
-      acc.byStatus[i.status] = (acc.byStatus[i.status] ?? 0) + i.total_cents;
       if (i.status === 'sent') acc.outstanding += i.total_cents;
       if (i.status === 'paid') acc.collected += i.total_cents;
       return acc;
     },
-    {
-      byStatus: {} as Record<string, number>,
-      outstanding: 0,
-      collected: 0,
-    },
+    { outstanding: 0, collected: 0 },
   );
 
   const unbilledTotal = unbilled.reduce(
@@ -147,7 +158,11 @@ export default async function CounselBillingPage() {
           value={fmtCents(unbilledTotal)}
           tone={unbilledTotal > 0 ? 'sky' : 'gray'}
         />
-        <Stat label="Invoices" value={String(invoices.length)} tone="gray" />
+        <Stat
+          label="Invoices"
+          value={String(allInvoiceTotals.length)}
+          tone="gray"
+        />
       </section>
 
       {/* Unbilled time grouped by case */}
@@ -186,6 +201,12 @@ export default async function CounselBillingPage() {
         <h2 className="font-display text-lg font-medium text-forest-900 dark:text-cream-100">
           <T>Recent invoices</T>
         </h2>
+        {allInvoiceTotals.length > invoices.length && (
+          <p className="text-[12px] text-ink-600 dark:text-cream-100/70">
+            <T>Showing the</T> {invoices.length} <T>most recent of</T>{' '}
+            {allInvoiceTotals.length}. <T>The totals above cover all of them.</T>
+          </p>
+        )}
         {invoices.length === 0 ? (
           <div className="card p-8 text-center">
             <p className="text-[15px] text-forest-900 dark:text-cream-100">

@@ -39,6 +39,33 @@ import { createAdminSupabase } from './supabase/admin';
  * Currency: USD only for v1. Multi-currency lives in a follow-up.
  */
 
+/**
+ * How many time-entry ids to claim per request. `.in()` filters ride in
+ * the URL, so an unbounded list on a heavily-billed matter would exceed
+ * the gateway request-line limit.
+ */
+const CLAIM_BATCH_SIZE = 100;
+
+/**
+ * Cents to a display amount. Falls back to USD rather than throwing if the
+ * stored currency code is ever malformed: this runs after an invoice has
+ * been marked sent, and a RangeError there would strand it.
+ */
+function formatMoney(cents: number, currency: string): string {
+  const dollars = cents / 100;
+  try {
+    return dollars.toLocaleString('en-US', {
+      style: 'currency',
+      currency: currency || 'USD',
+    });
+  } catch {
+    return dollars.toLocaleString('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    });
+  }
+}
+
 export type InvoiceLine = {
   entryId: string;
   description: string;
@@ -134,7 +161,12 @@ export async function buildDraftInvoiceAction(
     .eq('billable', true)
     .is('invoice_id', null)
     .not('ended_at', 'is', null)
-    .gt('duration_seconds', 0);
+    .gt('duration_seconds', 0)
+    // Deterministic order so that if PostgREST's max-rows cap ever
+    // truncates this set, it truncates it to the SAME rows the matter
+    // page summed for its "Draft for $X" figure. Without it the button
+    // and the invoice could silently disagree again.
+    .order('id', { ascending: true });
   const entries = ((entriesRaw ?? []) as Array<{
     id: string;
     description: string | null;
@@ -255,24 +287,48 @@ export async function buildDraftInvoiceAction(
   //
   // `.select('id')` returns exactly the rows we won, so a short count means
   // we lost a race and the draft does not represent the time it claims to.
+  //
+  // Claimed in batches because `.in('id', ids)` travels in the request
+  // URL: a long-running matter with a few hundred unbilled entries would
+  // otherwise blow the gateway's request-line limit and leave that matter
+  // permanently un-invoiceable. Batching does not weaken the guarantee -
+  // a short total still rolls the entire invoice back below, and the FK
+  // releases every batch that did land.
   const ids = entries.map((e) => e.id);
-  const { data: claimedRaw, error: claimErr } = await admin
-    .from('firm_time_entries')
-    .update({ invoice_id: invoiceId })
-    .in('id', ids)
-    .is('invoice_id', null)
-    .select('id');
-  const claimed = (claimedRaw ?? []) as Array<{ id: string }>;
+  let claimedCount = 0;
+  let claimErr: { message?: string } | null = null;
+  for (let i = 0; i < ids.length; i += CLAIM_BATCH_SIZE) {
+    const batch = ids.slice(i, i + CLAIM_BATCH_SIZE);
+    const { data: claimedRaw, error } = await admin
+      .from('firm_time_entries')
+      .update({ invoice_id: invoiceId })
+      .in('id', batch)
+      .is('invoice_id', null)
+      .select('id');
+    if (error) {
+      claimErr = error as { message?: string };
+      break;
+    }
+    claimedCount += ((claimedRaw ?? []) as Array<{ id: string }>).length;
+  }
 
-  if (claimErr || claimed.length !== ids.length) {
+  if (claimErr || claimedCount !== ids.length) {
     // Roll the whole draft back. The firm_time_entries.invoice_id FK is
     // ON DELETE SET NULL, so deleting the invoice releases everything we
     // did manage to claim; the entries a concurrent drafter took stay with
     // them. Either the invoice covers all of its time or it does not exist.
-    const { error: rollbackErr } = await admin
+    // Guarded on status='draft' + .select('id') for the same reason every
+    // other write here is: this draft is already listed on the billing
+    // page with a live Send control, so it must not be deleted out from
+    // under a colleague who just sent it to the client.
+    const { data: rolledBack, error: rollbackErr } = await admin
       .from('firm_invoices')
       .delete()
-      .eq('id', invoiceId);
+      .eq('id', invoiceId)
+      .eq('status', 'draft')
+      .select('id');
+    const rollbackFailed =
+      Boolean(rollbackErr) || !rolledBack || rolledBack.length === 0;
 
     revalidatePath(`/counsel/cases/${caseId}`);
     revalidatePath('/counsel/billing');
@@ -282,8 +338,8 @@ export async function buildDraftInvoiceAction(
       : 'Some of this time was invoiced by someone else while this draft was being prepared, so nothing was billed. Reload the matter and draft again.';
     return {
       ok: false,
-      error: rollbackErr
-        ? `${base} Draft ${inv.number} could not be removed automatically and should be deleted from the billing page.`
+      error: rollbackFailed
+        ? `${base} Draft ${inv.number} could not be removed automatically and should be reviewed on the billing page.`
         : base,
     };
   }
@@ -313,6 +369,10 @@ export async function buildDraftInvoiceAction(
  *
  * The status claim comes FIRST, before the Stripe call, so a double click
  * cannot mint two payment links or mail the client the same bill twice.
+ * Note this does NOT cover the retry-after-rollback path: if the mail
+ * provider accepts the message but answers too slowly (sendEmail aborts at
+ * 8s), the invoice returns to draft and a firm that sends again can reach
+ * the client twice. Worth revisiting with a provider idempotency key.
  */
 export async function sendInvoiceAction(
   invoiceId: string,
@@ -412,89 +472,118 @@ export async function sendInvoiceAction(
   }
 
   if (paymentLink) {
-    await supabase
+    const { error: linkErr } = await supabase
       .from('firm_invoices')
       .update({ stripe_payment_link: paymentLink })
       .eq('id', invoice.id);
+    // If we could not record the link, do not put it in the client's
+    // email either. A pay link the invoice record has never heard of is
+    // a payment nobody can reconcile.
+    if (linkErr) paymentLink = null;
   }
 
-  // Who the invoice is from, so the mail reads as the firm's rather than
-  // as a generic Advottic notice.
-  const { data: firmRow } = await supabase
-    .from('firms')
-    .select('name')
-    .eq('id', invoice.firm_id)
-    .maybeSingle();
-  const firmName = (firmRow as { name?: string } | null)?.name ?? null;
-  let matterTitle: string | null = null;
-  if (invoice.case_id) {
-    const { data: caseRow } = await supabase
-      .from('cases')
-      .select('title')
-      .eq('id', invoice.case_id)
-      .maybeSingle();
-    matterTitle = (caseRow as { title?: string } | null)?.title ?? null;
-  }
-
-  const amount = (invoice.total_cents / 100).toLocaleString('en-US', {
-    style: 'currency',
-    currency: invoice.currency || 'USD',
-  });
-
-  const { sendEmail, buildInvoiceEmailHtml } = await import('./email');
-  const emailRes = await sendEmail({
-    to: invoice.client_email,
-    subject: `Invoice ${invoice.number} from ${firmName ?? 'your legal team'}`,
-    html: buildInvoiceEmailHtml({
-      firmName,
-      invoiceNumber: invoice.number,
-      totalCents: invoice.total_cents,
-      currency: invoice.currency,
-      matterTitle,
-      payLink: paymentLink,
-    }),
-    text: `Invoice ${invoice.number} for ${amount}.${
-      paymentLink ? ` Pay: ${paymentLink}` : ' Reply for payment instructions.'
-    }`,
-    fromName: firmName ?? undefined,
-  });
-
-  // Notify the client in the app too when they have an account here.
+  // Everything from here to the delivery check runs inside a try, because
+  // the invoice is ALREADY marked sent. Any throw in between (a bad
+  // currency code, a failed dynamic import, an instance recycling) would
+  // otherwise strand it as "sent" while the client was never told, which
+  // is the exact state this action exists to prevent.
+  let emailed = false;
+  let emailError: string | undefined;
   let notified = false;
-  if (invoice.client_user_id) {
-    const { createNotification } = await import('./notifications');
-    const note = await createNotification({
-      userId: invoice.client_user_id,
-      type: 'system',
-      title: `New invoice ${invoice.number}`,
-      body: `${amount} due. ${
-        paymentLink
-          ? 'Open to pay securely.'
-          : 'Contact the firm for payment instructions.'
+  try {
+    // Who the invoice is from, so the mail reads as the firm's rather
+    // than as a generic Advottic notice.
+    const { data: firmRow } = await supabase
+      .from('firms')
+      .select('name')
+      .eq('id', invoice.firm_id)
+      .maybeSingle();
+    const firmName = (firmRow as { name?: string } | null)?.name ?? null;
+    let matterTitle: string | null = null;
+    if (invoice.case_id) {
+      const { data: caseRow } = await supabase
+        .from('cases')
+        .select('title')
+        .eq('id', invoice.case_id)
+        .maybeSingle();
+      matterTitle = (caseRow as { title?: string } | null)?.title ?? null;
+    }
+
+    const amount = formatMoney(invoice.total_cents, invoice.currency);
+
+    const { sendEmail, buildInvoiceEmailHtml } = await import('./email');
+    const emailRes = await sendEmail({
+      to: invoice.client_email,
+      subject: `Invoice ${invoice.number} from ${firmName ?? 'your legal team'}`,
+      html: buildInvoiceEmailHtml({
+        firmName,
+        invoiceNumber: invoice.number,
+        totalCents: invoice.total_cents,
+        currency: invoice.currency,
+        matterTitle,
+        payLink: paymentLink,
+      }),
+      text: `Invoice ${invoice.number} for ${amount}.${
+        paymentLink ? ` Pay: ${paymentLink}` : ' Reply for payment instructions.'
       }`,
-      // There is no client-facing invoice detail page yet, so link to the
-      // payment link when there is one and to the inbox otherwise. Never
-      // link somewhere that 404s.
-      link: paymentLink ?? '/inbox',
+      fromName: firmName ?? undefined,
     });
-    notified = note !== null;
+    emailed = emailRes.ok;
+    if (!emailRes.ok) emailError = emailRes.error;
+
+    // Notify the client in the app too when they have an account here.
+    if (invoice.client_user_id) {
+      const { createNotification } = await import('./notifications');
+      const note = await createNotification({
+        userId: invoice.client_user_id,
+        type: 'system',
+        title: `New invoice ${invoice.number}`,
+        body: `${amount} due. ${
+          paymentLink
+            ? 'Open to pay securely.'
+            : 'Contact the firm for payment instructions.'
+        }`,
+        // There is no client-facing invoice detail page yet, so link to
+        // the payment link when there is one and to the inbox otherwise.
+        // Never link somewhere that 404s.
+        link: paymentLink ?? '/inbox',
+      });
+      notified = note !== null;
+    }
+  } catch (err) {
+    emailed = false;
+    notified = false;
+    emailError = err instanceof Error ? err.message : 'unexpected error';
   }
 
-  if (!emailRes.ok && !notified) {
+  if (!emailed && !notified) {
     // Nothing reached the client, so this invoice is not sent. Put it back
     // rather than let it sit in Outstanding as money the client has never
     // been asked for.
-    await supabase
+    const { data: rolledBack, error: rollbackErr } = await supabase
       .from('firm_invoices')
       .update({ status: 'draft', sent_at: null, stripe_payment_link: null })
       .eq('id', invoice.id)
-      .eq('status', 'sent');
+      .eq('status', 'sent')
+      .select('id');
     revalidatePath('/counsel/billing');
+
+    // Distinguish "this deployment cannot send email at all" from "this
+    // address did not accept it", so nobody spends the afternoon
+    // correcting a client address that was never the problem.
+    const reason = emailError?.includes('RESEND_API_KEY')
+      ? 'Email sending is not configured on this deployment, so the invoice could not be delivered. Ask an administrator to set it up.'
+      : `The invoice could not be delivered to ${invoice.client_email}. Check the client email address and try again.`;
+    const rolledBackOk =
+      !rollbackErr && Boolean(rolledBack) && rolledBack!.length > 0;
+    const state = rolledBackOk
+      ? 'It is still a draft.'
+      : `Invoice ${invoice.number} could not be returned to draft automatically and should be reviewed on the billing page.`;
     return {
       ok: false,
       emailed: false,
-      emailError: emailRes.error,
-      error: `The invoice could not be delivered to ${invoice.client_email}, so it is still a draft. Check the client email address and try again.`,
+      emailError,
+      error: `${reason} ${state}`,
     };
   }
 
@@ -502,8 +591,8 @@ export async function sendInvoiceAction(
   return {
     ok: true,
     paymentLink: paymentLink ?? undefined,
-    emailed: emailRes.ok,
-    emailError: emailRes.ok ? undefined : emailRes.error,
+    emailed,
+    emailError,
   };
 }
 

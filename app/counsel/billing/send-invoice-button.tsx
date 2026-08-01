@@ -37,13 +37,17 @@ export function SendInvoiceButton({
       if (res.ok) {
         setConfirming(false);
         if (res.emailed === false) {
+          // Hold the page instead of refreshing: a refresh re-renders the
+          // row as "sent", this control disappears with it, and the firm
+          // never learns the email did not go out.
           setNotice(
             t(
               'Invoice marked sent and the client was notified in the app, but the email did not go out.',
             ),
           );
+        } else {
+          router.refresh();
         }
-        router.refresh();
       } else {
         setError(res.error ?? t('Could not send this invoice.'));
       }
@@ -52,9 +56,21 @@ export function SendInvoiceButton({
 
   if (notice) {
     return (
-      <p className="text-[11px] text-amber-700 dark:text-amber-300 text-right max-w-[18rem]">
-        {notice}
-      </p>
+      <div className="flex flex-col items-end gap-1">
+        <p className="text-[11px] text-amber-700 dark:text-amber-300 text-right max-w-[18rem]">
+          {notice}
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            setNotice(null);
+            router.refresh();
+          }}
+          className="text-[11px] font-semibold underline text-ink-700 dark:text-cream-100/85"
+        >
+          <T>Dismiss</T>
+        </button>
+      </div>
     );
   }
 
@@ -78,7 +94,8 @@ export function SendInvoiceButton({
     <div className="flex flex-col items-end gap-1">
       <div className="flex items-center gap-1.5">
         <span className="text-[11px] text-ink-600 dark:text-cream-100/70">
-          <T>Email to</T> {clientEmail}?
+          <T>Email this invoice to</T>{' '}
+          <span className="font-semibold">{clientEmail}</span>
         </span>
         <button
           type="button"

@@ -27,6 +27,8 @@ const db = vi.hoisted(() => ({
    * predicates are evaluated - the window a concurrent drafter would use.
    */
   onClaim: null as null | (() => void),
+  /** Same idea for the draft -> sent transition on firm_invoices. */
+  onSend: null as null | (() => void),
   adminAvailable: true,
   seq: 0,
   reset() {
@@ -37,12 +39,24 @@ const db = vi.hoisted(() => ({
       firms: [],
     };
     this.onClaim = null;
+    this.onSend = null;
     this.adminAvailable = true;
     this.seq = 0;
   },
 }));
 
-const sentEmails = vi.hoisted(() => [] as Array<{ to: string; subject: string }>);
+/** The signed-in attorney every RLS-scoped query is evaluated as. */
+const AUTH_UID = 'attorney-1';
+
+const mail = vi.hoisted(() => ({
+  sent: [] as Array<{ to: string; subject: string }>,
+  /** Set false to make the provider reject, as an unset API key would. */
+  deliverable: true,
+  reset() {
+    this.sent = [];
+    this.deliverable = true;
+  },
+}));
 
 /**
  * Chainable query builder. Predicates are collected and applied at EXECUTION
@@ -58,7 +72,17 @@ class Query implements PromiseLike<{ data: unknown; error: unknown }> {
   private orderCol: string | null = null;
   private orderAsc = true;
 
-  constructor(private table: string) {}
+  /**
+   * `rls: true` models the firm_time_entries write policy the RLS-scoped
+   * client is subject to: USING (user_id = auth.uid() AND invoice_id IS
+   * NULL). Without this the fake makes the service-role client and the
+   * member client indistinguishable, and a test cannot tell whether a
+   * colleague's hours were really claimed.
+   */
+  constructor(
+    private table: string,
+    private rls = false,
+  ) {}
 
   select() {
     return this;
@@ -121,8 +145,23 @@ class Query implements PromiseLike<{ data: unknown; error: unknown }> {
       db.onClaim = null;
       hook();
     }
+    if (this.table === 'firm_invoices' && this.op === 'update' && db.onSend) {
+      const hook = db.onSend;
+      db.onSend = null;
+      hook();
+    }
 
     let rows = table.filter((r) => this.preds.every((p) => p(r)));
+
+    if (
+      this.rls &&
+      this.table === 'firm_time_entries' &&
+      (this.op === 'update' || this.op === 'delete')
+    ) {
+      rows = rows.filter(
+        (r) => r.user_id === AUTH_UID && (r.invoice_id ?? null) === null,
+      );
+    }
 
     if (this.op === 'update') {
       for (const r of rows) Object.assign(r, this.payload);
@@ -177,8 +216,13 @@ class Query implements PromiseLike<{ data: unknown; error: unknown }> {
   }
 }
 
-const client = {
-  from: (table: string) => new Query(table),
+/** The member-scoped client: subject to RLS. */
+const memberClient = {
+  from: (table: string) => new Query(table, true),
+};
+/** The service-role client: bypasses RLS. */
+const adminClient = {
+  from: (table: string) => new Query(table, false),
   auth: {
     admin: {
       listUsers: async () => ({ data: { users: [] }, error: null }),
@@ -188,16 +232,19 @@ const client = {
 
 vi.mock('next/cache', () => ({ revalidatePath: () => {} }));
 vi.mock('../lib/supabase/server', () => ({
-  createServerSupabase: () => client,
-  getCurrentUser: async () => ({ id: 'attorney-1', email: 'a@firm.test' }),
+  createServerSupabase: () => memberClient,
+  getCurrentUser: async () => ({ id: AUTH_UID, email: 'a@firm.test' }),
 }));
 vi.mock('../lib/supabase/admin', () => ({
-  createAdminSupabase: () => (db.adminAvailable ? client : null),
+  createAdminSupabase: () => (db.adminAvailable ? adminClient : null),
 }));
-vi.mock('../lib/notifications', () => ({ createNotification: async () => {} }));
+vi.mock('../lib/notifications', () => ({ createNotification: async () => null }));
 vi.mock('../lib/email', () => ({
   sendEmail: async (input: { to: string; subject: string }) => {
-    sentEmails.push({ to: input.to, subject: input.subject });
+    if (!mail.deliverable) {
+      return { ok: false, error: 'RESEND_API_KEY not configured.' };
+    }
+    mail.sent.push({ to: input.to, subject: input.subject });
     return { ok: true, id: 'email-1' };
   },
   buildInvoiceEmailHtml: () => '<p>invoice</p>',
@@ -252,7 +299,7 @@ function seedFirmAndTime() {
 describe('buildDraftInvoiceAction claims time exactly once', () => {
   beforeEach(() => {
     db.reset();
-    sentEmails.length = 0;
+    mail.reset();
     seedFirmAndTime();
   });
 
@@ -276,12 +323,36 @@ describe('buildDraftInvoiceAction claims time exactly once', () => {
 
     expect(res.ok).toBe(false);
     expect(res.error).toBeTruthy();
-    // Nothing may be created and no time may be stamped: a half-stamped
-    // draft is what leaves a colleague's hours re-billable next month.
+    // Nothing may be created and no time may be stamped. Falling back to
+    // the member client here is what caused the double bill: RLS would
+    // let it stamp entry-own and silently skip entry-partner, so the
+    // partner's hours would sit inside this invoice's total and still
+    // read as unbilled next month.
     expect(db.tables.firm_invoices).toHaveLength(0);
     for (const e of db.tables.firm_time_entries) {
       expect(e.invoice_id).toBeNull();
     }
+  });
+
+  it('the member client alone could not claim a colleague’s time', async () => {
+    // Guards the premise of the test above: if the write policy were ever
+    // widened so the member client could claim firm-wide, the refusal
+    // would be unnecessary. Asserted against the policy the fake models:
+    // USING (user_id = auth.uid() AND invoice_id IS NULL).
+    const { createServerSupabase } = await import('../lib/supabase/server');
+    await createServerSupabase()
+      .from('firm_time_entries')
+      .update({ invoice_id: 'some-invoice' })
+      .in('id', ['entry-own', 'entry-partner'])
+      .is('invoice_id', null)
+      .select('id');
+
+    const own = db.tables.firm_time_entries.find((e) => e.id === 'entry-own')!;
+    const partner = db.tables.firm_time_entries.find(
+      (e) => e.id === 'entry-partner',
+    )!;
+    expect(own.invoice_id).toBe('some-invoice');
+    expect(partner.invoice_id).toBeNull();
   });
 
   it('bills nothing when a concurrent draft takes an entry mid-flight', async () => {
@@ -309,7 +380,7 @@ describe('buildDraftInvoiceAction claims time exactly once', () => {
 describe('sendInvoiceAction', () => {
   beforeEach(() => {
     db.reset();
-    sentEmails.length = 0;
+    mail.reset();
     seedFirmAndTime();
     db.tables.firm_invoices.push({
       id: 'inv-1',
@@ -335,8 +406,8 @@ describe('sendInvoiceAction', () => {
     const inv = db.tables.firm_invoices[0];
     expect(inv.status).toBe('sent');
     expect(inv.sent_at).toBeTruthy();
-    expect(sentEmails).toHaveLength(1);
-    expect(sentEmails[0].to).toBe('client@example.com');
+    expect(mail.sent).toHaveLength(1);
+    expect(mail.sent[0].to).toBe('client@example.com');
     expect(res.emailed).toBe(true);
   });
 
@@ -348,6 +419,34 @@ describe('sendInvoiceAction', () => {
     expect(second.ok).toBe(false);
     // One send, one email. A second bill in the client's inbox for the same
     // invoice is the thing this guard exists to prevent.
-    expect(sentEmails).toHaveLength(1);
+    expect(mail.sent).toHaveLength(1);
+  });
+
+  it('loses the race, and mails nothing, when another send lands first', async () => {
+    // A colleague (or a second click) flips the invoice to sent in the
+    // window between our read and our write. The status guard on the
+    // update must catch it, before any mail or payment link exists.
+    db.onSend = () => {
+      db.tables.firm_invoices[0].status = 'sent';
+    };
+
+    const res = await sendInvoiceAction('inv-1');
+
+    expect(res.ok).toBe(false);
+    expect(mail.sent).toHaveLength(0);
+  });
+
+  it('returns the invoice to draft when nothing reached the client', async () => {
+    // No email, and no account to notify in the app. An invoice nobody was
+    // told about must not sit in Outstanding as money owed.
+    mail.deliverable = false;
+
+    const res = await sendInvoiceAction('inv-1');
+
+    expect(res.ok).toBe(false);
+    expect(res.emailed).toBe(false);
+    const inv = db.tables.firm_invoices[0];
+    expect(inv.status).toBe('draft');
+    expect(inv.sent_at).toBeNull();
   });
 });
