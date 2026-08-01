@@ -2,19 +2,23 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@supabase/supabase-js';
+import { createTrustAccountAction } from '@/lib/trust-accounting';
+import { US_STATE_CODES } from '@/lib/trust-amount';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 
-const STATES = [
-  'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
-  'KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ',
-  'NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT',
-  'VA','WA','WV','WI','WY','DC',
-];
+// Single source of truth, shared with the server action's validation so the
+// dropdown can never offer a state the write would reject.
+const STATES = US_STATE_CODES;
 
 /**
- * One-time setup of the firm's first trust account. Subsequent
- * accounts can be added via /counsel/settings (out of scope for v1).
+ * One-time setup of the firm's first trust account.
+ *
+ * The write goes through createTrustAccountAction, a server action, so it
+ * carries the cookie session. This form previously built its own
+ * `createClient(url, anonKey)` browser client, which looks for a session in
+ * localStorage; this app keeps the session in cookies, so every insert arrived
+ * unauthenticated, auth.uid() was null, and the RLS check on
+ * firm_trust_accounts rejected it. No trust account was ever created.
  */
 export function CreateAccountForm({ firmId }: { firmId: string }) {
   const t = useT();
@@ -29,28 +33,18 @@ export function CreateAccountForm({ firmId }: { firmId: string }) {
     const state = String(formData.get('state') ?? '').trim();
     const acct = String(formData.get('acct') ?? '').trim();
     if (!name || !state) {
-      setError(t('Name and state are required.'));
+      setError(t('Enter a label for this account and choose a state.'));
       return;
     }
     startTransition(async () => {
-      const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-      const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
-      const client = createClient(url, anon);
-      const masked = acct
-        ? `****${acct.slice(-4)}`
-        : null;
-      const { error: insertErr } = await client
-        .from('firm_trust_accounts')
-        .insert({
-          firm_id: firmId,
-          name,
-          bank_name: bank || null,
-          account_number_masked: masked,
-          state,
-          is_iolta: true,
-        });
-      if (insertErr) setError(insertErr.message);
-      else router.refresh();
+      const res = await createTrustAccountAction(firmId, {
+        name,
+        bankName: bank,
+        accountLast4: acct,
+        state,
+      });
+      if (res.ok) router.refresh();
+      else setError(res.error ?? t('That account could not be saved. Please try again.'));
     });
   }
 

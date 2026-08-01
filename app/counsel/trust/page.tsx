@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { getFirmSurfaceSettings } from '@/lib/firm-settings';
+import { FIRM_MANAGE_ROLES } from '@/lib/firm-authz';
 import { createServerSupabase } from '@/lib/supabase/server';
 import {
   reconcileTrustAccount,
@@ -55,12 +56,30 @@ export default async function CounselTrustPage({
     redirect('/counsel');
   }
   const supabase = createServerSupabase();
+  // FIRM_MANAGE_ROLES is owner/admin/attorney, exactly the role list in the
+  // firm_trust_accounts RLS policy. Shared so the gate cannot drift from the
+  // policy on its own. The database stays the authority; this only avoids
+  // offering a write that would always be refused.
+  const canManageAccounts = (FIRM_MANAGE_ROLES as readonly string[]).includes(
+    ctx.membership.role,
+  );
 
-  const { data: accountsRaw } = await supabase
+  const { data: accountsRaw, error: accountsError } = await supabase
     .from('firm_trust_accounts')
     .select('id, name, bank_name, state, is_iolta, account_number_masked')
     .eq('firm_id', ctx.firm.id)
     .order('created_at', { ascending: true });
+  // A failed read must never render as "you have no trust accounts". On a
+  // money page an empty list and a broken query look identical, and the wrong
+  // one invites a firm to create a duplicate account for funds it already
+  // holds.
+  if (accountsError) {
+    // Raw Postgres text goes to the runtime log for operators, never into the
+    // thrown message: that message is echoed to the crash reporter and is
+    // visible in development.
+    console.error('[trust] accounts read failed:', accountsError.message);
+    throw new Error('Trust accounts could not be loaded.');
+  }
   const accounts = (accountsRaw ?? []) as Array<{
     id: string;
     name: string;
@@ -102,7 +121,30 @@ export default async function CounselTrustPage({
             </T>
           </p>
         </header>
-        <CreateAccountForm firmId={ctx.firm.id} />
+        {canManageAccounts ? (
+          <CreateAccountForm firmId={ctx.firm.id} />
+        ) : (
+          /*
+            Only an owner, admin, or attorney may read or create rows in
+            firm_trust_accounts (the firm_trust_accounts_member policy covers
+            ALL commands). A paralegal is admitted by the ledger's SELECT
+            policy and by both write RPCs, but cannot read the ACCOUNT row, so
+            this branch is all they ever see. Showing them the creation form
+            would offer a write the database will always refuse.
+
+            The copy therefore promises nothing: saying "once one exists you
+            will see the ledger" would be permanently false for a paralegal,
+            because accounts.length stays 0 for them no matter how many
+            accounts the firm has. The underlying policy gap is reported to
+            the humans rather than patched here; RLS is not ours to change.
+          */
+          <p className="card p-5 text-[13px] text-ink-600 dark:text-cream-100/70 leading-relaxed">
+            <T>
+              Trust accounts are managed by a firm owner, administrator, or
+              attorney. Ask one of them if you need access to this ledger.
+            </T>
+          </p>
+        )}
       </div>
     );
   }

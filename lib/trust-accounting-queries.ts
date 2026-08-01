@@ -59,7 +59,13 @@ export async function listTrustTransactions(
   if (filter?.caseId) q = q.eq('case_id', filter.caseId);
   if (filter?.clientUserId) q = q.eq('client_user_id', filter.clientUserId);
   q = q.limit(limit);
-  const { data } = await q;
+  const { data, error } = await q;
+  // A failed read must never render as "No transactions yet." On a money page
+  // an empty ledger and a broken query look identical, and the wrong one tells
+  // a lawyer their client's entries are gone.
+  if (error) {
+    throw new Error(`Trust ledger could not be loaded: ${error.message}`);
+  }
   return ((data ?? []) as Array<{
     id: string;
     firm_id: string;
@@ -180,23 +186,35 @@ export async function getReconciliationWorkspace(
   // Reconciled base = sum of already-cleared entries. Take it from the DB
   // aggregate so the (unboundedly growing) reconciled HISTORY never lands
   // in Node - only the unreconciled working set below does.
-  const { data: summary } = await supabase.rpc('get_trust_reconciliation_summary', {
-    p_firm_id: firmId,
-    p_account_id: accountId,
-  });
+  const { data: summary, error: summaryError } = await supabase.rpc(
+    'get_trust_reconciliation_summary',
+    { p_firm_id: firmId, p_account_id: accountId },
+  );
+  if (summaryError) {
+    throw new Error(
+      `Trust reconciliation summary failed: ${summaryError.message}`,
+    );
+  }
   const reconciledBaseCents =
     ((summary ?? {}) as { reconciledBalanceCents?: number }).reconciledBalanceCents ?? 0;
 
   // Only the not-yet-cleared transactions - the rows the operator actually
   // checks off. This is the real working set (an account with thousands of
   // *unreconciled* entries is itself the problem to surface, not to hide).
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('firm_trust_transactions')
     .select('id, client_label, kind, amount_cents, description, created_at')
     .eq('firm_id', firmId)
     .eq('account_id', accountId)
     .is('reconciled_at', null)
     .order('created_at', { ascending: true });
+  // Critical: an empty list here makes the reconcile form state "Every
+  // recorded transaction is already reconciled", and can let the operator save
+  // a reconciliation that looks balanced. A failed read must never produce
+  // that claim.
+  if (error) {
+    throw new Error(`Uncleared trust entries could not be loaded: ${error.message}`);
+  }
   const rows = (data ?? []) as Array<{
     id: string;
     client_label: string;
@@ -237,13 +255,18 @@ export async function listTrustReconciliations(
   accountId: string,
 ): Promise<TrustReconciliation[]> {
   const supabase = createServerSupabase();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('firm_trust_reconciliations')
     .select('*')
     .eq('firm_id', firmId)
     .eq('account_id', accountId)
     .order('statement_date', { ascending: false })
     .limit(24);
+  // Reconciliation history is the firm's audit record. A failed read must not
+  // make it look as though no reconciliation was ever performed.
+  if (error) {
+    throw new Error(`Reconciliation history could not be loaded: ${error.message}`);
+  }
   return ((data ?? []) as Array<{
     id: string;
     statement_date: string;

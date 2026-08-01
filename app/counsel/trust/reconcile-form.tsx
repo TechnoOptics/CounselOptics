@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { createTrustReconciliationAction } from '@/lib/trust-accounting';
+import { parseAmountToCents } from '@/lib/trust-amount';
 import type { UnreconciledEntry } from '@/lib/trust-accounting-queries';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 
@@ -53,12 +54,14 @@ export function ReconcileForm({
   const [note, setNote] = useState('');
   const [checked, setChecked] = useState<Set<string>>(new Set());
 
-  const bankCents = useMemo(() => {
-    const clean = bankStr.replace(/[^0-9.\-]/g, '');
-    if (clean === '' || clean === '-') return null;
-    const n = Number(clean);
-    return Number.isFinite(n) ? Math.round(n * 100) : null;
-  }, [bankStr]);
+  // Exact cents. A statement's ending balance may legitimately be zero or
+  // overdrawn, so negatives are allowed here (unlike a ledger entry, whose
+  // direction comes from its kind).
+  const bankParsed = useMemo(
+    () => parseAmountToCents(bankStr, { allowNegative: true }),
+    [bankStr],
+  );
+  const bankCents = bankParsed.ok ? bankParsed.cents : null;
 
   const checkedTotal = useMemo(() => {
     let sum = 0;
@@ -94,7 +97,11 @@ export function ReconcileForm({
       return;
     }
     if (bankCents === null) {
-      setError(t('Enter the bank statement ending balance.'));
+      setError(
+        bankStr.trim() === ''
+          ? t('Enter the bank statement ending balance.')
+          : t(bankParsed.ok ? '' : bankParsed.error),
+      );
       return;
     }
     startTransition(async () => {
@@ -158,7 +165,13 @@ export function ReconcileForm({
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-px rounded-lg overflow-hidden ring-1 ring-ink-200 dark:ring-forest-700/40 bg-ink-200 dark:bg-forest-700/40">
         <SummaryCell
           label={t('Bank balance')}
-          value={bankCents === null ? t('Not entered') : fmtCents(bankCents)}
+          value={
+            bankCents !== null
+              ? fmtCents(bankCents)
+              : bankStr.trim() === ''
+                ? t('Not entered')
+                : t('Check the amount')
+          }
         />
         <SummaryCell label={t('Cleared total')} value={fmtCents(clearedTotal)} />
         <SummaryCell label={t('Outstanding')} value={fmtCents(outstanding)} muted />

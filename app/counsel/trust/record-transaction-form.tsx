@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { recordTrustTransactionAction } from '@/lib/trust-accounting';
+import { parseAmountToCents } from '@/lib/trust-amount';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 
 const KIND_LABEL: Record<string, string> = {
@@ -31,23 +32,23 @@ export function RecordTransactionForm({
     setError(null);
     const clientLabel = String(formData.get('clientLabel') ?? '').trim();
     const kind = String(formData.get('kind') ?? '').trim();
-    const amountStr = String(formData.get('amount') ?? '').replace(
-      /[^0-9.]/g,
-      '',
-    );
     const description = String(formData.get('description') ?? '').trim() || null;
     const reference = String(formData.get('reference') ?? '').trim() || null;
-    const amount = Math.round(Number(amountStr) * 100);
     if (!clientLabel) {
-      setError(t('Client label is required.'));
+      setError(t('Enter the client or matter this entry belongs to.'));
       return;
     }
-    if (!Number.isFinite(amount) || amount <= 0) {
-      setError(t('Amount must be greater than zero.'));
+    // Exact cents. A ledger entry carries its sign in `kind`, so the magnitude
+    // must be strictly positive; a typed "-500" is rejected rather than
+    // silently posted as a positive $500.
+    const parsed = parseAmountToCents(String(formData.get('amount') ?? ''));
+    if (!parsed.ok) {
+      setError(t(parsed.error));
       return;
     }
+    const amount = parsed.cents;
     if (!Object.keys(KIND_LABEL).includes(kind)) {
-      setError(t('Pick a transaction kind.'));
+      setError(t('Choose what kind of entry this is.'));
       return;
     }
     startTransition(async () => {
