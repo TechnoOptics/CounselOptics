@@ -353,16 +353,51 @@ html.dark body::before {
    forest even on a card that is *painted* forest-900 in dark mode, which is
    what made HQ stat numbers render invisible-on-invisible. The
    theme-scoping makes the guard fire only on the surface that is actually
-   being painted that color. */
-html:not(.dark) .bg-white > .text-cream-50,
-html:not(.dark) .bg-white > .text-cream-100,
-html:not(.dark) .bg-white > .text-cream-200,
-html:not(.dark) .bg-cream-50 > .text-cream-50,
-html:not(.dark) .bg-cream-50 > .text-cream-100,
-html:not(.dark) .bg-cream-100 > .text-cream-50,
-html:not(.dark) .bg-cream-100 > .text-cream-100,
-html:not(.dark) .bg-cream-200 > .text-cream-50,
-html:not(.dark) .bg-cream-200 > .text-cream-100 {
+   being painted that color.
+
+   EQUALLY IMPORTANT (live audit 2026-08-01): the guard may only repaint text
+   that is actually SHOWING the parent's surface. Its whole premise is "this
+   element is transparent, so the painted background behind the words is the
+   parent's". When the child paints its OWN background the premise is false
+   and repainting is exactly the failure the guard exists to prevent - the
+   Case Timeline paywall's `bg-forest-900 text-cream-50` call to action sat as
+   a direct child of a `bg-white` card and rendered as a blank dark-green
+   pill, and the `.brand-mark` strip inside the Bella / consent / cookie
+   panels went dark-on-dark the same way. So every guard below exempts:
+
+     :not([class^="bg-"]):not([class*=" bg-"])
+                             a child carrying an UNPREFIXED background utility
+                             (bg-forest-900, bg-gold-metal, bg-gradient-to-br,
+                              bg-rose-600 ...). Anchoring on a word boundary
+                             matters: `hover:bg-cream-50` and `dark:bg-forest-800`
+                             paint nothing at rest, so an element whose only
+                             background token is a variant is still transparent
+                             and still needs the guard. bg-transparent is
+                             exempted, which is safe: a transparent child of a
+                             white card is light-on-light either way and the
+                             author asked for it explicitly.
+     :not(.brand-mark):not(.hero-bg)
+                             the component classes in this file that paint a
+                             dark gradient with no bg-* utility at the call
+                             site. If you add another dark-painting component
+                             class, add it here too - this list is the whole
+                             mechanism, there is no automatic detection.
+
+   Known limit, accepted deliberately: the exemption does not distinguish a
+   dark self-background from a light one, so `bg-cream-50 text-cream-100`
+   inside a white card is no longer rescued. That combination is an explicit
+   author choice rather than the accidental inheritance this net exists to
+   catch, and a repo-wide sweep on 2026-08-01 found no call site relying on
+   it. */
+html:not(.dark) .bg-white > .text-cream-50:not([class^="bg-"]):not([class*=" bg-"]):not(.brand-mark):not(.hero-bg),
+html:not(.dark) .bg-white > .text-cream-100:not([class^="bg-"]):not([class*=" bg-"]):not(.brand-mark):not(.hero-bg),
+html:not(.dark) .bg-white > .text-cream-200:not([class^="bg-"]):not([class*=" bg-"]):not(.brand-mark):not(.hero-bg),
+html:not(.dark) .bg-cream-50 > .text-cream-50:not([class^="bg-"]):not([class*=" bg-"]):not(.brand-mark):not(.hero-bg),
+html:not(.dark) .bg-cream-50 > .text-cream-100:not([class^="bg-"]):not([class*=" bg-"]):not(.brand-mark):not(.hero-bg),
+html:not(.dark) .bg-cream-100 > .text-cream-50:not([class^="bg-"]):not([class*=" bg-"]):not(.brand-mark):not(.hero-bg),
+html:not(.dark) .bg-cream-100 > .text-cream-100:not([class^="bg-"]):not([class*=" bg-"]):not(.brand-mark):not(.hero-bg),
+html:not(.dark) .bg-cream-200 > .text-cream-50:not([class^="bg-"]):not([class*=" bg-"]):not(.brand-mark):not(.hero-bg),
+html:not(.dark) .bg-cream-200 > .text-cream-100:not([class^="bg-"]):not([class*=" bg-"]):not(.brand-mark):not(.hero-bg) {
   color: #0f2d24; /* forest-900 - the project's "dark green" */
 }
 
@@ -374,24 +409,28 @@ html:not(.dark) .bg-cream-200 > .text-cream-100 {
    forest-900 text onto near-black panels: dark-on-dark. Inside a `.dark`
    wrapper, cream text is ALWAYS correct, so restore it with a
    higher-specificity rule that only fires in exactly that combination. */
-html:not(.dark) .dark :is(.bg-white, .bg-cream-50, .bg-cream-100, .bg-cream-200, .card, .popup-panel, .btn-secondary, .input) > :is(.text-cream-50, .text-cream-100, .text-cream-200) {
+html:not(.dark) .dark :is(.bg-white, .bg-cream-50, .bg-cream-100, .bg-cream-200, .card, .popup-panel, .btn-secondary, .input) > :is(.text-cream-50, .text-cream-100, .text-cream-200):not([class^="bg-"]):not([class*=" bg-"]):not(.brand-mark):not(.hero-bg) {
   color: #fbf7e9; /* cream-50 */
 }
 
-html.dark .bg-forest-900 > .text-forest-900,
-html.dark .bg-forest-900 > .text-forest-800,
-html.dark .bg-forest-900 > .text-forest-700,
-html.dark .bg-forest-900 > .text-ink-700,
-html.dark .bg-forest-900 > .text-ink-800,
-html.dark .bg-forest-900 > .text-ink-900,
-html.dark .bg-forest-900 > .text-ink-950,
-html.dark .bg-forest-950 > .text-forest-900,
-html.dark .bg-forest-950 > .text-forest-800,
-html.dark .bg-forest-950 > .text-forest-700,
-html.dark .bg-forest-950 > .text-ink-700,
-html.dark .bg-forest-950 > .text-ink-800,
-html.dark .bg-forest-950 > .text-ink-900,
-html.dark .bg-forest-950 > .text-ink-950 {
+/* Dark-on-dark, the mirror image - and the same exemption applies. A child
+   that paints its own light background (a `bg-white` chip inside a forest
+   panel, say) must keep its dark label; forcing it to cream-50 would hide
+   the words on white, which is the very bug this tier guards against. */
+html.dark .bg-forest-900 > .text-forest-900:not([class^="bg-"]):not([class*=" bg-"]),
+html.dark .bg-forest-900 > .text-forest-800:not([class^="bg-"]):not([class*=" bg-"]),
+html.dark .bg-forest-900 > .text-forest-700:not([class^="bg-"]):not([class*=" bg-"]),
+html.dark .bg-forest-900 > .text-ink-700:not([class^="bg-"]):not([class*=" bg-"]),
+html.dark .bg-forest-900 > .text-ink-800:not([class^="bg-"]):not([class*=" bg-"]),
+html.dark .bg-forest-900 > .text-ink-900:not([class^="bg-"]):not([class*=" bg-"]),
+html.dark .bg-forest-900 > .text-ink-950:not([class^="bg-"]):not([class*=" bg-"]),
+html.dark .bg-forest-950 > .text-forest-900:not([class^="bg-"]):not([class*=" bg-"]),
+html.dark .bg-forest-950 > .text-forest-800:not([class^="bg-"]):not([class*=" bg-"]),
+html.dark .bg-forest-950 > .text-forest-700:not([class^="bg-"]):not([class*=" bg-"]),
+html.dark .bg-forest-950 > .text-ink-700:not([class^="bg-"]):not([class*=" bg-"]),
+html.dark .bg-forest-950 > .text-ink-800:not([class^="bg-"]):not([class*=" bg-"]),
+html.dark .bg-forest-950 > .text-ink-900:not([class^="bg-"]):not([class*=" bg-"]),
+html.dark .bg-forest-950 > .text-ink-950:not([class^="bg-"]):not([class*=" bg-"]) {
   color: #fbf7e9; /* cream-50 */
 }
 
@@ -1496,8 +1535,29 @@ select:focus-visible,
   .badge-accent {
     @apply badge bg-cream-200 text-forest-900;
   }
+  /* The most-used label class in the product: it appears on /pricing,
+     /billing, /cases, /vault, /deadlines, /decoder, /gift, the 404, every
+     guide and every case section. At 11px it needs 4.5:1 to pass WCAG AA,
+     and text-gold-700 (#a38a55) measured 3.32:1 on white - 89 failing nodes
+     on /pricing alone (live audit 2026-08-01). #78653c is the same hue a
+     shade deeper: 5.64:1 on white, 5.26:1 on cream-100 and 4.82:1 on
+     cream-200, the darkest light surface an eyebrow renders on.
+
+     Dark shells keep the original gold - it already passes there, and
+     changing it would restyle the firm product. That means BOTH wrappers:
+     `.dark` (user dark mode, plus counsel / HQ / portal, which all set
+     `class="dark ..."`) and `.enterprise-shell`, which paints a near-black
+     surface WITHOUT a `.dark` class (app/enterprise/page.tsx). Missing the
+     second one would have taken /enterprise's eyebrows from 5.93:1 to
+     3.50:1 - trading one AA failure for another. `:where()` keeps the
+     override at the same specificity as `.eyebrow` itself so the many call
+     sites that recolour the eyebrow with a utility still win. */
   .eyebrow {
-    @apply inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] font-semibold text-gold-700;
+    @apply inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] font-semibold;
+    color: #78653c;
+  }
+  :where(.dark, .enterprise-shell) .eyebrow {
+    color: #a38a55; /* gold-700 */
   }
   .eyebrow::before {
     content: '';

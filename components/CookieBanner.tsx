@@ -1,7 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
+import { isConsentDeferredPath } from '@/lib/crisis-routes';
 import { focusWhenReady } from '@/lib/focus-when-ready';
 import { isNativeApp } from '@/lib/platform';
 import { PopupPortal } from './PopupPortal';
@@ -118,17 +120,36 @@ function writeStoredChoice(payload: object) {
  * when a brand-new signed-in user sees both at once.
  */
 export function CookieBanner() {
+  const pathname = usePathname();
+  // Crisis + safety pages never get the blocking dialog. The consent ask
+  // still happens - it just starts as the bottom-corner pill so hotline
+  // numbers are never blurred out from someone who may be in danger.
+  // See lib/crisis-routes.ts.
+  const deferred = isConsentDeferredPath(pathname);
   const [show, setShow] = useState(false);
   // Default to expanded so the dialog opens itself on first paint
   // with the focus animation + backdrop dim. The mount effect below
   // confirms there's no stored choice before showing anything.
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(!deferred);
   // Focus the panel when the popup expands so it's the focal point
   // (consistent with the other notification pop-ups).
   const panelRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     if (expanded) focusWhenReady(panelRef);
   }, [expanded]);
+  // A visitor whose first landing is a crisis page must still meet the
+  // dialog once they move on, otherwise deferring on those routes would
+  // quietly cost us the consent record for that whole session. Collapse on
+  // arriving at a crisis route, re-open on leaving one - unless the visitor
+  // minimised it themselves, which stays honoured for the session.
+  const minimisedByUser = useRef(false);
+  const minimise = () => {
+    minimisedByUser.current = true;
+    setExpanded(false);
+  };
+  useEffect(() => {
+    setExpanded(!deferred && !minimisedByUser.current);
+  }, [deferred]);
   const [phase, setPhase] = useState<'overview' | 'configure'>('overview');
   const [analytics, setAnalytics] = useState(false);
   const [marketing, setMarketing] = useState(false);
@@ -197,7 +218,7 @@ export function CookieBanner() {
       <button
         type="button"
         aria-label="Minimize cookie preferences"
-        onClick={() => setExpanded(false)}
+        onClick={minimise}
         className="absolute inset-0 bg-forest-950/70 backdrop-blur-md animate-fade-in"
       />
       <div
@@ -220,7 +241,7 @@ export function CookieBanner() {
           </div>
           <button
             type="button"
-            onClick={() => setExpanded(false)}
+            onClick={minimise}
             aria-label="Close"
             className="text-cream-100/70 hover:text-cream-100 p-1"
           >

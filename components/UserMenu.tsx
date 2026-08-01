@@ -3,6 +3,8 @@ import { headers } from 'next/headers';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { getProfile } from '@/lib/storage';
 import { listMyFirms } from '@/lib/firm-storage';
+import { isPrerenderedRender } from '@/lib/prerender';
+import { HeaderArrowIcon, HeaderAuthProbe, HEADER_LINK_CLASS } from './HeaderAuthProbe';
 import { UserMenuClient } from './UserMenuClient';
 import type { LocaleCode } from '@/lib/i18n/locales';
 
@@ -25,17 +27,24 @@ export async function UserMenu({
     // Already on the auth screen (which shows the OAuth options)?
     // A "Sign in" button in the header that points back to the page
     // you're on is dead weight - hide it there.
-    const pathname = headers().get('x-pathname') ?? '';
+    const xPathname = headers().get('x-pathname');
+    const pathname = xPathname ?? '';
     if (pathname === '/sign-in' || pathname.startsWith('/sign-in')) {
       return null;
     }
+    // No x-pathname means there was no request: this is the build-time
+    // prerender of a `force-static` route (guides, /es/*, glossary, tools,
+    // templates), where cookies() is stubbed out and `user` is null even
+    // for a signed-in reader. Let the client settle it instead of shipping
+    // a "Sign in" button to someone who is already signed in. Checked AFTER
+    // the /sign-in suppression so that a future static auth screen keeps it.
+    if (isPrerenderedRender(xPathname)) {
+      return <HeaderAuthProbe />;
+    }
     return (
-      <Link
-        href="/sign-in"
-        className="inline-flex items-center gap-1 rounded-md bg-cream-200 hover:bg-cream-100 text-forest-900 font-semibold text-[12px] sm:text-sm px-2.5 sm:px-4 py-1 sm:py-1.5 shadow-sm ring-1 ring-cream-100/30 transition-colors whitespace-nowrap"
-      >
+      <Link href="/sign-in" className={HEADER_LINK_CLASS}>
         Sign in
-        <ArrowIcon />
+        <HeaderArrowIcon />
       </Link>
     );
   }
@@ -88,19 +97,6 @@ export async function UserMenu({
   );
 }
 
-function ArrowIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M5 12h14m0 0l-5-5m5 5l-5 5"
-        stroke="currentColor"
-        strokeWidth="2.2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
 
 function computeInitials(name: string): string {
   const clean = name.trim();

@@ -26,7 +26,10 @@ export function ProductShowcaseBand() {
 
       <div className="mt-12 grid gap-8 lg:grid-cols-2 lg:gap-10">
         {/* Personal */}
-        <div>
+        {/* min-w-0: the browser-frame mock sets a wide min-content width, so
+            without it this grid item refused to shrink below ~405px and the
+            copy under it was clipped off the right edge of a 390px phone. */}
+        <div className="min-w-0">
           <div className="animate-fade-up">
             <BrowserFrame url="advottic.com/cases/security-deposit" tone="personal">
               <PersonalCaseRoomMock />
@@ -54,7 +57,7 @@ export function ProductShowcaseBand() {
         </div>
 
         {/* Firm */}
-        <div>
+        <div className="min-w-0">
           <div className="animate-fade-up" style={{ animationDelay: '80ms' }}>
             <BrowserFrame url="yourfirm.advottic.com/matters/northwind" tone="firm">
               <FirmEvidenceMock />

@@ -232,8 +232,14 @@ function Hero({
   return (
     <section className="relative -mt-2 animate-fade-up">
       <div className="grid gap-4 sm:gap-10 lg:grid-cols-12 lg:gap-14 items-center">
-        {/* Left: editorial copy block */}
-        <div className="lg:col-span-7">
+        {/* Left: editorial copy block.
+            min-w-0: a grid item defaults to min-width:auto, so the 44px
+            display headline set this column's min-content width to 380px
+            inside a 339px container on a 375-390px phone. html/body carry
+            overflow-x:clip, so the overflow was silently cut off with no
+            scrollbar - the right edge of the H1, the sub-paragraph, the CTA
+            row and the trust row were simply gone (live audit 2026-08-01). */}
+        <div className="min-w-0 lg:col-span-7">
           <p className="inline-flex items-center gap-2 text-[11px] tracking-[0.3em] uppercase font-semibold text-gold-700 dark:text-gold-300">
             <span className="inline-block h-px w-8 bg-gold-500 dark:bg-gold-400" />
             A quiet place to build your story
