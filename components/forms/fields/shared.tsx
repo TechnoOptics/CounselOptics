@@ -24,6 +24,7 @@
 
 import type { ReactNode } from 'react';
 import type { Question } from '@/lib/form-schema';
+import { questionLabel } from '@/lib/form-render-model';
 
 /**
  * `:root` in globals.css declares `color-scheme: light dark`, so the parts of
@@ -91,7 +92,7 @@ export function FieldLabel({
 }) {
   return (
     <label htmlFor={htmlFor} className="label">
-      {question.label}
+      {questionLabel(question)}
       <RequiredMark required={question.required} silent />
     </label>
   );
@@ -110,7 +111,7 @@ export function GroupLabel({
 }) {
   return (
     <legend className="label">
-      {question.label}
+      {questionLabel(question)}
       <RequiredMark required={question.required} silent={silentRequired} />
     </legend>
   );

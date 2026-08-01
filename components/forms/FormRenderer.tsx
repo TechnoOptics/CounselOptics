@@ -21,6 +21,11 @@
  * 3. Answers key on the question's `key`, never on a row or field index.
  *    Reordering a form must not re-associate an answer with another question.
  *
+ * The payload comes in as `unknown` and is narrowed by `safePayload` in
+ * lib/form-render-model.ts, which is also where the pure logic lives and where
+ * it is unit tested. The builder's draft is raw jsonb that has been through no
+ * coercion at all, so that narrowing is the only barrier there is.
+ *
  * Errors are supplied by the caller rather than computed here, so the caller
  * decides when to show them (on submit, typically, not on every keystroke).
  * A caller that shows errors on submit should also move focus to the first
@@ -33,13 +38,23 @@
  */
 
 import { useMemo } from 'react';
-import type { FormPayload, Question, Row } from '@/lib/form-schema';
+import type { Question } from '@/lib/form-schema';
+import { domId, formatAnswer, questionLabel, safePayload } from '@/lib/form-render-model';
 import { computeVisibilityMap, type Answers } from '@/lib/form-validate';
 import { FIELD_COMPONENTS } from './fields';
 import { ShortTextField } from './fields/ShortTextField';
 
 export type FormRendererProps = {
-  payload: FormPayload;
+  /**
+   * `unknown`, not `FormPayload`, because the builder's draft arrives as raw
+   * `draft_payload` jsonb typed `unknown` and uncoerced (see `FormState.draft`
+   * in lib/form-queries.ts). Typing it `FormPayload` would only move the
+   * problem: the caller would write `as FormPayload` and the cast, not this
+   * component, would be where the safety was lost. `safePayload` narrows it
+   * here instead, so a published payload and a half-written draft both go in
+   * the same way.
+   */
+  payload: unknown;
   /**
    * Keyed by question `key`. This renderer never deletes an answer: hiding a
    * question leaves whatever was typed into it sitting here, so that flipping
@@ -63,60 +78,6 @@ export type FormRendererProps = {
 };
 
 /**
- * The builder hands its draft over verbatim rather than through
- * `readFormPayload`, because the lenient reader drops a question whose label
- * or type the author has not filled in yet. So a payload reaching this
- * component may be incomplete, and this tolerates that instead of throwing a
- * blank screen at the author mid-keystroke.
- *
- * It still enforces the two invariants the render depends on, because a draft
- * has not been through the publish gate:
- *
- *   - one question per `key`. A duplicate key means two questions reading and
- *     writing one answer, so the later one is dropped rather than rendered.
- *   - a non-empty `id`. `computeVisibilityMap` keys on `id`, so a question
- *     without one would share a map entry with every other question missing
- *     one, and could be hidden by a rule that has nothing to do with it.
- *
- * A duplicate non-empty `id` is left alone: a rule may point at it, and
- * rewriting it here would silently break that rule. `validateFormPayload`
- * rejects it at publish time.
- */
-function safeRows(payload: FormPayload | null | undefined): Row[] {
-  if (!payload || !Array.isArray(payload.rows)) return [];
-
-  const seenKeys = new Set<string>();
-  const rows: Row[] = [];
-
-  payload.rows.forEach((row, rowIndex) => {
-    if (!row || !Array.isArray(row.fields)) return;
-
-    const fields: Question[] = [];
-    row.fields.forEach((q, fieldIndex) => {
-      if (fields.length >= 3) return;
-      if (!q || typeof q.key !== 'string' || q.key === '') return;
-      if (seenKeys.has(q.key)) return;
-      seenKeys.add(q.key);
-      fields.push(q.id ? q : { ...q, id: `draft-${rowIndex}-${fieldIndex}` });
-    });
-
-    if (fields.length > 0) rows.push({ ...row, fields });
-  });
-
-  return rows;
-}
-
-/**
- * A DOM id for one question's control. Built from the question's position as
- * well as its key: a key is free text, so two different keys can slug to the
- * same string, and a colliding id would bind a label to the wrong control and
- * merge two yesno questions into one radio group.
- */
-function domId(prefix: string, key: string, rowIndex: number, fieldIndex: number): string {
-  return `${prefix}-${rowIndex}-${fieldIndex}-${key.replace(/[^A-Za-z0-9_-]+/g, '-')}`;
-}
-
-/**
  * Every row is the same three-column grid, so a field in the second column of
  * one row lines up with the second column of the next. Each field spans one
  * column; a row left with a single visible field spans the whole width rather
@@ -124,20 +85,6 @@ function domId(prefix: string, key: string, rowIndex: number, fieldIndex: number
  */
 const ROW_GRID = 'grid gap-4 sm:grid-cols-2 lg:grid-cols-3';
 const FULL_SPAN = 'sm:col-span-2 lg:col-span-3';
-
-function formatAnswer(q: Question, value: string | string[] | undefined): string {
-  if (value === undefined) return '';
-  if (Array.isArray(value)) return value.join(', ');
-  if (value === '') return '';
-  if (q.type === 'currency') {
-    // The stored answer is whatever the employee typed, and the validator
-    // accepts a leading symbol, so strip one before prefixing the code rather
-    // than reading back "USD $2,500.00".
-    const code = (q.config.currency ?? 'USD').toUpperCase();
-    return `${code} ${value.trim().replace(/^\$\s*/, '')}`;
-  }
-  return value;
-}
 
 export function FormRenderer({
   payload,
@@ -148,15 +95,12 @@ export function FormRenderer({
   idPrefix = 'form',
   className = '',
 }: FormRendererProps) {
-  const rows = useMemo(() => safeRows(payload), [payload]);
-  const visible = useMemo(
-    () => computeVisibilityMap({ schemaVersion: 1, rows }, answers),
-    [rows, answers],
-  );
+  const safe = useMemo(() => safePayload(payload), [payload]);
+  const visible = useMemo(() => computeVisibilityMap(safe, answers), [safe, answers]);
 
   return (
     <div className={`space-y-5 ${className}`}>
-      {rows.map((row, rowIndex) => {
+      {safe.rows.map((row, rowIndex) => {
         // `!visible.get(id)` rather than `!== false`, matching the server's
         // test in `validateAnswers`. The two only ever differ if the map were
         // built from a different set of questions than the one being
@@ -167,7 +111,7 @@ export function FormRenderer({
         if (shown.length === 0) return null;
 
         return (
-          <div key={row.id || `row-${rowIndex}`} className={ROW_GRID}>
+          <div key={row.id} className={ROW_GRID}>
             {shown.map((q) => (
               <Field
                 key={q.key}
@@ -216,7 +160,7 @@ function Field({
     return (
       <div className={`min-w-0 ${className ?? ''}`}>
         <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-ink-500 dark:text-cream-100/55">
-          {question.label}
+          {questionLabel(question)}
         </p>
         <p
           className={`mt-1 whitespace-pre-wrap break-words text-sm ${
