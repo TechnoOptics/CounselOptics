@@ -2,6 +2,11 @@
 
 import { useState, type ReactNode } from 'react';
 import type { CaseActivityEvent } from '@/lib/case-activity-log';
+// Shared with the request thread. The local relativeTime() this replaced read
+// the wall clock and toLocaleDateString(undefined, ...) inside a component
+// that server-renders, which is the React #425 text mismatch logged against
+// /counsel/cases/[id]/timeline.
+import { RelativeTime } from '@/components/intake/RelativeTime';
 
 /**
  * Firm-only activity feed for a matter: shows when an outside co-counsel (guest)
@@ -96,9 +101,7 @@ export function CaseActivityStream({ events }: { events: CaseActivityEvent[] }) 
                         {KIND_LABEL[e.actorKind] ?? e.actorKind}
                       </span>
                       <span aria-hidden>·</span>
-                      <time dateTime={e.createdAt} title={new Date(e.createdAt).toLocaleString()}>
-                        {relativeTime(e.createdAt)}
-                      </time>
+                      <RelativeTime iso={e.createdAt} />
                     </p>
                   </div>
                 </li>
@@ -131,21 +134,6 @@ function toneRing(tone: 'view' | 'act' | 'comment' | 'download'): string {
     default:
       return 'bg-cream-100/8 text-cream-100/60 ring-cream-50/15';
   }
-}
-
-function relativeTime(iso: string): string {
-  const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return '';
-  const diff = Date.now() - then;
-  const s = Math.round(diff / 1000);
-  if (s < 45) return 'just now';
-  const m = Math.round(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.round(m / 60);
-  if (h < 24) return `${h}h ago`;
-  const d = Math.round(h / 24);
-  if (d < 7) return `${d}d ago`;
-  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
 // ── icons ──

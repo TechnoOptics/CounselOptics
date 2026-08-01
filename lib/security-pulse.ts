@@ -739,14 +739,19 @@ export async function runAllPulseChecks(): Promise<PulseSummary> {
     critical: results.filter((r) => r.status === 'critical').length,
     unknown: results.filter((r) => r.status === 'unknown').length,
   };
+  // `unknown` sits between warning and healthy, never below it. A sweep that
+  // could not read a control has not established that the control is fine,
+  // and green on this page means "checked and fine".
   const pulse: PulseSummary['pulse'] =
     counts.critical > 0
       ? 'red'
       : counts.warning > 0
         ? 'amber'
-        : counts.healthy > 0
-          ? 'green'
-          : 'unknown';
+        : counts.unknown > 0
+          ? 'unknown'
+          : counts.healthy > 0
+            ? 'green'
+            : 'unknown';
 
   return {
     ranAt: new Date().toISOString(),
@@ -828,3 +833,4 @@ export async function applyAutofix(
     message: `Unknown autofix id: ${fixId}.`,
   };
 }
+

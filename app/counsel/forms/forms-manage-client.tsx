@@ -7,6 +7,7 @@ import {
   type FirmTemplate,
   type TemplateField,
 } from '@/lib/firm-templates';
+import { isReservedFirmKey } from '@/lib/firm-template-placeholders';
 
 /**
  * Create/edit/publish firm form templates. The field list is derived FROM the
@@ -146,6 +147,11 @@ function extractKeys(body: string): string[] {
   const seen = new Set<string>();
   for (const m of body.matchAll(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g)) {
     const k = m[1].toLowerCase();
+    // Reserved keys resolve from the firm record, so they are not something
+    // an employee fills in. Deriving a field from one would put an empty
+    // required "Firm Name" input on the form and disable the very
+    // substitution the author asked for.
+    if (isReservedFirmKey(k)) continue;
     if (!seen.has(k)) {
       seen.add(k);
       keys.push(k);
@@ -225,6 +231,11 @@ function TemplateEditor({
       <label className="block">
         <span className="mb-1 block text-[13px] font-medium text-forest-900 dark:text-cream-100">
           Body: use {'{{field_key}}'} where the employee should fill something in
+        </span>
+        <span className="mb-1 block text-[12px] text-ink-500 dark:text-cream-100/55">
+          {'{{firm_name}}'} fills itself in with your firm&rsquo;s current name.
+          Use it instead of typing the name, so a rename carries through to
+          every document already published.
         </span>
         <textarea rows={14} className={`${inputCls} font-mono text-[12.5px]`} value={body} onChange={(e) => setBody(e.target.value)} />
       </label>

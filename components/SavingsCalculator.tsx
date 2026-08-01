@@ -358,7 +358,7 @@ export function SavingsCalculator() {
             {TOOLS.map((t) => (
               <li key={t.id} className="font-mono tabular-nums">
                 <span className="font-sans">{t.name}</span>{' '}
-                {USD.format(t.pricePerUserMonth)}/seat/mo &mdash;{' '}
+                {USD.format(t.pricePerUserMonth)}/seat/mo,{' '}
                 {t.sourceUrl ? (
                   <ExternalLink
                     href={t.sourceUrl}

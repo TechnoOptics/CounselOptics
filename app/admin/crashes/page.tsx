@@ -1,6 +1,7 @@
 import {
   adminAcknowledgeCrash,
   adminAcknowledgeCrashIds,
+  adminSummarizeOpenCrashes,
   adminListCrashReports,
 } from '@/lib/storage';
 import { revalidatePath } from 'next/cache';
@@ -140,10 +141,15 @@ export default async function HqCrashesPage({
   const isGrouped = (searchParams?.view ?? 'grouped') !== 'list';
   // Bump limit when grouping so signatures with many copies don't get
   // truncated. The page only renders a card per group, so it's fine.
-  const allCrashes = await adminListCrashReports({
-    includeAcknowledged,
-    limit: isGrouped ? 500 : 200,
-  });
+  const sampleLimit = isGrouped ? 500 : 200;
+  const [allCrashes, openSummary] = await Promise.all([
+    adminListCrashReports({ includeAcknowledged, limit: sampleLimit }),
+    // Deliberately NOT derived from the list above: that sample changes size
+    // with the view toggle (500 grouped, 200 flat) and with ?include=all, so
+    // deriving the backlog from it made the same page print different totals
+    // depending on which tab was open.
+    adminSummarizeOpenCrashes(),
+  ]);
   // Apply noise filter at the page level so the bucket can be inspected
   // on demand without polluting the default operator surface.
   const crashes = showNoise
@@ -151,7 +157,15 @@ export default async function HqCrashesPage({
     : allCrashes.filter((c) => !isNoiseCrash(c));
   const noiseCount = allCrashes.length - crashes.length;
   const groups = isGrouped ? groupCrashes(crashes) : [];
-  const openCount = crashes.filter((c) => !c.acknowledgedAt).length;
+  // The "Open (N)" toggle used to print the length of a capped list, so it
+  // read "Open (500)" - the query limit - while /admin said 492 and the
+  // Security Center said 710. N is now the real backlog; when the page is
+  // only showing part of it, it says so rather than pretending otherwise.
+  const openCount = showNoise ? openSummary.total : openSummary.open;
+  const showingOf =
+    openSummary.truncated && !includeAcknowledged
+      ? `showing the newest ${crashes.length.toLocaleString()} of ${openCount.toLocaleString()}`
+      : null;
 
   return (
     <div className="space-y-5 animate-fade-up">
@@ -202,7 +216,7 @@ export default async function HqCrashesPage({
                   : 'text-cream-100/65 hover:bg-white/5'
               }`}
             >
-              Open ({openCount})
+              Open ({openCount.toLocaleString()})
             </a>
             <a
               href={`/admin/crashes?include=all${isGrouped ? '&view=grouped' : '&view=list'}${showNoise ? '&noise=show' : ''}`}
@@ -215,6 +229,12 @@ export default async function HqCrashesPage({
               All
             </a>
           </nav>
+          {showingOf && (
+            <>
+              <span className="text-cream-100/30">·</span>
+              <span className="text-cream-100/55">{showingOf}</span>
+            </>
+          )}
           {/* Noise toggle: cross-origin script errors + Firefox
               extension injection + ResizeObserver quirks. Audit V2-3. */}
           {(noiseCount > 0 || showNoise) && (

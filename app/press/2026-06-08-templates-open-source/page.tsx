@@ -130,7 +130,7 @@ export default function TemplatesPressReleasePage() {
 
       <section className="space-y-4 text-[15.5px] leading-[1.75]">
         <p>
-          <strong>Minneapolis, MN &mdash; June 8, 2026.</strong>{' '}
+          <strong>Minneapolis, MN, June 8, 2026.</strong>{' '}
           Advottic, the AI legal platform built and operated by
           Techno Optics LLC, today opened its library of free,
           lawyer-reviewed legal templates to the public with no
@@ -144,10 +144,10 @@ export default function TemplatesPressReleasePage() {
           The templates are paired with a new interactive
           statute-of-limitations checker that covers all 50
           states and the District of Columbia across nine claim
-          types &mdash; personal injury, breach of written
+          types (personal injury, breach of written
           contract, breach of oral contract, property damage,
           fraud, defamation, medical malpractice, wrongful death,
-          and debt collection. The picker returns the controlling
+          and debt collection). The picker returns the controlling
           time window in plain English with the relevant caveat
           (discovery rule, statute of repose, foreign-object
           exception).
@@ -174,8 +174,8 @@ export default function TemplatesPressReleasePage() {
               className="underline"
             >
               Demand letter
-            </Link>{' '}
-            &mdash; the predicate for most consumer disputes
+            </Link>{': '}
+            the predicate for most consumer disputes
             (unpaid invoice, lemon-law refund, settlement
             opening).
           </li>
@@ -185,8 +185,8 @@ export default function TemplatesPressReleasePage() {
               className="underline"
             >
               Mutual non-disclosure agreement
-            </Link>{' '}
-            &mdash; a short, plain-English NDA for founders,
+            </Link>{': '}
+            a short, plain-English NDA for founders,
             freelancers, and early business conversations.
           </li>
           <li>
@@ -195,8 +195,8 @@ export default function TemplatesPressReleasePage() {
               className="underline"
             >
               Cease-and-desist letter
-            </Link>{' '}
-            &mdash; for trademark, defamation, harassment, and
+            </Link>{': '}
+            for trademark, defamation, harassment, and
             unauthorized-use scenarios.
           </li>
           <li>
@@ -205,8 +205,8 @@ export default function TemplatesPressReleasePage() {
               className="underline"
             >
               Lease termination notice
-            </Link>{' '}
-            &mdash; the notice tenants and landlords use to end a
+            </Link>{': '}
+            the notice tenants and landlords use to end a
             lease cleanly.
           </li>
           <li>
@@ -215,8 +215,8 @@ export default function TemplatesPressReleasePage() {
               className="underline"
             >
               Security-deposit return demand
-            </Link>{' '}
-            &mdash; the formal demand that precedes a small-
+            </Link>{': '}
+            the formal demand that precedes a small-
             claims filing in most states.
           </li>
           <li>
@@ -225,8 +225,8 @@ export default function TemplatesPressReleasePage() {
               className="underline"
             >
               Statute of limitations checker
-            </Link>{' '}
-            &mdash; 50 states + DC, 9 claim types, interactive.
+            </Link>{': '}
+            50 states + DC, 9 claim types, interactive.
           </li>
         </ul>
       </section>
@@ -243,9 +243,9 @@ export default function TemplatesPressReleasePage() {
           finishes the task can take their case file into the
           full product without losing context. The templates
           library is the consumer half of that strategy; the
-          newly shipped Advottic Counsel platform &mdash; case
+          newly shipped Advottic Counsel platform (case
           management, trust accounting, an AI agent that acts
-          inside the firm&rsquo;s tools &mdash; is the
+          inside the firm&rsquo;s tools) is the
           professional half.
         </p>
       </section>

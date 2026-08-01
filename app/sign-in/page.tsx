@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { resolveDefaultLanding, isDefaultConsumerLanding } from '@/lib/landing';
+import { sanitizeNext } from '@/lib/sign-in-next';
 import { SignInButtons } from './sign-in-buttons';
 import { BrandMark } from '@/components/BrandMark';
 import { BiometricUnlockGate } from '@/components/BiometricUnlockGate';
@@ -106,59 +107,6 @@ function bannerForNext(next: string): { eyebrow: string; helper: string } | null
   return null;
 }
 
-/**
- * Validate `next` for both same-origin path redirects (`/cases`,
- * `/counsel/clients`) and cross-origin advottic.com subdomain
- * redirects (`https://zinpro.advottic.com/clients`). The cross-origin
- * case is required by Phase 2 white-label: an unauthed visit to
- * `zinpro.advottic.com` bounces through `advottic.com/sign-in?next=https://zinpro.advottic.com/...`,
- * and after auth we have to send the user back to the tenant
- * subdomain.
- *
- * Any other absolute URL is rejected to avoid an open-redirect
- * vulnerability - we never want `next` to land a freshly-authenticated
- * session on an attacker-controlled host.
- */
-function sanitizeNext(raw: string | undefined): string {
-  if (!raw) return '/cases';
-  // Audit 2026-05-12 P0-1: some upstream callers pass an
-  // already-URL-encoded `next` value into encodeURIComponent, producing
-  // a `%2520` (double-encoded space) or `%252F` (double-encoded slash).
-  // Peel encoding layers off until the string starts with `/` or stops
-  // looking URL-encoded - capped at 3 passes to avoid pathological loops.
-  let depth = 0;
-  while (depth < 3 && /^(%25)+(2F|3A)/i.test(raw)) {
-    try {
-      const decoded = decodeURIComponent(raw);
-      if (decoded === raw) break;
-      raw = decoded;
-      depth++;
-    } catch {
-      break;
-    }
-  }
-  if (raw.startsWith('/') && !raw.startsWith('//')) {
-    // Collapse sign-in alias paths to their bare workspace prefix so
-    // a stale link with next=/admin/sign-in (which 404s because no
-    // such route exists) lands the user on /admin after auth - the
-    // page they actually wanted. Mirror logic of SIGN_IN_ALIASES in
-    // lib/supabase/middleware.ts.
-    if (/^\/admin\/(sign-in|signin|login)\/?$/.test(raw)) return '/admin';
-    if (/^\/counsel\/(sign-in|signin|login)\/?$/.test(raw)) return '/counsel';
-    return raw;
-  }
-  try {
-    const u = new URL(raw);
-    if (u.protocol !== 'https:') return '/cases';
-    const h = u.host.toLowerCase();
-    if (h === 'advottic.com' || h.endsWith('.advottic.com')) {
-      return u.toString();
-    }
-  } catch {
-    /* fall through */
-  }
-  return '/cases';
-}
 
 export default async function SignInPage({
   searchParams,

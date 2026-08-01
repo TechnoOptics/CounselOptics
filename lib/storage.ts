@@ -25,6 +25,13 @@ import { createAdminSupabase } from './supabase/admin';
 import { sendEmail, buildInviteEmailHtml, buildCounselWelcomeEmailHtml } from './email';
 import { parseMenuPreferences, type AllMenuPreferences } from './menu-prefs';
 import { COMP_ULTRA_PRICE_ID } from './personal-tiers';
+import {
+  summarizeOpenCrashes,
+  type OpenCrashSummary,
+} from './hq-metrics';
+
+/** Newest unacknowledged reports read to classify known browser noise. */
+const OPEN_CRASH_SAMPLE = 500;
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
@@ -2515,6 +2522,41 @@ export async function adminListCrashReports(input?: {
     acknowledgedAt: r.acknowledged_at ? String(r.acknowledged_at) : null,
     acknowledgedBy: r.acknowledged_by ? String(r.acknowledged_by) : null,
   }));
+}
+
+/**
+ * The one place any HQ surface asks "how big is the crash backlog".
+ *
+ * /admin, /admin/crashes and /admin/security-center used to answer 492, 500
+ * and 710 for the same question: two of them derived a count from a capped
+ * list (500 was the query cap wearing a count's clothes) and one read the raw
+ * total. Deriving all three from this single call - a fixed noise sample plus
+ * an uncapped exact count - is the only way they stay equal, because the
+ * noise rule is a JS regex over `message` and so depends on how many rows
+ * were read.
+ */
+export async function adminSummarizeOpenCrashes(): Promise<OpenCrashSummary> {
+  const admin = createAdminSupabase();
+  if (!admin) return { open: 0, noise: 0, total: 0, truncated: false };
+  const [sampleResp, countResp] = await Promise.all([
+    admin
+      .from('crash_reports')
+      .select('message')
+      .is('acknowledged_at', null)
+      .order('reported_at', { ascending: false })
+      .limit(OPEN_CRASH_SAMPLE),
+    admin
+      .from('crash_reports')
+      .select('id', { count: 'exact', head: true })
+      .is('acknowledged_at', null),
+  ]);
+  if (sampleResp.error || countResp.error) {
+    return { open: 0, noise: 0, total: 0, truncated: false };
+  }
+  return summarizeOpenCrashes(
+    (sampleResp.data ?? []) as Array<{ message: string | null }>,
+    countResp.count ?? 0,
+  );
 }
 
 export async function adminAcknowledgeCrash(crashId: string): Promise<void> {

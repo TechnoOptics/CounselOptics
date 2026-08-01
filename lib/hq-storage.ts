@@ -7,7 +7,8 @@
  */
 
 import { createAdminSupabase } from './supabase/admin';
-import { isCrashNoise } from './crash-noise';
+import { summarizeProbeUptime, type ProbeUptime } from './hq-metrics';
+import { adminSummarizeOpenCrashes } from './storage';
 import type { FirmType } from './firm-types';
 
 // =====================================================================
@@ -273,7 +274,7 @@ export async function adminGetHqDashboardCounts(): Promise<HqDashboardCounts> {
     firmsResp,
     requestsResp,
     grantsResp,
-    crashResp,
+    crashSummary,
     healthResp,
   ] = await Promise.all([
     admin.auth.admin.listUsers({ perPage: 1000 }),
@@ -286,18 +287,12 @@ export async function adminGetHqDashboardCounts(): Promise<HqDashboardCounts> {
     admin.from('firms').select('id', { count: 'exact', head: true }),
     admin.from('firm_access_requests').select('status'),
     admin.from('firm_access_grants').select('expires_at, accepted_at'),
-    // Audit W20 V3 CR-23: fetch the actual rows so we can subtract
-    // the noise (script-error / firefox-extension / ResizeObserver
-    // false positives) before reporting an open-count. Previously
-    // the head:true count returned the raw 49 while the crashes
-    // page defaulted to "Open (44)" + "+5 noise hidden" - that gap
-    // left operators asking "where did the 5 go?" Now both surfaces
-    // report the same noise-filtered number.
-    admin
-      .from('crash_reports')
-      .select('id, message')
-      .is('acknowledged_at', null)
-      .limit(500),
+    // Audit W20 V3 CR-23: the noise (script-error / firefox-extension /
+    // ResizeObserver false positives) is subtracted before reporting an
+    // open-count, so this pill and /admin/crashes agree. The count itself
+    // comes from adminSummarizeOpenCrashes so all three HQ surfaces are
+    // literally the same call rather than three similar queries.
+    adminSummarizeOpenCrashes(),
     admin
       .from('system_health')
       .select('ran_at, probes, failures')
@@ -361,11 +356,8 @@ export async function adminGetHqDashboardCounts(): Promise<HqDashboardCounts> {
       // crashOpenRaw is included alongside so the security pulse
       // and any other downstream surface that wants the unfiltered
       // total can read it without re-querying.
-      crashOpen: ((crashResp as { data: Array<{ message: string | null }> | null }).data ?? [])
-        .filter((r) => !isCrashNoise(r.message))
-        .length,
-      crashOpenRaw: ((crashResp as { data: Array<{ message: string | null }> | null }).data ?? [])
-        .length,
+      crashOpen: crashSummary.open,
+      crashOpenRaw: crashSummary.total,
       healthStatus,
       healthLastRun,
       healthFailureCount,
@@ -513,7 +505,7 @@ export type HqHealthExtras = {
     last24hHigh: number;
     last24hCritical: number;
   };
-  uptime: { passedRuns: number; totalRuns: number; ratio: number };
+  uptime: ProbeUptime;
   activity: {
     totalAccounts: number;
     onlineNow: number; // signed in within the last 5 minutes
@@ -532,7 +524,7 @@ export async function adminGetHqHealthExtras(): Promise<HqHealthExtras> {
     return {
       gdpr: { consented: 0, total: 0, rate: 0 },
       security: { openEvents: 0, last24hCount: 0, last24hHigh: 0, last24hCritical: 0 },
-      uptime: { passedRuns: 0, totalRuns: 0, ratio: 0 },
+      uptime: { passedProbes: 0, totalProbes: 0, ratio: null, passedRuns: 0, totalRuns: 0 },
       activity: { totalAccounts: 0, onlineNow: 0, activeToday: 0, activeWeek: 0 },
     };
   }
@@ -576,13 +568,7 @@ export async function adminGetHqHealthExtras(): Promise<HqHealthExtras> {
   const checks = (healthChecksResp.data ?? []) as {
     probes: Record<string, string>;
   }[];
-  let passedRuns = 0;
-  for (const c of checks) {
-    const values = Object.values(c.probes ?? {});
-    if (values.length === 0) continue;
-    const allPass = values.every((v) => v === 'pass');
-    if (allPass) passedRuns += 1;
-  }
+  const uptime = summarizeProbeUptime(checks);
 
   const now = Date.now();
   const authUsers = (authResp.data?.users ?? []) as {
@@ -615,11 +601,7 @@ export async function adminGetHqHealthExtras(): Promise<HqHealthExtras> {
       last24hHigh,
       last24hCritical,
     },
-    uptime: {
-      passedRuns,
-      totalRuns: checks.length,
-      ratio: checks.length > 0 ? passedRuns / checks.length : 0,
-    },
+    uptime,
     activity: { totalAccounts, onlineNow, activeToday, activeWeek },
   };
 }

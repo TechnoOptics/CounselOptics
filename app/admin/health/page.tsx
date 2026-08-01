@@ -1,6 +1,7 @@
 import { adminListHealthChecks } from '@/lib/storage';
 import { LocaleTime } from '@/components/LocaleTime';
 import { adminGetHqHealthExtras, adminGetLiveHealth } from '@/lib/hq-storage';
+import type { ProbeUptime } from '@/lib/hq-metrics';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: { absolute: 'System health · Advottic HQ' } };
@@ -101,24 +102,34 @@ export default async function HqHealthPage() {
 // Top-row health metric tiles
 // =====================================================================
 
-function UptimeTile({
-  uptime,
-}: {
-  uptime: { passedRuns: number; totalRuns: number; ratio: number };
-}) {
-  const pct = (uptime.ratio * 100).toFixed(1);
+/**
+ * This tile used to read "24H UPTIME 0.0%" in rose while four of the five
+ * probes beside it were green and the live banner said Supabase was
+ * reachable. It was counting runs in which every probe passed, and the cron
+ * fires once a day: one run, one unpaid AI dependency, 0/1. It now counts
+ * probe results, and both the label and the sub-label say which is which.
+ */
+function UptimeTile({ uptime }: { uptime: ProbeUptime }) {
+  const ratio = uptime.ratio;
   const tone =
-    uptime.totalRuns === 0
+    ratio === null
       ? 'text-cream-100/55'
-      : uptime.ratio >= 0.99
+      : ratio >= 0.99
         ? 'text-emerald-300'
-        : uptime.ratio >= 0.95
+        : ratio >= 0.95
           ? 'text-amber-300'
           : 'text-rose-300';
   return (
-    <Tile label="24h uptime" sub={`${uptime.passedRuns}/${uptime.totalRuns} probe runs all-pass`}>
+    <Tile
+      label="Probe pass rate (24h)"
+      sub={
+        ratio === null
+          ? 'no synthetic run in the last 24h'
+          : `${uptime.passedProbes}/${uptime.totalProbes} probe results passing · ${uptime.passedRuns}/${uptime.totalRuns} runs all-pass`
+      }
+    >
       <p className={`font-display text-4xl font-medium tabular-nums ${tone}`}>
-        {uptime.totalRuns === 0 ? 'No data' : `${pct}%`}
+        {ratio === null ? 'No data' : `${(ratio * 100).toFixed(1)}%`}
       </p>
     </Tile>
   );

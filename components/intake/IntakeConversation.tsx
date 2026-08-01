@@ -15,13 +15,13 @@ import {
   initialsOf,
   mergeMessages,
   participantStyle,
-  relativeTime,
   shouldGroupWithPrevious,
   type IntakeAttachment,
   type IntakeMessage,
   type IntakePerson,
   type MessageVisibility,
 } from '@/lib/intake-conversation-types';
+import { RelativeTime } from './RelativeTime';
 
 /**
  * The conversation on a legal request: the surface both sides actually live
@@ -410,12 +410,10 @@ export function IntakeConversation({
                     >
                       {m.authorRole === 'legal' ? 'Legal' : 'Requester'}
                     </span>
-                    <span
+                    <RelativeTime
+                      iso={m.createdAt}
                       className="text-ink-400 dark:text-cream-100/35"
-                      title={new Date(m.createdAt).toLocaleString()}
-                    >
-                      {relativeTime(m.createdAt)}
-                    </span>
+                    />
                   </p>
                 )}
 
@@ -637,9 +635,10 @@ export function IntakeConversation({
                 onClick={() => fileRef.current?.click()}
                 disabled={uploading}
                 title="Attach a file: it is saved to this request's documents"
-                className="rounded-lg border border-ink-200 px-2.5 py-1 text-[12.5px] font-medium text-forest-900 hover:bg-cream-50 disabled:opacity-50 dark:border-forest-700/50 dark:text-cream-100 dark:hover:bg-forest-800/50"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-ink-200 px-2.5 py-1 text-[12.5px] font-medium text-forest-900 hover:bg-cream-50 disabled:opacity-50 dark:border-forest-700/50 dark:text-cream-100 dark:hover:bg-forest-800/50"
               >
-                {uploading ? 'Attaching…' : '📎 Attach'}
+                <PaperclipIcon />
+                {uploading ? 'Attaching…' : 'Attach'}
               </button>
             </div>
             <button
@@ -682,5 +681,26 @@ function highlightMentions(text: string, people: IntakePerson[]): React.ReactNod
     ) : (
       <span key={i}>{part}</span>
     ),
+  );
+}
+
+/**
+ * Attach control glyph. Drawn stroke SVG rather than the 📎 emoji that used to
+ * sit here: this composer is shared by the employee Hub and the counsel matter
+ * view, so the emoji shipped to firm users too, and it rendered in whatever
+ * face the reader's OS happened to supply. Matches the icon set drawn in
+ * app/counsel/intake/[id]/page.tsx (CalendarIcon / DocumentIcon).
+ */
+function PaperclipIcon() {
+  return (
+    <svg aria-hidden width="13" height="13" viewBox="0 0 24 24" fill="none" className="shrink-0">
+      <path
+        d="M20.5 11.5 12 20a5 5 0 0 1-7-7l8-8a3.5 3.5 0 0 1 5 5l-8 8a2 2 0 0 1-3-3l7.5-7.5"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }

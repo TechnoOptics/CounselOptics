@@ -40,6 +40,17 @@ const PROTECTED_PREFIXES = [
   '/contracts',
   '/vault',
   '/inbox',
+  // The employee Hub. Omitting it was the cause of the React #419 crashes
+  // reported from /portal and /portal/requests: with no middleware gate, a
+  // signed-out visitor reached the page, whose server component calls
+  // redirect(). By then Next has already flushed the streamed shell (the
+  // route sits inside the Suspense boundary that app/loading.tsx creates),
+  // so the redirect can no longer become a 307. React aborts the boundary
+  // instead - the response is a 200 whose HTML carries
+  // `<!--$!--><template data-dgst="NEXT_REDIRECT;...">` - and hydration
+  // throws #419 on the dead boundary. Deciding it here, before any HTML
+  // exists, is the same reason the iOS sell-route gate lives in middleware.
+  '/portal',
 ];
 
 // Publicly accessible routes that live UNDER a protected prefix. The
@@ -47,7 +58,12 @@ const PROTECTED_PREFIXES = [
 // (/counsel/request) and the grant-redemption welcome page
 // (/counsel/welcome) must be reachable without an account so prospective
 // firms can apply and approved firms can redeem their setup link.
-const PUBLIC_OVERRIDES = ['/counsel/request', '/counsel/welcome'];
+// `/portal/share` is a POST route handler, not a page: it authenticates the
+// caller itself (getCurrentUser + authorizeFirmActor). Listing it keeps its
+// behaviour exactly as it was before /portal joined the list above - an
+// unauthenticated call still gets its own refusal rather than a 307 that
+// would re-POST the upload body at /sign-in.
+const PUBLIC_OVERRIDES = ['/counsel/request', '/counsel/welcome', '/portal/share'];
 
 /**
  * Edge auth-refresh middleware.
@@ -374,6 +390,33 @@ export async function updateSession(request: NextRequest) {
         /* keep /cases */
       }
       return applySeoHeaders(NextResponse.redirect(dashUrl));
+    }
+
+    // Already signed in and asking for /sign-in? Decide it here.
+    //
+    // app/sign-in/page.tsx redirects such a visitor onward, but it does so
+    // from inside a React server component that sits behind the Suspense
+    // boundary app/loading.tsx creates. The shell has been flushed by then,
+    // so the redirect cannot become a 307: Next answers 200 with an aborted
+    // boundary and the browser throws React #419 while hydrating it. Sending
+    // the decision to /auth/landing - a route handler, no React - keeps it a
+    // real redirect and keeps the landing logic in exactly one place.
+    //
+    // `?switch=1` still renders the page: that visitor came here on purpose
+    // to change accounts and must see the picker. `?from=landing` means the
+    // route handler just bounced back because the session was gone, so we
+    // leave it alone rather than sending it round again.
+    if (user && effectivePath === '/sign-in') {
+      const q = request.nextUrl.searchParams;
+      const switching = q.get('switch') === '1' || q.get('switch') === 'true';
+      if (!switching && q.get('from') !== 'landing') {
+        const landing = request.nextUrl.clone();
+        landing.pathname = '/auth/landing';
+        landing.search = '';
+        const nextParam = q.get('next');
+        if (nextParam) landing.searchParams.set('next', nextParam);
+        return applySeoHeaders(NextResponse.redirect(landing));
+      }
     }
 
     // Pre-login landing for hq/enterprise/tenant subdomains.

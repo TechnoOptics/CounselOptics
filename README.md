@@ -64,9 +64,9 @@ node scripts/run-review.mjs <caseId>        # one case
 
 ## Scripts
 
-- `npm run dev` &mdash; start the dev server
-- `npm run build` &mdash; production build
-- `npm run start` &mdash; serve the production build
+- `npm run dev`: start the dev server
+- `npm run build`: production build
+- `npm run start`: serve the production build
 
 ## Disclaimer
 

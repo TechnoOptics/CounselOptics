@@ -13,12 +13,12 @@ import {
   avatarTint,
   formatBytes,
   initialsOf,
-  relativeTime,
   type IntakeDocument,
   type IntakeParticipant,
   type IntakePerson,
   type IntakeUploadRequest,
 } from '@/lib/intake-conversation-types';
+import { RelativeTime } from './RelativeTime';
 
 /**
  * The context rail beside the conversation: who owns the request, who else is
@@ -258,7 +258,7 @@ export function IntakeWorkPanel({
                       {r.uploadCount > 0
                         ? `${r.uploadCount} file${r.uploadCount === 1 ? '' : 's'} received`
                         : 'Waiting'}{' '}
-                      · asked {relativeTime(r.createdAt)}
+                      · asked <RelativeTime iso={r.createdAt} />
                     </p>
                     <div className="mt-1.5 flex flex-wrap gap-2">
                       <button

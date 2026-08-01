@@ -4,6 +4,10 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import type { FirmTemplate } from '@/lib/firm-templates';
 import { PdfPreviewDialog } from '@/components/PdfPreviewDialog';
+import {
+  RESERVED_FIRM_KEYS,
+  isSelfNameField,
+} from '@/lib/firm-template-placeholders';
 
 /**
  * Employee fill-and-sign for a firm template. Fields render as inputs, the
@@ -33,7 +37,7 @@ export function FormFillClient({
   const [values, setValues] = useState<Record<string, string>>(() => {
     const v: Record<string, string> = {};
     for (const f of template.fields) {
-      if (/name/.test(f.key) && employeeName) v[f.key] = employeeName;
+      if (isSelfNameField(f.key) && employeeName) v[f.key] = employeeName;
       if (f.type === 'date') v[f.key] = new Date().toISOString().slice(0, 10);
     }
     return v;
@@ -50,7 +54,19 @@ export function FormFillClient({
   const missing = template.fields.filter((f) => f.required && !(values[f.key] ?? '').trim());
 
   const merged = useMemo(() => {
+    // Reserved placeholders, resolved from the live firm record on every
+    // render. A template that writes {{firm_name}} follows the firm through a
+    // rename; one that types the name into the body freezes whatever the firm
+    // was called the day it was drafted - which is how a Zinpro-branded hub
+    // came to serve an NDA naming "Anderson Foundation" as the Company.
+    // A key the firm has declared as a fillable field always wins, so this
+    // cannot take a form's own "Company" input away from the employee.
     let text = template.body;
+    const declared = new Set(template.fields.map((f) => f.key));
+    for (const key of RESERVED_FIRM_KEYS) {
+      if (declared.has(key)) continue;
+      text = text.split(`{{${key}}}`).join(firmName);
+    }
     for (const f of template.fields) {
       const val = (values[f.key] ?? '').trim() || `[${f.label}]`;
       text = text.split(`{{${f.key}}}`).join(val);
@@ -58,7 +74,7 @@ export function FormFillClient({
     const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
     text += `\n\n\nSigned: ${signature.trim() || '____________________'}\nDate: ${today}\nEmail: ${employeeEmail}`;
     return text;
-  }, [template, values, signature, employeeEmail]);
+  }, [template, values, signature, employeeEmail, firmName]);
 
   const buildPdf = async (): Promise<Blob> => {
     const res = await fetch('/api/counsel/draft-template/pdf', {

@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import { runAllPulseChecks, type PulseCheckResult } from '@/lib/security-pulse';
+import { rollupStatus } from '@/lib/hq-metrics';
+import { adminSummarizeOpenCrashes } from '@/lib/storage';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import {
   scanAttachments,
@@ -65,7 +67,10 @@ type ThreatMonitor = {
 };
 type Resilience = {
   health: HealthRow | null;
+  /** Unacknowledged reports minus known browser/extension noise. */
   crashOpen: number;
+  /** Every unacknowledged report, noise included. */
+  crashTotal: number;
   crashState: FeedState;
 };
 
@@ -143,31 +148,29 @@ async function gatherResilience(
   const base: Resilience = {
     health: null,
     crashOpen: 0,
+    crashTotal: 0,
     crashState: { kind: 'ok' },
   };
   if (!admin) return { ...base, crashState: { kind: 'unconfigured' } };
   try {
-    const [healthResp, crashResp] = await Promise.all([
+    // This panel used to report the raw unacknowledged count (710) while
+    // /admin and /admin/crashes each showed a capped, noise-filtered sample
+    // (492 and 500). All three now call adminSummarizeOpenCrashes, so the
+    // triage figure is one number and the raw total is labelled as the raw
+    // total rather than passed off as the triage queue.
+    const [healthResp, summary] = await Promise.all([
       admin
         .from('system_health')
         .select('ran_at, probes, failures')
         .order('ran_at', { ascending: false })
         .limit(1)
         .maybeSingle(),
-      admin
-        .from('crash_reports')
-        .select('id', { count: 'exact', head: true })
-        .is('acknowledged_at', null),
+      adminSummarizeOpenCrashes(),
     ]);
     base.health = (healthResp.data as HealthRow | null) ?? null;
-    if (crashResp.error) {
-      base.crashState = isMissingTable(crashResp.error.message)
-        ? { kind: 'missing' }
-        : { kind: 'error', reason: crashResp.error.message };
-    } else {
-      base.crashOpen = crashResp.count ?? 0;
-      base.crashState = { kind: 'ok' };
-    }
+    base.crashOpen = summary.open;
+    base.crashTotal = summary.total;
+    base.crashState = { kind: 'ok' };
   } catch (e) {
     base.crashState = { kind: 'error', reason: errorText(e) };
   }
@@ -320,18 +323,26 @@ function ControlBattery({ results }: { results: PulseCheckResult[] }) {
     >
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {[...byCat.entries()].map(([cat, list]) => {
-          const crit = list.filter((r) => r.status === 'critical').length;
-          const warn = list.filter((r) => r.status === 'warning').length;
-          const dotTone = crit
-            ? 'bg-rose-400'
-            : warn
-              ? 'bg-amber-400'
-              : 'bg-emerald-400';
-          const ring = crit
-            ? 'ring-rose-700/40 bg-rose-950/20'
-            : warn
-              ? 'ring-amber-700/40 bg-amber-950/15'
-              : 'ring-emerald-700/30 bg-emerald-950/12';
+          // Green here has to mean "checked and fine", never "we could not
+          // look" - so a domain carrying an unknown control reads slate, the
+          // same tone the posture strip already uses for the unknown chip.
+          const tone = rollupStatus(list);
+          const dotTone =
+            tone === 'critical'
+              ? 'bg-rose-400'
+              : tone === 'warning'
+                ? 'bg-amber-400'
+                : tone === 'unknown'
+                  ? 'bg-cream-100/35'
+                  : 'bg-emerald-400';
+          const ring =
+            tone === 'critical'
+              ? 'ring-rose-700/40 bg-rose-950/20'
+              : tone === 'warning'
+                ? 'ring-amber-700/40 bg-amber-950/15'
+                : tone === 'unknown'
+                  ? 'ring-white/15 bg-white/[0.04]'
+                  : 'ring-emerald-700/30 bg-emerald-950/12';
           return (
             <article
               key={cat}
@@ -785,11 +796,16 @@ function ResiliencePanel({
                   className="flex items-center justify-between text-[11.5px]"
                 >
                   <span className="font-mono text-cream-100/80">{name}</span>
+                  {/* `skipped` used to render emerald alongside the passes,
+                      so a probe whose env var is unset looked like a probe
+                      that ran and succeeded. Only `pass` is green. */}
                   <span
                     className={
-                      val === 'fail'
-                        ? 'text-rose-300'
-                        : 'text-emerald-300'
+                      val === 'pass'
+                        ? 'text-emerald-300'
+                        : val === 'fail'
+                          ? 'text-rose-300'
+                          : 'text-cream-100/45'
                     }
                   >
                     {val}
@@ -839,7 +855,11 @@ function ResiliencePanel({
                   ? 'Reading the crash backlog failed, so this count is unknown.'
                   : resilience.crashOpen === 0
                     ? 'No unacknowledged crash reports.'
-                    : 'Unacknowledged crash reports awaiting triage.'}
+                    : `Unacknowledged crash reports awaiting triage${
+                        resilience.crashTotal > resilience.crashOpen
+                          ? `, out of ${resilience.crashTotal.toLocaleString()} open reports in total.`
+                          : '.'
+                      }`}
           </p>
           {resilience.crashState.kind === 'error' && (
             <p className="font-mono text-[10.5px] text-amber-100/60 mt-1 break-words">

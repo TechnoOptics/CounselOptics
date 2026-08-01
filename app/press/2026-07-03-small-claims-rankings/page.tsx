@@ -111,10 +111,10 @@ export default function SmallClaimsRankingsPressReleasePage() {
 
       <section className="space-y-4 text-[15.5px] leading-[1.75]">
         <p>
-          <strong>Edina, MN &mdash; July 3, 2026.</strong> Advottic,
+          <strong>Edina, MN, July 3, 2026.</strong> Advottic,
           the AI legal-prep platform built and operated by Techno
           Optics LLC, today published a free, side-by-side ranking
-          of small claims court rules across all 50 states &mdash;
+          of small claims court rules across all 50 states,
           the first time the platform&rsquo;s existing state-by-state
           small claims data has been presented as a single
           comparison instead of 50 individual lookups.

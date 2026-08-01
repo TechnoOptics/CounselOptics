@@ -163,7 +163,58 @@ export function formatBytes(bytes: number | null | undefined): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-/** "just now" / "12 min ago" / "Tue 3:40 PM": quiet, never alarming. */
+/**
+ * A timestamp that is byte-identical on the server and in the browser.
+ *
+ * `relativeTime` below is deliberately clock-aware AND locale-aware, which
+ * makes it correct for a mounted client and wrong for server-rendered HTML:
+ * the server formats with the Vercel container's clock, UTC offset and ICU
+ * default locale, the browser re-formats with the reader's, and React tears
+ * the two apart as a text-content mismatch (React #425, which in turn errors
+ * the surrounding Suspense boundary as #422). That is the crash the Hub's
+ * request thread has been throwing on /portal/[id].
+ *
+ * So server render and the FIRST client render both use this: an explicit
+ * en-US / UTC format that cannot drift. Once mounted, the component upgrades
+ * to `relativeTime`, which is now a client-only concern and free to be local.
+ */
+export function absoluteTimestamp(iso: string): string {
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return '';
+  // Assembled by hand rather than through Intl. Pinning the locale and the
+  // timezone removes the clock, the offset and the language, but Node and the
+  // browser ship independent ICU builds and en-US date patterns do change
+  // between CLDR releases (the narrow no-break space before AM/PM is the
+  // famous one). A version skew there would reproduce the exact #425 this
+  // function exists to prevent, so nothing here consults ICU at all.
+  const hours24 = d.getUTCHours();
+  const hour12 = hours24 % 12 === 0 ? 12 : hours24 % 12;
+  const minute = String(d.getUTCMinutes()).padStart(2, '0');
+  const meridiem = hours24 < 12 ? 'AM' : 'PM';
+  return `${MONTHS_SHORT[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}, ${hour12}:${minute} ${meridiem} UTC`;
+}
+
+const MONTHS_SHORT = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+
+/**
+ * "just now" / "12 min ago" / "Tue 3:40 PM": quiet, never alarming.
+ *
+ * Client-only. Never call this during a server render or during the first
+ * client render - see `absoluteTimestamp` above for why.
+ */
 export function relativeTime(iso: string, now: number = Date.now()): string {
   const t = new Date(iso).getTime();
   if (!Number.isFinite(t)) return '';

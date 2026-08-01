@@ -102,7 +102,7 @@ export default function SmallClaimsRankingsPage() {
             Highest limit
           </p>
           <p className="mt-1.5 font-display text-2xl text-forest-900 dark:text-cream-100">
-            Delaware &amp; Tennessee &mdash; $25,000
+            Delaware &amp; Tennessee: $25,000
           </p>
           <p className="mt-1 text-[13.5px] text-ink-600 dark:text-cream-100/70">
             The only two states above $20,000. National median is
@@ -114,7 +114,7 @@ export default function SmallClaimsRankingsPage() {
             Lowest limit
           </p>
           <p className="mt-1.5 font-display text-2xl text-forest-900 dark:text-cream-100">
-            Kentucky &mdash; $2,500
+            Kentucky: $2,500
           </p>
           <p className="mt-1 text-[13.5px] text-ink-600 dark:text-cream-100/70">
             A tenth of Delaware and Tennessee&rsquo;s cap for the
@@ -153,7 +153,7 @@ export default function SmallClaimsRankingsPage() {
         </h2>
         <p className="text-[14.5px] text-ink-600 dark:text-cream-100/70 max-w-prose">
           Click a column to re-sort. &ldquo;Attorneys&rdquo; is
-          Yes / No / Limited &mdash; Limited usually means both
+          Yes / No / Limited. Limited usually means both
           sides have to agree first.
         </p>
         <RankingsTable states={STATES_SMALL_CLAIMS} />

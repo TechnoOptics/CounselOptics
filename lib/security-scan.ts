@@ -244,8 +244,8 @@ export function gradeFromPulse(s: PulseSummary | null): PostureGrade {
   if (!s) {
     return { grade: 'C', label: 'Awaiting first scan', tone: 'amber' };
   }
-  const { healthy, warning, critical } = s.counts;
-  const total = healthy + warning + critical || 1;
+  const { healthy, warning, critical, unknown } = s.counts;
+  const total = healthy + warning + critical + unknown || 1;
   if (critical > 0) {
     return {
       grade: critical >= 3 ? 'F' : 'D',
@@ -253,20 +253,38 @@ export function gradeFromPulse(s: PulseSummary | null): PostureGrade {
       tone: 'red',
     };
   }
-  if (warning === 0) {
+  if (warning === 0 && unknown === 0) {
     return { grade: 'A', label: 'All controls passing', tone: 'green' };
   }
+  // An unchecked control is not a passing one. The page states that the grade
+  // "only reaches A when every control passes with zero advisories"; before
+  // this, `unknown` was left out of the arithmetic entirely, so a sweep that
+  // could not read a control still graded A.
+  if (warning === 0) {
+    // A sweep that could read almost everything is a B; one that could read
+    // little is not, or a battery where nothing ran would still grade B.
+    const unchecked = unknown / total;
+    return {
+      grade: unchecked > 0.5 ? 'D' : unchecked > 0.15 ? 'C' : 'B',
+      label: `${unknown} control${unknown === 1 ? '' : 's'} could not be checked`,
+      tone: 'amber',
+    };
+  }
+  const unchecked =
+    unknown > 0 ? `, ${unknown} unchecked` : '';
   const ratio = healthy / total;
   if (ratio >= 0.85) {
     return {
       grade: 'B',
-      label: `${warning} advisory item${warning === 1 ? '' : 's'}`,
-      tone: 'green',
+      label: `${warning} advisory item${warning === 1 ? '' : 's'}${unchecked}`,
+      // Amber whenever something could not be read: the operator scanning
+      // for colour must not be told all-clear about a control nobody looked at.
+      tone: unknown > 0 ? 'amber' : 'green',
     };
   }
   return {
     grade: 'C',
-    label: `${warning} controls in advisory state`,
+    label: `${warning} controls in advisory state${unchecked}`,
     tone: 'amber',
   };
 }

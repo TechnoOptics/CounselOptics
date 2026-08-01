@@ -116,7 +116,7 @@ export default async function CounselCasesPage({
           <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 max-w-md mx-auto leading-relaxed">
             <T>
               Open one with &ldquo;New matter&rdquo; above, or import your
-              existing caseload &mdash; upload a spreadsheet or migrate from
+              existing caseload: upload a spreadsheet or migrate from
               another platform on the
             </T>{' '}
             <Link href="/counsel/import" className="underline">
