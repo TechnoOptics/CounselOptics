@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { validateAnswers, isQuestionVisible } from '../lib/form-validate';
-import type { FormPayload } from '../lib/form-schema';
+import type { FormPayload, Question } from '../lib/form-schema';
 
 const form: FormPayload = {
   schemaVersion: 1,
@@ -54,8 +54,67 @@ describe('isQuestionVisible', () => {
     expect(isQuestionVisible(q('b'), form, {})).toBe(false);
   });
 
+  it('neq also treats an unanswered controller as not matching', () => {
+    // A field is not part of `form`; it exists only to exercise the neq
+    // branch directly, since none of the fixture's own rules use neq.
+    const neqField: Question = {
+      id: 'x', key: 'x_key', type: 'short_text', label: 'X',
+      required: false, config: {}, showWhen: { questionId: 'a', op: 'neq', value: 'Yes' },
+    };
+    expect(isQuestionVisible(neqField, form, {})).toBe(false);
+  });
+
   it('a question with no rule is always visible', () => {
     expect(isQuestionVisible(q('a'), form, {})).toBe(true);
+  });
+});
+
+describe('visibility cascades through a hidden controller', () => {
+  // A three-level chain: chain_b is shown only when chain_a is Yes, and
+  // chain_c is shown only when chain_b is Yes. chain_c's controller is
+  // itself a conditional question, so this exercises whether hiding
+  // chain_b also hides chain_c, rather than trusting chain_b's raw answer.
+  const chainForm: FormPayload = {
+    schemaVersion: 1,
+    rows: [
+      { id: 'cr1', fields: [
+        { id: 'ca', key: 'chain_a', type: 'yesno', label: 'A', required: true, config: {} },
+      ] },
+      { id: 'cr2', fields: [
+        { id: 'cb', key: 'chain_b', type: 'yesno', label: 'B', required: true, config: {},
+          showWhen: { questionId: 'ca', op: 'eq', value: 'Yes' } },
+      ] },
+      { id: 'cr3', fields: [
+        { id: 'cc', key: 'chain_c', type: 'short_text', label: 'C', required: true, config: {},
+          showWhen: { questionId: 'cb', op: 'eq', value: 'Yes' } },
+      ] },
+    ],
+  };
+  const c = () => chainForm.rows[2].fields[0];
+
+  it('hides and un-requires the third question when its controller is hidden, even with a stale answer', () => {
+    // chain_a is No, so chain_b is hidden, but answers still carries a
+    // stale chain_b: 'Yes' as if the client never scrubbed it (or a
+    // replayed/edited payload restored it).
+    const answers = { chain_a: 'No', chain_b: 'Yes' };
+
+    expect(isQuestionVisible(c(), chainForm, answers)).toBe(false);
+
+    const r = validateAnswers(chainForm, answers);
+    expect(r.ok).toBe(true);
+  });
+
+  it('reveals and enforces the third question normally once its controller is genuinely visible', () => {
+    const revealed = { chain_a: 'Yes', chain_b: 'Yes' };
+
+    expect(isQuestionVisible(c(), chainForm, revealed)).toBe(true);
+
+    const missing = validateAnswers(chainForm, revealed);
+    expect(missing.ok).toBe(false);
+    if (!missing.ok) expect(missing.errors.chain_c).toBeTruthy();
+
+    const complete = validateAnswers(chainForm, { ...revealed, chain_c: 'done' });
+    expect(complete.ok).toBe(true);
   });
 });
 

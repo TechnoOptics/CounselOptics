@@ -40,23 +40,72 @@ function isAnswered(value: string | string[] | undefined): boolean {
  * looking the answer up: conflating the two is the most likely way to get
  * this wrong.
  *
- * An unanswered controller never satisfies a rule, whatever the operator, so
- * `neq` does not reveal a question before its controller has been touched.
+ * `answered` here already folds in whether the controller itself is
+ * currently visible (see `computeOwnVisibility` below), so a hidden
+ * controller behaves exactly like an unanswered one. That single flag is
+ * what makes the cascade correct: an unanswered controller never satisfies
+ * a rule, whatever the operator, so `neq` does not reveal a question before
+ * its controller has been touched, and a hidden controller (which is
+ * "unanswered" by this same definition regardless of any stale value still
+ * sitting in `answers`) does not reveal one either.
  */
-function ruleMatches(rule: Rule, payload: FormPayload, answers: Answers): boolean {
-  const controller = findQuestionById(payload, rule.questionId);
-  if (!controller) return false;
-
-  const answer = answers[controller.key];
-  const answered = isAnswered(answer);
-
+function ruleMatchesAnswer(
+  rule: Rule,
+  answered: boolean,
+  answerValue: string | string[] | undefined,
+): boolean {
   if (rule.op === 'answered') return answered;
   if (!answered) return false;
 
-  const answerValue = Array.isArray(answer) ? answer.join(',') : answer;
-  if (rule.op === 'eq') return answerValue === rule.value;
-  if (rule.op === 'neq') return answerValue !== rule.value;
+  const value = Array.isArray(answerValue) ? answerValue.join(',') : answerValue;
+  if (rule.op === 'eq') return value === rule.value;
+  if (rule.op === 'neq') return value !== rule.value;
   return false;
+}
+
+/**
+ * A question's own visibility, given every earlier question's visibility
+ * already resolved in `visible`. Task 1 guarantees `showWhen` can only
+ * reference a question appearing earlier in the form, with no cycles, so by
+ * the time a question is reached in document order its controller's entry
+ * is already in the map.
+ */
+function computeOwnVisibility(
+  q: Question,
+  payload: FormPayload,
+  answers: Answers,
+  visible: ReadonlyMap<string, boolean>,
+): boolean {
+  if (!q.showWhen) return true;
+
+  const controller = findQuestionById(payload, q.showWhen.questionId);
+  if (!controller) return false;
+
+  const controllerVisible = visible.get(controller.id) ?? false;
+  const rawAnswer = answers[controller.key];
+  // A hidden controller counts as unanswered: it cannot satisfy any rule,
+  // which is what makes visibility cascade correctly through a hidden link
+  // in the chain instead of trusting a possibly stale answer.
+  const answered = controllerVisible && isAnswered(rawAnswer);
+
+  return ruleMatchesAnswer(q.showWhen, answered, rawAnswer);
+}
+
+/**
+ * Every question's visibility for one set of answers, in a single forward
+ * pass over the form in document order. Rules only ever point at an earlier
+ * question (enforced at publish time), so each question's controller is
+ * already resolved in `visible` by the time we reach it: no recursion, no
+ * risk of a loop, and each question is evaluated exactly once.
+ */
+function computeVisibilityMap(payload: FormPayload, answers: Answers): Map<string, boolean> {
+  const visible = new Map<string, boolean>();
+  for (const row of payload.rows) {
+    for (const q of row.fields) {
+      visible.set(q.id, computeOwnVisibility(q, payload, answers, visible));
+    }
+  }
+  return visible;
 }
 
 export function isQuestionVisible(
@@ -64,8 +113,8 @@ export function isQuestionVisible(
   payload: FormPayload,
   answers: Answers,
 ): boolean {
-  if (!q.showWhen) return true;
-  return ruleMatches(q.showWhen, payload, answers);
+  const visible = computeVisibilityMap(payload, answers);
+  return visible.has(q.id) ? (visible.get(q.id) as boolean) : computeOwnVisibility(q, payload, answers, visible);
 }
 
 // ---------------------------------------------------------------------------
@@ -111,12 +160,6 @@ function toNumber(v: number | string | undefined): number | undefined {
   if (v === undefined) return undefined;
   const n = typeof v === 'number' ? v : Number(v);
   return Number.isFinite(n) ? n : undefined;
-}
-
-function formatLimit(n: number): string {
-  // Config limits are already well formed values (e.g. 0, 60, 99.99), so a
-  // plain string conversion reads naturally in a sentence.
-  return String(n);
 }
 
 // ---------------------------------------------------------------------------
@@ -174,8 +217,8 @@ function validateAnswerValue(q: Question, answer: string | string[]): string | u
       const n = Number(s);
       const min = toNumber(config.min);
       const max = toNumber(config.max);
-      if (min !== undefined && n < min) return `Enter ${formatLimit(min)} or more.`;
-      if (max !== undefined && n > max) return `Enter ${formatLimit(max)} or less.`;
+      if (min !== undefined && n < min) return `Enter ${min} or more.`;
+      if (max !== undefined && n > max) return `Enter ${max} or less.`;
       return undefined;
     }
 
@@ -186,10 +229,10 @@ function validateAnswerValue(q: Question, answer: string | string[]): string | u
       const min = toNumber(config.min);
       const max = toNumber(config.max);
       if (min !== undefined && parsed.cents < Math.round(min * 100)) {
-        return `Enter ${formatLimit(min)} or more.`;
+        return `Enter ${min} or more.`;
       }
       if (max !== undefined && parsed.cents > Math.round(max * 100)) {
-        return `Enter ${formatLimit(max)} or less.`;
+        return `Enter ${max} or less.`;
       }
       return undefined;
     }
@@ -241,10 +284,11 @@ export function validateAnswers(
   answers: Answers,
 ): { ok: true } | { ok: false; errors: Record<string, string> } {
   const errors: Record<string, string> = {};
+  const visible = computeVisibilityMap(payload, answers);
 
   for (const row of payload.rows) {
     for (const q of row.fields) {
-      if (!isQuestionVisible(q, payload, answers)) continue;
+      if (!visible.get(q.id)) continue;
 
       const answer = answers[q.key];
       if (!isAnswered(answer)) {
