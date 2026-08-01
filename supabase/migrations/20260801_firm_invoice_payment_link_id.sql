@@ -1,9 +1,18 @@
 -- Record the Stripe payment_link ID on a firm invoice, so the link can be
 -- switched off and a payment made through it can be traced back.
 --
--- ============================ NOT APPLIED ================================
--- Written 2026-08-01. NOT applied. The owner applies this.
--- Regenerate supabase/schema-fingerprint.sha256 afterwards or CI fails.
+-- ============================== APPLIED ==================================
+-- Written and APPLIED 2026-08-01 to the Advottic project
+-- (hpmtlhpyvbreyfimftgt), recorded as migration
+-- firm_invoice_payment_link_id. supabase/schema-fingerprint.sha256 was
+-- regenerated in the same commit.
+--
+-- Note for anyone reading the fingerprint history: the baseline was
+-- ALREADY stale before this migration (live 4fc660e4..., committed
+-- 8a719170...). Several earlier migrations were live without a regen -
+-- the case-membership policy on ai_reviews, firm_guest_accounts,
+-- case_activity, firm_intake_messages. The new hash therefore blesses
+-- those too, not only this column.
 -- =========================================================================
 --
 -- The problem it fixes:
@@ -65,11 +74,16 @@ create index if not exists firm_invoices_payment_link_id_idx
 -- ---------------------------------------------------------------------
 -- Operational note for whoever applies this
 -- ---------------------------------------------------------------------
--- Any invoice that is currently void or paid AND still has a
--- stripe_payment_link set has a live, payable link that this migration
--- cannot revoke, because its ID was never recorded. Those have to be
--- deactivated by hand in the Stripe dashboard (Payments > Payment links).
--- To list them:
+-- RESOLVED at apply time: firm_invoices had ZERO rows, so there were no
+-- pre-existing invoices carrying an unrevocable link and nothing needed
+-- cleaning up in the Stripe dashboard. The query below is kept because it
+-- is the right check to re-run if this migration is ever applied to
+-- another environment that does have invoice history.
+--
+-- Any invoice that is void or paid AND still has a stripe_payment_link set
+-- has a live, payable link that this migration cannot revoke, because its
+-- ID was never recorded. Those have to be deactivated by hand in the
+-- Stripe dashboard (Payments > Payment links). To list them:
 --
 --   select id, number, status, stripe_payment_link
 --     from public.firm_invoices
