@@ -37,14 +37,16 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { PageHeader } from '@/components/counsel/ui';
-import { T } from '@/components/i18n/LocaleProvider';
+import { T, useT } from '@/components/i18n/LocaleProvider';
 import { FormRenderer } from '@/components/forms/FormRenderer';
 import { YESNO_VALUES } from '@/components/forms/fields/YesNoField';
 import { SURFACE_SCHEME } from '@/components/forms/fields/shared';
 import { relativeTime } from '@/lib/intake-conversation-types';
 import { discardDraftAction, publishFormAction, saveDraftAction } from '@/lib/form-actions';
+import type { ActionResult } from '@/lib/form-actions';
 import type { RequestTypeMode } from '@/lib/form-queries';
 import type { FormError, FormPayload, Question, QuestionType, Rule } from '@/lib/form-schema';
 import type { Answers } from '@/lib/form-validate';
@@ -63,6 +65,7 @@ import {
   TYPE_GROUPS,
   TYPE_LABELS,
   updateQuestion,
+  type FlatQuestion,
   type MoveDirection,
   type RuleProblem,
 } from '@/lib/form-draft';
@@ -169,6 +172,7 @@ export function BuilderClient({
   publishedVersion: number | null;
   published: FormPayload | null;
 }) {
+  const router = useRouter();
   const opened = useState(() => startingDraft(initialDraft, published))[0];
   const [draft, setDraft] = useState<FormPayload>(opened.payload);
   const [dirty, setDirty] = useState(false);
@@ -198,13 +202,21 @@ export function BuilderClient({
   }, []);
 
   /**
+   * The version that is live right now. State rather than the prop, because
+   * publishing inside this sitting changes it and the prop does not follow:
+   * `publishFormAction` revalidates the index, not this route. Everything
+   * that asks "what is published" reads this.
+   */
+  const [live, setLive] = useState<FormPayload | null>(published);
+
+  /**
    * Keys the published version already uses. A question holding one keeps it
    * whatever the author renames the label to, because answers already filed
    * are stored against it.
    */
   const frozenKeys = useMemo(
-    () => new Set((published?.rows ?? []).flatMap((r) => r.fields.map((f) => f.key))),
-    [published],
+    () => new Set((live?.rows ?? []).flatMap((r) => r.fields.map((f) => f.key))),
+    [live],
   );
 
   const flat = useMemo(() => flattenQuestions(draft), [draft]);
@@ -224,27 +236,53 @@ export function BuilderClient({
 
   // --- autosave ------------------------------------------------------------
 
+  /** The last payload the server confirmed it holds. Identity, not deep equality. */
   const savedPayload = useRef<FormPayload | null>(null);
-  const saveSeq = useRef(0);
+
+  /**
+   * Saves are single file: each one is chained behind the previous, so only
+   * one request to this row is ever open.
+   *
+   * Ordering the UI verdicts is not enough. The debounce is 900 ms and a save
+   * slower than that overlaps the next one, and once two requests are in the
+   * air the server decides which lands last, not this component. If the older
+   * one lands last the row holds the older draft while the strip reads
+   * "Draft saved", and the next publish ships that older draft. Chaining puts
+   * the ordering back where it can be guaranteed: the second request is not
+   * issued until the first has returned.
+   *
+   * The chain never rejects, so one failure cannot strand every later save.
+   */
+  const chain = useRef<Promise<ActionResult>>(Promise.resolve({ ok: true }));
 
   const save = useCallback(
-    async (payload: FormPayload) => {
-      const seq = (saveSeq.current += 1);
-      setSaveState('saving');
-      const result = await saveDraftAction(type.id, payload);
-      // An older request landing after a newer one must not overwrite its
-      // verdict, or a failed save could be reported as saved.
-      if (seq !== saveSeq.current) return result;
-      if (result.ok) {
-        savedPayload.current = payload;
-        setSavedAt(new Date().toISOString());
-        setSaveError(null);
-        setSaveState('saved');
-      } else {
-        setSaveError(result.error);
-        setSaveState('error');
-      }
-      return result;
+    (payload: FormPayload): Promise<ActionResult> => {
+      const next = chain.current.then(async (): Promise<ActionResult> => {
+        // A later save in the same chain may already have covered this
+        // payload, in which case there is nothing to write.
+        if (savedPayload.current === payload) return { ok: true };
+
+        setSaveState('saving');
+        let result: ActionResult;
+        try {
+          result = await saveDraftAction(type.id, payload);
+        } catch {
+          result = { ok: false, error: 'The connection dropped.' };
+        }
+
+        if (result.ok) {
+          savedPayload.current = payload;
+          setSavedAt(new Date().toISOString());
+          setSaveError(null);
+          setSaveState('saved');
+        } else {
+          setSaveError(result.error);
+          setSaveState('error');
+        }
+        return result;
+      });
+      chain.current = next;
+      return next;
     },
     [type.id],
   );
@@ -257,6 +295,34 @@ export function BuilderClient({
     }, 900);
     return () => clearTimeout(timer);
   }, [draft, dirty, save]);
+
+  /**
+   * The debounce is the whole risk here: leaving the page inside that window
+   * cancels the timer and the last edits are gone, while the strip still
+   * reads "Draft saved" from the previous cycle. The header's own "All intake
+   * forms" link is one click away, so this is not a corner case.
+   *
+   * A client-side navigation unmounts this component, and the cleanup below
+   * issues the save the timer never got to. The request survives the unmount:
+   * it is a fetch in the same document, not tied to this React tree. A real
+   * page unload cannot be saved through, so that one asks the browser to
+   * confirm instead.
+   */
+  const unsaved = useRef<FormPayload | null>(null);
+  unsaved.current = dirty && savedPayload.current !== draft ? draft : null;
+
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (!unsaved.current) return;
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', onBeforeUnload);
+      if (unsaved.current) void save(unsaved.current);
+    };
+  }, [save]);
 
   // --- focus ---------------------------------------------------------------
 
@@ -292,7 +358,16 @@ export function BuilderClient({
     setNotice(null);
     // Publish reads the stored draft, not this state, so the pending
     // keystroke has to reach the database before the dialog offers to.
-    if (dirty && savedPayload.current !== draft) await save(draft);
+    //
+    // A FAILED flush must not open the dialog. `publishFormAction` would
+    // otherwise validate and ship whatever `draft_payload` still held, which
+    // after an expired session is the form as it stood before this sitting.
+    // The strip is already rose and the line beside the button says why;
+    // clicking Publish again retries the save.
+    if (dirty && savedPayload.current !== draft) {
+      const result = await save(draft);
+      if (!result.ok) return;
+    }
     setDialog('publish');
   }, [dirty, draft, save]);
 
@@ -302,6 +377,12 @@ export function BuilderClient({
     setBusy(false);
     if (result.ok) {
       setVersion(result.version);
+      // The draft just became the live version. Promoting it locally is what
+      // keeps two things honest for the rest of this sitting: `frozenKeys`,
+      // so renaming a label cannot rewrite a key the new version's answers
+      // are already filed against, and Discard, which would otherwise revert
+      // the canvas to the version before this one.
+      setLive(draft);
       setDirty(false);
       setSavedAt(null);
       setSaveState('idle');
@@ -309,6 +390,9 @@ export function BuilderClient({
       setServerErrors([]);
       setDialog(null);
       setNotice(`Published as v${result.version}.`);
+      // `publishFormAction` revalidates the index but not this route, so the
+      // server props here would stay on the previous version.
+      router.refresh();
       return;
     }
     if ('errors' in result) {
@@ -317,7 +401,7 @@ export function BuilderClient({
     }
     setNotice(result.error);
     setDialog(null);
-  }, [type.id]);
+  }, [draft, router, type.id]);
 
   const doDiscard = useCallback(async () => {
     setBusy(true);
@@ -328,7 +412,10 @@ export function BuilderClient({
       setDialog(null);
       return;
     }
-    setDraft(published ?? { schemaVersion: 1, rows: [] });
+    // `live`, not the prop: after a publish in this sitting the prop is a
+    // version behind, and discarding onto it would leave the author editing
+    // the form that was replaced.
+    setDraft(live ?? { schemaVersion: 1, rows: [] });
     setDirty(false);
     setSavedAt(null);
     setSaveState('idle');
@@ -336,7 +423,7 @@ export function BuilderClient({
     setExpandedId(null);
     setServerErrors([]);
     setDialog(null);
-  }, [published, type.id]);
+  }, [live, type.id]);
 
   const onPickType = useCallback(
     (target: PickerAt, questionType: QuestionType) => {
@@ -375,20 +462,33 @@ export function BuilderClient({
           </>
         }
         action={
-          <div className="flex flex-wrap items-center gap-2">
-            <ViewSwitch view={view} onChange={setView} />
-            {hasDraft && (
-              <button
-                type="button"
-                className="btn-ghost text-[13px]"
-                onClick={() => setDialog('discard')}
-              >
-                <T>Discard changes</T>
+          <div className="flex flex-col items-start gap-1 sm:items-end">
+            <div className="flex flex-wrap items-center gap-2">
+              <ViewSwitch view={view} onChange={setView} />
+              {hasDraft && (
+                <button
+                  type="button"
+                  className="btn-ghost text-[13px]"
+                  onClick={() => setDialog('discard')}
+                >
+                  <T>Discard changes</T>
+                </button>
+              )}
+              <button type="button" className="btn-primary text-[13px]" onClick={openPublish}>
+                <T>Publish</T>
               </button>
+            </div>
+            {/* Beside the button, not only in the strip: this is the reason
+                the confirmation did not open, and it says what clicking
+                again will do. */}
+            {saveState === 'error' && (
+              <p className="max-w-xs text-[12px] leading-snug text-rose-600 sm:text-right dark:text-rose-300">
+                <T>
+                  This draft is not saved, so it cannot be published yet. Publish tries the
+                  save again.
+                </T>
+              </p>
             )}
-            <button type="button" className="btn-primary text-[13px]" onClick={openPublish}>
-              <T>Publish</T>
-            </button>
           </div>
         }
       />
@@ -425,6 +525,7 @@ export function BuilderClient({
                     expanded={expandedId === question.id}
                     problem={problemsByQuestion.get(question.id)}
                     earlier={questionsBefore(draft, question.id)}
+                    all={flat}
                     frozenKeys={frozenKeys}
                     labelInputId={labelInputId(question.id)}
                     onToggle={() =>
@@ -779,6 +880,7 @@ function FieldCard({
   expanded,
   problem,
   earlier,
+  all,
   frozenKeys,
   labelInputId,
   onToggle,
@@ -791,7 +893,10 @@ function FieldCard({
   number: number;
   expanded: boolean;
   problem: RuleProblem | undefined;
-  earlier: ReturnType<typeof questionsBefore>;
+  /** What a rule here may legally point at: the questions above this one. */
+  earlier: FlatQuestion[];
+  /** Every question, only so a rule already pointing later can be NAMED. */
+  all: FlatQuestion[];
   frozenKeys: ReadonlySet<string>;
   labelInputId: string;
   onToggle: () => void;
@@ -838,7 +943,7 @@ function FieldCard({
           </span>
           {question.showWhen && !expanded && (
             <span className="mt-1 block text-[12px] text-ink-500 dark:text-cream-100/50">
-              <T>Shown only when</T> <RuleSummaryTarget rule={question.showWhen} earlier={earlier} />{' '}
+              <T>Shown only when</T> <RuleSummaryTarget rule={question.showWhen} all={all} />{' '}
               <T>{RULE_OP_LABELS[question.showWhen.op]}</T>
               {question.showWhen.op !== 'answered' && question.showWhen.value
                 ? ` “${question.showWhen.value}”`
@@ -902,6 +1007,7 @@ function FieldCard({
         <FieldEditor
           question={question}
           earlier={earlier}
+          all={all}
           frozenKeys={frozenKeys}
           labelInputId={labelInputId}
           onPatch={onPatch}
@@ -918,14 +1024,12 @@ function FieldCard({
  * Naming it is the point of the summary: "shown only when is Yes" tells the
  * reader nothing about which answer they mean.
  */
-function RuleSummaryTarget({
-  rule,
-  earlier,
-}: {
-  rule: Rule;
-  earlier: ReturnType<typeof questionsBefore>;
-}) {
-  const target = earlier.find((e) => e.question.id === rule.questionId);
+function RuleSummaryTarget({ rule, all }: { rule: Rule; all: FlatQuestion[] }) {
+  // Looked up in the WHOLE form, not just the questions above this one. A
+  // rule pointing at a later question is still pointing at a question that
+  // exists, and calling it "no longer in this form" here contradicted the
+  // inline problem two lines below, which correctly says it comes later.
+  const target = all.find((e) => e.question.id === rule.questionId);
   if (!target) {
     return (
       <span className="italic">
@@ -949,6 +1053,7 @@ function RuleSummaryTarget({
 function FieldEditor({
   question,
   earlier,
+  all,
   frozenKeys,
   labelInputId,
   onPatch,
@@ -956,7 +1061,8 @@ function FieldEditor({
   onDelete,
 }: {
   question: Question;
-  earlier: ReturnType<typeof questionsBefore>;
+  earlier: FlatQuestion[];
+  all: FlatQuestion[];
   frozenKeys: ReadonlySet<string>;
   labelInputId: string;
   onPatch: (patch: Parameters<typeof updateQuestion>[2]) => void;
@@ -1026,6 +1132,7 @@ function FieldEditor({
       <RuleEditor
         question={question}
         earlier={earlier}
+        all={all}
         onPatch={onPatch}
         onClearRule={onClearRule}
       />
@@ -1274,17 +1381,24 @@ function OptionsEditor({
 function RuleEditor({
   question,
   earlier,
+  all,
   onPatch,
   onClearRule,
 }: {
   question: Question;
-  earlier: ReturnType<typeof questionsBefore>;
+  earlier: FlatQuestion[];
+  all: FlatQuestion[];
   onPatch: (patch: Parameters<typeof updateQuestion>[2]) => void;
   onClearRule: () => void;
 }) {
+  const t = useT();
   const rule = question.showWhen;
 
-  if (earlier.length === 0) {
+  // Order matters: an existing rule is always editable, even with nothing
+  // above this question to point at. A field moved to the top of the form
+  // keeps whatever rule it had, and hiding the editor there would leave the
+  // author reading a problem about a rule they had no way to reach.
+  if (!rule && earlier.length === 0) {
     return (
       <p className="text-[12px] text-ink-500 dark:text-cream-100/45">
         <T>
@@ -1311,7 +1425,17 @@ function RuleEditor({
     );
   }
 
-  const controller = earlier.find((e) => e.question.id === rule.questionId);
+  // The dropdown offers `earlier` and nothing else, so a forward reference
+  // cannot be created here. But one can already exist, because a move can put
+  // a field above its controller, and the option list has to be able to show
+  // what the rule currently says. So the CURRENT target is resolved against
+  // the whole form: named and marked as coming later if it is still in the
+  // form, and only called gone when it genuinely is.
+  const controller = all.find((e) => e.question.id === rule.questionId);
+  const targetIsEarlier = earlier.some((e) => e.question.id === rule.questionId);
+  const optionLabel = (entry: FlatQuestion) =>
+    `${String(entry.number).padStart(2, '0')}. ${entry.question.label.trim() || t('Untitled question')}`;
+
   const patchRule = (patch: Partial<Rule>) =>
     onPatch({ showWhen: { ...rule, ...patch } as Rule });
 
@@ -1325,14 +1449,16 @@ function RuleEditor({
           value={rule.questionId}
           onChange={(e) => patchRule({ questionId: e.target.value })}
         >
-          {!controller && (
+          {!targetIsEarlier && (
             <option value={rule.questionId}>
-              {`${rule.questionId.slice(0, 8)} (no longer in this form)`}
+              {controller
+                ? `${optionLabel(controller)} (${t('comes later')})`
+                : t('a question no longer in this form')}
             </option>
           )}
           {earlier.map((e) => (
             <option key={e.question.id} value={e.question.id}>
-              {`${String(e.number).padStart(2, '0')}. ${e.question.label.trim() || 'Untitled question'}`}
+              {optionLabel(e)}
             </option>
           ))}
         </select>

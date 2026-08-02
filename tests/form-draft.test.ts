@@ -362,6 +362,20 @@ describe('ruleProblems', () => {
     expect(ruleProblems(p).map((x) => x.kind)).toEqual(['value']);
   });
 
+  it('is deliberately stricter than the publish validator about that empty value', () => {
+    // This pins a known divergence. `validateFormPayload` only checks that
+    // `value` is a string, so '' publishes; the builder blocks it because the
+    // question it guards could never appear. If the server ever starts or
+    // stops rejecting this, one of these two assertions fails instead of the
+    // two gates quietly disagreeing.
+    const p = payload([
+      { id: 'r1', fields: [q({ id: 'a' })] },
+      { id: 'r2', fields: [q({ id: 'b', showWhen: { questionId: 'a', op: 'eq', value: '' } })] },
+    ]);
+    expect(validateFormPayload(p).ok).toBe(true);
+    expect(ruleProblems(p).map((x) => x.kind)).toEqual(['value']);
+  });
+
   it('does not ask an "has any answer" rule for a value', () => {
     const p = payload([
       { id: 'r1', fields: [q({ id: 'a' })] },

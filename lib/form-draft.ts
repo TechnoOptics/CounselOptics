@@ -27,7 +27,6 @@
  *     rather than overfilling one.
  */
 
-import { QUESTION_TYPES } from './form-schema';
 import type {
   FormPayload,
   Question,
@@ -384,6 +383,13 @@ export function ruleProblems(payload: FormPayload): RuleProblem[] {
       });
       continue;
     }
+    // DELIBERATE DIVERGENCE FROM THE SERVER. `validateFormPayload` ACCEPTS an
+    // empty comparison value: it only checks `typeof value === 'string'`, and
+    // '' passes. So a form failing this check would publish. It is blocked
+    // here anyway, because a rule comparing against nothing can never match
+    // and the question it guards would never appear. `tests/form-draft.test.ts`
+    // asserts both halves of this, so a later loosening or tightening of the
+    // server validator breaks a test rather than drifting apart in silence.
     if ((rule.op === 'eq' || rule.op === 'neq') && !rule.value) {
       problems.push({
         ...base,
