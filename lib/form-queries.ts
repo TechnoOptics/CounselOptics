@@ -236,9 +236,12 @@ export type PublishedForms = Record<string, { payload: FormPayload; versionId: s
  *
  * The intake surfaces need this for the whole picker at once, so that changing
  * the selected type does not cost a round trip. `getPublishedPayload` answers
- * the same question for one type and is what the submit path uses, but calling
- * it per type would be three queries per option and Zinpro already has sixteen
- * of them. This is two queries, or three once anything is actually published.
+ * the same question for one type, but calling it per type would be three
+ * queries per option and Zinpro already has sixteen of them. This is two
+ * queries, or three once anything is actually published. The submit path
+ * reads this map too, rather than `getPublishedPayload`, because it has to
+ * ask whether OTHER types are published in order to break a duplicate-label
+ * tie safely.
  *
  * An empty object is the normal answer today and means every type falls back
  * to the existing fixed fields. A failed read returns the same empty object

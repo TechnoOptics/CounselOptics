@@ -137,7 +137,17 @@ export async function createMatterIntakeAction(
       null;
 
     if (typeKey) {
-      const bound = bindFormAnswers(published[typeKey] ?? null, input.formAnswers);
+      // Same own-property guard the predicate above uses. `typeKey` can fall
+      // through to the caller's own `requestTypeKey`, which arrives over the
+      // wire, so a plain index would return Object.prototype members for
+      // '__proto__', 'constructor' or 'toString' and hand a non-form to
+      // bindFormAnswers, which then throws reading `.rows` of undefined.
+      const bound = bindFormAnswers(
+        Object.prototype.hasOwnProperty.call(published, typeKey)
+          ? published[typeKey]
+          : null,
+        input.formAnswers,
+      );
       if (!bound.ok) {
         return {
           ok: false,
