@@ -28,7 +28,13 @@ function findQuestionById(payload: FormPayload, id: string): Question | undefine
   return undefined;
 }
 
-function isAnswered(value: string | string[] | undefined): boolean {
+/**
+ * Exported because lib/form-to-partner.ts has to tell a missing required
+ * answer apart from a bad one, in order to word the error the partner API
+ * returns. A second definition there would silently flip that wording for the
+ * same input the moment either copy changed.
+ */
+export function isAnswered(value: string | string[] | undefined): boolean {
   if (value === undefined) return false;
   if (Array.isArray(value)) return value.length > 0;
   return value !== '';

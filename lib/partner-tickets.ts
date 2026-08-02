@@ -8,7 +8,11 @@ import type { ThreadMessage } from './intake-thread';
 import { readPartnerConfig, type PartnerQuestion } from './partner-config-core';
 import { partnerTicketEvent } from './partner-notify';
 import { getPublishedPayload } from './form-queries';
-import { bindPartnerFormAnswers, partnerFormBinding } from './form-to-partner';
+import {
+  bindPartnerFormAnswers,
+  partnerFormBinding,
+  partnerFormVersionMismatch,
+} from './form-to-partner';
 import type { QuestionAnswer } from './intake-form-fallback';
 import {
   INTAKE_COLS as CONV_INTAKE_COLS,
@@ -292,7 +296,16 @@ export async function createPartnerTicket(
     typeKey ? await getPublishedPayload(admin, auth.firmId, typeKey) : null,
     input.formVersionId,
     input.answers,
+    config.questions.map((q) => q.id),
   );
+
+  // A caller that sent a version id we cannot match gets told so. Without this
+  // its answers would be keyed to questions in neither set and would be dropped
+  // as unknown ids, leaving a ticket with nothing on it and no error, which is
+  // the outcome the design above rejects. Only reachable for a caller that
+  // sends the field at all, so the shipped app cannot hit it.
+  const mismatch = partnerFormVersionMismatch(binding, input.formVersionId, typeKey);
+  if (mismatch) return { ok: false, status: 400, error: mismatch };
 
   let list: QuestionAnswer[] = [];
   if (binding?.governs) {
@@ -325,15 +338,23 @@ export async function createPartnerTicket(
         externalId,
         employeeEmail: email,
         tokenId: auth.token.id,
-        // How the version binding below was arrived at. There is no column
-        // for this and it is partner-path-only, so it rides in the same jsonb
-        // the rest of the partner metadata already uses. 'echoed' means the
-        // ticket named that exact version, so the answers were collected on
-        // it and judged against it. 'inferred' means we bound it to whatever
-        // was live on arrival; when the ticket showed no sign of having the
-        // form, the answers were judged against the firm-wide partner
-        // questions instead, and this field is where that shows.
-        ...(binding ? { formVersionSource: binding.source } : {}),
+        // The two facts about the version binding below. There is no column
+        // for either and both are partner-path-only, so they ride in the same
+        // jsonb the rest of the partner metadata already uses.
+        //
+        // `formVersionSource` says only how the version id was arrived at:
+        // 'echoed' the ticket named it, 'inferred' we bound it to whatever was
+        // live on arrival.
+        //
+        // `formGoverned` is the one that matters and the one a reader must
+        // check. False means the answers above were validated against the
+        // firm-wide partner questions, NOT against the form named by
+        // form_version_id. Three different outcomes all reach
+        // 'inferred' (governed by matching answer keys, ungoverned with legacy
+        // answers, ungoverned with none), and this is what separates them.
+        ...(binding
+          ? { formVersionSource: binding.source, formGoverned: binding.governs }
+          : {}),
       },
     },
     // Attributed to the linked auth user when the employee has signed in
@@ -344,6 +365,14 @@ export async function createPartnerTicket(
     // Named only when there is a binding to record, the same way the portal
     // submit path does it: an insert that never mentions the column cannot
     // fail anywhere the migration has not run.
+    //
+    // WARNING for anything that reads this column back, including an as-filed
+    // renderer: on this path form_version_id alone does NOT mean the form was
+    // applied. It is the version that was live when the ticket arrived, which
+    // is what the plan asks for, and on an ungoverned ticket the questions in
+    // that version were never asked. Always read
+    // intake_answers.partner.formGoverned alongside it, and render the stored
+    // questionAnswers rather than this version's payload when it is false.
     ...(binding ? { form_version_id: binding.versionId } : {}),
   };
   const { data: created, error } = await admin

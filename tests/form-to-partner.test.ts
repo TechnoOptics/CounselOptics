@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   bindPartnerFormAnswers,
   partnerFormBinding,
+  partnerFormVersionMismatch,
   projectToPartnerQuestions,
 } from '../lib/form-to-partner';
 import { QUESTION_TYPES, type FormPayload, type Question } from '../lib/form-schema';
@@ -110,37 +111,45 @@ const AMOUNT = form([
 
 describe('partnerFormBinding', () => {
   it('returns null when nothing is published, which is every firm today', () => {
-    expect(partnerFormBinding(null, VERSION, { amount: '1' })).toBeNull();
+    expect(partnerFormBinding(null, VERSION, { amount: '1' }, [])).toBeNull();
   });
 
   it('treats an echoed current version as proof the partner rendered this form', () => {
-    const b = partnerFormBinding(AMOUNT, VERSION, {});
+    const b = partnerFormBinding(AMOUNT, VERSION, {}, []);
     expect(b?.source).toBe('echoed');
     expect(b?.governs).toBe(true);
   });
 
   it('governs without an echo when the answers are keyed to the form', () => {
-    const b = partnerFormBinding(AMOUNT, null, { amount: '10.00' });
+    const b = partnerFormBinding(AMOUNT, null, { amount: '10.00' }, []);
     expect(b?.source).toBe('inferred');
     expect(b?.governs).toBe(true);
   });
 
   it('does not govern a ticket that shows no sign of having seen the form', () => {
-    const b = partnerFormBinding(AMOUNT, null, { 'q-legacy': 'Sales' });
+    const b = partnerFormBinding(AMOUNT, null, { 'q-legacy': 'Sales' }, ['q-legacy']);
     expect(b?.source).toBe('inferred');
     expect(b?.governs).toBe(false);
     expect(b?.versionId).toBe(VERSION);
   });
 
   it('never binds a version id the ticket supplied', () => {
-    const b = partnerFormBinding(AMOUNT, OTHER_VERSION, { amount: '10.00' });
+    const b = partnerFormBinding(AMOUNT, OTHER_VERSION, { amount: '10.00' }, []);
     expect(b?.versionId).toBe(VERSION);
     expect(b?.source).toBe('inferred');
   });
 
   it('ignores a non-string echoed version id', () => {
-    expect(partnerFormBinding(AMOUNT, { id: VERSION }, {})?.source).toBe('inferred');
-    expect(partnerFormBinding(AMOUNT, 7, {})?.source).toBe('inferred');
+    expect(partnerFormBinding(AMOUNT, { id: VERSION }, {}, [])?.source).toBe('inferred');
+    expect(partnerFormBinding(AMOUNT, 7, {}, [])?.source).toBe('inferred');
+  });
+
+  it('does not let an answer id shared with the legacy question list stand as evidence', () => {
+    // A firm-wide partnerIntegration question whose id happens to equal one of
+    // the form's keys would otherwise route a legacy-only ticket onto the form
+    // path and discard its other answers.
+    const b = partnerFormBinding(AMOUNT, null, { amount: '10.00' }, ['amount']);
+    expect(b?.governs).toBe(false);
   });
 });
 
@@ -231,5 +240,36 @@ describe('bindPartnerFormAnswers', () => {
   it('ignores an answer value that is not a string', () => {
     const out = bindPartnerFormAnswers(AMOUNT, { amount: { toString: 'no' } } as unknown);
     expect(out.ok).toBe(true);
+  });
+});
+
+describe('partnerFormVersionMismatch', () => {
+  it('says nothing when the ticket sent no version id', () => {
+    expect(partnerFormVersionMismatch(null, undefined, 'nda')).toBeNull();
+    expect(partnerFormVersionMismatch(null, '', 'nda')).toBeNull();
+    const b = partnerFormBinding(AMOUNT, null, { amount: '1' }, []);
+    expect(partnerFormVersionMismatch(b, null, 'nda')).toBeNull();
+  });
+
+  it('says nothing when the version id sent is the one published', () => {
+    const b = partnerFormBinding(AMOUNT, VERSION, {}, []);
+    expect(partnerFormVersionMismatch(b, VERSION, 'nda')).toBeNull();
+  });
+
+  it('rejects a stale version id instead of discarding the answers', () => {
+    const b = partnerFormBinding(AMOUNT, OTHER_VERSION, { amount: '1' }, []);
+    const error = partnerFormVersionMismatch(b, OTHER_VERSION, 'nda');
+    expect(error).toContain('nda');
+    expect(error).toContain('/api/partner/v1/config?type=nda');
+  });
+
+  it('rejects a version id sent for a type with nothing published', () => {
+    const error = partnerFormVersionMismatch(null, OTHER_VERSION, 'unknown-slug');
+    expect(error).toContain('unknown-slug');
+    expect(error).toContain('/api/partner/v1/config');
+  });
+
+  it('rejects a version id sent with no category to match it against', () => {
+    expect(partnerFormVersionMismatch(null, OTHER_VERSION, '')).toContain('category');
   });
 });

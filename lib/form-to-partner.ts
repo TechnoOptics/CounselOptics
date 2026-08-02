@@ -22,7 +22,7 @@
 import type { FormPayload, Question, QuestionType } from './form-schema';
 import type { PartnerQuestion } from './partner-config-core';
 import { buildQuestionAnswers, readAnswers, type QuestionAnswer } from './intake-form-fallback';
-import { validateAnswers, type Answers } from './form-validate';
+import { isAnswered, validateAnswers } from './form-validate';
 
 /**
  * Exported because the builder warns legal which of their question types an
@@ -105,8 +105,21 @@ export function projectToPartnerQuestions(payload: FormPayload): PartnerQuestion
 //    The cost of 3 is stated plainly rather than engineered away: until the
 //    partner app is updated to fetch GET /config?type=<slug>, publishing a
 //    form does not change what its employees are asked, and nobody is told.
-//    The intake still records `partner.formVersionSource: 'inferred'`, which
-//    is where that answer lives when someone asks why.
+//    What IS recorded is `partner.formGoverned`, written from `governs` on
+//    every ticket that reaches a published form. That boolean, not
+//    `formVersionSource`, is the one an intake with no answers has to be read
+//    against: three different outcomes reach `formVersionSource: 'inferred'`
+//    and only `formGoverned` separates them.
+//
+// 4. A ticket that SUPPLIES a `formVersionId` which does not match is a 400,
+//    not a downgrade. Rules 1 to 3 keep a client that never opted in from
+//    seeing new errors; they do not, on their own, keep an opted-in client
+//    from having its answers quietly discarded when a form is rebuilt with
+//    new keys or the slug is wrong, because those answers then match no
+//    question in either set. A client that sends the field has told us it
+//    knows about versions, so it gets an error naming what to re-fetch
+//    instead of a ticket with nothing on it. The shipped app does not send
+//    the field, so this can never fire for it.
 // ---------------------------------------------------------------------------
 
 export type PartnerFormBinding = {
@@ -116,10 +129,14 @@ export type PartnerFormBinding = {
    *  against this, never looked up, so a stale id, another firm's id or
    *  another request type's id cannot bind anything. */
   versionId: string;
-  /** 'echoed' means the ticket named this exact version. 'inferred' means we
-   *  bound it to whatever was live on arrival; with `governs` false it also
-   *  means the answers were NOT judged against it. */
+  /** How `versionId` was arrived at, and nothing more. 'echoed' means the
+   *  ticket named this exact version; 'inferred' means we bound it to
+   *  whatever was live on arrival. It does NOT say whether the form was
+   *  applied: read `governs` for that. */
   source: 'echoed' | 'inferred';
+  /** Whether the form actually judged this ticket's answers. False means the
+   *  answers were checked against the firm-wide partner questions instead, so
+   *  `versionId` records only what was live at the time. */
   governs: boolean;
 };
 
@@ -140,18 +157,26 @@ function formKeys(payload: FormPayload): Set<string> {
  * Whether a published form applies to an arriving ticket, and on what basis.
  * Null means no form is published for the ticket's request type, which is the
  * path every firm is on today and must stay unchanged.
+ *
+ * `legacyQuestionIds` are the ids of the firm-wide
+ * `partnerIntegration.questions`. An answer id that appears in BOTH sets is no
+ * evidence of anything, because a ticket built from the firm-wide list would
+ * carry it either way, so it is excluded rather than allowed to route a
+ * legacy-only ticket onto the form path and discard its other answers.
  */
 export function partnerFormBinding(
   published: { payload: FormPayload; versionId: string } | null | undefined,
   echoedVersionId: unknown,
   rawAnswers: unknown,
+  legacyQuestionIds: readonly string[],
 ): PartnerFormBinding | null {
   if (!published) return null;
 
   const echoed =
     typeof echoedVersionId === 'string' && echoedVersionId.trim() === published.versionId;
   const keys = formKeys(published.payload);
-  const answersUseForm = submittedKeys(rawAnswers).some((k) => keys.has(k));
+  const legacy = new Set(legacyQuestionIds);
+  const answersUseForm = submittedKeys(rawAnswers).some((k) => keys.has(k) && !legacy.has(k));
 
   return {
     payload: published.payload,
@@ -161,9 +186,46 @@ export function partnerFormBinding(
   };
 }
 
-function isMissing(value: Answers[string] | undefined): boolean {
-  if (value === undefined) return true;
-  return Array.isArray(value) ? value.length === 0 : value === '';
+/**
+ * The error to return when a ticket supplied a `formVersionId` that did not
+ * bind, or null when there is nothing to say.
+ *
+ * Separate from `partnerFormBinding` because it is a decision about the
+ * CALLER, not about the form: a client that sends the field has opted in to
+ * versioning, so a mismatch is worth an error, while a client that omits it is
+ * left exactly as it is today. Both messages name the fetch that fixes it, so
+ * a developer on the other end can act without our source.
+ */
+export function partnerFormVersionMismatch(
+  binding: PartnerFormBinding | null,
+  echoedVersionId: unknown,
+  typeKey: string,
+): string | null {
+  const claimed = typeof echoedVersionId === 'string' ? echoedVersionId.trim() : '';
+  if (!claimed) return null;
+  if (binding?.source === 'echoed') return null;
+
+  if (!typeKey) {
+    return (
+      'This ticket sent a formVersionId but no category, so there is no request ' +
+      'type to match it against. Send the request type slug as "category", then ' +
+      'fetch GET /api/partner/v1/config?type=<slug> and resend the answers with ' +
+      'the formVersionId it returns.'
+    );
+  }
+  if (!binding) {
+    return (
+      `No intake form is published for category "${typeKey}", so the ` +
+      'formVersionId sent cannot apply. Check the request type slug, then fetch ' +
+      `GET /api/partner/v1/config?type=${typeKey} and resend the answers with ` +
+      'the formVersionId it returns.'
+    );
+  }
+  return (
+    `The formVersionId sent is not the version currently published for category ` +
+    `"${typeKey}". Fetch GET /api/partner/v1/config?type=${typeKey} and resend ` +
+    'the answers with the formVersionId it returns.'
+  );
 }
 
 /**
@@ -191,13 +253,23 @@ export function bindPartnerFormAnswers(
       const message = checked.errors[q.key];
       if (!message) continue;
       problems.push(
-        isMissing(answers[q.key])
-          ? `Missing required answer: "${q.label}" (question id ${q.key}).`
-          : `Answer for "${q.label}" (question id ${q.key}) is not valid: ${message}`,
+        isAnswered(answers[q.key])
+          ? `Answer for "${q.label}" (question id ${q.key}) is not valid: ${message}`
+          : `Missing required answer: "${q.label}" (question id ${q.key}).`,
       );
     }
   }
-  if (problems.length === 0) return { ok: true, list: buildQuestionAnswers(form.payload, answers) };
+  // Defensive: validation failed but no error mapped onto a question, which
+  // nothing can currently produce. Still a refusal, because "the check failed,
+  // therefore accept" is the wrong way for this to break if it ever can.
+  if (problems.length === 0) {
+    return {
+      ok: false,
+      error:
+        'Some answers could not be accepted. Fetch the current questions from ' +
+        'GET /api/partner/v1/config and resend them.',
+    };
+  }
 
   const rest = problems.length - 1;
   const tail =

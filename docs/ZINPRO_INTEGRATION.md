@@ -252,6 +252,20 @@ The response shape is unchanged. Two things differ:
 `formVersionId` is also present (as `null`) on the plain `GET /config`, so
 adding the field breaks no existing parser.
 
+**Size the form UI for a larger list.** The firm-wide question list is capped
+at 12 questions with at most 12 options each. A built form is not: it can carry
+up to 60 questions, and a choice list up to 100 options. The projected list is
+deliberately not truncated to the old bounds, because a dropped question can be
+the one that controls whether a later question applies, and a dropped option
+would make a legitimate choice unsubmittable. Render the list at whatever
+length it arrives.
+
+**A `formVersionId` that does not match is a 400.** If you send one and it is
+not the version currently published for that request type (the form was
+rebuilt, or `category` is not the request type's slug), the create is refused
+with a message naming the fetch that fixes it, rather than filing a request
+whose answers match no question we hold. Omit the field and nothing changes.
+
 ### 5.2 Create a ticket
 
 `POST /api/partner/v1/tickets`
