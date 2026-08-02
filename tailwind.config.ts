@@ -60,21 +60,30 @@ const config: Config = {
           100: 'rgb(var(--forest-100) / <alpha-value>)',
           50: 'rgb(var(--forest-50) / <alpha-value>)',
         },
+        // The accent ramp. Still named `gold` because ~1400 call sites say
+        // `gold-*`; renaming the family would be the mass edit this token
+        // change exists to avoid. Read it as "the accent", not "the hue".
+        //
+        // Same variable indirection as `forest` above, and for the same
+        // reason: :root in globals.css declares the champagne gold, so the
+        // consumer app and the marketing pages are byte-identical, and
+        // .counsel-shell / .enterprise-shell remap the eleven channels to
+        // emerald so every gold utility inside those shells recolors at
+        // once. <alpha-value> is what keeps `bg-gold-500/15` and
+        // `ring-gold-500/60` working.
         gold: {
-          // Softer champagne-leaning gold; less saturated than the previous
-          // burnished tone (#C9A85A) so it reads as warm rather than yellow.
-          DEFAULT: '#D5BB7E',
-          950: '#3E3520',
-          900: '#5C4F30',
-          800: '#7E6B41',
-          700: '#A38A55',
-          600: '#C2A66A',
-          500: '#D5BB7E',
-          400: '#DEC68A',
-          300: '#E5CE93',
-          200: '#EFE0B7',
-          100: '#F5EDD6',
-          50: '#FBF8EE',
+          DEFAULT: 'rgb(var(--gold-500) / <alpha-value>)',
+          950: 'rgb(var(--gold-950) / <alpha-value>)',
+          900: 'rgb(var(--gold-900) / <alpha-value>)',
+          800: 'rgb(var(--gold-800) / <alpha-value>)',
+          700: 'rgb(var(--gold-700) / <alpha-value>)',
+          600: 'rgb(var(--gold-600) / <alpha-value>)',
+          500: 'rgb(var(--gold-500) / <alpha-value>)',
+          400: 'rgb(var(--gold-400) / <alpha-value>)',
+          300: 'rgb(var(--gold-300) / <alpha-value>)',
+          200: 'rgb(var(--gold-200) / <alpha-value>)',
+          100: 'rgb(var(--gold-100) / <alpha-value>)',
+          50: 'rgb(var(--gold-50) / <alpha-value>)',
         },
         // Cream kept as a neutral warm-off-white tint for subtle backgrounds.
         cream: {
@@ -104,22 +113,22 @@ const config: Config = {
         'card-hover':
           '0 6px 18px -4px rgb(15 45 36 / 0.10), 0 2px 4px -1px rgb(15 45 36 / 0.05)',
         'brand-glow': '0 8px 24px -4px rgb(15 45 36 / 0.30)',
-        'gold-glow': '0 0 0 3px rgb(213 187 126 / 0.30)',
+        'gold-glow': '0 0 0 3px rgb(var(--gold-500) / 0.30)',
       },
       backgroundImage: {
         'forest-gradient': 'linear-gradient(135deg, #0F2D24 0%, #173b30 50%, #23362F 100%)',
-        // Metallic gold to match the brand pillar mark: deep bronze base,
-        // rich warm gold mids, and two cream-gold highlight bands so the
-        // gold-pan animation sweeps a real shimmer across text/surfaces.
-        'gold-shine':
-          'linear-gradient(135deg, #8a661f 0%, #c79532 12%, #f2d896 28%, #d4a14a 44%, #b08229 58%, #d4a14a 72%, #f2d896 88%, #c79532 100%)',
-        // Vertical solid-fill version for buttons / CTAs - top highlight,
-        // rich body, deep base, warm bottom edge. Same palette, fewer
-        // stops, no diagonal so big surfaces still read as "gold."
-        'gold-metal':
-          'linear-gradient(180deg, #f2d896 0%, #d4a14a 32%, #b08229 65%, #c79532 100%)',
+        // The two metallic fills carry stops that are not ramp slots (a
+        // deeper bronze base and a brighter highlight than any gold-*),
+        // so each is a whole gradient in one variable rather than eleven
+        // channels. Values live in globals.css: :root keeps the metallic
+        // gold, the enterprise shells swap in the emerald equivalents.
+        // Without this, `bg-gold-metal` CTAs would stay gold inside an
+        // otherwise emerald shell.
+        'gold-shine': 'var(--gold-shine)',
+        'gold-metal': 'var(--gold-metal)',
+        // Every stop here is gold-500, so this one follows the ramp.
         'gold-veil':
-          'linear-gradient(180deg, rgba(213,187,126,0) 0%, rgba(213,187,126,0.10) 100%)',
+          'linear-gradient(180deg, rgb(var(--gold-500) / 0) 0%, rgb(var(--gold-500) / 0.10) 100%)',
       },
     },
   },

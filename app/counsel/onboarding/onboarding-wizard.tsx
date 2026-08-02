@@ -858,7 +858,7 @@ function CheckIcon() {
   return (
     <span
       className="flex-none mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full"
-      style={{ backgroundColor: 'var(--firm-accent, #d5bb7e)' }}
+      style={{ backgroundColor: 'var(--firm-accent, rgb(var(--gold-500)))' }}
       aria-hidden
     >
       <svg width="11" height="11" viewBox="0 0 24 24" fill="none">

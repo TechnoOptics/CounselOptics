@@ -6,8 +6,8 @@ import type { CaseEvidenceAnalytics, NameCount } from '@/lib/case-analytics';
 /* Live evidence analytics for a matter. Server-rendered from
    getCaseEvidenceAnalytics on each (force-dynamic) page load, so it reflects
    the current de-duplicated, freshly-analysed set with no client fetch. Charts
-   are hand-rolled SVG/CSS (no chart dependency) in a gold + neutral palette;
-   deliberately no green, per the firm-surface rule.
+   are hand-rolled SVG/CSS (no chart dependency) in an accent + neutral
+   palette taken from the shell's accent ramp.
 
    Every metric and chart segment is a deep link into the Evidence tab with a
    filter query param (?status=, ?relevance=, ?folder=, ?doctype=, ?year=,
@@ -15,10 +15,17 @@ import type { CaseEvidenceAnalytics, NameCount } from '@/lib/case-analytics';
    static readout. The evidence list parses those params and narrows itself,
    showing a clearable "Showing ..." chip. */
 
-const GOLD = '#B9922F';
-const GOLD_MID = '#D5BB7E';
-const GOLD_SOFT = '#E8D9B5';
-const NEUTRAL = '#9C968B';
+/* The chart palette. Literal hexes rather than rgb(var(--gold-N)), because
+   half of these land on SVG presentation attributes (stroke=, fill=) where
+   browsers do not substitute var(). This file only ever renders inside
+   .counsel-shell, so it carries the shell's emerald directly: each value is
+   the accent ramp's emerald at the same slot the gold it replaced sat on.
+   NEUTRAL drops its warm tint for the shell's zinc, since a green-tinted
+   grey next to three emeralds reads as a fourth, dimmer emerald. */
+const ACCENT = '#00B47D';
+const ACCENT_MID = '#44DCA2';
+const ACCENT_SOFT = '#A2EEC9';
+const NEUTRAL = '#9C9CA6';
 
 function fmtBytes(bytes: number): string {
   if (bytes <= 0) return '0 MB';
@@ -75,8 +82,8 @@ function Panel({ title, hint, children }: { title: React.ReactNode; hint?: React
   );
 }
 
-/** Horizontal bar list, sequential gold. Each row links to its filtered slice. */
-function BarList({ rows, color = GOLD, hrefFor }: { rows: NameCount[]; color?: string; hrefFor: (name: string) => string }) {
+/** Horizontal bar list, sequential accent. Each row links to its filtered slice. */
+function BarList({ rows, color = ACCENT, hrefFor }: { rows: NameCount[]; color?: string; hrefFor: (name: string) => string }) {
   const max = Math.max(1, ...rows.map((r) => r.n));
   return (
     <div className="space-y-1.5">
@@ -105,8 +112,8 @@ function StatusRing({ a, base }: { a: CaseEvidenceAnalytics; base: string }) {
   const inProgress = a.status.running + a.status.pending + a.status.skipped;
   const na = a.status.error;
   const segs = [
-    { v: a.status.done, c: GOLD },
-    { v: inProgress, c: GOLD_SOFT },
+    { v: a.status.done, c: ACCENT },
+    { v: inProgress, c: ACCENT_SOFT },
     { v: na, c: NEUTRAL },
   ].filter((s) => s.v > 0);
   const r = 42;
@@ -146,8 +153,8 @@ function StatusRing({ a, base }: { a: CaseEvidenceAnalytics; base: string }) {
           {a.analyzedPct}%
         </div>
         <div className="text-[11px] text-ink-400 dark:text-cream-100/45 mb-1"><T>analyzed</T></div>
-        <LegendRow color={GOLD} label={<T>Analyzed</T>} n={a.status.done} href={`${base}?status=done`} />
-        {inProgress > 0 ? <LegendRow color={GOLD_SOFT} label={<T>In progress</T>} n={inProgress} href={`${base}?status=pending`} /> : null}
+        <LegendRow color={ACCENT} label={<T>Analyzed</T>} n={a.status.done} href={`${base}?status=done`} />
+        {inProgress > 0 ? <LegendRow color={ACCENT_SOFT} label={<T>In progress</T>} n={inProgress} href={`${base}?status=pending`} /> : null}
         {na > 0 ? <LegendRow color={NEUTRAL} label={<T>Not analyzable</T>} n={na} href={`${base}?status=error`} /> : null}
       </div>
     </div>
@@ -175,8 +182,8 @@ function RelevanceBar({ a, base }: { a: CaseEvidenceAnalytics; base: string }) {
   const { high, medium, low, scored, avg } = a.relevance;
   const t = Math.max(1, scored);
   const parts = [
-    { v: high, c: GOLD, label: <T>High</T>, band: 'high' },
-    { v: medium, c: GOLD_MID, label: <T>Medium</T>, band: 'medium' },
+    { v: high, c: ACCENT, label: <T>High</T>, band: 'high' },
+    { v: medium, c: ACCENT_MID, label: <T>Medium</T>, band: 'medium' },
     { v: low, c: NEUTRAL, label: <T>Low</T>, band: 'low' },
   ];
   return (
@@ -204,8 +211,8 @@ function RelevanceBar({ a, base }: { a: CaseEvidenceAnalytics; base: string }) {
  *  years hold the most relevant evidence" at a glance. */
 function relevanceColor(avg: number | null): string {
   if (avg == null) return NEUTRAL;
-  if (avg >= 67) return GOLD;
-  if (avg >= 34) return GOLD_MID;
+  if (avg >= 67) return ACCENT;
+  if (avg >= 34) return ACCENT_MID;
   return NEUTRAL;
 }
 
@@ -262,8 +269,8 @@ function YearColumns({
         <span className="uppercase tracking-[0.1em] text-ink-400 dark:text-cream-100/40">
           <T>Bar colour = relevance</T>
         </span>
-        <LegendSwatch color={GOLD} label={<T>High</T>} />
-        <LegendSwatch color={GOLD_MID} label={<T>Medium</T>} />
+        <LegendSwatch color={ACCENT} label={<T>High</T>} />
+        <LegendSwatch color={ACCENT_MID} label={<T>Medium</T>} />
         <LegendSwatch color={NEUTRAL} label={<T>Low</T>} />
       </div>
     </div>
@@ -352,7 +359,7 @@ export function EvidenceDashboard({ analytics: a, caseId }: { analytics: CaseEvi
         ) : null}
         {a.docTypes.length > 0 ? (
           <Panel title={<T>By document type</T>} hint={<T>what each item depicts</T>}>
-            <BarList rows={a.docTypes} color={GOLD_MID} hrefFor={(name) => q({ doctype: name })} />
+            <BarList rows={a.docTypes} color={ACCENT_MID} hrefFor={(name) => q({ doctype: name })} />
           </Panel>
         ) : null}
       </div>

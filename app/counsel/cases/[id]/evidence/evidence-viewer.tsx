@@ -182,10 +182,13 @@ export function EvidenceViewer({
       >
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
           <defs>
+            {/* Accent ramp, literal because stop-color is an SVG
+                presentation attribute and browsers do not substitute
+                var() there. Counsel-shell only, so it is emerald. */}
             <linearGradient id="advGoldClose" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
-              <stop offset="0" stopColor="#f2d99a" />
-              <stop offset="0.5" stopColor="#d5bb7e" />
-              <stop offset="1" stopColor="#a9761f" />
+              <stop offset="0" stopColor="#68fbbe" />
+              <stop offset="0.5" stopColor="#44dca2" />
+              <stop offset="1" stopColor="#009a69" />
             </linearGradient>
           </defs>
           <path d="M6 6l12 12M18 6L6 18" stroke="url(#advGoldClose)" strokeWidth="2.5" strokeLinecap="round" />

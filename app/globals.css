@@ -48,6 +48,39 @@
   --forest-200: 202 217 210;/* #cad9d2 */
   --forest-100: 227 236 232;/* #e3ece8 */
   --forest-50:  241 245 243;/* #f1f5f3 */
+
+  /* Accent ramp, same shape and same reason as forest above. These are
+     the EXACT champagne golds the `gold` family used to hard-code, so
+     every gold-* utility on the consumer app and the marketing pages
+     computes to a byte-identical color. The enterprise shells override
+     them (further down) with emerald. */
+  --gold-950: 62 53 32;     /* #3E3520 */
+  --gold-900: 92 79 48;     /* #5C4F30 */
+  --gold-800: 126 107 65;   /* #7E6B41 */
+  --gold-700: 163 138 85;   /* #A38A55 */
+  --gold-600: 194 166 106;  /* #C2A66A */
+  --gold-500: 213 187 126;  /* #D5BB7E */
+  --gold-400: 222 198 138;  /* #DEC68A */
+  --gold-300: 229 206 147;  /* #E5CE93 */
+  --gold-200: 239 224 183;  /* #EFE0B7 */
+  --gold-100: 245 237 214;  /* #F5EDD6 */
+  --gold-50:  251 248 238;  /* #FBF8EE */
+
+  /* Metallic fills for `bg-gold-shine` / `bg-gold-metal`. Deep bronze
+     base, rich warm mids, two cream-gold highlight bands so the
+     gold-pan animation sweeps a real shimmer. */
+  --gold-shine: linear-gradient(
+    135deg,
+    #8a661f 0%,
+    #c79532 12%,
+    #f2d896 28%,
+    #d4a14a 44%,
+    #b08229 58%,
+    #d4a14a 72%,
+    #f2d896 88%,
+    #c79532 100%
+  );
+  --gold-metal: linear-gradient(180deg, #f2d896 0%, #d4a14a 32%, #b08229 65%, #c79532 100%);
 }
 body {
   padding-left: var(--safe-left);
@@ -239,7 +272,7 @@ body::before {
   inset: 0;
   pointer-events: none;
   background-image:
-    radial-gradient(1200px 600px at 90% -10%, rgba(213, 187, 126, 0.16), transparent 60%),
+    radial-gradient(1200px 600px at 90% -10%, rgb(var(--gold-500) / 0.16), transparent 60%),
     radial-gradient(900px 500px at -10% 100%, rgba(15, 45, 36, 0.06), transparent 60%);
   z-index: 0;
   mask-image: linear-gradient(180deg, black 0%, black 30%, rgba(0, 0, 0, 0.6) 100%);
@@ -268,8 +301,8 @@ html.dark, html.dark body {
 }
 html.dark body::before {
   background-image:
-    radial-gradient(1200px 600px at 90% -10%, rgba(213, 187, 126, 0.10), transparent 60%),
-    radial-gradient(900px 500px at -10% 100%, rgba(213, 187, 126, 0.04), transparent 60%);
+    radial-gradient(1200px 600px at 90% -10%, rgb(var(--gold-500) / 0.10), transparent 60%),
+    radial-gradient(900px 500px at -10% 100%, rgb(var(--gold-500) / 0.04), transparent 60%);
 }
 /* Text classes that are typically used directly on the page body
    (which goes dark above) need a cream fallback so they stay readable.
@@ -326,7 +359,7 @@ html.dark body::before {
 /* Border + ring inversions so light-mode hairlines do not vanish */
 .dark .border-ink-100 { border-color: rgba(245, 237, 214, 0.08); }
 .dark .border-ink-200 { border-color: rgba(245, 237, 214, 0.12); }
-.dark .border-forest-200 { border-color: rgba(213, 187, 126, 0.25); }
+.dark .border-forest-200 { border-color: rgb(var(--gold-500) / 0.25); }
 .dark .ring-ink-200 { --tw-ring-color: rgba(245, 237, 214, 0.12); }
 
 /* ---------------------------- Contrast safety -----------------------------
@@ -440,7 +473,7 @@ html.dark .bg-forest-950 > .text-ink-950:not([class^="bg-"]):not([class*=" bg-"]
    tile primitive; gradient hero bands don't trip it. */
 .bg-forest-900 > .card,
 .bg-forest-950 > .card {
-  --tw-ring-color: rgba(213, 187, 126, 0.35); /* gold-300 hairline */
+  --tw-ring-color: rgb(var(--gold-500) / 0.35); /* gold-300 hairline */
   box-shadow: 0 0 0 1px var(--tw-ring-color), 0 8px 24px -4px rgba(15,45,36,0.20);
 }
 .bg-cream-50 > .card,
@@ -477,9 +510,9 @@ body > * {
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(213, 187, 126, 0.55) 25%,
+    rgb(var(--gold-500) / 0.55) 25%,
     rgba(245, 237, 214, 0.85) 50%,
-    rgba(213, 187, 126, 0.55) 75%,
+    rgb(var(--gold-500) / 0.55) 75%,
     transparent 100%
   );
   /* Stacked downward halo that fades into the page below the header,
@@ -488,9 +521,9 @@ body > * {
      overflow on the line itself, so the shimmer ::after can still
      be clipped horizontally without losing the vertical glow. */
   box-shadow:
-    0 1px 4px rgba(213, 187, 126, 0.55),
-    0 4px 14px rgba(213, 187, 126, 0.32),
-    0 10px 32px rgba(213, 187, 126, 0.18);
+    0 1px 4px rgb(var(--gold-500) / 0.55),
+    0 4px 14px rgb(var(--gold-500) / 0.32),
+    0 10px 32px rgb(var(--gold-500) / 0.18);
   overflow: hidden;
 }
 .header-glow-line::after {
@@ -504,11 +537,11 @@ body > * {
     90deg,
     transparent 0%,
     rgba(245, 237, 214, 0.85) 30%,
-    rgba(213, 187, 126, 1) 50%,
+    rgb(var(--gold-500) / 1) 50%,
     rgba(245, 237, 214, 0.85) 70%,
     transparent 100%
   );
-  filter: blur(0.5px) drop-shadow(0 0 8px rgba(213, 187, 126, 0.85));
+  filter: blur(0.5px) drop-shadow(0 0 8px rgb(var(--gold-500) / 0.85));
   animation: co-header-shimmer 12s linear infinite;
 }
 
@@ -530,20 +563,20 @@ body > * {
     linear-gradient(var(--pill-bg, #ffffff), var(--pill-bg, #ffffff)),
     linear-gradient(
       90deg,
-      rgba(213, 187, 126, 0.55) 0%,
+      rgb(var(--gold-500) / 0.55) 0%,
       rgba(245, 237, 214, 0.95) 20%,
       rgba(196, 149, 50, 0.85) 40%,
-      rgba(213, 187, 126, 0.55) 60%,
+      rgb(var(--gold-500) / 0.55) 60%,
       rgba(245, 237, 214, 0.95) 80%,
-      rgba(213, 187, 126, 0.55) 100%
+      rgb(var(--gold-500) / 0.55) 100%
     );
   background-origin: border-box;
   background-clip: padding-box, border-box;
   background-size: auto, 200% 100%;
   animation: co-gold-border-pan 12s linear infinite;
   box-shadow:
-    0 1px 6px rgba(213, 187, 126, 0.3),
-    0 4px 14px rgba(213, 187, 126, 0.14);
+    0 1px 6px rgb(var(--gold-500) / 0.3),
+    0 4px 14px rgb(var(--gold-500) / 0.14);
 }
 .dark .search-pill-gold {
   --pill-bg: rgb(var(--forest-900));
@@ -631,9 +664,9 @@ body > * {
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(213, 187, 126, 0.18) 35%,
+    rgb(var(--gold-500) / 0.18) 35%,
     rgba(245, 237, 214, 0.32) 50%,
-    rgba(213, 187, 126, 0.18) 65%,
+    rgb(var(--gold-500) / 0.18) 65%,
     transparent 100%
   );
   background-size: 200% 100%;
@@ -647,13 +680,13 @@ body > * {
 @keyframes co-cookie-glow {
   0%, 100% {
     box-shadow:
-      0 0 0 0 rgba(213, 187, 126, 0),
+      0 0 0 0 rgb(var(--gold-500) / 0),
       0 12px 28px -10px rgba(15, 45, 36, 0.45),
-      0 0 0 1px rgba(213, 187, 126, 0.45);
+      0 0 0 1px rgb(var(--gold-500) / 0.45);
   }
   50% {
     box-shadow:
-      0 0 24px 2px rgba(213, 187, 126, 0.40),
+      0 0 24px 2px rgb(var(--gold-500) / 0.40),
       0 12px 28px -10px rgba(15, 45, 36, 0.45),
       0 0 0 1px rgba(245, 237, 214, 0.7);
   }
@@ -702,6 +735,67 @@ body > * {
   --forest-200: 202 202 210;
   --forest-100: 232 232 236;
   --forest-50: 244 244 245;
+
+  /* ---------------- Emerald accent, shells only ----------------
+     The accent ramp, remapped from champagne gold to Techottic's
+     emerald. Same mechanism as the forest remap above and the same
+     payoff: every gold-* utility, every /opacity variant, and both
+     metallic fills recolor from these declarations, and not one of
+     the ~1400 `gold-*` call sites moves.
+
+     SCOPE, deliberately: the counsel workspace, the employee
+     /portal (which also wears .counsel-shell), and the /enterprise
+     marketing shell. The consumer Advottic app and the public
+     marketing pages keep gold, because gold is the brand colour on
+     public surfaces and changing that is a bigger decision than
+     this one. Widening it later is a one-line move: lift these
+     eleven declarations plus the two gradients into :root and
+     delete this block. That is why it is built this way.
+
+     How the ramp was derived, so the next person can extend it.
+     Techottic gives two stops, --accent #059669 and --accent-2
+     #34d399, which is not a ramp. Both sit at OKLCH hue 163.2, and
+     both sit at 1.80x the chroma the gold ramp carries at their
+     lightness (1.815 and 1.789 measured independently, which is
+     what makes the single factor honest). So each slot keeps the
+     gold ramp's exact OKLab lightness, takes hue 163.2, and takes
+     1.80x the gold slot's chroma, clamped into sRGB. Lightness is
+     preserved rather than snapped to the two anchors so that
+     gold-200 and gold-700 keep meaning "much lighter" and "much
+     darker" at every call site; the cost is that the two anchor
+     hexes land between slots (#34d399 between 500 and 600,
+     #059669 between 700 and 800) instead of on one.
+
+     Contrast went up, not down. On the counsel card at rgb(21,21,25):
+     gold-500 9.75:1 -> emerald 10.41:1, gold-700 5.48:1 -> 5.88:1. */
+  --gold-950: 11 64 44;     /* #0B402C */
+  --gold-900: 12 95 66;     /* #0C5F42 */
+  --gold-800: 3 130 90;     /* #03825A */
+  --gold-700: 0 167 117;    /* #00A775 */
+  --gold-600: 32 199 142;   /* #20C78E */
+  --gold-500: 68 220 162;   /* #44DCA2 */
+  --gold-400: 88 230 173;   /* #58E6AD */
+  --gold-300: 101 237 181;  /* #65EDB5 */
+  --gold-200: 160 246 206;  /* #A0F6CE */
+  --gold-100: 204 250 227;  /* #CCFAE3 */
+  --gold-50: 234 254 243;   /* #EAFEF3 */
+
+  /* Metallic fills, same stop positions, each stop run through the
+     same transform. The mid and base stops clamp to sRGB's green
+     boundary, which is why they read as flatly saturated where the
+     gold originals read as bronze. */
+  --gold-shine: linear-gradient(
+    135deg,
+    #008258 0%,
+    #00bc82 12%,
+    #5efbbc 28%,
+    #00cb8c 44%,
+    #00a572 58%,
+    #00cb8c 72%,
+    #5efbbc 88%,
+    #00bc82 100%
+  );
+  --gold-metal: linear-gradient(180deg, #5efbbc 0%, #00cb8c 32%, #00a572 65%, #00bc82 100%);
 }
 
 /* Scoped neutralization of the hard-coded green repaint hexes from
@@ -754,7 +848,7 @@ body > * {
 .counsel-shell .bg-forest-950 > .card,
 .enterprise-shell .bg-forest-900 > .card,
 .enterprise-shell .bg-forest-950 > .card {
-  border-color: rgba(213, 187, 126, 0.28);
+  border-color: rgb(var(--gold-500) / 0.28);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
 }
 
@@ -766,7 +860,7 @@ body > * {
 .counsel-shell {
   background-color: #0a0a0b;
   background-image:
-    radial-gradient(900px 420px at 75% -12%, rgba(213, 187, 126, 0.05), transparent 65%);
+    radial-gradient(900px 420px at 75% -12%, rgb(var(--gold-500) / 0.05), transparent 65%);
   background-attachment: fixed;
 }
 
@@ -786,11 +880,11 @@ body > * {
    handful of elements rather than every tile on the page. */
 .counsel-shell .card {
   background-color: rgba(22, 22, 26, 0.92);
-  border-color: rgba(213, 187, 126, 0.12);
+  border-color: rgb(var(--gold-500) / 0.12);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
 }
 .counsel-shell .card:hover {
-  border-color: rgba(213, 187, 126, 0.32);
+  border-color: rgb(var(--gold-500) / 0.32);
 }
 
 /* Inputs read as inset wells against the dark backdrop. */
@@ -798,14 +892,14 @@ body > * {
 .counsel-shell select.input,
 .counsel-shell textarea.input {
   background-color: rgba(14, 14, 14, 0.55);
-  border-color: rgba(213, 187, 126, 0.18);
+  border-color: rgb(var(--gold-500) / 0.18);
   color: rgb(245, 237, 214);
 }
 .counsel-shell .input::placeholder {
   color: rgba(245, 237, 214, 0.45);
 }
 .counsel-shell .input:focus {
-  border-color: rgba(213, 187, 126, 0.45);
+  border-color: rgb(var(--gold-500) / 0.45);
   background-color: rgba(18, 18, 18, 0.7);
 }
 
@@ -818,7 +912,7 @@ body > * {
 .hq-shell {
   background-color: #0a1714;
   background-image:
-    radial-gradient(ellipse at 18% 8%, rgba(213, 187, 126, 0.10), rgba(213, 187, 126, 0) 55%),
+    radial-gradient(ellipse at 18% 8%, rgb(var(--gold-500) / 0.10), rgb(var(--gold-500) / 0) 55%),
     radial-gradient(ellipse at 92% 100%, rgba(15, 32, 26, 0.9), rgba(15, 32, 26, 0) 60%),
     linear-gradient(180deg, #0e231d 0%, #0a1714 55%, #07120e 100%);
   background-attachment: fixed;
@@ -846,9 +940,9 @@ body > * {
   background: linear-gradient(
     135deg,
     rgba(245, 237, 214, 0.55) 0%,
-    rgba(213, 187, 126, 0.85) 28%,
+    rgb(var(--gold-500) / 0.85) 28%,
     rgba(140, 110, 60, 0.35) 55%,
-    rgba(213, 187, 126, 0.65) 80%,
+    rgb(var(--gold-500) / 0.65) 80%,
     rgba(245, 237, 214, 0.4) 100%
   );
   -webkit-mask:
@@ -874,13 +968,13 @@ body > * {
   border-radius: inherit;
   box-shadow:
     inset 0 1px 0 rgba(245, 237, 214, 0.06),
-    0 0 0 1px rgba(213, 187, 126, 0) inset;
+    0 0 0 1px rgb(var(--gold-500) / 0) inset;
   pointer-events: none;
   z-index: -1;
 }
 .hq-shell .card:hover {
   box-shadow:
-    0 0 24px -8px rgba(213, 187, 126, 0.25),
+    0 0 24px -8px rgb(var(--gold-500) / 0.25),
     0 8px 32px -12px rgba(0, 0, 0, 0.4);
 }
 
@@ -888,14 +982,14 @@ body > * {
 .hq-shell select.input,
 .hq-shell textarea.input {
   background-color: rgba(10, 23, 20, 0.6);
-  border-color: rgba(213, 187, 126, 0.18);
+  border-color: rgb(var(--gold-500) / 0.18);
   color: rgb(245, 237, 214);
 }
 .hq-shell .input::placeholder {
   color: rgba(245, 237, 214, 0.45);
 }
 .hq-shell .input:focus {
-  border-color: rgba(213, 187, 126, 0.45);
+  border-color: rgb(var(--gold-500) / 0.45);
   background-color: rgba(10, 23, 20, 0.8);
 }
 
@@ -963,13 +1057,13 @@ canvas {
 }
 @keyframes co-cookie-breathe {
   0%, 100% { box-shadow:
-    0 0 0 1px rgba(213, 187, 126, 0.55),
+    0 0 0 1px rgb(var(--gold-500) / 0.55),
     0 28px 80px -10px rgba(15, 45, 36, 0.65),
-    0 0 90px rgba(213, 187, 126, 0.32); }
+    0 0 90px rgb(var(--gold-500) / 0.32); }
   50% { box-shadow:
     0 0 0 1px rgba(245, 237, 214, 0.85),
     0 28px 80px -10px rgba(15, 45, 36, 0.7),
-    0 0 110px rgba(213, 187, 126, 0.5); }
+    0 0 110px rgb(var(--gold-500) / 0.5); }
 }
 .animate-cookie-focus {
   animation:
@@ -996,14 +1090,14 @@ canvas {
   0%, 100% {
     box-shadow:
       0 8px 28px -6px rgba(15, 45, 36, 0.45),
-      0 0 0 1px rgba(213, 187, 126, 0.30),
-      0 0 30px rgba(213, 187, 126, 0.18);
+      0 0 0 1px rgb(var(--gold-500) / 0.30),
+      0 0 30px rgb(var(--gold-500) / 0.18);
   }
   50% {
     box-shadow:
       0 8px 28px -6px rgba(15, 45, 36, 0.50),
-      0 0 0 1px rgba(213, 187, 126, 0.55),
-      0 0 50px rgba(213, 187, 126, 0.32);
+      0 0 0 1px rgb(var(--gold-500) / 0.55),
+      0 0 50px rgb(var(--gold-500) / 0.32);
   }
 }
 .trial-banner-glow {
@@ -1018,10 +1112,10 @@ canvas {
    (~5 pulses) so it draws the eye once, then rests. */
 @keyframes adv-glow-pulse {
   0%, 100% {
-    box-shadow: 0 0 0 0 rgba(213, 187, 126, 0);
+    box-shadow: 0 0 0 0 rgb(var(--gold-500) / 0);
   }
   50% {
-    box-shadow: 0 0 18px 2px rgba(213, 187, 126, 0.6), 0 0 0 1px rgba(213, 187, 126, 0.5);
+    box-shadow: 0 0 18px 2px rgb(var(--gold-500) / 0.6), 0 0 0 1px rgb(var(--gold-500) / 0.5);
   }
 }
 
@@ -1096,7 +1190,7 @@ canvas {
 @keyframes co-loading-pulse {
   0%, 100% {
     transform: scale(1);
-    filter: drop-shadow(0 0 14px rgba(213, 187, 126, 0.45));
+    filter: drop-shadow(0 0 14px rgb(var(--gold-500) / 0.45));
   }
   50% {
     transform: scale(1.06);
@@ -1109,8 +1203,8 @@ canvas {
     transform: scale(0.92);
     background: radial-gradient(
       circle,
-      rgba(213, 187, 126, 0.55) 0%,
-      rgba(213, 187, 126, 0) 65%
+      rgb(var(--gold-500) / 0.55) 0%,
+      rgb(var(--gold-500) / 0) 65%
     );
   }
   50% {
@@ -1119,8 +1213,8 @@ canvas {
     background: radial-gradient(
       circle,
       rgba(245, 237, 214, 0.65) 0%,
-      rgba(213, 187, 126, 0.25) 45%,
-      rgba(213, 187, 126, 0) 75%
+      rgb(var(--gold-500) / 0.25) 45%,
+      rgb(var(--gold-500) / 0) 75%
     );
   }
   100% {
@@ -1128,8 +1222,8 @@ canvas {
     transform: scale(0.92);
     background: radial-gradient(
       circle,
-      rgba(213, 187, 126, 0.55) 0%,
-      rgba(213, 187, 126, 0) 65%
+      rgb(var(--gold-500) / 0.55) 0%,
+      rgb(var(--gold-500) / 0) 65%
     );
   }
 }
@@ -1169,8 +1263,8 @@ canvas {
 /* Soft-pulse halo for "AI is alive / standing by" surfaces (Bella avatar,
    Advottic Review sparkle etc.). Lighter than animate-glow. */
 @keyframes co-aurora {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(213, 187, 126, 0.0), 0 0 0 0 rgba(245, 237, 214, 0.0); }
-  50% { box-shadow: 0 0 0 4px rgba(213, 187, 126, 0.18), 0 0 14px 2px rgba(245, 237, 214, 0.20); }
+  0%, 100% { box-shadow: 0 0 0 0 rgb(var(--gold-500) / 0.0), 0 0 0 0 rgba(245, 237, 214, 0.0); }
+  50% { box-shadow: 0 0 0 4px rgb(var(--gold-500) / 0.18), 0 0 14px 2px rgba(245, 237, 214, 0.20); }
 }
 .aurora {
   animation: co-aurora 3.4s ease-in-out infinite;
@@ -1206,8 +1300,8 @@ canvas {
   100% { background-position: 0% 50%; }
 }
 @keyframes co-glow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(213, 187, 126, 0.0); }
-  50% { box-shadow: 0 0 24px 0 rgba(213, 187, 126, 0.35); }
+  0%, 100% { box-shadow: 0 0 0 0 rgb(var(--gold-500) / 0.0); }
+  50% { box-shadow: 0 0 24px 0 rgb(var(--gold-500) / 0.35); }
 }
 
 /* Premium app-wide finishing touches (additive, low-risk):
@@ -1216,7 +1310,7 @@ canvas {
      that don't already define their own (.btn brings its own).
    Honors the existing prefers-reduced-motion block below. */
 ::selection {
-  background: rgba(213, 187, 126, 0.32);
+  background: rgb(var(--gold-500) / 0.32);
   color: #0f2d24;
 }
 a:focus-visible,
@@ -1228,7 +1322,7 @@ select:focus-visible,
   border-radius: 6px;
   box-shadow:
     0 0 0 2px rgba(255, 255, 255, 0.9),
-    0 0 0 4px rgba(213, 187, 126, 0.55);
+    0 0 0 4px rgb(var(--gold-500) / 0.55);
 }
 
 .animate-fade-up {
@@ -1331,13 +1425,13 @@ select:focus-visible,
      (a thin gold ring + a soft halo) per the calm-tone rule. */
   .dark .btn-primary {
     box-shadow:
-      0 0 0 1px rgba(213, 187, 126, 0.55),
-      0 6px 22px -6px rgba(213, 187, 126, 0.45);
+      0 0 0 1px rgb(var(--gold-500) / 0.55),
+      0 6px 22px -6px rgb(var(--gold-500) / 0.45);
   }
   .dark .btn-primary:hover {
     box-shadow:
-      0 0 0 1px rgba(213, 187, 126, 0.85),
-      0 9px 28px -6px rgba(213, 187, 126, 0.62);
+      0 0 0 1px rgb(var(--gold-500) / 0.85),
+      0 9px 28px -6px rgb(var(--gold-500) / 0.62);
   }
   /* Subtle inner highlight along the top edge of primaries - reads like
      a polished metal button instead of a flat dark rectangle. */
@@ -1349,7 +1443,7 @@ select:focus-visible,
     background: linear-gradient(
       90deg,
       transparent 0%,
-      rgba(213, 187, 126, 0.45) 50%,
+      rgb(var(--gold-500) / 0.45) 50%,
       transparent 100%
     );
     pointer-events: none;
@@ -1371,7 +1465,7 @@ select:focus-visible,
     background: linear-gradient(
       120deg,
       transparent 30%,
-      rgba(213, 187, 126, 0.18) 50%,
+      rgb(var(--gold-500) / 0.18) 50%,
       transparent 70%
     );
     transform: translateX(-120%);
@@ -1440,10 +1534,10 @@ select:focus-visible,
   }
   .card-hover:hover {
     transform: translateY(-2px);
-    border-color: rgba(213, 187, 126, 0.55);
+    border-color: rgb(var(--gold-500) / 0.55);
     box-shadow:
       0 14px 36px -10px rgba(15, 45, 36, 0.14),
-      0 0 0 1px rgba(213, 187, 126, 0.18);
+      0 0 0 1px rgb(var(--gold-500) / 0.18);
   }
   .card-hover::after {
     content: '';
@@ -1451,7 +1545,7 @@ select:focus-visible,
     inset: 0;
     background: radial-gradient(
       400px 200px at 100% 0%,
-      rgba(213, 187, 126, 0.10),
+      rgb(var(--gold-500) / 0.10),
       transparent 60%
     );
     opacity: 0;
@@ -1472,9 +1566,9 @@ select:focus-visible,
       linear-gradient(#fff, #fff) padding-box,
       linear-gradient(
         135deg,
-        rgba(213, 187, 126, 0.55) 0%,
+        rgb(var(--gold-500) / 0.55) 0%,
         rgba(245, 237, 214, 0.20) 35%,
-        rgba(213, 187, 126, 0.35) 65%,
+        rgb(var(--gold-500) / 0.35) 65%,
         rgba(245, 237, 214, 0.55) 100%
       ) border-box;
     border: 1px solid transparent;
@@ -1490,9 +1584,9 @@ select:focus-visible,
       linear-gradient(#0f2d24, #0f2d24) padding-box,
       linear-gradient(
         135deg,
-        rgba(213, 187, 126, 0.65) 0%,
+        rgb(var(--gold-500) / 0.65) 0%,
         rgba(245, 237, 214, 0.18) 35%,
-        rgba(213, 187, 126, 0.55) 65%,
+        rgb(var(--gold-500) / 0.55) 65%,
         rgba(245, 237, 214, 0.45) 100%
       ) border-box;
   }
@@ -1502,7 +1596,7 @@ select:focus-visible,
     inset: -1px;
     background: radial-gradient(
       600px 300px at 100% -10%,
-      rgba(213, 187, 126, 0.15),
+      rgb(var(--gold-500) / 0.15),
       transparent 60%
     );
     opacity: 0.6;
@@ -1519,11 +1613,11 @@ select:focus-visible,
     background:
       radial-gradient(
         700px 280px at 100% -20%,
-        rgba(213, 187, 126, 0.28),
+        rgb(var(--gold-500) / 0.28),
         transparent 60%
       ),
       linear-gradient(160deg, #1a3d31 0%, #0f2d24 60%, #0a1f19 100%);
-    border: 1px solid rgba(213, 187, 126, 0.22);
+    border: 1px solid rgb(var(--gold-500) / 0.22);
   }
 
   .badge {
@@ -1577,7 +1671,7 @@ select:focus-visible,
     background: linear-gradient(
       90deg,
       transparent 0%,
-      rgba(213, 187, 126, 0.35) 50%,
+      rgb(var(--gold-500) / 0.35) 50%,
       transparent 100%
     );
   }
@@ -1628,8 +1722,8 @@ select:focus-visible,
     isolation: isolate;
     background:
       radial-gradient(ellipse 700px 400px at 88% 14%, rgba(245, 237, 214, 0.32), transparent 55%),
-      radial-gradient(ellipse 900px 520px at 72% 28%, rgba(213, 187, 126, 0.38), transparent 60%),
-      radial-gradient(ellipse 620px 380px at 12% 82%, rgba(213, 187, 126, 0.22), transparent 65%),
+      radial-gradient(ellipse 900px 520px at 72% 28%, rgb(var(--gold-500) / 0.38), transparent 60%),
+      radial-gradient(ellipse 620px 380px at 12% 82%, rgb(var(--gold-500) / 0.22), transparent 65%),
       radial-gradient(ellipse 480px 320px at 50% 110%, rgba(245, 237, 214, 0.10), transparent 60%),
       linear-gradient(135deg, #1f4839 0%, #2a5a47 38%, #19372d 100%);
   }
@@ -1653,7 +1747,7 @@ select:focus-visible,
     opacity: 0.55;
   }
   .hero-orb--gold {
-    background: radial-gradient(circle, rgba(213, 187, 126, 0.55) 0%, rgba(213, 187, 126, 0) 70%);
+    background: radial-gradient(circle, rgb(var(--gold-500) / 0.55) 0%, rgb(var(--gold-500) / 0) 70%);
   }
   .hero-orb--cream {
     background: radial-gradient(circle, rgba(245, 237, 214, 0.45) 0%, rgba(245, 237, 214, 0) 70%);
@@ -1725,9 +1819,9 @@ select:focus-visible,
   padding: 1px;
   background: linear-gradient(
     135deg,
-    rgba(213, 187, 126, 0.4) 0%,
+    rgb(var(--gold-500) / 0.4) 0%,
     rgba(245, 237, 214, 0.7) 50%,
-    rgba(213, 187, 126, 0.4) 100%
+    rgb(var(--gold-500) / 0.4) 100%
   );
   -webkit-mask:
     linear-gradient(#000 0 0) content-box,
@@ -1812,7 +1906,7 @@ select:focus-visible,
   animation: ask-question-shimmer 5.2s ease-in-out infinite;
   /* A faint gold drop-shadow so the gradient text still reads on the
    * dark surface even when the gradient mid-stop is most transparent. */
-  filter: drop-shadow(0 0 1px rgba(213, 187, 126, 0.18));
+  filter: drop-shadow(0 0 1px rgb(var(--gold-500) / 0.18));
 }
 @keyframes ask-question-shimmer {
   0%,

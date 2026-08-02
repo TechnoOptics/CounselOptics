@@ -10,13 +10,32 @@
  * every existing caller.
  */
 
-/** Advottic gold. The default for any state with no colour of its own. */
+/**
+ * Advottic gold. The default for any state with no colour of its own.
+ *
+ * This stays gold now that the enterprise shells run an emerald accent,
+ * and the reason is that it has to. `good` is already #34D399, so an
+ * emerald default would be the same chip as "this went well" - and the
+ * two places that use the default mean the opposite of that: the Hub's
+ * "awaiting you" count, and an intake status nobody has mapped yet. Two
+ * emeralds separated only by lightness would repeat the exact failure
+ * the `neutral` / `quiet` note below describes, one step worse, because
+ * here the two would carry contradictory meanings rather than adjacent
+ * ones. Techottic itself does this: emerald accent, and a gold reserved
+ * as its own semantic hue (#eab308 for VIP).
+ *
+ * So under emerald, gold stops being the chrome accent and becomes a
+ * status hue like the other six. Nothing about the chip changes, which
+ * is also why none of the contrast ratios below needed re-measuring.
+ * It has to stay a literal hex regardless: the notification mailer
+ * renders it into email HTML, where a CSS variable cannot follow.
+ */
 export const PILL_DEFAULT = '#D5BB7E';
 
 /**
  * Shared semantic hexes, so "waiting" is the same amber wherever it is
- * shown. These are status colours, not brand colours: gold stays the
- * accent and these never appear as chrome.
+ * shown. These are status colours, not chrome, and none of them tracks
+ * the shell's accent ramp.
  */
 /*
  * Every hex here is checked against the chip as StatusPill actually
