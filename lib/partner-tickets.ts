@@ -7,6 +7,9 @@ import { checkRateLimit } from './rate-limit';
 import type { ThreadMessage } from './intake-thread';
 import { readPartnerConfig, type PartnerQuestion } from './partner-config-core';
 import { partnerTicketEvent } from './partner-notify';
+import { getPublishedPayload } from './form-queries';
+import { bindPartnerFormAnswers, partnerFormBinding } from './form-to-partner';
+import type { QuestionAnswer } from './intake-form-fallback';
 import {
   INTAKE_COLS as CONV_INTAKE_COLS,
   insertIntakeMessage,
@@ -227,6 +230,11 @@ export async function createPartnerTicket(
     /** Answers to the firm-configured intake questions, keyed by question id
      *  (fetch the questions from GET /api/partner/v1/config). */
     answers?: Record<string, string> | null;
+    /** The `formVersionId` GET /api/partner/v1/config returned alongside the
+     *  questions these answers were collected on, echoed back. Optional, and
+     *  treated as untrusted: it is only ever compared against the version this
+     *  firm has published for this request type, never looked up. */
+    formVersionId?: string | null;
   },
 ): Promise<
   | { ok: true; ticket: PartnerTicket; created: boolean; acknowledgment: string }
@@ -272,8 +280,30 @@ export async function createPartnerTicket(
 
   // Validate + label the question answers so the intake detail can render
   // them without re-reading the (possibly since-edited) question config.
-  const questionAnswers = resolveQuestionAnswers(config.questions, input.answers);
-  if (!questionAnswers.ok) return { ok: false, status: 400, error: questionAnswers.error };
+  //
+  // Which question set that is depends on whether the legal team has built a
+  // form for this request type. `category` is the request type's `key`: a
+  // partner ticket carries the partner's own slug in matter_type and that slug
+  // IS the join (see supabase/migrations/20260801_intake_form_builder.sql).
+  // It is matched verbatim, never by label, because a looser match would bind
+  // a ticket to a form it was not filed against.
+  const typeKey = input.category?.trim() ?? '';
+  const binding = partnerFormBinding(
+    typeKey ? await getPublishedPayload(admin, auth.firmId, typeKey) : null,
+    input.formVersionId,
+    input.answers,
+  );
+
+  let list: QuestionAnswer[] = [];
+  if (binding?.governs) {
+    const bound = bindPartnerFormAnswers(binding, input.answers);
+    if (!bound.ok) return { ok: false, status: 400, error: bound.error };
+    list = bound.list;
+  } else {
+    const legacy = resolveQuestionAnswers(config.questions, input.answers);
+    if (!legacy.ok) return { ok: false, status: 400, error: legacy.error };
+    list = legacy.list;
+  }
 
   const email = input.employee.email.trim().toLowerCase();
   const name = input.employee.name?.trim() || email.split('@')[0];
@@ -289,12 +319,21 @@ export async function createPartnerTicket(
       subject,
       priority: input.priority ?? 'normal',
       inhouse: true,
-      ...(questionAnswers.list.length > 0 ? { questionAnswers: questionAnswers.list } : {}),
+      ...(list.length > 0 ? { questionAnswers: list } : {}),
       partner: {
         source: 'zinpro',
         externalId,
         employeeEmail: email,
         tokenId: auth.token.id,
+        // How the version binding below was arrived at. There is no column
+        // for this and it is partner-path-only, so it rides in the same jsonb
+        // the rest of the partner metadata already uses. 'echoed' means the
+        // ticket named that exact version, so the answers were collected on
+        // it and judged against it. 'inferred' means we bound it to whatever
+        // was live on arrival; when the ticket showed no sign of having the
+        // form, the answers were judged against the firm-wide partner
+        // questions instead, and this field is where that shows.
+        ...(binding ? { formVersionSource: binding.source } : {}),
       },
     },
     // Attributed to the linked auth user when the employee has signed in
@@ -302,6 +341,10 @@ export async function createPartnerTicket(
     // re-attributes on the employee's first SSO sign-in.
     created_by: emp.userId ?? auth.token.userId,
     status: 'in_progress',
+    // Named only when there is a binding to record, the same way the portal
+    // submit path does it: an insert that never mentions the column cannot
+    // fail anywhere the migration has not run.
+    ...(binding ? { form_version_id: binding.versionId } : {}),
   };
   const { data: created, error } = await admin
     .from('firm_matter_intakes')

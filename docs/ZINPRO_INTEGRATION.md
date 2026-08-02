@@ -228,6 +228,30 @@ Rate limits: 60 ticket creations / 240 messages per 5 minutes per firm.
 Fetch on app start and cache; refresh at least daily; the legal team can
 change questions and the acknowledgment at any time.
 
+#### Per-request-type forms (optional, additive)
+
+The legal team can now build a **form per request type** in Advottic, rather
+than one list of questions for the whole company. To pick those up, pass the
+request type as `?type=<slug>` (the same string you already send as
+`category` on ticket create, e.g. `?type=nda`):
+
+`GET /api/partner/v1/config?type=nda`
+
+The response shape is unchanged. Two things differ:
+
+- `questions` is the built form, flattened into the same three types you
+  already render (`text`, `select`, `yesno`). Conditional questions are
+  included unconditionally and come back `required: false`, because the app
+  cannot evaluate the condition; whether they are genuinely required is
+  worked out on our side from the answers you send.
+- `formVersionId` is a string naming the exact version those questions came
+  from. **Echo it back on ticket create.** Without the parameter, or where the
+  legal team has published nothing for that type, `questions` is exactly what
+  it has always been and `formVersionId` is `null`.
+
+`formVersionId` is also present (as `null`) on the plain `GET /config`, so
+adding the field breaks no existing parser.
+
 ### 5.2 Create a ticket
 
 `POST /api/partner/v1/tickets`
@@ -252,6 +276,41 @@ change questions and the acknowledgment at any time.
 - `answers`: keyed by the `id`s from `GET /config`. Unknown ids are ignored;
   a missing **required** answer is a 400 naming the question; a `select`
   answer must be one of the listed options.
+- `formVersionId` (optional): the value `GET /config?type=<slug>` returned
+  next to the questions these answers were collected on. Send it whenever you
+  have one. It is what records which version of the form the request was
+  filed against, and what tells us the answers are keyed to the questions
+  currently published rather than to a cached older set.
+
+##### When a built form applies
+
+A built form is only used to check a ticket when the ticket shows it was
+collected on that form: it echoes the currently published `formVersionId`, or
+at least one answer is keyed to one of the form's question ids. Until the app
+sends one of those, tickets are checked exactly as they are today, against the
+firm-wide question list. Nothing you do today starts failing.
+
+Once a form does apply, two extra classes of 400 are possible, both naming the
+question by its label and its `id`:
+
+- **A value the question does not allow.** The three types this API carries
+  cannot express everything the legal team can set: a money field's two
+  decimal places, a number's or a date's range, a maximum length, an email or
+  phone shape. Those are checked when the ticket arrives instead. The message
+  says what to change, for example: `Answer for "Contract value" (question id
+  amount) is not valid: Use two decimal places or fewer, for example 2500.00.`
+  Surface it to the employee; it is written for them to act on.
+- **A conditional question that their answers made applicable.** Conditional
+  questions arrive `required: false` so the app never blocks anyone on a
+  question that may not apply. Whether one actually applies depends on the
+  other answers, which only we can evaluate, so a genuinely required one comes
+  back as a 400 naming it. The question is always on the form already, so the
+  employee can fill it in and resubmit.
+
+Only the first problem is spelled out, with a count of any others, matching how
+a missing required answer has always been reported. `category` must be the
+request type's slug for any of this to engage; a slug we do not recognise falls
+back to the firm-wide questions.
 
 Response `201` (or `200` on idempotent replay):
 
@@ -408,14 +467,17 @@ async function api(path: string, init?: RequestInit) {
 }
 
 export const advottic = {
-  /** Firm config: intake questions + acknowledgment message. Cache ~1 day. */
-  getConfig: () => api('/api/partner/v1/config'),
+  /** Firm config: intake questions + acknowledgment message. Cache ~1 day.
+   *  Pass the request type slug to get that type's built form, if any, plus
+   *  the `formVersionId` to echo back on create. */
+  getConfig: (type?: string) =>
+    api(`/api/partner/v1/config${type ? `?type=${encodeURIComponent(type)}` : ''}`),
 
   createTicket: (t: {
     employee: { email: string; name?: string; department?: string };
     subject: string; description: string;
     category?: string; priority?: 'low'|'normal'|'high'|'urgent'; externalId?: string;
-    answers?: Record<string, string>;
+    answers?: Record<string, string>; formVersionId?: string;
   }) => api('/api/partner/v1/tickets', { method: 'POST', body: JSON.stringify(t) }),
   // → { ticket, acknowledgment }. Show `acknowledgment` to the employee.
 

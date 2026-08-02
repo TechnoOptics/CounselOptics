@@ -37,6 +37,7 @@ export async function POST(req: Request) {
     priority?: 'low' | 'normal' | 'high' | 'urgent';
     externalId?: string;
     answers?: Record<string, string>;
+    formVersionId?: string;
   };
   if (!b.employee?.email) {
     return NextResponse.json({ error: 'employee.email is required.' }, { status: 400 });
@@ -49,6 +50,7 @@ export async function POST(req: Request) {
     priority: b.priority,
     externalId: b.externalId,
     answers: b.answers,
+    formVersionId: b.formVersionId,
   });
   if (!res.ok) return NextResponse.json({ error: res.error }, { status: res.status });
   // `acknowledgment` is the legal team's configured confirmation message:
