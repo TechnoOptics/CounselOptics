@@ -112,6 +112,26 @@ export default async function CounselSettingsPage() {
       </section>
       <section className="space-y-3 pt-2 border-t border-ink-200 dark:border-forest-700/40">
         <header>
+          <p className="eyebrow mb-1"><T>Intake</T></p>
+          <h2 className="font-display text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
+            <T>What people are asked when they file a request</T>
+          </h2>
+          <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
+            <T>Set the questions for each type of request, in the wording your
+            team uses. Publishing a new version does not change requests that
+            have already been submitted.</T>
+          </p>
+        </header>
+        <a
+          href="/counsel/settings/forms"
+          className="inline-flex items-center gap-2 rounded-lg border border-ink-200 px-4 py-2 text-sm font-medium text-forest-900 transition hover:bg-ink-50 dark:border-forest-700/40 dark:text-cream-100 dark:hover:bg-forest-900/40"
+        >
+          <T>Edit request forms</T>
+        </a>
+      </section>
+
+      <section className="space-y-3 pt-2 border-t border-ink-200 dark:border-forest-700/40">
+        <header>
           <p className="eyebrow mb-1"><T>Enterprise</T></p>
           <h2 className="font-display text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
             <T>Single sign-on and automatic provisioning</T>
