@@ -110,11 +110,15 @@ export async function createMatterIntakeAction(
     const { bindFormAnswers, matchTypeKeyByLabel } = await import('./intake-form-fallback');
 
     const types = await listRequestTypes(admin, firmId);
-    // Null means this intake names no request type this firm has. A form hangs
-    // off a type row, so there is no form it could be dodging, and it goes
-    // through as it always did.
+    // The caller's key is passed only as a tie break between two types a firm
+    // has renamed to the same wording, and is the whole answer only when the
+    // label resolves to nothing. Null means this intake names no request type
+    // this firm has: a form hangs off a type row, so there is no form it could
+    // be dodging, and it goes through as it always did.
     const typeKey =
-      matchTypeKeyByLabel(types, input.matterType) ?? input.requestTypeKey?.trim() ?? null;
+      matchTypeKeyByLabel(types, input.matterType, input.requestTypeKey) ??
+      input.requestTypeKey?.trim() ??
+      null;
 
     if (typeKey) {
       const bound = bindFormAnswers(

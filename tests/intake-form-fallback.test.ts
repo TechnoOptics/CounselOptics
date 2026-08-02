@@ -334,6 +334,40 @@ describe('matchTypeKeyByLabel', () => {
     ];
     expect(matchTypeKeyByLabel(dupes, 'Contract review')).toBe('first');
   });
+
+  it('lets the picked type break a tie between two identical labels', () => {
+    // Otherwise someone picking the second of two same-named types has their
+    // answers validated against the first one's form, and binds to a version
+    // they never saw.
+    const dupes = [
+      { key: 'first', label: 'Contract review' },
+      { key: 'second', label: 'Contract review' },
+    ];
+    expect(matchTypeKeyByLabel(dupes, 'Contract review', 'second')).toBe('second');
+    expect(matchTypeKeyByLabel(dupes, 'Contract review', 'unrelated')).toBe('first');
+  });
+
+  it('does not let the picked type override an unambiguous label', () => {
+    // The tie break is a tie break. A caller must not be able to redirect the
+    // gate to a type with no form by naming one.
+    expect(matchTypeKeyByLabel(types, 'NDA review', 'other')).toBe('nda_review');
+  });
+
+  it('sees through a zero-width character hidden in the label', () => {
+    // A zero-width space renders identically to nothing on every surface that
+    // shows matter_type, so matching through it is what stops an intake
+    // looking like a filed NDA review while having dodged the form.
+    expect(matchTypeKeyByLabel(types, 'NDA revie\u200Bw')).toBe('nda_review');
+    expect(matchTypeKeyByLabel(types, '\uFEFFNDA\u200D review')).toBe('nda_review');
+  });
+
+  it('sees through a decomposed accent and a full-width character', () => {
+    // The label is precomposed, the incoming string is decomposed. They look
+    // the same and, without normalising, compare unequal.
+    const accented = [{ key: 'cafe', label: 'Caf\u00E9 matter' }];
+    expect(matchTypeKeyByLabel(accented, 'Cafe\u0301 matter')).toBe('cafe');
+    expect(matchTypeKeyByLabel(types, '\uFF2EDA review')).toBe('nda_review');
+  });
 });
 
 describe('isSeededLabel', () => {

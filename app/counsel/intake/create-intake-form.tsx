@@ -387,6 +387,41 @@ export function CreateIntakeForm({
           />
         </label>
 
+        {/*
+          What a published form replaces, and what it never replaces.
+
+          A builder question can only ever write into
+          intake_answers.questionAnswers. So a field that feeds a typed
+          column on firm_matter_intakes can never be replaced by one:
+          publishing a form would zero that column for every request of
+          the type, permanently, with nothing able to fill it. Client
+          email, Phone and State are those fields (client_email,
+          client_phone, jurisdiction_state), and they stay put.
+
+          Two JSON fields stay too, because a reader does more with them
+          than print a row:
+            - Due by is parsed by lib/portal-due.ts, and /portal and the
+              whole of /portal/calendar are built from that parse, so a
+              request without one disappears from both.
+            - Priority is SORTED on by components/counsel/IntakeInbox.tsx
+              (PRIORITY_RANK), badged there defaulting to "Normal", which
+              would tell a triaging lawyer something the filer never
+              chose, and carried in the partner API v2 PartnerTicket
+              payload, an external contract with the Zinpro workspace.
+
+          That leaves Expiry and Confidentiality, below. Both are read in
+          exactly one way, String(ans.x ?? '') followed by a conditional
+          render on two detail pages, so their absence costs a row of
+          detail and nothing else, and legal can ask for either as a
+          question. Reference links, further down, has no reader at all.
+
+          Submitted by also stays: it names who filed the request, and
+          the counsel side reads it to tell an employee request from a
+          matter.
+
+          Order below is today's order exactly, so that with nothing
+          published this grid renders as it always has.
+        */}
         {inhouse ? (
           <>
             <label className="block">
@@ -407,45 +442,26 @@ export function CreateIntakeForm({
                 </span>
               )}
             </label>
-            {/*
-              Due by survives a published form. It is not decoration:
-              lib/portal-due.ts parses it, and /portal and the whole of
-              /portal/calendar are driven off that parse, so a request
-              filed without one silently disappears from both. A builder
-              question labelled "Due by" would not do, because it lands
-              in questionAnswers and nothing reads it there.
-            */}
+            <label className="block">
+              <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+                <T>Priority</T>
+              </span>
+              <select name="priority" className="input" defaultValue="Normal">
+                {PRIORITIES.map((p) => (
+                  <option key={p} value={p}>
+                    <T>{p}</T>
+                  </option>
+                ))}
+              </select>
+            </label>
             <label className="block">
               <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
                 <T>Due by</T>
               </span>
               <input name="dueBy" type="date" className="input" />
             </label>
-            {/*
-              Everything from here to the end of the branch is the
-              optional metadata this form asks when legal has not said
-              what to ask, and a published form replaces it. Priority,
-              Confidentiality and Expiry are only ever rendered, never
-              filtered or sorted on, and every reader already handles
-              their absence, so legal can ask for them as questions
-              instead. Submitted by is not part of it either: it names
-              who filed the request, and the counsel side reads it to
-              tell an employee request from a matter.
-            */}
             {!published && (
               <>
-                <label className="block">
-                  <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-                    <T>Priority</T>
-                  </span>
-                  <select name="priority" className="input" defaultValue="Normal">
-                    {PRIORITIES.map((p) => (
-                      <option key={p} value={p}>
-                        <T>{p}</T>
-                      </option>
-                    ))}
-                  </select>
-                </label>
                 {!employeeMode && (
                   <label className="block">
                     <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
@@ -473,52 +489,50 @@ export function CreateIntakeForm({
                     ))}
                   </select>
                 </label>
-                <label className="block">
-                  <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-                    <T>State</T>
-                  </span>
-                  <select name="state" className="input" defaultValue="">
-                    <option value=""><T>Pick a state</T></option>
-                    {STATES.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
-                </label>
               </>
             )}
+            <label className="block">
+              <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+                <T>State</T>
+              </span>
+              <select name="state" className="input" defaultValue="">
+                <option value=""><T>Pick a state</T></option>
+                {STATES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </label>
           </>
         ) : (
-          !published && (
-            <>
-              <label className="block">
-                <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-                  <T>Client email</T>
-                </span>
-                <input name="clientEmail" type="email" className="input" />
-              </label>
-              <label className="block">
-                <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-                  <T>Phone</T>
-                </span>
-                <input name="clientPhone" type="tel" className="input" />
-              </label>
-              <label className="block sm:col-span-2">
-                <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-                  <T>State</T>
-                </span>
-                <select name="state" className="input" defaultValue="">
-                  <option value=""><T>Pick a state</T></option>
-                  {STATES.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </>
-          )
+          <>
+            <label className="block">
+              <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+                <T>Client email</T>
+              </span>
+              <input name="clientEmail" type="email" className="input" />
+            </label>
+            <label className="block">
+              <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+                <T>Phone</T>
+              </span>
+              <input name="clientPhone" type="tel" className="input" />
+            </label>
+            <label className="block sm:col-span-2">
+              <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+                <T>State</T>
+              </span>
+              <select name="state" className="input" defaultValue="">
+                <option value=""><T>Pick a state</T></option>
+                {STATES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </>
         )}
       </div>
 

@@ -121,6 +121,30 @@ export function modeForType(types: readonly PickableType[], key: string): Intake
 }
 
 /**
+ * How two labels are compared: NFKC normalised, stripped of the characters
+ * that render as nothing, then trimmed and case folded.
+ *
+ * Trim and lowercase alone are not enough. `trim` removes NBSP and U+FEFF but
+ * not U+200B, and nothing about it reconciles a decomposed accent with a
+ * precomposed one or a full-width letter with its plain form. All of those
+ * render identically to a reader, so a matter type carrying one would look on
+ * every screen exactly like the type it claims to be while matching no type at
+ * all, which is the gate being dodged in the only way that still leaves the
+ * intake looking legitimate.
+ *
+ * NFKC does not reconcile cross-script homoglyphs: a Cyrillic 'а' stays
+ * distinct from a Latin 'a'. That residual is the same one as any other
+ * deliberately mangled matter type, and it is bounded the same way, below.
+ */
+function foldLabel(value: string): string {
+  return value
+    .normalize('NFKC')
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+/**
  * The request type a stored `matter_type` string was filed under, or null.
  *
  * `matter_type` holds the type's `label` verbatim, which is how the seeded
@@ -129,21 +153,30 @@ export function modeForType(types: readonly PickableType[], key: string): Intake
  * request type key: the server can always work out which type an intake claims
  * to be from the string the intake itself carries.
  *
- * Trimmed and case-folded, so a near miss on whitespace or capitalisation
- * still resolves. Nothing looser than that: a partial match would bind an
- * intake to a form it was not filed against.
+ * Compared through `foldLabel`, and nothing looser: a partial match would bind
+ * an intake to a form it was not filed against.
  *
- * When a firm has renamed two types to the same wording, the first in the
- * given order wins, which is `sort_order`. There is no better answer, and the
- * firm can tell them apart by renaming one.
+ * `preferKey` breaks a tie, and only a tie. A firm may rename two types to the
+ * same wording, and the person who picked the second of them must have their
+ * answers judged against the second one's form, not the first one's, or they
+ * see errors they cannot clear or bind to a version they never saw. It cannot
+ * override an unambiguous match, because that would hand the caller back the
+ * ability to point the gate at a type with no form published.
  */
 export function matchTypeKeyByLabel(
   types: readonly { key: string; label: string }[],
   label: string | null | undefined,
+  preferKey?: string | null,
 ): string | null {
-  const wanted = (label ?? '').trim().toLowerCase();
+  const wanted = foldLabel(label ?? '');
   if (!wanted) return null;
-  return types.find((t) => t.label.trim().toLowerCase() === wanted)?.key ?? null;
+
+  const matches = types.filter((t) => foldLabel(t.label) === wanted).map((t) => t.key);
+  if (matches.length === 0) return null;
+
+  const preferred = (preferKey ?? '').trim();
+  if (matches.length > 1 && preferred && matches.includes(preferred)) return preferred;
+  return matches[0];
 }
 
 /**

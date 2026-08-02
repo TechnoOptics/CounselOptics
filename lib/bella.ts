@@ -1675,7 +1675,7 @@ async function executeTool(
     const ctx = await getActiveFirmContextSafe();
     if (!ctx) return { ok: false, error: 'No active firm context.' };
     const { createMatterIntakeAction } = await import('./conflict-check');
-    return await createMatterIntakeAction(ctx.firm.id, {
+    const res = await createMatterIntakeAction(ctx.firm.id, {
       clientName: String(input.client_name ?? ''),
       clientEmail: input.client_email ? String(input.client_email) : null,
       clientPhone: input.client_phone ? String(input.client_phone) : null,
@@ -1691,6 +1691,21 @@ async function executeTool(
         ? (input.related_parties as unknown[]).map(String)
         : [],
     });
+    // Legal has published an intake form for this request type, and this tool
+    // has no parameter for its answers, so it cannot satisfy one. Say that,
+    // name what is outstanding, and point at the form. The bare
+    // "Some answers still need attention" reads as this tool being broken.
+    if (!res.ok && res.formErrors) {
+      const outstanding = Object.keys(res.formErrors);
+      return {
+        ok: false,
+        error:
+          `Legal now requires a ${String(input.matter_type ?? 'request').trim()} to be filed on their intake form, ` +
+          `which asks ${outstanding.length} question${outstanding.length === 1 ? '' : 's'} this tool cannot fill ` +
+          `(${outstanding.join(', ')}). File it at /counsel/intake.`,
+      };
+    }
+    return res;
   }
 
   if (name === 'run_conflict_check') {
