@@ -788,7 +788,7 @@ the wallboard.
 | Fixed 240px rail + `ml-60` | **No.** Advottic counsel uses a flex sibling rail inside a padded flex row, with a collapse provider. Do not restructure |
 | Command palette | Yes, but it is net-new work plus a search endpoint |
 | Dual light/dark theme | **Collides.** Counsel hardcodes `dark`; every counsel class string assumes it |
-| Emerald accent | **Collides. Do not port.** Gold is the brand |
+| Emerald accent | **REVERSED 2026-08-01 by the owner: port it.** See the note below the table |
 | Geist single-family type | **Collides. Do not port.** Inter + Fraunces is a brand asset |
 | `@theme inline` token syntax | **Collides.** Tailwind v3 versus v4. Translate, do not copy |
 | Lucide icon set | **Collides softly.** Lucide is compliant stroke SVG, but swapping out the bespoke gold duotone glyphs would cost brand distinctiveness. Port the sizing discipline, keep the glyphs |
@@ -962,6 +962,33 @@ Advottic already has the right pattern in `components/counsel/CaseSectionIcons.t
 `KindIcon.tsx`.
 
 **2. The emerald accent (`#059669` / `#34d399` / `text-emerald-300`).**
+
+> **SUPERSEDED 2026-08-01.** The owner reversed this and asked for the emerald
+> accent as well as light mode. It is built on branch `feat/emerald-accent`
+> (commit `e775915`), NOT merged. What shipped there:
+>
+> - The `gold` Tailwind family became `rgb(var(--gold-N) / <alpha-value>)`, the
+>   same variable form `forest` already used, so `.counsel-shell` and
+>   `.enterprise-shell` remap it to emerald and none of the 1433 `gold-*` call
+>   sites were edited. Consumer and marketing keep gold; widening it is a
+>   one-line move of the override block into `:root`.
+> - The ramp was derived in OKLCH rather than eyeballed: both Techottic anchors
+>   sit at hue 163.2 and at 1.80x the chroma the gold ramp carries at their
+>   lightness, so every slot keeps the gold ramp's exact OKLab lightness, takes
+>   hue 163.2, and takes 1.80x chroma. Lightness is preserved rather than
+>   snapped to the two anchors, because snapping would crush the 500-to-600 step
+>   to 0.037 and blow 600-to-700 out to 0.140, destroying the "much lighter,
+>   much darker" meaning the ramp carries at its call sites.
+> - `PILL_DEFAULT` deliberately STAYS gold. `PILL_COLORS.good` is already
+>   `#34D399`, so an emerald default would be the same chip as "this went well"
+>   while its two callers mean roughly the opposite. Line 144 of this document
+>   records that Techottic itself runs emerald as the accent and keeps a gold
+>   (`#eab308`) as a distinct semantic hue, so under emerald gold stops being
+>   chrome and becomes a status colour like the other six.
+>
+> The paragraph below is kept because its reasoning about accent DISCIPLINE
+> (one accent, four placements) still holds. Only the hue decision changed.
+
 Port the *discipline* (one accent, four placements), not the hue. Advottic's accent is
 gold `#D5BB7E`. Wherever this spec quotes an emerald class, substitute the gold
 equivalent.
