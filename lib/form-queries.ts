@@ -229,6 +229,66 @@ export async function getPublishedPayload(
   return { payload: readFormPayload(v.payload), versionId: v.id };
 }
 
+export type PublishedForms = Record<string, { payload: FormPayload; versionId: string }>;
+
+/**
+ * Every form the firm has published, keyed by its request type's `key`.
+ *
+ * The intake surfaces need this for the whole picker at once, so that changing
+ * the selected type does not cost a round trip. `getPublishedPayload` answers
+ * the same question for one type and is what the submit path uses, but calling
+ * it per type would be three queries per option and Zinpro already has sixteen
+ * of them. This is two queries, or three once anything is actually published.
+ *
+ * An empty object is the normal answer today and means every type falls back
+ * to the existing fixed fields. A failed read returns the same empty object
+ * rather than throwing, because a firm must be able to file a request whether
+ * or not this feature is reachable.
+ */
+export async function listPublishedPayloads(
+  admin: Admin,
+  firmId: string,
+): Promise<PublishedForms> {
+  if (!firmId) return {};
+
+  const { data: typeRows } = await admin
+    .from('firm_request_types')
+    .select('id, key')
+    .eq('firm_id', firmId);
+  const types = (typeRows ?? []) as { id: string; key: string }[];
+  if (types.length === 0) return {};
+
+  const { data: formRows } = await admin
+    .from('firm_intake_forms')
+    .select('request_type_id, published_version_id')
+    .eq('firm_id', firmId)
+    .not('published_version_id', 'is', null);
+  const forms = (formRows ?? []) as {
+    request_type_id: string;
+    published_version_id: string | null;
+  }[];
+
+  const keyByTypeId = new Map(types.map((t) => [t.id, t.key]));
+  const keyByVersionId = new Map<string, string>();
+  for (const form of forms) {
+    const key = keyByTypeId.get(form.request_type_id);
+    if (key && form.published_version_id) keyByVersionId.set(form.published_version_id, key);
+  }
+  if (keyByVersionId.size === 0) return {};
+
+  const { data: versionRows } = await admin
+    .from('firm_intake_form_versions')
+    .select('id, payload')
+    .in('id', [...keyByVersionId.keys()]);
+
+  const published: PublishedForms = {};
+  for (const version of (versionRows ?? []) as { id: string; payload: unknown }[]) {
+    const key = keyByVersionId.get(version.id);
+    if (key) published[key] = { payload: readFormPayload(version.payload), versionId: version.id };
+  }
+  return published;
+}
+
 /** The exact payload of one version, for rendering an intake as it was filed. */
 export async function getVersionPayload(
   admin: Admin,

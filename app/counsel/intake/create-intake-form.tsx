@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, useTransition } from 'react';
+import { useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { createMatterIntakeAction } from '@/lib/conflict-check';
 import {
@@ -8,6 +8,14 @@ import {
   reviewIntakeAttachmentAction,
 } from '@/lib/intake-uploads';
 import type { DocScorecard } from '@/lib/doc-review';
+import type { FormPayload } from '@/lib/form-schema';
+import { validateAnswers, type Answers } from '@/lib/form-validate';
+import {
+  modeForType,
+  pickableRequestTypes,
+  type RequestTypeLike,
+} from '@/lib/intake-form-fallback';
+import { FormRenderer } from '@/components/forms/FormRenderer';
 import { VoiceDictateButton } from '@/components/VoiceDictateButton';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 
@@ -33,24 +41,22 @@ import { T, useT } from '@/components/i18n/LocaleProvider';
  * opposing/related arrays so the conflict check still works, and the
  * remaining in-house metadata rides in the existing `intake_answers`
  * JSON column.
+ *
+ * Request types are no longer hardcoded. They come from
+ * `firm_request_types`, read by the server page and passed in, and
+ * `lib/intake-form-fallback.ts` falls back to the same twelve this file
+ * used to hold when that read comes back empty. `mode` still means what
+ * it meant: it decides which of the two flows above the form is in.
+ *
+ * Where legal has published a form for the selected type, that form
+ * replaces the optional metadata fields and the reference links, and
+ * its answers are stored as `intake_answers.questionAnswers` bound to
+ * the version they were filled on. Everything with a column or a gate
+ * behind it stays put either way: the title, who submitted it, the
+ * parties the conflict check runs on, the summary, and the attachment
+ * review. Where nothing is published, which is every firm today, the
+ * form below is exactly what it has always been.
  */
-
-type Mode = 'client' | 'inhouse';
-
-const REQUEST_TYPES: Array<{ value: string; label: string; mode: Mode }> = [
-  { value: 'New case / matter', label: 'New case / matter (outside client)', mode: 'client' },
-  { value: 'New contract / agreement', label: 'New contract / agreement', mode: 'inhouse' },
-  { value: 'Internal review request', label: 'Internal review request', mode: 'inhouse' },
-  { value: 'Document for safekeeping', label: 'Document submission for safekeeping', mode: 'inhouse' },
-  { value: 'Trademark / IP filing', label: 'Trademark / IP filing', mode: 'inhouse' },
-  { value: 'NDA review', label: 'NDA review', mode: 'inhouse' },
-  { value: 'Vendor / MSA review', label: 'Vendor / MSA review', mode: 'inhouse' },
-  { value: 'Employment matter', label: 'Employment matter', mode: 'inhouse' },
-  { value: 'Compliance question', label: 'Compliance question', mode: 'inhouse' },
-  { value: 'Litigation hold', label: 'Litigation hold', mode: 'inhouse' },
-  { value: 'Demand letter', label: 'Demand letter', mode: 'inhouse' },
-  { value: 'Other', label: 'Other', mode: 'inhouse' },
-];
 
 const PRIORITIES = ['Low', 'Normal', 'High', 'Urgent'];
 const CONFIDENTIALITY = [
@@ -69,11 +75,24 @@ const STATES = [
 
 export function CreateIntakeForm({
   firmId,
+  requestTypes,
+  publishedForms,
   defaultSubmittedBy = '',
   employeeMode = false,
   redirectBase = '/counsel/intake',
 }: {
   firmId: string;
+  /**
+   * This firm's request types, straight from `firm_request_types`. An
+   * empty array is a legitimate answer and means the built-in twelve
+   * are offered instead, so a firm can always file.
+   */
+  requestTypes: RequestTypeLike[];
+  /**
+   * The published form for each request type that has one, keyed by the
+   * type's `key`. Empty for every firm until legal publishes something.
+   */
+  publishedForms: Record<string, { payload: FormPayload; versionId: string }>;
   /**
    * The signed-in member's name/email, forwarded by the server page so
    * "Submitted by" is pre-filled for the common case (an employee
@@ -97,10 +116,23 @@ export function CreateIntakeForm({
   const t = useT();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const availableTypes = employeeMode
-    ? REQUEST_TYPES.filter((r) => r.mode === 'inhouse')
-    : REQUEST_TYPES;
-  const [requestType, setRequestType] = useState(availableTypes[0].value);
+  // Hidden types are withheld, the order is the one legal arranged, and the
+  // list is never empty. See lib/intake-form-fallback.ts.
+  const availableTypes = useMemo(
+    () => pickableRequestTypes(requestTypes, employeeMode),
+    [requestTypes, employeeMode],
+  );
+  const [typeKey, setTypeKey] = useState(availableTypes[0].key);
+  // Resolved rather than trusted, so that a type hidden or renamed while this
+  // page was open falls back to a real option instead of leaving the picker
+  // pointing at nothing.
+  const selected = availableTypes.find((r) => r.key === typeKey) ?? availableTypes[0];
+  // The label, not the key, is what is stored: existing intakes hold this
+  // string in `matter_type`, and the seeded labels are those same strings.
+  const requestType = selected.label;
+  const published = publishedForms[selected.key] ?? null;
+  const [answers, setAnswers] = useState<Answers>({});
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [opposing, setOpposing] = useState<string[]>(['']);
   const [related, setRelated] = useState<string[]>(['']);
   const [summary, setSummary] = useState('');
@@ -125,13 +157,22 @@ export function CreateIntakeForm({
     });
   }
 
-  const mode: Mode =
-    REQUEST_TYPES.find((r) => r.value === requestType)?.mode ?? 'client';
+  const mode = modeForType(availableTypes, selected.key);
   // In employee mode every request is an in-house request, period.
   const inhouse = employeeMode || mode === 'inhouse';
 
   function submit(formData: FormData) {
     setError(null);
+    // Live feedback only. The server re-validates against the payload it
+    // reads back itself, and that is what actually gates the submission.
+    if (published) {
+      const checked = validateAnswers(published.payload, answers);
+      setFormErrors(checked.ok ? {} : checked.errors);
+      if (!checked.ok) {
+        setError(t('Some answers still need attention.'));
+        return;
+      }
+    }
     // In client mode the primary identity is the client; in in-house
     // mode it is the request subject/title. Same DB column either way.
     const subject = String(formData.get('subject') ?? '').trim();
@@ -234,7 +275,10 @@ export function CreateIntakeForm({
         opposingParties: opposing.map((s) => s.trim()).filter(Boolean),
         relatedParties: related.map((s) => s.trim()).filter(Boolean),
         intakeAnswers,
+        requestTypeKey: selected.key,
+        formAnswers: published ? answers : null,
       });
+      if (res.formErrors) setFormErrors(res.formErrors);
       if (res.ok && res.intakeId) {
         // Legal lands on the conflict-check detail page; an employee
         // has no detail route (and no business seeing it), so they go
@@ -263,12 +307,21 @@ export function CreateIntakeForm({
         <select
           name="requestType"
           className="input"
-          value={requestType}
-          onChange={(e) => setRequestType(e.target.value)}
+          value={selected.key}
+          data-no-translate
+          onChange={(e) => {
+            setTypeKey(e.target.value);
+            // Another type is another form. Carrying answers across would
+            // file one form's answers against another's questions.
+            setAnswers({});
+            setFormErrors({});
+          }}
         >
           {availableTypes.map((r) => (
-            <option key={r.value} value={r.value}>
-              <T>{r.label}</T>
+            // Not wrapped in <T>: a label is the firm's own wording now,
+            // editable in the builder, not static UI copy.
+            <option key={r.key} value={r.key}>
+              {r.label}
             </option>
           ))}
         </select>
@@ -330,95 +383,129 @@ export function CreateIntakeForm({
                 </span>
               )}
             </label>
-            <label className="block">
-              <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-                <T>Priority</T>
-              </span>
-              <select name="priority" className="input" defaultValue="Normal">
-                {PRIORITIES.map((p) => (
-                  <option key={p} value={p}>
-                    <T>{p}</T>
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block">
-              <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-                <T>Due by</T>
-              </span>
-              <input name="dueBy" type="date" className="input" />
-            </label>
-            {!employeeMode && (
+            {/*
+              Everything from here to the end of the branch is the
+              optional metadata this form asks when legal has not said
+              what to ask. A published form replaces it, which is the
+              whole point of building one. Submitted by is not part of
+              it: it names who filed the request, and the counsel side
+              reads it to tell an employee request from a matter.
+            */}
+            {!published && (
+              <>
               <label className="block">
                 <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-                  <T>Expiry / valid until</T>
+                  <T>Priority</T>
                 </span>
-                <input name="expiry" type="date" className="input" />
-                <span className="block text-[11.5px] text-ink-500 dark:text-cream-100/55 mt-1">
-                  <T>Set by legal once the document/term is known.</T>
-                </span>
+                <select name="priority" className="input" defaultValue="Normal">
+                  {PRIORITIES.map((p) => (
+                    <option key={p} value={p}>
+                      <T>{p}</T>
+                    </option>
+                  ))}
+                </select>
               </label>
+              <label className="block">
+                <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+                  <T>Due by</T>
+                </span>
+                <input name="dueBy" type="date" className="input" />
+              </label>
+              {!employeeMode && (
+                <label className="block">
+                  <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+                    <T>Expiry / valid until</T>
+                  </span>
+                  <input name="expiry" type="date" className="input" />
+                  <span className="block text-[11.5px] text-ink-500 dark:text-cream-100/55 mt-1">
+                    <T>Set by legal once the document/term is known.</T>
+                  </span>
+                </label>
+              )}
+              <label className="block">
+                <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+                  <T>Confidentiality</T>
+                </span>
+                <select
+                  name="confidentiality"
+                  className="input"
+                  defaultValue="Standard"
+                >
+                  {CONFIDENTIALITY.map((c) => (
+                    <option key={c} value={c}>
+                      <T>{c}</T>
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+                  <T>State</T>
+                </span>
+                <select name="state" className="input" defaultValue="">
+                  <option value=""><T>Pick a state</T></option>
+                  {STATES.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              </>
             )}
-            <label className="block">
-              <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-                <T>Confidentiality</T>
-              </span>
-              <select
-                name="confidentiality"
-                className="input"
-                defaultValue="Standard"
-              >
-                {CONFIDENTIALITY.map((c) => (
-                  <option key={c} value={c}>
-                    <T>{c}</T>
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block">
-              <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-                <T>State</T>
-              </span>
-              <select name="state" className="input" defaultValue="">
-                <option value=""><T>Pick a state</T></option>
-                {STATES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </label>
           </>
         ) : (
-          <>
-            <label className="block">
-              <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-                <T>Client email</T>
-              </span>
-              <input name="clientEmail" type="email" className="input" />
-            </label>
-            <label className="block">
-              <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-                <T>Phone</T>
-              </span>
-              <input name="clientPhone" type="tel" className="input" />
-            </label>
-            <label className="block sm:col-span-2">
-              <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-                <T>State</T>
-              </span>
-              <select name="state" className="input" defaultValue="">
-                <option value=""><T>Pick a state</T></option>
-                {STATES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </>
+          !published && (
+            <>
+              <label className="block">
+                <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+                  <T>Client email</T>
+                </span>
+                <input name="clientEmail" type="email" className="input" />
+              </label>
+              <label className="block">
+                <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+                  <T>Phone</T>
+                </span>
+                <input name="clientPhone" type="tel" className="input" />
+              </label>
+              <label className="block sm:col-span-2">
+                <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+                  <T>State</T>
+                </span>
+                <select name="state" className="input" defaultValue="">
+                  <option value=""><T>Pick a state</T></option>
+                  {STATES.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </>
+          )
         )}
       </div>
+
+      {published && (
+        <div className="space-y-4">
+          <p className="eyebrow"><T>Request details</T></p>
+          {/* The questions are the firm's own wording, so they are left
+              out of machine translation the same way any other user
+              data is. */}
+          <div data-no-translate>
+            <FormRenderer
+              payload={published.payload}
+              answers={answers}
+              onChange={(key, value) =>
+                setAnswers((prev) => ({ ...prev, [key]: value }))
+              }
+              errors={formErrors}
+              idPrefix="intake-form"
+            />
+          </div>
+        </div>
+      )}
 
       <PartyList
         label={inhouse ? t('Counterparty / other side') : t('Other parties')}
@@ -467,20 +554,22 @@ export function CreateIntakeForm({
         />
       </div>
 
-      <label className="block">
-        <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
-          <T>Reference links</T>{' '}
-          <span className="text-ink-500 dark:text-cream-100/55 font-normal">
-            <T>(optional)</T>
+      {!published && (
+        <label className="block">
+          <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+            <T>Reference links</T>{' '}
+            <span className="text-ink-500 dark:text-cream-100/55 font-normal">
+              <T>(optional)</T>
+            </span>
           </span>
-        </span>
-        <textarea
-          name="links"
-          rows={2}
-          className="input"
-          placeholder={t('Paste any relevant URLs - one per line (SharePoint, Drive, a contract link, a ticket...)')}
-        />
-      </label>
+          <textarea
+            name="links"
+            rows={2}
+            className="input"
+            placeholder={t('Paste any relevant URLs - one per line (SharePoint, Drive, a contract link, a ticket...)')}
+          />
+        </label>
+      )}
 
       <div className="space-y-3 rounded-xl ring-1 ring-ink-200 dark:ring-forest-700/40 p-4">
         <label className="block">

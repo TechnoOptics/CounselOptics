@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { createServerSupabase, getCurrentUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
+import type { QuestionAnswer } from './intake-form-fallback';
 
 /**
  * Conflict check + matter intake.
@@ -54,10 +55,70 @@ export async function createMatterIntakeAction(
     opposingParties?: string[];
     relatedParties?: string[];
     intakeAnswers?: Record<string, unknown>;
+    /**
+     * The `key` of the request type this was filed under. Present, the server
+     * resolves that type's published form itself and enforces it. Absent, or
+     * with nothing published for it, this behaves exactly as it did before the
+     * form builder existed.
+     */
+    requestTypeKey?: string | null;
+    /** Answers to the built form, keyed by question `key`. */
+    formAnswers?: Record<string, string | string[]> | null;
   },
-): Promise<{ ok: boolean; error?: string; intakeId?: string }> {
+): Promise<{
+  ok: boolean;
+  error?: string;
+  intakeId?: string;
+  /** Per question `key`, as `validateAnswers` returns them. */
+  formErrors?: Record<string, string>;
+}> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: 'Sign in first.' };
+
+  // A built form is enforced HERE, not in the browser. This module is
+  // `'use server'`, so this function is a public HTTP endpoint and the client
+  // could send any answers it liked; a rule evaluated only in the renderer is
+  // not enforced. The payload validated against is the one the server reads
+  // back for this firm and type, never one supplied by the caller.
+  //
+  // The authorization check comes FIRST and is the shared one, so that reading
+  // a firm's published questions is gated by the same rule as filing against
+  // them. Without it, a caller passing someone else's firm id would be
+  // rejected at the insert but would already have learned that firm's question
+  // keys from the validation errors.
+  //
+  // It cannot block anyone who could file before: `authorizeFirmActor` admits
+  // any `firm_members` row, and the live insert policy on
+  // `firm_matter_intakes` admits only owner, admin, attorney and paralegal, so
+  // it is a strict subset. Employees reach the same check below anyway.
+  let formVersionId: string | null = null;
+  let questionAnswers: QuestionAnswer[] = [];
+  const requestTypeKey = input.requestTypeKey?.trim();
+  if (requestTypeKey) {
+    const admin = createAdminSupabase();
+    if (admin) {
+      const { authorizeFirmActor } = await import('./portal-entitlements');
+      const auth = await authorizeFirmActor(admin, firmId, user.id, 'requests.create');
+      if (!auth.ok) return { ok: false, error: auth.error };
+
+      const { getPublishedPayload } = await import('./form-queries');
+      const { bindFormAnswers } = await import('./intake-form-fallback');
+      const bound = bindFormAnswers(
+        await getPublishedPayload(admin, firmId, requestTypeKey),
+        input.formAnswers,
+      );
+      if (!bound.ok) {
+        return {
+          ok: false,
+          error: 'Some answers still need attention.',
+          formErrors: bound.errors,
+        };
+      }
+      questionAnswers = bound.questionAnswers;
+      formVersionId = bound.formVersionId;
+    }
+  }
+
   const row = {
     firm_id: firmId,
     client_name: input.clientName.trim(),
@@ -69,9 +130,20 @@ export async function createMatterIntakeAction(
     jurisdiction_state: input.jurisdictionState ?? null,
     opposing_parties: input.opposingParties ?? [],
     related_parties: input.relatedParties ?? [],
-    intake_answers: input.intakeAnswers ?? {},
+    // The server's `questionAnswers` are spread last, so a caller cannot pass
+    // its own labelled answers off as validated ones. The `{id, label, value}`
+    // shape is unchanged: the counsel intake page reads exactly this, and
+    // intakes filed before the form builder existed keep rendering.
+    intake_answers: {
+      ...(input.intakeAnswers ?? {}),
+      ...(questionAnswers.length > 0 ? { questionAnswers } : {}),
+    },
     created_by: user.id,
     status: 'in_progress',
+    // Named only when there is a binding to record. An insert that never
+    // mentions the column cannot fail anywhere the migration has not run, and
+    // an absent binding and a null one mean the same thing.
+    ...(formVersionId ? { form_version_id: formVersionId } : {}),
   };
   const supabase = createServerSupabase();
   let { data, error } = await supabase

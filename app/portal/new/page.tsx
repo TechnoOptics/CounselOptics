@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getWorkspacePersona } from '@/lib/persona';
 import { CreateIntakeForm } from '@/app/counsel/intake/create-intake-form';
+import { readIntakeFormConfig } from '@/lib/intake-form-config';
 import { PageHeader } from '@/components/counsel/ui';
 
 export const dynamic = 'force-dynamic';
@@ -17,6 +18,11 @@ export default async function PortalNewRequestPage() {
 
   const submittedBy =
     persona.employee.displayName || persona.employee.email;
+
+  // Degrades to the built-in request types and today's fixed fields if this
+  // read comes back empty, which is what every firm sees until legal
+  // publishes a form. See lib/intake-form-config.ts.
+  const { requestTypes, publishedForms } = await readIntakeFormConfig(persona.firm.id);
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 animate-fade-up">
@@ -39,6 +45,8 @@ export default async function PortalNewRequestPage() {
 
       <CreateIntakeForm
         firmId={persona.firm.id}
+        requestTypes={requestTypes}
+        publishedForms={publishedForms}
         defaultSubmittedBy={submittedBy}
         employeeMode
         redirectBase="/portal"

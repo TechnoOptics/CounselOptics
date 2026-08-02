@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { readRequestFolders } from '@/lib/request-folders';
+import { readIntakeFormConfig } from '@/lib/intake-form-config';
 import { CreateIntakeForm } from './create-intake-form';
 import { RequestFoldersManager } from './request-folders-manager';
 import { PageHeader } from '@/components/counsel/ui';
@@ -21,6 +22,9 @@ export default async function CounselIntakePage() {
   const folders = readRequestFolders(ctx.firm.metadata);
   const canManage =
     ctx.membership.role === 'owner' || ctx.membership.role === 'admin';
+  // Degrades to the built-in request types and today's fixed fields if this
+  // read comes back empty. See lib/intake-form-config.ts.
+  const { requestTypes, publishedForms } = await readIntakeFormConfig(ctx.firm.id);
 
   return (
     <div className="space-y-8 animate-fade-up">
@@ -50,6 +54,8 @@ export default async function CounselIntakePage() {
 
       <CreateIntakeForm
         firmId={ctx.firm.id}
+        requestTypes={requestTypes}
+        publishedForms={publishedForms}
         defaultSubmittedBy={
           ctx.membership.displayName ?? ctx.membership.email ?? ''
         }
