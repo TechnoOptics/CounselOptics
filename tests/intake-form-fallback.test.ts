@@ -5,10 +5,11 @@ import {
   FALLBACK_REQUEST_TYPES,
   firstErrorFieldId,
   isSeededLabel,
-  matchTypeKeyByLabel,
+  matchTypeKeysByLabel,
   modeForType,
   pickableRequestTypes,
   readAnswers,
+  resolveRequestTypeKey,
 } from '../lib/intake-form-fallback';
 import type { FormPayload, Question } from '../lib/form-schema';
 
@@ -273,6 +274,31 @@ describe('bindFormAnswers', () => {
     if (!result.ok) expect(Object.keys(result.errors)).toEqual(['a']);
   });
 
+  it('names the failed questions in the wording legal published', () => {
+    // A question `key` is a slug frozen at publish time, and can be
+    // `q_a7f3k2` for a form written in a non-Latin script, or stale wording
+    // after a rename. Anything reporting a failure to a human needs the label.
+    const form = {
+      versionId: 'v-1',
+      payload: payload([
+        [
+          q({ id: 'a', key: 'q_a7f3k2', label: 'Название контрагента', required: true }),
+          q({ id: 'b', key: 'ok', label: 'Fine', required: false }),
+        ],
+        [q({ id: 'c', key: 'q_9dk21x', label: 'Effective date', required: true })],
+      ]),
+    };
+    const result = bindFormAnswers(form, { ok: 'yes' });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      // Document order, and only the questions that actually failed.
+      expect(result.errorQuestions).toEqual([
+        { key: 'q_a7f3k2', label: 'Название контрагента' },
+        { key: 'q_9dk21x', label: 'Effective date' },
+      ]);
+    }
+  });
+
   it('does not require a question the employee never saw', () => {
     const form = {
       versionId: 'v-1',
@@ -305,68 +331,101 @@ describe('bindFormAnswers', () => {
   });
 });
 
-describe('matchTypeKeyByLabel', () => {
+describe('matchTypeKeysByLabel', () => {
   const types = FALLBACK_REQUEST_TYPES;
+  const first = (
+    list: readonly { key: string; label: string }[],
+    label: string | null,
+  ) => matchTypeKeysByLabel(list, label)[0] ?? null;
 
   it('finds the type a stored matter_type string was filed under', () => {
     // This is what stops a caller opting out of a published form by simply
     // omitting the request type key. The label is the string every intake
     // already stores in matter_type.
-    expect(matchTypeKeyByLabel(types, 'NDA review')).toBe('nda_review');
-    expect(matchTypeKeyByLabel(types, 'New case / matter')).toBe('new_case_matter');
+    expect(first(types, 'NDA review')).toBe('nda_review');
+    expect(first(types, 'New case / matter')).toBe('new_case_matter');
   });
 
   it('is not fooled by surrounding space or a change of case', () => {
-    expect(matchTypeKeyByLabel(types, '  nda REVIEW ')).toBe('nda_review');
+    expect(first(types, '  nda REVIEW ')).toBe('nda_review');
   });
 
   it('resolves to nothing when the string matches no type', () => {
-    expect(matchTypeKeyByLabel(types, 'NDA reviewX')).toBeNull();
-    expect(matchTypeKeyByLabel(types, '')).toBeNull();
-    expect(matchTypeKeyByLabel(types, null)).toBeNull();
-    expect(matchTypeKeyByLabel([], 'NDA review')).toBeNull();
+    expect(matchTypeKeysByLabel(types, 'NDA reviewX')).toEqual([]);
+    expect(matchTypeKeysByLabel(types, '')).toEqual([]);
+    expect(matchTypeKeysByLabel(types, null)).toEqual([]);
+    expect(matchTypeKeysByLabel([], 'NDA review')).toEqual([]);
   });
 
-  it('takes the first match when a firm has renamed two types the same', () => {
+  it('returns every type sharing a label, in sort order', () => {
     const dupes = [
       { key: 'first', label: 'Contract review' },
       { key: 'second', label: 'Contract review' },
     ];
-    expect(matchTypeKeyByLabel(dupes, 'Contract review')).toBe('first');
+    expect(matchTypeKeysByLabel(dupes, 'Contract review')).toEqual(['first', 'second']);
   });
 
-  it('lets the picked type break a tie between two identical labels', () => {
-    // Otherwise someone picking the second of two same-named types has their
-    // answers validated against the first one's form, and binds to a version
-    // they never saw.
-    const dupes = [
-      { key: 'first', label: 'Contract review' },
-      { key: 'second', label: 'Contract review' },
-    ];
-    expect(matchTypeKeyByLabel(dupes, 'Contract review', 'second')).toBe('second');
-    expect(matchTypeKeyByLabel(dupes, 'Contract review', 'unrelated')).toBe('first');
-  });
-
-  it('does not let the picked type override an unambiguous label', () => {
-    // The tie break is a tie break. A caller must not be able to redirect the
-    // gate to a type with no form by naming one.
-    expect(matchTypeKeyByLabel(types, 'NDA review', 'other')).toBe('nda_review');
-  });
-
-  it('sees through a zero-width character hidden in the label', () => {
-    // A zero-width space renders identically to nothing on every surface that
-    // shows matter_type, so matching through it is what stops an intake
+  it('sees through every character that renders as nothing', () => {
+    // Each of these renders identically to "NDA review" on every surface that
+    // shows matter_type, so matching through them is what stops an intake
     // looking like a filed NDA review while having dodged the form.
-    expect(matchTypeKeyByLabel(types, 'NDA revie\u200Bw')).toBe('nda_review');
-    expect(matchTypeKeyByLabel(types, '\uFEFFNDA\u200D review')).toBe('nda_review');
+    expect(first(types, 'NDA revie\u200Bw')).toBe('nda_review'); // zero width space
+    expect(first(types, '\uFEFFNDA\u200D review')).toBe('nda_review'); // BOM, ZWJ
+    expect(first(types, 'NDA revie\u2060w')).toBe('nda_review'); // word joiner
+    expect(first(types, 'NDA revie\u00ADw')).toBe('nda_review'); // soft hyphen
+    expect(first(types, 'NDA revie\u034Fw')).toBe('nda_review'); // grapheme joiner
   });
 
   it('sees through a decomposed accent and a full-width character', () => {
     // The label is precomposed, the incoming string is decomposed. They look
     // the same and, without normalising, compare unequal.
     const accented = [{ key: 'cafe', label: 'Caf\u00E9 matter' }];
-    expect(matchTypeKeyByLabel(accented, 'Cafe\u0301 matter')).toBe('cafe');
-    expect(matchTypeKeyByLabel(types, '\uFF2EDA review')).toBe('nda_review');
+    expect(first(accented, 'Cafe\u0301 matter')).toBe('cafe');
+    expect(first(types, '\uFF2EDA review')).toBe('nda_review');
+  });
+});
+
+describe('resolveRequestTypeKey', () => {
+  const types = FALLBACK_REQUEST_TYPES;
+  const dupes = [
+    { key: 'bare', label: 'Contract review' },
+    { key: 'gated', label: 'Contract review' },
+  ];
+  const published = (...keys: string[]) => (key: string) => keys.includes(key);
+  const none = () => false;
+
+  it('takes the only match, whatever the caller asked for', () => {
+    // The caller must never be able to redirect the gate to a type with no
+    // form by naming one.
+    expect(resolveRequestTypeKey(types, 'NDA review', 'other', none)).toBe('nda_review');
+    expect(resolveRequestTypeKey(types, 'NDA review', null, none)).toBe('nda_review');
+  });
+
+  it('lets the picked type break a tie when that type has a form', () => {
+    // Otherwise someone picking the second of two same-named types has their
+    // answers validated against the first one's form.
+    expect(resolveRequestTypeKey(dupes, 'Contract review', 'gated', published('bare', 'gated')))
+      .toBe('gated');
+  });
+
+  it('refuses a tie break onto a type with no form, and gates anyway', () => {
+    // The dodge this closes: name the bare twin, and the mandatory form on
+    // the other one is skipped.
+    expect(resolveRequestTypeKey(dupes, 'Contract review', 'bare', published('gated')))
+      .toBe('gated');
+  });
+
+  it('prefers whichever tied type has a form when the caller named none', () => {
+    expect(resolveRequestTypeKey(dupes, 'Contract review', null, published('gated')))
+      .toBe('gated');
+  });
+
+  it('falls back to the first tied type when none of them has a form', () => {
+    expect(resolveRequestTypeKey(dupes, 'Contract review', 'gated', none)).toBe('bare');
+  });
+
+  it('resolves to nothing when the label matches no type', () => {
+    expect(resolveRequestTypeKey(types, 'Not a type', 'nda_review', none)).toBeNull();
   });
 });
 

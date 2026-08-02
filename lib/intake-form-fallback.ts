@@ -132,6 +132,12 @@ export function modeForType(types: readonly PickableType[], key: string): Intake
  * all, which is the gate being dodged in the only way that still leaves the
  * intake looking legitimate.
  *
+ * The strip is the whole `Cf` category rather than a hand-listed range, which
+ * is what a range gets wrong: U+200B to U+200D and U+FEFF are only some of the
+ * characters that render as nothing, and U+2060 WORD JOINER and U+00AD SOFT
+ * HYPHEN are equally invisible. U+034F COMBINING GRAPHEME JOINER is listed
+ * beside it because it is category `Mn`, not `Cf`, and is just as invisible.
+ *
  * NFKC does not reconcile cross-script homoglyphs: a Cyrillic 'а' stays
  * distinct from a Latin 'a'. That residual is the same one as any other
  * deliberately mangled matter type, and it is bounded the same way, below.
@@ -139,13 +145,14 @@ export function modeForType(types: readonly PickableType[], key: string): Intake
 function foldLabel(value: string): string {
   return value
     .normalize('NFKC')
-    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .replace(/[\p{Cf}\u034F]/gu, '')
     .trim()
     .toLowerCase();
 }
 
 /**
- * The request type a stored `matter_type` string was filed under, or null.
+ * Every request type whose label matches a stored `matter_type` string, in the
+ * order given, which is `sort_order`.
  *
  * `matter_type` holds the type's `label` verbatim, which is how the seeded
  * rows were backfilled and what both intake surfaces write. Resolving it back
@@ -156,27 +163,58 @@ function foldLabel(value: string): string {
  * Compared through `foldLabel`, and nothing looser: a partial match would bind
  * an intake to a form it was not filed against.
  *
- * `preferKey` breaks a tie, and only a tie. A firm may rename two types to the
- * same wording, and the person who picked the second of them must have their
- * answers judged against the second one's form, not the first one's, or they
- * see errors they cannot clear or bind to a version they never saw. It cannot
- * override an unambiguous match, because that would hand the caller back the
- * ability to point the gate at a type with no form published.
+ * More than one match is possible, because nothing stops a firm renaming two
+ * types to the same wording. `resolveRequestTypeKey` decides between them.
  */
-export function matchTypeKeyByLabel(
+export function matchTypeKeysByLabel(
   types: readonly { key: string; label: string }[],
   label: string | null | undefined,
-  preferKey?: string | null,
-): string | null {
+): string[] {
   const wanted = foldLabel(label ?? '');
-  if (!wanted) return null;
+  if (!wanted) return [];
+  return types.filter((t) => foldLabel(t.label) === wanted).map((t) => t.key);
+}
 
-  const matches = types.filter((t) => foldLabel(t.label) === wanted).map((t) => t.key);
+/**
+ * The one request type an intake is judged against, or null.
+ *
+ * With a single match, that match wins and `preferKey` is ignored entirely. A
+ * caller must never be able to redirect the gate onto a type with no form by
+ * naming one.
+ *
+ * With several, the decision is made in this order, and the reason is that
+ * both failure modes are real and only one of them is dangerous:
+ *
+ *   1. the caller's own pick, but ONLY when that type has a form published.
+ *      Someone who picked the second of two identically named types must have
+ *      their answers judged against the second one's form, or they see errors
+ *      they cannot clear and bind to a version they never saw.
+ *   2. otherwise the first tied type that has a form. Honouring an unbacked
+ *      pick would be the dodge itself: name the bare twin, and the mandatory
+ *      form on the other one is skipped. Falling back to the first tied type
+ *      regardless would leave the same hole open whenever the bare twin
+ *      happens to sort first.
+ *   3. otherwise the first tied type, since none of them gates anything.
+ *
+ * The cost of 2 is that a legitimate filer on the bare twin is asked the other
+ * twin's questions. That is the safe direction, it only happens to a firm that
+ * has given two live types the same name, and renaming one fixes it.
+ */
+export function resolveRequestTypeKey(
+  types: readonly { key: string; label: string }[],
+  label: string | null | undefined,
+  preferKey: string | null | undefined,
+  hasPublishedForm: (key: string) => boolean,
+): string | null {
+  const matches = matchTypeKeysByLabel(types, label);
   if (matches.length === 0) return null;
+  if (matches.length === 1) return matches[0];
 
   const preferred = (preferKey ?? '').trim();
-  if (matches.length > 1 && preferred && matches.includes(preferred)) return preferred;
-  return matches[0];
+  if (preferred && matches.includes(preferred) && hasPublishedForm(preferred)) {
+    return preferred;
+  }
+  return matches.find((key) => hasPublishedForm(key)) ?? matches[0];
 }
 
 /**
@@ -267,7 +305,21 @@ export type QuestionAnswer = { id: string; label: string; value: string };
 
 export type FormBinding =
   | { ok: true; questionAnswers: QuestionAnswer[]; formVersionId: string | null }
-  | { ok: false; errors: Record<string, string> };
+  | {
+      ok: false;
+      /** Keyed by question `key`, as `validateAnswers` returns them. */
+      errors: Record<string, string>;
+      /**
+       * The same failures in document order, carrying each question's label.
+       *
+       * A `key` is a slug frozen at publish time: a form written in a
+       * non-Latin script yields keys like `q_a7f3k2`, and a question renamed
+       * after publishing keeps its old wording. Anything reporting a failure
+       * to a person needs the label instead, and only this side of the call
+       * has the payload to read it from.
+       */
+      errorQuestions: Array<{ key: string; label: string }>;
+    };
 
 /**
  * The whole published-versus-not decision in one place: what a submitted
@@ -289,7 +341,15 @@ export function bindFormAnswers(
 
   const answers = readAnswers(rawAnswers);
   const checked = validateAnswers(form.payload, answers);
-  if (!checked.ok) return { ok: false, errors: checked.errors };
+  if (!checked.ok) {
+    const errorQuestions: Array<{ key: string; label: string }> = [];
+    for (const row of form.payload.rows) {
+      for (const q of row.fields) {
+        if (checked.errors[q.key]) errorQuestions.push({ key: q.key, label: q.label });
+      }
+    }
+    return { ok: false, errors: checked.errors, errorQuestions };
+  }
 
   return {
     ok: true,

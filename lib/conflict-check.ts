@@ -71,6 +71,12 @@ export async function createMatterIntakeAction(
   intakeId?: string;
   /** Per question `key`, as `validateAnswers` returns them. */
   formErrors?: Record<string, string>;
+  /**
+   * The same failures carrying each question's label, for a caller reporting
+   * them to a person rather than binding them to inputs. A `key` is a slug
+   * frozen at publish time and can be unreadable.
+   */
+  formErrorQuestions?: Array<{ key: string; label: string }>;
 }> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: 'Sign in first.' };
@@ -106,30 +112,38 @@ export async function createMatterIntakeAction(
     const auth = await authorizeFirmActor(admin, firmId, user.id, 'requests.create');
     if (!auth.ok) return { ok: false, error: auth.error };
 
-    const { getPublishedPayload, listRequestTypes } = await import('./form-queries');
-    const { bindFormAnswers, matchTypeKeyByLabel } = await import('./intake-form-fallback');
+    const { listPublishedPayloads, listRequestTypes } = await import('./form-queries');
+    const { bindFormAnswers, resolveRequestTypeKey } = await import('./intake-form-fallback');
 
-    const types = await listRequestTypes(admin, firmId);
-    // The caller's key is passed only as a tie break between two types a firm
-    // has renamed to the same wording, and is the whole answer only when the
-    // label resolves to nothing. Null means this intake names no request type
-    // this firm has: a form hangs off a type row, so there is no form it could
-    // be dodging, and it goes through as it always did.
+    // Every published form for the firm, rather than one type's, because the
+    // tie break between two identically named types has to know which of them
+    // actually gates anything. Same query count as fetching one payload, and
+    // it is the map the binding then reads from.
+    const [types, published] = await Promise.all([
+      listRequestTypes(admin, firmId),
+      listPublishedPayloads(admin, firmId),
+    ]);
+
+    // The caller's key is a tie break between two types a firm has renamed to
+    // the same wording, and is the whole answer only when the label resolves
+    // to nothing. Null means this intake names no request type this firm has:
+    // a form hangs off a type row, so there is no form it could be dodging,
+    // and it goes through as it always did.
     const typeKey =
-      matchTypeKeyByLabel(types, input.matterType, input.requestTypeKey) ??
+      resolveRequestTypeKey(types, input.matterType, input.requestTypeKey, (key) =>
+        Object.prototype.hasOwnProperty.call(published, key),
+      ) ??
       input.requestTypeKey?.trim() ??
       null;
 
     if (typeKey) {
-      const bound = bindFormAnswers(
-        await getPublishedPayload(admin, firmId, typeKey),
-        input.formAnswers,
-      );
+      const bound = bindFormAnswers(published[typeKey] ?? null, input.formAnswers);
       if (!bound.ok) {
         return {
           ok: false,
           error: 'Some answers still need attention.',
           formErrors: bound.errors,
+          formErrorQuestions: bound.errorQuestions,
         };
       }
       questionAnswers = bound.questionAnswers;

@@ -1696,13 +1696,17 @@ async function executeTool(
     // name what is outstanding, and point at the form. The bare
     // "Some answers still need attention" reads as this tool being broken.
     if (!res.ok && res.formErrors) {
-      const outstanding = Object.keys(res.formErrors);
+      // Labels, not keys. A key is a slug frozen at publish time, so a form
+      // written in a non-Latin script reads as "q_a7f3k2" and a renamed
+      // question reads as its old wording.
+      const outstanding = (res.formErrorQuestions ?? []).map((q) => q.label);
+      const named = outstanding.length > 0 ? outstanding : Object.keys(res.formErrors);
       return {
         ok: false,
         error:
           `Legal now requires a ${String(input.matter_type ?? 'request').trim()} to be filed on their intake form, ` +
-          `which asks ${outstanding.length} question${outstanding.length === 1 ? '' : 's'} this tool cannot fill ` +
-          `(${outstanding.join(', ')}). File it at /counsel/intake.`,
+          `which asks ${named.length} question${named.length === 1 ? '' : 's'} this tool cannot fill ` +
+          `(${named.join(', ')}). File it at /counsel/intake.`,
       };
     }
     return res;
