@@ -3,6 +3,9 @@ import {
   bindFormAnswers,
   buildQuestionAnswers,
   FALLBACK_REQUEST_TYPES,
+  firstErrorFieldId,
+  isSeededLabel,
+  matchTypeKeyByLabel,
   modeForType,
   pickableRequestTypes,
   readAnswers,
@@ -299,5 +302,62 @@ describe('bindFormAnswers', () => {
       questionAnswers: [],
       formVersionId: 'v-1',
     });
+  });
+});
+
+describe('matchTypeKeyByLabel', () => {
+  const types = FALLBACK_REQUEST_TYPES;
+
+  it('finds the type a stored matter_type string was filed under', () => {
+    // This is what stops a caller opting out of a published form by simply
+    // omitting the request type key. The label is the string every intake
+    // already stores in matter_type.
+    expect(matchTypeKeyByLabel(types, 'NDA review')).toBe('nda_review');
+    expect(matchTypeKeyByLabel(types, 'New case / matter')).toBe('new_case_matter');
+  });
+
+  it('is not fooled by surrounding space or a change of case', () => {
+    expect(matchTypeKeyByLabel(types, '  nda REVIEW ')).toBe('nda_review');
+  });
+
+  it('resolves to nothing when the string matches no type', () => {
+    expect(matchTypeKeyByLabel(types, 'NDA reviewX')).toBeNull();
+    expect(matchTypeKeyByLabel(types, '')).toBeNull();
+    expect(matchTypeKeyByLabel(types, null)).toBeNull();
+    expect(matchTypeKeyByLabel([], 'NDA review')).toBeNull();
+  });
+
+  it('takes the first match when a firm has renamed two types the same', () => {
+    const dupes = [
+      { key: 'first', label: 'Contract review' },
+      { key: 'second', label: 'Contract review' },
+    ];
+    expect(matchTypeKeyByLabel(dupes, 'Contract review')).toBe('first');
+  });
+});
+
+describe('isSeededLabel', () => {
+  it('is true only while a type still carries its seeded wording', () => {
+    expect(isSeededLabel({ key: 'nda_review', label: 'NDA review' })).toBe(true);
+    expect(isSeededLabel({ key: 'nda_review', label: 'NDA and similar' })).toBe(false);
+    // A firm's own type, and a partner slug, are never seeded wording.
+    expect(isSeededLabel({ key: 'nda', label: 'NDA' })).toBe(false);
+  });
+});
+
+describe('firstErrorFieldId', () => {
+  const p = payload([[q({ id: 'a' }), q({ id: 'b' })], [q({ id: 'c' })]]);
+
+  it('names the first errored control in document order, not map order', () => {
+    // Errors arrive as an object, whose key order is not the form's order, so
+    // focus has to be decided by walking the form.
+    expect(firstErrorFieldId(p, { c: 'x', b: 'y' }, 'intake-form')).toBe(
+      'intake-form-0-1-b',
+    );
+  });
+
+  it('is null when nothing is wrong, or when the errors name no question', () => {
+    expect(firstErrorFieldId(p, {}, 'intake-form')).toBeNull();
+    expect(firstErrorFieldId(p, { nope: 'x' }, 'intake-form')).toBeNull();
   });
 });

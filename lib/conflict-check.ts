@@ -56,10 +56,10 @@ export async function createMatterIntakeAction(
     relatedParties?: string[];
     intakeAnswers?: Record<string, unknown>;
     /**
-     * The `key` of the request type this was filed under. Present, the server
-     * resolves that type's published form itself and enforces it. Absent, or
-     * with nothing published for it, this behaves exactly as it did before the
-     * form builder existed.
+     * The `key` of the request type this was filed under. Only a hint, and
+     * only used when `matterType` resolves to no type at all: the server works
+     * the type out from `matterType` itself, so omitting this cannot switch
+     * the form gate off.
      */
     requestTypeKey?: string | null;
     /** Answers to the built form, keyed by question `key`. */
@@ -81,6 +81,13 @@ export async function createMatterIntakeAction(
   // not enforced. The payload validated against is the one the server reads
   // back for this firm and type, never one supplied by the caller.
   //
+  // Which type this is gets DERIVED, from `matterType`, and only falls back to
+  // the caller's `requestTypeKey` when that resolves to nothing. Keying the
+  // gate off a field the caller chooses whether to send would leave the caller
+  // holding the switch: omit it, and a mandatory form is skipped. `matterType`
+  // cannot be omitted the same way, because it is the string that identifies
+  // the request on every surface that reads it afterwards.
+  //
   // The authorization check comes FIRST and is the shared one, so that reading
   // a firm's published questions is gated by the same rule as filing against
   // them. Without it, a caller passing someone else's firm id would be
@@ -93,18 +100,25 @@ export async function createMatterIntakeAction(
   // it is a strict subset. Employees reach the same check below anyway.
   let formVersionId: string | null = null;
   let questionAnswers: QuestionAnswer[] = [];
-  const requestTypeKey = input.requestTypeKey?.trim();
-  if (requestTypeKey) {
-    const admin = createAdminSupabase();
-    if (admin) {
-      const { authorizeFirmActor } = await import('./portal-entitlements');
-      const auth = await authorizeFirmActor(admin, firmId, user.id, 'requests.create');
-      if (!auth.ok) return { ok: false, error: auth.error };
+  const admin = createAdminSupabase();
+  if (admin) {
+    const { authorizeFirmActor } = await import('./portal-entitlements');
+    const auth = await authorizeFirmActor(admin, firmId, user.id, 'requests.create');
+    if (!auth.ok) return { ok: false, error: auth.error };
 
-      const { getPublishedPayload } = await import('./form-queries');
-      const { bindFormAnswers } = await import('./intake-form-fallback');
+    const { getPublishedPayload, listRequestTypes } = await import('./form-queries');
+    const { bindFormAnswers, matchTypeKeyByLabel } = await import('./intake-form-fallback');
+
+    const types = await listRequestTypes(admin, firmId);
+    // Null means this intake names no request type this firm has. A form hangs
+    // off a type row, so there is no form it could be dodging, and it goes
+    // through as it always did.
+    const typeKey =
+      matchTypeKeyByLabel(types, input.matterType) ?? input.requestTypeKey?.trim() ?? null;
+
+    if (typeKey) {
       const bound = bindFormAnswers(
-        await getPublishedPayload(admin, firmId, requestTypeKey),
+        await getPublishedPayload(admin, firmId, typeKey),
         input.formAnswers,
       );
       if (!bound.ok) {
@@ -130,10 +144,16 @@ export async function createMatterIntakeAction(
     jurisdiction_state: input.jurisdictionState ?? null,
     opposing_parties: input.opposingParties ?? [],
     related_parties: input.relatedParties ?? [],
-    // The server's `questionAnswers` are spread last, so a caller cannot pass
-    // its own labelled answers off as validated ones. The `{id, label, value}`
-    // shape is unchanged: the counsel intake page reads exactly this, and
-    // intakes filed before the form builder existed keep rendering.
+    // The server's `questionAnswers` are spread last, so where a form is
+    // published the caller cannot pass its own labelled answers off as
+    // validated ones. Where none is published, which is every firm today,
+    // `intakeAnswers` is written as given and a caller-supplied
+    // `questionAnswers` still rides through, exactly as it did before this
+    // gate existed. Pre-existing, and unchanged here on purpose.
+    //
+    // The `{id, label, value}` shape is unchanged either way: the counsel
+    // intake page reads exactly this, and intakes filed before the form
+    // builder existed keep rendering.
     intake_answers: {
       ...(input.intakeAnswers ?? {}),
       ...(questionAnswers.length > 0 ? { questionAnswers } : {}),
@@ -163,7 +183,8 @@ export async function createMatterIntakeAction(
     error &&
     /row-level security|violates row-level/i.test(error.message ?? '')
   ) {
-    const admin = createAdminSupabase();
+    // The same service-role client the form gate above resolved, rather than a
+    // second one shadowing it.
     if (admin) {
       // Enforce the request-creation entitlement server-side - the
       // portal hides "New request" for roles without it, but that is

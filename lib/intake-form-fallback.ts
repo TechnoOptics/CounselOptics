@@ -21,7 +21,7 @@
  */
 
 import type { FormPayload } from './form-schema';
-import { formatAnswer } from './form-render-model';
+import { domId, formatAnswer } from './form-render-model';
 import { computeVisibilityMap, validateAnswers, type Answers } from './form-validate';
 
 export type IntakeMode = 'client' | 'inhouse';
@@ -118,6 +118,70 @@ export function pickableRequestTypes(
  */
 export function modeForType(types: readonly PickableType[], key: string): IntakeMode {
   return types.find((t) => t.key === key)?.mode ?? 'client';
+}
+
+/**
+ * The request type a stored `matter_type` string was filed under, or null.
+ *
+ * `matter_type` holds the type's `label` verbatim, which is how the seeded
+ * rows were backfilled and what both intake surfaces write. Resolving it back
+ * is what stops a caller opting out of a published form by omitting the
+ * request type key: the server can always work out which type an intake claims
+ * to be from the string the intake itself carries.
+ *
+ * Trimmed and case-folded, so a near miss on whitespace or capitalisation
+ * still resolves. Nothing looser than that: a partial match would bind an
+ * intake to a form it was not filed against.
+ *
+ * When a firm has renamed two types to the same wording, the first in the
+ * given order wins, which is `sort_order`. There is no better answer, and the
+ * firm can tell them apart by renaming one.
+ */
+export function matchTypeKeyByLabel(
+  types: readonly { key: string; label: string }[],
+  label: string | null | undefined,
+): string | null {
+  const wanted = (label ?? '').trim().toLowerCase();
+  if (!wanted) return null;
+  return types.find((t) => t.label.trim().toLowerCase() === wanted)?.key ?? null;
+}
+
+/**
+ * True while a type still carries the wording the migration seeded for it.
+ *
+ * The picker translates a seeded label, because it is Advottic's own copy and
+ * a non-English employee should read it in their language, and renders a
+ * firm-edited one raw, because that is the firm's own words and machine
+ * translating user data is what `<T>` exists to avoid. The moment legal edits
+ * a label, this goes false and stays false.
+ */
+export function isSeededLabel(type: { key: string; label: string }): boolean {
+  return FALLBACK_REQUEST_TYPES.some(
+    (seeded) => seeded.key === type.key && seeded.label === type.label,
+  );
+}
+
+/**
+ * The DOM id of the first question carrying an error, in document order, or
+ * null.
+ *
+ * Errors arrive as an object keyed by question `key`, whose enumeration order
+ * has nothing to do with the form's, so the form has to be walked. The caller
+ * moves focus there on a failed submit: each message is bound to its input by
+ * `aria-describedby`, so focusing the input is what reads the reason aloud.
+ * Built with the same `domId` the renderer uses, or focus would land nowhere.
+ */
+export function firstErrorFieldId(
+  payload: FormPayload,
+  errors: Record<string, string>,
+  idPrefix: string,
+): string | null {
+  for (const [rowIndex, row] of payload.rows.entries()) {
+    for (const [fieldIndex, q] of row.fields.entries()) {
+      if (errors[q.key]) return domId(idPrefix, q.key, rowIndex, fieldIndex);
+    }
+  }
+  return null;
 }
 
 /** Longest single answer stored. Well above the validator's own ceilings. */
