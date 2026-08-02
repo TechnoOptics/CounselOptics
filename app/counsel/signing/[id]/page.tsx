@@ -7,9 +7,14 @@ import {
   getFirmDocumentSignedUrl,
   getFirmSigningRequestWithSignatures,
 } from '@/lib/firm-storage';
-import { FIRM_SIGNING_STATUS_LABEL } from '@/lib/firm-types';
+import {
+  FIRM_SIGNING_STATUS_COLOR,
+  FIRM_SIGNING_STATUS_LABEL,
+} from '@/lib/firm-types';
 import { RecallButton } from './recall-button';
 import { ReopenButton } from './reopen-button';
+import { PageHeader } from '@/components/counsel/ui';
+import { StatusPill } from '@/components/counsel/StatusPill';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -36,29 +41,32 @@ export default async function SigningRequestDetail({
           <T>&larr; Signing requests</T>
         </Link>
       </p>
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="eyebrow mb-1"><T>Signing request</T></p>
-          <h1 className="font-display text-2xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-            {doc?.name ?? <T>Document</T>}
-          </h1>
-          <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-1 font-mono">
-            <T>Request</T> #{data.request.id.slice(0, 8)} &middot; <T>Sent</T>{' '}
-            {data.request.sentAt
-              ? new Date(data.request.sentAt).toLocaleString()
-              : <T>not yet</T>}
-          </p>
-        </div>
-        <div className="flex flex-col items-end gap-2">
-          <span className="badge bg-ink-100 dark:bg-forest-800/60 text-ink-700 dark:text-cream-100/85 text-[10px] tracking-wider">
-            {FIRM_SIGNING_STATUS_LABEL[data.request.status].toUpperCase()}
-          </span>
-          {data.request.status !== 'completed' &&
-            data.request.status !== 'canceled' && (
-              <RecallButton requestId={data.request.id} />
-            )}
-        </div>
-      </header>
+      <PageHeader
+        size="sm"
+        eyebrow={<T>Signing request</T>}
+        title={doc?.name ?? <T>Document</T>}
+        action={
+          <div className="flex flex-col items-end gap-2">
+            <StatusPill
+              size="sm"
+              color={FIRM_SIGNING_STATUS_COLOR[data.request.status]}
+            >
+              {FIRM_SIGNING_STATUS_LABEL[data.request.status]}
+            </StatusPill>
+            {data.request.status !== 'completed' &&
+              data.request.status !== 'canceled' && (
+                <RecallButton requestId={data.request.id} />
+              )}
+          </div>
+        }
+      >
+        <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-1 font-mono">
+          <T>Request</T> #{data.request.id.slice(0, 8)} &middot; <T>Sent</T>{' '}
+          {data.request.sentAt
+            ? new Date(data.request.sentAt).toLocaleString()
+            : <T>not yet</T>}
+        </p>
+      </PageHeader>
 
       {(data.request.status === 'rejected' ||
         data.request.status === 'changes_requested' ||

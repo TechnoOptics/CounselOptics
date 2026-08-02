@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { T } from '@/components/i18n/LocaleProvider';
+import { SectionTitle } from '@/components/counsel/ui';
 
 /**
  * Lists the project binders bound to this matter (firm_projects.case_id). A
@@ -32,17 +33,19 @@ export async function LinkedProjectsPanel({
 
   return (
     <section className="card p-4 space-y-3">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="font-display text-lg font-medium text-forest-900 dark:text-cream-100">
-          <T>Linked projects</T>
-        </h2>
-        <Link
-          href="/counsel/projects"
-          className="text-[12px] text-ink-500 dark:text-cream-100/55 hover:underline"
-        >
-          <T>All projects</T> →
-        </Link>
-      </div>
+      <SectionTitle
+        variant="display"
+        action={
+          <Link
+            href="/counsel/projects"
+            className="text-[12px] text-ink-500 dark:text-cream-100/55 hover:underline"
+          >
+            <T>All projects</T> →
+          </Link>
+        }
+      >
+        <T>Linked projects</T>
+      </SectionTitle>
       <ul className="space-y-2">
         {projects.map((p) => (
           <li

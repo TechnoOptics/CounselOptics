@@ -7,6 +7,7 @@ import { T, useT } from '@/components/i18n/LocaleProvider';
 import { RelevanceBadge } from '@/components/RelevanceBadge';
 import { EvidencePreview } from '@/components/EvidencePreview';
 import { KindIcon } from '@/components/counsel/KindIcon';
+import { SectionTitle } from '@/components/counsel/ui';
 import { ExpandableText } from '@/components/ExpandableText';
 import { CaseMap, type MapPoint } from '@/app/cases/[id]/timeline/case-map';
 import {
@@ -215,11 +216,9 @@ export function FirmTimeline({
     <div className="flex gap-6 items-start">
     <div className="flex-1 min-w-0 space-y-6">
       {/* Actions */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-display text-lg font-medium text-forest-900 dark:text-cream-100">
-          <T>Chronology</T>{' '}
-          <span className="text-ink-400 dark:text-cream-100/40">({events.length})</span>
-        </h2>
+      <SectionTitle
+        variant="display"
+        action={
         <div className="flex flex-wrap items-center gap-2">
           {lowCount > 0 && (
             <button
@@ -293,7 +292,11 @@ export function FirmTimeline({
             </button>
           )}
         </div>
-      </div>
+        }
+      >
+        <T>Chronology</T>{' '}
+        <span className="text-ink-400 dark:text-cream-100/40">({events.length})</span>
+      </SectionTitle>
 
       {error && (
         <p className="rounded-lg border border-rose-200 dark:border-rose-700/40 bg-rose-50 dark:bg-rose-950/30 px-3 py-2 text-[13px] text-rose-800 dark:text-rose-200">

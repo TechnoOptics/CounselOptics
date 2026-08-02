@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { listFirmTemplatesAction } from '@/lib/firm-templates';
 import { FormsManageClient } from './forms-manage-client';
+import { PageHeader } from '@/components/counsel/ui';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -19,18 +20,18 @@ export default async function CounselFormsPage() {
   const res = await listFirmTemplatesAction(ctx.firm.id);
   return (
     <div className="space-y-6 animate-fade-up">
-      <header>
-        <p className="eyebrow mb-1"><T>Counsel · self-service</T></p>
-        <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          <T>Form templates</T>
-        </h1>
-        <p className="mt-1 max-w-2xl text-sm text-ink-600 dark:text-cream-100/70">
-          Publish configured documents (an NDA, a vendor form) and employees fill, sign, and
-          export them from their Hub without opening a ticket. Use{' '}
-          <code className="rounded bg-cream-100 px-1 text-[12px] dark:bg-forest-800">{'{{field_key}}'}</code>{' '}
-          placeholders in the body; each becomes an input on the employee&apos;s form.
-        </p>
-      </header>
+      <PageHeader
+        eyebrow={<T>Counsel · self-service</T>}
+        title={<T>Form templates</T>}
+        subtitle={
+          <>
+            Publish configured documents (an NDA, a vendor form) and employees fill, sign, and
+            export them from their Hub without opening a ticket. Use{' '}
+            <code className="rounded bg-cream-100 px-1 text-[12px] dark:bg-forest-800">{'{{field_key}}'}</code>{' '}
+            placeholders in the body; each becomes an input on the employee&apos;s form.
+          </>
+        }
+      />
       <FormsManageClient firmId={ctx.firm.id} initialTemplates={res.templates ?? []} />
     </div>
   );

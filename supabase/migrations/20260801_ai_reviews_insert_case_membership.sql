@@ -1,0 +1,213 @@
+-- Require case membership to write an Advottic Review.
+--
+-- ============================== APPLIED ==================================
+-- Written and applied to production 2026-08-01. Verified live 2026-08-01:
+-- public.ai_reviews carries exactly two policies, and the INSERT one is
+--
+--   ai_reviews_insert_case_member  (cmd 'a')
+--   with check ((auth.uid() = user_id) AND private.is_case_member(case_id))
+--
+-- with the old ai_reviews_insert_own gone, so INSERT and SELECT are now
+-- symmetric on private.is_case_member. supabase/schema-fingerprint.sha256
+-- already covers this change: the live fingerprint recomputed after the fact
+-- is d934fd0f8a91c114fc01942052592bfdc6218823b326aee621842d4beb433c68, which
+-- is byte identical to the committed baseline, so no regeneration is owed.
+--
+-- The residuals documented below (any case member including viewer and
+-- witness may still author a review; no firm awareness) are UNCHANGED and
+-- still stand. Read them before narrowing anything here.
+-- =========================================================================
+--
+-- The problem it fixes (docs/audit/UX_AUDIT_CONSUMER.md):
+-- the live INSERT policy on public.ai_reviews is
+--
+--   ai_reviews_insert_own   with check (auth.uid() = user_id)
+--
+-- It checks only that the writer is stamping their own user_id. It never
+-- checks that the writer has anything to do with the case the review is
+-- attached to. The SELECT policy on the same table already does check, via
+--
+--   ai_reviews_select_own_or_collaborator   using (private.is_case_member(case_id))
+--
+-- So any signed-in user can insert a row carrying an arbitrary case_id, and
+-- that row is then read back by the members of that case and rendered to them
+-- as their own "Advottic Review" output - getLatestReview (lib/storage.ts:738)
+-- selects the newest row for the case with no user_id filter at all. In a
+-- product where people read that output to decide what to do about a real
+-- legal situation, that is fabricated legal analysis presented as the
+-- product's own. The asymmetry between the two policies is the whole bug;
+-- this migration removes it.
+--
+-- Why this is safe to express as RLS, i.e. what actually writes this table:
+-- there is exactly ONE insert site in the codebase, lib/storage.ts:760 in
+-- saveReview(), and it uses createServerSupabase() (lib/supabase/server.ts:31)
+-- - the anon key plus the user's cookies - so RLS genuinely applies and the
+-- tightening genuinely bites. There is no service-role, edge-function,
+-- trigger or seed-script writer. saveReview is reached from exactly two
+-- callers, both in lib/actions.ts:
+--
+--   * lib/actions.ts:311   createCaseAction -> auto-review on case creation.
+--     createCase (lib/storage.ts:329) stamps user_id = the caller and sets no
+--     firm_id, so the caller is always cases.user_id and the owner branch of
+--     the helper always passes.
+--   * lib/actions.ts:1175  runReviewAction, from app/cases/[id]/review-panel.tsx:54.
+--     The caller has already loaded the case through getCase(), which reads
+--     under cases_select_own_or_collaborator.
+--
+-- The other FOUR references to this table are reads, none affected:
+--   * lib/storage.ts:739            getLatestReview          (user client)
+--   * lib/bella.ts:1411             case context for Bella   (user client)
+--   * app/api/account/export/route.ts:32  GDPR data export   (user client)
+--   * lib/storage.ts:1282           admin dashboard headcount (admin client,
+--                                   service role, bypasses RLS entirely)
+--
+-- The caseless trap, checked and found not to apply:
+-- the standalone document review at /review-my-document does NOT touch this
+-- table. app/api/review-document/route.ts is unauthenticated, IP-rate-limited,
+-- and streams straight out of streamBella({mode:'doc-review'}) with no
+-- database call anywhere in the file; app/review-my-document/ holds only
+-- page.tsx and review-client.tsx. There is also no room for a caseless row
+-- even in principle - public.ai_reviews.case_id is declared NOT NULL
+-- (supabase/schema.sql:175), and the live table holds 35 rows, 35 with a
+-- case_id and 0 with a null one. So the predicate below does not need a
+-- "case_id is null" escape branch, and adding one would only reopen the hole
+-- it closes.
+--
+-- ---------------------------------------------------------------------------
+-- Who loses the ability to write when this is applied
+-- ---------------------------------------------------------------------------
+--   * Any signed-in user inserting a review against a case they neither own
+--     nor collaborate on. That is the attack this closes, and no legitimate
+--     feature does it.
+--   * Firm members who are not the matter's cases.user_id and who hold no
+--     case_collaborators row, IF they ever reach the consumer review panel for
+--     a firm matter. Not a regression: such a write already produces a row its
+--     own author cannot read back, because SELECT uses the same helper. After
+--     this it fails instead of silently writing an unreadable row. Note that
+--     runReview debits tokens (lib/ai.ts:263, consumeTokensForCurrentUser)
+--     AFTER the Anthropic call and BEFORE saveReview, so the failure lands
+--     post-charge - the model ran and the tokens are spent either way, which
+--     is equally true today.
+--   * Nobody else. Every role that can reach the "Run review" button keeps it:
+--     the case owner passes on the owner branch, and editor, attorney,
+--     viewer, witness, represented and co-counsel guests all pass on the
+--     collaborator branch. Live collaborators today are 3 editor, 2 viewer,
+--     2 attorney. All 35 live rows were written by the case owner, including
+--     the single one attached to a firm matter, so 0 existing rows correspond
+--     to a writer this would have blocked.
+--
+-- ---------------------------------------------------------------------------
+-- Known residual: this does NOT restrict WHICH member may write
+-- ---------------------------------------------------------------------------
+-- private.is_case_member (supabase/schema.sql:247) is owner OR any
+-- case_collaborators row of ANY role - including `viewer` and `witness`. So
+-- after this change an invited viewer or witness can still author a row that
+-- the case owner reads as the product's own analysis. That is the same class
+-- of harm as the bug above, at much smaller blast radius: it now requires the
+-- owner to have invited that person to that case first, rather than being
+-- open to every account on the platform.
+--
+-- The narrower helper private.can_add_to_case (supabase/schema.sql:262 - owner
+-- or editor/attorney/represented) was considered and deliberately NOT used,
+-- even though the neighbouring exhibits_insert_owner_or_editor policy
+-- (supabase/schema.sql:331) does use it. Using it here would break a real,
+-- currently working path:
+--
+--   * app/cases/[id]/page.tsx:85 states the product rule outright - "Freemium
+--     Advottic Review: anyone can GENERATE a review", with entitlement
+--     gating only how much of the result is shown.
+--   * The 'advottic-review' tab is not role-filtered (the only isWitness
+--     branch in that file adds a leading "My statement" tab; it removes
+--     nothing), and app/cases/[id]/review-panel.tsx has no role gate on the
+--     "Run review" button at all.
+--
+-- So viewers and witnesses can run a review today by design, and there are 2
+-- viewer collaborators live right now. Narrowing the predicate would silently
+-- break them. If the product decision changes to "only contributing members
+-- may generate a review", the fix is to gate the button in review-panel.tsx
+-- and switch this policy to can_add_to_case in the same change - not to
+-- narrow the policy alone and leave a button that throws.
+--
+-- Firm awareness was likewise left out on purpose. private.is_firm_case_member
+-- exists (supabase/fixes/2026-07-08-case-timeline-collab.sql:31) and the newer
+-- case-scoped tables pair the two helpers as
+-- `is_case_member(case_id) or is_firm_case_member(case_id)`. It is omitted
+-- here because ai_reviews' SELECT policy is not firm-aware either, and
+-- INSERT/SELECT symmetry is the entire point of this migration. Widening
+-- INSERT past what SELECT allows would just recreate unreadable rows.
+--
+-- ---------------------------------------------------------------------------
+-- Before applying
+-- ---------------------------------------------------------------------------
+-- 1. Confirm the live policy is still what this migration thinks it is
+--    replacing, so the drop-and-recreate does not discard a condition added
+--    since the audit. The INSERT row must read exactly (auth.uid() = user_id):
+--
+--      select pol.polname,
+--             pol.polcmd,
+--             pg_get_expr(pol.polqual, pol.polrelid)      as using_expr,
+--             pg_get_expr(pol.polwithcheck, pol.polrelid) as with_check_expr
+--        from pg_policy pol
+--       where pol.polrelid = 'public.ai_reviews'::regclass;
+--
+-- 2. Confirm no legitimate writer is blocked. non_member_would_be_blocked
+--    must be 0. (The caseless count is belt-and-braces against a stale
+--    schema.sql; case_id is NOT NULL, so it cannot be anything but 0.)
+--
+--      select count(*) as total,
+--             count(*) filter (where r.case_id is null) as caseless_would_be_blocked,
+--             count(*) filter (
+--               where c.user_id is distinct from r.user_id
+--                 and not exists (
+--                   select 1 from public.case_collaborators cc
+--                    where cc.case_id = r.case_id and cc.user_id = r.user_id
+--                 )
+--             ) as non_member_would_be_blocked
+--        from public.ai_reviews r
+--        left join public.cases c on c.id = r.case_id;
+--
+--    If non_member_would_be_blocked is greater than 0, do not assume a real
+--    path is broken yet - the query tests TODAY's case_collaborators rows
+--    against historical reviews, so a review written by a collaborator who
+--    was later removed counts as blocked. Check whether each flagged writer
+--    was simply de-collaborated. Only if some of them were never members
+--    does an unidentified write path exist, and then STOP and find it before
+--    applying, because blocking it would silently break review generation.
+--
+-- ---------------------------------------------------------------------------
+-- Scope notes
+-- ---------------------------------------------------------------------------
+-- The role targeting is changed from public to `authenticated`, matching
+-- 20260731_staff_role_read_scope.sql. This is a no-op for access, not a fix:
+-- auth.uid() is null for anon and user_id is NOT NULL, so anon can never
+-- satisfy the check either way. Note that supabase/schema.sql:289 revokes
+-- EXECUTE on the helper from public, but that revoke is NOT live - checked
+-- 2026-08-01, has_function_privilege('anon', 'private.is_case_member', ...)
+-- returns true, presumably lost when the helpers moved to the private schema
+-- (supabase/fixes/2026-06-27-move-rls-helpers-to-private-schema.sql). So the
+-- `to authenticated` clause is defence in depth and consistency only; do not
+-- read it as closing a live hole. The stray anon EXECUTE grant is a separate
+-- issue and is not addressed here.
+--
+-- supabase/schema.sql is deliberately not edited here: it is a stale baseline
+-- (it still names public.is_case_member, while the live helper is
+-- private.is_case_member, and it does not carry the 20260731 change either).
+-- Migrations are the source of truth; the fingerprint gate reads the live
+-- schema, not this file.
+--
+-- Remember to regenerate supabase/schema-fingerprint.sha256 after applying.
+
+begin;
+
+drop policy if exists "ai_reviews_insert_own" on public.ai_reviews;
+drop policy if exists "ai_reviews_insert_case_member" on public.ai_reviews;
+
+create policy "ai_reviews_insert_case_member"
+  on public.ai_reviews for insert
+  to authenticated
+  with check (
+    auth.uid() = user_id
+    and private.is_case_member(case_id)
+  );
+
+commit;

@@ -8,6 +8,7 @@ import {
   fetchMicrosoftCalendarEvents,
   isCalendarSyncConfigured,
 } from '@/lib/calendar-sync';
+import { PageHeader } from '@/components/counsel/ui';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -163,21 +164,21 @@ export default async function CounselCalendarPage({
 
   return (
     <div className="space-y-6 animate-fade-up">
-      <header>
-        <p className="eyebrow mb-1"><T>Counsel · calendar</T></p>
-        <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          <T>Calendar</T>
-        </h1>
-        <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-          <T>
-            One calendar for everything the legal team needs to be ready for:
-            scheduled Teams/Zoom meetings, case deadlines and hearings,
-            request/contract reminders
-          </T>
-          {hasMicrosoft ? <T>, and your connected Outlook events</T> : ''}
-          <T>. Switch between month and agenda views.</T>
-        </p>
-      </header>
+      <PageHeader
+        eyebrow={<T>Counsel · calendar</T>}
+        title={<T>Calendar</T>}
+        subtitle={
+          <>
+            <T>
+              One calendar for everything the legal team needs to be ready for:
+              scheduled Teams/Zoom meetings, case deadlines and hearings,
+              request/contract reminders
+            </T>
+            {hasMicrosoft ? <T>, and your connected Outlook events</T> : ''}
+            <T>. Switch between month and agenda views.</T>
+          </>
+        }
+      />
 
       <MeetingScheduler firmId={firmId} connected={connected} />
 

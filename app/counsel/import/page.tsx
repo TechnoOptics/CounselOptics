@@ -8,6 +8,7 @@ import {
   EmployeesImporter,
   JsonDumpImporter,
 } from '@/components/counsel/import/ImportPanels';
+import { PageHeader } from '@/components/counsel/ui';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -61,19 +62,19 @@ export default async function CounselImportPage() {
 
   return (
     <div className="space-y-6 animate-fade-up">
-      <header>
-        <p className="eyebrow mb-1"><T>Onboarding</T></p>
-        <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          <T>Import data</T>
-        </h1>
-        <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-          <T>Bring your existing roster, matters, and documents into</T>{' '}
-          {ctx.firm.name} <T>in one sitting. Pick a lane below; each one
-          shows a preview before it commits. New clients and matters
-          default to your paralegal so they can triage and pull in
-          the right attorney.</T>
-        </p>
-      </header>
+      <PageHeader
+        eyebrow={<T>Onboarding</T>}
+        title={<T>Import data</T>}
+        subtitle={
+          <>
+            <T>Bring your existing roster, matters, and documents into</T>{' '}
+            {ctx.firm.name} <T>in one sitting. Pick a lane below; each one
+            shows a preview before it commits. New clients and matters
+            default to your paralegal so they can triage and pull in
+            the right attorney.</T>
+          </>
+        }
+      />
       <a
         href="/counsel/import/migrate"
         className="inline-flex items-center gap-1.5 rounded-lg bg-forest-900 text-white dark:bg-gold-metal dark:text-forest-950 px-3.5 py-2 text-sm font-medium hover:brightness-110"

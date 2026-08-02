@@ -5,6 +5,8 @@ import { getFirmSurfaceSettings } from '@/lib/firm-settings';
 import { createServerSupabase, getCurrentUser } from '@/lib/supabase/server';
 import { listOpenTimer } from '@/lib/time-tracking';
 import { TimerWidget } from '@/components/TimerWidget';
+import { PageHeader } from '@/components/counsel/ui';
+import { StatusPill, PILL_COLORS } from '@/components/counsel/StatusPill';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -82,20 +84,16 @@ export default async function CounselTimePage() {
 
   return (
     <div className="space-y-8 animate-fade-up">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="eyebrow mb-1"><T>Counsel · time</T></p>
-          <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-            <T>Time entries</T>
-          </h1>
-          <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-            <T>Every billable and non-billable minute logged across the firm.
-            Start a timer from the case page and it lands here. Unbilled
-            entries roll up into invoices on the billing tab.</T>
-          </p>
-        </div>
-        <TimerWidget firmId={ctx.firm.id} initial={openTimer} />
-      </header>
+      <PageHeader
+        eyebrow={<T>Counsel · time</T>}
+        title={<T>Time entries</T>}
+        subtitle={
+          <T>Every billable and non-billable minute logged across the firm.
+          Start a timer from the case page and it lands here. Unbilled
+          entries roll up into invoices on the billing tab.</T>
+        }
+        action={<TimerWidget firmId={ctx.firm.id} initial={openTimer} />}
+      />
 
       <section className="grid gap-3 sm:grid-cols-4">
         <Stat
@@ -150,14 +148,14 @@ export default async function CounselTimePage() {
                         {e.description ?? <T>Time entry</T>}
                       </p>
                       {e.invoice_id && (
-                        <span className="inline-flex items-center px-1.5 py-[1px] rounded text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-200 ring-emerald-200 dark:ring-emerald-700/40">
+                        <StatusPill color={PILL_COLORS.good} size="sm">
                           <T>Invoiced</T>
-                        </span>
+                        </StatusPill>
                       )}
                       {!e.billable && (
-                        <span className="inline-flex items-center px-1.5 py-[1px] rounded text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 bg-ink-100 dark:bg-forest-800/50 text-ink-700 dark:text-cream-100/85 ring-ink-200 dark:ring-forest-700/40">
+                        <StatusPill color={PILL_COLORS.neutral} size="sm">
                           <T>Non-billable</T>
-                        </span>
+                        </StatusPill>
                       )}
                     </div>
                     <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-0.5 font-mono tabular-nums">

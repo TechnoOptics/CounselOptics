@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { T } from '@/components/i18n/LocaleProvider';
+import { PageHeader } from '@/components/counsel/ui';
 
 /**
  * Not-found boundary for /counsel/**.
@@ -25,18 +26,20 @@ export const metadata: Metadata = {
 export default function CounselNotFound() {
   return (
     <section className="mx-auto max-w-xl py-16 text-center sm:py-24">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gold-300">
-        404
-      </p>
-      <h1 className="mt-2 font-display text-3xl font-medium tracking-[-0.01em] text-cream-100 sm:text-4xl">
-        <T>We could not find that page.</T>
-      </h1>
-      <p className="mt-4 text-[14px] leading-relaxed text-cream-100/70">
-        <T>
-          The link may be stale, or the matter may have been archived or moved
-          to another firm. Nothing in your firm&rsquo;s records has changed.
-        </T>
-      </p>
+      <PageHeader
+        align="center"
+        size="lg"
+        eyebrowVariant="plain"
+        eyebrow="404"
+        title={<T>We could not find that page.</T>}
+        subtitleClassName="mt-4"
+        subtitle={
+          <T>
+            The link may be stale, or the matter may have been archived or moved
+            to another firm. Nothing in your firm&rsquo;s records has changed.
+          </T>
+        }
+      />
 
       <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
         <Link

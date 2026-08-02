@@ -6,6 +6,7 @@ import {
   deleteFirmPolicyAction,
   type FirmPolicy,
 } from '@/lib/firm-policies';
+import { EmptyState } from '@/components/counsel/ui';
 
 /** Paste-and-save policy library management for the legal team. */
 export function PoliciesManageClient({
@@ -99,11 +100,10 @@ export function PoliciesManageClient({
             + Add policy
           </button>
           {policies.length === 0 ? (
-            <div className="card p-8 text-center">
-              <p className="text-[13px] leading-relaxed text-ink-600 dark:text-cream-100/70">
-              No policies yet. Until you add some, the employee checker tells people to file a request.
-              </p>
-            </div>
+            <EmptyState
+              title="No policies yet"
+              sub="Until you add some, the employee checker tells people to file a request."
+            />
           ) : (
             <ul className="divide-y divide-ink-100 overflow-hidden rounded-xl border border-ink-200 dark:divide-forest-800/50 dark:border-forest-700/50">
               {policies.map((p) => (

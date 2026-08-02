@@ -3,15 +3,18 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { T, useT } from '@/components/i18n/LocaleProvider';
+import { StatusPill, PILL_COLORS } from '@/components/counsel/StatusPill';
 import {
   runConflictCheckAction,
   clearConflictAction,
 } from '@/lib/conflict-check';
 
-const SEVERITY_TONE: Record<string, string> = {
-  high: 'bg-rose-50 dark:bg-rose-950/30 text-rose-800 dark:text-rose-200 ring-rose-200 dark:ring-rose-700/40',
-  medium: 'bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200 ring-amber-200 dark:ring-amber-700/40',
-  low: 'bg-sky-50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-200 ring-sky-200 dark:ring-sky-700/40',
+// One hex per severity; StatusPill derives the fill and the border from
+// it. An unrecognised severity reads as the mildest, not as the worst.
+const SEVERITY_COLOR: Record<string, string> = {
+  high: PILL_COLORS.flagged,
+  medium: PILL_COLORS.waiting,
+  low: PILL_COLORS.info,
 };
 
 export function ConflictCheckPanel({
@@ -105,13 +108,12 @@ export function ConflictCheckPanel({
                   <strong>{h.matchedParty}</strong> <T>matches</T>{' '}
                   <strong>{h.matchedAgainst}</strong>
                 </p>
-                <span
-                  className={`shrink-0 inline-flex items-center px-1.5 py-[1px] rounded text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ${
-                    SEVERITY_TONE[h.severity] ?? SEVERITY_TONE.low
-                  }`}
+                <StatusPill
+                  size="sm"
+                  color={SEVERITY_COLOR[h.severity] ?? SEVERITY_COLOR.low}
                 >
                   {h.severity}
-                </span>
+                </StatusPill>
               </div>
               <p className="text-[11.5px] text-ink-500 dark:text-cream-100/55 mt-0.5">
                 <T>Source:</T> {h.source.replace(/_/g, ' ')}

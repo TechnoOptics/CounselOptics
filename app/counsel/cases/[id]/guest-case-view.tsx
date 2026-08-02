@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { GuestCaseSummary } from '@/lib/counsel-guest';
 import { T } from '@/components/i18n/LocaleProvider';
+import { PageHeader } from '@/components/counsel/ui';
 
 const STATUS_LABEL: Record<string, string> = {
   draft: 'Draft',
@@ -26,23 +27,18 @@ export function GuestCaseView({ kase }: { kase: GuestCaseSummary }) {
     .join(', ');
   return (
     <div className="space-y-6">
-      <header className="min-w-0">
-        <p className="text-[11px] uppercase tracking-[0.16em] font-semibold text-gold-300">
-          <T>Guest access</T>
-        </p>
-        <h1
-          className="font-display text-3xl font-medium tracking-[-0.01em] text-cream-100 mt-1 break-words"
-          data-no-translate
-        >
-          {kase.title}
-        </h1>
-        <p className="text-sm text-cream-100/70 mt-2">
+      <PageHeader
+        eyebrowVariant="plain"
+        eyebrow={<T>Guest access</T>}
+        title={<span data-no-translate>{kase.title}</span>}
+        subtitleClassName="mt-2"
+        subtitle={
           <T>
             You have been added to this matter as co-counsel. You can review the
             timeline and evidence, and export the evidentiary record.
           </T>
-        </p>
-      </header>
+        }
+      />
 
       <section className="card p-5 grid gap-4 sm:grid-cols-2">
         {kase.subjectName && (

@@ -713,6 +713,45 @@ the wallboard.
 
 ## (f) Port plan for Advottic, ordered by visual impact per unit of risk
 
+> **STATUS as of 2026-08-01: P1 through P5 are DONE. Do not rebuild them.**
+>
+> This plan was written 2026-07-30, before the counsel primitives sweep. Two
+> agents dispatched on 2026-08-01 to "port P1 and P5" and "port P2, P4 and P9"
+> both found the work already shipped, and both correctly returned a zero-line
+> diff rather than manufacture one. Verified in `app/globals.css` directly:
+>
+> | step | state | where |
+> | --- | --- | --- |
+> | P1 neutral ramp | DONE, all 11 values match this doc exactly, plus the collapsed single wash | `app/globals.css:689`, commit `bf30b26` |
+> | P2 badge triple | DONE, exact `c` / `c+1a` / `c+40`, gold default, 34 importers | `components/counsel/StatusPill.tsx`, `lib/pill-colors.ts`, commit `35376b7` |
+> | P3 shared primitives module | DONE. This doc called it "the largest single gap versus Techottic" | `components/counsel/ui.tsx` |
+> | P4 sidebar active/hover | DONE, three active signals, `border-transparent` idle to stop the 1px shift | `components/counsel/CounselSidebar.tsx:56`, commit `4c133755` |
+> | P5 card contrast + hover | DONE, `rgba(22,22,26,0.92)`, gold hairline `0.12`, no `backdrop-filter` on `.card` | `app/globals.css:788`, commit `87351d7` |
+>
+> The commit subjects describe the problem solved, not the source of the idea,
+> so grepping the log for "techottic" or "theme" finds nothing and wrongly
+> suggests none of this landed. Read `app/globals.css` instead.
+>
+> **P9 (print stylesheet) is BLOCKED on a product decision, not on effort.**
+> Its premise here is false: Advottic does not "get whatever the browser
+> decides". `app/globals.css:921` is an intentional anti-exfiltration control
+> that hides the page and prints a refusal notice, added in `adc1a0e2`
+> "Capture deterrents + trace watermark". Implementing P9 means defeating a
+> security control on an app that stores PHI under a live compliance program.
+> Do not do it as a styling change.
+>
+> **Contrast constraint that P1 created, and that anyone editing the ramp must
+> respect.** Lightening the card cost every status pill 0.15 to 0.25 of
+> contrast ratio. `PILL_COLORS.quiet` now sits at 4.69:1 against the counsel
+> card, a margin of 0.19 over the WCAG AA floor of 4.5:1 for small text. It
+> fails again as soon as `.counsel-shell .card` rises above roughly
+> `rgb(23,23,27)`. Two agents derived that threshold independently. See the
+> comment block in `lib/pill-colors.ts` before touching the surface.
+>
+> Still genuinely open: P6 table standard, P7 header control set, P8 command
+> palette, P9 (blocked, above), P10 light mode (high risk, many files, and
+> counsel hardcodes `dark` on the root).
+
 ### Where Advottic stands today
 
 - Tailwind **v3** with a real `tailwind.config.ts`. Colour families `forest`, `gold`,

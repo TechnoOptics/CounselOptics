@@ -14,6 +14,7 @@ import { logCaseActivity } from '@/lib/case-activity-log';
 import { getCurrentUser } from '@/lib/supabase/server';
 import { readEvidenceFolderRegistry } from '@/lib/evidence-folders';
 import { CaseMenu } from '@/components/counsel/CaseMenu';
+import { PageHeader } from '@/components/counsel/ui';
 import { listFirmApproaches } from '@/lib/firm-approach-actions';
 
 export const dynamic = 'force-dynamic';
@@ -96,14 +97,11 @@ export default async function CaseEvidencePage({
       {/* Both shells carry persistent matter navigation above (firm CaseMenu /
           guest tabs), so no extra Back link - the header goes straight to the
           page identity. */}
-      <header className="min-w-0">
-        <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          <T>Evidence Center</T>
-        </h1>
-        <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 break-words" data-no-translate>
-          {c.title}
-        </p>
-      </header>
+      <PageHeader
+        className="min-w-0"
+        title={<T>Evidence Center</T>}
+        subtitle={<span data-no-translate>{c.title}</span>}
+      />
 
       {aiEnabled && <BulkReanalyze firmId={firmId} caseId={params.id} />}
 

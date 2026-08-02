@@ -2,23 +2,13 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { createServerSupabase } from '@/lib/supabase/server';
+import { referralStatusColor } from '@/lib/referral-status';
+import { PageHeader } from '@/components/counsel/ui';
+import { StatusPill } from '@/components/counsel/StatusPill';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Co-counsel referrals · Counsel' };
-
-const STATUS_TONE: Record<string, string> = {
-  proposed:
-    'bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200 ring-amber-200 dark:ring-amber-700/40',
-  accepted:
-    'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-200 ring-emerald-200 dark:ring-emerald-700/40',
-  declined:
-    'bg-ink-100 dark:bg-forest-800/50 text-ink-700 dark:text-cream-100/85 ring-ink-200 dark:ring-forest-700/40',
-  closed:
-    'bg-sky-50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-200 ring-sky-200 dark:ring-sky-700/40',
-  withdrawn:
-    'bg-rose-50 dark:bg-rose-950/30 text-rose-800 dark:text-rose-200 ring-rose-200 dark:ring-rose-700/40',
-};
 
 export default async function CocounselReferralsPage() {
   const ctx = await getActiveFirmContext();
@@ -73,23 +63,21 @@ export default async function CocounselReferralsPage() {
 
   return (
     <div className="space-y-8 animate-fade-up">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="eyebrow mb-1"><T>Counsel · referrals</T></p>
-          <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-            <T>Co-counsel referrals</T>
-          </h1>
-          <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-            <T>Refer a matter to another firm with an agreed fee split, or
-            accept a referral from a firm that&rsquo;s out of its depth.
-            Client consent in writing is required by Model Rule 1.5(e) and
-            most state analogues; the audit trail is captured on each row.</T>
-          </p>
-        </div>
-        <Link href="/counsel/referrals/new" className="btn-primary">
-          <T>Propose a referral</T>
-        </Link>
-      </header>
+      <PageHeader
+        eyebrow={<T>Counsel · referrals</T>}
+        title={<T>Co-counsel referrals</T>}
+        subtitle={
+          <T>Refer a matter to another firm with an agreed fee split, or
+          accept a referral from a firm that&rsquo;s out of its depth.
+          Client consent in writing is required by Model Rule 1.5(e) and
+          most state analogues; the audit trail is captured on each row.</T>
+        }
+        action={
+          <Link href="/counsel/referrals/new" className="btn-primary">
+            <T>Propose a referral</T>
+          </Link>
+        }
+      />
 
       <Section
         title={
@@ -168,7 +156,6 @@ function Cards({
   return (
     <ul className="space-y-2">
       {rows.map((r) => {
-        const tone = STATUS_TONE[r.status] ?? STATUS_TONE.proposed;
         const otherFirmId =
           viewerSide === 'inbound' ? r.referring_firm_id : r.referred_firm_id;
         const otherName = firmMap.get(otherFirmId) ?? 'Other firm';
@@ -182,11 +169,9 @@ function Cards({
                 <p className="font-semibold text-forest-900 dark:text-cream-100 truncate">
                   {viewerSide === 'inbound' ? <T>From</T> : <T>To</T>} {otherName} · {r.state}
                 </p>
-                <span
-                  className={`shrink-0 inline-flex items-center px-1.5 py-[1px] rounded text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ${tone}`}
-                >
+                <StatusPill size="sm" color={referralStatusColor(r.status)}>
                   {r.status}
-                </span>
+                </StatusPill>
               </div>
               <p className="text-[12.5px] text-ink-600 dark:text-cream-100/75 line-clamp-2 leading-snug">
                 {r.matter_summary}

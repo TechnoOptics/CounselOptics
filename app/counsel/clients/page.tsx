@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { getActiveFirmContext, listFirmClients } from '@/lib/firm-storage';
 import { InviteClientForm } from './invite-form';
+import { PageHeader } from '@/components/counsel/ui';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -18,20 +19,18 @@ export default async function CounselClientsPage() {
 
   return (
     <div className="space-y-6 animate-fade-up">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="eyebrow mb-1"><T>Clients</T></p>
-          <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-            <T>Client roster</T>
-          </h1>
-          <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-            <T>Invite a client by email. They get a regular Advottic account; this firm gains view + collaborate access on cases they share.</T>
+      <PageHeader
+        eyebrow={<T>Clients</T>}
+        title={<T>Client roster</T>}
+        subtitle={
+          <T>Invite a client by email. They get a regular Advottic account; this firm gains view + collaborate access on cases they share.</T>
+        }
+        action={
+          <p className="text-[12px] text-ink-500 dark:text-cream-100/55 font-mono uppercase tracking-wider">
+            {clients.length} <T>total</T>
           </p>
-        </div>
-        <p className="text-[12px] text-ink-500 dark:text-cream-100/55 font-mono uppercase tracking-wider">
-          {clients.length} <T>total</T>
-        </p>
-      </header>
+        }
+      />
 
       {canInvite && <InviteClientForm firmId={ctx.firm.id} />}
 

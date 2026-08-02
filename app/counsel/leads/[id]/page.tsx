@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { getFirmLeadForFirm } from '@/lib/marketplace-storage';
 import { LeadResponseForm } from './lead-response-form';
+import { PageHeader } from '@/components/counsel/ui';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -31,17 +32,21 @@ export default async function FirmLeadDetailPage({
         </Link>
       </p>
 
-      <header>
-        <p className="eyebrow mb-1"><T>Lead</T></p>
-        <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          {lead.practiceAreas.slice(0, 2).join(', ') || <T>Legal matter</T>}
-          {lead.jurisdictionState ? ` · ${lead.jurisdictionState}` : ''}
-        </h1>
-        <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-1 font-mono">
-          <T>Received</T> {new Date(lead.createdAt).toLocaleString()} · <T>urgency</T>{' '}
-          {lead.urgency ?? 'normal'}
-        </p>
-      </header>
+      <PageHeader
+        eyebrow={<T>Lead</T>}
+        title={
+          <>
+            {lead.practiceAreas.slice(0, 2).join(', ') || <T>Legal matter</T>}
+            {lead.jurisdictionState ? ` · ${lead.jurisdictionState}` : ''}
+          </>
+        }
+        meta={
+          <>
+            <T>Received</T> {new Date(lead.createdAt).toLocaleString()} ·{' '}
+            <T>urgency</T> {lead.urgency ?? 'normal'}
+          </>
+        }
+      />
 
       <section className="card p-5 sm:p-6 space-y-4">
         <div>

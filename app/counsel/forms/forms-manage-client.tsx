@@ -8,6 +8,8 @@ import {
   type TemplateField,
 } from '@/lib/firm-templates';
 import { isReservedFirmKey } from '@/lib/firm-template-placeholders';
+import { EmptyState } from '@/components/counsel/ui';
+import { StatusPill, PILL_COLORS } from '@/components/counsel/StatusPill';
 
 /**
  * Create/edit/publish firm form templates. The field list is derived FROM the
@@ -85,11 +87,10 @@ export function FormsManageClient({
             + New template
           </button>
           {templates.length === 0 ? (
-            <div className="card p-8 text-center">
-              <p className="text-[13px] leading-relaxed text-ink-600 dark:text-cream-100/70">
-                No templates yet. Create your first: an NDA is the classic starting point.
-              </p>
-            </div>
+            <EmptyState
+              title="No templates yet"
+              sub="Create your first: an NDA is the classic starting point."
+            />
           ) : (
             <ul className="divide-y divide-ink-100 overflow-hidden rounded-xl border border-ink-200 dark:divide-forest-800/50 dark:border-forest-700/50">
               {templates.map((t) => (
@@ -108,15 +109,15 @@ export function FormsManageClient({
                       {t.description ? ` · ${t.description}` : ''}
                     </p>
                   </div>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                  <StatusPill
+                    color={
                       t.status === 'published'
-                        ? 'bg-forest-100 text-forest-800 dark:bg-forest-800/60 dark:text-cream-100/85'
-                        : 'bg-cream-100 text-ink-500 dark:bg-forest-800/40 dark:text-cream-100/55'
-                    }`}
+                        ? PILL_COLORS.good
+                        : PILL_COLORS.neutral
+                    }
                   >
                     {t.status}
-                  </span>
+                  </StatusPill>
                   <button
                     type="button"
                     onClick={() => setEditing(t)}

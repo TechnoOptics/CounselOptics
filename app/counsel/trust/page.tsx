@@ -13,27 +13,27 @@ import {
 import { CreateAccountForm } from './create-account-form';
 import { RecordTransactionForm } from './record-transaction-form';
 import { ReconcileForm } from './reconcile-form';
+import { PageHeader } from '@/components/counsel/ui';
+import { StatusPill, PILL_COLORS } from '@/components/counsel/StatusPill';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
 // Audit W20 V3 CR-27: title template applies once at layout level.
 export const metadata = { title: 'Trust accounting · Counsel' };
 
-const KIND_TONE: Record<string, string> = {
-  deposit:
-    'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-200 ring-emerald-200 dark:ring-emerald-700/40',
-  earned_fee_transfer:
-    'bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200 ring-amber-200 dark:ring-amber-700/40',
-  disbursement:
-    'bg-rose-50 dark:bg-rose-950/30 text-rose-800 dark:text-rose-200 ring-rose-200 dark:ring-rose-700/40',
-  refund:
-    'bg-sky-50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-200 ring-sky-200 dark:ring-sky-700/40',
-  bank_fee:
-    'bg-rose-50 dark:bg-rose-950/30 text-rose-800 dark:text-rose-200 ring-rose-200 dark:ring-rose-700/40',
-  interest:
-    'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-200 ring-emerald-200 dark:ring-emerald-700/40',
-  correction:
-    'bg-ink-100 dark:bg-forest-800/50 text-ink-700 dark:text-cream-100/85 ring-ink-200 dark:ring-forest-700/40',
+/**
+ * One hex per ledger entry kind. Money in reads good, money out reads
+ * flagged, a fee transfer reads as something to watch, and a correction is
+ * neutral bookkeeping. StatusPill derives the fill and border from the hex.
+ */
+const KIND_COLOR: Record<string, string> = {
+  deposit: PILL_COLORS.good,
+  earned_fee_transfer: PILL_COLORS.waiting,
+  disbursement: PILL_COLORS.flagged,
+  refund: PILL_COLORS.info,
+  bank_fee: PILL_COLORS.flagged,
+  interest: PILL_COLORS.good,
+  correction: PILL_COLORS.neutral,
 };
 
 const POSITIVE = new Set(['deposit', 'refund', 'interest']);
@@ -92,24 +92,20 @@ export default async function CounselTrustPage({
   if (accounts.length === 0) {
     return (
       <div className="space-y-6 animate-fade-up">
-        <header>
-          <p className="eyebrow mb-1"><T>Counsel · trust</T></p>
-          <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-            <T>Trust accounting</T>
-          </h1>
-          <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
-            {/*
-              Audit W20 V3 CR-8: the old copy implied three-way
-              reconciliation "against the bank statement" - which read
-              as automated bank-feed integration. The form only
-              collects account label, bank, last-4, and state; the
-              actual reconciliation today is between the matter ledger,
-              the firm general ledger, and a bank statement the
-              operator uploads monthly. Aligning the copy to what the
-              flow actually does keeps the promise honest. The Plaid
-              live-feed path is on the roadmap and will replace the
-              upload step when it ships.
-            */}
+        {/*
+          Audit W20 V3 CR-8: the old copy implied three-way reconciliation
+          "against the bank statement" - which read as automated bank-feed
+          integration. The form only collects account label, bank, last-4,
+          and state; the actual reconciliation today is between the matter
+          ledger, the firm general ledger, and a bank statement the operator
+          uploads monthly. Aligning the copy to what the flow actually does
+          keeps the promise honest. The Plaid live-feed path is on the
+          roadmap and will replace the upload step when it ships.
+        */}
+        <PageHeader
+          eyebrow={<T>Counsel · trust</T>}
+          title={<T>Trust accounting</T>}
+          subtitle={
             <T>
               IOLTA-style ledger of every dollar held for a client. Every state
               bar requires per-matter ledgers, per-client statements, and a
@@ -119,8 +115,8 @@ export default async function CounselTrustPage({
               check off what has cleared, and it confirms the two agree. Add your
               first trust account below to start.
             </T>
-          </p>
-        </header>
+          }
+        />
         {canManageAccounts ? (
           <CreateAccountForm firmId={ctx.firm.id} />
         ) : (
@@ -170,40 +166,40 @@ export default async function CounselTrustPage({
 
   return (
     <div className="space-y-8 animate-fade-up">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="eyebrow mb-1"><T>Counsel · trust</T></p>
-          <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-            {account.name}
-          </h1>
-          <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-1 font-mono">
+      <PageHeader
+        eyebrow={<T>Counsel · trust</T>}
+        title={account.name}
+        meta={
+          <>
             {account.bank_name ?? <T>Bank not set</T>} ·{' '}
             {account.is_iolta ? 'IOLTA' : 'Trust'} · {account.state}
             {account.account_number_masked && ` · ${account.account_number_masked}`}
-          </p>
-        </div>
-        {accounts.length > 1 && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            {accounts.map((a) => {
-              const active = a.id === account.id;
-              return (
-                <Link
-                  key={a.id}
-                  href={`/counsel/trust?account=${a.id}`}
-                  aria-current={active ? 'page' : undefined}
-                  className={`inline-flex items-center min-h-[36px] px-3 rounded-lg text-[12px] font-medium ring-1 transition-colors ${
-                    active
-                      ? 'bg-forest-900 text-cream-100 ring-forest-900 dark:bg-cream-100 dark:text-forest-950 dark:ring-cream-100'
-                      : 'text-ink-600 dark:text-cream-100/70 ring-ink-200 dark:ring-forest-700/40 hover:bg-cream-50 dark:hover:bg-forest-800/30'
-                  }`}
-                >
-                  {a.name}
-                </Link>
-              );
-            })}
-          </div>
-        )}
-      </header>
+          </>
+        }
+        action={
+          accounts.length > 1 ? (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {accounts.map((a) => {
+                const active = a.id === account.id;
+                return (
+                  <Link
+                    key={a.id}
+                    href={`/counsel/trust?account=${a.id}`}
+                    aria-current={active ? 'page' : undefined}
+                    className={`inline-flex items-center min-h-[36px] px-3 rounded-lg text-[12px] font-medium ring-1 transition-colors ${
+                      active
+                        ? 'bg-forest-900 text-cream-100 ring-forest-900 dark:bg-cream-100 dark:text-forest-950 dark:ring-cream-100'
+                        : 'text-ink-600 dark:text-cream-100/70 ring-ink-200 dark:ring-forest-700/40 hover:bg-cream-50 dark:hover:bg-forest-800/30'
+                    }`}
+                  >
+                    {a.name}
+                  </Link>
+                );
+              })}
+            </div>
+          ) : undefined
+        }
+      />
 
       {/* Three-way reconciliation summary */}
       <section className="grid gap-3 sm:grid-cols-3">
@@ -323,15 +319,16 @@ export default async function CounselTrustPage({
                       {fmtCents(r.differenceCents)}
                     </td>
                     <td className="px-4 py-2.5">
-                      <span
-                        className={`inline-flex items-center px-2 py-[2px] rounded text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ${
+                      <StatusPill
+                        size="sm"
+                        color={
                           r.status === 'balanced'
-                            ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-200 ring-emerald-200 dark:ring-emerald-700/40'
-                            : 'bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200 ring-amber-200 dark:ring-amber-700/40'
-                        }`}
+                            ? PILL_COLORS.good
+                            : PILL_COLORS.waiting
+                        }
                       >
                         {r.status}
-                      </span>
+                      </StatusPill>
                     </td>
                   </tr>
                 ))}
@@ -364,13 +361,12 @@ export default async function CounselTrustPage({
                       <p className="font-semibold text-forest-900 dark:text-cream-100 truncate">
                         {t.clientLabel}
                       </p>
-                      <span
-                        className={`inline-flex items-center px-1.5 py-[1px] rounded text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ${
-                          KIND_TONE[t.kind] ?? KIND_TONE.correction
-                        }`}
+                      <StatusPill
+                        size="sm"
+                        color={KIND_COLOR[t.kind] ?? KIND_COLOR.correction}
                       >
                         {t.kind.replace(/_/g, ' ')}
-                      </span>
+                      </StatusPill>
                     </div>
                     {t.description && (
                       <p className="text-[12.5px] text-ink-600 dark:text-cream-100/70 mt-0.5 truncate">

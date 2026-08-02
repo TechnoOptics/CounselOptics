@@ -4,6 +4,7 @@ import { getActiveFirmContext } from '@/lib/firm-storage';
 import { readRequestFolders } from '@/lib/request-folders';
 import { CreateIntakeForm } from './create-intake-form';
 import { RequestFoldersManager } from './request-folders-manager';
+import { PageHeader } from '@/components/counsel/ui';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -23,12 +24,10 @@ export default async function CounselIntakePage() {
 
   return (
     <div className="space-y-8 animate-fade-up">
-      <header>
-        <p className="eyebrow mb-1"><T>Counsel · intake</T></p>
-        <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          <T>New intake</T>
-        </h1>
-        <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
+      <PageHeader
+        eyebrow={<T>Counsel · intake</T>}
+        title={<T>New intake</T>}
+        subtitle={
           <T>
             Open a new request for everything legal handles - outside-
             client matters, contracts, internal reviews, document
@@ -36,7 +35,8 @@ export default async function CounselIntakePage() {
             a request type, capture the parties, and the conflict check
             runs across your prior matters and client list.
           </T>
-        </p>
+        }
+      >
         <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-2">
           <T>Looking for incoming requests?</T>{' '}
           <Link
@@ -46,7 +46,7 @@ export default async function CounselIntakePage() {
             <T>Open the Request inbox &rarr;</T>
           </Link>
         </p>
-      </header>
+      </PageHeader>
 
       <CreateIntakeForm
         firmId={ctx.firm.id}

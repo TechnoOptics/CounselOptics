@@ -3,6 +3,7 @@ import { getActiveFirmContext } from '@/lib/firm-storage';
 import { listMyFeedback } from '@/lib/storage';
 import { SupportTicketForm } from '@/components/SupportTicketForm';
 import { TicketHistory } from '@/components/TicketHistory';
+import { PageHeader } from '@/components/counsel/ui';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -21,19 +22,23 @@ export default async function CounselHelpPage() {
 
   return (
     <div className="space-y-6 animate-fade-up max-w-3xl">
-      <header>
-        <p className="eyebrow mb-1"><T>Help &amp; support</T></p>
-        <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          <T>Talk to the Advottic team</T>
-        </h1>
-        <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 leading-relaxed">
-          <T>Something not working, or an idea for how Advottic could work
-          better for</T> {ctx.firm.name}?{' '}
-          <T>Open a ticket and we&rsquo;ll follow
-          up by email. For anything about a matter or a client, use your
-          firm&rsquo;s own channels. This goes to Advottic, not your firm.</T>
-        </p>
-      </header>
+      <PageHeader
+        eyebrow={<T>Help &amp; support</T>}
+        title={<T>Talk to the Advottic team</T>}
+        // No max-w: the page is already capped at max-w-3xl, and the
+        // primitive's default max-w-2xl would rewrap this paragraph
+        // narrower than everything under it.
+        subtitleClassName="mt-1"
+        subtitle={
+          <>
+            <T>Something not working, or an idea for how Advottic could work
+            better for</T> {ctx.firm.name}?{' '}
+            <T>Open a ticket and we&rsquo;ll follow
+            up by email. For anything about a matter or a client, use your
+            firm&rsquo;s own channels. This goes to Advottic, not your firm.</T>
+          </>
+        }
+      />
 
       <SupportTicketForm />
 

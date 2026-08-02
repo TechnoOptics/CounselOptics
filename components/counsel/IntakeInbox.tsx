@@ -6,6 +6,7 @@ import {
   intakeLaneOf,
   type IntakeLane,
 } from '@/lib/intake-lanes';
+import { StatusPill, PILL_COLORS } from '@/components/counsel/StatusPill';
 import { T } from '@/components/i18n/LocaleProvider';
 import { Tt } from '@/components/i18n/Tt';
 
@@ -19,21 +20,29 @@ export type InboxIntake = {
   intake_answers: Record<string, unknown> | null;
 };
 
-const STATUS_TONE: Record<string, string> = {
-  in_progress:
-    'bg-ink-100 dark:bg-forest-800/50 text-ink-700 dark:text-cream-100/85 ring-ink-200 dark:ring-forest-700/40',
-  conflict_check_passed:
-    'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-200 ring-emerald-200 dark:ring-emerald-700/40',
-  conflict_check_flagged:
-    'bg-rose-50 dark:bg-rose-950/30 text-rose-800 dark:text-rose-200 ring-rose-200 dark:ring-rose-700/40',
-  engaged:
-    'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-200 ring-emerald-200 dark:ring-emerald-700/40',
-  converted:
-    'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-200 ring-emerald-200 dark:ring-emerald-700/40',
-  closed:
-    'bg-ink-100 dark:bg-forest-800/50 text-ink-700 dark:text-cream-100/85 ring-ink-200 dark:ring-forest-700/40',
-  rejected:
-    'bg-ink-100 dark:bg-forest-800/50 text-ink-700 dark:text-cream-100/85 ring-ink-200 dark:ring-forest-700/40',
+// One hex per status, the same shape as app/counsel/intake/[id]. This was
+// the last per-file triple of Tailwind classes on this surface, and it
+// agreed with the detail page on every status the two share: grey for
+// new, emerald for a passed conflict check and for engaged, rose for a
+// flag. So no status changes meaning, and the three the inbox alone
+// knows about (converted, closed, rejected) keep the family they had.
+//
+// The chips do change shade. The old map painted a pale tint on a dark
+// panel - near-white text for the greys, emerald-200, rose-200 - which
+// is a louder chip than the same status wears on the detail page or
+// anywhere else in counsel. They now read at StatusPill's strength.
+// That is the point of folding it in: these were the last chips in the
+// product still shouting a different dialect. The light-mode half of
+// the old map was dead code either way, since this list only ever
+// renders inside the always-dark counsel shell.
+const STATUS_COLOR: Record<string, string> = {
+  in_progress: PILL_COLORS.neutral,
+  conflict_check_passed: PILL_COLORS.good,
+  conflict_check_flagged: PILL_COLORS.flagged,
+  engaged: PILL_COLORS.good,
+  converted: PILL_COLORS.good,
+  closed: PILL_COLORS.neutral,
+  rejected: PILL_COLORS.neutral,
 };
 const STATUS_LABEL: Record<string, string> = {
   in_progress: 'New',
@@ -190,8 +199,8 @@ export function IntakeInbox({
             </div>
             <ul className="space-y-2">
               {items.map((i) => {
-                const tone =
-                  STATUS_TONE[i.status] ?? STATUS_TONE.in_progress;
+                const statusColor =
+                  STATUS_COLOR[i.status] ?? STATUS_COLOR.in_progress;
                 const ans = (i.intake_answers ?? {}) as Record<
                   string,
                   unknown
@@ -246,12 +255,10 @@ export function IntakeInbox({
                           >
                             {i._priority}
                           </span>
-                          <span
-                            className={`inline-flex items-center px-1.5 py-[1px] rounded text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 ${tone}`}
-                          >
+                          <StatusPill size="sm" color={statusColor}>
                             {STATUS_LABEL[i.status] ??
                               i.status.replace(/_/g, ' ')}
-                          </span>
+                          </StatusPill>
                         </div>
                       </div>
                       <p className="text-[12px] text-ink-600 dark:text-cream-100/70 mt-1.5">

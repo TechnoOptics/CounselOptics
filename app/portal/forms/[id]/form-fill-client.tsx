@@ -8,7 +8,7 @@ import {
   RESERVED_FIRM_KEYS,
   isSelfNameField,
 } from '@/lib/firm-template-placeholders';
-import { SectionTitle } from '@/components/counsel/ui';
+import { PageHeader, SectionTitle } from '@/components/counsel/ui';
 
 /**
  * Employee fill-and-sign for a firm template. Fields render as inputs, the
@@ -162,17 +162,17 @@ export function FormFillClient({
 
   return (
     <div className="space-y-5">
-      <header className="min-w-0">
-        <Link href="/portal/forms" className="text-[12px] text-ink-500 hover:underline dark:text-cream-100/55">
-          ← All forms
-        </Link>
-        <h1 className="mt-1 font-display text-2xl font-medium text-forest-900 dark:text-cream-100">
-          {template.name}
-        </h1>
-        {template.description && (
-          <p className="mt-1 text-sm text-ink-600 dark:text-cream-100/70">{template.description}</p>
-        )}
-      </header>
+      <PageHeader
+        size="sm"
+        backLink={
+          <Link href="/portal/forms" className="text-[12px] text-ink-500 hover:underline dark:text-cream-100/55">
+            ← All forms
+          </Link>
+        }
+        title={template.name}
+        subtitleClassName="mt-1"
+        subtitle={template.description || undefined}
+      />
 
       {error && (
         <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[13px] text-rose-800 dark:border-rose-700/40 dark:bg-rose-950/40 dark:text-rose-200">

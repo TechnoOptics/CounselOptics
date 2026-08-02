@@ -9,6 +9,7 @@ import { WebhookManager } from './webhook-manager';
 import { PartnerIntegrationManager } from './partner-integration-manager';
 import { MenuCustomizer } from './menu-customizer';
 import { FirmSurfaceToggles } from './firm-surface-toggles';
+import { PageHeader } from '@/components/counsel/ui';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -27,15 +28,13 @@ export default async function CounselSettingsPage() {
   const partnerConfig = readPartnerConfig(ctx.firm.metadata);
   return (
     <div className="space-y-10 animate-fade-up">
-      <header>
-        <p className="eyebrow mb-1"><T>Firm settings</T></p>
-        <h1 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          {ctx.firm.name}
-        </h1>
-        <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
+      <PageHeader
+        eyebrow={<T>Firm settings</T>}
+        title={ctx.firm.name}
+        subtitle={
           <T>Update the firm&rsquo;s name, brand, jurisdictions, and practice areas.</T>
-        </p>
-      </header>
+        }
+      />
       <SettingsForm
         firmId={ctx.firm.id}
         defaultValues={{
