@@ -130,6 +130,16 @@ const ALLOWED_DYNAMIC_WRAPS = new Set([
   'STATUS_HINT[s]',
   'FIRM_ROLE_DESCRIPTION[r]',
   'FIRM_ROLE_LABEL[membership.role]',
+  // Intake form builder. Both maps are `Record<Enum, string>` of hardcoded
+  // literals in lib/form-draft.ts (TYPE_LABELS at :506 over QuestionType,
+  // RULE_OP_LABELS at :521 over Rule['op']). The key is an enum member, never
+  // a firm's own wording: an author-typed question label is rendered raw and
+  // carries data-no-translate, because running a firm's words through machine
+  // translation would corrupt them.
+  'TYPE_LABELS[d.type]',
+  'TYPE_LABELS[t]',
+  'TYPE_LABELS[question.type]',
+  'RULE_OP_LABELS[question.showWhen.op]',
   // pluralization / choice ternaries whose branches are all string literals
   "emptyMessage ?? 'No requests here yet.'",
   "allDocs.length === 1 ? 'document' : 'documents'",
