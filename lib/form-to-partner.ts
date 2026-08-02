@@ -22,7 +22,13 @@
 import type { FormPayload, Question, QuestionType } from './form-schema';
 import type { PartnerQuestion } from './partner-config-core';
 
-function projectType(type: QuestionType): PartnerQuestion['type'] {
+/**
+ * Exported because the builder warns legal which of their question types an
+ * older partner app cannot render, and how each one degrades. That warning has
+ * to be derived from this mapping rather than from a second copy of it, or the
+ * warning and the projection drift and legal is told the wrong thing.
+ */
+export function projectType(type: QuestionType): PartnerQuestion['type'] {
   switch (type) {
     case 'yesno':
       return 'yesno';
