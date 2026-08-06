@@ -152,7 +152,8 @@ export async function loadBoundHandoff(
   rawToken: string,
   presentedSessionSecret: string | null,
 ): Promise<
-  { ok: true; signatureId: string } | { ok: false; state: HandoffState }
+  | { ok: true; signatureId: string; handoffId: string }
+  | { ok: false; state: HandoffState }
 > {
   const found = await readRow(rawToken);
   if (!found) return { ok: false, state: 'consumed' };
@@ -164,5 +165,61 @@ export async function loadBoundHandoff(
   );
   if (state !== 'bound') return { ok: false, state };
 
-  return { ok: true, signatureId: found.signatureId };
+  return { ok: true, signatureId: found.signatureId, handoffId: found.id };
+}
+
+/** The two names the phone pad puts on screen. */
+export type HandoffPadContext = {
+  signerLabel: string;
+  documentName: string;
+};
+
+/**
+ * What the pad may know about the signature it is about to write.
+ *
+ * The column list is explicit, and firm_signatures.token is deliberately
+ * not in it. That token is the durable signing credential, and for an
+ * internal signer it is on its own sufficient to sign as that person, so
+ * it must never travel to a page reached by scanning a code off a
+ * screen. The handoff exists precisely so that it does not have to.
+ */
+export async function loadHandoffPadContext(
+  signatureId: string,
+): Promise<HandoffPadContext | null> {
+  const admin = createAdminSupabase();
+  if (!admin) return null;
+
+  const { data: sigRow } = await admin
+    .from('firm_signatures')
+    .select('signer_name, signer_email, signing_request_id')
+    .eq('id', signatureId)
+    .maybeSingle();
+  if (!sigRow) return null;
+  const sig = sigRow as {
+    signer_name: string | null;
+    signer_email: string;
+    signing_request_id: string;
+  };
+
+  const { data: reqRow } = await admin
+    .from('firm_signing_requests')
+    .select('document_id')
+    .eq('id', sig.signing_request_id)
+    .maybeSingle();
+  const documentId = (reqRow as { document_id?: string } | null)?.document_id;
+
+  let documentName = 'this document';
+  if (documentId) {
+    const { data: docRow } = await admin
+      .from('firm_documents')
+      .select('name')
+      .eq('id', documentId)
+      .maybeSingle();
+    documentName = (docRow as { name?: string } | null)?.name || documentName;
+  }
+
+  return {
+    signerLabel: sig.signer_name?.trim() || sig.signer_email,
+    documentName,
+  };
 }
