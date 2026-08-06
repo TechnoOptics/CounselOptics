@@ -4,6 +4,7 @@ import {
   formatSignedOn,
   mergeTemplateDocument,
 } from '../lib/firm-template-placeholders';
+import { cleanLegalText } from '../lib/legal-templates';
 
 /**
  * The locator is the one thing that makes the employee's on-page preview, the
@@ -113,5 +114,56 @@ describe('mergeTemplateDocument keeps the block the locator looks for', () => {
 
   it('formatSignedOn produces the date the block carries', () => {
     expect(formatSignedOn(new Date('2026-08-06T12:00:00Z'))).toMatch(/2026/);
+  });
+});
+
+describe('the preview and the PDF resolve to the same line', () => {
+  /**
+   * The on-screen surfaces locate the mark in the merged text; the PDF
+   * renderer locates it in the text AFTER cleanLegalText has rewritten
+   * markdown, dashes and stray characters out of it. Cleaning can add or
+   * remove lines, so the two indexes are not required to be equal. What IS
+   * required is that they name the same line, because that is what makes the
+   * employee's preview a picture of the delivered document rather than a
+   * hopeful approximation.
+   */
+  const messy = mergeTemplateDocument({
+    body: [
+      '# MUTUAL NON-DISCLOSURE AGREEMENT',
+      '',
+      '> A quoted recital.',
+      '',
+      'The parties are **{{counterparty}}** and {{firm_name}} - see below.',
+      '',
+      'An earlier agreement recited: Signed: someone else entirely',
+      '',
+      'Term: 2026 - 2028.',
+    ].join('\n'),
+    fields: [{ key: 'counterparty', label: 'Counterparty' }],
+    values: { counterparty: 'Beta LLC' },
+    firmName: 'Acme Corporation',
+    signatureName: 'Jane Doe',
+    signerEmail: 'jane@acme.com',
+    signedOn: 'August 6, 2026',
+  });
+
+  it('names the same line before and after the renderer cleans the text', () => {
+    const cleaned = cleanLegalText(messy);
+    const rawIdx = findSignatureBlockLine(messy);
+    const cleanIdx = findSignatureBlockLine(cleaned);
+    expect(rawIdx).not.toBeNull();
+    expect(cleanIdx).not.toBeNull();
+    expect(cleaned.split('\n')[cleanIdx as number]).toBe(messy.split('\n')[rawIdx as number]);
+    expect(cleaned.split('\n')[cleanIdx as number]).toBe('Signed: Jane Doe');
+  });
+
+  it('ignores the signature line the body itself quotes, on both sides', () => {
+    const cleaned = cleanLegalText(messy);
+    expect(messy.split('\n')[findSignatureBlockLine(messy) as number]).not.toContain(
+      'someone else',
+    );
+    expect(cleaned.split('\n')[findSignatureBlockLine(cleaned) as number]).not.toContain(
+      'someone else',
+    );
   });
 });
