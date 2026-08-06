@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createAdminSupabase } from '@/lib/supabase/admin';
+import { appendSignatureEvent } from '@/lib/esign-audit';
 import {
   SIGNER_COPY_REFUSAL_COPY,
   parseSignerDownloadPermission,
@@ -29,7 +30,7 @@ export const dynamic = 'force-dynamic';
  * on the download path at all.
  */
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: { token: string } },
 ) {
   const token = String(params.token ?? '').trim();
@@ -41,7 +42,7 @@ export async function GET(
   const { data: sigRow } = await admin
     .from('firm_signatures')
     .select(
-      'id, signing_request_id, signed_at, access_code_hash, access_code_verified_at',
+      'id, signing_request_id, signer_email, signed_at, access_code_hash, access_code_verified_at',
     )
     .eq('token', token)
     .maybeSingle();
@@ -49,6 +50,7 @@ export async function GET(
   const sig = sigRow as {
     id: string;
     signing_request_id: string;
+    signer_email: string | null;
     signed_at: string | null;
     access_code_hash: string | null;
     access_code_verified_at: string | null;
@@ -64,6 +66,7 @@ export async function GET(
     id: string;
     document_id: string;
     status: string;
+    document_sha256?: string | null;
     signed_file_path?: string | null;
     signer_can_download?: boolean | null;
   };
@@ -106,6 +109,30 @@ export async function GET(
   const base = sanitizeFilename(doc?.name ?? 'document');
   const filename =
     access.kind === 'executed' ? `${base} (executed).pdf` : `${base}.pdf`;
+
+  // Record the retrieval in the chain. Retrieval of an executed
+  // instrument is exactly the kind of thing this chain is kept to
+  // evidence, and link_viewed is already written from this same
+  // unauthenticated surface, so the precedent is set. Best-effort:
+  // appendSignatureEvent swallows insert failures by design, so a
+  // rejected write costs the event and not the download.
+  try {
+    await appendSignatureEvent(admin, {
+      signingRequestId: request.id,
+      signatureId: sig.id,
+      eventType: 'copy_downloaded',
+      signerEmail: sig.signer_email,
+      documentSha256: request.document_sha256 ?? null,
+      ipAddress:
+        req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+        req.headers.get('x-real-ip') ||
+        null,
+      userAgent: req.headers.get('user-agent') ?? null,
+      metadata: { kind: access.kind, path: access.path, bytes: bytes.length },
+    });
+  } catch {
+    /* never block a signer's own copy on audit logging */
+  }
 
   return new NextResponse(bytes as unknown as BodyInit, {
     status: 200,

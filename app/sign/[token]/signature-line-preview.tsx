@@ -1,6 +1,9 @@
 'use client';
 
-import type { SignatureLinePlacement } from '@/lib/signer-view';
+import {
+  signaturePreviewGeometryNote,
+  type SignatureLinePlacement,
+} from '@/lib/signer-view';
 
 /**
  * Where the signer's mark lands on the document, shown while they make
@@ -20,6 +23,12 @@ import type { SignatureLinePlacement } from '@/lib/signer-view';
  * any position. The renderer does have a fallback corner for that
  * case, but it is an arbitrary corner rather than a detected signature
  * line, and showing it would present a guess as a fact.
+ *
+ * The schematic also says when it is approximate. The page size is not
+ * measured here, so the outline, the box size, and above one threshold
+ * the box position are all Letter-shaped guesses on a page that is not
+ * Letter. That admission is signaturePreviewGeometryNote, kept beside
+ * the placement rule it qualifies.
  */
 export function SignatureLinePreview({
   placement,
@@ -48,6 +57,7 @@ export function SignatureLinePreview({
   // Caption, matching what lib/signature-render.ts writes under the
   // signature so the preview and the executed copy read the same.
   const caption = `${signerLabel} - ${new Date().toISOString().slice(0, 10)}`;
+  const geometryNote = signaturePreviewGeometryNote(placement);
 
   return (
     <div className="rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 bg-cream-50/40 dark:bg-forest-900/30 p-4 space-y-3">
@@ -120,6 +130,12 @@ export function SignatureLinePreview({
           </p>
         </div>
       </div>
+
+      {geometryNote && (
+        <p className="text-[11px] text-ink-500 dark:text-cream-100/55 leading-relaxed">
+          {geometryNote}
+        </p>
+      )}
     </div>
   );
 }

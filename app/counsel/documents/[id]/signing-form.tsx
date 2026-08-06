@@ -24,7 +24,6 @@ export function CreateSigningRequestForm({
   const [signerCanDownload, setSignerCanDownload] = useState(true);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [warning, setWarning] = useState<string | null>(null);
   const [ok, setOk] = useState(false);
 
   function update(i: number, patch: Partial<Signer>) {
@@ -40,7 +39,6 @@ export function CreateSigningRequestForm({
 
   function submit() {
     setError(null);
-    setWarning(null);
     setOk(false);
     const payload = signers
       .map((s) => ({ email: s.email.trim().toLowerCase(), name: s.name.trim() || undefined }))
@@ -59,7 +57,6 @@ export function CreateSigningRequestForm({
       );
       if (res.ok) {
         setOk(true);
-        setWarning(res.warning ?? null);
         setSigners([{ email: '', name: '' }]);
         setMessage('');
         setSignerCanDownload(true);
@@ -164,11 +161,6 @@ export function CreateSigningRequestForm({
         <p className="rounded-lg border border-emerald-200 dark:border-emerald-700/40 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-2 text-sm text-emerald-900 dark:text-emerald-100">
           <T>Signing request sent. Each signer received a branded link; outside
           signers also got a one-time access code in a separate email.</T>
-        </p>
-      )}
-      {warning && (
-        <p className="rounded-lg border border-amber-300/60 dark:border-amber-600/40 bg-amber-50 dark:bg-amber-950/20 px-3 py-2 text-sm text-amber-900 dark:text-amber-200">
-          {warning}
         </p>
       )}
     </section>

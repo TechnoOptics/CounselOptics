@@ -30,7 +30,10 @@ type Step = 'disclosure' | 'capture' | 'done';
  * rendered above this component, and step 1 asks the signer to confirm
  * they have reviewed it, because E-SIGN and UETA both rest on the
  * signer having access to the record they are assenting to. The
- * confirmation is only asked for when the document was actually shown.
+ * confirmation is only asked for when the document was actually shown,
+ * and when it was NOT shown the step does not open at all: a document
+ * that failed to load is the exact case where the signer has not read
+ * what they are being asked to sign.
  *
  * Step 2 also shows the signature line: the mark appears in the
  * position the executed copy will use, from the same recorded
@@ -237,9 +240,11 @@ export function SignatureCapture({
   function advanceFromDisclosure() {
     if (!mayLeaveDisclosure) {
       setError(
-        !erdAgreed || !hwAgreed
-          ? 'Both confirmations are required to receive this document electronically.'
-          : 'Please confirm you have reviewed the document above.',
+        !documentPresented
+          ? 'The document did not open on this page, so there is nothing to sign yet. Please ask the firm to send it to you.'
+          : !erdAgreed || !hwAgreed
+            ? 'Both confirmations are required to receive this document electronically.'
+            : 'Please confirm you have reviewed the document above.',
       );
       return;
     }
@@ -278,9 +283,13 @@ export function SignatureCapture({
           consent: {
             electronicRecordsConsentedAt: erdConsentedAt,
             hardwareSoftwareConfirmedAt: erdConsentedAt,
-            // Only sent when the document was actually presented, so
-            // the audit chain never records a review of something the
-            // signer was not shown.
+            // Whether the document was put in front of the signer, and
+            // when they affirmed they had read it. The server records
+            // both in the 'signed' event, so a later dispute about
+            // whether the signer was ever shown the record has an
+            // answer in the chain rather than only in this browser.
+            // documentReviewedAt stays null when nothing was shown,
+            // which the gate above no longer allows through anyway.
             documentPresented,
             documentReviewedAt: docReviewedAt,
             intentAffirmedAt: new Date().toISOString(),
@@ -417,8 +426,9 @@ export function SignatureCapture({
         </label>
         {/* Asked only when the document is actually on the page above.
             Confirming review of something never shown would be a
-            fiction, and would strand the signer on a step they cannot
-            pass. */}
+            fiction the audit chain would then carry. When it was not
+            shown, the step does not open at all: see the notice
+            below. */}
         {documentPresented && (
           <label className="flex items-start gap-3 text-[13px] text-ink-700 dark:text-cream-100/80">
             <input
@@ -431,6 +441,19 @@ export function SignatureCapture({
               I have reviewed the document shown above, in full.
             </span>
           </label>
+        )}
+
+        {/* A document that failed to load is a blocker, not a footnote.
+            The signer has not seen the record, so the ceremony stops
+            here rather than letting them complete it having read only
+            the notice above. */}
+        {!documentPresented && (
+          <p className="rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 bg-cream-50/60 dark:bg-forest-900/40 px-3 py-2.5 text-[13px] text-ink-700 dark:text-cream-100/80 leading-relaxed">
+            The document did not open on this page, so signing is not
+            available. You should not be asked to sign something you have not
+            read. Please ask <span data-no-translate>{firmName}</span> to send
+            you the document, then use this link again.
+          </p>
         )}
 
         {error && (

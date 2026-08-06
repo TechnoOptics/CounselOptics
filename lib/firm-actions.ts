@@ -33,7 +33,10 @@ import {
   removeCollaboratorAsFirm,
 } from './storage';
 import { logSecurityEvent } from './security-audit';
-import { isUnknownColumnError } from './signer-view';
+import {
+  SIGNER_DOWNLOAD_RESTRICTION_UNSAVED_ERROR,
+  resolveDownloadColumnFallback,
+} from './signer-view';
 import {
   readPortalRoles,
   sanitizeFeatures,
@@ -2275,28 +2278,35 @@ export async function createSigningRequestAction(
     .insert({ ...requestInsert, signer_can_download: signerCanDownload })
     .select('id')
     .single();
-  // The column arrives with a migration the owner applies. Until then
-  // the insert has to go through without it, so the firm can still
-  // send. Narrowly scoped to a missing column (see
-  // isUnknownColumnError) so a permission or constraint failure still
-  // aborts rather than silently sending.
-  if (reqErr && isUnknownColumnError(reqErr, 'signer_can_download')) {
-    downloadPermissionPersisted = false;
-    ({ data: req, error: reqErr } = await supabase
-      .from('firm_signing_requests')
-      .insert(requestInsert)
-      .select('id')
-      .single());
+  // The column arrives with a migration the owner applies, and there is
+  // a further window right after it runs while PostgREST still holds a
+  // stale schema cache. Sending without the column is fine when
+  // downloads were ALLOWED, because that is what the reader falls back
+  // to anyway. It is not fine when the firm restricted them: that
+  // would send the request with the document downloadable by exactly
+  // the person the firm chose to withhold it from. So that case
+  // aborts. The decision is resolveDownloadColumnFallback, unit-tested
+  // in lib/signer-view.ts, and it is narrowly scoped to a missing
+  // column so a permission or constraint failure still surfaces.
+  if (reqErr) {
+    const fallback = resolveDownloadColumnFallback({
+      signerCanDownload,
+      error: reqErr,
+    });
+    if (fallback === 'abort-restriction-unsaved') {
+      return { ok: false, error: SIGNER_DOWNLOAD_RESTRICTION_UNSAVED_ERROR };
+    }
+    if (fallback === 'retry-without-column') {
+      downloadPermissionPersisted = false;
+      ({ data: req, error: reqErr } = await supabase
+        .from('firm_signing_requests')
+        .insert(requestInsert)
+        .select('id')
+        .single());
+    }
   }
   if (reqErr || !req) return { ok: false, error: reqErr?.message ?? 'Could not create request.' };
   const requestId = (req as { id: string }).id;
-  // Only worth saying when the firm asked to RESTRICT downloads and we
-  // could not record that. The permitted case matches what the reader
-  // falls back to, so nothing changed for anyone.
-  const downloadWarning =
-    !downloadPermissionPersisted && !signerCanDownload
-      ? 'The request was sent, but the download restriction could not be saved yet, so signers can still download their copy. Ask your administrator to apply the pending database update.'
-      : undefined;
 
   // Move the document into 'sent' state since it's now in the signer's
   // hands. The operator can advance to a signed_* state once execution
@@ -2523,7 +2533,7 @@ export async function createSigningRequestAction(
     }
   }
   revalidatePath('/counsel/signing');
-  return { ok: true, requestId, warning: downloadWarning };
+  return { ok: true, requestId };
 }
 
 // =====================================================================

@@ -5,12 +5,16 @@ import {
   SIGNATURE_BOX_HEIGHT_PT,
   SIGNATURE_BOX_WIDTH_PT,
   SIGNER_COPY_REFUSAL_COPY,
+  SIGNER_DOWNLOAD_RESTRICTION_UNSAVED_ERROR,
   canLeaveDisclosureStep,
   createSignerFrameSrcRetainer,
   isUnknownColumnError,
   parseSignerDownloadPermission,
+  projectSignerConsentMetadata,
+  resolveDownloadColumnFallback,
   resolveSignatureLinePlacement,
   resolveSignerCopyAccess,
+  signaturePreviewGeometryNote,
   stableSignerFrameSrc,
 } from '../lib/signer-view';
 
@@ -101,14 +105,108 @@ describe('canLeaveDisclosureStep', () => {
     );
   });
 
-  it('does not ask for review of a document that was never shown', () => {
+  // A document that failed to load is the exact case where the signer
+  // has not read what they are being asked to sign, so the step does
+  // not open. It is not softened by the review checkbox being absent.
+  it('does not open at all when the document never loaded', () => {
     expect(
       canLeaveDisclosureStep({
         ...base,
         documentPresented: false,
         documentReviewed: false,
       }),
-    ).toBe(true);
+    ).toBe(false);
+  });
+
+  it('stays shut on a failed load even if review is somehow claimed', () => {
+    expect(
+      canLeaveDisclosureStep({
+        ...base,
+        documentPresented: false,
+        documentReviewed: true,
+      }),
+    ).toBe(false);
+  });
+});
+
+describe('signaturePreviewGeometryNote', () => {
+  const assumed = resolveSignatureLinePlacement({
+    positionPage: 1,
+    positionX: 0.7,
+    positionY: 0.1,
+  });
+  const measured = resolveSignatureLinePlacement({
+    positionPage: 1,
+    positionX: 0.7,
+    positionY: 0.1,
+    pageWidthPt: 595,
+    pageHeightPt: 842,
+  });
+
+  it('admits the guess when the page was never measured', () => {
+    const note = signaturePreviewGeometryNote(assumed);
+    expect(note).toBeTruthy();
+    expect(note).toMatch(/letter-size/i);
+  });
+
+  it('says nothing when the page WAS measured', () => {
+    expect(signaturePreviewGeometryNote(measured)).toBeNull();
+  });
+
+  it('says nothing when there is no placement to qualify', () => {
+    expect(
+      signaturePreviewGeometryNote({
+        mode: 'deferred',
+        reason: 'no-recorded-position',
+      }),
+    ).toBeNull();
+  });
+
+  it('is calm and carries no em dash', () => {
+    expect(signaturePreviewGeometryNote(assumed)).not.toMatch(/[—–]/);
+  });
+
+  // The reason the note exists. Below the threshold the assumed page
+  // width changes nothing about the position; above it, the clamp
+  // engages on the assumed width and the drawn position parts company
+  // with where the renderer will actually put the box.
+  it('covers a position the assumed page size actually moves', () => {
+    const threshold = 1 - SIGNATURE_BOX_WIDTH_PT / ASSUMED_PAGE_WIDTH_PT;
+    const below = resolveSignatureLinePlacement({
+      positionPage: 1,
+      positionX: threshold - 0.05,
+      positionY: 0.1,
+    });
+    const belowMeasured = resolveSignatureLinePlacement({
+      positionPage: 1,
+      positionX: threshold - 0.05,
+      positionY: 0.1,
+      pageWidthPt: 842,
+      pageHeightPt: 595,
+    });
+    if (below.mode !== 'placed' || belowMeasured.mode !== 'placed') {
+      throw new Error('expected placed previews');
+    }
+    expect(below.leftPct).toBeCloseTo(belowMeasured.leftPct, 6);
+
+    const above = resolveSignatureLinePlacement({
+      positionPage: 1,
+      positionX: 0.75,
+      positionY: 0.1,
+    });
+    const aboveMeasured = resolveSignatureLinePlacement({
+      positionPage: 1,
+      positionX: 0.75,
+      positionY: 0.1,
+      pageWidthPt: 842,
+      pageHeightPt: 595,
+    });
+    if (above.mode !== 'placed' || aboveMeasured.mode !== 'placed') {
+      throw new Error('expected placed previews');
+    }
+    expect(Math.abs(above.leftPct - aboveMeasured.leftPct)).toBeGreaterThan(1);
+    // Which is precisely the case the note has to be present for.
+    expect(signaturePreviewGeometryNote(above)).toBeTruthy();
   });
 });
 
@@ -340,6 +438,149 @@ describe('isUnknownColumnError', () => {
   it('reports false for no error at all', () => {
     expect(isUnknownColumnError(null, 'signer_can_download')).toBe(false);
     expect(isUnknownColumnError(undefined, 'signer_can_download')).toBe(false);
+  });
+});
+
+describe('resolveDownloadColumnFallback', () => {
+  const missing = {
+    code: 'PGRST204',
+    message:
+      "Could not find the 'signer_can_download' column of 'firm_signing_requests' in the schema cache",
+  };
+
+  it('sends without the column when downloads were allowed anyway', () => {
+    expect(
+      resolveDownloadColumnFallback({ signerCanDownload: true, error: missing }),
+    ).toBe('retry-without-column');
+  });
+
+  // The one that matters. Retrying without the column would send the
+  // request with the document downloadable by exactly the person the
+  // firm chose to withhold it from, and a warning afterwards does not
+  // put it back.
+  it('refuses to send when the firm restricted downloads and it cannot be saved', () => {
+    expect(
+      resolveDownloadColumnFallback({
+        signerCanDownload: false,
+        error: missing,
+      }),
+    ).toBe('abort-restriction-unsaved');
+  });
+
+  it('does the same for the Postgres undefined_column code', () => {
+    expect(
+      resolveDownloadColumnFallback({
+        signerCanDownload: false,
+        error: {
+          code: '42703',
+          message: 'column "signer_can_download" does not exist',
+        },
+      }),
+    ).toBe('abort-restriction-unsaved');
+  });
+
+  it('surfaces anything that is not a missing column', () => {
+    for (const canDownload of [true, false]) {
+      expect(
+        resolveDownloadColumnFallback({
+          signerCanDownload: canDownload,
+          error: {
+            code: '42501',
+            message: 'permission denied for column signer_can_download',
+          },
+        }),
+      ).toBe('surface-error');
+      expect(
+        resolveDownloadColumnFallback({
+          signerCanDownload: canDownload,
+          error: null,
+        }),
+      ).toBe('surface-error');
+    }
+  });
+
+  it('tells the firm plainly, and calmly, why nothing was sent', () => {
+    expect(SIGNER_DOWNLOAD_RESTRICTION_UNSAVED_ERROR).toMatch(/was not sent/i);
+    expect(SIGNER_DOWNLOAD_RESTRICTION_UNSAVED_ERROR).not.toMatch(/[—–]/);
+  });
+});
+
+describe('projectSignerConsentMetadata', () => {
+  const full = {
+    electronicRecordsConsentedAt: '2026-08-06T10:00:00.000Z',
+    hardwareSoftwareConfirmedAt: '2026-08-06T10:00:00.000Z',
+    documentPresented: true,
+    documentReviewedAt: '2026-08-06T10:00:05.000Z',
+    intentAffirmedAt: '2026-08-06T10:01:00.000Z',
+    uaSnapshot: 'Mozilla/5.0',
+    tzOffsetMinutes: -60,
+  };
+
+  it('records nothing when the signer sent no consent block', () => {
+    expect(projectSignerConsentMetadata(undefined)).toBeNull();
+    expect(projectSignerConsentMetadata(null)).toBeNull();
+  });
+
+  // The whole reason the document-review gate exists is to produce
+  // this evidence. Dropped here, the checkbox is theatre: the chain
+  // still verifies and the absence looks like a signer never asked.
+  it('carries the document-review affirmation into the chain', () => {
+    const record = projectSignerConsentMetadata(full);
+    expect(record?.document_presented).toBe(true);
+    expect(record?.document_reviewed_at).toBe('2026-08-06T10:00:05.000Z');
+  });
+
+  it('still carries the electronic-records and intent affirmations', () => {
+    expect(projectSignerConsentMetadata(full)).toEqual({
+      electronic_records_consented_at: '2026-08-06T10:00:00.000Z',
+      hardware_software_confirmed_at: '2026-08-06T10:00:00.000Z',
+      document_presented: true,
+      document_reviewed_at: '2026-08-06T10:00:05.000Z',
+      intent_affirmed_at: '2026-08-06T10:01:00.000Z',
+      ua_snapshot: 'Mozilla/5.0',
+      tz_offset_minutes: -60,
+    });
+  });
+
+  it('does not claim a review that was not affirmed', () => {
+    const record = projectSignerConsentMetadata({
+      ...full,
+      documentPresented: false,
+      documentReviewedAt: null,
+    });
+    expect(record?.document_presented).toBe(false);
+    expect(record?.document_reviewed_at).toBeNull();
+  });
+
+  it('reads a merely truthy presented flag as not presented', () => {
+    const record = projectSignerConsentMetadata({
+      // A client posting anything other than true is not evidence of
+      // presentation, so it does not become evidence in the chain.
+      documentPresented: 'yes' as unknown as boolean,
+    });
+    expect(record?.document_presented).toBe(false);
+  });
+
+  it('normalises missing fields to null rather than dropping the key', () => {
+    const record = projectSignerConsentMetadata({});
+    expect(record).not.toBeNull();
+    expect(Object.keys(record ?? {}).sort()).toEqual([
+      'document_presented',
+      'document_reviewed_at',
+      'electronic_records_consented_at',
+      'hardware_software_confirmed_at',
+      'intent_affirmed_at',
+      'tz_offset_minutes',
+      'ua_snapshot',
+    ]);
+    expect(record?.intent_affirmed_at).toBeNull();
+    expect(record?.tz_offset_minutes).toBeNull();
+  });
+
+  it('keeps a zero timezone offset rather than nulling it', () => {
+    expect(
+      projectSignerConsentMetadata({ tzOffsetMinutes: 0 })?.tz_offset_minutes,
+    ).toBe(0);
   });
 });
 

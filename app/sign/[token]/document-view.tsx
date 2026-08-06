@@ -2,9 +2,11 @@
 
 import { useState } from 'react';
 import {
+  SIGNER_DOCUMENT_URL_TTL_MINUTES,
   createSignerFrameSrcRetainer,
   type SignerFrameSrcRetainer,
 } from '@/lib/signer-view';
+import { ExternalLink } from '@/components/ExternalLink';
 
 /**
  * The document, above the signing area.
@@ -23,6 +25,10 @@ import {
  * control is not decoration: several mobile browsers render only the
  * first page of a PDF inside an iframe and give it no scroll, so
  * without it a phone signer could not reach the end of the document.
+ * It goes through ExternalLink rather than a raw target="_blank"
+ * anchor, because inside the Capacitor shell a plain _blank anchor
+ * commonly no-ops, and the mobile case is the one this control exists
+ * for in the first place.
  */
 export function SignerDocumentView({
   src,
@@ -77,15 +83,20 @@ export function SignerDocumentView({
         referrerPolicy="no-referrer"
         className="w-full h-[60vh] min-h-[380px] sm:h-[75vh] border-0 border-t border-ink-200 dark:border-forest-700/40 bg-ink-50 dark:bg-forest-950"
       />
-      <div className="px-5 sm:px-6 py-3 flex justify-end border-t border-ink-200 dark:border-forest-700/40">
-        <a
-          href={frameSrc}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="btn-secondary text-sm"
-        >
+      <div className="px-5 sm:px-6 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-t border-ink-200 dark:border-forest-700/40">
+        {/* The link the frame is reading expires, so say so and say
+            what to do about it, rather than leaving a long read on a
+            phone to end at a storage error page with no way back. */}
+        <p className="text-[12px] text-ink-500 dark:text-cream-100/55 leading-relaxed">
+          This view of the document stays open for about{' '}
+          {SIGNER_DOCUMENT_URL_TTL_MINUTES} minutes. If it stops loading,
+          reload this page for a fresh one. Reloading starts the steps below
+          again, so it is worth finishing them once you have read the
+          document.
+        </p>
+        <ExternalLink href={frameSrc} className="btn-secondary text-sm shrink-0">
           Open in a new tab
-        </a>
+        </ExternalLink>
       </div>
     </section>
   );

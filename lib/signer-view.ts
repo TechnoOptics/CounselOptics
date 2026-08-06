@@ -7,16 +7,19 @@
  * as a function over plain values, and the components are the thin
  * wiring around it.
  *
- * Four rules live here:
+ * Five rules live here:
  *
  *   1. Which URL a mounted document frame shows (stableSignerFrameSrc /
  *      createSignerFrameSrcRetainer).
  *   2. When the signer may leave the disclosure step
  *      (canLeaveDisclosureStep).
  *   3. Where the signature preview may be drawn, if anywhere
- *      (resolveSignatureLinePlacement).
+ *      (resolveSignatureLinePlacement), and what the preview has to
+ *      admit about its own accuracy (signaturePreviewGeometryNote).
  *   4. Whether the signer may download a copy, and of what
  *      (parseSignerDownloadPermission / resolveSignerCopyAccess).
+ *   5. What of the signer's affirmations reaches the audit chain
+ *      (projectSignerConsentMetadata).
  */
 
 // ---------------------------------------------------------------------
@@ -51,6 +54,18 @@ export function stableSignerFrameSrc(
 ): string | null {
   return retained || incoming || null;
 }
+
+/**
+ * How long the frame's URL is good for, in minutes.
+ *
+ * The seconds form that storage is actually given derives from this
+ * (lib/firm-storage.ts), so the number the signer is told and the
+ * number the signature carries cannot drift apart. It is told to them
+ * because a long contract read on a phone can outlast it, and the
+ * failure otherwise is a raw storage error with no hint that reloading
+ * the page fixes it.
+ */
+export const SIGNER_DOCUMENT_URL_TTL_MINUTES = 30;
 
 /** What one mounted frame shows across a sequence of renders. */
 export type SignerFrameSrcRetainer = (
@@ -96,9 +111,19 @@ export function createSignerFrameSrcRetainer(): SignerFrameSrcRetainer {
  *
  * When the document could NOT be presented (no stored file, or the
  * storage signature could not be minted) the review affirmation is not
- * required, because requiring an acknowledgement of something the
- * signer was never shown would be a lie, and would also strand them on
- * a step they cannot pass.
+ * ASKED FOR, because requiring an acknowledgement of something the
+ * signer was never shown would be a fiction the audit chain would then
+ * carry. But the step does not open either. A failed load is precisely
+ * the case where the signer has not seen the record, and the whole
+ * point of showing the document is that nobody signs one they have not
+ * read. So the ceremony stops there and the page tells them to ask the
+ * firm for the document.
+ *
+ * What this cannot prove, stated once here because the field name
+ * invites the stronger reading: `documentPresented` means a URL was
+ * minted and handed to the frame. It does not mean the browser
+ * rendered the PDF. A device that downloads the file instead of
+ * framing it shows the signer nothing while this still reads true.
  */
 export function canLeaveDisclosureStep(input: {
   electronicRecordsAgreed: boolean;
@@ -108,7 +133,8 @@ export function canLeaveDisclosureStep(input: {
 }): boolean {
   if (!input.electronicRecordsAgreed) return false;
   if (!input.hardwareSoftwareAgreed) return false;
-  if (input.documentPresented && !input.documentReviewed) return false;
+  if (!input.documentPresented) return false;
+  if (!input.documentReviewed) return false;
   return true;
 }
 
@@ -226,6 +252,41 @@ export function resolveSignatureLinePlacement(input: {
   };
 }
 
+/**
+ * What the preview has to admit when it never measured the page.
+ *
+ * `resolveSignatureLinePlacement` falls back to US Letter when no page
+ * size was passed, and the sign page passes none, because measuring
+ * means downloading and parsing the PDF on every render of an
+ * unauthenticated page. Three things are then approximate rather than
+ * exact, and the signer is entitled to know:
+ *
+ *   - The page outline. A landscape page is drawn as a portrait one.
+ *   - The box size. On US Legal the box is drawn taller than it is.
+ *   - The box POSITION, above a threshold. The containment clamp uses
+ *     the box width as a fraction of the ASSUMED width, so it engages
+ *     at x = 1 - 220/612 whatever the real page is. Below that the
+ *     position is exact on any page size. Above it, a page that is not
+ *     Letter can put the box a visible distance from where it is drawn
+ *     here, and firm-supplied anchors on the right half of a page do
+ *     reach it.
+ *
+ * Returns null when the page WAS measured, because then there is
+ * nothing to admit.
+ */
+export function signaturePreviewGeometryNote(
+  placement: SignatureLinePlacement,
+): string | null {
+  if (placement.mode !== 'placed') return null;
+  if (placement.pageGeometry === 'measured') return null;
+  return (
+    'The outline and the box size here assume a standard letter-size page, ' +
+    'because this preview does not measure the document. If the document ' +
+    'uses another page size, the box can sit some way from where it is drawn ' +
+    'here. The signed copy is the record.'
+  );
+}
+
 // ---------------------------------------------------------------------
 // 4. Whether the signer may keep a copy
 // ---------------------------------------------------------------------
@@ -270,6 +331,55 @@ export function isUnknownColumnError(
   const code = error.code ?? '';
   if (code !== 'PGRST204' && code !== '42703') return false;
   return (error.message ?? '').includes(column);
+}
+
+export type DownloadColumnFallback =
+  /** Send anyway, without the column. Only when downloads were allowed. */
+  | 'retry-without-column'
+  /** Do not send. The firm restricted downloads and we cannot record it. */
+  | 'abort-restriction-unsaved'
+  /** Not a missing column. The caller surfaces the original error. */
+  | 'surface-error';
+
+/**
+ * The wording for the abort. Kept here so the decision and what the
+ * firm reads about it stay together.
+ */
+export const SIGNER_DOWNLOAD_RESTRICTION_UNSAVED_ERROR =
+  'This request was not sent. You asked that the signer not be able to ' +
+  'download a copy, and that restriction cannot be saved yet, so sending ' +
+  'now would let them download it. Ask your administrator to apply the ' +
+  'pending database update, or send with downloads allowed.';
+
+/**
+ * What to do when the insert carrying `signer_can_download` fails.
+ *
+ * The column arrives with a migration the owner applies, so between
+ * merge and apply, and in the window right after the migration runs
+ * while PostgREST still holds a stale schema cache, the write can come
+ * back with the column unknown. Retrying without it is the obvious
+ * recovery and it is right in exactly one direction.
+ *
+ * When downloads were ALLOWED, dropping the column changes nothing:
+ * the reader defaults to permitted, so the retry lands on the same
+ * behaviour the firm chose.
+ *
+ * When downloads were REFUSED, dropping the column inverts the firm's
+ * decision. The request goes out with the document downloadable by
+ * someone the firm deliberately chose to withhold it from, and telling
+ * them afterwards does not put it back. Confidentiality does not fail
+ * open, so this aborts and nothing is sent.
+ */
+export function resolveDownloadColumnFallback(input: {
+  signerCanDownload: boolean;
+  error: { code?: string | null; message?: string | null } | null | undefined;
+}): DownloadColumnFallback {
+  if (!isUnknownColumnError(input.error, 'signer_can_download')) {
+    return 'surface-error';
+  }
+  return input.signerCanDownload
+    ? 'retry-without-column'
+    : 'abort-restriction-unsaved';
 }
 
 export type SignerCopyAccess =
@@ -355,3 +465,76 @@ export const SIGNER_COPY_REFUSAL_COPY: Record<
   unavailable:
     'The copy is not available to download right now. The firm can send it to you.',
 };
+
+// ---------------------------------------------------------------------
+// 5. What of the signer's affirmations reaches the audit chain
+// ---------------------------------------------------------------------
+
+/** What the browser sends up with a signature. */
+export type SignerConsentPayload = {
+  electronicRecordsConsentedAt?: string | null;
+  hardwareSoftwareConfirmedAt?: string | null;
+  /** Whether the document was actually put in front of the signer. */
+  documentPresented?: boolean | null;
+  /** When they affirmed they had reviewed it. */
+  documentReviewedAt?: string | null;
+  intentAffirmedAt?: string | null;
+  uaSnapshot?: string | null;
+  tzOffsetMinutes?: number | null;
+};
+
+/** What lands in the 'signed' event's metadata. */
+export type SignerConsentRecord = {
+  electronic_records_consented_at: string | null;
+  hardware_software_confirmed_at: string | null;
+  document_presented: boolean;
+  document_reviewed_at: string | null;
+  intent_affirmed_at: string | null;
+  ua_snapshot: string | null;
+  tz_offset_minutes: number | null;
+};
+
+/**
+ * Project the signer's affirmations into the audit chain.
+ *
+ * This is the only thing standing between what the browser captured
+ * and what a later verifier can read, so it is a named function with
+ * tests rather than an object literal inside a route handler. A key
+ * dropped here is a piece of evidence that quietly does not exist:
+ * the chain still verifies, the event still says 'signed', and the
+ * absence looks exactly like a signer who was never asked.
+ *
+ * `document_presented` and `document_reviewed_at` are the record that
+ * the signer was shown the document and said they had read it. They
+ * are the reason the review gate exists at all, so they belong here
+ * beside the electronic-records consent and the intent to sign.
+ *
+ * What `document_presented` means is narrow and should be read
+ * narrowly: a URL was minted and given to the frame. It is not proof
+ * the PDF rendered on the signer's device.
+ *
+ * Values are normalised rather than passed through, so a missing field
+ * reads as null instead of undefined, which jsonb would drop.
+ */
+export function projectSignerConsentMetadata(
+  consent: SignerConsentPayload | null | undefined,
+): SignerConsentRecord | null {
+  if (!consent) return null;
+  return {
+    electronic_records_consented_at: text(consent.electronicRecordsConsentedAt),
+    hardware_software_confirmed_at: text(consent.hardwareSoftwareConfirmedAt),
+    document_presented: consent.documentPresented === true,
+    document_reviewed_at: text(consent.documentReviewedAt),
+    intent_affirmed_at: text(consent.intentAffirmedAt),
+    ua_snapshot: text(consent.uaSnapshot),
+    tz_offset_minutes:
+      typeof consent.tzOffsetMinutes === 'number' &&
+      Number.isFinite(consent.tzOffsetMinutes)
+        ? consent.tzOffsetMinutes
+        : null,
+  };
+}
+
+function text(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value : null;
+}

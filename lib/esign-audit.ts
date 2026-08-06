@@ -42,7 +42,19 @@ export type SignatureEventType =
   // an executed PDF was successfully produced, and how many of the
   // captured signatures actually made it onto the page.
   | 'final_pdf_rendered'
-  | 'final_pdf_render_failed';
+  | 'final_pdf_render_failed'
+  // The signer pulled their own copy (app/api/firm/sign/copy). The
+  // chain is sold as evidence of what happened to an executed
+  // instrument, and retrieval of it is part of that.
+  //
+  // CAVEAT, stated where the type is declared: no DDL for
+  // firm_signature_events exists in this repo, so if event_type
+  // carries a CHECK constraint enumerating the values above, this one
+  // is not in it and the insert will be rejected. That is not a
+  // breakage (appendSignatureEvent swallows insert errors by design,
+  // so the download still succeeds) but it would be a silent
+  // omission. Check the live constraint and add the value to it.
+  | 'copy_downloaded';
 
 type EventInput = {
   signingRequestId: string;

@@ -1,6 +1,9 @@
 import { createServerSupabase, getCurrentUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
-import { parseSignerDownloadPermission } from './signer-view';
+import {
+  SIGNER_DOCUMENT_URL_TTL_MINUTES,
+  parseSignerDownloadPermission,
+} from './signer-view';
 import type {
   Firm,
   FirmChannel,
@@ -759,8 +762,13 @@ export async function getFirmDocumentSignedUrl(
  * The page holds ONE of these for the life of the mount (see
  * createSignerFrameSrcRetainer) rather than re-minting, so this is the
  * whole budget for a single visit, not a per-render one.
+ *
+ * The minutes form is SIGNER_DOCUMENT_URL_TTL_MINUTES in
+ * lib/signer-view.ts, which is what the page tells the signer, so the
+ * stated budget and the real one cannot drift apart.
  */
-export const SIGNER_DOCUMENT_URL_TTL_SECONDS = 60 * 30;
+export const SIGNER_DOCUMENT_URL_TTL_SECONDS =
+  SIGNER_DOCUMENT_URL_TTL_MINUTES * 60;
 
 /**
  * Mint a read URL for the document behind ONE signing token.
