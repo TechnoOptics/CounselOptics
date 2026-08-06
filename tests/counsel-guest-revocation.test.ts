@@ -100,8 +100,14 @@ vi.mock('../lib/supabase/server', () => ({
 vi.mock('../lib/supabase/admin', () => ({
   createAdminSupabase: () => admin,
 }));
+// lib/counsel-guest.ts resolves the branding firm through BOTH the RLS-scoped
+// read and the admin fallback (a guest is not a firm member, so the RLS read
+// returns nothing). Both must be stubbed or the positive-access paths throw
+// before they ever reach their assertions. Branding is not an access decision:
+// returning null here keeps the tests focused on scoping.
 vi.mock('../lib/firm-storage', () => ({
   getFirmById: async () => null,
+  getFirmByIdAdmin: async () => null,
 }));
 
 let mod: typeof import('../lib/counsel-guest');
