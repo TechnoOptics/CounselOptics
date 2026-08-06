@@ -13,6 +13,9 @@ const LABEL: Record<SubmissionStatus, string> = {
   approved: 'Approved, sending',
   sent: 'Sent to recipient',
   withdrawn: 'Withdrawn',
+  // Not "Rejected". The decision is about the document, not the colleague who
+  // filled it in, and it is the last word they will read on it.
+  declined: 'Not going out',
 };
 
 const COLOR: Record<SubmissionStatus, string> = {
@@ -21,6 +24,9 @@ const COLOR: Record<SubmissionStatus, string> = {
   approved: PILL_COLORS.info,
   sent: PILL_COLORS.good,
   withdrawn: PILL_COLORS.neutral,
+  // A closed state, not an alarm. The red is reserved for something that
+  // needs attention, and this needs none.
+  declined: PILL_COLORS.quiet,
 };
 
 export function SubmissionStatusPill({ status }: { status: SubmissionStatus }) {

@@ -20,6 +20,11 @@
 --
 -- APPLY THIS IN THE SAME WINDOW AS THE MERGE. IT CANNOT TRAIL THE DEPLOY.
 --
+-- This file has never been run, so the decline state and the reviewer-edit
+-- columns were folded into it rather than added as a second migration. If any
+-- environment has already applied an earlier copy of this file, run the
+-- catch-up block at the bottom instead of re-running the whole thing.
+--
 -- The employee Forms surface does not degrade gracefully without it, it stops
 -- working. `requires_approval` is absent from the row until this runs, and the
 -- reader treats absent as "needs review" (the safe direction, but the costly
@@ -60,8 +65,11 @@ create table if not exists public.firm_template_submissions (
   -- sent on approval. Reviewed artifact and released artifact are one string.
   document_text text not null,
 
+  -- 'declined' is its own terminal state and not a flavour of
+  -- 'changes_requested'. A returned submission is still alive and the employee
+  -- is expected to fix it; a declined one is finished and nothing reopens it.
   status text not null default 'pending'
-    check (status in ('pending', 'changes_requested', 'approved', 'sent', 'withdrawn')),
+    check (status in ('pending', 'changes_requested', 'approved', 'sent', 'withdrawn', 'declined')),
   -- Bumped on every resubmission so the reviewer knows they are re-reading it.
   revision int not null default 1,
 
@@ -69,6 +77,19 @@ create table if not exists public.firm_template_submissions (
   decided_by uuid,
   decided_at timestamptz,
   decision_note text,
+
+  -- The reviewer's edit, when there was one.
+  --
+  -- document_text always holds what would actually be released, so the sent
+  -- document is the edited one. The employee's own text is copied in here on
+  -- the FIRST edit and never touched again, so the audit trail can always
+  -- answer "what did the employee actually submit" separately from "what did
+  -- counsel send". Null on both columns means the released document is the
+  -- employee's own words, unaltered.
+  original_document_text text,
+  edited_by uuid,
+  edited_at timestamptz,
+  edit_note text,
 
   released_at timestamptz,
   -- Token of the encrypted share the recipient received (secure-shares/<token>).
@@ -87,3 +108,28 @@ create index if not exists firm_template_submissions_submitter_idx
   on public.firm_template_submissions (submitted_by, submitted_at desc);
 
 alter table public.firm_template_submissions enable row level security;
+
+-- Catch-up, for an environment that applied an earlier copy of this file
+-- before 'declined' and the reviewer-edit columns existed. All no-ops on a
+-- fresh database, where the create table above already covers them.
+alter table public.firm_template_submissions
+  add column if not exists original_document_text text,
+  add column if not exists edited_by uuid,
+  add column if not exists edited_at timestamptz,
+  add column if not exists edit_note text;
+
+do $$
+begin
+  if exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.firm_template_submissions'::regclass
+      and conname = 'firm_template_submissions_status_check'
+      and pg_get_constraintdef(oid) not like '%declined%'
+  ) then
+    alter table public.firm_template_submissions
+      drop constraint firm_template_submissions_status_check;
+    alter table public.firm_template_submissions
+      add constraint firm_template_submissions_status_check
+      check (status in ('pending', 'changes_requested', 'approved', 'sent', 'withdrawn', 'declined'));
+  end if;
+end $$;

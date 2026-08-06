@@ -66,6 +66,11 @@ export default async function CounselApprovalDetailPage({ params }: { params: { 
             <span data-no-translate>{`${s.decidedByName ?? 'A colleague'} · ${new Date(s.decidedAt).toLocaleString()}`}</span>
           </Detail>
         )}
+        {s.editedAt && (
+          <Detail label="Wording edited by">
+            <span data-no-translate>{`${s.editedByName ?? 'A colleague'} · ${new Date(s.editedAt).toLocaleString()}`}</span>
+          </Detail>
+        )}
       </div>
 
       {s.decisionNote && (
@@ -75,6 +80,17 @@ export default async function CounselApprovalDetailPage({ params }: { params: { 
           </p>
           <p className="mt-1 whitespace-pre-wrap text-[13px] text-ink-700 dark:text-cream-100/80" data-no-translate>
             {s.decisionNote}
+          </p>
+        </div>
+      )}
+
+      {s.editNote && (
+        <div className="rounded-xl border border-ink-200 bg-cream-50/60 px-4 py-3 dark:border-forest-700/50 dark:bg-forest-900/60">
+          <p className="text-[13px] font-semibold text-forest-900 dark:text-cream-100">
+            <T>Why the wording was changed</T>
+          </p>
+          <p className="mt-1 whitespace-pre-wrap text-[13px] text-ink-700 dark:text-cream-100/80" data-no-translate>
+            {s.editNote}
           </p>
         </div>
       )}
@@ -89,12 +105,30 @@ export default async function CounselApprovalDetailPage({ params }: { params: { 
         </div>
       </section>
 
+      {/* The employee's own text, kept from the first edit onwards, so the
+          record can always answer what they submitted separately from what
+          the firm sent. */}
+      {s.originalDocumentText && (
+        <details className="rounded-xl border border-ink-200 bg-white p-4 dark:border-forest-700/50 dark:bg-forest-900/40">
+          <summary className="cursor-pointer text-[13px] font-semibold text-forest-900 dark:text-cream-100">
+            <T>What your colleague submitted, before the edit</T>
+          </summary>
+          <div
+            className="mt-3 max-h-[50vh] overflow-y-auto whitespace-pre-wrap font-serif text-[13.5px] leading-relaxed text-ink-700 dark:text-cream-100/80"
+            data-no-translate
+          >
+            {s.originalDocumentText}
+          </div>
+        </details>
+      )}
+
       <ReviewActions
         submissionId={s.id}
         status={s.status}
         canApprove={Boolean(res.canApprove)}
         recipientEmail={s.recipientEmail}
         releaseError={s.releaseError}
+        documentText={s.documentText}
       />
     </div>
   );

@@ -47,6 +47,35 @@ describe('lib/template-submissions.ts', () => {
     expect(names).toContain('resubmitTemplateSubmissionAction');
     expect(names).toContain('withdrawTemplateSubmissionAction');
     expect(names).toContain('retryTemplateReleaseAction');
+    expect(names).toContain('editTemplateSubmissionAction');
+  });
+
+  it('keeps the employee original when a reviewer edits, rather than replacing it', () => {
+    const edit = exportedActions().find((a) => a.name === 'editTemplateSubmissionAction');
+    expect(edit).toBeTruthy();
+    // The copy of what the employee submitted is written from the row that was
+    // read, and only when reviewEdit said this is the first edit. Writing it
+    // unconditionally would overwrite the employee's text with the previous
+    // reviewer's on the second edit.
+    expect(edit?.body).toMatch(
+      /edit\.preserveOriginal\s*\?\s*\{\s*original_document_text:\s*row\.document_text\s*\}/,
+    );
+    // The write is a compare-and-swap on the status AND the text the reviewer
+    // started from, so a concurrent edit is reported rather than clobbered.
+    expect(edit?.body).toMatch(/\.eq\('status',\s*'pending'\)/);
+    expect(edit?.body).toMatch(/\.eq\('document_text',\s*row\.document_text\)/);
+  });
+
+  it('clears any reviewer edit when the employee resubmits', () => {
+    // A resubmission is a new document, so a previous reviewer's wording is
+    // gone and the preserved "what the employee submitted" would otherwise
+    // point at the wrong revision.
+    const resubmit = exportedActions().find(
+      (a) => a.name === 'resubmitTemplateSubmissionAction',
+    );
+    expect(resubmit?.body).toMatch(/original_document_text:\s*null/);
+    expect(resubmit?.body).toMatch(/edited_by:\s*null/);
+    expect(resubmit?.body).toMatch(/edited_at:\s*null/);
   });
 
   it('authorizes the caller against the firm in every exported action', () => {

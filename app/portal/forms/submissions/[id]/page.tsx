@@ -73,6 +73,12 @@ export default async function PortalSubmissionPage({ params }: { params: { id: s
             </T>
           ) : submission.status === 'withdrawn' ? (
             <T>You withdrew this document. Nothing was sent.</T>
+          ) : submission.status === 'declined' ? (
+            <T>
+              Your legal team has decided this one is not going out. Nothing was sent, and
+              their reason is below. If you need something along these lines, talk to them
+              or file a request.
+            </T>
           ) : (
             <T>
               This is with your legal team. Nothing has been sent to the recipient yet, and
@@ -106,6 +112,28 @@ export default async function PortalSubmissionPage({ params }: { params: { id: s
         </div>
       )}
 
+      {submission.editedAt && (
+        <div className="rounded-xl border border-ink-200 bg-white px-4 py-3 dark:border-forest-700/50 dark:bg-forest-900/40">
+          <p className="text-[13px] font-semibold text-forest-900 dark:text-cream-100">
+            <T>The legal team adjusted the wording</T>
+          </p>
+          <p className="mt-1 text-[13px] text-ink-700 dark:text-cream-100/80">
+            <T>
+              The document below is the version they changed, and it is the one that goes to
+              the recipient. What you sent is kept underneath it.
+            </T>
+          </p>
+          <p className="mt-1 text-[12px] text-ink-500 dark:text-cream-100/55" data-no-translate>
+            {`${submission.editedByName ?? 'The legal team'} · ${new Date(submission.editedAt).toLocaleString()}`}
+          </p>
+          {submission.editNote && (
+            <p className="mt-2 whitespace-pre-wrap text-[13px] text-ink-700 dark:text-cream-100/80" data-no-translate>
+              {submission.editNote}
+            </p>
+          )}
+        </div>
+      )}
+
       <section className="rounded-xl border border-ink-200 bg-white p-6 dark:border-forest-700/50 dark:bg-forest-900/40">
         <SectionTitle className="mb-3">Document</SectionTitle>
         <div
@@ -115,6 +143,20 @@ export default async function PortalSubmissionPage({ params }: { params: { id: s
           {submission.documentText}
         </div>
       </section>
+
+      {submission.originalDocumentText && (
+        <details className="rounded-xl border border-ink-200 bg-white p-4 dark:border-forest-700/50 dark:bg-forest-900/40">
+          <summary className="cursor-pointer text-[13px] font-semibold text-forest-900 dark:text-cream-100">
+            <T>What you sent, before the edit</T>
+          </summary>
+          <div
+            className="mt-3 max-h-[50vh] overflow-y-auto whitespace-pre-wrap font-serif text-[13.5px] leading-relaxed text-ink-700 dark:text-cream-100/80"
+            data-no-translate
+          >
+            {submission.originalDocumentText}
+          </div>
+        </details>
+      )}
     </div>
   );
 }

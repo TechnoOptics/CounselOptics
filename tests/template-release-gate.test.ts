@@ -153,7 +153,7 @@ describe('releaseApprovedSubmission', () => {
   });
 
   it('refuses every status that is not an approval, and sends nothing', async () => {
-    for (const status of ['pending', 'changes_requested', 'sent', 'withdrawn']) {
+    for (const status of ['pending', 'changes_requested', 'sent', 'withdrawn', 'declined']) {
       store.row = row({ status });
       const res = await releaseApprovedSubmission(admin, 'sub-1');
       expect(res.ok).toBe(false);
@@ -161,6 +161,32 @@ describe('releaseApprovedSubmission', () => {
     expect(sendEmail).not.toHaveBeenCalled();
     expect(storeShare).not.toHaveBeenCalled();
     expect(buildPdf).not.toHaveBeenCalled();
+  });
+
+  it('sends nothing for a declined document even when called directly', async () => {
+    // Every export of lib/template-submissions.ts is a public HTTP endpoint,
+    // so "the UI never offers this" is not the guarantee. This is: the helper
+    // re-reads the row itself, and a declined one carries a real approver and
+    // a real recipient, so only the status refuses it.
+    store.row = row({ status: 'declined', decision_note: 'Not going out.' });
+    const res = await releaseApprovedSubmission(admin, 'sub-1');
+    expect(res.ok).toBe(false);
+    expect(sendEmail).not.toHaveBeenCalled();
+    expect(storeShare).not.toHaveBeenCalled();
+    expect(buildPdf).not.toHaveBeenCalled();
+    // Nothing was claimed either, so a retry cannot find it half-sent.
+    expect(store.row?.released_at).toBeNull();
+  });
+
+  it('sends nothing when a row is declined between the read and the claim', async () => {
+    store.row = row();
+    store.onRead = () => {
+      store.row = { ...store.row, status: 'declined' };
+    };
+    const res = await releaseApprovedSubmission(admin, 'sub-1');
+    expect(res.ok).toBe(false);
+    expect(sendEmail).not.toHaveBeenCalled();
+    expect(storeShare).not.toHaveBeenCalled();
   });
 
   it('refuses a row marked approved that records no approver', async () => {

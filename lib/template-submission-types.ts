@@ -26,6 +26,11 @@ export type SubmissionRow = {
   decided_by: string | null;
   decided_at: string | null;
   decision_note: string | null;
+  /** The employee's own text, kept from the first reviewer edit onwards. */
+  original_document_text: string | null;
+  edited_by: string | null;
+  edited_at: string | null;
+  edit_note: string | null;
   released_at: string | null;
   release_token: string | null;
   release_error: string | null;
@@ -55,6 +60,15 @@ export type TemplateSubmission = {
   decidedByName: string | null;
   decidedAt: string | null;
   decisionNote: string | null;
+  /**
+   * Set only when a reviewer changed the wording. documentText is then what
+   * would go out, and this is what the employee submitted.
+   */
+  originalDocumentText: string | null;
+  editedBy: string | null;
+  editedByName: string | null;
+  editedAt: string | null;
+  editNote: string | null;
   releasedAt: string | null;
   releaseError: string | null;
   submittedAt: string;
@@ -69,10 +83,18 @@ export type SubmissionInput = {
   signatureName: string;
 };
 
+/**
+ * `nameOf` resolves a user id to a display name. It is passed in rather than
+ * looked up here so this module stays free of server imports, and so the two
+ * people a submission can name (the decider and the editor) are resolved by
+ * the same lookup instead of one being remembered and the other forgotten.
+ */
 export function rowToSubmission(
   row: SubmissionRow,
-  decidedByName: string | null = null,
+  nameOf: (userId: string) => string | null = () => null,
 ): TemplateSubmission {
+  const decidedByName = row.decided_by ? nameOf(row.decided_by) : null;
+  const editedByName = row.edited_by ? nameOf(row.edited_by) : null;
   return {
     id: row.id,
     firmId: row.firm_id,
@@ -93,6 +115,11 @@ export function rowToSubmission(
     decidedByName,
     decidedAt: row.decided_at,
     decisionNote: row.decision_note,
+    originalDocumentText: row.original_document_text,
+    editedBy: row.edited_by,
+    editedByName,
+    editedAt: row.edited_at,
+    editNote: row.edit_note,
     releasedAt: row.released_at,
     releaseError: row.release_error,
     submittedAt: row.submitted_at,

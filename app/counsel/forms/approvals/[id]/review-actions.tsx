@@ -4,16 +4,27 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   decideTemplateSubmissionAction,
+  editTemplateSubmissionAction,
   retryTemplateReleaseAction,
 } from '@/lib/template-submissions';
-import type { SubmissionStatus } from '@/lib/template-approval';
+import type { ReviewAction, SubmissionStatus } from '@/lib/template-approval';
 import { T } from '@/components/i18n/LocaleProvider';
 
 /**
- * Approve, or send it back with a note. There is deliberately no edit here:
- * the document carries a colleague's name and signature, so it is theirs to
- * change. Approving is what sends it, and only a role that may release
- * documents sees the button; the server checks the same thing again.
+ * The three outcomes: approve, edit, decline. Sending it back with a note is
+ * the fourth thing this panel does and is deliberately not the same as
+ * declining, because one of them keeps the submission alive and the other ends
+ * it.
+ *
+ * Editing used to be refused here on the grounds that the document carries a
+ * colleague's name and signature, so it is theirs to change. That concern is
+ * real and it is answered by recording the edit rather than by refusing it:
+ * the server keeps the employee's own text, stamps who changed it and when,
+ * and tells them. What goes out is the edited version, and what they sent is
+ * still readable beside it.
+ *
+ * Only a role that may release documents sees any of these controls, and the
+ * server checks the same thing again on every one of them.
  */
 export function ReviewActions({
   submissionId,
@@ -21,19 +32,23 @@ export function ReviewActions({
   canApprove,
   recipientEmail,
   releaseError,
+  documentText,
 }: {
   submissionId: string;
   status: SubmissionStatus;
   canApprove: boolean;
   recipientEmail: string;
   releaseError: string | null;
+  documentText: string;
 }) {
   const router = useRouter();
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(documentText);
 
-  const decide = async (action: 'approve' | 'request_changes') => {
+  const decide = async (action: ReviewAction) => {
     setBusy(true);
     setError(null);
     const res = await decideTemplateSubmissionAction(submissionId, action, note);
@@ -42,6 +57,19 @@ export function ReviewActions({
       setError(res.error ?? 'Could not record that decision.');
       return;
     }
+    router.refresh();
+  };
+
+  const saveEdit = async () => {
+    setBusy(true);
+    setError(null);
+    const res = await editTemplateSubmissionAction(submissionId, draft, note);
+    setBusy(false);
+    if (!res.ok) {
+      setError(res.error ?? 'Could not save that change.');
+      return;
+    }
+    setEditing(false);
     router.refresh();
   };
 
@@ -67,6 +95,11 @@ export function ReviewActions({
             <T>Approved. The delivery has not completed yet and can be tried again.</T>
           ) : status === 'changes_requested' ? (
             <T>Sent back to your colleague. It will return here once they resend it.</T>
+          ) : status === 'declined' ? (
+            <T>
+              This document is not going out. Nothing was sent, and your colleague has been
+              told. If it should go out after all, they can fill the form again.
+            </T>
           ) : (
             <T>Your colleague withdrew this. Nothing was sent.</T>
           )}
@@ -99,6 +132,9 @@ export function ReviewActions({
     );
   }
 
+  const inputCls =
+    'w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-[14px] text-forest-900 outline-none focus:border-gold-500/70 focus:ring-2 focus:ring-gold-500/25 dark:border-forest-700/50 dark:bg-forest-900/60 dark:text-cream-100';
+
   return (
     <div className="space-y-3 rounded-xl border border-ink-200 bg-white p-4 dark:border-forest-700/50 dark:bg-forest-900/40">
       <p className="text-[13px] font-semibold text-forest-900 dark:text-cream-100">
@@ -107,43 +143,117 @@ export function ReviewActions({
       <p className="text-[12.5px] text-ink-600 dark:text-cream-100/70">
         <T>
           Approving sends the document to the recipient as an encrypted link, with the key
-          in a separate email. Sending it back returns it to your colleague to fix.
+          in a separate email. You can change the wording first, send it back for your
+          colleague to fix, or decide it is not going out.
         </T>
       </p>
-      <textarea
-        rows={3}
-        value={note}
-        onChange={(e) => setNote(e.target.value)}
-        placeholder="What should change, or a note for the record"
-        className="w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-[14px] text-forest-900 outline-none focus:border-gold-500/70 focus:ring-2 focus:ring-gold-500/25 dark:border-forest-700/50 dark:bg-forest-900/60 dark:text-cream-100"
-      />
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => void decide('approve')}
-          className="btn-primary disabled:opacity-50"
-        >
-          {busy ? <T>Working…</T> : <T>Approve and send</T>}
-        </button>
-        <button
-          type="button"
-          disabled={busy || !note.trim()}
-          onClick={() => void decide('request_changes')}
-          className="btn-secondary text-sm disabled:opacity-50"
-        >
-          <T>Send back with a note</T>
-        </button>
-        <span className="text-[12px] text-ink-500 dark:text-cream-100/55">
-          <T>Goes to</T> <span data-no-translate>{recipientEmail}</span>
-        </span>
-      </div>
-      {!note.trim() && (
-        <p className="text-[12px] text-ink-500 dark:text-cream-100/55">
-          <T>A note is required to send it back, so your colleague knows what to change.</T>
-        </p>
+
+      {editing ? (
+        <div className="space-y-3">
+          <p className="text-[12.5px] text-ink-600 dark:text-cream-100/70">
+            <T>
+              What you save here is what gets sent. The version your colleague submitted is
+              kept on the record, your name and the time are stamped on the change, and they
+              are told it was made.
+            </T>
+          </p>
+          <textarea
+            rows={18}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            className={`${inputCls} font-serif text-[13.5px] leading-relaxed`}
+            data-no-translate
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled={busy || !draft.trim() || draft === documentText}
+              onClick={() => void saveEdit()}
+              className="btn-primary disabled:opacity-50"
+            >
+              {busy ? <T>Saving…</T> : <T>Save the change</T>}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                setDraft(documentText);
+                setEditing(false);
+                setError(null);
+              }}
+              className="btn-secondary text-sm disabled:opacity-50"
+            >
+              <T>Leave it as it is</T>
+            </button>
+          </div>
+          {draft === documentText && (
+            <p className="text-[12px] text-ink-500 dark:text-cream-100/55">
+              <T>Nothing has changed yet.</T>
+            </p>
+          )}
+          {error && <p className="text-[12.5px] text-rose-700 dark:text-rose-300">{error}</p>}
+        </div>
+      ) : (
+        <>
+          <textarea
+            rows={3}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="What should change, why it is not going out, or a note for the record"
+            className={inputCls}
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void decide('approve')}
+              className="btn-primary disabled:opacity-50"
+            >
+              {busy ? <T>Working…</T> : <T>Approve and send</T>}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                setDraft(documentText);
+                setEditing(true);
+                setError(null);
+              }}
+              className="btn-secondary text-sm disabled:opacity-50"
+            >
+              <T>Edit the wording</T>
+            </button>
+            <button
+              type="button"
+              disabled={busy || !note.trim()}
+              onClick={() => void decide('request_changes')}
+              className="btn-secondary text-sm disabled:opacity-50"
+            >
+              <T>Send back with a note</T>
+            </button>
+            <button
+              type="button"
+              disabled={busy || !note.trim()}
+              onClick={() => void decide('decline')}
+              className="btn-secondary text-sm disabled:opacity-50"
+            >
+              <T>Decline, do not send</T>
+            </button>
+            <span className="text-[12px] text-ink-500 dark:text-cream-100/55">
+              <T>Goes to</T> <span data-no-translate>{recipientEmail}</span>
+            </span>
+          </div>
+          {!note.trim() && (
+            <p className="text-[12px] text-ink-500 dark:text-cream-100/55">
+              <T>
+                A note is required to send it back or to decline, so your colleague knows
+                where it landed.
+              </T>
+            </p>
+          )}
+          {error && <p className="text-[12.5px] text-rose-700 dark:text-rose-300">{error}</p>}
+        </>
       )}
-      {error && <p className="text-[12.5px] text-rose-700 dark:text-rose-300">{error}</p>}
     </div>
   );
 }

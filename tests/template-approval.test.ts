@@ -6,7 +6,10 @@ import {
   canApproveSubmissions,
   checkReleasable,
   isEditableBySubmitter,
+  isTerminal,
+  MAX_DOCUMENT_CHARS,
   reviewDecision,
+  reviewEdit,
   type ReleaseCandidate,
   type SubmissionStatus,
 } from '../lib/template-approval';
@@ -74,9 +77,71 @@ describe('review decision', () => {
   });
 
   it('refuses a decision on anything that is not awaiting review', () => {
-    for (const current of ['approved', 'sent', 'changes_requested', 'withdrawn'] as SubmissionStatus[]) {
+    for (const current of ALL_SUBMISSION_STATUSES) {
+      if (current === 'pending') continue;
       expect(reviewDecision({ role: 'owner', current, action: 'approve' }).ok).toBe(false);
+      expect(reviewDecision({ role: 'owner', current, action: 'decline', note: 'no' }).ok).toBe(
+        false,
+      );
     }
+  });
+});
+
+/**
+ * Declining and sending back are two different things, and the difference is
+ * the whole point. A returned submission is still alive and the employee is
+ * expected to act; a declined one is finished and nobody is left waiting.
+ */
+describe('declining', () => {
+  it('is a different terminal state from a return, not a flavour of one', () => {
+    const declined = reviewDecision({
+      role: 'attorney',
+      current: 'pending',
+      action: 'decline',
+      note: 'We are not signing this counterparty paper.',
+    });
+    const returned = reviewDecision({
+      role: 'attorney',
+      current: 'pending',
+      action: 'request_changes',
+      note: 'The term should be two years.',
+    });
+    expect(declined).toEqual({ ok: true, status: 'declined' });
+    expect(returned).toEqual({ ok: true, status: 'changes_requested' });
+    expect(isTerminal('declined')).toBe(true);
+    expect(isTerminal('changes_requested')).toBe(false);
+  });
+
+  it('refuses to decline without a reason, so nobody is told only "no"', () => {
+    expect(
+      reviewDecision({ role: 'owner', current: 'pending', action: 'decline', note: '  ' }).ok,
+    ).toBe(false);
+    expect(reviewDecision({ role: 'owner', current: 'pending', action: 'decline' }).ok).toBe(false);
+  });
+
+  it('refuses to decline for a role that may only read', () => {
+    for (const role of ['paralegal', 'staff'] as const) {
+      expect(
+        reviewDecision({ role, current: 'pending', action: 'decline', note: 'no' }).ok,
+      ).toBe(false);
+    }
+    expect(
+      reviewDecision({ role: null, current: 'pending', action: 'decline', note: 'no' }).ok,
+    ).toBe(false);
+  });
+
+  it('ends the submission: it cannot be resubmitted, withdrawn, edited, or sent', () => {
+    expect(applySubmissionAction('declined', 'resubmit').ok).toBe(false);
+    expect(applySubmissionAction('declined', 'withdraw').ok).toBe(false);
+    expect(applySubmissionAction('declined', 'mark_sent').ok).toBe(false);
+    expect(isEditableBySubmitter('declined')).toBe(false);
+  });
+
+  it('can never be released, however complete the rest of the record is', () => {
+    // Everything else on this record is exactly what a releasable one carries:
+    // a real approver, a real recipient, a real document. Only the status
+    // refuses it.
+    expect(checkReleasable(approved({ status: 'declined' })).ok).toBe(false);
   });
 });
 
@@ -142,5 +207,69 @@ describe('release to the recipient', () => {
 
   it('releases a complete approved record', () => {
     expect(checkReleasable(approved())).toEqual({ ok: true });
+  });
+});
+
+/**
+ * The reviewer's edit. The module used to refuse this outright because the
+ * document carries a colleague's signature; it is allowed now on the condition
+ * that the employee's own text survives it and the change is attributed.
+ */
+describe('reviewer edit', () => {
+  const edit = (over: Partial<Parameters<typeof reviewEdit>[0]> = {}) =>
+    reviewEdit({
+      role: 'attorney',
+      current: 'pending',
+      currentText: 'The term of this agreement is five years.',
+      nextText: 'The term of this agreement is two years.',
+      hasOriginal: false,
+      ...over,
+    });
+
+  it('accepts a change from a reviewer while the document is with them', () => {
+    expect(edit()).toEqual({
+      ok: true,
+      documentText: 'The term of this agreement is two years.',
+      preserveOriginal: true,
+    });
+  });
+
+  it('copies the employee original aside once and never again', () => {
+    // The first edit preserves what the employee wrote. A second edit must not
+    // overwrite that copy with the first reviewer's wording, or the record
+    // stops being able to answer what the employee actually submitted.
+    const first = edit({ hasOriginal: false });
+    const second = edit({ hasOriginal: true, currentText: 'two years' });
+    expect(first.ok && first.preserveOriginal).toBe(true);
+    expect(second.ok && second.preserveOriginal).toBe(false);
+  });
+
+  it('refuses a role that cannot release the document either', () => {
+    for (const role of ['paralegal', 'staff'] as const) {
+      expect(edit({ role }).ok).toBe(false);
+    }
+    expect(edit({ role: null }).ok).toBe(false);
+    expect(edit({ role: undefined }).ok).toBe(false);
+  });
+
+  it('refuses on any status but pending', () => {
+    // An approved document has already cleared the gate, so editing it would
+    // put unread text on the release path. A returned one is with the employee.
+    // The terminal ones are finished.
+    for (const current of ALL_SUBMISSION_STATUSES) {
+      if (current === 'pending') continue;
+      expect(edit({ current }).ok).toBe(false);
+    }
+  });
+
+  it('refuses an empty document and a change that changes nothing', () => {
+    expect(edit({ nextText: '   \n ' }).ok).toBe(false);
+    expect(edit({ nextText: 'The term of this agreement is five years.' }).ok).toBe(false);
+  });
+
+  it('refuses an over-long document rather than truncating an agreement', () => {
+    const res = edit({ nextText: 'x'.repeat(MAX_DOCUMENT_CHARS + 1) });
+    expect(res.ok).toBe(false);
+    expect(edit({ nextText: 'x'.repeat(MAX_DOCUMENT_CHARS) }).ok).toBe(true);
   });
 });

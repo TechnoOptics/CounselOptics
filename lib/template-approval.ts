@@ -26,7 +26,15 @@ export type SubmissionStatus =
   /** Delivered to the recipient. Terminal. */
   | 'sent'
   /** The employee pulled it back before a decision. Terminal. */
-  | 'withdrawn';
+  | 'withdrawn'
+  /**
+   * Legal decided this document is not going out. Terminal, and distinct from
+   * 'changes_requested': a returned submission is still alive and the employee
+   * is expected to fix it, whereas this one is finished. Nothing reopens it,
+   * nothing resubmits it, and checkReleasable refuses it like every other
+   * non-approved status.
+   */
+  | 'declined';
 
 export const ALL_SUBMISSION_STATUSES: readonly SubmissionStatus[] = [
   'pending',
@@ -34,9 +42,20 @@ export const ALL_SUBMISSION_STATUSES: readonly SubmissionStatus[] = [
   'approved',
   'sent',
   'withdrawn',
+  'declined',
 ];
 
 export type SubmissionAction = 'resubmit' | 'withdraw' | 'mark_sent';
+
+/**
+ * The three outcomes a reviewer has.
+ *
+ * 'request_changes' and 'decline' are deliberately not one action. The first
+ * hands the document back to the employee with something to do; the second
+ * ends it. Collapsing them would leave an employee waiting to be told what to
+ * change on a document nobody intends to send.
+ */
+export type ReviewAction = 'approve' | 'request_changes' | 'decline';
 
 export type TransitionResult =
   | { ok: true; status: SubmissionStatus }
@@ -61,7 +80,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export function reviewDecision(input: {
   role: FirmRole | null | undefined;
   current: SubmissionStatus;
-  action: 'approve' | 'request_changes';
+  action: ReviewAction;
   note?: string | null;
 }): TransitionResult {
   if (!canApproveSubmissions(input.role)) {
@@ -71,7 +90,17 @@ export function reviewDecision(input: {
     return { ok: false, error: 'This submission is not awaiting review.' };
   }
   if (input.action === 'approve') return { ok: true, status: 'approved' };
-  if (!(input.note ?? '').trim()) {
+  const note = (input.note ?? '').trim();
+  if (input.action === 'decline') {
+    // A reason is required here for the same purpose it is required on a
+    // return, but with more weight: this is the last thing the employee will
+    // hear about a document they filled in and expected to go out.
+    if (!note) {
+      return { ok: false, error: 'Add a short reason so your colleague knows where this landed.' };
+    }
+    return { ok: true, status: 'declined' };
+  }
+  if (!note) {
     return { ok: false, error: 'Add a short note so your colleague knows what to change.' };
   }
   return { ok: true, status: 'changes_requested' };
@@ -102,6 +131,75 @@ export function applySubmissionAction(
 /** The employee may edit their own submission only after it comes back. */
 export function isEditableBySubmitter(status: SubmissionStatus): boolean {
   return status === 'changes_requested';
+}
+
+/** A decision has been taken and nothing further will happen on its own. */
+export function isTerminal(status: SubmissionStatus): boolean {
+  return status === 'sent' || status === 'withdrawn' || status === 'declined';
+}
+
+/**
+ * The longest document the reviewer may save. Over this the edit is refused
+ * rather than truncated: silently cutting the end off an agreement is a worse
+ * outcome than making someone shorten it themselves.
+ */
+export const MAX_DOCUMENT_CHARS = 100_000;
+
+export type EditResult =
+  | {
+      ok: true;
+      documentText: string;
+      /**
+       * True on the first edit of a submission, when the employee's own text
+       * has to be copied aside before it is replaced. Later edits leave that
+       * copy alone, so the preserved original is always what the employee
+       * actually wrote and never a previous reviewer's wording.
+       */
+      preserveOriginal: boolean;
+    }
+  | { ok: false; error: string };
+
+/**
+ * The reviewer's edit of a document that is waiting on them.
+ *
+ * This module used to refuse edits outright, and the reason was sound: the
+ * document carries a colleague's typed signature, so counsel rewriting it in
+ * place would put counsel's words out under the employee's name with nothing
+ * on the record to say so. The answer is provenance, not refusal. Every edit
+ * copies the employee's original aside on the way through, stamps who changed
+ * it and when, and the employee is told, so the released document is
+ * traceably the edited one and the submitted one is still readable next to it.
+ *
+ * Only from 'pending'. An approved document has already cleared the gate, so
+ * editing it would put unreviewed text on the release path; a returned one is
+ * with the employee and editing it would race their resubmission; the terminal
+ * states are finished.
+ */
+export function reviewEdit(input: {
+  role: FirmRole | null | undefined;
+  current: SubmissionStatus;
+  currentText: string;
+  nextText: string;
+  /** Whether the employee's original has already been copied aside. */
+  hasOriginal: boolean;
+}): EditResult {
+  if (!canApproveSubmissions(input.role)) {
+    return { ok: false, error: 'Your role cannot change a document before it goes out.' };
+  }
+  if (input.current !== 'pending') {
+    return { ok: false, error: 'This submission is not awaiting review.' };
+  }
+  const next = input.nextText ?? '';
+  if (!next.trim()) {
+    return { ok: false, error: 'The document cannot be left empty.' };
+  }
+  if (next.length > MAX_DOCUMENT_CHARS) {
+    return { ok: false, error: 'This document is too long to save. Shorten it and try again.' };
+  }
+  if (next === input.currentText) {
+    return { ok: false, error: 'Nothing has changed in this document.' };
+  }
+  return { ok: true, documentText: next, preserveOriginal: !input.hasOriginal };
 }
 
 /** True while the legal team still owes a decision. */

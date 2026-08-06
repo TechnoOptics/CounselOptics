@@ -19,7 +19,10 @@ import {
   canApproveSubmissions,
   isEditableBySubmitter,
   reviewDecision,
+  reviewEdit,
+  type ReviewAction,
 } from './template-approval';
+import { loadPublishedTemplate, sanitizeTemplateValues } from './template-fill';
 import { releaseApprovedSubmission } from './template-release';
 import {
   rowToSubmission,
@@ -58,19 +61,6 @@ function trimTo(value: unknown, max: number): string {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** Values are only ever stored for fields the firm declared on the template. */
-function sanitizeValues(
-  fields: TemplateField[],
-  values: Record<string, string> | undefined,
-): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const f of fields) {
-    const v = trimTo((values ?? {})[f.key], 5000);
-    if (v) out[f.key] = v;
-  }
-  return out;
-}
-
 function missingRequired(fields: TemplateField[], values: Record<string, string>): string[] {
   return fields.filter((f) => f.required && !(values[f.key] ?? '').trim()).map((f) => f.label);
 }
@@ -93,33 +83,18 @@ async function buildDocument(
   });
 }
 
-async function loadTemplateForFill(
-  admin: Admin,
-  firmId: string,
-  templateId: string,
-): Promise<FirmTemplate | null> {
-  const { data } = await admin
-    .from('firm_templates')
-    .select('*')
-    .eq('firm_id', firmId)
-    .eq('id', templateId)
-    .eq('status', 'published')
-    .maybeSingle();
-  if (!data) return null;
-  const r = data as Record<string, unknown>;
-  return {
-    id: String(r.id),
-    firmId: String(r.firm_id),
-    name: String(r.name),
-    description: (r.description as string | null) ?? null,
-    category: (r.category as string | null) ?? null,
-    body: String(r.body ?? ''),
-    fields: Array.isArray(r.fields) ? (r.fields as TemplateField[]) : [],
-    status: r.status as FirmTemplate['status'],
-    requiresApproval: r.requires_approval !== false,
-    createdAt: String(r.created_at),
-    updatedAt: (r.updated_at as string | null) ?? null,
-  };
+/**
+ * Every user id a set of rows names. A submission can name two people, the
+ * one who decided it and the one who edited it, and hydrating only the first
+ * is how "edited by" ends up blank on exactly the rows that have an editor.
+ */
+function namedIn(rows: readonly SubmissionRow[]): string[] {
+  const ids = new Set<string>();
+  for (const r of rows) {
+    if (r.decided_by) ids.add(r.decided_by);
+    if (r.edited_by) ids.add(r.edited_by);
+  }
+  return [...ids];
 }
 
 function refresh(): void {
@@ -180,7 +155,7 @@ export async function submitTemplateForApprovalAction(
     return { ok: false, error: 'You have sent a lot of documents for review. Try again later.' };
   }
 
-  const template = await loadTemplateForFill(admin, firmId, templateId);
+  const template = await loadPublishedTemplate(admin, firmId, templateId);
   if (!template) return { ok: false, error: 'That form is no longer available.' };
 
   const recipientEmail = trimTo(input.recipientEmail, 200).toLowerCase();
@@ -190,7 +165,7 @@ export async function submitTemplateForApprovalAction(
   const signatureName = trimTo(input.signatureName, 120);
   if (!signatureName) return { ok: false, error: 'Type your full legal name as the signature.' };
 
-  const values = sanitizeValues(template.fields, input.values);
+  const values = sanitizeTemplateValues(template.fields, input.values);
   const missing = missingRequired(template.fields, values);
   if (missing.length > 0) {
     return { ok: false, error: `Fill these in first: ${missing.join(', ')}.` };
@@ -248,14 +223,11 @@ export async function listMyTemplateSubmissionsAction(
     .order('submitted_at', { ascending: false })
     .limit(100);
   const rows = (data ?? []) as SubmissionRow[];
-  const people = await hydratePeople(
-    admin,
-    rows.map((r) => r.decided_by).filter((x): x is string => Boolean(x)),
-  );
+  const people = await hydratePeople(admin, namedIn(rows));
   return {
     ok: true,
     submissions: rows.map((r) =>
-      rowToSubmission(r, r.decided_by ? (people.get(r.decided_by)?.name ?? null) : null),
+      rowToSubmission(r, (id) => people.get(id)?.name ?? null),
     ),
   };
 }
@@ -292,7 +264,7 @@ export async function resubmitTemplateSubmissionAction(
   if (!move.ok) return { ok: false, error: move.error };
 
   const template = row.template_id
-    ? await loadTemplateForFill(admin, row.firm_id, row.template_id)
+    ? await loadPublishedTemplate(admin, row.firm_id, row.template_id)
     : null;
   if (!template) return { ok: false, error: 'That form is no longer available.' };
 
@@ -302,7 +274,7 @@ export async function resubmitTemplateSubmissionAction(
   }
   const signatureName = trimTo(input.signatureName, 120);
   if (!signatureName) return { ok: false, error: 'Type your full legal name as the signature.' };
-  const values = sanitizeValues(template.fields, input.values);
+  const values = sanitizeTemplateValues(template.fields, input.values);
   const missing = missingRequired(template.fields, values);
   if (missing.length > 0) {
     return { ok: false, error: `Fill these in first: ${missing.join(', ')}.` };
@@ -330,6 +302,13 @@ export async function resubmitTemplateSubmissionAction(
       // gate from ever seeing an approver against a document that changed.
       decided_by: null,
       decided_at: null,
+      // Nor any reviewer edit. The employee has just rewritten the document,
+      // so a previous reviewer's wording is gone and the copy of "what the
+      // employee submitted" would otherwise point at the wrong revision.
+      original_document_text: null,
+      edited_by: null,
+      edited_at: null,
+      edit_note: null,
       submitted_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
@@ -402,15 +381,12 @@ export async function listFirmTemplateSubmissionsAction(
     .order('submitted_at', { ascending: false })
     .limit(200);
   const rows = (data ?? []) as SubmissionRow[];
-  const people = await hydratePeople(
-    admin,
-    rows.map((r) => r.decided_by).filter((x): x is string => Boolean(x)),
-  );
+  const people = await hydratePeople(admin, namedIn(rows));
   return {
     ok: true,
     canApprove: canApproveSubmissions(role),
     submissions: rows.map((r) =>
-      rowToSubmission(r, r.decided_by ? (people.get(r.decided_by)?.name ?? null) : null),
+      rowToSubmission(r, (id) => people.get(id)?.name ?? null),
     ),
   };
 }
@@ -440,15 +416,12 @@ export async function getTemplateSubmissionAction(submissionId: string): Promise
   const isSubmitter = row.submitted_by === user.id;
   if (!role && !isSubmitter) return { ok: false, error: 'You do not have access to this document.' };
 
-  const people = await hydratePeople(admin, row.decided_by ? [row.decided_by] : []);
+  const people = await hydratePeople(admin, namedIn([row]));
   return {
     ok: true,
     viewer: role ? 'legal' : 'submitter',
     canApprove: canApproveSubmissions(role),
-    submission: rowToSubmission(
-      row,
-      row.decided_by ? (people.get(row.decided_by)?.name ?? null) : null,
-    ),
+    submission: rowToSubmission(row, (id) => people.get(id)?.name ?? null),
   };
 }
 
@@ -458,10 +431,18 @@ export async function getTemplateSubmissionAction(submissionId: string): Promise
  * moved with a conditional update so two reviewers cannot both approve, and
  * only then does the release helper run, which checks the stored record again
  * before anything leaves.
+ *
+ * Declining is a third outcome and not a variant of the second. It ends the
+ * submission where sending it back keeps it alive, so it takes a different
+ * branch here, a different status on the row, and different wording to the
+ * employee: nobody is left waiting to be told what to change on a document
+ * that is not going out. A declined row can never be released, because
+ * checkReleasable and the release claim both require the status 'approved'
+ * and nothing moves a declined row back to it.
  */
 export async function decideTemplateSubmissionAction(
   submissionId: string,
-  action: 'approve' | 'request_changes',
+  action: ReviewAction,
   note?: string,
 ): Promise<{ ok: boolean; error?: string; status?: string; deliveryError?: string }> {
   const user = await getCurrentUser();
@@ -514,6 +495,22 @@ export async function decideTemplateSubmissionAction(
     return { ok: true, status: fresh.status };
   }
 
+  if (decision.status === 'declined') {
+    // Says plainly that it is finished and gives the reason, so nobody sits
+    // waiting for a change request that is not coming. It reports a decision
+    // about the document, never about the person who filled it in.
+    await createNotification({
+      userId: fresh.submitted_by,
+      type: 'system',
+      title: `${fresh.template_name} is not going out`,
+      body: trimTo(note, 300) || 'Open it to see what the legal team said.',
+      link: `/portal/forms/submissions/${fresh.id}`,
+      actorUserId: user.id,
+    });
+    refresh();
+    return { ok: true, status: fresh.status };
+  }
+
   const released = await sendApproved(admin, fresh.id);
   await createNotification({
     userId: fresh.submitted_by,
@@ -533,6 +530,90 @@ export async function decideTemplateSubmissionAction(
     status: released.ok ? 'sent' : 'approved',
     deliveryError: released.ok ? undefined : released.error,
   };
+}
+
+/**
+ * The reviewer's edit of a document that is waiting on them.
+ *
+ * The document carries a colleague's typed signature, so counsel changing it
+ * silently would put counsel's words out under the employee's name. Nothing
+ * here is silent. The employee's own text is copied into
+ * original_document_text on the first edit and never touched again, the
+ * editor and the time are stamped on the row, the reason is kept, and the
+ * employee is told. document_text is what the release helper sends, so the
+ * document that goes out is traceably the edited one and the submitted one is
+ * still on the record beside it.
+ *
+ * The write is conditional on the status AND on the text the reviewer started
+ * from, so two reviewers editing the same document at once cannot silently
+ * overwrite one another: the second one is told to reload rather than having
+ * their colleague's wording disappear under them.
+ */
+export async function editTemplateSubmissionAction(
+  submissionId: string,
+  documentText: string,
+  note?: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: 'Sign in first.' };
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Service unavailable.' };
+
+  const { data } = await admin
+    .from('firm_template_submissions')
+    .select(SUBMISSION_COLS)
+    .eq('id', submissionId)
+    .maybeSingle();
+  const row = (data as SubmissionRow | null) ?? null;
+  if (!row) return { ok: false, error: 'That submission could not be found.' };
+
+  const role = await callerFirmRole(row.firm_id);
+  const edit = reviewEdit({
+    role,
+    current: row.status,
+    currentText: row.document_text,
+    nextText: String(documentText ?? ''),
+    hasOriginal: Boolean(row.original_document_text),
+  });
+  if (!edit.ok) return { ok: false, error: edit.error };
+
+  const { data: updated, error } = await admin
+    .from('firm_template_submissions')
+    .update({
+      document_text: edit.documentText,
+      ...(edit.preserveOriginal ? { original_document_text: row.document_text } : {}),
+      edited_by: user.id,
+      edited_at: new Date().toISOString(),
+      edit_note: trimTo(note, 2000) || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', submissionId)
+    .eq('status', 'pending')
+    .eq('document_text', row.document_text)
+    .select('id')
+    .maybeSingle();
+  if (error) {
+    return { ok: false, error: 'That change could not be saved just now. Try again shortly.' };
+  }
+  if (!updated) {
+    return {
+      ok: false,
+      error: 'This document has changed since you opened it. Reload it and make the change again.',
+    };
+  }
+
+  const people = await hydratePeople(admin, [user.id]);
+  const actorName = people.get(user.id)?.name ?? 'The legal team';
+  await createNotification({
+    userId: row.submitted_by,
+    type: 'system',
+    title: `${actorName} adjusted the wording of ${row.template_name}`,
+    body: trimTo(note, 300) || 'You can read the current wording and the version you sent.',
+    link: `/portal/forms/submissions/${row.id}`,
+    actorUserId: user.id,
+  });
+  refresh();
+  return { ok: true };
 }
 
 /** Retry a delivery that failed after an approval. Approvers only. */
