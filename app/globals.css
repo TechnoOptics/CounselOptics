@@ -1253,16 +1253,40 @@ select:focus-visible,
    traced the wrong shape. Give cards their radius back at (0,2,0).
 
    The attribute selector is not decoration and must not be "tidied"
-   into `.card`. Something in this project's CSS build rewrites a bare
-   class selector in this file into one rule per class in the sheet
-   sharing that prefix: `.card:focus-visible` emitted
-   `.card-hover:focus-visible` and `.card-luminous:focus-visible`
-   alongside it, and `:not(.card)` emitted `:not(.card-hover)` and
-   `:not(.card-luminous)` - which cancels the exclusion outright, since
-   a plain .card carries neither. Both verified in the compiled output.
-   `[class~="card"]` is an exact whitespace-separated token match, it is
-   not rewritten, and it hits .card and nothing else. The same trap is
-   waiting for `.btn`, `.input`, and every other prefixed family here. */
+   into `.card`. `@apply <a class defined in this file>` does not only
+   copy that class's declarations: Tailwind finds every OTHER rule in
+   the sheet whose selector mentions that class, clones it, and rewrites
+   the class token to the applying class (`replaceSelector` in
+   tailwindcss/lib/lib/expandApplyAtRules.js, which walks class nodes
+   without distinguishing a negation from a positive match). Because
+   `.card-hover` and `.card-luminous` both `@apply card`,
+   `.card:focus-visible` emitted `.card-hover:focus-visible` and
+   `.card-luminous:focus-visible` alongside it, and `:not(.card)`
+   emitted `:not(.card-hover)` and `:not(.card-luminous)` - which
+   cancels the exclusion outright, since a plain .card carries neither.
+   Both verified in the compiled output.
+
+   `[class~="card"]` is an exact whitespace-separated token match. The
+   rewriter only walks class nodes, so an attribute selector is left
+   alone, and it hits .card and nothing else.
+
+   The trigger is `@apply`, NOT the name prefix. That distinction is the
+   whole diagnosis, so do not restate this as "classes sharing a prefix
+   get rewritten" - it sends the next reader to the wrong conclusion
+   about which families are exposed:
+
+     AT RISK      .card, .btn, .badge (each is @apply-ed by its variants)
+     NOT AT RISK  .input and .card-ai, despite the prefixed siblings.
+                  Nothing @applies them. A prefix alone is harmless.
+
+   A variant never used in a content-glob file is tree-shaken, so its
+   clone does not exist yet - `.btn-accent` and both `.badge-*` are in
+   that state. Adding one JSX call site arms them.
+
+   Full write-up, including two invisible-text rules this same cloning
+   produced in the light-on-light contrast guard, is the block at the
+   top of `@layer components` added by fix/apply-clone-contrast-guard
+   (PR #20). It is not in this file until that branch lands. */
 [class~='card']:focus-visible {
   border-radius: 0.75rem; /* rounded-xl, matching .card itself */
 }
