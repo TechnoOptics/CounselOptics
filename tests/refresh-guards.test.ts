@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  createFrameSrcRetainer,
   focusHeldByEmbed,
   isEditingTarget,
   stableFrameSrc,
@@ -73,5 +74,51 @@ describe('stableFrameSrc', () => {
   it('reports nothing to render rather than an empty src', () => {
     expect(stableFrameSrc(null, null)).toBeNull();
     expect(stableFrameSrc('', undefined)).toBeNull();
+  });
+});
+
+describe('createFrameSrcRetainer', () => {
+  /**
+   * This is the half of the fix that carries it. A per-render decision
+   * with no memory is not enough: the frame has to be handed the SAME
+   * URL on the second render and the twentieth, or the next signed URL
+   * navigates it and the reader is back on page 1. So the sequence is
+   * asserted, not just one call.
+   */
+  it('keeps the first URL that worked for as long as the frame is mounted', () => {
+    const retain = createFrameSrcRetainer();
+    expect(retain('https://store/doc?sig=1')).toBe('https://store/doc?sig=1');
+    // Every later render mints a fresh signature. None of them reach the
+    // frame.
+    expect(retain('https://store/doc?sig=2')).toBe('https://store/doc?sig=1');
+    expect(retain('https://store/doc?sig=3')).toBe('https://store/doc?sig=1');
+    expect(retain(null)).toBe('https://store/doc?sig=1');
+  });
+
+  it('adopts a URL that arrives while the frame is still empty, then holds that one', () => {
+    // The first render can have nothing to show (no signed URL yet).
+    // There is no document on screen to disturb, so the next URL is
+    // taken, and from then on it is the one that is kept.
+    const retain = createFrameSrcRetainer();
+    expect(retain(null)).toBeNull();
+    expect(retain('')).toBeNull();
+    expect(retain('https://store/doc?sig=1')).toBe('https://store/doc?sig=1');
+    expect(retain('https://store/doc?sig=2')).toBe('https://store/doc?sig=1');
+  });
+
+  it('answers the same when a render runs twice with the same URL', () => {
+    // StrictMode double-invokes render, and a concurrent render can be
+    // thrown away. Neither may change what the frame shows.
+    const retain = createFrameSrcRetainer();
+    expect(retain('https://store/doc?sig=1')).toBe('https://store/doc?sig=1');
+    expect(retain('https://store/doc?sig=1')).toBe('https://store/doc?sig=1');
+  });
+
+  it('gives each frame its own retained URL', () => {
+    const a = createFrameSrcRetainer();
+    const b = createFrameSrcRetainer();
+    expect(a('https://store/a')).toBe('https://store/a');
+    expect(b('https://store/b')).toBe('https://store/b');
+    expect(a('https://store/b')).toBe('https://store/a');
   });
 });

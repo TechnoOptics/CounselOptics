@@ -1,27 +1,35 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * resendSigningEmailsAction is the recovery path for a signing request
- * whose mail did not leave the building, and it is also an endpoint that
- * sends mail from the firm's verified domain and rotates a credential.
- * These tests drive it against an in-memory stand-in for the service-role
- * client so the decisions can be asserted exactly:
+ * The two actions that put signing mail into somebody's inbox:
+ * createSigningRequestAction and resendSigningEmailsAction. Between them
+ * they authorize a caller, rotate a credential, send from the firm's
+ * verified domain, and decide whether the firm's own views will show the
+ * request as outstanding. These tests drive both against an in-memory
+ * stand-in for the service-role client so each decision can be asserted
+ * exactly:
  *
- *   - it refuses a caller who is not a member of the firm, and a member
- *     whose role may not send for signature,
+ *   - resend refuses a caller who is not a member of the firm, and a
+ *     member whose role may not send for signature,
  *   - it answers a signature owned by ANOTHER firm exactly as it answers
  *     one that does not exist, so the endpoint cannot be used to probe,
  *   - it clears the access-code lockout when, and only when, the new code
- *     actually went out,
+ *     actually went out and the rotation actually landed,
  *   - it records the resend in the audit chain, for internal signers too,
- *   - it refuses a request that is closed or on hold, and one that is
- *     over the rate limit, without sending anything.
+ *   - it refuses a request that is closed or on hold, one that is over
+ *     the per-signature limit, and one whose recipient is over the
+ *     per-address budget, without sending anything,
+ *   - both paths promote the request out of draft, and say so in the
+ *     chain, on the same fact: the sign link reached a signer.
  */
 
-// ── In-memory dataset the mock clients read/write ───────────────────────────
+// In-memory dataset the mock clients read and write.
 type Row = Record<string, unknown>;
 const db = vi.hoisted(() => ({
   tables: {} as Record<string, Row[]>,
+  /** Tables whose UPDATE should come back as a store error. */
+  failUpdate: new Set<string>(),
+  seq: 0,
   reset() {
     this.tables = {
       firm_members: [],
@@ -30,45 +38,109 @@ const db = vi.hoisted(() => ({
       firm_documents: [],
       firms: [],
     };
+    this.failUpdate = new Set<string>();
+    this.seq = 0;
   },
 }));
 
+type Filter = { col: string; val: unknown; kind: 'eq' | 'is' | 'in' };
+
 class Query {
-  private rows: Row[];
-  private pending: Row | null = null;
-  private op: 'select' | 'update' = 'select';
-  constructor(private table: string) {
-    this.rows = [...(db.tables[table] ?? [])];
-  }
+  private op: 'select' | 'update' | 'insert' = 'select';
+  private filters: Filter[] = [];
+  private patch: Row | null = null;
+  private pendingInsert: Row | null = null;
+  private result: { data: unknown; error: { message: string } | null } | null = null;
+  constructor(private table: string) {}
   select() {
+    return this;
+  }
+  order() {
+    return this;
+  }
+  limit() {
+    return this;
+  }
+  insert(row: Row) {
+    this.op = 'insert';
+    this.pendingInsert = row;
     return this;
   }
   update(patch: Row) {
     this.op = 'update';
-    this.pending = patch;
+    this.patch = patch;
     return this;
   }
   eq(col: string, val: unknown) {
-    if (this.op === 'update') {
-      for (const r of db.tables[this.table] ?? []) {
-        if (r[col] === val) Object.assign(r, this.pending);
-      }
-      return Promise.resolve({ data: null, error: null });
-    }
-    this.rows = this.rows.filter((r) => r[col] === val);
+    this.filters.push({ col, val, kind: 'eq' });
     return this;
   }
-  maybeSingle() {
-    return Promise.resolve({ data: this.rows[0] ?? null, error: null });
+  is(col: string, val: unknown) {
+    this.filters.push({ col, val, kind: 'is' });
+    return this;
   }
-  then<T>(resolve: (v: { data: Row[]; error: null }) => T) {
-    return Promise.resolve({ data: this.rows, error: null }).then(resolve);
+  in(col: string, vals: unknown[]) {
+    this.filters.push({ col, val: vals, kind: 'in' });
+    return this;
+  }
+  private matches(row: Row) {
+    return this.filters.every((f) =>
+      f.kind === 'in' ? (f.val as unknown[]).includes(row[f.col]) : row[f.col] === f.val,
+    );
+  }
+  private matching(): Row[] {
+    return (db.tables[this.table] ?? []).filter((r) => this.matches(r));
+  }
+  private run() {
+    if (this.result) return this.result;
+    if (this.op === 'insert') {
+      const row: Row = { id: `${this.table}-${++db.seq}`, ...this.pendingInsert };
+      (db.tables[this.table] ??= []).push(row);
+      this.result = { data: [{ ...row }], error: null };
+    } else if (this.op === 'update') {
+      if (db.failUpdate.has(this.table)) {
+        this.result = { data: null, error: { message: 'the store refused the update' } };
+      } else {
+        const hit = this.matching();
+        for (const r of hit) Object.assign(r, this.patch);
+        this.result = { data: hit.map((r) => ({ ...r })), error: null };
+      }
+    } else {
+      // A read hands back a snapshot, never the stored row. Handing back
+      // the live object would let a value the action read at the top
+      // silently track a write that happened afterwards, which is the
+      // one thing the concurrency test below has to be able to stage.
+      this.result = { data: this.matching().map((r) => ({ ...r })), error: null };
+    }
+    return this.result;
+  }
+  maybeSingle() {
+    const r = this.run();
+    return Promise.resolve({ data: (r.data as Row[] | null)?.[0] ?? null, error: r.error });
+  }
+  single() {
+    const r = this.run();
+    const row = (r.data as Row[] | null)?.[0] ?? null;
+    return Promise.resolve({
+      data: row,
+      error: r.error ?? (row ? null : { message: 'no rows returned' }),
+    });
+  }
+  then<T>(resolve: (v: { data: unknown; error: unknown }) => T) {
+    return Promise.resolve(this.run()).then(resolve);
   }
 }
 
 const client = {
   from(table: string) {
     return new Query(table);
+  },
+  // The signer-resolution path reads auth.users; nothing seeds it, so it
+  // resolves to null and the signer is treated as external.
+  schema(name: string) {
+    return {
+      from: (table: string) => new Query(`${name}.${table}`),
+    };
   },
 };
 
@@ -78,9 +150,16 @@ const mail = vi.hoisted(() => ({
   // Per-subject outcome. 'code' matches the access-code email, 'link'
   // the branded sign link.
   fail: { link: false, code: false },
+  /** Runs after a message is accepted, to interleave a concurrent write. */
+  onSent: null as null | ((kind: 'link' | 'code') => void),
 }));
 const audit = vi.hoisted(() => ({ events: [] as Array<Record<string, unknown>> }));
-const limiter = vi.hoisted(() => ({ allow: true }));
+const limiter = vi.hoisted(() => ({
+  allow: true,
+  /** Deny only the buckets whose key starts with this. */
+  denyPrefix: null as string | null,
+  keys: [] as string[],
+}));
 
 vi.mock('../lib/supabase/server', () => ({
   requireUser: async () => ({ id: session.userId, email: session.email }),
@@ -91,13 +170,21 @@ vi.mock('../lib/supabase/admin', () => ({
   createAdminSupabase: () => client,
 }));
 vi.mock('../lib/rate-limit', () => ({
-  checkRateLimit: async () => limiter.allow,
+  checkRateLimit: async (key: string) => {
+    limiter.keys.push(key);
+    if (limiter.denyPrefix && key.startsWith(limiter.denyPrefix)) return false;
+    return limiter.allow;
+  },
+}));
+vi.mock('../lib/notifications', () => ({
+  createNotification: async () => ({ ok: true }),
 }));
 vi.mock('../lib/email', () => ({
   sendEmail: async (input: { to: string; subject: string }) => {
     const kind = input.subject.includes('access code') ? 'code' : 'link';
     if (mail.fail[kind]) return { ok: false, error: `provider refused the ${kind}` };
     mail.sent.push({ to: input.to, subject: input.subject });
+    mail.onSent?.(kind);
     return { ok: true };
   },
   buildSigningRequestEmailHtml: () => '<p></p>',
@@ -125,16 +212,22 @@ let mod: typeof import('../lib/firm-actions');
 
 const SIG_ID = 'sig-1';
 const REQ_ID = 'req-1';
+const DOC_ID = 'doc-1';
 const FIRM_A = 'firm-a';
 const FIRM_B = 'firm-b';
 
 function sigRow() {
   return db.tables.firm_signatures.find((r) => r.id === SIG_ID) as Row;
 }
+function reqRow() {
+  return db.tables.firm_signing_requests.find((r) => r.id === REQ_ID) as Row;
+}
+function eventTypes() {
+  return audit.events.map((e) => e.eventType);
+}
 
-/** A signer of firm A's request, external (has a code), locked out. */
-function seed(opts: { external?: boolean; requestFirm?: string; status?: string } = {}) {
-  const external = opts.external ?? true;
+/** The firm, a member who may send, and a document. */
+function seedFirm() {
   db.tables.firm_members.push({
     firm_id: FIRM_A,
     user_id: session.userId,
@@ -142,11 +235,26 @@ function seed(opts: { external?: boolean; requestFirm?: string; status?: string 
     display_name: 'A Partner',
   });
   db.tables.firms.push({ id: FIRM_A, name: 'Firm A', logo_url: null });
-  db.tables.firm_documents.push({ id: 'doc-1', name: 'Engagement letter' });
+  db.tables.firm_documents.push({
+    id: DOC_ID,
+    firm_id: FIRM_A,
+    name: 'Engagement letter',
+    // No stored file: the hash + anchor detection are skipped, which
+    // keeps these tests on the mail and status decisions.
+    file_path: null,
+    signable_file_path: null,
+    status: 'ready',
+  });
+}
+
+/** A signer of firm A's request, external (has a code), locked out. */
+function seed(opts: { external?: boolean; requestFirm?: string; status?: string } = {}) {
+  const external = opts.external ?? true;
+  seedFirm();
   db.tables.firm_signing_requests.push({
     id: REQ_ID,
     firm_id: opts.requestFirm ?? FIRM_A,
-    document_id: 'doc-1',
+    document_id: DOC_ID,
     message: null,
     status: opts.status ?? 'sent',
   });
@@ -169,8 +277,11 @@ beforeEach(async () => {
   db.reset();
   mail.sent = [];
   mail.fail = { link: false, code: false };
+  mail.onSent = null;
   audit.events = [];
   limiter.allow = true;
+  limiter.denyPrefix = null;
+  limiter.keys = [];
   session.userId = 'user-1';
   vi.resetModules();
   mod = await import('../lib/firm-actions');
@@ -231,6 +342,45 @@ describe('resend authorization boundary', () => {
   });
 });
 
+describe('the address itself has a budget', () => {
+  it('refuses a resend to a recipient who is over it, inside the per-signature limit', async () => {
+    // The per-signature bucket allows this call. Only the address-keyed
+    // one denies, which is the bucket that survives somebody minting a
+    // fresh request to reach the same inbox.
+    seed();
+    limiter.denyPrefix = 'signing-recipient:';
+    const res = await mod.resendSigningEmailsAction(FIRM_A, SIG_ID);
+    expect(res.ok).toBe(false);
+    expect(mail.sent).toHaveLength(0);
+    expect(limiter.keys).toContain('signing-recipient:signer@example.test');
+  });
+
+  it('refuses a new request naming an address that is over it, and stays recoverable', async () => {
+    // A new request is a new signature id and therefore a new
+    // per-signature bucket, so this is the only cap on the create path.
+    seedFirm();
+    limiter.denyPrefix = 'signing-recipient:';
+    const res = await mod.createSigningRequestAction(
+      FIRM_A,
+      DOC_ID,
+      [{ email: 'Victim@Example.TEST' }],
+      null,
+    );
+    expect(mail.sent).toHaveLength(0);
+    expect(res.emailFailures?.[0].email).toBe('victim@example.test');
+    // Keyed on the normalized address, or a capitalized spelling of the
+    // same inbox would be handed a fresh bucket.
+    expect(limiter.keys).toContain('signing-recipient:victim@example.test');
+    // The signature row exists with a live token, and the request stays a
+    // draft, so a resend once the window has passed delivers it.
+    const created = db.tables.firm_signatures.find(
+      (r) => r.signer_email === 'victim@example.test',
+    );
+    expect(created?.token).toBeTruthy();
+    expect(db.tables.firm_signing_requests[0].status).toBe('draft');
+  });
+});
+
 describe('resend clears the access-code lockout', () => {
   it('resets the attempt counter and the unlock latch when the new code went out', async () => {
     seed();
@@ -255,25 +405,50 @@ describe('resend clears the access-code lockout', () => {
     expect(sigRow().access_attempts).toBe(8);
     expect(sigRow().access_code_hash).toBe('sha:OLDCODE');
   });
+
+  it('reports the failure, and claims no rotation, when the write is refused', async () => {
+    seed();
+    db.failUpdate.add('firm_signatures');
+    const res = await mod.resendSigningEmailsAction(FIRM_A, SIG_ID);
+    expect(res.ok).toBe(false);
+    expect(res.emailFailures?.some((f) => f.kind === 'code')).toBe(true);
+    // The chain is evidence. It must not carry access_code_sent for a
+    // code the gate will never accept.
+    expect(eventTypes()).not.toContain('access_code_sent');
+  });
+
+  it('says so, and keeps its hands off the row, when another resend rotated first', async () => {
+    // A second resend lands between this one reading the row and writing
+    // it back. Unconditionally, this UPDATE would win the row and the
+    // signer would hold two codes with no way to tell which is live.
+    seed();
+    mail.onSent = (kind) => {
+      if (kind === 'code') sigRow().access_code_hash = 'sha:SOMEONE-ELSES-CODE';
+    };
+    const res = await mod.resendSigningEmailsAction(FIRM_A, SIG_ID);
+    expect(res.ok).toBe(false);
+    expect(res.emailFailures?.some((f) => f.kind === 'code')).toBe(true);
+    expect(sigRow().access_code_hash).toBe('sha:SOMEONE-ELSES-CODE');
+    expect(sigRow().access_attempts).toBe(8);
+    expect(eventTypes()).not.toContain('access_code_sent');
+  });
 });
 
 describe('resend leaves an audit trace', () => {
   it('appends reminder_sent for an external signer', async () => {
     seed();
     await mod.resendSigningEmailsAction(FIRM_A, SIG_ID);
-    const types = audit.events.map((e) => e.eventType);
-    expect(types).toContain('reminder_sent');
-    expect(types).toContain('access_code_sent');
+    expect(eventTypes()).toContain('reminder_sent');
+    expect(eventTypes()).toContain('access_code_sent');
   });
 
   it('appends reminder_sent for an internal signer, who gets no code email', async () => {
     seed({ external: false });
     await mod.resendSigningEmailsAction(FIRM_A, SIG_ID);
-    const types = audit.events.map((e) => e.eventType);
     // The whole reason resend was added was that reminder_sent had no
     // emitter. An internal-signer resend used to leave no record at all.
-    expect(types).toContain('reminder_sent');
-    expect(types).not.toContain('access_code_sent');
+    expect(eventTypes()).toContain('reminder_sent');
+    expect(eventTypes()).not.toContain('access_code_sent');
   });
 
   it('appends nothing when the provider accepted nothing', async () => {
@@ -281,5 +456,71 @@ describe('resend leaves an audit trace', () => {
     mail.fail.link = true;
     await mod.resendSigningEmailsAction(FIRM_A, SIG_ID);
     expect(audit.events).toHaveLength(0);
+  });
+});
+
+describe('a request stops being a draft when the link reaches a signer', () => {
+  it('promotes a recovered request, so the firm can see it is outstanding', async () => {
+    // Every original email was refused, so the request opened as a draft.
+    // The resend is the send. Left in draft it is invisible to every view
+    // that filters on status in ('sent', 'partial'), which is how a
+    // request genuinely out for signature reads as "nothing pending".
+    seed({ status: 'draft' });
+    const res = await mod.resendSigningEmailsAction(FIRM_A, SIG_ID);
+    expect(res.ok).toBe(true);
+    expect(reqRow().status).toBe('sent');
+    expect(reqRow().sent_at).toBeTruthy();
+    expect(eventTypes()).toContain('request_sent');
+  });
+
+  it('leaves a request that was already sent alone', async () => {
+    seed({ status: 'sent' });
+    reqRow().sent_at = '2026-01-01T00:00:00.000Z';
+    await mod.resendSigningEmailsAction(FIRM_A, SIG_ID);
+    // A second request_sent would tell an auditor the request went out
+    // twice as a first send, which is what reminder_sent is for.
+    expect(eventTypes()).not.toContain('request_sent');
+    expect(reqRow().sent_at).toBe('2026-01-01T00:00:00.000Z');
+  });
+
+  it('leaves a draft alone when the sign link was refused again', async () => {
+    seed({ status: 'draft' });
+    mail.fail.link = true;
+    await mod.resendSigningEmailsAction(FIRM_A, SIG_ID);
+    expect(reqRow().status).toBe('draft');
+    expect(eventTypes()).not.toContain('request_sent');
+  });
+
+  it('records the send in the chain when the request is first created', async () => {
+    seedFirm();
+    const res = await mod.createSigningRequestAction(
+      FIRM_A,
+      DOC_ID,
+      [{ email: 'signer@example.test' }],
+      null,
+    );
+    expect(res.ok).toBe(true);
+    // request_created fires for a row that may never be sent, so on its
+    // own it cannot tell an auditor "created, never sent" from "created
+    // and sent". request_sent is what makes the chain agree with the
+    // status column.
+    expect(eventTypes()).toContain('request_created');
+    expect(eventTypes()).toContain('request_sent');
+    expect(db.tables.firm_signing_requests[0].status).toBe('sent');
+  });
+
+  it('records no send when every email was refused', async () => {
+    seedFirm();
+    mail.fail.link = true;
+    mail.fail.code = true;
+    await mod.createSigningRequestAction(
+      FIRM_A,
+      DOC_ID,
+      [{ email: 'signer@example.test' }],
+      null,
+    );
+    expect(eventTypes()).toContain('request_created');
+    expect(eventTypes()).not.toContain('request_sent');
+    expect(db.tables.firm_signing_requests[0].status).toBe('draft');
   });
 });
