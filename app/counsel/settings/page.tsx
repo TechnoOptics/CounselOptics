@@ -147,7 +147,7 @@ export default async function CounselSettingsPage() {
           </p>
         </header>
         <a
-          href="/api/counsel/firm-export"
+          href="/api/firm/export"
           className="inline-flex items-center gap-2 rounded-lg bg-forest-900 text-white dark:bg-gold-metal dark:text-forest-950 px-4 py-2 text-sm font-medium transition hover:brightness-110"
         >
           <T>Download data archive (JSON)</T>

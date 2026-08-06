@@ -17,6 +17,11 @@ export default defineConfig({
       'server-only': fileURLToPath(
         new URL('./tests/stubs/server-only.ts', import.meta.url),
       ),
+      // Route handlers import through the `@/` path alias, so a test that
+      // drives one (tests/firm-export-route.test.ts) needs the same alias
+      // tsconfig gives the app. The key keeps its trailing slash on purpose:
+      // a bare '@' is a prefix match and would also swallow '@supabase/...'.
+      '@/': fileURLToPath(new URL('./', import.meta.url)),
     },
   },
   // tsconfig.json sets jsx: 'preserve' for Next's own compiler, which esbuild
