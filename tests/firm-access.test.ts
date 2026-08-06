@@ -54,6 +54,19 @@ describe('toInstant', () => {
     expect(() => toInstant(null as unknown as Date)).toThrow();
     expect(() => toInstant(undefined as unknown as Date)).toThrow();
   });
+
+  // The guard has to reject by TYPE, not merely reject nullish values.
+  // Narrowing it to `value == null` would let a number coerce again, and
+  // new Date(0) is the epoch, which is the same fail-open through a second
+  // door. A deliberate Date object at the epoch is still legitimate.
+  it('throws on a number or an object rather than coercing them', () => {
+    expect(() => toInstant(0 as unknown as Date)).toThrow();
+    expect(() => toInstant({} as unknown as Date)).toThrow();
+  });
+
+  it('still accepts a Date deliberately constructed at the epoch', () => {
+    expect(toInstant(new Date(0)).getTime()).toBe(0);
+  });
 });
 
 describe('firmAccessState', () => {
@@ -82,6 +95,50 @@ describe('firmAccessState', () => {
     expect(firmAccessState(firm({ suspendedAt: days(-1) }), T0)).toBe('export_only');
   });
 
+  // Suspension is presence, not a date. Both suspension tests above use a PAST
+  // suspendedAt, so without this one the check could be refactored into
+  // `suspendedAt != null && toInstant(suspendedAt) <= at` and stay green,
+  // silently turning the field into an effective-from date that leaves
+  // scheduled organizations open until it arrives.
+  it('is export_only the moment suspendedAt is set, even dated in the future', () => {
+    expect(firmAccessState(firm({ suspendedAt: days(5) }), T0)).toBe('export_only');
+  });
+
+  // A MISSING field must not read as "not suspended". This is the same
+  // fail-open as an unparseable value: the type system says it cannot happen,
+  // and it arrives from a boundary the type system does not police, such as a
+  // .select() that omits the column or a row round-tripped through JSON.
+  it('rejects a firm missing suspendedAt instead of reporting active', () => {
+    const noSuspended = { trialEndsAt: null } as unknown as FirmAccessInput;
+    expect(() => firmAccessState(noSuspended, T0)).toThrow();
+  });
+
+  it('rejects a firm missing trialEndsAt instead of reporting active', () => {
+    const noTrial = { suspendedAt: null } as unknown as FirmAccessInput;
+    expect(() => firmAccessState(noTrial, T0)).toThrow();
+  });
+
+  // A key that is present but explicitly undefined is just as absent, and a
+  // key-presence test would wave it through. A row mapper writing
+  // `suspendedAt: row.suspended_at` off a row that lacks the column produces
+  // exactly this, and the consequence is a suspended organization reading as
+  // active.
+  it('rejects a firm whose suspendedAt is present but undefined', () => {
+    const f = { trialEndsAt: null, suspendedAt: undefined } as unknown as FirmAccessInput;
+    expect(() => firmAccessState(f, T0)).toThrow();
+  });
+
+  it('rejects a firm whose trialEndsAt is present but undefined', () => {
+    const f = { trialEndsAt: undefined, suspendedAt: null } as unknown as FirmAccessInput;
+    expect(() => firmAccessState(f, T0)).toThrow();
+  });
+
+  // The other direction: a present null is the normal shape PostgREST returns
+  // for a selected null column, and must stay perfectly acceptable.
+  it('accepts explicit nulls for both fields, which is what PostgREST returns', () => {
+    expect(firmAccessState({ trialEndsAt: null, suspendedAt: null }, T0)).toBe('active');
+  });
+
   it('reads an expired trial supplied as an ISO STRING as export_only', () => {
     const f = firm({ trialEndsAt: '2026-07-31T12:00:00+00:00' });
     expect(firmAccessState(f, T0)).toBe('export_only');
@@ -105,8 +162,24 @@ describe('firmAccessState', () => {
     expect(() => firmAccessState(firm({ trialEndsAt: days(-1) }), 'garbage')).toThrow();
   });
 
+  // The clock is validated unconditionally, before any early return. Suspended
+  // is the one branch that never consults the clock, so it is the branch a
+  // refactor would move the validation below. Pinning it keeps that decision
+  // enforced rather than merely commented.
+  it('rejects an unparseable clock even on the branch that never reads it', () => {
+    expect(() => firmAccessState(firm({ suspendedAt: days(-1) }), 'garbage')).toThrow();
+  });
+
   it('rejects an unparseable trial end instead of reporting active', () => {
     expect(() => firmAccessState(firm({ trialEndsAt: 'garbage' }), T0)).toThrow();
+  });
+
+  // Safe by construction, since both operands go through toInstant, but the
+  // shape a real caller is most likely to produce: every timestamp a string.
+  it('handles the clock and the trial end both arriving as ISO STRINGS', () => {
+    const nowText = '2026-08-01T12:00:00+00:00';
+    expect(firmAccessState(firm({ trialEndsAt: '2026-07-31T12:00:00+00:00' }), nowText)).toBe('export_only');
+    expect(firmAccessState(firm({ trialEndsAt: '2026-09-01T12:00:00+00:00' }), nowText)).toBe('active');
   });
 });
 

@@ -66,13 +66,46 @@ export function firmAccessState(
   firm: FirmAccessInput,
   now: FirmTimestamp,
 ): FirmAccessState {
+  // The clock is validated unconditionally, before any branch that could
+  // return early. A request that cannot establish the time gets no answer at
+  // all rather than an answer resting on a comparison against nonsense. Do not
+  // "optimise" this below the suspension check: the cost is one parse and the
+  // property being bought is that no path through this function can ever reach
+  // a date comparison with an unvalidated clock.
   const at = toInstant(now);
 
-  // Suspension is the manual override and outranks the dates, so a date
-  // change cannot accidentally reopen an organization that was closed
-  // deliberately. It is checked before the trial-end null check because a
-  // suspended organization that never had a trial must still be closed, and
-  // the null check would otherwise return active before we ever look.
+  // A MISSING field is as dangerous as a bad value, and fails in the same
+  // direction: without this check, a firm object that simply lacks suspendedAt
+  // reads as fully ACTIVE, which is the permissive failure. PostgREST returns
+  // null for a selected null column and never undefined, so this rejects no
+  // legitimate row. It does catch a .select() that forgot the column, a row
+  // round-tripped through JSON, and an optimistic in-memory firm object, all
+  // of which are boundaries the type system does not police.
+  //
+  // The test is on the VALUE, not on key presence. A key-presence test would
+  // miss `{ suspendedAt: undefined }`, which a row mapper produces easily and
+  // which is just as absent in every way that matters here. Reading a missing
+  // key also yields undefined, so this one condition covers both.
+  //
+  // Because undefined cannot get past this line, the null comparisons below
+  // are reached only with a Date, a string, or null.
+  if (firm.trialEndsAt === undefined || firm.suspendedAt === undefined) {
+    throw new Error('firm-access received a firm without its access fields.');
+  }
+
+  // Suspension is PRESENCE, not a date: any suspendedAt at all closes the
+  // organization, and the value is never compared against the clock. A
+  // suspension dated in the future therefore takes effect immediately. That is
+  // deliberate. If a later admin surface ever wants to schedule a suspension,
+  // it needs a new field rather than a future date in this one, because
+  // treating this date as an effective-from would silently leave every
+  // scheduled organization open until that date arrived.
+  //
+  // It is also the manual override and outranks the dates, so a date change
+  // cannot accidentally reopen an organization that was closed deliberately.
+  // It is checked before the trial-end null check because a suspended
+  // organization that never had a trial must still be closed, and the null
+  // check would otherwise return active before we ever look.
   if (firm.suspendedAt != null) return 'export_only';
 
   // No trial means nothing to expire. A paying organization has no
