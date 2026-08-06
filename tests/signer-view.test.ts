@@ -299,6 +299,35 @@ describe('isUnknownColumnError', () => {
     ).toBe(false);
   });
 
+  // The column name appearing in the message is not enough on its own.
+  // These are the errors that name the column while meaning something
+  // entirely different, and retrying without the column would send the
+  // request while hiding a real failure.
+  it('does not swallow a permission failure that names the column', () => {
+    expect(
+      isUnknownColumnError(
+        {
+          code: '42501',
+          message: 'permission denied for column signer_can_download',
+        },
+        'signer_can_download',
+      ),
+    ).toBe(false);
+  });
+
+  it('does not swallow a not-null violation that names the column', () => {
+    expect(
+      isUnknownColumnError(
+        {
+          code: '23502',
+          message:
+            'null value in column "signer_can_download" violates not-null constraint',
+        },
+        'signer_can_download',
+      ),
+    ).toBe(false);
+  });
+
   it('does not fire for a different missing column', () => {
     expect(
       isUnknownColumnError(

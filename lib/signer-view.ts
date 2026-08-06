@@ -193,9 +193,8 @@ export function resolveSignatureLinePlacement(input: {
   const pw = measured ? (input.pageWidthPt as number) : ASSUMED_PAGE_WIDTH_PT;
   const ph = measured ? (input.pageHeightPt as number) : ASSUMED_PAGE_HEIGHT_PT;
 
-  // Same clamp the renderer applies before it draws.
-  const x = Math.max(0, Math.min(1, positionX));
-  const y = Math.max(0, Math.min(1, positionY));
+  const x = positionX;
+  const y = positionY;
 
   const widthFrac = Math.min(1, SIGNATURE_BOX_WIDTH_PT / pw);
   const heightFrac = Math.min(1, SIGNATURE_BOX_HEIGHT_PT / ph);
@@ -207,6 +206,11 @@ export function resolveSignatureLinePlacement(input: {
   // page when the recorded anchor sits near an edge, but a preview that
   // overflows its own frame reads as a layout bug rather than as a
   // faithful position.
+  //
+  // This also subsumes the 0-to-1 clamp the renderer applies to the
+  // raw coordinate before it draws: for any x or y outside that range
+  // these two lines land on the same answer clamping first would have,
+  // so a separate clamp above would be code no test could distinguish.
   const left = Math.max(0, Math.min(1 - widthFrac, x));
   const top = Math.max(0, Math.min(1 - heightFrac, topFrac));
 
