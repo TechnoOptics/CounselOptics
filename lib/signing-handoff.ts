@@ -116,6 +116,40 @@ export function handoffStateWithSessionHash(
 }
 
 /**
+ * What the phone is told when it may not draw.
+ *
+ * Only two messages exist, and that is the point. 'consumed', 'expired'
+ * and a cookie mismatch all read identically, so a stranger who
+ * photographs a screen and scans it learns nothing about whether the
+ * code was ever real, whether it has already been used, or whether
+ * somebody else is mid-ceremony. The ordering comment on
+ * handoffStateWithSessionHash above is the other half of this: the
+ * states are ordered so the wording never leaks the difference either.
+ *
+ * Do not "fix" this by giving each state its own sentence.
+ */
+export const HANDOFF_REFUSAL_UNAVAILABLE =
+  'This code is no longer valid. On your computer, choose Sign with mobile again.';
+
+export const HANDOFF_REFUSAL_ALREADY_SIGNED =
+  'This document has already been signed.';
+
+/**
+ * Total over HandoffState on purpose, including 'claimable' and 'bound'.
+ *
+ * Neither should ever reach here, because both mean the phone may draw.
+ * If one does, it is a caller bug, and the right behaviour for a bug in
+ * a credential path is to refuse rather than to fall through to a
+ * message that implies access. Everything that is not the one state we
+ * are willing to explain gets the generic refusal.
+ */
+export function handoffRefusalMessage(state: HandoffState): string {
+  return state === 'already-signed'
+    ? HANDOFF_REFUSAL_ALREADY_SIGNED
+    : HANDOFF_REFUSAL_UNAVAILABLE;
+}
+
+/**
  * The form routes should call. It takes the raw httpOnly cookie and
  * hashes it here, so no caller can compare a value it hashed itself or
  * forgot to hash. Pass null when the phone sent no cookie.

@@ -4,6 +4,9 @@ import {
   hashHandoffToken,
   handoffStateWithSessionHash,
   handoffStateForCookie,
+  handoffRefusalMessage,
+  HANDOFF_REFUSAL_UNAVAILABLE,
+  HANDOFF_REFUSAL_ALREADY_SIGNED,
   type HandoffRow,
 } from '../lib/signing-handoff';
 
@@ -168,5 +171,39 @@ describe('handoffStateForCookie', () => {
 
   it('treats a missing cookie as a stranger', () => {
     expect(handoffStateForCookie(bound(), at(2), null)).toBe('consumed');
+  });
+});
+
+describe('handoffRefusalMessage', () => {
+  // The whole point of this mapping is that it leaks nothing. If a
+  // future change gives 'expired' or a cookie mismatch its own wording,
+  // this test is what should stop it.
+  it('says the same thing for consumed, expired and a wrong device', () => {
+    const consumed = handoffRefusalMessage('consumed');
+    expect(handoffRefusalMessage('expired')).toBe(consumed);
+    expect(consumed).toBe(HANDOFF_REFUSAL_UNAVAILABLE);
+  });
+
+  it('is the wording the spec fixed, word for word', () => {
+    expect(HANDOFF_REFUSAL_UNAVAILABLE).toBe(
+      'This code is no longer valid. On your computer, choose Sign with mobile again.',
+    );
+    expect(HANDOFF_REFUSAL_ALREADY_SIGNED).toBe(
+      'This document has already been signed.',
+    );
+  });
+
+  it('names an already-signed document, which gives nothing away', () => {
+    expect(handoffRefusalMessage('already-signed')).toBe(
+      HANDOFF_REFUSAL_ALREADY_SIGNED,
+    );
+  });
+
+  it('refuses rather than falls through for states that mean access', () => {
+    // Reaching here with either of these is a caller bug. A credential
+    // path answers a bug with a refusal, not with a message that
+    // implies the phone may draw.
+    expect(handoffRefusalMessage('claimable')).toBe(HANDOFF_REFUSAL_UNAVAILABLE);
+    expect(handoffRefusalMessage('bound')).toBe(HANDOFF_REFUSAL_UNAVAILABLE);
   });
 });
