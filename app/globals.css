@@ -376,12 +376,35 @@ html.dark body::before {
                              exempted, which is safe: a transparent child of a
                              white card is light-on-light either way and the
                              author asked for it explicitly.
-     :not(.brand-mark):not(.hero-bg)
+     :not(.brand-mark):not(.hero-bg):not(.btn-primary):not(.card-ai)
                              the component classes in this file that paint a
                              dark gradient with no bg-* utility at the call
                              site. If you add another dark-painting component
                              class, add it here too - this list is the whole
                              mechanism, there is no automatic detection.
+
+                             .btn-primary and .card-ai were added 2026-08-06.
+                             Neither is ever written as a direct child in the
+                             selector below - they arrive through @apply
+                             CLONING (see the block at `@layer components`):
+                             `.btn-primary { @apply text-cream-50 }` makes
+                             Tailwind clone this whole guard with
+                             `.text-cream-50` rewritten to `.btn-primary`, and
+                             `.card-ai { @apply text-cream-100 }` does the same.
+                             The clones read
+
+                               .bg-white > .btn-primary { color: #0f2d24 }
+                               .bg-white > .card-ai     { color: #0f2d24 }
+
+                             and #0f2d24 is exactly what both of those paint
+                             themselves, so the label went 1:1 with its own
+                             background - the button rendered as a blank dark
+                             pill. Confirmed in the shipped bundle and in a
+                             browser; no live call site was hitting it yet.
+                             Excluding them here makes each clone self-
+                             contradictory (`.btn-primary:not(.btn-primary)`)
+                             so it can never match, and costs nothing on the
+                             real rule, which never wanted them.
 
    Known limit, accepted deliberately: the exemption does not distinguish a
    dark self-background from a light one, so `bg-cream-50 text-cream-100`
@@ -389,15 +412,15 @@ html.dark body::before {
    author choice rather than the accidental inheritance this net exists to
    catch, and a repo-wide sweep on 2026-08-01 found no call site relying on
    it. */
-html:not(.dark) .bg-white > .text-cream-50:not([class^="bg-"]):not([class*=" bg-"]):not(.brand-mark):not(.hero-bg),
-html:not(.dark) .bg-white > .text-cream-100:not([class^="bg-"]):not([class*=" bg-"]):not(.brand-mark):not(.hero-bg),
-html:not(.dark) .bg-white > .text-cream-200:not([class^="bg-"]):not([class*=" bg-"]):not(.brand-mark):not(.hero-bg),
-html:not(.dark) .bg-cream-50 > .text-cream-50:not([class^="bg-"]):not([class*=" bg-"]):not(.brand-mark):not(.hero-bg),
-html:not(.dark) .bg-cream-50 > .text-cream-100:not([class^="bg-"]):not([class*=" bg-"]):not(.brand-mark):not(.hero-bg),
-html:not(.dark) .bg-cream-100 > .text-cream-50:not([class^="bg-"]):not([class*=" bg-"]):not(.brand-mark):not(.hero-bg),
-html:not(.dark) .bg-cream-100 > .text-cream-100:not([class^="bg-"]):not([class*=" bg-"]):not(.brand-mark):not(.hero-bg),
-html:not(.dark) .bg-cream-200 > .text-cream-50:not([class^="bg-"]):not([class*=" bg-"]):not(.brand-mark):not(.hero-bg),
-html:not(.dark) .bg-cream-200 > .text-cream-100:not([class^="bg-"]):not([class*=" bg-"]):not(.brand-mark):not(.hero-bg) {
+html:not(.dark) .bg-white > .text-cream-50:not([class^="bg-"]):not([class*=" bg-"]):not(.brand-mark):not(.hero-bg):not(.btn-primary):not(.card-ai),
+html:not(.dark) .bg-white > .text-cream-100:not([class^="bg-"]):not([class*=" bg-"]):not(.brand-mark):not(.hero-bg):not(.btn-primary):not(.card-ai),
+html:not(.dark) .bg-white > .text-cream-200:not([class^="bg-"]):not([class*=" bg-"]):not(.brand-mark):not(.hero-bg):not(.btn-primary):not(.card-ai),
+html:not(.dark) .bg-cream-50 > .text-cream-50:not([class^="bg-"]):not([class*=" bg-"]):not(.brand-mark):not(.hero-bg):not(.btn-primary):not(.card-ai),
+html:not(.dark) .bg-cream-50 > .text-cream-100:not([class^="bg-"]):not([class*=" bg-"]):not(.brand-mark):not(.hero-bg):not(.btn-primary):not(.card-ai),
+html:not(.dark) .bg-cream-100 > .text-cream-50:not([class^="bg-"]):not([class*=" bg-"]):not(.brand-mark):not(.hero-bg):not(.btn-primary):not(.card-ai),
+html:not(.dark) .bg-cream-100 > .text-cream-100:not([class^="bg-"]):not([class*=" bg-"]):not(.brand-mark):not(.hero-bg):not(.btn-primary):not(.card-ai),
+html:not(.dark) .bg-cream-200 > .text-cream-50:not([class^="bg-"]):not([class*=" bg-"]):not(.brand-mark):not(.hero-bg):not(.btn-primary):not(.card-ai),
+html:not(.dark) .bg-cream-200 > .text-cream-100:not([class^="bg-"]):not([class*=" bg-"]):not(.brand-mark):not(.hero-bg):not(.btn-primary):not(.card-ai) {
   color: #0f2d24; /* forest-900 - the project's "dark green" */
 }
 
@@ -409,7 +432,7 @@ html:not(.dark) .bg-cream-200 > .text-cream-100:not([class^="bg-"]):not([class*=
    forest-900 text onto near-black panels: dark-on-dark. Inside a `.dark`
    wrapper, cream text is ALWAYS correct, so restore it with a
    higher-specificity rule that only fires in exactly that combination. */
-html:not(.dark) .dark :is(.bg-white, .bg-cream-50, .bg-cream-100, .bg-cream-200, .card, .popup-panel, .btn-secondary, .input) > :is(.text-cream-50, .text-cream-100, .text-cream-200):not([class^="bg-"]):not([class*=" bg-"]):not(.brand-mark):not(.hero-bg) {
+html:not(.dark) .dark :is(.bg-white, .bg-cream-50, .bg-cream-100, .bg-cream-200, .card, .popup-panel, .btn-secondary, .input) > :is(.text-cream-50, .text-cream-100, .text-cream-200):not([class^="bg-"]):not([class*=" bg-"]):not(.brand-mark):not(.hero-bg):not(.btn-primary):not(.card-ai) {
   color: #fbf7e9; /* cream-50 */
 }
 
@@ -1311,6 +1334,63 @@ select:focus-visible,
   }
 }
 
+/* READ THIS BEFORE WRITING `:not(.x)` OR A COMPOUND SELECTOR ANYWHERE IN
+   THIS FILE.
+   ============================================================================
+   `@apply <a-class-defined-in-this-file>` does not only copy that class's
+   declarations. Tailwind also finds EVERY OTHER rule in this stylesheet whose
+   selector mentions that class, clones it, and rewrites the class token to the
+   applying class. The clone is a separate rule, so it does not merge with the
+   original - it sits alongside it.
+
+   `.card-hover { @apply card ... }` is therefore enough to turn
+
+     .zzz:not(.card)      { ... }        (what you wrote)
+
+   into two rules in the compiled sheet:
+
+     .zzz:not(.card)      { ... }
+     .zzz:not(.card-hover){ ... }        (emitted for you)
+
+   and a plain `<div class="card">` carries no `card-hover`, so it SATISFIES
+   the second one. The exclusion cancels itself out and the rule fires on
+   exactly the element you were excluding. `.card:focus-visible` leaks onto
+   `.card-hover`/`.card-luminous` by the same route.
+
+   The trigger is `@apply`, NOT the name prefix. Getting this backwards leads
+   people to the wrong workaround, so, measured against the compiled output:
+
+     AT RISK   .card   (@apply-ed by .card-hover, .card-luminous)
+               .btn    (@apply-ed by .btn-primary/-secondary/-ghost/-accent)
+               .badge  (@apply-ed by .badge-brand, .badge-accent)
+               ...and every Tailwind utility this file names in a structural
+               selector - `.bg-white`, `.bg-forest-900`, `.text-cream-50`,
+               `.border-ink-200` and others are all @apply-ed by components
+               here and all get cloned the same way.
+
+     NOT AT RISK  .input and .card-ai, despite the prefixed siblings and the
+               shared name. Nothing @applies them. A prefix alone is harmless.
+
+   A variant that is never used in a content-glob file is tree-shaken away, so
+   its clone silently does not exist YET - `.btn-accent` and both `.badge-*`
+   are in that state today. Adding one call site in JSX arms them. Do not read
+   "I checked the compiled CSS and it was fine" as durable.
+
+   WORKAROUND: `[class~='card']` is an exact whitespace-separated token match.
+   Tailwind's rewriter only walks class nodes, so an attribute selector is left
+   alone, and it matches `.card` and nothing else. Use it for any exclusion or
+   compound selector that must NOT reach the variants:
+
+     [class~='card']:focus-visible { ... }      not  .card:focus-visible
+     .zzz:not([class~='card'])     { ... }      not  .zzz:not(.card)
+
+   This is Tailwind v3 behaving as designed (see `replaceSelector` in
+   tailwindcss/lib/lib/expandApplyAtRules.js) and it is LOAD-BEARING here: the
+   `.dark .bg-white` block above is what makes `.card`, `.input`, `.popup-panel`
+   and `.btn-secondary` go dark, purely through this cloning. Do not try to
+   "fix" it by removing @apply from the component definitions - dark mode and
+   the counsel/enterprise shells are built on it. Work around it per selector.
+   ========================================================================= */
 @layer components {
   .btn {
     @apply relative inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium tracking-tight transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-gold-500/60 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] overflow-hidden;
