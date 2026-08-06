@@ -15,6 +15,7 @@ import {
   contrastRatio,
   deriveAccentText,
   relativeLuminance,
+  tightestSurface,
   toOklch,
 } from '../lib/accent-text';
 
@@ -99,17 +100,86 @@ describe('deriveAccentText clears AA on every surface it can land on', () => {
 describe('the named worst cases, with their measured numbers', () => {
   for (const [label, accent] of Object.entries(NAMED_WORST_CASES)) {
     it(`${label} (${accent}) is legible in both tones`, () => {
-      const onDark = deriveAccentText(accent, 'dark');
-      const onLight = deriveAccentText(accent, 'light');
-      // The tightest surface of each tone.
-      expect(
-        contrastRatio(onDark, ACCENT_TEXT_SURFACES.dark['counsel .bg-cream-200']),
-      ).toBeGreaterThanOrEqual(AA_SMALL_TEXT);
-      expect(
-        contrastRatio(onLight, ACCENT_TEXT_SURFACES.light['cream-200']),
-      ).toBeGreaterThanOrEqual(AA_SMALL_TEXT);
+      for (const tone of ['dark', 'light'] as const) {
+        const surface = tightestSurface(tone);
+        expect(
+          contrastRatio(deriveAccentText(accent, tone), surface),
+          `${label} ${tone} on ${surface}`,
+        ).toBeGreaterThanOrEqual(AA_SMALL_TEXT);
+      }
     });
   }
+});
+
+/*
+ * The gap this closes is not an arithmetic one. The dark tone is
+ * declared on `html.dark, .dark, .counsel-shell, .enterprise-shell,
+ * .hq-shell`, and for a while the proof set held only the five counsel
+ * neutrals while the consumer dark theme repainted the very same
+ * utilities green. `.dark .bg-cream-200` is #2a5a47, three times the
+ * luminance of the counsel #2c2c31, and the token failed there at
+ * 3.78:1 with no firm involved at all.
+ *
+ * An arithmetic assertion could not have caught that, because the
+ * arithmetic was right about the surfaces it was given. So this reads
+ * the repaint rules straight out of the stylesheet: every solid
+ * background any dark-scoped `bg-*` rule declares has to appear in
+ * ACCENT_TEXT_SURFACES.dark, which means adding a new one to
+ * app/globals.css without proving the token on it fails here.
+ */
+describe('the proof set covers every surface the dark tone can land on', () => {
+  /** Solid `background-color` hexes from dark-scoped `bg-*` rules. */
+  function darkScopedSurfaces(): Map<string, string> {
+    const stripped = globalsCss.replace(/\/\*[\s\S]*?\*\//g, '');
+    const found = new Map<string, string>();
+    for (const [, selectors, body] of stripped.matchAll(
+      /([^{}]+)\{([^{}]*)\}/g,
+    )) {
+      if (!/\bbg-/.test(selectors)) continue;
+      const parts = selectors
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const allDarkScoped = parts.every((s) =>
+        /\.dark|\.counsel-shell|\.enterprise-shell|\.hq-shell/.test(s),
+      );
+      if (!allDarkScoped) continue;
+      const hex = body.match(/background-color:\s*(#[0-9a-fA-F]{6})\s*;/);
+      // Translucent overlays composite onto whatever is behind them and
+      // can never be lighter than it, so rgba() rules are not surfaces.
+      if (!hex) continue;
+      if (!found.has(hex[1].toLowerCase())) {
+        found.set(hex[1].toLowerCase(), parts[0]);
+      }
+    }
+    return found;
+  }
+
+  it('finds the repaint rules at all, so an empty sweep cannot pass', () => {
+    // Without this the guard below is vacuously true the moment the
+    // regex stops matching the stylesheet.
+    expect(darkScopedSurfaces().size).toBeGreaterThanOrEqual(8);
+  });
+
+  it('lists every dark-scoped solid background app/globals.css declares', () => {
+    const proven = new Set(
+      Object.values(ACCENT_TEXT_SURFACES.dark).map((s) => s.toLowerCase()),
+    );
+    for (const [hex, selector] of darkScopedSurfaces()) {
+      expect(
+        proven.has(hex),
+        `${selector} paints ${hex}, which is not in ACCENT_TEXT_SURFACES.dark`,
+      ).toBe(true);
+    }
+  });
+
+  it('rests the dark pin on the consumer green cream, not a counsel neutral', () => {
+    // Naming the surface here rather than only deriving it, because the
+    // whole failure was believing the counsel neutrals were the worst
+    // case. If this ever moves, the pin needs re-deriving.
+    expect(tightestSurface('dark')).toBe('#2a5a47');
+    expect(tightestSurface('light')).toBe('#f5edd6');
+  });
 });
 
 describe('the derivation keeps the firm hue', () => {
@@ -271,22 +341,41 @@ describe('accentOn covers the whole fill range', () => {
 });
 
 describe('the fixed status tokens clear the same floor', () => {
-  const cases: Array<[string, string, string]> = [
-    ['--warn-text dark', '#fbbf24', ACCENT_TEXT_SURFACES.dark['counsel .bg-cream-200']],
-    ['--danger-text dark', '#f87171', ACCENT_TEXT_SURFACES.dark['counsel .bg-cream-200']],
-    ['--warn-text light', '#92400e', ACCENT_TEXT_SURFACES.light['cream-200']],
-    ['--danger-text light', '#b91c1c', ACCENT_TEXT_SURFACES.light['cream-200']],
+  /*
+   * These share the accent token's selector list, so they inherit the
+   * same trap: proven on the counsel neutrals and shipped onto the
+   * consumer green ramp. #f87171 is 5.02:1 on the counsel cream and
+   * 2.86:1 on the consumer one, so it could not stay. Measuring against
+   * tightestSurface() rather than a named hex is what stops the next
+   * surface from reopening this.
+   */
+  const cases: Array<[string, string, 'dark' | 'light']> = [
+    ['--warn-text dark', '#fbbf24', 'dark'],
+    ['--danger-text dark', '#fecaca', 'dark'],
+    ['--warn-text light', '#92400e', 'light'],
+    ['--danger-text light', '#b91c1c', 'light'],
   ];
-  for (const [label, token, surface] of cases) {
-    it(`${label} is >= ${AA_SMALL_TEXT}:1 on ${surface}`, () => {
-      expect(contrastRatio(token, surface)).toBeGreaterThanOrEqual(AA_SMALL_TEXT);
+  for (const [label, token, tone] of cases) {
+    it(`${label} is >= ${AA_SMALL_TEXT}:1 on the tightest ${tone} surface`, () => {
+      const surface = tightestSurface(tone);
+      expect(
+        contrastRatio(token, surface),
+        `${token} on ${surface}`,
+      ).toBeGreaterThanOrEqual(AA_SMALL_TEXT);
     });
   }
 
   it('each token value is the one globals.css actually declares', () => {
-    for (const token of ['#fbbf24', '#f87171', '#92400e', '#b91c1c']) {
-      expect(globalsCss).toContain(token);
+    for (const [, token] of cases) {
+      expect(globalsCss).toContain(`: ${token};`);
     }
+  });
+
+  it('does not still carry the tone that failed on the consumer green', () => {
+    expect(contrastRatio('#f87171', tightestSurface('dark'))).toBeLessThan(
+      AA_SMALL_TEXT,
+    );
+    expect(globalsCss).not.toContain('--danger-text: #f87171');
   });
 });
 

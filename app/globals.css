@@ -195,21 +195,40 @@ body {
    reads THIS file and fails if the two ever disagree, so do not edit a
    number here on its own.
 
-   Worst case over the entire sRGB gamut:
+   WHICH SURFACES THE FLOOR COVERS. The dark tone below is declared on
+   one selector list that reaches two DIFFERENT repaint families. The
+   counsel and enterprise shells turn the light utilities near-black,
+   but the consumer dark theme turns the same utilities green further
+   down this file, and green is much lighter:
 
-     dark  L 0.78 / C<=0.10    6.63:1 on `.counsel-shell .bg-cream-200`
-                               (#2c2c31, the LIGHTEST substrate the dark
-                               product paints), 8.69:1 on a counsel card
-     light L 0.46 / C<=0.075   5.85:1 on cream-200, 6.84:1 on white
+     .counsel-shell .bg-cream-200   #2c2c31   luminance 0.0256
+     .dark .bg-cream-200            #2a5a47   luminance 0.0826
+
+   So the pin is set by #2a5a47, the lightest solid surface any of these
+   selectors paints, and not by the counsel neutrals. Both families are
+   listed in ACCENT_TEXT_SURFACES and a test reads the repaint rules
+   back out of this file to catch a new one being added without one.
+   The claim covers solid surfaces only: gradient stops keep their light
+   values in dark mode (see the note on the repaint block below) and
+   text on those still needs an explicit `dark:` variant.
+
+   Worst case over the entire sRGB gamut, on the tightest surface of
+   each tone:
+
+     dark  L 0.84 / C<=0.078   4.67:1 on `.dark .bg-cream-200` (#2a5a47),
+                               8.19:1 on `.counsel-shell .bg-cream-200`,
+                               10.74:1 on a counsel card
+     light L 0.46 / C<=0.075   5.81:1 on cream-200, 6.80:1 on white
 
    The chroma cap is load-bearing, not tidiness. With the customer's
    full chroma the pinned result is often outside sRGB, and a browser
    that clips per channel drags the luminance back down: pure red at
-   L 0.72 clips to 4.03:1 on `.bg-cream-200`, pure blue at L 0.66 clips
-   to 4.34:1 on a card. Lightness alone does NOT give the floor.
+   L 0.72 clips to 4.04:1 on `.counsel-shell .bg-cream-200`, pure blue
+   at L 0.66 clips to 4.31:1 on a card and 3.29:1 on that same cream.
+   Lightness alone does NOT give the floor.
 
    Each cap is the smallest maximum chroma over all hues at that
-   lightness (0.1110 at L 0.78, 0.0782 at L 0.46), rounded down. So
+   lightness (0.0788 at L 0.84, 0.0782 at L 0.46), rounded down. So
    every derived colour is inside sRGB at every hue and no gamut mapping
    ever runs - no clipping, no chroma reduction, no dependence on which
    of the two a browser implements, and no hue drift.
@@ -221,14 +240,19 @@ body {
    [0, cap] including 0 is already inside the floor.
 
    `--warn-text` and `--danger-text` are NOT white-label. Status is not
-   branding, so these stay fixed and are simply chosen to clear the same
-   floor: on the counsel card #fbbf24 is 10.91:1 and #f87171 is 6.58:1;
-   on white #92400e is 7.09:1 and #b91c1c is 6.47:1.
+   branding, so these stay fixed, and they are held to the same floor on
+   the same tightest surfaces: on #2a5a47 #fbbf24 is 4.74:1 and #fecaca
+   is 5.47:1; on cream-200 #92400e is 6.07:1 and #b91c1c is 5.54:1. The
+   dark danger tone is red-200 and not the PILL_COLORS #f87171, which
+   measures 5.02:1 on the counsel cream but only 2.86:1 on the consumer
+   green one and so cannot carry a floor across this selector list.
 
    `oklch(from ...)` is guarded by @supports so a browser without
    relative colour syntax keeps the static fallback rather than
    inheriting an invalid value. The fallback is this same derivation
-   applied to the default gold, so nothing is invented twice. */
+   applied to the default gold, so nothing is invented twice. An
+   accent_color that is not a hex at all still degrades silently on this
+   path - see the note in lib/accent-text.ts. */
 :root {
   --accent-text: #6a5521;
   --accent-on: #000000;
@@ -245,9 +269,9 @@ html.dark,
 .counsel-shell,
 .enterprise-shell,
 .hq-shell {
-  --accent-text: #ceb578;
+  --accent-text: #e0c890;
   --warn-text: #fbbf24;
-  --danger-text: #f87171;
+  --danger-text: #fecaca;
 }
 @supports (color: oklch(from red 0.5 min(c, 0.1) h)) {
   html.dark,
@@ -255,7 +279,7 @@ html.dark,
   .counsel-shell,
   .enterprise-shell,
   .hq-shell {
-    --accent-text: oklch(from var(--firm-accent, #d5bb7e) 0.78 min(c, 0.1) h);
+    --accent-text: oklch(from var(--firm-accent, #d5bb7e) 0.84 min(c, 0.078) h);
   }
 }
 

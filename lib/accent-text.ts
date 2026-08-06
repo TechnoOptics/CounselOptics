@@ -22,8 +22,28 @@
  * one pinned number holds for every colour a customer can pick rather
  * than for the handful anyone thought to test.
  *
- *   accent text (dark shells)  oklch(L 0.78, C min(c, 0.10),  H unchanged)
+ *   accent text (dark shells)  oklch(L 0.84, C min(c, 0.078), H unchanged)
  *   accent text (light)        oklch(L 0.46, C min(c, 0.075), H unchanged)
+ *
+ * WHICH SURFACES THE FLOOR COVERS
+ * -------------------------------
+ * The dark tone is declared on `html.dark, .dark, .counsel-shell,
+ * .enterprise-shell, .hq-shell`, and those selectors do NOT all paint
+ * the same neutrals. The counsel and enterprise shells repaint the light
+ * Tailwind utilities to near-black, but the consumer dark theme repaints
+ * the same utilities GREEN: `.dark .bg-cream-200` is #2a5a47, which is
+ * three times the luminance of the counsel #2c2c31 and is the lightest
+ * substrate the dark tone can land on anywhere. A dark pin proved only
+ * against the counsel neutrals fails there. ACCENT_TEXT_SURFACES below
+ * carries both families and a test asserts it stays complete by reading
+ * the repaint rules back out of app/globals.css.
+ *
+ * The claim is bounded, deliberately: it covers every SOLID surface the
+ * selector list repaints. Gradient stops (`from-cream-50`, `via-cream-50`)
+ * compile to different CSS selectors and are NOT repainted in dark mode,
+ * so a pale gradient band inside a dark document keeps its light stops.
+ * Text there needs an explicit `dark:` variant, exactly as app/globals.css
+ * already says for every other dark override. Nothing here changes that.
  *
  * WHY THE CHROMA CAP IS LOAD-BEARING
  * ----------------------------------
@@ -31,12 +51,14 @@
  * customer's full chroma is frequently outside sRGB, and a browser that
  * resolves that by clipping each channel drags the luminance back down.
  * Measured: pure red pinned to L 0.72 at its own chroma (0.258) clips to
- * 4.03:1 on `.counsel-shell .bg-cream-200`, under the floor. Pure blue
- * at L 0.66 clips to 4.34:1 on a counsel card. So a lightness pin on its
- * own does not give the guarantee it looks like it gives.
+ * 4.04:1 on `.counsel-shell .bg-cream-200`, under the floor. Pure blue
+ * pinned to L 0.66 at its own chroma (0.313) clips to 4.31:1 on a
+ * counsel card and 3.29:1 on `.counsel-shell .bg-cream-200`. So a
+ * lightness pin on its own does not give the guarantee it looks like it
+ * gives.
  *
  * The caps are set to the SMALLEST maximum chroma over all hues at each
- * pinned lightness (0.1110 at L 0.78, 0.0782 at L 0.46), rounded down.
+ * pinned lightness (0.0788 at L 0.84, 0.0782 at L 0.46), rounded down.
  * Every derived colour is therefore inside sRGB for every hue, which
  * means no gamut mapping ever runs: no clipping, no chroma reduction,
  * no dependence on which of the two a browser implements, and no hue
@@ -50,7 +72,7 @@
  * WHAT THIS COSTS
  * ---------------
  * Hue survives; brand IDENTITY does not always. A navy #1F3A93 reads as
- * periwinkle at L 0.78 and a deep forest #0F2D24 reads as sage. That is
+ * periwinkle at L 0.84 and a deep forest #0F2D24 reads as sage. That is
  * accepted deliberately and only for TEXT: navy on a near-black counsel
  * card is 1.81:1 and simply cannot be read, so there is no version of
  * this that both keeps the exact navy and is legible. The firm's real
@@ -64,6 +86,18 @@
  * one. Below ACHROMATIC_CHROMA the chroma is forced to exactly zero so
  * the token is a deterministic neutral rather than a faintly tinted
  * grey that differs per firm for no reason.
+ *
+ * A KNOWN ASYMMETRY, RECORDED RATHER THAN FIXED
+ * ---------------------------------------------
+ * The helpers here fall back to DEFAULT_ACCENT on anything they cannot
+ * parse. The CSS path does not: `oklch(from <garbage> ...)` computes to
+ * the guaranteed-invalid value, which for `color` means inherit, so
+ * accent text would silently become body text. Readable, but with no
+ * signal that a firm's accent is broken. The three server actions that
+ * write firms.accent_color each test `/^#[0-9a-fA-F]{6}$/` first
+ * (lib/firm-actions.ts and lib/actions.ts), so the reachable paths are
+ * covered; the column itself carries no CHECK constraint, so a row
+ * written straight to the database is not.
  *
  * No dependencies, no DOM, no `server-only`: this is imported by client
  * components and by the Node-environment test suite alike.
@@ -81,8 +115,13 @@ export const DEFAULT_ACCENT = '#d5bb7e';
  * from the arithmetic that proves it.
  */
 export const ACCENT_TEXT_TONES = {
-  /** Counsel, portal, HQ and any `.dark` surface. */
-  dark: { lightness: 0.78, maxChroma: 0.1 },
+  /**
+   * Counsel, enterprise, HQ and any `.dark` surface. The pin is set by
+   * the consumer dark theme's `.bg-cream-200` (#2a5a47), not by the
+   * counsel neutrals: those two families share one selector list and
+   * the green one is far lighter.
+   */
+  dark: { lightness: 0.84, maxChroma: 0.078 },
   /** Light theme. Reachable today only through the signer page. */
   light: { lightness: 0.46, maxChroma: 0.075 },
 } as const;
@@ -103,9 +142,9 @@ export const ACHROMATIC_CHROMA = 0.02;
  *   pure white passes AA when the fill luminance is <= 0.18333
  *
  * The two intervals OVERLAP, so every accent is covered and 0.179 sits
- * inside the overlap. No softer pair works: the brand's own cream-50
+ * inside the overlap. No softer pair works: the brand's own cream-100
  * (#fbf7e9) tops out at 0.16759 and forest-950 (#0a1f19) starts at
- * 0.21168, which leaves accents between those two luminances with no
+ * 0.22516, which leaves accents between those two luminances with no
  * legible foreground at all. Hence literal black and white here, and
  * only here.
  */
@@ -245,19 +284,42 @@ export function accentOn(accent: string | null | undefined): string {
 
 /**
  * Surfaces the accent-text token can actually land on, measured rather
- * than assumed. The counsel shell repaints the light Tailwind utilities
- * to neutrals (app/globals.css), so `.bg-cream-200` inside it is
- * #2c2c31 and is the LIGHTEST substrate in the dark product, not the
- * card. Tuning against the card alone passes at a lightness that then
- * fails here, so the whole set is kept and the tests take the worst.
+ * than assumed.
+ *
+ * The dark tone is declared on one selector list that reaches TWO
+ * different repaint families, and they do not agree:
+ *
+ *   .counsel-shell / .enterprise-shell  light utilities -> near-black
+ *   html.dark / .dark (consumer, HQ)    light utilities -> deep green
+ *
+ * The green family is much lighter. `.dark .bg-cream-200` is #2a5a47 at
+ * luminance 0.0826 against the counsel `.bg-cream-200` #2c2c31 at
+ * 0.0256, so it, not the counsel card and not the counsel cream, is what
+ * sets the dark pin. Tuning against either family alone passes at a
+ * lightness that then fails on the other.
+ *
+ * Every hex below is a solid `background-color` declared in
+ * app/globals.css, and tests/accent-text.test.ts reads those rules back
+ * out and fails if a dark-scoped surface exists there that is missing
+ * here. Translucent overlays (`bg-cream-50/40` and friends) are excluded
+ * on purpose: they composite onto whichever of these is behind them, so
+ * they are never lighter than the surface they sit on.
  */
 export const ACCENT_TEXT_SURFACES = {
   dark: {
     'counsel page': '#0a0a0b',
+    'counsel .bg-ink-50': '#141417',
     'counsel card': '#151519',
+    'counsel .bg-cream-50': '#1a1a1e',
     'counsel .bg-white': '#1e1e22',
     'counsel .bg-cream-100': '#242428',
     'counsel .bg-cream-200': '#2c2c31',
+    'consumer dark page': '#0a1f19',
+    'consumer dark .bg-ink-50': '#102a23',
+    'consumer dark .bg-cream-50': '#173b30',
+    'consumer dark .bg-white': '#1a3d31',
+    'consumer dark .bg-cream-100': '#1f4839',
+    'consumer dark .bg-cream-200': '#2a5a47',
   },
   light: {
     white: '#ffffff',
@@ -266,6 +328,25 @@ export const ACCENT_TEXT_SURFACES = {
     'cream-200': '#f5edd6',
   },
 } as const;
+
+/**
+ * The surface of a tone that the floor actually rests on: the lightest
+ * one for the dark tone, the darkest one for the light tone. Derived
+ * rather than named, so adding a surface above cannot leave a
+ * hand-picked "worst case" quietly out of date.
+ */
+export function tightestSurface(tone: AccentTone): string {
+  const surfaces = Object.values(ACCENT_TEXT_SURFACES[tone]) as string[];
+  return surfaces.reduce((worst, candidate) =>
+    tone === 'dark'
+      ? relativeLuminance(candidate) > relativeLuminance(worst)
+        ? candidate
+        : worst
+      : relativeLuminance(candidate) < relativeLuminance(worst)
+        ? candidate
+        : worst,
+  );
+}
 
 /** The AA floor for small text. Chips in this product are 10-11px. */
 export const AA_SMALL_TEXT = 4.5;
