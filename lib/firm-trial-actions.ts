@@ -2,9 +2,8 @@
 
 import { revalidatePath } from 'next/cache';
 import { getRealCurrentUser, isCurrentUserAdmin } from './supabase/server';
-import { createAdminSupabase } from './supabase/admin';
 import { logSecurityEvent } from './security-audit';
-import { applyTrialAction } from './firm-trials';
+import { applyTrialAction, readTrialSnapshot } from './firm-trials';
 
 /**
  * The five HQ trial levers, and the only place the browser can reach
@@ -109,7 +108,10 @@ async function hqActor(lever: string): Promise<
     );
     await logSecurityEvent({
       kind: 'hq_trial_action_denied',
-      severity: 'warning',
+      // `low` is auto-acknowledged by the writer, which would file this
+      // straight into the closed pile. A refused attempt on a commercial
+      // control is exactly what should stay open for triage.
+      severity: 'medium',
       userId: attempted?.id ?? null,
       details: { lever },
     });
@@ -149,60 +151,6 @@ function readNote(note: unknown): string | null {
 }
 
 const DAYS_ERROR = `Enter a whole number of days between ${MIN_TRIAL_DAYS} and ${MAX_TRIAL_DAYS}.`;
-
-/**
- * The one stored fact grant and extend need before they can honour their own
- * names: does this organization already have an end date.
- *
- * WHY IT IS READ HERE AND NOT IN lib/firm-trials.ts. That module owns trial
- * state and would be the right home, but it belongs to another branch that
- * merges separately, and a precondition split across two branches is a
- * precondition that arrives half applied. This reads one column of one row by
- * id. It does not build a FirmAccessInput and it does not compute or cache an
- * access state, so neither invariant that module holds is touched here. When
- * the branches meet, fold this into firm-trials.ts as an exported snapshot
- * reader and delete it.
- *
- * IT FAILS CLOSED, and that is the whole point of not reusing listTrialFirms
- * for this. That function returns an empty array both when nothing is on a
- * clock and when the read failed, so a precondition built on it would read a
- * database outage as "this organization has no trial" and let grant overwrite
- * a live end date. A refusal here distinguishes the two.
- */
-type TrialSnapshot =
-  | { ok: true; trialEndsAt: string | null }
-  | { ok: false; error: string };
-
-async function readTrialSnapshot(firmId: string): Promise<TrialSnapshot> {
-  const admin = createAdminSupabase();
-  if (!admin) return { ok: false, error: 'Unavailable. Please try again.' };
-
-  const { data, error } = await admin
-    .from('firms')
-    .select('trial_ends_at')
-    .eq('id', firmId)
-    .maybeSingle();
-
-  if (error) {
-    console.error(
-      'firm-trial-actions: could not read the organization',
-      error.message,
-    );
-    return { ok: false, error: 'Unavailable. Please try again.' };
-  }
-  if (!data) return { ok: false, error: 'That organization no longer exists.' };
-
-  const row = data as { trial_ends_at?: string | null };
-  // A truthy row with no trial_ends_at key must refuse, not read as "no
-  // trial". `row.trial_ends_at ?? null` treats a missing key the same as a
-  // present null, which is the fail-open direction this precondition exists
-  // to prevent. PostgREST never actually returns a row shaped this way (an
-  // unknown column errors the select, and a selected null column comes back
-  // as null, never absent), but the reader does not get to assume its own
-  // caller's honesty.
-  if (!('trial_ends_at' in row)) return { ok: false, error: 'Unavailable. Please try again.' };
-  return { ok: true, trialEndsAt: row.trial_ends_at ?? null };
-}
 
 /**
  * Starts a trial on an organization that has none. Sets the end date to today

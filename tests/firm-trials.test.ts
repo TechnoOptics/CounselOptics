@@ -119,16 +119,19 @@ describe('the missing admin client is announced, exactly once', () => {
     expect(String(logged.mock.calls[0][0])).toMatch(/enforcement is OFF/);
   });
 
-  it('logs one line for two listTrialFirms calls, and still returns an empty list', async () => {
+  it('logs one line for two listTrialFirms calls, and refuses rather than returning an empty list', async () => {
     h.ref.adminAvailable = false;
     const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
     const { listTrialFirms } = await freshModule();
 
-    expect(await listTrialFirms()).toEqual([]);
-    expect(await listTrialFirms()).toEqual([]);
+    // The RESULT carries the failure, not just the log. A page cannot read a
+    // console line, and this is the surface an operator checks to notice that
+    // enforcement has stopped.
+    expect(await listTrialFirms()).toMatchObject({ ok: false });
+    expect(await listTrialFirms()).toMatchObject({ ok: false });
 
     expect(logged).toHaveBeenCalledTimes(1);
-    // The empty list must not read as "no organization is on a trial".
+    // The failure must not read as "no organization is on a trial".
     expect(String(logged.mock.calls[0][0])).toMatch(/UNREADABLE/);
   });
 
@@ -256,5 +259,82 @@ describe('extending a trial reads the stored end date, not a truthy one', () => 
     expect(written).toBeGreaterThanOrEqual(before + 30 * DAY_MS);
     expect(written).toBeLessThanOrEqual(after + 30 * DAY_MS);
     expect(h.ref.audits[0].previous_value).toBeNull();
+  });
+});
+
+/**
+ * THE OPERATOR SURFACE THAT WOULD OTHERWISE HIDE THE OUTAGE.
+ *
+ * With no service-role key, firmTrialState fails open to 'active' for every
+ * organization, so no trial expires and no suspension bites. The HQ trials
+ * page is the one place anybody would notice, and it hardcoded
+ * `trialsUnavailable = false`, so an unreadable list rendered as a calm
+ * "0 on a clock" and the console's whole unavailable branch was dead code.
+ */
+describe('the HQ trials page tells an outage from an empty list', () => {
+  const TrialConsole = () => null;
+
+  async function renderPage(
+    list:
+      | { ok: true; rows: unknown[] }
+      | { ok: false; reason: string },
+  ): Promise<unknown> {
+    vi.resetModules();
+    vi.doMock('next/link', () => ({ default: () => null }));
+    vi.doMock('@/components/LocaleTime', () => ({ LocaleTime: () => null }));
+    vi.doMock('@/lib/hq-storage', () => ({ adminListFirms: async () => [] }));
+    vi.doMock('@/lib/firm-trials', () => ({ listTrialFirms: async () => list }));
+    vi.doMock('@/lib/firm-types', () => ({ FIRM_TYPE_LABEL: {} }));
+    vi.doMock('@/app/admin/firms/subdomain-toggle', () => ({
+      SubdomainToggle: () => null,
+    }));
+    vi.doMock('@/app/admin/firms/branding-editor', () => ({
+      BrandingEditor: () => null,
+    }));
+    vi.doMock('@/app/admin/firms/impersonate-owner-button', () => ({
+      ImpersonateOwnerButton: () => null,
+    }));
+    vi.doMock('@/app/admin/firms/trial-controls', () => ({ TrialConsole }));
+    const mod = await import('@/app/admin/firms/page');
+    return mod.default();
+  }
+
+  /** What the page handed the console, found by prop shape. */
+  function consoleProps(tree: unknown): Record<string, unknown> | null {
+    const seen = new Set<unknown>();
+    const walk = (node: unknown): Record<string, unknown> | null => {
+      if (node == null || typeof node !== 'object') return null;
+      if (seen.has(node)) return null;
+      seen.add(node);
+      if (Array.isArray(node)) {
+        for (const child of node) {
+          const hit = walk(child);
+          if (hit) return hit;
+        }
+        return null;
+      }
+      const props = (node as { props?: unknown }).props;
+      if (props && typeof props === 'object' && 'unavailable' in props) {
+        return props as Record<string, unknown>;
+      }
+      for (const value of Object.values(node as Record<string, unknown>)) {
+        const hit = walk(value);
+        if (hit) return hit;
+      }
+      return null;
+    };
+    return walk(tree);
+  }
+
+  it('says the list is unavailable when the read failed', async () => {
+    const props = consoleProps(
+      await renderPage({ ok: false, reason: 'service role missing' }),
+    );
+    expect(props?.unavailable).toBe(true);
+  });
+
+  it('does not cry outage over a genuinely empty list', async () => {
+    const props = consoleProps(await renderPage({ ok: true, rows: [] }));
+    expect(props?.unavailable).toBe(false);
   });
 });

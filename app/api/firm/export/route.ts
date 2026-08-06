@@ -70,11 +70,15 @@ export const maxDuration = 300;
  * deliberately NOT embedded, since a URL that grants access to a private file
  * is itself a credential and does not belong in a file the organization keeps.
  * That leaves a real limitation rather than a solved problem, and the notes say
- * so plainly: `/counsel/documents/<id>` is a signed-in page whose availability
- * to a gated organization is Task 4's decision and is not settled here, and the
- * paths in `exhibits.storage_path` and `case_timeline_events.media` point into
- * a bucket with no retrieval route at all. The archive must not promise a door
- * that nobody has agreed to leave open.
+ * so plainly, in BOTH directions now that the decisions have been made.
+ * `case_timeline_events.media` IS reachable: lib/firm-access.ts exempts the
+ * per-matter evidence download from the access gate, specifically so this
+ * archive is not an index to nothing. `/counsel/documents/<id>` is NOT: it is
+ * absent from ALWAYS_ALLOWED, so a gated organization is redirected off it, and
+ * the note says that rather than leaving it open. `exhibits.storage_path` is a
+ * different table from the timeline media and the evidence download does not
+ * serve it. The archive must not promise a door that nobody has agreed to leave
+ * open, and it must not disown one that was deliberately propped.
  *
  * ── What `_summary.complete` does and does not certify ───────────────────────
  * It certifies that every table READ HERE matched the row count the database
@@ -375,11 +379,12 @@ export async function GET(req: Request) {
     // A refused whole-organization export is worth more than a granted one.
     // Someone trying this repeatedly, or walking through organization ids
     // they saw in a URL, leaves no other trace anywhere. Recorded at
-    // `warning` so it stays unacknowledged and lands in the triage queue
-    // instead of the routine audit stream.
+    // `medium` so it stays unacknowledged and lands in the triage queue
+    // instead of the routine audit stream. Only `low` is auto-acknowledged,
+    // so anything above it is what a triage record has to be.
     await logSecurityEvent({
       kind: 'data_exported',
-      severity: 'warning',
+      severity: 'medium',
       userId: user.id,
       ip,
       userAgent,
@@ -458,7 +463,7 @@ export async function GET(req: Request) {
       'This is a copy. Everything in it remains available in Advottic as well.',
       'What _summary.complete certifies, exactly: every table this export reads matched the row count the database reported for it just before it was read. It does not certify that a matter is whole. A table this export does not read can never appear in _summary.errors, _summary.shortfalls or _summary.unverified, and neither can a column left out of a table that is read. The tables it does read are the keys of data, and they are the whole of what complete speaks for.',
       'Matter substance is included. cases, case_deadlines, case_approaches, case_people, case_collaborators, case_timeline_events, case_timeline_narratives, exhibits, case_legal_reviews, case_images, case_section_comments and case_chat_messages are what a matter is made of. Most of them carry no organization id of their own, so they are scoped to the matters listed under cases.',
-      'File contents are not embedded, only names, metadata and storage paths. This is a real limitation and not a solved one. An entry in firm_documents can be downloaded one at a time from /counsel/documents/<id> by a signed-in member, but whether that page stays reachable for an organization whose access has ended is a separate decision that has not been made, so please do not plan around it. The paths in exhibits.storage_path and case_timeline_events.media point into private storage with no per-file download page at all. If you need the files themselves, email contact@advottic.com and we will arrange it.',
+      'File contents are not embedded, only names, metadata and storage paths. This is a real limitation and not a solved one, and what remains reachable differs by kind, so it is set out plainly here rather than left to be discovered. The files listed under case_timeline_events.media can still be downloaded, a matter at a time, from the evidence download on that matter: that route is deliberately left open to an organization whose access has ended, precisely so this archive is not an index to files nobody can open. An entry in firm_documents is different: /counsel/documents/<id> is NOT reachable once access has ended, so please do not plan around it. The paths under exhibits.storage_path are not covered by the evidence download either. For anything in those last two, email contact@advottic.com and we will arrange it.',
       'firm_signatures carries the per-signer record: who signed, when, from what address, and whether the emailed access code was verified. It is the one table read with a fixed column list rather than in full, because it also holds the signing link token and the access code hash, and each of those is a credential on its own. A column withheld this way is invisible to the completeness check, since the row counts still match either way.',
       'firm_signature_events is the tamper-evident chain behind those signatures. Each event carries event_hash and prev_event_hash, chained to the event before it, which is the difference between a row asserting that someone signed and a record that proves it. The chain can also still be verified one request at a time at /api/firm/sign/audit-trail/<signing_request_id>.',
       'firm_meetings keeps its join link. It is a link to your own meeting, which you already hold in your calendar and your mail, and it is not a key to your data. That is a different thing from a signing token, which would let a stranger execute a document as your client.',

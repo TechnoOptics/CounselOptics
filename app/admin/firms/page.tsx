@@ -14,10 +14,17 @@ export const metadata = { title: { absolute: 'Active firms · Advottic HQ' } };
 const DAY_MS = 86_400_000;
 
 export default async function HqFirmsPage() {
-  const [firms, trialFirms] = await Promise.all([
+  const [firms, trialList] = await Promise.all([
     adminListFirms(),
     listTrialFirms(),
   ]);
+  // The failure this distinguishes is the expensive one. With no service-role
+  // key every organization fails open to active, so no trial expires and no
+  // suspension bites, and this page is the only surface where anybody would
+  // see it. Rendering an unreadable list as "0 on a clock" is a calm report
+  // that enforcement is off.
+  const trialsUnavailable = !trialList.ok;
+  const trialFirms = trialList.ok ? trialList.rows : [];
   const activeBilling = firms.filter(
     (f) => f.ownerSubscriptionStatus === 'active' || f.ownerSubscriptionStatus === 'trialing',
   ).length;
@@ -71,18 +78,6 @@ export default async function HqFirmsPage() {
         f.ownerSubscriptionStatus === 'trialing',
     }));
   const closedCount = trialRows.filter((r) => r.state === 'export_only').length;
-
-  // KNOWN GAP, and the console is already built to show it. listTrialFirms
-  // swallows its read error and returns [], so an outage and a genuinely empty
-  // list are the same value here and this page cannot tell them apart. That is
-  // a signal lib/firm-trials.ts does not currently return, and that file
-  // belongs to another branch; the fix is for it to return a discriminated
-  // result and for this line to read it.
-  //
-  // The destructive half of the confusion is closed regardless: grantTrialAction
-  // reads the row itself and refuses an organization that already has an end
-  // date, and its read fails closed rather than empty.
-  const trialsUnavailable = false;
 
   return (
     <div className="space-y-5">

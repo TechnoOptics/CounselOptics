@@ -38,6 +38,42 @@ export type TrialFirmRow = {
 };
 
 /**
+ * listTrialFirms' answer, as a discriminated result rather than an array.
+ *
+ * An empty array cannot say whether nothing is on a clock or the read never
+ * happened, and those two are opposites: the first is a calm Tuesday, the
+ * second is enforcement being off for every organization at once with the HQ
+ * trials page the only place anyone would notice. This type is what makes the
+ * difference reach the page, and app/admin/firms/page.tsx renders `Not loaded`
+ * from it instead of `0 on a clock`.
+ */
+export type TrialFirmList =
+  | { ok: true; rows: TrialFirmRow[] }
+  | { ok: false; reason: string };
+
+/**
+ * The one stored fact grant and extend need before they can honour their own
+ * names: does this organization already have an end date.
+ *
+ * IT FAILS CLOSED, and that is the whole point of not building it on
+ * listTrialFirms. That function reports an outage as `ok: false` now, but it
+ * also collapses "no trial" and "not readable" into the same empty row set for
+ * a single organization, so a precondition built on it would read a database
+ * outage as "this organization has no trial" and let grant overwrite a live
+ * end date. Refusing distinguishes the two.
+ *
+ * It reads one column of one row by id. It does not build a FirmAccessInput
+ * and it does not compute or cache an access state, so neither invariant this
+ * module holds is touched by it, and no caller may turn its `trialEndsAt` into
+ * an access decision. app/counsel/layout.tsx uses it for the trial BANNER,
+ * which is copy and not a gate; the gate on that same request is
+ * firmTrialState below.
+ */
+export type TrialSnapshot =
+  | { ok: true; trialEndsAt: string | null }
+  | { ok: false; error: string };
+
+/**
  * These kinds are also the values of the CHECK constraint on
  * firm_trial_events.action. Adding a kind here without adding it there makes
  * every audit insert for that kind fail, which under the ordering below is a
@@ -183,12 +219,13 @@ function missingAdminReason(): string {
     : 'SUPABASE_SERVICE_ROLE_KEY is not configured';
 }
 
-export async function listTrialFirms(): Promise<TrialFirmRow[]> {
+export async function listTrialFirms(): Promise<TrialFirmList> {
   const admin = createAdminSupabase();
-  // An empty array here is indistinguishable from "no organization is on a
-  // trial", which is the one surface an operator would check to notice that
-  // enforcement had stopped. Say once that the list is unreadable rather than
-  // empty.
+  // An empty array here would be indistinguishable from "no organization is on
+  // a trial", which is the one surface an operator would check to notice that
+  // enforcement had stopped. The result type carries the difference and the
+  // log line names the cause; neither alone is enough, because the page cannot
+  // read a log and the reason string is not going in front of an operator.
   if (!admin) {
     if (!loggedMissingAdminInList) {
       loggedMissingAdminInList = true;
@@ -197,7 +234,7 @@ export async function listTrialFirms(): Promise<TrialFirmRow[]> {
         missingAdminReason(),
       );
     }
-    return [];
+    return { ok: false, reason: missingAdminReason() };
   }
 
   // A suspended organization that never had a trial is FOUND by this filter.
@@ -217,11 +254,11 @@ export async function listTrialFirms(): Promise<TrialFirmRow[]> {
 
   if (error) {
     console.error('listTrialFirms: could not read firms', error.message);
-    return [];
+    return { ok: false, reason: error.message };
   }
 
   const rows = (data ?? []) as Array<Record<string, unknown>>;
-  if (rows.length === 0) return [];
+  if (rows.length === 0) return { ok: true, rows: [] };
 
   // Same shape as adminListFirms in lib/hq-storage.ts: one select, counted in
   // memory. Display only. Nothing that enforces a seat limit should count
@@ -242,16 +279,48 @@ export async function listTrialFirms(): Promise<TrialFirmRow[]> {
   // One clock for one render of one list. This is not a cached state: the
   // value is computed here and thrown away with the response.
   const now = new Date();
-  return rows.map((r) => ({
-    id: r.id as string,
-    name: r.name as string,
-    slug: r.slug as string,
-    trialEndsAt: (r.trial_ends_at as string | null) ?? null,
-    seatLimit: (r.seat_limit as number | null) ?? null,
-    suspendedAt: (r.suspended_at as string | null) ?? null,
-    memberCount: counts.get(r.id as string) ?? 0,
-    state: firmAccessState(toFirmAccessInput(r), now),
-  }));
+  return {
+    ok: true,
+    rows: rows.map((r) => ({
+      id: r.id as string,
+      name: r.name as string,
+      slug: r.slug as string,
+      trialEndsAt: (r.trial_ends_at as string | null) ?? null,
+      seatLimit: (r.seat_limit as number | null) ?? null,
+      suspendedAt: (r.suspended_at as string | null) ?? null,
+      memberCount: counts.get(r.id as string) ?? 0,
+      state: firmAccessState(toFirmAccessInput(r), now),
+    })),
+  };
+}
+
+/** See TrialSnapshot above for why this reads its own row and fails closed. */
+export async function readTrialSnapshot(firmId: string): Promise<TrialSnapshot> {
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Unavailable. Please try again.' };
+
+  const { data, error } = await admin
+    .from('firms')
+    .select('trial_ends_at')
+    .eq('id', firmId)
+    .maybeSingle();
+
+  if (error) {
+    console.error('readTrialSnapshot: could not read the organization', error.message);
+    return { ok: false, error: 'Unavailable. Please try again.' };
+  }
+  if (!data) return { ok: false, error: 'That organization no longer exists.' };
+
+  const row = data as { trial_ends_at?: string | null };
+  // A truthy row with no trial_ends_at key must refuse, not read as "no
+  // trial". `row.trial_ends_at ?? null` treats a missing key the same as a
+  // present null, which is the fail-open direction this precondition exists
+  // to prevent. PostgREST never actually returns a row shaped this way (an
+  // unknown column errors the select, and a selected null column comes back
+  // as null, never absent), but the reader does not get to assume its own
+  // caller's honesty.
+  if (!('trial_ends_at' in row)) return { ok: false, error: 'Unavailable. Please try again.' };
+  return { ok: true, trialEndsAt: row.trial_ends_at ?? null };
 }
 
 /**

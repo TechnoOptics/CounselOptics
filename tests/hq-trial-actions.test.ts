@@ -53,16 +53,35 @@ const applyTrialAction = vi.hoisted(() =>
 
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 
-vi.mock('../lib/security-audit', () => ({
-  logSecurityEvent: vi.fn(async () => {}),
-}));
+/**
+ * The durable half of the refusal trace. Hoisted so the assertions below can
+ * read what was actually recorded, rather than only that something was.
+ */
+const logSecurityEvent = vi.hoisted(() =>
+  vi.fn(async (_input: Record<string, unknown>) => {}),
+);
+
+vi.mock('../lib/security-audit', () => ({ logSecurityEvent }));
 
 vi.mock('../lib/supabase/server', () => ({
   isCurrentUserAdmin: vi.fn(async () => auth.isAdmin),
   getRealCurrentUser: vi.fn(async () => auth.user),
 }));
 
-vi.mock('../lib/firm-trials', () => ({ applyTrialAction }));
+/**
+ * PARTIAL mock, and the partiality is load-bearing. `applyTrialAction` is the
+ * write these tests must prove was never reached, so it is replaced.
+ * `readTrialSnapshot` is the PRECONDITION those same tests exercise, and it
+ * now lives in this module rather than beside the actions. Replacing it too
+ * would leave every precondition case asserting against a stub, and the
+ * mutation that closed the last fail-open in it (a truthy row with no
+ * trial_ends_at key reading as "no trial") would stop being caught by
+ * anything. So the real one runs, against the mocked admin client below.
+ */
+vi.mock('../lib/firm-trials', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../lib/firm-trials')>()),
+  applyTrialAction,
+}));
 
 // Just enough of the chain readTrialSnapshot uses:
 // from('firms').select('trial_ends_at').eq('id', id).maybeSingle()
@@ -82,6 +101,10 @@ vi.mock('../lib/supabase/admin', () => ({
       }),
     };
   },
+  // lib/firm-trials.ts imports this for its missing-admin log line. Never
+  // reached here, since the admin client above is always available, but a
+  // static named import of an absent export fails at binding time.
+  isServiceRoleConfigured: () => true,
 }));
 
 import {
@@ -99,6 +122,7 @@ beforeEach(() => {
   db.readError = null;
   db.clientRequests = 0;
   applyTrialAction.mockClear();
+  logSecurityEvent.mockClear();
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
@@ -142,6 +166,31 @@ describe('the admin gate on every HQ trial lever', () => {
       expect(db.clientRequests).toBe(0);
     });
   }
+
+  /**
+   * A REFUSED ATTEMPT ON A COMMERCIAL CONTROL HAS TO STAY OPEN FOR TRIAGE.
+   *
+   * The severity is not decorative. lib/security-audit.ts auto-acknowledges
+   * exactly one value, 'low', which is also what an omitted severity defaults
+   * to, so 'low' would file this straight into the closed pile. 'medium' is
+   * the lowest value that reaches the queue an operator actually reads.
+   */
+  it('records the refused attempt where somebody will triage it', async () => {
+    auth.isAdmin = false;
+    auth.user = { id: 'user-9', email: 'curious@example.com' };
+
+    await grantTrialAction({ firmId: FIRM, days: 14 });
+
+    expect(logSecurityEvent).toHaveBeenCalledTimes(1);
+    const event = logSecurityEvent.mock.calls[0]?.[0];
+    expect(event?.kind).toBe('hq_trial_action_denied');
+    expect(event?.severity).toBe('medium');
+    // Named explicitly: 'low' is the auto-acknowledged value, and an omitted
+    // severity defaults to it.
+    expect(event?.severity).not.toBe('low');
+    expect(event?.severity).not.toBeUndefined();
+    expect(event?.userId).toBe('user-9');
+  });
 
   it('refuses when the admin check passes but nobody is signed in', async () => {
     auth.user = null;

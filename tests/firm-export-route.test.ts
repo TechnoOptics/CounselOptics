@@ -407,8 +407,10 @@ describe('organization export authorization', () => {
     expect(event.details?.refused).toBe(true);
     expect(event.details?.firmId).toBe('firm-1');
     // Left unacknowledged so it lands in the triage queue rather than the
-    // routine audit stream.
-    expect(event.severity).toBe('warning');
+    // routine audit stream. Only 'low' is auto-acknowledged by the writer,
+    // and 'low' is also what an omitted severity defaults to, so this is the
+    // lowest value that actually keeps the event open for triage.
+    expect(event.severity).toBe('medium');
   });
 
   it('refuses an organization the caller does not belong to, and records it', async () => {
@@ -715,15 +717,28 @@ describe('the archive says what completeness it is claiming', () => {
     expect(notes).toContain('invisible to the completeness check');
   });
 
-  it('states the file limitation rather than promising a download', async () => {
+  /**
+   * The note has to be right in BOTH directions, and it used to be wrong in
+   * both. It told a departing organization that /counsel/documents/<id> was
+   * an open question when the allowlist had already answered it in the
+   * negative, and that case_timeline_events.media had no download page at all
+   * when the evidence download route was exempted from the access gate
+   * specifically so that the archive would not be an index to nothing.
+   */
+  it('states the file limitation without disowning the door that was left open', async () => {
     const notes = await notesOf();
-    // The archive must not make a promise on behalf of a decision nobody has
-    // made: whether a gated organization can still reach /counsel/documents.
+    // Decided, in the negative. Absent from ALWAYS_ALLOWED, so a gated
+    // organization is redirected off it.
     expect(notes).toContain('/counsel/documents/<id>');
-    expect(notes).toMatch(/has not been made/);
-    // And the buckets with no per-file route at all have to be named.
-    expect(notes).toContain('exhibits.storage_path');
+    expect(notes).toMatch(/NOT reachable once access has ended/);
+    expect(notes).not.toMatch(/has not been made/);
+    // Decided, in the positive, and the note must say so.
     expect(notes).toContain('case_timeline_events.media');
+    expect(notes).toMatch(/can still be downloaded/);
+    // exhibits.storage_path is a different table and the evidence download
+    // does not serve it, so it stays named as not covered.
+    expect(notes).toContain('exhibits.storage_path');
+    expect(notes).toMatch(/not covered by the evidence download/);
   });
 
   it('says why the meeting join link stays', async () => {
