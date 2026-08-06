@@ -279,6 +279,12 @@ export async function resubmitTemplateSubmissionAction(
   if (!row || row.submitted_by !== user.id) {
     return { ok: false, error: 'That submission could not be found.' };
   }
+  // Owning the row is not the same as still being entitled to file one. A
+  // person who has left, or whose portal role no longer includes filing, must
+  // not be able to push work back into the legal team's queue, so this asks
+  // the same question the original submission did.
+  const actor = await authorizeFirmActor(admin, row.firm_id, user.id, 'requests.create');
+  if (!actor.ok) return { ok: false, error: actor.error };
   if (!isEditableBySubmitter(row.status)) {
     return { ok: false, error: 'This submission can no longer be edited.' };
   }
@@ -452,7 +458,7 @@ export async function decideTemplateSubmissionAction(
   submissionId: string,
   action: 'approve' | 'request_changes',
   note?: string,
-): Promise<{ ok: boolean; error?: string; status?: string; emailSent?: boolean }> {
+): Promise<{ ok: boolean; error?: string; status?: string; deliveryError?: string }> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: 'Sign in first.' };
   const admin = createAdminSupabase();
@@ -520,14 +526,14 @@ export async function decideTemplateSubmissionAction(
   return {
     ok: true,
     status: released.ok ? 'sent' : 'approved',
-    emailSent: released.ok ? released.emailSent : false,
+    deliveryError: released.ok ? undefined : released.error,
   };
 }
 
 /** Retry a delivery that failed after an approval. Approvers only. */
 export async function retryTemplateReleaseAction(
   submissionId: string,
-): Promise<{ ok: boolean; error?: string; emailSent?: boolean }> {
+): Promise<{ ok: boolean; error?: string }> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: 'Sign in first.' };
   const admin = createAdminSupabase();
@@ -549,19 +555,22 @@ export async function retryTemplateReleaseAction(
   const released = await sendApproved(admin, submissionId);
   refresh();
   if (!released.ok) return { ok: false, error: released.error };
-  return { ok: true, emailSent: released.emailSent };
+  return { ok: true };
 }
 
 /**
- * Deliver an approved submission and record the outcome. The release helper
- * re-reads the row and refuses anything that is not approved, so this stays
- * safe wherever it is called from; a failure leaves the record approved and
- * retryable rather than losing the decision.
+ * Deliver an approved submission and record the outcome.
+ *
+ * The release helper owns the whole delivery: it re-reads the row, refuses
+ * anything that is not approved, claims the release so a second caller cannot
+ * repeat it, and gives the claim back if any part of the send fails. So a
+ * failure here always leaves the record approved, unclaimed, and retryable,
+ * and only a genuinely complete delivery reaches the status write below.
  */
 async function sendApproved(
   admin: Admin,
   submissionId: string,
-): Promise<{ ok: true; emailSent: boolean } | { ok: false; error: string }> {
+): Promise<{ ok: true } | { ok: false; error: string }> {
   const released = await releaseApprovedSubmission(admin, submissionId);
   if (!released.ok) {
     await admin
@@ -576,12 +585,10 @@ async function sendApproved(
     .from('firm_template_submissions')
     .update({
       status: move.status,
-      released_at: new Date().toISOString(),
-      release_token: released.token,
-      release_error: released.emailSent ? null : 'The recipient emails could not be sent.',
+      release_error: null,
       updated_at: new Date().toISOString(),
     })
     .eq('id', submissionId)
     .eq('status', 'approved');
-  return { ok: true, emailSent: released.emailSent };
+  return { ok: true };
 }

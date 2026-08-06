@@ -17,6 +17,17 @@
 -- reaches these rows except the service-role client behind server actions that
 -- authorize the caller in code (lib/template-submissions.ts ->
 -- lib/template-approval.ts).
+--
+-- APPLY THIS IN THE SAME WINDOW AS THE MERGE. IT CANNOT TRAIL THE DEPLOY.
+--
+-- The employee Forms surface does not degrade gracefully without it, it stops
+-- working. `requires_approval` is absent from the row until this runs, and the
+-- reader treats absent as "needs review" (the safe direction, but the costly
+-- one here): every published template renders as gated, so Download and Print
+-- are hidden, and Send to legal then fails because firm_template_submissions
+-- does not exist. Saving a template from the counsel side fails too, because
+-- the insert names a column the table does not yet have. Deploy and migrate
+-- together, or migrate first.
 
 -- Whether output from this template needs legal sign-off before it can be
 -- sent to an outside party. Defaults to true: a form that leaves the building

@@ -35,7 +35,7 @@ import type { SubmissionRow } from './template-submission-types';
 const SHARE_TTL_DAYS = 14;
 
 export type ReleaseOutcome =
-  | { ok: true; emailSent: boolean; token: string; key: string; link: string }
+  | { ok: true; token: string; key: string; link: string }
   | { ok: false; error: string };
 
 export async function releaseApprovedSubmission(
@@ -61,6 +61,51 @@ export async function releaseApprovedSubmission(
   });
   if (!gate.ok) return { ok: false, error: gate.reason };
 
+  // Claim the release before doing any of the work.
+  //
+  // The read above and the send below are two separate moments, and between
+  // them a second approver (or the same one in a second tab) can pass the very
+  // same gate. Both would then send: two ciphertexts, four emails, and two
+  // live share links, of which only the last would be recorded and therefore
+  // only the last revocable. The conditional update is the compare-and-swap:
+  // the database, not this process, decides who got there first, and a caller
+  // who did not win comes back with no row and sends nothing.
+  const token = newShareToken();
+  const { data: claimed } = await admin
+    .from('firm_template_submissions')
+    .update({
+      released_at: new Date().toISOString(),
+      release_token: token,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', submissionId)
+    .eq('status', 'approved')
+    .is('released_at', null)
+    .select('id')
+    .maybeSingle();
+  if (!claimed) return { ok: false, error: 'This document has already been sent.' };
+
+  /**
+   * Give the claim back so an approver can try again. Everything after the
+   * claim can fail on infrastructure the firm does not control, and a
+   * half-finished release must never look finished: the record stays approved
+   * and unclaimed, which is the state the retry path expects. The token is
+   * kept when ciphertext was already written, so an orphaned share can still
+   * be traced and revoked.
+   */
+  const unclaim = async (error: string, keepToken: boolean): Promise<ReleaseOutcome> => {
+    await admin
+      .from('firm_template_submissions')
+      .update({
+        released_at: null,
+        release_token: keepToken ? token : null,
+        release_error: error,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', submissionId);
+    return { ok: false, error };
+  };
+
   const firm = await getFirmByIdAdmin(row.firm_id);
   const bytes = await buildBrandedDocumentPdf({
     document: row.document_text,
@@ -70,10 +115,11 @@ export async function releaseApprovedSubmission(
     letterheadUrl: firm?.letterheadUrl ?? undefined,
     logoUrl: firm?.logoUrl ?? undefined,
   });
-  if (!bytes) return { ok: false, error: 'The document could not be prepared for sending.' };
+  if (!bytes) {
+    return unclaim('The document could not be prepared for sending.', false);
+  }
 
   const { blob, key } = encryptDocument(Buffer.from(bytes));
-  const token = newShareToken();
   const expiresAt = new Date(Date.now() + SHARE_TTL_DAYS * 24 * 3600 * 1000);
   const meta: ShareMeta = {
     caseId: 'portal',
@@ -90,7 +136,7 @@ export async function releaseApprovedSubmission(
     expiresAt: expiresAt.toISOString(),
   };
   const stored = await storeShare(admin, token, blob, meta);
-  if (!stored) return { ok: false, error: 'Could not store the encrypted document.' };
+  if (!stored) return unclaim('Could not store the encrypted document.', false);
 
   const link = `${siteUrl()}/share/${token}`;
   const shownKey = formatKey(key);
@@ -129,7 +175,17 @@ export async function releaseApprovedSubmission(
     text: `Here is your decryption key for the secure document "${row.template_name}":\n\n${shownKey}\n\nEnter it on the secure page you received in the separate email.`,
     html: buildShareKeyEmailHtml({ caseTitle: row.template_name, firmName, key: shownKey }),
   });
-  const emailSent = linkEmail.ok && keyEmail.ok;
+  // Both emails or none. The link is useless without the key and the key is
+  // useless without the link, so one of the two arriving is not a delivery:
+  // the recipient would be holding a document they cannot open while the firm
+  // was told it had gone. A partial send is a failed send, and it is retried
+  // whole.
+  if (!linkEmail.ok || !keyEmail.ok) {
+    return unclaim(
+      'The recipient could not be emailed, so nothing they can open has reached them. Send it again.',
+      true,
+    );
+  }
 
-  return { ok: true, emailSent, token, key: shownKey, link };
+  return { ok: true, token, key: shownKey, link };
 }

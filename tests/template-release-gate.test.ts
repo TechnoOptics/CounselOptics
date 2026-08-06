@@ -10,9 +10,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * approver recorded. Nothing is encrypted, stored, or emailed on a refusal.
  */
 
-const store = vi.hoisted(() => ({ row: null as Record<string, unknown> | null }));
+const store = vi.hoisted(() => ({
+  row: null as Record<string, unknown> | null,
+  updates: [] as Record<string, unknown>[],
+}));
 
-const sendEmail = vi.hoisted(() => vi.fn(async () => ({ ok: true as const })));
+type EmailResult = { ok: true } | { ok: false; error: string };
+const sendEmail = vi.hoisted(() =>
+  vi.fn(async (): Promise<EmailResult> => ({ ok: true })),
+);
 const storeShare = vi.hoisted(() => vi.fn(async () => true));
 const buildPdf = vi.hoisted(() => vi.fn(async () => new Uint8Array([1, 2, 3])));
 
@@ -33,16 +39,55 @@ vi.mock('../lib/intake-notify', () => ({ siteUrl: () => 'https://advottic.test' 
 
 const { releaseApprovedSubmission } = await import('../lib/template-release');
 
-/** The narrow slice of the admin client the release helper uses. */
-const admin = {
-  from() {
-    return {
-      select: () => ({
-        eq: () => ({ maybeSingle: async () => ({ data: store.row }) }),
-      }),
-    };
-  },
-} as never;
+/**
+ * The narrow slice of the admin client the release helper uses: one read, one
+ * conditional claim, and one rollback. The claim honours its own conditions
+ * against the stored row, because the whole point of it is that a second
+ * caller must come back empty-handed.
+ */
+type Cond = { col: string; value: unknown };
+
+class Query {
+  private conds: Cond[] = [];
+  private patch: Record<string, unknown> | null = null;
+  update(patch: Record<string, unknown>) {
+    this.patch = patch;
+    return this;
+  }
+  select() {
+    return this;
+  }
+  eq(col: string, value: unknown) {
+    this.conds.push({ col, value });
+    return this;
+  }
+  is(col: string, value: unknown) {
+    this.conds.push({ col, value });
+    return this;
+  }
+  private matches(): boolean {
+    const r = store.row;
+    if (!r) return false;
+    return this.conds.every((c) => (r[c.col] ?? null) === c.value);
+  }
+  async maybeSingle() {
+    if (!this.patch) return { data: this.matches() ? store.row : null };
+    if (!this.matches()) return { data: null };
+    store.row = { ...store.row, ...this.patch };
+    store.updates.push(this.patch);
+    return { data: store.row };
+  }
+  // An update with no .select() is awaited directly.
+  then(resolve: (v: { data: null }) => void) {
+    if (this.patch && this.matches()) {
+      store.row = { ...store.row, ...this.patch };
+      store.updates.push(this.patch);
+    }
+    resolve({ data: null });
+  }
+}
+
+const admin = { from: () => new Query() } as never;
 
 function row(over: Record<string, unknown> = {}) {
   return {
@@ -65,6 +110,8 @@ function row(over: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   store.row = null;
+  store.updates = [];
+  sendEmail.mockImplementation(async () => ({ ok: true }));
   sendEmail.mockClear();
   storeShare.mockClear();
   buildPdf.mockClear();
@@ -102,6 +149,48 @@ describe('releaseApprovedSubmission', () => {
   it('does not send the same approval twice', async () => {
     store.row = row({ released_at: '2026-08-06T11:00:00.000Z' });
     expect((await releaseApprovedSubmission(admin, 'sub-1')).ok).toBe(false);
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  it('claims the release before sending, so a second caller cannot send it again', async () => {
+    store.row = row();
+    const first = await releaseApprovedSubmission(admin, 'sub-1');
+    expect(first.ok).toBe(true);
+    // The claim is on the row now, exactly as a concurrent approver would find
+    // it: same status, already released.
+    expect(store.row?.released_at).toBeTruthy();
+
+    sendEmail.mockClear();
+    storeShare.mockClear();
+    const second = await releaseApprovedSubmission(admin, 'sub-1');
+    expect(second.ok).toBe(false);
+    expect(sendEmail).not.toHaveBeenCalled();
+    expect(storeShare).not.toHaveBeenCalled();
+  });
+
+  it('treats a half-delivered release as a failure and leaves it retryable', async () => {
+    store.row = row();
+    // The link email goes; the key email is rate-limited. The recipient holds
+    // a link they can never open, so this is not a delivery.
+    sendEmail
+      .mockImplementationOnce(async () => ({ ok: true }))
+      .mockImplementationOnce(async () => ({ ok: false, error: 'rate limited' }));
+
+    const res = await releaseApprovedSubmission(admin, 'sub-1');
+    expect(res.ok).toBe(false);
+    // Still approved, no longer claimed: an approver can send it again.
+    expect(store.row?.status).toBe('approved');
+    expect(store.row?.released_at).toBeNull();
+    // The orphaned share is recorded so it can be traced and revoked.
+    expect(store.row?.release_token).toBe('token-123');
+  });
+
+  it('leaves a failed storage attempt retryable', async () => {
+    store.row = row();
+    storeShare.mockImplementationOnce(async () => false);
+    const res = await releaseApprovedSubmission(admin, 'sub-1');
+    expect(res.ok).toBe(false);
+    expect(store.row?.released_at).toBeNull();
     expect(sendEmail).not.toHaveBeenCalled();
   });
 
