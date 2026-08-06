@@ -6,6 +6,7 @@ import {
   type MigrationResult,
 } from '@/lib/migration-actions';
 import { T, useT } from '@/components/i18n/LocaleProvider';
+import { runGatedAction } from '@/lib/gated-action';
 
 /**
  * "Migrate from another platform" panel. Two ways in:
@@ -30,7 +31,7 @@ export function MigrateClient() {
   function runJson() {
     setResult(null);
     start(async () => {
-      setResult(await importMigrationBundleAction({ kind: 'json', text: json }));
+      setResult(await runGatedAction(() => importMigrationBundleAction({ kind: 'json', text: json })));
     });
   }
 
@@ -38,13 +39,13 @@ export function MigrateClient() {
     setResult(null);
     start(async () => {
       setResult(
-        await importMigrationBundleAction({
+        await runGatedAction(() => importMigrationBundleAction({
           kind: 'servicenow',
           instanceUrl: sn.instanceUrl.trim(),
           token: sn.token.trim(),
           table: sn.table.trim() || undefined,
           query: sn.query.trim() || undefined,
-        }),
+        })),
       );
     });
   }

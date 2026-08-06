@@ -6,6 +6,7 @@ import { createFirmCaseAction } from '@/lib/firm-actions';
 import { CASE_TYPES, SUBJECT_TYPE_LABEL } from '@/lib/types';
 import type { Posture, SubjectProfile, SubjectType } from '@/lib/types';
 import { T, useT } from '@/components/i18n/LocaleProvider';
+import { runGatedAction } from '@/lib/gated-action';
 
 /**
  * "New matter" affordance for the firm cases list. Opens a full matter
@@ -80,7 +81,7 @@ export function NewMatterButton({ firmId }: { firmId: string }) {
       return;
     }
     startTransition(async () => {
-      const res = await createFirmCaseAction(firmId, {
+      const res = await runGatedAction(() => createFirmCaseAction(firmId, {
         title: title.trim(),
         subject: subject.trim(),
         subjectType,
@@ -94,7 +95,7 @@ export function NewMatterButton({ firmId }: { firmId: string }) {
         hearingAt: hearingAt.trim() || null,
         hearingLocation: hearingLocation.trim() || null,
         hearingNotes: hearingNotes.trim() || null,
-      });
+      }));
       if (res.ok && res.caseId) {
         router.push(`/counsel/cases/${res.caseId}`);
       } else {

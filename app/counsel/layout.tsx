@@ -4,6 +4,9 @@ import { headers } from 'next/headers';
 import { getCurrentUserResult, isSupabaseConfigured } from '@/lib/supabase/server';
 import { SessionReconnect } from '@/components/auth/SessionReconnect';
 import { getActiveFirmContext, listMyFirms } from '@/lib/firm-storage';
+import { ACCESS_ENDED_PATH, counselAccessRedirect } from '@/lib/firm-access';
+import { firmTrialState, readTrialSnapshot } from '@/lib/firm-trials';
+import { FIRM_ADMIN_ROLES } from '@/lib/firm-authz';
 import { getFirmSurfaceSettings, DEFAULT_FIRM_SURFACE_SETTINGS } from '@/lib/firm-settings';
 import { CounselSidebar } from '@/components/counsel/CounselSidebar';
 import { SidebarCollapseProvider, CounselSidebarShell } from '@/components/counsel/SidebarFocus';
@@ -21,6 +24,39 @@ import {
 import type { Firm, FirmMember } from '@/lib/firm-types';
 
 export const dynamic = 'force-dynamic';
+
+const DAY_MS = 86_400_000;
+
+/**
+ * What the trial banner is told, resolved from the organization's stored
+ * `trial_ends_at` and from nothing else.
+ *
+ * The days are counted HERE rather than in the browser so both renders agree
+ * on what day it is. A client-side count differs from the server's whenever
+ * the two straddle midnight, which is a hydration mismatch on the one figure
+ * the banner is scanned for.
+ *
+ * Every failure returns nulls, which the banner renders as nothing at all.
+ * readTrialSnapshot fails closed on a missing row, an unreadable column and a
+ * missing admin client, and an unparseable stored date is caught here. This is
+ * COPY and not the gate: the gate on this same request is firmTrialState
+ * below, which throws rather than guessing. A banner that guesses is what this
+ * whole change removes, so the safe answer to an unknown clock is silence.
+ */
+async function trialNotice(
+  firmId: string,
+): Promise<{ trialEndsAt: string | null; daysLeft: number | null }> {
+  const snapshot = await readTrialSnapshot(firmId);
+  if (!snapshot.ok || !snapshot.trialEndsAt) {
+    return { trialEndsAt: null, daysLeft: null };
+  }
+  const endMs = Date.parse(snapshot.trialEndsAt);
+  if (Number.isNaN(endMs)) return { trialEndsAt: null, daysLeft: null };
+  return {
+    trialEndsAt: snapshot.trialEndsAt,
+    daysLeft: Math.ceil((endMs - Date.now()) / DAY_MS),
+  };
+}
 
 /**
  * Layout for the law-firm perspective. Wrapper around `/counsel/*`.
@@ -45,16 +81,25 @@ export default async function CounselLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Short-circuit public + token-gated routes. These pages render
-  // their own full-bleed shells (the public request form and the
-  // grant-redemption welcome screen) and must not inherit the
-  // firm-membership-gated chrome. The pages still get the dark
-  // counsel-shell because they wrap their own content in it.
+  // Short-circuit the routes that render their own full-bleed shells (the
+  // public request form, the grant-redemption welcome screen, and the
+  // access-ended page) and must not inherit the firm-membership-gated chrome.
+  // The pages still get the dark counsel-shell because they wrap their own
+  // content in it, and each resolves its own signed-in user.
+  //
+  // /counsel/access-ended is here for a second reason, and it is load-bearing:
+  // sitting outside every gate below is what makes it impossible for the page
+  // to redirect to itself. An infinite redirect would be worse than a lockout,
+  // because it would put the organization's own data out of reach. It also
+  // lets a Hub employee sent here by app/portal/layout.tsx actually land,
+  // rather than being bounced on by the firm-membership gate.
   const headersList = headers();
   const pathname = headersList.get('x-pathname') ?? '';
-  const isPublicCounselRoute =
-    pathname === '/counsel/request' || pathname === '/counsel/welcome';
-  if (isPublicCounselRoute) return <>{children}</>;
+  const isSelfShelledCounselRoute =
+    pathname === '/counsel/request' ||
+    pathname === '/counsel/welcome' ||
+    pathname === '/counsel/access-ended';
+  if (isSelfShelledCounselRoute) return <>{children}</>;
 
   // Phase 2 white-label: middleware injects tenant headers when the
   // request comes from <slug>.advottic.com. When present, this layout
@@ -115,6 +160,33 @@ export default async function CounselLayout({
   if (myFirms.length === 0) {
     const guest = await getGuestContext();
     if (guest) {
+      // A co-counsel guest keeps READ access to their matter when the
+      // organization's TRIAL LAPSES, and loses it when the organization is
+      // SUSPENDED. The two are the same FirmAccessState on purpose, and this
+      // is the one place the difference matters.
+      //
+      // A lapse is a billing fact about the firm. The guest is an outside
+      // attorney the firm invited onto one matter; cutting them off takes a
+      // matter away from the lawyer working it in order to punish a third
+      // party for someone else's invoice, and nothing about the lapse makes
+      // the grant improper.
+      //
+      // A suspension is the abuse-response state, the same one that justifies
+      // stopping outbound mail and calendar invitations in Advottic's name.
+      // While it holds, an account the FIRM provisioned is a channel the
+      // suspension exists to close, not a neutral third party, so the merits
+      // argument above does not reach it.
+      //
+      // Their WRITES are refused either way: requireActiveFirm sits in the
+      // actions and does not care whether the caller is a member or a guest.
+      //
+      // No loop is reachable. /counsel/access-ended is short-circuited above,
+      // before this branch begins, so a redirected guest lands there and never
+      // reaches guestPathAllowed.
+      if (guest.firmId) {
+        const { firmSuspended } = await import('@/lib/firm-trials');
+        if (await firmSuspended(guest.firmId)) redirect(ACCESS_ENDED_PATH);
+      }
       const locale = await getLocaleCookie();
       // Force-change wall: a provisioned guest who still owes their first-login
       // password change is parked on that page until it's done.
@@ -143,13 +215,9 @@ export default async function CounselLayout({
             <CounselTrialBanner
               guest
               firmName={guest.firm?.name ?? ''}
-              daysLeft={(() => {
-                const created = (guest.firm as { createdAt?: string } | null)?.createdAt;
-                const ms = created ? Date.parse(created) : NaN;
-                if (Number.isNaN(ms)) return null;
-                const elapsed = Math.floor((Date.now() - ms) / 86_400_000);
-                return Math.max(0, 30 - elapsed);
-              })()}
+              {...(guest.firmId
+                ? await trialNotice(guest.firmId)
+                : { trialEndsAt: null, daysLeft: null })}
             />
             <CounselGuestHeader
               firm={guest.firm}
@@ -210,6 +278,36 @@ export default async function CounselLayout({
     }
   }
 
+  // Access gate, layer one of two, and the weaker one. This is a COURTESY to
+  // a browser: it puts a person who can no longer use the product on a page
+  // that explains why and hands them their data. It is NOT the gate. The gate
+  // is requireActiveFirm inside the write paths, because every 'use server'
+  // export is a public HTTP endpoint that stays callable no matter what this
+  // layout renders.
+  //
+  // firmTrialState reads a fresh clock every call, so nothing here may be
+  // cached or hoisted: a cached state outlives the trial end, which is exactly
+  // the staleness that having no scheduled job removes.
+  //
+  // It can also THROW, on a read failure or a stored timestamp that will not
+  // parse, and that throw must travel. A catch that yields an access state
+  // would turn this whole fail-closed design into a fail-open one in two
+  // lines. "Could not determine access" is not "this caller may proceed". A
+  // request with no firm at all is the other thing, and only that one
+  // proceeds, which is why this sits under `if (active)`.
+  //
+  // The state is also kept, for the banner further down. It is the answer this
+  // request already computed rather than a second read of the same fact: a
+  // second read is a second answer, and the one thing worse than a banner that
+  // cannot see a closure is a banner that disagrees with the gate above it.
+  let accessEnded = false;
+  if (active) {
+    const state = await firmTrialState(active.firm.id);
+    accessEnded = state === 'export_only';
+    const destination = counselAccessRedirect(pathname, state);
+    if (destination) redirect(destination);
+  }
+
   // User's chosen UI language (#14). LocaleProvider below translates
   // only the UI chrome wrapped in <T>, leaving firm data verbatim.
   const locale = await getLocaleCookie();
@@ -241,15 +339,19 @@ export default async function CounselLayout({
       {active ? (
         <CounselTrialBanner
           firmName={active.firm.name}
-          daysLeft={(() => {
-            // Same clock as the guest shell: 30 days from firm creation, and
-            // NULL (no countdown claim) when the start date is unknown.
-            const created = (active.firm as { createdAt?: string }).createdAt;
-            const ms = created ? Date.parse(created) : NaN;
-            if (Number.isNaN(ms)) return null;
-            const elapsed = Math.floor((Date.now() - ms) / 86_400_000);
-            return Math.max(0, 30 - elapsed);
-          })()}
+          // Whether the gate on THIS request found the organization closed.
+          // The banner cannot work that out from the dates it is given,
+          // because a suspension closes an organization whatever its dates
+          // say. Only /counsel/accept-invite still renders this banner once
+          // an organization is closed; every other path in the shell has
+          // already been redirected away by the gate above.
+          accessEnded={accessEnded}
+          // The membership this layout already resolved, not a fourth
+          // membership check. It decides whether the notice offers the
+          // download or names who can run it; the export route authorizes
+          // itself either way.
+          canExport={FIRM_ADMIN_ROLES.includes(active.membership.role)}
+          {...(await trialNotice(active.firm.id))}
         />
       ) : null}
       <CounselHeader

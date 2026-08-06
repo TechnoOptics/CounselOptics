@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { createSigningRequestAction } from '@/lib/firm-actions';
 import { T, useT } from '@/components/i18n/LocaleProvider';
+import { runGatedAction } from '@/lib/gated-action';
 
 type Signer = { email: string; name: string };
 
@@ -48,13 +49,13 @@ export function CreateSigningRequestForm({
       return;
     }
     startTransition(async () => {
-      const res = await createSigningRequestAction(
+      const res = await runGatedAction(() => createSigningRequestAction(
         firmId,
         documentId,
         payload,
         message.trim() || null,
         { signerCanDownload },
-      );
+      ));
       if (res.ok) {
         setOk(true);
         setSigners([{ email: '', name: '' }]);

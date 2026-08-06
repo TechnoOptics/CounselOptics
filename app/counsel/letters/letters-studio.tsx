@@ -12,6 +12,7 @@ import {
 import { saveLetterToCaseAction } from '@/lib/letters-actions';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import { PdfPreviewDialog } from '@/components/PdfPreviewDialog';
+import { runGatedAction } from '@/lib/gated-action';
 
 type Brand = {
   firmName: string;
@@ -174,7 +175,7 @@ export function LettersStudio({
     setError(null);
     setSaved(null);
     startSaving(async () => {
-      const res = await saveLetterToCaseAction({
+      const res = await runGatedAction(() => saveLetterToCaseAction({
         title,
         body,
         options,
@@ -182,7 +183,7 @@ export function LettersStudio({
         signerTitle,
         dateText,
         caseId: caseId || null,
-      });
+      }));
       if (res.ok) {
         setSaved(
           caseId

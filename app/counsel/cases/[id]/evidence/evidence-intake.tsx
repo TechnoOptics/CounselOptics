@@ -65,6 +65,8 @@ import {
   PersonIcon,
   PlaceIcon,
 } from '@/components/counsel/EntityIcons';
+import { isAccessEndedError } from '@/lib/firm-access';
+import { ACCESS_ENDED_NOTICE, runGatedAction } from '@/lib/gated-action';
 
 // How often the list re-syncs from the server as a fallback to Realtime, so
 // items and scores another member (or the background scorer) produced appear
@@ -669,11 +671,22 @@ export function EvidenceIntake({
       const errors: string[] = [];
       setProgress({ done: 0, total: files.length });
 
+      // Set once the server has refused this organization outright. A refusal
+      // is a DECISION, not a blip: retrying it asks the same question twice
+      // more, gets the same answer, and then reports Next's redacted message
+      // as a generic batch failure. So it is terminal for the batch AND for
+      // the run, because every remaining batch would be refused too and there
+      // is no reason to send a thousand files at a closed door.
+      let refused = false;
+
       // Send one batch with a timeout + retries. A batch that keeps failing (or
       // hangs) is counted and SKIPPED - it must never throw out of here, or the
       // whole run would abort partway (which read like an upload "cap"/hang).
       const sendBatch = async (batch: File[], replaces: string[] | undefined) => {
         for (let attempt = 0; ; attempt++) {
+          if (refused) {
+            return { ok: false, imported: 0, failed: batch.length, errors: [] };
+          }
           try {
             const fd = new FormData();
             for (const f of batch) fd.append('files', f);
@@ -687,6 +700,13 @@ export function EvidenceIntake({
               ),
             ]);
           } catch (err) {
+            // Checked BEFORE the retry arithmetic, on identity rather than on
+            // the message, because in production Next has already redacted the
+            // message by the time it reaches this browser.
+            if (isAccessEndedError(err)) {
+              refused = true;
+              return { ok: false, imported: 0, failed: batch.length, errors: [] };
+            }
             const timedOut = err instanceof Error && err.message === '__timeout__';
             // A timeout is terminal (the request may still be completing
             // server-side; retrying could double-import). Other errors retry.
@@ -739,6 +759,17 @@ export function EvidenceIntake({
       } finally {
         setBusy(false);
         setProgress(null);
+      }
+
+      // The refusal replaces the tally rather than sitting beside it. "Imported
+      // 0 file(s). 1,000 could not be imported." next to the real reason reads
+      // like a fault in the upload, which is the thing that sends someone
+      // re-dropping the same folder.
+      if (refused) {
+        setError(ACCESS_ENDED_NOTICE);
+        setNotice(null);
+        if (imported) await refresh();
+        return;
       }
 
       const parts = [t('Imported {n} file(s).').replace('{n}', String(imported))];
@@ -888,7 +919,7 @@ export function EvidenceIntake({
       setError(null);
       setNotice(null);
       setBusy(true);
-      const res = await importCaseEvidenceFromUrlsAction(firmId, caseId, urls);
+      const res = await runGatedAction(() => importCaseEvidenceFromUrlsAction(firmId, caseId, urls));
       await refresh();
       setBusy(false);
       const parts = [t('Imported {n} file(s).').replace('{n}', String(res.imported ?? 0))];

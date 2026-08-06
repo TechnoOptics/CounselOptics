@@ -9,6 +9,7 @@ import {
 import { createBrowserSupabase } from '@/lib/supabase/client';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import type { FirmChannel, FirmMessage } from '@/lib/firm-types';
+import { runGatedAction } from '@/lib/gated-action';
 
 // Heartbeat refetch interval - the Realtime channel covers the live
 // case, this is just a safety net so a missed event (network blip,
@@ -186,7 +187,7 @@ export function ChatShell({
     const body = draft;
     setDraft('');
     startTransition(async () => {
-      const res = await sendFirmMessageAction(activeId, body);
+      const res = await runGatedAction(() => sendFirmMessageAction(activeId, body));
       if (!res.ok) {
         setSendError(res.error ?? t('Could not send message.'));
         setDraft(body);

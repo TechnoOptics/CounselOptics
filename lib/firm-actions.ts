@@ -10,6 +10,7 @@ import {
   callerHasFirmRole,
   callerIsFirmAdmin,
   callerIsFirmMember,
+  requireActiveFirm,
   FIRM_MANAGE_ROLES,
 } from './firm-authz';
 import {
@@ -18,6 +19,7 @@ import {
   buildSigningRequestEmailHtml,
   buildSigningCodeEmailHtml,
 } from './email';
+import { seatCheck } from './firm-access';
 import type { FirmRole, FirmSigningStatus, FirmType } from './firm-types';
 import { FIRM_ROLES, FIRM_TYPES } from './firm-types';
 import { CASE_TYPES, type CaseType, type Posture } from './types';
@@ -569,6 +571,12 @@ export async function inviteFirmMemberAction(
   if (!(await callerIsFirmAdmin(firmId))) {
     return { ok: false, error: 'Only firm owners and admins can invite members.' };
   }
+  // The gate, not the redirect. This export is a public HTTP endpoint and
+  // stays callable after the shell has sent this person to the access-ended
+  // page. There is deliberately no try around it: firmTrialState throws when
+  // access cannot be determined, and that is a refusal, not a reason to
+  // continue.
+  await requireActiveFirm(firmId);
   const supabase = createServerSupabase();
   const token = newToken(32);
   const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
@@ -634,6 +642,63 @@ export async function acceptFirmInvitationAction(
       error: `This invitation was sent to ${invRow.email}. Sign in with that email.`,
     };
   }
+  // Nobody joins an organization whose access has ended, and the invitee is
+  // not a member yet, so this is the only check that can say so.
+  await requireActiveFirm(invRow.firm_id);
+
+  // Seat cap. This is the point where a seat is actually CONSUMED, so it is
+  // the point that has to refuse: an invitation is only an offer, and the
+  // number of outstanding offers is not the number of people in the firm.
+  //
+  // Existing members are grandfathered. seatCheck is never used to remove
+  // anybody, so an organization whose limit was lowered below its headcount
+  // keeps everyone it has and simply cannot add the next person. A member
+  // re-accepting an invitation they already used consumes no seat either,
+  // which is why the caller is excluded from the count rather than refused at
+  // a full limit they are already inside.
+  const { data: seatRows, error: seatErr } = await admin
+    .from('firm_members')
+    .select('user_id')
+    .eq('firm_id', invRow.firm_id);
+  const { data: seatFirm, error: seatFirmErr } = await admin
+    .from('firms')
+    .select('seat_limit')
+    .eq('id', invRow.firm_id)
+    .maybeSingle();
+  if (seatErr || seatFirmErr) {
+    console.error(
+      'acceptFirmInvitationAction: could not read the seat count',
+      seatErr?.message ?? seatFirmErr?.message,
+    );
+    return { ok: false, error: 'Unavailable. Please try again.' };
+  }
+  const members = (seatRows ?? []) as Array<{ user_id: string }>;
+  const alreadyAMember = members.some((m) => m.user_id === user.id);
+  // Key presence, not `?? null`, and this is the one path that consumes a
+  // seat. `?? null` reads a row that lacks the column as "no limit", which is
+  // the fail-open direction: every seat check below would pass. PostgREST
+  // errors an unknown column rather than returning a row without it, so this
+  // is not a live hole; it is the same rule the trial readers in
+  // lib/firm-trials.ts hold, that a reader does not get to assume its caller's
+  // honesty about the shape it was handed.
+  const seatRow = seatFirm as Record<string, unknown> | null;
+  if (seatRow && !('seat_limit' in seatRow)) {
+    console.error(
+      'acceptFirmInvitationAction: the firms row came back without seat_limit, so the seat limit could not be checked.',
+    );
+    return { ok: false, error: 'Unavailable. Please try again.' };
+  }
+  const seatLimit = (seatRow?.seat_limit as number | null | undefined) ?? null;
+  if (!alreadyAMember) {
+    const seats = seatCheck({ seatLimit, currentMembers: members.length });
+    if (!seats.ok) {
+      return {
+        ok: false,
+        error: `This organization has reached its limit of ${seatLimit} members. An owner or an administrator can raise it.`,
+      };
+    }
+  }
+
   // Insert membership (idempotent via UNIQUE constraint - if they
   // were already added we still mark the invite accepted).
   await admin
@@ -895,6 +960,15 @@ export async function addFirmEmployeeAction(
   if (!(await callerIsFirmAdmin(firmId))) {
     return { ok: false, error: 'Only an owner or admin can add employees.' };
   }
+  // The twin of inviteFirmMemberAction. Gating one route into an organization
+  // and leaving the other open gates nothing: this is how a Hub employee is
+  // added, and it writes firm_employees through the admin client.
+  //
+  // No seat check here, deliberately. A firm_employees row is not a
+  // firm_members seat: it is a person the organization's Hub knows about, and
+  // seatCheck is called where a seat is actually consumed, at the
+  // firm_members insert in acceptFirmInvitationAction.
+  await requireActiveFirm(firmId);
   const email = String(formData.get('email') ?? '')
     .trim()
     .toLowerCase();
@@ -1386,6 +1460,11 @@ export async function convertIntakeToCaseAction(
   if (!role || !['owner', 'admin', 'attorney', 'paralegal'].includes(role)) {
     return { ok: false, error: 'You do not have permission to open a matter.' };
   }
+  // The OTHER way a matter gets created. createFirmCaseAction is gated, and
+  // gating one of a pair while its twin stays open enforces nothing: an
+  // organization whose access ended could keep opening matters straight off
+  // its intake queue.
+  await requireActiveFirm(firmId);
 
   const { data: row } = await admin
     .from('firm_matter_intakes')
@@ -1636,6 +1715,11 @@ export async function scheduleStandaloneMeetingAction(
   if (!(await callerIsFirmMember(firmId))) {
     return { ok: false, error: 'You do not have access to this firm.' };
   }
+  // This one sends OUTBOUND calendar invitations, to third parties, in
+  // Advottic's name and under the organization's. A suspended organization is
+  // the abuse-response state, so leaving this open means the response does not
+  // stop the behaviour it was invoked for.
+  await requireActiveFirm(firmId);
   const admin = createAdminSupabase();
   if (!admin) return { ok: false, error: 'Server not configured.' };
 
@@ -1843,6 +1927,7 @@ export async function inviteFirmClientAction(
       error: 'Only an owner, admin, or attorney at this firm can invite clients.',
     };
   }
+  await requireActiveFirm(firmId);
   const email = String(formData.get('email') ?? '').trim().toLowerCase();
   const displayName = String(formData.get('displayName') ?? '').trim() || null;
   if (!email || !email.includes('@')) return { ok: false, error: 'Enter a valid email.' };
@@ -1943,6 +2028,7 @@ export async function uploadFirmDocumentAction(
   if (!['owner', 'admin', 'attorney', 'paralegal'].includes(role)) {
     return { ok: false, error: 'Your role cannot upload documents.' };
   }
+  await requireActiveFirm(firmId);
   const id = crypto.randomUUID();
   const safeName = file.name.replace(/[^a-zA-Z0-9.\-_ ]/g, '').slice(0, 100);
   const filePath = `${firmId}/${id}/${safeName}`;
@@ -2120,6 +2206,7 @@ export async function createSigningRequestAction(
       };
     }
   }
+  await requireActiveFirm(firmId);
 
   // Compute SHA-256 of the document at the moment the request is
   // created so the audit trail can prove the bytes the signers
@@ -2549,6 +2636,27 @@ export async function sendFirmMessageAction(
   if (!trimmed) return { ok: false, error: 'Message cannot be empty.' };
   if (trimmed.length > 4000) return { ok: false, error: 'Message is too long (4000 char max).' };
   const supabase = createServerSupabase();
+  // The channel says which organization this is, and the argument does not, so
+  // the firm has to be resolved before anything is written. Read through the
+  // USER-scoped client on purpose: RLS already limits it to channels the
+  // sender belongs to, so this cannot become a way to probe another firm's
+  // channel ids.
+  //
+  // This action matters more than its size suggests. The fan-out below sends
+  // OUTBOUND notification email and fires the organization's webhooks, so a
+  // suspended organization, which is the abuse-response state, could otherwise
+  // still reach third parties through it.
+  //
+  // A channel we cannot read is a refusal, not a pass. The insert would have
+  // failed on RLS anyway; saying so here is the same answer, earlier.
+  const { data: channelRef } = await supabase
+    .from('firm_channels')
+    .select('firm_id')
+    .eq('id', channelId)
+    .maybeSingle();
+  const channelFirmId = (channelRef as { firm_id?: string } | null)?.firm_id;
+  if (!channelFirmId) return { ok: false, error: 'Channel not found.' };
+  await requireActiveFirm(channelFirmId);
   const { data, error } = await supabase
     .from('firm_messages')
     .insert({
@@ -3814,6 +3922,7 @@ export async function createFirmCaseAction(
   if (!(await callerIsFirmMember(firmId))) {
     return { ok: false, error: 'You do not have access to this firm.' };
   }
+  await requireActiveFirm(firmId);
   const admin = createAdminSupabase();
   if (!admin) return { ok: false, error: 'Server not configured.' };
 

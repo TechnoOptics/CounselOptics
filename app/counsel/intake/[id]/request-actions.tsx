@@ -7,6 +7,7 @@ import {
   setIntakeReminderAction,
   convertIntakeToCaseAction,
 } from '@/lib/firm-actions';
+import { runGatedAction } from '@/lib/gated-action';
 
 /**
  * Reminder + e-signature actions for a request. The reminder is
@@ -37,7 +38,7 @@ export function RequestActions({
   function convert() {
     setConvertError(null);
     startConvert(async () => {
-      const res = await convertIntakeToCaseAction(firmId, intakeId);
+      const res = await runGatedAction(() => convertIntakeToCaseAction(firmId, intakeId));
       if (res.ok && res.caseId) {
         router.push(`/counsel/cases/${res.caseId}`);
       } else {

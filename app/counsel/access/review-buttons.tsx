@@ -7,6 +7,7 @@ import {
   denyAccessRequestAction,
 } from '@/lib/access-actions';
 import { T, useT } from '@/components/i18n/LocaleProvider';
+import { runGatedAction } from '@/lib/gated-action';
 
 export function ReviewButtons({ requestId }: { requestId: string }) {
   const t = useT();
@@ -19,7 +20,7 @@ export function ReviewButtons({ requestId }: { requestId: string }) {
     startTransition(async () => {
       const res =
         kind === 'approve'
-          ? await approveAccessRequestAction(requestId)
+          ? await runGatedAction(() => approveAccessRequestAction(requestId))
           : await denyAccessRequestAction(requestId);
       if (res.ok) {
         router.refresh();

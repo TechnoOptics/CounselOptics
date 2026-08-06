@@ -9,6 +9,7 @@ import {
 } from '@/lib/firm-types';
 import type { Case } from '@/lib/types';
 import { T, useT } from '@/components/i18n/LocaleProvider';
+import { runGatedAction } from '@/lib/gated-action';
 
 /**
  * Upload + classify a firm document. The form has three layers:
@@ -39,7 +40,7 @@ export function UploadDocumentForm({
   function submit(formData: FormData) {
     setError(null);
     startTransition(async () => {
-      const res = await uploadFirmDocumentAction(firmId, formData);
+      const res = await runGatedAction(() => uploadFirmDocumentAction(firmId, formData));
       if (res.ok) {
         formRef.current?.reset();
         setFileLabel('');

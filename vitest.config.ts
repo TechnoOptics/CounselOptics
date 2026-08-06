@@ -14,12 +14,27 @@ export default defineConfig({
       'server-only': fileURLToPath(
         new URL('./tests/stubs/server-only.ts', import.meta.url),
       ),
-      // Matches the tsconfig `@/*` path so an imported route resolves the same
-      // files a test mocks by relative path. The trailing slash keeps this off
-      // scoped package names such as `@supabase/ssr`.
+      // The project's own path alias, mirroring tsconfig's "@/*": ["./*"], so a
+      // test can drive a route handler or an app/ module that imports through
+      // it. Four branches added this independently, some keyed '@' and some
+      // keyed '@/'; they are collapsed here to the single slashed form.
+      //
+      // The trailing slash is deliberate but NOT for the reason one of those
+      // comments gave. Vite resolves a string alias through
+      // @rollup/plugin-alias, which matches only an exact hit or a `find + '/'`
+      // prefix, so a bare '@' could not have swallowed '@supabase/...' either.
+      // The slash is kept because it states the intent at a glance and because
+      // this repo has a real `supabase/` directory at its root, which is what a
+      // naive prefix replacement would have hit.
       '@/': fileURLToPath(new URL('./', import.meta.url)),
     },
   },
+  // tsconfig.json sets jsx: 'preserve' for Next's own compiler, which esbuild
+  // cannot parse. Transform JSX with the automatic runtime here so a server
+  // component can be imported and its returned element tree inspected. Still
+  // no DOM and still no testing-library: a server component returns plain
+  // objects, which is all these tests read.
+  oxc: { jsx: { runtime: 'automatic' } },
   test: {
     environment: 'node',
     include: ['tests/**/*.test.ts'],

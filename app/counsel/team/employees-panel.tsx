@@ -10,6 +10,7 @@ import {
 } from '@/lib/firm-actions';
 import type { PortalRole } from '@/lib/portal-features';
 import { T, useT } from '@/components/i18n/LocaleProvider';
+import { runGatedAction } from '@/lib/gated-action';
 
 /**
  * Owner/admin panel: the non-legal employees who get the scoped
@@ -36,7 +37,7 @@ export function EmployeesPanel({
     setError(null);
     setOk(false);
     startTransition(async () => {
-      const res = await addFirmEmployeeAction(firmId, formData);
+      const res = await runGatedAction(() => addFirmEmployeeAction(firmId, formData));
       if (res.ok) {
         setOk(true);
         router.refresh();

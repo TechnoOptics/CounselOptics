@@ -6,6 +6,7 @@ import { createAdminSupabase } from './supabase/admin';
 import { appendSignatureEvent, sha256 } from './esign-audit';
 import { createNotification } from './notifications';
 import { checkRateLimit } from './rate-limit';
+import { requireActiveFirm } from './firm-authz';
 
 /**
  * Signing lifecycle actions beyond the happy-path sign flow:
@@ -45,6 +46,14 @@ export async function recallSigningRequestAction(
     return { ok: false, error: 'This request is already completed and cannot be recalled.' };
   }
   if (request.status === 'canceled') return { ok: true };
+  // createSigningRequestAction is gated, so without this the lifecycle simply
+  // keeps running for an organization whose access has ended: it cannot start
+  // a signing request but can still drive the ones it has, and each step
+  // notifies signers outside the firm.
+  //
+  // On the INVITING firm, resolved from the request row and already checked
+  // against the caller's active firm above, never on a caller-supplied id.
+  await requireActiveFirm(request.firm_id);
 
   await admin
     .from('firm_signing_requests')
@@ -125,6 +134,9 @@ export async function reopenSigningRequestAction(
       error: 'Only a request a signer put on hold can be reopened.',
     };
   }
+  // Same reason as the recall above: reopening puts a document back in front
+  // of a signer, which is the organization continuing to work.
+  await requireActiveFirm(request.firm_id);
 
   const { data: sigs } = await admin
     .from('firm_signatures')

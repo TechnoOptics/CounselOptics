@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { inviteFirmClientAction } from '@/lib/firm-actions';
 import { T, useT } from '@/components/i18n/LocaleProvider';
+import { runGatedAction } from '@/lib/gated-action';
 
 export function InviteClientForm({ firmId }: { firmId: string }) {
   const t = useT();
@@ -16,7 +17,7 @@ export function InviteClientForm({ firmId }: { firmId: string }) {
     setError(null);
     setOk(false);
     startTransition(async () => {
-      const res = await inviteFirmClientAction(firmId, formData);
+      const res = await runGatedAction(() => inviteFirmClientAction(firmId, formData));
       if (res.ok) {
         setOk(true);
         router.refresh();

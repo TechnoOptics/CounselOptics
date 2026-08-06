@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { inviteFirmMemberAction } from '@/lib/firm-actions';
 import { FIRM_ROLE_LABEL } from '@/lib/firm-types';
 import { T, useT } from '@/components/i18n/LocaleProvider';
+import { runGatedAction } from '@/lib/gated-action';
 
 const INVITABLE_ROLES = ['admin', 'attorney', 'paralegal', 'staff'] as const;
 
@@ -19,7 +20,7 @@ export function InviteMemberForm({ firmId }: { firmId: string }) {
     setError(null);
     setOk(false);
     startTransition(async () => {
-      const res = await inviteFirmMemberAction(firmId, formData);
+      const res = await runGatedAction(() => inviteFirmMemberAction(firmId, formData));
       if (res.ok) {
         setOk(true);
         router.refresh();

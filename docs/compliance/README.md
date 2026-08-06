@@ -14,6 +14,7 @@ This folder is Advottic's audit-readiness documentation for **SOC 2**, **ISO 270
 - [Business Continuity & DR](policies/business-continuity-dr.md)
 - [Data Retention & Disposal](policies/data-retention-and-disposal.md)
 - [Vendor & Subprocessor Management (+ BAA tracker)](policies/vendor-and-subprocessor-management.md)
+- [Trial Lapse Retention Posture](policies/trial-lapse-retention.md)
 - [Risk Register](policies/risk-register.md)
 
 ## HIPAA (`hipaa/`)
