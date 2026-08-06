@@ -37,7 +37,20 @@ import { T, useT } from '@/components/i18n/LocaleProvider';
 
 type Mode = 'client' | 'inhouse';
 
-const REQUEST_TYPES: Array<{ value: string; label: string; mode: Mode }> = [
+/**
+ * `custom` marks a type that came from the firm's own configuration
+ * rather than from this list. Its label is the firm's wording, so it is
+ * rendered as-is: putting it through <T> would send it to machine
+ * translation and hand the firm back a mangled version of its own term.
+ */
+type RequestTypeOption = {
+  value: string;
+  label: string;
+  mode: Mode;
+  custom?: boolean;
+};
+
+const REQUEST_TYPES: RequestTypeOption[] = [
   { value: 'New case / matter', label: 'New case / matter (outside client)', mode: 'client' },
   { value: 'New contract / agreement', label: 'New contract / agreement', mode: 'inhouse' },
   { value: 'Internal review request', label: 'Internal review request', mode: 'inhouse' },
@@ -72,6 +85,7 @@ export function CreateIntakeForm({
   defaultSubmittedBy = '',
   employeeMode = false,
   redirectBase = '/counsel/intake',
+  initialRequestType,
 }: {
   firmId: string;
   /**
@@ -92,15 +106,38 @@ export function CreateIntakeForm({
    * portal has no /counsel access, so it routes back to /portal.
    */
   redirectBase?: string;
+  /**
+   * The request type to open on, chosen elsewhere - the Hub tiles pass
+   * the one the employee clicked. It is a firm-configured value, so it
+   * is not necessarily one of the built-in twelve: an unknown value is
+   * added to the picker rather than dropped, and an absent one leaves
+   * the default alone, so the form works on its own either way.
+   */
+  initialRequestType?: string;
 }) {
   const router = useRouter();
   const t = useT();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const availableTypes = employeeMode
+  const baseTypes = employeeMode
     ? REQUEST_TYPES.filter((r) => r.mode === 'inhouse')
     : REQUEST_TYPES;
-  const [requestType, setRequestType] = useState(availableTypes[0].value);
+  const preselected = (initialRequestType ?? '').trim();
+  const availableTypes =
+    preselected && !baseTypes.some((r) => r.value === preselected)
+      ? [
+          ...baseTypes,
+          {
+            value: preselected,
+            label: preselected,
+            mode: 'inhouse' as Mode,
+            custom: true,
+          },
+        ]
+      : baseTypes;
+  const [requestType, setRequestType] = useState(
+    preselected || availableTypes[0].value,
+  );
   const [opposing, setOpposing] = useState<string[]>(['']);
   const [related, setRelated] = useState<string[]>(['']);
   const [summary, setSummary] = useState('');
@@ -126,7 +163,7 @@ export function CreateIntakeForm({
   }
 
   const mode: Mode =
-    REQUEST_TYPES.find((r) => r.value === requestType)?.mode ?? 'client';
+    availableTypes.find((r) => r.value === requestType)?.mode ?? 'client';
   // In employee mode every request is an in-house request, period.
   const inhouse = employeeMode || mode === 'inhouse';
 
@@ -268,7 +305,7 @@ export function CreateIntakeForm({
         >
           {availableTypes.map((r) => (
             <option key={r.value} value={r.value}>
-              <T>{r.label}</T>
+              {r.custom ? r.label : <T>{r.label}</T>}
             </option>
           ))}
         </select>

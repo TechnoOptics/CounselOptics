@@ -374,6 +374,63 @@ export function TrustIcon() {
   );
 }
 
+/* Request types ---------------------------------------------------- */
+
+// Confidentiality / NDA. A padlock. The shackle breaking above the body
+// is the silhouette event, and it is the only closed loop in the set
+// that sits on top of a container rather than inside one, so it never
+// reads as Key three rows up.
+export function LockIcon() {
+  return (
+    <Icon>
+      <rect x="4.6" y="10.2" width="14.8" height="10.3" rx="1.6" />
+      <path d="M8.2 10.2V7.6a3.8 3.8 0 017.6 0v2.6" />
+      <path d="M12 14v2.6" />
+    </Icon>
+  );
+}
+
+// A registered mark: trademark, patent, copyright. A seal with its
+// ribbon. The boss inside the disc is inset 3.3 units from the rim, the
+// same interior rhythm the page glyphs use, and the two ribbon legs are
+// what keep it apart from the other centred discs (Time, Help).
+export function SealIcon() {
+  return (
+    <Icon>
+      <circle cx="12" cy="9.4" r="6.1" />
+      <circle cx="12" cy="9.4" r="2.8" />
+      <path d="M8.6 14.7L6.9 20.6 12 18l5.1 2.6-1.7-5.9" />
+    </Icon>
+  );
+}
+
+// An outside company: a vendor, a supplier, a counterparty. Two masses
+// on a ground line. Nothing else in the set stands on a baseline, which
+// is what stops it reading as another landscape frame.
+export function BuildingIcon() {
+  return (
+    <Icon>
+      <path d="M4.4 20.6V6a1.6 1.6 0 011.6-1.6h6.4A1.6 1.6 0 0114 6v14.6" />
+      <path d="M14 11.4h4a1.6 1.6 0 011.6 1.6v7.6" />
+      <path d="M3.4 20.6h17.2" />
+      <path d="M7.6 8.6h3.2M7.6 11.8h3.2M7.6 15h3.2" />
+    </Icon>
+  );
+}
+
+// Something that cannot wait: an incident, a hold, a deadline that has
+// teeth. The triangle is the one non-rectilinear container in the set,
+// so it carries urgency without needing a colour to say so.
+export function AlertIcon() {
+  return (
+    <Icon>
+      <path d="M13.38 4.4l7.06 12.4a1.6 1.6 0 01-1.39 2.4H4.95a1.6 1.6 0 01-1.39-2.4L10.62 4.4a1.6 1.6 0 012.76 0z" />
+      <path d="M12 9.4v4.2" />
+      <path d="M12 16.4h.01" />
+    </Icon>
+  );
+}
+
 /* Support and settings -------------------------------------------- */
 
 export function HelpIcon() {

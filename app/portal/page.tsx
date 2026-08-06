@@ -9,6 +9,9 @@ import { parseDueBy, isDueCurrent } from '@/lib/portal-due';
 import { visibleIntakeIds, intakesAwaitingReply } from '@/lib/portal-scope';
 import { PageHeader, SectionTitle, StatCard, EmptyState } from '@/components/counsel/ui';
 import { StatusPill, PILL_COLORS } from '@/components/counsel/StatusPill';
+import { listEmployeeRequestTypes, type FirmRequestType } from '@/lib/request-types';
+import { RequestTypeTiles } from '@/components/portal/RequestTypeTiles';
+import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Home · Hub' };
@@ -40,6 +43,19 @@ export default async function PortalDashboardPage() {
   const canReview = persona.entitlements.includes('review') && !externalView;
 
   const admin = createAdminSupabase();
+  // The kinds of request this firm accepts, as the employee is allowed
+  // to file them: in-house only, nothing hidden, in the firm's order.
+  const requestTypes: FirmRequestType[] = canCreate
+    ? await listEmployeeRequestTypes(admin, persona.firm.id)
+    : [];
+  // The Hub shows a short list, not the whole menu. Home also carries
+  // this employee's open requests and what is waiting on them, and a
+  // wall of tiles would bury both. Six is two rows at the desktop
+  // width and three on a tablet; the rest live on /portal/new.
+  const HUB_TILES = 6;
+  const featuredTypes = requestTypes.slice(0, HUB_TILES);
+  const moreTypes = requestTypes.length - featuredTypes.length;
+
   let intakes: IntakeRow[] = [];
   let awaitingIds = new Set<string>();
   let meetings: Array<{
@@ -147,9 +163,35 @@ export default async function PortalDashboardPage() {
         ))}
       </section>
 
+      {/* What can I ask legal for? The tiles answer that before the
+          employee has to open anything. Each one lands on the request
+          form with its type already chosen. */}
+      {featuredTypes.length > 0 && (
+        <section className="space-y-3">
+          <SectionTitle
+            action={
+              moreTypes > 0 ? (
+                <Link
+                  href="/portal/new"
+                  className="text-[12.5px] text-gold-300 hover:text-gold-200"
+                >
+                  <T>See all request types</T>
+                </Link>
+              ) : undefined
+            }
+          >
+            <T>Start a request</T>
+          </SectionTitle>
+          <p className="-mt-1 text-[13px] text-cream-100/55">
+            <T>Pick what you need. The form opens ready for that kind of request.</T>
+          </p>
+          <RequestTypeTiles types={featuredTypes} />
+        </section>
+      )}
+
       {/* Quick actions */}
       <section className="flex flex-wrap gap-3">
-        {canCreate && (
+        {canCreate && featuredTypes.length === 0 && (
           <Link
             href="/portal/new"
             className="btn bg-gold-400 hover:bg-gold-300 text-forest-950 font-semibold"
