@@ -3103,7 +3103,14 @@ export async function resendSigningEmailsAction(
   // "Draft, not yet sent" until somebody signs it, and every surface
   // that filters on status answers that the firm has nothing out for
   // signature while the signer is looking at the document.
-  if (delivered.includes('link') && req.status === 'draft') {
+  //
+  // Whether the request is still a draft is markSigningRequestSent's
+  // own decision, taken in the UPDATE rather than from the status read
+  // at the top of this action. Asking here as well would cost one
+  // no-op write on the common case and buy nothing: two guards on one
+  // fact, either of which can rot without a test noticing, because
+  // each hides the other.
+  if (delivered.includes('link')) {
     await markSigningRequestSent(admin, {
       requestId: sig.signing_request_id,
       documentId: req.document_id,
