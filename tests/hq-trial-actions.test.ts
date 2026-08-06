@@ -30,8 +30,13 @@ const auth = vi.hoisted(() => ({
 }));
 
 const db = vi.hoisted(() => ({
-  /** What the firms row holds, or null for "no such organization". */
-  row: null as { trial_ends_at: string | null } | null,
+  /**
+   * What the firms row holds, or null for "no such organization". Typed as
+   * a bare record, not `{ trial_ends_at: string | null }`, so a test can set
+   * it to `{}`: a truthy row that is missing the column entirely, which is
+   * different from a row that carries the column set to null.
+   */
+  row: null as Record<string, unknown> | null,
   /** Set to simulate a read failure rather than an absent row. */
   readError: null as string | null,
   /** Calls to createAdminSupabase, so we can prove the gate runs first. */
@@ -260,6 +265,19 @@ describe('grant requires there to be no trial yet', () => {
 
   it('refuses an organization that no longer exists', async () => {
     db.row = null;
+
+    const result = await grantTrialAction({ firmId: FIRM, days: 14 });
+
+    expect(result.ok).toBe(false);
+    expect(applyTrialAction).not.toHaveBeenCalled();
+  });
+
+  it('refuses a truthy row that is missing the trial_ends_at column, rather than treating the missing key as no trial', async () => {
+    // `{}` is a row object, so the "no such organization" branch above does
+    // not fire. `row.trial_ends_at ?? null` would read the missing key the
+    // same as a present null and let grant proceed, which is the fail-open
+    // direction this precondition exists to prevent.
+    db.row = {};
 
     const result = await grantTrialAction({ firmId: FIRM, days: 14 });
 

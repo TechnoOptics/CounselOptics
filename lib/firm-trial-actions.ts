@@ -192,7 +192,15 @@ async function readTrialSnapshot(firmId: string): Promise<TrialSnapshot> {
   }
   if (!data) return { ok: false, error: 'That organization no longer exists.' };
 
-  const row = data as { trial_ends_at: string | null };
+  const row = data as { trial_ends_at?: string | null };
+  // A truthy row with no trial_ends_at key must refuse, not read as "no
+  // trial". `row.trial_ends_at ?? null` treats a missing key the same as a
+  // present null, which is the fail-open direction this precondition exists
+  // to prevent. PostgREST never actually returns a row shaped this way (an
+  // unknown column errors the select, and a selected null column comes back
+  // as null, never absent), but the reader does not get to assume its own
+  // caller's honesty.
+  if (!('trial_ends_at' in row)) return { ok: false, error: 'Unavailable. Please try again.' };
   return { ok: true, trialEndsAt: row.trial_ends_at ?? null };
 }
 
