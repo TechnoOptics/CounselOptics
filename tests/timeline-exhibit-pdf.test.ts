@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
+import { PDFDocument } from 'pdf-lib';
 import { generateTimelineExhibitPdf, type TimelineExhibitData } from '../lib/pdf';
 
 // A real PNG shipped in the repo, so this exercises the actual image-embed path.
@@ -59,10 +60,13 @@ function sample(entryCount: number): TimelineExhibitData {
   };
 }
 
-function pageCount(buf: Buffer): number {
-  const s = buf.toString('latin1');
-  const counts = (s.match(/\/Count\s+(\d+)/g) || []).map((x) => parseInt(x.replace(/\D/g, ''), 10));
-  return Math.max(0, ...counts);
+// Parse the PDF and ask it how many pages it has. Do NOT regex the raw bytes
+// for `/Count N`: the exporter writes compressed object streams, so the page
+// tree is not plaintext and a byte scan silently reports 0 for every document.
+// pdf-lib is already a dependency (lib/pdf.ts uses it to splice in exhibits).
+async function pageCount(buf: Buffer): Promise<number> {
+  const doc = await PDFDocument.load(buf);
+  return doc.getPageCount();
 }
 
 describe('generateTimelineExhibitPdf', () => {
@@ -75,8 +79,8 @@ describe('generateTimelineExhibitPdf', () => {
   });
 
   it('does not explode into blank pages: page count tracks content', async () => {
-    const small = pageCount(await generateTimelineExhibitPdf(sample(2)));
-    const big = pageCount(await generateTimelineExhibitPdf(sample(10)));
+    const small = await pageCount(await generateTimelineExhibitPdf(sample(2)));
+    const big = await pageCount(await generateTimelineExhibitPdf(sample(10)));
     // Sane bounds: cover + cert + POI + chronology + narrative + conclusion +
     // disclaimer is ~6 base pages; each image entry adds roughly a page.
     expect(small).toBeGreaterThanOrEqual(5);
@@ -92,6 +96,6 @@ describe('generateTimelineExhibitPdf', () => {
     data.narrative = null;
     const buf = await generateTimelineExhibitPdf(data);
     expect(buf.toString('latin1', 0, 5)).toBe('%PDF-');
-    expect(pageCount(buf)).toBeGreaterThanOrEqual(3);
+    expect(await pageCount(buf)).toBeGreaterThanOrEqual(3);
   });
 });
