@@ -366,6 +366,38 @@ describe('the address itself has a budget', () => {
     expect(limiter.keys).toContain('signing-recipient:signer@example.test');
   });
 
+  it('counts a resend against the normalized address, not the stored spelling', async () => {
+    // createSigningRequestAction is the only writer of signer_email and
+    // it normalizes, so this is the resend side keeping its own promise
+    // rather than trusting that. A stored address with different case or
+    // stray whitespace must not be handed a bucket of its own.
+    seed();
+    sigRow().signer_email = '  Signer@Example.TEST ';
+    await mod.resendSigningEmailsAction(FIRM_A, SIG_ID);
+    expect(limiter.keys).toContain('signing-recipient:signer@example.test');
+  });
+
+  it('folds a plus tag, so one inbox cannot be given a bucket per tag', async () => {
+    // victim+1 and victim+2 are two addresses and one inbox, and nothing
+    // on this path validates an address. Keyed literally, the budget is
+    // walked around by typing a different number after the plus.
+    seedFirm();
+    await mod.createSigningRequestAction(
+      FIRM_A,
+      DOC_ID,
+      [{ email: 'Victim+matter-1@Example.TEST' }, { email: 'victim+matter-2@example.test' }],
+      null,
+    );
+    expect(limiter.keys.filter((k) => k.startsWith('signing-recipient:'))).toEqual([
+      'signing-recipient:victim@example.test',
+      'signing-recipient:victim@example.test',
+    ]);
+    // Folded for the bucket key only. Both signers are still real, and
+    // each is mailed at the address the firm typed.
+    expect(mail.sent.map((m) => m.to)).toContain('Victim+matter-1@Example.TEST');
+    expect(mail.sent.map((m) => m.to)).toContain('victim+matter-2@example.test');
+  });
+
   it('refuses a new request naming an address that is over it, and stays recoverable', async () => {
     // A new request is a new signature id and therefore a new
     // per-signature bucket, so this is the only cap on the create path.

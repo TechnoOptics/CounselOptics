@@ -2084,28 +2084,65 @@ export type SigningEmailFailure = {
 };
 
 /**
+ * The bucket key for one recipient, with any plus tag folded away.
+ *
+ * `victim+1@example.com` and `victim+2@example.com` are two addresses
+ * and one inbox, and nothing on the create path validates an address,
+ * let alone limits how many spellings of one inbox a caller may name.
+ * Keyed literally, a budget on the address is walked around by typing a
+ * different number after the plus.
+ *
+ * This is only a throttle key. It is never used as a delivery address,
+ * so folding costs a firm that legitimately plus-tags per matter
+ * nothing worse than those tags sharing one allowance, which is the
+ * same allowance the untagged address would have had on its own.
+ */
+function recipientBucketKey(normalizedEmail: string): string {
+  const at = normalizedEmail.lastIndexOf('@');
+  if (at <= 0) return normalizedEmail;
+  const local = normalizedEmail.slice(0, at);
+  const plus = local.indexOf('+');
+  return plus > 0 ? `${local.slice(0, plus)}${normalizedEmail.slice(at)}` : normalizedEmail;
+}
+
+/**
  * Is this address inside the budget of signing mail one inbox may get?
  *
  * The per-signature bucket in resendSigningEmailsAction answers "is this
- * one signer being hammered". It cannot answer "is this ADDRESS being
+ * one signer being hammered". It cannot answer "is this INBOX being
  * hammered", because every new signing request mints a new signature id
  * and therefore a brand-new bucket: name the same address on request
  * after request, up to eight signers at two messages each, and the
  * per-signature limit is never approached. Creating a request is a
  * paralegal-level action, so that path needs a cap of its own.
  *
- * Keyed on the normalized address and deliberately NOT scoped to the
- * firm: what is being protected is the recipient's inbox and the
- * reputation of the shared sending domain, neither of which belongs to
- * one tenant. The cost is that two firms mailing the same address in the
- * same ten minutes share the budget, which the window is wide enough to
- * absorb for ordinary work (a send, a resend or two, a second document).
+ * What this buys, precisely: one inbox takes at most six signing
+ * messages from us in ten minutes, however many requests, signatures or
+ * spellings of the address they are spread across. That is the whole of
+ * it.
+ *
+ * What it does NOT buy is the standing of the sending domain.
+ * createSigningRequestAction has no per-firm and no global outbound cap,
+ * so an abuser who keeps naming DISTINCT addresses is never throttled
+ * by anything here, and it is the volume across distinct addresses that
+ * a mailbox provider judges a domain on. A cap on that is a separate
+ * decision with its own blast radius (it can refuse legitimate bulk
+ * work) and is deliberately not made here.
+ *
+ * Deliberately NOT scoped to the firm. A per-firm bucket would multiply
+ * the allowance by the number of firms an abuser controls, and what is
+ * being spent, a person's patience with our mail, is not any one
+ * tenant's to spend. The cost is that two firms mailing the same
+ * address in the same ten minutes share the budget, which the window is
+ * wide enough to absorb for ordinary work (a send, a resend or two, a
+ * second document) and which fails as an honest error on a request that
+ * stays fully recoverable.
  *
  * Fails closed, like the other outbound-mail buckets: a caller who can
  * induce store errors must not be handed an uncapped mailer.
  */
 async function withinRecipientMailBudget(normalizedEmail: string): Promise<boolean> {
-  return checkRateLimit(`signing-recipient:${normalizedEmail}`, {
+  return checkRateLimit(`signing-recipient:${recipientBucketKey(normalizedEmail)}`, {
     limit: 6,
     windowSeconds: 600,
     failClosed: true,
