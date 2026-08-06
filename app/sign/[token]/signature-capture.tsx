@@ -55,7 +55,7 @@ export function SignatureCapture({
   // their own employer's template is not.
   const [mark, setMark] = useState<SignaturePadValue>({
     dataUrl: null,
-    mode: 'draw',
+    mode: 'drawn',
     hasInk: false,
     typedName: null,
   });

@@ -37,6 +37,19 @@ export type SubmissionRow = {
   created_at: string;
   updated_at: string;
   submitted_at: string;
+  /**
+   * The signer's mark and the record around it. All nullable and all absent on
+   * submissions filed before signature capture shipped, which carry a typed
+   * name and nothing else. A typed name is a valid signature, so those rows are
+   * not defective and must stay releasable.
+   */
+  signature_image_path: string | null;
+  signature_mode: 'typed' | 'drawn' | 'uploaded' | null;
+  signature_captured_at: string | null;
+  signature_intent_at: string | null;
+  signature_ip: string | null;
+  signature_user_agent: string | null;
+  signed_document_sha256: string | null;
 };
 
 /** What the UIs render. */
@@ -81,6 +94,16 @@ export type TemplateSubmission = {
   releaseError: string | null;
   submittedAt: string;
   updatedAt: string;
+  /**
+   * The mark, for the surfaces that draw it. The IP and user agent are audit
+   * facts rather than things a page shows, so they stay on the row and are
+   * deliberately not carried here.
+   */
+  signatureImagePath: string | null;
+  signatureMode: 'typed' | 'drawn' | 'uploaded' | null;
+  signatureCapturedAt: string | null;
+  signatureIntentAt: string | null;
+  signedDocumentSha256: string | null;
 };
 
 export type SubmissionInput = {
@@ -89,6 +112,14 @@ export type SubmissionInput = {
   recipientNote?: string;
   values: Record<string, string>;
   signatureName: string;
+  /**
+   * The mark the employee drew, typed or uploaded, as a PNG data URL. Optional:
+   * the typed name in signatureName is a signature on its own.
+   */
+  signatureDataUrl?: string;
+  /** When the employee affirmed they intend the mark to be their signature. */
+  signatureIntentAt?: string;
+  signatureMode?: 'typed' | 'drawn' | 'uploaded';
 };
 
 /**
@@ -145,5 +176,12 @@ export function rowToSubmission(
     releaseError: row.release_error,
     submittedAt: row.submitted_at,
     updatedAt: row.updated_at,
+    // Coalesced because these columns do not exist until the signature
+    // migration is applied, and a row read before then simply has no mark.
+    signatureImagePath: row.signature_image_path ?? null,
+    signatureMode: row.signature_mode ?? null,
+    signatureCapturedAt: row.signature_captured_at ?? null,
+    signatureIntentAt: row.signature_intent_at ?? null,
+    signedDocumentSha256: row.signed_document_sha256 ?? null,
   };
 }

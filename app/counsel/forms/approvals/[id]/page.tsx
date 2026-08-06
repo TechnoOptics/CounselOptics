@@ -2,6 +2,9 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { getTemplateSubmissionAction } from '@/lib/template-submissions';
+import { createAdminSupabase } from '@/lib/supabase/admin';
+import { signedMarkUrl } from '@/lib/template-signature';
+import { DocumentWithMark } from '@/components/DocumentWithMark';
 import { PageHeader, SectionTitle } from '@/components/counsel/ui';
 import { SubmissionStatusPill } from '@/components/portal/SubmissionStatusPill';
 import { T } from '@/components/i18n/LocaleProvider';
@@ -23,6 +26,18 @@ export default async function CounselApprovalDetailPage({ params }: { params: { 
   const res = await getTemplateSubmissionAction(params.id);
   if (!res.ok || !res.submission || res.viewer !== 'legal') notFound();
   const s = res.submission;
+
+  // The mark, fetched here and rendered inside the same block as the document
+  // it belongs to. Both come from one place and are gated by one check, so a
+  // surface that later withholds the document withholds the signature with it
+  // rather than showing a signature on a document nobody may read. The URL is
+  // short lived because the bucket is private and has to stay that way.
+  //
+  // documentVisible is the gate, and it is read here rather than only at the
+  // render site: a reviewer who may not read the wording is not handed a URL
+  // to the signature on it either.
+  const admin = s.documentVisible ? createAdminSupabase() : null;
+  const markUrl = admin ? await signedMarkUrl(admin, s.signatureImagePath) : null;
 
   return (
     <div className="space-y-5 animate-fade-up">
@@ -56,6 +71,13 @@ export default async function CounselApprovalDetailPage({ params }: { params: { 
         <Detail label="Signed as">
           <span data-no-translate>{s.signatureName}</span>
         </Detail>
+        {s.signatureIntentAt && (
+          <Detail label="Signature">
+            <span data-no-translate>
+              {`${MODE_LABEL[s.signatureMode ?? 'typed']} \u00b7 ${new Date(s.signatureIntentAt).toLocaleString()}`}
+            </span>
+          </Detail>
+        )}
         {s.recipientNote && (
           <Detail label="Note to the recipient">
             <span data-no-translate>{s.recipientNote}</span>
@@ -102,7 +124,7 @@ export default async function CounselApprovalDetailPage({ params }: { params: { 
             className="max-h-[70vh] overflow-y-auto whitespace-pre-wrap font-serif text-[13.5px] leading-relaxed text-forest-900 dark:text-cream-100/90"
             data-no-translate
           >
-            {s.documentText}
+            <DocumentWithMark text={s.documentText} markSrc={markUrl} />
           </div>
         ) : (
           <p className="text-[13px] text-ink-600 dark:text-cream-100/70">
@@ -145,6 +167,17 @@ export default async function CounselApprovalDetailPage({ params }: { params: { 
     </div>
   );
 }
+
+/**
+ * How the mark was made, in words a reviewer reads. A typed name is stated
+ * plainly and without qualification: it is a valid electronic signature, and
+ * wording that hinted otherwise would mislead the person deciding.
+ */
+const MODE_LABEL: Record<'typed' | 'drawn' | 'uploaded', string> = {
+  typed: 'Typed',
+  drawn: 'Drawn',
+  uploaded: 'Uploaded image',
+};
 
 function Detail({ label, children }: { label: string; children: React.ReactNode }) {
   return (

@@ -2,7 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-export type SignatureMode = 'draw' | 'type' | 'upload';
+/**
+ * How the mark was made. These are the values the database column stores, used
+ * here too so there is no translation table between what the pad reports and
+ * what the row records. The buttons still read Draw, Type and Upload.
+ */
+export type SignatureMode = 'drawn' | 'typed' | 'uploaded';
 
 export type SignaturePadValue = {
   /** A PNG data URL of the current mark, or null when the pad is empty. */
@@ -57,7 +62,7 @@ export function SignaturePad({
   externalMark?: string | null;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [mode, setMode] = useState<SignatureMode>('draw');
+  const [mode, setMode] = useState<SignatureMode>('drawn');
   const [typed, setTyped] = useState(defaultTypedName ?? '');
   const [drawing, setDrawing] = useState(false);
   const [hasInk, setHasInk] = useState(false);
@@ -91,7 +96,7 @@ export function SignaturePad({
 
   // Re-render the typed signature when the mode or the text changes.
   useEffect(() => {
-    if (mode !== 'type') return;
+    if (mode !== 'typed') return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -146,7 +151,7 @@ export function SignaturePad({
       dataUrl,
       mode,
       hasInk,
-      typedName: mode === 'type' ? typed : null,
+      typedName: mode === 'typed' ? typed : null,
     });
   }, [mode, hasInk, inkVersion, typed]);
 
@@ -156,7 +161,7 @@ export function SignaturePad({
   }
 
   function down(e: React.PointerEvent<HTMLCanvasElement>) {
-    if (mode !== 'draw') return;
+    if (mode !== 'drawn') return;
     e.currentTarget.setPointerCapture(e.pointerId);
     const { x, y } = getXY(e);
     const ctx = e.currentTarget.getContext('2d');
@@ -165,7 +170,7 @@ export function SignaturePad({
     setDrawing(true);
   }
   function move(e: React.PointerEvent<HTMLCanvasElement>) {
-    if (!drawing || mode !== 'draw') return;
+    if (!drawing || mode !== 'drawn') return;
     const { x, y } = getXY(e);
     const ctx = e.currentTarget.getContext('2d');
     ctx?.lineTo(x, y);
@@ -236,7 +241,7 @@ export function SignaturePad({
         setMode(m);
         // Switching away from Type leaves a rendered name behind, which would
         // read as a drawing the person did not make.
-        if (m !== 'type') clear();
+        if (m !== 'typed') clear();
       }}
       className={`px-3 py-1.5 min-h-[40px] inline-flex items-center justify-center ${mode === m ? 'bg-forest-900 text-white dark:bg-gold-metal dark:text-forest-950' : 'text-ink-700 dark:text-cream-100/85'}`}
     >
@@ -249,13 +254,13 @@ export function SignaturePad({
       <div className="flex items-center justify-between gap-3">
         {heading ?? <span />}
         <div className="inline-flex rounded-md ring-1 ring-ink-200 dark:ring-forest-700/60 overflow-hidden text-[12px]">
-          {tab('draw', 'Draw')}
-          {tab('type', 'Type')}
-          {tab('upload', 'Upload')}
+          {tab('drawn', 'Draw')}
+          {tab('typed', 'Type')}
+          {tab('uploaded', 'Upload')}
         </div>
       </div>
 
-      {mode === 'type' && (
+      {mode === 'typed' && (
         <input
           value={typed}
           onChange={(e) => setTyped(e.target.value)}
@@ -265,7 +270,7 @@ export function SignaturePad({
         />
       )}
 
-      {mode === 'upload' && (
+      {mode === 'uploaded' && (
         <label className="flex items-center gap-3 text-[13px] text-ink-700 dark:text-cream-100/80">
           <input
             type="file"
@@ -292,9 +297,9 @@ export function SignaturePad({
           Clear
         </button>
         <span className="text-[11px] text-ink-500 dark:text-cream-100/55">
-          {mode === 'draw'
+          {mode === 'drawn'
             ? 'Draw with your finger, mouse, or trackpad'
-            : mode === 'type'
+            : mode === 'typed'
               ? 'A font-rendered cursive signature'
               : 'Attach an image of your signature'}
         </span>
