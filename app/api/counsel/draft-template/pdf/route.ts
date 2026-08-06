@@ -11,6 +11,7 @@ import {
   formatSignedOn,
   mergeTemplateDocument,
 } from '@/lib/firm-template-placeholders';
+import { decodeSignaturePng } from '@/lib/template-signature';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -68,6 +69,8 @@ export async function POST(req: NextRequest) {
     firmId?: string;
     values?: Record<string, string>;
     signatureName?: string;
+    /** Employee mode: the mark the employee drew, typed or uploaded. */
+    signatureDataUrl?: string;
   };
   try {
     body = await req.json();
@@ -114,7 +117,11 @@ async function renderTemplate(
   userEmail: string,
   firmId: string,
   templateId: string,
-  body: { values?: Record<string, string>; signatureName?: string },
+  body: {
+    values?: Record<string, string>;
+    signatureName?: string;
+    signatureDataUrl?: string;
+  },
 ): Promise<Rendered> {
   const admin = createAdminSupabase();
   if (!admin) return { error: 'Not available.', status: 400 };
@@ -130,6 +137,14 @@ async function renderTemplate(
     role: await callerFirmRole(firmId),
   });
   if (!gate.ok) return { error: gate.reason, status: 403 };
+
+  // The mark is the caller's to supply, exactly as their typed name already
+  // is: it is their own signature, not document content. Nothing about the
+  // document body comes from the request, so this does not widen the trust
+  // model. A mark that fails validation renders the document without one
+  // rather than failing the request, because the printed name is a valid
+  // signature on its own and refusing the export would be the worse outcome.
+  const decoded = decodeSignaturePng(body.signatureDataUrl);
 
   const firm = await getFirmByIdAdmin(firmId);
   const document = mergeTemplateDocument({
@@ -149,6 +164,7 @@ async function renderTemplate(
       accent: firm?.accentColor ?? undefined,
       letterheadUrl: firm?.letterheadUrl ?? undefined,
       logoUrl: firm?.logoUrl ?? undefined,
+      signatureImage: decoded.ok ? { png: decoded.bytes } : undefined,
     },
   };
 }

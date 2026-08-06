@@ -13,6 +13,7 @@ import {
   type ShareMeta,
 } from './secure-share';
 import { checkReleasable } from './template-approval';
+import { loadSubmissionMark } from './template-signature';
 import type { SubmissionRow } from './template-submission-types';
 
 /**
@@ -143,6 +144,13 @@ export async function releaseApprovedSubmission(
   let ciphertextStored = false;
   try {
     const firm = await getFirmByIdAdmin(row.firm_id);
+    // The signer's mark, drawn above the signature block by the same locator
+    // the employee's preview and the reviewer's page used, so the recipient
+    // receives the document both of them saw. loadSubmissionMark returns null
+    // on any failure and the document still goes out with its printed name,
+    // which is a valid signature; it sits inside this try either way so a
+    // storage throw goes through unclaim like everything else here.
+    const markBytes = await loadSubmissionMark(admin, row.signature_image_path);
     const bytes = await buildBrandedDocumentPdf({
       document: row.document_text,
       title: row.template_name,
@@ -150,6 +158,7 @@ export async function releaseApprovedSubmission(
       accent: firm?.accentColor ?? undefined,
       letterheadUrl: firm?.letterheadUrl ?? undefined,
       logoUrl: firm?.logoUrl ?? undefined,
+      signatureImage: markBytes ? { png: markBytes } : undefined,
     });
     if (!bytes) {
       return await unclaim('The document could not be prepared for sending.', false);

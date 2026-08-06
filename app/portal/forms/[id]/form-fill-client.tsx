@@ -11,10 +11,17 @@ import {
 } from '@/lib/template-submissions';
 import { PdfPreviewDialog } from '@/components/PdfPreviewDialog';
 import {
+  findSignatureBlockLine,
   formatSignedOn,
   isSelfNameField,
   mergeTemplateDocument,
 } from '@/lib/firm-template-placeholders';
+import { SignaturePad, type SignaturePadValue } from '@/components/SignaturePad';
+import {
+  SIGNING_INTENT_PREFIX,
+  signingIntentSuffix,
+} from '@/lib/signing-intent';
+import { DocumentWithMark } from '@/components/DocumentWithMark';
 import { PageHeader, SectionTitle } from '@/components/counsel/ui';
 import { T } from '@/components/i18n/LocaleProvider';
 
@@ -66,11 +73,23 @@ export function FormFillClient({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [mark, setMark] = useState<SignaturePadValue>({
+    dataUrl: null,
+    mode: 'drawn',
+    hasInk: false,
+    typedName: null,
+  });
+  const [intentAffirmed, setIntentAffirmed] = useState(false);
 
   const needsApproval = template.requiresApproval;
   const missing = template.fields.filter((f) => f.required && !(values[f.key] ?? '').trim());
   const recipientOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail.trim());
-  const ready = !busy && missing.length === 0 && signature.trim().length > 0;
+  const ready =
+    !busy &&
+    missing.length === 0 &&
+    signature.trim().length > 0 &&
+    mark.hasInk &&
+    intentAffirmed;
 
   const merged = useMemo(
     () =>
@@ -90,6 +109,11 @@ export function FormFillClient({
     [template, values, signature, employeeEmail, firmName],
   );
 
+  // Where the mark goes, decided by the same function the PDF renderer and the
+  // reviewer's page call. Splitting the preview here is what makes what the
+  // employee sees and what the recipient receives the same document.
+  const markLine = useMemo(() => findSignatureBlockLine(merged), [merged]);
+
   // The server renders from the firm's own stored template and the values
   // below, not from the text on this page, and refuses outright for a template
   // the legal team marked for review. So the finished, letterheaded document
@@ -103,6 +127,7 @@ export function FormFillClient({
         templateId: template.id,
         values,
         signatureName: signature,
+        signatureDataUrl: mark.dataUrl,
       }),
     });
     if (!res.ok) throw new Error(await res.text());
@@ -118,6 +143,9 @@ export function FormFillClient({
       recipientNote: recipientNote.trim(),
       values,
       signatureName: signature.trim(),
+      signatureDataUrl: mark.dataUrl ?? undefined,
+      signatureMode: mark.mode,
+      signatureIntentAt: new Date().toISOString(),
     };
     const res = submission
       ? await resubmitTemplateSubmissionAction(submission.id, input)
@@ -231,7 +259,7 @@ export function FormFillClient({
             ))}
             <label className="block border-t border-ink-100 pt-3 dark:border-forest-800/50">
               <span className="mb-1 block text-[13px] font-medium text-forest-900 dark:text-cream-100">
-                Signature (type your full legal name)
+                <T>Your full legal name</T>
               </span>
               <input
                 type="text"
@@ -240,6 +268,55 @@ export function FormFillClient({
                 onChange={(e) => setSignature(e.target.value)}
                 placeholder="Your full name"
               />
+              <span className="mt-1 block text-[12px] text-ink-500 dark:text-cream-100/55">
+                <T>This is the name printed under your signature on the document.</T>
+              </span>
+            </label>
+          </section>
+
+          <section className="space-y-3 rounded-xl border border-ink-200 bg-white p-4 dark:border-forest-700/50 dark:bg-forest-900/40">
+            <SectionTitle>Your signature</SectionTitle>
+            <SignaturePad
+              defaultTypedName={signature}
+              onChange={setMark}
+              onError={setError}
+            />
+            <p className="text-[12.5px] text-ink-600 dark:text-cream-100/70">
+              <T>
+                Draw it, type it, or upload an image of your signature. A typed name is a valid
+                signature; drawing one is simply closer to signing on paper.
+              </T>
+            </p>
+            {/* The intent affirmation. This is the definitional element of an
+                electronic signature under 15 USC 7006(5) and UETA 2(8), and it
+                is the part of the outside signer's ceremony that genuinely
+                carries over. The consumer disclosure in
+                app/sign/[token]/signature-capture.tsx does not: an employee
+                signing their employer's own paper is not a consumer under
+                15 USC 7006(1), so the paper-copy right and the withdrawal
+                notice are addressed to a situation that is not this one. */}
+            <label className="flex items-start gap-3 text-[13px] text-ink-700 dark:text-cream-100/80">
+              <input
+                type="checkbox"
+                checked={intentAffirmed}
+                onChange={(e) => setIntentAffirmed(e.currentTarget.checked)}
+                className="mt-1"
+              />
+              <span>
+                {/* The words come from lib/signing-intent.ts, which the outside
+                    signer's checkbox reads too. This page kept its own copy of
+                    the sentence until that module existed; the two had already
+                    started to differ in their typography, which is exactly the
+                    drift a shared constant prevents. Neither surface holds the
+                    words now.
+
+                    The signer's own name stays in its own element so the
+                    runtime translation layer does not machine-translate a
+                    person's name in the operative clause. */}
+                {SIGNING_INTENT_PREFIX}
+                <strong data-no-translate>{signature || employeeName || employeeEmail}</strong>
+                {signingIntentSuffix(template.name)}
+              </span>
             </label>
           </section>
 
@@ -370,7 +447,7 @@ export function FormFillClient({
             className="max-h-[70vh] overflow-y-auto whitespace-pre-wrap font-serif text-[13.5px] leading-relaxed text-forest-900 dark:text-cream-100/90"
             data-no-translate
           >
-            {merged}
+            <DocumentWithMark text={merged} markLine={markLine} markSrc={mark.dataUrl} />
           </div>
         </section>
       </div>

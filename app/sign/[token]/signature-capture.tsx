@@ -1,11 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useStepAnchor } from '@/lib/use-step-anchor';
 import {
   canLeaveDisclosureStep,
   type SignatureLinePlacement,
 } from '@/lib/signer-view';
+import { SignaturePad, type SignaturePadValue } from '@/components/SignaturePad';
 import {
   SIGNING_INTENT_PREFIX,
   signingIntentSuffix,
@@ -13,7 +14,6 @@ import {
 import { SignatureLinePreview } from './signature-line-preview';
 import { MobileHandoff } from './mobile-handoff';
 
-type Mode = 'draw' | 'type' | 'upload';
 type Step = 'disclosure' | 'capture' | 'done';
 
 /**
@@ -84,7 +84,6 @@ export function SignatureCapture({
    *  signature page when the pad opens. */
   onStepChange: (step: 'disclosure' | 'capture' | 'done') => void;
 }) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [step, setStepState] = useState<Step>('disclosure');
   const setStep = useCallback(
     (next: Step) => {
@@ -115,151 +114,33 @@ export function SignatureCapture({
   // affirmed it, so it is captured then.
   const [docPresentedAtReview, setDocPresentedAtReview] = useState(false);
 
-  // Capture-step state.
-  const [mode, setMode] = useState<Mode>('draw');
-  const [typed, setTyped] = useState(signerName ?? '');
-  const [drawing, setDrawing] = useState(false);
-  const [hasInk, setHasInk] = useState(false);
+  // Capture-step state. The pad itself lives in components/SignaturePad and
+  // reports the current mark up; the ceremony around it stays here, because
+  // an outside signer is owed a consumer disclosure that an employee filling
+  // their own employer's template is not.
+  const [mark, setMark] = useState<SignaturePadValue>({
+    dataUrl: null,
+    mode: 'drawn',
+    hasInk: false,
+    typedName: null,
+  });
   const [intentAffirmed, setIntentAffirmed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const hasInk = mark.hasInk;
 
-  // A snapshot of the canvas, published upwards so the rendered page
-  // can draw it into the signature box. Taken when a stroke ends
-  // rather than on every pointer move, which keeps the drawing itself
-  // cheap and the rasterised page above it undisturbed.
-  const captureMark = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    try {
-      onMarkChange(canvas.toDataURL('image/png'));
-    } catch {
-      // A tainted canvas would throw here. The pad still works and the
-      // submit path reads the canvas directly; only the preview is lost.
-      onMarkChange(null);
-    }
-  }, [onMarkChange]);
-
-  // Resize canvas when entering the capture step.
-  useEffect(() => {
-    if (step !== 'capture') return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const dpr = window.devicePixelRatio || 1;
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-      ctx.scale(dpr, dpr);
-      ctx.lineWidth = 2.4;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.strokeStyle = '#0f2d24';
-    }
-  }, [step]);
-
-  // Re-render typed signature when mode/text changes.
-  useEffect(() => {
-    if (step !== 'capture' || mode !== 'type') return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    const w = canvas.width / (window.devicePixelRatio || 1);
-    const h = canvas.height / (window.devicePixelRatio || 1);
-    ctx.clearRect(0, 0, w, h);
-    if (!typed.trim()) {
-      setHasInk(false);
-      onMarkChange(null);
-      return;
-    }
-    ctx.fillStyle = '#0f2d24';
-    ctx.font = `italic 38px "Apple Chancery", "Lucida Handwriting", "Brush Script MT", cursive`;
-    ctx.textBaseline = 'middle';
-    ctx.fillText(typed, 16, h / 2);
-    setHasInk(true);
-    captureMark();
-  }, [step, mode, typed, captureMark, onMarkChange]);
-
-  function getXY(e: React.PointerEvent<HTMLCanvasElement>) {
-    const rect = e.currentTarget.getBoundingClientRect();
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
-  }
-
-  function down(e: React.PointerEvent<HTMLCanvasElement>) {
-    if (mode !== 'draw') return;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    const { x, y } = getXY(e);
-    const ctx = e.currentTarget.getContext('2d');
-    ctx?.beginPath();
-    ctx?.moveTo(x, y);
-    setDrawing(true);
-  }
-  function move(e: React.PointerEvent<HTMLCanvasElement>) {
-    if (!drawing || mode !== 'draw') return;
-    const { x, y } = getXY(e);
-    const ctx = e.currentTarget.getContext('2d');
-    ctx?.lineTo(x, y);
-    ctx?.stroke();
-    setHasInk(true);
-  }
-  function up() {
-    if (drawing) captureMark();
-    setDrawing(false);
-  }
-
-  function clear() {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    setHasInk(false);
-    onMarkChange(null);
-    setTyped(signerName ?? '');
-  }
-
-  // Upload / attach an existing signature image. The file is drawn onto
-  // the same canvas the draw/type modes use, so the submit path (which
-  // reads canvas.toDataURL) is unchanged. We fit-inside without cropping
-  // and, for opaque photos of a signature on paper, the PNG carries
-  // whatever the signer supplied - the firm reviews the executed doc.
-  function onUploadFile(file: File | null) {
-    setError(null);
-    if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      setError('Choose an image file (PNG, JPG, or similar).');
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      setError('That image is over the 5 MB limit.');
-      return;
-    }
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      const w = canvas.width / (window.devicePixelRatio || 1);
-      const h = canvas.height / (window.devicePixelRatio || 1);
-      ctx.clearRect(0, 0, w, h);
-      const scale = Math.min(w / img.width, h / img.height);
-      const drawW = img.width * scale;
-      const drawH = img.height * scale;
-      ctx.drawImage(img, (w - drawW) / 2, (h - drawH) / 2, drawW, drawH);
-      setHasInk(true);
-      captureMark();
-      URL.revokeObjectURL(url);
-    };
-    img.onerror = () => {
-      setError('Could not read that image. Try a different file.');
-      URL.revokeObjectURL(url);
-    };
-    img.src = url;
-  }
+  // The pad reports the mark. It is kept here for submit and published
+  // upward so the rasterised page above can draw it into the real
+  // signature box as the signer makes it. The pad snapshots the canvas
+  // when a stroke ends rather than on every pointer move, which keeps
+  // the drawing cheap and the page above it undisturbed.
+  const handleMark = useCallback(
+    (next: SignaturePadValue) => {
+      setMark(next);
+      onMarkChange(next.dataUrl);
+    },
+    [onMarkChange],
+  );
 
   const mayLeaveDisclosure = canLeaveDisclosureStep({
     electronicRecordsAgreed: erdAgreed,
@@ -300,18 +181,17 @@ export function SignatureCapture({
       setError('Draw or type your signature first.');
       return;
     }
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    const dataUrl = mark.dataUrl;
+    if (!dataUrl) return;
     setSubmitting(true);
     try {
-      const dataUrl = canvas.toDataURL('image/png');
       const res = await fetch('/api/firm/sign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           token,
           signatureDataUrl: dataUrl,
-          typedName: mode === 'type' ? typed : null,
+          typedName: mark.typedName,
           consent: {
             electronicRecordsConsentedAt: erdConsentedAt,
             hardwareSoftwareConfirmedAt: erdConsentedAt,
@@ -524,83 +404,12 @@ export function SignatureCapture({
         signerLabel={signerName || signerEmail}
       />
 
-      <div className="flex items-center justify-between gap-3">
-        <p className="eyebrow">Your signature</p>
-        <div className="inline-flex rounded-md ring-1 ring-ink-200 dark:ring-forest-700/60 overflow-hidden text-[12px]">
-          <button
-            type="button"
-            onClick={() => {
-              setMode('draw');
-              clear();
-            }}
-            className={`px-3 py-1.5 min-h-[40px] inline-flex items-center justify-center ${mode === 'draw' ? 'bg-forest-900 text-white dark:bg-gold-metal dark:text-forest-950' : 'text-ink-700 dark:text-cream-100/85'}`}
-          >
-            Draw
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode('type')}
-            className={`px-3 py-1.5 min-h-[40px] inline-flex items-center justify-center ${mode === 'type' ? 'bg-forest-900 text-white dark:bg-gold-metal dark:text-forest-950' : 'text-ink-700 dark:text-cream-100/85'}`}
-          >
-            Type
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setMode('upload');
-              clear();
-            }}
-            className={`px-3 py-1.5 min-h-[40px] inline-flex items-center justify-center ${mode === 'upload' ? 'bg-forest-900 text-white dark:bg-gold-metal dark:text-forest-950' : 'text-ink-700 dark:text-cream-100/85'}`}
-          >
-            Upload
-          </button>
-        </div>
-      </div>
-
-      {mode === 'type' && (
-        <input
-          value={typed}
-          onChange={(e) => setTyped(e.target.value)}
-          placeholder="Type your full name"
-          className="input"
-          maxLength={80}
-        />
-      )}
-
-      {mode === 'upload' && (
-        <label className="flex items-center gap-3 text-[13px] text-ink-700 dark:text-cream-100/80">
-          <input
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            onChange={(e) => onUploadFile(e.currentTarget.files?.[0] ?? null)}
-            className="block w-full text-[12px] file:mr-3 file:min-h-[40px] file:rounded-md file:border-0 file:bg-forest-900 file:px-3 file:text-white dark:file:bg-gold-metal dark:file:text-forest-950"
-          />
-        </label>
-      )}
-
-      <div className="rounded-lg border-2 border-dashed border-ink-300 dark:border-forest-700/60 bg-white dark:bg-forest-950 p-1">
-        <canvas
-          ref={canvasRef}
-          onPointerDown={down}
-          onPointerMove={move}
-          onPointerUp={up}
-          onPointerLeave={up}
-          className="w-full h-32 sm:h-40 touch-none cursor-crosshair rounded-md"
-          style={{ display: 'block' }}
-        />
-      </div>
-      <div className="flex items-center justify-between">
-        <button type="button" onClick={clear} className="btn-ghost text-sm">
-          Clear
-        </button>
-        <span className="text-[11px] text-ink-500 dark:text-cream-100/55">
-          {mode === 'draw'
-            ? 'Draw with your finger, mouse, or trackpad'
-            : mode === 'type'
-              ? 'A font-rendered cursive signature'
-              : 'Attach an image of your signature'}
-        </span>
-      </div>
+      <SignaturePad
+        heading={<p className="eyebrow">Your signature</p>}
+        defaultTypedName={signerName ?? ''}
+        onChange={handleMark}
+        onError={setError}
+      />
 
       {/* A fourth way to make the mark, offered only here. The
           disclosure step must not show it: a code minted there would
@@ -629,10 +438,11 @@ export function SignatureCapture({
         />
         <span>
           {/* The words come from lib/signing-intent.ts, which the phone
-              pad reads too. A signer who starts here and finishes on
-              their phone affirms intent twice in one ceremony, and the
-              two affirmations have to be the same form of words, so
-              neither surface keeps a copy of them.
+              pad and the employee form both read. A signer who starts
+              here and finishes on their phone affirms intent twice in
+              one ceremony, and two surfaces asserting intent in two
+              forms of words is the kind of discrepancy that gets a
+              signature challenged, so no surface keeps a copy of them.
 
               The name is the signer's own, inside the sentence that
               makes the mark a signature, and stays in its own element:

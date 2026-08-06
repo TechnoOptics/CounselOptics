@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { headers } from 'next/headers';
 import { getCurrentUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
 import { authorizeFirmActor } from './portal-entitlements';
@@ -25,6 +26,12 @@ import {
 } from './template-approval';
 import { loadPublishedTemplate, sanitizeTemplateValues } from './template-fill';
 import { releaseApprovedSubmission } from './template-release';
+import {
+  CLEARED_SIGNATURE_COLUMNS,
+  decodeSignaturePng,
+  signatureColumns,
+  storeSubmissionMark,
+} from './template-signature';
 import {
   rowToSubmission,
   type SubmissionInput,
@@ -148,6 +155,72 @@ function seenRevision(value: unknown): number {
   return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : -1;
 }
 
+/**
+ * Store the employee's mark and write the record around it.
+ *
+ * This runs after the write that creates or updates the submission, and it
+ * cannot fail that write. A document that reached the legal team without its
+ * squiggle is recoverable by asking the colleague to sign again; a submission
+ * that vanished because a picture would not upload is not. So a bad image, a
+ * storage outage or a refused update all leave the row exactly as the caller's
+ * own write left it, and the submission still goes to the queue.
+ *
+ * It returns the row as it now stands, so the employee is handed back the
+ * record that was actually written rather than the one from a moment earlier.
+ *
+ * The update swaps on the revision for the same reason every other write in
+ * this file does. A reviewer can edit a submission in the gap between it being
+ * filed and its mark being stored; a reviewer edit bumps the revision and
+ * clears the signature columns, and without this predicate the mark would land
+ * on top of that and claim the new wording had been signed. The mark is then
+ * lost rather than misattached, which is the right way round.
+ *
+ * The mark itself is not deleted from storage when this update misses. It is
+ * keyed by revision, so it sits beside the revision it belongs to and is
+ * simply not pointed at.
+ */
+async function recordSignature(
+  admin: Admin,
+  row: SubmissionRow,
+  input: SubmissionInput,
+  documentText: string,
+): Promise<SubmissionRow> {
+  try {
+    const decoded = decodeSignaturePng(input.signatureDataUrl);
+    const markPath = decoded.ok
+      ? await storeSubmissionMark(admin, {
+          firmId: row.firm_id,
+          submissionId: row.id,
+          revision: row.revision,
+          bytes: decoded.bytes,
+        })
+      : null;
+    const h = headers();
+    const columns = signatureColumns({
+      markPath,
+      mode: input.signatureMode,
+      // Read as "the box was ticked", never as when. See signatureColumns.
+      intentAffirmed: Boolean(input.signatureIntentAt),
+      ip:
+        (h.get('x-forwarded-for') ?? '').split(',')[0]?.trim() ||
+        h.get('x-real-ip'),
+      userAgent: h.get('user-agent'),
+      documentText,
+      now: new Date(),
+    });
+    const { data } = await admin
+      .from('firm_template_submissions')
+      .update(columns)
+      .eq('id', row.id)
+      .eq('revision', row.revision)
+      .select(SUBMISSION_COLS)
+      .maybeSingle();
+    return (data as SubmissionRow | null) ?? row;
+  } catch {
+    return row;
+  }
+}
+
 /** Tell the people who can act on it that a document is waiting. */
 async function notifyApprovers(
   admin: Admin,
@@ -244,7 +317,7 @@ export async function submitTemplateForApprovalAction(
     return { ok: false, error: 'Could not send that for review. Try again.' };
   }
 
-  const row = data as SubmissionRow;
+  const row = await recordSignature(admin, data as SubmissionRow, input, documentText);
   await notifyApprovers(admin, row, user.id);
   refresh();
   // Back to the colleague who just filled it in, so their own words go back to
@@ -368,10 +441,19 @@ export async function resubmitTemplateSubmissionAction(
     .maybeSingle();
   if (!updated) return { ok: false, error: 'Could not resend that for review.' };
 
-  await notifyApprovers(admin, updated as SubmissionRow, user.id);
+  // The new revision is a new document, so it gets a new mark and a new hash
+  // over the words the employee has just affirmed. The previous revision's
+  // PNG stays where it is, keyed by its own revision number.
+  const recorded = await recordSignature(
+    admin,
+    updated as SubmissionRow,
+    input,
+    documentText,
+  );
+  await notifyApprovers(admin, recorded, user.id);
   refresh();
   // The caller is the submitter; ownership was checked above.
-  return { ok: true, submission: rowToSubmission(updated as SubmissionRow, undefined, true) };
+  return { ok: true, submission: rowToSubmission(recorded, undefined, true) };
 }
 
 /** Pull a submission back before the legal team has decided on it. */
@@ -715,6 +797,13 @@ export async function editTemplateSubmissionAction(
       // Same signal a resubmission gives: the document is not the one anyone
       // else has open, and the queue shows a new version number for it.
       revision: row.revision + 1,
+      // The employee's mark and the record around it go with the old wording.
+      // They affirmed a sentence about these words, and these words have just
+      // changed, so what is stored is no longer a signature on this document.
+      // Keeping the hash would be worse than keeping nothing: it would say the
+      // current text had been signed. Whether the employee is then asked to
+      // sign again is the release gate's decision, not this write's.
+      ...CLEARED_SIGNATURE_COLUMNS,
       updated_at: new Date().toISOString(),
     })
     .eq('id', submissionId)

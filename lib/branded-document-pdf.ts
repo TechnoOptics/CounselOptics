@@ -2,6 +2,7 @@ import 'server-only';
 
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { cleanLegalText } from './legal-templates';
+import { findSignatureBlockLine } from './firm-template-placeholders';
 
 /**
  * The firm-branded document PDF: letterhead (or a letterhead synthesized from
@@ -34,7 +35,25 @@ export type BrandedDocumentInput = {
   letterheadUrl?: string;
   /** Public URL of the firm's logo, used when there is no letterhead. */
   logoUrl?: string;
+  /**
+   * The signer's drawn, typed or uploaded mark, drawn directly above the
+   * signature block. Optional: a document with no mark still renders, and the
+   * `Signed:` line is a valid signature on its own.
+   */
+  signatureImage?: { png: Uint8Array };
 };
+
+/** The box the mark is fitted inside, in points. */
+const MARK_W = 200;
+const MARK_H = 56;
+/** Space between the mark and the printed name underneath it. */
+const MARK_GAP = 12;
+/**
+ * Lines the signature block occupies: Signed, Date, Email. The mark is
+ * reserved together with all three, because a mark alone at the foot of one
+ * page with the name it belongs to at the head of the next reads as a defect.
+ */
+const SIG_BLOCK_LINES = 3;
 
 /** Returns the PDF bytes, or null when there is nothing worth rendering. */
 export async function buildBrandedDocumentPdf(
@@ -259,7 +278,50 @@ export async function buildBrandedDocumentPdf(
   }
   y -= 10;
 
-  for (const para of text.split('\n')) {
+  // The signer's mark, and where it goes.
+  //
+  // A PNG that will not embed must not take the document down with it. A
+  // document that goes out without a squiggle is recoverable; a document that
+  // fails to go out is not, and the `Signed:` line is a valid signature by
+  // itself.
+  let mark: Awaited<ReturnType<PDFDocument['embedPng']>> | null = null;
+  if (input.signatureImage?.png && input.signatureImage.png.length > 0) {
+    try {
+      mark = await pdf.embedPng(input.signatureImage.png);
+    } catch {
+      mark = null;
+    }
+  }
+  // Located against the cleaned text, because that is the text this loop
+  // draws. Every surface runs the same locator over the text it is about to
+  // render, so all of them put the mark immediately above the signature block
+  // even where cleaning has shifted the line numbers.
+  const markLine = mark ? findSignatureBlockLine(text) : null;
+
+  /** Draw the mark at the current cursor and drop the cursor below it. */
+  function drawMark(img: NonNullable<typeof mark>) {
+    try {
+      // Reserve the mark, the gap and the line that follows it together, so
+      // the mark never ends up on one page with the printed name on the next.
+      if (y - (MARK_H + MARK_GAP + LEAD * SIG_BLOCK_LINES) < 60) newPage();
+      y -= MARK_H;
+      const scale = Math.min(MARK_W / img.width, MARK_H / img.height);
+      page.drawImage(img, {
+        x: M,
+        y,
+        width: img.width * scale,
+        height: img.height * scale,
+      });
+      y -= MARK_GAP;
+    } catch {
+      // Same reasoning as the embed above: keep the text, lose the picture.
+    }
+  }
+
+  const paragraphs = text.split('\n');
+  for (let p = 0; p < paragraphs.length; p += 1) {
+    const para = paragraphs[p];
+    if (mark && p === markLine) drawMark(mark);
     const lines = wrap(para);
     for (const ln of lines) {
       if (y < 60) newPage();
@@ -279,6 +341,23 @@ export async function buildBrandedDocumentPdf(
       });
       y -= LEAD;
     }
+  }
+
+  // A reviewer may rewrite the signature block while editing the wording, and
+  // the locator then finds nothing. The mark is not dropped: it goes at the end
+  // of the body under a hairline rule, so the document still carries the mark
+  // the employee made and it is visibly not part of the rewritten text.
+  if (mark && markLine === null) {
+    if (y - (MARK_H + MARK_GAP * 2 + LEAD) < 60) newPage();
+    y -= MARK_GAP;
+    page.drawLine({
+      start: { x: M, y },
+      end: { x: M + MARK_W, y },
+      thickness: 0.5,
+      color: rgb(0.8, 0.8, 0.8),
+    });
+    y -= MARK_GAP;
+    drawMark(mark);
   }
   footer();
 

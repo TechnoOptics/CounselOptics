@@ -392,6 +392,7 @@ describe('the laptop wiring', () => {
   const COMPONENT = 'app/sign/[token]/mobile-handoff.tsx';
   const CAPTURE = 'app/sign/[token]/signature-capture.tsx';
   const MOBILE_ROUTE = 'app/api/firm/sign/mobile/route.ts';
+  const PAD = 'components/SignaturePad.tsx';
 
   it('runs the mint through the tested decision, with the real encoder', () => {
     const src = read(ACTIONS);
@@ -447,9 +448,20 @@ describe('the laptop wiring', () => {
   });
 
   it('leaves the pad in place beside it', () => {
-    const src = read(CAPTURE);
-    for (const mode of ["setMode('draw')", "setMode('type')", "setMode('upload')"]) {
-      expect(src).toContain(mode);
+    // The handoff is a fourth way to make the mark, not a replacement
+    // for the other three. The pad itself now lives in
+    // components/SignaturePad.tsx, shared with the employee form, so
+    // this asserts the capture step still mounts it and that it still
+    // offers all three modes rather than grepping this file for state
+    // setters that moved.
+    expect(read(CAPTURE)).toContain('<SignaturePad');
+    const pad = read(PAD);
+    for (const mode of [
+      "tab('drawn', 'Draw')",
+      "tab('typed', 'Type')",
+      "tab('uploaded', 'Upload')",
+    ]) {
+      expect(pad).toContain(mode);
     }
   });
 

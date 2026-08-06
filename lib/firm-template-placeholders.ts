@@ -73,6 +73,33 @@ export function mergeTemplateDocument(input: {
   return `${text}\n\n\nSigned: ${signature}\nDate: ${input.signedOn}\nEmail: ${input.signerEmail}`;
 }
 
+/**
+ * Where the signature mark belongs: the index of the line the mark is drawn
+ * directly above, or null when there is no such line.
+ *
+ * This path generates the document rather than parsing one, so there is no
+ * anchor to detect. The block is fixed, `mergeTemplateDocument` puts it there,
+ * and this function is the one place that says where it is. The employee's
+ * preview, the reviewer's copy and the delivered PDF all call this on the text
+ * they are about to render, so they cannot put the mark in three places.
+ *
+ * The scan runs from the end because a body may legitimately quote a signature
+ * line of its own (an exhibit, a recital of an earlier agreement). The last one
+ * is the block this document is signed on.
+ *
+ * Returning null is a supported outcome, not a failure. A reviewer may rewrite
+ * the block while editing the wording, and the renderer then draws the mark at
+ * the end of the body under a hairline rule. The mark is never dropped.
+ */
+export function findSignatureBlockLine(documentText: string): number | null {
+  if (typeof documentText !== 'string' || documentText === '') return null;
+  const lines = documentText.split('\n');
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    if (lines[i].trimStart().startsWith('Signed: ')) return i;
+  }
+  return null;
+}
+
 /** The date format the signature block uses, on both sides. */
 export function formatSignedOn(date: Date): string {
   return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
