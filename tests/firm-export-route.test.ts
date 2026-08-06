@@ -54,12 +54,20 @@ const db = vi.hoisted(() => ({
    * like from the route's side.
    */
   countOverride: {} as Record<string, number>,
+  /**
+   * Tables whose count probe comes back `{ count: null, error: null }`, which
+   * is what supabase-js hands over whenever the Content-Range header is
+   * missing or unparsed. It is the "the check did not run" case, and it must
+   * never read as "this table holds zero rows".
+   */
+  countNull: {} as Record<string, boolean>,
   reset() {
     this.user = { id: 'user-owner', email: 'owner@example.com' };
     this.realUser = null;
     this.serverMaxRows = 1000;
     this.failing = {};
     this.countOverride = {};
+    this.countNull = {};
     this.tables = {
       firm_members: [
         { id: 'm1', firm_id: 'firm-1', user_id: 'user-owner', role: 'owner' },
@@ -91,8 +99,48 @@ const db = vi.hoisted(() => ({
         { id: 'd1', firm_id: 'firm-1', name: 'Retainer.pdf' },
         { id: 'd2', firm_id: 'firm-2', name: 'Not ours.pdf' },
       ],
+      // Case substance that DOES carry firm_id, but nullably. A deadline
+      // written without a firm id (lib/deadlines-actions.ts writes
+      // `input.firmId ?? null`) is invisible to `.eq('firm_id', ...)` and to
+      // the count probe that uses the same filter, so it would go missing and
+      // the archive would still call itself complete. Both fixtures carry a
+      // null firm_id on purpose.
+      case_deadlines: [
+        { id: 'dl1', case_id: 'c1', firm_id: null, title: 'Answer due' },
+        { id: 'dl2', case_id: 'c2', firm_id: null, title: 'Not ours' },
+      ],
+      case_approaches: [
+        { id: 'ap1', case_id: 'c1', firm_id: null, title: 'Negligence per se' },
+        { id: 'ap2', case_id: 'c2', firm_id: null, title: 'Not ours' },
+      ],
       // Case substance. None of these carry firm_id: they hang off case_id,
       // which is why they need the derived id set rather than the flat filter.
+      case_people: [
+        { id: 'p1', case_id: 'c1', display_name: 'R. Hohag', role: 'opposing' },
+        { id: 'p2', case_id: 'c2', display_name: 'Not ours', role: 'witness' },
+      ],
+      case_collaborators: [
+        { id: 'cl1', case_id: 'c1', email: 'cocounsel@example.com', role: 'attorney' },
+        { id: 'cl2', case_id: 'c2', email: 'nope@example.com', role: 'viewer' },
+      ],
+      case_section_comments: [
+        { id: 'sc1', case_id: 'c1', section_type: 'event', body: 'Check this date' },
+        { id: 'sc2', case_id: 'c2', section_type: 'event', body: 'Not ours' },
+      ],
+      case_chat_messages: [
+        {
+          id: 'cm1',
+          case_id: 'c1',
+          thread_kind: 'dm',
+          // Ends in _key, so the credential-name guard blanks it. That is a
+          // known false positive and a cheap one: thread_kind and
+          // participants carry the same information.
+          thread_key: 'dm:user-a:user-b',
+          participants: ['user-a', 'user-b'],
+          body: 'Sending the draft',
+        },
+        { id: 'cm2', case_id: 'c2', thread_kind: 'general', body: 'Not ours' },
+      ],
       case_timeline_events: [
         { id: 'e1', case_id: 'c1', title: 'The meeting' },
         { id: 'e2', case_id: 'c2', title: 'Not ours' },
@@ -139,6 +187,41 @@ const db = vi.hoisted(() => ({
           signer_email: 'other@example.com',
           token: 'other-firm-token',
         },
+      ],
+      // The tamper-evident chain. A signature row asserts someone signed;
+      // this is the record that proves it, and the hashes have to survive the
+      // archive intact or the chain cannot be verified from it.
+      firm_signature_events: [
+        {
+          id: 'ev1',
+          signing_request_id: 'sr1',
+          event_type: 'signed',
+          prev_event_hash: null,
+          event_hash: 'a1b2c3',
+        },
+        {
+          id: 'ev2',
+          signing_request_id: 'sr2',
+          event_type: 'signed',
+          event_hash: 'not-ours',
+        },
+      ],
+      firm_meetings: [
+        {
+          id: 'mt1',
+          firm_id: 'firm-1',
+          title: 'Client call',
+          join_url: 'https://meet.example.com/abc',
+        },
+      ],
+      firm_channels: [
+        { id: 'ch1', firm_id: 'firm-1', name: 'general' },
+        { id: 'ch2', firm_id: 'firm-2', name: 'theirs' },
+      ],
+      // Internal communication, keyed by channel_id rather than firm_id.
+      firm_messages: [
+        { id: 'msg1', channel_id: 'ch1', body: 'Answer filed this morning.' },
+        { id: 'msg2', channel_id: 'ch2', body: 'Not ours' },
       ],
     };
   },
@@ -203,6 +286,12 @@ class Query {
       return { data: null, count: null, error: { message: failure } };
     }
     if (this.headOnly) {
+      // supabase-js reports null whenever Content-Range is missing or
+      // unparsed. Treating that as zero is a fail-open, so the route has to
+      // notice it rather than certify the table.
+      if (db.countNull[this.table]) {
+        return { data: null, count: null, error: null };
+      }
       const forced = db.countOverride[this.table];
       return {
         data: null,
@@ -282,6 +371,7 @@ async function archiveOf(res: Response) {
       tables: Record<string, number>;
       expected: Record<string, number>;
       shortfalls: Record<string, { expected: number; exported: number }>;
+      unverified: string[];
       errors: Record<string, string>;
       complete: boolean;
     };
@@ -363,6 +453,72 @@ describe('organization export content', () => {
     expect(archive.data.case_images.map((i) => i.id)).toEqual(['i1']);
   });
 
+  it('carries the people, the collaborators and the collaboration work product', async () => {
+    const archive = await archiveOf(await GET(request()));
+    // Persons of interest: written by the firm timeline builder and rendered
+    // by the exhibit PDF, so a timeline without them has no cast list.
+    expect(archive.data.case_people.map((p) => p.id)).toEqual(['p1']);
+    // Who was on the matter.
+    expect(archive.data.case_collaborators.map((c) => c.id)).toEqual(['cl1']);
+    // The firm timeline collaboration work product.
+    expect(archive.data.case_section_comments.map((c) => c.id)).toEqual(['sc1']);
+    expect(archive.data.case_chat_messages.map((m) => m.id)).toEqual(['cm1']);
+  });
+
+  it('reaches the deadlines and approaches that carry no organization id', async () => {
+    // Both fixtures have firm_id null, which is what lib/deadlines-actions.ts
+    // writes when no firm is passed and what the case_approaches DDL allows.
+    // Reached by firm_id these come back empty, and the count probe, using the
+    // same filter, agrees with the empty read: the rows go missing and the
+    // archive still calls itself complete.
+    const archive = await archiveOf(await GET(request()));
+    expect(archive.data.case_deadlines.map((d) => d.id)).toEqual(['dl1']);
+    expect(archive.data.case_approaches.map((a) => a.id)).toEqual(['ap1']);
+    expect(archive._summary.complete).toBe(true);
+  });
+
+  it('carries the signature event chain with its hashes intact', async () => {
+    const archive = await archiveOf(await GET(request()));
+    expect(archive.data.firm_signature_events.map((e) => e.id)).toEqual(['ev1']);
+    const event = archive.data.firm_signature_events[0];
+    // The chain is the whole point. A redaction rule that blanked either hash
+    // would leave a record that cannot be verified from the archive.
+    expect(event.event_hash).toBe('a1b2c3');
+    expect(event.prev_event_hash).toBeNull();
+  });
+
+  it('carries the internal messages, scoped through this organization channels', async () => {
+    const archive = await archiveOf(await GET(request()));
+    expect(archive.data.firm_channels.map((c) => c.id)).toEqual(['ch1']);
+    expect(archive.data.firm_messages.map((m) => m.id)).toEqual(['msg1']);
+  });
+
+  it('keeps the invitation time on the per-signer record', async () => {
+    db.tables.firm_signatures = [
+      {
+        id: 'sig1',
+        signing_request_id: 'sr1',
+        signer_email: 'client@example.com',
+        // When the signer was INVITED, which is not signed_at and is what
+        // lib/firm-storage.ts orders the signer list by.
+        created_at: '2026-05-01T08:00:00.000Z',
+        signed_at: '2026-05-02T10:00:00.000Z',
+        token: 'live-signing-token-do-not-export',
+      },
+    ];
+    const archive = await archiveOf(await GET(request()));
+    expect(archive.data.firm_signatures[0].created_at).toBe(
+      '2026-05-01T08:00:00.000Z',
+    );
+  });
+
+  it('keeps the meeting join link, which is not a key to the organization data', async () => {
+    const archive = await archiveOf(await GET(request()));
+    expect(archive.data.firm_meetings[0].join_url).toBe(
+      'https://meet.example.com/abc',
+    );
+  });
+
   it('carries per-signer signature records without the signing credentials', async () => {
     const archive = await archiveOf(await GET(request()));
     expect(archive.data.firm_signatures.map((s) => s.id)).toEqual(['sig1']);
@@ -387,6 +543,20 @@ describe('organization export content', () => {
         api_key: 'ak_live_1',
         password_hint: 'the dog',
         access_code_hash: 'sha256',
+        // No underscore, so `_key` misses it.
+        apikey: 'ak_live_2',
+        credential: 'basic dXNlcjpwYXNz',
+        passcode: '4821',
+        // A Slack-style webhook URL is a bearer credential whose name matches
+        // nothing else in the pattern.
+        webhook_url: 'https://hooks.example.com/T000/B000/xoxb',
+        // A column literally named `key`.
+        key: 'sk_live_3',
+        // NOT a secret. The bare-key rule is anchored so this survives; an
+        // unanchored `key` alternation would blank matter substance.
+        key_facts: ['signed on the 4th'],
+        // Not a credential either: a link, and the organization's own.
+        source_url: 'https://example.com/source',
       },
     ];
     const archive = await archiveOf(await GET(request()));
@@ -398,9 +568,27 @@ describe('organization export content', () => {
       'api_key',
       'password_hint',
       'access_code_hash',
+      'apikey',
+      'credential',
+      'passcode',
+      'webhook_url',
+      'key',
     ]) {
       expect(doc[column]).toBe('[redacted]');
     }
+    expect(doc.key_facts).toEqual(['signed on the 4th']);
+    expect(doc.source_url).toBe('https://example.com/source');
+  });
+
+  it('blanks the chat thread key, and leaves what recovers it', async () => {
+    const archive = await archiveOf(await GET(request()));
+    const message = archive.data.case_chat_messages[0];
+    // A known false positive of the credential-name guard: thread_key ends in
+    // _key. It costs nothing, because the same grouping reads back from the
+    // two columns beside it.
+    expect(message.thread_key).toBe('[redacted]');
+    expect(message.thread_kind).toBe('dm');
+    expect(message.participants).toEqual(['user-a', 'user-b']);
   });
 
   it('says nothing about the organization data being deleted', async () => {
@@ -472,6 +660,75 @@ describe('the archive only claims completeness it can prove', () => {
       exported: 1,
     });
     expect(archive._summary.complete).toBe(false);
+  });
+
+  it('is not complete when the database reports no count at all', async () => {
+    // supabase-js gives count: null with no error whenever Content-Range is
+    // missing or unparsed. That is the check itself failing to run, so
+    // counting it as zero makes every table match, nothing is ever short, and
+    // the mechanism that detects a partial archive reports success while dark.
+    db.countNull.firm_documents = true;
+    const archive = await archiveOf(await GET(request()));
+    expect(archive._summary.tables.firm_documents).toBe(1);
+    // No number the archive stands behind, so none is offered.
+    expect(archive._summary.expected.firm_documents).toBeUndefined();
+    expect(archive._summary.shortfalls.firm_documents).toBeUndefined();
+    expect(archive._summary.unverified).toContain('firm_documents');
+    expect(archive._summary.complete).toBe(false);
+  });
+
+  it('carries an unverified matter list down to the matter substance', async () => {
+    // A parent whose count went unreported may have handed a partial id list
+    // to its children, and a child scoped to a partial list matches its own
+    // count and looks clean. The doubt has to travel with the ids.
+    db.countNull.cases = true;
+    const archive = await archiveOf(await GET(request()));
+    expect(archive._summary.unverified).toContain('cases');
+    for (const table of ['case_timeline_events', 'exhibits', 'case_people']) {
+      expect(archive._summary.unverified).toContain(table);
+    }
+    expect(archive._summary.complete).toBe(false);
+  });
+});
+
+describe('the archive says what completeness it is claiming', () => {
+  const notesOf = async () =>
+    (await archiveOf(await GET(request())))._meta.notes.join(' ');
+
+  it('says what complete certifies, and what it cannot', async () => {
+    const notes = await notesOf();
+    // A recipient who reads complete: true as "my matter is whole" is being
+    // misled by a true statement, so the archive has to say which one it is.
+    expect(notes).toContain('does not certify that a matter is whole');
+    expect(notes).toMatch(/never appear in _summary\.errors/);
+  });
+
+  it('names unverified as a failure rather than a pass', async () => {
+    const notes = await notesOf();
+    expect(notes).toContain('unverified');
+    expect(notes).toContain('the check itself did not run');
+  });
+
+  it('says firm_signatures is column-limited and that counts cannot show it', async () => {
+    const notes = await notesOf();
+    expect(notes).toMatch(/fixed column list/);
+    expect(notes).toContain('invisible to the completeness check');
+  });
+
+  it('states the file limitation rather than promising a download', async () => {
+    const notes = await notesOf();
+    // The archive must not make a promise on behalf of a decision nobody has
+    // made: whether a gated organization can still reach /counsel/documents.
+    expect(notes).toContain('/counsel/documents/<id>');
+    expect(notes).toMatch(/has not been made/);
+    // And the buckets with no per-file route at all have to be named.
+    expect(notes).toContain('exhibits.storage_path');
+    expect(notes).toContain('case_timeline_events.media');
+  });
+
+  it('says why the meeting join link stays', async () => {
+    const notes = await notesOf();
+    expect(notes).toContain('firm_meetings keeps its join link');
   });
 });
 
