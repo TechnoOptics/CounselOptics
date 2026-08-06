@@ -1,5 +1,7 @@
 import { createServerSupabase, getCurrentUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
+import { callerIsFirmMember } from './firm-authz';
+import { isExecutedCopyPath } from './signing-artifact';
 import type {
   Firm,
   FirmChannel,
@@ -190,6 +192,15 @@ type FirmSigningRequestRow = {
   completed_at: string | null;
   created_at: string;
   document_sha256: string | null;
+  /**
+   * Optional on the row type on purpose. The column is additive (see
+   * supabase/fixes/2026-05-14-signature-rendering-columns.sql) and is
+   * absent on any deployment where that fix has not been applied, so
+   * every read of it goes through `select('*')` and tolerates the
+   * column simply not coming back. Naming it in a select list would
+   * turn a missing column into a failed query.
+   */
+  signed_file_path?: string | null;
 };
 
 function signingRequestFromRow(r: FirmSigningRequestRow): FirmSigningRequest {
@@ -204,6 +215,7 @@ function signingRequestFromRow(r: FirmSigningRequestRow): FirmSigningRequest {
     completedAt: r.completed_at,
     createdAt: r.created_at,
     documentSha256: r.document_sha256,
+    signedFilePath: r.signed_file_path ?? null,
   };
 }
 
@@ -743,6 +755,45 @@ export async function getFirmDocumentSignedUrl(
   return data.signedUrl;
 }
 
+/**
+ * A signed URL for the EXECUTED copy of one signing request.
+ *
+ * Separate from getFirmDocumentSignedUrl above because the two paths
+ * do not live in the same place. An uploaded firm document is written
+ * to `<firm-id>/<doc-id>/<name>` and the user-scoped client reads it
+ * under storage RLS. The executed copy is written by the render step
+ * to `signed/<request-id>/final.pdf`, which carries no firm id, so
+ * the firm-prefix policy the bucket is organised around cannot admit
+ * it. It is minted through the service-role client instead.
+ *
+ * Which means the two checks here ARE the authorization, and neither
+ * is a new one:
+ *   - firm membership, through the shared lib/firm-authz.ts helper
+ *     that every other firm surface uses. Any member may already open
+ *     the document this executed copy is derived from, so membership
+ *     is the same bar, not a lower one.
+ *   - path confinement to `signed/<request-id>/`, so a stored path
+ *     can only ever name this request's own copy.
+ */
+export async function getFirmExecutedCopySignedUrl(input: {
+  firmId: string;
+  requestId: string;
+  filePath: string | null | undefined;
+  expiresInSeconds?: number;
+}): Promise<string | null> {
+  const path = input.filePath?.trim();
+  if (!input.firmId || !path) return null;
+  if (!isExecutedCopyPath(input.requestId, path)) return null;
+  if (!(await callerIsFirmMember(input.firmId))) return null;
+  const admin = createAdminSupabase();
+  if (!admin) return null;
+  const { data, error } = await admin.storage
+    .from('firm-documents')
+    .createSignedUrl(path, input.expiresInSeconds ?? 60 * 10);
+  if (error || !data) return null;
+  return data.signedUrl;
+}
+
 export async function listFirmSigningRequests(firmId: string): Promise<FirmSigningRequest[]> {
   const supabase = createServerSupabase();
   const { data } = await supabase
@@ -804,6 +855,36 @@ export async function listFirmSigningRequestsWithSummary(
       totalSigners: e?.total ?? 0,
     };
   });
+}
+
+/**
+ * The most recently completed signing request against a document, if
+ * there is one.
+ *
+ * The document page shows a document, not a request, so it has no
+ * request to read an executed copy off. This is that lookup. Most
+ * recent COMPLETED rather than most recent outright: a fresh request
+ * opened after an earlier one finished does not un-execute the copy
+ * the earlier one produced, and that copy is still the artifact
+ * counsel means when they say the document is signed.
+ *
+ * `select('*')` on purpose, see FirmSigningRequestRow.signed_file_path.
+ */
+export async function getLatestCompletedSigningRequestForDocument(
+  documentId: string,
+): Promise<FirmSigningRequest | null> {
+  if (!documentId) return null;
+  const supabase = createServerSupabase();
+  const { data } = await supabase
+    .from('firm_signing_requests')
+    .select('*')
+    .eq('document_id', documentId)
+    .eq('status', 'completed')
+    .order('completed_at', { ascending: false, nullsFirst: false })
+    .limit(1)
+    .maybeSingle();
+  if (!data) return null;
+  return signingRequestFromRow(data as FirmSigningRequestRow);
 }
 
 export async function getFirmSigningRequestWithSignatures(
