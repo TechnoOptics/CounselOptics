@@ -77,7 +77,7 @@ function toInstant(value: HandoffTimestamp, field: string): Date {
  * reported before the session window so a stranger scanning a screen
  * cannot tell a live code from a dead one by the wording.
  */
-export function handoffState(
+export function handoffStateWithSessionHash(
   row: HandoffRow,
   now: HandoffTimestamp,
   presentedSessionHash: string | null,
@@ -125,7 +125,7 @@ export function handoffStateForCookie(
   now: HandoffTimestamp,
   rawCookie: string | null,
 ): HandoffState {
-  return handoffState(
+  return handoffStateWithSessionHash(
     row,
     now,
     rawCookie ? hashHandoffToken(rawCookie) : null,
