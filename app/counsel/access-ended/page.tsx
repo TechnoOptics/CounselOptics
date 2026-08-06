@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getCurrentUser } from '@/lib/supabase/server';
 import { getActiveFirmContext, listMyFirms } from '@/lib/firm-storage';
+import { setActiveFirmAction } from '@/lib/firm-actions';
 import { callerFirmRoleLookup, FIRM_ADMIN_ROLES } from '@/lib/firm-authz';
 import { ACCESS_ENDED_PATH } from '@/lib/firm-access';
 import { LocaleProvider, T } from '@/components/i18n/LocaleProvider';
@@ -34,13 +35,61 @@ export const metadata = {
  * Nothing here says or implies that anything will be deleted, because under
  * this design nothing is: the organization keeps its data and can download it.
  */
+/**
+ * The way out for someone who belongs to more than one organization.
+ *
+ * THE LOCKOUT THIS CLOSES. The counsel layout gates on the ACTIVE firm, so
+ * once that one is export_only every /counsel/* route redirects here, and this
+ * page renders its own shell with no CounselHeader. The firm switcher and the
+ * profile menu both live inside CounselHeader and nowhere else, so an attorney
+ * whose current organization lapsed lost every route to the paying
+ * organization they are also a member of. Signing out did not help either,
+ * because profiles.active_firm_id persists across sessions. The only ways back
+ * were an HQ restore and a hand-written POST.
+ *
+ * It is the same argument that already put /counsel/accept-invite in
+ * ALWAYS_ALLOWED: an attorney whose organization has lapsed can still open an
+ * invitation from one that pays. That reasoning was never extended to the
+ * attorney who is ALREADY a member, which is the more common case and the one
+ * with no pending invitation to rescue it.
+ *
+ * WHY IT IS NOT A HOLE. The gate is PER ORGANIZATION, so switching is not an
+ * escape from it. The list offered below comes from listMyFirms, which reads
+ * firm_members through the caller's own RLS-scoped client, and
+ * setActiveFirmAction independently re-confirms the membership server-side
+ * before it writes. So the only destinations are organizations the caller
+ * genuinely belongs to, and the lapsed organization stays exactly as closed as
+ * it was: nothing here grants any access to it, and if the destination is also
+ * export_only the layout evaluates its own state and sends them straight back
+ * to this page.
+ */
+async function switchOrganizationAction(formData: FormData) {
+  'use server';
+  const firmId = String(formData.get('firmId') ?? '');
+  // The membership check is setActiveFirmAction's, not this line's. This only
+  // avoids a pointless round trip on an empty submission.
+  if (!firmId) redirect(ACCESS_ENDED_PATH);
+  const result = await setActiveFirmAction(firmId);
+  // A refusal lands them back here rather than on a blank page. There is
+  // nothing to explain: the only refusals are a membership they do not have,
+  // which the list cannot produce, and a write that failed.
+  redirect(result.ok ? '/counsel' : ACCESS_ENDED_PATH);
+}
+
 export default async function CounselAccessEndedPage() {
   const user = await getCurrentUser();
   if (!user) redirect('/sign-in?next=/counsel/access-ended');
 
   // Same resolution the counsel layout uses: the active firm, falling back to
   // the first membership when profiles.active_firm_id is unset.
-  const active = (await getActiveFirmContext()) ?? (await listMyFirms())[0] ?? null;
+  const myFirms = await listMyFirms();
+  const active = (await getActiveFirmContext()) ?? myFirms[0] ?? null;
+
+  // Every OTHER organization this person belongs to. Read from their own
+  // memberships, so this can never name one they are not in.
+  const otherFirms = myFirms
+    .map((m) => m.firm)
+    .filter((f) => f.id !== active?.firm.id);
 
   // Owner and admin only, through lib/firm-authz.ts rather than a fourth
   // membership check. An organization-wide export holds every matter, document
@@ -130,6 +179,29 @@ export default async function CounselAccessEndedPage() {
               </button>
             </form>
           </div>
+          {/* See switchOrganizationAction above for why this is here and why
+              it is not a way around the gate. */}
+          {otherFirms.length > 0 ? (
+            <div className="space-y-2 border-t border-cream-100/10 pt-4">
+              <p className="text-sm text-cream-100/75 leading-relaxed">
+                <T>
+                  You also work with other organizations on Advottic. You can
+                  switch to one of them.
+                </T>
+              </p>
+              {otherFirms.map((firm) => (
+                <form key={firm.id} action={switchOrganizationAction}>
+                  <input type="hidden" name="firmId" value={firm.id} />
+                  <button
+                    type="submit"
+                    className="btn w-full justify-center border border-cream-100/15 text-cream-100/85 hover:bg-cream-100/5"
+                  >
+                    <span data-no-translate>{firm.name}</span>
+                  </button>
+                </form>
+              ))}
+            </div>
+          ) : null}
         </div>
       </div>
     </LocaleProvider>

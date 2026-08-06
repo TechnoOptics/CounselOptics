@@ -670,7 +670,21 @@ export async function acceptFirmInvitationAction(
   }
   const members = (seatRows ?? []) as Array<{ user_id: string }>;
   const alreadyAMember = members.some((m) => m.user_id === user.id);
-  const seatLimit = (seatFirm as { seat_limit: number | null } | null)?.seat_limit ?? null;
+  // Key presence, not `?? null`, and this is the one path that consumes a
+  // seat. `?? null` reads a row that lacks the column as "no limit", which is
+  // the fail-open direction: every seat check below would pass. PostgREST
+  // errors an unknown column rather than returning a row without it, so this
+  // is not a live hole; it is the same rule the trial readers in
+  // lib/firm-trials.ts hold, that a reader does not get to assume its caller's
+  // honesty about the shape it was handed.
+  const seatRow = seatFirm as Record<string, unknown> | null;
+  if (seatRow && !('seat_limit' in seatRow)) {
+    console.error(
+      'acceptFirmInvitationAction: the firms row came back without seat_limit, so the seat limit could not be checked.',
+    );
+    return { ok: false, error: 'Unavailable. Please try again.' };
+  }
+  const seatLimit = (seatRow?.seat_limit as number | null | undefined) ?? null;
   if (!alreadyAMember) {
     const seats = seatCheck({ seatLimit, currentMembers: members.length });
     if (!seats.ok) {
