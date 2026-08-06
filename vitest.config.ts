@@ -7,20 +7,25 @@ import { fileURLToPath } from 'node:url';
 export default defineConfig({
   resolve: {
     alias: {
-      // The project's own path alias, so a test can import an app/ module that
-      // uses it. Without this, anything under app/ is untestable here, and the
-      // access-ended page is a page whose COPY is a correctness requirement.
-      '@': fileURLToPath(new URL('.', import.meta.url)),
       // `server-only` is a Next build-time guard with no runtime behavior; it
       // isn't resolvable under the Node test env, so stub it so server-only lib
       // modules (e.g. lib/counsel-guest.ts) can be unit-tested.
       'server-only': fileURLToPath(
         new URL('./tests/stubs/server-only.ts', import.meta.url),
       ),
-      // Route handlers import through the `@/` path alias, so a test that
-      // drives one (tests/firm-export-route.test.ts) needs the same alias
-      // tsconfig gives the app. The key keeps its trailing slash on purpose:
-      // a bare '@' is a prefix match and would also swallow '@supabase/...'.
+      // The project's own path alias, mirroring tsconfig's "@/*": ["./*"], so a
+      // test can drive a route handler or an app/ module that imports through
+      // it. Two branches added this independently and the merge kept both, one
+      // keyed '@' and one keyed '@/'; they are collapsed here to the single
+      // slashed form.
+      //
+      // The trailing slash is deliberate but NOT for the reason one of those
+      // comments gave. Vite resolves a string alias through
+      // @rollup/plugin-alias, which matches only an exact hit or a `find + '/'`
+      // prefix, so a bare '@' could not have swallowed '@supabase/...' either.
+      // The slash is kept because it states the intent at a glance and because
+      // this repo has a real `supabase/` directory at its root, which is what a
+      // naive prefix replacement would have hit.
       '@/': fileURLToPath(new URL('./', import.meta.url)),
     },
   },

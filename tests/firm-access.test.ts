@@ -42,6 +42,13 @@ vi.mock('../lib/supabase/admin', () => ({
           }),
         }
       : null,
+  // Task 3's fail-open logging calls this to name WHICH piece of config is
+  // missing (the URL or the service-role key) before it returns 'active'.
+  // It only runs on the null-client branch, which is why neither branch could
+  // see the gap alone: the enforcement branch has no missingAdminReason, and
+  // the trials branch has no requireActiveFirm test. Keep it in step with
+  // supa.configured so the two halves of the mock cannot disagree.
+  isServiceRoleConfigured: () => supa.configured,
 }));
 
 // lib/firm-authz.ts reaches for the user-scoped client for its role checks.
