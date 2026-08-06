@@ -12,7 +12,11 @@ import { createAdminSupabase } from './supabase/admin';
  * `severity: 'low'` and auto-acknowledged so they DON'T land in the
  * dashboard's "open events need triage" queue. Security-relevant events
  * (login_failed, suspicious) are logged with a higher severity and left
- * unacknowledged so they surface for review. Logging is best-effort and
+ * unacknowledged so they surface for review. Privileged access sits in
+ * between: `admin_case_view` and `admin_impersonation` are 'medium', so an
+ * operator reaching into a customer's data always asks someone for review
+ * (HIPAA 164.308(a)(1)(ii)(D), information system activity review).
+ * Logging is best-effort and
  * never throws into the caller: an audit-write failure must not break the
  * user action it is recording. It is never silent either, see
  * `reportAuditFailure` below.
