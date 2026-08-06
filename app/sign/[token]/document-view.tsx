@@ -260,11 +260,17 @@ export function SignerDocumentView({
           is not available until it opens. You can ask{' '}
           <span data-no-translate>{firmName}</span> to send you the document.
         </p>
-        <p className="mt-4">
-          <ExternalLink href={documentHref} className="btn-secondary text-sm">
-            Try opening it in a new tab
-          </ExternalLink>
-        </p>
+        {/* Only where it could actually help. A file over the ceiling
+            and an empty response are refused by the route as well, so
+            offering a new tab would walk the signer into the same
+            refusal in a plainer typeface. */}
+        {status !== 'too-large' && status !== 'empty' && (
+          <p className="mt-4">
+            <ExternalLink href={documentHref} className="btn-secondary text-sm">
+              Try opening it in a new tab
+            </ExternalLink>
+          </p>
+        )}
       </section>
     );
   }
@@ -354,8 +360,26 @@ export function SignerDocumentView({
           >
             Previous
           </button>
+          {/* Typed, not just stepped. Reading a long agreement with
+              only Previous and Next means one click per page, and the
+              signer is being asked to read the whole thing. */}
+          <label className="text-[12px] text-ink-600 dark:text-cream-100/70">
+            <span className="sr-only">Page number</span>
+            <input
+              type="number"
+              min={1}
+              max={total}
+              value={pageNumber}
+              onChange={(e) =>
+                setPageNumber(
+                  clampSignerPageNumber(Number(e.currentTarget.value), total),
+                )
+              }
+              className="input w-16 px-2 py-1 text-[12px] text-center tabular-nums"
+            />
+          </label>
           <span className="text-[12px] text-ink-600 dark:text-cream-100/70 tabular-nums">
-            Page {pageNumber} of {total}
+            of {total}
           </span>
           <button
             type="button"

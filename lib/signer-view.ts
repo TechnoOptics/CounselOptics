@@ -704,8 +704,12 @@ export const SIGNER_DOCUMENT_RENDER_COPY: Record<
   pending: 'Opening the document.',
   empty:
     'The document came back empty, so there is nothing to show you. Please ask the firm to send it again.',
+  // Not "too large for this device": the ceiling is the same
+  // everywhere, because the route that serves the bytes holds them in
+  // memory too, so telling someone to try a computer would send them
+  // round the same refusal.
   'too-large':
-    'This document is too large to open on this device. Please ask the firm to send you a copy you can read, or open this link on a computer.',
+    'This document is larger than this page can open. Please ask the firm to send you a copy you can read.',
   unreadable:
     'This document could not be opened. It may be damaged or password protected. Please ask the firm for a copy you can read.',
   unsupported:
