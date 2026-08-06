@@ -203,6 +203,138 @@ for (const [rel, label] of accountRoutes) {
   }
 }
 
+// ---------------------------------------------------------------------
+// Wiring the menu fix cannot reach.
+//
+// Repointing the menu only helps somebody who opens the menu. A bookmark
+// at /profile, and the "no verified factor" way out of /verify-mfa, both
+// still land a firm user in the consumer shell. The policy for that lives
+// in lib/counsel-account-routes.ts and is exercised as a pure function in
+// tests/counsel-account-routes.test.ts - but a policy nobody calls is a
+// guard that passes while the bug is live, so the CALL SITES are asserted
+// here, in the source, where a unit test cannot see them.
+//
+// The same applies to the two-factor control on the guest account page and
+// to the link back to the consumer profile: the redirect above makes that
+// link the only route to Safe Witness, theme, language and paired devices
+// for anyone in a firm, so losing it strands them.
+// ---------------------------------------------------------------------
+console.log('\n[account-wiring] the fix is actually called:');
+
+function assertContains(rel, needles, label) {
+  let src = '';
+  try {
+    src = readFileSync(join(here, '..', '..', rel), 'utf8');
+  } catch (err) {
+    failures++;
+    console.error(`  FAIL: cannot read ${rel} (${label}): ${err.message}`);
+    return;
+  }
+  const missing = needles.filter((n) => !src.includes(n));
+  if (missing.length === 0) {
+    passes++;
+  } else {
+    failures++;
+    console.error(`  FAIL: ${label} (${rel})`);
+    console.error(`    missing: ${missing.map((m) => JSON.stringify(m)).join(', ')}`);
+  }
+}
+
+// Every consumer account route that has a counsel twin must consult the
+// policy. Dropping the call restores the original bug silently: the page
+// still renders, and the only symptom is the wrong shell.
+assertContains(
+  'app/profile/page.tsx',
+  ['counselAccountRedirect', "counselAccountRedirect(\n    '/profile',"],
+  'consumer profile routes a firm member to the counsel account page',
+);
+assertContains(
+  'app/profile/api-tokens/page.tsx',
+  ['counselAccountRedirect', "'/profile/api-tokens',"],
+  'consumer API tokens routes a firm member into counsel',
+);
+assertContains(
+  'app/feedback/page.tsx',
+  ['counselAccountRedirect', "counselAccountRedirect(\n    '/feedback',"],
+  'consumer feedback routes a firm member into counsel',
+);
+
+// The way back out. Without it, the redirect above makes the consumer-only
+// sections unreachable for every firm member.
+assertContains(
+  'app/counsel/profile/account-panel.tsx',
+  ['PERSONAL_PROFILE_HREF', 'href={PERSONAL_PROFILE_HREF}'],
+  'counsel account page still links back to the personal profile',
+);
+
+// The MFA page's fallback link must not be hard-coded at the consumer route.
+{
+  const rel = 'app/verify-mfa/verify-mfa-form.tsx';
+  let src = '';
+  try {
+    src = readFileSync(join(here, '..', '..', rel), 'utf8');
+  } catch (err) {
+    failures++;
+    console.error(`  FAIL: cannot read ${rel}: ${err.message}`);
+  }
+  if (src && src.includes('href="/profile"')) {
+    failures++;
+    console.error(
+      `  FAIL: ${rel} hard-codes href="/profile"; a firm user lands in the consumer shell`,
+    );
+  } else if (src.includes('accountHref')) {
+    passes++;
+  } else {
+    failures++;
+    console.error(`  FAIL: ${rel} no longer takes a resolved accountHref`);
+  }
+}
+
+// A co-counsel guest is an outside attorney on a live matter, so the second
+// factor has to be reachable from inside their own shell. It lives on the
+// guest profile page rather than behind a widened path allowlist; see the
+// doc block on that page and tests/counsel-guest-revocation.test.ts.
+assertContains(
+  'app/counsel/guest/profile/page.tsx',
+  ['MfaSettings', '<MfaSettings />'],
+  'a co-counsel guest can enrol two-factor from their own account page',
+);
+
+// Revalidation. Each of these actions writes something a counsel account
+// surface renders; without the counsel path the page shows the old value
+// after a successful action.
+console.log('\n[account-wiring] counsel pages are revalidated after a write:');
+assertContains(
+  'lib/actions.ts',
+  ["revalidatePath('/counsel/profile')", "revalidatePath('/counsel/feedback')"],
+  'profile save and feedback submit revalidate their counsel pages',
+);
+assertContains(
+  'lib/phone-verify-actions.ts',
+  ["revalidatePath('/counsel/profile')"],
+  'phone verification revalidates the counsel account page',
+);
+{
+  const rel = 'app/profile/api-tokens/actions.ts';
+  let src = '';
+  try {
+    src = readFileSync(join(here, '..', '..', rel), 'utf8');
+  } catch (err) {
+    failures++;
+    console.error(`  FAIL: cannot read ${rel}: ${err.message}`);
+  }
+  // Both minting actions, not just the first one found.
+  const hits = src.split("revalidatePath('/counsel/profile/api-tokens')").length - 1;
+  if (hits >= 2) {
+    passes++;
+  } else {
+    failures++;
+    console.error(
+      `  FAIL: ${rel} revalidates the counsel tokens page ${hits} time(s); both createTokenAction and createFirmTokenAction must`,
+    );
+  }
+}
+
 console.log('');
 if (failures === 0) {
   console.log(`OK: ${passes} assertions passed.`);

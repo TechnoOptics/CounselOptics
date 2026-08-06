@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { updateProfileAction } from '@/lib/actions';
+import { PERSONAL_PROFILE_HREF } from '@/lib/counsel-account-routes';
 import { PageHeader } from '@/components/counsel/ui';
 import { T } from '@/components/i18n/LocaleProvider';
 // The account controls are SHARED with the consumer profile at
@@ -9,6 +10,7 @@ import { AvatarUpload } from '@/app/profile/avatar-upload';
 import { MfaSettings } from '@/app/profile/mfa-settings';
 import { PhoneVerifyForm } from '@/app/profile/phone-verify-form';
 import { AccountActions } from '@/app/profile/account-actions';
+import { BiometricSettings } from '@/components/BiometricSettings';
 
 export type AccountPanelProps = {
   userId: string;
@@ -174,6 +176,15 @@ export function AccountPanel(props: AccountPanelProps) {
           </p>
         </div>
         <MfaSettings />
+        {/* Biometric unlock is kept, unlike theme, language, Safe Witness,
+            Wear OS, install and the Pro upsell, because it is not a consumer
+            feature: it is a second way of signing in to THIS account, which
+            is what this section is. The iOS and Android shells load
+            advottic.com remotely, so an attorney who signs in there lands in
+            /counsel and can use it. The card renders nothing at all on the
+            web, where most firm work happens, so it costs a desktop reader
+            no space. */}
+        <BiometricSettings framed />
         <PhoneVerifyForm
           verifiedPhone={props.verifiedPhone}
           verifiedAt={props.phoneVerifiedAt}
@@ -200,6 +211,34 @@ export function AccountPanel(props: AccountPanelProps) {
         <div>
           <Link href="/counsel/profile/api-tokens" className="btn-secondary">
             <T>Manage tokens</T>
+          </Link>
+        </div>
+      </section>
+
+      {/* The way back. /counsel/profile is a strict subset of the consumer
+          profile, and /profile now redirects a firm member here, so without
+          this link the sections this page drops would have no route at all.
+          PERSONAL_PROFILE_HREF is the URL that opts out of that redirect and
+          is stable enough to bookmark. */}
+      <section className="card p-6 space-y-3">
+        <div>
+          <p className="eyebrow mb-1">
+            <T>Personal account</T>
+          </p>
+          <h2 className="font-display text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
+            <T>Your own Advottic settings</T>
+          </h2>
+          <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 leading-relaxed">
+            <T>
+              Theme, language, Safe Witness contacts and paired devices belong
+              to you rather than to the firm, so they stay on your personal
+              profile in the main app.
+            </T>
+          </p>
+        </div>
+        <div>
+          <Link href={PERSONAL_PROFILE_HREF} className="btn-secondary">
+            <T>Open personal settings</T>
           </Link>
         </div>
       </section>

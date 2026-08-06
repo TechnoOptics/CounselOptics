@@ -32,6 +32,18 @@ export const metadata = { title: 'Your account · Counsel' };
  * always dark by design (see .counsel-shell in globals.css) so a theme
  * picker here would be a control that does nothing, and the language
  * picker already sits in the header menu one click away.
+ *
+ * Biometric sign-in IS kept, which is the one place this page differs
+ * from "consumer features dropped". It is not a consumer feature: it is
+ * a second way of signing in to this account, which is what the security
+ * section on this page is for. The iOS and Android shells load
+ * advottic.com remotely, so an attorney signing in there lands in
+ * /counsel and can use it, and the card renders nothing at all on the
+ * web. See the comment at the call site in account-panel.tsx.
+ *
+ * Everything this page does NOT carry stays reachable: the last card
+ * links to the consumer profile at the URL that opts out of the
+ * firm-member redirect. See lib/counsel-account-routes.ts.
  */
 export default async function CounselAccountPage() {
   if (!isSupabaseConfigured()) redirect('/counsel');

@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
+import { listMyFirms } from '@/lib/firm-storage';
+import { counselAccountRedirect } from '@/lib/counsel-account-routes';
 import { TokensPanel } from './tokens-panel';
 
 export const dynamic = 'force-dynamic';
@@ -9,10 +11,24 @@ export const metadata = {
   robots: { index: false, follow: false },
 };
 
-export default async function ApiTokensPage() {
+export default async function ApiTokensPage({
+  searchParams,
+}: {
+  searchParams?: Record<string, string | string[] | undefined>;
+}) {
   if (!isSupabaseConfigured()) redirect('/sign-in');
   const user = await getCurrentUser();
   if (!user) redirect('/sign-in?next=/profile/api-tokens');
+
+  // Same rule as /profile. A firm member minting a firm integration token
+  // should be doing it inside the workspace the token is bound to.
+  // See lib/counsel-account-routes.ts.
+  const firmDestination = counselAccountRedirect(
+    '/profile/api-tokens',
+    (await listMyFirms().catch(() => [])).length > 0,
+    searchParams,
+  );
+  if (firmDestination) redirect(firmDestination);
 
   return (
     <div className="max-w-3xl mx-auto space-y-8 animate-fade-up">

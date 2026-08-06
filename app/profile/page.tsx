@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getCurrentUser, isSupabaseConfigured, createServerSupabase } from '@/lib/supabase/server';
 import { getProfile } from '@/lib/storage';
+import { listMyFirms } from '@/lib/firm-storage';
+import { counselAccountRedirect } from '@/lib/counsel-account-routes';
 import { updateProfileAction } from '@/lib/actions';
 import { SafeContactForm, type SafeWitnessContactRow } from './safe-contact-form';
 import { WatchPairCard, DevicesSectionHeader } from './watch-pair-card';
@@ -21,7 +23,11 @@ import { REPRESENTATION_LABEL, type RepresentationStatus } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
-export default async function ProfilePage() {
+export default async function ProfilePage({
+  searchParams,
+}: {
+  searchParams?: Record<string, string | string[] | undefined>;
+}) {
   if (!isSupabaseConfigured()) {
     return (
       <div className="max-w-xl mx-auto card p-8 space-y-3">
@@ -36,6 +42,17 @@ export default async function ProfilePage() {
 
   const user = await getCurrentUser();
   if (!user) redirect('/sign-in?next=/profile');
+
+  // A firm member who arrives here from a bookmark, or from the MFA page,
+  // belongs on the counsel account page rather than in the consumer shell.
+  // `?personal=1` says they meant this one. See lib/counsel-account-routes.ts
+  // for the rule and for what it deliberately cannot infer.
+  const firmDestination = counselAccountRedirect(
+    '/profile',
+    (await listMyFirms().catch(() => [])).length > 0,
+    searchParams,
+  );
+  if (firmDestination) redirect(firmDestination);
 
   const profile = await getProfile().catch(() => null);
 

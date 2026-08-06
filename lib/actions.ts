@@ -1736,6 +1736,11 @@ export async function submitFeedbackAction(
       userAgent: userAgent ? userAgent.slice(0, 500) : null,
     });
     revalidatePath('/feedback');
+    // The firm-side feedback page renders the same form and the same
+    // "your previous feedback" history, so it needs the same
+    // invalidation or a submission the firm just sent is missing from
+    // the list directly below the form.
+    revalidatePath('/counsel/feedback');
     revalidatePath('/admin/feedback');
     return { ok: true, id: created.id };
   } catch (err) {

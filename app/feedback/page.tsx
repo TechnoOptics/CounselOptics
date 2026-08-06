@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
+import { listMyFirms } from '@/lib/firm-storage';
+import { counselAccountRedirect } from '@/lib/counsel-account-routes';
 import { FeedbackPanel } from './feedback-panel';
 
 export const dynamic = 'force-dynamic';
@@ -17,7 +19,11 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default async function FeedbackPage() {
+export default async function FeedbackPage({
+  searchParams,
+}: {
+  searchParams?: Record<string, string | string[] | undefined>;
+}) {
   if (!isSupabaseConfigured()) {
     return (
       <div className="max-w-xl mx-auto card p-8 space-y-3">
@@ -30,6 +36,16 @@ export default async function FeedbackPage() {
   }
   const user = await getCurrentUser();
   if (!user) redirect('/sign-in?next=/feedback');
+
+  // Same rule as /profile. The counsel page carries the same form and the
+  // same history, framed for a firm rather than pointing the reader at a
+  // licensed attorney. See lib/counsel-account-routes.ts.
+  const firmDestination = counselAccountRedirect(
+    '/feedback',
+    (await listMyFirms().catch(() => [])).length > 0,
+    searchParams,
+  );
+  if (firmDestination) redirect(firmDestination);
 
   return (
     <div className="max-w-3xl mx-auto space-y-8 animate-fade-up">

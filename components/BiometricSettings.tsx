@@ -46,7 +46,18 @@ type State =
   | { kind: 'available'; type: BiometryType | null; enrolled: false; email: null }
   | { kind: 'available'; type: BiometryType | null; enrolled: true; email: string | null; enrolledAt: string | null };
 
-export function BiometricSettings() {
+export function BiometricSettings({
+  /**
+   * Draw the card frame. The consumer profile renders this INSIDE its
+   * Preferences card, so it must stay frameless there or the cards nest.
+   * The firm account page sits it between two self-framing cards, so it
+   * asks for the frame. The frame is applied below the null return, which
+   * is what keeps an empty box off every desktop firm account page.
+   */
+  framed = false,
+}: {
+  framed?: boolean;
+} = {}) {
   const [state, setState] = useState<State>({ kind: 'loading' });
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -131,7 +142,7 @@ export function BiometricSettings() {
     state.kind === 'available' ? biometryLabel(state.type) : 'biometric';
 
   return (
-    <div className="space-y-3">
+    <div className={framed ? 'card p-6 space-y-3' : 'space-y-3'}>
       <div>
         <p className="label">Biometric sign-in</p>
         <p className="text-xs text-ink-500 dark:text-cream-100/55 mb-2">
@@ -139,8 +150,12 @@ export function BiometricSettings() {
         </p>
       </div>
 
+      {/* Dark variant, for the same reason AccountActions and MfaSettings
+          have one: this card now also renders on the always-dark firm
+          account page, and a light-red error box on a black screen is the
+          only thing on it that would not belong. */}
       {error && (
-        <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+        <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800 dark:border-rose-700/50 dark:bg-rose-950/40 dark:text-rose-200">
           {error}
         </p>
       )}

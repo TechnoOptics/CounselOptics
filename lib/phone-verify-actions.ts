@@ -43,5 +43,9 @@ export async function confirmPhoneVerificationCodeAction(
     .eq('id', user.id);
   if (error) return { ok: false, error: error.message };
   revalidatePath('/profile');
+  // The firm-side account page renders the same PhoneVerifyForm from the
+  // same two columns, so it needs the same invalidation or a number the
+  // attorney just verified keeps showing as unverified there.
+  revalidatePath('/counsel/profile');
   return { ok: true };
 }
