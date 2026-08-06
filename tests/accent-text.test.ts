@@ -181,13 +181,31 @@ describe('the derivation keeps the firm hue', () => {
   });
 
   it('gives an achromatic accent a deterministic neutral, not a tinted grey', () => {
+    // The perfect neutrals are the easy half: their chroma is exactly
+    // zero, so they come out neutral with or without the clamp and
+    // prove nothing on their own. The NEAR neutrals are the reason the
+    // clamp exists. #84807c is chroma 0.0077 at hue 67.7 and #7f8082 is
+    // chroma 0.0032 at hue 264.5: two greys a human would call the same
+    // colour, whose hue angles are 197 degrees apart because at that
+    // chroma the angle is 8-bit rounding and nothing else. Without the
+    // clamp each firm gets its own faintly tinted grey out of that
+    // noise.
+    const neutrals = ['#000000', '#ffffff', '#808080'];
+    const nearNeutrals = ['#807f80', '#828081', '#7f8082', '#84807c', '#a0a2a4'];
+    for (const near of nearNeutrals) {
+      const c = toOklch(near).c;
+      expect(c, `${near} should be a near neutral, not an exact one`).toBeGreaterThan(0);
+      expect(c).toBeLessThan(ACHROMATIC_CHROMA);
+    }
     for (const tone of ['dark', 'light'] as const) {
-      const fromBlack = deriveAccentText('#000000', tone);
-      const fromWhite = deriveAccentText('#ffffff', tone);
-      const fromGrey = deriveAccentText('#808080', tone);
-      expect(fromBlack).toBe(fromWhite);
-      expect(fromBlack).toBe(fromGrey);
-      expect(toOklch(fromBlack).c).toBeLessThan(ACHROMATIC_CHROMA);
+      const expected = deriveAccentText('#808080', tone);
+      for (const accent of [...neutrals, ...nearNeutrals]) {
+        expect(
+          deriveAccentText(accent, tone),
+          `${accent} (${tone}) should derive to the same neutral as a pure grey`,
+        ).toBe(expected);
+      }
+      expect(toOklch(expected).c).toBeLessThan(0.005);
     }
   });
 });
