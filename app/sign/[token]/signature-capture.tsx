@@ -3,6 +3,10 @@
 import { useState } from 'react';
 import { useStepAnchor } from '@/lib/use-step-anchor';
 import { SignaturePad, type SignaturePadValue } from '@/components/SignaturePad';
+import {
+  SIGNING_INTENT_PREFIX,
+  signingIntentSuffix,
+} from '@/lib/signing-intent';
 
 type Step = 'disclosure' | 'capture' | 'done';
 
@@ -261,10 +265,19 @@ export function SignatureCapture({
           className="mt-1"
         />
         <span>
-          I, <strong>{signerName || signerEmail}</strong>, intend that the
-          mark above be my signature on &ldquo;{documentName}&rdquo;, with the
-          same legal effect as a handwritten signature. I am acting on my
-          own behalf or as authorized for the entity I represent.
+          {/* The words come from lib/signing-intent.ts, which the employee
+              form reads too. Two surfaces asserting intent in two forms of
+              words is the kind of discrepancy that gets a signature
+              challenged, so neither surface keeps a copy of them.
+
+              The name is the signer's own, inside the sentence that
+              makes the mark a signature, and stays in its own element:
+              the runtime translation layer would otherwise
+              machine-translate a person's name in the operative clause
+              of a legal instrument. */}
+          {SIGNING_INTENT_PREFIX}
+          <strong data-no-translate>{signerName || signerEmail}</strong>
+          {signingIntentSuffix(documentName)}
         </span>
       </label>
 

@@ -17,6 +17,10 @@ import {
   mergeTemplateDocument,
 } from '@/lib/firm-template-placeholders';
 import { SignaturePad, type SignaturePadValue } from '@/components/SignaturePad';
+import {
+  SIGNING_INTENT_PREFIX,
+  signingIntentSuffix,
+} from '@/lib/signing-intent';
 import { DocumentWithMark } from '@/components/DocumentWithMark';
 import { PageHeader, SectionTitle } from '@/components/counsel/ui';
 import { T } from '@/components/i18n/LocaleProvider';
@@ -290,14 +294,7 @@ export function FormFillClient({
                 app/sign/[token]/signature-capture.tsx does not: an employee
                 signing their employer's own paper is not a consumer under
                 15 USC 7006(1), so the paper-copy right and the withdrawal
-                notice are addressed to a situation that is not this one.
-
-                The wording below is deliberately identical to the sentence in
-                signature-capture.tsx. Two surfaces asserting intent in two
-                forms of words is the kind of discrepancy that gets a signature
-                challenged. Both copies belong in lib/signing-intent.ts; that
-                file does not exist yet on any branch, so this is the second
-                copy until someone makes it. */}
+                notice are addressed to a situation that is not this one. */}
             <label className="flex items-start gap-3 text-[13px] text-ink-700 dark:text-cream-100/80">
               <input
                 type="checkbox"
@@ -306,11 +303,19 @@ export function FormFillClient({
                 className="mt-1"
               />
               <span>
-                I, <strong data-no-translate>{signature || employeeName || employeeEmail}</strong>,
-                intend that the mark above be my signature on &ldquo;
-                <span data-no-translate>{template.name}</span>&rdquo;, with the same legal effect as
-                a handwritten signature. I am acting on my own behalf or as authorized for the
-                entity I represent.
+                {/* The words come from lib/signing-intent.ts, which the outside
+                    signer's checkbox reads too. This page kept its own copy of
+                    the sentence until that module existed; the two had already
+                    started to differ in their typography, which is exactly the
+                    drift a shared constant prevents. Neither surface holds the
+                    words now.
+
+                    The signer's own name stays in its own element so the
+                    runtime translation layer does not machine-translate a
+                    person's name in the operative clause. */}
+                {SIGNING_INTENT_PREFIX}
+                <strong data-no-translate>{signature || employeeName || employeeEmail}</strong>
+                {signingIntentSuffix(template.name)}
               </span>
             </label>
           </section>
