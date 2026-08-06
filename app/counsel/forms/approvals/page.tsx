@@ -13,8 +13,11 @@ export const metadata = { title: 'Document approvals · Counsel' };
 
 /**
  * The review queue. An employee filled a firm template and named an outside
- * recipient; nothing has been sent. Everyone on the legal team can read what
- * is waiting; owners, admins, and attorneys can release it.
+ * recipient; nothing has been sent. Everyone on the legal team can follow what
+ * is waiting and where each one has got to. Reading the wording of a document
+ * the firm has not agreed to send, and releasing one, are both limited to
+ * owners, admins, and attorneys: see canReadSubmissionDocument and
+ * canApproveSubmissions in lib/template-approval.ts.
  */
 export default async function CounselFormApprovalsPage() {
   const ctx = await getActiveFirmContext();
@@ -33,8 +36,9 @@ export default async function CounselFormApprovalsPage() {
         subtitle={
           <T>
             Forms your colleagues have filled in and addressed to someone outside the
-            company. Nothing here has been sent. Read the finished document, then approve
-            it to send it, or send it back with a note.
+            company. Nothing here has been sent. An owner, admin, or attorney reads the
+            finished document and either approves it to send it, or sends it back with a
+            note.
           </T>
         }
       />

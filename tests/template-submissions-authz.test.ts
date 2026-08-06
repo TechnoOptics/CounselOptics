@@ -61,12 +61,12 @@ describe('lib/template-submissions.ts', () => {
     );
   });
 
-  it('swaps the edit and the decision against the text the reviewer saw', () => {
-    // The baseline is `seen`, the wording the reviewer's page rendered, NOT
-    // `row.document_text`, which the action itself read a moment earlier. The
-    // second only closes the milliseconds between an action's own read and its
-    // own write; the window that matters is the minutes a reviewer spends with
-    // the document open, and only the first closes that.
+  it('swaps the edit and the decision against the version the reviewer saw', () => {
+    // The baseline is `seenRev`, the revision the reviewer's page rendered, NOT
+    // `row.revision`, which the action itself read a moment earlier. The second
+    // only closes the milliseconds between an action's own read and its own
+    // write; the window that matters is the minutes a reviewer spends with the
+    // document open, and only the first closes that.
     //
     // tests/template-submission-concurrency.test.ts is what proves this works.
     // These assertions exist so the wrong baseline cannot creep back in while
@@ -74,9 +74,19 @@ describe('lib/template-submissions.ts', () => {
     for (const name of ['editTemplateSubmissionAction', 'decideTemplateSubmissionAction']) {
       const action = exportedActions().find((a) => a.name === name);
       expect(action?.body).toMatch(/\.eq\('status',\s*'pending'\)/);
-      expect(action?.body).toMatch(/\.eq\('document_text',\s*seen\)/);
-      expect(action?.body).not.toMatch(/\.eq\('document_text',\s*row\.document_text\)/);
+      expect(action?.body).toMatch(/\.eq\('revision',\s*seenRev\)/);
+      expect(action?.body).not.toMatch(/\.eq\('revision',\s*row\.revision\)/);
     }
+  });
+
+  it('never puts the document body in a filter', () => {
+    // A PostgREST filter is a query-string parameter on a PATCH exactly as on
+    // a GET, so `.eq('document_text', ...)` percent-encodes the whole merged
+    // agreement into the request URL. postgrest-js carries its own 8000
+    // character limit and has no fallback below it, so a real mutual NDA would
+    // fail the write on every ordinary document rather than on a race. The
+    // revision carries the same guarantee in a few bytes.
+    expect(SOURCE).not.toMatch(/\.eq\('document_text',/);
   });
 
   it('clears any reviewer edit when the employee resubmits', () => {

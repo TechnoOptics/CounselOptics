@@ -104,25 +104,48 @@ function refresh(): void {
 }
 
 /**
- * The document the reviewer's own page rendered.
+ * What the reviewer's own page rendered: the wording, and the revision it
+ * carried.
  *
- * Both the edit and the decision are conditional on this rather than on the row
- * the action has just read, and the difference is the whole point. A reviewer
- * sits with a document open for minutes; the gap between an action's own read
- * and its own write is milliseconds. Comparing against the fresh read closes
- * the millisecond and leaves the minutes open, which is how one reviewer's
- * edit disappears under another's, and how an approver ends up recorded as
- * having released text they never saw.
+ * Both the edit and the decision are conditional on what the reviewer read
+ * rather than on the row the action has just read, and the difference is the
+ * whole point. A reviewer sits with a document open for minutes; the gap
+ * between an action's own read and its own write is milliseconds. Comparing
+ * against the fresh read closes the millisecond and leaves the minutes open,
+ * which is how one reviewer's edit disappears under another's, and how an
+ * approver ends up recorded as having released text they never saw.
  *
- * A caller can of course send any string here, but the caller is already a
- * reviewer who could read the current text and send that. This is a lost-update
- * guard, not an authorization check; authorization is the role check above it.
- * An omitted argument arrives as '' and fails the comparison, so a caller who
- * leaves it out is told to reload rather than quietly getting the old
+ * Two values carry that, and they do different jobs.
+ *
+ * `revision` is what the conditional update swaps on. A PostgREST filter is a
+ * query-string parameter on a PATCH exactly as on a GET, so `.eq('document_
+ * text', seen)` puts the whole merged agreement in the request URL. A short
+ * vendor form fits; a real mutual NDA does not, and the write then fails on
+ * every ordinary document rather than on a race. `revision` says the same
+ * thing in a few bytes: it is bumped on every write that changes document_text
+ * (the submission inserts it at 1, a resubmission and a reviewer edit each add
+ * one) and on no other write, so an unchanged revision means unchanged text.
+ *
+ * The wording is still sent and still compared, but only against the row this
+ * action has just read, where its length costs nothing. That comparison is
+ * there to word the error: it tells "a colleague rewrote this while you had it
+ * open" apart from a bare lost race.
+ *
+ * A caller can of course send any values here, but the caller is already a
+ * reviewer who could read the current row and send that back. This is a
+ * lost-update guard, not an authorization check; authorization is the role
+ * check above it. An omitted document arrives as '' and an omitted or
+ * malformed revision arrives as -1, which no stored row can hold, so a caller
+ * who leaves either out is told to reload rather than quietly getting the old
  * behaviour.
  */
 function seenDocument(value: unknown): string {
   return String(value ?? '');
+}
+
+/** -1 for anything that is not a stored revision, so a missing baseline fails closed. */
+function seenRevision(value: unknown): number {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : -1;
 }
 
 /** Tell the people who can act on it that a document is waiting. */
@@ -224,7 +247,9 @@ export async function submitTemplateForApprovalAction(
   const row = data as SubmissionRow;
   await notifyApprovers(admin, row, user.id);
   refresh();
-  return { ok: true, submission: rowToSubmission(row) };
+  // Back to the colleague who just filled it in, so their own words go back to
+  // them. rowToSubmission withholds the wording unless it is told otherwise.
+  return { ok: true, submission: rowToSubmission(row, undefined, true) };
 }
 
 /** The submissions the signed-in employee has filed, newest first. */
@@ -249,8 +274,10 @@ export async function listMyTemplateSubmissionsAction(
   const people = await hydratePeople(admin, namedIn(rows));
   return {
     ok: true,
+    // Every row here was filed by the caller, so every one of them is their
+    // own words and their own signature.
     submissions: rows.map((r) =>
-      rowToSubmission(r, (id) => people.get(id)?.name ?? null),
+      rowToSubmission(r, (id) => people.get(id)?.name ?? null, true),
     ),
   };
 }
@@ -343,7 +370,8 @@ export async function resubmitTemplateSubmissionAction(
 
   await notifyApprovers(admin, updated as SubmissionRow, user.id);
   refresh();
-  return { ok: true, submission: rowToSubmission(updated as SubmissionRow) };
+  // The caller is the submitter; ownership was checked above.
+  return { ok: true, submission: rowToSubmission(updated as SubmissionRow, undefined, true) };
 }
 
 /** Pull a submission back before the legal team has decided on it. */
@@ -480,7 +508,7 @@ export async function getTemplateSubmissionAction(submissionId: string): Promise
  * checkReleasable and the release claim both require the status 'approved'
  * and nothing moves a declined row back to it.
  *
- * The decision is also conditional on the wording the reviewer's page rendered.
+ * The decision is also conditional on the revision the reviewer's page rendered.
  * The premise of this gate is that a person with release authority read THIS
  * document, and the reviewer edit gives the document a way to change while they
  * are reading it. Without this, a reviewer who opened the page at ten o'clock
@@ -492,6 +520,7 @@ export async function decideTemplateSubmissionAction(
   action: ReviewAction,
   note?: string,
   seenDocumentText?: string,
+  seenRevisionNumber?: number,
 ): Promise<{ ok: boolean; error?: string; status?: string; deliveryError?: string }> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: 'Sign in first.' };
@@ -507,11 +536,19 @@ export async function decideTemplateSubmissionAction(
   if (!row) return { ok: false, error: 'That submission could not be found.' };
 
   const role = await callerFirmRole(row.firm_id);
+  // ORDER IS LOAD-BEARING: the role check runs BEFORE the staleness check
+  // below, and must keep running first. A caller who may not decide on this
+  // document learns that and nothing else. Reversed, the staleness message
+  // would tell a member who is not allowed to read the wording whether a string
+  // they guessed matches the stored one, which turns the narrowed read
+  // (canReadSubmissionDocument) into an oracle they can query a guess at a
+  // time. Do not reorder these two blocks.
   const decision = reviewDecision({ role, current: row.status, action, note });
   if (!decision.ok) return { ok: false, error: decision.error };
 
   const seen = seenDocument(seenDocumentText);
-  if (seen !== row.document_text) {
+  const seenRev = seenRevision(seenRevisionNumber);
+  if (seen !== row.document_text || seenRev !== row.revision) {
     return {
       ok: false,
       error:
@@ -519,7 +556,7 @@ export async function decideTemplateSubmissionAction(
     };
   }
 
-  const { data: updated } = await admin
+  const { data: updated, error: updateError } = await admin
     .from('firm_template_submissions')
     .update({
       status: decision.status,
@@ -532,10 +569,19 @@ export async function decideTemplateSubmissionAction(
     .eq('id', submissionId)
     .eq('status', 'pending')
     // The check above is against a row read a moment ago; this one is against
-    // the row at the instant of the write, and it is what actually holds.
-    .eq('document_text', seen)
+    // the row at the instant of the write, and it is what actually holds. It
+    // swaps on the revision rather than the wording: the revision moves on
+    // exactly the writes that move the wording, and unlike the wording it fits
+    // in a request URL. See seenDocument above.
+    .eq('revision', seenRev)
     .select(SUBMISSION_COLS)
     .maybeSingle();
+  // A transport or database failure is not a colleague. Folding one into the
+  // other is how an approver gets told somebody beat them to it when nobody
+  // did, on a document that is in fact still sitting there waiting.
+  if (updateError) {
+    return { ok: false, error: 'That decision could not be recorded just now. Try again shortly.' };
+  }
   if (!updated) return { ok: false, error: 'Someone else has already acted on this submission.' };
 
   const fresh = updated as SubmissionRow;
@@ -604,18 +650,19 @@ export async function decideTemplateSubmissionAction(
  * document that goes out is traceably the edited one and the submitted one is
  * still on the record beside it.
  *
- * The write is conditional on the status AND on the text the reviewer's page
- * rendered, which is what seenDocumentText carries. Two reviewers editing the
- * same document at once therefore cannot silently overwrite one another: the
- * second one is told to reload rather than having their colleague's wording
- * disappear under them, and the record never shows a jump from the first
- * version to the third with the second missing.
+ * The write is conditional on the status AND on the revision the reviewer's
+ * page rendered, which is what seenRevisionNumber carries. Two reviewers
+ * editing the same document at once therefore cannot silently overwrite one
+ * another: the second one is told to reload rather than having their
+ * colleague's wording disappear under them, and the record never shows a jump
+ * from the first version to the third with the second missing.
  */
 export async function editTemplateSubmissionAction(
   submissionId: string,
   documentText: string,
   note?: string,
   seenDocumentText?: string,
+  seenRevisionNumber?: number,
 ): Promise<{ ok: boolean; error?: string }> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: 'Sign in first.' };
@@ -631,7 +678,15 @@ export async function editTemplateSubmissionAction(
   if (!row) return { ok: false, error: 'That submission could not be found.' };
 
   const seen = seenDocument(seenDocumentText);
+  const seenRev = seenRevision(seenRevisionNumber);
   const role = await callerFirmRole(row.firm_id);
+  // ORDER IS LOAD-BEARING: reviewEdit runs the role check first, and this call
+  // runs BEFORE the staleness check below. Both must stay in this order. A
+  // caller who may not edit this document learns that and nothing else.
+  // Reversed, the staleness message would confirm whether a string the caller
+  // guessed matches the stored wording, which turns the narrowed read
+  // (canReadSubmissionDocument) into an oracle they can query a guess at a
+  // time. Do not reorder these two blocks.
   const edit = reviewEdit({
     role,
     current: row.status,
@@ -643,15 +698,16 @@ export async function editTemplateSubmissionAction(
 
   const stale =
     'This document has changed since you opened it. Reload it, read the current wording, and make the change again.';
-  if (seen !== row.document_text) return { ok: false, error: stale };
+  if (seen !== row.document_text || seenRev !== row.revision) return { ok: false, error: stale };
 
   const { data: updated, error } = await admin
     .from('firm_template_submissions')
     .update({
       document_text: edit.documentText,
-      // The compare-and-swap below guarantees the stored text is `seen` at the
-      // moment of the write, so this preserves exactly what was on the row and
-      // not what an earlier read happened to see.
+      // The compare-and-swap below holds the revision at `seenRev` through the
+      // write, and the revision only ever moves when document_text moves, so
+      // the stored text at that instant is `seen`. This preserves exactly what
+      // was on the row and not what an earlier read happened to see.
       ...(edit.preserveOriginal ? { original_document_text: seen } : {}),
       edited_by: user.id,
       edited_at: new Date().toISOString(),
@@ -663,7 +719,9 @@ export async function editTemplateSubmissionAction(
     })
     .eq('id', submissionId)
     .eq('status', 'pending')
-    .eq('document_text', seen)
+    // Swaps on the revision, not the wording: same guarantee, and it fits in a
+    // request URL where a merged agreement does not. See seenDocument above.
+    .eq('revision', seenRev)
     .select('id')
     .maybeSingle();
   if (error) {

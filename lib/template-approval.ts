@@ -63,8 +63,11 @@ export type TransitionResult =
 
 /**
  * Who may release a document to an outside party: owner, admin, attorney.
- * Paralegal and staff can read a submission but cannot let it out, which is
- * why this reads FIRM_MANAGE_ROLES rather than keeping its own list.
+ * Paralegal and staff can follow a submission through the queue but cannot let
+ * it out, which is why this reads FIRM_MANAGE_ROLES rather than keeping its own
+ * list. They cannot read the wording of one the firm has not agreed to send
+ * either; that is the other half of the same gate and it lives in
+ * canReadSubmissionDocument below, which calls this.
  */
 export function canApproveSubmissions(role: FirmRole | null | undefined): boolean {
   return role != null && FIRM_MANAGE_ROLES.includes(role);

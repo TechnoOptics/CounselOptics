@@ -56,8 +56,8 @@ export type TemplateSubmission = {
   /**
    * Empty when this reader may not see the wording (see
    * canReadSubmissionDocument). Redaction happens where the row is read, not in
-   * the component, so a surface that forgets to check shows nothing rather than
-   * showing the document.
+   * the component, and rowToSubmission withholds by default, so a caller that
+   * forgets to ask shows nothing rather than showing the document.
    */
   documentText: string;
   /** False when documentText and originalDocumentText have been withheld. */
@@ -101,12 +101,17 @@ export function rowToSubmission(
   row: SubmissionRow,
   nameOf: (userId: string) => string | null = () => null,
   /**
-   * False withholds the document body and the preserved original. The caller
-   * decides with canReadSubmissionDocument(); this only carries out the
-   * decision, so there is one place the text can be dropped and one shape the
-   * UIs have to handle.
+   * True releases the document body and the preserved original; anything else
+   * withholds both. The caller decides with canReadSubmissionDocument(); this
+   * only carries out the decision, so there is one place the text can be
+   * dropped and one shape the UIs have to handle.
+   *
+   * It defaults to withholding, so a future action that forgets the argument
+   * returns a submission with no wording in it rather than the full document.
+   * That failure is visible and harmless; the other direction is the leak this
+   * whole gate exists to close.
    */
-  showDocument = true,
+  showDocument = false,
 ): TemplateSubmission {
   const decidedByName = row.decided_by ? nameOf(row.decided_by) : null;
   const editedByName = row.edited_by ? nameOf(row.edited_by) : null;

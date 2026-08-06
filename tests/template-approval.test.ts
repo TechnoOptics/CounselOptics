@@ -15,6 +15,7 @@ import {
   type ReleaseCandidate,
   type SubmissionStatus,
 } from '../lib/template-approval';
+import { rowToSubmission } from '../lib/template-submission-types';
 
 /**
  * The employee template approval gate. An employee fills a firm template,
@@ -358,5 +359,64 @@ describe('who may read the wording of a submission', () => {
     for (const status of ALL_SUBMISSION_STATUSES) {
       expect(canReadSubmissionDocument({ role: null, isSubmitter: false, status })).toBe(false);
     }
+  });
+});
+
+/**
+ * The rule above decides; rowToSubmission carries the decision out. A caller
+ * that forgets to ask the rule is the failure this default is for, and which
+ * way it falls is the whole of the protection: withholding shows an empty panel
+ * to someone who was entitled to read, which is visible and harmless, while
+ * releasing hands the full document to someone who was not.
+ */
+describe('the shape a caller gets when it does not say', () => {
+  const row = {
+    id: 'sub-1',
+    firm_id: 'firm-1',
+    template_id: 'tpl-1',
+    template_name: 'Mutual NDA',
+    submitted_by: 'employee-1',
+    submitter_name: null,
+    submitter_email: null,
+    recipient_name: null,
+    recipient_email: 'other.side@example.com',
+    recipient_note: null,
+    field_values: null,
+    signature_name: 'A Colleague',
+    document_text: 'MUTUAL NON-DISCLOSURE AGREEMENT ...',
+    status: 'pending' as SubmissionStatus,
+    revision: 1,
+    decided_by: null,
+    decided_at: null,
+    decision_note: null,
+    original_document_text: 'The version the employee submitted ...',
+    edited_by: null,
+    edited_at: null,
+    edit_note: null,
+    released_at: null,
+    release_token: null,
+    release_error: null,
+    created_at: '2026-08-06T10:00:00.000Z',
+    updated_at: '2026-08-06T10:00:00.000Z',
+    submitted_at: '2026-08-06T10:00:00.000Z',
+  };
+
+  it('withholds the document when the caller did not say to show it', () => {
+    const s = rowToSubmission(row);
+    expect(s.documentVisible).toBe(false);
+    expect(s.documentText).toBe('');
+    expect(s.originalDocumentText).toBeNull();
+    // Everything that is not the wording is still there, so a caller that
+    // forgets loses the document and not the record.
+    expect(s.recipientEmail).toBe('other.side@example.com');
+    expect(s.status).toBe('pending');
+    expect(s.revision).toBe(1);
+  });
+
+  it('shows it only when the caller asks', () => {
+    const s = rowToSubmission(row, () => null, true);
+    expect(s.documentVisible).toBe(true);
+    expect(s.documentText).toBe(row.document_text);
+    expect(s.originalDocumentText).toBe(row.original_document_text);
   });
 });

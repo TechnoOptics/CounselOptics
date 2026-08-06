@@ -140,6 +140,7 @@ export default async function CounselApprovalDetailPage({ params }: { params: { 
         recipientEmail={s.recipientEmail}
         releaseError={s.releaseError}
         documentText={s.documentText}
+        revision={s.revision}
       />
     </div>
   );

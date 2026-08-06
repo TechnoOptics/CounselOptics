@@ -26,12 +26,15 @@ import { T } from '@/components/i18n/LocaleProvider';
  * Only a role that may release documents sees any of these controls, and the
  * server checks the same thing again on every one of them.
  *
- * `documentText` is the wording this page actually rendered, and it is sent
- * with both the edit and the decision. The server makes each conditional on it,
- * so a colleague who changed the wording while this page was open cannot have
- * their change silently overwritten, and nobody is recorded as approving text
- * that arrived after they read the page. When that happens the answer is to
- * reload and look again, which is what the server says.
+ * `documentText` and `revision` are the wording this page actually rendered and
+ * the version it came from, and both are sent with the edit and with the
+ * decision. The server makes each conditional on them, so a colleague who
+ * changed the wording while this page was open cannot have their change
+ * silently overwritten, and nobody is recorded as approving text that arrived
+ * after they read the page. When that happens the answer is to reload and look
+ * again, which is what the server says. `revision` is the one the server's
+ * conditional write swaps on, because it carries the same guarantee in a few
+ * bytes and the whole document does not fit in a request URL.
  */
 export function ReviewActions({
   submissionId,
@@ -40,6 +43,7 @@ export function ReviewActions({
   recipientEmail,
   releaseError,
   documentText,
+  revision,
 }: {
   submissionId: string;
   status: SubmissionStatus;
@@ -47,6 +51,7 @@ export function ReviewActions({
   recipientEmail: string;
   releaseError: string | null;
   documentText: string;
+  revision: number;
 }) {
   const router = useRouter();
   const [note, setNote] = useState('');
@@ -58,7 +63,13 @@ export function ReviewActions({
   const decide = async (action: ReviewAction) => {
     setBusy(true);
     setError(null);
-    const res = await decideTemplateSubmissionAction(submissionId, action, note, documentText);
+    const res = await decideTemplateSubmissionAction(
+      submissionId,
+      action,
+      note,
+      documentText,
+      revision,
+    );
     setBusy(false);
     if (!res.ok) {
       setError(res.error ?? 'Could not record that decision.');
@@ -70,7 +81,13 @@ export function ReviewActions({
   const saveEdit = async () => {
     setBusy(true);
     setError(null);
-    const res = await editTemplateSubmissionAction(submissionId, draft, note, documentText);
+    const res = await editTemplateSubmissionAction(
+      submissionId,
+      draft,
+      note,
+      documentText,
+      revision,
+    );
     setBusy(false);
     if (!res.ok) {
       setError(res.error ?? 'Could not save that change.');
