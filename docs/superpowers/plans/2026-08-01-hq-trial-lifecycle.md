@@ -35,6 +35,67 @@ Coercion alone does not fix it. `new Date('garbage')` is an Invalid Date whose c
 
 A shell redirect is not a gate. Every `'use server'` export is reachable by direct HTTP request regardless of what the UI shows. This codebase has produced exactly that defect twice: once where intake validation was gated on a caller-supplied field, and once where document release was gated in the UI while the action stayed callable. Both were rated Important and both needed a fix round. Task 4 therefore has two halves and neither is optional.
 
+## Five rules that came out of Task 1's review, binding on Tasks 2 to 4
+
+Task 1 shipped with three separate fail-opens found by mutation rather than by
+reading: an epoch clock, an unparseable timestamp, and a missing field. The
+module is now hard against all three. These five rules exist so the tasks that
+consume it do not hand the same failure back through a different door.
+
+**1. The signature is `now: FirmTimestamp`, not `now: Date`.** The design doc
+says `Date`. The implementation widened it, deliberately, and the widening is
+what makes a string clock safe. Do NOT "correct" it back.
+
+**2. Never assign an access state inside a `catch`.** This is the one that turns
+the whole fail-closed design into a fail-open one in two lines:
+
+```ts
+try { state = firmAccessState(...) } catch { state = 'active' }   // FORBIDDEN
+```
+
+The archetype already exists in this repo. `lib/firm-cache.ts:117-120` is
+`catch { return null }`. That function is tenant branding, not access, but it is
+the shape someone will copy when writing the access lookup. Whatever reads the
+firm row must distinguish "no firm on this request" from "could not determine
+access", and only the first may proceed. A throw in middleware surfaces as a
+failed request, and a throw in a server component renders the error boundary.
+Both are fail-closed and both are correct. Do not smooth them over.
+
+**3. Never cache a `FirmAccessState`. Caching the firm row is fine.** A row does
+not change as time passes, so a cached row plus a fresh `new Date()` still
+expires on schedule. A cached STATE outlives the trial end and reintroduces
+exactly the staleness that removing the scheduled job eliminated. Call
+`firmAccessState(row, new Date())` at each enforcement point. Watch for
+`unstable_cache`, a route-level `revalidate` on the firm read, and any copy of
+the module-level TTL cache in `lib/firm-cache.ts`.
+
+**4. The redirect allowlist is load-bearing, and getting it wrong is worse than
+a lockout.** If the export route sits inside the gated set, an `export_only`
+organization gets an infinite redirect and cannot reach the data this design
+exists to preserve. The allowlist must cover the export page, its download
+endpoint, sign-out and static assets. A member without the owner or admin role
+must land on the explanation page, not bounce between a redirect and a 403.
+
+**5. Consumers `switch` on the `FirmAccessState` union.** Not
+`if (state === 'export_only')`. A third state added later must be a compile
+error, not a silent default-allow.
+
+**Two tests Task 4 must include, both of which catch a bad catch:**
+- From `export_only`, the export page returns 200 for an owner and the
+  explanation page for an ordinary member, and a non-export counsel route
+  redirects exactly once.
+- An organization whose stored timestamp is UNPARSEABLE is REFUSED, not allowed.
+  That is the test that catches somebody wrapping the gate in a `try`.
+
+**Zone-less timestamp strings are a contract on the caller, not a module bug.**
+`'2026-08-01T12:00:00'` parses as LOCAL time and is silently off by the
+machine's UTC offset; `'2026-08-01'` is accepted as UTC midnight. PostgREST
+cannot produce either for a timestamptz column, so Task 1 correctly does not
+reject them. But `<input type="date">` yields `2026-08-01` and `datetime-local`
+yields `2026-08-01T12:00`, both of which this module accepts and misreads. This
+is why extend and reset take a NUMBER OF DAYS rather than a date. Keep them that
+way, and never pass an HQ form string into a timestamp.
+
 ## What exists today, verified rather than assumed
 
 `public.firms` is: `id`, `slug`, `name`, `logo_url`, `accent_color`, `jurisdictions`, `practice_areas`, `created_by`, `created_at`, `updated_at`, `firm_type`, `metadata` (jsonb), `subdomain_enabled`, `token_pool_balance`, `token_pool_period_end`, `letterhead_url`. There is **no** trial column, **no** status column and **no** disable flag.
