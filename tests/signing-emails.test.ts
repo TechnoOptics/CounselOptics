@@ -20,7 +20,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  *     the per-signature limit, and one whose recipient is over the
  *     per-address budget, without sending anything,
  *   - both paths promote the request out of draft, and say so in the
- *     chain, on the same fact: the sign link reached a signer.
+ *     chain, on the same fact: the sign link reached a signer,
+ *   - and every sentence either path returns is labelled with whoever
+ *     wrote it, ours as ours and the provider's as the provider's, in
+ *     both directions.
  */
 
 // In-memory dataset the mock clients read and write.
@@ -29,6 +32,8 @@ const db = vi.hoisted(() => ({
   tables: {} as Record<string, Row[]>,
   /** Tables whose UPDATE should come back as a store error. */
   failUpdate: new Set<string>(),
+  /** Tables whose INSERT should come back as a store error. */
+  failInsert: new Set<string>(),
   seq: 0,
   reset() {
     this.tables = {
@@ -39,6 +44,7 @@ const db = vi.hoisted(() => ({
       firms: [],
     };
     this.failUpdate = new Set<string>();
+    this.failInsert = new Set<string>();
     this.seq = 0;
   },
 }));
@@ -123,6 +129,10 @@ class Query {
   private run() {
     if (this.result) return this.result;
     if (this.op === 'insert') {
+      if (db.failInsert.has(this.table)) {
+        this.result = { data: null, error: { message: 'the store refused the insert' } };
+        return this.result;
+      }
       const row: Row = { id: `${this.table}-${++db.seq}`, ...this.pendingInsert };
       (db.tables[this.table] ??= []).push(row);
       // Withheld unless asked for, exactly as on the UPDATE below and
@@ -591,6 +601,12 @@ describe('a request stops being a draft when the link reaches a signer', () => {
     const res = await mod.resendSigningEmailsAction(FIRM_A, SIG_ID);
     // The provider wrote this one, so it is shown verbatim.
     expect(res.emailFailures?.[0].source).toBe('provider');
+    // And the label the shell actually reads is the top-level one, which
+    // has to carry the first failure's provenance rather than a fixed
+    // value. Hardcoded to 'app' it would put provider English inside a
+    // translated sentence; hardcoded to 'provider' it would leave our own
+    // copy untranslatable.
+    expect(res.errorSource).toBe('provider');
     expect(reqRow().status).toBe('draft');
     expect(eventTypes()).not.toContain('request_sent');
   });
@@ -617,7 +633,7 @@ describe('a request stops being a draft when the link reaches a signer', () => {
     seedFirm();
     mail.fail.link = true;
     mail.fail.code = true;
-    await mod.createSigningRequestAction(
+    const res = await mod.createSigningRequestAction(
       FIRM_A,
       DOC_ID,
       [{ email: 'signer@example.test' }],
@@ -626,5 +642,32 @@ describe('a request stops being a draft when the link reaches a signer', () => {
     expect(eventTypes()).toContain('request_created');
     expect(eventTypes()).not.toContain('request_sent');
     expect(db.tables.firm_signing_requests[0].status).toBe('draft');
+    // The provider wrote both of these sentences, so both are labelled
+    // as its text and shown verbatim. Labelled 'app' they would ride the
+    // channel meant for copy we wrote, which the counsel shell
+    // translates - and a provider diagnostic machine-translated into the
+    // reader's language is no longer the string the provider's own
+    // support will recognise.
+    expect(res.emailFailures?.map((f) => f.source)).toEqual(['provider', 'provider']);
+    expect(res.emailFailures?.[0].error).toBe('provider refused the link');
+    expect(res.emailFailures?.[1].error).toBe('provider refused the code');
+  });
+
+  it("shows the store's own wording, as the store's, when the request cannot be written", async () => {
+    // The row that everything else hangs off. If it cannot be written
+    // there is no request, no token and no recovery, so the caller has
+    // to hear why in the words of whatever refused it.
+    seedFirm();
+    db.failInsert.add('firm_signing_requests');
+    const res = await mod.createSigningRequestAction(
+      FIRM_A,
+      DOC_ID,
+      [{ email: 'signer@example.test' }],
+      null,
+    );
+    expect(res.ok).toBe(false);
+    expect(res.error).toBe('the store refused the insert');
+    expect(res.errorSource).toBe('provider');
+    expect(mail.sent).toHaveLength(0);
   });
 });
