@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   isExecutedCopyPath,
+  resolveSigningArtifact,
   selectSigningArtifact,
 } from '../lib/signing-artifact';
 
@@ -121,6 +122,90 @@ describe('selectSigningArtifact', () => {
         originalFilePath: null,
       }),
     ).toEqual({ kind: 'executed', path: EXECUTED, notice: 'executed' });
+  });
+});
+
+describe('resolveSigningArtifact', () => {
+  const EXECUTED_URL = 'https://store/signed?sig=e';
+  const ORIGINAL_URL = 'https://store/original?sig=o';
+  const completed = selectSigningArtifact({
+    status: 'completed',
+    signedFilePath: EXECUTED,
+    originalFilePath: ORIGINAL,
+  });
+
+  it('puts the executed copy on screen and keeps the original beside it', () => {
+    // Counsel has to be able to compare the two. The original is a
+    // different legal object, not a stale version of the same one.
+    expect(
+      resolveSigningArtifact(completed, {
+        executedUrl: EXECUTED_URL,
+        originalUrl: ORIGINAL_URL,
+      }),
+    ).toEqual({
+      kind: 'executed',
+      notice: 'executed',
+      url: EXECUTED_URL,
+      originalUrl: ORIGINAL_URL,
+    });
+  });
+
+  it('does not call the original executed when the executed copy will not open', () => {
+    // The record says there is an executed copy; the storage URL did
+    // not mint. Falling back is right, doing it under the 'executed'
+    // label is not.
+    expect(
+      resolveSigningArtifact(completed, {
+        executedUrl: null,
+        originalUrl: ORIGINAL_URL,
+      }),
+    ).toEqual({
+      kind: 'original',
+      notice: 'executed_unreadable',
+      url: ORIGINAL_URL,
+      originalUrl: null,
+    });
+  });
+
+  it('separates a copy that will not open from one that was never produced', () => {
+    const neverRendered = selectSigningArtifact({
+      status: 'completed',
+      signedFilePath: null,
+      originalFilePath: ORIGINAL,
+    });
+    expect(
+      resolveSigningArtifact(neverRendered, { originalUrl: ORIGINAL_URL })?.notice,
+    ).toBe('executed_missing');
+  });
+
+  it('offers nothing to compare when the original is what is on screen', () => {
+    const pending = selectSigningArtifact({
+      status: 'partial',
+      originalFilePath: ORIGINAL,
+    });
+    expect(
+      resolveSigningArtifact(pending, {
+        executedUrl: EXECUTED_URL,
+        originalUrl: ORIGINAL_URL,
+      }),
+    ).toEqual({
+      kind: 'original',
+      notice: 'original_partial',
+      url: ORIGINAL_URL,
+      originalUrl: null,
+    });
+  });
+
+  it('reports the state with no url rather than an empty frame', () => {
+    expect(
+      resolveSigningArtifact(completed, { executedUrl: null, originalUrl: null }),
+    ).toEqual({
+      kind: 'original',
+      notice: 'executed_unreadable',
+      url: null,
+      originalUrl: null,
+    });
+    expect(resolveSigningArtifact(null, { originalUrl: ORIGINAL_URL })).toBeNull();
   });
 });
 

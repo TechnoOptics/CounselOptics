@@ -46,6 +46,13 @@ export type SigningArtifactNotice =
    * is shown, and is NOT to be presented as executed.
    */
   | 'executed_missing'
+  /**
+   * An executed copy is on record but could not be opened just now.
+   * The original is shown instead. Distinct from 'executed_missing'
+   * because the remedy is different: this one is a storage problem,
+   * that one means the executed copy was never produced.
+   */
+  | 'executed_unreadable'
   /** Some signers are still out. The original, by design. */
   | 'original_partial'
   /** Nothing to add: the original, and no executed copy is due yet. */
@@ -97,6 +104,58 @@ export function selectSigningArtifact(input: {
     return { kind: 'original', path: original, notice: 'original_partial' };
   }
   return { kind: 'original', path: original, notice: 'original' };
+}
+
+/** What a surface actually puts on screen, once the URLs are known. */
+export type ResolvedSigningArtifact = {
+  kind: SigningArtifactKind;
+  notice: SigningArtifactNotice;
+  /** The artifact on screen. Null when neither could be opened. */
+  url: string | null;
+  /**
+   * The original, offered alongside the executed copy so the two can
+   * be compared. Null whenever the original IS what is on screen,
+   * since there would be nothing to compare it against.
+   */
+  originalUrl: string | null;
+};
+
+/**
+ * Settle the choice against the URLs that were actually minted.
+ *
+ * Minting a signed storage URL is a network call and can fail, so
+ * "the record says show the executed copy" and "the executed copy is
+ * on screen" are not the same statement. When the second does not
+ * follow from the first, the surface falls back to the original and
+ * has to say WHICH of the two reasons applies: nothing was ever
+ * rendered, or the rendered file could not be opened. Presenting the
+ * original under an "executed" label because a URL failed is exactly
+ * the quiet substitution this whole module exists to refuse.
+ */
+export function resolveSigningArtifact(
+  choice: SigningArtifactChoice | null,
+  urls: { executedUrl?: string | null; originalUrl?: string | null },
+): ResolvedSigningArtifact | null {
+  if (!choice) return null;
+  const executedUrl = usable(urls.executedUrl);
+  const originalUrl = usable(urls.originalUrl);
+  if (choice.kind === 'executed') {
+    if (executedUrl) {
+      return { kind: 'executed', notice: 'executed', url: executedUrl, originalUrl };
+    }
+    return {
+      kind: 'original',
+      notice: 'executed_unreadable',
+      url: originalUrl,
+      originalUrl: null,
+    };
+  }
+  return {
+    kind: 'original',
+    notice: choice.notice,
+    url: originalUrl,
+    originalUrl: null,
+  };
 }
 
 /**

@@ -4,6 +4,8 @@ import {
   getActiveFirmContext,
   getFirmDocument,
   getFirmDocumentSignedUrl,
+  getFirmExecutedCopySignedUrl,
+  getLatestCompletedSigningRequestForDocument,
   listFirmCases,
 } from '@/lib/firm-storage';
 import {
@@ -11,10 +13,13 @@ import {
   FIRM_DOCUMENT_STATUS_TONE,
   FIRM_TONE_COLOR,
 } from '@/lib/firm-types';
+import {
+  resolveSigningArtifact,
+  selectSigningArtifact,
+} from '@/lib/signing-artifact';
 import { CreateSigningRequestForm } from './signing-form';
 import { DocumentStatusChanger } from './status-changer';
-import { DocumentFrame } from '@/components/counsel/DocumentFrame';
-import { ExternalLink } from '@/components/ExternalLink';
+import { DocumentArtifactCard } from '@/components/counsel/DocumentArtifactCard';
 import { PageHeader } from '@/components/counsel/ui';
 import { pillSurface } from '@/components/counsel/StatusPill';
 import { T } from '@/components/i18n/LocaleProvider';
@@ -30,10 +35,32 @@ export default async function FirmDocumentDetail({
   if (!ctx) redirect('/counsel');
   const doc = await getFirmDocument(params.id);
   if (!doc || doc.firmId !== ctx.firm.id) notFound();
-  const [signedUrl, cases] = await Promise.all([
+  const [originalUrl, cases, completedRequest] = await Promise.all([
     getFirmDocumentSignedUrl(doc.filePath, 60 * 60),
     listFirmCases(ctx.firm.id),
+    // This page shows a document, not a request, so it has no request
+    // to read an executed copy off. Once one has been signed to
+    // completion, the executed copy IS what counsel means by "the
+    // document", and previewing the original instead is the bug the
+    // owner reported.
+    getLatestCompletedSigningRequestForDocument(doc.id),
   ]);
+
+  const choice = selectSigningArtifact({
+    status: completedRequest?.status ?? null,
+    signedFilePath: completedRequest?.signedFilePath ?? null,
+    originalFilePath: doc.filePath,
+  });
+  const executedUrl =
+    choice?.kind === 'executed' && completedRequest
+      ? await getFirmExecutedCopySignedUrl({
+          firmId: doc.firmId,
+          requestId: completedRequest.id,
+          filePath: choice.path,
+          expiresInSeconds: 60 * 60,
+        })
+      : null;
+  const artifact = resolveSigningArtifact(choice, { executedUrl, originalUrl });
 
   const canRequestSig = ['owner', 'admin', 'attorney'].includes(
     ctx.membership.role,
@@ -166,23 +193,20 @@ export default async function FirmDocumentDetail({
         )}
       </section>
 
-      {signedUrl && (
-        <section className="card overflow-hidden">
-          <DocumentFrame
-            src={signedUrl}
-            title={doc.name}
-            className="w-full h-[70vh] border-0 bg-ink-50 dark:bg-forest-950"
-          />
-          <div className="p-3 flex items-center justify-end">
-            <ExternalLink
-              href={signedUrl}
-              className="btn-secondary text-sm"
-              download={doc.name}
-            >
-              <T>Download</T>
-            </ExternalLink>
-          </div>
-        </section>
+      {artifact && (
+        <>
+          <DocumentArtifactCard artifact={artifact} documentName={doc.name} />
+          {completedRequest && (
+            <p className="text-[13px]">
+              <Link
+                href={`/counsel/signing/${completedRequest.id}`}
+                className="text-ink-500 hover:text-forest-900 dark:hover:text-cream-100 underline"
+              >
+                <T>See who signed and when</T>
+              </Link>
+            </p>
+          )}
+        </>
       )}
 
       {canRequestSig && (
