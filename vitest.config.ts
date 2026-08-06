@@ -7,6 +7,10 @@ import { fileURLToPath } from 'node:url';
 export default defineConfig({
   resolve: {
     alias: {
+      // Mirror the tsconfig "@/*" -> "./*" path alias. Tests import lib
+      // modules by relative path, but those modules import each other
+      // through the alias, so it has to resolve here too.
+      '@': fileURLToPath(new URL('./', import.meta.url)),
       // `server-only` is a Next build-time guard with no runtime behavior; it
       // isn't resolvable under the Node test env, so stub it so server-only lib
       // modules (e.g. lib/counsel-guest.ts) can be unit-tested.
