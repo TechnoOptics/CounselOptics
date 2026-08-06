@@ -23,13 +23,18 @@ export const maxDuration = 60;
  * oversight.
  *
  * The organization-wide export NAMES evidence files it does not carry:
- * exhibits.storage_path and case_timeline_events.media point into the
- * `exhibits` bucket and the bytes stay there, because base64 inflates an
- * archive by about a third, evidence is where the volume lives, and embedding
- * it properly means a container format hand-rolled under the
- * no-new-dependencies rule. This route is therefore the ONLY way a departing
- * organization opens the files its own export lists. Gate it and the export
- * hands back an index to nothing.
+ * case_timeline_events.media points into the `exhibits` bucket and the bytes
+ * stay there, because base64 inflates an archive by about a third, evidence is
+ * where the volume lives, and embedding it properly means a container format
+ * hand-rolled under the no-new-dependencies rule. This route is therefore the
+ * ONLY way a departing organization opens the timeline files its own export
+ * lists. Gate it and that half of the export hands back an index to nothing.
+ *
+ * WHAT IT IS NOT: this route reads case_timeline_events and the `exhibits`
+ * STORAGE BUCKET. It does not read the `public.exhibits` TABLE, which has a
+ * storage_path column of its own and is served by /api/files/<id>. An earlier
+ * version of this header claimed both, and lib/firm-access.ts repeated the
+ * claim. The rows behind exhibits.storage_path are not reachable through here.
  *
  * What is NOT relaxed: everything below this comment. Signed in, a member of
  * the matter's firm or a guest scoped to that matter, and the matter has to

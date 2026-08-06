@@ -152,13 +152,12 @@ const ALWAYS_ALLOWED_PREFIXES: readonly string[] = ['/_next/'];
 /**
  * Retrieval routes, which are exempt for the same reason the export is.
  *
- * The organization-wide export names the evidence files it cannot carry:
- * `exhibits.storage_path` and `case_timeline_events.media` point into the
- * `exhibits` bucket, and the bytes are deliberately not in the archive
- * (base64 inflates it by about a third, evidence is where the volume lives,
- * and doing it properly means a container format hand-rolled under the
- * no-new-dependencies rule). An export that lists files nobody can open hands
- * back an index, not the data.
+ * The organization-wide export names evidence files it cannot carry: the
+ * bytes behind `case_timeline_events.media` stay in the `exhibits` bucket,
+ * because base64 inflates an archive by about a third, evidence is where the
+ * volume lives, and embedding it properly means a container format hand-rolled
+ * under the no-new-dependencies rule. An export that lists files nobody can
+ * open hands back an index, not the data.
  *
  * So `app/counsel/cases/[id]/evidence/download/route.ts` stays reachable. Its
  * own authorization is untouched and is what actually protects it: signed in,
@@ -166,12 +165,37 @@ const ALWAYS_ALLOWED_PREFIXES: readonly string[] = ['/_next/'];
  * matter has to belong to that firm. This exemption only says the ACCESS
  * STATE does not close it, exactly as `/api/firm/export` above.
  *
- * A pattern rather than a literal because the matter id is in the path. It is
- * anchored at both ends and the id segment cannot contain a slash, so nothing
- * nested under `download/` is opened by it.
+ * WHAT THAT ROUTE DOES NOT COVER, because this list used to claim it did:
+ * `public.exhibits` is a different table with a `storage_path` of its own,
+ * written by lib/migration-actions.ts and served by `/api/files/<id>`. The
+ * download route reads `case_timeline_events.media` and nothing else, so
+ * naming exhibits.storage_path here was an over-claim.
+ *
+ * `/api/files/<id>` is deliberately NOT added. It is a route handler, so
+ * layer one never reaches it and adding it changes no behaviour today; the
+ * only thing it would change is what this list ASSERTS, and this list asserts
+ * that an exemption was reasoned about and is safe. That route performs no
+ * authorization at all: it resolves an exhibit by id and redirects to a signed
+ * URL without ever asking who is calling. Recording it as a sanctioned
+ * exemption would file an open door as a decision. It needs its own
+ * authorization first, and only then is there anything here to decide.
+ *
+ * The three sibling read-only routes below received the same guest-suspension
+ * treatment as the download route and belong here for the same reason: this
+ * list is the single statement of the rule, and a future middleware or layout
+ * reaching for it must find every deliberate exemption written down rather
+ * than rediscover them one lockout at a time. Listing them changes nothing
+ * today, because a route handler renders no layout.
+ *
+ * Patterns rather than literals because the ids are in the path. Each is
+ * anchored at both ends and no id segment can contain a slash, so nothing
+ * nested underneath is opened by them.
  */
 const RETRIEVAL_PATTERNS: readonly RegExp[] = [
   /^\/counsel\/cases\/[^/]+\/evidence\/download\/?$/,
+  /^\/counsel\/cases\/[^/]+\/export\/?$/,
+  /^\/counsel\/cases\/[^/]+\/approach\/[^/]+\/export\/?$/,
+  /^\/counsel\/cases\/[^/]+\/search-index\/?$/,
 ];
 
 /**

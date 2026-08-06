@@ -339,16 +339,39 @@ describe('counselAccessRedirect', () => {
     ).toBeNull();
   });
 
-  // The exemption is a pattern because the matter id is in the path, so it is
-  // worth pinning that it did not become a prefix. Everything else under a
-  // matter is still gated, including the surfaces next door to the download.
+  /**
+   * The three sibling read-only routes received the same guest-suspension
+   * treatment as the download and are exempt for the same reason. Listing
+   * them changes no behaviour today, because a route handler renders no
+   * layout; it changes what the allowlist ASSERTS, and lib/firm-access.ts
+   * calls itself the single statement of the rule.
+   */
+  it('never gates the other read-only retrieval routes', () => {
+    for (const p of [
+      '/counsel/cases/8f2a-1234/export',
+      '/counsel/cases/8f2a-1234/approach/77b0-9/export',
+      '/counsel/cases/8f2a-1234/search-index',
+    ]) {
+      expect(counselAccessRedirect(p, 'export_only'), p).toBeNull();
+    }
+  });
+
+  // The exemptions are patterns because the ids are in the path, so it is
+  // worth pinning that none of them became a prefix. Everything else under a
+  // matter is still gated, including the surfaces next door to each one.
   it('gates the rest of the matter, including its neighbours', () => {
     for (const p of [
       '/counsel/cases/8f2a-1234',
       '/counsel/cases/8f2a-1234/evidence',
       '/counsel/cases/8f2a-1234/evidence/download/anything-else',
       '/counsel/cases/8f2a-1234/timeline',
-      '/counsel/cases/8f2a-1234/export',
+      '/counsel/cases/8f2a-1234/export/anything-else',
+      '/counsel/cases/8f2a-1234/approach/77b0-9',
+      '/counsel/cases/8f2a-1234/approach/77b0-9/export/anything-else',
+      '/counsel/cases/8f2a-1234/search-index/anything-else',
+      // The approach export must not be reachable without its approach id,
+      // which is what a lazier pattern would have allowed.
+      '/counsel/cases/8f2a-1234/approach/export',
     ]) {
       expect(counselAccessRedirect(p, 'export_only'), p).toBe(ACCESS_ENDED_PATH);
     }
@@ -920,7 +943,16 @@ describe('the counsel shell redirect', () => {
     state: 'active' | 'export_only',
     pathname: string,
     guest?: { firmId: string | null; suspended: boolean },
-  ): Promise<{ redirectedTo: string | null }> {
+    /**
+     * What readTrialSnapshot hands back for the trial BANNER. Defaults to an
+     * organization with no trial, which renders no banner at all and keeps
+     * the redirect cases about the redirect.
+     */
+    snapshot: { ok: true; trialEndsAt: string | null } | { ok: false; error: string } = {
+      ok: true,
+      trialEndsAt: null,
+    },
+  ): Promise<{ redirectedTo: string | null; tree: unknown }> {
     vi.resetModules();
     vi.doMock('next/navigation', () => ({
       // Next's redirect throws, and the layout relies on that: nothing after
@@ -958,6 +990,12 @@ describe('the counsel shell redirect', () => {
     vi.doMock('@/lib/firm-trials', () => ({
       firmTrialState: async () => state,
       firmSuspended: async () => guest?.suspended ?? false,
+      // The trial BANNER's source, and the only one. The banner used to count
+      // 30 days from the firm's CREATION date and never looked at
+      // trial_ends_at at all, which is why it could announce "trial ended"
+      // while the gate above allowed 50 more days, and "your access
+      // continues" three days before the product closed.
+      readTrialSnapshot: async () => snapshot,
     }));
     vi.doMock('@/lib/firm-settings', () => ({
       getFirmSurfaceSettings: async () => ({ hideSearch: false, hideTimeBilling: false }),
@@ -986,13 +1024,48 @@ describe('the counsel shell redirect', () => {
     }
     const mod = await import('@/app/counsel/layout');
     try {
-      await mod.default({ children: null });
-      return { redirectedTo: null };
+      const tree = await mod.default({ children: null });
+      return { redirectedTo: null, tree };
     } catch (e) {
       const message = (e as Error).message ?? '';
       if (!message.startsWith('NEXT_REDIRECT:')) throw e;
-      return { redirectedTo: message.slice('NEXT_REDIRECT:'.length) };
+      return { redirectedTo: message.slice('NEXT_REDIRECT:'.length), tree: null };
     }
+  }
+
+  /**
+   * The props the layout actually handed the trial banner.
+   *
+   * A server component returns plain objects, so the rendered tree still
+   * HOLDS every prop even though the banner itself is stubbed to render
+   * nothing. Found by prop shape rather than by component identity, because
+   * the stubs are anonymous arrow functions and every one of them is a
+   * different `() => null`.
+   */
+  function bannerProps(tree: unknown): Record<string, unknown> | null {
+    const seen = new Set<unknown>();
+    const walk = (node: unknown): Record<string, unknown> | null => {
+      if (node == null || typeof node !== 'object') return null;
+      if (seen.has(node)) return null;
+      seen.add(node);
+      if (Array.isArray(node)) {
+        for (const child of node) {
+          const hit = walk(child);
+          if (hit) return hit;
+        }
+        return null;
+      }
+      const props = (node as { props?: unknown }).props;
+      if (props && typeof props === 'object' && 'trialEndsAt' in props) {
+        return props as Record<string, unknown>;
+      }
+      for (const value of Object.values(node as Record<string, unknown>)) {
+        const hit = walk(value);
+        if (hit) return hit;
+      }
+      return null;
+    };
+    return walk(tree);
   }
 
   const CHROME: Record<string, readonly string[]> = {
@@ -1066,6 +1139,94 @@ describe('the counsel shell redirect', () => {
       suspended: true,
     });
     expect(res.redirectedTo).toBe(ACCESS_ENDED_PATH);
+  });
+
+  /**
+   * THE SECOND CLOCK, which is the thing being removed.
+   *
+   * The banner's countdown was `30 - (now - firm.createdAt) / a day`: a
+   * hardcoded window off the CREATION date with no reference to
+   * trial_ends_at. Two clocks in one product, disagreeing in both directions.
+   * A 90 day trial on an organization created 40 days ago showed "Trial
+   * ended" while the gate correctly allowed 50 more days; and an organization
+   * three days from lapsing was told its access continued right up to the
+   * moment the product closed.
+   *
+   * These assert on the PROPS, so they fail on the mutation that reinstates
+   * the creation-date arithmetic while leaving every import in place.
+   */
+  const inDays = (n: number) =>
+    new Date(Date.now() + n * 86_400_000).toISOString();
+
+  it('feeds the banner the stored trial end date, not the creation date', async () => {
+    const endsAt = inDays(50);
+    const res = await renderLayout('active', '/counsel/cases', undefined, {
+      ok: true,
+      trialEndsAt: endsAt,
+    });
+    const props = bannerProps(res.tree);
+    expect(props?.trialEndsAt).toBe(endsAt);
+    // 50 days, from the real end date. The old arithmetic would have handed
+    // over a number derived from createdAt, which this harness never supplies.
+    expect(props?.daysLeft).toBe(50);
+  });
+
+  it('counts a lapsed trial as past rather than clamping it to zero days left', async () => {
+    const res = await renderLayout('active', '/counsel/accept-invite', undefined, {
+      ok: true,
+      trialEndsAt: inDays(-6),
+    });
+    const props = bannerProps(res.tree);
+    expect(props?.daysLeft as number).toBeLessThanOrEqual(0);
+  });
+
+  // An organization with no trial is a paying one. Announcing a free trial to
+  // a customer who is paying for the product is the failure the creation-date
+  // clock produced for every organization forever.
+  it('says nothing at all when the organization has no trial', async () => {
+    const res = await renderLayout('active', '/counsel/cases');
+    const props = bannerProps(res.tree);
+    expect(props?.trialEndsAt).toBeNull();
+    expect(props?.daysLeft).toBeNull();
+  });
+
+  // Silence is the only safe answer to an unknown clock, and readTrialSnapshot
+  // fails closed on a missing row, an unreadable column and a missing admin
+  // client. The banner must not fall back to a confident claim.
+  it('says nothing when the end date could not be read', async () => {
+    const res = await renderLayout('active', '/counsel/cases', undefined, {
+      ok: false,
+      error: 'Unavailable. Please try again.',
+    });
+    const props = bannerProps(res.tree);
+    expect(props?.trialEndsAt).toBeNull();
+    expect(props?.daysLeft).toBeNull();
+  });
+
+  // A stored timestamp that will not parse is the same unknown clock. It must
+  // not become an Invalid Date whose comparisons are all false, which reads
+  // as "not yet expired" forever.
+  it('says nothing when the stored end date will not parse', async () => {
+    const res = await renderLayout('active', '/counsel/cases', undefined, {
+      ok: true,
+      trialEndsAt: 'not a date',
+    });
+    const props = bannerProps(res.tree);
+    expect(props?.trialEndsAt).toBeNull();
+    expect(props?.daysLeft).toBeNull();
+  });
+
+  it('gives the guest shell the same stored clock', async () => {
+    const endsAt = inDays(9);
+    const res = await renderLayout(
+      'active',
+      '/counsel/cases/abc',
+      { firmId: 'firm-1', suspended: false },
+      { ok: true, trialEndsAt: endsAt },
+    );
+    const props = bannerProps(res.tree);
+    expect(props?.trialEndsAt).toBe(endsAt);
+    expect(props?.guest).toBe(true);
   });
 });
 
@@ -1907,4 +2068,208 @@ describe('the firm matter routes under a suspension', () => {
       expect(res.error).not.toBe(REFUSAL);
     });
   }
+});
+
+/**
+ * THE LOCKOUT WITH NO WAY OUT, and the switch that closes it.
+ *
+ * The counsel layout gates on the ACTIVE organization. Once that one is
+ * export_only every /counsel/* route redirects to /counsel/access-ended, and
+ * that page renders its own shell with no CounselHeader. The firm switcher and
+ * the profile menu live inside CounselHeader and nowhere else, so an attorney
+ * whose current organization lapsed had no route to the paying organization
+ * they are also a member of. Signing out did not help, because
+ * profiles.active_firm_id persists. The only escapes were an HQ restore and a
+ * hand-written POST.
+ *
+ * It is the same argument that already exempted /counsel/accept-invite: an
+ * attorney at a lapsed organization can still open an invitation from one that
+ * pays. It was never extended to the attorney who is ALREADY a member, which
+ * is the more common case and the one with no invitation to rescue it.
+ */
+describe('the way out of a lapsed organization', () => {
+  const setActiveFirmAction = vi.fn(async (_id: string | null) => ({ ok: true }));
+
+  async function renderAccessEnded(
+    memberships: ReadonlyArray<{ id: string; name: string }>,
+    activeId: string | null,
+  ): Promise<{ tree: unknown; redirectedTo: string | null }> {
+    vi.resetModules();
+    setActiveFirmAction.mockClear();
+    vi.doMock('next/navigation', () => ({
+      redirect: (url: string) => {
+        throw new Error(`NEXT_REDIRECT:${url}`);
+      },
+    }));
+    vi.doMock('next/link', () => ({ default: () => null }));
+    vi.doMock('@/lib/supabase/server', () => ({
+      getCurrentUser: async () => ({ id: 'u1', email: 'a@example.com' }),
+    }));
+    vi.doMock('@/lib/firm-storage', () => ({
+      listMyFirms: async () =>
+        memberships.map((f) => ({ firm: f, membership: { role: 'owner' } })),
+      getActiveFirmContext: async () =>
+        activeId
+          ? {
+              firm: memberships.find((f) => f.id === activeId) ?? {
+                id: activeId,
+                name: 'Active',
+              },
+              membership: { role: 'owner' },
+            }
+          : null,
+    }));
+    vi.doMock('@/lib/firm-actions', () => ({ setActiveFirmAction }));
+    vi.doMock('@/lib/firm-authz', () => ({
+      callerFirmRoleLookup: async () => ({ ok: true, role: 'owner' }),
+      FIRM_ADMIN_ROLES: ['owner', 'admin'],
+    }));
+    vi.doMock('@/lib/i18n/locale', () => ({ getLocaleCookie: async () => 'en' }));
+    vi.doMock('@/components/i18n/LocaleProvider', () => ({
+      LocaleProvider: () => null,
+      T: () => null,
+    }));
+    const mod = await import('@/app/counsel/access-ended/page');
+    try {
+      return { tree: await mod.default(), redirectedTo: null };
+    } catch (e) {
+      const message = (e as Error).message ?? '';
+      if (!message.startsWith('NEXT_REDIRECT:')) throw e;
+      return { tree: null, redirectedTo: message.slice('NEXT_REDIRECT:'.length) };
+    }
+  }
+
+  /** Every hidden firmId input the page rendered, which is the offer it made. */
+  function offeredFirmIds(tree: unknown): string[] {
+    const found: string[] = [];
+    const seen = new Set<unknown>();
+    const walk = (node: unknown): void => {
+      if (node == null || typeof node !== 'object') return;
+      if (seen.has(node)) return;
+      seen.add(node);
+      if (Array.isArray(node)) {
+        node.forEach(walk);
+        return;
+      }
+      const props = (node as { props?: Record<string, unknown> }).props;
+      if (props && props.name === 'firmId' && typeof props.value === 'string') {
+        found.push(props.value);
+      }
+      Object.values(node as Record<string, unknown>).forEach(walk);
+    };
+    walk(tree);
+    return found;
+  }
+
+  /** The submit handler the page bound to those forms. */
+  function switchAction(tree: unknown): ((f: FormData) => Promise<void>) | null {
+    let action: ((f: FormData) => Promise<void>) | null = null;
+    const seen = new Set<unknown>();
+    const walk = (node: unknown): void => {
+      if (node == null || typeof node !== 'object' || action) return;
+      if (seen.has(node)) return;
+      seen.add(node);
+      if (Array.isArray(node)) {
+        node.forEach(walk);
+        return;
+      }
+      const props = (node as { props?: Record<string, unknown> }).props;
+      if (props && typeof props.action === 'function') {
+        action = props.action as (f: FormData) => Promise<void>;
+        return;
+      }
+      Object.values(node as Record<string, unknown>).forEach(walk);
+    };
+    walk(tree);
+    return action;
+  }
+
+  it('offers every other organization the caller belongs to', async () => {
+    const { tree } = await renderAccessEnded(
+      [
+        { id: 'firm-lapsed', name: 'Rowan and Hale' },
+        { id: 'firm-paying', name: 'Ashcroft Partners' },
+        { id: 'firm-third', name: 'Vale and Co' },
+      ],
+      'firm-lapsed',
+    );
+    expect(offeredFirmIds(tree).sort()).toEqual(['firm-paying', 'firm-third']);
+  });
+
+  // The organization they are already in is not an escape from its own gate,
+  // and offering it is a button that lands them back on this page.
+  it('does not offer the organization whose access ended', async () => {
+    const { tree } = await renderAccessEnded(
+      [
+        { id: 'firm-lapsed', name: 'Rowan and Hale' },
+        { id: 'firm-paying', name: 'Ashcroft Partners' },
+      ],
+      'firm-lapsed',
+    );
+    expect(offeredFirmIds(tree)).not.toContain('firm-lapsed');
+  });
+
+  it('offers nothing to somebody with only the one organization', async () => {
+    const { tree } = await renderAccessEnded(
+      [{ id: 'firm-lapsed', name: 'Rowan and Hale' }],
+      'firm-lapsed',
+    );
+    expect(offeredFirmIds(tree)).toEqual([]);
+  });
+
+  /**
+   * THE PROPERTY THAT KEEPS THIS FROM BEING A HOLE. The switch does not decide
+   * membership for itself. It hands the id to setActiveFirmAction, which
+   * re-confirms the membership server-side through the caller's own RLS-scoped
+   * client before it writes. A form field is whatever the caller typed, so a
+   * page that trusted its own rendered list would be trusting the browser.
+   */
+  it('routes the switch through the action that re-checks membership', async () => {
+    const { tree } = await renderAccessEnded(
+      [
+        { id: 'firm-lapsed', name: 'Rowan and Hale' },
+        { id: 'firm-paying', name: 'Ashcroft Partners' },
+      ],
+      'firm-lapsed',
+    );
+    const action = switchAction(tree);
+    expect(action).toBeTypeOf('function');
+
+    const form = new FormData();
+    form.set('firmId', 'firm-paying');
+    await expect(action!(form)).rejects.toThrow('NEXT_REDIRECT:/counsel');
+    expect(setActiveFirmAction).toHaveBeenCalledWith('firm-paying');
+  });
+
+  // A refusal must not strand them on a blank page. It lands back here, which
+  // is the one page that always renders and always offers the download.
+  it('lands back here when the switch is refused', async () => {
+    setActiveFirmAction.mockResolvedValueOnce({ ok: false });
+    const { tree } = await renderAccessEnded(
+      [
+        { id: 'firm-lapsed', name: 'Rowan and Hale' },
+        { id: 'firm-paying', name: 'Ashcroft Partners' },
+      ],
+      'firm-lapsed',
+    );
+    const form = new FormData();
+    form.set('firmId', 'firm-paying');
+    await expect(switchAction(tree)!(form)).rejects.toThrow(
+      `NEXT_REDIRECT:${ACCESS_ENDED_PATH}`,
+    );
+  });
+
+  it('does not call the action at all on an empty submission', async () => {
+    const { tree } = await renderAccessEnded(
+      [
+        { id: 'firm-lapsed', name: 'Rowan and Hale' },
+        { id: 'firm-paying', name: 'Ashcroft Partners' },
+      ],
+      'firm-lapsed',
+    );
+    await expect(switchAction(tree)!(new FormData())).rejects.toThrow(
+      `NEXT_REDIRECT:${ACCESS_ENDED_PATH}`,
+    );
+    expect(setActiveFirmAction).not.toHaveBeenCalled();
+  });
 });
