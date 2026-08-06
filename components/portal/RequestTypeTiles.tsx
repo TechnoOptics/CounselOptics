@@ -49,7 +49,11 @@ type Face = { icon: ReactNode; hint: string };
 const BY_KEY: Record<string, Face> = {
   new_contract_agreement: {
     icon: <ContractIcon />,
-    hint: 'For a new agreement with a customer, vendor or partner.',
+    // Direction is the discriminator against Vendor / MSA review two
+    // tiles down. Naming the counterparties here ("customer, vendor or
+    // partner") sent anyone holding a contract somebody else drafted to
+    // the wrong tile.
+    hint: 'You need a new agreement drawn up, rather than one you were sent.',
   },
   internal_review_request: {
     icon: <MagnifyIcon />,
@@ -81,7 +85,9 @@ const BY_KEY: Record<string, Face> = {
   },
   litigation_hold: {
     icon: <AlertIcon />,
-    hint: 'Preserve documents because a dispute is expected.',
+    // An employee never issues a hold - legal does. So the tile has to
+    // describe the employee's trigger, not the instrument.
+    hint: 'Something happened that could become a dispute. Tell legal before anything gets deleted.',
   },
   demand_letter: {
     icon: <MailIcon />,
@@ -93,21 +99,31 @@ const BY_KEY: Record<string, Face> = {
   },
 };
 
-// Ordered: the first pattern that matches wins, so the specific
-// categories are listed ahead of the catch-all "review" and "question".
-const BY_KEYWORD: Array<[RegExp, Face]> = [
-  [/\b(nda|nondisclosure|non disclosure|confidentiality)\b/, BY_KEY.nda_review],
-  [
-    /\b(trademark|patent|copyright|ip|brand)\b/,
-    BY_KEY.trademark_ip_filing,
-  ],
-  [/\b(vendor|supplier|procurement|msa)\b/, BY_KEY.vendor_msa_review],
-  [/\b(contract|agreement|sow|renewal)\b/, BY_KEY.new_contract_agreement],
-  [/\b(hr|employee|employment|people|hiring|onboarding)\b/, BY_KEY.employment_matter],
-  [/\b(incident|breach|hold|escalation|urgent)\b/, BY_KEY.litigation_hold],
-  [/\b(letter|demand|notice|dispute|claim)\b/, BY_KEY.demand_letter],
-  [/\b(compliance|policy|question|advice)\b/, BY_KEY.compliance_question],
-  [/\b(review|check)\b/, BY_KEY.internal_review_request],
+/**
+ * The keyword pass matches a GLYPH only, never a hint, which is why it
+ * maps to icons rather than to whole faces.
+ *
+ * A glyph generalises and a sentence does not. "Contract Review", a
+ * real partner-app slug, matches the contract pattern: the contract
+ * page is right for it, but "You need a new agreement drawn up" is the
+ * opposite of what that firm means, and it would have told somebody
+ * holding a contract to review that the tile was for new ones. Only an
+ * exact key match owns its copy; everything else takes the neutral
+ * line, which is true of any request.
+ *
+ * Ordered: first match wins, so the specific categories sit ahead of
+ * the catch-all "review" and "question".
+ */
+const BY_KEYWORD: Array<[RegExp, ReactNode]> = [
+  [/\b(nda|nondisclosure|non disclosure|confidentiality)\b/, <LockIcon key="l" />],
+  [/\b(trademark|patent|copyright|ip|brand)\b/, <SealIcon key="s" />],
+  [/\b(vendor|supplier|procurement|msa)\b/, <BuildingIcon key="b" />],
+  [/\b(contract|agreement|sow|renewal)\b/, <ContractIcon key="c" />],
+  [/\b(hr|employee|employment|people|hiring|onboarding)\b/, <UsersIcon key="u" />],
+  [/\b(incident|breach|hold|escalation|urgent)\b/, <AlertIcon key="a" />],
+  [/\b(letter|demand|notice|dispute|claim)\b/, <MailIcon key="m" />],
+  [/\b(compliance|policy|question|advice)\b/, <HelpIcon key="h" />],
+  [/\b(review|check)\b/, <MagnifyIcon key="g" />],
 ];
 
 const FALLBACK: Face = {
@@ -121,8 +137,8 @@ function faceFor(type: FirmRequestType): Face {
   const text = `${type.key} ${type.label}`
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, ' ');
-  for (const [pattern, face] of BY_KEYWORD) {
-    if (pattern.test(text)) return face;
+  for (const [pattern, icon] of BY_KEYWORD) {
+    if (pattern.test(text)) return { icon, hint: FALLBACK.hint };
   }
   return FALLBACK;
 }
@@ -133,15 +149,21 @@ export function requestTypeHref(type: FirmRequestType): string {
 }
 
 /**
- * One column on a phone, two on a tablet, three from a laptop up.
- * Three rather than four: at four the tile drops to about 245px on a
- * 1440 laptop once the Hub's rail is taken off, and "New contract /
- * agreement" wraps onto a second line, which puts the labels in a row
- * out of alignment with each other. The class string is complete and
- * literal - Tailwind reads source text, so an assembled
- * `lg:grid-cols-${n}` would compile to nothing.
+ * One column on a phone, two on a tablet, three from `xl` up.
+ *
+ * Three-up is gated at `xl` (1280px) and not at `lg` (1024px) because
+ * of where the Hub's grid actually sits. The Hub has no max-width and
+ * runs beside a 256px rail, so at a 1024px viewport - a non-maximised
+ * window, an iPad Pro in landscape - three-up gives a 216px tile, which
+ * is narrower than the four-up-at-1440 layout that was rejected for
+ * wrapping "New contract / agreement" onto a second line. At 1280 the
+ * same tile is 301px and the labels hold one line. /portal/new is
+ * capped at max-w-5xl and is comfortable either way.
+ *
+ * The class string is complete and literal - Tailwind reads source
+ * text, so an assembled `xl:grid-cols-${n}` would compile to nothing.
  */
-const GRID = 'grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3';
+const GRID = 'grid gap-3 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3';
 
 export function RequestTypeTiles({ types }: { types: FirmRequestType[] }) {
   return (
@@ -156,18 +178,11 @@ export function RequestTypeTiles({ types }: { types: FirmRequestType[] }) {
           <li key={type.key}>
             <Link
               href={requestTypeHref(type)}
-              /*
-                The focus ring is an OUTLINE, not a ring/box-shadow, and
-                it restates the radius. globals.css gives every <a> a
-                focus-visible box-shadow ring at `a:focus-visible`, but
-                `.counsel-shell .card` sets box-shadow at a higher
-                specificity, so on a card-surfaced link the shared ring
-                silently loses and only the shared rule's 6px radius
-                lands - a focused tile squared off its corners and grew
-                no ring at all. Nothing sets `outline` on .card, so an
-                outline wins cleanly.
-              */
-              className="card group flex h-full items-start gap-3.5 p-4 transition-colors focus-visible:rounded-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold-400"
+              // No focus classes: the shared `a:focus-visible` rule in
+              // globals.css now carries an outline that a card cannot
+              // suppress, so the ring arrives here the same way it
+              // arrives on every other link in the product.
+              className="card group flex h-full items-start gap-3.5 p-4 transition-colors"
             >
               <span
                 className="mt-0.5 flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-gold-500/[0.09] text-gold-300 ring-1 ring-gold-500/20 transition-colors group-hover:bg-gold-500/[0.18] group-hover:text-gold-200"

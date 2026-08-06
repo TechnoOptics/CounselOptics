@@ -8,13 +8,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
  * has actually used. The employee Hub renders these as tiles, and the
  * intake form renders them in its picker.
  *
- * NOTE ON PROVENANCE. The intake form-builder branch carries the same
- * rules in `lib/form-queries.ts` (listRequestTypes) and
- * `lib/intake-form-fallback.ts` (pickableRequestTypes). Neither file
- * exists on main, so the three rules are restated here rather than
- * re-derived from scratch, under the same name, so that whoever merges
- * the two branches can collapse them without having to work out
- * whether the behaviour matches. The rules are:
+ * The three rules every reader applies:
  *
  *   1. MODE. 'client' is an outside-client matter and 'inhouse' is an
  *      internal request. An employee only ever files in-house work, so
@@ -23,6 +17,28 @@ import type { SupabaseClient } from '@supabase/supabase-js';
  *      reference it. A hidden type never renders.
  *   3. ORDER. `sort_order` ascending, which keeps the canonical twelve
  *      (0..11) ahead of partner-app slugs (100+).
+ *
+ * NOTE ON NAMING. `feat/intake-form-builder` solves the same problem in
+ * `lib/form-queries.ts` (`listRequestTypes`) and
+ * `lib/intake-form-fallback.ts` (`pickableRequestTypes`); neither file
+ * exists on main. The exports here are DELIBERATELY named differently
+ * (`firmRequestTypes` / `employeeRequestTypes`) rather than shadowing
+ * those, because the two implementations agree on the three rules but
+ * disagree on four things, and a shared name would have made a genuine
+ * behavioural conflict look like a duplicate to be deleted:
+ *
+ *   a. The selector's second argument is a `RequestTypeMode` here and a
+ *      boolean `employeeMode` there. TypeScript catches this one.
+ *   b. The row type keeps `sortOrder` and `hidden` here; there it is
+ *      narrowed to a `PickableType` that drops both. TypeScript will
+ *      NOT catch a caller that reads a field the other shape lacks
+ *      until that caller is written.
+ *   c. This one can return an empty array; the other never does.
+ *   d. A row whose `mode` is NULL or unrecognised is DROPPED here and
+ *      COERCED to 'inhouse' there. That is the divergence that matters:
+ *      coercing means a row nobody classified is offered to every
+ *      employee in the firm. Whoever reconciles the branches has to
+ *      pick one, and it should be this one.
  */
 
 export type RequestTypeMode = 'client' | 'inhouse';
@@ -65,7 +81,7 @@ export const SEEDED_REQUEST_TYPES: FirmRequestType[] = [
  * happen to land on the same order still come out in a stable order
  * rather than whatever the database felt like returning.
  */
-export function pickableRequestTypes(
+export function requestTypesForMode(
   rows: FirmRequestType[],
   mode: RequestTypeMode,
 ): FirmRequestType[] {
@@ -107,10 +123,15 @@ function normalize(rows: Row[]): FirmRequestType[] {
 /**
  * Every request type configured for a firm, unfiltered.
  *
- * Returns the seeded twelve when the table is unreachable or empty, so
- * a Hub never renders an empty tile grid because of infrastructure.
+ * Falls back to the seeded twelve when the table is unreachable or
+ * empty, so a Hub never renders an empty tile grid because of
+ * infrastructure. Each way of arriving at that fallback is logged
+ * distinctly: a firm whose every row failed validation and a firm whose
+ * table could not be read look identical on screen, and without a line
+ * saying which, the only way to tell them apart is to go and query the
+ * database by hand.
  */
-export async function listRequestTypes(
+export async function firmRequestTypes(
   admin: SupabaseClient | null,
   firmId: string,
 ): Promise<FirmRequestType[]> {
@@ -119,17 +140,35 @@ export async function listRequestTypes(
     .from('firm_request_types')
     .select('key, label, mode, sort_order, hidden')
     .eq('firm_id', firmId);
-  if (error || !data || data.length === 0) return SEEDED_REQUEST_TYPES;
+  if (error) {
+    console.error(
+      `[request-types] could not read firm_request_types for firm ${firmId}; falling back to the seeded defaults:`,
+      error.message,
+    );
+    return SEEDED_REQUEST_TYPES;
+  }
+  if (!data || data.length === 0) {
+    console.error(
+      `[request-types] firm ${firmId} has no rows in firm_request_types; falling back to the seeded defaults`,
+    );
+    return SEEDED_REQUEST_TYPES;
+  }
   const rows = normalize(data as Row[]);
-  return rows.length > 0 ? rows : SEEDED_REQUEST_TYPES;
+  if (rows.length === 0) {
+    console.error(
+      `[request-types] all ${data.length} firm_request_types row(s) for firm ${firmId} failed validation (missing key/label, or a mode that is neither 'client' nor 'inhouse'); falling back to the seeded defaults`,
+    );
+    return SEEDED_REQUEST_TYPES;
+  }
+  return rows;
 }
 
 /** What an employee is allowed to file: in-house, visible, in order. */
-export async function listEmployeeRequestTypes(
+export async function employeeRequestTypes(
   admin: SupabaseClient | null,
   firmId: string,
 ): Promise<FirmRequestType[]> {
-  return pickableRequestTypes(await listRequestTypes(admin, firmId), 'inhouse');
+  return requestTypesForMode(await firmRequestTypes(admin, firmId), 'inhouse');
 }
 
 /**
@@ -139,12 +178,20 @@ export async function listEmployeeRequestTypes(
  * request type the firm does not use. Matches on label first (that is
  * what the tiles link with, and what is stored on the intake) and on
  * key second, so an older link still resolves.
+ *
+ * The parameter is `string | string[]` because a repeated query key
+ * (`?type=a&type=b`) arrives as an array. Flattening happens HERE
+ * rather than at the call site: a page that forgot it called `.trim()`
+ * on an array, and a server component that throws is a 500 with no
+ * fallback, which is the one failure mode this function exists to
+ * prevent. First value wins, the same way a browser reads a form.
  */
 export function resolveRequestType(
   types: FirmRequestType[],
-  param: string | undefined,
+  param: string | string[] | undefined,
 ): FirmRequestType | null {
-  const wanted = (param ?? '').trim().toLowerCase();
+  const first = Array.isArray(param) ? param[0] : param;
+  const wanted = (typeof first === 'string' ? first : '').trim().toLowerCase();
   if (!wanted) return null;
   return (
     types.find((t) => t.label.toLowerCase() === wanted) ??

@@ -5,7 +5,7 @@ import { createAdminSupabase } from '@/lib/supabase/admin';
 import { CreateIntakeForm } from '@/app/counsel/intake/create-intake-form';
 import { PageHeader, SectionTitle } from '@/components/counsel/ui';
 import { RequestTypeTiles } from '@/components/portal/RequestTypeTiles';
-import { listEmployeeRequestTypes, resolveRequestType } from '@/lib/request-types';
+import { employeeRequestTypes, resolveRequestType } from '@/lib/request-types';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -20,8 +20,13 @@ export default async function PortalNewRequestPage({
    * the intake. An unrecognised or absent value resolves to null and
    * the form falls back to its own default, so a hand-typed or stale
    * URL still opens a working form.
+   *
+   * It is `string | string[]` because Next hands back an ARRAY when a
+   * key is repeated (`?type=a&type=b`). Typing it as a plain string was
+   * a lie the compiler could not catch, and it turned a mangled URL
+   * into a 500: a server component that throws has no fallback.
    */
-  searchParams?: { type?: string };
+  searchParams?: { type?: string | string[] };
 }) {
   const persona = await getWorkspacePersona();
   if (persona.kind !== 'employee') redirect('/portal');
@@ -33,7 +38,7 @@ export default async function PortalNewRequestPage({
   const submittedBy =
     persona.employee.displayName || persona.employee.email;
 
-  const requestTypes = await listEmployeeRequestTypes(
+  const requestTypes = await employeeRequestTypes(
     createAdminSupabase(),
     persona.firm.id,
   );
@@ -89,9 +94,17 @@ export default async function PortalNewRequestPage({
         Changing your mind goes back through "Choose a different type",
         which is a deliberate act on an empty form.
       */}
+      {/*
+        "You are filing:" rather than "Filing a": the article cannot be
+        right for every label ("a NDA review", "a Other", "a Employment
+        matter"), and splitting an article off from the noun hands a
+        translator a two-word fragment that cannot agree with a word it
+        never sees. A colon needs no article and stays one translatable
+        unit.
+      */}
       {chosen ? (
         <p className="text-[13px] text-cream-100/60">
-          <T>Filing a</T>{' '}
+          <T>You are filing:</T>{' '}
           <span className="font-semibold text-cream-100" data-no-translate>
             {chosen.label}
           </span>

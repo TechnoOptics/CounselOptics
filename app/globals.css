@@ -1219,16 +1219,52 @@ canvas {
   background: rgba(213, 187, 126, 0.32);
   color: #0f2d24;
 }
+/* The ring is an OUTLINE first and a box-shadow second, and that order
+   is load-bearing.
+
+   This rule used to carry `outline: none` and put the whole ring in a
+   box-shadow. A box-shadow ring cannot reach a `.card`, because four
+   rules set box-shadow on cards at a HIGHER specificity than this one:
+   `.bg-forest-900 > .card` and its three siblings a few hundred lines
+   up (0,2,0), and `.counsel-shell .card` (0,2,0), against this rule's
+   (0,1,1). Every card-surfaced link in the product therefore focused
+   with no visible ring at all - the counsel dashboard tiles, the
+   projects list, the co-counsel guest case view, the Hub's request
+   tiles. Nothing anywhere sets `outline` on a card, so an outline
+   reaches all of them. The box-shadow stays for the two-tone white-on-
+   gold contrast it gives ordinary links on both the light and the dark
+   surface; where a card suppresses it, the outline is the ring. */
 a:focus-visible,
 input:focus-visible,
 textarea:focus-visible,
 select:focus-visible,
 [tabindex]:focus-visible {
-  outline: none;
+  outline: 2px solid rgba(213, 187, 126, 0.9);
+  outline-offset: 2px;
   border-radius: 6px;
   box-shadow:
     0 0 0 2px rgba(255, 255, 255, 0.9),
     0 0 0 4px rgba(213, 187, 126, 0.55);
+}
+/* The 6px above exists to round the ring on elements with no radius of
+   their own, which is most links. A `.card` already has one, and the
+   rule above outranks it (0,1,1 against the components layer's 0,1,0),
+   so a focused tile visibly snapped its corners in and the outline
+   traced the wrong shape. Give cards their radius back at (0,2,0).
+
+   The attribute selector is not decoration and must not be "tidied"
+   into `.card`. Something in this project's CSS build rewrites a bare
+   class selector in this file into one rule per class in the sheet
+   sharing that prefix: `.card:focus-visible` emitted
+   `.card-hover:focus-visible` and `.card-luminous:focus-visible`
+   alongside it, and `:not(.card)` emitted `:not(.card-hover)` and
+   `:not(.card-luminous)` - which cancels the exclusion outright, since
+   a plain .card carries neither. Both verified in the compiled output.
+   `[class~="card"]` is an exact whitespace-separated token match, it is
+   not rewritten, and it hits .card and nothing else. The same trap is
+   waiting for `.btn`, `.input`, and every other prefixed family here. */
+[class~='card']:focus-visible {
+  border-radius: 0.75rem; /* rounded-xl, matching .card itself */
 }
 
 .animate-fade-up {

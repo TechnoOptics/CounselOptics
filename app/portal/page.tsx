@@ -9,7 +9,7 @@ import { parseDueBy, isDueCurrent } from '@/lib/portal-due';
 import { visibleIntakeIds, intakesAwaitingReply } from '@/lib/portal-scope';
 import { PageHeader, SectionTitle, StatCard, EmptyState } from '@/components/counsel/ui';
 import { StatusPill, PILL_COLORS } from '@/components/counsel/StatusPill';
-import { listEmployeeRequestTypes, type FirmRequestType } from '@/lib/request-types';
+import { employeeRequestTypes, type FirmRequestType } from '@/lib/request-types';
 import { RequestTypeTiles } from '@/components/portal/RequestTypeTiles';
 import { T } from '@/components/i18n/LocaleProvider';
 
@@ -46,7 +46,7 @@ export default async function PortalDashboardPage() {
   // The kinds of request this firm accepts, as the employee is allowed
   // to file them: in-house only, nothing hidden, in the firm's order.
   const requestTypes: FirmRequestType[] = canCreate
-    ? await listEmployeeRequestTypes(admin, persona.firm.id)
+    ? await employeeRequestTypes(admin, persona.firm.id)
     : [];
   // The Hub shows a short list, not the whole menu. Home also carries
   // this employee's open requests and what is waiting on them, and a
