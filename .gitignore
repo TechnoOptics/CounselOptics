@@ -60,7 +60,8 @@ android/app/google-services.json
 
 .vercel
 
-# pdf.js worker, copied out of node_modules by scripts/copy-pdf-worker.mjs
-# on prebuild/predev. The signer page needs it same-origin; committing a
-# vendored megabyte would let it drift from the installed package.
+# pdf.js worker and wasm decoders, copied out of node_modules by
+# scripts/copy-pdf-worker.mjs on prebuild/predev. The signer page needs
+# them same-origin; committing a vendored megabyte would let it drift
+# from the installed package.
 public/pdf-worker/

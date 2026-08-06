@@ -98,6 +98,17 @@ export function SignatureCapture({
   const [docReviewed, setDocReviewed] = useState(false);
   const [erdConsentedAt, setErdConsentedAt] = useState<string | null>(null);
   const [docReviewedAt, setDocReviewedAt] = useState<string | null>(null);
+  // Frozen beside docReviewedAt, not read live at submit.
+  //
+  // The prop is live: it follows the renderer, so a page that fails to
+  // draw after the signer has reached the pad flips it back to false
+  // while the step stays open and submit stays available. Reading it
+  // at submit time then writes document_presented false into the chain
+  // next to a populated document_reviewed_at, and a verifier reading
+  // that pair concludes the signer affirmed reviewing a document they
+  // were never shown. The record should say what was true when they
+  // affirmed it, so it is captured then.
+  const [docPresentedAtReview, setDocPresentedAtReview] = useState(false);
 
   // Capture-step state.
   const [mode, setMode] = useState<Mode>('draw');
@@ -267,6 +278,7 @@ export function SignatureCapture({
     setErdConsentedAt(new Date().toISOString());
     if (documentPresented && !docReviewedAt) {
       setDocReviewedAt(new Date().toISOString());
+      setDocPresentedAtReview(documentPresented);
     }
     setStep('capture');
   }
@@ -305,7 +317,9 @@ export function SignatureCapture({
             // answer in the chain rather than only in this browser.
             // documentReviewedAt stays null when nothing was shown,
             // which the gate above no longer allows through anyway.
-            documentPresented,
+            // Both are the pair captured at the affirmation, so they
+            // can never contradict each other in the chain.
+            documentPresented: docPresentedAtReview,
             documentReviewedAt: docReviewedAt,
             intentAffirmedAt: new Date().toISOString(),
             uaSnapshot:
@@ -332,7 +346,7 @@ export function SignatureCapture({
       <section ref={cardRef} className="card p-8 text-center scroll-mt-20">
         <p className="eyebrow mb-2 justify-center">Signed</p>
         <h2 className="font-display text-3xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
-          Thanks, {signerName || signerEmail}.
+          Thanks, <span data-no-translate>{signerName || signerEmail}</span>.
         </h2>
         <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 leading-relaxed">
           Your signature for &ldquo;{documentName}&rdquo; has been recorded. The
@@ -591,7 +605,13 @@ export function SignatureCapture({
           className="mt-1"
         />
         <span>
-          I, <strong>{signerName || signerEmail}</strong>, intend that the
+          {/* The name is the signer's own, inside the sentence that
+              makes the mark a signature. The runtime translation layer
+              would otherwise machine-translate a person's name in the
+              operative clause of a legal instrument. */}
+          I,{' '}
+          <strong data-no-translate>{signerName || signerEmail}</strong>, intend
+          that the
           mark above be my signature on &ldquo;{documentName}&rdquo;, with the
           same legal effect as a handwritten signature. I am acting on my
           own behalf or as authorized for the entity I represent.

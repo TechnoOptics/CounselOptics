@@ -40,6 +40,34 @@ export function isNativeApp(): boolean {
   return getNativePlatform() !== 'web';
 }
 
+/**
+ * The URL to hand @capacitor/browser for a link on this page.
+ *
+ * `Browser.open` needs an absolute URL. A relative href - which is
+ * what any link to our own API or another page of the app is - makes
+ * it reject, and the caller's fallback then assigns
+ * window.location.href instead, which navigates the WebView away from
+ * the page the link was on. On most pages that is an annoyance. On
+ * /sign/[token] it discards a signing ceremony in progress: the
+ * consents, the review affirmation and the drawn mark all live in
+ * component state, and the signer comes back to an empty pad.
+ *
+ * So relative hrefs are resolved against the current document before
+ * they are handed over. Anything already absolute, and anything with a
+ * scheme of its own (mailto:, tel:), is passed through untouched.
+ */
+export function resolveNativeBrowserUrl(
+  href: string,
+  base: string | null | undefined,
+): string {
+  if (!href) return href;
+  try {
+    return new URL(href, base ?? undefined).toString();
+  } catch {
+    return href;
+  }
+}
+
 export function isIOSApp(): boolean {
   return getNativePlatform() === 'ios';
 }

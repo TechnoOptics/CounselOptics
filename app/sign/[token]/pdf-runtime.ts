@@ -2,6 +2,7 @@
 
 import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
 import {
+  firstDroppedRenderObject,
   needsPromiseWithResolvers,
   resolveCanvasRenderScale,
 } from '@/lib/signer-view';
@@ -21,15 +22,26 @@ import {
  *
  * SAME ORIGIN, ALL OF IT. This page is unauthenticated and its URL
  * carries a live signing credential. The library is bundled from
- * node_modules, the worker is emitted into /_next/static by the
- * bundler and loaded from there, and the PDF bytes come from
- * /api/firm/sign/document/[token] on this origin. Nothing is fetched
- * from a CDN: no worker, no wasm, no font file, no character map.
- * `useWorkerFetch: false` and leaving cMapUrl/standardFontDataUrl
- * unset are what keep the library from reaching for the last two on
- * its own; a document that needs a predefined CMap or a standard font
- * file therefore renders with substituted glyphs rather than fetching
- * them, and that is the trade taken deliberately.
+ * node_modules; the worker and the OpenJPEG wasm are copied out of
+ * node_modules into public/pdf-worker/<version>/ by
+ * scripts/copy-pdf-worker.mjs on prebuild and loaded from there; and
+ * the PDF bytes come from /api/firm/sign/document/[token] on this
+ * origin. Nothing is fetched from a CDN: no worker, no wasm, no font
+ * file, no character map. `useWorkerFetch: false` keeps the library
+ * from fetching anything from inside the worker, so even the wasm is
+ * fetched by this page and handed across.
+ *
+ * cMapUrl and standardFontDataUrl are still unset, and that stays a
+ * deliberate trade: a document needing a predefined CMap or a standard
+ * font file renders with substituted glyphs rather than reaching for
+ * them. It is a trade because the text is still there and still
+ * readable. `wasmUrl` was left unset for the same reason and it was
+ * NOT the same trade, which is why it is set now: without it the
+ * OpenJPEG decoder cannot be reached at all, and a scanned agreement
+ * whose pages are JPEG 2000 images - what Acrobat's optimiser and many
+ * office scanners produce - loses every page image and renders as a
+ * white rectangle. Nothing is substituted in that case. Nothing is
+ * shown at all.
  *
  * NO EVAL. `isEvalSupported: false` turns off the optimisation that
  * compiles PDF font programs through the JS engine. It costs a little
@@ -117,10 +129,29 @@ export async function openSignerPdf(bytes: ArrayBuffer): Promise<OpenedPdf> {
     data: new Uint8Array(bytes),
     isEvalSupported: false,
     useWorkerFetch: false,
-    // Nothing on this page needs the form layer, and an interactive
-    // AcroForm rendered over a document being signed would be a second
-    // place to type into with no bearing on the signature.
+    // Same directory the worker was copied into, same version in the
+    // path, same guarantee: our origin or nothing. The trailing slash
+    // is required - pdf.js throws on a factory URL without one - and
+    // the fetch is made by this page rather than the worker, so
+    // connect-src 'self' is what covers it.
+    wasmUrl: `/pdf-worker/${pdfjs.version}/wasm/`,
+    // The whole file is already in hand, so there is nothing left to
+    // fetch ahead. Nothing on this page mounts the annotation layer
+    // either: only the canvas is drawn, so an interactive AcroForm
+    // never appears as a second place to type with no bearing on the
+    // signature.
     disableAutoFetch: true,
+    // stopAtErrors is deliberately NOT set, and the reason is not the
+    // obvious one. It would not have closed the hole it looks like it
+    // closes: an image that cannot be decoded is caught inside
+    // buildPaintImageXObject and resolved to null before any
+    // ignoreErrors branch is reached, so the render still resolves.
+    // That case is caught after the fact instead, in
+    // renderPageToCanvas. What stopAtErrors WOULD do is turn every
+    // benign defect in a real-world PDF - one unreadable font program,
+    // one malformed shading - into a total refusal to show a document
+    // that is otherwise perfectly readable, which blocks signings that
+    // should go ahead without making the blank-page case any safer.
   });
   const doc = await task.promise;
   return { doc, pageCount: doc.numPages };
@@ -150,6 +181,21 @@ export type RenderedPage = {
  * canvas that allocated but drew nothing is the failure mode this
  * whole page exists to prevent, so the caller turns any throw into a
  * blocked signing step and a sentence the signer can act on.
+ *
+ * That claim needs the check below to be true, and it was not true of
+ * the render task alone. pdf.js resolves a render whose page images
+ * could not be decoded: the failure is caught in the worker, the image
+ * is resolved to null, the canvas skips the paint, and the task
+ * finishes clean over a page still showing nothing but the white fill.
+ * So after the task resolves, the page's object bag is checked for
+ * anything the worker could not produce (firstDroppedRenderObject),
+ * and one null is enough to fail the render. See that function for why
+ * a null there means exactly this and why an empty page does not count.
+ *
+ * The page is released afterwards either way. pdf.js caches every page
+ * a reader visits, and this page asks the signer to read the whole
+ * document, so without the release a long scanned agreement
+ * accumulates decoded bitmaps until the tab is killed mid-ceremony.
  */
 export async function renderPageToCanvas(input: {
   doc: PDFDocumentProxy;
@@ -193,7 +239,19 @@ export async function renderPageToCanvas(input: {
 
   const task = page.render({ canvas: input.canvas, canvasContext: ctx, viewport });
   input.signal?.addEventListener('abort', () => task.cancel(), { once: true });
-  await task.promise;
+  try {
+    await task.promise;
+    const dropped = firstDroppedRenderObject(page.objs);
+    if (dropped) {
+      throw new Error(
+        `The page did not draw completely: ${dropped} could not be decoded.`,
+      );
+    }
+  } finally {
+    // After the check, not before: cleanup() empties the object bag
+    // the check reads.
+    page.cleanup();
+  }
 
   return {
     widthPt: unrotated.width,

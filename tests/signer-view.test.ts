@@ -10,18 +10,23 @@ import {
   SIGNER_CANVAS_MAX_SIDE_PX,
   SIGNER_COPY_REFUSAL_COPY,
   SIGNER_DOCUMENT_MAX_BYTES,
+  SIGNER_DOCUMENT_PRESENT_TIMEOUT_MS,
   SIGNER_DOCUMENT_REFUSAL_COPY,
   SIGNER_DOCUMENT_RENDER_COPY,
+  SIGNER_DOCUMENT_TOO_LARGE_STATUS,
   SIGNER_DOWNLOAD_RESTRICTION_UNSAVED_ERROR,
   canLeaveDisclosureStep,
   clampSignerPageNumber,
+  firstDroppedRenderObject,
   isDocumentPresented,
   isUnknownColumnError,
   needsPromiseWithResolvers,
   parseSignerDownloadPermission,
   projectSignerConsentMetadata,
   resolveCanvasRenderScale,
+  resolveDocumentResponseFailure,
   resolveDocumentSizeAcceptance,
+  resolveDocumentSizeRefusal,
   resolveDownloadColumnFallback,
   resolveSignatureLinePlacement,
   resolveSignerCopyAccess,
@@ -31,6 +36,7 @@ import {
   signaturePreviewGeometryNote,
   type SignatureLinePlacement,
 } from '../lib/signer-view';
+import { resolveNativeBrowserUrl } from '../lib/platform';
 
 describe('canLeaveDisclosureStep', () => {
   const base = {
@@ -558,6 +564,17 @@ describe('resolveCanvasRenderScale', () => {
     ).toBeCloseTo(2, 6);
   });
 
+  it('keeps the ceiling itself inside what a phone will allocate', () => {
+    // The tests below measure the scale AGAINST this constant, so they
+    // move with it: raising it to something no device can allocate
+    // leaves every one of them green while the canvas silently draws
+    // nothing. The documented iOS limits are the fixed point, so the
+    // constant is pinned to them here.
+    expect(SIGNER_CANVAS_MAX_PIXELS).toBeLessThanOrEqual(16_777_216);
+    expect(SIGNER_CANVAS_MAX_PIXELS).toBeGreaterThanOrEqual(4_000_000);
+    expect(SIGNER_CANVAS_MAX_SIDE_PX).toBeLessThanOrEqual(4096);
+  });
+
   it('never exceeds the canvas area a phone will allocate', () => {
     const scale = resolveCanvasRenderScale({
       ...letter,
@@ -674,6 +691,129 @@ describe('resolveDocumentSizeAcceptance', () => {
     expect(resolveDocumentSizeAcceptance(null)).toBe('empty');
     expect(resolveDocumentSizeAcceptance(Number.NaN)).toBe('empty');
     expect(resolveDocumentSizeAcceptance(-1)).toBe('empty');
+  });
+});
+
+/**
+ * The route refuses, the page reads the refusal back, and the signer
+ * gets a sentence about what actually happened. Both halves are here
+ * because the bug was in the JOIN between them: each half was
+ * defensible alone and together they told a firm with an empty stored
+ * file to go and shrink it.
+ */
+describe('the refusal the route writes and the sentence the page reads', () => {
+  it('refuses a file past the ceiling as too large', () => {
+    const refusal = resolveDocumentSizeRefusal('too-large');
+    expect(refusal.status).toBe(SIGNER_DOCUMENT_TOO_LARGE_STATUS);
+    expect(refusal.message).toMatch(/too large/i);
+    expect(resolveDocumentResponseFailure(refusal.status)).toBe('too-large');
+  });
+
+  it('does not call an empty stored file a size problem', () => {
+    const refusal = resolveDocumentSizeRefusal('empty');
+    expect(refusal.status).not.toBe(SIGNER_DOCUMENT_TOO_LARGE_STATUS);
+    expect(refusal.message).not.toMatch(/large/i);
+    // What the signer ends up reading: the document could not be
+    // loaded, ask the firm. Not "shrink it".
+    const status = resolveDocumentResponseFailure(refusal.status);
+    expect(status).toBe('unavailable');
+    expect(SIGNER_DOCUMENT_RENDER_COPY[status]).not.toMatch(/large/i);
+  });
+
+  it('reads every other refusal as the document not being available', () => {
+    for (const httpStatus of [400, 403, 404, 429, 500, 502, 504]) {
+      expect(resolveDocumentResponseFailure(httpStatus)).toBe('unavailable');
+    }
+  });
+
+  it('gives the signer a deadline rather than an open-ended spinner', () => {
+    // Long enough for a large agreement on a slow connection, short
+    // enough that nobody waits on a document that is not coming.
+    expect(SIGNER_DOCUMENT_PRESENT_TIMEOUT_MS).toBeGreaterThanOrEqual(30_000);
+    expect(SIGNER_DOCUMENT_PRESENT_TIMEOUT_MS).toBeLessThanOrEqual(180_000);
+  });
+});
+
+/**
+ * The guard behind the whole branch: a render that finished is not the
+ * same as a page that was drawn.
+ *
+ * pdf.js resolves an image it could not decode to null and finishes
+ * the render over the gap. On a scanned agreement that is a white
+ * rectangle under a checkbox saying the signer has read the document
+ * in full.
+ */
+describe('firstDroppedRenderObject', () => {
+  it('names the image the renderer could not produce', () => {
+    expect(
+      firstDroppedRenderObject([
+        ['img_p0_1', { width: 100 }],
+        ['img_p0_2', null],
+      ]),
+    ).toBe('img_p0_2');
+  });
+
+  it('counts undefined as dropped too, not as not-yet-asked', () => {
+    expect(firstDroppedRenderObject([['img_p0_1', undefined]])).toBe('img_p0_1');
+  });
+
+  it('passes a page whose objects all arrived', () => {
+    expect(
+      firstDroppedRenderObject([
+        ['img_p0_1', { width: 100 }],
+        ['pattern_p0_2', { type: 'Pattern' }],
+      ]),
+    ).toBeNull();
+  });
+
+  it('passes a page that simply had nothing on it', () => {
+    // Blank pages are ordinary in real agreements - the back of a
+    // scanned duplex sheet, a divider. Refusing to open a document
+    // because page 7 is blank would block a signing over a page that
+    // is exactly as it should be.
+    expect(firstDroppedRenderObject([])).toBeNull();
+    expect(firstDroppedRenderObject(null)).toBeNull();
+    expect(firstDroppedRenderObject(undefined)).toBeNull();
+  });
+
+  it('does not treat a falsy-but-present object as dropped', () => {
+    // 0 and '' are not what a failed decode leaves behind; null is.
+    expect(firstDroppedRenderObject([['img_p0_1', 0]])).toBeNull();
+    expect(firstDroppedRenderObject([['img_p0_1', '']])).toBeNull();
+    expect(firstDroppedRenderObject([['img_p0_1', false]])).toBeNull();
+  });
+});
+
+/**
+ * Lives here rather than beside the rest of lib/platform because the
+ * failure it prevents is this page's: the signer page is the one place
+ * where losing the WebView to a stray navigation costs a ceremony in
+ * progress rather than a scroll position.
+ */
+describe('resolveNativeBrowserUrl', () => {
+  const base = 'https://advottic.com/sign/abc123';
+
+  it('makes a relative app URL absolute', () => {
+    expect(resolveNativeBrowserUrl('/api/firm/sign/document/abc', base)).toBe(
+      'https://advottic.com/api/firm/sign/document/abc',
+    );
+  });
+
+  it('leaves an absolute URL alone', () => {
+    expect(resolveNativeBrowserUrl('https://courts.example/x', base)).toBe(
+      'https://courts.example/x',
+    );
+    expect(resolveNativeBrowserUrl('mailto:clerk@example.com', base)).toBe(
+      'mailto:clerk@example.com',
+    );
+  });
+
+  it('hands back what it was given rather than throwing', () => {
+    // No base to resolve against (a server render, a stubbed window):
+    // returning the original is the same behaviour as before, and
+    // throwing inside a click handler would lose the click entirely.
+    expect(resolveNativeBrowserUrl('/api/x', null)).toBe('/api/x');
+    expect(resolveNativeBrowserUrl('', base)).toBe('');
   });
 });
 
@@ -1223,6 +1363,14 @@ describe('call sites', () => {
     // A raw _blank anchor is the thing that no-ops in the native shell.
     // The prose above the component names it, so this looks for the tag.
     expect(src).not.toMatch(/<a\b[^>]*target="_blank"/s);
+    // And the href it is given is relative, which is fine only because
+    // ExternalLink resolves it before handing it to the native
+    // browser. Without that the open rejects, the fallback assigns
+    // window.location, and the signing ceremony on the page is gone.
+    const link = read('components/ExternalLink.tsx');
+    expect(link).toMatch(/resolveNativeBrowserUrl\(href, window\.location\.href\)/);
+    expect(link).toMatch(/Browser\.open\(\{ url \}\)/);
+    expect(link).not.toMatch(/Browser\.open\(\{ url: href \}\)/);
   });
 
   it('has the document view rasterise the page rather than frame it', () => {
@@ -1251,8 +1399,65 @@ describe('call sites', () => {
       // cMapUrl and standardFontDataUrl are how pdf.js is normally
       // talked into fetching character maps and standard fonts from
       // somewhere else. Neither is set, and useWorkerFetch is off.
-      expect(src).not.toMatch(/(cMapUrl|standardFontDataUrl|wasmUrl)\s*:/);
+      expect(src).not.toMatch(/(cMapUrl|standardFontDataUrl)\s*:/);
     }
+    // wasmUrl IS set, and this used to assert it was not. The
+    // invariant is "never cross-origin", not "never set": unset meant
+    // the JPEG 2000 decoder could not be reached at all, so a scanned
+    // agreement rendered as a blank white page and reported ready.
+    // What matters is that the value is an absolute path on this
+    // origin, under the same version-locked directory as the worker.
+    const wasm = runtime.match(/wasmUrl:\s*`([^`]*)`/);
+    expect(wasm?.[1]).toBe('/pdf-worker/${pdfjs.version}/wasm/');
+    // pdf.js throws on a factory URL with no trailing slash.
+    expect(wasm?.[1].endsWith('/')).toBe(true);
+    // And the file it points at is put there by the prebuild copy, not
+    // fetched from the package at runtime.
+    // The copied list, not the prose above it.
+    const copy = read('scripts/copy-pdf-worker.mjs');
+    expect(copy).toMatch(/^\s+'openjpeg\.wasm',$/m);
+    expect(copy).toMatch(/^\s+'openjpeg_nowasm_fallback\.js',$/m);
+    expect(copy).toMatch(/'wasm', filename/);
+  });
+
+  it('has the renderer fail a page it did not fully draw', () => {
+    const src = read('app/sign/[token]/pdf-runtime.ts');
+    // The render task resolving is not the page being drawn: an image
+    // pdf.js could not decode is resolved to null, skipped on the
+    // canvas, and the task finishes clean over the white fill.
+    expect(src).toMatch(/firstDroppedRenderObject\(page\.objs\)/);
+    expect(src).toMatch(/if \(dropped\)[\s\S]{0,120}throw new Error/);
+    // Released after the check, because cleanup() empties the bag the
+    // check reads, and released at all because this page asks the
+    // signer to read every page of a document it would otherwise
+    // retain in full.
+    expect(src).toMatch(/page\.cleanup\(\)/);
+    // The CALL, not the import at the top of the file: cleanup()
+    // empties the object bag the check reads, so a cleanup that runs
+    // first makes the check see an empty page and pass everything.
+    expect(src.indexOf('firstDroppedRenderObject(page.objs)')).toBeLessThan(
+      src.indexOf('page.cleanup()'),
+    );
+  });
+
+  it('has the viewer end every wait in a sentence', () => {
+    const src = read('app/sign/[token]/document-view.tsx');
+    // A stalled body never resolves and never rejects. Without a
+    // deadline the signer sits on "Opening the document." with
+    // Continue disabled and nothing to act on.
+    // The deadline the timer is actually given, not the import.
+    expect(src).toMatch(/\}, SIGNER_DOCUMENT_PRESENT_TIMEOUT_MS\);/);
+    expect(src).toMatch(/expired\.current = true/);
+    // And a render that lands after that may not take the failure
+    // back and claim the document was presented.
+    expect(src).toMatch(/if \(expired\.current && next === 'ready'\) return;/);
+    // A dropped connection is not a damaged file: the transfer has its
+    // own catch, and it says the document could not be loaded.
+    expect(src).toMatch(/bytes = await res\.arrayBuffer\(\);\s*\n\s*\} catch \{/);
+    expect(src).toMatch(/resolveDocumentResponseFailure\(res\.status\)/);
+    // The old literal is what turned an empty stored file into "too
+    // large" on the signer's screen.
+    expect(src).not.toMatch(/res\.status === 413/);
   });
 
   it('has the runtime load the worker same-origin and refuse eval', () => {
@@ -1277,6 +1482,16 @@ describe('call sites', () => {
     const src = read('app/api/firm/sign/document/[token]/route.ts');
     expect(src).toMatch(/resolveSignerDocumentAccess\(/);
     expect(src).toMatch(/resolveDocumentSizeAcceptance\(/);
+    // One refusal table, read from both ends, rather than a status
+    // code chosen here and interpreted differently on the page.
+    expect(src).toMatch(/resolveDocumentSizeRefusal\(/);
+    expect(src).not.toMatch(/refuse\(\s*413/);
+    // Asked of the metadata before the bytes are pulled, or the
+    // ceiling is measured on a file already resident in the function.
+    expect(src.indexOf('.info(access.path)')).toBeGreaterThan(0);
+    expect(src.indexOf('.info(access.path)')).toBeLessThan(
+      src.indexOf('.download(access.path)'),
+    );
     // Hiding a link is not a gate: the token is the only credential on
     // this surface and anyone holding it can call the route directly.
     expect(src).toMatch(/if \(!access\.allowed\)/);
@@ -1296,6 +1511,27 @@ describe('call sites', () => {
     const src = read('app/sign/[token]/signature-capture.tsx');
     expect(src).toMatch(/canLeaveDisclosureStep\(/);
     expect(src).toMatch(/disabled=\{!mayLeaveDisclosure\}/);
-    expect(src).toMatch(/documentPresented,\s*\n\s*documentReviewedAt/);
+    // Frozen at the affirmation, not read live at submit. The prop
+    // follows the renderer, so a page that fails after the signer
+    // reaches the pad would otherwise write document_presented false
+    // beside a populated document_reviewed_at - a pair that reads as
+    // someone affirming they reviewed a document never shown to them.
+    expect(src).toMatch(
+      /documentPresented: docPresentedAtReview,\s*\n\s*documentReviewedAt: docReviewedAt,/,
+    );
+    expect(src).toMatch(
+      /setDocReviewedAt\(new Date\(\)\.toISOString\(\)\);\s*\n\s*setDocPresentedAtReview\(documentPresented\);/,
+    );
+  });
+
+  it('keeps the signer name out of the machine translator', () => {
+    const src = read('app/sign/[token]/signature-capture.tsx');
+    // A person's name inside the operative clause of a signature.
+    expect(src).toMatch(
+      /<strong data-no-translate>\{signerName \|\| signerEmail\}<\/strong>, intend/,
+    );
+    expect(src).toMatch(
+      /Thanks, <span data-no-translate>\{signerName \|\| signerEmail\}<\/span>/,
+    );
   });
 });

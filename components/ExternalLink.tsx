@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, type AnchorHTMLAttributes, type MouseEvent } from 'react';
-import { isNativeApp } from '@/lib/platform';
+import { isNativeApp, resolveNativeBrowserUrl } from '@/lib/platform';
 
 /**
  * Drop-in replacement for `<a href target="_blank" rel="noopener
@@ -26,10 +26,14 @@ export function ExternalLink({
       if (e.defaultPrevented) return;
       if (!isNativeApp()) return;
       e.preventDefault();
+      // Absolute, because Browser.open rejects a relative URL and the
+      // fallback below would then navigate the WebView away from the
+      // page this link is on, taking any state on it with it.
+      const url = resolveNativeBrowserUrl(href, window.location.href);
       import('@capacitor/browser')
-        .then(({ Browser }) => Browser.open({ url: href }))
+        .then(({ Browser }) => Browser.open({ url }))
         .catch(() => {
-          window.location.href = href;
+          window.location.href = url;
         });
     },
     [href, onClick],

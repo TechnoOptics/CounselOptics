@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Put the pdf.js worker where the signer page can load it from our own
- * origin.
+ * Put the pdf.js worker and its wasm decoders where the signer page
+ * can load them from our own origin.
  *
  * The signer page rasterises the document it is asking someone to
  * sign, and that page is unauthenticated with a live signing
@@ -43,10 +43,41 @@ try {
   process.exit(1);
 }
 
-const from = join(root, 'node_modules', 'pdfjs-dist', 'build', 'pdf.worker.min.mjs');
+const pkgDir = join(root, 'node_modules', 'pdfjs-dist');
 const toDir = join(root, 'public', 'pdf-worker', version);
-const to = join(toDir, 'pdf.worker.min.mjs');
 
 mkdirSync(toDir, { recursive: true });
-copyFileSync(from, to);
+copyFileSync(
+  join(pkgDir, 'build', 'pdf.worker.min.mjs'),
+  join(toDir, 'pdf.worker.min.mjs'),
+);
 console.log(`copy-pdf-worker: public/pdf-worker/${version}/pdf.worker.min.mjs`);
+
+/**
+ * The image decoders, on the same terms.
+ *
+ * openjpeg.wasm is the JPEG 2000 decoder. Without it the library
+ * cannot decode a JPEG 2000 image AT ALL - it throws before any fetch
+ * is attempted, because pdf.js refuses a wasm factory with no base URL
+ * - and a scanned agreement whose pages are JPEG 2000 (Acrobat's
+ * optimiser and a great many office scanners produce exactly that)
+ * loses every page image. pdf.js catches that internally, warns, and
+ * finishes the render, so the signer is shown a white rectangle over
+ * which they are asked to confirm they have read the document. That is
+ * the one outcome the signer page exists to make impossible.
+ *
+ * openjpeg_nowasm_fallback.js is the library's own fallback when wasm
+ * will not instantiate, and it is imported from the same directory, so
+ * it comes along or the fallback reaches for a URL that 404s.
+ * qcms_bg.wasm is the colour-management decoder and travels with them
+ * for the same reason: an ICC-profiled scan is ordinary.
+ */
+for (const filename of [
+  'openjpeg.wasm',
+  'openjpeg_nowasm_fallback.js',
+  'qcms_bg.wasm',
+]) {
+  mkdirSync(join(toDir, 'wasm'), { recursive: true });
+  copyFileSync(join(pkgDir, 'wasm', filename), join(toDir, 'wasm', filename));
+  console.log(`copy-pdf-worker: public/pdf-worker/${version}/wasm/${filename}`);
+}
