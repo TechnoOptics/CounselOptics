@@ -7,7 +7,9 @@ import { appendSignatureEvent } from '@/lib/esign-audit';
 import {
   SIGNER_COPY_REFUSAL_COPY,
   resolveSignerCopyAccess,
+  signerWatermarkStamp,
 } from '@/lib/signer-view';
+import { TraceWatermark } from '@/components/TraceWatermark';
 import { SignerSurface } from './signer-surface';
 import { SignerResponse } from './signer-response';
 import { AccessCodeGate } from './access-code-gate';
@@ -210,6 +212,27 @@ export default async function SignPage({ params }: { params: { token: string } }
   // anchor: the same position_page / position_x / position_y that
   // lib/signature-render.ts stamps into.
 
+  // Attribution for the one page in this app that had none.
+  //
+  // The trace watermark in the root layout is gated on a signed-in
+  // user, and the counterparty signing a document is by definition not
+  // signed in. So the surface most likely to be screenshotted, and the
+  // only one showing a document belonging to someone else, carried no
+  // identity at all. It does now, and it can: this row names the signer,
+  // and on an external request the access code they entered above is
+  // what let them reach this branch.
+  //
+  // Marking a confidential document with who holds it is ordinary
+  // practice rather than an accusation, and the wording says so. It
+  // also does not claim to stop anything: nothing on a web page can
+  // prevent a screenshot, and the point of the mark is that an image
+  // which does leave carries a name and a time.
+  const watermark = signerWatermarkStamp({
+    signerName: signature.signerName,
+    signerEmail: signature.signerEmail,
+    at: new Date(),
+  });
+
   // Render in a custom shell so signers do NOT see the consumer-side
   // header / footer chrome. The page should feel like a focused
   // signing portal.
@@ -262,7 +285,9 @@ export default async function SignPage({ params }: { params: { token: string } }
             <strong data-no-translate>
               {signature.signerName || signature.signerEmail}
             </strong>
-            . Your sign link is single-use.
+            . Your sign link is single-use, and this page is marked with your
+            name and the time you opened it, as confidential documents usually
+            are.
           </p>
         </header>
 
@@ -303,6 +328,13 @@ export default async function SignPage({ params }: { params: { token: string } }
           third parties.
         </div>
       </footer>
+
+      {/* Last, and fixed to the viewport rather than to any section, so
+          a screenshot of the document alone carries the mark as surely
+          as one of the whole page. The 'document' tone exists because
+          the shell tone blends away to nothing against the white page
+          the rasteriser paints, which is exactly where it is needed. */}
+      <TraceWatermark stamp={watermark} tone="document" />
     </div>
    </AutoTranslate>
   );

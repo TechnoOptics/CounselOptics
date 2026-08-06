@@ -9,6 +9,7 @@ import {
   SIGNER_CANVAS_MAX_PIXELS,
   SIGNER_CANVAS_MAX_SIDE_PX,
   SIGNER_COPY_REFUSAL_COPY,
+  SIGNER_DOCUMENT_DELIVERY_REFUSAL_COPY,
   SIGNER_DOCUMENT_MAX_BYTES,
   SIGNER_DOCUMENT_PRESENT_TIMEOUT_MS,
   SIGNER_DOCUMENT_REFUSAL_COPY,
@@ -16,6 +17,7 @@ import {
   SIGNER_DOCUMENT_TOO_LARGE_STATUS,
   SIGNER_DOWNLOAD_RESTRICTION_UNSAVED_ERROR,
   canLeaveDisclosureStep,
+  classifyDocumentRequestPurpose,
   clampSignerPageNumber,
   firstDroppedRenderObject,
   isDocumentPresented,
@@ -31,9 +33,11 @@ import {
   resolveSignatureLinePlacement,
   resolveSignerCopyAccess,
   resolveSignerDocumentAccess,
+  resolveSignerDocumentDelivery,
   rotateSignatureRectForDisplay,
   signatureOverflowNote,
   signaturePreviewGeometryNote,
+  signerWatermarkStamp,
   type SignatureLinePlacement,
 } from '../lib/signer-view';
 import { resolveNativeBrowserUrl } from '../lib/platform';
@@ -954,6 +958,244 @@ describe('resolveSignerDocumentAccess', () => {
   });
 });
 
+describe('classifyDocumentRequestPurpose', () => {
+  it('reads the signing page own fetch as a render', () => {
+    // What fetch() sends from same-origin page script.
+    expect(
+      classifyDocumentRequestPurpose({
+        secFetchDest: 'empty',
+        secFetchMode: 'same-origin',
+      }),
+    ).toBe('render');
+    expect(
+      classifyDocumentRequestPurpose({
+        secFetchDest: 'empty',
+        secFetchMode: 'cors',
+      }),
+    ).toBe('render');
+  });
+
+  it('reads a browser pointed at the file as a navigation', () => {
+    // A new tab, a pasted URL, a bookmark: all of these land in the
+    // browser's own PDF viewer, which has Save and Print on it.
+    expect(
+      classifyDocumentRequestPurpose({
+        secFetchDest: 'document',
+        secFetchMode: 'navigate',
+      }),
+    ).toBe('navigate');
+    // Mode alone is enough, in case a browser omits the destination.
+    expect(
+      classifyDocumentRequestPurpose({
+        secFetchDest: null,
+        secFetchMode: 'navigate',
+      }),
+    ).toBe('navigate');
+  });
+
+  it('counts a frame, an embed and an object as navigations too', () => {
+    // Each one hands the file to a browser viewer rather than to us.
+    for (const dest of ['iframe', 'frame', 'embed', 'object']) {
+      expect(
+        classifyDocumentRequestPurpose({
+          secFetchDest: dest,
+          secFetchMode: 'no-cors',
+        }),
+      ).toBe('navigate');
+    }
+  });
+
+  it('is not fooled by casing or padding', () => {
+    expect(
+      classifyDocumentRequestPurpose({
+        secFetchDest: '  DOCUMENT ',
+        secFetchMode: null,
+      }),
+    ).toBe('navigate');
+    expect(
+      classifyDocumentRequestPurpose({
+        secFetchDest: 'Empty',
+        secFetchMode: null,
+      }),
+    ).toBe('render');
+  });
+
+  it('says unstated when the client sent no Fetch Metadata', () => {
+    // Safari before 16.4, some in-app webviews, and every scripted
+    // client. Named rather than guessed, because what happens next
+    // depends on being honest that we do not know.
+    expect(
+      classifyDocumentRequestPurpose({ secFetchDest: null, secFetchMode: null }),
+    ).toBe('unstated');
+    expect(
+      classifyDocumentRequestPurpose({
+        secFetchDest: undefined,
+        secFetchMode: undefined,
+      }),
+    ).toBe('unstated');
+    expect(
+      classifyDocumentRequestPurpose({ secFetchDest: '', secFetchMode: '' }),
+    ).toBe('unstated');
+  });
+});
+
+describe('resolveSignerDocumentDelivery', () => {
+  it('serves everything when the firm left downloads on', () => {
+    for (const purpose of ['render', 'navigate', 'unstated'] as const) {
+      expect(
+        resolveSignerDocumentDelivery({ downloadPermitted: true, purpose }),
+      ).toEqual({ serve: true });
+    }
+  });
+
+  it('still serves the render when the firm withheld a copy', () => {
+    // This is the direction that breaks signing if it is wrong. The
+    // rasteriser needs the whole file to draw a page of it, so a signer
+    // refused here cannot read what they are being asked to sign, and
+    // displaying is not downloading.
+    expect(
+      resolveSignerDocumentDelivery({
+        downloadPermitted: false,
+        purpose: 'render',
+      }),
+    ).toEqual({ serve: true });
+  });
+
+  it('refuses a browser pointed at the file when the firm withheld a copy', () => {
+    // This is the hole. Before this decision existed, the permission
+    // hid a button and the endpoint underneath stayed open, so any
+    // holder of the signing token could open the raw PDF by requesting
+    // the URL.
+    expect(
+      resolveSignerDocumentDelivery({
+        downloadPermitted: false,
+        purpose: 'navigate',
+      }),
+    ).toEqual({ serve: false, reason: 'download-not-permitted' });
+  });
+
+  it('serves a client that stated nothing, and does not pretend otherwise', () => {
+    // Refusing here would lock out Safari before 16.4 and a number of
+    // in-app webviews, which is the strict-direction failure: it breaks
+    // signing for real signers to inconvenience nobody, since a scripted
+    // client can send whatever headers it likes anyway.
+    expect(
+      resolveSignerDocumentDelivery({
+        downloadPermitted: false,
+        purpose: 'unstated',
+      }),
+    ).toEqual({ serve: true });
+  });
+
+  it('has calm wording for the refusal, pointing at where the document is', () => {
+    const copy = SIGNER_DOCUMENT_DELIVERY_REFUSAL_COPY['download-not-permitted'];
+    expect(copy).toBeTruthy();
+    expect(copy).not.toMatch(/[—–]/);
+    expect(copy).not.toMatch(/error|forbidden|denied|invalid|not allowed/i);
+    // It tells the signer where to read the document rather than only
+    // what they may not have.
+    expect(copy).toMatch(/signing page|signing link/i);
+  });
+});
+
+describe('signerWatermarkStamp', () => {
+  const at = new Date('2026-08-06T14:22:41.500Z');
+
+  it('names the signer and the minute', () => {
+    expect(
+      signerWatermarkStamp({
+        signerName: 'Jane Doe',
+        signerEmail: 'jane@example.com',
+        at,
+      }),
+    ).toBe('Confidential  ·  Jane Doe (jane@example.com)  ·  2026-08-06 14:22Z');
+  });
+
+  it('falls back to the address when no name is recorded', () => {
+    expect(
+      signerWatermarkStamp({
+        signerName: null,
+        signerEmail: 'jane@example.com',
+        at,
+      }),
+    ).toBe('Confidential  ·  jane@example.com  ·  2026-08-06 14:22Z');
+    expect(
+      signerWatermarkStamp({ signerName: '   ', signerEmail: 'j@x.io', at }),
+    ).toBe('Confidential  ·  j@x.io  ·  2026-08-06 14:22Z');
+  });
+
+  it('uses the name alone rather than nothing', () => {
+    expect(
+      signerWatermarkStamp({ signerName: 'Jane Doe', signerEmail: null, at }),
+    ).toBe('Confidential  ·  Jane Doe  ·  2026-08-06 14:22Z');
+  });
+
+  it('returns null when there is nobody to name', () => {
+    // A watermark reading "Confidential" and nothing else traces
+    // nothing. Rendering it would overstate what the page knows.
+    expect(
+      signerWatermarkStamp({ signerName: null, signerEmail: null, at }),
+    ).toBeNull();
+    expect(
+      signerWatermarkStamp({ signerName: '', signerEmail: '  ', at }),
+    ).toBeNull();
+  });
+
+  it('keeps the identity when the timestamp is unusable', () => {
+    expect(
+      signerWatermarkStamp({
+        signerName: null,
+        signerEmail: 'jane@example.com',
+        at: 'not a date',
+      }),
+    ).toBe('Confidential  ·  jane@example.com');
+  });
+
+  it('accepts an ISO string as readily as a Date', () => {
+    expect(
+      signerWatermarkStamp({
+        signerName: null,
+        signerEmail: 'jane@example.com',
+        at: '2026-08-06T14:22:41.500Z',
+      }),
+    ).toBe('Confidential  ·  jane@example.com  ·  2026-08-06 14:22Z');
+  });
+
+  it('folds a stored name onto one line', () => {
+    // The stamp becomes one line of SVG text inside a data URI. A name
+    // carrying newlines or control bytes would break the markup.
+    expect(
+      signerWatermarkStamp({
+        signerName: 'Jane\n\tDoe  ',
+        signerEmail: 'jane@example.com',
+        at,
+      }),
+    ).toBe('Confidential  ·  Jane Doe (jane@example.com)  ·  2026-08-06 14:22Z');
+  });
+
+  it('caps a pathological name so the identity stays on the tile', () => {
+    const out = signerWatermarkStamp({
+      signerName: 'A'.repeat(500),
+      signerEmail: null,
+      at,
+    });
+    expect(out).toBeTruthy();
+    expect(out!.length).toBeLessThan(140);
+    expect(out).toMatch(/…/);
+  });
+
+  it('reads as a property of the document, not as an accusation', () => {
+    const out = signerWatermarkStamp({
+      signerName: 'Jane Doe',
+      signerEmail: 'jane@example.com',
+      at,
+    })!;
+    expect(out.startsWith('Confidential')).toBe(true);
+    expect(out).not.toMatch(/[—–]/);
+    expect(out).not.toMatch(/do not|warning|prohibited|tracked|monitored/i);
+  });
+});
+
 describe('needsPromiseWithResolvers', () => {
   it('says yes when the method is missing', () => {
     expect(needsPromiseWithResolvers({})).toBe(true);
@@ -1502,6 +1744,77 @@ describe('call sites', () => {
     // Hiding a link is not a gate: the token is the only credential on
     // this surface and anyone holding it can call the route directly.
     expect(src).toMatch(/if \(!access\.allowed\)/);
+  });
+
+  it('has the byte route enforce the firm download permission itself', () => {
+    // The guard this test exists for did not exist. The permission was
+    // read by the composer, the counsel side and the copy route, and
+    // the route that streams the render source never asked, so a
+    // restricted document was one URL away from any token holder.
+    const src = read('app/api/firm/sign/document/[token]/route.ts');
+    expect(src).toMatch(/resolveSignerDocumentDelivery\(/);
+    // The firm's actual decision off the row, not a literal and not a
+    // default. A route that hard-codes `downloadPermitted: true` passes
+    // every behavioural test of the pure function and reopens the hole.
+    expect(src).toMatch(/downloadPermitted: request\.signerCanDownload,/);
+    // The purpose comes off the request headers, which is the only
+    // thing on the wire that separates the render fetch from a browser
+    // pointed at the file, and which page script cannot set.
+    expect(src).toMatch(/classifyDocumentRequestPurpose\(/);
+    expect(src).toMatch(/req\.headers\.get\('sec-fetch-dest'\)/);
+    expect(src).toMatch(/req\.headers\.get\('sec-fetch-mode'\)/);
+    // And the answer is acted on. A decision computed and dropped is
+    // the same open endpoint with more code in front of it.
+    expect(src).toMatch(/if \(!delivery\.serve\)/);
+    expect(src).toMatch(/SIGNER_DOCUMENT_DELIVERY_REFUSAL_COPY\[delivery\.reason\]/);
+    // Before a byte is pulled, or the firm's decision is enforced on a
+    // file the function is already holding.
+    expect(src.indexOf('resolveSignerDocumentDelivery(')).toBeGreaterThan(0);
+    expect(src.indexOf('resolveSignerDocumentDelivery(')).toBeLessThan(
+      src.indexOf('.download(access.path)'),
+    );
+    // Never an attachment. This route is the render source; the
+    // signer's own copy is the copy route's job and its permission
+    // check is the one that governs retention.
+    expect(src).not.toMatch(/'Content-Disposition': [`'"]attachment/);
+    expect(src).toMatch(/'Content-Disposition': 'inline'/);
+    // The body now varies by what the client said it wanted the bytes
+    // for, so an intermediary must not reuse one answer for the other.
+    expect(src).toMatch(/'Vary': 'Sec-Fetch-Dest, Sec-Fetch-Mode'/);
+  });
+
+  it('stops the viewer offering a door the route holds shut', () => {
+    const src = read('app/sign/[token]/document-view.tsx');
+    // Both new-tab affordances, the one in the toolbar and the one on
+    // the failure card, are gated on the same permission the route
+    // enforces. Neither is the gate; both would otherwise walk the
+    // signer into a refusal.
+    expect(src).toMatch(/\{copyPermitted && \(\s*\n\s*<ExternalLink/);
+    expect(src).toMatch(
+      /\{copyPermitted && status !== 'too-large' && status !== 'empty' && \(/,
+    );
+    // And the permission actually reaches it.
+    expect(src).toMatch(/copyPermitted: boolean;/);
+    const surface = read('app/sign/[token]/signer-surface.tsx');
+    expect(surface).toMatch(/copyPermitted=\{copyPermitted\}\s*\n\s*markDataUrl=/);
+  });
+
+  it('attributes the signer page to the person reading it', () => {
+    const src = read('app/sign/[token]/page.tsx');
+    // The layout watermark is gated on a signed-in user and the
+    // counterparty never is one, so the page most worth tracing carried
+    // no identity at all.
+    expect(src).toMatch(/signerWatermarkStamp\(\{/);
+    expect(src).toMatch(/signerName: signature\.signerName,/);
+    expect(src).toMatch(/signerEmail: signature\.signerEmail,/);
+    expect(src).toMatch(/<TraceWatermark stamp=\{watermark\} tone="document" \/>/);
+    // The shell tone resolves to white against white through its
+    // overlay blend, which is exactly the page the rasteriser paints.
+    const mark = read('components/TraceWatermark.tsx');
+    expect(mark).toMatch(/tone\?: 'shell' \| 'document';/);
+    expect(mark).toMatch(/\.\.\.\(onDocument \? null : \{ mixBlendMode/);
+    // Nothing on this surface may claim to stop a screenshot.
+    expect(src).not.toMatch(/screenshots? (are|is)? ?(blocked|prevented|disabled)/i);
   });
 
   it('has documentPresented come from the render, not from a URL', () => {
