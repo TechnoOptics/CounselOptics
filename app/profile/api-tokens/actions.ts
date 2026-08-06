@@ -20,6 +20,8 @@ export async function createTokenAction(
     return { ok: false, error: 'Server is not fully configured.' };
   }
   revalidatePath('/profile/api-tokens');
+  // Same TokensPanel, same rows, rendered inside the firm workspace.
+  revalidatePath('/counsel/profile/api-tokens');
   return { ok: true, token: created.token, prefix: created.prefix };
 }
 
@@ -61,5 +63,9 @@ export async function createFirmTokenAction(
     return { ok: false, error: 'Server is not fully configured.' };
   }
   revalidatePath('/profile/api-tokens');
+  // A firm integration token is minted from the counsel route far more
+  // often than the consumer one, so this is the invalidation that
+  // actually matters for it.
+  revalidatePath('/counsel/profile/api-tokens');
   return { ok: true, token: created.token, prefix: created.prefix };
 }

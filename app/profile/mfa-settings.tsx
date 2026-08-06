@@ -12,11 +12,15 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { createBrowserSupabase } from '@/lib/supabase/client';
+// Shared with both counsel account pages. A pure passthrough outside a
+// LocaleProvider, so the consumer profile is unchanged.
+import { T, useT } from '@/components/i18n/LocaleProvider';
 
 type Factor = { id: string; friendlyName?: string | null; status: string };
 type Step = 'idle' | 'enrolling' | 'verifying';
 
 export function MfaSettings() {
+  const t = useT();
   const [factors, setFactors] = useState<Factor[]>([]);
   const [loading, setLoading] = useState(true);
   const [step, setStep] = useState<Step>('idle');
@@ -36,7 +40,7 @@ export function MfaSettings() {
       const totp = (data?.totp ?? []) as Factor[];
       setFactors(totp);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not load 2FA status.');
+      setError(err instanceof Error ? err.message : t('Could not load 2FA status.'));
     } finally {
       setLoading(false);
     }
@@ -72,7 +76,7 @@ export function MfaSettings() {
       setSecret(data.totp.secret);
       setStep('verifying');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not start 2FA setup.');
+      setError(err instanceof Error ? err.message : t('Could not start 2FA setup.'));
     } finally {
       setBusy(false);
     }
@@ -99,7 +103,9 @@ export function MfaSettings() {
       setFactorId(null);
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'That code did not match. Try again.');
+      setError(
+        err instanceof Error ? err.message : t('That code did not match. Try again.'),
+      );
     } finally {
       setBusy(false);
     }
@@ -117,7 +123,7 @@ export function MfaSettings() {
       setError(
         err instanceof Error
           ? err.message
-          : 'Could not remove 2FA. You may need to sign in again first.',
+          : t('Could not remove 2FA. You may need to sign in again first.'),
       );
     } finally {
       setBusy(false);
@@ -128,21 +134,26 @@ export function MfaSettings() {
     <section className="card p-6 space-y-4">
       <div>
         <h2 className="font-semibold text-forest-900 dark:text-cream-100">
-          Two-factor authentication
+          <T>Two-factor authentication</T>
         </h2>
         <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 leading-relaxed">
-          Add a second step at sign-in using an authenticator app (1Password, Authy, Google
-          Authenticator). We don&rsquo;t use SMS codes, which are weaker. This is optional but
-          strongly recommended for sensitive matters.
+          <T>
+            Add a second step at sign-in using an authenticator app (1Password,
+            Authy, Google Authenticator). We don&rsquo;t use SMS codes, which are
+            weaker. This is optional but strongly recommended for sensitive
+            matters.
+          </T>
         </p>
       </div>
 
       {loading ? (
-        <p className="text-sm text-ink-500">Checking your 2FA status&hellip;</p>
+        <p className="text-sm text-ink-500">
+          <T>Checking your 2FA status&hellip;</T>
+        </p>
       ) : enabled ? (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 dark:border-emerald-700/40 dark:bg-emerald-900/20 p-4 space-y-3">
           <p className="text-sm text-emerald-900 dark:text-emerald-200 font-medium">
-            Two-factor authentication is on.
+            <T>Two-factor authentication is on.</T>
           </p>
           {verified.map((f) => (
             <div key={f.id} className="flex items-center justify-between gap-3">
@@ -155,7 +166,7 @@ export function MfaSettings() {
                 disabled={busy}
                 className="btn-ghost text-rose-700 hover:text-rose-900 hover:bg-rose-50 text-sm"
               >
-                Remove
+                <T>Remove</T>
               </button>
             </div>
           ))}
@@ -163,21 +174,26 @@ export function MfaSettings() {
       ) : step === 'verifying' ? (
         <div className="rounded-lg border border-ink-200 dark:border-forest-700/40 p-4 space-y-4">
           <p className="text-sm text-ink-700 dark:text-cream-100/80 leading-relaxed">
-            Scan this code in your authenticator app, then enter the 6-digit code it shows.
+            <T>
+              Scan this code in your authenticator app, then enter the 6-digit
+              code it shows.
+            </T>
           </p>
           {qr && (
             // Supabase returns an SVG data-URI; render it directly.
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={qr}
-              alt="Two-factor QR code"
+              alt={t('Two-factor QR code')}
               className="mx-auto h-44 w-44 rounded-lg bg-white p-2"
             />
           )}
           {secret && (
             <p className="text-center text-xs text-ink-500 dark:text-cream-100/55">
-              Or enter this key manually:{' '}
-              <code className="font-mono break-all">{secret}</code>
+              <T>Or enter this key manually:</T>{' '}
+              <code className="font-mono break-all" data-no-translate>
+                {secret}
+              </code>
             </p>
           )}
           <input
@@ -202,7 +218,7 @@ export function MfaSettings() {
               className="btn-ghost"
               disabled={busy}
             >
-              Cancel
+              <T>Cancel</T>
             </button>
             <button
               type="button"
@@ -210,18 +226,22 @@ export function MfaSettings() {
               disabled={busy || code.length !== 6}
               className="btn bg-forest-900 text-cream-50 hover:bg-forest-800 dark:bg-cream-100 dark:text-forest-900"
             >
-              {busy ? 'Verifying…' : 'Turn on 2FA'}
+              {busy ? <T>Verifying&hellip;</T> : <T>Turn on 2FA</T>}
             </button>
           </div>
         </div>
       ) : (
         <button type="button" onClick={startEnroll} disabled={busy} className="btn-secondary">
-          {busy ? 'Starting…' : 'Set up two-factor authentication'}
+          {busy ? (
+            <T>Starting&hellip;</T>
+          ) : (
+            <T>Set up two-factor authentication</T>
+          )}
         </button>
       )}
 
       {error && (
-        <p className="rounded-md border border-rose-300 bg-rose-100 px-3 py-2 text-xs text-rose-900">
+        <p className="rounded-md border border-rose-300 bg-rose-100 dark:border-rose-700/50 dark:bg-rose-950/40 px-3 py-2 text-xs text-rose-900 dark:text-rose-200">
           {error}
         </p>
       )}

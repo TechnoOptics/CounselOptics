@@ -263,4 +263,18 @@ describe('guestPathAllowed (path scoping)', () => {
     expect(mod.guestPathAllowed(guest, '/counsel/settings')).toBe(false);
     expect(mod.guestPathAllowed(guest, '/counsel/billing')).toBe(false);
   });
+
+  // The firm ACCOUNT surface is denied on purpose, and it is the denial most
+  // likely to be loosened by accident: a guest who cannot reach two-factor
+  // enrolment looks like a bug, and adding these paths to the allowlist looks
+  // like the fix. It is not. /counsel/profile is headed with the firm's name,
+  // describes how the reader appears on the firm's work product, and links to
+  // API tokens where an owner or admin mints read+write tokens bound to the
+  // firm. A guest is an outside attorney, not a member. Their two-factor
+  // control lives on /counsel/guest/profile, which is already allowed above.
+  it('denies the firm account surface, including to fix a two-factor gap', () => {
+    expect(mod.guestPathAllowed(guest, '/counsel/profile')).toBe(false);
+    expect(mod.guestPathAllowed(guest, '/counsel/profile/api-tokens')).toBe(false);
+    expect(mod.guestPathAllowed(guest, '/counsel/feedback')).toBe(false);
+  });
 });

@@ -2,6 +2,9 @@
 
 import { useState, useTransition } from 'react';
 import { startPhoneVerificationAction, confirmPhoneVerificationCodeAction } from '@/lib/phone-verify-actions';
+// Shared with the counsel account page. A pure passthrough outside a
+// LocaleProvider, so the consumer profile is unchanged.
+import { T, useT } from '@/components/i18n/LocaleProvider';
 
 /**
  * Account-level phone verification (OTP via Twilio Verify). Currently
@@ -20,6 +23,7 @@ export function PhoneVerifyForm({
   verifiedAt: string | null;
   configured: boolean;
 }) {
+  const t = useT();
   const [step, setStep] = useState<'idle' | 'code-sent'>('idle');
   const [phone, setPhone] = useState(verifiedPhone ?? '');
   const [code, setCode] = useState('');
@@ -30,9 +34,11 @@ export function PhoneVerifyForm({
   if (!configured) {
     return (
       <div className="card p-5 sm:p-6">
-        <p className="eyebrow mb-2">Phone verification</p>
+        <p className="eyebrow mb-2">
+          <T>Phone verification</T>
+        </p>
         <p className="text-sm text-ink-500 dark:text-cream-100/55">
-          Phone verification isn&rsquo;t available yet on this deployment.
+          <T>Phone verification isn&rsquo;t available yet on this deployment.</T>
         </p>
       </div>
     );
@@ -41,12 +47,17 @@ export function PhoneVerifyForm({
   if (verifiedPhone && verifiedAt && !justVerified && step === 'idle') {
     return (
       <div className="card p-5 sm:p-6">
-        <p className="eyebrow mb-2">Phone verification</p>
-        <p className="text-sm text-ink-700 dark:text-cream-100/80">
+        <p className="eyebrow mb-2">
+          <T>Phone verification</T>
+        </p>
+        {/* Left unwrapped on purpose: the number and the date are data, and
+            the one English word between them cannot be split out without
+            translating a sentence fragment. */}
+        <p className="text-sm text-ink-700 dark:text-cream-100/80" data-no-translate>
           {verifiedPhone}, verified {new Date(verifiedAt).toLocaleDateString()}
         </p>
         <button type="button" className="btn-ghost text-sm mt-3" onClick={() => setStep('idle')}>
-          Verify a different number
+          <T>Verify a different number</T>
         </button>
       </div>
     );
@@ -54,14 +65,18 @@ export function PhoneVerifyForm({
 
   return (
     <div className="card p-5 sm:p-6 space-y-4">
-      <p className="eyebrow">Phone verification</p>
+      <p className="eyebrow">
+        <T>Phone verification</T>
+      </p>
       {justVerified ? (
-        <p className="text-sm text-ink-700 dark:text-cream-100/80">Verified. Thank you.</p>
+        <p className="text-sm text-ink-700 dark:text-cream-100/80">
+          <T>Verified. Thank you.</T>
+        </p>
       ) : step === 'idle' ? (
         <>
           <div>
             <label className="label" htmlFor="verify-phone">
-              Phone number (international format)
+              <T>Phone number (international format)</T>
             </label>
             <input
               id="verify-phone"
@@ -81,20 +96,21 @@ export function PhoneVerifyForm({
                 setError(null);
                 const result = await startPhoneVerificationAction(phone);
                 if (!result.ok) {
-                  setError(result.error ?? 'Could not send a code.');
+                  setError(result.error ?? t('Could not send a code.'));
                   return;
                 }
                 setStep('code-sent');
               })
             }
           >
-            {pending ? 'Sending…' : 'Send code'}
+            {pending ? <T>Sending&hellip;</T> : <T>Send code</T>}
           </button>
         </>
       ) : (
         <>
           <p className="text-sm text-ink-600 dark:text-cream-100/70">
-            Enter the code sent to {phone}.
+            <T>Enter the code sent to</T>{' '}
+            <span data-no-translate>{phone}</span>.
           </p>
           <input
             value={code}
@@ -114,17 +130,17 @@ export function PhoneVerifyForm({
                   setError(null);
                   const result = await confirmPhoneVerificationCodeAction(phone, code);
                   if (!result.ok) {
-                    setError(result.error ?? 'Could not verify that code.');
+                    setError(result.error ?? t('Could not verify that code.'));
                     return;
                   }
                   setJustVerified(true);
                 })
               }
             >
-              {pending ? 'Checking…' : 'Verify'}
+              {pending ? <T>Checking&hellip;</T> : <T>Verify</T>}
             </button>
             <button type="button" className="btn-ghost text-sm" onClick={() => setStep('idle')}>
-              Back
+              <T>Back</T>
             </button>
           </div>
         </>

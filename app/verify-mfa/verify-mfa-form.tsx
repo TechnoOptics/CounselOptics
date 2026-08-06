@@ -6,7 +6,18 @@ import { createBrowserSupabase } from '@/lib/supabase/client';
 
 type Factor = { id: string; friendlyName?: string | null; status: string };
 
-export function VerifyMfaForm({ next }: { next: string }) {
+export function VerifyMfaForm({
+  next,
+  /**
+   * Where the "no verified factor" way out points. Resolved on the server
+   * because only the server knows whether this account belongs to a firm;
+   * a hard-coded /profile here dropped an attorney into the consumer shell.
+   */
+  accountHref = '/profile',
+}: {
+  next: string;
+  accountHref?: string;
+}) {
   const router = useRouter();
   const [factorId, setFactorId] = useState<string | null>(null);
   const [code, setCode] = useState('');
@@ -81,8 +92,8 @@ export function VerifyMfaForm({ next }: { next: string }) {
         <p className="text-sm text-rose-700">
           {error ?? "Could not find a verified authenticator for this account."}
         </p>
-        <a href="/profile" className="btn-secondary inline-block">
-          Go to your profile
+        <a href={accountHref} className="btn-secondary inline-block">
+          Go to your account
         </a>
       </div>
     );
