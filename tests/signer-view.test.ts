@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, it, expect } from 'vitest';
 import {
   ASSUMED_PAGE_HEIGHT_PT,
@@ -674,5 +676,63 @@ describe('resolveSignerCopyAccess', () => {
       expect(SIGNER_COPY_REFUSAL_COPY[reason]).toBeTruthy();
       expect(SIGNER_COPY_REFUSAL_COPY[reason]).not.toMatch(/[—–]/);
     }
+  });
+});
+
+/**
+ * The rules above are pure and fully covered. Their CALL SITES are not:
+ * a route handler, a server action, and two React components that the
+ * node test environment cannot run. The failure that started this round
+ * was exactly there, in wiring rather than in a rule: the page captured
+ * the document-review affirmation, the rule was right, and the route
+ * quietly projected five keys and dropped it.
+ *
+ * So these read the source. That is a weak test and it is said plainly:
+ * it proves the call is written, not that it runs. It is here because a
+ * decision no caller uses is worth less than no decision at all, and
+ * because the specific regressions it catches (re-inlining the consent
+ * literal, dropping the abort branch, letting the geometry admission go
+ * dead again, going back to a raw target="_blank") are all silent.
+ */
+describe('call sites', () => {
+  const read = (rel: string) =>
+    readFileSync(join(__dirname, '..', rel), 'utf8');
+
+  it('has the sign route project the consent through one function', () => {
+    const src = read('app/api/firm/sign/route.ts');
+    expect(src).toMatch(/projectSignerConsentMetadata\(payload\.consent\)/);
+    // The old hand-rolled literal is what dropped the review keys.
+    expect(src).not.toMatch(/electronic_records_consented_at:/);
+  });
+
+  it('has the composer abort rather than send a restriction it lost', () => {
+    const src = read('lib/firm-actions.ts');
+    expect(src).toMatch(/resolveDownloadColumnFallback\(/);
+    expect(src).toMatch(
+      /abort-restriction-unsaved'\)?[\s\S]{0,120}SIGNER_DOWNLOAD_RESTRICTION_UNSAVED_ERROR/,
+    );
+  });
+
+  it('has the preview actually show the geometry admission', () => {
+    const src = read('app/sign/[token]/signature-line-preview.tsx');
+    expect(src).toMatch(/signaturePreviewGeometryNote\(placement\)/);
+    expect(src).toMatch(/\{geometryNote/);
+  });
+
+  it('has the document view open new tabs through ExternalLink', () => {
+    const src = read('app/sign/[token]/document-view.tsx');
+    expect(src).toMatch(/<ExternalLink\b/);
+    // A raw _blank anchor is the thing that no-ops in the native shell.
+    // The prose above the component names it, so this looks for the tag.
+    expect(src).not.toMatch(/<a\b[^>]*target="_blank"/s);
+    // The signer is told what the frame's URL is good for.
+    expect(src).toMatch(/SIGNER_DOCUMENT_URL_TTL_MINUTES/);
+  });
+
+  it('has the capture step refuse to open on a failed document load', () => {
+    const src = read('app/sign/[token]/signature-capture.tsx');
+    expect(src).toMatch(/canLeaveDisclosureStep\(/);
+    expect(src).toMatch(/disabled=\{!mayLeaveDisclosure\}/);
+    expect(src).toMatch(/documentPresented,\s*\n\s*documentReviewedAt/);
   });
 });
