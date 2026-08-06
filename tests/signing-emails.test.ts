@@ -52,10 +52,19 @@ class Query {
   private pendingInsert: Row | null = null;
   /** Did the caller ask for the affected rows back? See run(). */
   private selected = false;
+  /** The columns the caller named, or null when it asked for all. */
+  private projection: string[] | null = null;
   private result: { data: unknown; error: { message: string } | null } | null = null;
   constructor(private table: string) {}
-  select() {
+  select(cols?: string) {
     this.selected = true;
+    this.projection =
+      !cols || cols.trim() === '*'
+        ? null
+        : cols
+            .split(',')
+            .map((c) => c.trim())
+            .filter(Boolean);
     return this;
   }
   order() {
@@ -94,12 +103,36 @@ class Query {
   private matching(): Row[] {
     return (db.tables[this.table] ?? []).filter((r) => this.matches(r));
   }
+  /**
+   * One row as PostgREST hands it back: the columns the caller named in
+   * .select(), and nothing else. A column that was not asked for is
+   * ABSENT, not merely stale, so an action that reads it reads
+   * undefined - exactly what it would read against the real store.
+   * Returning the whole stored row regardless made a projection
+   * unfalsifiable: drop a column from a .select() list and the code
+   * that reads it kept working here while going undefined in
+   * production, which for a status gate means the gate stops firing and
+   * for a nullable credential column means every row looks external.
+   */
+  private project(row: Row): Row {
+    if (!this.projection) return { ...row };
+    const out: Row = {};
+    for (const col of this.projection) if (col in row) out[col] = row[col];
+    return out;
+  }
   private run() {
     if (this.result) return this.result;
     if (this.op === 'insert') {
       const row: Row = { id: `${this.table}-${++db.seq}`, ...this.pendingInsert };
       (db.tables[this.table] ??= []).push(row);
-      this.result = { data: [{ ...row }], error: null };
+      // Withheld unless asked for, exactly as on the UPDATE below and
+      // for the same reason: supabase-js sends `Prefer: return=minimal`
+      // for an INSERT with no .select(), so the real client resolves
+      // with data null however many rows it wrote. Handing the row back
+      // regardless meant dropping the .select() from an insert whose id
+      // the action goes on to use would have stayed green here while
+      // failing every single call in production.
+      this.result = { data: this.selected ? [this.project(row)] : null, error: null };
     } else if (this.op === 'update') {
       if (db.failUpdate.has(this.table)) {
         this.result = { data: null, error: { message: 'the store refused the update' } };
@@ -114,14 +147,14 @@ class Query {
         // whether they won a race - so dropping the .select() from a
         // conditional write would have stayed green here while making
         // every such write report a conflict in production.
-        this.result = { data: this.selected ? hit.map((r) => ({ ...r })) : null, error: null };
+        this.result = { data: this.selected ? hit.map((r) => this.project(r)) : null, error: null };
       }
     } else {
       // A read hands back a snapshot, never the stored row. Handing back
       // the live object would let a value the action read at the top
       // silently track a write that happened afterwards, which is the
       // one thing the concurrency test below has to be able to stage.
-      this.result = { data: this.matching().map((r) => ({ ...r })), error: null };
+      this.result = { data: this.matching().map((r) => this.project(r)), error: null };
     }
     return this.result;
   }
