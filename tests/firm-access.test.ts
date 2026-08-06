@@ -1307,11 +1307,25 @@ describe('the enforcement wiring', () => {
   //     against a firm it looked up separately. Every assertion here passes,
   //     and the gate checks the wrong organization. Closing it means knowing
   //     which identifier in each action is the authoritative one, which is a
-  //     data-flow question and not a text one, so it is not closed here. What
-  //     does close it is the behavioural half: requireActiveFirm is tested
-  //     against the real firmTrialState above, and the actions resolve the
-  //     firm id from the session rather than the request body. If an action
-  //     ever starts trusting a firm id off the wire, that is a separate and
+  //     data-flow question and not a text one, so it is not closed here.
+  //
+  //     What covers it is the data flow, not the source text, and the reason
+  //     is NOT that these actions read the firm id from the session. Most of
+  //     them do not: only eight resolve one server-side (requireFirmMember,
+  //     getActiveFirmContext, or a firm id read off a row such as
+  //     invRow.firm_id or request.firm_id), and the rest take a firmId
+  //     parameter straight off the wire. Writing "they resolve it from the
+  //     session" here would be a false premise defending a sound decision,
+  //     which is worse than saying nothing.
+  //
+  //     The actual reason: each gated action AUTHORIZES the very identifier
+  //     it gates, before gating it (callerIsFirmAdmin, callerIsFirmMember,
+  //     callerHasFirmRole, callerCanReview or assertFirmCase, all taking that
+  //     same variable), and then WRITES against that same variable. One
+  //     identifier runs through the authorization, the gate and the write, so
+  //     the gate cannot be checking a different organization from the one
+  //     being written to. Gating one id while writing another would have to
+  //     get past the role check on the first id, which is a separate and
   //     larger defect than a disarmed gate.
   //
   // Everything else below is closed. The previous version of these tests also
@@ -1324,6 +1338,37 @@ describe('the enforcement wiring', () => {
   // explained.
   const stripComments = (s: string) =>
     s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+
+  /**
+   * Stripping is not string-aware, so it has to be checked rather than
+   * trusted.
+   *
+   * `stripComments` deletes from `//` to the end of the line wherever the two
+   * characters appear, including inside a string literal, and `/* *\/` the
+   * same with a wider blast radius. A gate written on a line that also
+   * contains a URL in a string would disappear from the stripped source
+   * entirely, and EVERY assertion below reads the stripped source, so one line
+   * could hide a gate from all of them at once:
+   *
+   *     const helpUrl = 'https://example.com/help'; await requireActiveFirm(firmId).catch(() => {});
+   *
+   * That is not a contrived shape. lib/firm-actions.ts already carries around
+   * fourteen `//` occurrences inside string literals, so a gate landing on
+   * such a line is an ordinary edit away.
+   *
+   * So the count of gates in the RAW source must equal the count in the
+   * stripped source. Anything stripping removed is a hard failure here rather
+   * than a silent exemption below. Nothing is hidden today: raw and stripped
+   * agree in all seven modules.
+   */
+  const gateCode = (label: string, src: string) => {
+    const code = stripComments(src);
+    expect(
+      [...code.matchAll(/await requireActiveFirm\(/g)].length,
+      `${label} has a gate that comment-stripping removed, so it would escape every check below. Keep gates off any line that also contains // or /* inside a string`,
+    ).toBe([...src.matchAll(/await requireActiveFirm\(/g)].length);
+    return code;
+  };
 
   // INDENTATION is the structural half. Every gate sits at the top level of
   // its function body, two spaces in. Anything that nests it - a try, an if,
@@ -1343,13 +1388,13 @@ describe('the enforcement wiring', () => {
   // gate we can see is nested" into "no gate is nested".
   it('never nests the action gate inside a block', () => {
     for (const { label, src } of GATE_SOURCES) {
-      const code = stripComments(src);
+      const code = gateCode(label, src);
       const every = [...code.matchAll(/await requireActiveFirm\(/g)];
       expect(every.length, `${label} has no gate`).toBeGreaterThan(0);
       const anchored = [...code.matchAll(/^([ \t]*)await requireActiveFirm\(/gm)];
       expect(
         anchored.length,
-        `${label} has a gate that does not begin its own line, so something precedes it`,
+        `${label} has a gate occurrence that does not begin its own line: either something precedes it on that line (a conditional, an assignment) or the text sits inside a string or template literal`,
       ).toBe(every.length);
       for (const m of anchored) {
         expect(m[1], `${label} indents a gate, so something nests it`).toBe('  ');
@@ -1363,7 +1408,7 @@ describe('the enforcement wiring', () => {
   // catch further down the function is none of this test's business.
   it('never opens a try immediately before the action gate', () => {
     for (const { label, src } of GATE_SOURCES) {
-      const code = stripComments(src);
+      const code = gateCode(label, src);
       for (const m of code.matchAll(/await requireActiveFirm\(/g)) {
         const before = code.slice(Math.max(0, (m.index ?? 0) - 200), m.index ?? 0);
         expect(before, `${label} wraps a gate in a try`).not.toMatch(/\btry\b/);
@@ -1391,7 +1436,7 @@ describe('the enforcement wiring', () => {
    */
   it('never attaches a catch to the action gate', () => {
     for (const { label, src } of GATE_SOURCES) {
-      const code = stripComments(src);
+      const code = gateCode(label, src);
       for (const m of code.matchAll(/await requireActiveFirm\(/g)) {
         const at = m.index ?? 0;
         expect(
@@ -1608,12 +1653,28 @@ describe('the firm matter routes under a suspension', () => {
    *
    * A hard-coded list of four would pass forever the day a fifth handler is
    * written, and a fifth handler is exactly how this defect arrived. So the
-   * set is derived from the codebase: any route.ts that authorizes through
-   * guestCanReadCase is a door a guest can open, and every one of them has to
-   * consult the suspension.
+   * set is derived from the codebase.
+   *
+   * The key is the MODULE, `counsel-guest`, not the one helper name
+   * `guestCanReadCase(`. Keying on the call spelling makes the derived set
+   * narrower than the rule it is supposed to enforce: a handler that admits a
+   * guest without writing that literal escapes the grep entirely and is never
+   * checked at all. Two realistic ways in:
+   *
+   *   const mayRead = mod.guestCanReadCase;      // aliased, no literal call
+   *   await guestCanAccessCase(id, firmId);      // a sibling helper
+   *
+   * Both import from `@/lib/counsel-guest`, so the module key sees them and
+   * the assertions below then demand the suspension check. It costs nothing:
+   * the wider key selects exactly the same four files today.
+   *
+   * Erring wide is also the safe direction. A file that merely MENTIONS
+   * counsel-guest is pulled into the set and then has to satisfy the
+   * assertions, so the failure mode of over-matching is a red test somebody
+   * reads, not a door left open.
    */
   const guestRoutes = execSync(
-    "grep -rl 'guestCanReadCase(' app --include='route.ts'",
+    "grep -rl 'counsel-guest' app --include='route.ts'",
     { cwd: ROOT, encoding: 'utf8' },
   )
     .split('\n')
@@ -1642,7 +1703,10 @@ describe('the firm matter routes under a suspension', () => {
       const gate = src.indexOf('firmSuspended(');
       const resolved = src.indexOf('firmId = caseFirmId;');
       expect(gate, `${rel} admits a guest without consulting the suspension`).toBeGreaterThan(-1);
-      expect(admitted, `${rel} does not authorize the guest the expected way`).toBeGreaterThan(-1);
+      expect(
+        admitted,
+        `${rel} does not authorize the guest the expected way: it reaches counsel-guest without a literal guestCanReadCase(params.id call, so the ordering below cannot be established. An alias or a sibling helper lands here`,
+      ).toBeGreaterThan(-1);
       expect(resolved, `${rel} does not resolve the firm id the expected way`).toBeGreaterThan(-1);
       expect(gate, `${rel} checks the suspension before the access check`).toBeGreaterThan(admitted);
       expect(gate, `${rel} checks the suspension after the branch has already resolved`).toBeLessThan(resolved);
