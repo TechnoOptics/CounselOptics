@@ -50,9 +50,12 @@ class Query {
   private filters: Filter[] = [];
   private patch: Row | null = null;
   private pendingInsert: Row | null = null;
+  /** Did the caller ask for the affected rows back? See run(). */
+  private selected = false;
   private result: { data: unknown; error: { message: string } | null } | null = null;
   constructor(private table: string) {}
   select() {
+    this.selected = true;
     return this;
   }
   order() {
@@ -103,7 +106,15 @@ class Query {
       } else {
         const hit = this.matching();
         for (const r of hit) Object.assign(r, this.patch);
-        this.result = { data: hit.map((r) => ({ ...r })), error: null };
+        // Rows come back ONLY when the caller asked for them, which is
+        // what supabase-js does: an UPDATE without .select() resolves
+        // with data null however many rows it touched. Handing them back
+        // regardless made "how many rows did I affect" readable without
+        // asking, and the guards below read exactly that to decide
+        // whether they won a race - so dropping the .select() from a
+        // conditional write would have stayed green here while making
+        // every such write report a conflict in production.
+        this.result = { data: this.selected ? hit.map((r) => ({ ...r })) : null, error: null };
       }
     } else {
       // A read hands back a snapshot, never the stored row. Handing back
