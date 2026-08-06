@@ -90,6 +90,56 @@ const CHECKS = [
     label: 'the shared Tabs still localizes its labels',
     needs: [IMPORT],
   },
+  // The account panels the counsel routes REUSE rather than copy. They live
+  // outside app/counsel, so nothing above would notice if their wrapping went
+  // away, and the symptom is quiet: translated headings sitting over English
+  // controls on half the account page. Outside a LocaleProvider these are a
+  // pure passthrough, so the consumer profile is unaffected either way.
+  {
+    file: 'app/profile/avatar-upload.tsx',
+    label: 'the shared avatar control still localizes its copy',
+    needs: [IMPORT],
+  },
+  {
+    file: 'app/profile/mfa-settings.tsx',
+    label: 'the shared two-factor panel still localizes its copy',
+    needs: [IMPORT],
+  },
+  {
+    file: 'app/profile/phone-verify-form.tsx',
+    label: 'the shared phone-verification panel still localizes its copy',
+    needs: [IMPORT],
+  },
+  {
+    file: 'app/profile/account-actions.tsx',
+    label: 'the shared data-rights panel still localizes its copy',
+    needs: [IMPORT],
+  },
+  {
+    file: 'app/profile/api-tokens/tokens-panel.tsx',
+    label: 'the shared tokens list still localizes its copy',
+    needs: [IMPORT],
+  },
+  {
+    file: 'app/profile/api-tokens/new-token-form.tsx',
+    label: 'the shared mint-a-token form still localizes its copy',
+    needs: [IMPORT],
+  },
+  {
+    file: 'app/feedback/feedback-panel.tsx',
+    label: 'the shared feedback history still localizes its copy',
+    needs: [IMPORT],
+  },
+  {
+    file: 'app/feedback/feedback-form.tsx',
+    label: 'the shared feedback form still localizes its copy',
+    needs: [IMPORT],
+  },
+  {
+    file: 'components/BiometricSettings.tsx',
+    label: 'the shared biometric panel still localizes its copy',
+    needs: [IMPORT],
+  },
 ];
 
 /* ---- Part 2: allowlist of static `<T>{expr}</T>` expressions ----

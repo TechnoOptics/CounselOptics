@@ -3,6 +3,9 @@ import {
   getCurrentUser,
 } from '@/lib/supabase/server';
 import { NewTokenForm } from './new-token-form';
+// Rendered from the counsel route too, which runs under a LocaleProvider.
+// <T> is a client component, so a server component can render it.
+import { T } from '@/components/i18n/LocaleProvider';
 
 /**
  * The API tokens surface: the mint form plus the list of issued tokens.
@@ -58,11 +61,11 @@ export async function TokensPanel() {
 
       <section className="space-y-3">
         <h2 className="font-display text-lg font-medium text-forest-900 dark:text-cream-100">
-          Active tokens
+          <T>Active tokens</T>
         </h2>
         {tokens.length === 0 ? (
           <p className="card p-5 text-[13px] text-ink-500 dark:text-cream-100/55 italic">
-            No tokens issued yet.
+            <T>No tokens issued yet.</T>
           </p>
         ) : (
           <ul className="space-y-2">
@@ -72,10 +75,19 @@ export async function TokensPanel() {
                 className="card p-4 flex items-center justify-between gap-3"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-forest-900 dark:text-cream-100 truncate">
+                  <p
+                    className="font-semibold text-forest-900 dark:text-cream-100 truncate"
+                    data-no-translate
+                  >
                     {t.name}
                   </p>
-                  <p className="text-[11.5px] text-ink-500 dark:text-cream-100/55 mt-0.5 font-mono">
+                  {/* Left unwrapped on purpose: the prefix, the scope list and
+                      the date are all data, and the connecting words cannot be
+                      split out without translating sentence fragments. */}
+                  <p
+                    className="text-[11.5px] text-ink-500 dark:text-cream-100/55 mt-0.5 font-mono"
+                    data-no-translate
+                  >
                     {t.prefix}... · scopes {t.scopes.join(', ')} ·{' '}
                     {t.last_used_at
                       ? `last used ${new Date(t.last_used_at).toLocaleDateString()}`
@@ -85,11 +97,11 @@ export async function TokensPanel() {
                 </div>
                 {t.revoked_at ? (
                   <span className="shrink-0 inline-flex items-center px-1.5 py-[1px] rounded text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 bg-rose-50 dark:bg-rose-950/30 text-rose-800 dark:text-rose-200 ring-rose-200 dark:ring-rose-700/40">
-                    Revoked
+                    <T>Revoked</T>
                   </span>
                 ) : (
                   <span className="shrink-0 inline-flex items-center px-1.5 py-[1px] rounded text-[10px] font-semibold uppercase tracking-[0.12em] ring-1 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-200 ring-emerald-200 dark:ring-emerald-700/40">
-                    Active
+                    <T>Active</T>
                   </span>
                 )}
               </li>

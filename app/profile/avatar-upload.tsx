@@ -2,6 +2,10 @@
 
 import { useState } from 'react';
 import { createBrowserSupabase } from '@/lib/supabase/client';
+// Shared with the counsel account page, which runs under a LocaleProvider.
+// Outside one, useT and <T> are a pure passthrough, so the consumer profile
+// is unchanged and its DOM-walking AutoTranslate still sees English.
+import { T, useT } from '@/components/i18n/LocaleProvider';
 
 export function AvatarUpload({
   userId,
@@ -10,6 +14,7 @@ export function AvatarUpload({
   userId: string;
   currentUrl: string | null;
 }) {
+  const t = useT();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<string | null>(currentUrl);
@@ -23,11 +28,11 @@ export function AvatarUpload({
     // storage API directly - full server-side magic-byte validation of this
     // upload is the complete fix, tracked as a follow-up.)
     if (!file.type.startsWith('image/') || file.type === 'image/svg+xml') {
-      setError('Please choose a JPEG, PNG, or WebP image.');
+      setError(t('Please choose a JPEG, PNG, or WebP image.'));
       return;
     }
     if (file.size > 4 * 1024 * 1024) {
-      setError('Image must be under 4 MB.');
+      setError(t('Image must be under 4 MB.'));
       return;
     }
     setPending(true);
@@ -53,7 +58,7 @@ export function AvatarUpload({
       // Trigger a fresh server render so the header avatar updates too.
       window.location.reload();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Upload failed.');
+      setError(err instanceof Error ? err.message : t('Upload failed.'));
     } finally {
       setPending(false);
     }
@@ -82,7 +87,13 @@ export function AvatarUpload({
           disabled={pending}
           className="sr-only"
         />
-        {pending ? 'Uploading...' : preview ? 'Change photo' : 'Upload photo'}
+        {pending ? (
+          <T>Uploading...</T>
+        ) : preview ? (
+          <T>Change photo</T>
+        ) : (
+          <T>Upload photo</T>
+        )}
       </label>
       {error && (
         <p className="text-xs text-rose-700 ml-2">{error}</p>

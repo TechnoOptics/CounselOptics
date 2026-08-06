@@ -29,6 +29,9 @@ import {
   isNativeShell,
 } from '@/lib/biometric';
 import type { BiometryType } from '@aparajita/capacitor-biometric-auth';
+// This card now also renders on the counsel account page, which runs under a
+// LocaleProvider. A pure passthrough outside one.
+import { T } from '@/components/i18n/LocaleProvider';
 
 // Resolve to a PLAIN wrapper, never the Capacitor plugin proxy
 // itself - an async fn returning the proxy makes the Promise
@@ -144,7 +147,12 @@ export function BiometricSettings({
   return (
     <div className={framed ? 'card p-6 space-y-3' : 'space-y-3'}>
       <div>
-        <p className="label">Biometric sign-in</p>
+        <p className="label">
+          <T>Biometric sign-in</T>
+        </p>
+        {/* Left unwrapped on purpose: `label` is the device's own name for the
+            sensor (Face ID, Touch ID, fingerprint), and the sentence cannot be
+            split around it without translating a fragment. */}
         <p className="text-xs text-ink-500 dark:text-cream-100/55 mb-2">
           Use {label} on this device to skip the email magic-link round-trip on next launch.
         </p>
@@ -181,7 +189,9 @@ export function BiometricSettings({
         <div className="rounded-lg border border-forest-700/30 bg-forest-50/40 dark:bg-forest-800/30 px-4 py-3 space-y-2">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <p className="text-sm text-forest-900 dark:text-cream-100">
-              <span className="font-medium">Enabled</span>
+              <span className="font-medium">
+                <T>Enabled</T>
+              </span>
               {state.email && <span className="text-ink-500 dark:text-cream-100/55"> · {state.email}</span>}
             </p>
             {state.enrolledAt && (
@@ -196,7 +206,7 @@ export function BiometricSettings({
             disabled={pending}
             className="btn-secondary"
           >
-            {pending ? 'Disabling...' : 'Disable'}
+            {pending ? <T>Disabling...</T> : <T>Disable</T>}
           </button>
         </div>
       )}

@@ -3,6 +3,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useFormState, useFormStatus } from 'react-dom';
 import { submitFeedbackAction, type SubmitFeedbackResult } from '@/lib/actions';
+// Reached from the counsel route through FeedbackPanel. A pure passthrough
+// outside a LocaleProvider, so the consumer route is unchanged.
+import { T, useT } from '@/components/i18n/LocaleProvider';
 
 const CATEGORIES: { value: 'bug' | 'suggestion' | 'praise' | 'other'; label: string; help: string }[] = [
   { value: 'bug', label: 'Something broke', help: 'A button, page, or feature did not work as expected.' },
@@ -17,6 +20,7 @@ const CATEGORIES: { value: 'bug' | 'suggestion' | 'praise' | 'other'; label: str
  * the user describe their setup.
  */
 export function FeedbackForm() {
+  const t = useT();
   const [state, formAction] = useFormState<SubmitFeedbackResult | null, FormData>(
     submitFeedbackAction,
     null,
@@ -46,7 +50,7 @@ export function FeedbackForm() {
       ref={formRef}
       action={formAction}
       className="card p-6 space-y-5"
-      aria-label="Submit feedback"
+      aria-label={t('Submit feedback')}
     >
       <input type="hidden" name="urlAtSubmit" value={urlAtSubmit} />
       <input type="hidden" name="userAgent" value={userAgent} />
@@ -56,8 +60,14 @@ export function FeedbackForm() {
           role="status"
           className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-200"
         >
-          <p className="font-semibold mb-0.5">Thank you.</p>
-          <p>Your feedback is in our queue. We read everything submitted here.</p>
+          <p className="font-semibold mb-0.5">
+            <T>Thank you.</T>
+          </p>
+          <p>
+            <T>
+              Your feedback is in our queue. We read everything submitted here.
+            </T>
+          </p>
         </div>
       )}
       {state?.error && (
@@ -65,13 +75,17 @@ export function FeedbackForm() {
           role="alert"
           className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-200"
         >
-          <p className="font-semibold mb-0.5">Could not submit</p>
+          <p className="font-semibold mb-0.5">
+            <T>Could not submit</T>
+          </p>
           <p>{state.error}</p>
         </div>
       )}
 
       <fieldset>
-        <legend className="label mb-2">What kind of feedback is this?</legend>
+        <legend className="label mb-2">
+          <T>What kind of feedback is this?</T>
+        </legend>
         <div className="grid gap-2 md:grid-cols-2">
           {CATEGORIES.map((c) => (
             <label
@@ -90,6 +104,11 @@ export function FeedbackForm() {
                 onChange={() => setCategory(c.value)}
                 className="sr-only"
               />
+              {/* Left unwrapped on purpose. These come out of the CATEGORIES
+                  const above, so wrapping them needs a braced <T>{expr}</T>,
+                  and every braced wrap in this repo has to be reviewed by a
+                  person before the counsel i18n guard will allow it. Reported
+                  rather than allowlisted. */}
               <span className="font-semibold text-ink-950 dark:text-cream-100 text-sm">
                 {c.label}
               </span>
@@ -103,7 +122,7 @@ export function FeedbackForm() {
 
       <div>
         <label className="label" htmlFor="subject">
-          Subject
+          <T>Subject</T>
         </label>
         <input
           id="subject"
@@ -117,7 +136,7 @@ export function FeedbackForm() {
 
       <div>
         <label className="label" htmlFor="body">
-          Details
+          <T>Details</T>
         </label>
         <textarea
           id="body"
@@ -130,8 +149,10 @@ export function FeedbackForm() {
           className="input resize-y"
         />
         <p className="text-xs text-ink-500 dark:text-cream-100/55 mt-1.5">
-          We capture your browser, the page you were on, and your account email so we can
-          follow up. We do NOT capture case content.
+          <T>
+            We capture your browser, the page you were on, and your account
+            email so we can follow up. We do NOT capture case content.
+          </T>
         </p>
       </div>
 
@@ -146,7 +167,7 @@ function SubmitButton() {
   const { pending } = useFormStatus();
   return (
     <button type="submit" className="btn-primary" disabled={pending}>
-      {pending ? 'Sending…' : 'Send feedback'}
+      {pending ? <T>Sending&hellip;</T> : <T>Send feedback</T>}
     </button>
   );
 }

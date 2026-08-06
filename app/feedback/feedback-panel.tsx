@@ -1,6 +1,9 @@
 import Link from 'next/link';
 import { listMyFeedback } from '@/lib/storage';
 import { FeedbackForm } from './feedback-form';
+// Rendered from the counsel route too, which runs under a LocaleProvider.
+// <T> is a client component, so a server component can render it.
+import { T } from '@/components/i18n/LocaleProvider';
 
 /**
  * The feedback form, the submitter's own history, and the contact
@@ -18,7 +21,7 @@ export async function FeedbackPanel() {
       {mine.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-sm font-semibold tracking-wider uppercase text-forest-700 dark:text-gold-300">
-            Your previous feedback
+            <T>Your previous feedback</T>
           </h2>
           <ul className="space-y-2">
             {mine.map((f) => (
@@ -45,10 +48,16 @@ export async function FeedbackPanel() {
                       })}
                     </span>
                   </div>
-                  <p className="font-semibold text-ink-950 dark:text-cream-100 truncate">
+                  <p
+                    className="font-semibold text-ink-950 dark:text-cream-100 truncate"
+                    data-no-translate
+                  >
                     {f.subject}
                   </p>
-                  <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-0.5 line-clamp-2 whitespace-pre-wrap">
+                  <p
+                    className="text-sm text-ink-600 dark:text-cream-100/70 mt-0.5 line-clamp-2 whitespace-pre-wrap"
+                    data-no-translate
+                  >
                     {f.body}
                   </p>
                 </div>
@@ -59,7 +68,7 @@ export async function FeedbackPanel() {
       )}
 
       <div className="text-xs text-ink-500 dark:text-cream-100/55">
-        For urgent contact:{' '}
+        <T>For urgent contact:</T>{' '}
         <a
           href="mailto:contact@advottic.com"
           className="underline hover:text-forest-900 dark:hover:text-cream-100"
@@ -68,7 +77,7 @@ export async function FeedbackPanel() {
         </a>{' '}
         ·{' '}
         <Link href="/security" className="underline hover:text-forest-900 dark:hover:text-cream-100">
-          Trust &amp; Security
+          <T>Trust &amp; Security</T>
         </Link>
       </div>
     </>
