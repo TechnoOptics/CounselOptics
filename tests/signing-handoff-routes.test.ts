@@ -118,7 +118,14 @@ describe('consume once, then bind', () => {
   it('makes the claim conditional on the row still being unconsumed', () => {
     // Two phones scanning one screen in the same instant: the update
     // filter is what stops both of them winning.
-    expect(read(QUERIES)).toMatch(/\.is\('consumed_at', null\)/);
+    //
+    // Anchored to the row selector above it, not to the filter alone.
+    // The prose in that file explains the filter and therefore quotes
+    // it, so a looser pattern went on passing with the real call
+    // deleted, which is not a test.
+    expect(read(QUERIES)).toMatch(
+      /\.eq\('id', found\.id\)\s*\n\s*\.is\('consumed_at', null\)/,
+    );
   });
 
   it('records the scanning device for the dispute record', () => {
