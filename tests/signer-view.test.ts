@@ -1335,10 +1335,17 @@ describe('call sites', () => {
     readFileSync(join(__dirname, '..', rel), 'utf8');
 
   it('has the sign route project the consent through one function', () => {
-    const src = read('app/api/firm/sign/route.ts');
-    expect(src).toMatch(/projectSignerConsentMetadata\(payload\.consent\)/);
+    // The projection moved with the rest of the write when the phone
+    // needed the same one. It is still exactly one call, in exactly one
+    // module, which is the property this test was written to hold.
+    const src = read('lib/signature-write.ts');
+    expect(src).toMatch(/projectSignerConsentMetadata\(input\.consent\)/);
     // The old hand-rolled literal is what dropped the review keys.
     expect(src).not.toMatch(/electronic_records_consented_at:/);
+    // And the route it came out of must not have grown a second one.
+    const route = read('app/api/firm/sign/route.ts');
+    expect(route).not.toMatch(/projectSignerConsentMetadata\(/);
+    expect(route).not.toMatch(/electronic_records_consented_at:/);
   });
 
   it('has the composer abort rather than send a restriction it lost', () => {
