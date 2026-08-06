@@ -45,20 +45,74 @@ export function FreshnessGuard({ initialSha }: { initialSha: string }) {
   // 1. Refresh on focus. Throttled to once per 5s so a flurry of
   //    visibility events (multitasking on iOS bounces the listener)
   //    doesn't hammer the server.
+  //
+  //    Two things this must never do, because router.refresh() re-renders
+  //    the route and remounts the client components on it - which drops
+  //    the caret, moves the scroll position, and clears anything already
+  //    typed into an unsubmitted form:
+  //
+  //    a) Treat focus returning from an <iframe> on the SAME page as the
+  //       tab coming back to the foreground. On any page that embeds a
+  //       document preview (a firm document, a signing request) the
+  //       window fires blur when the reader clicks into the preview and
+  //       focus again when they click back into the form beside it, with
+  //       the document never once leaving the foreground. That was
+  //       wiping the signer fields on /counsel/documents/[id] every time
+  //       someone read the PDF and then went to fill the form in.
+  //    b) Refresh while the user is mid-entry in a field. A background
+  //       freshness check is never worth the text someone was typing, so
+  //       we defer: the next focus/visibility event, or the 90s version
+  //       poll below, picks it up once they have moved on.
   useEffect(() => {
+    // What held focus when the window last blurred. Set to true when the
+    // window handed focus to an embedded frame on this same page.
+    let blurredIntoEmbed = false;
+
+    function isEditing(): boolean {
+      const el = document.activeElement as HTMLElement | null;
+      if (!el) return false;
+      const tag = el.tagName;
+      return (
+        tag === 'INPUT' ||
+        tag === 'TEXTAREA' ||
+        tag === 'SELECT' ||
+        el.isContentEditable
+      );
+    }
+
     function maybeRefresh() {
       if (document.visibilityState !== 'visible') return;
+      if (isEditing()) return;
       const now = Date.now();
       if (now - lastRefreshRef.current < 5000) return;
       lastRefreshRef.current = now;
       router.refresh();
     }
+
+    function onBlur() {
+      const tag = document.activeElement?.tagName;
+      blurredIntoEmbed =
+        tag === 'IFRAME' || tag === 'EMBED' || tag === 'OBJECT';
+    }
+
+    function onFocus() {
+      // Focus coming back out of an embedded frame is an in-page move,
+      // not a return to the foreground. Consume the latch and skip.
+      if (blurredIntoEmbed) {
+        blurredIntoEmbed = false;
+        return;
+      }
+      maybeRefresh();
+    }
+
     document.addEventListener('visibilitychange', maybeRefresh);
-    window.addEventListener('focus', maybeRefresh);
+    window.addEventListener('blur', onBlur);
+    window.addEventListener('focus', onFocus);
     window.addEventListener('pageshow', maybeRefresh);
     return () => {
       document.removeEventListener('visibilitychange', maybeRefresh);
-      window.removeEventListener('focus', maybeRefresh);
+      window.removeEventListener('blur', onBlur);
+      window.removeEventListener('focus', onFocus);
       window.removeEventListener('pageshow', maybeRefresh);
     };
   }, [router]);

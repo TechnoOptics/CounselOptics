@@ -1,11 +1,25 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createSigningRequestAction } from '@/lib/firm-actions';
+import {
+  createSigningRequestAction,
+  type SigningEmailFailure,
+} from '@/lib/firm-actions';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 
 type Signer = { email: string; name: string };
+
+/**
+ * What the last submission actually achieved. A request whose emails
+ * never left has to look different from one that went out cleanly: the
+ * signers cannot act on a link they were never sent, and the firm has no
+ * way to know that from a green banner.
+ */
+type Result =
+  | { kind: 'sent'; requestId: string }
+  | { kind: 'partial'; requestId: string; failures: SigningEmailFailure[] };
 
 export function CreateSigningRequestForm({
   firmId,
@@ -20,7 +34,7 @@ export function CreateSigningRequestForm({
   const [message, setMessage] = useState('');
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [ok, setOk] = useState(false);
+  const [result, setResult] = useState<Result | null>(null);
 
   function update(i: number, patch: Partial<Signer>) {
     setSigners((cur) => cur.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
@@ -35,7 +49,7 @@ export function CreateSigningRequestForm({
 
   function submit() {
     setError(null);
-    setOk(false);
+    setResult(null);
     const payload = signers
       .map((s) => ({ email: s.email.trim().toLowerCase(), name: s.name.trim() || undefined }))
       .filter((s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.email));
@@ -50,14 +64,21 @@ export function CreateSigningRequestForm({
         payload,
         message.trim() || null,
       );
-      if (res.ok) {
-        setOk(true);
-        setSigners([{ email: '', name: '' }]);
-        setMessage('');
-        router.refresh();
-      } else {
+      if (!res.ok || !res.requestId) {
         setError(res.error ?? t('Could not send request.'));
+        return;
       }
+      // The request row and its sign tokens exist either way, so the
+      // fields are cleared to stop a duplicate request being sent. A
+      // failed email is recovered from the request page, not from here.
+      setSigners([{ email: '', name: '' }]);
+      setMessage('');
+      setResult(
+        res.emailFailures && res.emailFailures.length > 0
+          ? { kind: 'partial', requestId: res.requestId, failures: res.emailFailures }
+          : { kind: 'sent', requestId: res.requestId },
+      );
+      router.refresh();
     });
   }
 
@@ -136,11 +157,46 @@ export function CreateSigningRequestForm({
           {error}
         </p>
       )}
-      {ok && (
+      {result?.kind === 'sent' && (
         <p className="rounded-lg border border-emerald-200 dark:border-emerald-700/40 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-2 text-sm text-emerald-900 dark:text-emerald-100">
           <T>Signing request sent. Each signer received a branded link; outside
           signers also got a one-time access code in a separate email.</T>
         </p>
+      )}
+      {result?.kind === 'partial' && (
+        <div className="rounded-lg border border-amber-300 dark:border-amber-600/40 bg-amber-50 dark:bg-amber-950/25 px-3 py-3 text-sm text-amber-900 dark:text-amber-100 space-y-2">
+          <p className="font-semibold">
+            <T>The request was created, but some email did not go out.</T>
+          </p>
+          <p className="text-[12.5px] leading-relaxed">
+            <T>These signers have not been contacted and cannot sign until
+            they are. Their sign links are valid, so use Resend on the
+            request page once mail delivery is working.</T>
+          </p>
+          <ul className="space-y-1 text-[12.5px]">
+            {result.failures.map((f, i) => (
+              <li key={`${f.email}-${f.kind}-${i}`} className="font-mono break-all">
+                <span data-no-translate>{f.email}</span>
+                {' - '}
+                {f.kind === 'link' ? (
+                  <T>sign link not sent</T>
+                ) : (
+                  <T>access code not sent</T>
+                )}
+                {': '}
+                <span data-no-translate>{f.error}</span>
+              </li>
+            ))}
+          </ul>
+          <p>
+            <Link
+              href={`/counsel/signing/${result.requestId}`}
+              className="underline underline-offset-2 font-semibold"
+            >
+              <T>Open the request to resend</T>
+            </Link>
+          </p>
+        </div>
       )}
     </section>
   );

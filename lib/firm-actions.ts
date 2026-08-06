@@ -2068,12 +2068,39 @@ export async function updateFirmDocumentAction(
 // Signing
 // =====================================================================
 
+/**
+ * One signer's outgoing mail that the provider did not accept.
+ *
+ * `kind` is 'link' for the branded sign link and 'code' for the separate
+ * one-time access code an external signer needs to open the document. A
+ * signer who is missing either one cannot complete the signature, so both
+ * have to reach the caller by name rather than being swallowed.
+ */
+export type SigningEmailFailure = {
+  email: string;
+  kind: 'link' | 'code';
+  error: string;
+};
+
 export async function createSigningRequestAction(
   firmId: string,
   documentId: string,
   signers: Array<{ email: string; name?: string; positionPage?: number; positionX?: number; positionY?: number }>,
   message: string | null,
-): Promise<{ ok: boolean; error?: string; requestId?: string }> {
+): Promise<{
+  ok: boolean;
+  error?: string;
+  requestId?: string;
+  /**
+   * Non-empty when the request row was created but at least one email
+   * did not leave. The record and its tokens are valid and a resend is
+   * cheap, so we keep the request rather than discarding signed-URL
+   * work and audit events over a mail-provider problem - but the caller
+   * MUST NOT report a plain success when this is set. See
+   * resendSigningEmailsAction for the recovery path.
+   */
+  emailFailures?: SigningEmailFailure[];
+}> {
   const user = await requireUser();
   if (signers.length === 0) return { ok: false, error: 'Add at least one signer.' };
   const supabase = createServerSupabase();
@@ -2327,6 +2354,13 @@ export async function createSigningRequestAction(
   const baseUrl =
     process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://advottic.com';
 
+  // Every send that the provider did not accept, by signer. Collected
+  // rather than discarded: sendEmail returns ok:false for a missing
+  // RESEND_API_KEY, an unverified sending domain, a provider error and a
+  // timeout alike, and dropping that result made this action report
+  // success while nothing was ever delivered.
+  const emailFailures: SigningEmailFailure[] = [];
+
   for (const signer of placedSigners) {
     const normalizedEmail = signer.email.trim().toLowerCase();
 
@@ -2427,44 +2461,44 @@ export async function createSigningRequestAction(
     }
 
     // Email 1: the branded sign link.
-    await sendEmail({
+    const linkResult = await sendSigningLinkEmail({
       to: signer.email,
-      fromName: firmName,
-      subject: `${firmName}: signature requested for ${docName}`,
-      html: buildSigningRequestEmailHtml({
-        firmName,
-        logoUrl: firmLogo,
-        senderName,
-        documentName: docName,
-        message,
-        link: url,
-        codeSeparately: isExternal,
-      }),
-      text:
-        `${senderName} at ${firmName} requested your signature on "${docName}".\n\n` +
-        `Review and sign (the document stays inside Advottic):\n${url}\n\n` +
-        (isExternal
-          ? 'For your security, a one-time access code was sent to this address in a separate email. Enter it to open the document.\n'
-          : 'This link is single-use.\n'),
-    }).catch(() => {});
+      firmName,
+      firmLogo,
+      senderName,
+      docName,
+      message,
+      url,
+      isExternal,
+    });
+    if (!linkResult.ok) {
+      emailFailures.push({
+        email: normalizedEmail,
+        kind: 'link',
+        error: linkResult.error,
+      });
+    }
 
     // Email 2 (external only): the one-time access code.
     if (isExternal && accessCode) {
-      await sendEmail({
+      const codeResult = await sendSigningCodeEmail({
         to: signer.email,
-        fromName: firmName,
-        subject: `${firmName}: your access code for ${docName}`,
-        html: buildSigningCodeEmailHtml({
-          firmName,
-          logoUrl: firmLogo,
-          documentName: docName,
-          code: accessCode,
-        }),
-        text:
-          `Your one-time access code for "${docName}" is: ${accessCode}\n\n` +
-          'Enter it on the sign page from your other email to open the document. Never share this code.',
-      }).catch(() => {});
-      if (signatureId) {
+        firmName,
+        firmLogo,
+        docName,
+        code: accessCode,
+      });
+      if (!codeResult.ok) {
+        emailFailures.push({
+          email: normalizedEmail,
+          kind: 'code',
+          error: codeResult.error,
+        });
+      }
+      // Only record "we sent the code" once the provider actually took
+      // it. The audit chain is evidence; it must not assert a delivery
+      // that never happened.
+      if (signatureId && codeResult.ok) {
         await appendSignatureEvent(admin, {
           signingRequestId: requestId,
           signatureId,
@@ -2475,7 +2509,235 @@ export async function createSigningRequestAction(
     }
   }
   revalidatePath('/counsel/signing');
-  return { ok: true, requestId };
+  return {
+    ok: true,
+    requestId,
+    ...(emailFailures.length > 0 ? { emailFailures } : {}),
+  };
+}
+
+/**
+ * The branded sign-link email. Shared by createSigningRequestAction and
+ * resendSigningEmailsAction so a resend is byte-for-byte the message the
+ * signer was originally promised.
+ */
+async function sendSigningLinkEmail(input: {
+  to: string;
+  firmName: string;
+  firmLogo: string | null;
+  senderName: string;
+  docName: string;
+  message: string | null;
+  url: string;
+  isExternal: boolean;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const res = await sendEmail({
+    to: input.to,
+    fromName: input.firmName,
+    subject: `${input.firmName}: signature requested for ${input.docName}`,
+    html: buildSigningRequestEmailHtml({
+      firmName: input.firmName,
+      logoUrl: input.firmLogo,
+      senderName: input.senderName,
+      documentName: input.docName,
+      message: input.message,
+      link: input.url,
+      codeSeparately: input.isExternal,
+    }),
+    text:
+      `${input.senderName} at ${input.firmName} requested your signature on "${input.docName}".\n\n` +
+      `Review and sign (the document stays inside Advottic):\n${input.url}\n\n` +
+      (input.isExternal
+        ? 'For your security, a one-time access code was sent to this address in a separate email. Enter it to open the document.\n'
+        : 'This link is single-use.\n'),
+  }).catch((err: unknown) => ({
+    ok: false as const,
+    error: err instanceof Error ? err.message : 'unknown email error',
+  }));
+  return res.ok ? { ok: true } : { ok: false, error: res.error };
+}
+
+/** The separate one-time access code email for an external signer. */
+async function sendSigningCodeEmail(input: {
+  to: string;
+  firmName: string;
+  firmLogo: string | null;
+  docName: string;
+  code: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const res = await sendEmail({
+    to: input.to,
+    fromName: input.firmName,
+    subject: `${input.firmName}: your access code for ${input.docName}`,
+    html: buildSigningCodeEmailHtml({
+      firmName: input.firmName,
+      logoUrl: input.firmLogo,
+      documentName: input.docName,
+      code: input.code,
+    }),
+    text:
+      `Your one-time access code for "${input.docName}" is: ${input.code}\n\n` +
+      'Enter it on the sign page from your other email to open the document. Never share this code.',
+  }).catch((err: unknown) => ({
+    ok: false as const,
+    error: err instanceof Error ? err.message : 'unknown email error',
+  }));
+  return res.ok ? { ok: true } : { ok: false, error: res.error };
+}
+
+/**
+ * Re-send the signing emails for one signer.
+ *
+ * The recovery path for a request whose mail did not leave the building.
+ * Nothing about the signature row changes except the access code: the
+ * plaintext of the original was never stored (only its hash), so an
+ * external signer gets a freshly minted code and the old one stops
+ * working. The sign token is untouched, so any link already in the
+ * signer's hands stays valid.
+ */
+export async function resendSigningEmailsAction(
+  firmId: string,
+  signatureId: string,
+): Promise<{ ok: boolean; error?: string; emailFailures?: SigningEmailFailure[] }> {
+  const user = await requireUser();
+  const supabase = createServerSupabase();
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server is missing SUPABASE_SERVICE_ROLE_KEY.' };
+
+  // Same IDOR guard as createSigningRequestAction: everything below runs
+  // on the RLS-bypassing admin client, so prove membership of firmId
+  // first and then prove the signature belongs to that same firm.
+  const { data: mem } = await supabase
+    .from('firm_members')
+    .select('role, display_name')
+    .eq('firm_id', firmId)
+    .eq('user_id', user.id)
+    .maybeSingle();
+  const role = (mem as { role?: string } | null)?.role;
+  if (!role || !['owner', 'admin', 'attorney', 'paralegal'].includes(role)) {
+    return {
+      ok: false,
+      error: 'You do not have permission to send this document for signature.',
+    };
+  }
+
+  const { data: sigRow } = await admin
+    .from('firm_signatures')
+    .select('id, signing_request_id, signer_email, signer_name, token, signed_at, access_code_hash')
+    .eq('id', signatureId)
+    .maybeSingle();
+  const sig = sigRow as {
+    id: string;
+    signing_request_id: string;
+    signer_email: string;
+    token: string;
+    signed_at: string | null;
+    access_code_hash: string | null;
+  } | null;
+  if (!sig) return { ok: false, error: 'Signer not found.' };
+  if (sig.signed_at) return { ok: false, error: 'This signer has already signed.' };
+
+  const { data: reqRow } = await admin
+    .from('firm_signing_requests')
+    .select('id, firm_id, document_id, message, status')
+    .eq('id', sig.signing_request_id)
+    .maybeSingle();
+  const req = reqRow as {
+    firm_id: string;
+    document_id: string;
+    message: string | null;
+    status: FirmSigningStatus;
+  } | null;
+  if (!req || req.firm_id !== firmId) {
+    return { ok: false, error: 'Signing request not found for this firm.' };
+  }
+  if (req.status === 'canceled' || req.status === 'completed') {
+    return { ok: false, error: 'This request is closed. Send a new one instead.' };
+  }
+
+  const { data: docRow } = await admin
+    .from('firm_documents')
+    .select('name')
+    .eq('id', req.document_id)
+    .maybeSingle();
+  const docName = (docRow as { name?: string } | null)?.name ?? 'Document';
+
+  const { data: firmRow } = await admin
+    .from('firms')
+    .select('name, logo_url')
+    .eq('id', firmId)
+    .maybeSingle();
+  const firmName =
+    ((firmRow as { name?: string } | null)?.name ?? 'Advottic').trim() || 'Advottic';
+  const firmLogo =
+    (firmRow as { logo_url?: string | null } | null)?.logo_url ?? null;
+  const senderName =
+    ((mem as { display_name?: string | null } | null)?.display_name || '').trim() ||
+    (user.email ? user.email.split('@')[0] : '') ||
+    'A team member';
+  const baseUrl =
+    process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://advottic.com';
+
+  // access_code_hash non-null is what marks this signer as external.
+  const isExternal = sig.access_code_hash !== null;
+  const emailFailures: SigningEmailFailure[] = [];
+
+  const linkResult = await sendSigningLinkEmail({
+    to: sig.signer_email,
+    firmName,
+    firmLogo,
+    senderName,
+    docName,
+    message: req.message,
+    url: `${baseUrl}/sign/${sig.token}`,
+    isExternal,
+  });
+  if (!linkResult.ok) {
+    emailFailures.push({ email: sig.signer_email, kind: 'link', error: linkResult.error });
+  }
+
+  if (isExternal) {
+    const { sha256 } = await import('./esign-audit');
+    const accessCode = newAccessCode();
+    const codeResult = await sendSigningCodeEmail({
+      to: sig.signer_email,
+      firmName,
+      firmLogo,
+      docName,
+      code: accessCode,
+    });
+    if (codeResult.ok) {
+      // Only rotate the stored hash once the new code is on its way. If
+      // the send failed, the signer keeps whatever code they may already
+      // have rather than being locked out by a code nobody received.
+      await admin
+        .from('firm_signatures')
+        .update({ access_code_hash: sha256(accessCode) })
+        .eq('id', sig.id);
+      const { appendSignatureEvent } = await import('./esign-audit');
+      await appendSignatureEvent(admin, {
+        signingRequestId: sig.signing_request_id,
+        signatureId: sig.id,
+        eventType: 'access_code_sent',
+        userId: user.id,
+        signerEmail: sig.signer_email,
+      }).catch(() => {});
+    } else {
+      emailFailures.push({
+        email: sig.signer_email,
+        kind: 'code',
+        error: codeResult.error,
+      });
+    }
+  }
+
+  revalidatePath(`/counsel/signing/${sig.signing_request_id}`);
+  return {
+    ok: emailFailures.length === 0,
+    ...(emailFailures.length > 0
+      ? { emailFailures, error: emailFailures[0].error }
+      : {}),
+  };
 }
 
 // =====================================================================

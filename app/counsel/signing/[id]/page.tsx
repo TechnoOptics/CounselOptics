@@ -13,6 +13,7 @@ import {
 } from '@/lib/firm-types';
 import { RecallButton } from './recall-button';
 import { ReopenButton } from './reopen-button';
+import { ResendButton } from './resend-button';
 import { PageHeader } from '@/components/counsel/ui';
 import { StatusPill } from '@/components/counsel/StatusPill';
 import { T } from '@/components/i18n/LocaleProvider';
@@ -33,6 +34,11 @@ export default async function SigningRequestDetail({
   if (!data || data.request.firmId !== ctx.firm.id) notFound();
   const doc = await getFirmDocument(data.request.documentId);
   const signedUrl = doc ? await getFirmDocumentSignedUrl(doc.filePath) : null;
+  // Same roles that may send a document for signature may re-send it.
+  // The action re-checks this server-side; this only hides the control.
+  const canResend = ['owner', 'admin', 'attorney', 'paralegal'].includes(
+    ctx.membership.role,
+  );
 
   return (
     <div className="space-y-6 animate-fade-up">
@@ -162,13 +168,19 @@ export default async function SigningRequestDetail({
                   data.request.status !== 'canceled' &&
                   data.request.status !== 'rejected' &&
                   data.request.status !== 'changes_requested' && (
-                    <p className="mt-0.5">
+                    <p className="mt-0.5 flex items-start justify-end gap-3">
                       <ExternalLink
                         href={`${SITE_URL}/sign/${sig.token}`}
                         className="text-[11px] underline text-forest-900 dark:text-cream-100"
                       >
                         <T>Open sign link</T>
                       </ExternalLink>
+                      {canResend && (
+                        <ResendButton
+                          firmId={data.request.firmId}
+                          signatureId={sig.id}
+                        />
+                      )}
                     </p>
                   )}
                 {sig.responseNote && (
