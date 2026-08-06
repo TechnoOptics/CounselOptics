@@ -2,6 +2,11 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useStepAnchor } from '@/lib/use-step-anchor';
+import {
+  canLeaveDisclosureStep,
+  type SignatureLinePlacement,
+} from '@/lib/signer-view';
+import { SignatureLinePreview } from './signature-line-preview';
 
 type Mode = 'draw' | 'type' | 'upload';
 type Step = 'disclosure' | 'capture' | 'done';
@@ -21,6 +26,16 @@ type Step = 'disclosure' | 'capture' | 'done';
  *      language, separate from the electronic-records consent in
  *      step 1.
  *
+ * That ordering is unchanged. What is added is the document: it is now
+ * rendered above this component, and step 1 asks the signer to confirm
+ * they have reviewed it, because E-SIGN and UETA both rest on the
+ * signer having access to the record they are assenting to. The
+ * confirmation is only asked for when the document was actually shown.
+ *
+ * Step 2 also shows the signature line: the mark appears in the
+ * position the executed copy will use, from the same recorded
+ * coordinates the renderer stamps into.
+ *
  * Submit posts the token, the base64 PNG, the typed name, and a
  * record of the consent timestamps to /api/firm/sign. The server
  * persists the signature image, fills firm_signatures.signed_at, and
@@ -32,12 +47,22 @@ export function SignatureCapture({
   signerName,
   documentName,
   firmName,
+  documentPresented,
+  placement,
+  copyPermitted,
+  copyHref,
 }: {
   token: string;
   signerEmail: string;
   signerName: string | null;
   documentName: string;
   firmName: string;
+  /** Whether the document is actually on the page above this. */
+  documentPresented: boolean;
+  placement: SignatureLinePlacement;
+  /** Whether the firm allows this signer to download a copy. */
+  copyPermitted: boolean;
+  copyHref: string;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [step, setStep] = useState<Step>('disclosure');
@@ -48,7 +73,9 @@ export function SignatureCapture({
   // Disclosure-step state.
   const [erdAgreed, setErdAgreed] = useState(false);
   const [hwAgreed, setHwAgreed] = useState(false);
+  const [docReviewed, setDocReviewed] = useState(false);
   const [erdConsentedAt, setErdConsentedAt] = useState<string | null>(null);
+  const [docReviewedAt, setDocReviewedAt] = useState<string | null>(null);
 
   // Capture-step state.
   const [mode, setMode] = useState<Mode>('draw');
@@ -58,6 +85,23 @@ export function SignatureCapture({
   const [intentAffirmed, setIntentAffirmed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A snapshot of the canvas, so the signature line above the pad can
+  // show the mark in position without a second drawing surface. Taken
+  // when a stroke ends rather than on every pointer move, which keeps
+  // the drawing itself cheap.
+  const [markDataUrl, setMarkDataUrl] = useState<string | null>(null);
+
+  function captureMark() {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    try {
+      setMarkDataUrl(canvas.toDataURL('image/png'));
+    } catch {
+      // A tainted canvas would throw here. The pad still works and the
+      // submit path reads the canvas directly; only the preview is lost.
+      setMarkDataUrl(null);
+    }
+  }
 
   // Resize canvas when entering the capture step.
   useEffect(() => {
@@ -97,6 +141,11 @@ export function SignatureCapture({
     ctx.textBaseline = 'middle';
     ctx.fillText(typed, 16, h / 2);
     setHasInk(true);
+    try {
+      setMarkDataUrl(canvas.toDataURL('image/png'));
+    } catch {
+      setMarkDataUrl(null);
+    }
   }, [step, mode, typed]);
 
   function getXY(e: React.PointerEvent<HTMLCanvasElement>) {
@@ -122,6 +171,7 @@ export function SignatureCapture({
     setHasInk(true);
   }
   function up() {
+    if (drawing) captureMark();
     setDrawing(false);
   }
 
@@ -132,6 +182,7 @@ export function SignatureCapture({
     if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     setHasInk(false);
+    setMarkDataUrl(null);
     setTyped(signerName ?? '');
   }
 
@@ -166,6 +217,7 @@ export function SignatureCapture({
       const drawH = img.height * scale;
       ctx.drawImage(img, (w - drawW) / 2, (h - drawH) / 2, drawW, drawH);
       setHasInk(true);
+      captureMark();
       URL.revokeObjectURL(url);
     };
     img.onerror = () => {
@@ -175,15 +227,27 @@ export function SignatureCapture({
     img.src = url;
   }
 
+  const mayLeaveDisclosure = canLeaveDisclosureStep({
+    electronicRecordsAgreed: erdAgreed,
+    hardwareSoftwareAgreed: hwAgreed,
+    documentPresented,
+    documentReviewed: docReviewed,
+  });
+
   function advanceFromDisclosure() {
-    if (!erdAgreed || !hwAgreed) {
+    if (!mayLeaveDisclosure) {
       setError(
-        'Both confirmations are required to receive this document electronically.',
+        !erdAgreed || !hwAgreed
+          ? 'Both confirmations are required to receive this document electronically.'
+          : 'Please confirm you have reviewed the document above.',
       );
       return;
     }
     setError(null);
     setErdConsentedAt(new Date().toISOString());
+    if (documentPresented && !docReviewedAt) {
+      setDocReviewedAt(new Date().toISOString());
+    }
     setStep('capture');
   }
 
@@ -214,6 +278,11 @@ export function SignatureCapture({
           consent: {
             electronicRecordsConsentedAt: erdConsentedAt,
             hardwareSoftwareConfirmedAt: erdConsentedAt,
+            // Only sent when the document was actually presented, so
+            // the audit chain never records a review of something the
+            // signer was not shown.
+            documentPresented,
+            documentReviewedAt: docReviewedAt,
             intentAffirmedAt: new Date().toISOString(),
             uaSnapshot:
               typeof navigator !== 'undefined' ? navigator.userAgent : null,
@@ -246,6 +315,24 @@ export function SignatureCapture({
           firm has been notified and will share the executed copy plus the
           audit trail with you.
         </p>
+        {copyPermitted ? (
+          <>
+            <a href={copyHref} className="btn-primary mt-5 inline-flex">
+              Download your copy
+            </a>
+            <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-3 leading-relaxed">
+              If other people still have to sign, this is the document as you
+              signed it. The fully executed version, with every signature on
+              it, is available from this same link once everyone has finished.
+            </p>
+          </>
+        ) : (
+          <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-4 leading-relaxed">
+            {firmName} has not enabled downloads for this document. You can ask
+            them for a copy at any time, and they can send you a paper copy at
+            no charge.
+          </p>
+        )}
         <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-4 leading-relaxed">
           Keep this email or page reference for your records. The signed copy
           is associated with a tamper-evident audit trail you can request at
@@ -328,6 +415,23 @@ export function SignatureCapture({
             can access electronic records on this device.
           </span>
         </label>
+        {/* Asked only when the document is actually on the page above.
+            Confirming review of something never shown would be a
+            fiction, and would strand the signer on a step they cannot
+            pass. */}
+        {documentPresented && (
+          <label className="flex items-start gap-3 text-[13px] text-ink-700 dark:text-cream-100/80">
+            <input
+              type="checkbox"
+              checked={docReviewed}
+              onChange={(e) => setDocReviewed(e.currentTarget.checked)}
+              className="mt-1"
+            />
+            <span>
+              I have reviewed the document shown above, in full.
+            </span>
+          </label>
+        )}
 
         {error && (
           <p className="rounded-lg border border-rose-200 dark:border-rose-700/40 bg-rose-50 dark:bg-rose-950/30 px-3 py-2 text-sm text-rose-800 dark:text-rose-200">
@@ -339,7 +443,7 @@ export function SignatureCapture({
           <button
             type="button"
             onClick={advanceFromDisclosure}
-            disabled={!erdAgreed || !hwAgreed}
+            disabled={!mayLeaveDisclosure}
             className="btn-primary"
           >
             Continue to sign
@@ -357,6 +461,12 @@ export function SignatureCapture({
           Sign the document
         </h2>
       </header>
+
+      <SignatureLinePreview
+        placement={placement}
+        markDataUrl={markDataUrl}
+        signerLabel={signerName || signerEmail}
+      />
 
       <div className="flex items-center justify-between gap-3">
         <p className="eyebrow">Your signature</p>

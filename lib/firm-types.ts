@@ -376,6 +376,11 @@ export type FirmSigningRequest = {
    * E-SIGN at 15 USC 7001(a)(1) is built around retention.
    */
   signerCanDownload: boolean;
+  /**
+   * Storage path of the executed PDF once every signer has finished
+   * and lib/signature-render.ts has stamped it. Null until then.
+   */
+  signedFilePath: string | null;
 };
 
 export type FirmSignature = {

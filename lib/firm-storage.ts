@@ -211,6 +211,7 @@ function signingRequestFromRow(r: FirmSigningRequestRow): FirmSigningRequest {
     createdAt: r.created_at,
     documentSha256: r.document_sha256,
     signerCanDownload: parseSignerDownloadPermission(r.signer_can_download),
+    signedFilePath: r.signed_file_path ?? null,
   };
 }
 
