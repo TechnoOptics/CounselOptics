@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CLEARED_SIGNATURE_COLUMNS,
   decodeSignaturePng,
+  documentSignatureHash,
   MAX_SIGNATURE_BYTES,
+  signatureColumns,
+  signatureModeOrNull,
   submissionMarkPath,
 } from '../lib/template-signature';
 
@@ -126,5 +130,86 @@ describe('submissionMarkPath', () => {
     expect(() => submissionMarkPath('f', 's', -1)).toThrow();
     expect(() => submissionMarkPath('f', 's', 1.5)).toThrow();
     expect(() => submissionMarkPath('f', 's', Number.NaN)).toThrow();
+  });
+});
+
+describe('signatureModeOrNull', () => {
+  it('passes the three modes the column allows', () => {
+    for (const mode of ['typed', 'drawn', 'uploaded']) {
+      expect(signatureModeOrNull(mode)).toBe(mode);
+    }
+  });
+
+  it('refuses anything else, because the column has a CHECK on it', () => {
+    // An unrecognised value would not be stored as an odd string. It would
+    // fail the whole update and take the rest of the signature record with it.
+    for (const bad of ['Drawn', 'DRAWN', 'draw', 'scribbled', '', null, undefined, 7, {}]) {
+      expect(signatureModeOrNull(bad)).toBeNull();
+    }
+  });
+});
+
+describe('signatureColumns', () => {
+  const now = new Date('2026-08-06T12:00:00.000Z');
+  const base = {
+    markPath: 'templates/f/s/1.png',
+    mode: 'drawn',
+    intentAffirmed: true,
+    ip: '203.0.113.7',
+    userAgent: 'Mozilla/5.0',
+    documentText: 'The supplier shall deliver on time.',
+    now,
+  };
+
+  it('fingerprints the document it was given', () => {
+    expect(signatureColumns(base).signed_document_sha256).toBe(
+      documentSignatureHash('The supplier shall deliver on time.'),
+    );
+  });
+
+  it('stamps both times from the clock it was handed', () => {
+    const out = signatureColumns(base);
+    expect(out.signature_intent_at).toBe('2026-08-06T12:00:00.000Z');
+    expect(out.signature_captured_at).toBe('2026-08-06T12:00:00.000Z');
+  });
+
+  it('claims nothing was captured when there is no image', () => {
+    const out = signatureColumns({ ...base, markPath: null });
+    expect(out.signature_image_path).toBeNull();
+    expect(out.signature_captured_at).toBeNull();
+    // The intent and the words signed survive the image not landing. A typed
+    // name affirmed with intent is a signature on its own.
+    expect(out.signature_intent_at).toBe('2026-08-06T12:00:00.000Z');
+    expect(out.signed_document_sha256).toEqual(expect.any(String));
+  });
+
+  it('records no intent when the box was not ticked', () => {
+    expect(signatureColumns({ ...base, intentAffirmed: false }).signature_intent_at).toBeNull();
+  });
+
+  it('keeps an oversized user agent from becoming a payload', () => {
+    const out = signatureColumns({ ...base, userAgent: 'x'.repeat(5000) });
+    expect((out.signature_user_agent ?? '').length).toBeLessThanOrEqual(500);
+  });
+});
+
+describe('CLEARED_SIGNATURE_COLUMNS', () => {
+  it('clears every column a signature record writes', () => {
+    // Keyed off what signatureColumns produces rather than off a list written
+    // out twice. An eighth column added to the record and forgotten here would
+    // survive a reviewer's edit and go on describing wording that changed.
+    const written = signatureColumns({
+      markPath: 'templates/f/s/1.png',
+      mode: 'drawn',
+      intentAffirmed: true,
+      ip: '203.0.113.7',
+      userAgent: 'Mozilla/5.0',
+      documentText: 'anything',
+      now: new Date(),
+    });
+    expect(Object.keys(CLEARED_SIGNATURE_COLUMNS).sort()).toEqual(Object.keys(written).sort());
+    for (const value of Object.values(CLEARED_SIGNATURE_COLUMNS)) {
+      expect(value).toBeNull();
+    }
   });
 });
