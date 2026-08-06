@@ -99,10 +99,18 @@ create table if not exists public.firm_signature_handoffs (
   desktop_consent jsonb
 );
 
--- Both the phone route (consuming a token) and the desktop poll (task 4,
--- watching for completion) look up the most recent handoff for a
--- signature, so this serves both without a sequential scan as the
--- per-signature history grows.
+-- On the foreign key, because Postgres does not index a referencing
+-- column by itself. Deleting a signature (or a case, which cascades
+-- through to its signatures) makes the cascade delete every child row
+-- here by signature_id, and without this that is a sequential scan of
+-- the whole table each time. The created_at desc tail orders one
+-- signature's handoff attempts newest first, which is the order the
+-- history note above is written to be read in.
+--
+-- No application code selects by signature_id. Every read in
+-- lib/signing-handoff-queries.ts finds its row by token_hash (unique)
+-- or by primary key, and the desktop poll watches firm_signatures for
+-- signed_at rather than touching this table at all.
 create index if not exists firm_signature_handoffs_signature_idx
   on public.firm_signature_handoffs (signature_id, created_at desc);
 
