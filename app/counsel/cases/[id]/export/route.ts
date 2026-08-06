@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { getCurrentUser, createServerSupabase } from '@/lib/supabase/server';
 import { createAdminSupabase } from '@/lib/supabase/admin';
+import { firmSuspended } from '@/lib/firm-trials';
 import { getFirmTimelineBundle } from '@/lib/firm-timeline-actions';
 import { toNormRules } from '@/lib/text-normalize';
 import {
@@ -93,6 +94,17 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     const caseFirmId = (firmRow as { firm_id: string | null } | null)?.firm_id ?? null;
     if (!caseFirmId || !(await guestCanReadCase(params.id, caseFirmId))) {
       return NextResponse.json({ error: 'No access to this matter.' }, { status: 403 });
+    }
+    // A route handler renders no layout, so the suspension narrowing in
+    // app/counsel/layout.tsx never runs here and a suspended organization's
+    // guest would otherwise pull the whole matter packet by URL. Same rule,
+    // same reasons, as the evidence retrieval route, which states them at
+    // length: guests only, after the access check, and never inside a catch.
+    if (await firmSuspended(caseFirmId)) {
+      return NextResponse.json(
+        { error: 'This matter is not available right now.' },
+        { status: 403 },
+      );
     }
     firmId = caseFirmId;
   }

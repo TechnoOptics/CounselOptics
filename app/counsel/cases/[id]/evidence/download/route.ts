@@ -3,6 +3,7 @@ import { zipSync } from 'fflate';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { getCurrentUser, createServerSupabase } from '@/lib/supabase/server';
 import { createAdminSupabase } from '@/lib/supabase/admin';
+import { firmSuspended } from '@/lib/firm-trials';
 import { exhibitLabel, type TimelineMedia, type AiExtracted } from '@/lib/timeline-types';
 import { logCaseActivity } from '@/lib/case-activity-log';
 
@@ -36,10 +37,15 @@ export const maxDuration = 60;
  * door; it says nothing about who may walk through it. Do not add a shortcut
  * here on the grounds that the route is already exempt.
  *
+ * The exemption covers the firm's own members. A co-counsel GUEST under a
+ * SUSPENSION is refused, in the guest branch below, for the reason written
+ * there.
+ *
  * Layer one does not reach this either way, twice over: a route handler
  * renders no layout, and lib/firm-access.ts lists the path in
  * RETRIEVAL_PATTERNS so that a future middleware or layout reaching for that
- * rule finds it written down instead of rediscovering it.
+ * rule finds it written down instead of rediscovering it. That is also why
+ * the guest check below cannot be left to the shell.
  *
  * It is READ-ONLY apart from the case_activity line, which is the record of
  * the retrieval and belongs with it.
@@ -81,6 +87,34 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     const caseFirmId = (firmRow as { firm_id: string | null } | null)?.firm_id ?? null;
     if (!caseFirmId || !(await guestCanReadCase(params.id, caseFirmId))) {
       return NextResponse.json({ error: 'No access to this matter.' }, { status: 403 });
+    }
+    // The guest half of the exemption, narrowed exactly as the counsel shell
+    // narrows it, and restated here because a ROUTE HANDLER RENDERS NO LAYOUT.
+    // app/counsel/layout.tsx turns a suspended organization's co-counsel guest
+    // away, and that redirect never runs for this file, so without this line a
+    // guest keeps every evidence file by URL while the suspension holds. This
+    // is the door suspension exists to close.
+    //
+    // It sits INSIDE the guest branch on purpose. The firm's own members keep
+    // the exemption above in both states, because the export names files whose
+    // bytes are not in it and this route is the only way an organization that
+    // can no longer use the product opens them. A guest is the other case: a
+    // lapse is a billing fact about the firm and no reason to take a matter
+    // away from the attorney working it, while a suspension is the
+    // abuse-response state, and an account the firm itself provisioned is a
+    // channel that state is meant to close.
+    //
+    // It also sits AFTER guestCanReadCase, so a caller with no access to the
+    // matter learns nothing about the organization's standing.
+    //
+    // firmSuspended throws on a read it could not complete, and that throw
+    // must travel. "Could not determine" is not "not suspended", so do not
+    // wrap this in a catch.
+    if (await firmSuspended(caseFirmId)) {
+      return NextResponse.json(
+        { error: 'This matter is not available right now.' },
+        { status: 403 },
+      );
     }
     firmId = caseFirmId;
   }

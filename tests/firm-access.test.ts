@@ -1214,9 +1214,22 @@ describe('the enforcement wiring', () => {
     { label: 'letters-actions', src: lettersActions },
   ];
 
+  /**
+   * The AWAITED form, everywhere, and the `await` is not decoration.
+   *
+   * `void requireActiveFirm(firmId);` and a bare
+   * `requireActiveFirm(firmId);` both leave the token in the body and both
+   * make the gate NON-BLOCKING: the action runs straight on while the check
+   * is still in flight, and the rejection surfaces later as an unhandled
+   * promise nobody reads. That is a fail-open wearing the exact spelling of a
+   * gate, so every assertion in this describe matches on `await
+   * requireActiveFirm(` rather than on the bare call.
+   */
+  const GATE_CALL = 'await requireActiveFirm(';
+
   it('gates the firm write paths that create new work product', () => {
     for (const { label, src, fn } of GATED) {
-      expect(bodyOf(src, fn), label).toMatch(/requireActiveFirm\(/);
+      expect(bodyOf(src, fn), label).toMatch(/await requireActiveFirm\(/);
     }
   });
 
@@ -1264,8 +1277,8 @@ describe('the enforcement wiring', () => {
   it('calls the gate BEFORE the first write, in every gated action', () => {
     for (const { label, src, fn } of GATED) {
       const body = bodyOf(src, fn);
-      const gate = body.indexOf('requireActiveFirm(');
-      expect(gate, `${label} has no gate`).toBeGreaterThan(-1);
+      const gate = body.indexOf(GATE_CALL);
+      expect(gate, `${label} has no awaited gate`).toBeGreaterThan(-1);
       const write = body.search(FIRST_WRITE);
       expect(write, `${label} has no write for the gate to precede`).toBeGreaterThan(-1);
       expect(gate, `${label} gates AFTER the write it is meant to prevent`).toBeLessThan(
@@ -1282,8 +1295,36 @@ describe('the enforcement wiring', () => {
   // request is over, the second in the browser after the server has already
   // refused.
   //
-  // Two assertions rather than one, because a wrap has two shapes.
+  // Three assertions rather than one, because a wrap has three shapes and no
+  // single regex sees all of them.
   //
+  // WHAT THESE THREE STILL CANNOT SEE, named rather than implied, because a
+  // source-text invariant that looks total is worse than one that states its
+  // limits. One shape is left open on purpose:
+  //
+  //   - gating on a CALLER-SUPPLIED firm id rather than the resolved one,
+  //     `await requireActiveFirm(input.firmId)` where the action then writes
+  //     against a firm it looked up separately. Every assertion here passes,
+  //     and the gate checks the wrong organization. Closing it means knowing
+  //     which identifier in each action is the authoritative one, which is a
+  //     data-flow question and not a text one, so it is not closed here. What
+  //     does close it is the behavioural half: requireActiveFirm is tested
+  //     against the real firmTrialState above, and the actions resolve the
+  //     firm id from the session rather than the request body. If an action
+  //     ever starts trusting a firm id off the wire, that is a separate and
+  //     larger defect than a disarmed gate.
+  //
+  // Everything else below is closed. The previous version of these tests also
+  // missed a flat `.catch(() => {})` and a non-blocking `void` gate; both now
+  // fail.
+  //
+  // Comments are stripped before any of this. The comment ABOVE several of
+  // these gates explains that there is deliberately no try around it, and a
+  // test that reads prose cannot tell the explanation from the thing
+  // explained.
+  const stripComments = (s: string) =>
+    s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+
   // INDENTATION is the structural half. Every gate sits at the top level of
   // its function body, two spaces in. Anything that nests it - a try, an if,
   // a loop, a callback - indents it further, so `expect('  ')` rejects the
@@ -1292,11 +1333,25 @@ describe('the enforcement wiring', () => {
   // which could not tell a wrapping catch from an unrelated one further down
   // the function and started producing false positives the moment the gate
   // list grew past three files.
+  //
+  // The COUNT is what makes the indentation check total rather than partial,
+  // and it is the half that was missing. The anchored pattern only sees a
+  // gate that BEGINS its line, so `if (cond) await requireActiveFirm(id);`
+  // written on one line was invisible to it: the anchor never matched, the
+  // loop had nothing to reject, and a conditional gate passed. Requiring the
+  // anchored matches to account for every occurrence in the file turns "no
+  // gate we can see is nested" into "no gate is nested".
   it('never nests the action gate inside a block', () => {
     for (const { label, src } of GATE_SOURCES) {
-      const found = [...src.matchAll(/^([ \t]*)await requireActiveFirm\(/gm)];
-      expect(found.length, `${label} has no gate`).toBeGreaterThan(0);
-      for (const m of found) {
+      const code = stripComments(src);
+      const every = [...code.matchAll(/await requireActiveFirm\(/g)];
+      expect(every.length, `${label} has no gate`).toBeGreaterThan(0);
+      const anchored = [...code.matchAll(/^([ \t]*)await requireActiveFirm\(/gm)];
+      expect(
+        anchored.length,
+        `${label} has a gate that does not begin its own line, so something precedes it`,
+      ).toBe(every.length);
+      for (const m of anchored) {
         expect(m[1], `${label} indents a gate, so something nests it`).toBe('  ');
       }
     }
@@ -1307,16 +1362,42 @@ describe('the enforcement wiring', () => {
   // try is always BEFORE the gate, so only the text before it is read; a
   // catch further down the function is none of this test's business.
   it('never opens a try immediately before the action gate', () => {
-    // Comments are stripped first. The comment ABOVE several of these gates
-    // explains that there is deliberately no try around it, and a test that
-    // reads prose cannot tell the explanation from the thing explained.
-    const stripComments = (s: string) =>
-      s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
     for (const { label, src } of GATE_SOURCES) {
       const code = stripComments(src);
       for (const m of code.matchAll(/await requireActiveFirm\(/g)) {
         const before = code.slice(Math.max(0, (m.index ?? 0) - 200), m.index ?? 0);
         expect(before, `${label} wraps a gate in a try`).not.toMatch(/\btry\b/);
+      }
+    }
+  });
+
+  /**
+   * The one-TOKEN half, which neither assertion above can see.
+   *
+   *     await requireActiveFirm(firmId).catch(() => {});
+   *
+   * is flat, sits at two-space indent, begins its own line and has no `try`
+   * anywhere before it, so it satisfies both. It also disarms the gate
+   * completely: the refusal is swallowed and the action runs on. It is the
+   * shortest way to turn this whole feature off, which makes it the shape
+   * most likely to arrive by accident, from someone quieting a noisy stack
+   * trace or a refactor that "made the action more defensive".
+   *
+   * Forward rather than backward, and short. A promise-level catch has to
+   * attach to the call itself, so it is inside the same statement; 120
+   * characters covers the gate call and the tail of its line without reaching
+   * the next statement, where an unrelated catch is none of this test's
+   * business.
+   */
+  it('never attaches a catch to the action gate', () => {
+    for (const { label, src } of GATE_SOURCES) {
+      const code = stripComments(src);
+      for (const m of code.matchAll(/await requireActiveFirm\(/g)) {
+        const at = m.index ?? 0;
+        expect(
+          code.slice(at, at + 120),
+          `${label} attaches a catch to a gate, which swallows the refusal`,
+        ).not.toContain('.catch(');
       }
     }
   });
@@ -1465,6 +1546,9 @@ describe('the enforcement wiring', () => {
    * route is the only way a departing organization opens them. It carries the
    * same exemption /api/firm/export has, and its OWN authorization has to stay
    * intact, which is the half an exemption makes easy to lose.
+   *
+   * The exemption covers the FIRM'S OWN members. The co-counsel guest branch
+   * is separately closed under a suspension, which the sweep below pins.
    */
   it('leaves the evidence retrieval route ungated and fully authorized', () => {
     const route = readFileSync(
@@ -1477,6 +1561,12 @@ describe('the enforcement wiring', () => {
     expect(route).toMatch(/guestCanReadCase\(/);
     // The matter has to belong to the firm the caller was admitted through.
     expect(route).toMatch(/c\.firm_id !== firmId/);
+    // And the firm-member branch keeps the exemption: the suspension check
+    // must not have been hoisted above the `if (ctx)` split, which would lock
+    // an organization out of the files its own export names.
+    expect(route.indexOf('firmSuspended(')).toBeGreaterThan(
+      route.indexOf("from('firm_members')"),
+    );
   });
 
   it('checks the seat limit before inserting a firm member', () => {
@@ -1489,4 +1579,261 @@ describe('the enforcement wiring', () => {
       accept.indexOf(".from('firm_members')\n    .insert("),
     );
   });
+});
+
+/**
+ * The route handlers, which are the hole the shell narrowing left open.
+ *
+ * app/counsel/layout.tsx turns a suspended organization's co-counsel guest
+ * away, and a ROUTE HANDLER RENDERS NO LAYOUT. Four handlers authorize a guest
+ * through guestCanReadCase and then hand back the matter: every evidence file,
+ * the full export packet, the approach packet and the matter's search index.
+ * Under a suspension all four were reachable by URL, which is precisely the
+ * channel a suspension exists to close.
+ *
+ * This is the same defect the two-layer rule was written to prevent, in a
+ * shape that rule did not name. The rule says every 'use server' export is a
+ * public endpoint that outlives the redirect. So is every route handler, and
+ * unlike an action a route handler is a plain GET a browser can be pointed at.
+ *
+ * What is NOT closed here, deliberately: the FIRM'S OWN members. The retrieval
+ * exemption exists because the organization-wide export names evidence files
+ * whose bytes are not in the archive, so gating the firm side would hand a
+ * departing organization an index to nothing. A guest is the other case.
+ */
+describe('the firm matter routes under a suspension', () => {
+  /**
+   * Every route handler that admits a co-counsel guest, found rather than
+   * listed.
+   *
+   * A hard-coded list of four would pass forever the day a fifth handler is
+   * written, and a fifth handler is exactly how this defect arrived. So the
+   * set is derived from the codebase: any route.ts that authorizes through
+   * guestCanReadCase is a door a guest can open, and every one of them has to
+   * consult the suspension.
+   */
+  const guestRoutes = execSync(
+    "grep -rl 'guestCanReadCase(' app --include='route.ts'",
+    { cwd: ROOT, encoding: 'utf8' },
+  )
+    .split('\n')
+    .filter(Boolean);
+
+  it('finds the guest-admitting route handlers', () => {
+    // A grep that matched nothing would pass every assertion below while
+    // proving nothing at all.
+    expect(guestRoutes.length).toBeGreaterThanOrEqual(4);
+  });
+
+  /**
+   * Position, not presence. The check has to sit AFTER guestCanReadCase, so a
+   * caller with no access to the matter learns nothing about the
+   * organization's standing, and BEFORE the branch resolves its firm id and
+   * the handler proceeds to read the matter.
+   *
+   * It also has to be inside the guest branch. A firm member reaching the
+   * same handler keeps the retrieval exemption, which the assertion in the
+   * enforcement-wiring block above pins for the download route.
+   */
+  it('consults the suspension in every guest branch, after the access check', () => {
+    for (const rel of guestRoutes) {
+      const src = readFileSync(join(ROOT, rel), 'utf8');
+      const admitted = src.indexOf('guestCanReadCase(params.id');
+      const gate = src.indexOf('firmSuspended(');
+      const resolved = src.indexOf('firmId = caseFirmId;');
+      expect(gate, `${rel} admits a guest without consulting the suspension`).toBeGreaterThan(-1);
+      expect(admitted, `${rel} does not authorize the guest the expected way`).toBeGreaterThan(-1);
+      expect(resolved, `${rel} does not resolve the firm id the expected way`).toBeGreaterThan(-1);
+      expect(gate, `${rel} checks the suspension before the access check`).toBeGreaterThan(admitted);
+      expect(gate, `${rel} checks the suspension after the branch has already resolved`).toBeLessThan(resolved);
+      // Never in a catch. "Could not determine" is not "not suspended", and
+      // firmSuspended throws rather than guessing.
+      expect(
+        src.slice(gate, gate + 120),
+        `${rel} attaches a catch to the suspension check`,
+      ).not.toContain('.catch(');
+    }
+  });
+
+  /**
+   * And the behaviour, because presence tests are blind to the mutation that
+   * keeps the call and drops the `if`.
+   *
+   * The handlers are invoked against stand-in modules. Only the modules the
+   * refusal path touches carry real behaviour; the heavy PDF and archive
+   * machinery is stubbed because none of it is reached before the gate, and
+   * importing it under node buys nothing.
+   */
+  type Caller = { guest: boolean; suspended: boolean };
+
+  const ROUTE_LABELS = [
+    'evidence download',
+    'matter export',
+    'approach export',
+    'search index',
+  ] as const;
+  type RouteLabel = (typeof ROUTE_LABELS)[number];
+
+  /** Literal specifiers, so the test bundler can resolve each one. */
+  async function importRoute(label: RouteLabel) {
+    switch (label) {
+      case 'evidence download':
+        return import('@/app/counsel/cases/[id]/evidence/download/route');
+      case 'matter export':
+        return import('@/app/counsel/cases/[id]/export/route');
+      case 'approach export':
+        return import('@/app/counsel/cases/[id]/approach/[approachId]/export/route');
+      case 'search index':
+        return import('@/app/counsel/cases/[id]/search-index/route');
+    }
+  }
+
+  function paramsFor(label: RouteLabel): Record<string, string> {
+    return label === 'approach export'
+      ? { id: 'case-1', approachId: 'approach-1' }
+      : { id: 'case-1' };
+  }
+
+  /** A PostgREST-shaped builder: every filter returns itself, and it awaits. */
+  function chain(result: { data: unknown; error: unknown }) {
+    const builder: Record<string, unknown> = {};
+    for (const method of [
+      'select', 'eq', 'in', 'is', 'not', 'or', 'order', 'limit', 'range', 'filter',
+    ]) {
+      builder[method] = () => builder;
+    }
+    builder.maybeSingle = async () => result;
+    builder.single = async () => result;
+    builder.then = (
+      onFulfilled: (v: unknown) => unknown,
+      onRejected?: (e: unknown) => unknown,
+    ) => Promise.resolve(result).then(onFulfilled, onRejected);
+    return builder;
+  }
+
+  async function callRoute(
+    label: RouteLabel,
+    caller: Caller,
+  ): Promise<{ status: number | null; error: string | null; asked: number }> {
+    vi.resetModules();
+    const firmSuspended = vi.fn(async () => caller.suspended);
+
+    vi.doMock('next/server', () => ({
+      NextResponse: class {
+        constructor(
+          public body: unknown,
+          public init?: { status?: number },
+        ) {}
+        static json(body: unknown, init?: { status?: number }) {
+          return { status: init?.status ?? 200, body };
+        }
+      },
+    }));
+    vi.doMock('@/lib/supabase/server', () => ({
+      getCurrentUser: async () => ({ id: 'user-1' }),
+      createServerSupabase: () => ({
+        from: () => chain({ data: { id: 'membership-1' }, error: null }),
+      }),
+    }));
+    vi.doMock('@/lib/supabase/admin', () => ({
+      createAdminSupabase: () => ({
+        from: (table: string) =>
+          chain(
+            table === 'cases'
+              ? {
+                  data: {
+                    id: 'case-1',
+                    title: 'A matter',
+                    firm_id: 'firm-1',
+                    subject_name: null,
+                    text_normalizations: null,
+                  },
+                  error: null,
+                }
+              : { data: [], error: null },
+          ),
+        storage: {
+          from: () => ({
+            download: async () => ({ data: null, error: { message: 'stub' } }),
+          }),
+        },
+      }),
+    }));
+    vi.doMock('@/lib/firm-storage', () => ({
+      // A guest is the caller with NO active firm context, exactly as the
+      // handlers read it.
+      getActiveFirmContext: async () =>
+        caller.guest ? null : { firm: { id: 'firm-1' }, membership: { role: 'owner' } },
+    }));
+    vi.doMock('@/lib/counsel-guest', () => ({
+      guestCanReadCase: async () => true,
+    }));
+    vi.doMock('@/lib/firm-trials', () => ({ firmSuspended }));
+    // Everything below is stubbed only so the handlers import under node.
+    // None of it is reached before the gate.
+    vi.doMock('@/lib/pdf', () => ({
+      generateTimelineExhibitPdf: async () => Buffer.from(''),
+      normalizeExhibitData: (d: unknown) => d,
+      ALL_EXHIBIT_SECTIONS: [],
+    }));
+    vi.doMock('@/lib/firm-timeline-actions', () => ({
+      getFirmTimelineBundle: async () => ({ events: [], entities: [] }),
+    }));
+    vi.doMock('@/lib/case-activity-log', () => ({ logCaseActivity: async () => {} }));
+    vi.doMock('@/lib/exhibit-sheet', () => ({ parseExhibitSheet: async () => null }));
+    vi.doMock('@/lib/maps', () => ({ staticMapUrlServer: () => null }));
+    vi.doMock('@/lib/entity-normalize', () => ({ canonicalOrg: (s: string) => s }));
+    vi.doMock('@/lib/evidence-folders', () => ({
+      readEvidenceFolderRegistry: async () => ({}),
+      canSeeEvidenceFolder: () => true,
+    }));
+    vi.doMock('fflate', () => ({ zipSync: () => new Uint8Array() }));
+
+    const mod = await importRoute(label);
+    let status: number | null = null;
+    let error: string | null = null;
+    try {
+      const res = (await mod.GET(new Request('https://advottic.com/x'), {
+        params: paramsFor(label),
+      } as never)) as { status?: number; body?: { error?: string } };
+      status = res?.status ?? null;
+      error = res?.body?.error ?? null;
+    } catch {
+      // A handler that got past the gate and then tripped over a stub is not
+      // the refusal, which is all these assertions read.
+      status = null;
+      error = null;
+    }
+    return { status, error, asked: firmSuspended.mock.calls.length };
+  }
+
+  const REFUSAL = 'This matter is not available right now.';
+
+  for (const label of ROUTE_LABELS) {
+    it(`refuses a co-counsel guest at the ${label} route while the organization is suspended`, async () => {
+      const res = await callRoute(label, { guest: true, suspended: true });
+      expect(res.asked, 'the handler never asked whether the organization is suspended').toBe(1);
+      expect(res.status).toBe(403);
+      expect(res.error).toBe(REFUSAL);
+    });
+
+    it(`lets a co-counsel guest through the ${label} route when the trial merely lapsed`, async () => {
+      const res = await callRoute(label, { guest: true, suspended: false });
+      expect(res.asked, 'the handler never asked whether the organization is suspended').toBe(1);
+      expect(res.error, 'a lapsed trial refused a guest it should have let through').not.toBe(
+        REFUSAL,
+      );
+    });
+
+    /**
+     * The firm's own members keep the exemption. This is the assertion that
+     * stops a well-meant "close the hole everywhere" edit from locking a
+     * departing organization out of the files its own export names.
+     */
+    it(`never asks about the suspension for a firm member at the ${label} route`, async () => {
+      const res = await callRoute(label, { guest: false, suspended: true });
+      expect(res.asked, "the firm's own member was gated, which closes the export").toBe(0);
+      expect(res.error).not.toBe(REFUSAL);
+    });
+  }
 });
