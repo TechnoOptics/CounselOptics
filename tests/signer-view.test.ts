@@ -611,6 +611,19 @@ describe('resolveCanvasRenderScale', () => {
     }
   });
 
+  it('keeps a floor under a page far larger than its container', () => {
+    // A container measured mid-layout at a pixel or two would otherwise
+    // ask for a scale of 0.0001, and a canvas that rounds to nothing is
+    // the blank document again.
+    const scale = resolveCanvasRenderScale({
+      pageWidthPt: 10000,
+      pageHeightPt: 10000,
+      cssWidthPx: 1,
+      devicePixelRatio: 1,
+    });
+    expect(scale).toBeGreaterThanOrEqual(0.05);
+  });
+
   it('stays positive when a missing device ratio is reported', () => {
     const scale = resolveCanvasRenderScale({
       ...letter,
@@ -1254,8 +1267,10 @@ describe('call sites', () => {
     // for it in core-js; the one modern method that is genuinely
     // missing in the field is polyfilled instead.
     expect(src).not.toMatch(/pdfjs-dist\/legacy/);
-    expect(src).toMatch(/isEvalSupported: false/);
-    expect(src).toMatch(/useWorkerFetch: false/);
+    // Anchored to a line in the options object: the prose above them
+    // names both options, so a loose match survived deleting them.
+    expect(src).toMatch(/^\s+isEvalSupported: false,$/m);
+    expect(src).toMatch(/^\s+useWorkerFetch: false,$/m);
   });
 
   it('has the document route run the same gate the page does', () => {

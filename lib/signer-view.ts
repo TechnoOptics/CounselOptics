@@ -837,8 +837,17 @@ export function rotateSignatureRectForDisplay(
   rect: SignatureRectFractions,
   rotationDeg: number | null | undefined,
 ): SignatureRectFractions {
+  // finite() here is the type narrowing, not the guard: a NaN or a
+  // null falls through to the unrotated case below either way.
   const raw = finite(rotationDeg) ? rotationDeg : 0;
-  const turn = ((Math.round(raw / 90) * 90) % 360 + 360) % 360;
+  // Wrapped into [0, 360) so a viewer reporting -90 and a PDF storing
+  // 270 are the same turn. Deliberately NOT rounded to the nearest
+  // right angle: an earlier version did, which quietly turned a
+  // malformed 80 into a quarter turn while the comment below promised
+  // the opposite, and no test could tell the two apart because
+  // /Rotate is defined to be a multiple of 90 and pdf.js normalises
+  // page.rotate before this ever sees it.
+  const turn = ((raw % 360) + 360) % 360;
   const { leftFrac: l, topFrac: t, widthFrac: w, heightFrac: h } = rect;
   if (turn === 90) {
     return { leftFrac: 1 - t - h, topFrac: l, widthFrac: h, heightFrac: w };
