@@ -1,5 +1,5 @@
 import 'server-only';
-import { createAdminSupabase } from './supabase/admin';
+import { createAdminSupabase, isServiceRoleConfigured } from './supabase/admin';
 import {
   firmAccessState,
   type FirmAccessInput,
@@ -104,11 +104,24 @@ const FIRM_ACCESS_COLUMNS = 'trial_ends_at, suspended_at';
  *
  * Throwing is the fail-closed choice and matches firm-access: a caller that
  * cannot establish access gets no answer rather than a permissive one.
+ *
+ * The presence test is a named function rather than an inline condition
+ * because all three reads in this file owe it, including the write path in
+ * applyTrialAction, which reads one column more than these two.
  */
-function toFirmAccessInput(row: Record<string, unknown>): FirmAccessInput {
-  if (!('trial_ends_at' in row) || !('suspended_at' in row)) {
-    throw new Error('firm-trials read a firms row without its access columns.');
+function requireFirmColumns(
+  row: Record<string, unknown>,
+  columns: readonly string[],
+): void {
+  for (const column of columns) {
+    if (!(column in row)) {
+      throw new Error(`firm-trials read a firms row without ${column}.`);
+    }
   }
+}
+
+function toFirmAccessInput(row: Record<string, unknown>): FirmAccessInput {
+  requireFirmColumns(row, ['trial_ends_at', 'suspended_at']);
   return {
     trialEndsAt: row.trial_ends_at as string | null,
     suspendedAt: row.suspended_at as string | null,
@@ -129,9 +142,63 @@ function isoInstant(ms: number): string | null {
   return Number.isNaN(at.getTime()) ? null : at.toISOString();
 }
 
+/**
+ * Log-once latches for the single case in which this file cannot reach the
+ * database at all: createAdminSupabase returned null.
+ *
+ * These are LATCHES and not cached state, and the difference is the whole
+ * reason they are allowed to exist here. A latch records only whether this
+ * process has already said the thing out loud. It holds no row, no
+ * FirmAccessState, no timestamp; nothing reads it except the line that sets
+ * it; and it has no correct value that it could drift away from, so it cannot
+ * go stale. The no-caching rule at the top of this file is about access state,
+ * and it does not reach these. Do not delete them as "state".
+ *
+ * They exist because the failure they announce is otherwise completely silent,
+ * and it is the most expensive silent failure this feature has. With no admin
+ * client, firmTrialState returns 'active' for every organization forever, so
+ * every expired trial and every suspension stops being enforced;
+ * applyTrialAction refuses every write; and listTrialFirms returns an empty
+ * array, so the HQ trials page renders as though no organization were on a
+ * trial and looks entirely calm. The commercial control is off end to end with
+ * no signal anywhere. One line per process per call site is the smallest thing
+ * that makes that findable without logging on every single request.
+ *
+ * One latch per call site rather than one shared, because the two lines answer
+ * different questions asked by different people: the enforcement line explains
+ * why nobody is being cut off, and the HQ line explains why the page is empty.
+ * A single shared latch would let whichever fired first swallow the other.
+ */
+let loggedMissingAdminInState = false;
+let loggedMissingAdminInList = false;
+
+/**
+ * createAdminSupabase returns null for a missing Supabase URL as well as for a
+ * missing service-role key, so name which one it is. A log line that sends
+ * someone to the wrong environment variable is barely better than no log line.
+ */
+function missingAdminReason(): string {
+  return isServiceRoleConfigured()
+    ? 'SUPABASE_SERVICE_ROLE_KEY is set, so the missing piece is the Supabase URL'
+    : 'SUPABASE_SERVICE_ROLE_KEY is not configured';
+}
+
 export async function listTrialFirms(): Promise<TrialFirmRow[]> {
   const admin = createAdminSupabase();
-  if (!admin) return [];
+  // An empty array here is indistinguishable from "no organization is on a
+  // trial", which is the one surface an operator would check to notice that
+  // enforcement had stopped. Say once that the list is unreadable rather than
+  // empty.
+  if (!admin) {
+    if (!loggedMissingAdminInList) {
+      loggedMissingAdminInList = true;
+      console.error(
+        'listTrialFirms: no admin client, so the HQ trials list is UNREADABLE and will render as though no organization were on a trial.',
+        missingAdminReason(),
+      );
+    }
+    return [];
+  }
 
   // A suspended organization that never had a trial is FOUND by this filter.
   // That is a property of the query and holds no matter what is indexed,
@@ -209,7 +276,21 @@ export async function firmTrialState(
   // worse outcome than briefly not enforcing trials, and it is the same
   // posture the rest of the app takes when Supabase is unconfigured. Nothing
   // else below may return a state it did not compute.
-  if (!admin) return 'active';
+  //
+  // It is a fail-open, so it does not get to be quiet as well. Unlogged, this
+  // branch turns every organization active forever and no surface in the
+  // product shows a difference. The latch keeps that to one line per process
+  // instead of one per request.
+  if (!admin) {
+    if (!loggedMissingAdminInState) {
+      loggedMissingAdminInState = true;
+      console.error(
+        'firmTrialState: no admin client, so trial and suspension enforcement is OFF for every organization until this is fixed.',
+        missingAdminReason(),
+      );
+    }
+    return 'active';
+  }
 
   const { data, error } = await admin
     .from('firms')
@@ -277,6 +358,33 @@ export async function applyTrialAction(
     return { ok: false, error: 'That organization no longer exists.' };
   }
 
+  // The same key-presence gate the two reads use, extended to seat_limit,
+  // which is the one column only this path reads.
+  //
+  // Without it this function is the single place where a dropped column does
+  // not fail. If FIRM_ACCESS_COLUMNS or the select above ever loses
+  // trial_ends_at, firmTrialState and listTrialFirms both throw, and this
+  // function does not: prev.trial_ends_at would be undefined, the extend
+  // branch would fall through to today plus N, and 'extended' would silently
+  // become 'reset', which is exactly what the comment above this function says
+  // must not happen. It errs toward granting MORE access. Worse, previousValue
+  // would then be undefined, supabase-js drops undefined from an insert
+  // payload, and the audit row would land with previous_value null, stating
+  // that the organization had no trial before. That is the trail lying in the
+  // affirmative direction, which the ordering note further down argues is the
+  // worst failure available here.
+  //
+  // This throws rather than returning { ok: false }, unlike every other refusal
+  // in this function. The result union carries messages an admin can act on; a
+  // select that lost a column is a defect in this file that no admin can do
+  // anything about, and quietly reporting it as "Unavailable" would let it live
+  // in production behind a retry button.
+  requireFirmColumns(before as Record<string, unknown>, [
+    'trial_ends_at',
+    'suspended_at',
+    'seat_limit',
+  ]);
+
   const prev = before as {
     trial_ends_at: string | null;
     seat_limit: number | null;
@@ -298,9 +406,17 @@ export async function applyTrialAction(
       break;
     }
     case 'extended': {
-      const baseMs = prev.trial_ends_at
-        ? new Date(prev.trial_ends_at).getTime()
-        : Date.now();
+      // `== null` and not truthiness, which is the same distinction the gate
+      // above exists to draw. Falling through to Date.now() is only correct
+      // for an organization that genuinely has no trial end. A truthy test
+      // also treats a stored empty string as "no trial" and grants today plus
+      // N off the back of it, where `== null` lets the value through to
+      // isoInstant, which refuses. Every wrong answer on this line grants more
+      // access than was asked for, so it is spelled explicitly.
+      const baseMs =
+        prev.trial_ends_at == null
+          ? Date.now()
+          : new Date(prev.trial_ends_at).getTime();
       const next = isoInstant(baseMs + input.action.days * DAY_MS);
       if (!next) {
         return {
