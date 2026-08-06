@@ -42,14 +42,19 @@ export type SubmissionRow = {
    * submissions filed before signature capture shipped, which carry a typed
    * name and nothing else. A typed name is a valid signature, so those rows are
    * not defective and must stay releasable.
+   *
+   * Optional rather than merely nullable, and that is not a convenience: the
+   * migration that adds these columns is unapplied, so until it runs PostgREST
+   * returns rows without the keys at all. rowToSubmission coalesces, so an
+   * absent key and a null column read the same way.
    */
-  signature_image_path: string | null;
-  signature_mode: 'typed' | 'drawn' | 'uploaded' | null;
-  signature_captured_at: string | null;
-  signature_intent_at: string | null;
-  signature_ip: string | null;
-  signature_user_agent: string | null;
-  signed_document_sha256: string | null;
+  signature_image_path?: string | null;
+  signature_mode?: 'typed' | 'drawn' | 'uploaded' | null;
+  signature_captured_at?: string | null;
+  signature_intent_at?: string | null;
+  signature_ip?: string | null;
+  signature_user_agent?: string | null;
+  signed_document_sha256?: string | null;
 };
 
 /** What the UIs render. */
