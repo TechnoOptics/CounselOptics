@@ -38,7 +38,7 @@ export default async function AdminCaseDetailPage({
   const h = headers();
   await logSecurityEvent({
     kind: 'admin_case_view',
-    severity: 'info',
+    severity: 'low',
     userId: viewer?.id ?? null,
     ip: (h.get('x-forwarded-for') ?? '').split(',')[0]?.trim() || null,
     userAgent: h.get('user-agent'),

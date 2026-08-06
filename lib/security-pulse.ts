@@ -414,7 +414,7 @@ const checkOpenSecurityEvents: CheckDefinition = {
           status: 'unknown',
           message: 'security_events table missing; provision migration.',
           detail:
-            'Run supabase/fixes/2026-05-05-security-events.sql to enable event tracking.',
+            'Run supabase/fixes/2026-05-05-security-pulse.sql to enable event tracking.',
         };
       }
       return {

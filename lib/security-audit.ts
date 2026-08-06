@@ -9,12 +9,18 @@ import { createAdminSupabase } from './supabase/admin';
  * reads this table.
  *
  * Design note: routine audit entries (login, export) are recorded with
- * `severity: 'info'` and auto-acknowledged so they DON'T land in the
+ * `severity: 'low'` and auto-acknowledged so they DON'T land in the
  * dashboard's "open events need triage" queue. Security-relevant events
  * (login_failed, suspicious) are logged with a higher severity and left
  * unacknowledged so they surface for review. Logging is best-effort and
  * never throws into the caller: an audit-write failure must not break the
- * user action it is recording.
+ * user action it is recording. It is never silent either, see
+ * `reportAuditFailure` below.
+ *
+ * The severity vocabulary is pinned by the `security_events_severity_check`
+ * constraint on the table and by the HQ dashboards that bucket events into
+ * low/medium/high/critical. Do not introduce values outside that set: the
+ * insert is untyped, so a bad value fails only at runtime, in production.
  */
 export type SecurityEventKind =
   | 'login'
@@ -30,7 +36,7 @@ export type SecurityEventKind =
   /** An HQ operator opened a case they do not own, via the service role. */
   | 'admin_case_view';
 
-export type SecuritySeverity = 'info' | 'warning' | 'critical';
+export type SecuritySeverity = 'low' | 'medium' | 'high' | 'critical';
 
 /** Pull source metadata (IP, UA, URL) from an incoming request. */
 export function requestMeta(req: Request): {
@@ -61,9 +67,15 @@ export async function logSecurityEvent(input: {
 }): Promise<void> {
   try {
     const admin = createAdminSupabase();
-    if (!admin) return;
-    const severity: SecuritySeverity = input.severity ?? 'info';
-    await admin.from('security_events').insert({
+    if (!admin) {
+      reportAuditFailure(input.kind, 'service-role key not configured');
+      return;
+    }
+    const severity: SecuritySeverity = input.severity ?? 'low';
+    // NOTE: postgrest-js resolves with `{ error }` instead of throwing, so
+    // this result MUST be inspected. Ignoring it is what hid a constraint
+    // violation that silently dropped every audit write for months.
+    const { error } = await admin.from('security_events').insert({
       kind: input.kind,
       severity,
       user_id: input.userId ?? null,
@@ -71,12 +83,31 @@ export async function logSecurityEvent(input: {
       user_agent: input.userAgent ?? null,
       url: input.url ?? null,
       details: input.details ?? {},
-      // Routine info entries are audit records, not alerts: pre-acknowledge
-      // so they don't flood the triage dashboard. Warnings/criticals stay
+      // Routine low entries are audit records, not alerts: pre-acknowledge
+      // so they don't flood the triage dashboard. Higher severities stay
       // open for review.
-      acknowledged_at: severity === 'info' ? new Date().toISOString() : null,
+      acknowledged_at: severity === 'low' ? new Date().toISOString() : null,
     });
-  } catch {
-    /* best-effort audit; never block the primary action */
+    if (error) {
+      reportAuditFailure(
+        input.kind,
+        `${error.message}${error.code ? ` (${error.code})` : ''}`,
+      );
+    }
+  } catch (e) {
+    // Never block the primary action, but never fail silently either.
+    reportAuditFailure(input.kind, e instanceof Error ? e.message : String(e));
   }
+}
+
+/**
+ * Surface a dropped audit write. An audit trail that can fail invisibly is
+ * worse than no audit trail, because it is trusted. This stays on the error
+ * channel so it reaches the platform logs and alerting without touching the
+ * user-facing request.
+ */
+function reportAuditFailure(kind: SecurityEventKind, reason: string): void {
+  console.error(
+    `[security-audit] failed to record security event "${kind}": ${reason}`,
+  );
 }

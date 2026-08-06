@@ -79,8 +79,9 @@ export async function POST(req: NextRequest) {
   const meta = requestMeta(req);
   await logSecurityEvent({
     kind: 'account_deleted',
-    // 'info' = audit record, auto-acknowledged so routine deletions don't
-    // flood the security-pulse triage queue (which counts unacknowledged).
+    // Default severity 'low' = audit record, auto-acknowledged so routine
+    // deletions don't flood the security-pulse triage queue (which counts
+    // unacknowledged).
     userId: null,
     ip: meta.ip,
     userAgent: meta.userAgent,
