@@ -2,6 +2,7 @@ import 'server-only';
 
 import { createServerSupabase, getCurrentUser } from './supabase/server';
 import type { FirmRole } from './firm-types';
+import type { FirmAccessState } from './firm-access';
 
 /**
  * The single place that answers "may this caller act on this firm?".
@@ -79,4 +80,61 @@ export async function callerHasFirmRole(
 ): Promise<boolean> {
   const role = await callerFirmRole(firmId);
   return role !== null && roles.includes(role);
+}
+
+/** What a caller is told when their organization's access has ended. */
+export const ACCESS_ENDED_ERROR = 'This organization’s access has ended.';
+
+/**
+ * Refuses when the organization's access has ended.
+ *
+ * THIS IS THE GATE. The layout redirect is a courtesy to a browser: every
+ * `'use server'` export is a public HTTP endpoint and is callable directly,
+ * with arguments of the caller's choosing, regardless of what the UI shows.
+ * This codebase has shipped that exact defect twice, on the intake form path
+ * and on document release, and both needed a fix round.
+ *
+ * Three things about this function are load-bearing, and each of them is a
+ * two-line edit away from being lost.
+ *
+ * 1. There is NO try around firmTrialState, and there must never be one. That
+ *    call throws when access cannot be determined: a read failure, a missing
+ *    organization, a stored timestamp that will not parse. "Could not
+ *    determine access" is not "this caller may proceed", and a catch that
+ *    yields a state converts the whole fail-closed design into a fail-open
+ *    one. The shape someone will copy already exists in this repo at
+ *    lib/firm-cache.ts, which is `catch { return null }`. That function is
+ *    tenant branding, not access. Let the throw travel: in a server action it
+ *    surfaces as a failed call, in a server component it renders the error
+ *    boundary, and both are refusals, which is the correct direction.
+ *
+ * 2. The state is never cached, here or by any caller. Caching the firm ROW is
+ *    fine, because a row does not change as time passes. A cached STATE
+ *    outlives the trial end, which is exactly the staleness that having no
+ *    scheduled job removes. firmTrialState reads a fresh clock on every call,
+ *    so call it at every enforcement point.
+ *
+ * 3. It switches on the union rather than testing for one member, so a third
+ *    access state added later is a compile error here instead of a silent
+ *    default-allow.
+ *
+ * The import is dynamic so that lib/firm-trials.ts, and with it the
+ * service-role client, stays out of the module graph of the many callers that
+ * import this file only for a role check.
+ */
+export async function requireActiveFirm(firmId: string): Promise<void> {
+  const { firmTrialState } = await import('./firm-trials');
+  const state: FirmAccessState = await firmTrialState(firmId);
+  switch (state) {
+    case 'active':
+      return;
+    case 'export_only':
+      throw new Error(ACCESS_ENDED_ERROR);
+    default: {
+      const unhandled: never = state;
+      throw new Error(
+        `firm-authz has no rule for the access state ${String(unhandled)}.`,
+      );
+    }
+  }
 }

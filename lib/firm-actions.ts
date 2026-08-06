@@ -10,6 +10,7 @@ import {
   callerHasFirmRole,
   callerIsFirmAdmin,
   callerIsFirmMember,
+  requireActiveFirm,
   FIRM_MANAGE_ROLES,
 } from './firm-authz';
 import {
@@ -18,6 +19,7 @@ import {
   buildSigningRequestEmailHtml,
   buildSigningCodeEmailHtml,
 } from './email';
+import { seatCheck } from './firm-access';
 import type { FirmRole, FirmSigningStatus, FirmType } from './firm-types';
 import { FIRM_ROLES, FIRM_TYPES } from './firm-types';
 import { CASE_TYPES, type CaseType, type Posture } from './types';
@@ -565,6 +567,12 @@ export async function inviteFirmMemberAction(
   if (!(await callerIsFirmAdmin(firmId))) {
     return { ok: false, error: 'Only firm owners and admins can invite members.' };
   }
+  // The gate, not the redirect. This export is a public HTTP endpoint and
+  // stays callable after the shell has sent this person to the access-ended
+  // page. There is deliberately no try around it: firmTrialState throws when
+  // access cannot be determined, and that is a refusal, not a reason to
+  // continue.
+  await requireActiveFirm(firmId);
   const supabase = createServerSupabase();
   const token = newToken(32);
   const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
@@ -630,6 +638,49 @@ export async function acceptFirmInvitationAction(
       error: `This invitation was sent to ${invRow.email}. Sign in with that email.`,
     };
   }
+  // Nobody joins an organization whose access has ended, and the invitee is
+  // not a member yet, so this is the only check that can say so.
+  await requireActiveFirm(invRow.firm_id);
+
+  // Seat cap. This is the point where a seat is actually CONSUMED, so it is
+  // the point that has to refuse: an invitation is only an offer, and the
+  // number of outstanding offers is not the number of people in the firm.
+  //
+  // Existing members are grandfathered. seatCheck is never used to remove
+  // anybody, so an organization whose limit was lowered below its headcount
+  // keeps everyone it has and simply cannot add the next person. A member
+  // re-accepting an invitation they already used consumes no seat either,
+  // which is why the caller is excluded from the count rather than refused at
+  // a full limit they are already inside.
+  const { data: seatRows, error: seatErr } = await admin
+    .from('firm_members')
+    .select('user_id')
+    .eq('firm_id', invRow.firm_id);
+  const { data: seatFirm, error: seatFirmErr } = await admin
+    .from('firms')
+    .select('seat_limit')
+    .eq('id', invRow.firm_id)
+    .maybeSingle();
+  if (seatErr || seatFirmErr) {
+    console.error(
+      'acceptFirmInvitationAction: could not read the seat count',
+      seatErr?.message ?? seatFirmErr?.message,
+    );
+    return { ok: false, error: 'Unavailable. Please try again.' };
+  }
+  const members = (seatRows ?? []) as Array<{ user_id: string }>;
+  const alreadyAMember = members.some((m) => m.user_id === user.id);
+  const seatLimit = (seatFirm as { seat_limit: number | null } | null)?.seat_limit ?? null;
+  if (!alreadyAMember) {
+    const seats = seatCheck({ seatLimit, currentMembers: members.length });
+    if (!seats.ok) {
+      return {
+        ok: false,
+        error: `This organization has reached its limit of ${seatLimit} members. An owner or an administrator can raise it.`,
+      };
+    }
+  }
+
   // Insert membership (idempotent via UNIQUE constraint - if they
   // were already added we still mark the invite accepted).
   await admin
@@ -1839,6 +1890,7 @@ export async function inviteFirmClientAction(
       error: 'Only an owner, admin, or attorney at this firm can invite clients.',
     };
   }
+  await requireActiveFirm(firmId);
   const email = String(formData.get('email') ?? '').trim().toLowerCase();
   const displayName = String(formData.get('displayName') ?? '').trim() || null;
   if (!email || !email.includes('@')) return { ok: false, error: 'Enter a valid email.' };
@@ -1939,6 +1991,7 @@ export async function uploadFirmDocumentAction(
   if (!['owner', 'admin', 'attorney', 'paralegal'].includes(role)) {
     return { ok: false, error: 'Your role cannot upload documents.' };
   }
+  await requireActiveFirm(firmId);
   const id = crypto.randomUUID();
   const safeName = file.name.replace(/[^a-zA-Z0-9.\-_ ]/g, '').slice(0, 100);
   const filePath = `${firmId}/${id}/${safeName}`;
@@ -2102,6 +2155,7 @@ export async function createSigningRequestAction(
       };
     }
   }
+  await requireActiveFirm(firmId);
 
   // Compute SHA-256 of the document at the moment the request is
   // created so the audit trail can prove the bytes the signers
@@ -3756,6 +3810,7 @@ export async function createFirmCaseAction(
   if (!(await callerIsFirmMember(firmId))) {
     return { ok: false, error: 'You do not have access to this firm.' };
   }
+  await requireActiveFirm(firmId);
   const admin = createAdminSupabase();
   if (!admin) return { ok: false, error: 'Server not configured.' };
 

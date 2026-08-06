@@ -115,6 +115,67 @@ export function firmAccessState(
   return at >= toInstant(firm.trialEndsAt) ? 'export_only' : 'active';
 }
 
+/** Where an organization whose access has ended is sent, and can always land. */
+export const ACCESS_ENDED_PATH = '/counsel/access-ended';
+
+/**
+ * The paths that are NEVER redirected, whatever the access state.
+ *
+ * This list is load-bearing, and getting it wrong is worse than a lockout. If
+ * the access-ended page redirected to itself the browser would loop forever,
+ * and an organization that can never land is an organization that can never
+ * reach the data this whole design exists to preserve.
+ *
+ * The export endpoint and sign-out are here for the same reason even though
+ * neither is routed through the counsel layout today. This list is the single
+ * statement of the rule, and a future caller reaching for it from middleware
+ * should not have to rediscover which paths must stay open.
+ */
+const ALWAYS_ALLOWED: readonly string[] = [
+  ACCESS_ENDED_PATH,
+  '/api/firm/export',
+  '/auth/sign-out',
+];
+
+/** Static assets, which are served before any of this and never gated. */
+const ALWAYS_ALLOWED_PREFIXES: readonly string[] = ['/_next/'];
+
+/**
+ * Where a request must be sent given the organization's access state, or null
+ * to let it through.
+ *
+ * Pure, so the allowlist is unit tested rather than reasoned about. The layout
+ * that calls this holds the I/O; this holds the rule.
+ *
+ * The switch is deliberate and must not be reduced to an equality test. A
+ * third access state added later has to be a compile error here rather than a
+ * silent default-allow, which is what `if (state === 'export_only')` would
+ * quietly become.
+ */
+export function counselAccessRedirect(
+  pathname: string,
+  state: FirmAccessState,
+): string | null {
+  switch (state) {
+    case 'active':
+      return null;
+    case 'export_only': {
+      if (ALWAYS_ALLOWED.includes(pathname)) return null;
+      if (ALWAYS_ALLOWED_PREFIXES.some((p) => pathname.startsWith(p))) return null;
+      return ACCESS_ENDED_PATH;
+    }
+    default: {
+      // Unreachable while FirmAccessState has two members, and a compile error
+      // the moment it gains a third. Throwing rather than falling through
+      // keeps the runtime behaviour fail-closed too.
+      const unhandled: never = state;
+      throw new Error(
+        `firm-access has no redirect rule for the access state ${String(unhandled)}.`,
+      );
+    }
+  }
+}
+
 /**
  * Checked when an organization ADDS a member. Never used to remove one:
  * lowering a limit does not eject anyone already in place, because ejecting

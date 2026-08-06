@@ -4,6 +4,8 @@ import { headers } from 'next/headers';
 import { getCurrentUserResult, isSupabaseConfigured } from '@/lib/supabase/server';
 import { SessionReconnect } from '@/components/auth/SessionReconnect';
 import { getActiveFirmContext, listMyFirms } from '@/lib/firm-storage';
+import { counselAccessRedirect } from '@/lib/firm-access';
+import { firmTrialState } from '@/lib/firm-trials';
 import { getFirmSurfaceSettings, DEFAULT_FIRM_SURFACE_SETTINGS } from '@/lib/firm-settings';
 import { CounselSidebar } from '@/components/counsel/CounselSidebar';
 import { SidebarCollapseProvider, CounselSidebarShell } from '@/components/counsel/SidebarFocus';
@@ -45,16 +47,25 @@ export default async function CounselLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Short-circuit public + token-gated routes. These pages render
-  // their own full-bleed shells (the public request form and the
-  // grant-redemption welcome screen) and must not inherit the
-  // firm-membership-gated chrome. The pages still get the dark
-  // counsel-shell because they wrap their own content in it.
+  // Short-circuit the routes that render their own full-bleed shells (the
+  // public request form, the grant-redemption welcome screen, and the
+  // access-ended page) and must not inherit the firm-membership-gated chrome.
+  // The pages still get the dark counsel-shell because they wrap their own
+  // content in it, and each resolves its own signed-in user.
+  //
+  // /counsel/access-ended is here for a second reason, and it is load-bearing:
+  // sitting outside every gate below is what makes it impossible for the page
+  // to redirect to itself. An infinite redirect would be worse than a lockout,
+  // because it would put the organization's own data out of reach. It also
+  // lets a Hub employee sent here by app/portal/layout.tsx actually land,
+  // rather than being bounced on by the firm-membership gate.
   const headersList = headers();
   const pathname = headersList.get('x-pathname') ?? '';
-  const isPublicCounselRoute =
-    pathname === '/counsel/request' || pathname === '/counsel/welcome';
-  if (isPublicCounselRoute) return <>{children}</>;
+  const isSelfShelledCounselRoute =
+    pathname === '/counsel/request' ||
+    pathname === '/counsel/welcome' ||
+    pathname === '/counsel/access-ended';
+  if (isSelfShelledCounselRoute) return <>{children}</>;
 
   // Phase 2 white-label: middleware injects tenant headers when the
   // request comes from <slug>.advottic.com. When present, this layout
@@ -208,6 +219,31 @@ export default async function CounselLayout({
       // Default to first membership if active_firm_id is unset.
       active = myFirms[0] ?? null;
     }
+  }
+
+  // Access gate, layer one of two, and the weaker one. This is a COURTESY to
+  // a browser: it puts a person who can no longer use the product on a page
+  // that explains why and hands them their data. It is NOT the gate. The gate
+  // is requireActiveFirm inside the write paths, because every 'use server'
+  // export is a public HTTP endpoint that stays callable no matter what this
+  // layout renders.
+  //
+  // firmTrialState reads a fresh clock every call, so nothing here may be
+  // cached or hoisted: a cached state outlives the trial end, which is exactly
+  // the staleness that having no scheduled job removes.
+  //
+  // It can also THROW, on a read failure or a stored timestamp that will not
+  // parse, and that throw must travel. A catch that yields an access state
+  // would turn this whole fail-closed design into a fail-open one in two
+  // lines. "Could not determine access" is not "this caller may proceed". A
+  // request with no firm at all is the other thing, and only that one
+  // proceeds, which is why this sits under `if (active)`.
+  if (active) {
+    const destination = counselAccessRedirect(
+      pathname,
+      await firmTrialState(active.firm.id),
+    );
+    if (destination) redirect(destination);
   }
 
   // User's chosen UI language (#14). LocaleProvider below translates

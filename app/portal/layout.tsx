@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation';
 import { getCurrentUserResult, isSupabaseConfigured } from '@/lib/supabase/server';
 import { SessionReconnect } from '@/components/auth/SessionReconnect';
 import { getWorkspacePersonaResult } from '@/lib/persona';
+import { ACCESS_ENDED_PATH } from '@/lib/firm-access';
+import { firmTrialState } from '@/lib/firm-trials';
 import { exitPortalPreviewAction } from '@/lib/firm-actions';
 import { HubNavLink, type HubNavItem } from '@/components/portal/HubNavLink';
 import { LocaleProvider, T } from '@/components/i18n/LocaleProvider';
@@ -100,6 +102,31 @@ export default async function PortalLayout({
 
   if (persona.kind !== 'employee') redirect('/portal');
   const { firm, employee } = persona;
+
+  // The same courtesy redirect the counsel shell does, and the same rules: a
+  // fresh state on every request, never cached, and never wrapped in a catch
+  // that yields one. The Hub has no path of its own that must stay reachable,
+  // so unlike the counsel side there is no allowlist to consult: the
+  // destination is outside /portal entirely and app/counsel/layout.tsx
+  // short-circuits it before any firm-membership gate, so a Hub employee lands
+  // there rather than being bounced onward.
+  //
+  // The switch is on the union rather than an equality test, so a third access
+  // state added later is a compile error here and not a silent default-allow.
+  const access = await firmTrialState(firm.id);
+  switch (access) {
+    case 'active':
+      break;
+    case 'export_only':
+      redirect(ACCESS_ENDED_PATH);
+      break;
+    default: {
+      const unhandled: never = access;
+      throw new Error(
+        `portal layout has no rule for the access state ${String(unhandled)}.`,
+      );
+    }
+  }
   // External-vendor preview: an outside collaborator, not in-house
   // staff. Relabel the workspace and drop internal-only surfaces
   // (company trainings) so the owner sees what a vendor really sees.
