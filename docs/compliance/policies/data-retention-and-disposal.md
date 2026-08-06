@@ -12,6 +12,7 @@ Retain personal data and PHI only as long as needed for the service or as requir
 | **Audit logs** (`audit_events`, `firm_signature_events`, `admin_impersonations`) | **6 years** | **HIPAA §164.316(b)(2)**: overrides erasure for these records |
 | Security event logs | 1 year (target) | Security monitoring |
 | Billing records (Stripe) | As required by tax/finance law (typically 7 years) | Legal obligation |
+| Organization data after a trial lapses or access is suspended | Retained until the organization asks for removal; nothing runs on a timer | Litigation hold + legal retention; see [Trial Lapse Retention Posture](trial-lapse-retention.md) |
 | Backups | Per Supabase PITR window; then rotated | Continuity |
 | Transactional messages (Twilio/Resend) | Per subprocessor default; minimize | Operational |
 
