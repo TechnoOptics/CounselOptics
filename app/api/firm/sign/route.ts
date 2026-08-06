@@ -254,16 +254,22 @@ export async function POST(req: NextRequest) {
     //
     // The RETURNED failure is recorded too. Most of the ways this
     // render can fail (source PDF missing from storage, unparseable
-    // PDF, upload rejected, no signature stamped) return { ok: false }
-    // rather than throwing, so the catch below never saw them: the
-    // request flipped to completed, everyone was told the document was
-    // fully executed, and nothing anywhere said why signed_file_path
-    // was empty. The counsel surfaces now state the missing executed
-    // copy to the reader; this is the same fact for the audit trail.
+    // PDF, upload rejected) return { ok: false } rather than throwing,
+    // so the catch below never saw them: the request flipped to
+    // completed, everyone was told the document was fully executed,
+    // and nothing anywhere said why signed_file_path was empty. The
+    // counsel surfaces now state the missing executed copy to the
+    // reader; this is the same fact for the audit trail.
+    //
+    // Two of those failures append their own event, with metadata this
+    // one does not have. shouldLogRenderFailure is what keeps the
+    // chain from carrying two entries for one fact.
     try {
-      const { renderFinalSignedPdf } = await import('@/lib/signature-render');
+      const { renderFinalSignedPdf, shouldLogRenderFailure } = await import(
+        '@/lib/signature-render'
+      );
       const render = await renderFinalSignedPdf(admin, request.id);
-      if (!render.ok) {
+      if (shouldLogRenderFailure(render)) {
         await appendSignatureEvent(admin, {
           signingRequestId: request.id,
           eventType: 'final_pdf_render_failed',

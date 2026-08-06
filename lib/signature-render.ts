@@ -30,7 +30,33 @@ import { appendSignatureEvent } from './esign-audit';
 
 export type RenderResult =
   | { ok: true; signedPath: string; bytes: number; pages: number }
-  | { ok: false; error: string };
+  | {
+      ok: false;
+      error: string;
+      /**
+       * True when this failure already appended its own
+       * final_pdf_render_failed event, with the metadata that explains
+       * it. The caller uses it to avoid appending a second, thinner
+       * event for the same fact, see shouldLogRenderFailure below.
+       */
+      logged?: boolean;
+    };
+
+/**
+ * Does the caller still owe the audit chain an event for this result?
+ *
+ * Most of the ways this render fails return early with no event of
+ * their own, and the caller is the only thing that will record them.
+ * Two of them append a detailed event first, and a second generic one
+ * chained behind it says nothing new. The chain stays valid either
+ * way; the point is that an audit trail is worth having only if it can
+ * be read, and duplicate entries per fact are how that stops.
+ */
+export function shouldLogRenderFailure(
+  result: RenderResult,
+): result is Extract<RenderResult, { ok: false }> {
+  return !result.ok && !result.logged;
+}
 
 /**
  * Read the source PDF associated with a signing request.
@@ -237,6 +263,7 @@ export async function renderFinalSignedPdf(
     });
     return {
       ok: false,
+      logged: true,
       error: `No signature could be stamped onto the document (${skipped} skipped).`,
     };
   }
@@ -292,6 +319,7 @@ export async function renderFinalSignedPdf(
   if (pathErr) {
     return {
       ok: false,
+      logged: true,
       error: `Executed PDF uploaded to ${signedPath} but the path could not be recorded on the request: ${pathErr.message}`,
     };
   }

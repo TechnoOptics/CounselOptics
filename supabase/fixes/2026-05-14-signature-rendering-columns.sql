@@ -58,7 +58,7 @@ alter table public.firm_signing_requests
   add column if not exists signed_file_path text;
 
 comment on column public.firm_signing_requests.signed_file_path is
-  'Storage path under firm-documents to the executed PDF produced by lib/signature-render.ts once all signers have completed. Populated by appendSignatureEvent metadata + a direct write from the render step.';
+  'Storage path under firm-documents to the executed PDF produced by lib/signature-render.ts once all signers have completed. Written only by that render step, in a direct update on this row. The final_pdf_rendered audit event records the same path in its metadata, but it is a record of the render, not a writer of this column: nothing reads the audit trail back into it.';
 
 do $$
 declare
