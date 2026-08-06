@@ -3,6 +3,7 @@ import {
   mintHandoffToken,
   hashHandoffToken,
   handoffState,
+  handoffStateForCookie,
   type HandoffRow,
 } from '../lib/signing-handoff';
 
@@ -83,6 +84,21 @@ describe('handoffState', () => {
     expect(handoffState(r, at(16), 'sess-hash')).toBe('expired');
   });
 
+  it('expires exactly at expiresAt, not a moment later', () => {
+    expect(handoffState(row(), at(15), null)).toBe('expired');
+  });
+
+  it('expires exactly at the session deadline, not a moment later', () => {
+    const r = row({ consumedAt: at(1), sessionHash: 'sess-hash' });
+    expect(handoffState(r, at(11), 'sess-hash')).toBe('expired');
+  });
+
+  it('expires a bound device exactly at expiresAt, not a moment later', () => {
+    // Session deadline is at 24, so only the absolute clause can decide this.
+    const r = row({ consumedAt: at(14), sessionHash: 'sess-hash' });
+    expect(handoffState(r, at(15), 'sess-hash')).toBe('expired');
+  });
+
   it('refuses once the signature is already signed', () => {
     const r = row({ signatureSignedAt: at(2) });
     expect(handoffState(r, at(3), null)).toBe('already-signed');
@@ -91,5 +107,66 @@ describe('handoffState', () => {
   it('reports already-signed ahead of expiry, so the message is accurate', () => {
     const r = row({ signatureSignedAt: at(2) });
     expect(handoffState(r, at(99), null)).toBe('already-signed');
+  });
+});
+
+describe('handoffState with ISO string timestamps', () => {
+  // Supabase returns timestamptz as ISO strings, and types are erased at
+  // runtime. A raw row must not quietly disable the windows.
+  const iso = (mins: number) => at(mins).toISOString();
+
+  it('enforces the absolute window when expiresAt is a string', () => {
+    const r = row({ expiresAt: iso(15) });
+    expect(handoffState(r, at(16), null)).toBe('expired');
+  });
+
+  it('still reports claimable inside the window when expiresAt is a string', () => {
+    const r = row({ expiresAt: iso(15) });
+    expect(handoffState(r, at(1), null)).toBe('claimable');
+  });
+
+  it('binds a device when consumedAt is a string', () => {
+    const r = row({ consumedAt: iso(1), sessionHash: 'sess-hash' });
+    expect(handoffState(r, at(2), 'sess-hash')).toBe('bound');
+  });
+
+  it('enforces the session window when consumedAt is a string', () => {
+    const r = row({ consumedAt: iso(1), sessionHash: 'sess-hash' });
+    expect(handoffState(r, at(11.5), 'sess-hash')).toBe('expired');
+  });
+
+  it('accepts a string for now as well', () => {
+    expect(handoffState(row(), iso(16), null)).toBe('expired');
+  });
+
+  it('throws rather than failing open on an unparseable timestamp', () => {
+    // An Invalid Date compares false against everything, which would read as
+    // claimable forever. Refuse loudly instead.
+    expect(() => handoffState(row({ expiresAt: 'not-a-date' }), at(16), null)).toThrow(
+      /expiresAt/,
+    );
+    const consumed = row({ consumedAt: 'not-a-date', sessionHash: 'sess-hash' });
+    expect(() => handoffState(consumed, at(2), 'sess-hash')).toThrow(/consumedAt/);
+    expect(() => handoffState(row(), 'not-a-date', null)).toThrow(/now/);
+  });
+});
+
+describe('handoffStateForCookie', () => {
+  const raw = 'raw-cookie-value';
+  const bound = () =>
+    row({ consumedAt: at(1), sessionHash: hashHandoffToken(raw) });
+
+  it('hashes the raw cookie itself, so no route has to remember to', () => {
+    expect(handoffStateForCookie(bound(), at(2), raw)).toBe('bound');
+  });
+
+  it('does not accept a value the caller already hashed', () => {
+    expect(handoffStateForCookie(bound(), at(2), hashHandoffToken(raw))).toBe(
+      'consumed',
+    );
+  });
+
+  it('treats a missing cookie as a stranger', () => {
+    expect(handoffStateForCookie(bound(), at(2), null)).toBe('consumed');
   });
 });
