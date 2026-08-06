@@ -34,7 +34,33 @@ import {
 
 export type RenderResult =
   | { ok: true; signedPath: string; bytes: number; pages: number }
-  | { ok: false; error: string };
+  | {
+      ok: false;
+      error: string;
+      /**
+       * True when this failure already appended its own
+       * final_pdf_render_failed event, with the metadata that explains
+       * it. The caller uses it to avoid appending a second, thinner
+       * event for the same fact, see shouldLogRenderFailure below.
+       */
+      logged?: boolean;
+    };
+
+/**
+ * Does the caller still owe the audit chain an event for this result?
+ *
+ * Most of the ways this render fails return early with no event of
+ * their own, and the caller is the only thing that will record them.
+ * Two of them append a detailed event first, and a second generic one
+ * chained behind it says nothing new. The chain stays valid either
+ * way; the point is that an audit trail is worth having only if it can
+ * be read, and duplicate entries per fact are how that stops.
+ */
+export function shouldLogRenderFailure(
+  result: RenderResult,
+): result is Extract<RenderResult, { ok: false }> {
+  return !result.ok && !result.logged;
+}
 
 /**
  * Read the source PDF associated with a signing request.
@@ -274,6 +300,32 @@ export async function renderFinalSignedPdf(
     }
   }
 
+  // Nothing landed on the page. Uploading this and recording it as
+  // the executed copy would put a document with an empty signature
+  // line in front of counsel under the label "executed copy", which is
+  // a worse answer than no executed copy at all: the surfaces that
+  // read signed_file_path state plainly when it is absent, and cannot
+  // tell a stamped PDF from an unstamped one once it is present.
+  if (stamped === 0) {
+    await appendSignatureEvent(admin, {
+      signingRequestId: request.id,
+      eventType: 'final_pdf_render_failed',
+      documentSha256: request.document_sha256,
+      metadata: {
+        reason: 'no signature could be stamped onto the document',
+        stamped,
+        skipped,
+        skip_reasons: skipReasons.length > 0 ? skipReasons : null,
+        source_path: src.path,
+      },
+    });
+    return {
+      ok: false,
+      logged: true,
+      error: `No signature could be stamped onto the document (${skipped} skipped).`,
+    };
+  }
+
   const outBytes = await pdf.save({ useObjectStreams: false });
   const signedPath = `signed/${request.id}/final.pdf`;
   const { error: upErr } = await admin.storage
@@ -286,19 +338,21 @@ export async function renderFinalSignedPdf(
     return { ok: false, error: `Upload failed: ${upErr.message}` };
   }
 
-  // Persist the executed-doc path on the request row so the UI can
-  // link directly to the stamped artifact. The column is optional;
-  // a soft-update prevents a missing column from breaking the
-  // happy path (the rest of the system continues to function via
-  // audit-log lookup).
-  try {
-    await admin
-      .from('firm_signing_requests')
-      .update({ signed_file_path: signedPath })
-      .eq('id', request.id);
-  } catch {
-    /* column may not exist yet on older schemas */
-  }
+  // Persist the executed-doc path on the request row. This is the only
+  // pointer to the executed copy that any surface reads, so a write
+  // that fails here means the PDF exists in storage and nothing can
+  // find it.
+  //
+  // It used to be wrapped in try/catch against the column being absent
+  // on an older schema, but supabase-js does not throw on a query
+  // error, it resolves with one. The catch could never fire, so a
+  // missing column was swallowed AND the audit event below went on to
+  // assert a signed_file_path the row did not carry. The error is read
+  // now, and the audit trail records which of the two happened.
+  const { error: pathErr } = await admin
+    .from('firm_signing_requests')
+    .update({ signed_file_path: signedPath })
+    .eq('id', request.id);
 
   // Record every relocation BEFORE the render event so the chain reads
   // in causal order: each mark that had to be moved, then the render
@@ -321,10 +375,13 @@ export async function renderFinalSignedPdf(
   // outcome so a partial render is reconstructible.
   await appendSignatureEvent(admin, {
     signingRequestId: request.id,
-    eventType: 'final_pdf_rendered',
+    eventType: pathErr ? 'final_pdf_render_failed' : 'final_pdf_rendered',
     documentSha256: request.document_sha256,
     metadata: {
-      signed_file_path: signedPath,
+      // Only claimed when the row actually carries it.
+      signed_file_path: pathErr ? null : signedPath,
+      uploaded_path: signedPath,
+      path_write_error: pathErr?.message ?? null,
       stamped,
       skipped,
       relocated: relocations.length,
@@ -333,6 +390,14 @@ export async function renderFinalSignedPdf(
       output_bytes: outBytes.length,
     },
   });
+
+  if (pathErr) {
+    return {
+      ok: false,
+      logged: true,
+      error: `Executed PDF uploaded to ${signedPath} but the path could not be recorded on the request: ${pathErr.message}`,
+    };
+  }
 
   return {
     ok: true,

@@ -29,11 +29,11 @@ export default defineConfig({
       '@/': fileURLToPath(new URL('./', import.meta.url)),
     },
   },
-  // tsconfig.json sets jsx: 'preserve' for Next's own compiler, which esbuild
-  // cannot parse. Transform JSX with the automatic runtime here so a server
-  // component can be imported and its returned element tree inspected. Still
-  // no DOM and still no testing-library: a server component returns plain
-  // objects, which is all these tests read.
+  // tsconfig sets "jsx": "preserve" because Next does its own JSX
+  // transform. Vite reads that and leaves the JSX in place, so a test
+  // that imports a .tsx module fails to parse. Compiling it here lets
+  // a server component be CALLED as the plain function it is and its
+  // returned element tree asserted, with no DOM and no renderer.
   oxc: { jsx: { runtime: 'automatic' } },
   test: {
     environment: 'node',

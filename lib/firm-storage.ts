@@ -1,6 +1,11 @@
 import { createServerSupabase, getCurrentUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
 import { parseSignerDownloadPermission } from './signer-view';
+import { callerIsFirmMember } from './firm-authz';
+import {
+  isExecutedCopyPath,
+  pickDocumentArtifactRequest,
+} from './signing-artifact';
 import type {
   Firm,
   FirmChannel,
@@ -193,9 +198,17 @@ type FirmSigningRequestRow = {
   completed_at: string | null;
   created_at: string;
   document_sha256: string | null;
-  signed_file_path?: string | null;
   /** Optional: the column may not exist yet on older schemas. */
   signer_can_download?: boolean | null;
+  /**
+   * Optional on the row type on purpose. The column is additive (see
+   * supabase/fixes/2026-05-14-signature-rendering-columns.sql) and is
+   * absent on any deployment where that fix has not been applied, so
+   * every read of it goes through `select('*')` and tolerates the
+   * column simply not coming back. Naming it in a select list would
+   * turn a missing column into a failed query.
+   */
+  signed_file_path?: string | null;
 };
 
 function signingRequestFromRow(r: FirmSigningRequestRow): FirmSigningRequest {
@@ -751,6 +764,45 @@ export async function getFirmDocumentSignedUrl(
   return data.signedUrl;
 }
 
+/**
+ * A signed URL for the EXECUTED copy of one signing request.
+ *
+ * Separate from getFirmDocumentSignedUrl above because the two paths
+ * do not live in the same place. An uploaded firm document is written
+ * to `<firm-id>/<doc-id>/<name>` and the user-scoped client reads it
+ * under storage RLS. The executed copy is written by the render step
+ * to `signed/<request-id>/final.pdf`, which carries no firm id, so
+ * the firm-prefix policy the bucket is organised around cannot admit
+ * it. It is minted through the service-role client instead.
+ *
+ * Which means the two checks here ARE the authorization, and neither
+ * is a new one:
+ *   - firm membership, through the shared lib/firm-authz.ts helper
+ *     that every other firm surface uses. Any member may already open
+ *     the document this executed copy is derived from, so membership
+ *     is the same bar, not a lower one.
+ *   - path confinement to `signed/<request-id>/`, so a stored path
+ *     can only ever name this request's own copy.
+ */
+export async function getFirmExecutedCopySignedUrl(input: {
+  firmId: string;
+  requestId: string;
+  filePath: string | null | undefined;
+  expiresInSeconds?: number;
+}): Promise<string | null> {
+  const path = input.filePath?.trim();
+  if (!input.firmId || !path) return null;
+  if (!isExecutedCopyPath(input.requestId, path)) return null;
+  if (!(await callerIsFirmMember(input.firmId))) return null;
+  const admin = createAdminSupabase();
+  if (!admin) return null;
+  const { data, error } = await admin.storage
+    .from('firm-documents')
+    .createSignedUrl(path, input.expiresInSeconds ?? 60 * 10);
+  if (error || !data) return null;
+  return data.signedUrl;
+}
+
 export async function listFirmSigningRequests(firmId: string): Promise<FirmSigningRequest[]> {
   const supabase = createServerSupabase();
   const { data } = await supabase
@@ -812,6 +864,36 @@ export async function listFirmSigningRequestsWithSummary(
       totalSigners: e?.total ?? 0,
     };
   });
+}
+
+/**
+ * The signing request a document page should speak for, if any.
+ *
+ * The document page shows a document, not a request, so it has no
+ * request to read an executed copy off. This is that lookup. The
+ * ranking is pickDocumentArtifactRequest, kept in lib/signing-artifact
+ * with the rest of the decision and unit-tested there: a completed
+ * request first, so the executed copy wins, and failing that one still
+ * collecting signatures, so the page can say that some signers are out
+ * rather than claiming nothing has been signed onto the document.
+ *
+ * `select('*')` on purpose, see FirmSigningRequestRow.signed_file_path.
+ */
+export async function getDocumentArtifactSigningRequest(
+  documentId: string,
+): Promise<FirmSigningRequest | null> {
+  if (!documentId) return null;
+  const supabase = createServerSupabase();
+  const { data } = await supabase
+    .from('firm_signing_requests')
+    .select('*')
+    .eq('document_id', documentId)
+    .in('status', ['completed', 'partial'])
+    .order('created_at', { ascending: false })
+    .limit(25);
+  if (!data) return null;
+  const rows = (data as FirmSigningRequestRow[]).map(signingRequestFromRow);
+  return pickDocumentArtifactRequest(rows);
 }
 
 export async function getFirmSigningRequestWithSignatures(

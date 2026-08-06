@@ -377,8 +377,16 @@ export type FirmSigningRequest = {
    */
   signerCanDownload: boolean;
   /**
-   * Storage path of the executed PDF once every signer has finished
-   * and lib/signature-render.ts has stamped it. Null until then.
+   * Storage path to the EXECUTED copy: the PDF with each signature and
+   * its date stamped onto the signature line, produced by
+   * lib/signature-render.ts once the last signer is in.
+   *
+   * Null on any request that is not completed, and on a completed one
+   * whose render failed or which predates the render pipeline. A
+   * counsel surface reads it through selectSigningArtifact
+   * (lib/signing-artifact.ts) rather than trusting it on its own,
+   * because null on a completed request is a state that has to be
+   * stated, not quietly papered over with the original.
    */
   signedFilePath: string | null;
 };

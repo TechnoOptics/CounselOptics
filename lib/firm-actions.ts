@@ -35,6 +35,7 @@ import {
   removeCollaboratorAsFirm,
 } from './storage';
 import { logSecurityEvent } from './security-audit';
+import { checkRateLimit } from './rate-limit';
 import {
   SIGNER_DOWNLOAD_RESTRICTION_UNSAVED_ERROR,
   resolveDownloadColumnFallback,
@@ -2158,6 +2159,186 @@ export async function updateFirmDocumentAction(
 // Signing
 // =====================================================================
 
+/**
+ * One signer's outgoing mail that the provider did not accept.
+ *
+ * `kind` is 'link' for the branded sign link and 'code' for the separate
+ * one-time access code an external signer needs to open the document. A
+ * signer who is missing either one cannot complete the signature, so both
+ * have to reach the caller by name rather than being swallowed.
+ */
+export type SigningEmailFailure = {
+  email: string;
+  kind: 'link' | 'code';
+  error: string;
+  /** Who wrote `error`. See SigningErrorSource. */
+  source: SigningErrorSource;
+};
+
+/**
+ * Who wrote a sentence a signing action hands back.
+ *
+ * 'app' is our own copy, written here in English, which the counsel
+ * shell passes through t() so a firm working in another language reads
+ * it in theirs. 'provider' is text we did not write, from the mail
+ * provider or the store, which is shown verbatim inside
+ * `data-no-translate`: machine-translating a provider diagnostic
+ * destroys the one thing it is good for, which is being quoted back to
+ * the provider.
+ *
+ * Without this the UI cannot tell the two apart, so every sentence on
+ * this channel has to be treated as untranslatable, and our own copy
+ * renders in English on a non-English locale.
+ */
+export type SigningErrorSource = 'app' | 'provider';
+
+/**
+ * The bucket key for one recipient, with any plus tag folded away.
+ *
+ * `victim+1@example.com` and `victim+2@example.com` are two addresses
+ * and one inbox, and nothing on the create path validates an address,
+ * let alone limits how many spellings of one inbox a caller may name.
+ * Keyed literally, a budget on the address is walked around by typing a
+ * different number after the plus.
+ *
+ * This is only a throttle key. It is never used as a delivery address,
+ * so folding costs a firm that legitimately plus-tags per matter
+ * nothing worse than those tags sharing one allowance, which is the
+ * same allowance the untagged address would have had on its own.
+ */
+function recipientBucketKey(normalizedEmail: string): string {
+  const at = normalizedEmail.lastIndexOf('@');
+  if (at <= 0) return normalizedEmail;
+  const local = normalizedEmail.slice(0, at);
+  const plus = local.indexOf('+');
+  return plus > 0 ? `${local.slice(0, plus)}${normalizedEmail.slice(at)}` : normalizedEmail;
+}
+
+/**
+ * Is this address inside the budget of signing mail one inbox may get?
+ *
+ * The per-signature bucket in resendSigningEmailsAction answers "is this
+ * one signer being hammered". It cannot answer "is this INBOX being
+ * hammered", because every new signing request mints a new signature id
+ * and therefore a brand-new bucket: name the same address on request
+ * after request, up to eight signers at two messages each, and the
+ * per-signature limit is never approached. Creating a request is a
+ * paralegal-level action, so that path needs a cap of its own.
+ *
+ * What this buys, precisely: one inbox takes at most six signing
+ * messages from us in ten minutes, however many requests or signatures
+ * they are spread across, and whatever letter case, surrounding
+ * whitespace or plus tag the address was typed with.
+ *
+ * Those are the only spellings folded. A dotted Gmail local part
+ * (`v.ictim@`), a subaddress separator that is not a plus
+ * (`victim-tag@` on Fastmail), and a domain alias (`gmail.com` against
+ * `googlemail.com`) all reach the same inbox and each still gets a
+ * bucket of its own. Folding them is deliberately not attempted: the
+ * rules are per-provider, and guessing wrong merges two genuinely
+ * different people into one allowance, which is a worse failure than
+ * the one it would prevent.
+ *
+ * What it does NOT buy is the standing of the sending domain.
+ * createSigningRequestAction has no per-firm and no global outbound cap,
+ * so an abuser who keeps naming DISTINCT addresses is never throttled
+ * by anything here, and it is the volume across distinct addresses that
+ * a mailbox provider judges a domain on. A cap on that is a separate
+ * decision with its own blast radius (it can refuse legitimate bulk
+ * work) and is deliberately not made here.
+ *
+ * Deliberately NOT scoped to the firm. A per-firm bucket would multiply
+ * the allowance by the number of firms an abuser controls, and what is
+ * being spent, a person's patience with our mail, is not any one
+ * tenant's to spend. The cost is that two firms mailing the same
+ * address in the same ten minutes share the budget, which the window is
+ * wide enough to absorb for ordinary work (a send, a resend or two, a
+ * second document) and which fails as an honest error on a request that
+ * stays fully recoverable.
+ *
+ * Fails closed, like the other outbound-mail buckets: a caller who can
+ * induce store errors must not be handed an uncapped mailer.
+ */
+async function withinRecipientMailBudget(normalizedEmail: string): Promise<boolean> {
+  return checkRateLimit(`signing-recipient:${recipientBucketKey(normalizedEmail)}`, {
+    limit: 6,
+    windowSeconds: 600,
+    failClosed: true,
+  });
+}
+
+/**
+ * Move a signing request out of `draft`, and say so in the audit chain.
+ *
+ * Both the create path and the recovery path land here, on the same
+ * fact: the sign link was accepted for at least one signer. Until it
+ * runs the row reads "Draft, not yet sent" - the truth for a request
+ * whose every email was refused, and a lie for one a resend has since
+ * put in a signer's hands. The lie is not cosmetic: every view that
+ * filters on status in ('sent', 'partial'), including the assistant's
+ * answer to "what is outstanding" (lib/bella.ts), reports that nothing
+ * is out for signature on a request that genuinely is.
+ *
+ * `request_sent` is emitted here rather than beside `request_created`
+ * for the same reason. `request_created` fires for a row that may never
+ * be sent, so on its own the chain cannot tell an auditor "created,
+ * never sent" from "created and sent" even though the status column now
+ * can. Emitting it at the moment of promotion is what keeps the two
+ * agreeing.
+ *
+ * The promotion is conditional on the row still being a `draft`, for
+ * the same reason the code rotation is conditional on the hash it read.
+ * Both callers decide to promote from a status they read at the top of
+ * the action, and both are public endpoints: two resends for the same
+ * draft request, whether the same signer twice or two signers of one
+ * request, would otherwise both send a link, both promote, and leave
+ * two `request_sent` events in the evidence chain with the second
+ * `sent_at` overwriting the first. Matching on 'draft' means the loser
+ * of that race touches nothing. It costs no extra round trip, and it is
+ * safe on the create path, where the row was just inserted as a draft.
+ */
+async function markSigningRequestSent(
+  admin: NonNullable<ReturnType<typeof createAdminSupabase>>,
+  input: {
+    requestId: string;
+    documentId: string;
+    userId: string;
+    documentSha256?: string | null;
+    /** What the auditor needs to know about this particular send. */
+    metadata: Record<string, unknown>;
+  },
+): Promise<void> {
+  const nowIso = new Date().toISOString();
+  const { data: promoted } = await admin
+    .from('firm_signing_requests')
+    .update({ status: 'sent' as FirmSigningStatus, sent_at: nowIso })
+    .eq('id', input.requestId)
+    .eq('status', 'draft')
+    .select('id');
+  // Zero rows means somebody else promoted this request first. They
+  // already moved the document and appended the event, so there is
+  // nothing left to do and nothing to report: the mail this caller sent
+  // is still recorded, by reminder_sent on the resend path.
+  if (((promoted as Array<{ id: string }> | null) ?? []).length === 0) return;
+  // The document follows the request: it moves into the signer's hands
+  // only once something reached a signer. The operator can advance it to
+  // a signed_* state once execution happens, or back to 'pending' if a
+  // counterparty needs more time.
+  await admin
+    .from('firm_documents')
+    .update({ status: 'sent', status_updated_at: nowIso })
+    .eq('id', input.documentId)
+    .in('status', ['submitted', 'received', 'ready', 'pending', 'on_hold']);
+  const { appendSignatureEvent } = await import('./esign-audit');
+  await appendSignatureEvent(admin, {
+    signingRequestId: input.requestId,
+    eventType: 'request_sent',
+    userId: input.userId,
+    ...(input.documentSha256 ? { documentSha256: input.documentSha256 } : {}),
+    metadata: input.metadata,
+  }).catch(() => {});
+}
+
 export async function createSigningRequestAction(
   firmId: string,
   documentId: string,
@@ -2175,14 +2356,29 @@ export async function createSigningRequestAction(
   ok: boolean;
   error?: string;
   requestId?: string;
-  /** Non-fatal: the request went out, but something about it needs saying. */
-  warning?: string;
+  /** Who wrote `error`, when there is one. See SigningErrorSource. */
+  errorSource?: SigningErrorSource;
+  /**
+   * Non-empty when the request row was created but at least one email
+   * did not leave. The record and its tokens are valid and a resend is
+   * cheap, so we keep the request rather than discarding signed-URL
+   * work and audit events over a mail-provider problem - but the caller
+   * MUST NOT report a plain success when this is set. See
+   * resendSigningEmailsAction for the recovery path.
+   */
+  emailFailures?: SigningEmailFailure[];
 }> {
   const user = await requireUser();
-  if (signers.length === 0) return { ok: false, error: 'Add at least one signer.' };
+  if (signers.length === 0)
+    return { ok: false, error: 'Add at least one signer.', errorSource: 'app' };
   const supabase = createServerSupabase();
   const admin = createAdminSupabase();
-  if (!admin) return { ok: false, error: 'Server is missing SUPABASE_SERVICE_ROLE_KEY.' };
+  if (!admin)
+    return {
+      ok: false,
+      error: 'Server is missing SUPABASE_SERVICE_ROLE_KEY.',
+      errorSource: 'app',
+    };
 
   // AUTHZ (IDOR guard): everything below runs on the service-role admin
   // client (RLS-bypassing) - it downloads, hashes, appends to, and
@@ -2203,6 +2399,7 @@ export async function createSigningRequestAction(
       return {
         ok: false,
         error: 'You do not have permission to send this document for signature.',
+        errorSource: 'app',
       };
     }
   }
@@ -2231,7 +2428,7 @@ export async function createSigningRequestAction(
   // The document must belong to the firm the caller is authorized for -
   // otherwise the guard above (scoped to firmId) means nothing.
   if (!doc || (doc as { firm_id?: string }).firm_id !== firmId) {
-    return { ok: false, error: 'Document not found for this firm.' };
+    return { ok: false, error: 'Document not found for this firm.', errorSource: 'app' };
   }
   const docName = (doc as { name?: string } | null)?.name ?? 'Document';
   const docPath = (doc as { file_path?: string } | null)?.file_path ?? null;
@@ -2355,8 +2552,14 @@ export async function createSigningRequestAction(
     document_id: documentId,
     requested_by: user.id,
     message,
-    status: 'sent' as FirmSigningStatus,
-    sent_at: new Date().toISOString(),
+    // Created, not sent. The row opens as a draft with no sent_at and is
+    // promoted by markSigningRequestSent below, once the provider has
+    // actually accepted mail for at least one signer. Writing 'sent'
+    // here meant that if every send failed the firm still read
+    // "Awaiting signatures" on a request nobody had ever been told
+    // about, the same defect the audit chain was just fixed for, one
+    // layer down.
+    status: 'draft' as FirmSigningStatus,
     document_sha256: documentSha256,
   };
   let downloadPermissionPersisted = true;
@@ -2381,7 +2584,11 @@ export async function createSigningRequestAction(
       error: reqErr,
     });
     if (fallback === 'abort-restriction-unsaved') {
-      return { ok: false, error: SIGNER_DOWNLOAD_RESTRICTION_UNSAVED_ERROR };
+      return {
+        ok: false,
+        error: SIGNER_DOWNLOAD_RESTRICTION_UNSAVED_ERROR,
+        errorSource: 'app',
+      };
     }
     if (fallback === 'retry-without-column') {
       downloadPermissionPersisted = false;
@@ -2392,20 +2599,13 @@ export async function createSigningRequestAction(
         .single());
     }
   }
-  if (reqErr || !req) return { ok: false, error: reqErr?.message ?? 'Could not create request.' };
+  if (reqErr || !req) {
+    // The store's own wording when there is one, ours when there is not.
+    return reqErr?.message
+      ? { ok: false, error: reqErr.message, errorSource: 'provider' }
+      : { ok: false, error: 'Could not create request.', errorSource: 'app' };
+  }
   const requestId = (req as { id: string }).id;
-
-  // Move the document into 'sent' state since it's now in the signer's
-  // hands. The operator can advance to a signed_* state once execution
-  // happens, or back to 'pending' if a counterparty needs more time.
-  await admin
-    .from('firm_documents')
-    .update({
-      status: 'sent',
-      status_updated_at: new Date().toISOString(),
-    })
-    .eq('id', documentId)
-    .in('status', ['submitted', 'received', 'ready', 'pending', 'on_hold']);
 
   // Append the first event in the chain. request_created records who
   // initiated it + the document hash; later events chain off this one.
@@ -2471,6 +2671,18 @@ export async function createSigningRequestAction(
     'A team member';
   const baseUrl =
     process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://advottic.com';
+
+  // Every send that the provider did not accept, by signer. Collected
+  // rather than discarded: sendEmail returns ok:false for a missing
+  // RESEND_API_KEY, an unverified sending domain, a provider error and a
+  // timeout alike, and dropping that result made this action report
+  // success while nothing was ever delivered.
+  const emailFailures: SigningEmailFailure[] = [];
+  // Whether the sign link reached anyone. Counting failures is not the
+  // same question: an external signer contributes up to two failures, so
+  // a per-signer count would misread one bad address among several as a
+  // total wash.
+  let anySignerReached = false;
 
   for (const signer of placedSigners) {
     const normalizedEmail = signer.email.trim().toLowerCase();
@@ -2557,6 +2769,23 @@ export async function createSigningRequestAction(
 
     const url = `${baseUrl}/sign/${token}`;
 
+    // The per-recipient budget (see withinRecipientMailBudget). Checked
+    // after the signature row exists, so an address that is over it
+    // leaves a recoverable request rather than a missing signer: the
+    // token is live, the request stays a draft, and a resend once the
+    // window has passed delivers it. Nothing goes to this address until
+    // then, in-app notification included, since that producer emails too.
+    if (!(await withinRecipientMailBudget(normalizedEmail))) {
+      emailFailures.push({
+        email: normalizedEmail,
+        kind: 'link',
+        error:
+          'This address has already had several signing emails in the last few minutes. Use Resend on this signer shortly.',
+        source: 'app',
+      });
+      continue;
+    }
+
     if (signerUserId) {
       try {
         await createNotification({
@@ -2572,44 +2801,48 @@ export async function createSigningRequestAction(
     }
 
     // Email 1: the branded sign link.
-    await sendEmail({
+    const linkResult = await sendSigningLinkEmail({
       to: signer.email,
-      fromName: firmName,
-      subject: `${firmName}: signature requested for ${docName}`,
-      html: buildSigningRequestEmailHtml({
-        firmName,
-        logoUrl: firmLogo,
-        senderName,
-        documentName: docName,
-        message,
-        link: url,
-        codeSeparately: isExternal,
-      }),
-      text:
-        `${senderName} at ${firmName} requested your signature on "${docName}".\n\n` +
-        `Review and sign (the document stays inside Advottic):\n${url}\n\n` +
-        (isExternal
-          ? 'For your security, a one-time access code was sent to this address in a separate email. Enter it to open the document.\n'
-          : 'This link is single-use.\n'),
-    }).catch(() => {});
+      firmName,
+      firmLogo,
+      senderName,
+      docName,
+      message,
+      url,
+      isExternal,
+    });
+    if (linkResult.ok) {
+      anySignerReached = true;
+    } else {
+      emailFailures.push({
+        email: normalizedEmail,
+        kind: 'link',
+        error: linkResult.error,
+        source: 'provider',
+      });
+    }
 
     // Email 2 (external only): the one-time access code.
     if (isExternal && accessCode) {
-      await sendEmail({
+      const codeResult = await sendSigningCodeEmail({
         to: signer.email,
-        fromName: firmName,
-        subject: `${firmName}: your access code for ${docName}`,
-        html: buildSigningCodeEmailHtml({
-          firmName,
-          logoUrl: firmLogo,
-          documentName: docName,
-          code: accessCode,
-        }),
-        text:
-          `Your one-time access code for "${docName}" is: ${accessCode}\n\n` +
-          'Enter it on the sign page from your other email to open the document. Never share this code.',
-      }).catch(() => {});
-      if (signatureId) {
+        firmName,
+        firmLogo,
+        docName,
+        code: accessCode,
+      });
+      if (!codeResult.ok) {
+        emailFailures.push({
+          email: normalizedEmail,
+          kind: 'code',
+          error: codeResult.error,
+          source: 'provider',
+        });
+      }
+      // Only record "we sent the code" once the provider actually took
+      // it. The audit chain is evidence; it must not assert a delivery
+      // that never happened.
+      if (signatureId && codeResult.ok) {
         await appendSignatureEvent(admin, {
           signingRequestId: requestId,
           signatureId,
@@ -2619,8 +2852,437 @@ export async function createSigningRequestAction(
       }
     }
   }
+
+  // Promote the request out of draft only now, and only if at least one
+  // signer was actually reached. A request whose every email was refused
+  // stays a draft with no sent_at: the sign tokens are live, so a resend
+  // recovers it, but nothing in the product claims a delivery that never
+  // happened.
+  if (anySignerReached) {
+    await markSigningRequestSent(admin, {
+      requestId,
+      documentId,
+      userId: user.id,
+      documentSha256,
+      metadata: { sent_by: 'request', signer_count: placedSigners.length },
+    });
+  }
+
   revalidatePath('/counsel/signing');
-  return { ok: true, requestId };
+  revalidatePath(`/counsel/documents/${documentId}`);
+  return {
+    ok: true,
+    requestId,
+    ...(emailFailures.length > 0 ? { emailFailures } : {}),
+  };
+}
+
+/**
+ * The branded sign-link email. Shared by createSigningRequestAction and
+ * resendSigningEmailsAction so a resend is byte-for-byte the message the
+ * signer was originally promised.
+ */
+async function sendSigningLinkEmail(input: {
+  to: string;
+  firmName: string;
+  firmLogo: string | null;
+  senderName: string;
+  docName: string;
+  message: string | null;
+  url: string;
+  isExternal: boolean;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const res = await sendEmail({
+    to: input.to,
+    fromName: input.firmName,
+    subject: `${input.firmName}: signature requested for ${input.docName}`,
+    html: buildSigningRequestEmailHtml({
+      firmName: input.firmName,
+      logoUrl: input.firmLogo,
+      senderName: input.senderName,
+      documentName: input.docName,
+      message: input.message,
+      link: input.url,
+      codeSeparately: input.isExternal,
+    }),
+    text:
+      `${input.senderName} at ${input.firmName} requested your signature on "${input.docName}".\n\n` +
+      `Review and sign (the document stays inside Advottic):\n${input.url}\n\n` +
+      (input.isExternal
+        ? 'For your security, a one-time access code was sent to this address in a separate email. Enter it to open the document.\n'
+        : 'This link is single-use.\n'),
+  }).catch((err: unknown) => ({
+    ok: false as const,
+    error: err instanceof Error ? err.message : 'unknown email error',
+  }));
+  return res.ok ? { ok: true } : { ok: false, error: res.error };
+}
+
+/** The separate one-time access code email for an external signer. */
+async function sendSigningCodeEmail(input: {
+  to: string;
+  firmName: string;
+  firmLogo: string | null;
+  docName: string;
+  code: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const res = await sendEmail({
+    to: input.to,
+    fromName: input.firmName,
+    subject: `${input.firmName}: your access code for ${input.docName}`,
+    html: buildSigningCodeEmailHtml({
+      firmName: input.firmName,
+      logoUrl: input.firmLogo,
+      documentName: input.docName,
+      code: input.code,
+    }),
+    text:
+      `Your one-time access code for "${input.docName}" is: ${input.code}\n\n` +
+      'Enter it on the sign page from your other email to open the document. Never share this code.',
+  }).catch((err: unknown) => ({
+    ok: false as const,
+    error: err instanceof Error ? err.message : 'unknown email error',
+  }));
+  return res.ok ? { ok: true } : { ok: false, error: res.error };
+}
+
+/**
+ * Re-send the signing emails for one signer.
+ *
+ * The recovery path for a request whose mail did not leave the building.
+ * Nothing about the signature row changes except the access code: the
+ * plaintext of the original was never stored (only its hash), so an
+ * external signer gets a freshly minted code and the old one stops
+ * working. The sign token is untouched, so any link already in the
+ * signer's hands stays valid.
+ *
+ * Because it rotates the credential, this is a recovery action and not a
+ * nudge: an outside signer who had already entered their code is asked
+ * for the new one the next time they open the link. The button copy says
+ * so (app/counsel/signing/[id]/resend-button.tsx).
+ *
+ * If the request was still a draft (every original email refused) and
+ * the link now reaches the signer, this is also where it stops being a
+ * draft. See markSigningRequestSent.
+ */
+export async function resendSigningEmailsAction(
+  firmId: string,
+  signatureId: string,
+): Promise<{
+  ok: boolean;
+  error?: string;
+  /** Who wrote `error`, when there is one. See SigningErrorSource. */
+  errorSource?: SigningErrorSource;
+  emailFailures?: SigningEmailFailure[];
+}> {
+  const user = await requireUser();
+  const supabase = createServerSupabase();
+  const admin = createAdminSupabase();
+  if (!admin)
+    return {
+      ok: false,
+      error: 'Server is missing SUPABASE_SERVICE_ROLE_KEY.',
+      errorSource: 'app',
+    };
+
+  // Same IDOR guard as createSigningRequestAction: everything below runs
+  // on the RLS-bypassing admin client, so prove membership of firmId
+  // first and then prove the signature belongs to that same firm.
+  const { data: mem } = await supabase
+    .from('firm_members')
+    .select('role, display_name')
+    .eq('firm_id', firmId)
+    .eq('user_id', user.id)
+    .maybeSingle();
+  const role = (mem as { role?: string } | null)?.role;
+  if (!role || !['owner', 'admin', 'attorney', 'paralegal'].includes(role)) {
+    return {
+      ok: false,
+      error: 'You do not have permission to send this document for signature.',
+      errorSource: 'app',
+    };
+  }
+
+  const { data: sigRow } = await admin
+    .from('firm_signatures')
+    .select('id, signing_request_id, signer_email, signer_name, token, signed_at, access_code_hash')
+    .eq('id', signatureId)
+    .maybeSingle();
+  const sig = sigRow as {
+    id: string;
+    signing_request_id: string;
+    signer_email: string;
+    token: string;
+    signed_at: string | null;
+    access_code_hash: string | null;
+  } | null;
+  // Nothing about this signature may be disclosed before the caller has
+  // proven the firm owns it, so a signature id that does not exist and
+  // one that belongs to ANOTHER firm answer with the same sentence. A
+  // distinct "Signer not found." here would turn this endpoint into a
+  // cross-tenant probe: enumerate ids, and the wording alone tells you
+  // whether the row exists elsewhere. The already-signed check moves
+  // below the ownership check for the same reason.
+  const NOT_YOURS = {
+    ok: false as const,
+    error: 'Signing request not found for this firm.',
+    errorSource: 'app' as const,
+  };
+  if (!sig) return NOT_YOURS;
+
+  const { data: reqRow } = await admin
+    .from('firm_signing_requests')
+    .select('id, firm_id, document_id, message, status')
+    .eq('id', sig.signing_request_id)
+    .maybeSingle();
+  const req = reqRow as {
+    firm_id: string;
+    document_id: string;
+    message: string | null;
+    status: FirmSigningStatus;
+  } | null;
+  if (!req || req.firm_id !== firmId) return NOT_YOURS;
+
+  if (sig.signed_at)
+    return { ok: false, error: 'This signer has already signed.', errorSource: 'app' };
+
+  // The server has to enforce what the page implies. The detail page
+  // hides Resend for a request that was rejected or sent back for
+  // changes, but every 'use server' export is a public endpoint, so a
+  // direct call would otherwise re-mail the sign link for a request the
+  // signer has already declined. Reopen it first, then resend.
+  if (
+    req.status === 'canceled' ||
+    req.status === 'completed' ||
+    req.status === 'rejected' ||
+    req.status === 'changes_requested'
+  ) {
+    return {
+      ok: false,
+      error: 'This request is no longer open. Reopen it or send a new one.',
+      errorSource: 'app',
+    };
+  }
+
+  // Throttle, on the same helper the access-code check uses. Without it
+  // any paralegal-or-above could name an address on a request and then
+  // hold down Resend, putting one or two messages per click into that
+  // inbox from the firm's verified sending domain. Keyed per signature
+  // and placed AFTER the ownership check, so one firm cannot burn
+  // another's bucket. Fails closed: this is an outbound-mail abuse
+  // surface, and the copy tells the caller to wait rather than leaving
+  // them wondering.
+  const withinLimit = await checkRateLimit(`signing-resend:${sig.id}`, {
+    limit: 3,
+    windowSeconds: 600,
+    failClosed: true,
+  });
+  if (!withinLimit) {
+    return {
+      ok: false,
+      error: 'This signer was emailed a moment ago. Try again in a few minutes.',
+      errorSource: 'app',
+    };
+  }
+
+  // ...and the budget for the address itself, which the bucket above
+  // cannot speak for: a fresh request naming the same victim mints a new
+  // signature id and therefore a brand-new per-signature bucket. The two
+  // answer different questions, so both are asked.
+  if (!(await withinRecipientMailBudget(sig.signer_email.trim().toLowerCase()))) {
+    return {
+      ok: false,
+      error: 'This address has had several signing emails recently. Try again in a few minutes.',
+      errorSource: 'app',
+    };
+  }
+
+  const { data: docRow } = await admin
+    .from('firm_documents')
+    .select('name')
+    .eq('id', req.document_id)
+    .maybeSingle();
+  const docName = (docRow as { name?: string } | null)?.name ?? 'Document';
+
+  const { data: firmRow } = await admin
+    .from('firms')
+    .select('name, logo_url')
+    .eq('id', firmId)
+    .maybeSingle();
+  const firmName =
+    ((firmRow as { name?: string } | null)?.name ?? 'Advottic').trim() || 'Advottic';
+  const firmLogo =
+    (firmRow as { logo_url?: string | null } | null)?.logo_url ?? null;
+  const senderName =
+    ((mem as { display_name?: string | null } | null)?.display_name || '').trim() ||
+    (user.email ? user.email.split('@')[0] : '') ||
+    'A team member';
+  const baseUrl =
+    process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://advottic.com';
+
+  // access_code_hash non-null is what marks this signer as external.
+  const isExternal = sig.access_code_hash !== null;
+  const emailFailures: SigningEmailFailure[] = [];
+
+  const linkResult = await sendSigningLinkEmail({
+    to: sig.signer_email,
+    firmName,
+    firmLogo,
+    senderName,
+    docName,
+    message: req.message,
+    url: `${baseUrl}/sign/${sig.token}`,
+    isExternal,
+  });
+  if (!linkResult.ok) {
+    emailFailures.push({
+      email: sig.signer_email,
+      kind: 'link',
+      error: linkResult.error,
+      source: 'provider',
+    });
+  }
+  // Which of this signer's emails the provider actually took. Drives the
+  // reminder_sent event below, so the audit trail records a delivery
+  // rather than an intention.
+  const delivered: Array<'link' | 'code'> = linkResult.ok ? ['link'] : [];
+
+  if (isExternal) {
+    const { sha256 } = await import('./esign-audit');
+    const accessCode = newAccessCode();
+    const codeResult = await sendSigningCodeEmail({
+      to: sig.signer_email,
+      firmName,
+      firmLogo,
+      docName,
+      code: accessCode,
+    });
+    if (codeResult.ok) {
+      // Only rotate the stored hash once the new code is on its way. If
+      // the send failed, the signer keeps whatever code they may already
+      // have rather than being locked out by a code nobody received -
+      // and, just as important, the attempt counter below is NOT cleared
+      // for a code nobody received.
+      //
+      // access_attempts is the whole point of the reset. Eight wrong
+      // guesses lock the code and verifyAccessCodeAction tells the
+      // signer, in as many words, to ask the firm to resend. Nothing
+      // else in the tree ever clears that counter, so without this the
+      // instruction was guaranteed to fail: the fresh code arrives, the
+      // signer types it, and the lockout returns before the hash is ever
+      // compared. Resend is the recovery path, so it has to actually
+      // recover.
+      //
+      // access_code_verified_at goes with it. It is the "this token is
+      // already unlocked" latch, checked before the lockout and before
+      // the hash. Leaving it set would mean rotating the credential had
+      // no effect on an already-unlocked link. The new code is the sole
+      // gate, and the signer holds it.
+      //
+      // Conditional on the hash read at the top of this action. Two
+      // resends fired at once both pass the window and both mint a code;
+      // unconditional, the later UPDATE simply wins the row and the
+      // signer is left holding one live code and one dead one with no
+      // way to tell them apart, the newest not necessarily being the
+      // live one. This is a public endpoint, so "the button blocks while
+      // pending" is not a control. Matching the previous hash makes the
+      // loser of the race visible instead: zero rows affected means
+      // somebody else rotated first. One round trip, no serialization.
+      const { data: rotated, error: rotateErr } = await admin
+        .from('firm_signatures')
+        .update({
+          access_code_hash: sha256(accessCode),
+          access_attempts: 0,
+          access_code_verified_at: null,
+        })
+        .eq('id', sig.id)
+        .eq('access_code_hash', sig.access_code_hash)
+        .select('id');
+      const rotatedRows = (rotated as Array<{ id: string }> | null) ?? [];
+      if (rotateErr || rotatedRows.length === 0) {
+        // The code email has already gone out, so the caller has to hear
+        // that the code in it is not the one the gate will accept. And
+        // nothing is appended to the chain: it must not assert a
+        // rotation that did not land.
+        emailFailures.push({
+          email: sig.signer_email,
+          kind: 'code',
+          error: rotateErr
+            ? 'The new access code could not be saved, so the old one still applies. Try again.'
+            : 'Another resend for this signer landed first. Resend once more so only the newest code works.',
+          source: 'app',
+        });
+      } else {
+        delivered.push('code');
+        const { appendSignatureEvent } = await import('./esign-audit');
+        await appendSignatureEvent(admin, {
+          signingRequestId: sig.signing_request_id,
+          signatureId: sig.id,
+          eventType: 'access_code_sent',
+          userId: user.id,
+          signerEmail: sig.signer_email,
+        }).catch(() => {});
+      }
+    } else {
+      emailFailures.push({
+        email: sig.signer_email,
+        kind: 'code',
+        error: codeResult.error,
+        source: 'provider',
+      });
+    }
+  }
+
+  // "The firm re-sent this request on date X" is the one fact a firm
+  // needs when a signer says nothing ever arrived, and reminder_sent has
+  // been a declared event type with no emitter. One event per resend,
+  // internal or external, and only for mail the provider accepted - the
+  // chain is evidence, so it must not assert a delivery that failed.
+  if (delivered.length > 0) {
+    const { appendSignatureEvent } = await import('./esign-audit');
+    await appendSignatureEvent(admin, {
+      signingRequestId: sig.signing_request_id,
+      signatureId: sig.id,
+      eventType: 'reminder_sent',
+      userId: user.id,
+      signerEmail: sig.signer_email,
+      metadata: { channel: 'email', delivered },
+    }).catch(() => {});
+  }
+
+  // A resend that reached the signer is the moment the request stopped
+  // being a draft, so promote it on exactly the fact the create path
+  // uses. Without this the recovery path leaves the request reading
+  // "Draft, not yet sent" until somebody signs it, and every surface
+  // that filters on status answers that the firm has nothing out for
+  // signature while the signer is looking at the document.
+  //
+  // Whether the request is still a draft is markSigningRequestSent's
+  // own decision, taken in the UPDATE rather than from the status read
+  // at the top of this action. Asking here as well would cost one
+  // no-op write on the common case and buy nothing: two guards on one
+  // fact, either of which can rot without a test noticing, because
+  // each hides the other.
+  if (delivered.includes('link')) {
+    await markSigningRequestSent(admin, {
+      requestId: sig.signing_request_id,
+      documentId: req.document_id,
+      userId: user.id,
+      metadata: { sent_by: 'resend', signer_email: sig.signer_email },
+    });
+  }
+
+  revalidatePath(`/counsel/signing/${sig.signing_request_id}`);
+  return {
+    ok: emailFailures.length === 0,
+    ...(emailFailures.length > 0
+      ? {
+          emailFailures,
+          error: emailFailures[0].error,
+          errorSource: emailFailures[0].source,
+        }
+      : {}),
+  };
 }
 
 // =====================================================================

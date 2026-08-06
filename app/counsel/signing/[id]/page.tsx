@@ -5,14 +5,21 @@ import {
   getActiveFirmContext,
   getFirmDocument,
   getFirmDocumentSignedUrl,
+  getFirmExecutedCopySignedUrl,
   getFirmSigningRequestWithSignatures,
 } from '@/lib/firm-storage';
 import {
   FIRM_SIGNING_STATUS_COLOR,
   FIRM_SIGNING_STATUS_LABEL,
 } from '@/lib/firm-types';
+import {
+  resolveSigningArtifact,
+  selectSigningArtifact,
+} from '@/lib/signing-artifact';
 import { RecallButton } from './recall-button';
 import { ReopenButton } from './reopen-button';
+import { ResendButton } from './resend-button';
+import { DocumentArtifactCard } from '@/components/counsel/DocumentArtifactCard';
 import { PageHeader } from '@/components/counsel/ui';
 import { StatusPill } from '@/components/counsel/StatusPill';
 import { T } from '@/components/i18n/LocaleProvider';
@@ -32,7 +39,35 @@ export default async function SigningRequestDetail({
   const data = await getFirmSigningRequestWithSignatures(params.id);
   if (!data || data.request.firmId !== ctx.firm.id) notFound();
   const doc = await getFirmDocument(data.request.documentId);
-  const signedUrl = doc ? await getFirmDocumentSignedUrl(doc.filePath) : null;
+
+  // Which of the two documents this request means, and why. Until this
+  // existed the page always previewed doc.filePath, so a completed
+  // signing showed the original with nothing on the signature line
+  // while the executed copy sat unread in storage.
+  const choice = selectSigningArtifact({
+    status: data.request.status,
+    signedFilePath: data.request.signedFilePath,
+    originalFilePath: doc?.filePath ?? null,
+  });
+  // The original is minted alongside the executed copy so the two can
+  // be compared; resolveSigningArtifact drops it when the original is
+  // itself what is on screen.
+  const [executedUrl, originalUrl] = await Promise.all([
+    choice?.kind === 'executed'
+      ? getFirmExecutedCopySignedUrl({
+          firmId: data.request.firmId,
+          requestId: data.request.id,
+          filePath: choice.path,
+        })
+      : Promise.resolve(null),
+    doc ? getFirmDocumentSignedUrl(doc.filePath) : Promise.resolve(null),
+  ]);
+  const artifact = resolveSigningArtifact(choice, { executedUrl, originalUrl });
+  // Same roles that may send a document for signature may re-send it.
+  // The action re-checks this server-side; this only hides the control.
+  const canResend = ['owner', 'admin', 'attorney', 'paralegal'].includes(
+    ctx.membership.role,
+  );
 
   return (
     <div className="space-y-6 animate-fade-up">
@@ -171,13 +206,21 @@ export default async function SigningRequestDetail({
                   data.request.status !== 'canceled' &&
                   data.request.status !== 'rejected' &&
                   data.request.status !== 'changes_requested' && (
-                    <p className="mt-0.5">
+                    <p className="mt-0.5 flex items-start justify-end gap-3">
                       <ExternalLink
                         href={`${SITE_URL}/sign/${sig.token}`}
                         className="text-[11px] underline text-forest-900 dark:text-cream-100"
                       >
                         <T>Open sign link</T>
                       </ExternalLink>
+                      {canResend && (
+                        <ResendButton
+                          firmId={data.request.firmId}
+                          signatureId={sig.id}
+                          rotatesCode={sig.accessCodeRequired}
+                          alreadyUnlocked={!!sig.accessVerifiedAt}
+                        />
+                      )}
                     </p>
                   )}
                 {sig.responseNote && (
@@ -191,15 +234,12 @@ export default async function SigningRequestDetail({
         </ul>
       </section>
 
-      {signedUrl && (
-        <section className="card overflow-hidden">
-          <p className="eyebrow px-5 pt-4 pb-2"><T>Document preview</T></p>
-          <iframe
-            src={signedUrl}
-            title={doc?.name ?? 'Document'}
-            className="w-full h-[60vh] border-0 bg-ink-50 dark:bg-forest-950"
-          />
-        </section>
+      {artifact && (
+        <DocumentArtifactCard
+          artifact={artifact}
+          documentName={doc?.name ?? 'Document'}
+          frameClassName="w-full h-[60vh] border-0 bg-ink-50 dark:bg-forest-950"
+        />
       )}
     </div>
   );

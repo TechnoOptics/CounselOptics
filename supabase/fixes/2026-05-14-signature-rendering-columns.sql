@@ -19,8 +19,31 @@
 --      Storage path to the executed PDF produced by the final-
 --      render step after all signers have completed. Set once
 --      lib/signature-render.ts uploads `signed/<request-id>/
---      final.pdf`. The /counsel/signing UI links to this path for
---      "Download executed copy".
+--      final.pdf`.
+--
+--      This header used to claim the /counsel/signing UI linked to
+--      this path for "Download executed copy". It did not. Nothing
+--      read the column at all for months: the executed PDF was
+--      rendered, uploaded, and unreachable, and every counsel
+--      surface previewed the original, so a completed signing showed
+--      a document with an empty signature line.
+--
+--      Its readers, as of the change that closed that:
+--        lib/firm-storage.ts        maps it onto FirmSigningRequest
+--                                   and mints a signed URL for it
+--        lib/signing-artifact.ts    decides when it is the artifact
+--                                   to show, and what to say when a
+--                                   completed request lacks one
+--        app/counsel/signing/[id]   preview + "Download executed copy"
+--        app/counsel/documents/[id] same, via the document's most
+--                                   recently completed request
+--
+--      Note this file lives under supabase/fixes/, not
+--      supabase/migrations/, so whether either column exists on a
+--      given deployment is a question about what was applied by
+--      hand. Every read of signed_file_path therefore goes through
+--      `select('*')` and treats the column not coming back as "no
+--      executed copy", which the UI states rather than hides.
 --
 -- Both columns are nullable + additive: older code paths that
 -- don't know about them keep working unchanged.
@@ -35,7 +58,7 @@ alter table public.firm_signing_requests
   add column if not exists signed_file_path text;
 
 comment on column public.firm_signing_requests.signed_file_path is
-  'Storage path under firm-documents to the executed PDF produced by lib/signature-render.ts once all signers have completed. Populated by appendSignatureEvent metadata + a direct write from the render step.';
+  'Storage path under firm-documents to the executed PDF produced by lib/signature-render.ts once all signers have completed. Written only by that render step, in a direct update on this row. The final_pdf_rendered audit event records the same path in its metadata, but it is a record of the render, not a writer of this column: nothing reads the audit trail back into it.';
 
 do $$
 declare
