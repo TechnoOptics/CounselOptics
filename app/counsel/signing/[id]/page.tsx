@@ -180,6 +180,8 @@ export default async function SigningRequestDetail({
                         <ResendButton
                           firmId={data.request.firmId}
                           signatureId={sig.id}
+                          rotatesCode={sig.accessCodeRequired}
+                          alreadyUnlocked={!!sig.accessVerifiedAt}
                         />
                       )}
                     </p>

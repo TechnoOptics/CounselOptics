@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { stableFrameSrc } from '@/lib/refresh-guards';
+import { createFrameSrcRetainer, type FrameSrcRetainer } from '@/lib/refresh-guards';
 
 /**
  * An embedded document preview whose `src` does not change underneath
@@ -16,8 +16,9 @@ import { stableFrameSrc } from '@/lib/refresh-guards';
  * successful send did it too.
  *
  * So the first working URL is held for the life of the mount and later
- * ones are ignored. The decision itself is stableFrameSrc, kept pure and
- * unit-tested; this component is the two lines of React around it.
+ * ones are ignored. The retention itself is createFrameSrcRetainer, kept
+ * pure and unit-tested; this component is the two lines of React around
+ * it.
  */
 export function DocumentFrame({
   src,
@@ -28,8 +29,10 @@ export function DocumentFrame({
   title: string;
   className?: string;
 }) {
-  const [held] = useState(src);
-  const frameSrc = stableFrameSrc(held, src);
+  // One retainer per mount, created lazily so it survives every
+  // re-render and is never shared with another frame.
+  const [retain] = useState<FrameSrcRetainer>(() => createFrameSrcRetainer());
+  const frameSrc = retain(src);
   if (!frameSrc) return null;
   return <iframe src={frameSrc} title={title} className={className} />;
 }

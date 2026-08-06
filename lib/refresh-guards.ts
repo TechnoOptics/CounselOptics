@@ -58,13 +58,48 @@ export function focusHeldByEmbed(tagName: string | null | undefined): boolean {
  * the one we keep. A later URL is adopted only when there is nothing to
  * disturb, i.e. the frame has not shown a document yet.
  *
- * The retained URL is a time-limited signature, but so was the one it
- * replaced: keeping the first is no shorter-lived than minting the
- * hundredth, and a full page load starts a new window either way.
+ * The trade, stated plainly: the retained URL is a time-limited
+ * signature (getFirmDocumentSignedUrl mints ten minutes, see
+ * lib/firm-storage.ts), and the behaviour this replaced renewed it on
+ * every focus event, so the URL sitting in the DOM was almost never
+ * close to expiry. Pinning one for the life of the mount is genuinely
+ * shorter-lived: anything that re-requests the resource more than ten
+ * minutes in (a discarded tab, a bfcache restore, a range request into
+ * a very large PDF) can be refused, and the recovery is a page reload.
+ * We take that over reloading the viewer under the reader on every
+ * refresh. Renewal on a timer is NOT the cheap middle ground it looks
+ * like: renewing means assigning `src`, which is the navigation this
+ * exists to prevent.
  */
 export function stableFrameSrc(
   retained: string | null | undefined,
   incoming: string | null | undefined,
 ): string | null {
   return retained || incoming || null;
+}
+
+/** What a mounted frame shows, one render at a time. */
+export type FrameSrcRetainer = (incoming: string | null | undefined) => string | null;
+
+/**
+ * The mount-scoped half of the rule above: what one frame shows across a
+ * SEQUENCE of renders.
+ *
+ * `stableFrameSrc` decides a single render, and on its own it is not the
+ * fix: a decision with no memory would let the next freshly minted
+ * signed URL through and navigate the frame again. The retention is what
+ * carries it, so it lives here, as a closure over the URL already on
+ * screen, callable from the node test environment. The component is then
+ * one call per render.
+ *
+ * Idempotent for a repeated argument, so a render that runs twice
+ * (StrictMode) or is thrown away (a discarded concurrent render) cannot
+ * change the answer.
+ */
+export function createFrameSrcRetainer(): FrameSrcRetainer {
+  let retained: string | null = null;
+  return (incoming) => {
+    retained = stableFrameSrc(retained, incoming);
+    return retained;
+  };
 }
