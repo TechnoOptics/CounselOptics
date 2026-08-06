@@ -818,7 +818,9 @@ Copy, exactly:
 
 - [ ] **Step 3: The phone pad**
 
-Client component. The signer's name, the sentence from `signingIntentSentence()`, a full-width canvas sized for a thumb, Clear, and Submit. It does NOT repeat the disclosure, which was consented on the laptop. It does NOT show the document.
+Client component. The document name as the heading, the intent sentence from `lib/signing-intent.ts`, a full-width canvas sized for a thumb, Clear, and Submit. It does NOT repeat the disclosure, which was consented on the laptop. It does NOT show the document.
+
+The heading is the document, not the signer. This step originally said the signer's name; the built page is right and this line was wrong. A signer who picks their phone up mid-ceremony needs to see which document they are about to mark, since the phone never shows it; their own name is already in front of them, in the intent sentence a few lines below. `SIGNING_INTENT_PREFIX` and `signingIntentSuffix()` are what the pad renders, not the joined `signingIntentSentence()`, so the signer's name can sit in its own `data-no-translate` element and escape the runtime translation layer, exactly as it does on the laptop.
 
 Touch handling must call `preventDefault` on `touchmove` so the page does not scroll under the drawing finger, and the canvas must be sized from `devicePixelRatio` or the stroke renders soft on a phone.
 

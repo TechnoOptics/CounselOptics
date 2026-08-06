@@ -1852,8 +1852,14 @@ describe('call sites', () => {
   it('keeps the signer name out of the machine translator', () => {
     const src = read('app/sign/[token]/signature-capture.tsx');
     // A person's name inside the operative clause of a signature.
+    //
+    // The seam is asserted against the call that renders the rest of
+    // the clause, not against the clause itself: the words moved to
+    // lib/signing-intent.ts so the phone pad cannot drift from this
+    // checkbox, and spelling them out here would put a second copy of
+    // them back. tests/signing-intent.test.ts pins the words.
     expect(src).toMatch(
-      /<strong data-no-translate>\{signerName \|\| signerEmail\}<\/strong>, intend/,
+      /<strong data-no-translate>\{signerName \|\| signerEmail\}<\/strong>\s*\n\s*\{signingIntentSuffix\(documentName\)\}/,
     );
     expect(src).toMatch(
       /Thanks, <span data-no-translate>\{signerName \|\| signerEmail\}<\/span>/,

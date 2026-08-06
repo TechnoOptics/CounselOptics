@@ -7,6 +7,12 @@
  * different forms of words is the kind of discrepancy that gets a
  * signature challenged.
  *
+ * Both surfaces now import it: the laptop at the intent checkbox in
+ * signature-capture.tsx, the phone at the same checkbox in
+ * app/sign/m/[handoff]/mobile-pad.tsx. tests/signing-intent.test.ts
+ * asserts neither one carries a copy of the words, so a reword has to
+ * come through this file to reach a signer at all.
+ *
  * Pure, and deliberately not server-only: the phone pad is a client
  * component and renders this sentence itself.
  */
@@ -27,10 +33,18 @@
  */
 export const SIGNING_INTENT_PREFIX = 'I, ';
 
+/**
+ * The quotation marks around the document name are the typographic pair
+ * (U+201C, U+201D), which is what the laptop checkbox rendered as
+ * &ldquo; / &rdquo; before it imported this module. The first lift into
+ * here flattened them to the ASCII quote, which was a difference of
+ * exactly the kind this module exists to prevent, so the pair is
+ * restored rather than the laptop being quietly retypeset.
+ */
 export function signingIntentSuffix(documentName: string): string {
   return (
     `, intend that the mark above be my signature on ` +
-    `"${documentName}", with the same legal effect as a handwritten ` +
+    `“${documentName}”, with the same legal effect as a handwritten ` +
     `signature. I am acting on my own behalf or as authorized for the ` +
     `entity I represent.`
   );
