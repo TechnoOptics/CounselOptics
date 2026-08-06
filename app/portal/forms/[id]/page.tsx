@@ -17,6 +17,7 @@ export default async function PortalFormFillPage({ params }: { params: { id: str
   return (
     <FormFillClient
       template={res.template}
+      firmId={persona.firm.id}
       firmName={persona.firm.name}
       firmAccent={persona.firm.accentColor ?? null}
       letterheadUrl={persona.firm.letterheadUrl ?? null}

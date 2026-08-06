@@ -2,7 +2,10 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getWorkspacePersona } from '@/lib/persona';
 import { listPortalTemplatesAction } from '@/lib/firm-templates';
-import { PageHeader, EmptyState } from '@/components/counsel/ui';
+import { listMyTemplateSubmissionsAction } from '@/lib/template-submissions';
+import { PageHeader, EmptyState, SectionTitle } from '@/components/counsel/ui';
+import { SubmissionStatusPill } from '@/components/portal/SubmissionStatusPill';
+import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,8 +19,12 @@ export default async function PortalFormsPage() {
   const persona = await getWorkspacePersona();
   if (persona.kind !== 'employee') redirect('/portal');
 
-  const res = await listPortalTemplatesAction(persona.firm.id);
+  const [res, mine] = await Promise.all([
+    listPortalTemplatesAction(persona.firm.id),
+    listMyTemplateSubmissionsAction(persona.firm.id),
+  ]);
   const templates = res.templates ?? [];
+  const submissions = (mine.submissions ?? []).filter((s) => s.status !== 'withdrawn');
 
   return (
     <div className="space-y-6">
@@ -71,6 +78,36 @@ export default async function PortalFormsPage() {
             </Link>
           ))}
         </div>
+      )}
+
+      {submissions.length > 0 && (
+        <section className="space-y-2">
+          <SectionTitle>Documents you sent for review</SectionTitle>
+          <ul className="divide-y divide-ink-100 overflow-hidden rounded-xl border border-ink-200 dark:divide-forest-800/50 dark:border-forest-700/50">
+            {submissions.map((s) => (
+              <li key={s.id} className="bg-white dark:bg-forest-900/40">
+                <Link
+                  href={`/portal/forms/submissions/${s.id}`}
+                  className="flex flex-wrap items-center gap-3 px-4 py-3 hover:bg-cream-50 dark:hover:bg-forest-800/40"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span
+                      className="block truncate text-[14px] font-medium text-forest-900 dark:text-cream-100"
+                      data-no-translate
+                    >
+                      {s.templateName}
+                    </span>
+                    <span className="block truncate text-[12px] text-ink-500 dark:text-cream-100/55">
+                      <T>To</T>{' '}
+                      <span data-no-translate>{s.recipientEmail}</span>
+                    </span>
+                  </span>
+                  <SubmissionStatusPill status={s.status} />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
     </div>
   );

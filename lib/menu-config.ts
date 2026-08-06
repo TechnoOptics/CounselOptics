@@ -68,6 +68,11 @@ export const DEFAULT_MENU: MenuSection[] = [
     items: [
       { href: '/counsel/templates', label: 'Document templates', hint: 'Branded document drafting' },
       { href: '/counsel/forms', label: 'Employee forms', hint: 'Self-service forms for employees' },
+      {
+        href: '/counsel/forms/approvals',
+        label: 'Document approvals',
+        hint: 'Filled forms waiting to go out',
+      },
       { href: '/counsel/policies', label: 'Policy library', hint: 'Powers the employee document checker' },
     ],
   },
