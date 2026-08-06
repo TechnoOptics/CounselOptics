@@ -2,6 +2,8 @@
 
 import { revalidatePath } from 'next/cache';
 import { getRealCurrentUser, isCurrentUserAdmin } from './supabase/server';
+import { createAdminSupabase } from './supabase/admin';
+import { logSecurityEvent } from './security-audit';
 import { applyTrialAction } from './firm-trials';
 
 /**
@@ -28,6 +30,13 @@ import { applyTrialAction } from './firm-trials';
  * second as the server's local time. A count has no zone to lose. If a date
  * picker is ever added for the operator's convenience, it converts to a count
  * in the browser and sends the number.
+ *
+ * THE THIRD RULE: an action named after a precondition checks it HERE. Grant
+ * starts a clock on an organization that has none, and extend moves a date
+ * that already exists. Both of those are claims about stored state, and a
+ * control the browser declines to render is not a check, for the same reason
+ * the layout's admin gate is not one. Both read the row before calling
+ * through, and both refuse rather than quietly doing the other action's job.
  */
 
 export type TrialActionResult = { ok: true } | { ok: false; error: string };
@@ -45,6 +54,19 @@ export type TrialActionResult = { ok: true } | { ok: false; error: string };
  */
 const MIN_TRIAL_DAYS = 1;
 const MAX_TRIAL_DAYS = 365;
+/**
+ * One seat, not zero. The database is the authority here:
+ * supabase/migrations/20260801_firm_trials.sql carries
+ * `check (seat_limit is null or seat_limit > 0)`, because a zero limit locks
+ * an organization out of adding anybody at all, including its owner.
+ *
+ * Accepting zero above that constraint does not make zero work. It makes
+ * Postgres raise 23514, which applyTrialAction reports as "Unavailable.
+ * Please try again.", so the operator retries a permanent failure against a
+ * message that says it is transient. If zero should ever mean "frozen", that
+ * is a migration and a seatCheck change, not a looser bound here.
+ */
+const MIN_SEAT_LIMIT = 1;
 const MAX_SEAT_LIMIT = 10_000;
 const MAX_NOTE_LENGTH = 500;
 
@@ -65,11 +87,32 @@ const MAX_NOTE_LENGTH = 500;
  * the half that survives the admin being deleted. A missing actor is a refusal
  * rather than a null, since a change with nobody's name on it is the exact
  * outcome the actor columns exist to prevent.
+ *
+ * A REFUSAL LEAVES A TRACE. These are public POST endpoints on commercial
+ * levers, and this surface exists to answer "who did that, and when". A
+ * rejected attempt is part of that answer, so it is recorded rather than
+ * dropped. `lever` names which one was tried; it is a fixed string from the
+ * call site and never anything the caller sent.
  */
-async function hqActor(): Promise<
+async function hqActor(lever: string): Promise<
   { ok: true; userId: string; email: string | null } | { ok: false; error: string }
 > {
   if (!(await isCurrentUserAdmin())) {
+    // Read only to name who tried. This runs after the decision to refuse, it
+    // cannot change that decision, and the refusal below is returned whatever
+    // comes back. The console line is the trace that works today; the
+    // security_events row is the durable one.
+    const attempted = await getRealCurrentUser();
+    console.warn(
+      'firm-trial-actions: refused a non-admin call on an HQ trial lever',
+      JSON.stringify({ lever, userId: attempted?.id ?? null }),
+    );
+    await logSecurityEvent({
+      kind: 'hq_trial_action_denied',
+      severity: 'warning',
+      userId: attempted?.id ?? null,
+      details: { lever },
+    });
     return { ok: false, error: 'Admin access is required for this change.' };
   }
   const user = await getRealCurrentUser();
@@ -108,19 +151,79 @@ function readNote(note: unknown): string | null {
 const DAYS_ERROR = `Enter a whole number of days between ${MIN_TRIAL_DAYS} and ${MAX_TRIAL_DAYS}.`;
 
 /**
+ * The one stored fact grant and extend need before they can honour their own
+ * names: does this organization already have an end date.
+ *
+ * WHY IT IS READ HERE AND NOT IN lib/firm-trials.ts. That module owns trial
+ * state and would be the right home, but it belongs to another branch that
+ * merges separately, and a precondition split across two branches is a
+ * precondition that arrives half applied. This reads one column of one row by
+ * id. It does not build a FirmAccessInput and it does not compute or cache an
+ * access state, so neither invariant that module holds is touched here. When
+ * the branches meet, fold this into firm-trials.ts as an exported snapshot
+ * reader and delete it.
+ *
+ * IT FAILS CLOSED, and that is the whole point of not reusing listTrialFirms
+ * for this. That function returns an empty array both when nothing is on a
+ * clock and when the read failed, so a precondition built on it would read a
+ * database outage as "this organization has no trial" and let grant overwrite
+ * a live end date. A refusal here distinguishes the two.
+ */
+type TrialSnapshot =
+  | { ok: true; trialEndsAt: string | null }
+  | { ok: false; error: string };
+
+async function readTrialSnapshot(firmId: string): Promise<TrialSnapshot> {
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Unavailable. Please try again.' };
+
+  const { data, error } = await admin
+    .from('firms')
+    .select('trial_ends_at')
+    .eq('id', firmId)
+    .maybeSingle();
+
+  if (error) {
+    console.error(
+      'firm-trial-actions: could not read the organization',
+      error.message,
+    );
+    return { ok: false, error: 'Unavailable. Please try again.' };
+  }
+  if (!data) return { ok: false, error: 'That organization no longer exists.' };
+
+  const row = data as { trial_ends_at: string | null };
+  return { ok: true, trialEndsAt: row.trial_ends_at ?? null };
+}
+
+/**
  * Starts a trial on an organization that has none. Sets the end date to today
  * plus the given number of days.
+ *
+ * Refuses when there is already an end date. Without that check a stale page
+ * records action='granted' for what was in fact a replacement, and a 200 day
+ * trial silently becomes a 14 day one.
  */
 export async function grantTrialAction(input: {
   firmId: string;
   days: number;
   note?: string | null;
 }): Promise<TrialActionResult> {
-  const actor = await hqActor();
+  const actor = await hqActor('grant');
   if (!actor.ok) return actor;
 
   const days = readDays(input.days);
   if (days === null) return { ok: false, error: DAYS_ERROR };
+
+  const snapshot = await readTrialSnapshot(input.firmId);
+  if (!snapshot.ok) return snapshot;
+  if (snapshot.trialEndsAt !== null) {
+    return {
+      ok: false,
+      error:
+        'This organization is already on a trial clock. Use Extend to add days to the date on file, or Restart to replace it.',
+    };
+  }
 
   const result = await applyTrialAction({
     firmId: input.firmId,
@@ -141,17 +244,33 @@ export async function grantTrialAction(input: {
  * an extension than from a restart, which is the intent: the operator agreed
  * to add days to a trial, not to begin a new one. Do not fold these two into
  * one action with a flag.
+ *
+ * There has to BE a date to move, and that is checked here rather than only in
+ * the browser. applyTrialAction falls back to now when trial_ends_at is null,
+ * so without this a hand-written call on an organization with no trial starts
+ * a fresh one from today and files it as action='extended' with
+ * previous_value=null, an extension of nothing.
  */
 export async function extendTrialAction(input: {
   firmId: string;
   days: number;
   note?: string | null;
 }): Promise<TrialActionResult> {
-  const actor = await hqActor();
+  const actor = await hqActor('extend');
   if (!actor.ok) return actor;
 
   const days = readDays(input.days);
   if (days === null) return { ok: false, error: DAYS_ERROR };
+
+  const snapshot = await readTrialSnapshot(input.firmId);
+  if (!snapshot.ok) return snapshot;
+  if (snapshot.trialEndsAt === null) {
+    return {
+      ok: false,
+      error:
+        'This organization has no trial end date to extend. Use Restart the trial to put it on a clock.',
+    };
+  }
 
   const result = await applyTrialAction({
     firmId: input.firmId,
@@ -178,7 +297,7 @@ export async function resetTrialAction(input: {
   days: number;
   note?: string | null;
 }): Promise<TrialActionResult> {
-  const actor = await hqActor();
+  const actor = await hqActor('restart');
   if (!actor.ok) return actor;
 
   const days = readDays(input.days);
@@ -198,16 +317,18 @@ export async function resetTrialAction(input: {
 /**
  * Sets the seat limit, or clears it with null for no limit.
  *
- * Zero is a real limit and not a synonym for unlimited, which is why the check
- * is against null rather than a truthiness test. lib/firm-access.ts reads it
- * the same way.
+ * "No limit" is null and only null, which is why every check here is against
+ * null rather than a truthiness test. lib/firm-access.ts reads it the same
+ * way. The floor is one seat, matching the CHECK constraint on the column;
+ * see MIN_SEAT_LIMIT for why zero is refused here rather than sent on to
+ * Postgres.
  */
 export async function setSeatLimitAction(input: {
   firmId: string;
   seatLimit: number | null;
   note?: string | null;
 }): Promise<TrialActionResult> {
-  const actor = await hqActor();
+  const actor = await hqActor('seat limit');
   if (!actor.ok) return actor;
 
   const seatLimit = input.seatLimit;
@@ -215,12 +336,12 @@ export async function setSeatLimitAction(input: {
     if (
       typeof seatLimit !== 'number' ||
       !Number.isInteger(seatLimit) ||
-      seatLimit < 0 ||
+      seatLimit < MIN_SEAT_LIMIT ||
       seatLimit > MAX_SEAT_LIMIT
     ) {
       return {
         ok: false,
-        error: `Enter a whole number of seats between 0 and ${MAX_SEAT_LIMIT}, or remove the limit.`,
+        error: `Enter a whole number of seats between ${MIN_SEAT_LIMIT} and ${MAX_SEAT_LIMIT}, or remove the limit.`,
       };
     }
   }
@@ -251,7 +372,7 @@ export async function setSuspendedAction(input: {
   suspended: boolean;
   note?: string | null;
 }): Promise<TrialActionResult> {
-  const actor = await hqActor();
+  const actor = await hqActor('access');
   if (!actor.ok) return actor;
 
   const result = await applyTrialAction({

@@ -51,11 +51,38 @@ export default async function HqFirmsPage() {
   // Everything the trials list does not already hold. An organization with no
   // trial and no suspension has nothing to show in that table, so this is
   // where the "start a trial" control finds it.
+  //
+  // The billing flag rides along rather than filtering the list. Granting a
+  // trial to an actively billing organization is a real thing an operator may
+  // want, and it is also how you accidentally set a shutoff date on a paying
+  // customer, because firmAccessState reads a passed trial_ends_at as
+  // export_only regardless of the subscription. So the control says which ones
+  // those are instead of quietly hiding them. Same two statuses the billing
+  // snapshot above counts as active.
   const onTheClock = new Set(trialRows.map((r) => r.id));
   const startable = firms
     .filter((f) => !onTheClock.has(f.id))
-    .map((f) => ({ id: f.id, name: f.name, slug: f.slug }));
+    .map((f) => ({
+      id: f.id,
+      name: f.name,
+      slug: f.slug,
+      billingActive:
+        f.ownerSubscriptionStatus === 'active' ||
+        f.ownerSubscriptionStatus === 'trialing',
+    }));
   const closedCount = trialRows.filter((r) => r.state === 'export_only').length;
+
+  // KNOWN GAP, and the console is already built to show it. listTrialFirms
+  // swallows its read error and returns [], so an outage and a genuinely empty
+  // list are the same value here and this page cannot tell them apart. That is
+  // a signal lib/firm-trials.ts does not currently return, and that file
+  // belongs to another branch; the fix is for it to return a discriminated
+  // result and for this line to read it.
+  //
+  // The destructive half of the confusion is closed regardless: grantTrialAction
+  // reads the row itself and refuses an organization that already has an end
+  // date, and its read fails closed rather than empty.
+  const trialsUnavailable = false;
 
   return (
     <div className="space-y-5">
@@ -83,11 +110,21 @@ export default async function HqFirmsPage() {
             Trials and access
           </h2>
           <p className="text-[12px] text-cream-100/55">
-            {trialRows.length} on a clock
-            {closedCount > 0 && ` · ${closedCount} export only`}
+            {trialsUnavailable ? (
+              'Not loaded'
+            ) : (
+              <>
+                {trialRows.length} on a clock
+                {closedCount > 0 && ` · ${closedCount} export only`}
+              </>
+            )}
           </p>
         </div>
-        <TrialConsole rows={trialRows} startable={startable} />
+        <TrialConsole
+          rows={trialRows}
+          startable={startable}
+          unavailable={trialsUnavailable}
+        />
       </section>
 
       <h2 className="text-[13px] font-semibold uppercase tracking-wider text-cream-100/70">

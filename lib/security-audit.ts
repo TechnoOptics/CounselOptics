@@ -38,7 +38,13 @@ export type SecurityEventKind =
   | 'mfa_removed'
   | 'admin_impersonation'
   /** An HQ operator opened a case they do not own, via the service role. */
-  | 'admin_case_view';
+  | 'admin_case_view'
+  /**
+   * A non-admin called one of the HQ trial levers directly. Those are public
+   * POST endpoints, so a refusal here is an attempt on a commercial control
+   * and not a stray click.
+   */
+  | 'hq_trial_action_denied';
 
 export type SecuritySeverity = 'low' | 'medium' | 'high' | 'critical';
 

@@ -42,10 +42,19 @@ import {
  */
 const MIN_TRIAL_DAYS = 1;
 const MAX_TRIAL_DAYS = 365;
+/**
+ * One seat, not zero, because the column carries
+ * `check (seat_limit is null or seat_limit > 0)`. Offering zero in the input
+ * invites a value the database refuses, and that refusal surfaces as a
+ * generic "Unavailable. Please try again.", which reads as transient when it
+ * is permanent. "No limit" is the Remove the limit button, not a zero.
+ */
+const MIN_SEAT_LIMIT = 1;
 const MAX_SEAT_LIMIT = 10_000;
 const DEFAULT_DAYS = '14';
 
 const DAYS_ERROR = `Enter a whole number of days between ${MIN_TRIAL_DAYS} and ${MAX_TRIAL_DAYS}.`;
+const SEATS_ERROR = `Enter a whole number of seats between ${MIN_SEAT_LIMIT} and ${MAX_SEAT_LIMIT}, or remove the limit.`;
 
 export type TrialFirmView = {
   id: string;
@@ -67,7 +76,20 @@ export type TrialFirmView = {
   daysRemaining: number | null;
 };
 
-export type StartableFirm = { id: string; name: string; slug: string };
+export type StartableFirm = {
+  id: string;
+  name: string;
+  slug: string;
+  /**
+   * True when the owner's subscription is active or in a Stripe trial.
+   *
+   * Carried purely so the operator is told before granting. A trial end date
+   * closes an organization once it passes whatever the billing says, so
+   * putting one on a paying customer arms a shutoff on a date nobody is
+   * watching.
+   */
+  billingActive: boolean;
+};
 
 function parseDays(raw: string): number | null {
   const value = Number.parseInt(raw, 10);
@@ -101,10 +123,36 @@ function useTrialAction() {
 export function TrialConsole({
   rows,
   startable,
+  unavailable,
 }: {
   rows: TrialFirmView[];
   startable: StartableFirm[];
+  /**
+   * The trials list could not be read. This is NOT the same as an empty list,
+   * and the difference is destructive: "no organization is on a clock" plus a
+   * Start a trial control that now offers every organization is an invitation
+   * to grant a second trial to one that already has one.
+   *
+   * So a failed read says so and offers nothing. The organizations are still
+   * reachable from the table below, and the action layer refuses a grant on an
+   * organization that already has an end date, so nothing here is the last
+   * line of defence. It is the honest one.
+   */
+  unavailable: boolean;
 }) {
+  if (unavailable) {
+    return (
+      <div className="card p-8 text-center text-sm text-cream-100/70">
+        <p>Could not load the trials list.</p>
+        <p className="mt-1 text-[12px] text-cream-100/50">
+          Reload in a moment. Starting a trial stays unavailable until the list
+          loads, so an organization already on a clock cannot be given a second
+          one by mistake.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
       {rows.length === 0 ? (
@@ -152,6 +200,7 @@ function TrialRow({ row }: { row: TrialFirmView }) {
   const [open, setOpen] = useState(false);
   const suspended = row.suspendedAt !== null;
   const endsInFuture = row.daysRemaining !== null && row.daysRemaining > 0;
+  const panelId = `trial-panel-${row.id}`;
 
   return (
     <>
@@ -222,6 +271,7 @@ function TrialRow({ row }: { row: TrialFirmView }) {
             type="button"
             onClick={() => setOpen((v) => !v)}
             aria-expanded={open}
+            aria-controls={panelId}
             className="rounded-md border border-gold-500/30 px-2.5 py-1 text-[12px] font-medium text-cream-100/85 transition-colors hover:border-gold-500/60 hover:text-cream-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-500/60"
           >
             {open ? 'Close' : 'Manage'}
@@ -230,7 +280,7 @@ function TrialRow({ row }: { row: TrialFirmView }) {
       </tr>
 
       {open && (
-        <tr className="bg-forest-900/40">
+        <tr id={panelId} className="bg-forest-900/40">
           <td colSpan={6} className="px-4 py-4">
             <TrialPanel row={row} />
           </td>
@@ -348,6 +398,17 @@ function ExtendBlock({
 /**
  * Restart. Carries the accent because it is the one that discards the stored
  * end date, and the sentence names its base date out loud.
+ *
+ * TWO THINGS ABOUT SHORTENING, and they are separate. Restarting a trial that
+ * has 200 days left at 14 days takes 186 days away. That is a magnitude
+ * consequence of a correctly labelled action, not a mislabelled action, so the
+ * fix is to SHOW the date being replaced rather than to put a confirm in front
+ * of every restart. A blanket second step on a lever that is usually harmless
+ * only trains the operator to click through it, which is precisely what would
+ * make the harmful case slip past.
+ *
+ * So: the block always names what is on file, and it asks a second time only
+ * when the number entered lands earlier than that date.
  */
 function RestartBlock({
   row,
@@ -357,15 +418,31 @@ function RestartBlock({
   note: string | null;
 }) {
   const [days, setDays] = useState(DEFAULT_DAYS);
+  const [confirming, setConfirming] = useState(false);
   const { pending, error, setError, run } = useTrialAction();
 
-  function submit() {
-    const parsed = parseDays(days);
+  const parsed = parseDays(days);
+  // Both numbers are whole days measured from the same server clock, so they
+  // compare directly. daysRemaining is null when there is no date on file, and
+  // nothing is being shortened in that case.
+  const shortens =
+    parsed !== null && row.daysRemaining !== null && parsed < row.daysRemaining;
+
+  function start() {
     if (parsed === null) {
       setError(DAYS_ERROR);
       return;
     }
-    run(() => resetTrialAction({ firmId: row.id, days: parsed, note }));
+    if (shortens && !confirming) {
+      setConfirming(true);
+      return;
+    }
+    commit(parsed);
+  }
+
+  function commit(value: number) {
+    setConfirming(false);
+    run(() => resetTrialAction({ firmId: row.id, days: value, note }));
   }
 
   return (
@@ -374,26 +451,77 @@ function RestartBlock({
         Replaces the end date with one counted from today, whatever it is now.
         {row.suspendedAt !== null && ' This does not reopen a suspended organization.'}
       </p>
+      {row.trialEndsAt ? (
+        <p className="text-[12px] text-cream-100/55 leading-relaxed">
+          Currently ends <LocaleTime iso={row.trialEndsAt} mode="date" />
+          <RemainingPhrase days={row.daysRemaining} />.
+        </p>
+      ) : (
+        <p className="text-[12px] text-cream-100/55 leading-relaxed">
+          There is no end date on file. This one starts the clock.
+        </p>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         <DaysInput
           id={`restart-${row.id}`}
           label="Days from today"
           value={days}
-          onChange={setDays}
+          onChange={(next) => {
+            // A new number is a new decision, so a confirm agreed against the
+            // old one does not carry over.
+            setConfirming(false);
+            setDays(next);
+          }}
           disabled={pending}
         />
-        <button
-          type="button"
-          onClick={submit}
-          disabled={pending}
-          className="btn-secondary text-[13px] py-1.5"
-        >
-          {pending ? 'Restarting' : 'Restart'}
-        </button>
+        {confirming && parsed !== null ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[12px] text-amber-100/85">
+              That ends the trial sooner than the date on file. Restart at{' '}
+              {parsed} day{parsed === 1 ? '' : 's'}?
+            </span>
+            <button
+              type="button"
+              onClick={() => commit(parsed)}
+              disabled={pending}
+              className="rounded-lg border border-amber-400/50 bg-amber-500/10 px-3 py-1.5 text-[13px] font-medium text-amber-100 transition-colors hover:bg-amber-500/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/60 disabled:opacity-50"
+            >
+              {pending ? 'Restarting' : 'Yes, restart'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirming(false)}
+              disabled={pending}
+              className="text-[12px] text-cream-100/60 underline underline-offset-2 transition-colors hover:text-cream-100"
+            >
+              Keep the current date
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={start}
+            disabled={pending}
+            className="btn-secondary text-[13px] py-1.5"
+          >
+            {pending ? 'Restarting' : 'Restart'}
+          </button>
+        )}
       </div>
       <FieldError message={error} />
     </Block>
   );
+}
+
+/** ", 24 days left" and its two edge cases, for a sentence to end on. */
+function RemainingPhrase({ days }: { days: number | null }) {
+  if (days === null) return null;
+  if (days > 0) {
+    return <>, {days} day{days === 1 ? '' : 's'} left</>;
+  }
+  if (days === 0) return <>, ending today</>;
+  const ago = Math.abs(days);
+  return <>, ended {ago} day{ago === 1 ? '' : 's'} ago</>;
 }
 
 function SeatsBlock({
@@ -410,10 +538,12 @@ function SeatsBlock({
 
   function save() {
     const value = Number.parseInt(seats, 10);
-    if (!Number.isInteger(value) || value < 0 || value > MAX_SEAT_LIMIT) {
-      setError(
-        `Enter a whole number of seats between 0 and ${MAX_SEAT_LIMIT}, or remove the limit.`,
-      );
+    if (
+      !Number.isInteger(value) ||
+      value < MIN_SEAT_LIMIT ||
+      value > MAX_SEAT_LIMIT
+    ) {
+      setError(SEATS_ERROR);
       return;
     }
     run(() => setSeatLimitAction({ firmId: row.id, seatLimit: value, note }));
@@ -423,7 +553,8 @@ function SeatsBlock({
     <Block title="Seat limit" accent="neutral">
       <p className="text-[12px] text-cream-100/55 leading-relaxed">
         Checked when the organization adds a member. Lowering it never removes
-        anyone already in place; it only stops the next person being added.
+        anyone already in place; it only stops the next person being added. The
+        smallest limit is one seat. To lift the cap entirely, remove it.
       </p>
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex flex-col gap-1">
@@ -437,7 +568,7 @@ function SeatsBlock({
             id={`seats-${row.id}`}
             type="number"
             inputMode="numeric"
-            min={0}
+            min={MIN_SEAT_LIMIT}
             max={MAX_SEAT_LIMIT}
             step={1}
             value={seats}
@@ -571,6 +702,8 @@ function StartTrialForm({ firms }: { firms: StartableFirm[] }) {
   const [note, setNote] = useState('');
   const { pending, error, setError, run } = useTrialAction();
 
+  const chosen = firms.find((f) => f.id === firmId) ?? null;
+
   if (firms.length === 0) return null;
 
   function submit() {
@@ -622,6 +755,7 @@ function StartTrialForm({ firms }: { firms: StartableFirm[] }) {
             {firms.map((f) => (
               <option key={f.id} value={f.id}>
                 {f.name} (/{f.slug})
+                {f.billingActive ? ' · billing active' : ''}
               </option>
             ))}
           </select>
@@ -660,6 +794,14 @@ function StartTrialForm({ firms }: { firms: StartableFirm[] }) {
           {pending ? 'Starting' : 'Start trial'}
         </button>
       </div>
+      {chosen?.billingActive && (
+        <p className="text-[12px] text-amber-100/85 leading-relaxed max-w-3xl">
+          {chosen.name} has a live subscription. A trial end date closes an
+          organization once it passes, whatever the billing says, so this would
+          set a date that puts a paying customer into export only. Start one
+          here only if that is the intent.
+        </p>
+      )}
       <FieldError message={error} />
     </div>
   );
@@ -792,11 +934,13 @@ function DaysInput({
  * region that appears at the same moment as its text is often not announced.
  * `empty:hidden` keeps it out of the layout until it has something to say, and
  * a hidden element is not a flex item, so it does not open a gap either.
+ *
+ * aria-live alone, with no role. role="status" IS a live region with an
+ * implicit polite setting, so naming both was one thing said twice.
  */
 function FieldError({ message }: { message: string | null }) {
   return (
     <p
-      role="status"
       aria-live="polite"
       className="text-[11px] text-rose-200 leading-snug empty:hidden"
     >
