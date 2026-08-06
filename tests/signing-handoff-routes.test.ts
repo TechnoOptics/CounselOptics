@@ -26,6 +26,7 @@ const CLAIM_ROUTE = 'app/sign/m/[handoff]/route.ts';
 const PAD_PAGE = 'app/sign/m/[handoff]/pad/page.tsx';
 const PAD = 'app/sign/m/[handoff]/mobile-pad.tsx';
 const QUERIES = 'lib/signing-handoff-queries.ts';
+const WRITE = 'lib/signature-write.ts';
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
@@ -92,6 +93,43 @@ describe('the phone never receives the durable signer token', () => {
     // visible, failing change rather than a quiet one.
     expect(read(QUERIES)).toMatch(
       /\.select\('signer_name, signer_email, signing_request_id'\)/,
+    );
+  });
+
+  it('never fetches the token into the write module the phone calls', () => {
+    // The four files above are the phone's own surface. This one is
+    // shared: the phone route calls recordSignature, so every column
+    // this module selects lands in server memory on a request that
+    // arrived from a scanned code. It cannot be added to the loop
+    // above, because the desktop locator legitimately looks a row up
+    // BY token here and always will. What can be guarded is that the
+    // token is never READ back out, on either path.
+    const src = read(WRITE);
+    const selects = [
+      ...src.matchAll(/from\('firm_signatures'\)\s*\.select\(\s*'([^']*)'/g),
+    ];
+    // If the shape of these calls changes enough that none match, the
+    // loop below would pass by finding nothing to check.
+    expect(selects.length).toBeGreaterThanOrEqual(1);
+    for (const [, columns] of selects) {
+      expect(columns).not.toContain('*');
+      expect(columns).not.toContain('token');
+    }
+  });
+
+  it('keeps the access-code gate columns on that same list', () => {
+    // The narrowed list is only safe if narrowing it further is a
+    // failing change. access_code_hash and access_code_verified_at feed
+    // the server-side one-time-code check, which is what stops a
+    // forwarded link from POSTing straight past the gate. Dropped from
+    // the select, both read as undefined and the gate passes every
+    // caller silently.
+    const src = read(WRITE);
+    expect(src).toMatch(
+      /from\('firm_signatures'\)\s*\.select\(\s*'[^']*access_code_hash[^']*access_code_verified_at[^']*'/,
+    );
+    expect(src).toMatch(
+      /if \(sig\.access_code_hash && !sig\.access_code_verified_at\)/,
     );
   });
 });

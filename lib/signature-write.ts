@@ -81,7 +81,26 @@ export async function recordSignature(
   }
 
   // Find the signature row.
-  const query = admin.from('firm_signatures').select('*');
+  //
+  // The column list is written out rather than a select('*') because
+  // this function runs on the phone path too. firm_signatures.token is
+  // the durable signer credential, and access_code_hash is null for an
+  // internal signer, so that token alone is enough to sign as them; a
+  // select('*') pulled it into memory on a request that arrived from a
+  // scanned code and had no business holding it. Nothing below reads
+  // it, so it was never returned or logged, but the fix is to not
+  // fetch it rather than to be careful with it afterwards.
+  //
+  // access_code_hash and access_code_verified_at are on this list
+  // because the server-side gate below is the only thing enforcing the
+  // one-time code. Dropping them from the list would silently pass
+  // that gate on every request, so they are load-bearing, not
+  // incidental. tests/signing-handoff-routes.test.ts pins both facts.
+  const query = admin
+    .from('firm_signatures')
+    .select(
+      'id, signing_request_id, signed_at, signer_email, access_code_hash, access_code_verified_at, response',
+    );
   const { data: sigRow } =
     input.locator.kind === 'token'
       ? await query.eq('token', input.locator.token).maybeSingle()
