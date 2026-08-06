@@ -87,6 +87,34 @@ error, not a silent default-allow.
 - An organization whose stored timestamp is UNPARSEABLE is REFUSED, not allowed.
   That is the test that catches somebody wrapping the gate in a `try`.
 
+**6. The row-to-input mapper is the highest-risk line in the feature, and the
+obvious remedy is backwards.** `lib/firm-access.ts` can only reject what it is
+handed, so wherever a database row becomes a `FirmAccessInput` is where
+`undefined` gets manufactured.
+
+The tempting fix, replacing `select('*')` with an explicit column list, makes it
+WORSE. `select('*')` always returns both columns; a hand-written list is the only
+way to omit one. The visibility gain at the call site is real, but it must not be
+sold as protection against the failure it actually enables. It also does nothing
+about the likelier spelling, a mapper reading `row.suspendedAt` off a snake_case
+row, which yields `undefined` no matter how the select was written.
+
+In order of value:
+
+1. **`firmTrialState(firmId)` returning the state directly is the durable fix**,
+   because then no route ever constructs a `FirmAccessInput`. Task 3 already
+   specifies it. Keep it that way and resist adding a second path.
+2. If a mapper must be shared, export exactly ONE `toFirmAccessInput(row)` beside
+   a single `FIRM_ACCESS_COLUMNS` constant that every `.select()` uses. One place
+   to get right, one place to test.
+3. That row-layer mapper should use a KEY-PRESENCE check, not the value check
+   `firm-access.ts` uses, and the inversion is deliberate rather than an
+   inconsistency. Inside `firmAccessState` the observable is the value, so
+   `=== undefined` is correct. At the raw-row boundary the failure is a missing
+   column, and `row.suspended_at === undefined` cannot tell an absent column from
+   a null one. The two checks are complementary. Do not "simplify" the row-layer
+   check into a copy of the module's.
+
 **Zone-less timestamp strings are a contract on the caller, not a module bug.**
 `'2026-08-01T12:00:00'` parses as LOCAL time and is silently off by the
 machine's UTC offset; `'2026-08-01'` is accepted as UTC midnight. PostgREST
