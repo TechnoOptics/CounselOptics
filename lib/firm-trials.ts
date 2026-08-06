@@ -133,12 +133,15 @@ export async function listTrialFirms(): Promise<TrialFirmRow[]> {
   const admin = createAdminSupabase();
   if (!admin) return [];
 
-  // The filter is deliberately broader than the partial index in
-  // 20260801_firm_trials.sql, which covers only `where trial_ends_at is not
-  // null`. A suspended organization that never had a trial is still FOUND,
-  // because this is a query and not an index lookup; that branch is just
-  // answered by a scan rather than by the index. Correctness is unaffected,
-  // reads are not.
+  // A suspended organization that never had a trial is FOUND by this filter.
+  // That is a property of the query and holds no matter what is indexed,
+  // because a disjunction is evaluated over the table rather than looked up.
+  //
+  // Indexing is a separate question and 20260801_firm_trials.sql answers it
+  // with a partial index per branch. Both are needed or neither is used:
+  // Postgres can combine index scans across an OR only with a BitmapOr, and
+  // it cannot build one unless every branch is covered. If a later change
+  // drops either index the results stay correct and the read becomes a scan.
   const { data, error } = await admin
     .from('firms')
     .select(`id, name, slug, seat_limit, ${FIRM_ACCESS_COLUMNS}`)
