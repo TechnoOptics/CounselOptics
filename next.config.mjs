@@ -27,7 +27,12 @@ const CSP = [
   `img-src 'self' data: blob: https://*.supabase.co https://${SUPABASE_HOST} https://*.googleusercontent.com https://maps.gstatic.com https://maps.googleapis.com`,
   `font-src 'self' data: https://fonts.gstatic.com`,
   `connect-src 'self' https://${SUPABASE_HOST} wss://${SUPABASE_HOST} https://api.anthropic.com https://api.stripe.com https://*.vercel-insights.com`,
-  `frame-src 'self' https://www.google.com https://maps.google.com https://js.stripe.com https://hooks.stripe.com https://billing.stripe.com https://app.cal.com`,
+  // Supabase storage belongs here, not just in img-src: both the
+  // counsel document preview and the public /sign/[token] page show a
+  // stored PDF in an iframe pointed at a signed storage URL. Without
+  // it, enforcing this policy would blank the document a signer is
+  // being asked to read.
+  `frame-src 'self' https://*.supabase.co https://${SUPABASE_HOST} https://www.google.com https://maps.google.com https://js.stripe.com https://hooks.stripe.com https://billing.stripe.com https://app.cal.com`,
   `worker-src 'self' blob:`,
   `manifest-src 'self'`,
   `media-src 'self' blob:`,
