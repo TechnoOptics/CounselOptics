@@ -42,11 +42,17 @@ export async function releaseApprovedSubmission(
   admin: SupabaseClient,
   submissionId: string,
 ): Promise<ReleaseOutcome> {
-  const { data } = await admin
+  const { data, error: readError } = await admin
     .from('firm_template_submissions')
     .select('*')
     .eq('id', submissionId)
     .maybeSingle();
+  // A failed read and a missing row both arrive as null data. Telling the
+  // approver "already sent" or "not found" when the truth is "the database did
+  // not answer" writes a false statement into release_error and shows it.
+  if (readError) {
+    return { ok: false, error: 'This submission could not be read just now. Try again shortly.' };
+  }
   const row = (data as SubmissionRow | null) ?? null;
   if (!row) return { ok: false, error: 'That submission could not be found.' };
 
@@ -71,7 +77,7 @@ export async function releaseApprovedSubmission(
   // the database, not this process, decides who got there first, and a caller
   // who did not win comes back with no row and sends nothing.
   const token = newShareToken();
-  const { data: claimed } = await admin
+  const { data: claimed, error: claimError } = await admin
     .from('firm_template_submissions')
     .update({
       released_at: new Date().toISOString(),
@@ -83,6 +89,11 @@ export async function releaseApprovedSubmission(
     .is('released_at', null)
     .select('id')
     .maybeSingle();
+  // A claim that failed to write and a claim that lost the race both come back
+  // without a row. Only the second one means the document is on its way.
+  if (claimError) {
+    return { ok: false, error: 'This document could not be sent just now. Try again shortly.' };
+  }
   if (!claimed) return { ok: false, error: 'This document has already been sent.' };
 
   /**
@@ -94,7 +105,7 @@ export async function releaseApprovedSubmission(
    * be traced and revoked.
    */
   const unclaim = async (error: string, keepToken: boolean): Promise<ReleaseOutcome> => {
-    await admin
+    const { error: writeError } = await admin
       .from('firm_template_submissions')
       .update({
         released_at: null,
@@ -103,89 +114,115 @@ export async function releaseApprovedSubmission(
         updated_at: new Date().toISOString(),
       })
       .eq('id', submissionId);
+    if (writeError) {
+      // The claim is still on the row and nothing else will take it off, so
+      // retry will refuse. Say so plainly rather than report the original
+      // failure as if the record were back in a state anyone can act on.
+      return {
+        ok: false,
+        error:
+          'The send failed and the document could not be returned to a sendable state. This record needs attention before it can go out.',
+      };
+    }
     return { ok: false, error };
   };
 
-  const firm = await getFirmByIdAdmin(row.firm_id);
-  const bytes = await buildBrandedDocumentPdf({
-    document: row.document_text,
-    title: row.template_name,
-    brandName: firm?.name ?? undefined,
-    accent: firm?.accentColor ?? undefined,
-    letterheadUrl: firm?.letterheadUrl ?? undefined,
-    logoUrl: firm?.logoUrl ?? undefined,
-  });
-  if (!bytes) {
-    return unclaim('The document could not be prepared for sending.', false);
-  }
+  // Everything from here can throw, not just fail: pdf-lib refuses text its
+  // WinAnsi font cannot encode, storage and mail are network calls. An escaped
+  // throw would leave the claim on the row with nothing to take it off, and
+  // checkReleasable would then refuse the record forever. So the whole of the
+  // work sits inside one try, and every exit from it goes through unclaim.
+  let ciphertextStored = false;
+  try {
+    const firm = await getFirmByIdAdmin(row.firm_id);
+    const bytes = await buildBrandedDocumentPdf({
+      document: row.document_text,
+      title: row.template_name,
+      brandName: firm?.name ?? undefined,
+      accent: firm?.accentColor ?? undefined,
+      letterheadUrl: firm?.letterheadUrl ?? undefined,
+      logoUrl: firm?.logoUrl ?? undefined,
+    });
+    if (!bytes) {
+      return await unclaim('The document could not be prepared for sending.', false);
+    }
 
-  const { blob, key } = encryptDocument(Buffer.from(bytes));
-  const expiresAt = new Date(Date.now() + SHARE_TTL_DAYS * 24 * 3600 * 1000);
-  const meta: ShareMeta = {
-    caseId: 'portal',
-    firmId: row.firm_id,
-    createdBy: row.submitted_by,
-    createdByName: row.submitter_name,
-    recipientEmail: row.recipient_email,
-    filename: `${row.template_name.replace(/[^\w .()-]+/g, '_').slice(0, 120) || 'document'}.pdf`,
-    mime: 'application/pdf',
-    caseTitle: row.template_name,
-    scopeLabel: 'Approved by legal',
-    sizeBytes: bytes.length,
-    createdAt: new Date().toISOString(),
-    expiresAt: expiresAt.toISOString(),
-  };
-  const stored = await storeShare(admin, token, blob, meta);
-  if (!stored) return unclaim('Could not store the encrypted document.', false);
-
-  const link = `${siteUrl()}/share/${token}`;
-  const shownKey = formatKey(key);
-  const firmName = firm?.name ?? null;
-  const senderName = row.submitter_name;
-  const note = row.recipient_note ?? undefined;
-
-  const linkEmail = await sendEmail({
-    to: row.recipient_email,
-    fromName: firmName ?? undefined,
-    subject: `${row.template_name}: secure document`,
-    replyTo: row.submitter_email ?? undefined,
-    text: [
-      `${senderName || 'A colleague'} has securely shared a document with you: ${row.template_name}.`,
-      note ? `\nNote: ${note}` : '',
-      `\nOpen it here:\n${link}`,
-      `\nThe document is encrypted. Your decryption key arrives in a separate email. You will need it to open the document.`,
-      `\nThis link expires in ${SHARE_TTL_DAYS} days. Confidential: please do not forward.`,
-    ]
-      .filter(Boolean)
-      .join('\n'),
-    html: buildShareLinkEmailHtml({
+    const { blob, key } = encryptDocument(Buffer.from(bytes));
+    const expiresAt = new Date(Date.now() + SHARE_TTL_DAYS * 24 * 3600 * 1000);
+    const meta: ShareMeta = {
+      caseId: 'portal',
+      firmId: row.firm_id,
+      createdBy: row.submitted_by,
+      createdByName: row.submitter_name,
+      recipientEmail: row.recipient_email,
+      filename: `${row.template_name.replace(/[^\w .()-]+/g, '_').slice(0, 120) || 'document'}.pdf`,
+      mime: 'application/pdf',
       caseTitle: row.template_name,
-      senderName,
-      firmName,
-      link,
-      expiresAt,
-      note,
-    }),
-  });
-  const keyEmail = await sendEmail({
-    to: row.recipient_email,
-    fromName: firmName ?? undefined,
-    subject: 'Your decryption key',
-    replyTo: row.submitter_email ?? undefined,
-    text: `Here is your decryption key for the secure document "${row.template_name}":\n\n${shownKey}\n\nEnter it on the secure page you received in the separate email.`,
-    html: buildShareKeyEmailHtml({ caseTitle: row.template_name, firmName, key: shownKey }),
-  });
-  // Both emails or none. The link is useless without the key and the key is
-  // useless without the link, so one of the two arriving is not a delivery:
-  // the recipient would be holding a document they cannot open while the firm
-  // was told it had gone. A partial send is a failed send, and it is retried
-  // whole.
-  if (!linkEmail.ok || !keyEmail.ok) {
-    return unclaim(
-      'The recipient could not be emailed, so nothing they can open has reached them. Send it again.',
-      true,
+      scopeLabel: 'Approved by legal',
+      sizeBytes: bytes.length,
+      createdAt: new Date().toISOString(),
+      expiresAt: expiresAt.toISOString(),
+    };
+    const stored = await storeShare(admin, token, blob, meta);
+    if (!stored) return await unclaim('Could not store the encrypted document.', false);
+    ciphertextStored = true;
+
+    const link = `${siteUrl()}/share/${token}`;
+    const shownKey = formatKey(key);
+    const firmName = firm?.name ?? null;
+    const senderName = row.submitter_name;
+    const note = row.recipient_note ?? undefined;
+
+    // Both emails or none. The link is useless without the key and the key is
+    // useless without the link, so one of the two arriving is not a delivery:
+    // the recipient would be holding a document they cannot open while the
+    // firm was told it had gone. A partial send is a failed send, and it is
+    // retried whole.
+    const undelivered =
+      'The recipient could not be emailed, so nothing they can open has reached them. Send it again.';
+
+    const linkEmail = await sendEmail({
+      to: row.recipient_email,
+      fromName: firmName ?? undefined,
+      subject: `${row.template_name}: secure document`,
+      replyTo: row.submitter_email ?? undefined,
+      text: [
+        `${senderName || 'A colleague'} has securely shared a document with you: ${row.template_name}.`,
+        note ? `\nNote: ${note}` : '',
+        `\nOpen it here:\n${link}`,
+        `\nThe document is encrypted. Your decryption key arrives in a separate email. You will need it to open the document.`,
+        `\nThis link expires in ${SHARE_TTL_DAYS} days. Confidential: please do not forward.`,
+      ]
+        .filter(Boolean)
+        .join('\n'),
+      html: buildShareLinkEmailHtml({
+        caseTitle: row.template_name,
+        senderName,
+        firmName,
+        link,
+        expiresAt,
+        note,
+      }),
+    });
+    // Stop here if the link did not go. A bare "Your decryption key" email
+    // with nothing to use it on is a worse thing to receive than nothing.
+    if (!linkEmail.ok) return await unclaim(undelivered, true);
+
+    const keyEmail = await sendEmail({
+      to: row.recipient_email,
+      fromName: firmName ?? undefined,
+      subject: 'Your decryption key',
+      replyTo: row.submitter_email ?? undefined,
+      text: `Here is your decryption key for the secure document "${row.template_name}":\n\n${shownKey}\n\nEnter it on the secure page you received in the separate email.`,
+      html: buildShareKeyEmailHtml({ caseTitle: row.template_name, firmName, key: shownKey }),
+    });
+    if (!keyEmail.ok) return await unclaim(undelivered, true);
+
+    return { ok: true, token, key: shownKey, link };
+  } catch {
+    return await unclaim(
+      'Something went wrong while preparing this document to send. It has not gone out, and it can be sent again.',
+      ciphertextStored,
     );
   }
-
-  return { ok: true, token, key: shownKey, link };
 }

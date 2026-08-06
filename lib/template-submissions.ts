@@ -362,6 +362,11 @@ export async function withdrawTemplateSubmissionAction(
   if (!row || row.submitted_by !== user.id) {
     return { ok: false, error: 'That submission could not be found.' };
   }
+  // Owning the row is not standing to act on it. `requests.view` is the
+  // baseline every active employee holds, so this asks the one question that
+  // matters here: are they still part of this firm at all.
+  const actor = await authorizeFirmActor(admin, row.firm_id, user.id, 'requests.view');
+  if (!actor.ok) return { ok: false, error: actor.error };
   const move = applySubmissionAction(row.status, 'withdraw');
   if (!move.ok) return { ok: false, error: move.error };
 

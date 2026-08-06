@@ -13,6 +13,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const store = vi.hoisted(() => ({
   row: null as Record<string, unknown> | null,
   updates: [] as Record<string, unknown>[],
+  /** Runs once, right after a read resolves: our window for interleaving. */
+  onRead: null as (() => void) | null,
+  /** Makes the next write fail the way a dropped connection would. */
+  failWrites: false,
+  /** Makes the initial read fail rather than come back empty. */
+  readError: false,
 }));
 
 type EmailResult = { ok: true } | { ok: false; error: string };
@@ -71,19 +77,33 @@ class Query {
     return this.conds.every((c) => (r[c.col] ?? null) === c.value);
   }
   async maybeSingle() {
-    if (!this.patch) return { data: this.matches() ? store.row : null };
-    if (!this.matches()) return { data: null };
+    if (!this.patch) {
+      if (store.readError) return { data: null, error: { message: 'connection lost' } };
+      // The caller reads the row as it is NOW; anything the hook does after
+      // this happens to a row they are already holding a snapshot of.
+      const data = this.matches() ? store.row : null;
+      const hook = store.onRead;
+      store.onRead = null;
+      hook?.();
+      return { data, error: null };
+    }
+    if (store.failWrites) return { data: null, error: { message: 'connection lost' } };
+    if (!this.matches()) return { data: null, error: null };
     store.row = { ...store.row, ...this.patch };
     store.updates.push(this.patch);
-    return { data: store.row };
+    return { data: store.row, error: null };
   }
   // An update with no .select() is awaited directly.
-  then(resolve: (v: { data: null }) => void) {
+  then(resolve: (v: { data: null; error: { message: string } | null }) => void) {
+    if (store.failWrites) {
+      resolve({ data: null, error: { message: 'connection lost' } });
+      return;
+    }
     if (this.patch && this.matches()) {
       store.row = { ...store.row, ...this.patch };
       store.updates.push(this.patch);
     }
-    resolve({ data: null });
+    resolve({ data: null, error: null });
   }
 }
 
@@ -111,6 +131,11 @@ function row(over: Record<string, unknown> = {}) {
 beforeEach(() => {
   store.row = null;
   store.updates = [];
+  store.onRead = null;
+  store.failWrites = false;
+  store.readError = false;
+  buildPdf.mockImplementation(async () => new Uint8Array([1, 2, 3]));
+  storeShare.mockImplementation(async () => true);
   sendEmail.mockImplementation(async () => ({ ok: true }));
   sendEmail.mockClear();
   storeShare.mockClear();
@@ -192,6 +217,103 @@ describe('releaseApprovedSubmission', () => {
     expect(res.ok).toBe(false);
     expect(store.row?.released_at).toBeNull();
     expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  it('sends nothing when another caller claims the row between the read and the claim', async () => {
+    store.row = row();
+    // The interleaving the claim exists for: a second approver read the row
+    // while it was still unclaimed, so their gate check passed on a snapshot
+    // that is already stale by the time they try to send.
+    store.onRead = () => {
+      store.row = { ...store.row, released_at: '2026-08-06T11:00:00.000Z' };
+    };
+
+    const res = await releaseApprovedSubmission(admin, 'sub-1');
+    expect(res.ok).toBe(false);
+    expect(sendEmail).not.toHaveBeenCalled();
+    expect(storeShare).not.toHaveBeenCalled();
+    expect(buildPdf).not.toHaveBeenCalled();
+    // The winner's claim is untouched.
+    expect(store.row?.released_at).toBe('2026-08-06T11:00:00.000Z');
+  });
+
+  it('sends nothing when the row stops being approved between the read and the claim', async () => {
+    store.row = row();
+    store.onRead = () => {
+      store.row = { ...store.row, status: 'changes_requested' };
+    };
+    const res = await releaseApprovedSubmission(admin, 'sub-1');
+    expect(res.ok).toBe(false);
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  it('gives the claim back when rendering the document throws', async () => {
+    store.row = row();
+    // A counterparty name outside cp1252 (a Polish l-stroke, Cyrillic, CJK)
+    // makes pdf-lib's WinAnsi encoder throw. That must not brick the record.
+    buildPdf.mockImplementationOnce(async () => {
+      throw new Error('WinAnsi cannot encode 0x0142');
+    });
+
+    const res = await releaseApprovedSubmission(admin, 'sub-1');
+    expect(res.ok).toBe(false);
+    expect(store.row?.status).toBe('approved');
+    expect(store.row?.released_at).toBeNull();
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  it('gives the claim back when storing the ciphertext throws', async () => {
+    store.row = row();
+    storeShare.mockImplementationOnce(async () => {
+      throw new Error('storage unreachable');
+    });
+    const res = await releaseApprovedSubmission(admin, 'sub-1');
+    expect(res.ok).toBe(false);
+    expect(store.row?.released_at).toBeNull();
+  });
+
+  it('does not send the key when the link email failed', async () => {
+    store.row = row();
+    sendEmail.mockImplementationOnce(async () => ({ ok: false, error: 'bounced' }));
+    const res = await releaseApprovedSubmission(admin, 'sub-1');
+    expect(res.ok).toBe(false);
+    // A bare decryption key with no link to use it on is worse than silence.
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it('says the record needs attention when it cannot give the claim back', async () => {
+    store.row = row();
+    // The claim lands, then the database goes away before it can be undone.
+    buildPdf.mockImplementationOnce(async () => {
+      store.failWrites = true;
+      throw new Error('WinAnsi cannot encode 0x0142');
+    });
+    const res = await releaseApprovedSubmission(admin, 'sub-1');
+    expect(res.ok).toBe(false);
+    expect(res.ok === false && res.error).toMatch(/needs attention/i);
+  });
+
+  it('does not call a failed claim an already-sent document', async () => {
+    store.row = row();
+    // The claim write itself fails. Nothing was claimed and nothing was sent,
+    // but "already sent" would be a lie the approver is shown as fact.
+    store.onRead = () => {
+      store.failWrites = true;
+    };
+    const res = await releaseApprovedSubmission(admin, 'sub-1');
+    expect(res.ok).toBe(false);
+    expect(res.ok === false && res.error).not.toMatch(/already been sent/i);
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  it('tells a read failure apart from a row that is not there', async () => {
+    store.row = null;
+    store.readError = true;
+    const failed = await releaseApprovedSubmission(admin, 'sub-1');
+    expect(failed.ok).toBe(false);
+    // Not "already sent" and not "not found": neither is true, and both would
+    // be written into release_error and shown to the approver as fact.
+    expect(failed.ok === false && failed.error).toMatch(/could not be read/i);
   });
 
   it('refuses when the row is gone', async () => {
