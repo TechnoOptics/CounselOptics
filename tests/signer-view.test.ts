@@ -1808,6 +1808,11 @@ describe('call sites', () => {
     expect(src).toMatch(/signerName: signature\.signerName,/);
     expect(src).toMatch(/signerEmail: signature\.signerEmail,/);
     expect(src).toMatch(/<TraceWatermark stamp=\{watermark\} tone="document" \/>/);
+    // The sentence telling the signer the page is marked is conditional
+    // on the page actually being marked. A stamp can come back null,
+    // and prose asserting a control that is not there is how this repo
+    // has ended up with comments describing features nobody built.
+    expect(src).toMatch(/\{watermark\s*\n\s*\? ' This page is marked with your name/);
     // The shell tone resolves to white against white through its
     // overlay blend, which is exactly the page the rasteriser paints.
     const mark = read('components/TraceWatermark.tsx');

@@ -285,9 +285,14 @@ export default async function SignPage({ params }: { params: { token: string } }
             <strong data-no-translate>
               {signature.signerName || signature.signerEmail}
             </strong>
-            . Your sign link is single-use, and this page is marked with your
-            name and the time you opened it, as confidential documents usually
-            are.
+            . Your sign link is single-use.
+            {/* Only claimed when it is true. signerWatermarkStamp returns
+                null when there is nobody to name, and a sentence saying
+                the page is marked above a page that is not is the kind
+                of comfortable untruth this surface cannot afford. */}
+            {watermark
+              ? ' This page is marked with your name and the time you opened it, as confidential documents usually are.'
+              : ''}
           </p>
         </header>
 
