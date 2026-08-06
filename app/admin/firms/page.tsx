@@ -1,22 +1,61 @@
 import Link from 'next/link';
 import { LocaleTime } from '@/components/LocaleTime';
 import { adminListFirms } from '@/lib/hq-storage';
+import { listTrialFirms } from '@/lib/firm-trials';
 import { FIRM_TYPE_LABEL } from '@/lib/firm-types';
 import { SubdomainToggle } from './subdomain-toggle';
 import { BrandingEditor } from './branding-editor';
 import { ImpersonateOwnerButton } from './impersonate-owner-button';
+import { TrialConsole, type TrialFirmView } from './trial-controls';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: { absolute: 'Active firms · Advottic HQ' } };
 
+const DAY_MS = 86_400_000;
+
 export default async function HqFirmsPage() {
-  const firms = await adminListFirms();
+  const [firms, trialFirms] = await Promise.all([
+    adminListFirms(),
+    listTrialFirms(),
+  ]);
   const activeBilling = firms.filter(
     (f) => f.ownerSubscriptionStatus === 'active' || f.ownerSubscriptionStatus === 'trialing',
   ).length;
   const pastDue = firms.filter(
     (f) => f.ownerSubscriptionStatus === 'past_due' || f.ownerSubscriptionStatus === 'unpaid',
   ).length;
+
+  // One clock for one render, and the remaining days are counted here rather
+  // than in the browser so both renders agree on what day it is. A client-side
+  // count would differ from the server's whenever the two straddle midnight,
+  // which is a hydration mismatch on the one figure the view is scanned for.
+  const now = Date.now();
+  const trialRows: TrialFirmView[] = trialFirms.map((f) => {
+    const endMs = f.trialEndsAt ? new Date(f.trialEndsAt).getTime() : null;
+    return {
+      id: f.id,
+      name: f.name,
+      slug: f.slug,
+      trialEndsAt: f.trialEndsAt,
+      suspendedAt: f.suspendedAt,
+      seatLimit: f.seatLimit,
+      memberCount: f.memberCount,
+      state: f.state,
+      daysRemaining:
+        endMs === null || Number.isNaN(endMs)
+          ? null
+          : Math.ceil((endMs - now) / DAY_MS),
+    };
+  });
+
+  // Everything the trials list does not already hold. An organization with no
+  // trial and no suspension has nothing to show in that table, so this is
+  // where the "start a trial" control finds it.
+  const onTheClock = new Set(trialRows.map((r) => r.id));
+  const startable = firms
+    .filter((f) => !onTheClock.has(f.id))
+    .map((f) => ({ id: f.id, name: f.name, slug: f.slug }));
+  const closedCount = trialRows.filter((r) => r.state === 'export_only').length;
 
   return (
     <div className="space-y-5">
@@ -37,6 +76,23 @@ export default async function HqFirmsPage() {
           a later phase.
         </p>
       </div>
+
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <h2 className="text-[13px] font-semibold uppercase tracking-wider text-cream-100/70">
+            Trials and access
+          </h2>
+          <p className="text-[12px] text-cream-100/55">
+            {trialRows.length} on a clock
+            {closedCount > 0 && ` · ${closedCount} export only`}
+          </p>
+        </div>
+        <TrialConsole rows={trialRows} startable={startable} />
+      </section>
+
+      <h2 className="text-[13px] font-semibold uppercase tracking-wider text-cream-100/70">
+        All organizations
+      </h2>
 
       {firms.length === 0 ? (
         <div className="card p-10 text-center text-sm text-ink-600 dark:text-cream-100/70">
