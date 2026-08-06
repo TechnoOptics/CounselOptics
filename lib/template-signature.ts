@@ -38,21 +38,33 @@ export type DecodedSignature =
 /**
  * Turn a `data:image/png;base64,...` URL into bytes, or say why not.
  *
- * The declared media type is only the caller's claim, so it is checked and
- * then ignored in favour of the magic number. That is what stops an SVG
- * arriving under a PNG label: an SVG is a script-bearing document, and this
- * mark ends up both inside a PDF renderer and inside an `<img>` on the
- * reviewer's page.
+ * The declared media type is only the caller's claim, so it is not read at
+ * all: the magic number below is the fact. That is what stops an SVG arriving
+ * under a PNG label, and an SVG is a script-bearing document that would end up
+ * both inside a PDF renderer and inside an `<img>` on the reviewer's page.
+ *
+ * There was a `startsWith('data:image/png;base64,')` check here. It is gone on
+ * purpose. Nothing could break it: loosening or removing it changed no accept
+ * and no reject, because every caller it would have turned away is turned away
+ * by the magic number a few lines down. A check that cannot fail reads like a
+ * second line of defence and is not one, so the media type is now genuinely
+ * ignored rather than being ignored while appearing to be enforced.
+ *
+ * What replaces it does carry weight: the base64 payload is located rather
+ * than assumed to sit at a fixed offset, so a data URL that declares another
+ * parameter before `;base64,` still decodes to the bytes it carries instead of
+ * to rubbish.
  */
 export function decodeSignaturePng(dataUrl: unknown): DecodedSignature {
   if (typeof dataUrl !== 'string' || dataUrl === '') {
     return { ok: false, error: 'No signature image was supplied.' };
   }
-  const prefix = 'data:image/png;base64,';
-  if (!dataUrl.startsWith(prefix)) {
+  const marker = ';base64,';
+  const at = dataUrl.indexOf(marker);
+  if (at < 0) {
     return { ok: false, error: 'The signature has to be a PNG image.' };
   }
-  const body = dataUrl.slice(prefix.length);
+  const body = dataUrl.slice(at + marker.length);
   if (body.trim() === '') {
     return { ok: false, error: 'The signature image was empty.' };
   }

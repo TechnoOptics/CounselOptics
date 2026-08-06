@@ -66,6 +66,19 @@ describe('decodeSignaturePng', () => {
     expect(decodeSignaturePng('data:image/png,hello').ok).toBe(false);
   });
 
+  it('finds the payload rather than assuming where it starts', () => {
+    // A data URL may carry another parameter before ;base64,. Slicing a fixed
+    // number of characters off the front would take part of that parameter as
+    // payload, decode it to rubbish, and refuse a mark the person really did
+    // draw. This is what stands in for the media-type prefix check that used
+    // to sit here and could not fail.
+    const url = `data:image/png;charset=utf-8;base64,${PNG_BYTES.toString('base64')}`;
+    const out = decodeSignaturePng(url);
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    expect(out.bytes.equals(PNG_BYTES)).toBe(true);
+  });
+
   it('rejects a remote URL', () => {
     expect(decodeSignaturePng('https://example.com/signature.png').ok).toBe(false);
   });
