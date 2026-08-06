@@ -2275,26 +2275,19 @@ export async function createSigningRequestAction(
       document_id: documentId,
       requested_by: user.id,
       message,
-      status: 'sent' as FirmSigningStatus,
-      sent_at: new Date().toISOString(),
+      // Created, not sent. The row opens as a draft with no sent_at and
+      // is promoted below, once the provider has actually accepted mail
+      // for at least one signer. Writing 'sent' here meant that if every
+      // send failed the firm still read "Awaiting signatures" on a
+      // request nobody had ever been told about - the same defect the
+      // audit chain was just fixed for, one layer down.
+      status: 'draft' as FirmSigningStatus,
       document_sha256: documentSha256,
     })
     .select('id')
     .single();
   if (reqErr || !req) return { ok: false, error: reqErr?.message ?? 'Could not create request.' };
   const requestId = (req as { id: string }).id;
-
-  // Move the document into 'sent' state since it's now in the signer's
-  // hands. The operator can advance to a signed_* state once execution
-  // happens, or back to 'pending' if a counterparty needs more time.
-  await admin
-    .from('firm_documents')
-    .update({
-      status: 'sent',
-      status_updated_at: new Date().toISOString(),
-    })
-    .eq('id', documentId)
-    .in('status', ['submitted', 'received', 'ready', 'pending', 'on_hold']);
 
   // Append the first event in the chain. request_created records who
   // initiated it + the document hash; later events chain off this one.
@@ -2361,6 +2354,11 @@ export async function createSigningRequestAction(
   // timeout alike, and dropping that result made this action report
   // success while nothing was ever delivered.
   const emailFailures: SigningEmailFailure[] = [];
+  // Whether the sign link reached anyone. Counting failures is not the
+  // same question: an external signer contributes up to two failures, so
+  // a per-signer count would misread one bad address among several as a
+  // total wash.
+  let anySignerReached = false;
 
   for (const signer of placedSigners) {
     const normalizedEmail = signer.email.trim().toLowerCase();
@@ -2472,7 +2470,9 @@ export async function createSigningRequestAction(
       url,
       isExternal,
     });
-    if (!linkResult.ok) {
+    if (linkResult.ok) {
+      anySignerReached = true;
+    } else {
       emailFailures.push({
         email: normalizedEmail,
         kind: 'link',
@@ -2509,7 +2509,30 @@ export async function createSigningRequestAction(
       }
     }
   }
+
+  // Promote the request out of draft only now, and only if at least one
+  // signer was actually reached. A request whose every email was refused
+  // stays a draft with no sent_at: the sign tokens are live, so a resend
+  // recovers it, but nothing in the product claims a delivery that never
+  // happened. The document follows the request - it moves into the
+  // signer's hands only once something reached a signer.
+  if (anySignerReached) {
+    const nowIso = new Date().toISOString();
+    await admin
+      .from('firm_signing_requests')
+      .update({ status: 'sent' as FirmSigningStatus, sent_at: nowIso })
+      .eq('id', requestId);
+    // The operator can advance to a signed_* state once execution
+    // happens, or back to 'pending' if a counterparty needs more time.
+    await admin
+      .from('firm_documents')
+      .update({ status: 'sent', status_updated_at: nowIso })
+      .eq('id', documentId)
+      .in('status', ['submitted', 'received', 'ready', 'pending', 'on_hold']);
+  }
+
   revalidatePath('/counsel/signing');
+  revalidatePath(`/counsel/documents/${documentId}`);
   return {
     ok: true,
     requestId,
