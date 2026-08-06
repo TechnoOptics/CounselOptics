@@ -33,6 +33,7 @@ import {
   removeCollaboratorAsFirm,
 } from './storage';
 import { logSecurityEvent } from './security-audit';
+import { isUnknownColumnError } from './signer-view';
 import {
   readPortalRoles,
   sanitizeFeatures,
@@ -2073,7 +2074,21 @@ export async function createSigningRequestAction(
   documentId: string,
   signers: Array<{ email: string; name?: string; positionPage?: number; positionX?: number; positionY?: number }>,
   message: string | null,
-): Promise<{ ok: boolean; error?: string; requestId?: string }> {
+  options?: {
+    /**
+     * Whether the signer may download a copy of what they signed.
+     * Omitted means permitted: that is the default the composer shows
+     * and the default the column carries.
+     */
+    signerCanDownload?: boolean;
+  },
+): Promise<{
+  ok: boolean;
+  error?: string;
+  requestId?: string;
+  /** Non-fatal: the request went out, but something about it needs saying. */
+  warning?: string;
+}> {
   const user = await requireUser();
   if (signers.length === 0) return { ok: false, error: 'Add at least one signer.' };
   const supabase = createServerSupabase();
@@ -2240,21 +2255,48 @@ export async function createSigningRequestAction(
     }
   }
 
-  const { data: req, error: reqErr } = await supabase
+  // Whether the signer keeps a copy. Default permitted - see
+  // parseSignerDownloadPermission and the migration that adds the
+  // column for why silence means yes.
+  const signerCanDownload = options?.signerCanDownload !== false;
+
+  const requestInsert = {
+    firm_id: firmId,
+    document_id: documentId,
+    requested_by: user.id,
+    message,
+    status: 'sent' as FirmSigningStatus,
+    sent_at: new Date().toISOString(),
+    document_sha256: documentSha256,
+  };
+  let downloadPermissionPersisted = true;
+  let { data: req, error: reqErr } = await supabase
     .from('firm_signing_requests')
-    .insert({
-      firm_id: firmId,
-      document_id: documentId,
-      requested_by: user.id,
-      message,
-      status: 'sent' as FirmSigningStatus,
-      sent_at: new Date().toISOString(),
-      document_sha256: documentSha256,
-    })
+    .insert({ ...requestInsert, signer_can_download: signerCanDownload })
     .select('id')
     .single();
+  // The column arrives with a migration the owner applies. Until then
+  // the insert has to go through without it, so the firm can still
+  // send. Narrowly scoped to a missing column (see
+  // isUnknownColumnError) so a permission or constraint failure still
+  // aborts rather than silently sending.
+  if (reqErr && isUnknownColumnError(reqErr, 'signer_can_download')) {
+    downloadPermissionPersisted = false;
+    ({ data: req, error: reqErr } = await supabase
+      .from('firm_signing_requests')
+      .insert(requestInsert)
+      .select('id')
+      .single());
+  }
   if (reqErr || !req) return { ok: false, error: reqErr?.message ?? 'Could not create request.' };
   const requestId = (req as { id: string }).id;
+  // Only worth saying when the firm asked to RESTRICT downloads and we
+  // could not record that. The permitted case matches what the reader
+  // falls back to, so nothing changed for anyone.
+  const downloadWarning =
+    !downloadPermissionPersisted && !signerCanDownload
+      ? 'The request was sent, but the download restriction could not be saved yet, so signers can still download their copy. Ask your administrator to apply the pending database update.'
+      : undefined;
 
   // Move the document into 'sent' state since it's now in the signer's
   // hands. The operator can advance to a signed_* state once execution
@@ -2284,6 +2326,12 @@ export async function createSigningRequestAction(
       document_name: docName,
       signer_count: signers.length,
       signable_file_path: signablePath,
+      // What the firm chose about the signer keeping a copy, and
+      // whether that choice actually reached the row. An auditor
+      // reading a request sent before the column existed can tell the
+      // difference between "permitted" and "could not be restricted".
+      signer_can_download: signerCanDownload,
+      signer_can_download_persisted: downloadPermissionPersisted,
       placement_sources: placedSigners.reduce<Record<string, number>>(
         (acc, s) => {
           acc[s.placementSource] = (acc[s.placementSource] ?? 0) + 1;
@@ -2475,7 +2523,7 @@ export async function createSigningRequestAction(
     }
   }
   revalidatePath('/counsel/signing');
-  return { ok: true, requestId };
+  return { ok: true, requestId, warning: downloadWarning };
 }
 
 // =====================================================================

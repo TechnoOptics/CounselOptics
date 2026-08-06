@@ -1,5 +1,6 @@
 import { createServerSupabase, getCurrentUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
+import { parseSignerDownloadPermission } from './signer-view';
 import type {
   Firm,
   FirmChannel,
@@ -141,6 +142,7 @@ type FirmDocumentRow = {
   name: string;
   mime_type: string;
   file_path: string;
+  signable_file_path?: string | null;
   file_size: number;
   version: number;
   parent_document_id: string | null;
@@ -163,6 +165,7 @@ function documentFromRow(r: FirmDocumentRow): FirmDocument {
     name: r.name,
     mimeType: r.mime_type,
     filePath: r.file_path,
+    signableFilePath: r.signable_file_path ?? null,
     fileSize: Number(r.file_size ?? 0),
     version: r.version,
     parentDocumentId: r.parent_document_id,
@@ -190,6 +193,9 @@ type FirmSigningRequestRow = {
   completed_at: string | null;
   created_at: string;
   document_sha256: string | null;
+  signed_file_path?: string | null;
+  /** Optional: the column may not exist yet on older schemas. */
+  signer_can_download?: boolean | null;
 };
 
 function signingRequestFromRow(r: FirmSigningRequestRow): FirmSigningRequest {
@@ -204,6 +210,7 @@ function signingRequestFromRow(r: FirmSigningRequestRow): FirmSigningRequest {
     completedAt: r.completed_at,
     createdAt: r.created_at,
     documentSha256: r.document_sha256,
+    signerCanDownload: parseSignerDownloadPermission(r.signer_can_download),
   };
 }
 
@@ -737,6 +744,43 @@ export async function getFirmDocumentSignedUrl(
 ): Promise<string | null> {
   const supabase = createServerSupabase();
   const { data, error } = await supabase.storage
+    .from('firm-documents')
+    .createSignedUrl(filePath, expiresInSeconds);
+  if (error || !data) return null;
+  return data.signedUrl;
+}
+
+/**
+ * How long the signer's view of the document stays readable.
+ *
+ * Long enough to read a contract without the frame going dead mid-way,
+ * short enough that a URL scraped out of the page is close to useless.
+ * The page holds ONE of these for the life of the mount (see
+ * createSignerFrameSrcRetainer) rather than re-minting, so this is the
+ * whole budget for a single visit, not a per-render one.
+ */
+export const SIGNER_DOCUMENT_URL_TTL_SECONDS = 60 * 30;
+
+/**
+ * Mint a read URL for the document behind ONE signing token.
+ *
+ * The /sign page has no signed-in user, so the RLS-scoped client above
+ * cannot see the firm's bucket at all and getFirmDocumentSignedUrl
+ * returns null there. This is the service-role path, and the caller is
+ * responsible for having resolved the path from a valid token first:
+ * it is reached only after getSignatureByToken matched the token, the
+ * request was found live, and any access code was verified.
+ *
+ * The URL is never put in a query string, a redirect, or an outbound
+ * link. It goes into the frame the signer reads and nowhere else.
+ */
+export async function getSignerDocumentSignedUrl(
+  filePath: string,
+  expiresInSeconds = SIGNER_DOCUMENT_URL_TTL_SECONDS,
+): Promise<string | null> {
+  const admin = createAdminSupabase();
+  if (!admin) return null;
+  const { data, error } = await admin.storage
     .from('firm-documents')
     .createSignedUrl(filePath, expiresInSeconds);
   if (error || !data) return null;

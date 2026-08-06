@@ -7,6 +7,7 @@ import {
   SIGNER_COPY_REFUSAL_COPY,
   canLeaveDisclosureStep,
   createSignerFrameSrcRetainer,
+  isUnknownColumnError,
   parseSignerDownloadPermission,
   resolveSignatureLinePlacement,
   resolveSignerCopyAccess,
@@ -254,6 +255,62 @@ describe('parseSignerDownloadPermission', () => {
     expect(parseSignerDownloadPermission('true')).toBe(true);
     expect(parseSignerDownloadPermission('t')).toBe(true);
     expect(parseSignerDownloadPermission(1)).toBe(true);
+  });
+});
+
+describe('isUnknownColumnError', () => {
+  it('recognises the PostgREST schema-cache miss', () => {
+    expect(
+      isUnknownColumnError(
+        {
+          code: 'PGRST204',
+          message:
+            "Could not find the 'signer_can_download' column of 'firm_signing_requests' in the schema cache",
+        },
+        'signer_can_download',
+      ),
+    ).toBe(true);
+  });
+
+  it('recognises the Postgres undefined_column code', () => {
+    expect(
+      isUnknownColumnError(
+        { code: '42703', message: 'column "signer_can_download" does not exist' },
+        'signer_can_download',
+      ),
+    ).toBe(true);
+  });
+
+  it('does not swallow a permission failure', () => {
+    expect(
+      isUnknownColumnError(
+        { code: '42501', message: 'permission denied for table firm_signing_requests' },
+        'signer_can_download',
+      ),
+    ).toBe(false);
+  });
+
+  it('does not swallow a constraint violation', () => {
+    expect(
+      isUnknownColumnError(
+        { code: '23514', message: 'new row violates check constraint' },
+        'signer_can_download',
+      ),
+    ).toBe(false);
+  });
+
+  it('does not fire for a different missing column', () => {
+    expect(
+      isUnknownColumnError(
+        { code: 'PGRST204', message: "Could not find the 'due_at' column" },
+        'signer_can_download',
+      ),
+    ).toBe(false);
+  });
+
+  it('reports false for no error at all', () => {
+    expect(isUnknownColumnError(null, 'signer_can_download')).toBe(false);
+    expect(isUnknownColumnError(undefined, 'signer_can_download')).toBe(false);
   });
 });
 

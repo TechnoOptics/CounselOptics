@@ -104,6 +104,15 @@ export default async function SigningRequestDetail({
 
       <section className="card p-5 sm:p-6 space-y-3">
         <p className="eyebrow"><T>Signers</T></p>
+        <p className="text-[11px] text-ink-500 dark:text-cream-100/55 leading-relaxed">
+          {data.request.signerCanDownload ? (
+            <T>Signers can download a copy of this document once they have
+            signed.</T>
+          ) : (
+            <T>Signers cannot download a copy of this document. The download is
+            refused by the server, and they are told to ask you for a copy.</T>
+          )}
+        </p>
         <ul className="space-y-2">
           {data.signatures.map((sig) => (
             <li

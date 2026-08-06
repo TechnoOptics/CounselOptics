@@ -245,6 +245,29 @@ export function parseSignerDownloadPermission(value: unknown): boolean {
   return true;
 }
 
+/**
+ * Whether a write failed because the target column is not there yet.
+ *
+ * The signer-download permission lands on a column that ships as a
+ * migration the owner applies, so between merge and apply the insert
+ * has to fall back to a write without it. That fallback must fire ONLY
+ * for a missing column: swallowing a permission error or a constraint
+ * violation the same way would drop a real failure on the floor and
+ * send the request anyway.
+ *
+ * PostgREST answers a column it cannot find in its schema cache with
+ * PGRST204, and Postgres itself with 42703 (undefined_column).
+ */
+export function isUnknownColumnError(
+  error: { code?: string | null; message?: string | null } | null | undefined,
+  column: string,
+): boolean {
+  if (!error) return false;
+  const code = error.code ?? '';
+  if (code !== 'PGRST204' && code !== '42703') return false;
+  return (error.message ?? '').includes(column);
+}
+
 export type SignerCopyAccess =
   | {
       allowed: true;
