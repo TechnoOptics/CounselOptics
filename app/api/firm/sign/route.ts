@@ -251,9 +251,26 @@ export async function POST(req: NextRequest) {
     // doesn't break the completion happy path - the underlying
     // signature rows still hold the immutable PNGs, and the
     // renderer can be safely re-run later from an admin tool.
+    //
+    // The RETURNED failure is recorded too. Most of the ways this
+    // render can fail (source PDF missing from storage, unparseable
+    // PDF, upload rejected, no signature stamped) return { ok: false }
+    // rather than throwing, so the catch below never saw them: the
+    // request flipped to completed, everyone was told the document was
+    // fully executed, and nothing anywhere said why signed_file_path
+    // was empty. The counsel surfaces now state the missing executed
+    // copy to the reader; this is the same fact for the audit trail.
     try {
       const { renderFinalSignedPdf } = await import('@/lib/signature-render');
-      await renderFinalSignedPdf(admin, request.id);
+      const render = await renderFinalSignedPdf(admin, request.id);
+      if (!render.ok) {
+        await appendSignatureEvent(admin, {
+          signingRequestId: request.id,
+          eventType: 'final_pdf_render_failed',
+          documentSha256: request.document_sha256,
+          metadata: { error: render.error },
+        }).catch(() => {});
+      }
     } catch (err) {
       // Best-effort surface to the audit chain so reviewers see why
       // there's no signed_file_path on the request row.

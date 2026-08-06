@@ -216,6 +216,31 @@ export async function renderFinalSignedPdf(
     }
   }
 
+  // Nothing landed on the page. Uploading this and recording it as
+  // the executed copy would put a document with an empty signature
+  // line in front of counsel under the label "executed copy", which is
+  // a worse answer than no executed copy at all: the surfaces that
+  // read signed_file_path state plainly when it is absent, and cannot
+  // tell a stamped PDF from an unstamped one once it is present.
+  if (stamped === 0) {
+    await appendSignatureEvent(admin, {
+      signingRequestId: request.id,
+      eventType: 'final_pdf_render_failed',
+      documentSha256: request.document_sha256,
+      metadata: {
+        reason: 'no signature could be stamped onto the document',
+        stamped,
+        skipped,
+        skip_reasons: skipReasons.length > 0 ? skipReasons : null,
+        source_path: src.path,
+      },
+    });
+    return {
+      ok: false,
+      error: `No signature could be stamped onto the document (${skipped} skipped).`,
+    };
+  }
+
   const outBytes = await pdf.save({ useObjectStreams: false });
   const signedPath = `signed/${request.id}/final.pdf`;
   const { error: upErr } = await admin.storage
@@ -228,29 +253,34 @@ export async function renderFinalSignedPdf(
     return { ok: false, error: `Upload failed: ${upErr.message}` };
   }
 
-  // Persist the executed-doc path on the request row so the UI can
-  // link directly to the stamped artifact. The column is optional;
-  // a soft-update prevents a missing column from breaking the
-  // happy path (the rest of the system continues to function via
-  // audit-log lookup).
-  try {
-    await admin
-      .from('firm_signing_requests')
-      .update({ signed_file_path: signedPath })
-      .eq('id', request.id);
-  } catch {
-    /* column may not exist yet on older schemas */
-  }
+  // Persist the executed-doc path on the request row. This is the only
+  // pointer to the executed copy that any surface reads, so a write
+  // that fails here means the PDF exists in storage and nothing can
+  // find it.
+  //
+  // It used to be wrapped in try/catch against the column being absent
+  // on an older schema, but supabase-js does not throw on a query
+  // error, it resolves with one. The catch could never fire, so a
+  // missing column was swallowed AND the audit event below went on to
+  // assert a signed_file_path the row did not carry. The error is read
+  // now, and the audit trail records which of the two happened.
+  const { error: pathErr } = await admin
+    .from('firm_signing_requests')
+    .update({ signed_file_path: signedPath })
+    .eq('id', request.id);
 
   // Audit trail entry so reviewers can see when and how the final
   // PDF was produced. The metadata captures the per-signer stamp
   // outcome so a partial render is reconstructible.
   await appendSignatureEvent(admin, {
     signingRequestId: request.id,
-    eventType: 'final_pdf_rendered',
+    eventType: pathErr ? 'final_pdf_render_failed' : 'final_pdf_rendered',
     documentSha256: request.document_sha256,
     metadata: {
-      signed_file_path: signedPath,
+      // Only claimed when the row actually carries it.
+      signed_file_path: pathErr ? null : signedPath,
+      uploaded_path: signedPath,
+      path_write_error: pathErr?.message ?? null,
       stamped,
       skipped,
       skip_reasons: skipReasons.length > 0 ? skipReasons : null,
@@ -258,6 +288,13 @@ export async function renderFinalSignedPdf(
       output_bytes: outBytes.length,
     },
   });
+
+  if (pathErr) {
+    return {
+      ok: false,
+      error: `Executed PDF uploaded to ${signedPath} but the path could not be recorded on the request: ${pathErr.message}`,
+    };
+  }
 
   return {
     ok: true,
