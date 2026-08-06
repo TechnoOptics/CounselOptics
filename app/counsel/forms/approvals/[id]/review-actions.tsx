@@ -25,6 +25,13 @@ import { T } from '@/components/i18n/LocaleProvider';
  *
  * Only a role that may release documents sees any of these controls, and the
  * server checks the same thing again on every one of them.
+ *
+ * `documentText` is the wording this page actually rendered, and it is sent
+ * with both the edit and the decision. The server makes each conditional on it,
+ * so a colleague who changed the wording while this page was open cannot have
+ * their change silently overwritten, and nobody is recorded as approving text
+ * that arrived after they read the page. When that happens the answer is to
+ * reload and look again, which is what the server says.
  */
 export function ReviewActions({
   submissionId,
@@ -51,7 +58,7 @@ export function ReviewActions({
   const decide = async (action: ReviewAction) => {
     setBusy(true);
     setError(null);
-    const res = await decideTemplateSubmissionAction(submissionId, action, note);
+    const res = await decideTemplateSubmissionAction(submissionId, action, note, documentText);
     setBusy(false);
     if (!res.ok) {
       setError(res.error ?? 'Could not record that decision.');
@@ -63,7 +70,7 @@ export function ReviewActions({
   const saveEdit = async () => {
     setBusy(true);
     setError(null);
-    const res = await editTemplateSubmissionAction(submissionId, draft, note);
+    const res = await editTemplateSubmissionAction(submissionId, draft, note, documentText);
     setBusy(false);
     if (!res.ok) {
       setError(res.error ?? 'Could not save that change.');
@@ -125,8 +132,8 @@ export function ReviewActions({
     return (
       <div className="rounded-xl border border-ink-200 bg-white p-4 text-[13px] text-ink-700 dark:border-forest-700/50 dark:bg-forest-900/40 dark:text-cream-100/80">
         <T>
-          This is waiting on an owner, admin, or attorney. You can read it and raise anything
-          you notice with them.
+          This is waiting on an owner, admin, or attorney. You can see who it is from and
+          where it is going, and raise anything you notice with them.
         </T>
       </div>
     );

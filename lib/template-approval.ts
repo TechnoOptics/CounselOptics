@@ -70,6 +70,36 @@ export function canApproveSubmissions(role: FirmRole | null | undefined): boolea
   return role != null && FIRM_MANAGE_ROLES.includes(role);
 }
 
+/**
+ * Whether this reader may see the exact wording of a submission.
+ *
+ * Reading is the other half of the release gate, and it was the half that was
+ * open. The branded PDF route lets any firm member render free text under the
+ * firm's letterhead, which is a legitimate counsel feature and not something to
+ * take away from a paralegal. But a member who cannot release could read a
+ * waiting document in full on the approvals screen, copy it, and post it back
+ * through that route to get the same finished, branded file the gate exists to
+ * withhold. Narrowing the render would have broken the studios; narrowing the
+ * read closes the loop and breaks nothing.
+ *
+ * So: the colleague who filled it in always reads it, because it is their own
+ * words and their own signature. The people who can decide on it always read
+ * it, because that is the decision. Every other firm member reads it once the
+ * firm has actually agreed to send it, and not before: 'pending' and
+ * 'changes_requested' are still under review, and 'withdrawn' and 'declined'
+ * are documents the firm decided not to send at all.
+ */
+export function canReadSubmissionDocument(input: {
+  role: FirmRole | null | undefined;
+  isSubmitter: boolean;
+  status: SubmissionStatus;
+}): boolean {
+  if (input.isSubmitter) return true;
+  if (canApproveSubmissions(input.role)) return true;
+  if (input.role == null) return false;
+  return input.status === 'approved' || input.status === 'sent';
+}
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
@@ -178,6 +208,13 @@ export type EditResult =
 export function reviewEdit(input: {
   role: FirmRole | null | undefined;
   current: SubmissionStatus;
+  /**
+   * The text the reviewer's own page rendered, NOT the text the server has
+   * just read. Those differ for as long as the reviewer had the document open,
+   * which is minutes, and comparing against the freshly read row would call an
+   * edit a change when it is really an overwrite of a colleague's edit made in
+   * the meantime.
+   */
   currentText: string;
   nextText: string;
   /** Whether the employee's original has already been copied aside. */

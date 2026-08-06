@@ -70,7 +70,10 @@ create table if not exists public.firm_template_submissions (
   -- is expected to fix it; a declined one is finished and nothing reopens it.
   status text not null default 'pending'
     check (status in ('pending', 'changes_requested', 'approved', 'sent', 'withdrawn', 'declined')),
-  -- Bumped on every resubmission so the reviewer knows they are re-reading it.
+  -- Bumped whenever the document changes: on every resubmission by the
+  -- employee, and on every reviewer edit. Either way a reviewer who had it open
+  -- is not looking at the same document any more, and the version number in the
+  -- queue is the signal that says so.
   revision int not null default 1,
 
   -- The approval itself. Written only by the approval path.
@@ -112,6 +115,14 @@ alter table public.firm_template_submissions enable row level security;
 -- Catch-up, for an environment that applied an earlier copy of this file
 -- before 'declined' and the reviewer-edit columns existed. All no-ops on a
 -- fresh database, where the create table above already covers them.
+--
+-- The status block below matches the constraint by its DEFAULT name,
+-- firm_template_submissions_status_check. On a fresh database that is the name
+-- Postgres gives it. If some environment created the table with the constraint
+-- named otherwise, the block finds nothing, does nothing, says nothing, and the
+-- first decline fails on a check violation. Nothing has run this file anywhere
+-- yet, so today that is a note and not a defect; check the constraint name
+-- before running the catch-up against anything that is not fresh.
 alter table public.firm_template_submissions
   add column if not exists original_document_text text,
   add column if not exists edited_by uuid,

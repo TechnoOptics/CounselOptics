@@ -18,14 +18,22 @@ import type { SubmissionRow } from './template-submission-types';
 /**
  * Delivery of an APPROVED template submission to its outside recipient.
  *
- * This module is the only code in the product that sends an employee's filled
- * template out of the building, and it is deliberately not a server action:
+ * This module is the only code in the product that MAILS an employee's filled
+ * template to an outside party, and it is deliberately not a server action:
  * nothing here is an HTTP endpoint. The only caller is the approval path in
  * lib/template-submissions.ts, and even that caller cannot skip the gate,
  * because this function re-reads the stored row itself and runs
  * checkReleasable() against it before anything is encrypted or emailed. A row
  * that is not 'approved', or that is approved with no approver recorded, is
  * refused here regardless of what the caller passed in.
+ *
+ * It is NOT the only way a filled template can leave the building, and reading
+ * it as though it were is how the second way stayed open. The other one is
+ * app/api/counsel/draft-template/pdf, which turns text into a finished
+ * letterheaded PDF in the caller's hands, and a file in someone's hands is a
+ * file they can forward. That route asks canRenderFilledTemplate() for the same
+ * reason this one asks checkReleasable(). buildBrandedDocumentPdf has exactly
+ * those two callers; if a third appears, it needs a gate of its own.
  *
  * Mechanism is unchanged from the secure share the Hub already used: the
  * document is encrypted with a one-time AES-256-GCM key, stored as ciphertext,

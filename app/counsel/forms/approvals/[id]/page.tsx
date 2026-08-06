@@ -97,12 +97,23 @@ export default async function CounselApprovalDetailPage({ params }: { params: { 
 
       <section className="rounded-xl border border-ink-200 bg-white p-6 dark:border-forest-700/50 dark:bg-forest-900/40">
         <SectionTitle className="mb-3">What would be sent</SectionTitle>
-        <div
-          className="max-h-[70vh] overflow-y-auto whitespace-pre-wrap font-serif text-[13.5px] leading-relaxed text-forest-900 dark:text-cream-100/90"
-          data-no-translate
-        >
-          {s.documentText}
-        </div>
+        {s.documentVisible ? (
+          <div
+            className="max-h-[70vh] overflow-y-auto whitespace-pre-wrap font-serif text-[13.5px] leading-relaxed text-forest-900 dark:text-cream-100/90"
+            data-no-translate
+          >
+            {s.documentText}
+          </div>
+        ) : (
+          <p className="text-[13px] text-ink-600 dark:text-cream-100/70">
+            <T>
+              The wording is open to the colleague who filled this in and to the owners,
+              admins, and attorneys who decide on it. Once it has been approved and sent,
+              everyone here can read it. You can still see where it came from, where it is
+              going, and what has happened to it.
+            </T>
+          </p>
+        )}
       </section>
 
       {/* The employee's own text, kept from the first edit onwards, so the

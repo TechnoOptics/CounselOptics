@@ -53,17 +53,30 @@ describe('lib/template-submissions.ts', () => {
   it('keeps the employee original when a reviewer edits, rather than replacing it', () => {
     const edit = exportedActions().find((a) => a.name === 'editTemplateSubmissionAction');
     expect(edit).toBeTruthy();
-    // The copy of what the employee submitted is written from the row that was
-    // read, and only when reviewEdit said this is the first edit. Writing it
+    // Written only when reviewEdit said this is the first edit. Writing it
     // unconditionally would overwrite the employee's text with the previous
     // reviewer's on the second edit.
     expect(edit?.body).toMatch(
-      /edit\.preserveOriginal\s*\?\s*\{\s*original_document_text:\s*row\.document_text\s*\}/,
+      /edit\.preserveOriginal\s*\?\s*\{\s*original_document_text:\s*seen\s*\}/,
     );
-    // The write is a compare-and-swap on the status AND the text the reviewer
-    // started from, so a concurrent edit is reported rather than clobbered.
-    expect(edit?.body).toMatch(/\.eq\('status',\s*'pending'\)/);
-    expect(edit?.body).toMatch(/\.eq\('document_text',\s*row\.document_text\)/);
+  });
+
+  it('swaps the edit and the decision against the text the reviewer saw', () => {
+    // The baseline is `seen`, the wording the reviewer's page rendered, NOT
+    // `row.document_text`, which the action itself read a moment earlier. The
+    // second only closes the milliseconds between an action's own read and its
+    // own write; the window that matters is the minutes a reviewer spends with
+    // the document open, and only the first closes that.
+    //
+    // tests/template-submission-concurrency.test.ts is what proves this works.
+    // These assertions exist so the wrong baseline cannot creep back in while
+    // a behavioural test that no longer reaches it keeps passing.
+    for (const name of ['editTemplateSubmissionAction', 'decideTemplateSubmissionAction']) {
+      const action = exportedActions().find((a) => a.name === name);
+      expect(action?.body).toMatch(/\.eq\('status',\s*'pending'\)/);
+      expect(action?.body).toMatch(/\.eq\('document_text',\s*seen\)/);
+      expect(action?.body).not.toMatch(/\.eq\('document_text',\s*row\.document_text\)/);
+    }
   });
 
   it('clears any reviewer edit when the employee resubmits', () => {

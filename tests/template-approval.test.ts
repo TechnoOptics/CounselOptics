@@ -4,6 +4,7 @@ import {
   ALL_SUBMISSION_STATUSES,
   applySubmissionAction,
   canApproveSubmissions,
+  canReadSubmissionDocument,
   canRenderFilledTemplate,
   checkReleasable,
   isEditableBySubmitter,
@@ -303,6 +304,59 @@ describe('rendering a filled template', () => {
     if (!res.ok) {
       expect(res.reason).toContain('legal team');
       expect(res.reason).not.toMatch(/denied|forbidden|not allowed|cannot/i);
+    }
+  });
+});
+
+/**
+ * Reading the wording is the other half of the gate.
+ *
+ * Withholding the render while leaving the read open is not a gate: a firm
+ * member who cannot release a document could read it in full on the approvals
+ * screen, copy it, and post it to the branded PDF route as free text, which
+ * that route accepts from any member because the letter and template studios
+ * legitimately need it. Narrowing the read closes that without taking free-text
+ * drafting away from anybody.
+ */
+describe('who may read the wording of a submission', () => {
+  const at = (status: SubmissionStatus) => status;
+
+  it('always shows the colleague who filled it in their own words', () => {
+    for (const status of ALL_SUBMISSION_STATUSES) {
+      expect(canReadSubmissionDocument({ role: null, isSubmitter: true, status })).toBe(true);
+    }
+  });
+
+  it('always shows it to the roles that decide on it', () => {
+    for (const role of ['owner', 'admin', 'attorney'] as const) {
+      for (const status of ALL_SUBMISSION_STATUSES) {
+        expect(canReadSubmissionDocument({ role, isSubmitter: false, status })).toBe(true);
+      }
+    }
+  });
+
+  it('withholds a document the firm has not agreed to send from everyone else', () => {
+    for (const role of ['paralegal', 'staff'] as const) {
+      for (const status of ['pending', 'changes_requested', 'withdrawn', 'declined'] as const) {
+        expect(canReadSubmissionDocument({ role, isSubmitter: false, status })).toBe(false);
+      }
+    }
+  });
+
+  it('opens it to the whole firm once the decision has been taken to send it', () => {
+    for (const role of ['paralegal', 'staff'] as const) {
+      expect(canReadSubmissionDocument({ role, isSubmitter: false, status: at('approved') })).toBe(
+        true,
+      );
+      expect(canReadSubmissionDocument({ role, isSubmitter: false, status: at('sent') })).toBe(
+        true,
+      );
+    }
+  });
+
+  it('shows nothing to someone outside the firm who did not file it', () => {
+    for (const status of ALL_SUBMISSION_STATUSES) {
+      expect(canReadSubmissionDocument({ role: null, isSubmitter: false, status })).toBe(false);
     }
   });
 });

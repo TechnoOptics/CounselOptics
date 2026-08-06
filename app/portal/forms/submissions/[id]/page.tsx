@@ -133,12 +133,18 @@ export default async function PortalSubmissionPage({ params }: { params: { id: s
 
       <section className="rounded-xl border border-ink-200 bg-white p-6 dark:border-forest-700/50 dark:bg-forest-900/40">
         <SectionTitle className="mb-3">Document</SectionTitle>
-        <div
-          className="max-h-[70vh] overflow-y-auto whitespace-pre-wrap font-serif text-[13.5px] leading-relaxed text-forest-900 dark:text-cream-100/90"
-          data-no-translate
-        >
-          {submission.documentText}
-        </div>
+        {submission.documentVisible ? (
+          <div
+            className="max-h-[70vh] overflow-y-auto whitespace-pre-wrap font-serif text-[13.5px] leading-relaxed text-forest-900 dark:text-cream-100/90"
+            data-no-translate
+          >
+            {submission.documentText}
+          </div>
+        ) : (
+          <p className="text-[13px] text-ink-600 dark:text-cream-100/70">
+            <T>The wording of this document is not open to you.</T>
+          </p>
+        )}
       </section>
 
       {submission.originalDocumentText && (

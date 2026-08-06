@@ -53,7 +53,15 @@ export type TemplateSubmission = {
   recipientNote: string | null;
   fieldValues: Record<string, string>;
   signatureName: string;
+  /**
+   * Empty when this reader may not see the wording (see
+   * canReadSubmissionDocument). Redaction happens where the row is read, not in
+   * the component, so a surface that forgets to check shows nothing rather than
+   * showing the document.
+   */
   documentText: string;
+  /** False when documentText and originalDocumentText have been withheld. */
+  documentVisible: boolean;
   status: SubmissionStatus;
   revision: number;
   decidedBy: string | null;
@@ -92,6 +100,13 @@ export type SubmissionInput = {
 export function rowToSubmission(
   row: SubmissionRow,
   nameOf: (userId: string) => string | null = () => null,
+  /**
+   * False withholds the document body and the preserved original. The caller
+   * decides with canReadSubmissionDocument(); this only carries out the
+   * decision, so there is one place the text can be dropped and one shape the
+   * UIs have to handle.
+   */
+  showDocument = true,
 ): TemplateSubmission {
   const decidedByName = row.decided_by ? nameOf(row.decided_by) : null;
   const editedByName = row.edited_by ? nameOf(row.edited_by) : null;
@@ -108,14 +123,15 @@ export function rowToSubmission(
     recipientNote: row.recipient_note,
     fieldValues: (row.field_values ?? {}) as Record<string, string>,
     signatureName: row.signature_name,
-    documentText: row.document_text,
+    documentText: showDocument ? row.document_text : '',
+    documentVisible: showDocument,
     status: row.status,
     revision: row.revision,
     decidedBy: row.decided_by,
     decidedByName,
     decidedAt: row.decided_at,
     decisionNote: row.decision_note,
-    originalDocumentText: row.original_document_text,
+    originalDocumentText: showDocument ? row.original_document_text : null,
     editedBy: row.edited_by,
     editedByName,
     editedAt: row.edited_at,

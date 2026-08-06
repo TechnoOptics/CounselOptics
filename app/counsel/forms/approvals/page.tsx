@@ -42,8 +42,10 @@ export default async function CounselFormApprovalsPage() {
       {!res.canApprove && (
         <p className="rounded-lg border border-ink-200 bg-cream-50/60 px-4 py-3 text-[13px] text-ink-700 dark:border-forest-700/50 dark:bg-forest-900/60 dark:text-cream-100/80">
           <T>
-            You can read everything in this queue. Releasing a document to an outside party
-            is limited to owners, admins, and attorneys.
+            You can follow everything in this queue: who filled each form in, who it is
+            addressed to, and where it has got to. Releasing a document to an outside party,
+            and reading the wording of one that has not been released yet, is limited to
+            owners, admins, and attorneys.
           </T>
         </p>
       )}

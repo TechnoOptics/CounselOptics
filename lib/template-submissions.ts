@@ -17,6 +17,7 @@ import type { FirmTemplate, TemplateField } from './firm-templates';
 import {
   applySubmissionAction,
   canApproveSubmissions,
+  canReadSubmissionDocument,
   isEditableBySubmitter,
   reviewDecision,
   reviewEdit,
@@ -100,6 +101,28 @@ function namedIn(rows: readonly SubmissionRow[]): string[] {
 function refresh(): void {
   revalidatePath('/portal/forms');
   revalidatePath('/counsel/forms/approvals');
+}
+
+/**
+ * The document the reviewer's own page rendered.
+ *
+ * Both the edit and the decision are conditional on this rather than on the row
+ * the action has just read, and the difference is the whole point. A reviewer
+ * sits with a document open for minutes; the gap between an action's own read
+ * and its own write is milliseconds. Comparing against the fresh read closes
+ * the millisecond and leaves the minutes open, which is how one reviewer's
+ * edit disappears under another's, and how an approver ends up recorded as
+ * having released text they never saw.
+ *
+ * A caller can of course send any string here, but the caller is already a
+ * reviewer who could read the current text and send that. This is a lost-update
+ * guard, not an authorization check; authorization is the role check above it.
+ * An omitted argument arrives as '' and fails the comparison, so a caller who
+ * leaves it out is told to reload rather than quietly getting the old
+ * behaviour.
+ */
+function seenDocument(value: unknown): string {
+  return String(value ?? '');
 }
 
 /** Tell the people who can act on it that a document is waiting. */
@@ -360,7 +383,11 @@ export async function withdrawTemplateSubmissionAction(
 
 // ── Legal side ────────────────────────────────────────────────────────────
 
-/** The firm's review queue. Any member may read it. */
+/**
+ * The firm's review queue. Any member may read the queue; the wording of a
+ * document that has not been cleared for release is narrower than that, see
+ * canReadSubmissionDocument.
+ */
 export async function listFirmTemplateSubmissionsAction(
   firmId: string,
 ): Promise<{
@@ -382,11 +409,20 @@ export async function listFirmTemplateSubmissionsAction(
     .limit(200);
   const rows = (data ?? []) as SubmissionRow[];
   const people = await hydratePeople(admin, namedIn(rows));
+  const user = await getCurrentUser();
   return {
     ok: true,
     canApprove: canApproveSubmissions(role),
     submissions: rows.map((r) =>
-      rowToSubmission(r, (id) => people.get(id)?.name ?? null),
+      rowToSubmission(
+        r,
+        (id) => people.get(id)?.name ?? null,
+        canReadSubmissionDocument({
+          role,
+          isSubmitter: r.submitted_by === user?.id,
+          status: r.status,
+        }),
+      ),
     ),
   };
 }
@@ -421,7 +457,11 @@ export async function getTemplateSubmissionAction(submissionId: string): Promise
     ok: true,
     viewer: role ? 'legal' : 'submitter',
     canApprove: canApproveSubmissions(role),
-    submission: rowToSubmission(row, (id) => people.get(id)?.name ?? null),
+    submission: rowToSubmission(
+      row,
+      (id) => people.get(id)?.name ?? null,
+      canReadSubmissionDocument({ role, isSubmitter, status: row.status }),
+    ),
   };
 }
 
@@ -439,11 +479,19 @@ export async function getTemplateSubmissionAction(submissionId: string): Promise
  * that is not going out. A declined row can never be released, because
  * checkReleasable and the release claim both require the status 'approved'
  * and nothing moves a declined row back to it.
+ *
+ * The decision is also conditional on the wording the reviewer's page rendered.
+ * The premise of this gate is that a person with release authority read THIS
+ * document, and the reviewer edit gives the document a way to change while they
+ * are reading it. Without this, a reviewer who opened the page at ten o'clock
+ * could approve at five past and release a version a colleague wrote at one
+ * past, with their own name recorded as the approver of text they never saw.
  */
 export async function decideTemplateSubmissionAction(
   submissionId: string,
   action: ReviewAction,
   note?: string,
+  seenDocumentText?: string,
 ): Promise<{ ok: boolean; error?: string; status?: string; deliveryError?: string }> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: 'Sign in first.' };
@@ -462,6 +510,15 @@ export async function decideTemplateSubmissionAction(
   const decision = reviewDecision({ role, current: row.status, action, note });
   if (!decision.ok) return { ok: false, error: decision.error };
 
+  const seen = seenDocument(seenDocumentText);
+  if (seen !== row.document_text) {
+    return {
+      ok: false,
+      error:
+        'The wording changed while this was open. Reload it, read the current version, and decide again.',
+    };
+  }
+
   const { data: updated } = await admin
     .from('firm_template_submissions')
     .update({
@@ -474,6 +531,9 @@ export async function decideTemplateSubmissionAction(
     })
     .eq('id', submissionId)
     .eq('status', 'pending')
+    // The check above is against a row read a moment ago; this one is against
+    // the row at the instant of the write, and it is what actually holds.
+    .eq('document_text', seen)
     .select(SUBMISSION_COLS)
     .maybeSingle();
   if (!updated) return { ok: false, error: 'Someone else has already acted on this submission.' };
@@ -544,15 +604,18 @@ export async function decideTemplateSubmissionAction(
  * document that goes out is traceably the edited one and the submitted one is
  * still on the record beside it.
  *
- * The write is conditional on the status AND on the text the reviewer started
- * from, so two reviewers editing the same document at once cannot silently
- * overwrite one another: the second one is told to reload rather than having
- * their colleague's wording disappear under them.
+ * The write is conditional on the status AND on the text the reviewer's page
+ * rendered, which is what seenDocumentText carries. Two reviewers editing the
+ * same document at once therefore cannot silently overwrite one another: the
+ * second one is told to reload rather than having their colleague's wording
+ * disappear under them, and the record never shows a jump from the first
+ * version to the third with the second missing.
  */
 export async function editTemplateSubmissionAction(
   submissionId: string,
   documentText: string,
   note?: string,
+  seenDocumentText?: string,
 ): Promise<{ ok: boolean; error?: string }> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: 'Sign in first.' };
@@ -567,40 +630,46 @@ export async function editTemplateSubmissionAction(
   const row = (data as SubmissionRow | null) ?? null;
   if (!row) return { ok: false, error: 'That submission could not be found.' };
 
+  const seen = seenDocument(seenDocumentText);
   const role = await callerFirmRole(row.firm_id);
   const edit = reviewEdit({
     role,
     current: row.status,
-    currentText: row.document_text,
+    currentText: seen,
     nextText: String(documentText ?? ''),
     hasOriginal: Boolean(row.original_document_text),
   });
   if (!edit.ok) return { ok: false, error: edit.error };
 
+  const stale =
+    'This document has changed since you opened it. Reload it, read the current wording, and make the change again.';
+  if (seen !== row.document_text) return { ok: false, error: stale };
+
   const { data: updated, error } = await admin
     .from('firm_template_submissions')
     .update({
       document_text: edit.documentText,
-      ...(edit.preserveOriginal ? { original_document_text: row.document_text } : {}),
+      // The compare-and-swap below guarantees the stored text is `seen` at the
+      // moment of the write, so this preserves exactly what was on the row and
+      // not what an earlier read happened to see.
+      ...(edit.preserveOriginal ? { original_document_text: seen } : {}),
       edited_by: user.id,
       edited_at: new Date().toISOString(),
       edit_note: trimTo(note, 2000) || null,
+      // Same signal a resubmission gives: the document is not the one anyone
+      // else has open, and the queue shows a new version number for it.
+      revision: row.revision + 1,
       updated_at: new Date().toISOString(),
     })
     .eq('id', submissionId)
     .eq('status', 'pending')
-    .eq('document_text', row.document_text)
+    .eq('document_text', seen)
     .select('id')
     .maybeSingle();
   if (error) {
     return { ok: false, error: 'That change could not be saved just now. Try again shortly.' };
   }
-  if (!updated) {
-    return {
-      ok: false,
-      error: 'This document has changed since you opened it. Reload it and make the change again.',
-    };
-  }
+  if (!updated) return { ok: false, error: stale };
 
   const people = await hydratePeople(admin, [user.id]);
   const actorName = people.get(user.id)?.name ?? 'The legal team';
