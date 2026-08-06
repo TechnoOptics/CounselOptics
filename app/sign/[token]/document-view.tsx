@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  SIGNER_DOCUMENT_PRESENT_TIMEOUT_MS,
   SIGNER_DOCUMENT_RENDER_COPY,
   clampSignerPageNumber,
+  resolveDocumentResponseFailure,
   resolveDocumentSizeAcceptance,
   resolveSignatureLinePlacement,
   rotateSignatureRectForDisplay,
@@ -85,13 +87,38 @@ export function SignerDocumentView({
 
   const documentHref = `/api/firm/sign/document/${token}`;
 
+  // Set once the page has given up waiting. After that a render that
+  // finishes late may still report a failure, but it may not report
+  // 'ready': the signer has already been told the document did not
+  // open, and a page that quietly takes that back would put
+  // documentPresented true underneath a sentence saying otherwise.
+  const expired = useRef(false);
+
   const report = useCallback(
     (next: SignerDocumentRenderStatus) => {
+      if (expired.current && next === 'ready') return;
       setStatus(next);
       onStatusChange(next);
     },
     [onStatusChange],
   );
+
+  // The one failure that had no sentence. A stalled body never
+  // resolves and never rejects, and a frame measured at zero width
+  // never renders a page at all; either way the signer sat on
+  // "Opening the document." with Continue disabled, no error, and
+  // nothing telling them to ask the firm. This runs from mount to the
+  // first rendered page, so it covers the fetch, the parse and the
+  // render alike, and it is cleared the moment the status leaves
+  // pending.
+  useEffect(() => {
+    if (status !== 'pending') return;
+    const timer = setTimeout(() => {
+      expired.current = true;
+      report('unavailable');
+    }, SIGNER_DOCUMENT_PRESENT_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [status, report]);
 
   // Width of the surface the page is drawn at. Measured rather than
   // assumed so a phone in landscape, a rotated tablet, and a resized
@@ -115,16 +142,34 @@ export function SignerDocumentView({
     const controller = new AbortController();
     let cancelled = false;
     (async () => {
+      // The transfer and the parse are separated because their
+      // failures are different sentences and fetch does not
+      // distinguish them: a dropped connection rejects with a
+      // TypeError, exactly like a bug would, and telling a signer on a
+      // train that their document may be damaged sends them and their
+      // firm after the wrong thing.
+      let bytes: ArrayBuffer;
       try {
         const res = await fetch(documentHref, {
           credentials: 'same-origin',
           signal: controller.signal,
         });
         if (!res.ok) {
-          if (!cancelled) report(res.status === 413 ? 'too-large' : 'unavailable');
+          if (!cancelled) report(resolveDocumentResponseFailure(res.status));
           return;
         }
-        const bytes = await res.arrayBuffer();
+        bytes = await res.arrayBuffer();
+      } catch {
+        if (cancelled || controller.signal.aborted) return;
+        report('unavailable');
+        return;
+      }
+      try {
+        // A stored file with no bytes in it is refused by the route
+        // before it gets here, and refused as a missing document
+        // rather than an oversized one. So 'empty' at this point means
+        // something else: a response that was accepted and arrived
+        // with nothing in it, which is its own sentence.
         const size = resolveDocumentSizeAcceptance(bytes.byteLength);
         if (size !== 'ok') {
           if (!cancelled) report(size);

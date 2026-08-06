@@ -25,17 +25,25 @@ const CSP = [
   `script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://app.cal.com`,
   `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
   `img-src 'self' data: blob: https://*.supabase.co https://${SUPABASE_HOST} https://*.googleusercontent.com https://maps.gstatic.com https://maps.googleapis.com`,
-  // blob: is here for pdf.js. The signer page rasterises the document
-  // it is asking someone to sign, and a PDF carrying embedded fonts
-  // has them registered through a blob or data URL depending on the
-  // path the library takes. Without it, an enforced policy would drop
-  // the embedded typeface and substitute glyphs into a legal
-  // instrument, silently, since this header still ships report-only.
-  `font-src 'self' data: blob: https://fonts.gstatic.com`,
+  // Unchanged for the signer page, and that was checked rather than
+  // assumed. blob: was added here on the theory that pdf.js registers
+  // an embedded typeface through an object URL; it does not. It builds
+  // a FontFace from the font's own bytes, or from a data: URL, both of
+  // which this line already allowed. The only object URL the library
+  // creates is the wrapper it uses to start a cross-origin worker,
+  // which is worker-src and pre-existing. A security header widened on
+  // an unverified claim is exactly what the rest of this change is
+  // about not doing, so it came back out.
+  `font-src 'self' data: https://fonts.gstatic.com`,
   // The signer page fetches the PDF bytes itself now instead of
   // pointing a frame at storage, and it fetches them from this origin
   // (/api/firm/sign/document/[token]), so 'self' is what covers it and
-  // no host was added here for it. That is deliberate: the page is
+  // no host was added here for it. It also fetches the OpenJPEG wasm
+  // the same way, from public/pdf-worker/<version>/wasm/ on this
+  // origin: the fetch is made by the page rather than the worker
+  // (useWorkerFetch: false), so it lands here and not in worker-src,
+  // and script-src already carries the 'unsafe-eval' that wasm
+  // compilation needs. That is deliberate: the page is
   // unauthenticated and its URL carries a live signing credential, so
   // the rasteriser is given nothing cross-origin to reach for. The
   // Supabase host below is the pre-existing allowance for the
@@ -48,10 +56,14 @@ const CSP = [
   // and no longer does, because it renders the document itself from
   // same-origin bytes instead of framing storage.
   `frame-src 'self' https://*.supabase.co https://${SUPABASE_HOST} https://www.google.com https://maps.google.com https://js.stripe.com https://hooks.stripe.com https://billing.stripe.com https://app.cal.com`,
-  // 'self' covers the pdf.js worker: it is emitted into /_next/static
-  // by the bundler, version-locked to the library it came from, and
-  // loaded from this origin. No CDN worker, no wasm blob, no character
-  // map fetched from anywhere. blob: predates this and stays.
+  // 'self' covers the pdf.js worker: it is NOT emitted into
+  // /_next/static by the bundler (Next runs Terser over emitted .mjs
+  // assets in non-module mode, which fails on the import.meta inside
+  // it), it is copied into public/pdf-worker/<version>/ by
+  // scripts/copy-pdf-worker.mjs at prebuild and served from this
+  // origin, version-locked to the library that loads it. No CDN
+  // worker, no character map fetched from anywhere. blob: predates
+  // this and stays.
   `worker-src 'self' blob:`,
   `manifest-src 'self'`,
   `media-src 'self' blob:`,
@@ -171,6 +183,33 @@ const nextConfig = {
   // crossing subdomains, turning /admin into /admin/admin and 404'ing
   // every signed-in tester. Middleware does both legs in a single pass
   // with explicit ordering and no chance of re-evaluation.
+  webpack: (config, { isServer, webpack }) => {
+    // Keep the build machine's path out of a public page.
+    //
+    // pdf.js contains exactly one `import.meta.url`, inside the Node
+    // canvas factory, which a browser never reaches. Webpack evaluates
+    // it at build time regardless and inlines the absolute path of the
+    // directory it was built in, so the chunk that /sign/[token] loads
+    // carried a line like file:///.../node_modules/pdfjs-dist/build,
+    // served to anyone holding a signing link, on a page that requires
+    // no account.
+    //
+    // Defined to a constant rather than disabled: turning the parser's
+    // import.meta evaluation off leaves the expression in the emitted
+    // chunk, which then fails to minify (verified: the build stops
+    // with a syntax error). This substitutes a fixed, meaningless URL
+    // instead. Nothing in this app's own client code reads
+    // import.meta.url, and the one library that does uses it only on
+    // the Node path.
+    if (!isServer) {
+      config.plugins.push(
+        new webpack.DefinePlugin({
+          'import.meta.url': JSON.stringify('file:///app/'),
+        }),
+      );
+    }
+    return config;
+  },
   async redirects() {
     return [
       // www.advottic.com/* -> advottic.com/*  (canonical apex).

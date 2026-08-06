@@ -4,6 +4,7 @@ import { getSignatureByToken } from '@/lib/firm-storage';
 import {
   SIGNER_DOCUMENT_REFUSAL_COPY,
   resolveDocumentSizeAcceptance,
+  resolveDocumentSizeRefusal,
   resolveSignerDocumentAccess,
 } from '@/lib/signer-view';
 
@@ -63,6 +64,23 @@ export async function GET(
   const admin = createAdminSupabase();
   if (!admin) return refuse(500, SIGNER_DOCUMENT_REFUSAL_COPY.unavailable);
 
+  // Asked of the storage metadata BEFORE the bytes are pulled, which
+  // is the only order in which the ceiling means anything here.
+  // Downloading first and measuring after left a 500 MB stored file
+  // entirely resident in the function before the refusal was written,
+  // which is the thing the check was supposed to prevent. If storage
+  // will not answer the question, the download below still measures
+  // what arrived, so the ceiling holds either way; only the saving
+  // is lost.
+  const probe = await admin.storage.from('firm-documents').info(access.path);
+  if (probe.data) {
+    const probed = resolveDocumentSizeAcceptance(probe.data.size);
+    if (probed !== 'ok') {
+      const refusal = resolveDocumentSizeRefusal(probed);
+      return refuse(refusal.status, refusal.message);
+    }
+  }
+
   const { data: blob, error } = await admin.storage
     .from('firm-documents')
     .download(access.path);
@@ -70,21 +88,22 @@ export async function GET(
     return refuse(404, SIGNER_DOCUMENT_REFUSAL_COPY.unavailable);
   }
 
-  // Size is checked here as well as in the browser. The browser's
-  // check is what produces a readable message; this one is what stops
-  // a serverless function pulling a file it has no business buffering.
+  // Size is checked here as well as in the browser, and the two
+  // refusals are the same table (lib/signer-view.ts) read from both
+  // ends. They used to agree by accident and disagree in effect: an
+  // empty stored file came back as 413, which the page read as "too
+  // large", so a signer whose firm had uploaded a zero-byte document
+  // was told the opposite of what had happened.
   const size = resolveDocumentSizeAcceptance(blob.size);
   if (size !== 'ok') {
-    return refuse(
-      413,
-      size === 'empty'
-        ? SIGNER_DOCUMENT_REFUSAL_COPY.unavailable
-        : 'This document is too large to open on this page. The firm can send you a copy.',
-    );
+    const refusal = resolveDocumentSizeRefusal(size);
+    return refuse(refusal.status, refusal.message);
   }
 
-  // Streamed rather than buffered, so a large agreement does not sit
-  // in the function's heap on its way to the reader.
+  // The body is a stream over bytes this function already holds:
+  // storage.download() materialises the whole file, so this saves the
+  // copy into the response and nothing more. The size probe above is
+  // what keeps a file past the ceiling from being materialised at all.
   return new NextResponse(blob.stream() as unknown as BodyInit, {
     status: 200,
     headers: {

@@ -24,10 +24,16 @@
  *   5. Everything about rasterising the document in the browser that is
  *      a decision rather than a canvas call: who may fetch the bytes
  *      (resolveSignerDocumentAccess), whether the file is one this
- *      device should attempt (resolveDocumentSizeAcceptance), how big
- *      the backing canvas may be (resolveCanvasRenderScale), which page
- *      is on screen (clampSignerPageNumber), and what a failure says to
- *      the signer (SIGNER_DOCUMENT_RENDER_COPY).
+ *      device should attempt (resolveDocumentSizeAcceptance) and how a
+ *      file that is not gets refused and read back
+ *      (resolveDocumentSizeRefusal / resolveDocumentResponseFailure),
+ *      how big the backing canvas may be (resolveCanvasRenderScale),
+ *      which page is on screen (clampSignerPageNumber), how long the
+ *      page may sit on "opening" before that counts as a failure
+ *      (SIGNER_DOCUMENT_PRESENT_TIMEOUT_MS), whether the render
+ *      actually drew everything the page asked for
+ *      (firstDroppedRenderObject), and what a failure says to the
+ *      signer (SIGNER_DOCUMENT_RENDER_COPY).
  *
  * A sixth used to live here: which URL a mounted document frame shows.
  * It is gone with the frame. The page no longer mints a signed storage
@@ -566,9 +572,16 @@ export type SignerConsentRecord = {
  * are the reason the review gate exists at all, so they belong here
  * beside the electronic-records consent and the intent to sign.
  *
- * What `document_presented` means is narrow and should be read
- * narrowly: a URL was minted and given to the frame. It is not proof
- * the PDF rendered on the signer's device.
+ * What `document_presented` means, stated here because this is the
+ * comment a later verifier would quote when construing the record: a
+ * page of this PDF was rasterised onto a canvas in the signer's own
+ * browser, and the renderer confirmed afterwards that nothing the page
+ * asked to paint had been dropped. It is the render, not a minted URL:
+ * the old, weaker meaning ("a signed URL was handed to a frame") was
+ * true of a phone that downloaded the file instead of showing it, and
+ * it is not what this field carries any more. It is still not proof
+ * the signer LOOKED at the page, which is what
+ * `document_reviewed_at` is: their own statement that they did.
  *
  * Values are normalised rather than passed through, so a missing field
  * reads as null instead of undefined, which jsonb would drop.
@@ -692,10 +705,20 @@ export const SIGNER_DOCUMENT_REFUSAL_COPY: Record<
  *
  * The signer's device does the parsing now, and the device most likely
  * to be handed a long contract is a phone. pdf.js holds the whole file
- * in memory to parse it and rasterises one page at a time on top of
- * that, so page count is not the limit, total bytes is. 40 MB is well
- * past any ordinary agreement and still inside what a mid-range phone
- * can hold without the tab being killed.
+ * to parse it, so this is a ceiling on the PARSE and nothing else.
+ * State that precisely, because the honest version is narrower than it
+ * looks: at open time the bytes exist twice, once in the page's own
+ * buffer and once in the worker's structured clone of it, and the
+ * compositor generally keeps a second copy of the canvas alongside the
+ * backing store. 40 MB is well past any ordinary agreement and still
+ * inside what a mid-range phone can hold through that.
+ *
+ * What it does NOT bound is the read-through. A signer reading a long
+ * document opens page after page, and pdf.js retains per-page state
+ * for each one until it is told not to, so an 800-page text contract
+ * that passes this gate comfortably can still exhaust a phone while
+ * being read. That is why renderPageToCanvas releases each page after
+ * it draws it (page.cleanup()); this constant would not have saved it.
  *
  * The point of the limit is that the failure is a sentence rather than
  * a blank canvas or a crashed tab. Refusing to start is the honest
@@ -711,6 +734,117 @@ export function resolveDocumentSizeAcceptance(
   if (!finite(byteLength) || byteLength <= 0) return 'empty';
   if (byteLength > SIGNER_DOCUMENT_MAX_BYTES) return 'too-large';
   return 'ok';
+}
+
+/**
+ * The one status code that means "too large", named once.
+ *
+ * The route that serves the bytes and the page that fetches them both
+ * read it. They used to agree by coincidence and disagree in effect:
+ * the route answered 413 for an EMPTY stored file as well, and the
+ * page turned every 413 into "this document is larger than this page
+ * can open". A signer whose firm had uploaded a zero-byte file was
+ * told the opposite of what had happened, and the firm was sent to fix
+ * a size problem it did not have.
+ */
+export const SIGNER_DOCUMENT_TOO_LARGE_STATUS = 413;
+
+/**
+ * How the route refuses a file it will not serve, given what is wrong
+ * with it.
+ *
+ * Empty is not a size complaint. A stored file with no bytes in it is,
+ * to the reader, a file that is not there, so it refuses as one and
+ * the page says the document could not be loaded.
+ */
+export function resolveDocumentSizeRefusal(
+  size: Exclude<DocumentSizeAcceptance, 'ok'>,
+): { status: number; message: string } {
+  if (size === 'too-large') {
+    return {
+      status: SIGNER_DOCUMENT_TOO_LARGE_STATUS,
+      message:
+        'This document is too large to open on this page. The firm can send you a copy.',
+    };
+  }
+  return { status: 404, message: SIGNER_DOCUMENT_REFUSAL_COPY.unavailable };
+}
+
+/**
+ * What a refused response says to the signer.
+ *
+ * The pair to resolveDocumentSizeRefusal, and the reason both are
+ * functions rather than literals at two call sites: the sentence the
+ * signer reads has to follow from the reason the bytes were withheld,
+ * and there is a test that walks every refusal the route can emit
+ * through both.
+ */
+export function resolveDocumentResponseFailure(
+  httpStatus: number,
+): Extract<SignerDocumentRenderStatus, 'too-large' | 'unavailable'> {
+  return httpStatus === SIGNER_DOCUMENT_TOO_LARGE_STATUS
+    ? 'too-large'
+    : 'unavailable';
+}
+
+/**
+ * How long the page will sit on "Opening the document." before it
+ * calls the attempt failed.
+ *
+ * Every other way this can fail ends in a sentence. Without a deadline
+ * one of them does not: a body that stalls on a flaky connection never
+ * resolves and never rejects, and a container that is measured at zero
+ * width never renders a page at all, so the signer waits on a spinner
+ * with Continue disabled, no error, and no reason to go ask the firm.
+ * Silence is the one failure state that cannot be acted on.
+ *
+ * Two minutes is long enough for a large agreement over a slow mobile
+ * connection and short enough that nobody sits in front of a page that
+ * is not coming. It runs from mount to the first rendered page, so it
+ * covers the fetch, the parse, and the render alike.
+ */
+export const SIGNER_DOCUMENT_PRESENT_TIMEOUT_MS = 120_000;
+
+/**
+ * Whether the renderer quietly dropped something the page asked it to
+ * paint, and what.
+ *
+ * This is the guard behind the branch's central claim, and it exists
+ * because pdf.js does not fail the way the rest of this file assumed.
+ * When an image on a page cannot be decoded - a JPEG 2000 scan, a
+ * truncated stream, a codec this build has no decoder for - the worker
+ * catches it, warns, and resolves the image object to null
+ * (pdf.worker.mjs, buildPaintImageXObject). The canvas side then skips
+ * that paint with a console warning and the render task RESOLVES. On a
+ * scanned agreement, whose every page is one image, that produces the
+ * exact artefact this whole page was built to prevent: a white
+ * rectangle that reports itself as the document, under a checkbox
+ * saying the signer has reviewed it in full.
+ *
+ * `stopAtErrors` does not close it. That option only reaches the
+ * `ignoreErrors` branches, and the catch on this path is not one of
+ * them: it swallows the failure before any of them is consulted.
+ *
+ * So the renderer checks afterwards instead. Everything pdf.js
+ * resolves into a page's object bag is an image or a pattern, and a
+ * null there means precisely one thing: the worker could not produce
+ * it. One null means the signer was shown less than the page, which is
+ * not a document that was presented to them.
+ *
+ * A page that draws nothing at all is NOT a failure here, deliberately.
+ * Blank pages are ordinary in real agreements - the back of a scanned
+ * duplex sheet, a divider - and refusing to open a document because
+ * page 7 has nothing on it would block a signing for a page that is
+ * exactly as it should be.
+ */
+export function firstDroppedRenderObject(
+  entries: Iterable<readonly unknown[]> | null | undefined,
+): string | null {
+  if (!entries) return null;
+  for (const [objId, data] of entries) {
+    if (data === null || data === undefined) return String(objId);
+  }
+  return null;
 }
 
 /**
