@@ -16,9 +16,12 @@ import { createFrameSrcRetainer, type FrameSrcRetainer } from '@/lib/refresh-gua
  * successful send did it too.
  *
  * So the first working URL is held for the life of the mount and later
- * ones are ignored. The retention itself is createFrameSrcRetainer, kept
- * pure and unit-tested; this component is the two lines of React around
- * it.
+ * ones are ignored. The retention itself is createFrameSrcRetainer: a
+ * closure that remembers the URL on screen, so calling it during render
+ * does mutate it. What is asserted, and what this component needs, is
+ * that repeating a render never changes the answer. It is unit-tested
+ * over a sequence of renders for exactly that; this component is the
+ * two lines of React around it.
  */
 export function DocumentFrame({
   src,

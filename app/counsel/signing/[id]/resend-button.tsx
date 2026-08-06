@@ -37,7 +37,11 @@ export function ResendButton({
   const t = useT();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  // The sentence, plus whether we wrote it. Our own copy goes through
+  // t() at render time so it lands in the reader's language once the
+  // translation does; a mail-provider diagnostic is shown verbatim,
+  // since translating it destroys the one thing it is good for.
+  const [error, setError] = useState<{ text: string; ours: boolean } | null>(null);
   const [sent, setSent] = useState(false);
 
   function resend() {
@@ -48,8 +52,10 @@ export function ResendButton({
       if (res.ok) {
         setSent(true);
         router.refresh();
+      } else if (res.error) {
+        setError({ text: res.error, ours: res.errorSource === 'app' });
       } else {
-        setError(res.error ?? t('Could not send. Try again shortly.'));
+        setError({ text: 'Could not send. Try again shortly.', ours: true });
       }
     });
   }
@@ -89,7 +95,12 @@ export function ResendButton({
       )}
       {error && (
         <span className="text-[11px] text-rose-700 dark:text-rose-300 max-w-[28ch] text-right">
-          <T>Not sent:</T> <span data-no-translate>{error}</span>
+          <T>Not sent:</T>{' '}
+          {error.ours ? (
+            <span>{t(error.text)}</span>
+          ) : (
+            <span data-no-translate>{error.text}</span>
+          )}
         </span>
       )}
     </span>

@@ -2081,7 +2081,26 @@ export type SigningEmailFailure = {
   email: string;
   kind: 'link' | 'code';
   error: string;
+  /** Who wrote `error`. See SigningErrorSource. */
+  source: SigningErrorSource;
 };
+
+/**
+ * Who wrote a sentence a signing action hands back.
+ *
+ * 'app' is our own copy, written here in English, which the counsel
+ * shell passes through t() so a firm working in another language reads
+ * it in theirs. 'provider' is text we did not write, from the mail
+ * provider or the store, which is shown verbatim inside
+ * `data-no-translate`: machine-translating a provider diagnostic
+ * destroys the one thing it is good for, which is being quoted back to
+ * the provider.
+ *
+ * Without this the UI cannot tell the two apart, so every sentence on
+ * this channel has to be treated as untranslatable, and our own copy
+ * renders in English on a non-English locale.
+ */
+export type SigningErrorSource = 'app' | 'provider';
 
 /**
  * The bucket key for one recipient, with any plus tag folded away.
@@ -2230,6 +2249,8 @@ export async function createSigningRequestAction(
   ok: boolean;
   error?: string;
   requestId?: string;
+  /** Who wrote `error`, when there is one. See SigningErrorSource. */
+  errorSource?: SigningErrorSource;
   /**
    * Non-empty when the request row was created but at least one email
    * did not leave. The record and its tokens are valid and a resend is
@@ -2241,10 +2262,16 @@ export async function createSigningRequestAction(
   emailFailures?: SigningEmailFailure[];
 }> {
   const user = await requireUser();
-  if (signers.length === 0) return { ok: false, error: 'Add at least one signer.' };
+  if (signers.length === 0)
+    return { ok: false, error: 'Add at least one signer.', errorSource: 'app' };
   const supabase = createServerSupabase();
   const admin = createAdminSupabase();
-  if (!admin) return { ok: false, error: 'Server is missing SUPABASE_SERVICE_ROLE_KEY.' };
+  if (!admin)
+    return {
+      ok: false,
+      error: 'Server is missing SUPABASE_SERVICE_ROLE_KEY.',
+      errorSource: 'app',
+    };
 
   // AUTHZ (IDOR guard): everything below runs on the service-role admin
   // client (RLS-bypassing) - it downloads, hashes, appends to, and
@@ -2265,6 +2292,7 @@ export async function createSigningRequestAction(
       return {
         ok: false,
         error: 'You do not have permission to send this document for signature.',
+        errorSource: 'app',
       };
     }
   }
@@ -2292,7 +2320,7 @@ export async function createSigningRequestAction(
   // The document must belong to the firm the caller is authorized for -
   // otherwise the guard above (scoped to firmId) means nothing.
   if (!doc || (doc as { firm_id?: string }).firm_id !== firmId) {
-    return { ok: false, error: 'Document not found for this firm.' };
+    return { ok: false, error: 'Document not found for this firm.', errorSource: 'app' };
   }
   const docName = (doc as { name?: string } | null)?.name ?? 'Document';
   const docPath = (doc as { file_path?: string } | null)?.file_path ?? null;
@@ -2424,7 +2452,12 @@ export async function createSigningRequestAction(
     })
     .select('id')
     .single();
-  if (reqErr || !req) return { ok: false, error: reqErr?.message ?? 'Could not create request.' };
+  if (reqErr || !req) {
+    // The store's own wording when there is one, ours when there is not.
+    return reqErr?.message
+      ? { ok: false, error: reqErr.message, errorSource: 'provider' }
+      : { ok: false, error: 'Could not create request.', errorSource: 'app' };
+  }
   const requestId = (req as { id: string }).id;
 
   // Append the first event in the chain. request_created records who
@@ -2595,6 +2628,7 @@ export async function createSigningRequestAction(
         kind: 'link',
         error:
           'This address has already had several signing emails in the last few minutes. Use Resend on this signer shortly.',
+        source: 'app',
       });
       continue;
     }
@@ -2631,6 +2665,7 @@ export async function createSigningRequestAction(
         email: normalizedEmail,
         kind: 'link',
         error: linkResult.error,
+        source: 'provider',
       });
     }
 
@@ -2648,6 +2683,7 @@ export async function createSigningRequestAction(
           email: normalizedEmail,
           kind: 'code',
           error: codeResult.error,
+          source: 'provider',
         });
       }
       // Only record "we sent the code" once the provider actually took
@@ -2779,11 +2815,22 @@ async function sendSigningCodeEmail(input: {
 export async function resendSigningEmailsAction(
   firmId: string,
   signatureId: string,
-): Promise<{ ok: boolean; error?: string; emailFailures?: SigningEmailFailure[] }> {
+): Promise<{
+  ok: boolean;
+  error?: string;
+  /** Who wrote `error`, when there is one. See SigningErrorSource. */
+  errorSource?: SigningErrorSource;
+  emailFailures?: SigningEmailFailure[];
+}> {
   const user = await requireUser();
   const supabase = createServerSupabase();
   const admin = createAdminSupabase();
-  if (!admin) return { ok: false, error: 'Server is missing SUPABASE_SERVICE_ROLE_KEY.' };
+  if (!admin)
+    return {
+      ok: false,
+      error: 'Server is missing SUPABASE_SERVICE_ROLE_KEY.',
+      errorSource: 'app',
+    };
 
   // Same IDOR guard as createSigningRequestAction: everything below runs
   // on the RLS-bypassing admin client, so prove membership of firmId
@@ -2799,6 +2846,7 @@ export async function resendSigningEmailsAction(
     return {
       ok: false,
       error: 'You do not have permission to send this document for signature.',
+      errorSource: 'app',
     };
   }
 
@@ -2825,6 +2873,7 @@ export async function resendSigningEmailsAction(
   const NOT_YOURS = {
     ok: false as const,
     error: 'Signing request not found for this firm.',
+    errorSource: 'app' as const,
   };
   if (!sig) return NOT_YOURS;
 
@@ -2841,7 +2890,8 @@ export async function resendSigningEmailsAction(
   } | null;
   if (!req || req.firm_id !== firmId) return NOT_YOURS;
 
-  if (sig.signed_at) return { ok: false, error: 'This signer has already signed.' };
+  if (sig.signed_at)
+    return { ok: false, error: 'This signer has already signed.', errorSource: 'app' };
 
   // The server has to enforce what the page implies. The detail page
   // hides Resend for a request that was rejected or sent back for
@@ -2857,6 +2907,7 @@ export async function resendSigningEmailsAction(
     return {
       ok: false,
       error: 'This request is no longer open. Reopen it or send a new one.',
+      errorSource: 'app',
     };
   }
 
@@ -2877,6 +2928,7 @@ export async function resendSigningEmailsAction(
     return {
       ok: false,
       error: 'This signer was emailed a moment ago. Try again in a few minutes.',
+      errorSource: 'app',
     };
   }
 
@@ -2888,6 +2940,7 @@ export async function resendSigningEmailsAction(
     return {
       ok: false,
       error: 'This address has had several signing emails recently. Try again in a few minutes.',
+      errorSource: 'app',
     };
   }
 
@@ -2929,7 +2982,12 @@ export async function resendSigningEmailsAction(
     isExternal,
   });
   if (!linkResult.ok) {
-    emailFailures.push({ email: sig.signer_email, kind: 'link', error: linkResult.error });
+    emailFailures.push({
+      email: sig.signer_email,
+      kind: 'link',
+      error: linkResult.error,
+      source: 'provider',
+    });
   }
   // Which of this signer's emails the provider actually took. Drives the
   // reminder_sent event below, so the audit trail records a delivery
@@ -2999,6 +3057,7 @@ export async function resendSigningEmailsAction(
           error: rotateErr
             ? 'The new access code could not be saved, so the old one still applies. Try again.'
             : 'Another resend for this signer landed first. Resend once more so only the newest code works.',
+          source: 'app',
         });
       } else {
         delivered.push('code');
@@ -3016,6 +3075,7 @@ export async function resendSigningEmailsAction(
         email: sig.signer_email,
         kind: 'code',
         error: codeResult.error,
+        source: 'provider',
       });
     }
   }
@@ -3056,7 +3116,11 @@ export async function resendSigningEmailsAction(
   return {
     ok: emailFailures.length === 0,
     ...(emailFailures.length > 0
-      ? { emailFailures, error: emailFailures[0].error }
+      ? {
+          emailFailures,
+          error: emailFailures[0].error,
+          errorSource: emailFailures[0].source,
+        }
       : {}),
   };
 }

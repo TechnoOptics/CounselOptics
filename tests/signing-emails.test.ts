@@ -362,6 +362,7 @@ describe('the address itself has a budget', () => {
     limiter.denyPrefix = 'signing-recipient:';
     const res = await mod.resendSigningEmailsAction(FIRM_A, SIG_ID);
     expect(res.ok).toBe(false);
+    expect(res.errorSource).toBe('app');
     expect(mail.sent).toHaveLength(0);
     expect(limiter.keys).toContain('signing-recipient:signer@example.test');
   });
@@ -411,6 +412,9 @@ describe('the address itself has a budget', () => {
     );
     expect(mail.sent).toHaveLength(0);
     expect(res.emailFailures?.[0].email).toBe('victim@example.test');
+    // Our sentence, not the provider's, so the counsel shell may show it
+    // in the reader's language instead of pinning it to English.
+    expect(res.emailFailures?.[0].source).toBe('app');
     // Keyed on the normalized address, or a capitalized spelling of the
     // same inbox would be handed a fresh bucket.
     expect(limiter.keys).toContain('signing-recipient:victim@example.test');
@@ -455,6 +459,8 @@ describe('resend clears the access-code lockout', () => {
     const res = await mod.resendSigningEmailsAction(FIRM_A, SIG_ID);
     expect(res.ok).toBe(false);
     expect(res.emailFailures?.some((f) => f.kind === 'code')).toBe(true);
+    expect(res.emailFailures?.[0].source).toBe('app');
+    expect(res.errorSource).toBe('app');
     // The chain is evidence. It must not carry access_code_sent for a
     // code the gate will never accept.
     expect(eventTypes()).not.toContain('access_code_sent');
@@ -549,7 +555,9 @@ describe('a request stops being a draft when the link reaches a signer', () => {
   it('leaves a draft alone when the sign link was refused again', async () => {
     seed({ status: 'draft' });
     mail.fail.link = true;
-    await mod.resendSigningEmailsAction(FIRM_A, SIG_ID);
+    const res = await mod.resendSigningEmailsAction(FIRM_A, SIG_ID);
+    // The provider wrote this one, so it is shown verbatim.
+    expect(res.emailFailures?.[0].source).toBe('provider');
     expect(reqRow().status).toBe('draft');
     expect(eventTypes()).not.toContain('request_sent');
   });

@@ -33,7 +33,12 @@ export function CreateSigningRequestForm({
   const [signers, setSigners] = useState<Signer[]>([{ email: '', name: '' }]);
   const [message, setMessage] = useState('');
   const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  // The sentence, plus whether we wrote it. Our own copy goes through
+  // t() at render time so it lands in the reader's language once the
+  // translation does; a mail-provider or store diagnostic is shown
+  // verbatim, since translating it destroys the one thing it is good
+  // for.
+  const [error, setError] = useState<{ text: string; ours: boolean } | null>(null);
   const [result, setResult] = useState<Result | null>(null);
 
   function update(i: number, patch: Partial<Signer>) {
@@ -54,7 +59,7 @@ export function CreateSigningRequestForm({
       .map((s) => ({ email: s.email.trim().toLowerCase(), name: s.name.trim() || undefined }))
       .filter((s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.email));
     if (payload.length === 0) {
-      setError(t('Add at least one signer with a valid email.'));
+      setError({ text: 'Add at least one signer with a valid email.', ours: true });
       return;
     }
     startTransition(async () => {
@@ -65,7 +70,11 @@ export function CreateSigningRequestForm({
         message.trim() || null,
       );
       if (!res.ok || !res.requestId) {
-        setError(res.error ?? t('Could not send request.'));
+        setError(
+          res.error
+            ? { text: res.error, ours: res.errorSource === 'app' }
+            : { text: 'Could not send request.', ours: true },
+        );
         return;
       }
       // The request row and its sign tokens exist either way, so the
@@ -154,7 +163,11 @@ export function CreateSigningRequestForm({
       </div>
       {error && (
         <p className="rounded-lg border border-rose-200 dark:border-rose-700/40 bg-rose-50 dark:bg-rose-950/30 px-3 py-2 text-sm text-rose-800 dark:text-rose-200">
-          {error}
+          {error.ours ? (
+            <span>{t(error.text)}</span>
+          ) : (
+            <span data-no-translate>{error.text}</span>
+          )}
         </p>
       )}
       {result?.kind === 'sent' && (
@@ -184,7 +197,11 @@ export function CreateSigningRequestForm({
                   <T>access code not sent</T>
                 )}
                 {': '}
-                <span data-no-translate>{f.error}</span>
+                {f.source === 'app' ? (
+                  <span>{t(f.error)}</span>
+                ) : (
+                  <span data-no-translate>{f.error}</span>
+                )}
               </li>
             ))}
           </ul>
