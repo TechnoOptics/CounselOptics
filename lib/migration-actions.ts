@@ -11,6 +11,7 @@
 import { randomUUID } from 'node:crypto';
 import { getCurrentUser } from './supabase/server';
 import { getActiveFirmContext } from './firm-storage';
+import { requireActiveFirm } from './firm-authz';
 import { createAdminSupabase } from './supabase/admin';
 import { logCaseEvent } from './activity';
 import { normalizeToBundle } from './migration/normalize';
@@ -42,6 +43,9 @@ export async function importMigrationBundleAction(
   const admin = createAdminSupabase();
   if (!admin) return { ok: false, error: 'Service role not configured on this deployment.' };
   const firmId = ctx.firm.id;
+  // The fifth matter-creation path, and the largest: a whole workspace from
+  // another platform, matters plus exhibits in storage plus timeline history.
+  await requireActiveFirm(firmId);
 
   let bundle: MigrationBundle;
   try {

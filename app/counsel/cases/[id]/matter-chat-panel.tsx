@@ -5,6 +5,7 @@ import { sendFirmMessageAction } from '@/lib/firm-actions';
 import { createBrowserSupabase } from '@/lib/supabase/client';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import type { FirmMessage } from '@/lib/firm-types';
+import { runGatedAction } from '@/lib/gated-action';
 
 /**
  * Matter-scoped chat panel. Mounts inline on /counsel/cases/[id] and
@@ -92,7 +93,7 @@ export function MatterChatPanel({
     setError(null);
     setDraft('');
     startTransition(async () => {
-      const res = await sendFirmMessageAction(channelId, body);
+      const res = await runGatedAction(() => sendFirmMessageAction(channelId, body));
       if (!res.ok) {
         setError(res.error ?? t('Could not send message.'));
         setDraft(body);

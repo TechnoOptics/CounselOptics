@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { execSync } from 'node:child_process';
 import { join } from 'node:path';
 import { beforeEach, describe, it, expect, vi } from 'vitest';
 import {
@@ -7,6 +8,7 @@ import {
   seatCheck,
   counselAccessRedirect,
   isAccessEndedError,
+  displayableDigest,
   ACCESS_ENDED_PATH,
   ACCESS_ENDED_CODE,
   type FirmAccessInput,
@@ -310,6 +312,40 @@ describe('counselAccessRedirect', () => {
   it('never gates the invitation-acceptance page', () => {
     expect(counselAccessRedirect('/counsel/accept-invite', 'export_only')).toBeNull();
   });
+
+  /**
+   * The export NAMES evidence files it does not carry: exhibits.storage_path
+   * and case_timeline_events.media point into the `exhibits` bucket and the
+   * bytes stay there. So the evidence download route is the only way a
+   * departing organization opens the files its own export lists, and gating it
+   * would leave the one open door handing back an index to nothing.
+   *
+   * It is the same deliberate exemption /api/firm/export has, and it relaxes
+   * only the access STATE. The route's own authorization is untouched.
+   */
+  it('never gates the evidence retrieval route', () => {
+    expect(
+      counselAccessRedirect(
+        '/counsel/cases/8f2a-1234/evidence/download',
+        'export_only',
+      ),
+    ).toBeNull();
+  });
+
+  // The exemption is a pattern because the matter id is in the path, so it is
+  // worth pinning that it did not become a prefix. Everything else under a
+  // matter is still gated, including the surfaces next door to the download.
+  it('gates the rest of the matter, including its neighbours', () => {
+    for (const p of [
+      '/counsel/cases/8f2a-1234',
+      '/counsel/cases/8f2a-1234/evidence',
+      '/counsel/cases/8f2a-1234/evidence/download/anything-else',
+      '/counsel/cases/8f2a-1234/timeline',
+      '/counsel/cases/8f2a-1234/export',
+    ]) {
+      expect(counselAccessRedirect(p, 'export_only'), p).toBe(ACCESS_ENDED_PATH);
+    }
+  });
 });
 
 /**
@@ -442,6 +478,73 @@ describe('requireActiveFirm', () => {
   it('allows when the service-role client is not configured at all', async () => {
     supa.configured = false;
     await expect(requireActiveFirm('firm-1')).resolves.toBeUndefined();
+  });
+});
+
+/**
+ * firmSuspended, the one question that separates a lapse from a suspension.
+ *
+ * FirmAccessState collapses the two into 'export_only' on purpose, because for
+ * every write path the answer is the same. The counsel shell's co-counsel
+ * guest branch is the single place the difference is load-bearing, and this
+ * exists rather than a third access state so the exhaustive switches over that
+ * union keep their meaning.
+ *
+ * It fails CLOSED on a read it could not complete, which for this caller means
+ * the guest is sent to the access-ended page rather than admitted on the
+ * strength of an answer nobody got.
+ */
+describe('firmSuspended', () => {
+  beforeEach(() => {
+    supa.configured = true;
+    supa.row = { trial_ends_at: null, suspended_at: null };
+    supa.error = null;
+  });
+
+  async function firmSuspended(firmId: string): Promise<boolean> {
+    const mod = await import('../lib/firm-trials');
+    return mod.firmSuspended(firmId);
+  }
+
+  it('is false for an organization that is merely lapsed', async () => {
+    supa.row = {
+      trial_ends_at: new Date(Date.now() - 86_400_000).toISOString(),
+      suspended_at: null,
+    };
+    await expect(firmSuspended('firm-1')).resolves.toBe(false);
+  });
+
+  it('is true the moment suspended_at is set', async () => {
+    supa.row = { trial_ends_at: null, suspended_at: new Date().toISOString() };
+    await expect(firmSuspended('firm-1')).resolves.toBe(true);
+  });
+
+  // The mutation target: `if (error) return false` here would quietly readmit
+  // a guest of a suspended organization on every transient database blip.
+  it('refuses rather than reporting not-suspended on a read failure', async () => {
+    supa.row = null;
+    supa.error = { message: 'connection reset' };
+    await expect(firmSuspended('firm-1')).rejects.toThrow(
+      /could not determine access/,
+    );
+  });
+
+  it('refuses when the organization does not exist', async () => {
+    supa.row = null;
+    await expect(firmSuspended('firm-1')).rejects.toThrow(/does not exist/);
+  });
+
+  // A select that forgot the column reads as "not suspended" without this.
+  it('refuses a row that came back without the access column', async () => {
+    supa.row = { trial_ends_at: null };
+    await expect(firmSuspended('firm-1')).rejects.toThrow(/access columns/);
+  });
+
+  // The same deliberate fail-open firmTrialState has, pinned so it can only
+  // move on purpose.
+  it('is false when the service-role client is not configured at all', async () => {
+    supa.configured = false;
+    await expect(firmSuspended('firm-1')).resolves.toBe(false);
   });
 });
 
@@ -628,6 +731,175 @@ describe('the counsel error boundary', () => {
 });
 
 /**
+ * The NEARER boundary, which is the one that actually runs.
+ *
+ * app/counsel/cases/[id]/error.tsx already existed and sits below
+ * app/counsel/error.tsx, so it wins for the entire matter workspace: every
+ * gated evidence, signing, chat and timeline action lives under it. A refusal
+ * raised there never reaches the segment boundary above, so the segment
+ * boundary being correct proved nothing about the surface where the refusal
+ * happens.
+ *
+ * It also PRINTED the digest. Since FirmAccessEndedError sets its digest to
+ * the identity code so the identity survives Next's redaction, this boundary
+ * was showing a locked-out person the literal string
+ * "Reference: FIRM_ACCESS_ENDED".
+ */
+describe('the matter error boundary', () => {
+  beforeEach(() => {
+    vi.doUnmock('@/lib/firm-authz');
+    vi.resetModules();
+  });
+
+  async function render(error: unknown) {
+    vi.resetModules();
+    vi.doMock('next/link', () => ({
+      default: ({ href, children }: { href: string; children: unknown }) => ({
+        type: 'a',
+        props: { href, children },
+        key: null,
+        $$typeof: Symbol.for('react.element'),
+      }),
+    }));
+    const [{ default: Boundary }, { renderToStaticMarkup }, React] =
+      await Promise.all([
+        import('@/app/counsel/cases/[id]/error'),
+        import('react-dom/server'),
+        import('react'),
+      ]);
+    return renderToStaticMarkup(
+      React.createElement(Boundary, {
+        error: error as Error & { digest?: string },
+        reset: () => {},
+      }),
+    );
+  }
+
+  it('renders the refusal calmly instead of the generic matter copy', async () => {
+    const html = await render({
+      message: 'An error occurred in the Server Components render.',
+      digest: ACCESS_ENDED_CODE,
+    });
+    expect(html).toContain('access has ended');
+    expect(html).toContain('not being deleted');
+    expect(html).toContain(ACCESS_ENDED_PATH);
+    expect(html).not.toContain('finish loading');
+  });
+
+  // The half that leaked. Whatever else this renders, the internal identifier
+  // is never on the page.
+  it('never shows the identity code as a support reference', async () => {
+    const html = await render({
+      message: 'An error occurred in the Server Components render.',
+      digest: ACCESS_ENDED_CODE,
+    });
+    expect(html).not.toContain(ACCESS_ENDED_CODE);
+    expect(html).not.toContain('Reference:');
+  });
+
+  // And the boundary still does its original job.
+  it('keeps the matter copy and the real reference for anything else', async () => {
+    const html = await render(
+      Object.assign(new Error('connection reset'), { digest: '3899621086' }),
+    );
+    expect(html).toContain('finish loading');
+    expect(html).toContain('3899621086');
+    expect(html).not.toContain('access has ended');
+  });
+});
+
+/**
+ * displayableDigest, the rule that stopped the leak above.
+ *
+ * A digest is normally an opaque hash Next generates so a person can quote a
+ * support reference. Ours is a readable identifier, and the rule is general
+ * rather than a check for this one code, because the next named digest anyone
+ * adds would leak exactly the same way.
+ */
+describe('displayableDigest', () => {
+  it('shows a digest Next generated', () => {
+    expect(displayableDigest('3899621086')).toBe('3899621086');
+  });
+
+  it('withholds the access-ended identity code', () => {
+    expect(displayableDigest(ACCESS_ENDED_CODE)).toBeNull();
+  });
+
+  it('withholds any other identifier this codebase might add later', () => {
+    expect(displayableDigest('SOME_FUTURE_CODE')).toBeNull();
+    expect(displayableDigest('NEXT_REDIRECT;push;/counsel')).toBeNull();
+  });
+
+  it('withholds a missing or non-string digest', () => {
+    expect(displayableDigest(undefined)).toBeNull();
+    expect(displayableDigest(null)).toBeNull();
+    expect(displayableDigest(42)).toBeNull();
+  });
+});
+
+/**
+ * The client dispatch, which is where the refusal was being LOST.
+ *
+ * Every gated action is called inside `startTransition(async () => { const
+ * res = await action(...) })`. This is React 18.3.1: startTransition calls
+ * scope() and discards the promise it returns, and async rejections becoming
+ * boundary errors is a React 19 Actions feature. So the refusal was an
+ * unhandled rejection, `res` was never assigned, no error state was set, and
+ * the dialog silently did nothing. A person in a locked-out organization
+ * clicked Save and the button did not work.
+ *
+ * runGatedAction is safe where a catch beside the gate is not, and for the
+ * same structural reason the boundary is: it runs in the browser, AFTER the
+ * server has already refused. The write is gone. The only thing it can decide
+ * is what the person is told.
+ */
+describe('runGatedAction', () => {
+  it('turns the refusal into calm copy in the action’s own shape', async () => {
+    const { runGatedAction, ACCESS_ENDED_NOTICE } = await import(
+      '../lib/gated-action'
+    );
+    const { FirmAccessEndedError } = await import('../lib/firm-authz');
+    const res = await runGatedAction<{ ok: boolean; error?: string }>(async () => {
+      throw new FirmAccessEndedError();
+    });
+    expect(res.ok).toBe(false);
+    expect(res.error).toBe(ACCESS_ENDED_NOTICE);
+    expect(ACCESS_ENDED_NOTICE).toContain('not being deleted');
+  });
+
+  // The shape the browser actually receives once Next has redacted it.
+  it('recognises the refusal after Next has redacted the message', async () => {
+    const { runGatedAction, ACCESS_ENDED_NOTICE } = await import(
+      '../lib/gated-action'
+    );
+    const res = await runGatedAction(async () => {
+      throw Object.assign(new Error('An error occurred'), {
+        digest: ACCESS_ENDED_CODE,
+      });
+    });
+    expect((res as { error: string }).error).toBe(ACCESS_ENDED_NOTICE);
+  });
+
+  // The half that stops this becoming a general-purpose swallow. Anything
+  // that is not the refusal must come out exactly as it went in, or one
+  // helper quietly hides every failure in the counsel app.
+  it('rethrows everything that is not the refusal', async () => {
+    const { runGatedAction } = await import('../lib/gated-action');
+    await expect(
+      runGatedAction(async () => {
+        throw new Error('connection reset');
+      }),
+    ).rejects.toThrow('connection reset');
+  });
+
+  it('passes a successful result straight through', async () => {
+    const { runGatedAction } = await import('../lib/gated-action');
+    const res = await runGatedAction(async () => ({ ok: true, id: 'abc' }));
+    expect(res).toEqual({ ok: true, id: 'abc' });
+  });
+});
+
+/**
  * Layer one, the shell redirect, as BEHAVIOUR.
  *
  * A source test that only checks the two tokens are present is blind to the
@@ -640,6 +912,7 @@ describe('the counsel shell redirect', () => {
   async function renderLayout(
     state: 'active' | 'export_only',
     pathname: string,
+    guest?: { firmId: string | null; suspended: boolean },
   ): Promise<{ redirectedTo: string | null }> {
     vi.resetModules();
     vi.doMock('next/navigation', () => ({
@@ -661,9 +934,13 @@ describe('the counsel shell redirect', () => {
       isSupabaseConfigured: () => true,
     }));
     vi.doMock('@/lib/firm-storage', () => ({
-      listMyFirms: async () => [
-        { firm: { id: 'firm-1', name: 'Rowan and Hale', accentColor: '#caa044' }, membership: { role: 'owner' } },
-      ],
+      // A guest is resolved only when the caller has NO firm membership.
+      listMyFirms: async () =>
+        guest
+          ? []
+          : [
+              { firm: { id: 'firm-1', name: 'Rowan and Hale', accentColor: '#caa044' }, membership: { role: 'owner' } },
+            ],
       getActiveFirmContext: async () => ({
         firm: { id: 'firm-1', name: 'Rowan and Hale', accentColor: '#caa044' },
         membership: { role: 'owner' },
@@ -671,14 +948,24 @@ describe('the counsel shell redirect', () => {
     }));
     // The real lib/firm-access is deliberately NOT mocked: the allowlist under
     // test is the one that ships.
-    vi.doMock('@/lib/firm-trials', () => ({ firmTrialState: async () => state }));
+    vi.doMock('@/lib/firm-trials', () => ({
+      firmTrialState: async () => state,
+      firmSuspended: async () => guest?.suspended ?? false,
+    }));
     vi.doMock('@/lib/firm-settings', () => ({
       getFirmSurfaceSettings: async () => ({ hideSearch: false, hideTimeBilling: false }),
       DEFAULT_FIRM_SURFACE_SETTINGS: { hideSearch: false, hideTimeBilling: false },
     }));
     vi.doMock('@/lib/i18n/locale', () => ({ getLocaleCookie: async () => 'en' }));
     vi.doMock('@/lib/counsel-guest', () => ({
-      getGuestContext: async () => null,
+      getGuestContext: async () =>
+        guest
+          ? {
+              firmId: guest.firmId,
+              firm: { id: guest.firmId, name: 'Rowan and Hale', accentColor: '#caa044' },
+              mustChangePassword: false,
+            }
+          : null,
       guestPathAllowed: () => true,
       guestFallbackPath: () => '/counsel',
     }));
@@ -733,6 +1020,46 @@ describe('the counsel shell redirect', () => {
       (await renderLayout('export_only', '/counsel/accept-invite')).redirectedTo,
     ).toBeNull();
   });
+
+  /**
+   * The co-counsel guest exemption, narrowed to LAPSED TRIALS.
+   *
+   * A guest is an outside attorney the firm invited onto one matter. A lapse
+   * is a billing fact about the firm, and cutting the guest off takes a matter
+   * away from the lawyer working it to punish a third party for someone else's
+   * invoice. A SUSPENSION is the abuse-response state, the same one that
+   * justifies stopping outbound mail in Advottic's name, and while it holds an
+   * account the firm itself provisioned is a channel the suspension exists to
+   * close rather than a neutral third party.
+   *
+   * Their writes are refused in both states, by requireActiveFirm in the
+   * actions, which does not care whether the caller is a member or a guest.
+   */
+  it('lets a co-counsel guest keep reading when the trial merely lapsed', async () => {
+    const res = await renderLayout('export_only', '/counsel/cases/abc', {
+      firmId: 'firm-1',
+      suspended: false,
+    });
+    expect(res.redirectedTo).toBeNull();
+  });
+
+  it('closes the guest shell when the organization is suspended', async () => {
+    const res = await renderLayout('export_only', '/counsel/cases/abc', {
+      firmId: 'firm-1',
+      suspended: true,
+    });
+    expect(res.redirectedTo).toBe(ACCESS_ENDED_PATH);
+  });
+
+  // Suspension outranks everything, so it closes an organization whose trial
+  // is still running too.
+  it('closes the guest shell on suspension even mid-trial', async () => {
+    const res = await renderLayout('active', '/counsel/cases/abc', {
+      firmId: 'firm-1',
+      suspended: true,
+    });
+    expect(res.redirectedTo).toBe(ACCESS_ENDED_PATH);
+  });
 });
 
 /**
@@ -781,7 +1108,26 @@ describe('the enforcement wiring', () => {
 
   const evidenceActions = readFileSync(join(ROOT, 'lib/case-evidence-actions.ts'), 'utf8');
   const signingActions = readFileSync(join(ROOT, 'lib/signing-actions.ts'), 'utf8');
+  const importActions = readFileSync(join(ROOT, 'lib/import-actions.ts'), 'utf8');
+  const migrationActions = readFileSync(join(ROOT, 'lib/migration-actions.ts'), 'utf8');
+  const accessActions = readFileSync(join(ROOT, 'lib/access-actions.ts'), 'utf8');
+  const lettersActions = readFileSync(join(ROOT, 'lib/letters-actions.ts'), 'utf8');
 
+  /**
+   * The source of one exported action, from its `export async function` line
+   * to the next top-level `export`.
+   *
+   * KNOWN IMPRECISION, stated because a source-text invariant that looks total
+   * is worse than one that admits its edges. The slice runs to the next
+   * `\nexport `, so a private helper defined between two exports is counted as
+   * part of the earlier one: sendFirmMessageAction's "body" is over 450 lines
+   * and createSigningRequestAction's over 400. The PRESENCE half below can
+   * therefore be satisfied by a `requireActiveFirm(` token sitting in a
+   * sibling helper rather than in the action itself. The ORDERING half mostly
+   * compensates, because the gate still has to precede the first write in the
+   * same slice, but "mostly" is the honest word: a gate in a helper that
+   * happens to be positioned above the action's first write would pass both.
+   */
   function bodyOf(src: string, fn: string): string {
     const start = src.indexOf(`export async function ${fn}`);
     expect(start, `${fn} is missing`).toBeGreaterThan(-1);
@@ -802,9 +1148,15 @@ describe('the enforcement wiring', () => {
    * SUSPENDED organization, the abuse-response state, must not keep doing.
    *
    * It is NOT every firm action in the codebase. There are 57 exported
-   * actions in lib/firm-actions.ts alone and roughly 290 across 44 'use
-   * server' modules; the full sweep is its own task. The report says so
-   * rather than implying this is finished.
+   * actions in lib/firm-actions.ts alone and 301 across 47 'use server'
+   * modules; the full sweep is its own task. The report says so rather than
+   * implying this is finished.
+   *
+   * The second round of twins is the IMPORT surface, all of it reachable from
+   * one screen, components/counsel/import/ImportPanels.tsx. Gating the
+   * one-at-a-time path and leaving the bulk one open gates nothing, and the
+   * bulk one is the higher-volume version of the same write: a matter is
+   * created by five paths, not two, and three of them are here.
    */
   const GATED: ReadonlyArray<{ label: string; src: string; fn: string }> = [
     ...[
@@ -827,6 +1179,39 @@ describe('the enforcement wiring', () => {
       src: signingActions,
       fn,
     })),
+    ...[
+      'importClientsCsvAction',
+      'importEmployeesCsvAction',
+      'importCasesCsvAction',
+      'importBulkDocumentAction',
+      'importJsonDumpAction',
+    ].map((fn) => ({ label: `import-actions:${fn}`, src: importActions, fn })),
+    {
+      label: 'migration-actions:importMigrationBundleAction',
+      src: migrationActions,
+      fn: 'importMigrationBundleAction',
+    },
+    {
+      label: 'access-actions:approveAccessRequestAction',
+      src: accessActions,
+      fn: 'approveAccessRequestAction',
+    },
+    {
+      label: 'letters-actions:saveLetterToCaseAction',
+      src: lettersActions,
+      fn: 'saveLetterToCaseAction',
+    },
+  ];
+
+  /** Every module that holds a gate, for the whole-file invariants below. */
+  const GATE_SOURCES: ReadonlyArray<{ label: string; src: string }> = [
+    { label: 'firm-actions', src: firmActions },
+    { label: 'case-evidence-actions', src: evidenceActions },
+    { label: 'signing-actions', src: signingActions },
+    { label: 'import-actions', src: importActions },
+    { label: 'migration-actions', src: migrationActions },
+    { label: 'access-actions', src: accessActions },
+    { label: 'letters-actions', src: lettersActions },
   ];
 
   it('gates the firm write paths that create new work product', () => {
@@ -849,9 +1234,32 @@ describe('the enforcement wiring', () => {
    * A gated action with no match here fails too, deliberately. It means
    * either the write moved behind a new helper, in which case this list needs
    * it, or the action no longer writes anything and does not belong above.
+   *
+   * WHAT THIS REGEX STILL CANNOT SEE. Read this before trusting it, because a
+   * source-text invariant that looks total is more dangerous than one that
+   * states its limits. It is receiver-agnostic, so a different client variable
+   * is not a miss, and an action with no match at all fails loudly. The
+   * residual danger is the MIXED shape: an early effect this list does not
+   * know, then a later write it does, with the gate in between. That passes
+   * silently. Specifically it is blind to
+   *
+   *   - a write behind a helper whose name is not spelled below, which is the
+   *     open-ended one. The named helpers are the ones the gated actions use
+   *     today; a new wrapper needs adding here on the day it is written.
+   *   - a write inside a module this action imports and calls under some
+   *     other name, since only the action's own source is read.
+   *   - anything reached through a dynamic import or an indirection
+   *     (`const write = admin.from(t).insert; await write(...)`).
+   *   - a write in a private helper that bodyOf swallowed. See bodyOf.
+   *
+   * The three shapes it did not see and now does: a writing RPC
+   * (post_trust_transaction, create_trust_reconciliation,
+   * debit_firm_token_pool, bump_signature_access_attempt are all real here),
+   * a storage DELETE, which is `.remove(` and not `.delete(` and appears 39
+   * times in this codebase, and a write behind a named helper.
    */
   const FIRST_WRITE =
-    /\.(insert|upsert|update|delete)\(|\.upload\(|scheduleFirmMeeting\(|importFileAsCaseEvidence\(|deleteEventsByHashes\(/;
+    /\.(insert|upsert|update|delete)\(|\.upload\(|\.remove\(|\.rpc\(|scheduleFirmMeeting\(|importFileAsCaseEvidence\(|deleteEventsByHashes\(|logCaseActivity\(|logCaseEvent\(|createNotification\(|sendEmail\(/;
 
   it('calls the gate BEFORE the first write, in every gated action', () => {
     for (const { label, src, fn } of GATED) {
@@ -869,16 +1277,46 @@ describe('the enforcement wiring', () => {
   // Nowhere in a write path may the gate be wrapped in a catch. A catch that
   // lets the action continue is the fail-open this whole feature exists to
   // avoid, and it reads as harmless defensive code. Calm copy for the person
-  // who sees the refusal is app/counsel/error.tsx, which cannot let the
-  // action continue because the request is already over by the time it runs.
-  it('never wraps the action gate in a catch', () => {
-    for (const src of [firmActions, evidenceActions, signingActions]) {
-      for (const m of src.matchAll(/requireActiveFirm\(/g)) {
-        const around = src.slice(
-          Math.max(0, (m.index ?? 0) - 200),
-          (m.index ?? 0) + 200,
-        );
-        expect(around).not.toMatch(/catch/);
+  // who sees the refusal is app/counsel/error.tsx and lib/gated-action.ts,
+  // neither of which can let the action continue: the first runs after the
+  // request is over, the second in the browser after the server has already
+  // refused.
+  //
+  // Two assertions rather than one, because a wrap has two shapes.
+  //
+  // INDENTATION is the structural half. Every gate sits at the top level of
+  // its function body, two spaces in. Anything that nests it - a try, an if,
+  // a loop, a callback - indents it further, so `expect('  ')` rejects the
+  // multi-line wrap without needing to parse TypeScript. This replaced a
+  // window that searched 200 characters either side for the word `catch`,
+  // which could not tell a wrapping catch from an unrelated one further down
+  // the function and started producing false positives the moment the gate
+  // list grew past three files.
+  it('never nests the action gate inside a block', () => {
+    for (const { label, src } of GATE_SOURCES) {
+      const found = [...src.matchAll(/^([ \t]*)await requireActiveFirm\(/gm)];
+      expect(found.length, `${label} has no gate`).toBeGreaterThan(0);
+      for (const m of found) {
+        expect(m[1], `${label} indents a gate, so something nests it`).toBe('  ');
+      }
+    }
+  });
+
+  // And the one-line half, which the indentation check alone would miss:
+  // `try { await requireActiveFirm(id); } catch {}` written flat. A wrapping
+  // try is always BEFORE the gate, so only the text before it is read; a
+  // catch further down the function is none of this test's business.
+  it('never opens a try immediately before the action gate', () => {
+    // Comments are stripped first. The comment ABOVE several of these gates
+    // explains that there is deliberately no try around it, and a test that
+    // reads prose cannot tell the explanation from the thing explained.
+    const stripComments = (s: string) =>
+      s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    for (const { label, src } of GATE_SOURCES) {
+      const code = stripComments(src);
+      for (const m of code.matchAll(/await requireActiveFirm\(/g)) {
+        const before = code.slice(Math.max(0, (m.index ?? 0) - 200), m.index ?? 0);
+        expect(before, `${label} wraps a gate in a try`).not.toMatch(/\btry\b/);
       }
     }
   });
@@ -889,6 +1327,156 @@ describe('the enforcement wiring', () => {
     const boundary = readFileSync(join(ROOT, 'app/counsel/error.tsx'), 'utf8');
     expect(boundary).toMatch(/isAccessEndedError\(/);
     expect(boundary).not.toMatch(/access has ended\./);
+  });
+
+  /**
+   * No error boundary anywhere may print a digest raw.
+   *
+   * FirmAccessEndedError sets its digest to the identity code, because that is
+   * the one field Next carries to a client boundary and identity has to
+   * survive the crossing. That made the digest readable, and the matter
+   * boundary was already printing it: a locked-out person was shown
+   * "Reference: FIRM_ACCESS_ENDED". Every boundary goes through
+   * displayableDigest instead, which shows Next's generated hash and withholds
+   * anything this codebase put there.
+   */
+  it('never prints an error digest raw, in any boundary', () => {
+    const boundaries = [
+      'app/error.tsx',
+      'app/global-error.tsx',
+      'app/counsel/error.tsx',
+      'app/counsel/cases/[id]/error.tsx',
+    ];
+    for (const rel of boundaries) {
+      const src = readFileSync(join(ROOT, rel), 'utf8');
+      // A digest read anywhere other than the type annotation has to be
+      // handed to the rule first.
+      for (const m of src.matchAll(/\{\s*error[?]?\.digest\s*\}/g)) {
+        throw new Error(`${rel} renders error.digest directly: ${m[0]}`);
+      }
+      if (/error[?]?\.digest/.test(src)) {
+        expect(src, `${rel} reads a digest without the rule`).toMatch(
+          /displayableDigest\(/,
+        );
+      }
+    }
+  });
+
+  /**
+   * The NEARER boundary has to know the same identity.
+   *
+   * app/counsel/cases/[id]/error.tsx wins over app/counsel/error.tsx for the
+   * whole matter workspace, which is where every gated evidence, signing, chat
+   * and timeline action lives. A segment boundary the refusal never reaches is
+   * a boundary that does nothing.
+   */
+  it('teaches the nearer matter boundary the same identity', () => {
+    const boundary = readFileSync(
+      join(ROOT, 'app/counsel/cases/[id]/error.tsx'),
+      'utf8',
+    );
+    expect(boundary).toMatch(/isAccessEndedError\(/);
+    expect(boundary).not.toMatch(/access has ended\./);
+  });
+
+  /**
+   * The client half, and the one that decided whether any of this was VISIBLE.
+   *
+   * Every gated action is dispatched as
+   * `startTransition(async () => { const res = await action(...) })`. React
+   * 18.3.1's startTransition calls scope() and discards the promise, so a
+   * refusal was an unhandled rejection: res never assigned, no error state
+   * set, the dialog silently doing nothing. The button just did not work.
+   *
+   * So every call site of a gated action goes through runGatedAction. One
+   * helper rather than fifteen hand-written catches, for the same reason
+   * fifteen hand-written catches were refused at the gate.
+   *
+   * The one exception is declared, not implied: evidence-intake.tsx's bulk
+   * loop drives its own retry policy and handles the identity itself, which
+   * the test below pins.
+   */
+  it('dispatches every gated action through runGatedAction', () => {
+    const EXEMPT = new Set(['bulkImportCaseEvidenceAction']);
+    const names = [...new Set(GATED.map((g) => g.fn))].filter(
+      (n) => !EXEMPT.has(n),
+    );
+    const files = execSync(
+      `grep -rlE '(${names.join('|')})\\(' app components --include='*.tsx'`,
+      { cwd: ROOT, encoding: 'utf8' },
+    )
+      .split('\n')
+      .filter(Boolean);
+    let seen = 0;
+    for (const rel of files) {
+      const src = readFileSync(join(ROOT, rel), 'utf8');
+      for (const name of names) {
+        // Calls only. An import lists the name with a comma after it, never
+        // an open paren.
+        for (const m of src.matchAll(new RegExp(`\\b${name}\\(`, 'g'))) {
+          seen += 1;
+          const before = src.slice(Math.max(0, (m.index ?? 0) - 30), m.index ?? 0);
+          expect(
+            before,
+            `${rel} calls ${name} without runGatedAction, so a refusal is silently dropped`,
+          ).toContain('runGatedAction(() => ');
+        }
+      }
+    }
+    // A regex that matched nothing would pass this test while proving
+    // nothing. There are more call sites than gated actions, because two
+    // surfaces send firm messages.
+    expect(seen).toBeGreaterThanOrEqual(names.length);
+  });
+
+  /**
+   * A refusal is not a transient failure, and the flagship bulk intake was
+   * treating it as one: the batch loop wrapped the action in its own
+   * try/catch and retried BATCH_RETRIES times before reporting a generic
+   * batch failure. So a closed organization was refused three times per batch
+   * and then shown Next's redacted message.
+   *
+   * The identity check has to come BEFORE the retry arithmetic, or the retry
+   * happens first and the check only decides what to say afterwards.
+   */
+  it('never retries the refusal in the bulk evidence intake', () => {
+    const src = readFileSync(
+      join(ROOT, 'app/counsel/cases/[id]/evidence/evidence-intake.tsx'),
+      'utf8',
+    );
+    const identity = src.indexOf('isAccessEndedError(err)');
+    expect(identity, 'the bulk loop does not recognise the refusal').toBeGreaterThan(
+      -1,
+    );
+    const retry = src.indexOf('attempt >= BATCH_RETRIES');
+    expect(retry, 'the retry policy moved').toBeGreaterThan(-1);
+    expect(
+      identity,
+      'the refusal is checked after the retry arithmetic, so it is retried first',
+    ).toBeLessThan(retry);
+    // And the person is told, in the same calm words the boundary uses.
+    expect(src).toMatch(/ACCESS_ENDED_NOTICE/);
+  });
+
+  /**
+   * The retrieval door stays open, deliberately.
+   *
+   * Task 5's archive names evidence files whose bytes are not in it, so this
+   * route is the only way a departing organization opens them. It carries the
+   * same exemption /api/firm/export has, and its OWN authorization has to stay
+   * intact, which is the half an exemption makes easy to lose.
+   */
+  it('leaves the evidence retrieval route ungated and fully authorized', () => {
+    const route = readFileSync(
+      join(ROOT, 'app/counsel/cases/[id]/evidence/download/route.ts'),
+      'utf8',
+    );
+    expect(route).not.toMatch(/requireActiveFirm\(/);
+    expect(route).toMatch(/getCurrentUser\(/);
+    expect(route).toMatch(/from\('firm_members'\)/);
+    expect(route).toMatch(/guestCanReadCase\(/);
+    // The matter has to belong to the firm the caller was admitted through.
+    expect(route).toMatch(/c\.firm_id !== firmId/);
   });
 
   it('checks the seat limit before inserting a firm member', () => {

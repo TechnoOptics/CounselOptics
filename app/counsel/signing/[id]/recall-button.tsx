@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { recallSigningRequestAction } from '@/lib/signing-actions';
 import { T, useT } from '@/components/i18n/LocaleProvider';
+import { runGatedAction } from '@/lib/gated-action';
 
 /**
  * Recall a signing request: its sign links stop working and signers
@@ -20,7 +21,7 @@ export function RecallButton({ requestId }: { requestId: string }) {
   function recall() {
     setError(null);
     startTransition(async () => {
-      const res = await recallSigningRequestAction(requestId);
+      const res = await runGatedAction(() => recallSigningRequestAction(requestId));
       if (res.ok) {
         setConfirming(false);
         router.refresh();

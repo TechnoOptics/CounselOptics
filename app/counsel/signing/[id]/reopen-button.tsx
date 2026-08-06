@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { reopenSigningRequestAction } from '@/lib/signing-actions';
 import { T, useT } from '@/components/i18n/LocaleProvider';
+import { runGatedAction } from '@/lib/gated-action';
 
 /**
  * Reopen a request a signer put on hold (rejected / requested changes)
@@ -19,7 +20,7 @@ export function ReopenButton({ requestId }: { requestId: string }) {
   function reopen() {
     setError(null);
     startTransition(async () => {
-      const res = await reopenSigningRequestAction(requestId);
+      const res = await runGatedAction(() => reopenSigningRequestAction(requestId));
       if (res.ok) router.refresh();
       else setError(res.error ?? t('Could not reopen.'));
     });

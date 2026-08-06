@@ -16,6 +16,33 @@ export const maxDuration = 60;
  * One file downloads directly; several are bundled into a ZIP. Same
  * authorization model as the export route: a member of the matter's firm OR a
  * case-scoped co-counsel guest.
+ *
+ * DELIBERATELY EXEMPT from the organization access gate, exactly as
+ * /api/firm/export is, and the exemption is load-bearing rather than an
+ * oversight.
+ *
+ * The organization-wide export NAMES evidence files it does not carry:
+ * exhibits.storage_path and case_timeline_events.media point into the
+ * `exhibits` bucket and the bytes stay there, because base64 inflates an
+ * archive by about a third, evidence is where the volume lives, and embedding
+ * it properly means a container format hand-rolled under the
+ * no-new-dependencies rule. This route is therefore the ONLY way a departing
+ * organization opens the files its own export lists. Gate it and the export
+ * hands back an index to nothing.
+ *
+ * What is NOT relaxed: everything below this comment. Signed in, a member of
+ * the matter's firm or a guest scoped to that matter, and the matter has to
+ * belong to that firm. The exemption says the access STATE does not close this
+ * door; it says nothing about who may walk through it. Do not add a shortcut
+ * here on the grounds that the route is already exempt.
+ *
+ * Layer one does not reach this either way, twice over: a route handler
+ * renders no layout, and lib/firm-access.ts lists the path in
+ * RETRIEVAL_PATTERNS so that a future middleware or layout reaching for that
+ * rule finds it written down instead of rediscovering it.
+ *
+ * It is READ-ONLY apart from the case_activity line, which is the record of
+ * the retrieval and belongs with it.
  */
 
 const MAX_FILES = 100;

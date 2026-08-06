@@ -102,18 +102,24 @@ export default async function CounselAccessEndedPage() {
                 <T>Download your organization&rsquo;s data</T>
               </Link>
             ) : null}
-            {/* Neutral retry, and only on the branch that could not tell. It
-                is a plain link back to this same page, so the check runs
-                again on a fresh request with no client JavaScript. A member
-                who genuinely holds no admin role is not offered it, because
-                for them there is nothing to retry. */}
+            {/* Neutral retry, and only on the branch that could not tell. A
+                member who genuinely holds no admin role is not offered it,
+                because for them there is nothing to retry.
+
+                A PLAIN ANCHOR, not next/link, and the difference is the whole
+                point of the control. next/link is client JavaScript doing a
+                same-route soft navigation, which the App Router client cache
+                can serve from what it already has; a retry that re-renders
+                the same failed answer is a button that does nothing. A plain
+                anchor is a full document request, so callerFirmRoleLookup
+                actually runs again. */}
             {roleUnknown ? (
-              <Link
+              <a
                 href={ACCESS_ENDED_PATH}
                 className="btn bg-gold-400 hover:bg-gold-300 text-forest-950 font-semibold justify-center"
               >
                 <T>Try again</T>
-              </Link>
+              </a>
             ) : null}
             <form action="/auth/sign-out" method="post">
               <button

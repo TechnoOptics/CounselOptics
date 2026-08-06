@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ExternalLink } from '@/components/ExternalLink';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import { scheduleStandaloneMeetingAction } from '@/lib/firm-actions';
+import { runGatedAction } from '@/lib/gated-action';
 
 /**
  * Schedule a Teams/Zoom meeting straight from the shared calendar.
@@ -42,7 +43,7 @@ export function MeetingScheduler({
     }
     formData.set('startISO', d.toISOString());
     startTransition(async () => {
-      const res = await scheduleStandaloneMeetingAction(firmId, formData);
+      const res = await runGatedAction(() => scheduleStandaloneMeetingAction(firmId, formData));
       if (res.ok && res.joinUrl) {
         setResult({
           joinUrl: res.joinUrl,

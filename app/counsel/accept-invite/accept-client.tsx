@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { acceptFirmInvitationAction } from '@/lib/firm-actions';
 import { T, useT } from '@/components/i18n/LocaleProvider';
+import { runGatedAction } from '@/lib/gated-action';
 
 export function AcceptInviteClient({ token }: { token: string }) {
   const t = useT();
@@ -20,7 +21,7 @@ export function AcceptInviteClient({ token }: { token: string }) {
       return;
     }
     startTransition(async () => {
-      const res = await acceptFirmInvitationAction(trimmed);
+      const res = await runGatedAction(() => acceptFirmInvitationAction(trimmed));
       if (res.ok) {
         router.push('/counsel');
         router.refresh();

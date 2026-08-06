@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { getCurrentUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
 import { getActiveFirmContext } from './firm-storage';
+import { requireActiveFirm } from './firm-authz';
 import { parseCsv } from './csv';
 
 /**
@@ -147,6 +148,10 @@ export async function importClientsCsvAction(input: {
   if ('error' in ctx) return { ok: false, error: ctx.error };
   const { firmId, userId } = ctx;
   if (!ctx.admin) return { ok: false, error: 'Service role not configured.' };
+  // The bulk twin of inviteFirmClientAction, and the higher-volume one: this
+  // creates clients by the CSV row rather than one at a time. Gating the
+  // single-invite path and leaving this open gates nothing.
+  await requireActiveFirm(firmId);
   // Capture into a non-null local so nested closures (attorneyIdFor
   // below) keep the narrowing - TS otherwise loses it across the
   // function boundary.
@@ -354,6 +359,8 @@ export async function importEmployeesCsvAction(input: {
   if ('error' in ctx) return { ok: false, error: ctx.error };
   const { firmId } = ctx;
   if (!ctx.admin) return { ok: false, error: 'Service role not configured.' };
+  // The bulk twin of addFirmEmployeeAction.
+  await requireActiveFirm(firmId);
   const admin: NonNullable<typeof ctx.admin> = ctx.admin;
   if (!input.mapping?.email) {
     return { ok: false, error: 'Map the email column before importing.' };
@@ -474,6 +481,11 @@ export async function importCasesCsvAction(input: {
   if ('error' in ctx) return { ok: false, error: ctx.error };
   const { firmId, userId, admin } = ctx;
   if (!admin) return { ok: false, error: 'Service role not configured.' };
+  // Matter creation, in bulk. createFirmCaseAction and
+  // convertIntakeToCaseAction are two of the five paths that create a matter;
+  // this one and importJsonDumpAction below are the other two, and they are
+  // the volume ones.
+  await requireActiveFirm(firmId);
   if (!input.mapping?.title) {
     return { ok: false, error: 'Map the title column before importing.' };
   }
@@ -569,6 +581,8 @@ export async function importBulkDocumentAction(input: {
   if ('error' in ctx) return { ok: false, error: ctx.error };
   const { firmId, userId, admin } = ctx;
   if (!admin) return { ok: false, error: 'Service role not configured.' };
+  // The bulk twin of uploadFirmDocumentAction, and it puts bytes in storage.
+  await requireActiveFirm(firmId);
 
   const fileName = (input.fileName ?? '').trim();
   if (!fileName) return { ok: false, error: 'File name is required.' };
@@ -718,6 +732,9 @@ export async function importJsonDumpAction(input: {
   if ('error' in ctx) return { ok: false, error: ctx.error };
   const { firmId, userId, admin } = ctx;
   if (!admin) return { ok: false, error: 'Service role not configured.' };
+  // One envelope, three of the gated pairs at once: it creates clients, cases
+  // and intakes. Leaving this open would reopen every one of them.
+  await requireActiveFirm(firmId);
 
   let dump: JsonDump;
   try {

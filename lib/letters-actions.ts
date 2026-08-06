@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import crypto from 'crypto';
 import { getActiveFirmContext } from './firm-storage';
+import { requireActiveFirm } from './firm-authz';
 import { createServerSupabase } from './supabase/server';
 import { generateLetterDocx } from './docx-export';
 import {
@@ -42,6 +43,10 @@ export async function saveLetterToCaseAction(
   if (!WRITE_ROLES.includes(ctx.membership.role)) {
     return { ok: false, error: 'Your role cannot save documents.' };
   }
+  // The other way a document is filed: uploadFirmDocumentAction takes bytes
+  // from the caller, this one renders them here first. Both end at the same
+  // firm-documents upload and the same firm_documents row.
+  await requireActiveFirm(ctx.firm.id);
   const body = String(input.body ?? '').trim();
   if (body.length < 40) {
     return { ok: false, error: 'Generate or write the letter first.' };

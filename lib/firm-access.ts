@@ -150,6 +150,31 @@ const ALWAYS_ALLOWED: readonly string[] = [
 const ALWAYS_ALLOWED_PREFIXES: readonly string[] = ['/_next/'];
 
 /**
+ * Retrieval routes, which are exempt for the same reason the export is.
+ *
+ * The organization-wide export names the evidence files it cannot carry:
+ * `exhibits.storage_path` and `case_timeline_events.media` point into the
+ * `exhibits` bucket, and the bytes are deliberately not in the archive
+ * (base64 inflates it by about a third, evidence is where the volume lives,
+ * and doing it properly means a container format hand-rolled under the
+ * no-new-dependencies rule). An export that lists files nobody can open hands
+ * back an index, not the data.
+ *
+ * So `app/counsel/cases/[id]/evidence/download/route.ts` stays reachable. Its
+ * own authorization is untouched and is what actually protects it: signed in,
+ * a member of the matter's firm or a case-scoped co-counsel guest, and the
+ * matter has to belong to that firm. This exemption only says the ACCESS
+ * STATE does not close it, exactly as `/api/firm/export` above.
+ *
+ * A pattern rather than a literal because the matter id is in the path. It is
+ * anchored at both ends and the id segment cannot contain a slash, so nothing
+ * nested under `download/` is opened by it.
+ */
+const RETRIEVAL_PATTERNS: readonly RegExp[] = [
+  /^\/counsel\/cases\/[^/]+\/evidence\/download\/?$/,
+];
+
+/**
  * Where a request must be sent given the organization's access state, or null
  * to let it through.
  *
@@ -171,6 +196,7 @@ export function counselAccessRedirect(
     case 'export_only': {
       if (ALWAYS_ALLOWED.includes(pathname)) return null;
       if (ALWAYS_ALLOWED_PREFIXES.some((p) => pathname.startsWith(p))) return null;
+      if (RETRIEVAL_PATTERNS.some((p) => p.test(pathname))) return null;
       return ACCESS_ENDED_PATH;
     }
     default: {
@@ -221,6 +247,27 @@ export function isAccessEndedError(error: unknown): boolean {
   if (e.code === ACCESS_ENDED_CODE) return true;
   if (e.name === ACCESS_ENDED_ERROR_NAME) return true;
   return typeof e.digest === 'string' && e.digest.includes(ACCESS_ENDED_CODE);
+}
+
+/**
+ * The digest an error boundary may SHOW a person, or null.
+ *
+ * A digest is normally an opaque hash Next generates so a user can quote a
+ * support reference without the server's message being leaked to the browser.
+ * `FirmAccessEndedError` sets its own digest to ACCESS_ENDED_CODE, because
+ * that is the only field Next carries across the boundary and identity has to
+ * survive the crossing. That made the digest READABLE, and a boundary that
+ * prints it raw shows a locked-out user the literal string
+ * `Reference: FIRM_ACCESS_ENDED`.
+ *
+ * The rule is general rather than a check for this one code, because the next
+ * named digest anyone adds would leak the same way: Next's generated digest is
+ * a decimal hash, so anything else on the error was put there by this codebase
+ * and is an internal identifier meant to be RECOGNISED, not displayed.
+ */
+export function displayableDigest(digest: unknown): string | null {
+  if (typeof digest !== 'string') return null;
+  return /^[0-9]+$/.test(digest) ? digest : null;
 }
 
 /**

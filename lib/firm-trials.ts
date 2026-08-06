@@ -321,6 +321,59 @@ export async function firmTrialState(
 }
 
 /**
+ * Whether an organization is SUSPENDED, as distinct from merely lapsed.
+ *
+ * firmAccessState deliberately collapses both into 'export_only', because for
+ * every write path the answer is the same: no. This is the one place the
+ * difference is load-bearing, and it exists rather than a third
+ * FirmAccessState so that the union stays two-membered and the exhaustive
+ * switches over it keep their meaning.
+ *
+ * The caller is the counsel shell's co-counsel guest branch. A guest is an
+ * outside attorney the firm invited onto one matter, and a lapsed TRIAL is a
+ * billing fact about the firm, not a reason to take a matter away from the
+ * lawyer working it. A SUSPENSION is the abuse-response state, and while it
+ * holds, an account the firm itself provisioned is a channel the suspension is
+ * meant to close rather than a neutral third party. So the guest read
+ * exemption is narrowed to lapsed trials, and this is the question that
+ * narrows it.
+ *
+ * Presence, not a date, matching firmAccessState exactly. Throws on a read it
+ * could not complete, for the same reason firmTrialState does: "could not
+ * determine" is not "not suspended".
+ */
+export async function firmSuspended(firmId: string): Promise<boolean> {
+  const admin = createAdminSupabase();
+  // The same deliberate fail-open as firmTrialState, and for the same reason:
+  // a missing service-role key is a deployment fault affecting everybody at
+  // once, not a fact about this organization.
+  if (!admin) return false;
+
+  const { data, error } = await admin
+    .from('firms')
+    .select('suspended_at')
+    .eq('id', firmId)
+    .maybeSingle();
+
+  if (error) {
+    console.error('firmSuspended: read failed', error.message);
+    throw new Error(
+      'firm-trials could not determine access for this organization.',
+    );
+  }
+  if (!data) {
+    throw new Error(
+      'firm-trials was asked about an organization that does not exist.',
+    );
+  }
+  const row = data as Record<string, unknown>;
+  if (!('suspended_at' in row)) {
+    throw new Error('firm-trials read a firms row without its access columns.');
+  }
+  return row.suspended_at != null;
+}
+
+/**
  * Extend moves the existing end date forward. Reset sets it to today plus N.
  * They are separate on purpose: extending a trial that lapsed last week must
  * not silently grant a longer run than intended, and the difference is

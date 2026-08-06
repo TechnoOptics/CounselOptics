@@ -14,6 +14,7 @@ import {
   type ClientsImportMapping,
   type EmployeesImportMapping,
 } from '@/lib/import-actions';
+import { runGatedAction } from '@/lib/gated-action';
 
 /**
  * The four lanes of /counsel/import: Clients CSV, Cases CSV,
@@ -279,10 +280,10 @@ export function ClientsImporter() {
     if (preview.phase !== 'ready') return;
     setResult(null);
     startTransition(async () => {
-      const res = await importClientsCsvAction({
+      const res = await runGatedAction(() => importClientsCsvAction({
         csvText: preview.csvText,
         mapping,
-      });
+      }));
       if (!res.ok) {
         setResult({ error: res.error });
         return;
@@ -409,10 +410,10 @@ export function EmployeesImporter() {
     if (preview.phase !== 'ready') return;
     setResult(null);
     startTransition(async () => {
-      const res = await importEmployeesCsvAction({
+      const res = await runGatedAction(() => importEmployeesCsvAction({
         csvText: preview.csvText,
         mapping,
-      });
+      }));
       if (!res.ok) {
         setResult({ error: res.error });
         return;
@@ -543,10 +544,10 @@ export function CasesImporter() {
     if (preview.phase !== 'ready') return;
     setResult(null);
     startTransition(async () => {
-      const res = await importCasesCsvAction({
+      const res = await runGatedAction(() => importCasesCsvAction({
         csvText: preview.csvText,
         mapping,
-      });
+      }));
       if (!res.ok) {
         setResult({ error: res.error });
         return;
@@ -706,12 +707,12 @@ export function DocumentsImporter() {
           continue;
         }
         const base64 = await readFileAsBase64(f);
-        const res = await importBulkDocumentAction({
+        const res = await runGatedAction(() => importBulkDocumentAction({
           fileName: f.name,
           mimeType: f.type || 'application/octet-stream',
           base64,
           options: { tag: tag || null },
-        });
+        }));
         if (!res.ok) {
           failed.push({ name: f.name, reason: res.error });
         } else {
@@ -838,7 +839,7 @@ export function JsonDumpImporter() {
   function run() {
     setResult(null);
     startTransition(async () => {
-      const res = await importJsonDumpAction({ jsonText: text });
+      const res = await runGatedAction(() => importJsonDumpAction({ jsonText: text }));
       if (!res.ok) {
         setResult({ error: res.error });
         return;

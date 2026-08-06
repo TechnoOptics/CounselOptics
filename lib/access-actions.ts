@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { requireUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
 import { getFirmBySlug } from './firm-storage';
+import { requireActiveFirm } from './firm-authz';
 import { createNotification } from './notifications';
 import { sendEmail } from './email';
 import { headers } from 'next/headers';
@@ -256,6 +257,11 @@ export async function approveAccessRequestAction(
   }
   const gate = await callerCanReview(req.firm_id);
   if (!gate.ok) return { ok: false, error: gate.error };
+  // The third way a person is added to an organization, alongside
+  // addFirmEmployeeAction and importEmployeesCsvAction: this provisions the
+  // account AND sends outbound mail in Advottic's name telling them to sign
+  // in. On the firm named in the REQUEST, never a caller-supplied id.
+  await requireActiveFirm(req.firm_id);
 
   // External accounts get the core request loop only - no internal,
   // employee-centred surfaces. role_key 'external' resolves to no

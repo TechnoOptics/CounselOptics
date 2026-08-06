@@ -4,7 +4,7 @@ import { headers } from 'next/headers';
 import { getCurrentUserResult, isSupabaseConfigured } from '@/lib/supabase/server';
 import { SessionReconnect } from '@/components/auth/SessionReconnect';
 import { getActiveFirmContext, listMyFirms } from '@/lib/firm-storage';
-import { counselAccessRedirect } from '@/lib/firm-access';
+import { ACCESS_ENDED_PATH, counselAccessRedirect } from '@/lib/firm-access';
 import { firmTrialState } from '@/lib/firm-trials';
 import { getFirmSurfaceSettings, DEFAULT_FIRM_SURFACE_SETTINGS } from '@/lib/firm-settings';
 import { CounselSidebar } from '@/components/counsel/CounselSidebar';
@@ -126,6 +126,33 @@ export default async function CounselLayout({
   if (myFirms.length === 0) {
     const guest = await getGuestContext();
     if (guest) {
+      // A co-counsel guest keeps READ access to their matter when the
+      // organization's TRIAL LAPSES, and loses it when the organization is
+      // SUSPENDED. The two are the same FirmAccessState on purpose, and this
+      // is the one place the difference matters.
+      //
+      // A lapse is a billing fact about the firm. The guest is an outside
+      // attorney the firm invited onto one matter; cutting them off takes a
+      // matter away from the lawyer working it in order to punish a third
+      // party for someone else's invoice, and nothing about the lapse makes
+      // the grant improper.
+      //
+      // A suspension is the abuse-response state, the same one that justifies
+      // stopping outbound mail and calendar invitations in Advottic's name.
+      // While it holds, an account the FIRM provisioned is a channel the
+      // suspension exists to close, not a neutral third party, so the merits
+      // argument above does not reach it.
+      //
+      // Their WRITES are refused either way: requireActiveFirm sits in the
+      // actions and does not care whether the caller is a member or a guest.
+      //
+      // No loop is reachable. /counsel/access-ended is short-circuited above,
+      // before this branch begins, so a redirected guest lands there and never
+      // reaches guestPathAllowed.
+      if (guest.firmId) {
+        const { firmSuspended } = await import('@/lib/firm-trials');
+        if (await firmSuspended(guest.firmId)) redirect(ACCESS_ENDED_PATH);
+      }
       const locale = await getLocaleCookie();
       // Force-change wall: a provisioned guest who still owes their first-login
       // password change is parked on that page until it's done.
