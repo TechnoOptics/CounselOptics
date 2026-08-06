@@ -1,43 +1,39 @@
 'use client';
 
 import {
+  signatureOverflowNote,
   signaturePreviewGeometryNote,
   type SignatureLinePlacement,
 } from '@/lib/signer-view';
 
 /**
- * Where the signer's mark lands on the document, shown while they make
+ * What the pad says about where the signature is going.
+ *
+ * This used to draw a schematic: a Letter-shaped rectangle with a box
+ * on it, standing in for a page nobody had rendered. It was honest
+ * about being a substitute and it was still the wrong thing, so the
+ * document is rasterised above now and the mark appears on the real
+ * signature line on the real page as it is drawn. What is left here is
+ * the sentence that points at it, and the two admissions that go with
  * it.
  *
- * The position, the page, and the box proportions all come from
- * resolveSignatureLinePlacement, which reads the same recorded
- * coordinates lib/signature-render.ts stamps into and clamps them the
- * same way. So this cannot claim a spot the final render will not use.
+ * The geometry admission survives because it is still reachable: the
+ * signature can be on a page the renderer has not reached yet, and
+ * until it has, the placement falls back to a letter-size page.
+ * signaturePreviewGeometryNote returns null once the page is measured,
+ * which on the ordinary path is immediately, because reaching this
+ * step moves the viewer to the signature page.
  *
- * What this is NOT is a rendering of the page itself. Rasterising a
- * PDF in the browser would mean a new dependency, and the frame above
- * shows the real thing. This is a schematic of the page with the
- * signature box on it, and it says so.
- *
- * When no coordinate was recorded for this signer, nothing is drawn in
- * any position. The renderer does have a fallback corner for that
- * case, but it is an arbitrary corner rather than a detected signature
- * line, and showing it would present a guess as a fact.
- *
- * The schematic also says when it is approximate. The page size is not
- * measured here, so the outline, the box size, and above one threshold
- * the box position are all Letter-shaped guesses on a page that is not
- * Letter. That admission is signaturePreviewGeometryNote, kept beside
- * the placement rule it qualifies.
+ * The overflow admission is not about this preview at all. When the
+ * recorded anchor puts part of the box past the edge of the page, the
+ * executed PDF will have part of the signature outside the page, and
+ * the signer is the only person positioned to catch it first.
  */
 export function SignatureLinePreview({
   placement,
-  markDataUrl,
   signerLabel,
 }: {
   placement: SignatureLinePlacement;
-  /** PNG data URL of the mark as it stands right now, or null. */
-  markDataUrl: string | null;
   signerLabel: string;
 }) {
   if (placement.mode === 'deferred') {
@@ -54,82 +50,38 @@ export function SignatureLinePreview({
     );
   }
 
-  // Caption, matching what lib/signature-render.ts writes under the
-  // signature so the preview and the executed copy read the same.
+  // The caption lib/signature-render.ts writes under the signature, so
+  // the signer knows what else is added alongside the mark itself.
   const caption = `${signerLabel} - ${new Date().toISOString().slice(0, 10)}`;
   const geometryNote = signaturePreviewGeometryNote(placement);
+  const overflowNote = signatureOverflowNote(placement);
 
   return (
-    <div className="rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 bg-cream-50/40 dark:bg-forest-900/30 p-4 space-y-3">
-      <div>
-        <p className="eyebrow mb-1.5">Your signature line</p>
-        <p className="text-[12.5px] text-ink-700 dark:text-cream-100/80 leading-relaxed">
-          Your signature goes on page {placement.page} of the document, in the
-          box below. It appears here as you make it, in the position the signed
-          copy will use.
+    <div className="rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 bg-cream-50/40 dark:bg-forest-900/30 p-4 space-y-2">
+      <p className="eyebrow mb-1.5">Your signature line</p>
+      <p className="text-[12.5px] text-ink-700 dark:text-cream-100/80 leading-relaxed">
+        Your signature goes on page {placement.page} of the document above, in
+        the highlighted box. It appears there as you draw it, in the position
+        the signed copy will use. Your name and the date are printed under it:{' '}
+        <span className="font-mono" data-no-translate>
+          {caption}
+        </span>
+        .
+      </p>
+
+      {placement.pageFellBackToFirst && (
+        <p className="text-[11px] text-ink-500 dark:text-cream-100/55 leading-relaxed">
+          The signature line was recorded on a page beyond the end of this
+          document, so it lands on page one instead. That is what the signed
+          copy will show. It is worth mentioning to the firm.
         </p>
-      </div>
+      )}
 
-      <div className="flex flex-col sm:flex-row sm:items-start gap-4">
-        {/* Life-size signature line. */}
-        <div className="flex-1 min-w-0">
-          <div
-            className="w-full rounded-md bg-white dark:bg-forest-950 ring-1 ring-ink-300 dark:ring-forest-700/60 overflow-hidden"
-            style={{ aspectRatio: '220 / 64' }}
-          >
-            {markDataUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={markDataUrl}
-                alt="Your signature as it will appear on the document"
-                className="w-full h-full object-contain"
-              />
-            ) : (
-              <div className="w-full h-full flex items-end justify-start p-2">
-                <span className="block w-full border-b border-ink-300 dark:border-forest-700/60" />
-              </div>
-            )}
-          </div>
-          <p
-            className="mt-1 text-[10px] font-mono text-ink-500 dark:text-cream-100/55 truncate"
-            data-no-translate
-          >
-            {caption}
-          </p>
-        </div>
-
-        {/* Page schematic, so the box has somewhere to be. */}
-        <div className="sm:w-[132px] shrink-0">
-          <div
-            className="relative w-[112px] sm:w-full rounded-sm bg-white dark:bg-forest-950 ring-1 ring-ink-200 dark:ring-forest-700/50"
-            style={{ aspectRatio: String(placement.pageAspect) }}
-            aria-hidden
-          >
-            <span
-              className="absolute rounded-[2px] ring-1 ring-forest-900/70 dark:ring-gold-metal/70 bg-forest-900/10 dark:bg-gold-metal/15 overflow-hidden"
-              style={{
-                left: `${placement.leftPct}%`,
-                top: `${placement.topPct}%`,
-                width: `${placement.widthPct}%`,
-                height: `${placement.heightPct}%`,
-              }}
-            >
-              {markDataUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={markDataUrl}
-                  alt=""
-                  className="w-full h-full object-contain"
-                />
-              ) : null}
-            </span>
-          </div>
-          <p className="mt-1 text-[10px] text-ink-500 dark:text-cream-100/55 leading-snug">
-            Page {placement.page}, shown as a schematic rather than a rendering
-            of the page.
-          </p>
-        </div>
-      </div>
+      {overflowNote && (
+        <p className="text-[11px] text-ink-500 dark:text-cream-100/55 leading-relaxed">
+          {overflowNote}
+        </p>
+      )}
 
       {geometryNote && (
         <p className="text-[11px] text-ink-500 dark:text-cream-100/55 leading-relaxed">

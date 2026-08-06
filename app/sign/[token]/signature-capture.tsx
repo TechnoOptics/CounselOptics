@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useStepAnchor } from '@/lib/use-step-anchor';
 import {
   canLeaveDisclosureStep,
@@ -35,9 +35,12 @@ type Step = 'disclosure' | 'capture' | 'done';
  * that failed to load is the exact case where the signer has not read
  * what they are being asked to sign.
  *
- * Step 2 also shows the signature line: the mark appears in the
- * position the executed copy will use, from the same recorded
- * coordinates the renderer stamps into.
+ * Step 2 also shows the signature line. The mark does not appear in a
+ * schematic beside the pad any more: the document is rasterised above
+ * this component, the viewer moves to the signature page when this
+ * step opens, and the mark is drawn into the real box on the real
+ * page. That is why the canvas snapshot is published upwards rather
+ * than kept here.
  *
  * Submit posts the token, the base64 PNG, the typed name, and a
  * record of the consent timestamps to /api/firm/sign. The server
@@ -54,21 +57,37 @@ export function SignatureCapture({
   placement,
   copyPermitted,
   copyHref,
+  onMarkChange,
+  onStepChange,
 }: {
   token: string;
   signerEmail: string;
   signerName: string | null;
   documentName: string;
   firmName: string;
-  /** Whether the document is actually on the page above this. */
+  /** Whether the document actually rendered on the page above this. */
   documentPresented: boolean;
   placement: SignatureLinePlacement;
   /** Whether the firm allows this signer to download a copy. */
   copyPermitted: boolean;
   copyHref: string;
+  /** The mark as it stands, so the document above can draw it into the
+   *  signature box. Published rather than held here, because the box
+   *  is on the rendered page and not in this component. */
+  onMarkChange: (dataUrl: string | null) => void;
+  /** Which step the signer is on, so the viewer above can move to the
+   *  signature page when the pad opens. */
+  onStepChange: (step: 'disclosure' | 'capture' | 'done') => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [step, setStep] = useState<Step>('disclosure');
+  const [step, setStepState] = useState<Step>('disclosure');
+  const setStep = useCallback(
+    (next: Step) => {
+      setStepState(next);
+      onStepChange(next);
+    },
+    [onStepChange],
+  );
   // Re-anchor the card on every step transition so the user
   // never has to scroll back up to find the new content.
   const cardRef = useStepAnchor<HTMLElement>(step);
@@ -88,23 +107,22 @@ export function SignatureCapture({
   const [intentAffirmed, setIntentAffirmed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // A snapshot of the canvas, so the signature line above the pad can
-  // show the mark in position without a second drawing surface. Taken
-  // when a stroke ends rather than on every pointer move, which keeps
-  // the drawing itself cheap.
-  const [markDataUrl, setMarkDataUrl] = useState<string | null>(null);
 
-  function captureMark() {
+  // A snapshot of the canvas, published upwards so the rendered page
+  // can draw it into the signature box. Taken when a stroke ends
+  // rather than on every pointer move, which keeps the drawing itself
+  // cheap and the rasterised page above it undisturbed.
+  const captureMark = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     try {
-      setMarkDataUrl(canvas.toDataURL('image/png'));
+      onMarkChange(canvas.toDataURL('image/png'));
     } catch {
       // A tainted canvas would throw here. The pad still works and the
       // submit path reads the canvas directly; only the preview is lost.
-      setMarkDataUrl(null);
+      onMarkChange(null);
     }
-  }
+  }, [onMarkChange]);
 
   // Resize canvas when entering the capture step.
   useEffect(() => {
@@ -137,6 +155,7 @@ export function SignatureCapture({
     ctx.clearRect(0, 0, w, h);
     if (!typed.trim()) {
       setHasInk(false);
+      onMarkChange(null);
       return;
     }
     ctx.fillStyle = '#0f2d24';
@@ -144,12 +163,8 @@ export function SignatureCapture({
     ctx.textBaseline = 'middle';
     ctx.fillText(typed, 16, h / 2);
     setHasInk(true);
-    try {
-      setMarkDataUrl(canvas.toDataURL('image/png'));
-    } catch {
-      setMarkDataUrl(null);
-    }
-  }, [step, mode, typed]);
+    captureMark();
+  }, [step, mode, typed, captureMark, onMarkChange]);
 
   function getXY(e: React.PointerEvent<HTMLCanvasElement>) {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -185,7 +200,7 @@ export function SignatureCapture({
     if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     setHasInk(false);
-    setMarkDataUrl(null);
+    onMarkChange(null);
     setTyped(signerName ?? '');
   }
 
@@ -487,7 +502,6 @@ export function SignatureCapture({
 
       <SignatureLinePreview
         placement={placement}
-        markDataUrl={markDataUrl}
         signerLabel={signerName || signerEmail}
       />
 

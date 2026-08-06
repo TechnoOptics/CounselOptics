@@ -25,14 +25,33 @@ const CSP = [
   `script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://app.cal.com`,
   `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
   `img-src 'self' data: blob: https://*.supabase.co https://${SUPABASE_HOST} https://*.googleusercontent.com https://maps.gstatic.com https://maps.googleapis.com`,
-  `font-src 'self' data: https://fonts.gstatic.com`,
+  // blob: is here for pdf.js. The signer page rasterises the document
+  // it is asking someone to sign, and a PDF carrying embedded fonts
+  // has them registered through a blob or data URL depending on the
+  // path the library takes. Without it, an enforced policy would drop
+  // the embedded typeface and substitute glyphs into a legal
+  // instrument, silently, since this header still ships report-only.
+  `font-src 'self' data: blob: https://fonts.gstatic.com`,
+  // The signer page fetches the PDF bytes itself now instead of
+  // pointing a frame at storage, and it fetches them from this origin
+  // (/api/firm/sign/document/[token]), so 'self' is what covers it and
+  // no host was added here for it. That is deliberate: the page is
+  // unauthenticated and its URL carries a live signing credential, so
+  // the rasteriser is given nothing cross-origin to reach for. The
+  // Supabase host below is the pre-existing allowance for the
+  // authenticated app's own client, not for that page.
   `connect-src 'self' https://${SUPABASE_HOST} wss://${SUPABASE_HOST} https://api.anthropic.com https://api.stripe.com https://*.vercel-insights.com`,
-  // Supabase storage belongs here, not just in img-src: both the
-  // counsel document preview and the public /sign/[token] page show a
-  // stored PDF in an iframe pointed at a signed storage URL. Without
-  // it, enforcing this policy would blank the document a signer is
-  // being asked to read.
+  // Supabase storage belongs here, not just in img-src: the counsel
+  // document preview shows a stored PDF in an iframe pointed at a
+  // signed storage URL. Without it, enforcing this policy would blank
+  // that preview. The public /sign/[token] page used to need it too
+  // and no longer does, because it renders the document itself from
+  // same-origin bytes instead of framing storage.
   `frame-src 'self' https://*.supabase.co https://${SUPABASE_HOST} https://www.google.com https://maps.google.com https://js.stripe.com https://hooks.stripe.com https://billing.stripe.com https://app.cal.com`,
+  // 'self' covers the pdf.js worker: it is emitted into /_next/static
+  // by the bundler, version-locked to the library it came from, and
+  // loaded from this origin. No CDN worker, no wasm blob, no character
+  // map fetched from anywhere. blob: predates this and stays.
   `worker-src 'self' blob:`,
   `manifest-src 'self'`,
   `media-src 'self' blob:`,

@@ -1,9 +1,6 @@
 import { createServerSupabase, getCurrentUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
-import {
-  SIGNER_DOCUMENT_URL_TTL_MINUTES,
-  parseSignerDownloadPermission,
-} from './signer-view';
+import { parseSignerDownloadPermission } from './signer-view';
 import type {
   Firm,
   FirmChannel,
@@ -748,48 +745,6 @@ export async function getFirmDocumentSignedUrl(
 ): Promise<string | null> {
   const supabase = createServerSupabase();
   const { data, error } = await supabase.storage
-    .from('firm-documents')
-    .createSignedUrl(filePath, expiresInSeconds);
-  if (error || !data) return null;
-  return data.signedUrl;
-}
-
-/**
- * How long the signer's view of the document stays readable.
- *
- * Long enough to read a contract without the frame going dead mid-way,
- * short enough that a URL scraped out of the page is close to useless.
- * The page holds ONE of these for the life of the mount (see
- * createSignerFrameSrcRetainer) rather than re-minting, so this is the
- * whole budget for a single visit, not a per-render one.
- *
- * The minutes form is SIGNER_DOCUMENT_URL_TTL_MINUTES in
- * lib/signer-view.ts, which is what the page tells the signer, so the
- * stated budget and the real one cannot drift apart.
- */
-export const SIGNER_DOCUMENT_URL_TTL_SECONDS =
-  SIGNER_DOCUMENT_URL_TTL_MINUTES * 60;
-
-/**
- * Mint a read URL for the document behind ONE signing token.
- *
- * The /sign page has no signed-in user, so the RLS-scoped client above
- * cannot see the firm's bucket at all and getFirmDocumentSignedUrl
- * returns null there. This is the service-role path, and the caller is
- * responsible for having resolved the path from a valid token first:
- * it is reached only after getSignatureByToken matched the token, the
- * request was found live, and any access code was verified.
- *
- * The URL is never put in a query string, a redirect, or an outbound
- * link. It goes into the frame the signer reads and nowhere else.
- */
-export async function getSignerDocumentSignedUrl(
-  filePath: string,
-  expiresInSeconds = SIGNER_DOCUMENT_URL_TTL_SECONDS,
-): Promise<string | null> {
-  const admin = createAdminSupabase();
-  if (!admin) return null;
-  const { data, error } = await admin.storage
     .from('firm-documents')
     .createSignedUrl(filePath, expiresInSeconds);
   if (error || !data) return null;

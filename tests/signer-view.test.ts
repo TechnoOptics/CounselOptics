@@ -6,76 +6,31 @@ import {
   ASSUMED_PAGE_WIDTH_PT,
   SIGNATURE_BOX_HEIGHT_PT,
   SIGNATURE_BOX_WIDTH_PT,
+  SIGNER_CANVAS_MAX_PIXELS,
+  SIGNER_CANVAS_MAX_SIDE_PX,
   SIGNER_COPY_REFUSAL_COPY,
+  SIGNER_DOCUMENT_MAX_BYTES,
+  SIGNER_DOCUMENT_REFUSAL_COPY,
+  SIGNER_DOCUMENT_RENDER_COPY,
   SIGNER_DOWNLOAD_RESTRICTION_UNSAVED_ERROR,
   canLeaveDisclosureStep,
-  createSignerFrameSrcRetainer,
+  clampSignerPageNumber,
+  isDocumentPresented,
   isUnknownColumnError,
+  needsPromiseWithResolvers,
   parseSignerDownloadPermission,
   projectSignerConsentMetadata,
+  resolveCanvasRenderScale,
+  resolveDocumentSizeAcceptance,
   resolveDownloadColumnFallback,
   resolveSignatureLinePlacement,
   resolveSignerCopyAccess,
+  resolveSignerDocumentAccess,
+  rotateSignatureRectForDisplay,
+  signatureOverflowNote,
   signaturePreviewGeometryNote,
-  stableSignerFrameSrc,
+  type SignatureLinePlacement,
 } from '../lib/signer-view';
-
-describe('stableSignerFrameSrc', () => {
-  it('takes the incoming URL when nothing is retained yet', () => {
-    expect(stableSignerFrameSrc(null, 'https://store/a.pdf?sig=1')).toBe(
-      'https://store/a.pdf?sig=1',
-    );
-  });
-
-  it('keeps the retained URL when a different one arrives', () => {
-    expect(
-      stableSignerFrameSrc('https://store/a.pdf?sig=1', 'https://store/a.pdf?sig=2'),
-    ).toBe('https://store/a.pdf?sig=1');
-  });
-
-  it('keeps the retained URL when the incoming one goes missing', () => {
-    expect(stableSignerFrameSrc('https://store/a.pdf?sig=1', null)).toBe(
-      'https://store/a.pdf?sig=1',
-    );
-    expect(stableSignerFrameSrc('https://store/a.pdf?sig=1', '')).toBe(
-      'https://store/a.pdf?sig=1',
-    );
-  });
-
-  it('reports nothing when neither side has a URL', () => {
-    expect(stableSignerFrameSrc(null, undefined)).toBeNull();
-    expect(stableSignerFrameSrc('', '')).toBeNull();
-  });
-});
-
-describe('createSignerFrameSrcRetainer', () => {
-  it('holds the first usable URL across a sequence of renders', () => {
-    const retain = createSignerFrameSrcRetainer();
-    expect(retain('https://store/a.pdf?sig=1')).toBe('https://store/a.pdf?sig=1');
-    expect(retain('https://store/a.pdf?sig=2')).toBe('https://store/a.pdf?sig=1');
-    expect(retain('https://store/a.pdf?sig=3')).toBe('https://store/a.pdf?sig=1');
-  });
-
-  it('does not latch onto an empty first render', () => {
-    const retain = createSignerFrameSrcRetainer();
-    expect(retain(null)).toBeNull();
-    expect(retain('https://store/a.pdf?sig=9')).toBe('https://store/a.pdf?sig=9');
-  });
-
-  it('is idempotent for a repeated argument (double / discarded render)', () => {
-    const retain = createSignerFrameSrcRetainer();
-    retain('https://store/a.pdf?sig=1');
-    expect(retain('https://store/a.pdf?sig=1')).toBe('https://store/a.pdf?sig=1');
-    expect(retain('https://store/a.pdf?sig=1')).toBe('https://store/a.pdf?sig=1');
-  });
-
-  it('gives each mount its own memory', () => {
-    const a = createSignerFrameSrcRetainer();
-    const b = createSignerFrameSrcRetainer();
-    a('https://store/a.pdf?sig=1');
-    expect(b('https://store/b.pdf?sig=1')).toBe('https://store/b.pdf?sig=1');
-  });
-});
 
 describe('canLeaveDisclosureStep', () => {
   const base = {
@@ -131,6 +86,153 @@ describe('canLeaveDisclosureStep', () => {
   });
 });
 
+/**
+ * The invariant this file exists to hold: what the signer is shown and
+ * what lib/signature-render.ts stamps are the same rectangle.
+ *
+ * The renderer's arithmetic is written out again here rather than
+ * imported. Importing it would let one bug satisfy both sides; writing
+ * it out means the two have to agree independently, and a change to
+ * either one that moves the box shows up as a failure rather than as a
+ * signature somewhere the signer never saw.
+ *
+ * Mirrors lib/signature-render.ts:
+ *   const x = Math.max(0, Math.min(1, s.position_x ?? 0.07)) * pw;
+ *   const y = Math.max(0, Math.min(1, s.position_y ?? 0.07)) * ph;
+ *   const boxW = 220; const boxH = 64;
+ *   page.drawImage(image, { x: x + ..., y: y + ..., ... });
+ */
+function rendererBoxInPoints(
+  positionX: number,
+  positionY: number,
+  pageWidthPt: number,
+  pageHeightPt: number,
+) {
+  return {
+    leftPt: Math.max(0, Math.min(1, positionX)) * pageWidthPt,
+    bottomPt: Math.max(0, Math.min(1, positionY)) * pageHeightPt,
+    widthPt: SIGNATURE_BOX_WIDTH_PT,
+    heightPt: SIGNATURE_BOX_HEIGHT_PT,
+  };
+}
+
+/** Read a placement back out as points on the page it was measured on. */
+function placementInPoints(
+  placement: SignatureLinePlacement,
+  pageWidthPt: number,
+  pageHeightPt: number,
+) {
+  if (placement.mode !== 'placed') throw new Error('expected a placed signature');
+  const widthPt = (placement.widthPct / 100) * pageWidthPt;
+  const heightPt = (placement.heightPct / 100) * pageHeightPt;
+  const topPt = (placement.topPct / 100) * pageHeightPt;
+  return {
+    leftPt: (placement.leftPct / 100) * pageWidthPt,
+    // CSS top measured down, converted back to a PDF bottom measured up.
+    bottomPt: pageHeightPt - topPt - heightPt,
+    widthPt,
+    heightPt,
+  };
+}
+
+const PAGE_SIZES = [
+  { name: 'US Letter', w: 612, h: 792 },
+  { name: 'A4', w: 595.28, h: 841.89 },
+  { name: 'A4 landscape', w: 841.89, h: 595.28 },
+];
+
+describe('the drawn signature agrees with renderFinalSignedPdf', () => {
+  // Includes the positions the review measured the old clamp at: the
+  // threshold itself (1 - 220/612 = 0.6405), and 0.70 and 0.75 above
+  // it, where the clamped preview was wrong by up to 11% of the page.
+  const positions = [
+    [0, 0],
+    [0.07, 0.07],
+    [0.25, 0.5],
+    [0.5, 0.5],
+    [1 - SIGNATURE_BOX_WIDTH_PT / ASSUMED_PAGE_WIDTH_PT, 0.1],
+    [0.7, 0.1],
+    [0.75, 0.1],
+    [0.95, 0.02],
+    [1, 1],
+    [1.4, -0.3],
+  ];
+
+  for (const page of PAGE_SIZES) {
+    for (const [x, y] of positions) {
+      it(`matches on ${page.name} at x=${x}, y=${y}`, () => {
+        const placement = resolveSignatureLinePlacement({
+          positionPage: 1,
+          positionX: x,
+          positionY: y,
+          pageWidthPt: page.w,
+          pageHeightPt: page.h,
+          pageCount: 1,
+        });
+        const drawn = placementInPoints(placement, page.w, page.h);
+        const stamped = rendererBoxInPoints(x, y, page.w, page.h);
+        expect(drawn.leftPt).toBeCloseTo(stamped.leftPt, 6);
+        expect(drawn.bottomPt).toBeCloseTo(stamped.bottomPt, 6);
+        expect(drawn.widthPt).toBeCloseTo(stamped.widthPt, 6);
+        expect(drawn.heightPt).toBeCloseTo(stamped.heightPt, 6);
+      });
+    }
+  }
+
+  // The specific regression. A containment clamp made the drawing
+  // disagree with the stamp above x = 1 - 220/pageWidth, and computed
+  // that threshold from an assumed Letter width so it engaged in the
+  // wrong place on every other page size.
+  it('does not pull an anchor near the right edge back onto the page', () => {
+    const placement = resolveSignatureLinePlacement({
+      positionPage: 1,
+      positionX: 0.95,
+      positionY: 0.1,
+      pageWidthPt: 612,
+      pageHeightPt: 792,
+      pageCount: 1,
+    });
+    if (placement.mode !== 'placed') throw new Error('expected a placed signature');
+    expect(placement.leftPct).toBeCloseTo(95, 6);
+    expect(placement.leftPct + placement.widthPct).toBeGreaterThan(100);
+    expect(placement.overflowsPage).toBe(true);
+  });
+
+  it('reports the same page the renderer will stamp on', () => {
+    // pages[pageIdx] ?? pages[0]: past the end lands on page one.
+    const past = resolveSignatureLinePlacement({
+      positionPage: 9,
+      positionX: 0.1,
+      positionY: 0.1,
+      pageCount: 4,
+    });
+    if (past.mode !== 'placed') throw new Error('expected a placed signature');
+    expect(past.page).toBe(1);
+    expect(past.pageFellBackToFirst).toBe(true);
+
+    const inside = resolveSignatureLinePlacement({
+      positionPage: 3,
+      positionX: 0.1,
+      positionY: 0.1,
+      pageCount: 4,
+    });
+    if (inside.mode !== 'placed') throw new Error('expected a placed signature');
+    expect(inside.page).toBe(3);
+    expect(inside.pageFellBackToFirst).toBe(false);
+  });
+
+  it('leaves the page alone until the document has been counted', () => {
+    const p = resolveSignatureLinePlacement({
+      positionPage: 9,
+      positionX: 0.1,
+      positionY: 0.1,
+    });
+    if (p.mode !== 'placed') throw new Error('expected a placed signature');
+    expect(p.page).toBe(9);
+    expect(p.pageFellBackToFirst).toBe(false);
+  });
+});
+
 describe('signaturePreviewGeometryNote', () => {
   const assumed = resolveSignatureLinePlacement({
     positionPage: 1,
@@ -168,47 +270,92 @@ describe('signaturePreviewGeometryNote', () => {
     expect(signaturePreviewGeometryNote(assumed)).not.toMatch(/[—–]/);
   });
 
-  // The reason the note exists. Below the threshold the assumed page
-  // width changes nothing about the position; above it, the clamp
-  // engages on the assumed width and the drawn position parts company
-  // with where the renderer will actually put the box.
-  it('covers a position the assumed page size actually moves', () => {
-    const threshold = 1 - SIGNATURE_BOX_WIDTH_PT / ASSUMED_PAGE_WIDTH_PT;
-    const below = resolveSignatureLinePlacement({
+  // The reason the note still exists after the clamp was removed. The
+  // assumed page size no longer moves the box HORIZONTALLY at all, but
+  // the box height is a fraction of the page height, so the top edge
+  // still moves: 64/792 on Letter against 64/595 on A4 landscape.
+  it('covers a vertical position the assumed page size actually moves', () => {
+    const assumedTop = resolveSignatureLinePlacement({
       positionPage: 1,
-      positionX: threshold - 0.05,
+      positionX: 0.7,
       positionY: 0.1,
     });
-    const belowMeasured = resolveSignatureLinePlacement({
+    const landscape = resolveSignatureLinePlacement({
       positionPage: 1,
-      positionX: threshold - 0.05,
+      positionX: 0.7,
       positionY: 0.1,
-      pageWidthPt: 842,
-      pageHeightPt: 595,
+      pageWidthPt: 841.89,
+      pageHeightPt: 595.28,
     });
-    if (below.mode !== 'placed' || belowMeasured.mode !== 'placed') {
-      throw new Error('expected placed previews');
+    if (assumedTop.mode !== 'placed' || landscape.mode !== 'placed') {
+      throw new Error('expected placed signatures');
     }
-    expect(below.leftPct).toBeCloseTo(belowMeasured.leftPct, 6);
+    expect(assumedTop.leftPct).toBeCloseTo(landscape.leftPct, 6);
+    expect(Math.abs(assumedTop.topPct - landscape.topPct)).toBeGreaterThan(1);
+    expect(signaturePreviewGeometryNote(assumedTop)).toBeTruthy();
+  });
+});
 
-    const above = resolveSignatureLinePlacement({
+describe('signatureOverflowNote', () => {
+  const overflowing = resolveSignatureLinePlacement({
+    positionPage: 1,
+    positionX: 0.95,
+    positionY: 0.1,
+    pageWidthPt: 612,
+    pageHeightPt: 792,
+  });
+  const contained = resolveSignatureLinePlacement({
+    positionPage: 1,
+    positionX: 0.1,
+    positionY: 0.1,
+    pageWidthPt: 612,
+    pageHeightPt: 792,
+  });
+
+  it('warns when part of the signature will fall off the page', () => {
+    const note = signatureOverflowNote(overflowing);
+    expect(note).toBeTruthy();
+    expect(note).toMatch(/past the edge/i);
+  });
+
+  it('says nothing when the whole box is on the page', () => {
+    expect(signatureOverflowNote(contained)).toBeNull();
+  });
+
+  it('says nothing when there is no placement to qualify', () => {
+    expect(
+      signatureOverflowNote({ mode: 'deferred', reason: 'no-recorded-position' }),
+    ).toBeNull();
+  });
+
+  it('catches a box pushed off the TOP of the page too', () => {
+    const p = resolveSignatureLinePlacement({
       positionPage: 1,
-      positionX: 0.75,
-      positionY: 0.1,
+      positionX: 0.1,
+      positionY: 0.99,
+      pageWidthPt: 612,
+      pageHeightPt: 792,
     });
-    const aboveMeasured = resolveSignatureLinePlacement({
+    if (p.mode !== 'placed') throw new Error('expected a placed signature');
+    expect(p.topPct).toBeLessThan(0);
+    expect(p.overflowsPage).toBe(true);
+    expect(signatureOverflowNote(p)).toBeTruthy();
+  });
+
+  it('does not cry overflow for a box exactly on the edge', () => {
+    const p = resolveSignatureLinePlacement({
       positionPage: 1,
-      positionX: 0.75,
-      positionY: 0.1,
-      pageWidthPt: 842,
-      pageHeightPt: 595,
+      positionX: 1 - SIGNATURE_BOX_WIDTH_PT / 612,
+      positionY: 1 - SIGNATURE_BOX_HEIGHT_PT / 792,
+      pageWidthPt: 612,
+      pageHeightPt: 792,
     });
-    if (above.mode !== 'placed' || aboveMeasured.mode !== 'placed') {
-      throw new Error('expected placed previews');
-    }
-    expect(Math.abs(above.leftPct - aboveMeasured.leftPct)).toBeGreaterThan(1);
-    // Which is precisely the case the note has to be present for.
-    expect(signaturePreviewGeometryNote(above)).toBeTruthy();
+    if (p.mode !== 'placed') throw new Error('expected a placed signature');
+    expect(p.overflowsPage).toBe(false);
+  });
+
+  it('is calm and carries no em dash', () => {
+    expect(signatureOverflowNote(overflowing)).not.toMatch(/[—–]/);
   });
 });
 
@@ -268,7 +415,7 @@ describe('resolveSignatureLinePlacement', () => {
       pageWidthPt: 600,
       pageHeightPt: 800,
     });
-    if (p.mode !== 'placed') throw new Error('expected a placed preview');
+    if (p.mode !== 'placed') throw new Error('expected a placed signature');
     expect(p.page).toBe(3);
     expect(p.leftPct).toBeCloseTo(25, 6);
     // PDF y is the bottom edge measured up; CSS top is the top edge
@@ -287,7 +434,7 @@ describe('resolveSignatureLinePlacement', () => {
       positionX: 0.1,
       positionY: 0.1,
     });
-    if (p.mode !== 'placed') throw new Error('expected a placed preview');
+    if (p.mode !== 'placed') throw new Error('expected a placed signature');
     expect(p.pageGeometry).toBe('assumed');
     expect(p.widthPct).toBeCloseTo(
       (SIGNATURE_BOX_WIDTH_PT / ASSUMED_PAGE_WIDTH_PT) * 100,
@@ -299,7 +446,26 @@ describe('resolveSignatureLinePlacement', () => {
     );
   });
 
-  it('clamps an out-of-range anchor the same way the renderer does', () => {
+  it('ignores a page size that is not a page size', () => {
+    for (const [w, h] of [
+      [0, 800],
+      [600, 0],
+      [-600, 800],
+      [Number.NaN, 800],
+    ]) {
+      const p = resolveSignatureLinePlacement({
+        positionPage: 1,
+        positionX: 0.1,
+        positionY: 0.1,
+        pageWidthPt: w,
+        pageHeightPt: h,
+      });
+      if (p.mode !== 'placed') throw new Error('expected a placed signature');
+      expect(p.pageGeometry).toBe('assumed');
+    }
+  });
+
+  it('clamps an out-of-range anchor into the page the way the renderer does', () => {
     const p = resolveSignatureLinePlacement({
       positionPage: 1,
       positionX: 1.4,
@@ -307,33 +473,350 @@ describe('resolveSignatureLinePlacement', () => {
       pageWidthPt: 600,
       pageHeightPt: 800,
     });
-    if (p.mode !== 'placed') throw new Error('expected a placed preview');
-    // x clamps to 1, then the box is pulled back inside the page.
-    expect(p.leftPct).toBeCloseTo((1 - SIGNATURE_BOX_WIDTH_PT / 600) * 100, 6);
-    // y clamps to 0, which is the bottom edge of the page.
+    if (p.mode !== 'placed') throw new Error('expected a placed signature');
+    // x clamps to 1: the box STARTS at the right edge and hangs off it,
+    // which is exactly where the renderer puts it.
+    expect(p.leftPct).toBeCloseTo(100, 6);
+    // y clamps to 0, the bottom edge of the page.
     expect(p.topPct).toBeCloseTo((1 - SIGNATURE_BOX_HEIGHT_PT / 800) * 100, 6);
   });
+});
 
-  it('never lets the preview box escape its page schematic', () => {
-    for (const [x, y] of [
-      [0, 0],
-      [1, 1],
-      [0.999, 0.999],
-      [0.5, 0.97],
+describe('rotateSignatureRectForDisplay', () => {
+  const rect = {
+    leftFrac: 0.1,
+    topFrac: 0.2,
+    widthFrac: 0.3,
+    heightFrac: 0.4,
+  };
+
+  it('leaves an unrotated page alone', () => {
+    expect(rotateSignatureRectForDisplay(rect, 0)).toEqual(rect);
+    expect(rotateSignatureRectForDisplay(rect, 360)).toEqual(rect);
+    expect(rotateSignatureRectForDisplay(rect, null)).toEqual(rect);
+  });
+
+  it('turns the box with the page at 90 degrees', () => {
+    // Clockwise: (u, v) -> (1 - v, u), and the box's width and height
+    // trade places with the dimensions they are fractions of.
+    expect(rotateSignatureRectForDisplay(rect, 90)).toEqual({
+      leftFrac: 1 - 0.2 - 0.4,
+      topFrac: 0.1,
+      widthFrac: 0.4,
+      heightFrac: 0.3,
+    });
+  });
+
+  it('turns the box with the page at 180 and 270 degrees', () => {
+    expect(rotateSignatureRectForDisplay(rect, 180)).toEqual({
+      leftFrac: 1 - 0.1 - 0.3,
+      topFrac: 1 - 0.2 - 0.4,
+      widthFrac: 0.3,
+      heightFrac: 0.4,
+    });
+    expect(rotateSignatureRectForDisplay(rect, 270)).toEqual({
+      leftFrac: 0.2,
+      topFrac: 1 - 0.1 - 0.3,
+      widthFrac: 0.4,
+      heightFrac: 0.3,
+    });
+  });
+
+  it('reads a negative rotation the same way a viewer does', () => {
+    expect(rotateSignatureRectForDisplay(rect, -90)).toEqual(
+      rotateSignatureRectForDisplay(rect, 270),
+    );
+  });
+
+  it('four quarter turns is where it started', () => {
+    let out = rect;
+    for (let i = 0; i < 4; i++) out = rotateSignatureRectForDisplay(out, 90);
+    expect(out.leftFrac).toBeCloseTo(rect.leftFrac, 9);
+    expect(out.topFrac).toBeCloseTo(rect.topFrac, 9);
+    expect(out.widthFrac).toBeCloseTo(rect.widthFrac, 9);
+    expect(out.heightFrac).toBeCloseTo(rect.heightFrac, 9);
+  });
+
+  it('treats a rotation that is not a right angle as no rotation', () => {
+    // /Rotate is defined to be a multiple of 90. Inventing a shear for
+    // a malformed value would be worse than drawing it unrotated.
+    expect(rotateSignatureRectForDisplay(rect, Number.NaN)).toEqual(rect);
+    expect(rotateSignatureRectForDisplay(rect, 37)).toEqual(rect);
+  });
+});
+
+describe('resolveCanvasRenderScale', () => {
+  const letter = { pageWidthPt: 612, pageHeightPt: 792 };
+
+  it('renders at the width it is shown at, times the device ratio', () => {
+    expect(
+      resolveCanvasRenderScale({
+        ...letter,
+        cssWidthPx: 612,
+        devicePixelRatio: 2,
+      }),
+    ).toBeCloseTo(2, 6);
+  });
+
+  it('never exceeds the canvas area a phone will allocate', () => {
+    const scale = resolveCanvasRenderScale({
+      ...letter,
+      cssWidthPx: 4000,
+      devicePixelRatio: 3,
+    });
+    expect(612 * scale * (792 * scale)).toBeLessThanOrEqual(
+      SIGNER_CANVAS_MAX_PIXELS + 1,
+    );
+  });
+
+  it('never exceeds the maximum side either', () => {
+    // A very tall, very narrow page hits the side limit before the
+    // area limit, and a canvas over the side limit draws nothing.
+    const scale = resolveCanvasRenderScale({
+      pageWidthPt: 100,
+      pageHeightPt: 5000,
+      cssWidthPx: 2000,
+      devicePixelRatio: 3,
+    });
+    expect(5000 * scale).toBeLessThanOrEqual(SIGNER_CANVAS_MAX_SIDE_PX + 1);
+    expect(100 * scale).toBeLessThanOrEqual(SIGNER_CANVAS_MAX_SIDE_PX + 1);
+  });
+
+  it('caps an absurd device pixel ratio rather than trusting it', () => {
+    const capped = resolveCanvasRenderScale({
+      ...letter,
+      cssWidthPx: 300,
+      devicePixelRatio: 12,
+    });
+    const atThree = resolveCanvasRenderScale({
+      ...letter,
+      cssWidthPx: 300,
+      devicePixelRatio: 3,
+    });
+    expect(capped).toBeCloseTo(atThree, 6);
+  });
+
+  it('returns a usable scale for nonsense input rather than zero', () => {
+    // A zero or NaN scale is a zero-sized canvas, which is the blank
+    // document this whole surface exists to prevent.
+    for (const bad of [
+      { pageWidthPt: 0, pageHeightPt: 792, cssWidthPx: 300 },
+      { pageWidthPt: 612, pageHeightPt: Number.NaN, cssWidthPx: 300 },
+      { pageWidthPt: 612, pageHeightPt: 792, cssWidthPx: 0 },
+      { pageWidthPt: 612, pageHeightPt: 792, cssWidthPx: Number.NaN },
     ]) {
-      const p = resolveSignatureLinePlacement({
-        positionPage: 1,
-        positionX: x,
-        positionY: y,
-        pageWidthPt: 612,
-        pageHeightPt: 792,
-      });
-      if (p.mode !== 'placed') throw new Error('expected a placed preview');
-      expect(p.leftPct).toBeGreaterThanOrEqual(0);
-      expect(p.topPct).toBeGreaterThanOrEqual(0);
-      expect(p.leftPct + p.widthPct).toBeLessThanOrEqual(100.0001);
-      expect(p.topPct + p.heightPct).toBeLessThanOrEqual(100.0001);
+      const scale = resolveCanvasRenderScale(bad);
+      expect(Number.isFinite(scale)).toBe(true);
+      expect(scale).toBeGreaterThan(0);
     }
+  });
+
+  it('stays positive when a missing device ratio is reported', () => {
+    const scale = resolveCanvasRenderScale({
+      ...letter,
+      cssWidthPx: 300,
+      devicePixelRatio: 0,
+    });
+    expect(scale).toBeGreaterThan(0);
+  });
+});
+
+describe('clampSignerPageNumber', () => {
+  it('keeps the page inside the document', () => {
+    expect(clampSignerPageNumber(0, 10)).toBe(1);
+    expect(clampSignerPageNumber(11, 10)).toBe(10);
+    expect(clampSignerPageNumber(4, 10)).toBe(4);
+  });
+
+  it('stays on page one until the document has been counted', () => {
+    expect(clampSignerPageNumber(7, null)).toBe(1);
+    expect(clampSignerPageNumber(7, 0)).toBe(1);
+    expect(clampSignerPageNumber(7, Number.NaN)).toBe(1);
+  });
+
+  it('refuses a page that is not a number', () => {
+    expect(clampSignerPageNumber(Number.NaN, 10)).toBe(1);
+    expect(clampSignerPageNumber(null, 10)).toBe(1);
+  });
+
+  it('takes whole pages only', () => {
+    expect(clampSignerPageNumber(3.7, 10)).toBe(3);
+  });
+});
+
+describe('resolveDocumentSizeAcceptance', () => {
+  it('accepts an ordinary agreement', () => {
+    expect(resolveDocumentSizeAcceptance(2 * 1024 * 1024)).toBe('ok');
+  });
+
+  it('refuses a file this device should not attempt', () => {
+    expect(resolveDocumentSizeAcceptance(SIGNER_DOCUMENT_MAX_BYTES + 1)).toBe(
+      'too-large',
+    );
+    expect(resolveDocumentSizeAcceptance(SIGNER_DOCUMENT_MAX_BYTES)).toBe('ok');
+  });
+
+  it('calls an empty response empty rather than fine', () => {
+    expect(resolveDocumentSizeAcceptance(0)).toBe('empty');
+    expect(resolveDocumentSizeAcceptance(null)).toBe('empty');
+    expect(resolveDocumentSizeAcceptance(Number.NaN)).toBe('empty');
+    expect(resolveDocumentSizeAcceptance(-1)).toBe('empty');
+  });
+});
+
+describe('isDocumentPresented', () => {
+  it('counts only a page that actually rasterised', () => {
+    expect(isDocumentPresented('ready')).toBe(true);
+  });
+
+  it('counts nothing else, so a failed render blocks the ceremony', () => {
+    for (const status of [
+      'pending',
+      'empty',
+      'too-large',
+      'unreadable',
+      'unsupported',
+      'unavailable',
+    ] as const) {
+      expect(isDocumentPresented(status)).toBe(false);
+      expect(
+        canLeaveDisclosureStep({
+          electronicRecordsAgreed: true,
+          hardwareSoftwareAgreed: true,
+          documentPresented: isDocumentPresented(status),
+          documentReviewed: true,
+        }),
+      ).toBe(false);
+    }
+  });
+
+  it('has calm wording for every state that is not ready', () => {
+    for (const status of [
+      'pending',
+      'empty',
+      'too-large',
+      'unreadable',
+      'unsupported',
+      'unavailable',
+    ] as const) {
+      const copy = SIGNER_DOCUMENT_RENDER_COPY[status];
+      expect(copy).toBeTruthy();
+      expect(copy).not.toMatch(/[—–]/);
+      expect(copy).not.toMatch(/error|failed|invalid|denied/i);
+    }
+  });
+});
+
+describe('resolveSignerDocumentAccess', () => {
+  const base = {
+    accessCodeRequired: false,
+    accessVerifiedAt: null,
+    requestStatus: 'sent',
+    signedAt: null,
+    signerResponse: null,
+    sourceFilePath: 'firm/doc.pdf',
+  };
+
+  it('serves the document to a live, unsigned request', () => {
+    expect(resolveSignerDocumentAccess(base)).toEqual({
+      allowed: true,
+      path: 'firm/doc.pdf',
+    });
+  });
+
+  it('refuses an unverified access code before anything else', () => {
+    // First, so a link forwarded without its code learns nothing about
+    // the request behind it.
+    const out = resolveSignerDocumentAccess({
+      ...base,
+      accessCodeRequired: true,
+      accessVerifiedAt: null,
+      requestStatus: 'canceled',
+    });
+    expect(out).toEqual({ allowed: false, reason: 'code-required' });
+  });
+
+  it('serves a verified access-code link normally', () => {
+    expect(
+      resolveSignerDocumentAccess({
+        ...base,
+        accessCodeRequired: true,
+        accessVerifiedAt: '2026-08-06T00:00:00Z',
+      }).allowed,
+    ).toBe(true);
+  });
+
+  it('refuses a recalled request', () => {
+    expect(
+      resolveSignerDocumentAccess({ ...base, requestStatus: 'canceled' }),
+    ).toEqual({ allowed: false, reason: 'canceled' });
+  });
+
+  it('refuses once the signer has signed, so the copy route governs retention', () => {
+    // Otherwise this route hands out the same document with the firm's
+    // per-request download permission never consulted.
+    expect(
+      resolveSignerDocumentAccess({
+        ...base,
+        signedAt: '2026-08-06T00:00:00Z',
+      }),
+    ).toEqual({ allowed: false, reason: 'already-signed' });
+  });
+
+  it('refuses a request on hold', () => {
+    expect(
+      resolveSignerDocumentAccess({ ...base, signerResponse: 'rejected' }),
+    ).toEqual({ allowed: false, reason: 'on-hold' });
+    expect(
+      resolveSignerDocumentAccess({ ...base, requestStatus: 'rejected' }),
+    ).toEqual({ allowed: false, reason: 'on-hold' });
+    expect(
+      resolveSignerDocumentAccess({
+        ...base,
+        requestStatus: 'changes_requested',
+      }),
+    ).toEqual({ allowed: false, reason: 'on-hold' });
+  });
+
+  it('refuses when no file is recorded at all', () => {
+    expect(
+      resolveSignerDocumentAccess({ ...base, sourceFilePath: null }),
+    ).toEqual({ allowed: false, reason: 'unavailable' });
+  });
+
+  it('has calm wording for every refusal it can return', () => {
+    const reasons = [
+      'code-required',
+      'canceled',
+      'already-signed',
+      'on-hold',
+      'unavailable',
+    ] as const;
+    for (const reason of reasons) {
+      const copy = SIGNER_DOCUMENT_REFUSAL_COPY[reason];
+      expect(copy).toBeTruthy();
+      expect(copy).not.toMatch(/[—–]/);
+      expect(copy).not.toMatch(/error|forbidden|denied|invalid/i);
+    }
+  });
+});
+
+describe('needsPromiseWithResolvers', () => {
+  it('says yes when the method is missing', () => {
+    expect(needsPromiseWithResolvers({})).toBe(true);
+    expect(needsPromiseWithResolvers({ withResolvers: undefined })).toBe(true);
+    expect(needsPromiseWithResolvers({ withResolvers: 'nope' })).toBe(true);
+  });
+
+  it('says no when the engine already has it', () => {
+    expect(needsPromiseWithResolvers({ withResolvers: () => undefined })).toBe(
+      false,
+    );
+  });
+
+  it('says no rather than throwing on nothing at all', () => {
+    expect(needsPromiseWithResolvers(null)).toBe(false);
+    expect(needsPromiseWithResolvers(undefined)).toBe(false);
   });
 });
 
@@ -713,10 +1196,12 @@ describe('call sites', () => {
     );
   });
 
-  it('has the preview actually show the geometry admission', () => {
+  it('has the preview actually show both admissions', () => {
     const src = read('app/sign/[token]/signature-line-preview.tsx');
     expect(src).toMatch(/signaturePreviewGeometryNote\(placement\)/);
     expect(src).toMatch(/\{geometryNote/);
+    expect(src).toMatch(/signatureOverflowNote\(placement\)/);
+    expect(src).toMatch(/\{overflowNote/);
   });
 
   it('has the document view open new tabs through ExternalLink', () => {
@@ -725,8 +1210,71 @@ describe('call sites', () => {
     // A raw _blank anchor is the thing that no-ops in the native shell.
     // The prose above the component names it, so this looks for the tag.
     expect(src).not.toMatch(/<a\b[^>]*target="_blank"/s);
-    // The signer is told what the frame's URL is good for.
-    expect(src).toMatch(/SIGNER_DOCUMENT_URL_TTL_MINUTES/);
+  });
+
+  it('has the document view rasterise the page rather than frame it', () => {
+    const src = read('app/sign/[token]/document-view.tsx');
+    // An iframe is what the mark could not be placed on: the frame is
+    // cross-origin, so its scroll and zoom are invisible to us and an
+    // overlay would drift the moment the signer moved.
+    expect(src).not.toMatch(/<iframe\b/);
+    expect(src).toMatch(/renderPageToCanvas\(/);
+    expect(src).toMatch(/<canvas ref=\{canvasRef\}/);
+    // Measured geometry, which is what retires the Letter assumption.
+    expect(src).toMatch(/pageWidthPt: onSignaturePage/);
+    expect(src).toMatch(/rotateSignatureRectForDisplay\(/);
+  });
+
+  it('has the renderer fetch the document from this origin only', () => {
+    const view = read('app/sign/[token]/document-view.tsx');
+    const runtime = read('app/sign/[token]/pdf-runtime.ts');
+    // The page is unauthenticated and its URL carries a live signing
+    // credential, so nothing the renderer needs may come from a CDN.
+    expect(view).toMatch(/\/api\/firm\/sign\/document\//);
+    expect(view).not.toMatch(/https?:\/\//);
+    expect(runtime).not.toMatch(/https?:\/\//);
+    for (const src of [view, runtime]) {
+      expect(src).not.toMatch(/cdnjs|unpkg|jsdelivr|cdn\./i);
+      // cMapUrl and standardFontDataUrl are how pdf.js is normally
+      // talked into fetching character maps and standard fonts from
+      // somewhere else. Neither is set, and useWorkerFetch is off.
+      expect(src).not.toMatch(/(cMapUrl|standardFontDataUrl|wasmUrl)\s*:/);
+    }
+  });
+
+  it('has the runtime load the worker same-origin and refuse eval', () => {
+    const src = read('app/sign/[token]/pdf-runtime.ts');
+    // Same origin, and the version in the path is the one the library
+    // itself reports, so a stale cached worker cannot be served
+    // against a newer library: the URL changes instead.
+    expect(src).toMatch(
+      /workerSrc = `\/pdf-worker\/\$\{pdfjs\.version\}\/pdf\.worker\.min\.mjs`/,
+    );
+    // The legacy build exists for browsers this app dropped and pays
+    // for it in core-js; the one modern method that is genuinely
+    // missing in the field is polyfilled instead.
+    expect(src).not.toMatch(/pdfjs-dist\/legacy/);
+    expect(src).toMatch(/isEvalSupported: false/);
+    expect(src).toMatch(/useWorkerFetch: false/);
+  });
+
+  it('has the document route run the same gate the page does', () => {
+    const src = read('app/api/firm/sign/document/[token]/route.ts');
+    expect(src).toMatch(/resolveSignerDocumentAccess\(/);
+    expect(src).toMatch(/resolveDocumentSizeAcceptance\(/);
+    // Hiding a link is not a gate: the token is the only credential on
+    // this surface and anyone holding it can call the route directly.
+    expect(src).toMatch(/if \(!access\.allowed\)/);
+  });
+
+  it('has documentPresented come from the render, not from a URL', () => {
+    const src = read('app/sign/[token]/signer-surface.tsx');
+    expect(src).toMatch(/documentPresented=\{isDocumentPresented\(renderStatus\)\}/);
+    const page = read('app/sign/[token]/page.tsx');
+    // The old page passed Boolean(documentUrl), which was true for a
+    // device that downloaded the file instead of displaying it.
+    expect(page).not.toMatch(/documentPresented=\{Boolean\(/);
+    expect(page).not.toMatch(/getSignerDocumentSignedUrl/);
   });
 
   it('has the capture step refuse to open on a failed document load', () => {

@@ -1,19 +1,14 @@
 import Link from 'next/link';
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
-import {
-  getSignatureByToken,
-  getSignerDocumentSignedUrl,
-} from '@/lib/firm-storage';
+import { getSignatureByToken } from '@/lib/firm-storage';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { appendSignatureEvent } from '@/lib/esign-audit';
 import {
   SIGNER_COPY_REFUSAL_COPY,
-  resolveSignatureLinePlacement,
   resolveSignerCopyAccess,
 } from '@/lib/signer-view';
-import { SignatureCapture } from './signature-capture';
-import { SignerDocumentView } from './document-view';
+import { SignerSurface } from './signer-surface';
 import { SignerResponse } from './signer-response';
 import { AccessCodeGate } from './access-code-gate';
 import { AutoTranslate } from '@/components/i18n/AutoTranslate';
@@ -33,14 +28,22 @@ export const metadata = {
  * Public sign page. No auth required - the token in the URL grants
  * access to exactly one signature row.
  *
- * The document itself is rendered at the top, above the ceremony, from
- * a storage signature minted here on the server after the token has
- * been matched and any access code verified. Until recently this page
- * passed only the document NAME to the capture component and the doc
- * comment here claimed otherwise, which meant the signer signed a
- * record they had never seen. E-SIGN at 15 USC 7001 and UETA both rest
- * on the signer having access to the record they are assenting to, so
- * that gap undercut a ceremony that is otherwise careful.
+ * The document itself is rendered at the top, above the ceremony. The
+ * browser rasterises it from bytes served by
+ * /api/firm/sign/document/[token] on this origin, which is what lets
+ * the signer's mark be drawn onto the real signature line on the real
+ * page as they make it. Until recently this page passed only the
+ * document NAME to the capture component and the doc comment here
+ * claimed otherwise, which meant the signer signed a record they had
+ * never seen. E-SIGN at 15 USC 7001 and UETA both rest on the signer
+ * having access to the record they are assenting to, so that gap
+ * undercut a ceremony that is otherwise careful.
+ *
+ * No storage signature reaches the browser. The path is resolved here
+ * from the token and the bytes are streamed by the route above, which
+ * runs the same access decision this page does
+ * (resolveSignerDocumentAccess), so the document and the page cannot
+ * disagree about who may see it.
  *
  * The signature is captured client-side and posted back to
  * /api/firm/sign, which records ip, user agent, timestamp, and audit
@@ -193,36 +196,19 @@ export default async function SignPage({ params }: { params: { token: string } }
     );
   }
 
-  // The document the signer is about to sign.
+  // The document the signer is about to sign is fetched by the client
+  // from /api/firm/sign/document/[token], not linked from here. That
+  // route resolves the same path this page would (signableFilePath
+  // first, because that is the derived copy with the signature boxes
+  // drawn on it and the version the final render stamps) and runs the
+  // same access decision, so there is one answer to "may this token
+  // see this document" and one place it is written down.
   //
-  // signableFilePath wins when it exists: that is the derived copy with
-  // signature boxes drawn on it (lib/signature-anchors.ts), and it is
-  // the version the final render stamps, so it is the version the
-  // signer must be looking at.
-  //
-  // The storage signature is minted here, server-side, and reaches the
-  // browser only as the frame's src. It is scoped to this document
-  // because we got here from this token: the row was matched, the
-  // request is live, and any access code has already been verified
-  // above. It is short-lived by construction (see
-  // SIGNER_DOCUMENT_URL_TTL_SECONDS) and the client holds exactly one
-  // for the life of the mount rather than re-minting on every render,
-  // which is what stops the viewer reloading to page one under the
-  // reader.
-  const documentPath = document.signableFilePath || document.filePath || null;
-  const documentUrl = documentPath
-    ? await getSignerDocumentSignedUrl(documentPath)
-    : null;
-
-  // Where this signer's mark will land. Resolved from the coordinates
-  // recorded when the request was created, which are the same ones
-  // lib/signature-render.ts stamps into, so the preview cannot show a
-  // spot the executed copy will not use.
-  const placement = resolveSignatureLinePlacement({
-    positionPage: signature.positionPage,
-    positionX: signature.positionX,
-    positionY: signature.positionY,
-  });
+  // Where the signature lands is decided in the browser too, because
+  // it depends on the real page size, which is only known once the PDF
+  // has been parsed. What this page hands over is the raw recorded
+  // anchor: the same position_page / position_x / position_y that
+  // lib/signature-render.ts stamps into.
 
   // Render in a custom shell so signers do NOT see the consumer-side
   // header / footer chrome. The page should feel like a focused
@@ -288,20 +274,15 @@ export default async function SignPage({ params }: { params: { token: string } }
 
         {/* The document comes FIRST. The ceremony below it is unchanged:
             disclosure, then consent, then the pad. */}
-        <SignerDocumentView
-          src={documentUrl}
+        <SignerSurface
+          token={signature.token}
           documentName={document.name}
           firmName={firm.name}
-        />
-
-        <SignatureCapture
-          token={signature.token}
           signerEmail={signature.signerEmail}
           signerName={signature.signerName}
-          documentName={document.name}
-          firmName={firm.name}
-          documentPresented={Boolean(documentUrl)}
-          placement={placement}
+          positionPage={signature.positionPage}
+          positionX={signature.positionX}
+          positionY={signature.positionY}
           copyPermitted={request.signerCanDownload}
           copyHref={`/api/firm/sign/copy/${signature.token}`}
         />
