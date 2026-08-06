@@ -221,7 +221,7 @@ export function MfaSettings() {
       )}
 
       {error && (
-        <p className="rounded-md border border-rose-300 bg-rose-100 px-3 py-2 text-xs text-rose-900">
+        <p className="rounded-md border border-rose-300 bg-rose-100 dark:border-rose-700/50 dark:bg-rose-950/40 px-3 py-2 text-xs text-rose-900 dark:text-rose-200">
           {error}
         </p>
       )}
