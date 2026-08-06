@@ -33,6 +33,7 @@ import {
   removeCollaboratorAsFirm,
 } from './storage';
 import { logSecurityEvent } from './security-audit';
+import { checkRateLimit } from './rate-limit';
 import {
   readPortalRoles,
   sanitizeFeatures,
@@ -2661,6 +2662,7 @@ export async function resendSigningEmailsAction(
   if (!req || req.firm_id !== firmId) return NOT_YOURS;
 
   if (sig.signed_at) return { ok: false, error: 'This signer has already signed.' };
+
   // The server has to enforce what the page implies. The detail page
   // hides Resend for a request that was rejected or sent back for
   // changes, but every 'use server' export is a public endpoint, so a
@@ -2675,6 +2677,33 @@ export async function resendSigningEmailsAction(
     return {
       ok: false,
       error: 'This request is no longer open. Reopen it or send a new one.',
+    };
+  }
+
+  // Throttle, on the same helper the access-code check uses. Without it
+  // any paralegal-or-above could name an address on a request and then
+  // hold down Resend, putting one or two messages per click into that
+  // inbox from the firm's verified sending domain. Keyed per signature
+  // and placed AFTER the ownership check, so one firm cannot burn
+  // another's bucket. Fails closed: this is an outbound-mail abuse
+  // surface, and the copy tells the caller to wait rather than leaving
+  // them wondering.
+  //
+  // Known residual: two resends fired in the same instant both pass the
+  // window and both mint a code, and the second UPDATE wins the hash, so
+  // the signer's newest email is not guaranteed to carry the live code.
+  // The limit narrows that to a double-click, which the button already
+  // blocks while pending, and the recovery is one more resend. We accept
+  // it rather than serializing the row.
+  const withinLimit = await checkRateLimit(`signing-resend:${sig.id}`, {
+    limit: 3,
+    windowSeconds: 600,
+    failClosed: true,
+  });
+  if (!withinLimit) {
+    return {
+      ok: false,
+      error: 'This signer was emailed a moment ago. Try again in a few minutes.',
     };
   }
 
@@ -2718,6 +2747,10 @@ export async function resendSigningEmailsAction(
   if (!linkResult.ok) {
     emailFailures.push({ email: sig.signer_email, kind: 'link', error: linkResult.error });
   }
+  // Which of this signer's emails the provider actually took. Drives the
+  // reminder_sent event below, so the audit trail records a delivery
+  // rather than an intention.
+  const delivered: Array<'link' | 'code'> = linkResult.ok ? ['link'] : [];
 
   if (isExternal) {
     const { sha256 } = await import('./esign-audit');
@@ -2758,6 +2791,7 @@ export async function resendSigningEmailsAction(
           access_code_verified_at: null,
         })
         .eq('id', sig.id);
+      delivered.push('code');
       const { appendSignatureEvent } = await import('./esign-audit');
       await appendSignatureEvent(admin, {
         signingRequestId: sig.signing_request_id,
@@ -2773,6 +2807,23 @@ export async function resendSigningEmailsAction(
         error: codeResult.error,
       });
     }
+  }
+
+  // "The firm re-sent this request on date X" is the one fact a firm
+  // needs when a signer says nothing ever arrived, and reminder_sent has
+  // been a declared event type with no emitter. One event per resend,
+  // internal or external, and only for mail the provider accepted - the
+  // chain is evidence, so it must not assert a delivery that failed.
+  if (delivered.length > 0) {
+    const { appendSignatureEvent } = await import('./esign-audit');
+    await appendSignatureEvent(admin, {
+      signingRequestId: sig.signing_request_id,
+      signatureId: sig.id,
+      eventType: 'reminder_sent',
+      userId: user.id,
+      signerEmail: sig.signer_email,
+      metadata: { channel: 'email', delivered },
+    }).catch(() => {});
   }
 
   revalidatePath(`/counsel/signing/${sig.signing_request_id}`);
