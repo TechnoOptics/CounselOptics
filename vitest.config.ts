@@ -2,8 +2,9 @@ import { defineConfig } from 'vitest/config';
 import { fileURLToPath } from 'node:url';
 
 // Unit tests for pure logic + data integrity. Node environment (no DOM)
-// keeps them fast and CI-friendly. Tests live in tests/ and import the
-// lib modules by relative path, so no path-alias wiring is needed.
+// keeps them fast and CI-friendly. Tests import the lib modules by relative
+// path; the `@/` alias is wired only because route handlers under app/ use it,
+// and a test that drives a route loads the route's own import graph.
 export default defineConfig({
   resolve: {
     alias: {
@@ -13,6 +14,10 @@ export default defineConfig({
       'server-only': fileURLToPath(
         new URL('./tests/stubs/server-only.ts', import.meta.url),
       ),
+      // Matches the tsconfig `@/*` path so an imported route resolves the same
+      // files a test mocks by relative path. The trailing slash keeps this off
+      // scoped package names such as `@supabase/ssr`.
+      '@/': fileURLToPath(new URL('./', import.meta.url)),
     },
   },
   test: {
