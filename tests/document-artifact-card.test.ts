@@ -61,6 +61,21 @@ function frameIn(artifact: ResolvedSigningArtifact): ReactElement {
   return frames[0];
 }
 
+/** Every string in the returned tree, joined. */
+function textOf(node: unknown, out: string[] = []): string {
+  if (typeof node === 'string') {
+    out.push(node);
+  } else if (Array.isArray(node)) {
+    for (const child of node) textOf(child, out);
+  } else if (node && typeof node === 'object') {
+    const props = (node as ReactElement).props;
+    if (props && typeof props === 'object') {
+      textOf((props as { children?: unknown }).children, out);
+    }
+  }
+  return out.join(' ').replace(/\s+/g, ' ').trim();
+}
+
 describe('DocumentArtifactCard', () => {
   it('keys the frame on the artifact so a refresh cannot keep the old one', () => {
     expect(frameIn(EXECUTED).key).toBe('executed');
@@ -72,6 +87,39 @@ describe('DocumentArtifactCard', () => {
     // on is that switching artifact changes the key at all. Equal keys
     // would reuse the mount and retain the previous document.
     expect(frameIn(EXECUTED).key).not.toBe(frameIn(ORIGINAL).key);
+  });
+
+  it('says something different for each state, and never the wrong thing', () => {
+    // Every notice has its own sentence. The one that would hurt most
+    // is a halted request falling through to the default: "Nothing has
+    // been signed onto it" reads as "nobody signed", while the signing
+    // page lists the collected signatures further up the same page.
+    const said = new Map<string, string>();
+    for (const notice of [
+      'executed',
+      'executed_missing',
+      'executed_unreadable',
+      'original_partial',
+      'original_halted',
+      'original',
+    ] as const) {
+      const text = textOf(
+        DocumentArtifactCard({
+          artifact: {
+            kind: notice === 'executed' ? 'executed' : 'original',
+            notice,
+            url: 'https://store/x?sig=1',
+            originalUrl: null,
+          },
+          documentName: 'Agreement.pdf',
+        }) as Node,
+      );
+      said.set(notice, text);
+    }
+    expect(new Set(said.values()).size).toBe(said.size);
+    expect(said.get('original_halted')).not.toContain('Nothing has been signed');
+    expect(said.get('original_halted')).toContain('not out for signature');
+    expect(said.get('original')).toContain('Nothing has been signed');
   });
 
   it('points the frame and the download at the same document', () => {

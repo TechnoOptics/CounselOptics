@@ -1,7 +1,10 @@
 import { createServerSupabase, getCurrentUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
 import { callerIsFirmMember } from './firm-authz';
-import { isExecutedCopyPath } from './signing-artifact';
+import {
+  isExecutedCopyPath,
+  pickDocumentArtifactRequest,
+} from './signing-artifact';
 import type {
   Firm,
   FirmChannel,
@@ -858,19 +861,19 @@ export async function listFirmSigningRequestsWithSummary(
 }
 
 /**
- * The most recently completed signing request against a document, if
- * there is one.
+ * The signing request a document page should speak for, if any.
  *
  * The document page shows a document, not a request, so it has no
- * request to read an executed copy off. This is that lookup. Most
- * recent COMPLETED rather than most recent outright: a fresh request
- * opened after an earlier one finished does not un-execute the copy
- * the earlier one produced, and that copy is still the artifact
- * counsel means when they say the document is signed.
+ * request to read an executed copy off. This is that lookup. The
+ * ranking is pickDocumentArtifactRequest, kept in lib/signing-artifact
+ * with the rest of the decision and unit-tested there: a completed
+ * request first, so the executed copy wins, and failing that one still
+ * collecting signatures, so the page can say that some signers are out
+ * rather than claiming nothing has been signed onto the document.
  *
  * `select('*')` on purpose, see FirmSigningRequestRow.signed_file_path.
  */
-export async function getLatestCompletedSigningRequestForDocument(
+export async function getDocumentArtifactSigningRequest(
   documentId: string,
 ): Promise<FirmSigningRequest | null> {
   if (!documentId) return null;
@@ -879,12 +882,12 @@ export async function getLatestCompletedSigningRequestForDocument(
     .from('firm_signing_requests')
     .select('*')
     .eq('document_id', documentId)
-    .eq('status', 'completed')
-    .order('completed_at', { ascending: false, nullsFirst: false })
-    .limit(1)
-    .maybeSingle();
+    .in('status', ['completed', 'partial'])
+    .order('created_at', { ascending: false })
+    .limit(25);
   if (!data) return null;
-  return signingRequestFromRow(data as FirmSigningRequestRow);
+  const rows = (data as FirmSigningRequestRow[]).map(signingRequestFromRow);
+  return pickDocumentArtifactRequest(rows);
 }
 
 export async function getFirmSigningRequestWithSignatures(

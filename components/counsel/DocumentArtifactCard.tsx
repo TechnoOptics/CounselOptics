@@ -77,6 +77,12 @@ export function DocumentArtifactCard({
               uploaded. An executed copy, with the signatures on the signature
               line, is produced once the last signature is in.
             </T>
+          ) : artifact.notice === 'original_halted' ? (
+            <T>
+              This request is not out for signature. This is the original you
+              uploaded. Any signature already collected is recorded on this
+              page and in the audit trail, and is not on this file.
+            </T>
           ) : (
             <T>
               This is the original you uploaded. Nothing has been signed onto

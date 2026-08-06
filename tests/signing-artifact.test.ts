@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   isExecutedCopyPath,
+  pickDocumentArtifactRequest,
   resolveSigningArtifact,
   selectSigningArtifact,
 } from '../lib/signing-artifact';
@@ -95,8 +96,24 @@ describe('selectSigningArtifact', () => {
     });
   });
 
+  it('does not say nothing has been signed when a request was stopped mid-way', () => {
+    // Recalled, declined and waiting-on-changes requests can all carry
+    // signatures that were collected before they stopped, and the
+    // signing page lists them further up the same page. The default
+    // copy reads as "nobody has signed", which would contradict it.
+    for (const status of ['canceled', 'rejected', 'changes_requested']) {
+      expect(
+        selectSigningArtifact({
+          status,
+          signedFilePath: null,
+          originalFilePath: ORIGINAL,
+        }),
+      ).toEqual({ kind: 'original', path: ORIGINAL, notice: 'original_halted' });
+    }
+  });
+
   it('leaves every other state showing the original with nothing to add', () => {
-    for (const status of ['draft', 'sent', 'canceled', 'rejected', null, undefined]) {
+    for (const status of ['draft', 'sent', null, undefined]) {
       expect(
         selectSigningArtifact({
           status,
@@ -122,6 +139,75 @@ describe('selectSigningArtifact', () => {
         originalFilePath: null,
       }),
     ).toEqual({ kind: 'executed', path: EXECUTED, notice: 'executed' });
+  });
+});
+
+describe('pickDocumentArtifactRequest', () => {
+  const completedEarly = {
+    id: 'completed-early',
+    status: 'completed',
+    completedAt: '2026-01-02T00:00:00.000Z',
+    createdAt: '2026-01-01T00:00:00.000Z',
+  };
+  const completedLate = {
+    id: 'completed-late',
+    status: 'completed',
+    completedAt: '2026-03-02T00:00:00.000Z',
+    createdAt: '2026-03-01T00:00:00.000Z',
+  };
+  const live = {
+    id: 'live',
+    status: 'partial',
+    completedAt: null,
+    createdAt: '2026-04-01T00:00:00.000Z',
+  };
+
+  it('prefers the executed copy over a request still out for signature', () => {
+    // A new request opened after an earlier one finished does not
+    // un-execute the copy the earlier one produced, even though it is
+    // the more recent row.
+    expect(pickDocumentArtifactRequest([live, completedEarly])?.id).toBe(
+      'completed-early',
+    );
+  });
+
+  it('takes the most recently completed of several', () => {
+    expect(pickDocumentArtifactRequest([completedEarly, completedLate])?.id).toBe(
+      'completed-late',
+    );
+  });
+
+  it('speaks for a live request when nothing has completed', () => {
+    // Without this the page falls back to "nothing has been signed
+    // onto it" with two of three signers already in, and can
+    // contradict its own status chip.
+    expect(pickDocumentArtifactRequest([live])?.id).toBe('live');
+  });
+
+  it('ignores requests that are not out for signature and never completed', () => {
+    for (const status of ['canceled', 'rejected', 'changes_requested', 'draft', 'sent']) {
+      expect(
+        pickDocumentArtifactRequest([{ id: 'x', status, createdAt: '2026-05-01T00:00:00.000Z' }]),
+      ).toBeNull();
+    }
+    expect(pickDocumentArtifactRequest([])).toBeNull();
+  });
+
+  it('still ranks completed requests that carry no completed_at', () => {
+    // completed_at predates nothing in particular, but a row missing it
+    // must not sort ahead of a genuinely later one.
+    const noStamp = {
+      id: 'no-stamp',
+      status: 'completed',
+      completedAt: null,
+      createdAt: '2026-02-01T00:00:00.000Z',
+    };
+    expect(pickDocumentArtifactRequest([noStamp, completedLate])?.id).toBe(
+      'completed-late',
+    );
+    expect(pickDocumentArtifactRequest([noStamp, completedEarly])?.id).toBe(
+      'no-stamp',
+    );
   });
 });
 

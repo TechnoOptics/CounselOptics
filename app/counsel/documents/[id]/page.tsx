@@ -4,8 +4,8 @@ import {
   getActiveFirmContext,
   getFirmDocument,
   getFirmDocumentSignedUrl,
+  getDocumentArtifactSigningRequest,
   getFirmExecutedCopySignedUrl,
-  getLatestCompletedSigningRequestForDocument,
   listFirmCases,
 } from '@/lib/firm-storage';
 import {
@@ -35,27 +35,29 @@ export default async function FirmDocumentDetail({
   if (!ctx) redirect('/counsel');
   const doc = await getFirmDocument(params.id);
   if (!doc || doc.firmId !== ctx.firm.id) notFound();
-  const [originalUrl, cases, completedRequest] = await Promise.all([
+  const [originalUrl, cases, signingRequest] = await Promise.all([
     getFirmDocumentSignedUrl(doc.filePath, 60 * 60),
     listFirmCases(ctx.firm.id),
     // This page shows a document, not a request, so it has no request
     // to read an executed copy off. Once one has been signed to
     // completion, the executed copy IS what counsel means by "the
     // document", and previewing the original instead is the bug the
-    // owner reported.
-    getLatestCompletedSigningRequestForDocument(doc.id),
+    // owner reported. A request still out for signature is picked up
+    // too, so a document with two of three signers in does not sit
+    // here saying nothing has been signed onto it.
+    getDocumentArtifactSigningRequest(doc.id),
   ]);
 
   const choice = selectSigningArtifact({
-    status: completedRequest?.status ?? null,
-    signedFilePath: completedRequest?.signedFilePath ?? null,
+    status: signingRequest?.status ?? null,
+    signedFilePath: signingRequest?.signedFilePath ?? null,
     originalFilePath: doc.filePath,
   });
   const executedUrl =
-    choice?.kind === 'executed' && completedRequest
+    choice?.kind === 'executed' && signingRequest
       ? await getFirmExecutedCopySignedUrl({
           firmId: doc.firmId,
-          requestId: completedRequest.id,
+          requestId: signingRequest.id,
           filePath: choice.path,
           expiresInSeconds: 60 * 60,
         })
@@ -196,13 +198,17 @@ export default async function FirmDocumentDetail({
       {artifact && (
         <>
           <DocumentArtifactCard artifact={artifact} documentName={doc.name} />
-          {completedRequest && (
+          {signingRequest && (
             <p className="text-[13px]">
               <Link
-                href={`/counsel/signing/${completedRequest.id}`}
+                href={`/counsel/signing/${signingRequest.id}`}
                 className="text-ink-500 hover:text-forest-900 dark:hover:text-cream-100 underline"
               >
-                <T>See who signed and when</T>
+                {signingRequest.status === 'completed' ? (
+                  <T>See who signed and when</T>
+                ) : (
+                  <T>See who has signed so far</T>
+                )}
               </Link>
             </p>
           )}

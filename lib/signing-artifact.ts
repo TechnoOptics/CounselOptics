@@ -55,6 +55,15 @@ export type SigningArtifactNotice =
   | 'executed_unreadable'
   /** Some signers are still out. The original, by design. */
   | 'original_partial'
+  /**
+   * The request is not out for signature: recalled, declined, or
+   * waiting on changes. The original is shown, and signatures already
+   * collected are real but are on no file. Separate from 'original'
+   * because "nothing has been signed onto it" reads as "nobody has
+   * signed", which on these three states can be false: the signing
+   * page lists the collected signatures further up the same page.
+   */
+  | 'original_halted'
   /** Nothing to add: the original, and no executed copy is due yet. */
   | 'original';
 
@@ -103,7 +112,69 @@ export function selectSigningArtifact(input: {
   if (input.status === 'partial') {
     return { kind: 'original', path: original, notice: 'original_partial' };
   }
+  if (
+    input.status === 'canceled' ||
+    input.status === 'rejected' ||
+    input.status === 'changes_requested'
+  ) {
+    return { kind: 'original', path: original, notice: 'original_halted' };
+  }
   return { kind: 'original', path: original, notice: 'original' };
+}
+
+/**
+ * The subset of a signing request this module needs to rank one
+ * against another. Structural so the caller can pass its own row type.
+ */
+export type ArtifactRequestCandidate = {
+  status: string | null | undefined;
+  completedAt?: string | null;
+  createdAt?: string | null;
+};
+
+function time(value: string | null | undefined): number {
+  if (!value) return 0;
+  const ms = new Date(value).getTime();
+  return Number.isNaN(ms) ? 0 : ms;
+}
+
+/**
+ * Which of a document's signing requests the document page should
+ * speak for.
+ *
+ * That page shows a document, not a request, so it has to pick one.
+ * Completed wins: a fresh request opened after an earlier one finished
+ * does not un-execute the copy the earlier one produced, and that copy
+ * is still the artifact counsel means when they say the document is
+ * signed. Among completed requests, the most recently completed.
+ *
+ * Failing that, a request still collecting signatures, so the page can
+ * say that some signers are out. Reading completed requests ONLY, as
+ * this started out doing, left a document with two of three signers in
+ * saying "nothing has been signed onto it", which is both false to the
+ * reader and capable of contradicting the status chip at the top of
+ * the same page.
+ *
+ * Requests that are recalled, declined or waiting on changes are not
+ * candidates here: they are the state of a request, not of the
+ * document, and the request's own page is where they are explained.
+ */
+export function pickDocumentArtifactRequest<T extends ArtifactRequestCandidate>(
+  requests: readonly T[],
+): T | null {
+  const completed = requests.filter((r) => r.status === 'completed');
+  if (completed.length > 0) {
+    return [...completed].sort(
+      (a, b) =>
+        Math.max(time(b.completedAt), time(b.createdAt)) -
+        Math.max(time(a.completedAt), time(a.createdAt)),
+    )[0];
+  }
+  const live = requests.filter((r) => r.status === 'partial');
+  if (live.length > 0) {
+    return [...live].sort((a, b) => time(b.createdAt) - time(a.createdAt))[0];
+  }
+  return null;
 }
 
 /** What a surface actually puts on screen, once the URLs are known. */
