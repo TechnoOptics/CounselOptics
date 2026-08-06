@@ -202,6 +202,28 @@ export function reviewEdit(input: {
   return { ok: true, documentText: next, preserveOriginal: !input.hasOriginal };
 }
 
+/**
+ * Whether a filled template may be rendered as a finished PDF for this caller.
+ *
+ * The approval gate is about the artifact, not about one button. A template
+ * the legal team marked for review must not come back out of the PDF renderer
+ * into the employee's browser either, because a file in their hands is a file
+ * they can forward, and that is the send this gate exists to stop. So the same
+ * rule that decides who may release a document decides who may render one.
+ */
+export function canRenderFilledTemplate(input: {
+  requiresApproval: boolean;
+  role: FirmRole | null | undefined;
+}): { ok: true } | { ok: false; reason: string } {
+  if (!input.requiresApproval) return { ok: true };
+  if (canApproveSubmissions(input.role)) return { ok: true };
+  return {
+    ok: false,
+    reason:
+      'This form goes to your legal team before it can be sent. Fill it in and send it for review, and they will deliver it once it is approved.',
+  };
+}
+
 /** True while the legal team still owes a decision. */
 export function isAwaitingReview(status: SubmissionStatus): boolean {
   return status === 'pending';

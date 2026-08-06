@@ -35,19 +35,15 @@ export function FormFillClient({
   template,
   firmId,
   firmName,
-  firmAccent,
-  letterheadUrl,
-  logoUrl,
   employeeName,
   employeeEmail,
   submission,
 }: {
   template: FirmTemplate;
   firmId: string;
+  /** For the live text preview only. The PDF takes its brand from the firm
+   *  record on the server, so none of the brand assets are props any more. */
   firmName: string;
-  firmAccent: string | null;
-  letterheadUrl: string | null;
-  logoUrl: string | null;
   employeeName: string;
   employeeEmail: string;
   /** Set when the employee is fixing a submission legal sent back. */
@@ -94,18 +90,19 @@ export function FormFillClient({
     [template, values, signature, employeeEmail, firmName],
   );
 
+  // The server renders from the firm's own stored template and the values
+  // below, not from the text on this page, and refuses outright for a template
+  // the legal team marked for review. So the finished, letterheaded document
+  // only ever reaches a browser that is allowed to hold it.
   const buildPdf = async (): Promise<Blob> => {
     const res = await fetch('/api/counsel/draft-template/pdf', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        document: merged,
-        title: template.name,
-        brandName: firmName,
-        firmName,
-        accent: firmAccent ?? undefined,
-        letterheadUrl: letterheadUrl ?? undefined,
-        logoUrl: logoUrl ?? undefined,
+        firmId,
+        templateId: template.id,
+        values,
+        signatureName: signature,
       }),
     });
     if (!res.ok) throw new Error(await res.text());
@@ -252,7 +249,8 @@ export function FormFillClient({
               <p className="text-[12.5px] text-ink-600 dark:text-cream-100/70">
                 <T>
                   This document goes to your legal team first. Once someone there approves it,
-                  Advottic sends it to the address below as an encrypted link.
+                  Advottic sends it to the address below as an encrypted link. The full text you
+                  are sending is shown on the right.
                 </T>
               </p>
               <label className="block">
@@ -293,14 +291,21 @@ export function FormFillClient({
           )}
 
           <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              disabled={!ready}
-              onClick={() => setPreviewOpen(true)}
-              className={needsApproval ? 'btn-secondary text-sm disabled:opacity-50' : 'btn-primary disabled:opacity-50'}
-            >
-              Preview PDF
-            </button>
+            {/* No PDF preview for a template that needs review. The dialog
+                offers Print, Download and Open in a new tab, and once the
+                bytes are in the browser they can be forwarded, so a preview
+                is a send. The full text of the document is on this page
+                already, and it is the same text the reviewer reads. */}
+            {!needsApproval && (
+              <button
+                type="button"
+                disabled={!ready}
+                onClick={() => setPreviewOpen(true)}
+                className="btn-primary disabled:opacity-50"
+              >
+                Preview PDF
+              </button>
+            )}
 
             {needsApproval ? (
               <button

@@ -39,9 +39,6 @@ export default async function PortalSubmissionPage({ params }: { params: { id: s
         template={template}
         firmId={submission.firmId}
         firmName={persona.firm.name}
-        firmAccent={persona.firm.accentColor ?? null}
-        letterheadUrl={persona.firm.letterheadUrl ?? null}
-        logoUrl={persona.firm.logoUrl ?? null}
         employeeName={persona.employee.displayName ?? ''}
         employeeEmail={persona.employee.email ?? ''}
         submission={submission}

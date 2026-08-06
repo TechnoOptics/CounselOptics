@@ -4,6 +4,7 @@ import {
   ALL_SUBMISSION_STATUSES,
   applySubmissionAction,
   canApproveSubmissions,
+  canRenderFilledTemplate,
   checkReleasable,
   isEditableBySubmitter,
   isTerminal,
@@ -271,5 +272,37 @@ describe('reviewer edit', () => {
     const res = edit({ nextText: 'x'.repeat(MAX_DOCUMENT_CHARS + 1) });
     expect(res.ok).toBe(false);
     expect(edit({ nextText: 'x'.repeat(MAX_DOCUMENT_CHARS) }).ok).toBe(true);
+  });
+});
+
+/**
+ * The gate covers the artifact, not one button. A finished PDF of a gated
+ * template must not reach the employee's browser at all, because a file in
+ * their hands is a file they can forward.
+ */
+describe('rendering a filled template', () => {
+  it('renders a template legal cleared for self-service, for anyone', () => {
+    expect(canRenderFilledTemplate({ requiresApproval: false, role: null }).ok).toBe(true);
+  });
+
+  it('refuses a gated template for an employee and for a read-only role', () => {
+    expect(canRenderFilledTemplate({ requiresApproval: true, role: null }).ok).toBe(false);
+    expect(canRenderFilledTemplate({ requiresApproval: true, role: 'paralegal' }).ok).toBe(false);
+    expect(canRenderFilledTemplate({ requiresApproval: true, role: 'staff' }).ok).toBe(false);
+  });
+
+  it('renders a gated template for the roles that could release it anyway', () => {
+    for (const role of ['owner', 'admin', 'attorney'] as const) {
+      expect(canRenderFilledTemplate({ requiresApproval: true, role }).ok).toBe(true);
+    }
+  });
+
+  it('explains itself without blaming the person who asked', () => {
+    const res = canRenderFilledTemplate({ requiresApproval: true, role: null });
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.reason).toContain('legal team');
+      expect(res.reason).not.toMatch(/denied|forbidden|not allowed|cannot/i);
+    }
   });
 });
