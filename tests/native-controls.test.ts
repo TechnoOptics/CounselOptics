@@ -42,8 +42,10 @@ describe('native controls follow the app theme, not the OS', () => {
   });
 
   it('lets the controls themselves inherit it', () => {
-    // Without this the UA stylesheet's own value on form controls wins
-    // and the container's scheme never reaches the widget.
+    // Defensive rather than load-bearing: color-scheme is an inherited
+    // property, so a control picks its container's value up anyway.
+    // Asserted because it is cheap and because deleting it is the sort
+    // of tidy-up that would be made without checking.
     expect(rules).toMatch(
       /input,\s*select,\s*textarea\s*\{\s*color-scheme:\s*inherit\s*;?\s*\}/,
     );
@@ -66,6 +68,19 @@ describe('the select popup is readable on a dark surface', () => {
     expect(optionRule?.[0]).toContain('rgb(var(--forest-800))');
   });
 
+  it('takes the foreground from the palette too, not a literal hex', () => {
+    // The background assertion above shipped alongside `color: #f5edd6`,
+    // one property down, in the change whose whole thesis is never to
+    // hardcode a colour for TEXT. The guard covered the property that
+    // happened to be right. This is the other half.
+    const optionRule = rules.match(/[^}]*option\s*\{[^}]*\}/)?.[0] ?? '';
+    expect(optionRule).toContain("color: theme('colors.cream.100')");
+    expect(
+      optionRule,
+      'the option foreground must come from the palette, not a hex',
+    ).not.toMatch(/[^-]color:\s*#[0-9a-fA-F]{3,8}/);
+  });
+
   it('leaves light mode to the browser default', () => {
     // A bare `option { }` rule would repaint the light select popup too,
     // which is how you fix dark mode and break light mode. Every option
@@ -84,10 +99,36 @@ describe('the select popup is readable on a dark surface', () => {
 });
 
 describe('autofill does not repaint the field', () => {
+  /** The whole autofill rule, selectors included. */
+  const autofillRule = rules.match(/input[^{}]*autofill[\s\S]*?\}/)?.[0] ?? '';
+
+  it('matches both the prefixed and the standard pseudo-class', () => {
+    // The rule named `:-webkit-autofill` nine times and `:autofill`
+    // zero times. They cannot be comma-listed together: one unknown
+    // pseudo-class invalidates a whole plain selector list, which on an
+    // engine that lacks the prefixed form would delete the rule that
+    // works. `:is()` parses forgivingly, so it is the safe way to say
+    // "either of these".
+    expect(autofillRule).toContain(':-webkit-autofill');
+    expect(autofillRule).toContain(':autofill');
+    // Split on top-level commas only: the commas inside `:is(...)` are
+    // part of a selector, not separators between them.
+    const selectors = autofillRule
+      .slice(0, autofillRule.indexOf('{'))
+      .split(/,(?![^(]*\))/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    expect(selectors.length).toBeGreaterThanOrEqual(9);
+    for (const one of selectors) {
+      expect(one, `"${one}" names only one of the two spellings`).toMatch(
+        /:is\(:-webkit-autofill,\s*:autofill\)/,
+      );
+    }
+  });
+
   it('keeps the browser wash away and takes the text colour from the field', () => {
-    const block = rules.match(/input:-webkit-autofill[\s\S]*?\}/);
-    expect(block).not.toBeNull();
-    const rule = block?.[0] ?? '';
+    expect(autofillRule).not.toBe('');
+    const rule = autofillRule;
     // A duration long enough that the transition to the UA's yellow
     // never arrives. Anything short and the wash appears.
     expect(rule).toMatch(/background-color\s+9999s/);
@@ -99,8 +140,7 @@ describe('autofill does not repaint the field', () => {
   });
 
   it('does not cost the field its other transitions', () => {
-    const rule = rules.match(/input:-webkit-autofill[\s\S]*?\}/)?.[0] ?? '';
-    expect(rule).toMatch(/border-color\s+0\.15s/);
-    expect(rule).toMatch(/color\s+0\.15s/);
+    expect(autofillRule).toMatch(/border-color\s+0\.15s/);
+    expect(autofillRule).toMatch(/color\s+0\.15s/);
   });
 });

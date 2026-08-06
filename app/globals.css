@@ -1051,11 +1051,19 @@ body > * {
    answer: a white date picker dropped on a near-black field, with the
    picker's own black text on it.
 
-   Pin it to the class instead, then let controls inherit from whatever
-   contains them rather than from the root. `color-scheme: inherit` on
-   the control is the whole point: it is what makes a date input inside
-   `.counsel-shell` go dark while the same component on the light signer
-   page stays light.
+   Pin it to the class instead. What does the work is that `.dark` and
+   the three shells now declare `color-scheme: dark` on the element that
+   carries the theme, so a control inside one of them inherits dark
+   rather than reading the root.
+
+   `color-scheme: inherit` on the controls themselves is DEFENSIVE, not
+   load-bearing, and the earlier claim here that the UA stylesheet
+   otherwise wins on form controls is not something this change can
+   demonstrate: `color-scheme` is an inherited property, so a control
+   already picks up its container's value without being told to. The
+   declaration is kept because it is explicit and costs nothing, and
+   because it pins the behaviour against a UA stylesheet that did set
+   its own value on controls. Treat it as belt and braces.
 
    Note this also settles scrollbars and the canvas fallback, which
    previously followed the OS while the page painted the opposite way.
@@ -1092,15 +1100,23 @@ textarea {
    inset. That matters because the enterprise shells REMAP the forest
    ramp to neutral black further up this file, so one declaration gives
    the consumer app a dark green list and counsel a near-black one, and
-   a future palette change carries both. cream-100 is the matching
-   foreground, the same one `.input` uses in dark. */
+   a future palette change carries both.
+
+   The foreground goes through the palette for the same reason, and it
+   used to be the one thing in this whole change that was a literal:
+   `color: #f5edd6` in the commit whose thesis is never to hardcode a
+   colour for text. `theme()` resolves at build time from
+   tailwind.config.ts, so cream-100 here IS the cream-100 `.input` uses
+   in dark, by construction rather than by a comment claiming it. (The
+   old literal was cream-200, not the cream-100 this comment named. That
+   is the drift.) */
 html.dark option,
 .dark option,
 .counsel-shell option,
 .enterprise-shell option,
 .hq-shell option {
   background-color: rgb(var(--forest-800));
-  color: #f5edd6;
+  color: theme('colors.cream.100');
 }
 
 /* 3. AUTOFILL.
@@ -1115,17 +1131,28 @@ html.dark option,
    input, ink on the light signer page, correct in both by construction.
 
    border-color and color are kept in the transition list so a field
-   does not lose its focus animation for having been autofilled. */
-input:-webkit-autofill,
-input:-webkit-autofill:hover,
-input:-webkit-autofill:focus,
-input:-webkit-autofill:active,
-textarea:-webkit-autofill,
-textarea:-webkit-autofill:hover,
-textarea:-webkit-autofill:focus,
-select:-webkit-autofill,
-select:-webkit-autofill:hover,
-select:-webkit-autofill:focus {
+   does not lose its focus animation for having been autofilled.
+
+   Both spellings are matched. `:autofill` is the standard the prefixed
+   form was folded into, and a browser that has only one of them is the
+   case this rule exists for. They cannot simply be listed side by side:
+   an unknown pseudo-class in a plain selector list invalidates the
+   WHOLE rule, so naming `:autofill` in the same comma list would drop
+   the working prefixed rule on any engine that does not know it.
+   `:is()` has forgiving selector parsing, which is exactly the tool for
+   this: an argument the engine cannot parse is dropped and the rest
+   still matches. Specificity is unchanged, since `:is()` takes the
+   highest of its arguments and both are pseudo-classes. */
+input:is(:-webkit-autofill, :autofill),
+input:is(:-webkit-autofill, :autofill):hover,
+input:is(:-webkit-autofill, :autofill):focus,
+input:is(:-webkit-autofill, :autofill):active,
+textarea:is(:-webkit-autofill, :autofill),
+textarea:is(:-webkit-autofill, :autofill):hover,
+textarea:is(:-webkit-autofill, :autofill):focus,
+select:is(:-webkit-autofill, :autofill),
+select:is(:-webkit-autofill, :autofill):hover,
+select:is(:-webkit-autofill, :autofill):focus {
   transition:
     background-color 9999s ease-in-out 0s,
     border-color 0.15s ease,
