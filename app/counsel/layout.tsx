@@ -5,7 +5,8 @@ import { getCurrentUserResult, isSupabaseConfigured } from '@/lib/supabase/serve
 import { SessionReconnect } from '@/components/auth/SessionReconnect';
 import { getActiveFirmContext, listMyFirms } from '@/lib/firm-storage';
 import { ACCESS_ENDED_PATH, counselAccessRedirect } from '@/lib/firm-access';
-import { firmTrialState } from '@/lib/firm-trials';
+import { firmTrialState, readTrialSnapshot } from '@/lib/firm-trials';
+import { FIRM_ADMIN_ROLES } from '@/lib/firm-authz';
 import { getFirmSurfaceSettings, DEFAULT_FIRM_SURFACE_SETTINGS } from '@/lib/firm-settings';
 import { CounselSidebar } from '@/components/counsel/CounselSidebar';
 import { SidebarCollapseProvider, CounselSidebarShell } from '@/components/counsel/SidebarFocus';
@@ -23,6 +24,39 @@ import {
 import type { Firm, FirmMember } from '@/lib/firm-types';
 
 export const dynamic = 'force-dynamic';
+
+const DAY_MS = 86_400_000;
+
+/**
+ * What the trial banner is told, resolved from the organization's stored
+ * `trial_ends_at` and from nothing else.
+ *
+ * The days are counted HERE rather than in the browser so both renders agree
+ * on what day it is. A client-side count differs from the server's whenever
+ * the two straddle midnight, which is a hydration mismatch on the one figure
+ * the banner is scanned for.
+ *
+ * Every failure returns nulls, which the banner renders as nothing at all.
+ * readTrialSnapshot fails closed on a missing row, an unreadable column and a
+ * missing admin client, and an unparseable stored date is caught here. This is
+ * COPY and not the gate: the gate on this same request is firmTrialState
+ * below, which throws rather than guessing. A banner that guesses is what this
+ * whole change removes, so the safe answer to an unknown clock is silence.
+ */
+async function trialNotice(
+  firmId: string,
+): Promise<{ trialEndsAt: string | null; daysLeft: number | null }> {
+  const snapshot = await readTrialSnapshot(firmId);
+  if (!snapshot.ok || !snapshot.trialEndsAt) {
+    return { trialEndsAt: null, daysLeft: null };
+  }
+  const endMs = Date.parse(snapshot.trialEndsAt);
+  if (Number.isNaN(endMs)) return { trialEndsAt: null, daysLeft: null };
+  return {
+    trialEndsAt: snapshot.trialEndsAt,
+    daysLeft: Math.ceil((endMs - Date.now()) / DAY_MS),
+  };
+}
 
 /**
  * Layout for the law-firm perspective. Wrapper around `/counsel/*`.
@@ -181,13 +215,9 @@ export default async function CounselLayout({
             <CounselTrialBanner
               guest
               firmName={guest.firm?.name ?? ''}
-              daysLeft={(() => {
-                const created = (guest.firm as { createdAt?: string } | null)?.createdAt;
-                const ms = created ? Date.parse(created) : NaN;
-                if (Number.isNaN(ms)) return null;
-                const elapsed = Math.floor((Date.now() - ms) / 86_400_000);
-                return Math.max(0, 30 - elapsed);
-              })()}
+              {...(guest.firmId
+                ? await trialNotice(guest.firmId)
+                : { trialEndsAt: null, daysLeft: null })}
             />
             <CounselGuestHeader
               firm={guest.firm}
@@ -304,15 +334,12 @@ export default async function CounselLayout({
       {active ? (
         <CounselTrialBanner
           firmName={active.firm.name}
-          daysLeft={(() => {
-            // Same clock as the guest shell: 30 days from firm creation, and
-            // NULL (no countdown claim) when the start date is unknown.
-            const created = (active.firm as { createdAt?: string }).createdAt;
-            const ms = created ? Date.parse(created) : NaN;
-            if (Number.isNaN(ms)) return null;
-            const elapsed = Math.floor((Date.now() - ms) / 86_400_000);
-            return Math.max(0, 30 - elapsed);
-          })()}
+          // The membership this layout already resolved, not a fourth
+          // membership check. It decides whether the notice offers the
+          // download or names who can run it; the export route authorizes
+          // itself either way.
+          canExport={FIRM_ADMIN_ROLES.includes(active.membership.role)}
+          {...(await trialNotice(active.firm.id))}
         />
       ) : null}
       <CounselHeader
