@@ -27,6 +27,16 @@ import { LocaleTime } from '@/components/LocaleTime';
  * time limit on the offer. And nothing says access continues, because for an
  * organization past its end date it does not.
  *
+ * IT CANNOT SEE A SUSPENSION FOR ITSELF, so it is told about one. A
+ * suspension closes an organization whatever its dates say, and suspension
+ * outranks the dates everywhere else in this feature; a banner working from
+ * the dates alone would tell a closed organization it "is on a free trial"
+ * with an end date still ahead of it. That is the same category of confident
+ * wrong claim as the creation-date clock above. The `accessEnded` prop
+ * carries the gate's own answer for this request, and where the two disagree
+ * the gate wins. The path this matters on is /counsel/accept-invite, the one
+ * place a closed organization still renders this shell.
+ *
  * A null `trialEndsAt` renders NOTHING. That covers a paying organization,
  * which has no trial end date at all, and it covers a date that could not be
  * read. Silence is the only safe answer to an unknown clock: the old code's
@@ -51,6 +61,7 @@ export function CounselTrialBanner({
   firmName,
   trialEndsAt,
   daysLeft,
+  accessEnded = false,
   canExport = false,
   guest = false,
 }: {
@@ -68,6 +79,14 @@ export function CounselTrialBanner({
    * banner is scanned for.
    */
   daysLeft: number | null;
+  /**
+   * Whether the organization's access is CLOSED right now, as the gate on
+   * this same request decided. Distinct from a passed end date: a suspension
+   * closes an organization while its stored end date is still ahead. See the
+   * note above. Not passed for the guest shell, which is redirected to the
+   * access-ended page under a suspension and so never renders here closed.
+   */
+  accessEnded?: boolean;
   /** Whether this viewer may run the organization export (owner or admin). */
   canExport?: boolean;
   /** Co-counsel guest shell: phrase it as the FIRM's trial workspace. */
@@ -91,7 +110,12 @@ export function CounselTrialBanner({
 
   const days = Math.max(0, daysLeft);
   const dayLabel = days === 1 ? 'day' : 'days';
-  const ended = daysLeft <= 0;
+  // Two separate facts, and the copy below needs both. `lapsed` is the date
+  // having passed, which is the only thing that licenses naming the date as
+  // the reason. `ended` is the organization being closed, by that date OR by
+  // a suspension the banner cannot see.
+  const lapsed = daysLeft <= 0;
+  const ended = lapsed || accessEnded;
   const ending = !ended && daysLeft <= WARN_WITHIN_DAYS;
   const endDate = <LocaleTime iso={trialEndsAt} mode="date" />;
 
@@ -103,7 +127,13 @@ export function CounselTrialBanner({
           className="hidden h-5 items-center rounded-full bg-gold-400/20 px-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-gold-200 sm:inline-flex"
           aria-hidden
         >
-          {ended ? 'Trial ended' : ending ? 'Trial ending' : 'Free trial'}
+          {ended
+            ? lapsed
+              ? 'Trial ended'
+              : 'Access ended'
+            : ending
+              ? 'Trial ending'
+              : 'Free trial'}
         </span>
         <p className="min-w-0 flex-1 text-[12.5px] leading-snug text-cream-100/90">
           {guest ? (
@@ -146,8 +176,15 @@ export function CounselTrialBanner({
               <span className="font-semibold text-cream-100" data-no-translate>
                 {firmName}
               </span>
-              &rsquo;s free trial ended on {endDate}. Your organization keeps
-              everything it has in Advottic, and{' '}
+              {lapsed ? (
+                <>&rsquo;s free trial ended on {endDate}.</>
+              ) : (
+                /* Closed while the stored end date is still ahead, which is a
+                   suspension. The date is not the reason, so it is not named,
+                   and the trial is not said to have ended. */
+                <>&rsquo;s access to Advottic has ended.</>
+              )}{' '}
+              Your organization keeps everything it has in Advottic, and{' '}
               {canExport
                 ? 'you can download it at any time.'
                 : 'an owner or an administrator can download it at any time.'}
@@ -183,11 +220,17 @@ export function CounselTrialBanner({
         {/* The download sits next to the sentence that mentions it, and only
             for someone who can actually run it. Offering it to a paralegal
             produces a refusal from the export route, which reads as the
-            product being broken at the worst possible moment. */}
+            product being broken at the worst possible moment.
+
+            It is shown at every width, unlike the chip above it. The chip is
+            decoration and can go; this is the control the sentence beside it
+            points at, and hiding it on a phone left that sentence offering a
+            download with nothing to press. There is room, because the chip
+            gives up its space at exactly the widths where this needs it. */}
         {!guest && canExport && (ending || ended) ? (
           <a
             href="/api/firm/export"
-            className="hidden shrink-0 rounded-md border border-gold-400/40 px-2.5 py-1 text-[11.5px] font-semibold text-gold-200 transition-colors hover:bg-gold-400/15 sm:inline-flex"
+            className="inline-flex shrink-0 rounded-md border border-gold-400/40 px-2.5 py-1 text-[11.5px] font-semibold text-gold-200 transition-colors hover:bg-gold-400/15"
           >
             Download your data
           </a>

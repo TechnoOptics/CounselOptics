@@ -171,14 +171,31 @@ const ALWAYS_ALLOWED_PREFIXES: readonly string[] = ['/_next/'];
  * download route reads `case_timeline_events.media` and nothing else, so
  * naming exhibits.storage_path here was an over-claim.
  *
- * `/api/files/<id>` is deliberately NOT added. It is a route handler, so
- * layer one never reaches it and adding it changes no behaviour today; the
- * only thing it would change is what this list ASSERTS, and this list asserts
- * that an exemption was reasoned about and is safe. That route performs no
- * authorization at all: it resolves an exhibit by id and redirects to a signed
- * URL without ever asking who is calling. Recording it as a sanctioned
- * exemption would file an open door as a decision. It needs its own
- * authorization first, and only then is there anything here to decide.
+ * `/api/files/<id>` is deliberately NOT added, and the reason is NOT that the
+ * route is unprotected. It is protected. The handler carries no authorization
+ * statement of its own, which is what makes it read as open, but it resolves
+ * the exhibit through `getExhibitById` in lib/storage.ts: in Supabase mode
+ * that returns null when there is no signed-in user, and otherwise reads
+ * through the CALLER'S OWN RLS-scoped client. `public.exhibits` has RLS
+ * enabled with `exhibits_select_own_or_collaborator using
+ * (public.is_case_member(case_id))`, so an anonymous caller and a signed-in
+ * non-member both get a 404 and the row is filtered out before any signed URL
+ * is minted.
+ *
+ * It is left off this list for two other reasons. The path is not under
+ * `/counsel/`, so counselAccessRedirect would never see it under any future
+ * middleware reusing this list, and a path this rule cannot reach does not
+ * belong in a list of this rule's decisions. And whether a lapsed
+ * organization should still reach CONSUMER-side exhibits is genuinely
+ * undecided; this list records decisions rather than defers them.
+ *
+ * What is worth naming, because it is easy to miss: that route's
+ * authorization is IMPLICIT and REMOTE. It lives in a storage helper rather
+ * than in the route, no test pins it, and refactoring `getExhibitById` onto
+ * the admin client would open the route silently with nothing failing.
+ * Several firm paths already use the admin client precisely because
+ * `is_case_member` is not firm-aware, so that refactor is plausible rather
+ * than hypothetical. That is a latent fragility worth a test, not a live hole.
  *
  * The three sibling read-only routes below received the same guest-suspension
  * treatment as the download route and belong here for the same reason: this

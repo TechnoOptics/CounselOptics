@@ -1216,6 +1216,43 @@ describe('the counsel shell redirect', () => {
     expect(props?.daysLeft).toBeNull();
   });
 
+  /**
+   * The banner cannot see a suspension, so the layout has to tell it.
+   *
+   * A suspended organization with a trial end date still AHEAD of it reaches
+   * this banner on exactly one path, /counsel/accept-invite, because that is
+   * the only allowlisted path that renders the counsel shell. Working from
+   * the dates alone the banner announced "is on a free trial ... It ends on
+   * <date>" to an organization that is in fact closed. Suspension outranks
+   * the dates everywhere else in this feature and it has to outrank them
+   * here too.
+   *
+   * Asserted on the PROP, so it fails on the mutation that drops
+   * `accessEnded={accessEnded}` from the layout while leaving the banner's
+   * own handling of it intact.
+   */
+  it('tells the banner the organization is closed even with a future end date', async () => {
+    const res = await renderLayout('export_only', '/counsel/accept-invite', undefined, {
+      ok: true,
+      trialEndsAt: inDays(21),
+    });
+    const props = bannerProps(res.tree);
+    expect(props?.accessEnded).toBe(true);
+    // The date is still handed over. The banner decides what it may claim
+    // with it; the layout does not withhold facts to control the copy.
+    expect(props?.daysLeft as number).toBeGreaterThan(0);
+  });
+
+  // The other side of the same wire: an organization that is merely on a
+  // trial must not be described as closed.
+  it('does not tell the banner an open organization is closed', async () => {
+    const res = await renderLayout('active', '/counsel/cases', undefined, {
+      ok: true,
+      trialEndsAt: inDays(21),
+    });
+    expect(bannerProps(res.tree)?.accessEnded).toBe(false);
+  });
+
   it('gives the guest shell the same stored clock', async () => {
     const endsAt = inDays(9);
     const res = await renderLayout(

@@ -295,11 +295,16 @@ export default async function CounselLayout({
   // lines. "Could not determine access" is not "this caller may proceed". A
   // request with no firm at all is the other thing, and only that one
   // proceeds, which is why this sits under `if (active)`.
+  //
+  // The state is also kept, for the banner further down. It is the answer this
+  // request already computed rather than a second read of the same fact: a
+  // second read is a second answer, and the one thing worse than a banner that
+  // cannot see a closure is a banner that disagrees with the gate above it.
+  let accessEnded = false;
   if (active) {
-    const destination = counselAccessRedirect(
-      pathname,
-      await firmTrialState(active.firm.id),
-    );
+    const state = await firmTrialState(active.firm.id);
+    accessEnded = state === 'export_only';
+    const destination = counselAccessRedirect(pathname, state);
     if (destination) redirect(destination);
   }
 
@@ -334,6 +339,13 @@ export default async function CounselLayout({
       {active ? (
         <CounselTrialBanner
           firmName={active.firm.name}
+          // Whether the gate on THIS request found the organization closed.
+          // The banner cannot work that out from the dates it is given,
+          // because a suspension closes an organization whatever its dates
+          // say. Only /counsel/accept-invite still renders this banner once
+          // an organization is closed; every other path in the shell has
+          // already been redirected away by the gate above.
+          accessEnded={accessEnded}
           // The membership this layout already resolved, not a fourth
           // membership check. It decides whether the notice offers the
           // download or names who can run it; the export route authorizes
