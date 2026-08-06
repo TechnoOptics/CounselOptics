@@ -273,12 +273,19 @@ describe('a reviewer edit', () => {
   });
 
   it('refuses a role that cannot release, before it says anything about wording', async () => {
+    // The order of these two checks is load-bearing. A caller who may not edit
+    // this document must learn that and nothing else: if the staleness check
+    // ran first it would tell a member who is not allowed to read the wording
+    // whether a string they guessed matches the stored one, one guess at a
+    // time. The baseline here is deliberately wrong so only the ordering can
+    // decide which message comes back.
     currentRole = 'paralegal';
 
-    const res = await editTemplateSubmissionAction('sub-1', V3, 'tightened', 'anything at all', 1);
+    const res = await editTemplateSubmissionAction('sub-1', V3, 'tightened', 'anything at all', 99);
 
     expect(res.ok).toBe(false);
     expect(res.error).toMatch(/cannot change a document/i);
+    expect(res.error).not.toMatch(/changed since you opened it/i);
     expect(store.row.document_text).toBe(V1);
   });
 
@@ -374,6 +381,28 @@ describe('a reviewer decision', () => {
 
     expect(res.ok).toBe(true);
     expect(store.row.status).toBe('declined');
+    expect(releaseApprovedSubmission).not.toHaveBeenCalled();
+  });
+
+  it('refuses a role that cannot decide, before it says anything about wording', async () => {
+    // Same load-bearing order as on the edit, and for the same reason: the
+    // staleness message is a yes-or-no answer about the stored wording, so it
+    // must never be reachable by a caller the role check would have turned
+    // away. The baseline is deliberately wrong so only the ordering decides.
+    currentRole = 'paralegal';
+
+    const res = await decideTemplateSubmissionAction(
+      'sub-1',
+      'approve',
+      '',
+      'anything at all',
+      99,
+    );
+
+    expect(res.ok).toBe(false);
+    expect(res.error).toMatch(/cannot approve documents/i);
+    expect(res.error).not.toMatch(/wording changed/i);
+    expect(store.row.status).toBe('pending');
     expect(releaseApprovedSubmission).not.toHaveBeenCalled();
   });
 
