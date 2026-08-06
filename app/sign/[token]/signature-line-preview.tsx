@@ -1,7 +1,7 @@
 'use client';
 
 import {
-  signatureOverflowNote,
+  signatureRelocationNote,
   signaturePreviewGeometryNote,
   type SignatureLinePlacement,
 } from '@/lib/signer-view';
@@ -24,10 +24,12 @@ import {
  * which on the ordinary path is immediately, because reaching this
  * step moves the viewer to the signature page.
  *
- * The overflow admission is not about this preview at all. When the
- * recorded anchor puts part of the box past the edge of the page, the
- * executed PDF will have part of the signature outside the page, and
- * the signer is the only person positioned to catch it first.
+ * The relocation admission is not about this preview at all. When the
+ * recorded anchor is too close to an edge for the box to fit, the
+ * renderer moves the box to keep the whole mark on the page, so the
+ * signature lands somewhere other than the coordinate the document
+ * recorded. The signer is the only person positioned to notice that
+ * before the instrument is executed.
  */
 export function SignatureLinePreview({
   placement,
@@ -54,7 +56,7 @@ export function SignatureLinePreview({
   // the signer knows what else is added alongside the mark itself.
   const caption = `${signerLabel} - ${new Date().toISOString().slice(0, 10)}`;
   const geometryNote = signaturePreviewGeometryNote(placement);
-  const overflowNote = signatureOverflowNote(placement);
+  const relocationNote = signatureRelocationNote(placement);
 
   return (
     <div className="rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 bg-cream-50/40 dark:bg-forest-900/30 p-4 space-y-2">
@@ -77,9 +79,9 @@ export function SignatureLinePreview({
         </p>
       )}
 
-      {overflowNote && (
+      {relocationNote && (
         <p className="text-[11px] text-ink-500 dark:text-cream-100/55 leading-relaxed">
-          {overflowNote}
+          {relocationNote}
         </p>
       )}
 

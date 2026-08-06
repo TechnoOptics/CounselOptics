@@ -14,7 +14,9 @@
  *   2. Where the signature is drawn, if anywhere
  *      (resolveSignatureLinePlacement), and what the drawing has to
  *      admit about its own accuracy (signaturePreviewGeometryNote,
- *      signatureOverflowNote).
+ *      signatureRelocationNote). The placement arithmetic itself is
+ *      not here: it is lib/signature-geometry.ts, shared with
+ *      lib/signature-render.ts so the two cannot drift.
  *   3. Whether the signer may download a copy, and of what
  *      (parseSignerDownloadPermission / resolveSignerCopyAccess).
  *   4. What of the signer's affirmations reaches the audit chain
@@ -32,6 +34,11 @@
  * URL for the browser at all, so there is no freshly minted URL for a
  * re-render to write into an iframe src, and nothing to retain.
  */
+
+import {
+  computeSignatureBoxRect,
+  resolveSignaturePageIndex,
+} from './signature-geometry';
 
 // ---------------------------------------------------------------------
 // 1. Leaving the disclosure step
@@ -86,13 +93,21 @@ export function canLeaveDisclosureStep(input: {
 // ---------------------------------------------------------------------
 
 /**
- * Default signature box, in PDF points. These are the numbers
- * lib/signature-anchors.ts stamps onto the document and
- * lib/signature-render.ts stamps the captured PNG into, mirrored here
- * so the preview and the final render are driven by one set of values.
+ * Default signature box, in PDF points, re-exported from the module
+ * the renderer itself uses.
+ *
+ * These used to be declared here as their own literals, "mirrored" from
+ * lib/signature-render.ts. A mirror is only as good as the next person
+ * who edits one side of it, and the whole contract of this section is
+ * that the preview cannot disagree with the executed copy. So the
+ * numbers, and the placement arithmetic below, now come from
+ * lib/signature-geometry.ts, which is what the renderer calls.
  */
-export const SIGNATURE_BOX_WIDTH_PT = 220;
-export const SIGNATURE_BOX_HEIGHT_PT = 64;
+export {
+  SIGNATURE_BOX_WIDTH_PT,
+  SIGNATURE_BOX_HEIGHT_PT,
+  SIGNATURE_CAPTION_BAND_PT,
+} from './signature-geometry';
 
 /** US Letter, used only when the real page size was not measured. */
 export const ASSUMED_PAGE_WIDTH_PT = 612;
@@ -109,9 +124,8 @@ export type SignatureLinePlacement =
       /** Box rectangle as percentages of the page, CSS orientation
        *  (origin top-left) so a component can position it directly.
        *  These are the renderer's numbers, not a tidied version of
-       *  them: left/top can be negative and left+width can exceed 100
-       *  when the recorded anchor puts part of the box past the page
-       *  edge, because that is what the executed copy will show. */
+       *  them. The renderer now keeps the box on the page, so these
+       *  stay within [0, 100] rather than running past the frame. */
       leftPct: number;
       topPct: number;
       widthPct: number;
@@ -120,8 +134,16 @@ export type SignatureLinePlacement =
       pageAspect: number;
       /** Whether the page size was measured or assumed to be Letter. */
       pageGeometry: 'measured' | 'assumed';
-      /** True when any part of the box falls outside the page. */
-      overflowsPage: boolean;
+      /** True when the recorded anchor did not fit and the renderer
+       *  will move the box to get the whole mark onto the page. */
+      relocatedToFit: boolean;
+      /** True when the page is too small for a full-size box and the
+       *  renderer will shrink it. */
+      shrunkToFit: boolean;
+      /** How far the box moves, in points, on each axis. Signed, and
+       *  zero on both when nothing moved. */
+      relocationDxPt: number;
+      relocationDyPt: number;
     }
   | {
       mode: 'deferred';
@@ -132,37 +154,36 @@ function finite(n: unknown): n is number {
   return typeof n === 'number' && Number.isFinite(n);
 }
 
-function clamp01(n: number): number {
-  return Math.max(0, Math.min(1, n));
-}
-
-/** Floating-point slack, so a box that lands exactly on the page edge
- *  is not reported as hanging off it. */
-const EDGE_EPSILON = 1e-9;
-
 /**
  * Decide where, if anywhere, the signer's mark is drawn.
  *
- * The contract is that this cannot disagree with the final render. So
- * it reproduces lib/signature-render.ts line for line: the recorded
- * page with the renderer's past-the-end fallback to page one, the same
- * Math.max(0, Math.min(1, ...)) on each coordinate, the same 220 x 64
- * point box anchored at its BOTTOM-LEFT corner, converted from the PDF
- * origin at bottom-left to the CSS origin at top-left.
+ * The contract is that this cannot disagree with the final render, so
+ * it does not reimplement the render's arithmetic, it CALLS it:
+ * computeSignatureBoxRect and resolveSignaturePageIndex out of
+ * lib/signature-geometry.ts are the same two functions
+ * lib/signature-render.ts calls to place the stamp. All that happens
+ * here is the conversion from PDF points with the origin at the
+ * bottom-left to CSS percentages with the origin at the top-left.
  *
- * What it deliberately does NOT do is keep the box inside the page.
- * An earlier version clamped left into [0, 1 - width] so the drawing
- * could not overflow its own frame. That was the wrong instinct twice
- * over. The renderer applies no such clamp, so above x = 1 - 220/pageW
- * the drawing and the executed copy parted company by as much as a
- * third of the page width; and the clamp was computed from an ASSUMED
- * page width, so it engaged at a fixed x = 1 - 220/612 no matter what
- * the real page was. Anchors that reach it are ordinary: signature
- * fields on the right half of a page map straight through
- * lib/signature-anchors.ts. A box that hangs off the page is now drawn
- * hanging off the page, clipped by the page it belongs to, exactly as
- * the signed PDF will show it, and `overflowsPage` lets the caller say
- * so out loud.
+ * The history of this function is worth keeping, because it has been
+ * wrong in both directions. It first clamped the box into the page
+ * itself, which was wrong twice over: the renderer did no such clamp,
+ * so above x = 1 - 220/pageW the drawing and the executed copy parted
+ * company by as much as a third of the page width, and the clamp was
+ * computed from an ASSUMED page width so it engaged at a fixed
+ * x = 1 - 220/612 whatever the real page was. It was then changed to
+ * draw the box hanging off the page, which was right at the time: that
+ * is what the executed copy showed, with the overflow silently dropped
+ * by pdf-lib.
+ *
+ * The renderer has since been fixed to keep the whole mark on the page
+ * (see lib/signature-geometry.ts), which makes the hanging-off drawing
+ * wrong in turn, and makes the warning that went with it actively
+ * false: it told the signer part of their signature would be invisible
+ * on the signed copy, and now none of it is. Rather than track a third
+ * bespoke version of the same arithmetic, the shared module is the
+ * single answer for both surfaces, and the note below reports a move
+ * rather than a loss.
  *
  * When a coordinate was never recorded, this returns 'deferred'
  * instead of a position. The renderer does have a hard-coded default
@@ -187,12 +208,16 @@ export function resolveSignatureLinePlacement(input: {
   const recordedPage = Math.floor(positionPage);
   if (recordedPage < 1) return { mode: 'deferred', reason: 'no-recorded-position' };
 
-  // `pages[pageIdx] ?? pages[0]` in the renderer: a recorded page past
-  // the end of the document stamps onto page one. Only knowable once
-  // the document has been parsed, which is why the count is optional.
-  const pageFellBackToFirst =
-    finite(input.pageCount) && input.pageCount >= 1 && recordedPage > input.pageCount;
-  const page = pageFellBackToFirst ? 1 : recordedPage;
+  // The renderer's own page fallback: a recorded page past the end of
+  // the document stamps onto page one. Only knowable once the document
+  // has been parsed, which is why the count is optional here and the
+  // fallback is reported as not-happening until it is known.
+  const knownPageCount = finite(input.pageCount) && input.pageCount >= 1;
+  const pageResolution = knownPageCount
+    ? resolveSignaturePageIndex(recordedPage, input.pageCount as number)
+    : { index: recordedPage - 1, requestedPage: recordedPage, relocated: false };
+  const pageFellBackToFirst = pageResolution.relocated;
+  const page = pageResolution.index + 1;
 
   const measured =
     finite(input.pageWidthPt) &&
@@ -202,31 +227,38 @@ export function resolveSignatureLinePlacement(input: {
   const pw = measured ? (input.pageWidthPt as number) : ASSUMED_PAGE_WIDTH_PT;
   const ph = measured ? (input.pageHeightPt as number) : ASSUMED_PAGE_HEIGHT_PT;
 
-  // The renderer clamps each coordinate into [0, 1] before scaling it
-  // by the page dimension. Same clamp, same order.
-  const x = clamp01(positionX);
-  const y = clamp01(positionY);
+  // The renderer's placement, not a reimplementation of it. Both
+  // coordinates are finite by the guard above, so the default-fraction
+  // fallback inside computeSignatureBoxRect is unreachable from here:
+  // a missing position is answered with 'deferred' rather than with
+  // the renderer's arbitrary (0.07, 0.07) corner, because showing a
+  // signer a guessed position as a fact is worse than saying the
+  // placement happens on completion.
+  const rect = computeSignatureBoxRect({
+    positionX,
+    positionY,
+    pageWidthPt: pw,
+    pageHeightPt: ph,
+  });
 
-  const widthFrac = SIGNATURE_BOX_WIDTH_PT / pw;
-  const heightFrac = SIGNATURE_BOX_HEIGHT_PT / ph;
   // PDF y is the BOTTOM edge of the box, measured up from the bottom
   // of the page. CSS top is the TOP edge, measured down from the top.
-  const topFrac = 1 - (y + heightFrac);
-
-  const overflowsPage =
-    x + widthFrac > 1 + EDGE_EPSILON || topFrac < -EDGE_EPSILON;
+  const topFrac = 1 - (rect.y + rect.height) / ph;
 
   return {
     mode: 'placed',
     page,
     pageFellBackToFirst,
-    leftPct: x * 100,
+    leftPct: (rect.x / pw) * 100,
     topPct: topFrac * 100,
-    widthPct: widthFrac * 100,
-    heightPct: heightFrac * 100,
+    widthPct: (rect.width / pw) * 100,
+    heightPct: (rect.height / ph) * 100,
     pageAspect: pw / ph,
     pageGeometry: measured ? 'measured' : 'assumed',
-    overflowsPage,
+    relocatedToFit: rect.relocated,
+    shrunkToFit: rect.shrunk,
+    relocationDxPt: rect.dxPt,
+    relocationDyPt: rect.dyPt,
   };
 }
 
@@ -245,11 +277,13 @@ export function resolveSignatureLinePlacement(input: {
  *     the top edge is derived from the box height as a fraction of the
  *     page height (64/792 on Letter, 64/595 on A4 landscape, a
  *     difference of about 2.7% of the page).
- *
- * The horizontal position is no longer among them. It used to be, via
- * a containment clamp computed from the assumed width; that clamp is
- * gone (see resolveSignatureLinePlacement), so left is the recorded x
- * on any page size.
+ *   - The horizontal position, but only for an anchor near the right
+ *     edge. This was true, then briefly false, and is true again. The
+ *     renderer keeps the box on the page, so the placement engages a
+ *     clamp at x = 1 - 220/pageWidth, and on an unmeasured page that
+ *     threshold is computed from Letter rather than from the real
+ *     width. An anchor clear of the right edge is unaffected; one at
+ *     or past it is drawn against the wrong page.
  *
  * Returns null when the page WAS measured, because then there is
  * nothing to admit.
@@ -267,29 +301,46 @@ export function signaturePreviewGeometryNote(
 }
 
 /**
- * What the drawing has to say when the recorded anchor puts part of
- * the signature past the edge of the page.
+ * What the drawing has to say when the recorded anchor does not fit on
+ * the page and the renderer moves the box to make it fit.
  *
- * This is not a preview artefact. The renderer stamps a 220 x 64 point
- * box at the recorded corner and does not pull it back, so a box that
- * hangs off the page here hangs off the page in the executed PDF, and
- * the part outside the page is not visible when the document is read
- * or printed. The signer is the one person who can catch it before it
- * is signed, so they are told, plainly, and pointed at the firm rather
- * than left to work out what to do.
+ * This is not a preview artefact, and the signer is told about it for
+ * the same reason as before: the box in front of them is not at the
+ * coordinate the document recorded, and they are the person who can
+ * raise it before the instrument is executed.
  *
- * Returns null when the box is entirely on the page.
+ * What changed is the consequence, and so the sentence. This note used
+ * to say part of the signature would not be visible on the signed
+ * copy, which was true of a renderer that let pdf-lib drop the
+ * overflow. That renderer is fixed. The whole mark now lands on the
+ * page, the move is recorded on the audit trail as a signature_relocated
+ * event, and the honest thing to tell the signer is that their
+ * signature moved slightly, not that part of it is about to disappear.
+ * Saying the latter now would frighten someone about a problem that no
+ * longer exists.
+ *
+ * Returns null when the box sits exactly where the document asked.
  */
-export function signatureOverflowNote(
+export function signatureRelocationNote(
   placement: SignatureLinePlacement,
 ): string | null {
   if (placement.mode !== 'placed') return null;
-  if (!placement.overflowsPage) return null;
+  if (!placement.relocatedToFit && !placement.shrunkToFit) return null;
+  if (placement.shrunkToFit) {
+    return (
+      'This page is smaller than the standard signature box, so the box is ' +
+      'reduced to fit and your signature is scaled down with it. The whole ' +
+      'signature stays on the page, and the adjustment is noted on the audit ' +
+      'trail for this document.'
+    );
+  }
   return (
-    'Part of this signature box sits past the edge of the page, so part of ' +
-    'your signature will not be visible on the signed copy. That is how the ' +
-    'position was recorded on this document. You can still sign, but it is ' +
-    'worth asking the firm to move the signature line first.'
+    'The position recorded for this signature sits close enough to the edge ' +
+    'that the box would not fit there, so it has been moved just inside the ' +
+    'page. The box above is where your signature will actually appear, and ' +
+    'all of it will be visible. The adjustment is noted on the audit trail. ' +
+    'You can sign as normal, and mention it to the firm if the placement ' +
+    'matters to you.'
   );
 }
 

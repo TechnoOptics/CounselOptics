@@ -6,6 +6,7 @@ import {
   ASSUMED_PAGE_WIDTH_PT,
   SIGNATURE_BOX_HEIGHT_PT,
   SIGNATURE_BOX_WIDTH_PT,
+  SIGNATURE_CAPTION_BAND_PT,
   SIGNER_CANVAS_MAX_PIXELS,
   SIGNER_CANVAS_MAX_SIDE_PX,
   SIGNER_COPY_REFUSAL_COPY,
@@ -27,10 +28,11 @@ import {
   resolveSignerCopyAccess,
   resolveSignerDocumentAccess,
   rotateSignatureRectForDisplay,
-  signatureOverflowNote,
+  signatureRelocationNote,
   signaturePreviewGeometryNote,
   type SignatureLinePlacement,
 } from '../lib/signer-view';
+import { computeSignatureBoxRect } from '../lib/signature-geometry';
 
 describe('canLeaveDisclosureStep', () => {
   const base = {
@@ -90,17 +92,23 @@ describe('canLeaveDisclosureStep', () => {
  * The invariant this file exists to hold: what the signer is shown and
  * what lib/signature-render.ts stamps are the same rectangle.
  *
- * The renderer's arithmetic is written out again here rather than
- * imported. Importing it would let one bug satisfy both sides; writing
- * it out means the two have to agree independently, and a change to
- * either one that moves the box shows up as a failure rather than as a
- * signature somewhere the signer never saw.
+ * This used to write the renderer's arithmetic out again by hand, on
+ * the reasoning that importing it would let one bug satisfy both
+ * sides. That reasoning applied to a preview that reimplemented the
+ * renderer, and it was right about the risk: the two DID drift, twice,
+ * in opposite directions.
  *
- * Mirrors lib/signature-render.ts:
- *   const x = Math.max(0, Math.min(1, s.position_x ?? 0.07)) * pw;
- *   const y = Math.max(0, Math.min(1, s.position_y ?? 0.07)) * ph;
- *   const boxW = 220; const boxH = 64;
- *   page.drawImage(image, { x: x + ..., y: y + ..., ... });
+ * The preview no longer reimplements anything. Both surfaces call
+ * computeSignatureBoxRect out of lib/signature-geometry.ts, so a
+ * hand-written third copy here would only test itself. What is left to
+ * check, and what these cases now check, is the one piece of
+ * arithmetic that is still unique to the preview: the conversion from
+ * PDF points with the origin at the bottom-left into CSS percentages
+ * with the origin at the top-left. That flip is easy to get wrong and
+ * would put the box on screen somewhere the signer never signs.
+ *
+ * The geometry itself is covered on its own terms, including a
+ * mutation pass, in tests/signature-geometry.test.ts.
  */
 function rendererBoxInPoints(
   positionX: number,
@@ -108,11 +116,17 @@ function rendererBoxInPoints(
   pageWidthPt: number,
   pageHeightPt: number,
 ) {
+  const rect = computeSignatureBoxRect({
+    positionX,
+    positionY,
+    pageWidthPt,
+    pageHeightPt,
+  });
   return {
-    leftPt: Math.max(0, Math.min(1, positionX)) * pageWidthPt,
-    bottomPt: Math.max(0, Math.min(1, positionY)) * pageHeightPt,
-    widthPt: SIGNATURE_BOX_WIDTH_PT,
-    heightPt: SIGNATURE_BOX_HEIGHT_PT,
+    leftPt: rect.x,
+    bottomPt: rect.y,
+    widthPt: rect.width,
+    heightPt: rect.height,
   };
 }
 
@@ -179,11 +193,16 @@ describe('the drawn signature agrees with renderFinalSignedPdf', () => {
     }
   }
 
-  // The specific regression. A containment clamp made the drawing
-  // disagree with the stamp above x = 1 - 220/pageWidth, and computed
-  // that threshold from an assumed Letter width so it engaged in the
-  // wrong place on every other page size.
-  it('does not pull an anchor near the right edge back onto the page', () => {
+  // The same anchor this file used to assert hung off the page. It no
+  // longer does, because the renderer no longer lets it: the box is
+  // pulled back to the right edge and the whole mark lands on the
+  // page. The preview has to move with it, or it shows the signer a
+  // position the executed copy will not use.
+  //
+  // The threshold is derived from the REAL page width, not an assumed
+  // Letter one. That was the second half of the original bug and it is
+  // checked on a page that is not Letter.
+  it('pulls an anchor near the right edge back onto the page, as the renderer does', () => {
     const placement = resolveSignatureLinePlacement({
       positionPage: 1,
       positionX: 0.95,
@@ -193,9 +212,52 @@ describe('the drawn signature agrees with renderFinalSignedPdf', () => {
       pageCount: 1,
     });
     if (placement.mode !== 'placed') throw new Error('expected a placed signature');
-    expect(placement.leftPct).toBeCloseTo(95, 6);
-    expect(placement.leftPct + placement.widthPct).toBeGreaterThan(100);
-    expect(placement.overflowsPage).toBe(true);
+    expect(placement.leftPct).toBeCloseTo(
+      ((612 - SIGNATURE_BOX_WIDTH_PT) / 612) * 100,
+      6,
+    );
+    expect(placement.leftPct + placement.widthPct).toBeCloseTo(100, 6);
+    expect(placement.relocatedToFit).toBe(true);
+    expect(placement.relocationDxPt).toBeCloseTo(612 - 220 - 0.95 * 612, 6);
+  });
+
+  it('uses the real page width for that threshold, not an assumed Letter one', () => {
+    // A4 landscape is 842 pt wide. A Letter-derived threshold would
+    // pin the box at 612 - 220 = 392; the real one pins it at 622.
+    const placement = resolveSignatureLinePlacement({
+      positionPage: 1,
+      positionX: 0.95,
+      positionY: 0.5,
+      pageWidthPt: 841.89,
+      pageHeightPt: 595.28,
+      pageCount: 1,
+    });
+    if (placement.mode !== 'placed') throw new Error('expected a placed signature');
+    const leftPt = (placement.leftPct / 100) * 841.89;
+    expect(leftPt).toBeCloseTo(841.89 - SIGNATURE_BOX_WIDTH_PT, 6);
+    expect(leftPt).toBeGreaterThan(612 - SIGNATURE_BOX_WIDTH_PT);
+  });
+
+  it('never draws the box outside its own frame on any page or anchor', () => {
+    for (const page of PAGE_SIZES) {
+      for (let i = 0; i <= 20; i++) {
+        for (let j = 0; j <= 20; j++) {
+          const p = resolveSignatureLinePlacement({
+            positionPage: 1,
+            positionX: i / 20,
+            positionY: j / 20,
+            pageWidthPt: page.w,
+            pageHeightPt: page.h,
+            pageCount: 1,
+          });
+          if (p.mode !== 'placed') throw new Error('expected a placed signature');
+          expect(p.leftPct).toBeGreaterThanOrEqual(0);
+          expect(p.topPct).toBeGreaterThanOrEqual(-1e-9);
+          expect(p.leftPct + p.widthPct).toBeLessThanOrEqual(100 + 1e-9);
+          expect(p.topPct + p.heightPct).toBeLessThanOrEqual(100 + 1e-9);
+        }
+      }
+    }
   });
 
   it('reports the same page the renderer will stamp on', () => {
@@ -270,12 +332,39 @@ describe('signaturePreviewGeometryNote', () => {
     expect(signaturePreviewGeometryNote(assumed)).not.toMatch(/[—–]/);
   });
 
-  // The reason the note still exists after the clamp was removed. The
-  // assumed page size no longer moves the box HORIZONTALLY at all, but
-  // the box height is a fraction of the page height, so the top edge
-  // still moves: 64/792 on Letter against 64/595 on A4 landscape.
+  // The note covers two distinct inaccuracies, and both are real.
+  //
+  // Vertical: the box height is a fraction of the page height, so the
+  // top edge moves with the assumed page. 64/792 on Letter against
+  // 64/595 on A4 landscape.
   it('covers a vertical position the assumed page size actually moves', () => {
     const assumedTop = resolveSignatureLinePlacement({
+      positionPage: 1,
+      positionX: 0.5,
+      positionY: 0.1,
+    });
+    const landscape = resolveSignatureLinePlacement({
+      positionPage: 1,
+      positionX: 0.5,
+      positionY: 0.1,
+      pageWidthPt: 841.89,
+      pageHeightPt: 595.28,
+    });
+    if (assumedTop.mode !== 'placed' || landscape.mode !== 'placed') {
+      throw new Error('expected placed signatures');
+    }
+    expect(Math.abs(assumedTop.topPct - landscape.topPct)).toBeGreaterThan(1);
+    expect(signaturePreviewGeometryNote(assumedTop)).toBeTruthy();
+  });
+
+  // Horizontal: true again, and this is the case that says so. Now
+  // that the placement keeps the box on the page, the clamp threshold
+  // is 1 - 220/pageWidth, and on an unmeasured page that is computed
+  // from Letter. At x = 0.7 the Letter-derived clamp engages and the
+  // A4-landscape one does not, so the two disagree. The note is what
+  // stops that from being presented as a measured fact.
+  it('covers a horizontal position the assumed page size actually moves', () => {
+    const assumedRight = resolveSignatureLinePlacement({
       positionPage: 1,
       positionX: 0.7,
       positionY: 0.1,
@@ -287,17 +376,24 @@ describe('signaturePreviewGeometryNote', () => {
       pageWidthPt: 841.89,
       pageHeightPt: 595.28,
     });
-    if (assumedTop.mode !== 'placed' || landscape.mode !== 'placed') {
+    if (assumedRight.mode !== 'placed' || landscape.mode !== 'placed') {
       throw new Error('expected placed signatures');
     }
-    expect(assumedTop.leftPct).toBeCloseTo(landscape.leftPct, 6);
-    expect(Math.abs(assumedTop.topPct - landscape.topPct)).toBeGreaterThan(1);
-    expect(signaturePreviewGeometryNote(assumedTop)).toBeTruthy();
+    expect(assumedRight.relocatedToFit).toBe(true);
+    expect(landscape.relocatedToFit).toBe(false);
+    expect(Math.abs(assumedRight.leftPct - landscape.leftPct)).toBeGreaterThan(1);
+    expect(signaturePreviewGeometryNote(assumedRight)).toBeTruthy();
+  });
+
+  it('says so in the note itself, so the admission is not silent', () => {
+    const note = signaturePreviewGeometryNote(assumed);
+    expect(note).toBeTruthy();
+    expect(note).toMatch(/letter-size/i);
   });
 });
 
-describe('signatureOverflowNote', () => {
-  const overflowing = resolveSignatureLinePlacement({
+describe('signatureRelocationNote', () => {
+  const relocated = resolveSignatureLinePlacement({
     positionPage: 1,
     positionX: 0.95,
     positionY: 0.1,
@@ -312,19 +408,38 @@ describe('signatureOverflowNote', () => {
     pageHeightPt: 792,
   });
 
-  it('warns when part of the signature will fall off the page', () => {
-    const note = signatureOverflowNote(overflowing);
+  it('tells the signer when the box had to move to fit', () => {
+    const note = signatureRelocationNote(relocated);
     expect(note).toBeTruthy();
-    expect(note).toMatch(/past the edge/i);
+    expect(note).toMatch(/moved just inside the page/i);
   });
 
-  it('says nothing when the whole box is on the page', () => {
-    expect(signatureOverflowNote(contained)).toBeNull();
+  // The reason this note was rewritten rather than left alone. It used
+  // to tell the signer part of their signature would not be visible on
+  // the signed copy. That was true of a renderer that let pdf-lib drop
+  // the overflow, and it is false of the one that clamps. Telling
+  // someone their signature is about to be cut in half, when it is
+  // not, is the kind of thing this product cannot afford to say.
+  it('does not claim any of the signature will be invisible', () => {
+    const note = signatureRelocationNote(relocated) ?? '';
+    expect(note).not.toMatch(/not be visible|will not appear|cut off|missing/i);
+    expect(note).toMatch(/all of it will be visible/i);
+  });
+
+  it('says the adjustment reaches the audit trail', () => {
+    expect(signatureRelocationNote(relocated)).toMatch(/audit trail/i);
+  });
+
+  it('says nothing when the box sits exactly where the document asked', () => {
+    expect(signatureRelocationNote(contained)).toBeNull();
   });
 
   it('says nothing when there is no placement to qualify', () => {
     expect(
-      signatureOverflowNote({ mode: 'deferred', reason: 'no-recorded-position' }),
+      signatureRelocationNote({
+        mode: 'deferred',
+        reason: 'no-recorded-position',
+      }),
     ).toBeNull();
   });
 
@@ -337,12 +452,31 @@ describe('signatureOverflowNote', () => {
       pageHeightPt: 792,
     });
     if (p.mode !== 'placed') throw new Error('expected a placed signature');
-    expect(p.topPct).toBeLessThan(0);
-    expect(p.overflowsPage).toBe(true);
-    expect(signatureOverflowNote(p)).toBeTruthy();
+    // Pulled down to the page top rather than pushed above it.
+    expect(p.topPct).toBeCloseTo(0, 6);
+    expect(p.relocatedToFit).toBe(true);
+    expect(signatureRelocationNote(p)).toBeTruthy();
   });
 
-  it('does not cry overflow for a box exactly on the edge', () => {
+  it('catches a box whose CAPTION would fall off the bottom', () => {
+    // The renderer draws the signer name and date below the box. An
+    // anchor at y = 0 used to put that caption at -10 pt, off the
+    // page, with the box itself fully visible. The placement reserves
+    // the band, so this is a move the signer is told about.
+    const p = resolveSignatureLinePlacement({
+      positionPage: 1,
+      positionX: 0.1,
+      positionY: 0,
+      pageWidthPt: 612,
+      pageHeightPt: 792,
+    });
+    if (p.mode !== 'placed') throw new Error('expected a placed signature');
+    expect(p.relocatedToFit).toBe(true);
+    expect(p.relocationDyPt).toBeGreaterThan(0);
+    expect(signatureRelocationNote(p)).toBeTruthy();
+  });
+
+  it('says nothing for a box that fits exactly against both edges', () => {
     const p = resolveSignatureLinePlacement({
       positionPage: 1,
       positionX: 1 - SIGNATURE_BOX_WIDTH_PT / 612,
@@ -351,11 +485,39 @@ describe('signatureOverflowNote', () => {
       pageHeightPt: 792,
     });
     if (p.mode !== 'placed') throw new Error('expected a placed signature');
-    expect(p.overflowsPage).toBe(false);
+    expect(p.relocatedToFit).toBe(false);
+    expect(signatureRelocationNote(p)).toBeNull();
+  });
+
+  it('has its own sentence for a page too small for a full-size box', () => {
+    const p = resolveSignatureLinePlacement({
+      positionPage: 1,
+      positionX: 0.5,
+      positionY: 0.5,
+      pageWidthPt: 180,
+      pageHeightPt: 400,
+    });
+    if (p.mode !== 'placed') throw new Error('expected a placed signature');
+    expect(p.shrunkToFit).toBe(true);
+    expect(signatureRelocationNote(p)).toMatch(/reduced to fit/i);
   });
 
   it('is calm and carries no em dash', () => {
-    expect(signatureOverflowNote(overflowing)).not.toMatch(/[—–]/);
+    for (const note of [
+      signatureRelocationNote(relocated),
+      signatureRelocationNote(
+        resolveSignatureLinePlacement({
+          positionPage: 1,
+          positionX: 0.5,
+          positionY: 0.5,
+          pageWidthPt: 180,
+          pageHeightPt: 400,
+        }),
+      ),
+    ]) {
+      expect(note).toBeTruthy();
+      expect(note).not.toMatch(/[—–]/);
+    }
   });
 });
 
@@ -474,11 +636,17 @@ describe('resolveSignatureLinePlacement', () => {
       pageHeightPt: 800,
     });
     if (p.mode !== 'placed') throw new Error('expected a placed signature');
-    // x clamps to 1: the box STARTS at the right edge and hangs off it,
-    // which is exactly where the renderer puts it.
-    expect(p.leftPct).toBeCloseTo(100, 6);
-    // y clamps to 0, the bottom edge of the page.
-    expect(p.topPct).toBeCloseTo((1 - SIGNATURE_BOX_HEIGHT_PT / 800) * 100, 6);
+    // The fraction bounds to 1, then the box is pulled back so its
+    // RIGHT edge sits on the page edge. It used to be left starting at
+    // 100% and hanging off, which is where the renderer used to put it.
+    expect(p.leftPct).toBeCloseTo(((600 - SIGNATURE_BOX_WIDTH_PT) / 600) * 100, 6);
+    expect(p.leftPct + p.widthPct).toBeCloseTo(100, 6);
+    // The fraction bounds to 0, then the box lifts by the caption band
+    // so the name and date printed under it stay on the page.
+    expect(p.topPct).toBeCloseTo(
+      (1 - (SIGNATURE_CAPTION_BAND_PT + SIGNATURE_BOX_HEIGHT_PT) / 800) * 100,
+      6,
+    );
   });
 });
 
@@ -1213,8 +1381,23 @@ describe('call sites', () => {
     const src = read('app/sign/[token]/signature-line-preview.tsx');
     expect(src).toMatch(/signaturePreviewGeometryNote\(placement\)/);
     expect(src).toMatch(/\{geometryNote/);
-    expect(src).toMatch(/signatureOverflowNote\(placement\)/);
-    expect(src).toMatch(/\{overflowNote/);
+    expect(src).toMatch(/signatureRelocationNote\(placement\)/);
+    expect(src).toMatch(/\{relocationNote/);
+    // The sentence that is no longer true of the renderer must not
+    // survive anywhere in the component either.
+    expect(src).not.toMatch(/signatureOverflowNote/);
+  });
+
+  it('has both signature surfaces placing the box through one module', () => {
+    // The whole point of lib/signature-geometry.ts. If either surface
+    // goes back to computing its own rectangle they can drift again,
+    // and the signer is shown a position the executed copy will not
+    // use. Neither file may multiply a position by a page dimension.
+    for (const path of ['lib/signer-view.ts', 'lib/signature-render.ts']) {
+      const src = read(path);
+      expect(src).toMatch(/computeSignatureBoxRect\(/);
+      expect(src).not.toMatch(/Math\.min\(1,\s*(s\.)?position_?[xXyY]/);
+    }
   });
 
   it('has the document view open new tabs through ExternalLink', () => {
