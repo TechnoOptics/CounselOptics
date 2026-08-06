@@ -14,8 +14,13 @@ export const runtime = 'nodejs';
  * the archive most organizations actually download was the unaudited one, so
  * the guarantees would be true only of a route nobody used.
  *
- * A 308 keeps the method and every existing link and bookmark working.
+ * A 308 keeps the method and every existing link and bookmark working. The
+ * query string comes along: /api/firm/export takes an optional ?firmId=, and
+ * building the target from a path alone would quietly drop it and export the
+ * caller's active organization instead of the one they asked for.
  */
 export function GET(req: Request) {
-  return NextResponse.redirect(new URL('/api/firm/export', req.url), 308);
+  const target = new URL('/api/firm/export', req.url);
+  target.search = new URL(req.url).search;
+  return NextResponse.redirect(target, 308);
 }

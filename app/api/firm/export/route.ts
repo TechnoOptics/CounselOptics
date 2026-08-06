@@ -48,72 +48,196 @@ export const maxDuration = 300;
  * ── The one invariant that keeps this from being a cross-organization read ───
  * Reads go through the service-role client, because firm RLS is not uniformly
  * firm-member-aware and a partial archive would be worse than none. The
- * service role bypasses RLS, so the scoping is this route's job: EVERY query
- * below is `.eq('firm_id', firmId)` against the single `firmId` that
- * `callerHasFirmRole` just approved. Do not add a query to this file without
- * that filter, and do not introduce a second firm id.
+ * service role bypasses RLS, so the scoping is this route's job: ONE firm id,
+ * and ONE set of ids derived from it. Every query below is either
+ * `.eq('firm_id', firmId)` against the single `firmId` that
+ * `callerHasFirmRole` just approved, or `.in(<parent key>, ids)` over ids that
+ * were themselves read under that filter. Do not add a query to this file that
+ * is scoped any other way, and do not introduce a second firm id.
  *
  * ── What is not in the archive ───────────────────────────────────────────────
  * No secrets (integration, SCIM and API tokens, webhook secrets, invitation
  * and guest-account credentials) - the archive is meant to be stored on the
- * organization's own disk, so it must be safe there. No document file BYTES
- * either: those live in private storage and the archive carries their metadata
- * and storage paths. Signed download URLs are deliberately NOT embedded, since
- * a URL that grants access to a private file is itself a credential and does
- * not belong in a file the organization keeps.
+ * organization's own disk, so it must be safe there. Two layers keep that
+ * true: the table list below, and `redactRow`, which blanks any column whose
+ * NAME looks like a credential. The second layer exists because `select('*')`
+ * means a column added to any of these tables lands in a customer's archive
+ * with nobody reviewing it, and the promise should not depend on someone
+ * remembering.
+ *
+ * No document file BYTES either: those live in private storage and the archive
+ * carries their metadata and storage paths. Signed download URLs are
+ * deliberately NOT embedded, since a URL that grants access to a private file
+ * is itself a credential and does not belong in a file the organization keeps.
  */
 
 /**
- * The organization-scoped tables that are useful to an organization taking its
- * records with it, grouped by what they are. Every one of these is keyed by
- * `firm_id`, which is what makes the scoping invariant above a single uniform
- * rule rather than a per-table judgment call.
+ * How a table is reached.
+ *
+ * `firm` is the flat case: the table carries `firm_id` and one filter scopes
+ * it. `case` and `signing` are the tables that carry no firm id at all and
+ * hang off a parent instead. Excluding those would have made the archive's
+ * scope "whatever happens to carry firm_id", which silently drops every piece
+ * of matter substance: the evidence, the timeline, the exhibits, the legal
+ * reviews and the images that a matter actually consists of.
+ *
+ * The parent id lists are collected while their own table streams, so there is
+ * still exactly one firm id in this file and one set of ids derived from it.
+ */
+type ScopeVia = 'firm' | 'case' | 'signing';
+
+type TableSpec = {
+  table: string;
+  via: ScopeVia;
+  /**
+   * The keyset cursor column. Unique and orderable. Defaults to `id`;
+   * `case_timeline_narratives` is keyed by `case_id` and has no `id` at all.
+   */
+  key?: string;
+  /**
+   * An explicit column allowlist, for a table where reading every column would
+   * export something that must not leave. Absent means every column, which is
+   * still filtered by `redactRow`.
+   */
+  columns?: string;
+};
+
+/** The parent column each derived scope filters on. */
+const SCOPE_COLUMN: Record<Exclude<ScopeVia, 'firm'>, string> = {
+  case: 'case_id',
+  signing: 'signing_request_id',
+};
+
+/** The table whose ids each derived scope is built from. */
+const SCOPE_SOURCE: Record<Exclude<ScopeVia, 'firm'>, string> = {
+  case: 'cases',
+  signing: 'firm_signing_requests',
+};
+
+/**
+ * What an organization taking its records with it gets, grouped by what it is.
+ *
+ * ORDER MATTERS: a derived table must come after the table its ids come from,
+ * because those ids are collected as the parent streams. A derived table that
+ * runs early does not silently export nothing; it records a named error and
+ * turns `_summary.complete` false.
  *
  * A table that does not exist on this deployment does not break the export:
- * the read fails, the failure is recorded by name in `_summary.errors`, and
- * the rest of the archive still ships. A silent omission would be the bad
- * outcome, so omissions are always named.
+ * the read fails, the failure is recorded by name in `_summary.errors`, the
+ * archive is marked incomplete, and the rest still ships. A silent omission
+ * would be the bad outcome, so omissions are always named.
  */
-const EXPORT_TABLES = [
+const EXPORT_TABLES: readonly TableSpec[] = [
   // Who the organization is and who works in it.
-  'firm_members',
-  'firm_employees',
-  'firm_clients',
+  { table: 'firm_members', via: 'firm' },
+  { table: 'firm_employees', via: 'firm' },
+  { table: 'firm_clients', via: 'firm' },
   // The matters themselves, which are the reason the archive exists.
-  'cases',
-  'case_deadlines',
-  'case_approaches',
-  'firm_matter_intakes',
-  'firm_intake_messages',
+  { table: 'cases', via: 'firm' },
+  { table: 'case_deadlines', via: 'firm' },
+  { table: 'case_approaches', via: 'firm' },
+  { table: 'firm_matter_intakes', via: 'firm' },
+  { table: 'firm_intake_messages', via: 'firm' },
+  // What the matters are actually made of. All of it hangs off case_id, so it
+  // is reached through the case ids read just above.
+  { table: 'case_timeline_events', via: 'case' },
+  { table: 'case_timeline_narratives', via: 'case', key: 'case_id' },
+  { table: 'exhibits', via: 'case' },
+  { table: 'case_legal_reviews', via: 'case' },
+  { table: 'case_images', via: 'case' },
   // Documents and signing history.
-  'firm_documents',
-  'firm_signing_requests',
+  { table: 'firm_documents', via: 'firm' },
+  { table: 'firm_signing_requests', via: 'firm' },
+  // The per-signer record: proof that a named person executed a named document
+  // at a named time, which cannot be reconstructed from the request alone. The
+  // allowlist is explicit because this table carries two credentials: `token`,
+  // which lib/signing-actions.ts accepts on its own as authentication, and
+  // `access_code_hash`. Missing DDL is a reason to write the list out, not a
+  // reason to leave the table behind.
+  {
+    table: 'firm_signatures',
+    via: 'signing',
+    columns: [
+      'id',
+      'signing_request_id',
+      'signer_email',
+      'signer_name',
+      'signer_user_id',
+      'signed_at',
+      'ip_address',
+      'user_agent',
+      'signature_image_path',
+      'audit_hash',
+      'access_code_verified_at',
+      'access_attempts',
+      'response',
+      'response_note',
+      'responded_at',
+      'position_page',
+      'position_x',
+      'position_y',
+    ].join(','),
+  },
   // Money: the records an organization is required to keep.
-  'firm_invoices',
-  'firm_time_entries',
-  'firm_trust_accounts',
-  'firm_trust_transactions',
-  'firm_trust_reconciliations',
+  { table: 'firm_invoices', via: 'firm' },
+  { table: 'firm_time_entries', via: 'firm' },
+  { table: 'firm_trust_accounts', via: 'firm' },
+  { table: 'firm_trust_transactions', via: 'firm' },
+  { table: 'firm_trust_reconciliations', via: 'firm' },
   // Work product and day-to-day operations.
-  'firm_projects',
-  'firm_project_folders',
-  'firm_project_items',
-  'firm_meetings',
-  'firm_channels',
-  'firm_templates',
-  'firm_policies',
-  'firm_trainings',
-  'firm_training_assignments',
-] as const;
+  { table: 'firm_projects', via: 'firm' },
+  { table: 'firm_project_folders', via: 'firm' },
+  { table: 'firm_project_items', via: 'firm' },
+  { table: 'firm_meetings', via: 'firm' },
+  { table: 'firm_channels', via: 'firm' },
+  { table: 'firm_templates', via: 'firm' },
+  { table: 'firm_policies', via: 'firm' },
+  { table: 'firm_trainings', via: 'firm' },
+  { table: 'firm_training_assignments', via: 'firm' },
+];
 
 /**
- * PostgREST caps a single response at 1000 rows. Reading each table once, the
- * way the older export did, therefore returns the first 1000 rows and says
- * nothing about the rest: fine for a three-matter trial, quietly wrong for a
- * real organization, which is the failure mode that matters least when you
- * test it and most when it is used. Every table below is paged to exhaustion.
+ * How many rows to ask for at a time. PostgREST also enforces its own
+ * `db-max-rows`, which this repo does not set and cannot see, so the paging
+ * loop below must not assume a page came back full. It terminates on an EMPTY
+ * page and advances by a cursor, which is correct at any server cap.
  */
 const PAGE_SIZE = 1000;
+
+/**
+ * How many parent ids to put in one `.in(...)` filter. PostgREST puts the
+ * whole list in the query string, so an organization with tens of thousands of
+ * matters would build a URL no server will accept. Chunking keeps every
+ * request a sane size.
+ */
+const ID_CHUNK = 200;
+
+/**
+ * Column names that must never reach the archive, matched by NAME rather than
+ * by table. `select('*')` over thirty tables means the "no secrets" promise is
+ * otherwise kept only by whoever last read the schema; this catches the next
+ * credential column by default instead of by memory. Blanking rather than
+ * dropping keeps the row shape honest about what the record contains.
+ */
+const CREDENTIAL_COLUMN = /(token|secret|password|code_hash|_key)/i;
+
+function redactRow(row: Record<string, unknown>): Record<string, unknown> {
+  let needsRedaction = false;
+  for (const column of Object.keys(row)) {
+    if (CREDENTIAL_COLUMN.test(column)) {
+      needsRedaction = true;
+      break;
+    }
+  }
+  if (!needsRedaction) return row;
+  const safe: Record<string, unknown> = { ...row };
+  for (const column of Object.keys(safe)) {
+    if (CREDENTIAL_COLUMN.test(column) && safe[column] !== null) {
+      safe[column] = '[redacted]';
+    }
+  }
+  return safe;
+}
 
 export async function GET(req: Request) {
   if (!isSupabaseConfigured()) {
@@ -140,7 +264,37 @@ export async function GET(req: Request) {
     );
   }
 
+  const { ip, userAgent, url } = requestMeta(req);
+  // An HQ operator can be acting as a firm owner. Logging only the effective
+  // user would attribute the download to the owner and lose the operator.
+  const realUser = await getRealCurrentUser();
+  const actingVia =
+    realUser && realUser.id !== user.id
+      ? { operatorId: realUser.id, operatorEmail: realUser.email ?? null }
+      : null;
+
   if (!(await callerHasFirmRole(firmId, FIRM_ADMIN_ROLES))) {
+    // A refused whole-organization export is worth more than a granted one.
+    // Someone trying this repeatedly, or walking through organization ids
+    // they saw in a URL, leaves no other trace anywhere. Recorded at
+    // `warning` so it stays unacknowledged and lands in the triage queue
+    // instead of the routine audit stream.
+    await logSecurityEvent({
+      kind: 'data_exported',
+      severity: 'warning',
+      userId: user.id,
+      ip,
+      userAgent,
+      url,
+      details: {
+        scope: 'organization',
+        firmId,
+        email: user.email ?? null,
+        refused: true,
+        reason: 'not_an_owner_or_admin',
+        actingVia,
+      },
+    });
     return NextResponse.json(
       { error: 'Only an owner or admin can export the organization.' },
       { status: 403 },
@@ -174,10 +328,6 @@ export async function GET(req: Request) {
   // the client abandons half way through still handed out rows, so an audit
   // record written only on clean completion would miss the exports most worth
   // seeing. One record per request, at the moment access is granted.
-  const { ip, userAgent, url } = requestMeta(req);
-  // An HQ operator can be acting as a firm owner. Logging only the effective
-  // user would attribute the download to the owner and lose the operator.
-  const realUser = await getRealCurrentUser();
   await logSecurityEvent({
     kind: 'data_exported',
     userId: user.id,
@@ -189,16 +339,13 @@ export async function GET(req: Request) {
       firmId,
       firmName: firm?.name ?? null,
       email: user.email ?? null,
-      actingVia:
-        realUser && realUser.id !== user.id
-          ? { operatorId: realUser.id, operatorEmail: realUser.email ?? null }
-          : null,
+      actingVia,
     },
   });
 
   const meta = {
     format: 'advottic.organization-export',
-    version: 2,
+    version: 3,
     exportedAt: new Date().toISOString(),
     organization: {
       id: firmId,
@@ -209,17 +356,24 @@ export async function GET(req: Request) {
     },
     exportedBy: user.email ?? user.id,
     notes: [
-      "A complete copy of this organization's own records, taken at the time above.",
+      "This organization's own records, taken at the time above. Check _summary at the end of the file before relying on it: that is where the archive says whether everything came through.",
       'This is a copy. Everything in it remains available in Advottic as well.',
+      'Matter substance is included. case_timeline_events, case_timeline_narratives, exhibits, case_legal_reviews and case_images carry no organization id of their own, so they are scoped to the matters listed under cases.',
       'Document file contents are not embedded. Each entry in firm_documents carries its name, metadata and storage path, and the file itself can be downloaded from /counsel/documents/<id> while signed in.',
-      'Per-signer signature records and the signing audit trail are available per request at /api/firm/sign/audit-trail/<signing_request_id>.',
-      'Excluded on purpose: integration, SCIM and API tokens, webhook secrets, invitation and guest-account credentials, and internal chat messages. The first group are secrets that should not sit in a stored file; chat is held per channel rather than per organization.',
-      'Read _summary at the end of this file. It carries the row count for every table and names anything that could not be read. If _summary is missing the transfer did not finish.',
+      'firm_signatures carries the per-signer record: who signed, when, from what address, and whether the emailed access code was verified. The signing link token and the access code hash are left out because each one is a credential on its own. The full tamper-evident event chain stays available per request at /api/firm/sign/audit-trail/<signing_request_id>.',
+      'Any column whose name looks like a credential (token, secret, key, password, code hash) is written as [redacted]. This archive is meant to sit on your own disk, so it has to be safe there.',
+      'Left out on purpose: integration, SCIM and API tokens, webhook secrets, invitation and guest-account credentials, and internal chat messages. The first group are secrets that should not sit in a stored file; chat is held per channel rather than per organization.',
+      'Read _summary at the end of this file. For every table it carries the number of rows exported, the number of rows the database reported before paging started, any read failure by name, and any table that came up short. _summary.complete is true only when nothing failed and every table matched its count. If _summary is missing entirely, the transfer did not finish.',
+      'Tables are read one after another, so the archive is not a single instant. A matter created while the export was running can appear in cases without its case_deadlines, and rows written after a table was read are not in that table.',
       'For another format, or for anything not covered here, email contact@advottic.com.',
     ],
   };
 
   const counts: Record<string, number> = {};
+  /** What the database said each table held, taken before paging started. */
+  const expected: Record<string, number> = {};
+  /** Tables that came up short of that count, with both numbers. */
+  const shortfalls: Record<string, { expected: number; exported: number }> = {};
   const errors: Record<string, string> = {};
 
   /**
@@ -239,46 +393,155 @@ export async function GET(req: Request) {
       try {
         push(`{"_meta":${JSON.stringify(meta)},"data":{`);
 
+        // Ids collected as their own table streams, so the tables that hang
+        // off a matter or a signing request can be reached without a second
+        // full read. Null means the parent list is not trustworthy: either it
+        // has not run yet (a table-order mistake) or its read failed. An empty
+        // ARRAY is different, and means the organization genuinely has none.
+        const derivedIds: Record<Exclude<ScopeVia, 'firm'>, string[] | null> = {
+          case: null,
+          signing: null,
+        };
+
         let firstTable = true;
-        for (const table of EXPORT_TABLES) {
+        for (const spec of EXPORT_TABLES) {
+          const { table, via } = spec;
+          const key = spec.key ?? 'id';
           push(`${firstTable ? '' : ','}${JSON.stringify(table)}:[`);
           firstTable = false;
 
+          // The units of work for this table: one pass for a firm-scoped
+          // table, one pass per chunk of parent ids for a derived one.
+          let units: Array<string[] | null> = [null];
+          let unresolvedParent: string | null = null;
+          if (via !== 'firm') {
+            const ids = derivedIds[via];
+            if (ids === null) {
+              unresolvedParent = SCOPE_SOURCE[via];
+              units = [];
+            } else {
+              units = [];
+              for (let i = 0; i < ids.length; i += ID_CHUNK) {
+                units.push(ids.slice(i, i + ID_CHUNK));
+              }
+            }
+          }
+
+          // Tables whose ids something else hangs off collect them on the way
+          // past. Ids only, so the memory cost stays proportional to matter
+          // count rather than to the archive.
+          const collectsFor: Exclude<ScopeVia, 'firm'> | null =
+            table === SCOPE_SOURCE.case
+              ? 'case'
+              : table === SCOPE_SOURCE.signing
+                ? 'signing'
+                : null;
+          const collected: string[] = [];
+
           let rowCount = 0;
+          let expectedCount = 0;
           let firstRow = true;
-          let offset = 0;
-          for (;;) {
-            // Ordered by id so the pages compose into one consistent set.
-            // An unordered paged read has no guaranteed order between pages,
-            // which duplicates some rows and drops others without saying so.
-            const { data: rows, error } = await admin
-              .from(table)
-              .select('*')
-              .eq('firm_id', firmId)
-              .order('id', { ascending: true })
-              .range(offset, offset + PAGE_SIZE - 1);
-            if (error) {
-              errors[table] = error.message;
+          let failed = false;
+
+          if (unresolvedParent) {
+            errors[table] =
+              `Could not be scoped: the ids from ${unresolvedParent} were not available, ` +
+              'because that table was not read successfully before this one.';
+            failed = true;
+          }
+
+          for (const unit of units) {
+            // What the database says is there, taken BEFORE paging. Without a
+            // number to compare against, only an ERRORED table is detectable:
+            // a table that returns 2,000 of its 5,400 rows without erroring
+            // is indistinguishable from an organization that has 2,000, and
+            // the archive would certify a fraction of the evidence as whole.
+            const probe = admin.from(table).select('*', {
+              head: true,
+              count: 'exact',
+            });
+            const { count, error: countError } = await (via === 'firm'
+              ? probe.eq('firm_id', firmId)
+              : probe.in(SCOPE_COLUMN[via], unit ?? []));
+            if (countError) {
+              errors[table] = countError.message;
+              failed = true;
               break;
             }
-            const batch = rows ?? [];
-            for (const row of batch) {
-              push(`${firstRow ? '' : ','}${JSON.stringify(row)}`);
-              firstRow = false;
-              rowCount += 1;
+            expectedCount += count ?? 0;
+
+            // Keyset paging, not offset paging. This export is linked from
+            // /counsel/settings and runs against organizations that are still
+            // working, so rows are being inserted and removed underneath it.
+            // An offset is re-evaluated against the live table on every page,
+            // so a row leaving before the cursor shifts everything after it up
+            // and one row is never read. A cursor on an ordered unique column
+            // cannot skip or duplicate, and terminating on an EMPTY page (not
+            // a short one) is correct at any server row cap.
+            let cursor: string | null = null;
+            for (;;) {
+              const query = admin.from(table).select(spec.columns ?? '*');
+              const scoped =
+                via === 'firm'
+                  ? query.eq('firm_id', firmId)
+                  : query.in(SCOPE_COLUMN[via], unit ?? []);
+              const fromCursor =
+                cursor === null ? scoped : scoped.gt(key, cursor);
+              const { data: rows, error } = await fromCursor
+                .order(key, { ascending: true })
+                .limit(PAGE_SIZE);
+              if (error) {
+                errors[table] = error.message;
+                failed = true;
+                break;
+              }
+              // The client types a `select(<string>)` result as a per-column
+              // shape it cannot know here, since the column list is data.
+              const batch = (rows ?? []) as unknown as Array<
+                Record<string, unknown>
+              >;
+              if (batch.length === 0) break;
+              for (const row of batch) {
+                cursor = String(row[key]);
+                if (collectsFor) collected.push(String(row.id));
+                push(`${firstRow ? '' : ','}${JSON.stringify(redactRow(row))}`);
+                firstRow = false;
+                rowCount += 1;
+              }
             }
-            if (batch.length < PAGE_SIZE) break;
-            offset += PAGE_SIZE;
+            if (failed) break;
           }
+
           counts[table] = rowCount;
+          if (!failed) {
+            expected[table] = expectedCount;
+            // Only a SHORTFALL is a defect. More rows than the probe reported
+            // just means the organization kept working during the export.
+            if (rowCount < expectedCount) {
+              shortfalls[table] = {
+                expected: expectedCount,
+                exported: rowCount,
+              };
+            }
+            // Hand the ids to the tables that hang off this one. Only on a
+            // clean read: a partial parent list would scope its children to
+            // less than the organization has and call the result complete.
+            if (collectsFor) derivedIds[collectsFor] = collected;
+          }
           push(']');
         }
 
         push(
           `},"_summary":${JSON.stringify({
             tables: counts,
+            expected,
+            shortfalls,
             errors,
-            complete: true,
+            // Computed, never asserted. A partial archive that calls itself
+            // complete is the exact failure this export exists to prevent.
+            complete:
+              Object.keys(errors).length === 0 &&
+              Object.keys(shortfalls).length === 0,
           })}}`,
         );
         controller.close();
