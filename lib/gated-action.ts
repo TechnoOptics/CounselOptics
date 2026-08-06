@@ -62,11 +62,25 @@ type Refusable = { ok: boolean; error?: string };
  * THE CAST, stated rather than hidden. The return type is T, not
  * `T | { ok: false; error: string }`, because a union would force every one of
  * the call sites to re-narrow a result it already handles and would turn a
- * two-token change into a rewrite of twenty-one dialogs. The cast is sound for
- * the actions this wraps: each returns `{ ok: false, error }` on failure and
- * every other field on the result is optional, so `{ ok: false, error }` IS
- * that failure shape. An action whose failure branch carries required fields
- * does not belong here without widening this first.
+ * two-token change into a rewrite of twenty-three call sites. The cast is
+ * sound for the actions this wraps: each returns `{ ok: false, error }` on
+ * failure and every other field on the result is optional, so
+ * `{ ok: false, error }` IS that failure shape.
+ *
+ * THE PRECONDITION, and its status. An action whose failure branch carries
+ * REQUIRED fields does not belong here without widening this first, because
+ * the cast would then manufacture a result missing them and the call site
+ * would read undefined off it. That sentence is a comment and nothing
+ * enforces it: `T extends Refusable` constrains the shape this helper needs,
+ * not the shape it fabricates, and TypeScript cannot express "every field
+ * other than ok and error is optional" as a bound without a mapped-type
+ * check that would have to be threaded through every generic call.
+ *
+ * It holds at all twenty-three call sites today, verified one at a time. The
+ * honest description is a checked precondition rather than a proven one, and
+ * the day an action with a required failure field is added it will be a
+ * silent wrong value rather than a compile error. Enforcing it is its own
+ * change and deliberately not made here.
  */
 export async function runGatedAction<T extends Refusable>(
   run: () => Promise<T>,

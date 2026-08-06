@@ -341,12 +341,29 @@ export async function firmTrialState(
  * Presence, not a date, matching firmAccessState exactly. Throws on a read it
  * could not complete, for the same reason firmTrialState does: "could not
  * determine" is not "not suspended".
+ *
+ * Callers: the counsel shell's co-counsel guest branch, and the four matter
+ * route handlers a guest can reach by URL, which render no layout and so
+ * cannot rely on the shell.
+ *
+ * FAIL DIRECTIONS, all four, because only one of them is permissive and it
+ * should not have to be inferred:
+ *
+ *   read error        -> throws  (fail closed)
+ *   organization gone -> throws  (fail closed)
+ *   column missing    -> throws  (fail closed)
+ *   no admin client   -> false   (FAIL OPEN, and the only one)
  */
 export async function firmSuspended(firmId: string): Promise<boolean> {
   const admin = createAdminSupabase();
-  // The same deliberate fail-open as firmTrialState, and for the same reason:
-  // a missing service-role key is a deployment fault affecting everybody at
-  // once, not a fact about this organization.
+  // THE ONE BRANCH OF THIS FUNCTION THAT IS NOT FAIL-CLOSED, said plainly so
+  // nobody has to work it out from the absence of a throw. It is deliberate
+  // and it matches firmTrialState exactly, which is what makes it consistent
+  // rather than an oversight: a missing service-role key is a deployment
+  // fault affecting every organization at once, not a fact about this one,
+  // and locking the whole customer base out of the product on an unset
+  // environment variable is the worse outcome. Every other way this function
+  // can fail throws.
   if (!admin) return false;
 
   const { data, error } = await admin
