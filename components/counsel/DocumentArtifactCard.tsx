@@ -21,6 +21,18 @@ import type { ResolvedSigningArtifact } from '@/lib/signing-artifact';
  * signed URL on every render, and writing a new one into the iframe
  * navigates it: the PDF viewer reloads to page 1 and takes focus. Pass
  * a plain iframe instead and that bug is back.
+ *
+ * Which is why the frame is keyed on the artifact. The retainer is
+ * created once per MOUNT, and a router.refresh() re-renders the server
+ * component in place: same element type, same position, so no remount
+ * and the retainer keeps the first URL. If the request completed in
+ * between, the header and the notice flip to the executed copy while
+ * the frame still holds the original, and the Download button, which
+ * is not retained, disagrees with the frame about which document this
+ * is. That is the substitution this whole feature refuses, reappearing
+ * inside a live window. A change of artifact is the one case where
+ * re-navigating the iframe is correct, and the key is what makes it
+ * happen; the retainer itself must stay as strict as it is.
  */
 export function DocumentArtifactCard({
   artifact,
@@ -77,6 +89,7 @@ export function DocumentArtifactCard({
       {artifact.url ? (
         <>
           <DocumentFrame
+            key={artifact.kind}
             src={artifact.url}
             title={documentName}
             className={frameClassName}

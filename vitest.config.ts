@@ -19,6 +19,12 @@ export default defineConfig({
       ),
     },
   },
+  // tsconfig sets "jsx": "preserve" because Next does its own JSX
+  // transform. Vite reads that and leaves the JSX in place, so a test
+  // that imports a .tsx module fails to parse. Compiling it here lets
+  // a server component be CALLED as the plain function it is and its
+  // returned element tree asserted, with no DOM and no renderer.
+  oxc: { jsx: { runtime: 'automatic' } },
   test: {
     environment: 'node',
     include: ['tests/**/*.test.ts'],
