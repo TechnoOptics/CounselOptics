@@ -195,6 +195,18 @@ create table if not exists public.firm_trial_events (
   action text not null check (action in
     ('granted', 'extended', 'reset', 'suspended', 'restored', 'seats_changed')),
   actor_user_id uuid,
+  -- Denormalised on purpose. This table exists to answer "who gave that firm
+  -- another month, and when", and a bare uuid stops answering that the moment
+  -- the person is deleted: the row survives but degrades to something
+  -- unresolvable. The repo's own precedent does the same, at
+  -- supabase/fixes/2026-05-12-admin-impersonations.sql:9, which carries
+  -- admin_email beside admin_id.
+  --
+  -- No foreign key, deliberately. `on delete restrict` would preserve the
+  -- answer but block deleting any HQ admin who has ever touched a trial, which
+  -- is real friction against an erasure request. `on delete cascade` would
+  -- destroy the audit row, which is the opposite of the point.
+  actor_email text,
   previous_value text,
   new_value text,
   note text,
