@@ -2634,8 +2634,18 @@ export async function resendSigningEmailsAction(
     signed_at: string | null;
     access_code_hash: string | null;
   } | null;
-  if (!sig) return { ok: false, error: 'Signer not found.' };
-  if (sig.signed_at) return { ok: false, error: 'This signer has already signed.' };
+  // Nothing about this signature may be disclosed before the caller has
+  // proven the firm owns it, so a signature id that does not exist and
+  // one that belongs to ANOTHER firm answer with the same sentence. A
+  // distinct "Signer not found." here would turn this endpoint into a
+  // cross-tenant probe: enumerate ids, and the wording alone tells you
+  // whether the row exists elsewhere. The already-signed check moves
+  // below the ownership check for the same reason.
+  const NOT_YOURS = {
+    ok: false as const,
+    error: 'Signing request not found for this firm.',
+  };
+  if (!sig) return NOT_YOURS;
 
   const { data: reqRow } = await admin
     .from('firm_signing_requests')
@@ -2648,11 +2658,24 @@ export async function resendSigningEmailsAction(
     message: string | null;
     status: FirmSigningStatus;
   } | null;
-  if (!req || req.firm_id !== firmId) {
-    return { ok: false, error: 'Signing request not found for this firm.' };
-  }
-  if (req.status === 'canceled' || req.status === 'completed') {
-    return { ok: false, error: 'This request is closed. Send a new one instead.' };
+  if (!req || req.firm_id !== firmId) return NOT_YOURS;
+
+  if (sig.signed_at) return { ok: false, error: 'This signer has already signed.' };
+  // The server has to enforce what the page implies. The detail page
+  // hides Resend for a request that was rejected or sent back for
+  // changes, but every 'use server' export is a public endpoint, so a
+  // direct call would otherwise re-mail the sign link for a request the
+  // signer has already declined. Reopen it first, then resend.
+  if (
+    req.status === 'canceled' ||
+    req.status === 'completed' ||
+    req.status === 'rejected' ||
+    req.status === 'changes_requested'
+  ) {
+    return {
+      ok: false,
+      error: 'This request is no longer open. Reopen it or send a new one.',
+    };
   }
 
   const { data: docRow } = await admin
@@ -2709,10 +2732,31 @@ export async function resendSigningEmailsAction(
     if (codeResult.ok) {
       // Only rotate the stored hash once the new code is on its way. If
       // the send failed, the signer keeps whatever code they may already
-      // have rather than being locked out by a code nobody received.
+      // have rather than being locked out by a code nobody received -
+      // and, just as important, the attempt counter below is NOT cleared
+      // for a code nobody received.
+      //
+      // access_attempts is the whole point of the reset. Eight wrong
+      // guesses lock the code and verifyAccessCodeAction tells the
+      // signer, in as many words, to ask the firm to resend. Nothing
+      // else in the tree ever clears that counter, so without this the
+      // instruction was guaranteed to fail: the fresh code arrives, the
+      // signer types it, and the lockout returns before the hash is ever
+      // compared. Resend is the recovery path, so it has to actually
+      // recover.
+      //
+      // access_code_verified_at goes with it. It is the "this token is
+      // already unlocked" latch, checked before the lockout and before
+      // the hash. Leaving it set would mean rotating the credential had
+      // no effect on an already-unlocked link. The new code is the sole
+      // gate, and the signer holds it.
       await admin
         .from('firm_signatures')
-        .update({ access_code_hash: sha256(accessCode) })
+        .update({
+          access_code_hash: sha256(accessCode),
+          access_attempts: 0,
+          access_code_verified_at: null,
+        })
         .eq('id', sig.id);
       const { appendSignatureEvent } = await import('./esign-audit');
       await appendSignatureEvent(admin, {
