@@ -13,6 +13,7 @@ import {
 } from '@/lib/menu-config';
 import { ExternalLink } from '@/components/ExternalLink';
 import { T } from '@/components/i18n/LocaleProvider';
+import { accentOn } from '@/lib/accent-text';
 import type { LocaleCode } from '@/lib/i18n/locales';
 
 /**
@@ -124,8 +125,11 @@ export function CounselHeader({
                 />
               ) : (
                 <span
-                  className="h-9 w-9 rounded-md inline-flex items-center justify-center text-white font-semibold text-sm shadow-sm flex-none"
-                  style={{ backgroundColor: firm?.accentColor || '#0f2d24' }}
+                  className="h-9 w-9 rounded-md inline-flex items-center justify-center font-semibold text-sm shadow-sm flex-none"
+                  style={{
+                    backgroundColor: firm?.accentColor || '#0f2d24',
+                    color: accentOn(firm?.accentColor || '#0f2d24'),
+                  }}
                   aria-hidden
                 >
                   {firm ? firm.name.slice(0, 1).toUpperCase() : 'A'}
@@ -181,8 +185,11 @@ export function CounselHeader({
                 />
               ) : (
                 <span
-                  className="h-7 w-7 rounded-md inline-flex items-center justify-center text-white font-semibold text-xs shadow-sm flex-none"
-                  style={{ backgroundColor: firm?.accentColor || '#0f2d24' }}
+                  className="h-7 w-7 rounded-md inline-flex items-center justify-center font-semibold text-xs shadow-sm flex-none"
+                  style={{
+                    backgroundColor: firm?.accentColor || '#0f2d24',
+                    color: accentOn(firm?.accentColor || '#0f2d24'),
+                  }}
                   aria-hidden
                 >
                   {firm ? firm.name.slice(0, 1).toUpperCase() : 'A'}

@@ -13,6 +13,7 @@ import { CounselGuestHeader } from '@/components/counsel/CounselGuestHeader';
 import { AskAdvottic } from '@/components/counsel/AskAdvottic';
 import { LocaleProvider } from '@/components/i18n/LocaleProvider';
 import { getLocaleCookie } from '@/lib/i18n/locale';
+import { accentOn } from '@/lib/accent-text';
 import {
   getGuestContext,
   guestPathAllowed,
@@ -36,9 +37,15 @@ export const dynamic = 'force-dynamic';
  *     at a firm they were removed from), pick their first membership
  *     and treat that as the active firm. The "Switch firm" UI in the
  *     header lets them pick another.
- *   - The firm's accent color is injected as a CSS variable
- *     `--firm-accent` on this layout's root so child pages can use
- *     it via the `firm-accent` Tailwind utility.
+ *   - The firm's accent color is injected on this layout's root as two
+ *     CSS variables: `--firm-accent`, the customer's exact hex, for
+ *     FILLS, and `--accent-on`, the readable foreground for text that
+ *     sits on top of such a fill. Read them with `var()` or with the
+ *     `text-accent-on` utility. There is no `firm-accent` Tailwind
+ *     utility; an earlier version of this comment claimed one and it
+ *     has never existed. For the accent used AS text, use
+ *     `text-accent-text`, which is derived rather than injected. See
+ *     lib/accent-text.ts.
  */
 export default async function CounselLayout({
   children,
@@ -135,6 +142,7 @@ export default async function CounselLayout({
             guest.firm
               ? ({
                   ['--firm-accent' as string]: guest.firm.accentColor,
+                  ['--accent-on' as string]: accentOn(guest.firm.accentColor),
                 } as React.CSSProperties)
               : undefined
           }
@@ -233,6 +241,7 @@ export default async function CounselLayout({
         active
           ? ({
               ['--firm-accent' as string]: active.firm.accentColor,
+              ['--accent-on' as string]: accentOn(active.firm.accentColor),
             } as React.CSSProperties)
           : undefined
       }

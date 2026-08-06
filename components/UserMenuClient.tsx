@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { LanguageSwitcher } from '@/components/i18n/LanguageSwitcher';
 import type { LocaleCode } from '@/lib/i18n/locales';
+import { accentOn } from '@/lib/accent-text';
 
 export type UserMenuProps = {
   email: string;
@@ -210,8 +211,11 @@ export function UserMenuClient(props: UserMenuProps) {
                     className="flex items-center gap-2.5 px-4 py-2 text-sm text-ink-800 hover:bg-cream-50 hover:text-forest-900 transition-colors"
                   >
                     <span
-                      className="h-5 w-5 rounded inline-flex items-center justify-center text-white text-[11px] font-semibold flex-none"
-                      style={{ backgroundColor: m.accentColor }}
+                      className="h-5 w-5 rounded inline-flex items-center justify-center text-[11px] font-semibold flex-none"
+                      style={{
+                        backgroundColor: m.accentColor,
+                        color: accentOn(m.accentColor),
+                      }}
                       aria-hidden
                     >
                       {m.firmName.slice(0, 1).toUpperCase()}

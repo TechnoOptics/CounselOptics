@@ -37,6 +37,19 @@ const config: Config = {
         'display-xl': ['4.5rem', { lineHeight: '0.98', letterSpacing: '-0.02em' }],
       },
       colors: {
+        // Semantic TEXT tokens. See the block at the top of
+        // app/globals.css for the derivation and its contrast proof, and
+        // lib/accent-text.ts for the arithmetic.
+        //
+        // Deliberately plain `var()` rather than the `rgb(... /
+        // <alpha-value>)` form used by `forest` below: these resolve
+        // through oklch() at paint time, so there are no channels to
+        // split and an opacity modifier (`text-accent-text/60`) does
+        // not apply. Use a fixed token instead of fading one.
+        'accent-text': 'var(--accent-text)',
+        'accent-on': 'var(--accent-on)',
+        'warn-text': 'var(--warn-text)',
+        'danger-text': 'var(--danger-text)',
         // Advottic brand - deep forest green base, warm gold accent.
         //
         // Driven by CSS custom properties (space-separated RGB

@@ -171,6 +171,92 @@ body {
   --brand-gold-soft: #f5edd6;
 }
 
+/* -------------------- Semantic text tokens --------------------------
+   Never hardcode a colour for TEXT. A brand colour tuned as a button
+   FILL is usually unreadable as text: the Advottic gold #d5bb7e is
+   9.75:1 on a counsel card and 1.87:1 on white. Same hex, two entirely
+   different jobs, so two entirely different tokens.
+
+     fill   var(--firm-accent)   buttons, dots, bars, avatar chips
+     text   var(--accent-text)   the accent used as words
+     on     var(--accent-on)     words sitting ON the accent fill
+
+   `--firm-accent` is white-label: it is whatever hex the customer put
+   in firms.accent_color, so `--accent-text` cannot be a lookup table.
+   It is DERIVED - keep the customer's hue, cap the chroma, pin the
+   OKLCH lightness. A pinned lightness is what buys a contrast floor
+   that holds for every colour a customer can pick rather than for the
+   few anyone thought to test.
+
+   The four numbers below are duplicated in lib/accent-text.ts, which is
+   where the arithmetic and its proof live. tests/accent-text.test.ts
+   reads THIS file and fails if the two ever disagree, so do not edit a
+   number here on its own.
+
+   Worst case over the entire sRGB gamut:
+
+     dark  L 0.78 / C<=0.10    6.63:1 on `.counsel-shell .bg-cream-200`
+                               (#2c2c31, the LIGHTEST substrate the dark
+                               product paints), 8.69:1 on a counsel card
+     light L 0.46 / C<=0.075   5.85:1 on cream-200, 6.84:1 on white
+
+   The chroma cap is load-bearing, not tidiness. With the customer's
+   full chroma the pinned result is often outside sRGB, and a browser
+   that clips per channel drags the luminance back down: pure red at
+   L 0.72 clips to 4.03:1 on `.bg-cream-200`, pure blue at L 0.66 clips
+   to 4.34:1 on a card. Lightness alone does NOT give the floor.
+
+   Each cap is the smallest maximum chroma over all hues at that
+   lightness (0.1110 at L 0.78, 0.0782 at L 0.46), rounded down. So
+   every derived colour is inside sRGB at every hue and no gamut mapping
+   ever runs - no clipping, no chroma reduction, no dependence on which
+   of the two a browser implements, and no hue drift.
+
+   Chroma below ~0.02 is visually neutral and is clamped to exactly zero
+   by the TypeScript helper so an achromatic accent gets a deterministic
+   grey instead of a hue picked out of float noise. Not mirrored here on
+   purpose: the proof sweeps chroma from 0 upward, so every value in
+   [0, cap] including 0 is already inside the floor.
+
+   `--warn-text` and `--danger-text` are NOT white-label. Status is not
+   branding, so these stay fixed and are simply chosen to clear the same
+   floor: on the counsel card #fbbf24 is 10.91:1 and #f87171 is 6.58:1;
+   on white #92400e is 7.09:1 and #b91c1c is 6.47:1.
+
+   `oklch(from ...)` is guarded by @supports so a browser without
+   relative colour syntax keeps the static fallback rather than
+   inheriting an invalid value. The fallback is this same derivation
+   applied to the default gold, so nothing is invented twice. */
+:root {
+  --accent-text: #6a5521;
+  --accent-on: #000000;
+  --warn-text: #92400e;
+  --danger-text: #b91c1c;
+}
+@supports (color: oklch(from red 0.5 min(c, 0.1) h)) {
+  :root {
+    --accent-text: oklch(from var(--firm-accent, #d5bb7e) 0.46 min(c, 0.075) h);
+  }
+}
+html.dark,
+.dark,
+.counsel-shell,
+.enterprise-shell,
+.hq-shell {
+  --accent-text: #ceb578;
+  --warn-text: #fbbf24;
+  --danger-text: #f87171;
+}
+@supports (color: oklch(from red 0.5 min(c, 0.1) h)) {
+  html.dark,
+  .dark,
+  .counsel-shell,
+  .enterprise-shell,
+  .hq-shell {
+    --accent-text: oklch(from var(--firm-accent, #d5bb7e) 0.78 min(c, 0.1) h);
+  }
+}
+
 html,
 body {
   background-color: #ffffff;

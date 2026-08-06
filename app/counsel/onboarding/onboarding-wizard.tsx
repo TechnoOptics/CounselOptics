@@ -861,10 +861,14 @@ function CheckIcon() {
       style={{ backgroundColor: 'var(--firm-accent, #d5bb7e)' }}
       aria-hidden
     >
+      {/* The tick is drawn ON the firm accent, so its colour has to come
+          from the accent rather than be fixed. --accent-on is set beside
+          --firm-accent by the counsel layout; the fallback matches the
+          gold that --firm-accent itself falls back to. */}
       <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
         <path
           d="M5 13l4 4 10-10"
-          stroke="#0a1f19"
+          stroke="var(--accent-on, #000000)"
           strokeWidth="3.5"
           strokeLinecap="round"
           strokeLinejoin="round"
