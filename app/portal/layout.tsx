@@ -10,6 +10,7 @@ import { HubNavLink, type HubNavItem } from '@/components/portal/HubNavLink';
 import { LocaleProvider, T } from '@/components/i18n/LocaleProvider';
 import { LanguageSwitcher } from '@/components/i18n/LanguageSwitcher';
 import { getLocaleCookie } from '@/lib/i18n/locale';
+import { accentOn } from '@/lib/accent-text';
 
 export const dynamic = 'force-dynamic';
 
@@ -203,7 +204,10 @@ export default async function PortalLayout({
     <div
       className="dark counsel-shell min-h-screen flex text-cream-100"
       style={
-        { ['--firm-accent' as string]: firm.accentColor } as React.CSSProperties
+        ({
+          ['--firm-accent' as string]: firm.accentColor,
+          ['--accent-on' as string]: accentOn(firm.accentColor),
+        } as React.CSSProperties)
       }
     >
       {/* Left rail */}
@@ -220,8 +224,11 @@ export default async function PortalLayout({
             />
           ) : (
             <span
-              className="h-8 w-8 rounded-lg flex-none inline-flex items-center justify-center text-black text-[13px] font-bold"
-              style={{ backgroundColor: firm.accentColor }}
+              className="h-8 w-8 rounded-lg flex-none inline-flex items-center justify-center text-[13px] font-bold"
+              style={{
+                backgroundColor: firm.accentColor,
+                color: accentOn(firm.accentColor),
+              }}
               aria-hidden
             >
               {firm.name.slice(0, 1).toUpperCase()}
@@ -288,8 +295,11 @@ export default async function PortalLayout({
               />
             ) : (
               <span
-                className="h-7 w-7 rounded-md inline-flex items-center justify-center text-black text-[12px] font-bold"
-                style={{ backgroundColor: firm.accentColor }}
+                className="h-7 w-7 rounded-md inline-flex items-center justify-center text-[12px] font-bold"
+                style={{
+                  backgroundColor: firm.accentColor,
+                  color: accentOn(firm.accentColor),
+                }}
                 aria-hidden
               >
                 {firm.name.slice(0, 1).toUpperCase()}

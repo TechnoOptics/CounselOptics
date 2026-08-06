@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { AcceptFirmButton } from './accept-firm-button';
+import { accentOn } from '@/lib/accent-text';
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
@@ -137,8 +138,11 @@ export default async function ConsumerLeadResponsesPage({
                 <li key={r.id} className="card p-5 space-y-3">
                   <div className="flex items-center gap-3">
                     <span
-                      className="h-10 w-10 shrink-0 rounded-md inline-flex items-center justify-center text-white font-semibold shadow-sm"
-                      style={{ backgroundColor: firm.accent_color }}
+                      className="h-10 w-10 shrink-0 rounded-md inline-flex items-center justify-center font-semibold shadow-sm"
+                      style={{
+                        backgroundColor: firm.accent_color,
+                        color: accentOn(firm.accent_color),
+                      }}
                       aria-hidden
                     >
                       {firm.name.slice(0, 1).toUpperCase()}

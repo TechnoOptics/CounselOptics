@@ -14,6 +14,7 @@ import { AccessCodeGate } from './access-code-gate';
 import { AutoTranslate } from '@/components/i18n/AutoTranslate';
 import { LanguageSwitcher } from '@/components/i18n/LanguageSwitcher';
 import { getLocaleCookie } from '@/lib/i18n/locale';
+import { accentOn } from '@/lib/accent-text';
 
 export const dynamic = 'force-dynamic';
 
@@ -217,14 +218,20 @@ export default async function SignPage({ params }: { params: { token: string } }
    <AutoTranslate initialLocale={locale}>
     <div
       className="min-h-screen bg-gradient-to-b from-cream-50 to-white dark:from-forest-950 dark:to-forest-900"
-      style={{ ['--firm-accent' as string]: firm.accentColor }}
+      style={{
+        ['--firm-accent' as string]: firm.accentColor,
+        ['--accent-on' as string]: accentOn(firm.accentColor),
+      }}
     >
       <header className="border-b border-ink-200 dark:border-forest-700/40 bg-white/95 dark:bg-forest-950/95 backdrop-blur-md sticky top-0 z-30">
         <div className="mx-auto max-w-5xl px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <span
-              className="h-9 w-9 rounded-md inline-flex items-center justify-center text-white font-semibold shadow-sm"
-              style={{ backgroundColor: firm.accentColor }}
+              className="h-9 w-9 rounded-md inline-flex items-center justify-center font-semibold shadow-sm"
+              style={{
+                backgroundColor: firm.accentColor,
+                color: accentOn(firm.accentColor),
+              }}
               aria-hidden
               data-no-translate
             >

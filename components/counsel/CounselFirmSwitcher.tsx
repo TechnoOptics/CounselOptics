@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { setActiveFirmAction } from '@/lib/firm-actions';
 import type { Firm, FirmMember } from '@/lib/firm-types';
 import { T } from '@/components/i18n/LocaleProvider';
+import { accentOn } from '@/lib/accent-text';
 
 /**
  * Tiny dropdown that lets a user with multiple firm memberships swap
@@ -92,8 +93,11 @@ export function CounselFirmSwitcher({
                 }`}
               >
                 <span
-                  className="h-5 w-5 rounded-md inline-flex items-center justify-center text-white text-[11px] font-semibold flex-none"
-                  style={{ backgroundColor: m.firm.accentColor }}
+                  className="h-5 w-5 rounded-md inline-flex items-center justify-center text-[11px] font-semibold flex-none"
+                  style={{
+                    backgroundColor: m.firm.accentColor,
+                    color: accentOn(m.firm.accentColor),
+                  }}
                   aria-hidden
                 >
                   {m.firm.name.slice(0, 1).toUpperCase()}

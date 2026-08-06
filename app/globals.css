@@ -164,11 +164,123 @@ body {
 }
 
 :root {
-  color-scheme: light dark;
+  /* color-scheme lives with the native-control rules further down, so
+     the reason it is a single keyword and not `light dark` sits next to
+     the inputs it governs. */
   --brand-dark: #0f2d24;
   --brand-mid: #23362f;
   --brand-gold: #d5bb7e;
   --brand-gold-soft: #f5edd6;
+}
+
+/* -------------------- Semantic text tokens --------------------------
+   Never hardcode a colour for TEXT. A brand colour tuned as a button
+   FILL is usually unreadable as text: the Advottic gold #d5bb7e is
+   9.75:1 on a counsel card and 1.87:1 on white. Same hex, two entirely
+   different jobs, so two entirely different tokens.
+
+     fill   var(--firm-accent)   buttons, dots, bars, avatar chips
+     text   var(--accent-text)   the accent used as words
+     on     var(--accent-on)     words sitting ON the accent fill
+
+   `--firm-accent` is white-label: it is whatever hex the customer put
+   in firms.accent_color, so `--accent-text` cannot be a lookup table.
+   It is DERIVED - keep the customer's hue, cap the chroma, pin the
+   OKLCH lightness. A pinned lightness is what buys a contrast floor
+   that holds for every colour a customer can pick rather than for the
+   few anyone thought to test.
+
+   The four numbers below are duplicated in lib/accent-text.ts, which is
+   where the arithmetic and its proof live. tests/accent-text.test.ts
+   reads THIS file and fails if the two ever disagree, so do not edit a
+   number here on its own.
+
+   WHICH SURFACES THE FLOOR COVERS. The dark tone below is declared on
+   one selector list that reaches two DIFFERENT repaint families. The
+   counsel and enterprise shells turn the light utilities near-black,
+   but the consumer dark theme turns the same utilities green further
+   down this file, and green is much lighter:
+
+     .counsel-shell .bg-cream-200   #2c2c31   luminance 0.0256
+     .dark .bg-cream-200            #2a5a47   luminance 0.0826
+
+   So the pin is set by #2a5a47, the lightest solid surface any of these
+   selectors paints, and not by the counsel neutrals. Both families are
+   listed in ACCENT_TEXT_SURFACES and a test reads the repaint rules
+   back out of this file to catch a new one being added without one.
+   The claim covers solid surfaces only: gradient stops keep their light
+   values in dark mode (see the note on the repaint block below) and
+   text on those still needs an explicit `dark:` variant.
+
+   Worst case over the entire sRGB gamut, on the tightest surface of
+   each tone:
+
+     dark  L 0.84 / C<=0.078   4.67:1 on `.dark .bg-cream-200` (#2a5a47),
+                               8.19:1 on `.counsel-shell .bg-cream-200`,
+                               10.74:1 on a counsel card
+     light L 0.46 / C<=0.075   5.81:1 on cream-200, 6.80:1 on white
+
+   The chroma cap is load-bearing, not tidiness. With the customer's
+   full chroma the pinned result is often outside sRGB, and a browser
+   that clips per channel drags the luminance back down: pure red at
+   L 0.72 clips to 4.04:1 on `.counsel-shell .bg-cream-200`, pure blue
+   at L 0.66 clips to 4.31:1 on a card and 3.29:1 on that same cream.
+   Lightness alone does NOT give the floor.
+
+   Each cap is the smallest maximum chroma over all hues at that
+   lightness (0.0788 at L 0.84, 0.0782 at L 0.46), rounded down. So
+   every derived colour is inside sRGB at every hue and no gamut mapping
+   ever runs - no clipping, no chroma reduction, no dependence on which
+   of the two a browser implements, and no hue drift.
+
+   Chroma below ~0.02 is visually neutral and is clamped to exactly zero
+   by the TypeScript helper so an achromatic accent gets a deterministic
+   grey instead of a hue picked out of float noise. Not mirrored here on
+   purpose: the proof sweeps chroma from 0 upward, so every value in
+   [0, cap] including 0 is already inside the floor.
+
+   `--warn-text` and `--danger-text` are NOT white-label. Status is not
+   branding, so these stay fixed, and they are held to the same floor on
+   the same tightest surfaces: on #2a5a47 #fbbf24 is 4.74:1 and #fecaca
+   is 5.47:1; on cream-200 #92400e is 6.07:1 and #b91c1c is 5.54:1. The
+   dark danger tone is red-200 and not the PILL_COLORS #f87171, which
+   measures 5.02:1 on the counsel cream but only 2.86:1 on the consumer
+   green one and so cannot carry a floor across this selector list.
+
+   `oklch(from ...)` is guarded by @supports so a browser without
+   relative colour syntax keeps the static fallback rather than
+   inheriting an invalid value. The fallback is this same derivation
+   applied to the default gold, so nothing is invented twice. An
+   accent_color that is not a hex at all still degrades silently on this
+   path - see the note in lib/accent-text.ts. */
+:root {
+  --accent-text: #6a5521;
+  --accent-on: #000000;
+  --warn-text: #92400e;
+  --danger-text: #b91c1c;
+}
+@supports (color: oklch(from red 0.5 min(c, 0.1) h)) {
+  :root {
+    --accent-text: oklch(from var(--firm-accent, #d5bb7e) 0.46 min(c, 0.075) h);
+  }
+}
+html.dark,
+.dark,
+.counsel-shell,
+.enterprise-shell,
+.hq-shell {
+  --accent-text: #e0c890;
+  --warn-text: #fbbf24;
+  --danger-text: #fecaca;
+}
+@supports (color: oklch(from red 0.5 min(c, 0.1) h)) {
+  html.dark,
+  .dark,
+  .counsel-shell,
+  .enterprise-shell,
+  .hq-shell {
+    --accent-text: oklch(from var(--firm-accent, #d5bb7e) 0.84 min(c, 0.078) h);
+  }
 }
 
 html,
@@ -920,6 +1032,133 @@ body > * {
 .hq-shell .input:focus {
   border-color: rgba(213, 187, 126, 0.45);
   background-color: rgba(10, 23, 20, 0.8);
+}
+
+/* -------------------------- Native controls -------------------------
+   The parts of a form the browser draws itself: the select popup, the
+   date picker, the autofill wash. None of them inherit the styling on
+   `.input`, so each has to be told separately, and each breaks in one
+   theme while looking fine in the other.
+
+   1. WHICH SCHEME THE BROWSER DRAWS IN.
+
+   `color-scheme` is what tells the engine to draw its own widgets dark
+   or light. It was `light dark` on :root, which does not mean "follow
+   the app" - it means "follow the OS". Advottic's theme is a `.dark`
+   CLASS that ThemeBoot sets from the profile preference, and the
+   counsel / enterprise / HQ shells force dark whatever the user chose.
+   So a user on a light Mac reading a dark counsel matter got the OS
+   answer: a white date picker dropped on a near-black field, with the
+   picker's own black text on it.
+
+   Pin it to the class instead. What does the work is that `.dark` and
+   the three shells now declare `color-scheme: dark` on the element that
+   carries the theme, so a control inside one of them inherits dark
+   rather than reading the root.
+
+   `color-scheme: inherit` on the controls themselves is DEFENSIVE, not
+   load-bearing, and the earlier claim here that the UA stylesheet
+   otherwise wins on form controls is not something this change can
+   demonstrate: `color-scheme` is an inherited property, so a control
+   already picks up its container's value without being told to. The
+   declaration is kept because it is explicit and costs nothing, and
+   because it pins the behaviour against a UA stylesheet that did set
+   its own value on controls. Treat it as belt and braces.
+
+   Note this also settles scrollbars and the canvas fallback, which
+   previously followed the OS while the page painted the opposite way.
+   No painted surface moves: `html, body` set their own background in
+   both themes, and `.counsel-shell .card` is untouched. */
+:root {
+  color-scheme: light;
+}
+html.dark {
+  color-scheme: dark;
+}
+.dark,
+.counsel-shell,
+.enterprise-shell,
+.hq-shell {
+  color-scheme: dark;
+}
+input,
+select,
+textarea {
+  color-scheme: inherit;
+}
+
+/* 2. THE SELECT POPUP.
+
+   Chrome draws `option` from its own palette and ignores the colours on
+   the parent select, so a styled dark select still opened a list nobody
+   could read. Light mode needs no rule: the browser default there is a
+   white list with dark text, which is already what the page wants, and
+   overriding it is how you break the light theme while fixing the dark
+   one. So this is scoped to the dark contexts only.
+
+   The surface is `--forest-800`, the same token the ramp uses for an
+   inset. That matters because the enterprise shells REMAP the forest
+   ramp to neutral black further up this file, so one declaration gives
+   the consumer app a dark green list and counsel a near-black one, and
+   a future palette change carries both.
+
+   The foreground goes through the palette for the same reason, and it
+   used to be the one thing in this whole change that was a literal:
+   `color: #f5edd6` in the commit whose thesis is never to hardcode a
+   colour for text. `theme()` resolves at build time from
+   tailwind.config.ts, so cream-100 here IS the cream-100 `.input` uses
+   in dark, by construction rather than by a comment claiming it. (The
+   old literal was cream-200, not the cream-100 this comment named. That
+   is the drift.) */
+html.dark option,
+.dark option,
+.counsel-shell option,
+.enterprise-shell option,
+.hq-shell option {
+  background-color: rgb(var(--forest-800));
+  color: theme('colors.cream.100');
+}
+
+/* 3. AUTOFILL.
+
+   Chrome paints its own pale yellow over a field it filled and forces
+   the text to near-black, and neither is reachable with `background`
+   or `color`. The yellow is applied as a transition, so a transition
+   duration long enough never to arrive keeps it away; the text needs
+   `-webkit-text-fill-color`, which is the property the UA actually
+   sets. `currentColor` there resolves to the field's own `color`, so
+   this needs no token and no per-theme variant: cream inside a counsel
+   input, ink on the light signer page, correct in both by construction.
+
+   border-color and color are kept in the transition list so a field
+   does not lose its focus animation for having been autofilled.
+
+   Both spellings are matched. `:autofill` is the standard the prefixed
+   form was folded into, and a browser that has only one of them is the
+   case this rule exists for. They cannot simply be listed side by side:
+   an unknown pseudo-class in a plain selector list invalidates the
+   WHOLE rule, so naming `:autofill` in the same comma list would drop
+   the working prefixed rule on any engine that does not know it.
+   `:is()` has forgiving selector parsing, which is exactly the tool for
+   this: an argument the engine cannot parse is dropped and the rest
+   still matches. Specificity is unchanged, since `:is()` takes the
+   highest of its arguments and both are pseudo-classes. */
+input:is(:-webkit-autofill, :autofill),
+input:is(:-webkit-autofill, :autofill):hover,
+input:is(:-webkit-autofill, :autofill):focus,
+input:is(:-webkit-autofill, :autofill):active,
+textarea:is(:-webkit-autofill, :autofill),
+textarea:is(:-webkit-autofill, :autofill):hover,
+textarea:is(:-webkit-autofill, :autofill):focus,
+select:is(:-webkit-autofill, :autofill),
+select:is(:-webkit-autofill, :autofill):hover,
+select:is(:-webkit-autofill, :autofill):focus {
+  transition:
+    background-color 9999s ease-in-out 0s,
+    border-color 0.15s ease,
+    color 0.15s ease;
+  -webkit-text-fill-color: currentColor;
+  caret-color: currentColor;
 }
 
 /* ----------------------- Capture deterrents -----------------------

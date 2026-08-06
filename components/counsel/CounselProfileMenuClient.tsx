@@ -8,6 +8,7 @@ import { LanguageSwitcher } from '@/components/i18n/LanguageSwitcher';
 import { TokenBalanceGauge } from '@/components/TokenBalanceGauge';
 import { T } from '@/components/i18n/LocaleProvider';
 import type { LocaleCode } from '@/lib/i18n/locales';
+import { accentOn } from '@/lib/accent-text';
 
 /**
  * Consolidated account menu for the Counsel header. Everything that
@@ -224,8 +225,11 @@ export function CounselProfileMenuClient(props: CounselProfileMenuClientProps) {
                     }`}
                   >
                     <span
-                      className="h-5 w-5 rounded inline-flex items-center justify-center text-white text-[11px] font-semibold flex-none"
-                      style={{ backgroundColor: m.accentColor }}
+                      className="h-5 w-5 rounded inline-flex items-center justify-center text-[11px] font-semibold flex-none"
+                      style={{
+                        backgroundColor: m.accentColor,
+                        color: accentOn(m.accentColor),
+                      }}
                       aria-hidden
                     >
                       {m.firmName.slice(0, 1).toUpperCase()}
