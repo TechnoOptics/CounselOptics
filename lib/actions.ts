@@ -793,6 +793,10 @@ export async function updateProfileAction(formData: FormData) {
     avatarUrl: (user.user_metadata?.avatar_url as string | undefined) ?? null,
   });
   revalidatePath('/profile');
+  // The firm-side account page renders the same form under the counsel
+  // shell, so it needs the same invalidation or a saved name keeps
+  // showing the old value there.
+  revalidatePath('/counsel/profile');
   revalidatePath('/');
 }
 

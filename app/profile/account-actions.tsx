@@ -55,14 +55,18 @@ export function AccountActions() {
         </button>
       </div>
 
+      {/* Dark variants on the panel below matter beyond consumer dark mode:
+          this card also renders on the firm account page, which is always
+          dark, and a destructive confirmation must not be the one light-red
+          box on a black screen. */}
       {showDelete && (
-        <div className="rounded-lg border border-rose-200 bg-rose-50/60 p-4 space-y-3">
-          <p className="text-sm text-rose-900 leading-relaxed">
+        <div className="rounded-lg border border-rose-200 bg-rose-50/60 dark:border-rose-700/40 dark:bg-rose-950/20 p-4 space-y-3">
+          <p className="text-sm text-rose-900 dark:text-rose-200 leading-relaxed">
             <strong>This is permanent.</strong> All your cases, exhibits, Advottic Reviews,
             profile, and uploaded files will be deleted. Stripe billing history is retained as
             required by law.
           </p>
-          <p className="text-sm text-rose-900">
+          <p className="text-sm text-rose-900 dark:text-rose-200">
             Type <code className="font-mono text-xs">DELETE MY ACCOUNT</code> to confirm:
           </p>
           <input
@@ -95,7 +99,7 @@ export function AccountActions() {
             </button>
           </div>
           {error && (
-            <p className="rounded-md border border-rose-300 bg-rose-100 px-3 py-2 text-xs text-rose-900">
+            <p className="rounded-md border border-rose-300 bg-rose-100 dark:border-rose-700/50 dark:bg-rose-950/40 px-3 py-2 text-xs text-rose-900 dark:text-rose-200">
               {error}
             </p>
           )}

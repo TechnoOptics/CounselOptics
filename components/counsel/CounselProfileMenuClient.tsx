@@ -293,12 +293,16 @@ export function CounselProfileMenuClient(props: CounselProfileMenuClientProps) {
             <LanguageSwitcher initialLocale={props.locale} />
           </div>
 
-          {/* Account links */}
+          {/* Account links. These MUST stay under /counsel: the consumer
+              /profile and /feedback routes render under the root layout,
+              which paints the consumer chrome, so linking there from here
+              dropped an attorney out of the firm workspace and into what
+              looked like a different product. */}
           <div className="py-1">
-            <MenuLink href="/profile" onClick={() => setOpen(false)}>
-              <T>Profile &amp; settings</T>
+            <MenuLink href="/counsel/profile" onClick={() => setOpen(false)}>
+              <T>Your account</T>
             </MenuLink>
-            <MenuLink href="/feedback" onClick={() => setOpen(false)}>
+            <MenuLink href="/counsel/feedback" onClick={() => setOpen(false)}>
               <T>Send feedback</T>
             </MenuLink>
           </div>
@@ -317,10 +321,10 @@ export function CounselProfileMenuClient(props: CounselProfileMenuClientProps) {
                   href="/admin"
                   onClick={() => setOpen(false)}
                   role="menuitem"
-                  className="flex items-center gap-2.5 px-4 py-2 text-sm text-ink-800 hover:bg-cream-50 hover:text-forest-900 transition-colors"
+                  className="flex items-start gap-2.5 px-4 py-2 text-sm text-ink-800 hover:bg-cream-50 hover:text-forest-900 transition-colors"
                 >
                   <span
-                    className="h-5 w-5 rounded inline-flex items-center justify-center text-[11px] font-semibold flex-none text-forest-950"
+                    className="h-5 w-5 mt-0.5 rounded inline-flex items-center justify-center text-[11px] font-semibold flex-none text-forest-950"
                     style={{
                       background:
                         'linear-gradient(135deg, #f5edd6 0%, #d5bb7e 50%, #c9a96e 100%)',
@@ -329,8 +333,17 @@ export function CounselProfileMenuClient(props: CounselProfileMenuClientProps) {
                   >
                     HQ
                   </span>
-                  <span className="flex-1 truncate font-medium">Advottic HQ</span>
-                  <span aria-hidden className="text-ink-400">→</span>
+                  {/* HQ is the platform-staff console, a genuinely separate
+                      application with its own shell. Leaving Counsel is
+                      correct here, so the item says so rather than being a
+                      surprise: everything else in this menu stays put. */}
+                  <span className="flex-1 min-w-0">
+                    <span className="block truncate font-medium">Advottic HQ</span>
+                    <span className="block text-[11px] text-ink-500 leading-snug">
+                      <T>Leaves the firm workspace.</T>
+                    </span>
+                  </span>
+                  <span aria-hidden className="mt-0.5 text-ink-400">→</span>
                 </a>
               )}
             </div>
