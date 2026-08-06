@@ -942,6 +942,15 @@ export async function addFirmEmployeeAction(
   if (!(await callerIsFirmAdmin(firmId))) {
     return { ok: false, error: 'Only an owner or admin can add employees.' };
   }
+  // The twin of inviteFirmMemberAction. Gating one route into an organization
+  // and leaving the other open gates nothing: this is how a Hub employee is
+  // added, and it writes firm_employees through the admin client.
+  //
+  // No seat check here, deliberately. A firm_employees row is not a
+  // firm_members seat: it is a person the organization's Hub knows about, and
+  // seatCheck is called where a seat is actually consumed, at the
+  // firm_members insert in acceptFirmInvitationAction.
+  await requireActiveFirm(firmId);
   const email = String(formData.get('email') ?? '')
     .trim()
     .toLowerCase();
@@ -1433,6 +1442,11 @@ export async function convertIntakeToCaseAction(
   if (!role || !['owner', 'admin', 'attorney', 'paralegal'].includes(role)) {
     return { ok: false, error: 'You do not have permission to open a matter.' };
   }
+  // The OTHER way a matter gets created. createFirmCaseAction is gated, and
+  // gating one of a pair while its twin stays open enforces nothing: an
+  // organization whose access ended could keep opening matters straight off
+  // its intake queue.
+  await requireActiveFirm(firmId);
 
   const { data: row } = await admin
     .from('firm_matter_intakes')
@@ -1683,6 +1697,11 @@ export async function scheduleStandaloneMeetingAction(
   if (!(await callerIsFirmMember(firmId))) {
     return { ok: false, error: 'You do not have access to this firm.' };
   }
+  // This one sends OUTBOUND calendar invitations, to third parties, in
+  // Advottic's name and under the organization's. A suspended organization is
+  // the abuse-response state, so leaving this open means the response does not
+  // stop the behaviour it was invoked for.
+  await requireActiveFirm(firmId);
   const admin = createAdminSupabase();
   if (!admin) return { ok: false, error: 'Server not configured.' };
 
@@ -2545,6 +2564,27 @@ export async function sendFirmMessageAction(
   if (!trimmed) return { ok: false, error: 'Message cannot be empty.' };
   if (trimmed.length > 4000) return { ok: false, error: 'Message is too long (4000 char max).' };
   const supabase = createServerSupabase();
+  // The channel says which organization this is, and the argument does not, so
+  // the firm has to be resolved before anything is written. Read through the
+  // USER-scoped client on purpose: RLS already limits it to channels the
+  // sender belongs to, so this cannot become a way to probe another firm's
+  // channel ids.
+  //
+  // This action matters more than its size suggests. The fan-out below sends
+  // OUTBOUND notification email and fires the organization's webhooks, so a
+  // suspended organization, which is the abuse-response state, could otherwise
+  // still reach third parties through it.
+  //
+  // A channel we cannot read is a refusal, not a pass. The insert would have
+  // failed on RLS anyway; saying so here is the same answer, earlier.
+  const { data: channelRef } = await supabase
+    .from('firm_channels')
+    .select('firm_id')
+    .eq('id', channelId)
+    .maybeSingle();
+  const channelFirmId = (channelRef as { firm_id?: string } | null)?.firm_id;
+  if (!channelFirmId) return { ok: false, error: 'Channel not found.' };
+  await requireActiveFirm(channelFirmId);
   const { data, error } = await supabase
     .from('firm_messages')
     .insert({

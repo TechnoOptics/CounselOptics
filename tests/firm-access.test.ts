@@ -6,7 +6,9 @@ import {
   firmAccessState,
   seatCheck,
   counselAccessRedirect,
+  isAccessEndedError,
   ACCESS_ENDED_PATH,
+  ACCESS_ENDED_CODE,
   type FirmAccessInput,
 } from '../lib/firm-access';
 
@@ -299,6 +301,62 @@ describe('counselAccessRedirect', () => {
       counselAccessRedirect('/_next/static/chunk.js', 'export_only'),
     ).toBeNull();
   });
+
+  // The gate runs on the user's ACTIVE firm, so an attorney whose current
+  // organization has lapsed would otherwise be unable to open an invitation
+  // from a DIFFERENT organization that pays: every click on the invitation
+  // link lands them back here with no way through. Joining another
+  // organization is not using this one.
+  it('never gates the invitation-acceptance page', () => {
+    expect(counselAccessRedirect('/counsel/accept-invite', 'export_only')).toBeNull();
+  });
+});
+
+/**
+ * The identity of the refusal, which is what app/counsel/error.tsx matches on.
+ *
+ * The point of every test here is that the MESSAGE is not the identity. It is
+ * copy, it will be edited, and a boundary that matched on it would silently
+ * become a boundary that matches nothing.
+ */
+describe('the access-ended error identity', () => {
+  it('recognises what requireActiveFirm actually throws', async () => {
+    supa.configured = true;
+    supa.row = { trial_ends_at: null, suspended_at: new Date().toISOString() };
+    supa.error = null;
+    const mod = await import('../lib/firm-authz');
+    const caught = await mod
+      .requireActiveFirm('firm-1')
+      .then(() => null)
+      .catch((e: unknown) => e);
+    expect(caught).not.toBeNull();
+    expect(isAccessEndedError(caught)).toBe(true);
+  });
+
+  // The whole reason the class exists. Rewording the copy must not quietly
+  // turn a targeted catch into a catch-nothing.
+  it('survives a copy edit to the message', async () => {
+    const { FirmAccessEndedError } = await import('../lib/firm-authz');
+    expect(isAccessEndedError(new FirmAccessEndedError('anything at all'))).toBe(true);
+  });
+
+  // Across the server-to-client boundary of a Next error boundary the value
+  // arrives as a plain object, and in production the message is redacted
+  // before it gets there. `digest` is the field Next carries through.
+  it('recognises the redacted plain object a client boundary receives', () => {
+    expect(
+      isAccessEndedError({
+        message: 'An error occurred in the Server Components render.',
+        digest: ACCESS_ENDED_CODE,
+      }),
+    ).toBe(true);
+  });
+
+  it('does not recognise an unrelated failure', () => {
+    expect(isAccessEndedError(new Error('connection reset'))).toBe(false);
+    expect(isAccessEndedError(null)).toBe(false);
+    expect(isAccessEndedError('This organization’s access has ended.')).toBe(false);
+  });
 });
 
 /**
@@ -420,7 +478,16 @@ describe('the access-ended page', () => {
     return found;
   }
 
-  async function render(role: 'owner' | 'staff') {
+  /**
+   * `lookup` is the THREE-way answer the page now asks for: the caller holds
+   * an admin role, the caller holds some other role, or the membership row
+   * could not be read at all. The third is why callerFirmRoleLookup exists;
+   * callerHasFirmRole collapses it into the second, which on this page tells
+   * an owner to go and ask an owner.
+   */
+  async function render(
+    lookup: { ok: true; role: string | null } | { ok: false },
+  ) {
     vi.resetModules();
     vi.doMock('@/lib/supabase/server', () => ({
       getCurrentUser: async () => ({ id: 'u1', email: 'a@example.com' }),
@@ -429,14 +496,13 @@ describe('the access-ended page', () => {
     vi.doMock('@/lib/firm-storage', () => ({
       getActiveFirmContext: async () => ({
         firm: { id: 'firm-1', name: 'Rowan and Hale', accentColor: '#caa044' },
-        membership: { role },
+        membership: { role: lookup.ok ? lookup.role : null },
       }),
       listMyFirms: async () => [],
     }));
     vi.doMock('@/lib/firm-authz', () => ({
       FIRM_ADMIN_ROLES: ['owner', 'admin'],
-      callerHasFirmRole: async (_firmId: string, roles: readonly string[]) =>
-        roles.includes(role),
+      callerFirmRoleLookup: async () => lookup,
     }));
     vi.doMock('@/lib/i18n/locale', () => ({ getLocaleCookie: async () => 'en' }));
     const mod = await import('@/app/counsel/access-ended/page');
@@ -444,7 +510,7 @@ describe('the access-ended page', () => {
   }
 
   it('offers the export to an owner, and does not say anything is deleted', async () => {
-    const tree = await render('owner');
+    const tree = await render({ ok: true, role: 'owner' });
     const text = textOf(tree);
     expect(text).toContain("Your organization's access has ended");
     expect(text).toContain(
@@ -457,13 +523,215 @@ describe('the access-ended page', () => {
   });
 
   it('explains to an ordinary member, and offers them no export', async () => {
-    const tree = await render('staff');
+    const tree = await render({ ok: true, role: 'staff' });
     const text = textOf(tree);
     expect(text).toContain("Your organization's access has ended");
     expect(text).toContain(
       'An owner or an administrator at your organization can download your data. Speak to them if you need something from here.',
     );
     expect(hrefsOf(tree)).not.toContain('/api/firm/export');
+  });
+
+  // The page that hands the data back is the worst place to report a
+  // transient read failure as a fact about the person. Failing closed on the
+  // export is right and stays; telling an OWNER to go and ask an owner, with
+  // nothing to click, is not. It has to say it could not check, and offer a
+  // way to check again.
+  it('says it could not check, rather than that they are not an admin', async () => {
+    const tree = await render({ ok: false });
+    const text = textOf(tree);
+    expect(text).toContain("Your organization's access has ended");
+    expect(text).toContain('We could not check what you can do here just now');
+    expect(text).not.toContain('An owner or an administrator at your organization can download');
+    expect(text).not.toMatch(/will be deleted|deletion|erased|wiped|purged/i);
+    // Fails closed on the privilege: no export link on an unverified role.
+    expect(hrefsOf(tree)).not.toContain('/api/firm/export');
+    // And a neutral retry, which is the part that was missing.
+    expect(text).toContain('Try again');
+    expect(hrefsOf(tree)).toContain(ACCESS_ENDED_PATH);
+  });
+});
+
+/**
+ * The counsel error boundary, rendered for real.
+ *
+ * This exists because a throw from a gated action reaches a BROWSER in the
+ * window between the access state flipping mid-session and that person's next
+ * full navigation, which is when a paralegal clicks Save on work in progress.
+ * Without the boundary they get "Something went wrong" on a save.
+ *
+ * renderToStaticMarkup runs the component with its hooks and without a DOM;
+ * effects do not run under it, which is fine, because the branch under test is
+ * what it renders and not what it reports.
+ */
+describe('the counsel error boundary', () => {
+  // The access-ended page tests above leave a doMock on '@/lib/firm-authz'
+  // registered, and it survives resetModules. Drop it, because the error class
+  // under test here is a REAL export of that module.
+  beforeEach(() => {
+    vi.doUnmock('@/lib/firm-authz');
+    vi.resetModules();
+  });
+
+  async function render(error: unknown) {
+    vi.resetModules();
+    vi.doMock('next/link', () => ({
+      default: ({ href, children }: { href: string; children: unknown }) => ({
+        type: 'a',
+        props: { href, children },
+        key: null,
+        $$typeof: Symbol.for('react.element'),
+      }),
+    }));
+    const [{ default: Boundary }, { renderToStaticMarkup }, React] =
+      await Promise.all([
+        import('@/app/counsel/error'),
+        import('react-dom/server'),
+        import('react'),
+      ]);
+    return renderToStaticMarkup(
+      React.createElement(Boundary, {
+        error: error as Error & { digest?: string },
+        reset: () => {},
+      }),
+    );
+  }
+
+  it('renders calm copy for the refusal, and never claims a deletion', async () => {
+    const { FirmAccessEndedError } = await import('../lib/firm-authz');
+    const html = await render(new FirmAccessEndedError());
+    expect(html).toContain('access has ended');
+    expect(html).toContain('not being deleted');
+    expect(html).not.toContain('Something went wrong');
+    expect(html).toContain(ACCESS_ENDED_PATH);
+  });
+
+  // The shape a client boundary actually receives in production: a plain
+  // object whose message has been redacted, carrying the digest.
+  it('recognises the refusal after Next has redacted the message', async () => {
+    const html = await render({
+      message: 'An error occurred in the Server Components render.',
+      digest: ACCESS_ENDED_CODE,
+    });
+    expect(html).toContain('access has ended');
+    expect(html).not.toContain('Something went wrong');
+  });
+
+  // The other half. A boundary that showed the access copy for every failure
+  // would be worse than no boundary: it would tell a firm its access ended
+  // every time anything at all broke.
+  it('falls through to the generic copy for anything else', async () => {
+    const html = await render(new Error('connection reset'));
+    expect(html).toContain('Something went wrong');
+    expect(html).not.toContain('access has ended');
+  });
+});
+
+/**
+ * Layer one, the shell redirect, as BEHAVIOUR.
+ *
+ * A source test that only checks the two tokens are present is blind to the
+ * mutation that keeps both and replaces `if (destination) redirect(destination)`
+ * with `void destination`. That is the whole layer, deleted, with every token
+ * intact. So the layout is rendered against stand-in modules and the redirect
+ * is observed.
+ */
+describe('the counsel shell redirect', () => {
+  async function renderLayout(
+    state: 'active' | 'export_only',
+    pathname: string,
+  ): Promise<{ redirectedTo: string | null }> {
+    vi.resetModules();
+    vi.doMock('next/navigation', () => ({
+      // Next's redirect throws, and the layout relies on that: nothing after
+      // it runs. Mirroring the throw is what makes "did it redirect" and "did
+      // it fall through" distinguishable at all.
+      redirect: (url: string) => {
+        throw new Error(`NEXT_REDIRECT:${url}`);
+      },
+    }));
+    vi.doMock('next/headers', () => ({
+      headers: () => ({
+        get: (k: string) => (k === 'x-pathname' ? pathname : null),
+      }),
+    }));
+    vi.doMock('next/link', () => ({ default: () => null }));
+    vi.doMock('@/lib/supabase/server', () => ({
+      getCurrentUserResult: async () => ({ user: { id: 'u1' } }),
+      isSupabaseConfigured: () => true,
+    }));
+    vi.doMock('@/lib/firm-storage', () => ({
+      listMyFirms: async () => [
+        { firm: { id: 'firm-1', name: 'Rowan and Hale', accentColor: '#caa044' }, membership: { role: 'owner' } },
+      ],
+      getActiveFirmContext: async () => ({
+        firm: { id: 'firm-1', name: 'Rowan and Hale', accentColor: '#caa044' },
+        membership: { role: 'owner' },
+      }),
+    }));
+    // The real lib/firm-access is deliberately NOT mocked: the allowlist under
+    // test is the one that ships.
+    vi.doMock('@/lib/firm-trials', () => ({ firmTrialState: async () => state }));
+    vi.doMock('@/lib/firm-settings', () => ({
+      getFirmSurfaceSettings: async () => ({ hideSearch: false, hideTimeBilling: false }),
+      DEFAULT_FIRM_SURFACE_SETTINGS: { hideSearch: false, hideTimeBilling: false },
+    }));
+    vi.doMock('@/lib/i18n/locale', () => ({ getLocaleCookie: async () => 'en' }));
+    vi.doMock('@/lib/counsel-guest', () => ({
+      getGuestContext: async () => null,
+      guestPathAllowed: () => true,
+      guestFallbackPath: () => '/counsel',
+    }));
+    // The chrome, stubbed. None of these is ever invoked: a server component
+    // returns an element tree that merely HOLDS the component function, so
+    // the stubs exist only so the layout's imports resolve under node.
+    for (const [mod, names] of Object.entries(CHROME)) {
+      vi.doMock(mod, () =>
+        Object.fromEntries(names.map((n) => [n, () => null])),
+      );
+    }
+    const mod = await import('@/app/counsel/layout');
+    try {
+      await mod.default({ children: null });
+      return { redirectedTo: null };
+    } catch (e) {
+      const message = (e as Error).message ?? '';
+      if (!message.startsWith('NEXT_REDIRECT:')) throw e;
+      return { redirectedTo: message.slice('NEXT_REDIRECT:'.length) };
+    }
+  }
+
+  const CHROME: Record<string, readonly string[]> = {
+    '@/components/auth/SessionReconnect': ['SessionReconnect'],
+    '@/components/counsel/CounselSidebar': ['CounselSidebar'],
+    '@/components/counsel/CounselTrialBanner': ['CounselTrialBanner'],
+    '@/components/counsel/CounselHeader': ['CounselHeader'],
+    '@/components/counsel/CounselGuestHeader': ['CounselGuestHeader'],
+    '@/components/counsel/AskAdvottic': ['AskAdvottic'],
+    '@/components/counsel/SidebarFocus': [
+      'SidebarCollapseProvider',
+      'CounselSidebarShell',
+    ],
+    '@/components/i18n/LocaleProvider': ['LocaleProvider', 'T'],
+  };
+
+  it('sends an export_only organization to the access-ended page', async () => {
+    expect((await renderLayout('export_only', '/counsel/cases')).redirectedTo).toBe(
+      ACCESS_ENDED_PATH,
+    );
+  });
+
+  it('lets an active organization through', async () => {
+    expect((await renderLayout('active', '/counsel/cases')).redirectedTo).toBeNull();
+  });
+
+  // The allowlist reaching all the way through the layout, not merely through
+  // the pure function. An attorney at a lapsed organization opening an
+  // invitation from one that pays must land on the invitation.
+  it('does not trap the invitation page behind the gate', async () => {
+    expect(
+      (await renderLayout('export_only', '/counsel/accept-invite')).redirectedTo,
+    ).toBeNull();
   });
 });
 
@@ -511,6 +779,9 @@ describe('the enforcement wiring', () => {
     }
   });
 
+  const evidenceActions = readFileSync(join(ROOT, 'lib/case-evidence-actions.ts'), 'utf8');
+  const signingActions = readFileSync(join(ROOT, 'lib/signing-actions.ts'), 'utf8');
+
   function bodyOf(src: string, fn: string): string {
     const start = src.indexOf(`export async function ${fn}`);
     expect(start, `${fn} is missing`).toBeGreaterThan(-1);
@@ -518,38 +789,106 @@ describe('the enforcement wiring', () => {
     return src.slice(start, end === -1 ? undefined : end);
   }
 
-  // The half that is not a courtesy. These actions are public HTTP endpoints,
-  // so a person whose browser was redirected to the access-ended page can
-  // still call them by hand, and the redirect above does nothing about it.
-  //
-  // This list is what an organization would use to keep WORKING after its
-  // access ended: new matters, new documents, new signature requests, new
-  // people. It is not every firm action in the codebase, and the report says
-  // so rather than implying the sweep is finished.
-  it('gates the firm write paths that create new work product', () => {
-    for (const fn of [
+  /**
+   * The half that is not a courtesy. These actions are public HTTP endpoints,
+   * so a person whose browser was redirected to the access-ended page can
+   * still call them by hand, and the redirect above does nothing about it.
+   *
+   * The rule this list follows is TWINS. Gating one path of a pair and
+   * leaving the other open gates nothing, because the open one does the same
+   * work: two matter-creation paths, two evidence intakes, three points in
+   * the signing lifecycle, two ways to add a person. Plus the two paths that
+   * send outbound mail and calendar invitations in Advottic's name, which a
+   * SUSPENDED organization, the abuse-response state, must not keep doing.
+   *
+   * It is NOT every firm action in the codebase. There are 57 exported
+   * actions in lib/firm-actions.ts alone and roughly 290 across 44 'use
+   * server' modules; the full sweep is its own task. The report says so
+   * rather than implying this is finished.
+   */
+  const GATED: ReadonlyArray<{ label: string; src: string; fn: string }> = [
+    ...[
       'inviteFirmMemberAction',
       'acceptFirmInvitationAction',
       'inviteFirmClientAction',
       'uploadFirmDocumentAction',
       'createSigningRequestAction',
       'createFirmCaseAction',
-    ]) {
-      expect(bodyOf(firmActions, fn), fn).toMatch(/requireActiveFirm\(/);
+      'convertIntakeToCaseAction',
+      'addFirmEmployeeAction',
+      'sendFirmMessageAction',
+      'scheduleStandaloneMeetingAction',
+    ].map((fn) => ({ label: `firm-actions:${fn}`, src: firmActions, fn })),
+    ...['bulkImportCaseEvidenceAction', 'importCaseEvidenceFromUrlsAction'].map(
+      (fn) => ({ label: `case-evidence-actions:${fn}`, src: evidenceActions, fn }),
+    ),
+    ...['recallSigningRequestAction', 'reopenSigningRequestAction'].map((fn) => ({
+      label: `signing-actions:${fn}`,
+      src: signingActions,
+      fn,
+    })),
+  ];
+
+  it('gates the firm write paths that create new work product', () => {
+    for (const { label, src, fn } of GATED) {
+      expect(bodyOf(src, fn), label).toMatch(/requireActiveFirm\(/);
+    }
+  });
+
+  /**
+   * The first thing in a gated action that CHANGES something: a database
+   * write, a file landing in storage, a calendar invitation going out, or one
+   * of the two helpers that wrap an evidence write.
+   *
+   * The ordering assertion below is the point. Presence is not position: a
+   * gate moved BELOW the insert it is meant to prevent leaves the token in
+   * the function body, passes any test that greps for it, and creates the
+   * matter before refusing. That is the classic "guard that runs after the
+   * work" shape, and it is the mutation this test exists to catch.
+   *
+   * A gated action with no match here fails too, deliberately. It means
+   * either the write moved behind a new helper, in which case this list needs
+   * it, or the action no longer writes anything and does not belong above.
+   */
+  const FIRST_WRITE =
+    /\.(insert|upsert|update|delete)\(|\.upload\(|scheduleFirmMeeting\(|importFileAsCaseEvidence\(|deleteEventsByHashes\(/;
+
+  it('calls the gate BEFORE the first write, in every gated action', () => {
+    for (const { label, src, fn } of GATED) {
+      const body = bodyOf(src, fn);
+      const gate = body.indexOf('requireActiveFirm(');
+      expect(gate, `${label} has no gate`).toBeGreaterThan(-1);
+      const write = body.search(FIRST_WRITE);
+      expect(write, `${label} has no write for the gate to precede`).toBeGreaterThan(-1);
+      expect(gate, `${label} gates AFTER the write it is meant to prevent`).toBeLessThan(
+        write,
+      );
     }
   });
 
   // Nowhere in a write path may the gate be wrapped in a catch. A catch that
   // lets the action continue is the fail-open this whole feature exists to
-  // avoid, and it reads as harmless defensive code.
+  // avoid, and it reads as harmless defensive code. Calm copy for the person
+  // who sees the refusal is app/counsel/error.tsx, which cannot let the
+  // action continue because the request is already over by the time it runs.
   it('never wraps the action gate in a catch', () => {
-    for (const m of firmActions.matchAll(/requireActiveFirm\(/g)) {
-      const around = firmActions.slice(
-        Math.max(0, (m.index ?? 0) - 200),
-        (m.index ?? 0) + 200,
-      );
-      expect(around).not.toMatch(/catch/);
+    for (const src of [firmActions, evidenceActions, signingActions]) {
+      for (const m of src.matchAll(/requireActiveFirm\(/g)) {
+        const around = src.slice(
+          Math.max(0, (m.index ?? 0) - 200),
+          (m.index ?? 0) + 200,
+        );
+        expect(around).not.toMatch(/catch/);
+      }
     }
+  });
+
+  // The boundary matches on identity, never on copy. Reintroducing a message
+  // comparison is the edit that makes one copy tweak silently disarm it.
+  it('recognises the refusal by identity in the error boundary', () => {
+    const boundary = readFileSync(join(ROOT, 'app/counsel/error.tsx'), 'utf8');
+    expect(boundary).toMatch(/isAccessEndedError\(/);
+    expect(boundary).not.toMatch(/access has ended\./);
   });
 
   it('checks the seat limit before inserting a firm member', () => {

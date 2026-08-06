@@ -2,7 +2,8 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getCurrentUser } from '@/lib/supabase/server';
 import { getActiveFirmContext, listMyFirms } from '@/lib/firm-storage';
-import { callerHasFirmRole, FIRM_ADMIN_ROLES } from '@/lib/firm-authz';
+import { callerFirmRoleLookup, FIRM_ADMIN_ROLES } from '@/lib/firm-authz';
+import { ACCESS_ENDED_PATH } from '@/lib/firm-access';
 import { LocaleProvider, T } from '@/components/i18n/LocaleProvider';
 import { getLocaleCookie } from '@/lib/i18n/locale';
 
@@ -45,9 +46,20 @@ export default async function CounselAccessEndedPage() {
   // membership check. An organization-wide export holds every matter, document
   // and client name the firm has; in a departing paralegal's hands that is a
   // data loss incident, not an offboarding feature.
-  const canExport = active
-    ? await callerHasFirmRole(active.firm.id, FIRM_ADMIN_ROLES)
-    : false;
+  //
+  // The LOOKUP form, not callerHasFirmRole, and this page is the reason the
+  // lookup exists. Failing closed on the privilege is right: a read we could
+  // not complete must never produce an export button. But this is the one page
+  // whose entire job is handing the data back, and telling an owner to go ask
+  // an owner because a membership read blipped leaves them with no download
+  // link, no explanation and nothing to click. So the three answers are kept
+  // apart: you may export, you may not, and we could not tell.
+  const lookup = active
+    ? await callerFirmRoleLookup(active.firm.id)
+    : ({ ok: true, role: null } as const);
+  const roleUnknown = !lookup.ok;
+  const canExport =
+    lookup.ok && lookup.role !== null && FIRM_ADMIN_ROLES.includes(lookup.role);
 
   const locale = await getLocaleCookie();
 
@@ -64,7 +76,12 @@ export default async function CounselAccessEndedPage() {
             <T>Your organization&rsquo;s access has ended</T>
           </h1>
           <p className="text-sm text-cream-100/75 leading-relaxed">
-            {canExport ? (
+            {roleUnknown ? (
+              <T>
+                We could not check what you can do here just now. Your data is
+                not being deleted. Try again in a moment.
+              </T>
+            ) : canExport ? (
               <T>
                 You can still download everything your organization has in
                 Advottic. Your data is not being deleted.
@@ -83,6 +100,19 @@ export default async function CounselAccessEndedPage() {
                 className="btn bg-gold-400 hover:bg-gold-300 text-forest-950 font-semibold justify-center"
               >
                 <T>Download your organization&rsquo;s data</T>
+              </Link>
+            ) : null}
+            {/* Neutral retry, and only on the branch that could not tell. It
+                is a plain link back to this same page, so the check runs
+                again on a fresh request with no client JavaScript. A member
+                who genuinely holds no admin role is not offered it, because
+                for them there is nothing to retry. */}
+            {roleUnknown ? (
+              <Link
+                href={ACCESS_ENDED_PATH}
+                className="btn bg-gold-400 hover:bg-gold-300 text-forest-950 font-semibold justify-center"
+              >
+                <T>Try again</T>
               </Link>
             ) : null}
             <form action="/auth/sign-out" method="post">

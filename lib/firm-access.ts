@@ -135,6 +135,15 @@ const ALWAYS_ALLOWED: readonly string[] = [
   ACCESS_ENDED_PATH,
   '/api/firm/export',
   '/auth/sign-out',
+  // Joining a DIFFERENT organization is not using the one whose access
+  // ended. This gate runs on the user's ACTIVE firm, so without this line an
+  // attorney whose current organization has lapsed can never open an
+  // invitation from an organization that pays: every click lands them back on
+  // the access-ended page with no way through. The write side is already
+  // right, because acceptFirmInvitationAction gates on the INVITING firm, so
+  // only the shell needed fixing. Nothing here grants access to the lapsed
+  // organization's data; the page behind this path is an invitation.
+  '/counsel/accept-invite',
 ];
 
 /** Static assets, which are served before any of this and never gated. */
@@ -174,6 +183,44 @@ export function counselAccessRedirect(
       );
     }
   }
+}
+
+/**
+ * The stable, machine-readable IDENTITY of an access-ended refusal.
+ *
+ * The user-facing message is copy, and copy gets edited. A catch that matches
+ * on the message is not identity: one word change, or one straight apostrophe
+ * where a curly one used to be, silently converts a targeted catch into a
+ * catch-nothing, and nothing fails when it does. This constant is deliberately
+ * not a sentence so that nobody is ever tempted to reword it.
+ *
+ * It lives in this pure module rather than next to the class in
+ * lib/firm-authz.ts because the code that has to RECOGNISE the refusal is
+ * app/counsel/error.tsx, a client component, and firm-authz is `server-only`.
+ */
+export const ACCESS_ENDED_CODE = 'FIRM_ACCESS_ENDED';
+
+/** The `name` the thrown Error subclass carries, matched below. */
+export const ACCESS_ENDED_ERROR_NAME = 'FirmAccessEndedError';
+
+/**
+ * Whether a caught value is the access-ended refusal.
+ *
+ * Three properties are checked because the error crosses a boundary that
+ * keeps different ones. In process, the class instance keeps `name` and
+ * `code`. Across the server-to-client boundary of a Next error boundary the
+ * value arrives as a plain object, and in production the message is redacted
+ * before it gets there; `digest` is the field Next carries through, which is
+ * why FirmAccessEndedError sets it to this same code.
+ *
+ * The message is never consulted, on purpose. See ACCESS_ENDED_CODE.
+ */
+export function isAccessEndedError(error: unknown): boolean {
+  if (error == null || typeof error !== 'object') return false;
+  const e = error as { name?: unknown; code?: unknown; digest?: unknown };
+  if (e.code === ACCESS_ENDED_CODE) return true;
+  if (e.name === ACCESS_ENDED_ERROR_NAME) return true;
+  return typeof e.digest === 'string' && e.digest.includes(ACCESS_ENDED_CODE);
 }
 
 /**

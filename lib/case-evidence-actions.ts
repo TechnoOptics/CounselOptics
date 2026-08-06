@@ -8,6 +8,7 @@ import {
   type EvidenceFolderMeta,
 } from './evidence-folders';
 import { createAdminSupabase } from './supabase/admin';
+import { requireActiveFirm } from './firm-authz';
 import type { FirmRole } from './firm-types';
 import { logCaseActivity } from './case-activity-log';
 import { aiConfigured } from './timeline-ai';
@@ -308,6 +309,17 @@ export async function bulkImportCaseEvidenceAction(
 ): Promise<{ ok: boolean; error?: string; imported?: number; failed?: number; errors?: string[] }> {
   const gate = await assertFirmCase(firmId, caseId);
   if (!gate.ok) return { ok: false, error: gate.error };
+  // uploadFirmDocumentAction is gated, but this is the firm's ACTUAL bulk
+  // evidence intake: the drop zone on a matter, dozens of files at a time.
+  // Gating the single-document path and leaving this one open would gate
+  // almost nothing an organization actually does.
+  //
+  // This also closes the write half of the co-counsel guest hole, since
+  // assertFirmCase admits a guest and this gate does not care which of the
+  // two the caller is. That is the right direction: a guest's read access to
+  // their matter is theirs, but neither of them may keep ADDING to a closed
+  // organization's work product.
+  await requireActiveFirm(firmId);
   const admin = createAdminSupabase();
   if (!admin) return { ok: false, error: 'Service unavailable.' };
 
@@ -387,6 +399,10 @@ export async function importCaseEvidenceFromUrlsAction(
 ): Promise<{ ok: boolean; error?: string; imported?: number; failed?: number; errors?: string[] }> {
   const gate = await assertFirmCase(firmId, caseId);
   if (!gate.ok) return { ok: false, error: gate.error };
+  // The twin of the bulk import above, and it additionally makes OUTBOUND
+  // requests to caller-supplied URLs. Gating one and not the other leaves the
+  // whole intake open through a second door.
+  await requireActiveFirm(firmId);
   const admin = createAdminSupabase();
   if (!admin) return { ok: false, error: 'Service unavailable.' };
 

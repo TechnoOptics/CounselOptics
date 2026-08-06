@@ -2,7 +2,11 @@ import 'server-only';
 
 import { createServerSupabase, getCurrentUser } from './supabase/server';
 import type { FirmRole } from './firm-types';
-import type { FirmAccessState } from './firm-access';
+import {
+  ACCESS_ENDED_CODE,
+  ACCESS_ENDED_ERROR_NAME,
+  type FirmAccessState,
+} from './firm-access';
 
 /**
  * The single place that answers "may this caller act on this firm?".
@@ -47,20 +51,53 @@ export const FIRM_POSTING_ROLES: readonly FirmRole[] = [
   'paralegal',
 ];
 
-/** The caller's role in `firmId`, or null if they are not a member. */
-export async function callerFirmRole(firmId: string): Promise<FirmRole | null> {
-  if (!firmId) return null;
+/**
+ * The caller's role in `firmId`, distinguishing "they hold no role" from "the
+ * membership row could not be read".
+ *
+ * callerFirmRole below collapses both into null, which is the right answer for
+ * a gate: an unknown role must not be treated as a held one, and every caller
+ * of it is deciding whether to ALLOW something. It is the wrong answer for a
+ * surface that EXPLAINS something, because "we could not check" rendered as
+ * "you are not an admin" tells the wrong person the wrong thing and offers
+ * them no way to retry.
+ *
+ * So both exist, and the split is deliberate. Reach for this one only where
+ * the difference is shown to a person. Never use `ok: false` to grant
+ * anything.
+ */
+export type FirmRoleLookup =
+  | { ok: true; role: FirmRole | null }
+  | { ok: false };
+
+export async function callerFirmRoleLookup(
+  firmId: string,
+): Promise<FirmRoleLookup> {
+  if (!firmId) return { ok: true, role: null };
   const user = await getCurrentUser();
-  if (!user) return null;
+  if (!user) return { ok: true, role: null };
   const supabase = createServerSupabase();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('firm_members')
     .select('role')
     .eq('firm_id', firmId)
     .eq('user_id', user.id)
     .maybeSingle();
+  if (error) return { ok: false };
   const role = (data as { role?: FirmRole } | null)?.role;
-  return role ?? null;
+  return { ok: true, role: role ?? null };
+}
+
+/**
+ * The caller's role in `firmId`, or null if they are not a member.
+ *
+ * Null also covers a failed read, which is the fail-closed direction for
+ * every gate that calls this. Use callerFirmRoleLookup where the two need to
+ * be told apart.
+ */
+export async function callerFirmRole(firmId: string): Promise<FirmRole | null> {
+  const lookup = await callerFirmRoleLookup(firmId);
+  return lookup.ok ? lookup.role : null;
 }
 
 /** True if the signed-in user is ANY member of `firmId` (legal team). */
@@ -86,6 +123,26 @@ export async function callerHasFirmRole(
 export const ACCESS_ENDED_ERROR = 'This organization’s access has ended.';
 
 /**
+ * The refusal, as a TYPE rather than as a sentence.
+ *
+ * The message above is copy and will be edited; the identity must not move
+ * when it is. `code` and `name` carry that identity in process, and `digest`
+ * carries it across the boundary into app/counsel/error.tsx, because Next
+ * redacts the message of a server throw before a client error boundary sees
+ * it but forwards `digest`. lib/firm-access.ts holds the matching predicate,
+ * since that boundary is a client component and cannot import this file.
+ */
+export class FirmAccessEndedError extends Error {
+  readonly code = ACCESS_ENDED_CODE;
+  readonly digest = ACCESS_ENDED_CODE;
+
+  constructor(message: string = ACCESS_ENDED_ERROR) {
+    super(message);
+    this.name = ACCESS_ENDED_ERROR_NAME;
+  }
+}
+
+/**
  * Refuses when the organization's access has ended.
  *
  * THIS IS THE GATE. The layout redirect is a courtesy to a browser: every
@@ -108,6 +165,12 @@ export const ACCESS_ENDED_ERROR = 'This organization’s access has ended.';
  *    surfaces as a failed call, in a server component it renders the error
  *    boundary, and both are refusals, which is the correct direction.
  *
+ *    Calm copy for the person who sees that refusal is app/counsel/error.tsx,
+ *    NOT a catch here or at a call site. A catch beside the gate is
+ *    byte-identical to the fail-open above and a reviewer cannot tell intent
+ *    from accident; an error boundary cannot let the action continue, because
+ *    by the time it renders the write has already been refused.
+ *
  * 2. The state is never cached, here or by any caller. Caching the firm ROW is
  *    fine, because a row does not change as time passes. A cached STATE
  *    outlives the trial end, which is exactly the staleness that having no
@@ -129,7 +192,7 @@ export async function requireActiveFirm(firmId: string): Promise<void> {
     case 'active':
       return;
     case 'export_only':
-      throw new Error(ACCESS_ENDED_ERROR);
+      throw new FirmAccessEndedError();
     default: {
       const unhandled: never = state;
       throw new Error(
