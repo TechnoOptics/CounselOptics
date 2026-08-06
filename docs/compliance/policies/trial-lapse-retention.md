@@ -43,19 +43,26 @@ Indefinite retention is not free, and this is the side of the trade that a reade
 
 The mitigation is that the decision is deliberate and written down, not that the cost is zero. A future scheduled review of long-lapsed organizations, with notice to the organization and a hold check before anything is acted on, would reduce it. That is not built.
 
-## 4. Where the trail is, and one open question next to it
+## 4. Where the trail is
 
 Every HQ action on an organization's trial (grant, extend, reset, suspend, restore, seat change) writes a row to `public.firm_trial_events`, defined in `supabase/migrations/20260801_firm_trials.sql`. That table is written by `applyTrialAction` in `lib/firm-trials.ts` through the service-role client, and it records the actor twice, as a user id and as a denormalised email, so the answer survives the admin's account being removed. RLS is on with no policy, so the table is closed to every ordinary caller.
 
 **That trail does not run through `lib/security-audit.ts`, and does not depend on it.** It is a separate table with its own insert.
 
-One part of the trial feature does depend on that path, and should be named rather than left implied. When a non-admin calls an HQ trial lever directly, `lib/firm-trial-actions.ts` records the refusal by calling `logSecurityEvent`, which writes to `security_events`. There is an open finding against that writer:
+One part of the trial feature does depend on that path, and is named here rather than left implied. When a non-admin calls an HQ trial lever directly, `lib/firm-trial-actions.ts` records the refusal by calling `logSecurityEvent`, which writes to `security_events`.
 
-> `lib/security-audit.ts` and the committed DDL in `supabase/fixes/2026-05-05-security-pulse.sql` disagree on column names (`ip` / `url` / `details` in the code against `ip_address` / `metadata` in the DDL) and on the severity vocabulary (`info` / `warning` / `critical` against `low` / `medium` / `high` / `critical`). The writer's failures are swallowed by design, so if the committed schema is what is live, these writes have been failing silently and nothing would have reported it.
+### The question this section previously left open is closed
 
-This is being investigated separately and is **not resolved here**. One query against the live table settles it, and this document should not be read as having answered it either way. Its consequence for this feature is bounded and specific: a refused attempt on an HQ trial lever may be leaving only the `console.warn` line in `lib/firm-trial-actions.ts` rather than a durable row. Successful trial actions are unaffected, because they write to `firm_trial_events`.
+An earlier version of this document recorded a disagreement between `lib/security-audit.ts` and the committed DDL in `supabase/fixes/2026-05-05-security-pulse.sql`, said the writer's failures were swallowed by design, and said the matter was being investigated separately and was not resolved here. **All three of those statements are now out of date.** The investigation concluded on 2026-08-06 against the live database, and the outcome was worse than the disagreement suggested:
 
-Until that question is closed, no claim in this folder about audit controls should be treated as settled.
+- `public.security_events` held exactly one row, dated before `logSecurityEvent` was introduced. **Every audit write that function had ever attempted had failed and been discarded.**
+- The severity vocabulary: the live `security_events_severity_check` accepts only `low`, `medium`, `high`, `critical`. The code was the wrong side of the disagreement, defaulting to `info`, so every insert raised a check violation. `info` now maps to `low` and `warning` to `medium`.
+- The column names: the committed DDL was the wrong side. It declared `ip_address`, `metadata` and `acknowledged_by`, none of which exist in production. The real columns are `ip`, `url` and `details`. The DDL has been corrected to describe the live table.
+- **The failures are no longer swallowed.** postgrest-js resolves with `{ error }` rather than throwing, so the bare `catch {}` never even observed the constraint violation; the unchecked return value was the real swallower. `logSecurityEvent` now inspects the insert result and reports any dropped write through `reportAuditFailure` on the error channel. It is still best-effort and still never throws into the caller, because an audit write must not break the action it records, but it is no longer silent.
+
+The consequence for this feature is therefore also closed. A refused attempt on an HQ trial lever no longer leaves only the `console.warn` line: it records a `hq_trial_action_denied` row at severity `medium`, which is deliberate rather than incidental. Only `low` is auto-acknowledged by the writer, so `medium` is the lowest severity that stays open for triage, and a refused attempt on a commercial control is exactly what should be triaged rather than filed closed. The same reasoning applies to the refused whole-organization export in `app/api/firm/export/route.ts`.
+
+**One thing remains unverified, and it is a narrow one.** The live table's `kind` column carries no CHECK constraint in the corrected DDL, and the only named constraint on the table is the severity one, so `hq_trial_action_denied` should be accepted. That was established from the repository, not from the database: the investigation on 2026-08-06 verified the columns and the severity vocabulary against production, and it replayed the payloads for `admin_case_view` and `admin_impersonation`, but it never replayed one carrying this feature's new kind. The check costs one query and is listed in section 5.
 
 ## 5. What has not been verified
 
@@ -75,3 +82,4 @@ Once the migration lands, work through this:
 6. Extend, and confirm access returns on the next page load with no job having run.
 7. Suspend, extend, and confirm the organization stays closed. Suspension outranks the dates.
 8. Set a seat limit below the current member count, and confirm nobody is ejected and the next add is refused.
+9. Confirm the live `security_events.kind` column accepts `hq_trial_action_denied`, by the method used on 2026-08-06: replay the exact payload with a duplicate primary key, which aborts the insert in every branch. Reaching the unique-index stage (23505) proves every column and constraint accepted it while persisting nothing.
