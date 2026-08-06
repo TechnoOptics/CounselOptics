@@ -13,6 +13,7 @@ import {
 } from '@/lib/firm-types';
 import { CreateSigningRequestForm } from './signing-form';
 import { DocumentStatusChanger } from './status-changer';
+import { DocumentFrame } from '@/components/counsel/DocumentFrame';
 import { ExternalLink } from '@/components/ExternalLink';
 import { PageHeader } from '@/components/counsel/ui';
 import { pillSurface } from '@/components/counsel/StatusPill';
@@ -167,7 +168,7 @@ export default async function FirmDocumentDetail({
 
       {signedUrl && (
         <section className="card overflow-hidden">
-          <iframe
+          <DocumentFrame
             src={signedUrl}
             title={doc.name}
             className="w-full h-[70vh] border-0 bg-ink-50 dark:bg-forest-950"

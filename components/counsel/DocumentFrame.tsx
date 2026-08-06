@@ -1,0 +1,35 @@
+'use client';
+
+import { useState } from 'react';
+import { stableFrameSrc } from '@/lib/refresh-guards';
+
+/**
+ * An embedded document preview whose `src` does not change underneath
+ * the reader.
+ *
+ * The pages that show one are force-dynamic and mint a fresh signed
+ * storage URL on every render, so every router.refresh() used to hand
+ * the iframe a different URL. React writes it through, the browser
+ * treats it as a navigation, and the PDF viewer reloads: back to page 1,
+ * scroll lost, focus stolen from whatever the reader was doing beside
+ * it. On /counsel/documents/[id] the form's own router.refresh() after a
+ * successful send did it too.
+ *
+ * So the first working URL is held for the life of the mount and later
+ * ones are ignored. The decision itself is stableFrameSrc, kept pure and
+ * unit-tested; this component is the two lines of React around it.
+ */
+export function DocumentFrame({
+  src,
+  title,
+  className,
+}: {
+  src: string;
+  title: string;
+  className?: string;
+}) {
+  const [held] = useState(src);
+  const frameSrc = stableFrameSrc(held, src);
+  if (!frameSrc) return null;
+  return <iframe src={frameSrc} title={title} className={className} />;
+}

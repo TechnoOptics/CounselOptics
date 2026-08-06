@@ -14,6 +14,7 @@ import {
 import { RecallButton } from './recall-button';
 import { ReopenButton } from './reopen-button';
 import { ResendButton } from './resend-button';
+import { DocumentFrame } from '@/components/counsel/DocumentFrame';
 import { PageHeader } from '@/components/counsel/ui';
 import { StatusPill } from '@/components/counsel/StatusPill';
 import { T } from '@/components/i18n/LocaleProvider';
@@ -197,7 +198,7 @@ export default async function SigningRequestDetail({
       {signedUrl && (
         <section className="card overflow-hidden">
           <p className="eyebrow px-5 pt-4 pb-2"><T>Document preview</T></p>
-          <iframe
+          <DocumentFrame
             src={signedUrl}
             title={doc?.name ?? 'Document'}
             className="w-full h-[60vh] border-0 bg-ink-50 dark:bg-forest-950"
