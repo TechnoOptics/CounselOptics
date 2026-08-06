@@ -1,10 +1,12 @@
 import 'server-only';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import {
+  desktopConsentForHandoff,
   handoffStateForCookie,
   hashHandoffToken,
   mintHandoffToken,
   HANDOFF_TTL_MINUTES,
+  type DesktopDisclosureConsent,
   type HandoffRow,
   type HandoffState,
 } from '@/lib/signing-handoff';
@@ -28,8 +30,15 @@ export type ClaimResult =
   | { ok: true; signatureId: string; sessionSecret: string }
   | { ok: false; state: Exclude<HandoffState, 'claimable' | 'bound'> };
 
+/**
+ * `desktopConsent` is the disclosure the signer already affirmed on the
+ * laptop. It is stored on the handoff so the phone's submit can record
+ * it, and so the evidence sits on the same row as the scan time, IP and
+ * user agent of the device that used it.
+ */
 export async function createHandoff(
   signatureId: string,
+  desktopConsent: DesktopDisclosureConsent | null = null,
 ): Promise<{ ok: true; rawToken: string } | { ok: false }> {
   const admin = createAdminSupabase();
   if (!admin) return { ok: false };
@@ -41,6 +50,7 @@ export async function createHandoff(
     signature_id: signatureId,
     token_hash: hashHandoffToken(rawToken),
     expires_at: expiresAt.toISOString(),
+    desktop_consent: desktopConsent,
   });
   // PostgREST resolves with { error } rather than throwing, so this
   // check is the only thing standing between a failed insert and a QR
@@ -58,7 +68,7 @@ async function readRow(rawToken: string) {
   const { data } = await admin
     .from('firm_signature_handoffs')
     .select(
-      'id, signature_id, token_hash, session_hash, created_at, expires_at, consumed_at, firm_signatures!inner(signed_at)',
+      'id, signature_id, token_hash, session_hash, created_at, expires_at, consumed_at, desktop_consent, firm_signatures!inner(signed_at)',
     )
     .eq('token_hash', hashHandoffToken(rawToken))
     .maybeSingle();
@@ -73,6 +83,7 @@ async function readRow(rawToken: string) {
     created_at: string;
     expires_at: string;
     consumed_at: string | null;
+    desktop_consent: unknown;
     firm_signatures: { signed_at: string | null };
   };
 
@@ -89,7 +100,15 @@ async function readRow(rawToken: string) {
     signatureSignedAt: raw.firm_signatures.signed_at,
   };
 
-  return { id: raw.id, signatureId: raw.signature_id, row };
+  // Re-validated on the way out through the same function that
+  // validated it on the way in, so a blob that was hand-edited, written
+  // by an older build, or left null cannot become evidence by sitting
+  // in a column.
+  const desktopConsent = desktopConsentForHandoff(
+    raw.desktop_consent as Parameters<typeof desktopConsentForHandoff>[0],
+  );
+
+  return { id: raw.id, signatureId: raw.signature_id, row, desktopConsent };
 }
 
 /**
@@ -152,7 +171,13 @@ export async function loadBoundHandoff(
   rawToken: string,
   presentedSessionSecret: string | null,
 ): Promise<
-  | { ok: true; signatureId: string; handoffId: string }
+  | {
+      ok: true;
+      signatureId: string;
+      handoffId: string;
+      /** The disclosure the laptop affirmed before minting this code. */
+      desktopConsent: DesktopDisclosureConsent | null;
+    }
   | { ok: false; state: HandoffState }
 > {
   const found = await readRow(rawToken);
@@ -165,7 +190,12 @@ export async function loadBoundHandoff(
   );
   if (state !== 'bound') return { ok: false, state };
 
-  return { ok: true, signatureId: found.signatureId, handoffId: found.id };
+  return {
+    ok: true,
+    signatureId: found.signatureId,
+    handoffId: found.id,
+    desktopConsent: found.desktopConsent,
+  };
 }
 
 /** The two names the phone pad puts on screen. */

@@ -76,7 +76,27 @@ create table if not exists public.firm_signature_handoffs (
   -- Captured at scan time for the dispute record described above.
   -- Neither column feeds any access decision.
   consumed_ip text,
-  consumed_user_agent text
+  consumed_user_agent text,
+
+  -- The electronic-records disclosure the signer affirmed on the LAPTOP,
+  -- before this code was minted, carried across so a signature finished
+  -- on the phone is recorded as completely as one finished on the
+  -- laptop. Without it the QR would be the one route to a signature
+  -- with a thinner record behind it than every other route, because
+  -- only the desktop submit persists that capture.
+  --
+  -- It holds the disclosure affirmations and nothing else: no intent
+  -- affirmation, no user agent, no timezone. Those describe the device
+  -- that makes the mark, and the mark is made on the phone, so copying
+  -- the laptop's across would assert that a device did something it did
+  -- not do. lib/signing-handoff.ts validates the shape in both
+  -- directions (desktopConsentForHandoff) and recombines the two
+  -- sources at submit time (mergeHandoffConsent).
+  --
+  -- Nullable, because a row is still a valid handoff without it and a
+  -- reader that finds it empty records an empty disclosure rather than
+  -- inventing one.
+  desktop_consent jsonb
 );
 
 -- Both the phone route (consuming a token) and the desktop poll (task 4,

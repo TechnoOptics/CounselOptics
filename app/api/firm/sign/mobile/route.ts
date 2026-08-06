@@ -1,6 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { HANDOFF_COOKIE, loadBoundHandoff } from '@/lib/signing-handoff-queries';
-import { handoffRefusalMessage } from '@/lib/signing-handoff';
+import {
+  handoffRefusalMessage,
+  mergeHandoffConsent,
+} from '@/lib/signing-handoff';
 import { recordSignature } from '@/lib/signature-write';
 
 export const runtime = 'nodejs';
@@ -70,20 +73,23 @@ export async function POST(req: NextRequest) {
     // The pad has no name field. Whatever the firm recorded for this
     // signer stays as it is rather than being overwritten from a phone.
     typedName: null,
-    // Only what this device can honestly attest to. The disclosure
-    // consent and the confirmation that the document was read happened
-    // on the laptop, and the laptop's own submit never runs on this
-    // path, so they are not asserted here rather than being copied
-    // across as though the phone had collected them. documentPresented
-    // is false because it is: the phone shows a pad, not the document.
-    // Read beside capture_source in the audit metadata, which names the
-    // mobile handoff, the pair says what actually happened.
-    consent: {
+    // Two sources, and this device is only one of them. The intent
+    // affirmation, the user agent and the timezone are this phone's,
+    // because the mark was made here. The disclosure consent and the
+    // confirmation that the document was read are the laptop's: the
+    // signer made them there, before this code existed, and they ride
+    // on the handoff row rather than being invented here or copied out
+    // of a request body. mergeHandoffConsent keeps the two apart, so
+    // neither side can assert the other's facts, and records an empty
+    // disclosure when a handoff carried none rather than a default that
+    // would read as evidence. Beside capture_source and handoff_id in
+    // the audit metadata, which name the device and the row holding its
+    // scan time, IP and user agent, the record says what happened where.
+    consent: mergeHandoffConsent(bound.desktopConsent, {
       intentAffirmedAt: payload.intentAffirmedAt,
       uaSnapshot: userAgent,
       tzOffsetMinutes: payload.tzOffsetMinutes,
-      documentPresented: false,
-    },
+    }),
     ip,
     userAgent,
     source: 'mobile_handoff',
