@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useStepAnchor } from '@/lib/use-step-anchor';
+import { SignaturePad, type SignaturePadValue } from '@/components/SignaturePad';
 
-type Mode = 'draw' | 'type' | 'upload';
 type Step = 'disclosure' | 'capture' | 'done';
 
 /**
@@ -39,7 +39,6 @@ export function SignatureCapture({
   documentName: string;
   firmName: string;
 }) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [step, setStep] = useState<Step>('disclosure');
   // Re-anchor the card on every step transition so the user
   // never has to scroll back up to find the new content.
@@ -50,130 +49,20 @@ export function SignatureCapture({
   const [hwAgreed, setHwAgreed] = useState(false);
   const [erdConsentedAt, setErdConsentedAt] = useState<string | null>(null);
 
-  // Capture-step state.
-  const [mode, setMode] = useState<Mode>('draw');
-  const [typed, setTyped] = useState(signerName ?? '');
-  const [drawing, setDrawing] = useState(false);
-  const [hasInk, setHasInk] = useState(false);
+  // Capture-step state. The pad itself lives in components/SignaturePad and
+  // reports the current mark up; the ceremony around it stays here, because
+  // an outside signer is owed a consumer disclosure that an employee filling
+  // their own employer's template is not.
+  const [mark, setMark] = useState<SignaturePadValue>({
+    dataUrl: null,
+    mode: 'draw',
+    hasInk: false,
+    typedName: null,
+  });
   const [intentAffirmed, setIntentAffirmed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Resize canvas when entering the capture step.
-  useEffect(() => {
-    if (step !== 'capture') return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const dpr = window.devicePixelRatio || 1;
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-      ctx.scale(dpr, dpr);
-      ctx.lineWidth = 2.4;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.strokeStyle = '#0f2d24';
-    }
-  }, [step]);
-
-  // Re-render typed signature when mode/text changes.
-  useEffect(() => {
-    if (step !== 'capture' || mode !== 'type') return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    const w = canvas.width / (window.devicePixelRatio || 1);
-    const h = canvas.height / (window.devicePixelRatio || 1);
-    ctx.clearRect(0, 0, w, h);
-    if (!typed.trim()) {
-      setHasInk(false);
-      return;
-    }
-    ctx.fillStyle = '#0f2d24';
-    ctx.font = `italic 38px "Apple Chancery", "Lucida Handwriting", "Brush Script MT", cursive`;
-    ctx.textBaseline = 'middle';
-    ctx.fillText(typed, 16, h / 2);
-    setHasInk(true);
-  }, [step, mode, typed]);
-
-  function getXY(e: React.PointerEvent<HTMLCanvasElement>) {
-    const rect = e.currentTarget.getBoundingClientRect();
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
-  }
-
-  function down(e: React.PointerEvent<HTMLCanvasElement>) {
-    if (mode !== 'draw') return;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    const { x, y } = getXY(e);
-    const ctx = e.currentTarget.getContext('2d');
-    ctx?.beginPath();
-    ctx?.moveTo(x, y);
-    setDrawing(true);
-  }
-  function move(e: React.PointerEvent<HTMLCanvasElement>) {
-    if (!drawing || mode !== 'draw') return;
-    const { x, y } = getXY(e);
-    const ctx = e.currentTarget.getContext('2d');
-    ctx?.lineTo(x, y);
-    ctx?.stroke();
-    setHasInk(true);
-  }
-  function up() {
-    setDrawing(false);
-  }
-
-  function clear() {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    setHasInk(false);
-    setTyped(signerName ?? '');
-  }
-
-  // Upload / attach an existing signature image. The file is drawn onto
-  // the same canvas the draw/type modes use, so the submit path (which
-  // reads canvas.toDataURL) is unchanged. We fit-inside without cropping
-  // and, for opaque photos of a signature on paper, the PNG carries
-  // whatever the signer supplied - the firm reviews the executed doc.
-  function onUploadFile(file: File | null) {
-    setError(null);
-    if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      setError('Choose an image file (PNG, JPG, or similar).');
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      setError('That image is over the 5 MB limit.');
-      return;
-    }
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      const w = canvas.width / (window.devicePixelRatio || 1);
-      const h = canvas.height / (window.devicePixelRatio || 1);
-      ctx.clearRect(0, 0, w, h);
-      const scale = Math.min(w / img.width, h / img.height);
-      const drawW = img.width * scale;
-      const drawH = img.height * scale;
-      ctx.drawImage(img, (w - drawW) / 2, (h - drawH) / 2, drawW, drawH);
-      setHasInk(true);
-      URL.revokeObjectURL(url);
-    };
-    img.onerror = () => {
-      setError('Could not read that image. Try a different file.');
-      URL.revokeObjectURL(url);
-    };
-    img.src = url;
-  }
+  const hasInk = mark.hasInk;
 
   function advanceFromDisclosure() {
     if (!erdAgreed || !hwAgreed) {
@@ -199,18 +88,17 @@ export function SignatureCapture({
       setError('Draw or type your signature first.');
       return;
     }
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    const dataUrl = mark.dataUrl;
+    if (!dataUrl) return;
     setSubmitting(true);
     try {
-      const dataUrl = canvas.toDataURL('image/png');
       const res = await fetch('/api/firm/sign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           token,
           signatureDataUrl: dataUrl,
-          typedName: mode === 'type' ? typed : null,
+          typedName: mark.typedName,
           consent: {
             electronicRecordsConsentedAt: erdConsentedAt,
             hardwareSoftwareConfirmedAt: erdConsentedAt,
@@ -358,83 +246,12 @@ export function SignatureCapture({
         </h2>
       </header>
 
-      <div className="flex items-center justify-between gap-3">
-        <p className="eyebrow">Your signature</p>
-        <div className="inline-flex rounded-md ring-1 ring-ink-200 dark:ring-forest-700/60 overflow-hidden text-[12px]">
-          <button
-            type="button"
-            onClick={() => {
-              setMode('draw');
-              clear();
-            }}
-            className={`px-3 py-1.5 min-h-[40px] inline-flex items-center justify-center ${mode === 'draw' ? 'bg-forest-900 text-white dark:bg-gold-metal dark:text-forest-950' : 'text-ink-700 dark:text-cream-100/85'}`}
-          >
-            Draw
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode('type')}
-            className={`px-3 py-1.5 min-h-[40px] inline-flex items-center justify-center ${mode === 'type' ? 'bg-forest-900 text-white dark:bg-gold-metal dark:text-forest-950' : 'text-ink-700 dark:text-cream-100/85'}`}
-          >
-            Type
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setMode('upload');
-              clear();
-            }}
-            className={`px-3 py-1.5 min-h-[40px] inline-flex items-center justify-center ${mode === 'upload' ? 'bg-forest-900 text-white dark:bg-gold-metal dark:text-forest-950' : 'text-ink-700 dark:text-cream-100/85'}`}
-          >
-            Upload
-          </button>
-        </div>
-      </div>
-
-      {mode === 'type' && (
-        <input
-          value={typed}
-          onChange={(e) => setTyped(e.target.value)}
-          placeholder="Type your full name"
-          className="input"
-          maxLength={80}
-        />
-      )}
-
-      {mode === 'upload' && (
-        <label className="flex items-center gap-3 text-[13px] text-ink-700 dark:text-cream-100/80">
-          <input
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            onChange={(e) => onUploadFile(e.currentTarget.files?.[0] ?? null)}
-            className="block w-full text-[12px] file:mr-3 file:min-h-[40px] file:rounded-md file:border-0 file:bg-forest-900 file:px-3 file:text-white dark:file:bg-gold-metal dark:file:text-forest-950"
-          />
-        </label>
-      )}
-
-      <div className="rounded-lg border-2 border-dashed border-ink-300 dark:border-forest-700/60 bg-white dark:bg-forest-950 p-1">
-        <canvas
-          ref={canvasRef}
-          onPointerDown={down}
-          onPointerMove={move}
-          onPointerUp={up}
-          onPointerLeave={up}
-          className="w-full h-32 sm:h-40 touch-none cursor-crosshair rounded-md"
-          style={{ display: 'block' }}
-        />
-      </div>
-      <div className="flex items-center justify-between">
-        <button type="button" onClick={clear} className="btn-ghost text-sm">
-          Clear
-        </button>
-        <span className="text-[11px] text-ink-500 dark:text-cream-100/55">
-          {mode === 'draw'
-            ? 'Draw with your finger, mouse, or trackpad'
-            : mode === 'type'
-              ? 'A font-rendered cursive signature'
-              : 'Attach an image of your signature'}
-        </span>
-      </div>
+      <SignaturePad
+        heading={<p className="eyebrow">Your signature</p>}
+        defaultTypedName={signerName ?? ''}
+        onChange={setMark}
+        onError={setError}
+      />
 
       <label className="flex items-start gap-3 text-[13px] text-ink-700 dark:text-cream-100/80">
         <input
