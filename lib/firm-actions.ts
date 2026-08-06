@@ -2131,8 +2131,16 @@ async function withinRecipientMailBudget(normalizedEmail: string): Promise<boole
  * can. Emitting it at the moment of promotion is what keeps the two
  * agreeing.
  *
- * Callers invoke this only for a request still in `draft`, so it fires
- * once per request.
+ * The promotion is conditional on the row still being a `draft`, for
+ * the same reason the code rotation is conditional on the hash it read.
+ * Both callers decide to promote from a status they read at the top of
+ * the action, and both are public endpoints: two resends for the same
+ * draft request, whether the same signer twice or two signers of one
+ * request, would otherwise both send a link, both promote, and leave
+ * two `request_sent` events in the evidence chain with the second
+ * `sent_at` overwriting the first. Matching on 'draft' means the loser
+ * of that race touches nothing. It costs no extra round trip, and it is
+ * safe on the create path, where the row was just inserted as a draft.
  */
 async function markSigningRequestSent(
   admin: NonNullable<ReturnType<typeof createAdminSupabase>>,
@@ -2146,10 +2154,17 @@ async function markSigningRequestSent(
   },
 ): Promise<void> {
   const nowIso = new Date().toISOString();
-  await admin
+  const { data: promoted } = await admin
     .from('firm_signing_requests')
     .update({ status: 'sent' as FirmSigningStatus, sent_at: nowIso })
-    .eq('id', input.requestId);
+    .eq('id', input.requestId)
+    .eq('status', 'draft')
+    .select('id');
+  // Zero rows means somebody else promoted this request first. They
+  // already moved the document and appended the event, so there is
+  // nothing left to do and nothing to report: the mail this caller sent
+  // is still recorded, by reminder_sent on the resend path.
+  if (((promoted as Array<{ id: string }> | null) ?? []).length === 0) return;
   // The document follows the request: it moves into the signer's hands
   // only once something reached a signer. The operator can advance it to
   // a signed_* state once execution happens, or back to 'pending' if a

@@ -494,6 +494,26 @@ describe('a request stops being a draft when the link reaches a signer', () => {
     expect(reqRow().sent_at).toBe('2026-01-01T00:00:00.000Z');
   });
 
+  it('promotes once when a second send for the same draft lands first', async () => {
+    // Two resends on one draft request, or two signers of it, both read
+    // 'draft' at the top of the action and both reach a signer. If the
+    // promotion were unconditional they would both write it: two
+    // request_sent events in an evidence chain, and the later sent_at
+    // overwriting the moment the request actually went out.
+    seed({ status: 'draft' });
+    mail.onSent = (kind) => {
+      if (kind !== 'link') return;
+      reqRow().status = 'sent';
+      reqRow().sent_at = '2026-01-01T00:00:00.000Z';
+    };
+    const res = await mod.resendSigningEmailsAction(FIRM_A, SIG_ID);
+    expect(res.ok).toBe(true);
+    expect(eventTypes()).not.toContain('request_sent');
+    expect(reqRow().sent_at).toBe('2026-01-01T00:00:00.000Z');
+    // The mail this caller sent is still on the record, as a resend.
+    expect(eventTypes()).toContain('reminder_sent');
+  });
+
   it('leaves a draft alone when the sign link was refused again', async () => {
     seed({ status: 'draft' });
     mail.fail.link = true;
