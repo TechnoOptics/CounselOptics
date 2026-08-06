@@ -164,7 +164,9 @@ body {
 }
 
 :root {
-  color-scheme: light dark;
+  /* color-scheme lives with the native-control rules further down, so
+     the reason it is a single keyword and not `light dark` sits next to
+     the inputs it governs. */
   --brand-dark: #0f2d24;
   --brand-mid: #23362f;
   --brand-gold: #d5bb7e;
@@ -1006,6 +1008,106 @@ body > * {
 .hq-shell .input:focus {
   border-color: rgba(213, 187, 126, 0.45);
   background-color: rgba(10, 23, 20, 0.8);
+}
+
+/* -------------------------- Native controls -------------------------
+   The parts of a form the browser draws itself: the select popup, the
+   date picker, the autofill wash. None of them inherit the styling on
+   `.input`, so each has to be told separately, and each breaks in one
+   theme while looking fine in the other.
+
+   1. WHICH SCHEME THE BROWSER DRAWS IN.
+
+   `color-scheme` is what tells the engine to draw its own widgets dark
+   or light. It was `light dark` on :root, which does not mean "follow
+   the app" - it means "follow the OS". Advottic's theme is a `.dark`
+   CLASS that ThemeBoot sets from the profile preference, and the
+   counsel / enterprise / HQ shells force dark whatever the user chose.
+   So a user on a light Mac reading a dark counsel matter got the OS
+   answer: a white date picker dropped on a near-black field, with the
+   picker's own black text on it.
+
+   Pin it to the class instead, then let controls inherit from whatever
+   contains them rather than from the root. `color-scheme: inherit` on
+   the control is the whole point: it is what makes a date input inside
+   `.counsel-shell` go dark while the same component on the light signer
+   page stays light.
+
+   Note this also settles scrollbars and the canvas fallback, which
+   previously followed the OS while the page painted the opposite way.
+   No painted surface moves: `html, body` set their own background in
+   both themes, and `.counsel-shell .card` is untouched. */
+:root {
+  color-scheme: light;
+}
+html.dark {
+  color-scheme: dark;
+}
+.dark,
+.counsel-shell,
+.enterprise-shell,
+.hq-shell {
+  color-scheme: dark;
+}
+input,
+select,
+textarea {
+  color-scheme: inherit;
+}
+
+/* 2. THE SELECT POPUP.
+
+   Chrome draws `option` from its own palette and ignores the colours on
+   the parent select, so a styled dark select still opened a list nobody
+   could read. Light mode needs no rule: the browser default there is a
+   white list with dark text, which is already what the page wants, and
+   overriding it is how you break the light theme while fixing the dark
+   one. So this is scoped to the dark contexts only.
+
+   The surface is `--forest-800`, the same token the ramp uses for an
+   inset. That matters because the enterprise shells REMAP the forest
+   ramp to neutral black further up this file, so one declaration gives
+   the consumer app a dark green list and counsel a near-black one, and
+   a future palette change carries both. cream-100 is the matching
+   foreground, the same one `.input` uses in dark. */
+html.dark option,
+.dark option,
+.counsel-shell option,
+.enterprise-shell option,
+.hq-shell option {
+  background-color: rgb(var(--forest-800));
+  color: #f5edd6;
+}
+
+/* 3. AUTOFILL.
+
+   Chrome paints its own pale yellow over a field it filled and forces
+   the text to near-black, and neither is reachable with `background`
+   or `color`. The yellow is applied as a transition, so a transition
+   duration long enough never to arrive keeps it away; the text needs
+   `-webkit-text-fill-color`, which is the property the UA actually
+   sets. `currentColor` there resolves to the field's own `color`, so
+   this needs no token and no per-theme variant: cream inside a counsel
+   input, ink on the light signer page, correct in both by construction.
+
+   border-color and color are kept in the transition list so a field
+   does not lose its focus animation for having been autofilled. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus,
+select:-webkit-autofill,
+select:-webkit-autofill:hover,
+select:-webkit-autofill:focus {
+  transition:
+    background-color 9999s ease-in-out 0s,
+    border-color 0.15s ease,
+    color 0.15s ease;
+  -webkit-text-fill-color: currentColor;
+  caret-color: currentColor;
 }
 
 /* ----------------------- Capture deterrents -----------------------
