@@ -138,6 +138,71 @@ for (const [needle, label] of driftChecks) {
   }
 }
 
+// ---------------------------------------------------------------------
+// Account-menu containment.
+//
+// The counsel header menu used to link straight at the consumer
+// /profile and /feedback. Those routes render under the ROOT layout,
+// which paints the consumer sidebar, header and marketing footer, so
+// clicking "Profile & settings" inside the firm workspace dropped an
+// attorney into what reads as a different product. The fix was to give
+// counsel its own account routes and repoint the menu at them.
+//
+// Nothing else in the repo holds that shape, and it is a one-character
+// edit to undo, so it is asserted here. /admin is the deliberate
+// exception: Advottic HQ is a separate application for platform staff
+// and the menu item says so in its own subtitle.
+// ---------------------------------------------------------------------
+console.log('\n[account-menu] counsel account links stay under /counsel:');
+
+const menuPath = join(here, '..', '..', 'components', 'counsel', 'CounselProfileMenuClient.tsx');
+let menu = '';
+try {
+  menu = readFileSync(menuPath, 'utf8');
+} catch (err) {
+  console.error('  FAIL: cannot read', menuPath, err.message);
+  failures++;
+}
+
+// Every href literal in the menu, minus the deliberate HQ hand-off.
+const menuHrefs = [...menu.matchAll(/href="(\/[^"]*)"/g)]
+  .map((m) => m[1])
+  .filter((h) => h !== '/admin');
+const escapees = menuHrefs.filter((h) => h !== '/counsel' && !h.startsWith('/counsel/'));
+if (escapees.length === 0) {
+  passes++;
+} else {
+  failures++;
+  console.error('  FAIL: menu links leave the counsel shell into consumer chrome');
+  console.error(`    offending href(s): ${escapees.join(', ')}`);
+}
+
+// The two destinations the menu is required to offer.
+for (const needed of ['/counsel/profile', '/counsel/feedback']) {
+  if (menuHrefs.includes(needed)) {
+    passes++;
+  } else {
+    failures++;
+    console.error(`  FAIL: account menu no longer links to ${needed}`);
+  }
+}
+
+// Those destinations must actually exist, or the menu is a dead click.
+const accountRoutes = [
+  ['app/counsel/profile/page.tsx', 'counsel account page'],
+  ['app/counsel/profile/api-tokens/page.tsx', 'counsel API tokens page'],
+  ['app/counsel/feedback/page.tsx', 'counsel feedback page'],
+];
+for (const [rel, label] of accountRoutes) {
+  try {
+    readFileSync(join(here, '..', '..', rel), 'utf8');
+    passes++;
+  } catch {
+    failures++;
+    console.error(`  FAIL: ${label} is missing (${rel})`);
+  }
+}
+
 console.log('');
 if (failures === 0) {
   console.log(`OK: ${passes} assertions passed.`);
