@@ -2136,9 +2136,18 @@ function recipientBucketKey(normalizedEmail: string): string {
  * paralegal-level action, so that path needs a cap of its own.
  *
  * What this buys, precisely: one inbox takes at most six signing
- * messages from us in ten minutes, however many requests, signatures or
- * spellings of the address they are spread across. That is the whole of
- * it.
+ * messages from us in ten minutes, however many requests or signatures
+ * they are spread across, and whatever letter case, surrounding
+ * whitespace or plus tag the address was typed with.
+ *
+ * Those are the only spellings folded. A dotted Gmail local part
+ * (`v.ictim@`), a subaddress separator that is not a plus
+ * (`victim-tag@` on Fastmail), and a domain alias (`gmail.com` against
+ * `googlemail.com`) all reach the same inbox and each still gets a
+ * bucket of its own. Folding them is deliberately not attempted: the
+ * rules are per-provider, and guessing wrong merges two genuinely
+ * different people into one allowance, which is a worse failure than
+ * the one it would prevent.
  *
  * What it does NOT buy is the standing of the sending domain.
  * createSigningRequestAction has no per-firm and no global outbound cap,
