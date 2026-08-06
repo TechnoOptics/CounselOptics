@@ -42,7 +42,22 @@ export type SignatureEventType =
   // an executed PDF was successfully produced, and how many of the
   // captured signatures actually made it onto the page.
   | 'final_pdf_rendered'
-  | 'final_pdf_render_failed';
+  | 'final_pdf_render_failed'
+  // A recorded anchor did not fit on its page, so the renderer moved
+  // (or shrank) the signature box to keep the whole mark on the page.
+  // Relocating beats the old behaviour of letting pdf-lib drop the
+  // overflow, but it leaves the executed instrument disagreeing with
+  // the firm_signatures row, so the chain records the move: requested
+  // vs drawn coordinates, the delta, and the page size that forced it.
+  //
+  // Verified against the live database on 2026-08-06: there is no
+  // CHECK constraint on firm_signature_events.event_type. A duplicate
+  // -primary-key insert carrying an invented event_type returned
+  // 23505 (unique violation) rather than 23514 (check violation),
+  // which means the value was accepted by every constraint on the
+  // table before the index rejected the duplicate. No DDL for this
+  // table exists in the repo, so no migration accompanies this value.
+  | 'signature_relocated';
 
 type EventInput = {
   signingRequestId: string;
