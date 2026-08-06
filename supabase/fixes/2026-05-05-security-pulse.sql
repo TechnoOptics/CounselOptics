@@ -23,18 +23,55 @@ create extension if not exists "pgcrypto";
 -- ---------------------------------------------------------------------------
 -- security_events
 -- ---------------------------------------------------------------------------
+-- Corrected 2026-08-06 to match the live table. This file previously
+-- declared `ip_address inet`, `metadata jsonb` and `acknowledged_by`, none
+-- of which exist in production; the real columns are `ip`, `url` and
+-- `details`, and there is no foreign key on `user_id` (account-deletion
+-- audit rows outlive the auth.users row they describe). The stale
+-- definition is what `lib/security-audit.ts` was written against.
 create table if not exists public.security_events (
   id uuid primary key default gen_random_uuid(),
-  kind text not null,
-  severity text not null check (severity in ('low','medium','high','critical')),
   occurred_at timestamptz not null default now(),
-  acknowledged_at timestamptz,
-  acknowledged_by uuid references auth.users(id) on delete set null,
-  user_id uuid references auth.users(id) on delete set null,
-  ip_address inet,
+  kind text not null,
+  severity text not null default 'low'
+    constraint security_events_severity_check
+    check (severity in ('low','medium','high','critical')),
+  user_id uuid,
+  ip text,
   user_agent text,
-  metadata jsonb not null default '{}'::jsonb
+  url text,
+  details jsonb not null default '{}'::jsonb,
+  acknowledged_at timestamptz
 );
+
+-- Reconcile any environment that was provisioned from the stale definition
+-- above. Every branch is a no-op on production, which already has the
+-- correct shape, so this changes no live object and no schema fingerprint.
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'security_events'
+      and column_name = 'ip_address'
+  ) then
+    alter table public.security_events rename column ip_address to ip;
+    alter table public.security_events alter column ip type text using ip::text;
+  end if;
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'security_events'
+      and column_name = 'metadata'
+  ) then
+    alter table public.security_events rename column metadata to details;
+  end if;
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'security_events'
+      and column_name = 'url'
+  ) then
+    alter table public.security_events add column url text;
+  end if;
+end $$;
 
 create index if not exists security_events_open_idx
   on public.security_events (severity, occurred_at desc)

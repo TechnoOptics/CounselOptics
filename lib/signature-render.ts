@@ -27,6 +27,10 @@
 import { PDFDocument } from 'pdf-lib';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { appendSignatureEvent } from './esign-audit';
+import {
+  computeSignatureBoxRect,
+  resolveSignaturePageIndex,
+} from './signature-geometry';
 
 export type RenderResult =
   | { ok: true; signedPath: string; bytes: number; pages: number }
@@ -150,6 +154,11 @@ export async function renderFinalSignedPdf(
   let stamped = 0;
   let skipped = 0;
   const skipReasons: string[] = [];
+  const relocations: Array<{
+    signatureId: string;
+    signerEmail: string;
+    detail: Record<string, unknown>;
+  }> = [];
   for (const s of sigs) {
     if (!s.signed_at) {
       skipped++;
@@ -167,8 +176,11 @@ export async function renderFinalSignedPdf(
       skipReasons.push(`${s.signer_email}: png download failed`);
       continue;
     }
-    const pageIdx = Math.max(1, s.position_page ?? 1) - 1;
-    const page = pages[pageIdx] ?? pages[0];
+    const pageResolution = resolveSignaturePageIndex(
+      s.position_page,
+      pages.length,
+    );
+    const page = pages[pageResolution.index];
     if (!page) {
       skipped++;
       skipReasons.push(`${s.signer_email}: page ${s.position_page} missing`);
@@ -179,19 +191,37 @@ export async function renderFinalSignedPdf(
     // bottom-left of the page (PDF-native). Default box dimensions
     // come from signature-anchors.ts; we mirror them here so the
     // renderer stays self-contained.
-    const x = Math.max(0, Math.min(1, s.position_x ?? 0.07)) * pw;
-    const y = Math.max(0, Math.min(1, s.position_y ?? 0.07)) * ph;
-    const boxW = 220;
-    const boxH = 64;
+    //
+    // computeSignatureBoxRect keeps the whole box, and the caption
+    // band under it, inside the page. Bounding the 0-1 fraction alone
+    // (what this used to do) does not bound the 220 x 64 point box
+    // that starts at it, so a right-hand or top-of-page anchor used to
+    // have its overflow silently dropped by pdf-lib.
+    const rect = computeSignatureBoxRect({
+      positionX: s.position_x,
+      positionY: s.position_y,
+      pageWidthPt: pw,
+      pageHeightPt: ph,
+    });
+    if (rect.width <= 0 || rect.height <= 0) {
+      skipped++;
+      skipReasons.push(
+        `${s.signer_email}: page ${pageResolution.requestedPage} has no usable area (${pw} x ${ph} pt)`,
+      );
+      continue;
+    }
     try {
       const image = await pdf.embedPng(png);
       // Fit-inside scaling so we never crop the signature.
-      const scale = Math.min(boxW / image.width, boxH / image.height);
+      const scale = Math.min(
+        rect.width / image.width,
+        rect.height / image.height,
+      );
       const drawW = image.width * scale;
       const drawH = image.height * scale;
       page.drawImage(image, {
-        x: x + (boxW - drawW) / 2,
-        y: y + (boxH - drawH) / 2,
+        x: rect.x + (rect.width - drawW) / 2,
+        y: rect.y + (rect.height - drawH) / 2,
         width: drawW,
         height: drawH,
       });
@@ -203,11 +233,39 @@ export async function renderFinalSignedPdf(
         s.signed_at ? new Date(s.signed_at).toISOString().slice(0, 10) : null,
       ].filter(Boolean);
       page.drawText(captionParts.join(' - '), {
-        x: x + 2,
-        y: y - 10,
+        x: rect.x + 2,
+        y: rect.captionY,
         size: 8,
       });
       stamped++;
+      // A mark that did not land where the recorded anchor said is a
+      // discrepancy between the signature row and the executed
+      // instrument. The chain is sold as evidence of what happened to
+      // that instrument, so the move is recorded rather than absorbed.
+      if (rect.relocated || rect.shrunk || pageResolution.relocated) {
+        relocations.push({
+          signatureId: s.id,
+          signerEmail: s.signer_email,
+          detail: {
+            page_requested: pageResolution.requestedPage,
+            page_used: pageResolution.index + 1,
+            page_relocated: pageResolution.relocated,
+            page_width_pt: pw,
+            page_height_pt: ph,
+            position_x: s.position_x,
+            position_y: s.position_y,
+            requested_x_pt: rect.requestedX,
+            requested_y_pt: rect.requestedY,
+            drawn_x_pt: rect.x,
+            drawn_y_pt: rect.y,
+            dx_pt: rect.dxPt,
+            dy_pt: rect.dyPt,
+            box_width_pt: rect.width,
+            box_height_pt: rect.height,
+            shrunk: rect.shrunk,
+          },
+        });
+      }
     } catch (err) {
       skipped++;
       skipReasons.push(
@@ -242,6 +300,22 @@ export async function renderFinalSignedPdf(
     /* column may not exist yet on older schemas */
   }
 
+  // Record every relocation BEFORE the render event so the chain reads
+  // in causal order: each mark that had to be moved, then the render
+  // that produced the file containing those marks. One event per
+  // signature, because the signature id and signer email are what a
+  // reviewer asks about, and appendSignatureEvent chains sequentially.
+  for (const r of relocations) {
+    await appendSignatureEvent(admin, {
+      signingRequestId: request.id,
+      signatureId: r.signatureId,
+      signerEmail: r.signerEmail,
+      eventType: 'signature_relocated',
+      documentSha256: request.document_sha256,
+      metadata: r.detail,
+    });
+  }
+
   // Audit trail entry so reviewers can see when and how the final
   // PDF was produced. The metadata captures the per-signer stamp
   // outcome so a partial render is reconstructible.
@@ -253,6 +327,7 @@ export async function renderFinalSignedPdf(
       signed_file_path: signedPath,
       stamped,
       skipped,
+      relocated: relocations.length,
       skip_reasons: skipReasons.length > 0 ? skipReasons : null,
       source_path: src.path,
       output_bytes: outBytes.length,

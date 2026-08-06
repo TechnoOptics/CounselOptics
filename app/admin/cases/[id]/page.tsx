@@ -38,7 +38,10 @@ export default async function AdminCaseDetailPage({
   const h = headers();
   await logSecurityEvent({
     kind: 'admin_case_view',
-    severity: 'info',
+    // Privileged access: an operator reading a case they do not own. Left
+    // unacknowledged at 'medium' so it surfaces for review rather than
+    // being auto-acknowledged into silence.
+    severity: 'medium',
     userId: viewer?.id ?? null,
     ip: (h.get('x-forwarded-for') ?? '').split(',')[0]?.trim() || null,
     userAgent: h.get('user-agent'),

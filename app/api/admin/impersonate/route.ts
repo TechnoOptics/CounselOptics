@@ -8,6 +8,7 @@ import {
   isServiceRoleConfigured,
 } from '@/lib/supabase/admin';
 import { mintTargetSession, startActAs } from '@/lib/act-as';
+import { logSecurityEvent, requestMeta } from '@/lib/security-audit';
 
 /**
  * POST /api/admin/impersonate  { userId, reason? }
@@ -118,6 +119,26 @@ export async function POST(req: Request) {
     // eslint-disable-next-line no-console
     console.warn('[admin/impersonate] audit insert failed', err);
   }
+
+  // Privileged-access triage signal. The rich record lives in
+  // `admin_impersonations` above, but the open-events queue that operators
+  // actually triage counts `security_events` only, so an impersonation would
+  // otherwise never ask anyone for review. 'medium' leaves it unacknowledged.
+  const meta = requestMeta(req);
+  await logSecurityEvent({
+    kind: 'admin_impersonation',
+    severity: 'medium',
+    userId: caller.id,
+    ip: meta.ip,
+    userAgent: meta.userAgent,
+    url: meta.url,
+    details: {
+      admin_email: caller.email ?? null,
+      target_user_id: targetUserId,
+      target_email: targetEmail,
+      reason: reason || null,
+    },
+  });
   // eslint-disable-next-line no-console
   console.info('[admin/impersonate] act-as started', {
     admin_email: caller.email,
