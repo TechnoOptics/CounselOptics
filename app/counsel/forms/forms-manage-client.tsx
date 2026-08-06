@@ -9,6 +9,7 @@ import {
 } from '@/lib/firm-templates';
 import { isReservedFirmKey } from '@/lib/firm-template-placeholders';
 import { EmptyState } from '@/components/counsel/ui';
+import { T } from '@/components/i18n/LocaleProvider';
 import { StatusPill, PILL_COLORS } from '@/components/counsel/StatusPill';
 
 /**
@@ -36,6 +37,7 @@ export function FormsManageClient({
     body: string;
     fields: TemplateField[];
     status: 'draft' | 'published';
+    requiresApproval: boolean;
   }) => {
     setBusy(true);
     setError(null);
@@ -106,6 +108,12 @@ export function FormsManageClient({
                     </p>
                     <p className="truncate text-[12px] text-ink-500 dark:text-cream-100/55">
                       {t.fields.length} field{t.fields.length === 1 ? '' : 's'}
+                      {' · '}
+                      {t.requiresApproval ? (
+                        <T>reviewed before it is sent</T>
+                      ) : (
+                        <T>employees send it themselves</T>
+                      )}
                       {t.description ? ` · ${t.description}` : ''}
                     </p>
                   </div>
@@ -178,6 +186,7 @@ function TemplateEditor({
     body: string;
     fields: TemplateField[];
     status: 'draft' | 'published';
+    requiresApproval: boolean;
   }) => void;
 }) {
   const [name, setName] = useState(initial?.name ?? '');
@@ -187,6 +196,7 @@ function TemplateEditor({
     initial?.body ??
       'NON-DISCLOSURE AGREEMENT\n\nThis Agreement is made on {{date}} between {{company}} and {{recipient_name}} ("Recipient").\n\n1. ...',
   );
+  const [requiresApproval, setRequiresApproval] = useState(initial?.requiresApproval ?? true);
   const [fieldMeta, setFieldMeta] = useState<Record<string, TemplateField>>(() => {
     const m: Record<string, TemplateField> = {};
     for (const f of initial?.fields ?? []) m[f.key] = f;
@@ -282,12 +292,40 @@ function TemplateEditor({
         </div>
       )}
 
+      <label className="flex items-start gap-2 rounded-lg border border-ink-200 bg-cream-50/60 p-3 dark:border-forest-700/50 dark:bg-forest-900/60">
+        <input
+          type="checkbox"
+          className="mt-0.5"
+          checked={requiresApproval}
+          onChange={(e) => setRequiresApproval(e.target.checked)}
+        />
+        <span className="text-[13px] text-ink-700 dark:text-cream-100/80">
+          <span className="block font-medium text-forest-900 dark:text-cream-100">
+            <T>Review this before it leaves the company</T>
+          </span>
+          <T>
+            The employee fills it in and names the recipient, and it comes to the legal
+            team first. It is sent only after an owner, admin, or attorney approves it.
+            Turn this off only for documents employees may send on their own.
+          </T>
+        </span>
+      </label>
+
       <div className="flex flex-wrap gap-2 border-t border-ink-100 pt-4 dark:border-forest-800/50">
         <button
           type="button"
           disabled={busy || !name.trim() || !body.trim()}
           onClick={() =>
-            onSave({ id: initial?.id, name, description, category, body, fields, status: 'published' })
+            onSave({
+              id: initial?.id,
+              name,
+              description,
+              category,
+              body,
+              fields,
+              status: 'published',
+              requiresApproval,
+            })
           }
           className="btn-primary disabled:opacity-50"
         >
@@ -296,7 +334,18 @@ function TemplateEditor({
         <button
           type="button"
           disabled={busy || !name.trim() || !body.trim()}
-          onClick={() => onSave({ id: initial?.id, name, description, category, body, fields, status: 'draft' })}
+          onClick={() =>
+            onSave({
+              id: initial?.id,
+              name,
+              description,
+              category,
+              body,
+              fields,
+              status: 'draft',
+              requiresApproval,
+            })
+          }
           className="btn-secondary text-sm disabled:opacity-50"
         >
           Save as draft

@@ -31,6 +31,12 @@ export type FirmTemplate = {
   body: string;
   fields: TemplateField[];
   status: 'draft' | 'published' | 'archived';
+  /**
+   * Output from this template needs legal sign-off before it can be sent to an
+   * outside party. On by default: a document that leaves the building under
+   * the firm's letterhead is reviewed unless the legal team says otherwise.
+   */
+  requiresApproval: boolean;
   createdAt: string;
   updatedAt: string | null;
 };
@@ -44,6 +50,7 @@ type Row = {
   body: string;
   fields: TemplateField[] | null;
   status: 'draft' | 'published' | 'archived';
+  requires_approval: boolean | null;
   created_at: string;
   updated_at: string | null;
 };
@@ -58,6 +65,8 @@ function toTemplate(r: Row): FirmTemplate {
     body: r.body,
     fields: Array.isArray(r.fields) ? r.fields : [],
     status: r.status,
+    // Absent (or null) reads as "review it": the safe direction.
+    requiresApproval: r.requires_approval !== false,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -106,7 +115,15 @@ function sanitizeFields(fields: unknown): TemplateField[] {
 
 export async function createFirmTemplateAction(
   firmId: string,
-  input: { name: string; description?: string; category?: string; body: string; fields: TemplateField[]; status?: 'draft' | 'published' },
+  input: {
+    name: string;
+    description?: string;
+    category?: string;
+    body: string;
+    fields: TemplateField[];
+    status?: 'draft' | 'published';
+    requiresApproval?: boolean;
+  },
 ): Promise<{ ok: boolean; error?: string; template?: FirmTemplate }> {
   const gate = await requireAuthor(firmId);
   if ('error' in gate) return { ok: false, error: gate.error };
@@ -123,6 +140,7 @@ export async function createFirmTemplateAction(
       body,
       fields: sanitizeFields(input.fields),
       status: input.status === 'draft' ? 'draft' : 'published',
+      requires_approval: input.requiresApproval !== false,
       created_by: gate.user.id,
     })
     .select('*')
@@ -134,7 +152,15 @@ export async function createFirmTemplateAction(
 export async function updateFirmTemplateAction(
   firmId: string,
   templateId: string,
-  input: Partial<{ name: string; description: string; category: string; body: string; fields: TemplateField[]; status: 'draft' | 'published' | 'archived' }>,
+  input: Partial<{
+    name: string;
+    description: string;
+    category: string;
+    body: string;
+    fields: TemplateField[];
+    status: 'draft' | 'published' | 'archived';
+    requiresApproval: boolean;
+  }>,
 ): Promise<{ ok: boolean; error?: string; template?: FirmTemplate }> {
   const gate = await requireAuthor(firmId);
   if ('error' in gate) return { ok: false, error: gate.error };
@@ -145,6 +171,7 @@ export async function updateFirmTemplateAction(
   if (input.body !== undefined) patch.body = input.body.trim().slice(0, 100000);
   if (input.fields !== undefined) patch.fields = sanitizeFields(input.fields);
   if (input.status !== undefined) patch.status = input.status;
+  if (input.requiresApproval !== undefined) patch.requires_approval = input.requiresApproval;
   const { data, error } = await gate.admin
     .from('firm_templates')
     .update(patch)

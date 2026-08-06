@@ -58,12 +58,12 @@ const PROTECTED_PREFIXES = [
 // (/counsel/request) and the grant-redemption welcome page
 // (/counsel/welcome) must be reachable without an account so prospective
 // firms can apply and approved firms can redeem their setup link.
-// `/portal/share` is a POST route handler, not a page: it authenticates the
-// caller itself (getCurrentUser + authorizeFirmActor). Listing it keeps its
-// behaviour exactly as it was before /portal joined the list above - an
-// unauthenticated call still gets its own refusal rather than a 307 that
-// would re-POST the upload body at /sign-in.
-const PUBLIC_OVERRIDES = ['/counsel/request', '/counsel/welcome', '/portal/share'];
+// `/portal/share` used to be listed here too. It was a POST route handler
+// that took any file from any employee and emailed it to any outside address,
+// which meant a filled NDA could leave the company without ever passing the
+// legal review the Forms flow now requires. The route is gone; approved
+// documents are released server-side by lib/template-release.ts.
+const PUBLIC_OVERRIDES = ['/counsel/request', '/counsel/welcome'];
 
 /**
  * Edge auth-refresh middleware.
