@@ -288,6 +288,14 @@ export type FirmDocument = {
   name: string;
   mimeType: string;
   filePath: string;
+  /**
+   * Derived copy of filePath with signature boxes drawn onto it (see
+   * lib/signature-anchors.ts). Null when the source PDF already had a
+   * usable anchor, or when it was never parseable. This is the version
+   * a signer is shown, because it is the version the final render
+   * stamps.
+   */
+  signableFilePath: string | null;
   fileSize: number;
   version: number;
   parentDocumentId: string | null;
@@ -358,6 +366,21 @@ export type FirmSigningRequest = {
    * when the document download failed at hash time.
    */
   documentSha256: string | null;
+  /**
+   * Whether the signer may download a copy of what they signed. Set by
+   * the firm when the request is composed and enforced server-side by
+   * the copy route, not merely by hiding a button.
+   *
+   * Defaults to true, including for rows written before the column
+   * exists: a signer keeping a copy is the ordinary expectation and
+   * E-SIGN at 15 USC 7001(a)(1) is built around retention.
+   */
+  signerCanDownload: boolean;
+  /**
+   * Storage path of the executed PDF once every signer has finished
+   * and lib/signature-render.ts has stamped it. Null until then.
+   */
+  signedFilePath: string | null;
 };
 
 export type FirmSignature = {

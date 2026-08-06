@@ -1,5 +1,6 @@
 import { createServerSupabase, getCurrentUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
+import { parseSignerDownloadPermission } from './signer-view';
 import type {
   Firm,
   FirmChannel,
@@ -141,6 +142,7 @@ type FirmDocumentRow = {
   name: string;
   mime_type: string;
   file_path: string;
+  signable_file_path?: string | null;
   file_size: number;
   version: number;
   parent_document_id: string | null;
@@ -163,6 +165,7 @@ function documentFromRow(r: FirmDocumentRow): FirmDocument {
     name: r.name,
     mimeType: r.mime_type,
     filePath: r.file_path,
+    signableFilePath: r.signable_file_path ?? null,
     fileSize: Number(r.file_size ?? 0),
     version: r.version,
     parentDocumentId: r.parent_document_id,
@@ -190,6 +193,9 @@ type FirmSigningRequestRow = {
   completed_at: string | null;
   created_at: string;
   document_sha256: string | null;
+  signed_file_path?: string | null;
+  /** Optional: the column may not exist yet on older schemas. */
+  signer_can_download?: boolean | null;
 };
 
 function signingRequestFromRow(r: FirmSigningRequestRow): FirmSigningRequest {
@@ -204,6 +210,8 @@ function signingRequestFromRow(r: FirmSigningRequestRow): FirmSigningRequest {
     completedAt: r.completed_at,
     createdAt: r.created_at,
     documentSha256: r.document_sha256,
+    signerCanDownload: parseSignerDownloadPermission(r.signer_can_download),
+    signedFilePath: r.signed_file_path ?? null,
   };
 }
 

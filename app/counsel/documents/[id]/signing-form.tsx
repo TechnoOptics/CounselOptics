@@ -18,6 +18,10 @@ export function CreateSigningRequestForm({
   const router = useRouter();
   const [signers, setSigners] = useState<Signer[]>([{ email: '', name: '' }]);
   const [message, setMessage] = useState('');
+  // Signers keep a copy unless the firm says otherwise. Stated as the
+  // default in the label below rather than left to be inferred from
+  // the initial checkbox state.
+  const [signerCanDownload, setSignerCanDownload] = useState(true);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState(false);
@@ -49,11 +53,13 @@ export function CreateSigningRequestForm({
         documentId,
         payload,
         message.trim() || null,
+        { signerCanDownload },
       );
       if (res.ok) {
         setOk(true);
         setSigners([{ email: '', name: '' }]);
         setMessage('');
+        setSignerCanDownload(true);
         router.refresh();
       } else {
         setError(res.error ?? t('Could not send request.'));
@@ -125,6 +131,21 @@ export function CreateSigningRequestForm({
           className="input resize-y"
           disabled={pending}
         />
+      </label>
+      <label className="flex items-start gap-3 text-[13px] text-ink-700 dark:text-cream-100/80">
+        <input
+          type="checkbox"
+          checked={signerCanDownload}
+          onChange={(e) => setSignerCanDownload(e.currentTarget.checked)}
+          disabled={pending}
+          className="mt-1"
+        />
+        <span>
+          <T>Let the signer download a copy after signing. On by default,
+          because a signer keeping a copy of what they signed is the normal
+          expectation. Clear it and the download is refused by the server,
+          not just hidden, and the signer is told to ask you for a copy.</T>
+        </span>
       </label>
       <div className="flex justify-end">
         <button type="button" onClick={submit} disabled={pending} className="btn-primary">

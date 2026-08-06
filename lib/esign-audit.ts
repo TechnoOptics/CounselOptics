@@ -42,7 +42,28 @@ export type SignatureEventType =
   // an executed PDF was successfully produced, and how many of the
   // captured signatures actually made it onto the page.
   | 'final_pdf_rendered'
-  | 'final_pdf_render_failed';
+  | 'final_pdf_render_failed'
+  // The signer pulled their own copy (app/api/firm/sign/copy). The
+  // chain is sold as evidence of what happened to an executed
+  // instrument, and retrieval of it is part of that.
+  | 'copy_downloaded'
+  // A recorded anchor did not fit on its page, so the renderer moved
+  // (or shrank) the signature box to keep the whole mark on the page.
+  // Relocating beats the old behaviour of letting pdf-lib drop the
+  // overflow, but it leaves the executed instrument disagreeing with
+  // the firm_signatures row, so the chain records the move: requested
+  // vs drawn coordinates, the delta, and the page size that forced it.
+  | 'signature_relocated';
+
+// A note that applies to both of the values above, which were added
+// without a migration. There is no DDL for firm_signature_events in
+// this repo, so the question of whether event_type carries a CHECK
+// constraint enumerating its values had to be settled against the live
+// database. It was, on 2026-08-06: a duplicate-primary-key insert
+// carrying an invented event_type returned 23505 (unique violation)
+// rather than 23514 (check violation), which means the value cleared
+// every constraint on the table before the index rejected the row.
+// There is no CHECK constraint. New values here need no migration.
 
 type EventInput = {
   signingRequestId: string;

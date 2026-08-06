@@ -2,6 +2,10 @@ import { NextResponse, type NextRequest } from 'next/server';
 import crypto from 'node:crypto';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { appendSignatureEvent } from '@/lib/esign-audit';
+import {
+  projectSignerConsentMetadata,
+  type SignerConsentPayload,
+} from '@/lib/signer-view';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -17,6 +21,8 @@ export const dynamic = 'force-dynamic';
  *     consent?: {                     // UETA disclosure capture
  *       electronicRecordsConsentedAt?: string,
  *       hardwareSoftwareConfirmedAt?: string,
+ *       documentPresented?: boolean,
+ *       documentReviewedAt?: string,
  *       intentAffirmedAt?: string,
  *       uaSnapshot?: string | null,
  *       tzOffsetMinutes?: number,
@@ -36,13 +42,7 @@ export async function POST(req: NextRequest) {
     token?: string;
     signatureDataUrl?: string;
     typedName?: string | null;
-    consent?: {
-      electronicRecordsConsentedAt?: string;
-      hardwareSoftwareConfirmedAt?: string;
-      intentAffirmedAt?: string;
-      uaSnapshot?: string | null;
-      tzOffsetMinutes?: number;
-    };
+    consent?: SignerConsentPayload;
   };
   try {
     payload = await req.json();
@@ -183,7 +183,11 @@ export async function POST(req: NextRequest) {
   // when the firm sent the link, plus any link_viewed events when
   // the signer opened the page). The UETA consent capture rides
   // along inside metadata so the chain proves the electronic-records
-  // disclosure was affirmed BEFORE the intent-to-sign.
+  // disclosure was affirmed BEFORE the intent-to-sign, and that the
+  // signer was shown the document and said they had read it. The
+  // projection is projectSignerConsentMetadata, unit-tested in
+  // lib/signer-view.ts, because a key silently missing from this
+  // object is a piece of evidence that quietly does not exist.
   await appendSignatureEvent(admin, {
     signingRequestId: request.id,
     signatureId: sig.id,
@@ -197,20 +201,7 @@ export async function POST(req: NextRequest) {
       signature_image_path: path,
       audit_hash: auditHash,
       image_bytes: buffer.length,
-      consent: payload.consent
-        ? {
-            electronic_records_consented_at:
-              payload.consent.electronicRecordsConsentedAt ?? null,
-            hardware_software_confirmed_at:
-              payload.consent.hardwareSoftwareConfirmedAt ?? null,
-            intent_affirmed_at: payload.consent.intentAffirmedAt ?? null,
-            ua_snapshot: payload.consent.uaSnapshot ?? null,
-            tz_offset_minutes:
-              typeof payload.consent.tzOffsetMinutes === 'number'
-                ? payload.consent.tzOffsetMinutes
-                : null,
-          }
-        : null,
+      consent: projectSignerConsentMetadata(payload.consent),
     },
   });
 

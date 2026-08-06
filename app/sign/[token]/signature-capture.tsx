@@ -1,7 +1,12 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useStepAnchor } from '@/lib/use-step-anchor';
+import {
+  canLeaveDisclosureStep,
+  type SignatureLinePlacement,
+} from '@/lib/signer-view';
+import { SignatureLinePreview } from './signature-line-preview';
 
 type Mode = 'draw' | 'type' | 'upload';
 type Step = 'disclosure' | 'capture' | 'done';
@@ -21,6 +26,22 @@ type Step = 'disclosure' | 'capture' | 'done';
  *      language, separate from the electronic-records consent in
  *      step 1.
  *
+ * That ordering is unchanged. What is added is the document: it is now
+ * rendered above this component, and step 1 asks the signer to confirm
+ * they have reviewed it, because E-SIGN and UETA both rest on the
+ * signer having access to the record they are assenting to. The
+ * confirmation is only asked for when the document was actually shown,
+ * and when it was NOT shown the step does not open at all: a document
+ * that failed to load is the exact case where the signer has not read
+ * what they are being asked to sign.
+ *
+ * Step 2 also shows the signature line. The mark does not appear in a
+ * schematic beside the pad any more: the document is rasterised above
+ * this component, the viewer moves to the signature page when this
+ * step opens, and the mark is drawn into the real box on the real
+ * page. That is why the canvas snapshot is published upwards rather
+ * than kept here.
+ *
  * Submit posts the token, the base64 PNG, the typed name, and a
  * record of the consent timestamps to /api/firm/sign. The server
  * persists the signature image, fills firm_signatures.signed_at, and
@@ -32,15 +53,41 @@ export function SignatureCapture({
   signerName,
   documentName,
   firmName,
+  documentPresented,
+  placement,
+  copyPermitted,
+  copyHref,
+  onMarkChange,
+  onStepChange,
 }: {
   token: string;
   signerEmail: string;
   signerName: string | null;
   documentName: string;
   firmName: string;
+  /** Whether the document actually rendered on the page above this. */
+  documentPresented: boolean;
+  placement: SignatureLinePlacement;
+  /** Whether the firm allows this signer to download a copy. */
+  copyPermitted: boolean;
+  copyHref: string;
+  /** The mark as it stands, so the document above can draw it into the
+   *  signature box. Published rather than held here, because the box
+   *  is on the rendered page and not in this component. */
+  onMarkChange: (dataUrl: string | null) => void;
+  /** Which step the signer is on, so the viewer above can move to the
+   *  signature page when the pad opens. */
+  onStepChange: (step: 'disclosure' | 'capture' | 'done') => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [step, setStep] = useState<Step>('disclosure');
+  const [step, setStepState] = useState<Step>('disclosure');
+  const setStep = useCallback(
+    (next: Step) => {
+      setStepState(next);
+      onStepChange(next);
+    },
+    [onStepChange],
+  );
   // Re-anchor the card on every step transition so the user
   // never has to scroll back up to find the new content.
   const cardRef = useStepAnchor<HTMLElement>(step);
@@ -48,7 +95,9 @@ export function SignatureCapture({
   // Disclosure-step state.
   const [erdAgreed, setErdAgreed] = useState(false);
   const [hwAgreed, setHwAgreed] = useState(false);
+  const [docReviewed, setDocReviewed] = useState(false);
   const [erdConsentedAt, setErdConsentedAt] = useState<string | null>(null);
+  const [docReviewedAt, setDocReviewedAt] = useState<string | null>(null);
 
   // Capture-step state.
   const [mode, setMode] = useState<Mode>('draw');
@@ -58,6 +107,22 @@ export function SignatureCapture({
   const [intentAffirmed, setIntentAffirmed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // A snapshot of the canvas, published upwards so the rendered page
+  // can draw it into the signature box. Taken when a stroke ends
+  // rather than on every pointer move, which keeps the drawing itself
+  // cheap and the rasterised page above it undisturbed.
+  const captureMark = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    try {
+      onMarkChange(canvas.toDataURL('image/png'));
+    } catch {
+      // A tainted canvas would throw here. The pad still works and the
+      // submit path reads the canvas directly; only the preview is lost.
+      onMarkChange(null);
+    }
+  }, [onMarkChange]);
 
   // Resize canvas when entering the capture step.
   useEffect(() => {
@@ -90,6 +155,7 @@ export function SignatureCapture({
     ctx.clearRect(0, 0, w, h);
     if (!typed.trim()) {
       setHasInk(false);
+      onMarkChange(null);
       return;
     }
     ctx.fillStyle = '#0f2d24';
@@ -97,7 +163,8 @@ export function SignatureCapture({
     ctx.textBaseline = 'middle';
     ctx.fillText(typed, 16, h / 2);
     setHasInk(true);
-  }, [step, mode, typed]);
+    captureMark();
+  }, [step, mode, typed, captureMark, onMarkChange]);
 
   function getXY(e: React.PointerEvent<HTMLCanvasElement>) {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -122,6 +189,7 @@ export function SignatureCapture({
     setHasInk(true);
   }
   function up() {
+    if (drawing) captureMark();
     setDrawing(false);
   }
 
@@ -132,6 +200,7 @@ export function SignatureCapture({
     if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     setHasInk(false);
+    onMarkChange(null);
     setTyped(signerName ?? '');
   }
 
@@ -166,6 +235,7 @@ export function SignatureCapture({
       const drawH = img.height * scale;
       ctx.drawImage(img, (w - drawW) / 2, (h - drawH) / 2, drawW, drawH);
       setHasInk(true);
+      captureMark();
       URL.revokeObjectURL(url);
     };
     img.onerror = () => {
@@ -175,15 +245,29 @@ export function SignatureCapture({
     img.src = url;
   }
 
+  const mayLeaveDisclosure = canLeaveDisclosureStep({
+    electronicRecordsAgreed: erdAgreed,
+    hardwareSoftwareAgreed: hwAgreed,
+    documentPresented,
+    documentReviewed: docReviewed,
+  });
+
   function advanceFromDisclosure() {
-    if (!erdAgreed || !hwAgreed) {
+    if (!mayLeaveDisclosure) {
       setError(
-        'Both confirmations are required to receive this document electronically.',
+        !documentPresented
+          ? 'The document did not open on this page, so there is nothing to sign yet. Please ask the firm to send it to you.'
+          : !erdAgreed || !hwAgreed
+            ? 'Both confirmations are required to receive this document electronically.'
+            : 'Please confirm you have reviewed the document above.',
       );
       return;
     }
     setError(null);
     setErdConsentedAt(new Date().toISOString());
+    if (documentPresented && !docReviewedAt) {
+      setDocReviewedAt(new Date().toISOString());
+    }
     setStep('capture');
   }
 
@@ -214,6 +298,15 @@ export function SignatureCapture({
           consent: {
             electronicRecordsConsentedAt: erdConsentedAt,
             hardwareSoftwareConfirmedAt: erdConsentedAt,
+            // Whether the document was put in front of the signer, and
+            // when they affirmed they had read it. The server records
+            // both in the 'signed' event, so a later dispute about
+            // whether the signer was ever shown the record has an
+            // answer in the chain rather than only in this browser.
+            // documentReviewedAt stays null when nothing was shown,
+            // which the gate above no longer allows through anyway.
+            documentPresented,
+            documentReviewedAt: docReviewedAt,
             intentAffirmedAt: new Date().toISOString(),
             uaSnapshot:
               typeof navigator !== 'undefined' ? navigator.userAgent : null,
@@ -246,6 +339,24 @@ export function SignatureCapture({
           firm has been notified and will share the executed copy plus the
           audit trail with you.
         </p>
+        {copyPermitted ? (
+          <>
+            <a href={copyHref} className="btn-primary mt-5 inline-flex">
+              Download your copy
+            </a>
+            <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-3 leading-relaxed">
+              If other people still have to sign, this is the document as you
+              signed it. The fully executed version, with every signature on
+              it, is available from this same link once everyone has finished.
+            </p>
+          </>
+        ) : (
+          <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-4 leading-relaxed">
+            {firmName} has not enabled downloads for this document. You can ask
+            them for a copy at any time, and they can send you a paper copy at
+            no charge.
+          </p>
+        )}
         <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-4 leading-relaxed">
           Keep this email or page reference for your records. The signed copy
           is associated with a tamper-evident audit trail you can request at
@@ -328,6 +439,37 @@ export function SignatureCapture({
             can access electronic records on this device.
           </span>
         </label>
+        {/* Asked only when the document is actually on the page above.
+            Confirming review of something never shown would be a
+            fiction the audit chain would then carry. When it was not
+            shown, the step does not open at all: see the notice
+            below. */}
+        {documentPresented && (
+          <label className="flex items-start gap-3 text-[13px] text-ink-700 dark:text-cream-100/80">
+            <input
+              type="checkbox"
+              checked={docReviewed}
+              onChange={(e) => setDocReviewed(e.currentTarget.checked)}
+              className="mt-1"
+            />
+            <span>
+              I have reviewed the document shown above, in full.
+            </span>
+          </label>
+        )}
+
+        {/* A document that failed to load is a blocker, not a footnote.
+            The signer has not seen the record, so the ceremony stops
+            here rather than letting them complete it having read only
+            the notice above. */}
+        {!documentPresented && (
+          <p className="rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 bg-cream-50/60 dark:bg-forest-900/40 px-3 py-2.5 text-[13px] text-ink-700 dark:text-cream-100/80 leading-relaxed">
+            The document did not open on this page, so signing is not
+            available. You should not be asked to sign something you have not
+            read. Please ask <span data-no-translate>{firmName}</span> to send
+            you the document, then use this link again.
+          </p>
+        )}
 
         {error && (
           <p className="rounded-lg border border-rose-200 dark:border-rose-700/40 bg-rose-50 dark:bg-rose-950/30 px-3 py-2 text-sm text-rose-800 dark:text-rose-200">
@@ -339,7 +481,7 @@ export function SignatureCapture({
           <button
             type="button"
             onClick={advanceFromDisclosure}
-            disabled={!erdAgreed || !hwAgreed}
+            disabled={!mayLeaveDisclosure}
             className="btn-primary"
           >
             Continue to sign
@@ -357,6 +499,11 @@ export function SignatureCapture({
           Sign the document
         </h2>
       </header>
+
+      <SignatureLinePreview
+        placement={placement}
+        signerLabel={signerName || signerEmail}
+      />
 
       <div className="flex items-center justify-between gap-3">
         <p className="eyebrow">Your signature</p>

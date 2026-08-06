@@ -4,7 +4,11 @@ import { notFound } from 'next/navigation';
 import { getSignatureByToken } from '@/lib/firm-storage';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { appendSignatureEvent } from '@/lib/esign-audit';
-import { SignatureCapture } from './signature-capture';
+import {
+  SIGNER_COPY_REFUSAL_COPY,
+  resolveSignerCopyAccess,
+} from '@/lib/signer-view';
+import { SignerSurface } from './signer-surface';
 import { SignerResponse } from './signer-response';
 import { AccessCodeGate } from './access-code-gate';
 import { AutoTranslate } from '@/components/i18n/AutoTranslate';
@@ -22,10 +26,28 @@ export const metadata = {
 
 /**
  * Public sign page. No auth required - the token in the URL grants
- * access to exactly one signature row. The document is rendered via
- * the admin-issued signed URL and the signature is captured client-
- * side, posted back to /api/firm/sign which records ip, user agent,
- * timestamp, and audit hash.
+ * access to exactly one signature row.
+ *
+ * The document itself is rendered at the top, above the ceremony. The
+ * browser rasterises it from bytes served by
+ * /api/firm/sign/document/[token] on this origin, which is what lets
+ * the signer's mark be drawn onto the real signature line on the real
+ * page as they make it. Until recently this page passed only the
+ * document NAME to the capture component and the doc comment here
+ * claimed otherwise, which meant the signer signed a record they had
+ * never seen. E-SIGN at 15 USC 7001 and UETA both rest on the signer
+ * having access to the record they are assenting to, so that gap
+ * undercut a ceremony that is otherwise careful.
+ *
+ * No storage signature reaches the browser. The path is resolved here
+ * from the token and the bytes are streamed by the route above, which
+ * runs the same access decision this page does
+ * (resolveSignerDocumentAccess), so the document and the page cannot
+ * disagree about who may see it.
+ *
+ * The signature is captured client-side and posted back to
+ * /api/firm/sign, which records ip, user agent, timestamp, and audit
+ * hash.
  *
  * If the token is invalid, expired, or already signed, we render an
  * appropriate message. The `noindex` meta robots directive keeps
@@ -69,6 +91,19 @@ export default async function SignPage({ params }: { params: { token: string } }
   }
 
   if (signature.signedAt) {
+    // Coming back to the link after signing is how a signer retrieves
+    // their copy. The same decision the copy route enforces runs here,
+    // so the page and the route can never disagree about whether a
+    // download is offered.
+    const copy = resolveSignerCopyAccess({
+      downloadPermitted: request.signerCanDownload,
+      signedAt: signature.signedAt,
+      requestStatus: request.status,
+      accessCodeRequired: signature.accessCodeRequired,
+      accessVerifiedAt: signature.accessVerifiedAt,
+      signedFilePath: request.signedFilePath,
+      sourceFilePath: document.signableFilePath || document.filePath || null,
+    });
     return (
       <div className="min-h-screen flex items-center justify-center bg-cream-50 dark:bg-forest-950 px-4">
         <div className="max-w-lg w-full card p-8 text-center">
@@ -77,12 +112,30 @@ export default async function SignPage({ params }: { params: { token: string } }
             This document was signed{' '}
             {new Date(signature.signedAt).toLocaleString()}.
           </h1>
-          <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 leading-relaxed">
-            If you need a copy, ask the firm for the executed version.
+          {copy.allowed ? (
+            <>
+              <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 leading-relaxed">
+                {copy.kind === 'executed'
+                  ? 'The fully executed copy, with every signature on it, is ready for you.'
+                  : 'Here is the document as you signed it. Once everyone has signed, this link gives you the fully executed copy instead.'}
+              </p>
+              <a
+                href={`/api/firm/sign/copy/${signature.token}`}
+                className="btn-primary mt-5 inline-flex"
+              >
+                Download your copy
+              </a>
+            </>
+          ) : (
+            <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 leading-relaxed">
+              {SIGNER_COPY_REFUSAL_COPY[copy.reason]}
+            </p>
+          )}
+          <p className="mt-5">
+            <Link href="/" className="btn-secondary inline-flex">
+              Go to Advottic
+            </Link>
           </p>
-          <Link href="/" className="btn-secondary mt-5 inline-flex">
-            Go to Advottic
-          </Link>
         </div>
       </div>
     );
@@ -143,6 +196,20 @@ export default async function SignPage({ params }: { params: { token: string } }
     );
   }
 
+  // The document the signer is about to sign is fetched by the client
+  // from /api/firm/sign/document/[token], not linked from here. That
+  // route resolves the same path this page would (signableFilePath
+  // first, because that is the derived copy with the signature boxes
+  // drawn on it and the version the final render stamps) and runs the
+  // same access decision, so there is one answer to "may this token
+  // see this document" and one place it is written down.
+  //
+  // Where the signature lands is decided in the browser too, because
+  // it depends on the real page size, which is only known once the PDF
+  // has been parsed. What this page hands over is the raw recorded
+  // anchor: the same position_page / position_x / position_y that
+  // lib/signature-render.ts stamps into.
+
   // Render in a custom shell so signers do NOT see the consumer-side
   // header / footer chrome. The page should feel like a focused
   // signing portal.
@@ -191,8 +258,11 @@ export default async function SignPage({ params }: { params: { token: string } }
             {document.name}
           </h1>
           <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 leading-relaxed">
-            Signing as <strong>{signature.signerName || signature.signerEmail}</strong>.
-            Your sign link is single-use.
+            Signing as{' '}
+            <strong data-no-translate>
+              {signature.signerName || signature.signerEmail}
+            </strong>
+            . Your sign link is single-use.
           </p>
         </header>
 
@@ -202,12 +272,19 @@ export default async function SignPage({ params }: { params: { token: string } }
           </p>
         )}
 
-        <SignatureCapture
+        {/* The document comes FIRST. The ceremony below it is unchanged:
+            disclosure, then consent, then the pad. */}
+        <SignerSurface
           token={signature.token}
-          signerEmail={signature.signerEmail}
-          signerName={signature.signerName}
           documentName={document.name}
           firmName={firm.name}
+          signerEmail={signature.signerEmail}
+          signerName={signature.signerName}
+          positionPage={signature.positionPage}
+          positionX={signature.positionX}
+          positionY={signature.positionY}
+          copyPermitted={request.signerCanDownload}
+          copyHref={`/api/firm/sign/copy/${signature.token}`}
         />
 
         <SignerResponse token={signature.token} firmName={firm.name} />
