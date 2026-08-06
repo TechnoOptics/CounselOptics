@@ -7,6 +7,7 @@ import {
   type SignatureLinePlacement,
 } from '@/lib/signer-view';
 import { SignatureLinePreview } from './signature-line-preview';
+import { MobileHandoff } from './mobile-handoff';
 
 type Mode = 'draw' | 'type' | 'upload';
 type Step = 'disclosure' | 'capture' | 'done';
@@ -596,6 +597,24 @@ export function SignatureCapture({
               : 'Attach an image of your signature'}
         </span>
       </div>
+
+      {/* A fourth way to make the mark, offered only here. The
+          disclosure step must not show it: a code minted there would
+          hand a phone a session the signer had not yet consented to,
+          which is the whole difference between a handoff and a second
+          front door. The consent below is the same capture the desktop
+          submit sends, so a signature finished on the phone carries the
+          same evidence as one finished on this page. */}
+      <MobileHandoff
+        signerToken={token}
+        consent={{
+          electronicRecordsConsentedAt: erdConsentedAt,
+          hardwareSoftwareConfirmedAt: erdConsentedAt,
+          documentPresented: docPresentedAtReview,
+          documentReviewedAt: docReviewedAt,
+        }}
+        onSigned={() => setStep('done')}
+      />
 
       <label className="flex items-start gap-3 text-[13px] text-ink-700 dark:text-cream-100/80">
         <input
