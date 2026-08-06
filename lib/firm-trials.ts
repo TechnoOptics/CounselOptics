@@ -51,9 +51,21 @@ export type TrialAction =
   | { kind: 'restored' }
   | { kind: 'seats_changed'; seatLimit: number | null };
 
+/**
+ * `actorEmail` is required rather than optional, and typed `| null` rather
+ * than left off, so that a caller with only an id has to say so out loud.
+ *
+ * The audit table records the actor twice on purpose: the uuid resolves only
+ * while that user row exists, and the denormalised email is the half that
+ * survives the admin being deleted. A nullable column that no writer ever
+ * fills is worse than no column, because it looks like an answer and is
+ * always null. Making this required means the HQ action layer gets a compile
+ * error if it forgets, instead of quietly writing half a record.
+ */
 export type TrialActionInput = {
   firmId: string;
   actorUserId: string;
+  actorEmail: string | null;
   action: TrialAction;
   note: string | null;
 };
@@ -334,6 +346,7 @@ export async function applyTrialAction(
     firm_id: input.firmId,
     action: input.action.kind,
     actor_user_id: input.actorUserId,
+    actor_email: input.actorEmail,
     previous_value: previousValue,
     new_value: newValue,
     note: input.note,
@@ -351,7 +364,10 @@ export async function applyTrialAction(
   // The durable fix is one transaction, which means a Postgres function and
   // therefore a migration. Not this task's file.
   //
-  // The note is deliberately not logged: it is free text an operator typed.
+  // The note and the actor email are deliberately not logged. The note is
+  // free text an operator typed, and the id identifies the actor well enough
+  // to reconstruct the row minutes later, which is the only window in which
+  // anyone acts on this line. Neither belongs in a log a third party retains.
   if (auditErr) {
     console.error(
       'applyTrialAction: AUDIT WRITE FAILED, the state change already landed',
