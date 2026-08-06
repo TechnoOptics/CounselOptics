@@ -6,7 +6,12 @@ import {
   canLeaveDisclosureStep,
   type SignatureLinePlacement,
 } from '@/lib/signer-view';
+import {
+  SIGNING_INTENT_PREFIX,
+  signingIntentSuffix,
+} from '@/lib/signing-intent';
 import { SignatureLinePreview } from './signature-line-preview';
+import { MobileHandoff } from './mobile-handoff';
 
 type Mode = 'draw' | 'type' | 'upload';
 type Step = 'disclosure' | 'capture' | 'done';
@@ -597,6 +602,24 @@ export function SignatureCapture({
         </span>
       </div>
 
+      {/* A fourth way to make the mark, offered only here. The
+          disclosure step must not show it: a code minted there would
+          hand a phone a session the signer had not yet consented to,
+          which is the whole difference between a handoff and a second
+          front door. The consent below is the same capture the desktop
+          submit sends, so a signature finished on the phone carries the
+          same evidence as one finished on this page. */}
+      <MobileHandoff
+        signerToken={token}
+        consent={{
+          electronicRecordsConsentedAt: erdConsentedAt,
+          hardwareSoftwareConfirmedAt: erdConsentedAt,
+          documentPresented: docPresentedAtReview,
+          documentReviewedAt: docReviewedAt,
+        }}
+        onSigned={() => setStep('done')}
+      />
+
       <label className="flex items-start gap-3 text-[13px] text-ink-700 dark:text-cream-100/80">
         <input
           type="checkbox"
@@ -605,16 +628,20 @@ export function SignatureCapture({
           className="mt-1"
         />
         <span>
-          {/* The name is the signer's own, inside the sentence that
-              makes the mark a signature. The runtime translation layer
-              would otherwise machine-translate a person's name in the
-              operative clause of a legal instrument. */}
-          I,{' '}
-          <strong data-no-translate>{signerName || signerEmail}</strong>, intend
-          that the
-          mark above be my signature on &ldquo;{documentName}&rdquo;, with the
-          same legal effect as a handwritten signature. I am acting on my
-          own behalf or as authorized for the entity I represent.
+          {/* The words come from lib/signing-intent.ts, which the phone
+              pad reads too. A signer who starts here and finishes on
+              their phone affirms intent twice in one ceremony, and the
+              two affirmations have to be the same form of words, so
+              neither surface keeps a copy of them.
+
+              The name is the signer's own, inside the sentence that
+              makes the mark a signature, and stays in its own element:
+              the runtime translation layer would otherwise
+              machine-translate a person's name in the operative clause
+              of a legal instrument. */}
+          {SIGNING_INTENT_PREFIX}
+          <strong data-no-translate>{signerName || signerEmail}</strong>
+          {signingIntentSuffix(documentName)}
         </span>
       </label>
 

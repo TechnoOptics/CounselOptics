@@ -96,6 +96,7 @@ export function SignerSurface({
         positionPage={positionPage}
         positionX={positionX}
         positionY={positionY}
+        copyPermitted={copyPermitted}
         markDataUrl={markDataUrl}
         focusSignature={step === 'capture'}
         onStatusChange={handleStatus}

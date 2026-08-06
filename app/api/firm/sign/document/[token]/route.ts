@@ -2,10 +2,13 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { getSignatureByToken } from '@/lib/firm-storage';
 import {
+  SIGNER_DOCUMENT_DELIVERY_REFUSAL_COPY,
   SIGNER_DOCUMENT_REFUSAL_COPY,
+  classifyDocumentRequestPurpose,
   resolveDocumentSizeAcceptance,
   resolveDocumentSizeRefusal,
   resolveSignerDocumentAccess,
+  resolveSignerDocumentDelivery,
 } from '@/lib/signer-view';
 
 export const runtime = 'nodejs';
@@ -34,9 +37,20 @@ export const dynamic = 'force-dynamic';
  * and it is the same function the page calls
  * (resolveSignerDocumentAccess in lib/signer-view.ts, unit-tested
  * there) so the two cannot disagree.
+ *
+ * Two decisions run, not one, and they answer different questions.
+ * resolveSignerDocumentAccess asks whether this token may see this
+ * document at all. resolveSignerDocumentDelivery then asks whether the
+ * firm's per-request download decision withholds it FROM THIS REQUEST,
+ * which is a narrower question on purpose: the rasteriser cannot draw a
+ * page without the file, so refusing the signing page's own fetch would
+ * mean nobody could read what they are being asked to sign. The
+ * permission therefore closes the browser-viewer path and leaves the
+ * render path open. The reasoning, and what it does not achieve, is
+ * written out beside the function.
  */
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: { token: string } },
 ) {
   const token = String(params.token ?? '').trim();
@@ -59,6 +73,23 @@ export async function GET(
     // request behind it; 403 for a refusal we mean the signer to read.
     const status = access.reason === 'code-required' ? 404 : 403;
     return refuse(status, SIGNER_DOCUMENT_REFUSAL_COPY[access.reason]);
+  }
+
+  // The firm's decision, enforced here rather than only on the button
+  // that offers the file. Fetch Metadata is what separates the signing
+  // page's own render fetch from a browser pointed at this URL; the
+  // headers are set by the browser and cannot be written by page
+  // script. A request that states nothing is served, because the
+  // signer on an older Safari has to be able to read the document.
+  const delivery = resolveSignerDocumentDelivery({
+    downloadPermitted: request.signerCanDownload,
+    purpose: classifyDocumentRequestPurpose({
+      secFetchDest: req.headers.get('sec-fetch-dest'),
+      secFetchMode: req.headers.get('sec-fetch-mode'),
+    }),
+  });
+  if (!delivery.serve) {
+    return refuse(403, SIGNER_DOCUMENT_DELIVERY_REFUSAL_COPY[delivery.reason]);
   }
 
   const admin = createAdminSupabase();
@@ -109,11 +140,18 @@ export async function GET(
     headers: {
       'Content-Type': 'application/pdf',
       'Content-Length': String(blob.size),
-      // No filename. This is the render source, not the signer's copy:
-      // retention after signing goes through the copy route, which is
-      // where the firm's download permission is enforced.
+      // No filename, and never an attachment. This is the render
+      // source, not the signer's copy: retention after signing goes
+      // through the copy route, and the firm's download permission is
+      // enforced on both, in the delivery check above and in
+      // resolveSignerCopyAccess there.
       'Content-Disposition': 'inline',
       'Cache-Control': 'private, no-store',
+      // The body now depends on what the client said it wanted these
+      // bytes for. Nothing should be caching a no-store response, but
+      // an intermediary that does must not reuse a render answer for a
+      // navigation.
+      'Vary': 'Sec-Fetch-Dest, Sec-Fetch-Mode',
       'X-Content-Type-Options': 'nosniff',
       'X-Robots-Tag': 'noindex, nofollow',
       // Whole-file responses only. Range requests would need the

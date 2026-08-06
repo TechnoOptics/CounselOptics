@@ -50,6 +50,7 @@ export function SignerDocumentView({
   positionPage,
   positionX,
   positionY,
+  copyPermitted,
   markDataUrl,
   focusSignature,
   onStatusChange,
@@ -61,6 +62,12 @@ export function SignerDocumentView({
   positionPage: number | null;
   positionX: number | null;
   positionY: number | null;
+  /** The firm's per-request decision about the signer keeping a copy.
+   *  When it is false the byte route refuses a browser pointed at the
+   *  document, so offering to open it in a tab would walk the signer
+   *  into a refusal. The gate is the route; this only stops the page
+   *  offering a door that is shut. */
+  copyPermitted: boolean;
   /** PNG data URL of the mark as it stands right now, or null. */
   markDataUrl: string | null;
   /** True once the signer is at the pad, which is when the viewer
@@ -308,8 +315,10 @@ export function SignerDocumentView({
         {/* Only where it could actually help. A file over the ceiling
             and an empty response are refused by the route as well, so
             offering a new tab would walk the signer into the same
-            refusal in a plainer typeface. */}
-        {status !== 'too-large' && status !== 'empty' && (
+            refusal in a plainer typeface. So is a document the firm
+            has withheld a copy of: the route serves this page's render
+            fetch and refuses a browser pointed at the file. */}
+        {copyPermitted && status !== 'too-large' && status !== 'empty' && (
           <p className="mt-4">
             <ExternalLink href={documentHref} className="btn-secondary text-sm">
               Try opening it in a new tab
@@ -468,12 +477,18 @@ export function SignerDocumentView({
           </button>
         )}
 
-        <ExternalLink
-          href={documentHref}
-          className="btn-secondary text-sm ml-auto shrink-0"
-        >
-          Open in a new tab
-        </ExternalLink>
+        {/* Offered only when the firm has left the signer able to keep
+            a copy. Otherwise the byte route refuses a browser pointed
+            at the document, and a button that leads to a refusal is
+            worse than no button. */}
+        {copyPermitted && (
+          <ExternalLink
+            href={documentHref}
+            className="btn-secondary text-sm ml-auto shrink-0"
+          >
+            Open in a new tab
+          </ExternalLink>
+        )}
       </div>
     </section>
   );

@@ -7,7 +7,7 @@
  * as a function over plain values, and the components are the thin
  * wiring around it.
  *
- * Five rules live here:
+ * Six rules live here:
  *
  *   1. When the signer may leave the disclosure step
  *      (canLeaveDisclosureStep).
@@ -34,8 +34,13 @@
  *      actually drew everything the page asked for
  *      (firstDroppedRenderObject), and what a failure says to the
  *      signer (SIGNER_DOCUMENT_RENDER_COPY).
+ *   6. What the bytes are being asked FOR, and therefore whether the
+ *      firm's download decision withholds them
+ *      (classifyDocumentRequestPurpose / resolveSignerDocumentDelivery),
+ *      and how this page attributes itself to the person reading it
+ *      (signerWatermarkStamp).
  *
- * A sixth used to live here: which URL a mounted document frame shows.
+ * A seventh used to live here: which URL a mounted document frame shows.
  * It is gone with the frame. The page no longer mints a signed storage
  * URL for the browser at all, so there is no freshly minted URL for a
  * re-render to write into an iframe src, and nothing to retain.
@@ -699,6 +704,175 @@ export const SIGNER_DOCUMENT_REFUSAL_COPY: Record<
   unavailable:
     'The document is not available right now. The firm can send it to you.',
 };
+
+// ---------------------------------------------------------------------
+// 6. What the bytes are being asked for, and who is reading the page
+// ---------------------------------------------------------------------
+
+/**
+ * What a request for the document bytes is going to do with them.
+ *
+ * 'render' is the signing page's own fetch, feeding the rasteriser.
+ * 'navigate' is a browser being pointed AT the file: a new tab, a
+ * bookmark, a frame, an embed. That lands in the browser's built-in PDF
+ * viewer, which is a save-and-print surface with the file already open
+ * in it.
+ * 'unstated' is a client that said nothing, which is Safari before
+ * 16.4, some in-app webviews, and every scripted client.
+ *
+ * Fetch Metadata is the only thing on the wire that separates the
+ * first two, and it separates them well for real browsers: a same
+ * origin fetch() sends Sec-Fetch-Dest: empty, and a top level
+ * navigation sends Sec-Fetch-Dest: document with Sec-Fetch-Mode:
+ * navigate. Neither header can be set by page script.
+ */
+export type DocumentRequestPurpose = 'render' | 'navigate' | 'unstated';
+
+/** Destinations that mean "a browser is going to display this file
+ *  itself", as opposed to handing the bytes to our script. */
+const VIEWER_FETCH_DESTS = new Set([
+  'document',
+  'embed',
+  'frame',
+  'iframe',
+  'object',
+]);
+
+export function classifyDocumentRequestPurpose(input: {
+  secFetchDest: string | null | undefined;
+  secFetchMode: string | null | undefined;
+}): DocumentRequestPurpose {
+  const dest = (input.secFetchDest ?? '').trim().toLowerCase();
+  const mode = (input.secFetchMode ?? '').trim().toLowerCase();
+  if (mode === 'navigate') return 'navigate';
+  if (VIEWER_FETCH_DESTS.has(dest)) return 'navigate';
+  if (dest === 'empty') return 'render';
+  return 'unstated';
+}
+
+export type SignerDocumentDelivery =
+  | { serve: true }
+  | { serve: false; reason: 'download-not-permitted' };
+
+/**
+ * Whether the firm's "the signer may keep a copy" decision withholds
+ * these bytes from this particular request.
+ *
+ * This is the gap the download permission had. resolveSignerCopyAccess
+ * gates the copy route, and the composer refuses to send a restricted
+ * request it cannot record, but the route that streams the render
+ * source never asked the question at all: the permission reached a
+ * button and stopped there, and anyone holding the signing link could
+ * open the raw PDF by requesting the URL.
+ *
+ * The question this function answers is deliberately narrower than
+ * "may these bytes be served", because the wide version breaks signing.
+ * The rasteriser runs in the signer's browser and needs the whole file
+ * to draw a page of it, so refusing the render fetch means the signer
+ * cannot read the document, and a signer who cannot read the document
+ * cannot be asked to sign it. Displaying is not downloading, and the
+ * firm turning off downloads is not the firm withdrawing the document
+ * from the person it asked to sign.
+ *
+ * So the permission gates DELIVERY AS A FILE, not the render. When the
+ * firm has withheld a copy, this route serves the signing page's fetch
+ * and refuses a browser pointed at the URL, which is the request that
+ * ends in the browser's own PDF viewer with Save and Print on it.
+ *
+ * State the limit plainly, because the header is not a credential. A
+ * client that sends no Fetch Metadata is served, because Safari before
+ * 16.4 and a number of in-app webviews send none and the signer on one
+ * of those still has to be able to read the document; and a scripted
+ * client can send whatever it likes. Nothing here, and nothing
+ * available to any web server, stops someone who already holds a live
+ * signing token from saving bytes their own browser must receive to
+ * show them the page. What it does is make the firm's decision a
+ * property of the endpoint rather than of a button, and close the
+ * one-click path from a signing link to a downloadable file.
+ */
+export function resolveSignerDocumentDelivery(input: {
+  downloadPermitted: boolean;
+  purpose: DocumentRequestPurpose;
+}): SignerDocumentDelivery {
+  if (input.downloadPermitted) return { serve: true };
+  if (input.purpose === 'navigate') {
+    return { serve: false, reason: 'download-not-permitted' };
+  }
+  return { serve: true };
+}
+
+/**
+ * The refusal, in the same calm register as the rest of this surface.
+ * It says where the document is rather than what the reader may not do.
+ */
+export const SIGNER_DOCUMENT_DELIVERY_REFUSAL_COPY: Record<
+  Exclude<SignerDocumentDelivery, { serve: true }>['reason'],
+  string
+> = {
+  'download-not-permitted':
+    'This document opens on your signing page rather than as a separate file. ' +
+    'Go back to your signing link to read it and sign. ' +
+    'The firm can send you a copy at any time.',
+};
+
+/**
+ * The attribution line the signer page carries.
+ *
+ * The trace watermark on the rest of the app is gated on a signed-in
+ * user, which left the one page most likely to be screenshotted, and
+ * least likely to be read by an account holder, carrying no identity at
+ * all. The counterparty is never signed in. They are, however, known:
+ * the signature row names them, and on an external request the access
+ * code from a separate email is what let them reach this page.
+ *
+ * Wording matters here. Someone reading this page is usually reading it
+ * under some pressure, and a watermark that reads as an accusation is
+ * both unpleasant and wrong: marking a confidential document with who
+ * holds it and when is ordinary practice, not a warning that they are
+ * suspected of something. So it opens with what the document is.
+ *
+ * Returns null rather than a half-stamp when there is nobody to name.
+ * A watermark reading "Confidential" and nothing else is decoration; it
+ * traces nothing, and rendering it would overstate what the page knows.
+ */
+export function signerWatermarkStamp(input: {
+  signerName: string | null | undefined;
+  signerEmail: string | null | undefined;
+  at: Date | string;
+}): string | null {
+  const name = oneLine(input.signerName);
+  const email = oneLine(input.signerEmail);
+  const who = name && email ? `${name} (${email})` : email || name;
+  if (!who) return null;
+
+  const when = input.at instanceof Date ? input.at : new Date(input.at);
+  const ms = when.getTime();
+  // An unparseable timestamp drops the time and keeps the identity.
+  // Attribution is the point; "when" is the supporting detail.
+  if (!Number.isFinite(ms)) return `Confidential  ·  ${who}`;
+  // To the minute, like the signed-in watermark: enough to place a
+  // screenshot in a session, not a claim of forensic precision.
+  const stamp = `${when.toISOString().slice(0, 16).replace('T', ' ')}Z`;
+  return `Confidential  ·  ${who}  ·  ${stamp}`;
+}
+
+/**
+ * A stored name is user input and the stamp is one line of SVG text, so
+ * newlines, tabs and control bytes are folded to spaces rather than
+ * carried into the markup. Length is capped so a pathological name
+ * cannot push the identity off the tile it is drawn in.
+ */
+function oneLine(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const cleaned = value
+    .split('')
+    .map((ch) => ((ch.codePointAt(0) ?? 0) < 32 ? ' ' : ch))
+    .join('')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!cleaned) return null;
+  return cleaned.length > 96 ? `${cleaned.slice(0, 95)}…` : cleaned;
+}
 
 /**
  * How large a file this page will attempt to open.

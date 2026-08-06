@@ -47,6 +47,7 @@
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "5.4.149",
     "pdfkit": "^0.15.0",
+    "qrcode-generator": "2.0.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "stripe": "^22.1.0",
