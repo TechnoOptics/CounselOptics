@@ -598,6 +598,58 @@ export function buildShareKeyEmailHtml(input: {
   return secureShareShell({ eyebrow: 'Encrypted · AES-256', headline: 'Your decryption key', bodyHtml: body, firmName: input.firmName });
 }
 
+/**
+ * To the employee whose document has just been signed by the other side.
+ *
+ * Deliberately not built on secureShareShell: that shell's footer asserts
+ * end-to-end encrypted delivery, which is true of the encrypted share and is
+ * not true of this. An email that overstates what happened to a legal
+ * document is worse than a plain one.
+ *
+ * The link goes to the employee's own portal record. It must never point at
+ * /inbox/documents, which is the consumer inbox behind a plan gate. See
+ * submissionPortalPath in lib/submission-completion.ts.
+ *
+ * Four sentences, calm, no exclamation and nothing scary. The reader is a
+ * colleague who filed a form, possibly weeks ago.
+ */
+export function buildSubmissionSignedEmailHtml(input: {
+  templateName: string;
+  reference: string;
+  counterparty: string;
+  /** Already formatted for a reader, or empty when the date is unusable. */
+  signedOn: string;
+  link: string;
+}): string {
+  const when = input.signedOn ? ` on ${escapeHtml(input.signedOn)}` : '';
+  return `<!doctype html>
+<html><body style="margin:0;padding:0;background:#f5edd6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif;color:#0f2d24;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5edd6;padding:32px 16px;">
+    <tr><td align="center">
+      <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 8px 24px -4px rgba(15,45,36,0.10);">
+        <tr><td style="background:linear-gradient(135deg,#0f2d24 0%,#173b30 60%,#23362f 100%);padding:24px 32px;">
+          <p style="margin:0;color:#d5bb7e;font-size:11px;letter-spacing:0.28em;text-transform:uppercase;font-weight:600;">${escapeHtml(input.reference)}</p>
+          <p style="margin:6px 0 0;color:#fbf7e9;font-size:18px;font-weight:600;">Your document is fully signed</p>
+        </td></tr>
+        <tr><td style="padding:28px 32px 8px;">
+          <h1 style="margin:0 0 12px;color:#0f2d24;font-size:22px;line-height:1.2;font-weight:600;letter-spacing:-0.01em;">${escapeHtml(input.templateName)}</h1>
+          <p style="margin:0 0 20px;color:#3f3f46;font-size:14.5px;line-height:1.55;">${escapeHtml(input.counterparty)} signed this${when}. The signed copy is now on this document's record and on your Documents page, where you can read it or download it. Nothing further is needed from you.</p>
+          <p style="margin:0 0 24px;">
+            <a href="${escapeAttribute(input.link)}" style="display:inline-block;background:#0f2d24;color:#fbf7e9;text-decoration:none;padding:12px 22px;border-radius:10px;font-weight:600;font-size:14px;letter-spacing:-0.005em;">Open the signed document</a>
+          </p>
+          <p style="margin:0 0 8px;color:#71717a;font-size:12px;line-height:1.55;">Or paste this link into your browser:</p>
+          <p style="margin:0;word-break:break-all;color:#52525b;font-size:11.5px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;">${escapeHtml(input.link)}</p>
+        </td></tr>
+        <tr><td style="padding:16px 32px 28px;">
+          <hr style="border:none;border-top:1px solid #e4e4e7;margin:0 0 12px;" />
+          <p style="margin:0;color:#a1a1aa;font-size:11px;letter-spacing:0.04em;">© ${new Date().getFullYear()} Advottic LLC. All rights reserved.</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, '&amp;')
