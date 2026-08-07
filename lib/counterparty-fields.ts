@@ -139,11 +139,21 @@ function address(value: unknown): string {
  * counterparty fields and for every signer who is not the counterparty on one
  * that has them.
  */
-export function counterpartyFieldsSettled(
-  fields: readonly TemplateField[],
-  values: CounterpartyValues,
-): boolean {
-  return fields.every((f) => !f.required || Boolean(values[f.key]));
+export function counterpartyFieldsSettled(input: {
+  /**
+   * Whether this signer is the one who supplies these blanks. False for the
+   * employee who counter-signs: they fill nothing in, so nothing can be
+   * outstanding for them and the pad must not wait on it. Taken as a named
+   * argument rather than defaulted, because a caller who forgot it would be
+   * blocking a signer who cannot possibly unblock themselves, which is
+   * exactly the defect this rule was extracted over.
+   */
+  canFill: boolean;
+  fields: readonly TemplateField[];
+  values: CounterpartyValues;
+}): boolean {
+  if (!input.canFill) return true;
+  return input.fields.every((f) => !f.required || Boolean(input.values[f.key]));
 }
 
 /**

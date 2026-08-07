@@ -162,21 +162,29 @@ export function CounterpartyFieldsSummary({
   values,
   onEdit,
   locked,
+  ownedByReader,
 }: {
   fields: TemplateField[];
   values: CounterpartyValues;
   onEdit: () => void;
-  /** True once the signer is at the pad. The values are still changeable
-   *  until the signature lands, but changing them under an open pad is how
-   *  someone signs a document they last read a version ago. */
+  /** True once the signer is at the pad, and always for a signer who did not
+   *  supply these. The values are still changeable until the signature lands,
+   *  but changing them under an open pad is how someone signs a document they
+   *  last read a version ago. */
   locked: boolean;
+  /** True when these are the reader's own answers. False for the employee who
+   *  counter-signs, who is reading what the other side supplied. */
+  ownedByReader: boolean;
 }) {
   return (
     <section className="card p-5 sm:p-6">
-      <p className="eyebrow mb-2">Your details</p>
+      <p className="eyebrow mb-2">
+        {ownedByReader ? 'Your details' : 'What the other party supplied'}
+      </p>
       <p className="text-[13px] text-ink-600 dark:text-cream-100/70 leading-relaxed">
-        These are now in the document above. Read it through with them in place
-        before you sign.
+        {ownedByReader
+          ? 'These are now in the document above. Read it through with them in place before you sign.'
+          : 'The other party filled these in and signed. They are in the document above. Read it through with them in place before you counter-sign.'}
       </p>
       <dl className="mt-4 space-y-2">
         {fields.map((field) => (

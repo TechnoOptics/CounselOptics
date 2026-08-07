@@ -55,6 +55,7 @@ export function SignerSurface({
   counterpartyFields,
   fieldBoxes,
   initialFieldValues,
+  canFillFields,
 }: {
   token: string;
   documentName: string;
@@ -73,8 +74,15 @@ export function SignerSurface({
   counterpartyFields: TemplateField[];
   /** Where those blanks are, recorded by the renderer when it drew them. */
   fieldBoxes: FieldBox[];
-  /** What this signer typed already, if they are coming back to the link. */
+  /** What this signer typed already, if they are coming back to the link.
+   *  For a signer who fills nothing in, what the OTHER side supplied. */
   initialFieldValues: CounterpartyValues;
+  /**
+   * Whether these blanks are this signer's to fill. False for the employee
+   * who counter-signs: they are shown the blanks and the other side's words
+   * in the document above, read only, and no form.
+   */
+  canFillFields: boolean;
 }) {
   const [markDataUrl, setMarkDataUrl] = useState<string | null>(null);
   // Held here rather than in the form, because two children need them: the
@@ -87,7 +95,11 @@ export function SignerSurface({
   // whether the pad exists at all, and an expression inside a client
   // component is one no test in this repo can reach.
   const [fieldsDone, setFieldsDone] = useState(() =>
-    counterpartyFieldsSettled(counterpartyFields, initialFieldValues),
+    counterpartyFieldsSettled({
+      canFill: canFillFields,
+      fields: counterpartyFields,
+      values: initialFieldValues,
+    }),
   );
   const [renderStatus, setRenderStatus] =
     useState<SignerDocumentRenderStatus>('pending');
@@ -143,7 +155,7 @@ export function SignerSurface({
           own entity name is not the document they are being asked to be
           bound by. Hiding the pad rather than disabling a button is the
           version of that which cannot be clicked past. */}
-      {counterpartyFields.length > 0 && !fieldsDone && (
+      {canFillFields && counterpartyFields.length > 0 && !fieldsDone && (
         <CounterpartyFields
           token={token}
           fields={counterpartyFields}
@@ -160,7 +172,11 @@ export function SignerSurface({
           fields={counterpartyFields}
           values={fieldValues}
           onEdit={() => setFieldsDone(false)}
-          locked={step !== 'disclosure'}
+          // Locked for a signer who did not supply them, whatever step they
+          // are at: the edit button is the one route back into the form, and
+          // a later signer must not reach it.
+          locked={!canFillFields || step !== 'disclosure'}
+          ownedByReader={canFillFields}
         />
       )}
 

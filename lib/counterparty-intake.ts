@@ -4,6 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { TemplateField } from './firm-templates';
 import {
   counterpartyFieldsOnDocument,
+  isCounterpartySigner,
   parseTemplateFields,
   sanitizeCounterpartyValues,
   type CounterpartyValues,
@@ -141,6 +142,41 @@ export async function loadCounterpartyIntake(
   const intake = await loadCounterpartyStamp(admin, signingRequestId);
   if (!intake || intake.fields.length === 0) return null;
   return intake;
+}
+
+/**
+ * What the OTHER SIDE supplied on this request, for a signer who is not them.
+ *
+ * The employee who counter-signs is affirming what the counterparty actually
+ * agreed to, so they have to be shown it. Reading their own row would show
+ * them an empty blank on a document that will be filed with a value in it,
+ * which is signing what nobody saw.
+ *
+ * Rows are FILTERED to the recipient the submission names, exactly as
+ * stampCounterpartyFields filters them and for the same reason: the select
+ * carries no ordering, and a later signer's row must never be mistaken for
+ * the counterparty's. An error, or a request whose recipient matches no row,
+ * reads as "nothing supplied", which is the state before the counterparty has
+ * typed and is safe: the page shows an empty blank and the signer can decline.
+ */
+export async function loadCounterpartySubmittedValues(
+  admin: SupabaseClient,
+  signingRequestId: string,
+  intake: CounterpartyIntake,
+): Promise<CounterpartyValues> {
+  const { data, error } = await admin
+    .from('firm_signatures')
+    .select('signer_email, counterparty_values')
+    .eq('signing_request_id', signingRequestId);
+  if (error) return {};
+  for (const row of (data ?? []) as Array<{
+    signer_email: string;
+    counterparty_values?: unknown;
+  }>) {
+    if (!isCounterpartySigner(row.signer_email, intake.recipientEmail)) continue;
+    return sanitizeCounterpartyValues(intake.fields, row.counterparty_values);
+  }
+  return {};
 }
 
 /**

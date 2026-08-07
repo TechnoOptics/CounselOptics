@@ -286,23 +286,39 @@ describe('counterpartyFieldsSettled', () => {
   const required = { key: 'entity_name', label: 'Entity', type: 'text', required: true } as const;
   const optional = { key: 'note', label: 'Note', type: 'text', required: false } as const;
 
+  const settled = (
+    fields: ReadonlyArray<{ key: string; required: boolean }>,
+    values: Record<string, string>,
+  ) => counterpartyFieldsSettled({ canFill: true, fields: fields as never, values });
+
   it('is settled when the document asks this signer for nothing', () => {
-    // Every document this product has produced so far, and every signer who
-    // is not the counterparty on one that does ask.
-    expect(counterpartyFieldsSettled([], {})).toBe(true);
+    // Every document this product has produced so far.
+    expect(settled([], {})).toBe(true);
   });
 
   it('is not settled while a required blank is empty', () => {
-    expect(counterpartyFieldsSettled([required], {})).toBe(false);
-    expect(counterpartyFieldsSettled([required], { entity_name: '' })).toBe(false);
+    expect(settled([required], {})).toBe(false);
+    expect(settled([required], { entity_name: '' })).toBe(false);
   });
 
   it('is settled once every required blank has a value', () => {
-    expect(counterpartyFieldsSettled([required], { entity_name: 'Wren Supply Co.' })).toBe(true);
+    expect(settled([required], { entity_name: 'Wren Supply Co.' })).toBe(true);
   });
 
   it('does not wait on an optional blank', () => {
-    expect(counterpartyFieldsSettled([optional], {})).toBe(true);
+    expect(settled([optional], {})).toBe(true);
+  });
+
+  /**
+   * The employee who counter-signs. They are SHOWN the blanks and what the
+   * other side wrote in them, and they fill in none of it, so nothing here
+   * can ever be outstanding for them. Waiting on a blank they cannot answer
+   * is a pad that never opens.
+   */
+  it('is settled for a signer who fills none of them in, however empty', () => {
+    expect(
+      counterpartyFieldsSettled({ canFill: false, fields: [required], values: {} }),
+    ).toBe(true);
   });
 });
 

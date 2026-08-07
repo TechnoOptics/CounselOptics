@@ -23,6 +23,7 @@ import {
 } from '@/lib/signer-retention';
 import {
   loadCounterpartyIntake,
+  loadCounterpartySubmittedValues,
   loadStoredCounterpartyValues,
 } from '@/lib/counterparty-intake';
 import { isCounterpartySigner } from '@/lib/counterparty-fields';
@@ -374,27 +375,31 @@ export default async function SignPage({ params }: { params: { token: string } }
   // answers a missing column with null rather than an error, so a firm that
   // has not migrated never has a signature blocked by it.
   const intakeAdmin = createAdminSupabase();
-  const requestIntake = intakeAdmin
+  const intake = intakeAdmin
     ? await loadCounterpartyIntake(intakeAdmin, request.id)
     : null;
-  // Scoped to the OTHER SIDE, and this is the seam two slices met at. The
-  // blanks belong to the request, so both signers on a counter-signed
-  // agreement were handed them; the values already typed are read from the
-  // signer's own row below and were therefore empty for the employee at order
-  // 2. The pad renders only once the blanks are settled, so the employee
-  // opened their link, was shown the counterparty's blank form, and had no way
-  // past it. Null here means this signer is asked for nothing, the blanks are
-  // vacuously settled, and the pad is the first thing they see.
-  const intake =
-    requestIntake && isCounterpartySigner(signature.signerEmail, requestIntake.recipientEmail)
-      ? requestIntake
-      : null;
+  // WHO FILLS THEM IN, which is not the same question as who is shown them,
+  // and this is the seam two slices met at. The blanks belong to the request,
+  // so both signers on a counter-signed agreement reach them; the FORM is the
+  // counterparty's alone. An employee handed a form they cannot answer, in
+  // front of a pad that only renders once it is answered, is a signature that
+  // never lands.
+  //
+  // They are still shown the blanks and what the other side put in them. They
+  // are counter-signing what the counterparty actually agreed to, and a signer
+  // looking at an empty rule on a document that will be filed with a value in
+  // it is signing something nobody showed them.
+  const canFillFields = Boolean(
+    intake && isCounterpartySigner(signature.signerEmail, intake.recipientEmail),
+  );
   // Re-sanitized on the way out of jsonb rather than trusted, through the
   // same rules the write path applies, so a value that would no longer be
   // accepted is not shown back as though it had been.
   const storedFieldValues =
     intake && intakeAdmin
-      ? await loadStoredCounterpartyValues(intakeAdmin, signature.id, intake.fields)
+      ? canFillFields
+        ? await loadStoredCounterpartyValues(intakeAdmin, signature.id, intake.fields)
+        : await loadCounterpartySubmittedValues(intakeAdmin, request.id, intake)
       : {};
 
   // Render in a custom shell so signers do NOT see the consumer-side
@@ -499,6 +504,7 @@ export default async function SignPage({ params }: { params: { token: string } }
           counterpartyFields={intake?.fields ?? []}
           fieldBoxes={intake?.boxes ?? []}
           initialFieldValues={storedFieldValues}
+          canFillFields={canFillFields}
         />
 
         <SignerResponse token={signature.token} firmName={firm.name} />
