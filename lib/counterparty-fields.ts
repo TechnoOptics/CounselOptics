@@ -52,6 +52,39 @@ import { fieldBoxKeys, type FieldBox } from './template-field-boxes';
  *  and a value past this cannot be drawn legibly however far it is shrunk. */
 export const COUNTERPARTY_VALUE_MAX = 200;
 
+/**
+ * The characters WinAnsi can encode, which is the whole of what pdf-lib's
+ * standard fonts can draw.
+ *
+ * This is checked here, where the signer can do something about it, and not
+ * at the stamp, where it is a thrown error hours later in the middle of
+ * producing the executed copy. lib/template-release.ts already names an
+ * unencodable character as one of the ways a render dies; this is that hazard
+ * arriving from a stranger's keyboard rather than a colleague's.
+ *
+ * The band above 0x9F is Latin-1 and covers the accented letters of every
+ * western European language, so this is not a rule against non-English names.
+ * The explicit list is the WinAnsi block between 0x80 and 0x9F, which carries
+ * the curly quotes, the dashes and the ellipsis that a phone keyboard
+ * substitutes without being asked.
+ */
+const WINANSI_EXTRAS = new Set([
+  0x20ac, 0x201a, 0x0192, 0x201e, 0x2026, 0x2020, 0x2021, 0x02c6, 0x2030,
+  0x0160, 0x2039, 0x0152, 0x017d, 0x2018, 0x2019, 0x201c, 0x201d, 0x2022,
+  0x2013, 0x2014, 0x02dc, 0x2122, 0x0161, 0x203a, 0x0153, 0x017e, 0x0178,
+]);
+
+export function isWinAnsiEncodable(value: string): boolean {
+  for (const ch of String(value ?? '')) {
+    const code = ch.codePointAt(0) ?? 0;
+    if (code >= 0x20 && code <= 0x7e) continue;
+    if (code >= 0xa0 && code <= 0xff) continue;
+    if (WINANSI_EXTRAS.has(code)) continue;
+    return false;
+  }
+  return true;
+}
+
 export type CounterpartyValues = Record<string, string>;
 
 /** True for a field the other side fills in. Absent party means employee. */
@@ -262,7 +295,9 @@ export type CounterpartySubmissionRefusal =
   /** This document asks the signer for nothing. */
   | 'nothing-to-fill'
   /** A required blank is empty. */
-  | 'incomplete';
+  | 'incomplete'
+  /** A value uses characters the document's font cannot draw. */
+  | 'unsupported-characters';
 
 export type CounterpartySubmissionDecision =
   | { ok: true; values: CounterpartyValues; canonical: string }
@@ -309,6 +344,13 @@ export function resolveCounterpartySubmission(input: {
   const values = sanitizeCounterpartyValues(fields, input.values);
   const missing = missingCounterpartyFields(fields, values);
   if (missing.length > 0) return { ok: false, reason: 'incomplete', missing };
+  // Refused here rather than at the stamp. A value the document's font cannot
+  // draw is a thrown error in the middle of producing the executed copy, hours
+  // after the only person who could have retyped it has gone.
+  const unsupported = Object.keys(values).filter((k) => !isWinAnsiEncodable(values[k]));
+  if (unsupported.length > 0) {
+    return { ok: false, reason: 'unsupported-characters', missing: unsupported };
+  }
   return { ok: true, values, canonical: canonicalizeForHash(values) };
 }
 
@@ -325,4 +367,9 @@ export const COUNTERPARTY_REFUSAL_COPY: Record<CounterpartySubmissionRefusal, st
     'Enter the access code from your email to reach this document.',
   'nothing-to-fill': 'This document does not ask you for any details.',
   incomplete: 'Please fill in the details marked as required before you continue.',
+  // Says what to do, and does not blame the signer for their own alphabet.
+  'unsupported-characters':
+    'One of your answers uses characters this document cannot print. Please ' +
+    'write it in the Latin alphabet, or ask the firm to send a version that ' +
+    'can carry it.',
 };

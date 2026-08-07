@@ -5,6 +5,7 @@ import {
   counterpartyFieldsOnDocument,
   formatCounterpartyDate,
   formatCounterpartyValue,
+  isWinAnsiEncodable,
   missingCounterpartyFields,
   resolveCounterpartySubmission,
   sanitizeCounterpartyValues,
@@ -208,6 +209,30 @@ describe('formatCounterpartyDate', () => {
   });
 });
 
+describe('isWinAnsiEncodable', () => {
+  it('accepts the Latin-1 band, so an accented name is not refused', () => {
+    expect(isWinAnsiEncodable('Wren Supply Co.')).toBe(true);
+    expect(isWinAnsiEncodable('Société Générale')).toBe(true);
+    expect(isWinAnsiEncodable('Ærø Rederi A/S')).toBe(true);
+    expect(isWinAnsiEncodable('Müller & Söhne GmbH')).toBe(true);
+  });
+
+  it('accepts the WinAnsi block a phone keyboard substitutes into', () => {
+    // Curly quotes, dashes and the ellipsis arrive without being asked for.
+    // Written as escapes so the literal characters under test cannot be
+    // mistaken for prose punctuation by the house style sweep.
+    expect(
+      isWinAnsiEncodable('O\u2019Brien \u201cTrading\u201d \u2013 Ltd\u2026'),
+    ).toBe(true);
+    expect(isWinAnsiEncodable('€1,000')).toBe(true);
+  });
+
+  it('refuses what the font cannot draw', () => {
+    expect(isWinAnsiEncodable('株式会社')).toBe(false);
+    expect(isWinAnsiEncodable('Wren Щ')).toBe(false);
+  });
+});
+
 describe('formatCounterpartyValue', () => {
   it('formats a date field and leaves everything else alone', () => {
     // The overlay and the stamp both call this. If either had its own copy,
@@ -304,6 +329,33 @@ describe('resolveCounterpartySubmission', () => {
     expect(
       resolveCounterpartySubmission({ ...open, values: { entity_name: 'Wren' } }),
     ).toEqual({ ok: false, reason: 'incomplete', missing: ['effective_date'] });
+  });
+
+  it('refuses a value the document cannot print, and names the field', () => {
+    // Refused here, where the signer can retype it, rather than at the stamp,
+    // where it is a thrown error in the middle of producing the executed copy
+    // hours after they have gone. Accented Latin is fine; this is not a rule
+    // against non-English names, it is the limit of what pdf-lib's standard
+    // fonts can draw.
+    expect(
+      resolveCounterpartySubmission({
+        ...open,
+        values: { ...good, entity_name: '株式会社' },
+      }),
+    ).toEqual({
+      ok: false,
+      reason: 'unsupported-characters',
+      missing: ['entity_name'],
+    });
+    expect(
+      resolveCounterpartySubmission({
+        ...open,
+        values: {
+          ...good,
+          entity_name: 'Wren Supply Co. \u00c9\u00fcbernahme \u2013 GmbH',
+        },
+      }).ok,
+    ).toBe(true);
   });
 
   it('refuses an answer that is only employee keys', () => {

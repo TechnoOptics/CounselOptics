@@ -46,11 +46,24 @@ export type CounterpartyIntake = {
   submissionId: string;
   /** Where every blank is. Read by the live overlay and by the stamp. */
   boxes: FieldBox[];
-  /** The counterparty fields this document actually carries blanks for. */
+  /** The counterparty fields this document actually carries blanks for.
+   *  Possibly empty when the template can no longer be read: the blanks are
+   *  still on the document and still have to be filled in on the executed
+   *  copy, they simply cannot be labelled or typed any more. */
   fields: TemplateField[];
 };
 
-export async function loadCounterpartyIntake(
+/**
+ * The blanks and, where the template can still be read, the questions.
+ *
+ * The stamp uses this. It needs the boxes whatever became of the template,
+ * because a document that went out with blanks in it has to come back with
+ * those blanks filled; the field definitions are only used to know that a
+ * date is a date, and a stamp that loses that formats the value the way the
+ * signer typed it, which is a worse-looking instrument rather than a wrong
+ * one.
+ */
+export async function loadCounterpartyStamp(
   admin: SupabaseClient,
   signingRequestId: string,
 ): Promise<CounterpartyIntake | null> {
@@ -69,32 +82,49 @@ export async function loadCounterpartyIntake(
   };
 
   const boxes = parseFieldBoxes(row.field_boxes);
-  // No blanks means no step, which is every document this product has
-  // produced so far and every document under a template whose fields are all
-  // the employee's.
+  // No blanks means nothing to ask and nothing to stamp, which is every
+  // document this product has produced so far and every document under a
+  // template whose fields are all the employee's.
   if (boxes.length === 0) return null;
-  if (!row.template_id) return null;
 
-  // Read by id and firm, NOT through loadPublishedTemplate. That helper
-  // requires status 'published', and a template archived or unpublished while
-  // its document sat out for signature would strand a counterparty in front
-  // of a document full of blanks with no labels on them. The document is
-  // already approved and already out; the template is being consulted only to
-  // name the questions it asks.
-  const { data: templateData, error: templateError } = await admin
-    .from('firm_templates')
-    .select('fields')
-    .eq('id', row.template_id)
-    .eq('firm_id', row.firm_id)
-    .maybeSingle();
-  if (templateError || !templateData) return null;
-
-  const fields = counterpartyFieldsOnDocument(
-    parseTemplateFields((templateData as { fields?: unknown }).fields),
-    boxes,
-  );
-  if (fields.length === 0) return null;
+  let fields: TemplateField[] = [];
+  if (row.template_id) {
+    // Read by id and firm, NOT through loadPublishedTemplate. That helper
+    // requires status 'published', and a template archived or unpublished
+    // while its document sat out for signature would strand a counterparty in
+    // front of a document full of blanks with no labels on them. The document
+    // is already approved and already out; the template is consulted only to
+    // name the questions it asks.
+    const { data: templateData } = await admin
+      .from('firm_templates')
+      .select('fields')
+      .eq('id', row.template_id)
+      .eq('firm_id', row.firm_id)
+      .maybeSingle();
+    if (templateData) {
+      fields = counterpartyFieldsOnDocument(
+        parseTemplateFields((templateData as { fields?: unknown }).fields),
+        boxes,
+      );
+    }
+  }
   return { submissionId: row.id, boxes, fields };
+}
+
+/**
+ * The same, for the surface that has to ASK the questions.
+ *
+ * Null when there is nothing answerable, because a form with blanks it cannot
+ * label is not a form: the signer would be asked to type into boxes with no
+ * names on them.
+ */
+export async function loadCounterpartyIntake(
+  admin: SupabaseClient,
+  signingRequestId: string,
+): Promise<CounterpartyIntake | null> {
+  const intake = await loadCounterpartyStamp(admin, signingRequestId);
+  if (!intake || intake.fields.length === 0) return null;
+  return intake;
 }
 
 /**
