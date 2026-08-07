@@ -25,11 +25,28 @@ import { T, useT } from '@/components/i18n/LocaleProvider';
  * Design a letterhead here, or import one out of a document the firm already
  * has, instead of uploading an image of one.
  *
- * The preview below is not an approximation. It renders exactly what
- * letterheadDesignLines returns, which is the same list the PDF draws, so the
- * order and the emphasis on screen are the order and the emphasis on the page.
- * Sizes are converted from points to CSS pixels at the standard 4/3, which is
- * the only difference between the two.
+ * The preview below renders exactly what letterheadDesignLines returns, which
+ * is the same list the PDF draws, so the WORDING, the ORDER and WHICH LINE IS
+ * EMPHASIZED are not decided here and cannot drift from the document. Sizes
+ * are the PDF's points converted at the one shared factor.
+ *
+ * WHAT IT IS NOT is a facsimile, and an earlier version of this comment
+ * claimed the point-to-pixel conversion was the only difference, which was
+ * wrong in at least four ways:
+ *
+ *   - Typeface. The renderer embeds Times; this inherits the app's sans. Two
+ *     strings of equal point size in different families do not occupy the same
+ *     width, so a line that fits on the page may wrap here, or the reverse.
+ *   - Weight. The firm name is 600 here, 700 in the letters studio, and a
+ *     separate bold font file in the PDF. None of those is the same weight.
+ *   - Colour. The renderer uses the firm's accent for the name and a flat grey
+ *     under it; this follows the app's own ink colours and shifts with the
+ *     light and dark themes.
+ *   - Everything about the page. There is no Letter-sized sheet here, no 64pt
+ *     margin, no accent bar, and no repetition on later pages.
+ *
+ * So: trust it for what the letterhead SAYS and how it is ordered. Do not
+ * trust it for how the letterhead LOOKS down to the pixel.
  *
  * The draft is normalized on every keystroke before it is previewed, so what a
  * person sees is what would actually be stored, including a field the

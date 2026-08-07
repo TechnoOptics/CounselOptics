@@ -310,10 +310,12 @@ describe('POST /api/counsel/draft-template/pdf, free text, driven', () => {
 
   it('takes the designed letterhead from the active firm, never from the body', async () => {
     // The body is the studio's draft text, which is theirs to write. The
-    // letterhead is the firm's identity, and reading it from the request would
-    // let any member of any firm render a document on someone else's
-    // stationery. Now that the stub is a real FirmContext, that distinction is
-    // something a test can actually see.
+    // DESIGN is the firm's identity and is read off the active firm, which is
+    // what this pins. Note what it does not pin: letterheadUrl and logoUrl on
+    // the same call still come from the body, and the image outranks the
+    // design, so a caller can still suppress a firm's designed letterhead on
+    // this route by posting any URL. That hole predates the design and is
+    // tracked separately; this assertion must not be read as covering it.
     activeFirm = firmContext({
       letterhead_design: { firmName: 'Hartley and Vance LLP' },
     });
