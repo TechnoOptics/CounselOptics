@@ -82,6 +82,16 @@ export const LETTERHEAD_FINE_SIZE = 8.5;
  */
 export const LETTERHEAD_LINE_GAP_PT = 4;
 
+/**
+ * Points to CSS pixels, for the two on-screen previews.
+ *
+ * A preview that renders the shared lines at a size of its own choosing is
+ * still a second opinion about the block, just a subtler one, so the
+ * conversion is named here alongside the half-point conversion the Word export
+ * uses rather than being typed out at each preview.
+ */
+export const LETTERHEAD_PT_TO_PX = 4 / 3;
+
 /** What sits between phone, email and website on the contact line. */
 const CONTACT_SEPARATOR = '  -  ';
 

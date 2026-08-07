@@ -59,6 +59,7 @@ export default async function CounselLettersPage({
           firmName: ctx.firm.name,
           logoUrl: ctx.firm.logoUrl ?? null,
           letterheadUrl: ctx.firm.letterheadUrl ?? null,
+          letterheadDesign: firmLetterheadDesign(ctx.firm.metadata),
           accent: ctx.firm.accentColor,
         }}
         cases={caseOptions}

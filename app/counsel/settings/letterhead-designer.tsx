@@ -10,6 +10,7 @@ import {
 import {
   LETTERHEAD_LINE_GAP_PT,
   LETTERHEAD_MAX_ADDRESS_LINES,
+  LETTERHEAD_PT_TO_PX,
   letterheadDesignLines,
   normalizeLetterheadDesign,
   type LetterheadDesign,
@@ -41,8 +42,6 @@ const EMPTY_DESIGN: LetterheadDesign = {
   alignment: 'left',
   showRule: true,
 };
-
-const PT_TO_PX = 4 / 3;
 
 export function LetterheadDesigner({
   firmId,
@@ -334,8 +333,8 @@ export function LetterheadDesigner({
                     key={i}
                     data-no-translate
                     style={{
-                      fontSize: `${line.size * PT_TO_PX}px`,
-                      lineHeight: `${(line.size + LETTERHEAD_LINE_GAP_PT) * PT_TO_PX}px`,
+                      fontSize: `${line.size * LETTERHEAD_PT_TO_PX}px`,
+                      lineHeight: `${(line.size + LETTERHEAD_LINE_GAP_PT) * LETTERHEAD_PT_TO_PX}px`,
                       fontWeight: line.bold ? 600 : 400,
                     }}
                     className={
