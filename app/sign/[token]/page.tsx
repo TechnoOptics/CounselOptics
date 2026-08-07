@@ -9,6 +9,12 @@ import {
   resolveSignerCopyAccess,
   signerWatermarkStamp,
 } from '@/lib/signer-view';
+import {
+  SIGNER_ALREADY_SIGNED_SENTENCE,
+  SIGNER_COPY_RETENTION_DAYS,
+  resolveSignerCopyRetention,
+  signerRetentionSentence,
+} from '@/lib/signer-retention';
 import { TraceWatermark } from '@/components/TraceWatermark';
 import { SignerSurface } from './signer-surface';
 import { SignerResponse } from './signer-response';
@@ -94,10 +100,28 @@ export default async function SignPage({ params }: { params: { token: string } }
   }
 
   if (signature.signedAt) {
+    // The terminal screen, and the one place in this product that has to
+    // say out loud what happens to the link.
+    //
+    // The firm asked for it to be killed the moment it is used. It is
+    // not, and this page must not pretend otherwise. E-SIGN at 15 USC
+    // 7001(a)(1) and (d) condition the validity and the retention of an
+    // electronic record on the person bound by it being able to keep it,
+    // and this URL is that person's only route to the document. So the
+    // true statement is about the ACT and not the address: the document
+    // cannot be signed again, which is enforced on all three write paths
+    // in lib/signature-write.ts, and the copy stays reachable for a
+    // stated window, which is lib/signer-retention.ts.
+    //
+    // Nothing here says the link is dead, deleted, destroyed, revoked or
+    // expired at the moment of signing, because it is none of those.
+    //
     // Coming back to the link after signing is how a signer retrieves
-    // their copy. The same decision the copy route enforces runs here,
-    // so the page and the route can never disagree about whether a
-    // download is offered.
+    // their copy. The same two decisions the copy route enforces run
+    // here, in the same order, so the page and the route can never
+    // disagree about whether a download is offered: offering a button
+    // the route would refuse is how a signer ends up on an error page
+    // with no idea what to do next.
     const copy = resolveSignerCopyAccess({
       downloadPermitted: request.signerCanDownload,
       signedAt: signature.signedAt,
@@ -107,6 +131,24 @@ export default async function SignPage({ params }: { params: { token: string } }
       signedFilePath: request.signedFilePath,
       sourceFilePath: document.signableFilePath || document.filePath || null,
     });
+    const retention = resolveSignerCopyRetention({
+      completedAt: request.completedAt,
+      now: new Date(),
+    });
+    const offerCopy = copy.allowed && retention === 'available';
+    // One paragraph, whichever branch. When a copy is on offer the
+    // retention sentence states the window, and says the access code is
+    // needed only when one was actually issued. When it is not, the
+    // refusal that already exists follows the same opening sentence, so
+    // the signer is never told about a window on a copy they cannot
+    // reach anyway.
+    const statement = copy.allowed
+      ? signerRetentionSentence({
+          completedAt: request.completedAt,
+          accessCodeRequired: signature.accessCodeRequired,
+          now: new Date(),
+        })
+      : `${SIGNER_ALREADY_SIGNED_SENTENCE} ${SIGNER_COPY_REFUSAL_COPY[copy.reason]}`;
     return (
       <div className="min-h-screen flex items-center justify-center bg-cream-50 dark:bg-forest-950 px-4">
         <div className="max-w-lg w-full card p-8 text-center">
@@ -115,7 +157,10 @@ export default async function SignPage({ params }: { params: { token: string } }
             This document was signed{' '}
             {new Date(signature.signedAt).toLocaleString()}.
           </h1>
-          {copy.allowed ? (
+          <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 leading-relaxed">
+            {statement}
+          </p>
+          {offerCopy && (
             <>
               <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 leading-relaxed">
                 {copy.kind === 'executed'
@@ -129,10 +174,6 @@ export default async function SignPage({ params }: { params: { token: string } }
                 Download your copy
               </a>
             </>
-          ) : (
-            <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 leading-relaxed">
-              {SIGNER_COPY_REFUSAL_COPY[copy.reason]}
-            </p>
           )}
           <p className="mt-5">
             <Link href="/" className="btn-secondary inline-flex">
@@ -292,7 +333,18 @@ export default async function SignPage({ params }: { params: { token: string } }
             <strong data-no-translate>
               {signature.signerName || signature.signerEmail}
             </strong>
-            . Your sign link is single-use.
+            {/* "Single-use" was the wrong word and it was load-bearing:
+                it described the URL, and the URL is not consumed. It
+                keeps resolving after signing on purpose, because it is
+                how the signer reaches the record they are bound by
+                (15 USC 7001(a)(1)). What is single-use is the ACT. So
+                the sentence now describes the act and states what
+                happens to the link afterwards, which is the thing a
+                signer actually needs to know before they decide whether
+                to keep this email. */}
+            . This link can be used to sign once. Afterwards it stays
+            available to you for {SIGNER_COPY_RETENTION_DAYS} days so you can
+            download your copy.
             {/* Only claimed when it is true. signerWatermarkStamp returns
                 null when there is nobody to name, and a sentence saying
                 the page is marked above a page that is not is the kind

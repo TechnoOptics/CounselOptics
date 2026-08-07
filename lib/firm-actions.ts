@@ -40,6 +40,7 @@ import {
   SIGNER_DOWNLOAD_RESTRICTION_UNSAVED_ERROR,
   resolveDownloadColumnFallback,
 } from './signer-view';
+import { SIGNER_COPY_RETENTION_DAYS } from './signer-retention';
 import {
   readPortalRoles,
   sanitizeFeatures,
@@ -2910,7 +2911,12 @@ async function sendSigningLinkEmail(input: {
       `Review and sign (the document stays inside Advottic):\n${input.url}\n\n` +
       (input.isExternal
         ? 'For your security, a one-time access code was sent to this address in a separate email. Enter it to open the document.\n'
-        : 'This link is single-use.\n'),
+        : // The plain-text twin of the sentence in
+          // buildSigningRequestEmailHtml. "Single-use" described the
+          // URL and the URL is not consumed: it keeps resolving after
+          // signing, because it is the signer's route back to the
+          // record that binds them. What is used once is the act.
+          `You can use this link to sign once. Afterwards it stays available to you for ${SIGNER_COPY_RETENTION_DAYS} days so you can download your copy.\n`),
   }).catch((err: unknown) => ({
     ok: false as const,
     error: err instanceof Error ? err.message : 'unknown email error',

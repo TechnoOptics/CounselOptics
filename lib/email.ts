@@ -10,6 +10,11 @@
  */
 
 import { createHash } from 'node:crypto';
+// The retention window is stated to the recipient in the signing
+// invitation, not only on the terminal screen after they sign, because
+// this email is the thing they decide whether to keep. One constant, so
+// the email and the page cannot quote different numbers.
+import { SIGNER_COPY_RETENTION_DAYS } from './signer-retention';
 
 const DEFAULT_FROM = 'Advottic <invites@advottic.com>';
 
@@ -375,7 +380,16 @@ export function buildSigningRequestEmailHtml(input: {
     : '';
   const codeNote = input.codeSeparately
     ? `<p style="margin:0 0 8px;color:#71717a;font-size:12.5px;line-height:1.55;">For your security, we&rsquo;ve sent a one-time access code to this same address in a separate email. You&rsquo;ll enter it to open the document.</p>`
-    : `<p style="margin:0 0 8px;color:#71717a;font-size:12.5px;line-height:1.55;">This link is single-use and opens the document inside Advottic - it never leaves the app.</p>`;
+    : // Two claims used to sit here and both were wrong. "Single-use"
+      // described the URL, which is not consumed by signing: it keeps
+      // resolving afterwards on purpose, because it is how the signer
+      // reaches the record that binds them (15 USC 7001(a)(1)). "It
+      // never leaves the app" was wrong in the other direction, since
+      // the signer can download a copy unless the firm turned that off.
+      // What is true is that the document can be signed once, and that
+      // the link stays reachable for a stated period afterwards, which
+      // is the fact that decides whether this email is worth keeping.
+      `<p style="margin:0 0 8px;color:#71717a;font-size:12.5px;line-height:1.55;">You can use this link to sign once. Afterwards it stays available to you for ${SIGNER_COPY_RETENTION_DAYS} days so you can download your copy.</p>`;
   return `<!doctype html>
 <html><body style="margin:0;padding:0;background:#0a0a0b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif;color:#1a1a1a;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0a0a0b;padding:32px 16px;">

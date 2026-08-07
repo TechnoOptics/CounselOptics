@@ -6,6 +6,7 @@ import {
   projectSignerConsentMetadata,
   type SignerConsentPayload,
 } from '@/lib/signer-view';
+import { SIGNER_ALREADY_SIGNED_SENTENCE } from '@/lib/signer-retention';
 
 /**
  * The one function that records a signature.
@@ -117,12 +118,23 @@ export async function recordSignature(
     access_code_verified_at: string | null;
     response: 'rejected' | 'changes_requested' | null;
   };
+  // Signed once, and once only.
+  //
+  // This is the first of two halves of that guarantee and it is the
+  // cheap half: a row that already carries signed_at is refused before
+  // anything is read or written. The expensive half is the conditional
+  // claim further down, which is what holds when two requests get here
+  // before either of them writes.
+  //
+  // The sentence is SIGNER_ALREADY_SIGNED_SENTENCE rather than a local
+  // literal, because the terminal screen at /sign/[token] states the
+  // same fact and the two must not drift. It says the document cannot
+  // be signed again. It does NOT say the link is dead, expired or
+  // deleted: the link keeps resolving on purpose, because it is the
+  // signer's retention path under 15 USC 7001(a)(1), and lib/signer-
+  // retention.ts is where how long it keeps resolving is decided.
   if (sig.signed_at) {
-    return {
-      ok: false,
-      status: 410,
-      error: 'This link has already been signed.',
-    };
+    return { ok: false, status: 410, error: SIGNER_ALREADY_SIGNED_SENTENCE };
   }
   // Enforce the one-time access-code gate SERVER-SIDE. The /sign page
   // renders a code gate before the signature pad, but that's only a
@@ -173,20 +185,30 @@ export async function recordSignature(
   if (request.status === 'canceled') {
     return { ok: false, status: 410, error: 'Signing request was canceled.' };
   }
+  // The same guarantee, one level up. The check above reads THIS
+  // signature's own signed_at, which answers "has this person signed"
+  // and not "is this instrument finished". A row added to a request
+  // that already completed would pass it, and a signature landing on a
+  // finished request means a second executed PDF and a second
+  // document_sha256 for one instrument, which is the forked-chain
+  // failure this repo already knows about from lib/esign-audit.ts.
+  //
+  // A completed request is one where every signature row carried
+  // signed_at at the moment the rollup ran, so refusing here takes
+  // nothing away from anybody who still had a turn.
+  if (request.status === 'completed') {
+    return { ok: false, status: 410, error: SIGNER_ALREADY_SIGNED_SENTENCE };
+  }
 
-  // Decode the PNG and upload to firm-signatures bucket.
+  // Decode the PNG. The upload happens AFTER the claim below, not
+  // before it, and the order is the point: the storage path is keyed on
+  // the signature id and the upload is upsert, so a request that is
+  // about to lose the claim would otherwise overwrite the winner's mark
+  // with its own, and the executed copy would be stamped with an image
+  // the audit chain does not describe.
   const base64 = dataUrl.split(',')[1] ?? '';
   const buffer = Buffer.from(base64, 'base64');
   const path = `${request.firm_id}/${request.id}/${sig.id}.png`;
-  const { error: uploadErr } = await admin.storage
-    .from('firm-signatures')
-    .upload(path, buffer, {
-      contentType: 'image/png',
-      upsert: true,
-    });
-  if (uploadErr) {
-    return { ok: false, status: 500, error: uploadErr.message };
-  }
 
   const ip = input.ip;
   const userAgent = input.userAgent;
@@ -205,7 +227,31 @@ export async function recordSignature(
     )
     .digest('hex');
 
-  await admin
+  // Claim the row, conditionally.
+  //
+  // This is the second half of "signed once, and once only", and the
+  // half that survives two requests arriving together. The guard near
+  // the top of this function reads signed_at and the write used to set
+  // it unconditionally, which leaves the ordinary time-of-check to
+  // time-of-use window between them: a signer with a pad open on a
+  // laptop and the same pad open on a handed-off phone can submit
+  // both, both read null, both pass, and both write. The result is two
+  // 'signed' events chained off one predecessor, which
+  // lib/esign-audit.ts's verifier reads as tampering, plus two rollups
+  // and two completion renders of one instrument.
+  //
+  // `.is('signed_at', null)` moves the decision into the database,
+  // where the two updates are serialised whatever this process
+  // believes. `.select()` is what makes the outcome readable: without
+  // it supabase-js sends Prefer: return=minimal and resolves with data
+  // null however many rows it touched, so a loser would look exactly
+  // like a winner.
+  //
+  // The error is checked. PostgREST resolves rather than throws, so the
+  // previous unchecked await would have swallowed a failed write and
+  // gone on to append a 'signed' event for a signature that was never
+  // recorded.
+  const { data: claimed, error: claimErr } = await admin
     .from('firm_signatures')
     .update({
       signed_at: new Date().toISOString(),
@@ -215,7 +261,43 @@ export async function recordSignature(
       audit_hash: auditHash,
       signer_name: input.typedName?.trim() || undefined,
     })
-    .eq('id', sig.id);
+    .eq('id', sig.id)
+    .is('signed_at', null)
+    .select('id');
+  if (claimErr) {
+    return { ok: false, status: 500, error: claimErr.message };
+  }
+  if (!claimed || claimed.length === 0) {
+    // Somebody else got here first. Same sentence as the guard above,
+    // because it is the same fact.
+    return { ok: false, status: 410, error: SIGNER_ALREADY_SIGNED_SENTENCE };
+  }
+
+  // Only the winner writes the image, so the bytes at this path are the
+  // bytes the row and the audit event describe.
+  const { error: uploadErr } = await admin.storage
+    .from('firm-signatures')
+    .upload(path, buffer, {
+      contentType: 'image/png',
+      upsert: true,
+    });
+  if (uploadErr) {
+    // Release the claim rather than leave a row recorded as signed with
+    // no mark behind it. Without this the signer reads a 500, cannot
+    // retry because their own row is now claimed, and the executed copy
+    // renders against a missing image.
+    await admin
+      .from('firm_signatures')
+      .update({
+        signed_at: null,
+        ip_address: null,
+        user_agent: null,
+        signature_image_path: null,
+        audit_hash: null,
+      })
+      .eq('id', sig.id);
+    return { ok: false, status: 500, error: uploadErr.message };
+  }
 
   // Append the signed event to the audit chain. Hash chains to the
   // most recent prior event for this request (request_created from

@@ -6,6 +6,10 @@ import {
   parseSignerDownloadPermission,
   resolveSignerCopyAccess,
 } from '@/lib/signer-view';
+import {
+  SIGNER_COPY_RETENTION_EXPIRED_COPY,
+  resolveSignerCopyRetention,
+} from '@/lib/signer-retention';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -69,6 +73,7 @@ export async function GET(
     document_sha256?: string | null;
     signed_file_path?: string | null;
     signer_can_download?: boolean | null;
+    completed_at?: string | null;
   };
 
   const { data: docRow } = await admin
@@ -96,6 +101,32 @@ export async function GET(
     // teaching anyone anything about the request behind it.
     const status = access.reason === 'code-required' ? 404 : 403;
     return refuse(status, SIGNER_COPY_REFUSAL_COPY[access.reason]);
+  }
+
+  // The retention window, checked LAST and deliberately so.
+  //
+  // It is the one control this surface was missing. The firm asked for
+  // the link to die on use; it cannot, because E-SIGN at 15 USC
+  // 7001(a)(1) rests on the signer being able to retain what they
+  // signed, so the link stays live. What was open-ended, and now is
+  // not, is for how long.
+  //
+  // Ordering matters and is the reason this sits below
+  // resolveSignerCopyAccess rather than inside it. That function
+  // answers a link forwarded without its code as 'code-required' with a
+  // 404, so the response teaches a stranger nothing about the request
+  // behind it. A retention check running first would answer that same
+  // stranger with a 410 and confirm the request exists and was signed.
+  //
+  // 410 rather than 404 for the signer's own expired copy: it was here,
+  // it is not any more, and that is a different thing from a link that
+  // was never valid.
+  const retention = resolveSignerCopyRetention({
+    completedAt: request.completed_at ?? null,
+    now: new Date(),
+  });
+  if (retention === 'expired') {
+    return refuse(410, SIGNER_COPY_RETENTION_EXPIRED_COPY);
   }
 
   const { data: blob, error } = await admin.storage

@@ -101,12 +101,26 @@ export function CreateSigningRequestForm({
   return (
     <section className="card p-5 sm:p-6 space-y-4">
       <p className="eyebrow"><T>Send for signature</T></p>
+      {/* "Single-use link" is gone from this description because it was
+          not true and this is the panel that sets the firm's
+          expectation. The link is not consumed by signing: the document
+          cannot be signed a second time, on any path, but the address
+          keeps resolving so the signer can reach the record that binds
+          them, which is what 15 USC 7001(a)(1) is built around. It stops
+          resolving at the end of a fixed retention window. The window is
+          stated in days to the signer, on the page and in the invitation
+          email, from the one constant in lib/signer-retention.ts; it is
+          described here rather than quoted because <T> looks a whole
+          static sentence up in a dictionary and an interpolated number
+          would break that lookup. */}
       <p className="text-[11px] text-ink-500 dark:text-cream-100/55 leading-relaxed">
-        <T>Each signer gets a branded, single-use link that opens the document
-        inside Advottic. Outside signers also receive a one-time access code
-        in a separate email and must enter it before the document is shown -
-        so a forwarded link alone can&rsquo;t open it. People on your team see
-        it in their portal without a code. Every signer steps through a
+        <T>Each signer gets a branded link that opens the document inside
+        Advottic. Once they sign, that link cannot be used to sign again, and
+        it keeps working for a limited period afterwards so they can download
+        their copy. Outside signers also receive a one-time access code in a
+        separate email and must enter it before the document is shown - so a
+        forwarded link alone can&rsquo;t open it. People on your team see it
+        in their portal without a code. Every signer steps through a
         UETA-aligned electronic-records disclosure before the signature pad,
         and every action lands in a tamper-evident audit chain. Jurisdictional
         fit stays with your counsel.</T>
