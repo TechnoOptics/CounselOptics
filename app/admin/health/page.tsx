@@ -52,21 +52,27 @@ export default async function HqHealthPage() {
       <section className="space-y-3">
         <header>
           <p className="eyebrow text-cream-100/70">Daily probes</p>
+          {/* The no-manual-trigger fact belongs here rather than in the
+              empty state below, which only renders when the table has
+              zero rows. Production has had rows since April, so an
+              operator would never have read it there. This is also
+              where they are standing when a probe is red and the
+              question is "can I re-run it now". */}
           <p className="text-[13px] text-cream-100/65 mt-0.5">
-            One synthetic run per day at 07:00 UTC. The 24-bar history
-            below covers the last 24 days. Use the Live banner above for
-            current state.
+            One synthetic run per day at 07:00 UTC, scheduled in{' '}
+            <code className="font-mono">vercel.json</code>. There is no way to
+            trigger a run from HQ:{' '}
+            <code className="font-mono">/api/cron/health</code> requires the{' '}
+            <code className="font-mono">CRON_SECRET</code> bearer token, so a
+            red probe stays red here until the next scheduled run. For current
+            state use the Live banner above, which probes on every page load.
+            The 24-bar history below covers the last 24 days.
           </p>
         </header>
         {!latest ? (
           <p className="text-sm text-cream-100/70">
-            No health checks recorded yet. The cron runs once a day at 07:00 UTC
-            (<code className="font-mono">vercel.json</code>), so the first row
-            appears after the next scheduled run. There is no manual trigger in
-            HQ: <code className="font-mono">/api/cron/health</code> answers 403
-            without the <code className="font-mono">CRON_SECRET</code> bearer
-            token, so opening it in a browser does nothing. The Live banner above
-            probes Supabase on every page load and needs no cron.
+            No health checks recorded yet. The first row appears after the next
+            scheduled run.
           </p>
         ) : (
           <>
