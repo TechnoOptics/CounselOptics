@@ -112,6 +112,47 @@ export function findLineMarkers(line: string): LineMarker[] {
   return out;
 }
 
+/** True when a document carries at least one counterparty blank. */
+export function hasCounterpartyMarkers(text: unknown): boolean {
+  if (typeof text !== 'string' || text === '') return false;
+  return new RegExp(MARKER_RE.source).test(text);
+}
+
+export type DocumentSegment =
+  | { kind: 'text'; text: string }
+  | { kind: 'blank'; key: string };
+
+/**
+ * A document split into the words around its blanks and the blanks
+ * themselves, so a surface can DRAW a blank instead of printing the sentinel.
+ *
+ * The on-screen preview and the delivered PDF have to agree, and the PDF now
+ * rules the blank rather than drawing the marker
+ * (drawBodyLine, lib/branded-document-pdf.ts). Without this the employee
+ * filling the form and the attorney approving it read
+ * `_____<<entity_name>>_____` while the recipient received a clean ruled line.
+ *
+ * Deliberately NOT a replace into different text. The marker has to survive
+ * unchanged in document_text, because that is what the renderer measures and
+ * records a box from; only the presentation changes, and only on the surfaces
+ * that show the document rather than the ones that edit it.
+ */
+export function splitAtCounterpartyMarkers(text: string): DocumentSegment[] {
+  if (typeof text !== 'string' || text === '') return [];
+  const out: DocumentSegment[] = [];
+  const re = new RegExp(MARKER_RE.source, 'g');
+  let at = 0;
+  let m = re.exec(text);
+  while (m) {
+    if (m.index > at) out.push({ kind: 'text', text: text.slice(at, m.index) });
+    out.push({ kind: 'blank', key: m[1] });
+    at = m.index + m[0].length;
+    m = re.exec(text);
+  }
+  if (at < text.length) out.push({ kind: 'text', text: text.slice(at) });
+  return out;
+}
+
 /**
  * Whether a string is one of our blanks rather than a signature rule.
  *

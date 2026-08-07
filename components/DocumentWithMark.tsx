@@ -1,8 +1,9 @@
 import { findSignatureBlockLine } from '@/lib/firm-template-placeholders';
+import { splitAtCounterpartyMarkers } from '@/lib/template-field-boxes';
 
 /**
- * A document rendered as plain text with the signer's mark drawn in above the
- * signature block.
+ * A document rendered as plain text, with the signer's mark drawn in above the
+ * signature block and the other side's blanks drawn as blanks.
  *
  * Both on-screen surfaces use this one component: the employee's live preview
  * and the reviewer's copy of what would be sent. Together with the same
@@ -10,6 +11,19 @@ import { findSignatureBlockLine } from '@/lib/firm-template-placeholders';
  * signature can appear agree about where it goes by construction rather than
  * by three careful implementations. A preview that disagrees with the
  * delivered PDF is the exact defect this arrangement exists to prevent.
+ *
+ * THAT SENTENCE WAS FALSE FOR THE BLANKS, and this component is why it is true
+ * again. The renderer stopped drawing the marker literal and started ruling
+ * the blank it measures, so a preview printing the raw text showed the
+ * employee and the approving attorney `_____<<entity_name>>_____` where the
+ * recipient would receive a clean rule. Both read the document through here,
+ * so neither can drift from the delivered PDF on its own.
+ *
+ * What is NOT changed is the text itself. The marker survives unchanged in
+ * document_text, because that is what the renderer measures and records a box
+ * from; only the presentation moves. The one surface that must keep showing
+ * the literal is the reviewer's edit textarea, since it is what they must not
+ * delete, and that surface says so instead.
  *
  * The mark box mirrors the renderer's 200 by 56 point box, so the proportions
  * on screen are the proportions on the page.
@@ -33,7 +47,7 @@ export function DocumentWithMark({
    */
   markLine?: number | null;
 }) {
-  if (!markSrc) return <>{text}</>;
+  if (!markSrc) return <>{body(text)}</>;
 
   const line = markLine === undefined ? findSignatureBlockLine(text) : markLine;
   const image = (
@@ -50,7 +64,7 @@ export function DocumentWithMark({
     // renderer does with the same document. It is never dropped.
     return (
       <>
-        {text}
+        {body(text)}
         <span className="mt-3 block h-px w-[200px] bg-ink-200 dark:bg-forest-700/60" />
         {image}
       </>
@@ -60,9 +74,38 @@ export function DocumentWithMark({
   const lines = text.split('\n');
   return (
     <>
-      {lines.slice(0, line).join('\n')}
+      {body(lines.slice(0, line).join('\n'))}
       {image}
-      {lines.slice(line).join('\n')}
+      {body(lines.slice(line).join('\n'))}
     </>
+  );
+}
+
+/**
+ * The words, with each of the other side's blanks drawn as a ruled blank.
+ *
+ * The rule is the same fact the PDF draws, not the same measurement: the
+ * renderer gives an end-of-line blank the rest of the measure and a mid-line
+ * blank its own width, which are point widths over a fixed page and have no
+ * meaning in a reflowing column. What has to match is that the reader sees a
+ * blank for the other side to fill and never sees our sentinel.
+ *
+ * The key goes in the title rather than in the text. A reviewer with two
+ * blanks on one page can tell them apart on hover, and nothing internal is
+ * printed into the body of the document.
+ */
+function body(text: string) {
+  const segments = splitAtCounterpartyMarkers(text);
+  if (segments.every((s) => s.kind === 'text')) return text;
+  return segments.map((s, i) =>
+    s.kind === 'text' ? (
+      <span key={i}>{s.text}</span>
+    ) : (
+      <span
+        key={i}
+        title={`${s.key}: the recipient fills this in`}
+        className="mx-0.5 inline-block min-w-[12ch] border-b border-ink-400 align-baseline dark:border-cream-100/40"
+      />
+    ),
   );
 }

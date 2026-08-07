@@ -9,6 +9,7 @@ import {
 } from '@/lib/template-submissions';
 import type { ReviewAction, SubmissionStatus } from '@/lib/template-approval';
 import type { DeliveryMode } from '@/lib/submission-dispatch';
+import { hasCounterpartyMarkers } from '@/lib/template-field-boxes';
 import { T } from '@/components/i18n/LocaleProvider';
 
 /**
@@ -202,6 +203,24 @@ export function ReviewActions({
               are told it was made.
             </T>
           </p>
+          {/* The one surface that still shows the marker literal, and it has
+              to: it is what the reviewer must not delete. Everywhere the
+              document is READ it is drawn as a ruled blank
+              (DocumentWithMark), so without this sentence the literal here
+              has no counterpart in anything they can see and reads as
+              leftover junk. Deleting it is silent: the next render records no
+              box for that key, so the recipient is never asked, and the
+              instrument goes out with the value absent and no blank where it
+              belonged. */}
+          {hasCounterpartyMarkers(draft) && (
+            <p className="text-[12.5px] text-amber-700 dark:text-amber-300">
+              <T>
+                The underlined markers below are where the recipient types. Leave them as
+                they are: if you delete one, the recipient will not be asked for it and the
+                document goes out with nothing in its place.
+              </T>
+            </p>
+          )}
           <textarea
             rows={18}
             value={draft}
