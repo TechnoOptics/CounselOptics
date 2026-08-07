@@ -100,6 +100,75 @@ export function summarizeProbeUptime(
 }
 
 /**
+ * How many runs a probe has failed in a row, counting back from the
+ * newest. `history` is newest first.
+ *
+ * The health page showed the latest run and a 24-hour pass rate. On a
+ * once-a-day cron those two readouts cannot tell a probe that blipped
+ * once from a probe that has been down for a month: both paint one rose
+ * tile. The bella probe failed 25 of the 30 daily runs to 2026-08-06 on
+ * the same unpaid-credit error and nothing on the page said so.
+ *
+ * `skipped` is not a measurement. An unconfigured probe neither adds to
+ * the streak nor clears it, the same way summarizeProbeUptime leaves
+ * skipped out of the denominator instead of scoring it as down.
+ */
+export function consecutiveFailures(history: ReadonlyArray<string>): number {
+  let streak = 0;
+  for (const status of history) {
+    if (status === 'fail') streak += 1;
+    else if (status !== 'skipped') break;
+  }
+  return streak;
+}
+
+/**
+ * Minimum gap between two health digest emails.
+ *
+ * This has to stay shorter than the cron period, and that is the whole
+ * point of the constant. The throttle was a full 24 hours measured from
+ * the previous send, against a cron that fires once every 24 hours, so
+ * whether the operator heard about a failure came down to whether today's
+ * run landed later in the minute than yesterday's send. Vercel jitters the
+ * 07:00 trigger by up to about 90 seconds, so roughly half the time it did
+ * not. Production to 2026-08-06: every suppressed run sat between 86302
+ * and 86400 seconds after the previous send, never more, and the
+ * suppressions fell on alternating days.
+ *
+ * Twelve hours leaves the daily digest an enormous margin while still
+ * collapsing a burst: a Vercel retry, or someone hitting the endpoint by
+ * hand after reading the page, does not mail a second copy.
+ */
+export const HEALTH_DIGEST_MIN_GAP_MS = 12 * 60 * 60 * 1000;
+
+export type HealthDigestDecision = 'send' | 'throttled' | 'nothing-to-report';
+
+/**
+ * Whether a health-check run should mail its digest, and if not, why not.
+ *
+ * The reason is returned rather than a bare boolean so the cron response
+ * can say which of the two silences this was. "Throttled" and "nothing to
+ * report" look identical from outside the process, and telling them apart
+ * from the outside is what cost a month of unnoticed probe failures.
+ */
+export function healthDigestDecision(input: {
+  hasFailures: boolean;
+  unacknowledgedCrashes: number;
+  /** ISO timestamp of the most recent digest, or null if none was ever sent. */
+  lastEmailSentAt: string | null;
+  now: number;
+}): HealthDigestDecision {
+  if (!input.hasFailures && input.unacknowledgedCrashes === 0) {
+    return 'nothing-to-report';
+  }
+  if (input.lastEmailSentAt === null) return 'send';
+  const last = Date.parse(input.lastEmailSentAt);
+  // An unreadable timestamp must not be able to mute the alert channel.
+  if (Number.isNaN(last)) return 'send';
+  return input.now - last >= HEALTH_DIGEST_MIN_GAP_MS ? 'send' : 'throttled';
+}
+
+/**
  * The single rule for collapsing a set of security controls into one
  * indicator.
  *

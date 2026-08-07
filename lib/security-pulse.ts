@@ -379,16 +379,13 @@ const checkStaleOAuthTokens: CheckDefinition = {
       status: stale.length > 0 ? 'warning' : 'healthy',
       message:
         stale.length > 0
-          ? `${stale.length} expired token(s) not refreshed in 24h.`
+          ? `${stale.length} expired token(s) connected more than 24h ago.`
           : `${expired.length} expired token(s) (will refresh on next use).`,
       detail,
-      autofix:
-        stale.length > 0
-          ? {
-              id: 'mark_integrations_needs_reconnect',
-              label: `Force ${stale.length} stale connection(s) to re-auth`,
-            }
-          : null,
+      // The "Force N stale connection(s) to re-auth" autofix was removed:
+      // it queried a column that does not exist and would have set a flag
+      // nothing reads. See applySecurityFix.
+      autofix: null,
     };
   },
 };
@@ -448,10 +445,6 @@ const checkLoginFailureSpike: CheckDefinition = {
       };
     }
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    // Look for security_events of kind 'login_failed' first; fall back
-    // to a soft signal from auth.audit_log_entries via auth schema if
-    // exposed (Supabase usually does not expose it via PostgREST so we
-    // rely on the application-side log).
     const { count, error } = await admin
       .from('security_events')
       .select('id', { count: 'exact', head: true })
@@ -465,6 +458,26 @@ const checkLoginFailureSpike: CheckDefinition = {
       };
     }
     const total = count ?? 0;
+    if (total === 0) {
+      // Zero here does not mean nobody failed a sign-in. The kind
+      // 'login_failed' is declared in lib/security-audit.ts and no call
+      // site in this codebase has ever written one: every logSecurityEvent
+      // call records login, admin_case_view, admin_impersonation,
+      // data_exported, account_deleted, role_changed,
+      // employee_deactivated or hq_trial_action_denied. The check was
+      // returning healthy on a query that cannot come back non-zero, so
+      // the one control on this dashboard aimed at credential stuffing
+      // was permanently green.
+      //
+      // 'unknown' is the state this repo already has for a check that
+      // cannot run, and rollupStatus refuses to paint it as healthy.
+      return {
+        status: 'unknown',
+        message: 'Failed sign-ins are not logged, so this cannot be measured.',
+        detail:
+          "No code path writes a security_events row of kind 'login_failed'. Instrument the auth path before reading anything into this control.",
+      };
+    }
     if (total < 25) {
       return {
         status: 'healthy',
@@ -475,20 +488,11 @@ const checkLoginFailureSpike: CheckDefinition = {
       return {
         status: 'warning',
         message: `Elevated: ${total} failed logins in 24h.`,
-        autofix: {
-          id: 'enable_strict_rate_limit',
-          label: 'Tighten /auth rate limit for 1 hour',
-        },
       };
     }
     return {
       status: 'critical',
       message: `Spike: ${total} failed logins in 24h - possible credential stuffing.`,
-      autofix: {
-        id: 'enable_strict_rate_limit',
-        label: 'Tighten /auth rate limit for 1 hour',
-        destructive: false,
-      },
     };
   },
 };
@@ -785,47 +789,24 @@ export async function applyAutofix(
     return { ok: false, appliedTo: 0, message: 'Service role unavailable.' };
   }
 
-  if (fixId === 'mark_integrations_needs_reconnect') {
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const { data, error } = await admin
-      .from('firm_integrations')
-      .update({ needs_reconnect: true })
-      .lt('token_expires_at', new Date().toISOString())
-      .lt('updated_at', oneDayAgo)
-      .select('id');
-    if (error) {
-      // If the column does not exist yet, degrade.
-      return { ok: false, appliedTo: 0, message: error.message };
-    }
-    const rows = (data ?? []) as Array<{ id: string }>;
-    return {
-      ok: true,
-      appliedTo: rows.length,
-      message: `Marked ${rows.length} stale integration(s) for reconnect.`,
-    };
-  }
-
-  if (fixId === 'enable_strict_rate_limit') {
-    // Strict rate limit is a flag in hq_settings that the auth route
-    // reads. The flag is short-lived (1h TTL); the auth handler is
-    // free to re-tighten the bucket on every check.
-    const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
-    const { error } = await admin
-      .from('hq_settings')
-      .upsert({
-        key: 'auth_strict_rate_limit_until',
-        value: expiresAt,
-        updated_at: new Date().toISOString(),
-      });
-    if (error) {
-      return { ok: false, appliedTo: 0, message: error.message };
-    }
-    return {
-      ok: true,
-      appliedTo: 1,
-      message: `Strict /auth rate limit active until ${expiresAt}.`,
-    };
-  }
+  // Two autofixes were removed here rather than repaired, because
+  // repairing the query would not have made either of them do anything.
+  //
+  // 'mark_integrations_needs_reconnect' filtered on
+  // firm_integrations.token_expires_at. That column does not exist; the
+  // table has expires_at, which the *check* above was corrected to use
+  // and the autofix was not. Every press returned ok:false. Fixing the
+  // name would have set firm_integrations.needs_reconnect, and grepping
+  // app/, lib/ and components/ for that column finds only the write:
+  // no surface reads it, so no firm would ever be asked to re-auth.
+  //
+  // 'enable_strict_rate_limit' upserted hq_settings.auth_strict_rate_limit_until
+  // and reported "Strict /auth rate limit active until <ts>". Nothing
+  // reads that key either. The button told an operator, during a
+  // suspected credential-stuffing incident, that a mitigation was live
+  // while nothing anywhere was throttled. That is the worst thing a
+  // security console can do, and it is why this is a deletion and not a
+  // patch. Restore either one together with the mechanism behind it.
 
   return {
     ok: false,

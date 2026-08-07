@@ -15,13 +15,36 @@ import { LocaleTime } from '@/components/LocaleTime';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-export default async function AdminUsersPage() {
-  const [users, me, trialList] = await Promise.all([
+/**
+ * The System health page has linked "Review N pending →" at
+ * /admin/users?filter=gdpr-pending since the GDPR tile was built, and
+ * this page accepted no searchParams at all, so the query string was
+ * inert and the link landed on the unfiltered list. The filter is honoured
+ * here rather than the link removed, because consentedAt is already on
+ * every row adminListUsers returns and the tile it comes from is the only
+ * actionable control on that page.
+ */
+export default async function AdminUsersPage({
+  searchParams,
+}: {
+  searchParams?: { filter?: string };
+}) {
+  const [allUsers, me, trialList] = await Promise.all([
     adminListUsers(),
     getCurrentUser(),
     listTrialUsers(),
   ]);
-  const adminCount = users.filter((u) => u.isAdmin).length;
+  const gdprPending = searchParams?.filter === 'gdpr-pending';
+  const users = gdprPending ? allUsers.filter((u) => !u.consentedAt) : allUsers;
+  // Over allUsers, never over the filtered view. This feeds the "at least
+  // 2 admins" guard below, which is a statement about the platform and not
+  // about whichever subset happens to be on screen. Computed over the
+  // filter it read "0 admins" the moment anyone followed the gdpr-pending
+  // link, because production has 2 admins and neither is pending consent,
+  // and it raised the amber warning on a page that carries demotion
+  // toggles. The server action enforces the real rule either way, so
+  // nothing unsafe could happen; a false safety banner is its own defect.
+  const adminCount = allUsers.filter((u) => u.isAdmin).length;
 
   // An unreadable list is NOT an empty one, and the difference matters here:
   // "nobody is on a clock" plus a Start a trial control offering everybody is
@@ -32,7 +55,16 @@ export default async function AdminUsersPage() {
   // The email lives on auth.users rather than on profiles, so lib/user-trials
   // does not carry it and the join happens here, against the list this page
   // already holds.
-  const byId = new Map(users.map((u) => [u.id, u]));
+  //
+  // Over allUsers, never over the filtered view, for the same reason
+  // adminCount is. This map is the only source of email and createdAt for the
+  // trial console, and createdAt anchors the automatic signup window. Built
+  // over the filter, following the gdpr-pending link would silently blank the
+  // email and the window-end date for every person on a trial who happens to
+  // have consented, and the console would then report their signup window as
+  // unknown. Neither branch had this defect alone: the filter and the trial
+  // console arrived from different directions and met on this line.
+  const byId = new Map(allUsers.map((u) => [u.id, u]));
 
   // When each of these people's AUTOMATIC signup trial ends. While that window
   // is open, isFullAccessTrial unlocks every feature regardless of the plan
@@ -107,9 +139,19 @@ export default async function AdminUsersPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <p className="text-sm text-ink-500 dark:text-cream-100/55">
-          {users.length} user{users.length === 1 ? '' : 's'} · {adminCount} admin
-          {adminCount === 1 ? '' : 's'}
+          {users.length} user{users.length === 1 ? '' : 's'}
+          {gdprPending && ` of ${allUsers.length} without GDPR consent`} ·{' '}
+          {adminCount} admin{adminCount === 1 ? '' : 's'}
+          {gdprPending && ' platform-wide'}
         </p>
+        {gdprPending && (
+          <a
+            href="/admin/users"
+            className="text-xs underline underline-offset-2 text-ink-500 dark:text-cream-100/70"
+          >
+            Clear filter
+          </a>
+        )}
         {adminCount < 2 && (
           <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 dark:text-amber-200 dark:bg-amber-950/40 dark:border-amber-700/40 rounded-md px-3 py-1.5">
             At least 2 admins are required. Promote another user before
@@ -159,6 +201,18 @@ export default async function AdminUsersPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-ink-100 dark:divide-white/5">
+            {users.length === 0 && (
+              <tr>
+                {/* colSpan matches the 8 headers above. Without it the
+                    message sat in the User column and the row rendered
+                    seven empty cells beside it. */}
+                <td className="px-3 py-4 text-sm text-ink-500 dark:text-cream-100/55" colSpan={8}>
+                  {gdprPending
+                    ? 'Every account has accepted the GDPR terms.'
+                    : 'No users.'}
+                </td>
+              </tr>
+            )}
             {users.map((u) => (
               <tr key={u.id} className="hover:bg-ink-50/40 dark:hover:bg-white/5">
                 <Td>

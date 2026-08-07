@@ -9,6 +9,7 @@ import {
   type ProbeStatus,
 } from '@/lib/storage';
 import { sendEmail } from '@/lib/email';
+import { healthDigestDecision, type HealthDigestDecision } from '@/lib/hq-metrics';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -92,7 +93,7 @@ export async function GET(request: NextRequest) {
   if (process.env.RESEND_API_KEY?.trim()) {
     await probe('email', async () => {
       // Resend exposes /domains as a cheap "is the API key valid + service up"
-      // check. We do NOT send a real email every hour.
+      // check. We do NOT send a real email on every run.
       const res = await fetch('https://api.resend.com/domains', {
         headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY!.trim()}` },
         cache: 'no-store',
@@ -154,52 +155,57 @@ export async function GET(request: NextRequest) {
   }).catch(() => []);
 
   // Email digest fires when EITHER probes failed OR there are
-  // unacknowledged crashes, and the per-day throttle is not already
-  // tripped. With cron now running once a day at 07:00 UTC the
-  // throttle aligns naturally with the cadence.
-  const shouldDigest = failures.length > 0 || unackedCrashes.length > 0;
-  if (shouldDigest) {
-    const lastEmailedAt = await lastHealthEmailSentAt();
-    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
-    if (lastEmailedAt === null || Date.parse(lastEmailedAt) < oneDayAgo) {
-      const to = process.env.HEALTH_DIGEST_TO?.trim() || 'contact@advottic.com';
+  // unacknowledged crashes, and the throttle is not already tripped. The
+  // throttle window lives in lib/hq-metrics.ts and is deliberately shorter
+  // than the daily cron period: a 24-hour window against a 24-hour cadence
+  // silently dropped every other digest for months.
+  const decision = healthDigestDecision({
+    hasFailures: failures.length > 0,
+    unacknowledgedCrashes: unackedCrashes.length,
+    lastEmailSentAt: await lastHealthEmailSentAt(),
+    now: Date.now(),
+  });
+  // Reported in the response so a silent run says which silence it was.
+  let digest: HealthDigestDecision | 'sent' | 'send-failed' = decision;
+  if (decision === 'send') {
+    const to = process.env.HEALTH_DIGEST_TO?.trim() || 'contact@advottic.com';
 
-      const subjectParts: string[] = [];
-      if (failures.length > 0) {
-        subjectParts.push(
-          `${failures.length} probe${failures.length === 1 ? '' : 's'} failing`,
-        );
-      }
-      if (unackedCrashes.length > 0) {
-        subjectParts.push(
-          `${unackedCrashes.length} crash${unackedCrashes.length === 1 ? '' : 'es'}`,
-        );
-      }
-      const subject = `[Advottic] Daily health: ${subjectParts.join(' / ')}`;
+    const subjectParts: string[] = [];
+    if (failures.length > 0) {
+      subjectParts.push(
+        `${failures.length} probe${failures.length === 1 ? '' : 's'} failing`,
+      );
+    }
+    if (unackedCrashes.length > 0) {
+      subjectParts.push(
+        `${unackedCrashes.length} crash${unackedCrashes.length === 1 ? '' : 'es'}`,
+      );
+    }
+    const subject = `[Advottic] Daily health: ${subjectParts.join(' / ')}`;
 
-      const failureBlock =
-        failures.length > 0
-          ? `<h3 style="margin:18px 0 6px;font-size:14px;color:#9f1239;">Failed probes (${failures.length})</h3>
+    const failureBlock =
+      failures.length > 0
+        ? `<h3 style="margin:18px 0 6px;font-size:14px;color:#9f1239;">Failed probes (${failures.length})</h3>
 <ul style="margin:0 0 8px;padding-left:18px;font-size:13px;color:#3f3f46;">
 ${failures
   .map(
     (f) =>
-      `<li><strong style="font-family:ui-monospace,Menlo,Consolas,monospace;color:#9f1239;">${escapeHtml(f.probe)}</strong>: ${escapeHtml(f.error)}</li>`,
+    `<li><strong style="font-family:ui-monospace,Menlo,Consolas,monospace;color:#9f1239;">${escapeHtml(f.probe)}</strong>: ${escapeHtml(f.error)}</li>`,
   )
   .join('\n')}
 </ul>`
-          : '';
+        : '';
 
-      const crashBlock =
-        unackedCrashes.length > 0
-          ? `<h3 style="margin:18px 0 6px;font-size:14px;color:#9f1239;">Unacknowledged client crashes (${unackedCrashes.length})</h3>
+    const crashBlock =
+      unackedCrashes.length > 0
+        ? `<h3 style="margin:18px 0 6px;font-size:14px;color:#9f1239;">Unacknowledged client crashes (${unackedCrashes.length})</h3>
 <ul style="margin:0 0 8px;padding-left:18px;font-size:13px;color:#3f3f46;">
 ${unackedCrashes
   .map((c) => {
     const when = new Date(c.reportedAt).toLocaleString('en-US', {
-      timeZone: 'UTC',
-      dateStyle: 'medium',
-      timeStyle: 'short',
+    timeZone: 'UTC',
+    dateStyle: 'medium',
+    timeStyle: 'short',
     });
     const path = c.url ? c.url.replace(/^https?:\/\/[^/]+/, '') : '';
     return `<li style="margin-bottom:6px;">
@@ -210,9 +216,9 @@ ${unackedCrashes
   .join('\n')}
 </ul>
 <p style="margin:0 0 8px;font-size:12px;color:#52525b;">Open <a href="https://advottic.com/admin/crashes" style="color:#0f2d24;">/admin/crashes</a> to acknowledge or investigate.</p>`
-          : '';
+        : '';
 
-      const html = `<!doctype html><html><body style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Inter,sans-serif;padding:16px;color:#0f2d24;">
+    const html = `<!doctype html><html><body style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Inter,sans-serif;padding:16px;color:#0f2d24;">
 <h2 style="margin:0 0 8px;font-size:16px;">Advottic - daily health digest</h2>
 <p style="margin:0 0 12px;font-size:13px;color:#3f3f46;">Probe run at ${escapeHtml(new Date().toISOString())} - ${durationMs} ms.</p>
 ${failureBlock}
@@ -221,10 +227,20 @@ ${crashBlock}
 <p style="margin:6px 0 0;font-size:11px;color:#a1a1aa;">Auto-generated daily. Open <a href="https://advottic.com/admin/health" style="color:#52525b;">/admin/health</a> for live status.</p>
 </body></html>`;
 
-      const r = await sendEmail({ to, subject, html }).catch(() => null);
-      if (r && r.ok && recordedRowId) {
-        await markHealthEmailSent(recordedRowId).catch(() => {});
-      }
+    // sendEmail reports a failure as ok:false rather than throwing, and
+    // the catch is only for a transport-level surprise. Neither may be
+    // discarded: a digest that is never sent and never mentioned is the
+    // same as no alerting at all.
+    const r = await sendEmail({ to, subject, html }).catch((e) => ({
+      ok: false as const,
+      error: e instanceof Error ? e.message : String(e),
+    }));
+    if (r.ok) {
+      digest = 'sent';
+      if (recordedRowId) await markHealthEmailSent(recordedRowId);
+    } else {
+      digest = 'send-failed';
+      console.error(`[cron/health] digest email failed to send: ${r.error}`);
     }
   }
 
@@ -233,6 +249,7 @@ ${crashBlock}
     probes,
     failures,
     crashCount: unackedCrashes.length,
+    digest,
     durationMs,
     ranAt: new Date().toISOString(),
   });

@@ -58,9 +58,7 @@ type FeedState =
 
 type ThreatMonitor = {
   openEvents: number;
-  events24h: SecurityEventRow[];
   sev24h: { low: number; medium: number; high: number; critical: number };
-  failedLogins24h: number;
   recent: SecurityEventRow[];
   impersonations: ImpersonationRow[];
   state: FeedState;
@@ -89,9 +87,7 @@ async function gatherThreatMonitor(
 ): Promise<ThreatMonitor> {
   const base: ThreatMonitor = {
     openEvents: 0,
-    events24h: [],
     sev24h: { low: 0, medium: 0, high: 0, critical: 0 },
-    failedLogins24h: 0,
     recent: [],
     impersonations: [],
     state: { kind: 'ok' },
@@ -99,23 +95,42 @@ async function gatherThreatMonitor(
   if (!admin) return { ...base, state: { kind: 'unconfigured' } };
   const since = SINCE_24H();
   try {
-    const [openResp, recentResp, impResp] = await Promise.all([
+    const [openResp, recentResp, window24Resp, impResp] = await Promise.all([
       admin
         .from('security_events')
         .select('id', { count: 'exact', head: true })
         .is('acknowledged_at', null),
+      // The feed. Newest first with no time filter, so a quiet week still
+      // shows the last thing that happened.
       admin
         .from('security_events')
         .select('kind, severity, occurred_at, acknowledged_at')
         .order('occurred_at', { ascending: false })
         .limit(60),
+      // The "/24h" tiles. These have to be their own query: the 24-hour
+      // boundary used to be applied in JS to the 60 rows above, so past 60
+      // events in a day the tiles undercounted. Filtering in Postgres
+      // matches adminGetHqHealthExtras in lib/hq-storage.ts, so the two HQ
+      // pages cannot disagree.
+      //
+      // It raises the ceiling rather than removing it. PostgREST still
+      // applies its own db-max-rows (1000 on Supabase's default config)
+      // and the connection carries an 8s statement timeout from the
+      // authenticator role, so above roughly a thousand events in a day
+      // these tiles undercount again, and they would do it during exactly
+      // the incident they exist to surface. Counting this server-side
+      // (head:true with count:'exact', or a grouped count) is the fix that
+      // has no ceiling; it is not done here because the tiles need a
+      // per-severity breakdown and the row volume is nowhere near the cap.
+      admin.from('security_events').select('severity').gte('occurred_at', since),
       admin
         .from('admin_impersonations')
         .select('admin_email, target_email, reason, created_at')
         .order('created_at', { ascending: false })
         .limit(8),
     ]);
-    const firstError = openResp.error ?? recentResp.error ?? impResp.error;
+    const firstError =
+      openResp.error ?? recentResp.error ?? window24Resp.error ?? impResp.error;
     if (firstError) {
       return {
         ...base,
@@ -127,14 +142,11 @@ async function gatherThreatMonitor(
     base.openEvents = openResp.count ?? 0;
     const rows = (recentResp.data ?? []) as SecurityEventRow[];
     base.recent = rows.slice(0, 12);
-    const recent24 = rows.filter((r) => r.occurred_at >= since);
-    base.events24h = recent24;
-    for (const r of recent24) {
-      if (r.severity in base.sev24h) base.sev24h[r.severity] += 1;
+    for (const r of (window24Resp.data ?? []) as { severity: string }[]) {
+      if (r.severity in base.sev24h) {
+        base.sev24h[r.severity as keyof typeof base.sev24h] += 1;
+      }
     }
-    base.failedLogins24h = recent24.filter(
-      (r) => r.kind === 'login_failed',
-    ).length;
     base.impersonations = (impResp.data ?? []) as ImpersonationRow[];
   } catch (e) {
     return { ...base, state: { kind: 'error', reason: errorText(e) } };
@@ -240,7 +252,7 @@ export default async function SecurityCenterPage() {
         Last full sweep <LocaleTime iso={pulse.ranAt} mode="datetime" /> ·{' '}
         {pulse.totalDurationMs} ms · live data ·{' '}
         <Link href="/admin/security" className="underline hover:text-cream-100/70">
-          open the live pulse for per-control autofixes
+          open the live pulse for per-control detail
         </Link>
       </p>
     </div>
@@ -454,17 +466,17 @@ function ThreatPanel({ threat }: { threat: ThreatMonitor }) {
           tone={threat.sev24h.high > 0 ? 'amber' : 'emerald'}
           sub="elevated severity"
         />
+        {/* This tile counted security_events of kind 'login_failed' and
+            rendered emerald 0. Nothing in the codebase has ever written
+            that kind: the value was structurally pinned at zero, so a
+            credential-stuffing detector reported all clear by
+            construction. Until the auth path logs failures it says so
+            rather than showing a reassuring number. */}
         <Tile
           label="Failed logins / 24h"
-          value={threat.failedLogins24h}
-          tone={
-            threat.failedLogins24h >= 100
-              ? 'rose'
-              : threat.failedLogins24h >= 25
-                ? 'amber'
-                : 'emerald'
-          }
-          sub="credential-stuffing signal"
+          value="Not instrumented"
+          tone="slate"
+          sub="the auth path does not log failed sign-ins yet"
         />
       </div>
       <div className="grid gap-3 lg:grid-cols-2">
@@ -536,7 +548,7 @@ function AttachmentScanPanel({ scan }: { scan: AttachmentScan }) {
   return (
     <Panel
       title="Attachment & content threat scan"
-      blurb="Every stored file across firm documents, case exhibits, and user receipts, classified for executable payloads, macro abuse, double-extension disguises, and type spoofing."
+      blurb="A sample of firm documents, case exhibits, and user receipts, classified by filename and declared type for executable payloads, macro abuse, double-extension disguises, and type spoofing. Read when this page loads, capped at the newest 400 rows per table, and no substitute for an upload-time gate."
     >
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5 mb-4">
         <Tile label="Files scanned" value={scan.scanned} tone="slate" sub="at rest" />
@@ -617,7 +629,7 @@ function AttachmentScanPanel({ scan }: { scan: AttachmentScan }) {
         <div className="card p-4 ring-1 ring-emerald-700/30 bg-emerald-950/12 text-[12.5px] text-emerald-100/90">
           {scan.scanned > 0
             ? `All ${scan.scanned} stored files are clean. No executable payloads, macro-enabled documents, disguised extensions, or type-spoofed uploads detected.`
-            : 'No stored files to scan yet. The classifier runs automatically as documents, exhibits, and receipts are uploaded.'}
+            : 'No stored files to scan yet. The classifier runs when this page is opened, not at upload time.'}
         </div>
       )}
       {scan.uploadMimeAllowlistMissing && (
@@ -786,7 +798,7 @@ function ResiliencePanel({
           </p>
           {probeEntries.length === 0 ? (
             <p className="text-[12px] text-cream-100/55">
-              No probe snapshot yet. The hourly health cron populates this.
+              No probe snapshot yet. The daily 07:00 UTC health cron populates this.
             </p>
           ) : (
             <ul className="space-y-1">

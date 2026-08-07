@@ -2430,7 +2430,11 @@ export async function recordHealthCheck(input: {
 }): Promise<string | null> {
   const admin = createAdminSupabase();
   if (!admin) return null;
-  const { data } = await admin
+  // postgrest-js resolves with `{ error }` instead of throwing, so this
+  // result has to be inspected. An unchecked insert here loses the run
+  // silently and leaves the caller unable to tell "not recorded" from
+  // "recorded with no id".
+  const { data, error } = await admin
     .from('system_health')
     .insert({
       source: input.source,
@@ -2440,13 +2444,28 @@ export async function recordHealthCheck(input: {
     })
     .select('id')
     .single();
+  if (error) {
+    console.error(`[health] failed to record health check: ${error.message}`);
+    return null;
+  }
   return (data as { id?: string } | null)?.id ?? null;
 }
 
 /**
  * Returns the ISO timestamp of the most recent health-check row that
- * triggered a digest email. Used by the cron to throttle alerts to
- * once per 24 hours regardless of how long a failure persists.
+ * triggered a digest email. The cron compares it against
+ * HEALTH_DIGEST_MIN_GAP_MS (lib/hq-metrics.ts) to throttle alerts while a
+ * failure persists.
+ *
+ * Do not reintroduce "once per 24 hours" here. That was the number, and
+ * it is what broke the alerting: the window was a full cron period, so a
+ * daily run cleared it only when it happened to land later in the minute
+ * than the previous send. Replayed over all 237 rows the old rule was a
+ * necessary condition for every digest ever sent, and every suppressed
+ * run sat in a 98-second band immediately under the bar (86301.9s to
+ * 86399.8s, against a smallest passing gap of 86400.055s). The window
+ * has to stay meaningfully shorter than the cron period, which is what
+ * the test in tests/health-digest-throttle.test.ts pins.
  */
 export async function lastHealthEmailSentAt(): Promise<string | null> {
   const admin = createAdminSupabase();
@@ -2462,16 +2481,26 @@ export async function lastHealthEmailSentAt(): Promise<string | null> {
 }
 
 /**
- * Marks a health-check row as having had its digest email sent.
- * Anchors the next 24-hour throttle window.
+ * Marks a health-check row as having had its digest email sent. Anchors
+ * the next throttle window (HEALTH_DIGEST_MIN_GAP_MS in lib/hq-metrics).
+ *
+ * A dropped update here does not lose an alert, it duplicates one: the
+ * next run reads an older anchor and mails again. It still says so,
+ * because a `{ error }` nobody reads is how this table stopped being
+ * trustworthy in the first place.
  */
 export async function markHealthEmailSent(rowId: string): Promise<void> {
   const admin = createAdminSupabase();
   if (!admin) return;
-  await admin
+  const { error } = await admin
     .from('system_health')
     .update({ email_sent_at: new Date().toISOString() })
     .eq('id', rowId);
+  if (error) {
+    console.error(
+      `[health] digest sent but row ${rowId} not marked: ${error.message}`,
+    );
+  }
 }
 
 export async function adminListHealthChecks(limit = 48): Promise<SystemHealthRow[]> {
@@ -2577,6 +2606,15 @@ export async function adminSummarizeOpenCrashes(): Promise<OpenCrashSummary> {
       .is('acknowledged_at', null),
   ]);
   if (sampleResp.error || countResp.error) {
+    // Zero here reads on every HQ surface as "no open crashes", which is
+    // the opposite of what a failed read means. Nothing downstream can
+    // tell the difference from the return value, so say it on the error
+    // channel at least.
+    console.error(
+      `[crashes] open-crash summary read failed: ${
+        (sampleResp.error ?? countResp.error)?.message
+      }`,
+    );
     return { open: 0, noise: 0, total: 0, truncated: false };
   }
   return summarizeOpenCrashes(
@@ -2589,13 +2627,21 @@ export async function adminAcknowledgeCrash(crashId: string): Promise<void> {
   const admin = createAdminSupabase();
   if (!admin) return;
   const user = await getCurrentUser();
-  await admin
+  // postgrest-js resolves with `{ error }` rather than throwing. Unchecked,
+  // a rejected acknowledge is indistinguishable from a successful one: the
+  // action revalidates either way and the row simply reappears.
+  const { error } = await admin
     .from('crash_reports')
     .update({
       acknowledged_at: new Date().toISOString(),
       acknowledged_by: user?.id ?? null,
     })
     .eq('id', crashId);
+  if (error) {
+    console.error(
+      `[crashes] failed to acknowledge ${crashId}: ${error.message}`,
+    );
+  }
 }
 
 /**

@@ -367,7 +367,7 @@ export async function adminGetHqDashboardCounts(): Promise<HqDashboardCounts> {
 
 // =====================================================================
 // Live health probe - runs on demand at request time so the HQ
-// dashboard never lies when the hourly cron breaks
+// dashboard never lies when the daily cron breaks
 // =====================================================================
 
 export type LiveProbe = {
@@ -394,7 +394,7 @@ const CRON_STALE_THRESHOLD_MS = 36 * 60 * 60 * 1000;
  * Hits Supabase right now to verify it's reachable. Used by the HQ
  * landing's status pill and the System health page's "Live" row, so
  * the founder always sees the actual current state regardless of
- * whether the hourly cron is healthy.
+ * whether the daily cron is healthy.
  */
 export async function adminGetLiveHealth(): Promise<LiveHealth> {
   const startedAt = Date.now();
@@ -463,8 +463,9 @@ export async function adminGetLiveHealth(): Promise<LiveHealth> {
     }
   }
 
-  // Snapshot age - if the cron has not written in 2h, the static
-  // "Hourly probes" tiles are stale and the UI must say so.
+  // Snapshot age - once the cron has not written for longer than
+  // CRON_STALE_THRESHOLD_MS the static "Daily probes" tiles are stale and
+  // the UI must say so.
   let cronSnapshotAgeMs: number | null = null;
   try {
     const { data: latest } = await admin
@@ -502,6 +503,8 @@ export type HqHealthExtras = {
   security: {
     openEvents: number;
     last24hCount: number;
+    /** Privileged-access entries (admin_case_view, admin_impersonation). */
+    last24hMedium: number;
     last24hHigh: number;
     last24hCritical: number;
   };
@@ -523,7 +526,13 @@ export async function adminGetHqHealthExtras(): Promise<HqHealthExtras> {
   if (!admin) {
     return {
       gdpr: { consented: 0, total: 0, rate: 0 },
-      security: { openEvents: 0, last24hCount: 0, last24hHigh: 0, last24hCritical: 0 },
+      security: {
+        openEvents: 0,
+        last24hCount: 0,
+        last24hMedium: 0,
+        last24hHigh: 0,
+        last24hCritical: 0,
+      },
       uptime: { passedProbes: 0, totalProbes: 0, ratio: null, passedRuns: 0, totalRuns: 0 },
       activity: { totalAccounts: 0, onlineNow: 0, activeToday: 0, activeWeek: 0 },
     };
@@ -562,6 +571,7 @@ export async function adminGetHqHealthExtras(): Promise<HqHealthExtras> {
   const total = profiles.length;
 
   const recent = (securityRecentResp.data ?? []) as { severity: string }[];
+  const last24hMedium = recent.filter((r) => r.severity === 'medium').length;
   const last24hHigh = recent.filter((r) => r.severity === 'high').length;
   const last24hCritical = recent.filter((r) => r.severity === 'critical').length;
 
@@ -598,6 +608,7 @@ export async function adminGetHqHealthExtras(): Promise<HqHealthExtras> {
     security: {
       openEvents: securityOpenResp.count ?? 0,
       last24hCount: recent.length,
+      last24hMedium,
       last24hHigh,
       last24hCritical,
     },

@@ -1,7 +1,7 @@
 import { adminListHealthChecks } from '@/lib/storage';
 import { LocaleTime } from '@/components/LocaleTime';
 import { adminGetHqHealthExtras, adminGetLiveHealth } from '@/lib/hq-storage';
-import type { ProbeUptime } from '@/lib/hq-metrics';
+import { consecutiveFailures, type ProbeUptime } from '@/lib/hq-metrics';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: { absolute: 'System health · Advottic HQ' } };
@@ -52,16 +52,27 @@ export default async function HqHealthPage() {
       <section className="space-y-3">
         <header>
           <p className="eyebrow text-cream-100/70">Daily probes</p>
+          {/* The no-manual-trigger fact belongs here rather than in the
+              empty state below, which only renders when the table has
+              zero rows. Production has had rows since April, so an
+              operator would never have read it there. This is also
+              where they are standing when a probe is red and the
+              question is "can I re-run it now". */}
           <p className="text-[13px] text-cream-100/65 mt-0.5">
-            One synthetic run per day at 07:00 UTC. The 24-bar history
-            below covers the last 24 days. Use the Live banner above for
-            current state.
+            One synthetic run per day at 07:00 UTC, scheduled in{' '}
+            <code className="font-mono">vercel.json</code>. There is no way to
+            trigger a run from HQ:{' '}
+            <code className="font-mono">/api/cron/health</code> requires the{' '}
+            <code className="font-mono">CRON_SECRET</code> bearer token, so a
+            red probe stays red here until the next scheduled run. For current
+            state use the Live banner above, which probes on every page load.
+            The 24-bar history below covers the last 24 days.
           </p>
         </header>
         {!latest ? (
           <p className="text-sm text-cream-100/70">
-            No health checks recorded yet. The cron runs every hour; trigger one manually
-            with <code className="font-mono">/api/cron/health</code>.
+            No health checks recorded yet. The first row appears after the next
+            scheduled run.
           </p>
         ) : (
           <>
@@ -70,14 +81,24 @@ export default async function HqHealthPage() {
               {typeof latest.durationMs === 'number' && ` (${latest.durationMs} ms)`}
             </p>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-              {probeNames.map((p) => (
-                <ProbeTile
-                  key={p}
-                  name={PROBE_LABEL[p] ?? p}
-                  status={latest.probes[p as keyof typeof latest.probes] as string}
-                  history={last24.map((c) => c.probes[p as keyof typeof c.probes] as string)}
-                />
-              ))}
+              {probeNames.map((p) => {
+                // The streak is counted over every run we fetched, not
+                // just the 24 drawn as bars, so a month-long outage is
+                // not truncated to the width of the sparkline.
+                const streak = consecutiveFailures(
+                  checks.map((c) => c.probes[p as keyof typeof c.probes] as string),
+                );
+                return (
+                  <ProbeTile
+                    key={p}
+                    name={PROBE_LABEL[p] ?? p}
+                    status={latest.probes[p as keyof typeof latest.probes] as string}
+                    history={last24.map((c) => c.probes[p as keyof typeof c.probes] as string)}
+                    failingStreak={streak}
+                    streakAtWindowEdge={streak > 0 && streak === checks.length}
+                  />
+                );
+              })}
             </div>
             {latest.failures.length > 0 && (
               <div className="card p-4 ring-1 ring-rose-700/40">
@@ -164,7 +185,13 @@ function ActivityTile({
     <Tile
       label="User activity"
       sub={`${activity.activeToday.toLocaleString()} signed in today · ${activity.activeWeek.toLocaleString()} this 7d · 5-minute online window`}
-      titleHint="'Online now' = sessions with auth activity in the last 5 minutes. Excludes service-role + cron requests. Refreshes when this page reloads."
+      // The hint used to say "sessions with auth activity in the last 5
+      // minutes". The figure is auth.users.last_sign_in_at, which is the
+      // sign-in moment and not activity: someone who signed in this
+      // morning and has been working since counts as offline. It also
+      // claimed to exclude service-role and cron requests, which is
+      // vacuous because neither is an auth.users row.
+      titleHint="'Online now' = accounts whose last sign-in was within the last 5 minutes. It is a sign-in timestamp, not a live session: a user still working hours after signing in is not counted. Capped at the first 1000 accounts. Refreshes when this page reloads."
     >
       <div className="flex items-center gap-3 mt-1">
         <div
@@ -240,7 +267,7 @@ function GdprTile({
           ? `${gdpr.consented.toLocaleString()} of ${gdpr.total.toLocaleString()} accepted · ${pending.toLocaleString()} pending`
           : `${gdpr.consented.toLocaleString()} of ${gdpr.total.toLocaleString()} accepted`
       }
-      titleHint="Computed from profiles.consented_at. Old test accounts may inflate the denominator; archive them in /admin/users to clean up."
+      titleHint="Computed from profiles.consented_at. Old test accounts may inflate the denominator. There is no archive action in /admin/users, so removing them is a database operation."
     >
       <p className={`font-display text-4xl font-medium tabular-nums ${tone}`}>
         {gdpr.total === 0 ? 'No data' : `${pct}%`}
@@ -265,23 +292,38 @@ function SecurityTile({
   security: {
     openEvents: number;
     last24hCount: number;
+    last24hMedium: number;
     last24hHigh: number;
     last24hCritical: number;
   };
 }) {
-  const danger = security.last24hCritical > 0 || security.last24hHigh > 0;
-  const tone = danger
-    ? 'text-rose-300'
-    : security.last24hCount > 0
-      ? 'text-amber-300'
-      : 'text-emerald-300';
+  // Tone keys off severity, never off volume. It used to read amber
+  // whenever the count was non-zero, so nine routine successful sign-ins
+  // painted this tile amber: `login` is written at severity low and
+  // pre-acknowledged precisely because it is an audit record and not an
+  // alert (see lib/security-audit.ts). Medium is privileged access,
+  // admin_case_view and admin_impersonation, which is worth an operator's
+  // eye. Low is the audit trail doing its job and is not coloured at all.
+  const tone =
+    security.last24hCritical > 0 || security.last24hHigh > 0
+      ? 'text-rose-300'
+      : security.last24hMedium > 0
+        ? 'text-amber-300'
+        : 'text-cream-100/75';
   return (
     <Tile
       label="Security events (24h)"
+      // The zero state used to read "No suspicious activity detected" in
+      // emerald. That is the same sentence removed from the Failed-logins
+      // tile and it is wrong for the same reason: nothing behind this feed
+      // detects suspicious activity. login_failed is never written, and
+      // `suspicious` is not a member of SecurityEventKind. Zero here means
+      // nothing was logged, which is not evidence of safety.
+      titleHint="Counts every security_events row in the last 24h, most of which are routine audit records (sign-ins are severity low and written pre-acknowledged). Nothing behind this feed detects intrusion, so a low number is not an all-clear."
       sub={
         security.last24hCount === 0
-          ? 'No suspicious activity detected'
-          : `${security.last24hHigh} high · ${security.last24hCritical} critical · ${security.openEvents} open`
+          ? 'Nothing logged in the last 24h. This feed records activity, it does not detect it.'
+          : `${security.last24hMedium} privileged · ${security.last24hHigh} high · ${security.last24hCritical} critical · ${security.openEvents} open`
       }
     >
       <p className={`font-display text-4xl font-medium tabular-nums ${tone}`}>
@@ -376,11 +418,14 @@ function LiveStatusBanner({ live }: { live: Awaited<ReturnType<typeof adminGetLi
       )}
       {live.cronSnapshotStale && (
         <p className="mt-3 text-[12px] text-amber-200 bg-amber-950/40 ring-1 ring-amber-700/40 rounded-md px-3 py-2">
-          <strong>Hourly probe snapshot is stale</strong>
-          {ageHours !== null && ` (last cron run ${ageHours}h ago)`}. The
-          Vercel Cron at <code className="font-mono">/api/cron/health</code> may
-          not be firing - check <code className="font-mono">CRON_SECRET</code> and
-          your Vercel plan's cron quota. The live probe above is unaffected.
+          <strong>Daily probe snapshot is stale</strong>
+          {ageHours !== null && ` (last cron run ${ageHours}h ago)`}. The daily
+          Vercel Cron at <code className="font-mono">/api/cron/health</code> runs
+          at 07:00 UTC and this snapshot is now more than 36 hours old, so it has
+          missed a run - check <code className="font-mono">CRON_SECRET</code> and
+          your Vercel plan's cron quota. A result up to 36 hours old is normal on
+          a daily cadence and does not raise this warning. The live probe above
+          is unaffected.
         </p>
       )}
     </section>
@@ -391,10 +436,17 @@ function ProbeTile({
   name,
   status,
   history,
+  failingStreak,
+  streakAtWindowEdge,
 }: {
   name: string;
   status: string;
   history: string[];
+  /** Consecutive failed runs counting back from the latest. */
+  failingStreak: number;
+  /** True when the streak runs to the end of the fetched window, so the
+   *  real figure is "at least this many" rather than exactly this many. */
+  streakAtWindowEdge: boolean;
 }) {
   const tone =
     status === 'pass'
@@ -420,6 +472,14 @@ function ProbeTile({
       <p className="text-[11px] uppercase tracking-[0.2em] font-semibold text-cream-100/55 mt-1">
         {status}
       </p>
+      {/* A one-off failure and a month-long outage both render one rose
+          tile. The streak is what tells them apart at a glance. */}
+      {failingStreak > 1 && (
+        <p className="text-[11px] text-rose-300 mt-1 font-medium">
+          Failing {streakAtWindowEdge ? `${failingStreak}+` : failingStreak} runs
+          in a row
+        </p>
+      )}
       <div className="mt-3 flex gap-0.5 h-3 items-end" aria-label="Last 24 runs">
         {history
           .slice()

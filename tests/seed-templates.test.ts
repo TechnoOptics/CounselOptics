@@ -76,6 +76,11 @@ describe('Zinpro mutual NDA', () => {
       body: ZINPRO_MUTUAL_NDA.body,
       fields: ZINPRO_MUTUAL_NDA.fields,
       values,
+      // Required since the flow-join work made the mode an explicit input
+      // rather than something inferred from whether a counterparty was named.
+      // Taken from the template rather than hardcoded, so a template whose
+      // mode changed would exercise the mode it actually ships with.
+      deliveryMode: ZINPRO_MUTUAL_NDA.deliveryMode,
       firmName: 'Anderson Foundation',
       signatureName: 'Dana Whitfield',
       signerEmail: 'dana@example.com',
