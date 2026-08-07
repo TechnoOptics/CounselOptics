@@ -400,13 +400,6 @@ export function resolveCounterpartySubmission(input: {
   if (input.accessCodeRequired && !input.accessVerifiedAt) {
     return { ok: false, reason: 'code-required' };
   }
-  // Before anything is read out of the values, so a caller who is not the
-  // counterparty learns nothing about what this document asks the
-  // counterparty for. The employee who counter-signs reaches this endpoint
-  // with a valid token and, being internal, without a code, so the two checks
-  // above pass for them; nothing else here would have told them apart, and
-  // their submission landed on their OWN signature row.
-  if (!input.isCounterparty) return { ok: false, reason: 'not-your-details' };
   if (input.requestStatus === 'canceled') return { ok: false, reason: 'canceled' };
   if (input.signedAt) return { ok: false, reason: 'already-signed' };
   if (
@@ -417,7 +410,22 @@ export function resolveCounterpartySubmission(input: {
     return { ok: false, reason: 'on-hold' };
   }
   const fields = input.fields.filter(isCounterpartyField);
+  // Whether this document asks anybody for anything, BEFORE whether it asks
+  // this caller. The adapter derives isCounterparty from the intake, which is
+  // null exactly when there are no blanks, so with the party check first the
+  // genuine recipient of a request with nothing to fill in was told the
+  // details were for the other party, and 'nothing-to-fill' became unreachable
+  // from the action entirely. This order tells a token holder only whether the
+  // request they already hold a credential for has blanks at all, and never
+  // what those blanks ask.
   if (fields.length === 0) return { ok: false, reason: 'nothing-to-fill' };
+  // Still before anything is read out of the values, so a caller who is not
+  // the counterparty learns nothing about what is being asked. The employee
+  // who counter-signs reaches this endpoint with a valid token and, being
+  // internal, without a code, so every check above passes for them; nothing
+  // else here would have told them apart, and their submission landed on
+  // their OWN signature row.
+  if (!input.isCounterparty) return { ok: false, reason: 'not-your-details' };
 
   const values = sanitizeCounterpartyValues(fields, input.values);
   const missing = missingCounterpartyFields(fields, values);

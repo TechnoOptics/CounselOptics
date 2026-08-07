@@ -90,7 +90,12 @@ export async function submitCounterpartyFieldsAction(
   // asks for nothing, this request came from a plainly uploaded file, and
   // this firm has not had the migration applied. In all three there is no
   // step to complete, so a call claiming to complete one is not a call this
-  // product made.
+  // product made, and the decision below returns 'nothing-to-fill' for it.
+  //
+  // Null also leaves recipientEmail undefined, so isCounterpartySigner matches
+  // nobody. That is why the decision asks whether there is anything to fill in
+  // BEFORE it asks whose it is: the other order told the genuine recipient of
+  // a blankless request that the details were for the other party.
   const decision = resolveCounterpartySubmission({
     // The one thing the token cannot say. The employee who counter-signs holds
     // a valid token for this same request and, being internal, passes the code

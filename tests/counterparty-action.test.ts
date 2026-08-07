@@ -56,6 +56,9 @@ const BOXES = [{ key: 'entity_name', page: 1, x: 100, y: 500, widthPt: 200, heig
 
 const events: Array<Record<string, unknown>> = [];
 
+/** True models a request whose document carries no counterparty blanks. */
+let noBlanks = false;
+
 vi.mock('@/lib/esign-audit', () => ({
   appendSignatureEvent: async (_admin: unknown, e: Record<string, unknown>) => {
     events.push(e);
@@ -113,7 +116,9 @@ vi.mock('@/lib/supabase/admin', () => ({
               error: null,
             };
           }
-          if (table === 'firm_templates') return { data: { fields: FIELDS }, error: null };
+          if (table === 'firm_templates') {
+            return { data: { fields: noBlanks ? [] : FIELDS }, error: null };
+          }
           throw new Error(`unexpected read on ${table}`);
         },
       };
@@ -142,6 +147,7 @@ beforeEach(() => {
   world.onWrite = null;
   world.writes = [];
   events.length = 0;
+  noBlanks = false;
 });
 
 describe('submitCounterpartyFieldsAction', () => {
@@ -167,6 +173,20 @@ describe('submitCounterpartyFieldsAction', () => {
     expect(world.writes).toHaveLength(0);
     expect(world.signature.counterparty_values).toBeUndefined();
     expect(events).toHaveLength(0);
+  });
+
+  /**
+   * Reachable again. The party check used to sit ahead of the
+   * nothing-to-fill check, and the intake this action derives the party from
+   * is null exactly when there is nothing to fill, so the genuine recipient
+   * of a blankless request was told the details were somebody else's and this
+   * refusal could not be produced by the action at all.
+   */
+  it('tells a recipient plainly when the document asks them for nothing', async () => {
+    noBlanks = true;
+    const out = await submitCounterpartyFieldsAction('tok-1', VALUES);
+    expect(out).toMatchObject({ error: COUNTERPARTY_REFUSAL_COPY['nothing-to-fill'] });
+    expect(world.writes).toHaveLength(0);
   });
 
   it('refuses a row that already carries a signature, before it writes', async () => {

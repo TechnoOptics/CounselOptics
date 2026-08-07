@@ -373,6 +373,38 @@ describe('resolveCounterpartySubmission', () => {
    * This is a `'use server'` export and therefore a public HTTP endpoint. The
    * page no longer showing them the form is not a gate.
    */
+  /**
+   * The genuine recipient of a document that asks them for nothing is told
+   * that, not that the details are somebody else's.
+   *
+   * The party check used to sit ahead of this one, and the adapter derives
+   * "is the counterparty" from the intake, which is null when there are no
+   * blanks. So every caller on such a request looked like a stranger and
+   * 'nothing-to-fill' became unreachable from the action entirely, leaving a
+   * refusal whose copy only a test still exercised.
+   *
+   * Ordering them the other way tells a token holder whether the request has
+   * blanks at all, which is a property of a request they already hold a
+   * credential for, and says nothing about what those blanks ASK.
+   */
+  it('tells the counterparty plainly when the document asks them for nothing', () => {
+    expect(resolveCounterpartySubmission({ ...open, fields: [], values: good })).toEqual({
+      ok: false,
+      reason: 'nothing-to-fill',
+    });
+  });
+
+  it('says the same to a signer who is not the counterparty either', () => {
+    expect(
+      resolveCounterpartySubmission({
+        ...open,
+        isCounterparty: false,
+        fields: [],
+        values: good,
+      }),
+    ).toEqual({ ok: false, reason: 'nothing-to-fill' });
+  });
+
   it('refuses a signer who is not the counterparty', () => {
     expect(
       resolveCounterpartySubmission({ ...open, isCounterparty: false, values: good }),
