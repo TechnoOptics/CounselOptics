@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 /**
- * The reviewer is told the delivery that will actually happen.
+ * Everyone is told the delivery that actually happened, or will.
  *
  * A template submission leaves the building one of two ways: as a read-only
  * encrypted share with the key mailed separately, or as a signing request with
@@ -32,6 +32,7 @@ const read = (rel: string) => readFileSync(join(root, rel), 'utf8');
 const REVIEW_ACTIONS = 'app/counsel/forms/approvals/[id]/review-actions.tsx';
 const APPROVAL_PAGE = 'app/counsel/forms/approvals/[id]/page.tsx';
 const EMPLOYEE_FORM = 'app/portal/forms/[id]/form-fill-client.tsx';
+const EMPLOYEE_STATUS = 'app/portal/forms/submissions/[id]/page.tsx';
 
 describe('the approval page names the delivery it will perform', () => {
   it('has the page hand the resolved mode to the decision panel', () => {
@@ -72,6 +73,19 @@ function flatten(text: string): string {
 }
 
 /**
+ * Comments removed before the copy is located.
+ *
+ * Not optional. The first version of the employee-page assertion below found
+ * the phrase it was looking for inside the comment explaining the fix, which
+ * sat above the branch, and reported the branch as absent. A copy assertion
+ * that can be satisfied or defeated by prose about the copy is not an
+ * assertion about the copy.
+ */
+function withoutComments(text: string): string {
+  return text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+}
+
+/**
  * The two sentences, split at the mode test.
  *
  * Deliberately crude: this proves only that two distinct texts exist on
@@ -89,3 +103,51 @@ function branches(src: string): [string, string] {
   expect(end).toBeGreaterThan(split);
   return [flatten(rest.slice(split, end)), flatten(rest.slice(0, split))];
 }
+
+/**
+ * The same defect one page over, and worse there.
+ *
+ * The employee's status page said unconditionally, for status 'sent', that
+ * the document went out as an encrypted link and that the decryption key
+ * followed in a separate email. Both delivery modes end at that status, so a
+ * signature-mode submission told the employee, as a completed fact, that
+ * something was mailed which was not: it was a signing link and a one-time
+ * access code.
+ *
+ * The reviewer's panel described a future action and this asserts a past one,
+ * which is the harder kind to be wrong about. It is also the employee who
+ * gets the phone call when the recipient asks what they were sent, so this is
+ * the screen that decides whether they can answer.
+ */
+describe('the employee is told what was actually sent', () => {
+  const src = () => read(EMPLOYEE_STATUS);
+
+  it('reads the mode the action already returns', () => {
+    // The data was in hand: this page already renders a signing panel off
+    // res.signing, and getTemplateSubmissionAction already returns the mode.
+    expect(src()).toContain('res.deliveryMode');
+  });
+
+  it('claims an encrypted link and a key only on the share branch', () => {
+    const s = flatten(withoutComments(src()));
+    const at = s.indexOf('encrypted link');
+    expect(at).toBeGreaterThan(-1);
+    // The claim is inside a mode test rather than standing alone under the
+    // status test, which is the whole defect.
+    expect(s.slice(0, at)).toContain("=== 'signature'");
+  });
+
+  it('tells a signature-mode employee about the link and the access code', () => {
+    const s = flatten(withoutComments(src()));
+    expect(s).toContain('a link and a separate access code');
+    // The words the fill page and the reviewer's panel already use for the
+    // same delivery. Three surfaces, one vocabulary.
+    expect(flatten(read(EMPLOYEE_FORM))).toContain('a link and a separate access code');
+  });
+
+  it('says it in the past tense, because this screen reports what happened', () => {
+    const s = flatten(withoutComments(src()));
+    expect(s).toMatch(/We emailed|was emailed|went to them/);
+    expect(s).not.toContain('we will email');
+  });
+});

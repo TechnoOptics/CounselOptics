@@ -34,6 +34,11 @@ export default async function PortalSubmissionPage({ params }: { params: { id: s
   // firm whose database has not had 20260807_flow_join.sql applied. The panel
   // below simply does not render in either case.
   const signing = res.signing ?? null;
+  // Which of the two deliveries this took, resolved by the dispatcher's own
+  // rule (resolveDispatchMode) inside the action. 'share' is what an absent
+  // answer has always meant and is what every submission filed before the
+  // column did.
+  const deliveryMode = res.deliveryMode ?? 'share';
   const signingState = resolveSubmissionSigningState(
     signing,
     persona.employee.email ?? '',
@@ -70,10 +75,23 @@ export default async function PortalSubmissionPage({ params }: { params: { id: s
         subtitleClassName="mt-1"
         subtitle={
           submission.status === 'sent' ? (
-            <T>
-              Your legal team approved this and it has been sent to the recipient as an
-              encrypted link. The decryption key went to them in a separate email.
-            </T>
+            /* Both delivery modes end at 'sent' (see markSubmissionSent), so
+               this branch has to say WHICH of the two happened. It used to
+               assert the encrypted link and the decryption key whatever the
+               mode, which for a signature-mode document told the employee, as
+               a completed fact, that something was mailed which was not. They
+               are the person the recipient phones to ask what they were sent. */
+            deliveryMode === 'signature' ? (
+              <T>
+                Your legal team approved this and we emailed the recipient a link and a
+                separate access code, and asked them to sign it.
+              </T>
+            ) : (
+              <T>
+                Your legal team approved this and it has been sent to the recipient as an
+                encrypted link. The decryption key went to them in a separate email.
+              </T>
+            )
           ) : submission.status === 'approved' ? (
             <T>
               Approved. Delivery to the recipient has not completed yet; your legal team can
