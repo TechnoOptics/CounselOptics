@@ -18,6 +18,8 @@ import { healthDigestDecision, HEALTH_DIGEST_MIN_GAP_MS } from '../lib/hq-metric
  */
 
 const HOUR = 60 * 60 * 1000;
+/** The cron period this throttle has to fit inside: vercel.json is "0 7 * * *". */
+const CRON_PERIOD_MS = 24 * HOUR;
 
 describe('healthDigestDecision', () => {
   it('stays quiet when there is nothing to report', () => {
@@ -112,11 +114,50 @@ describe('healthDigestDecision', () => {
     ).toBe('throttled');
   });
 
-  it('keeps a window shorter than the daily cron period', () => {
-    // The property that makes the throttle correct rather than the exact
-    // number. If someone raises this back to 24 hours, the alternating
-    // silence comes back.
-    expect(HEALTH_DIGEST_MIN_GAP_MS).toBeLessThan(24 * HOUR);
+  it('leaves at least an hour of headroom under the cron period', () => {
+    // "Shorter than 24 hours" was too weak to protect anything. A window
+    // of 86_340_000 (23h59m) satisfies it, passes the replay above
+    // because the simulated sends land 400ms after each run, and still
+    // re-suppresses the real 2026-07-20 run below. The load-bearing
+    // property is the window plus the cron's jitter fitting inside the
+    // period, so the headroom is what gets pinned.
+    //
+    // The observed jitter budget is about 98 seconds: production's
+    // suppressed gaps bottomed out at 86301.9s against an 86400s period.
+    // An hour is far more than that on purpose, because the jitter is
+    // something Vercel happens to do and not something it promises.
+    expect(HEALTH_DIGEST_MIN_GAP_MS).toBeLessThan(CRON_PERIOD_MS - HOUR);
+  });
+
+  it('sends at the tightest gap production has actually produced', () => {
+    // 2026-07-20 07:00:07.775 ran 86301.9s after the 2026-07-19
+    // 07:01:45.839 send. That is the shortest gap in the table and the
+    // old rule suppressed it. Any window that re-suppresses this run has
+    // reintroduced the bug, whatever the property test says.
+    expect(
+      healthDigestDecision({
+        hasFailures: true,
+        unacknowledgedCrashes: 0,
+        lastEmailSentAt: '2026-07-19T07:01:45.839Z',
+        now: Date.parse('2026-07-20T07:00:07.775Z'),
+      }),
+    ).toBe('send');
+  });
+
+  it('sends at exactly the window boundary, and not a millisecond before', () => {
+    // Pins the comparison as >=. Relaxing it to > survives every other
+    // case in this file, because nothing else lands on the boundary.
+    const lastEmailSentAt = '2026-08-06T07:00:00.000Z';
+    const boundary = Date.parse(lastEmailSentAt) + HEALTH_DIGEST_MIN_GAP_MS;
+    const at = (now: number) =>
+      healthDigestDecision({
+        hasFailures: true,
+        unacknowledgedCrashes: 0,
+        lastEmailSentAt,
+        now,
+      });
+    expect(at(boundary)).toBe('send');
+    expect(at(boundary - 1)).toBe('throttled');
   });
 
   it('treats an unparseable timestamp as no previous send rather than silence', () => {
