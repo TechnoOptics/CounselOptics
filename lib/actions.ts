@@ -36,6 +36,7 @@ import { classifyCaseType, runReview, scanDocument, transcribeMedia } from './ai
 import { createServerSupabase, getCurrentUser, isCurrentUserAdmin, isSupabaseConfigured } from './supabase/server';
 import { logCaseEvent } from './activity';
 import { caseLimit, hasFeature, isFullAccessTrial } from './tier';
+import { currentUserTrialGrant } from './user-trials';
 import type { MenuPortal } from './menu-prefs';
 import {
   CASE_TYPES,
@@ -161,7 +162,11 @@ export async function createCaseAction(
         const user = await getCurrentUser();
         if (user) {
           const sub = await getCurrentSubscription();
-          const limit = caseLimit(sub);
+          // An HQ-granted trial can lift a free account to a plan level. It
+          // cannot change what a payer gets: lib/trial-entitlement.ts resolves
+          // a live subscription ahead of any trial.
+          const trial = await currentUserTrialGrant().catch(() => undefined);
+          const limit = caseLimit(sub, trial);
           if (limit !== null) {
             const supabase = createServerSupabase();
             const { count } = await supabase
@@ -624,7 +629,8 @@ export async function inviteCollaboratorAction(caseId: string, formData: FormDat
     const state = await getEffectiveTrialState();
     if (!isFullAccessTrial(state)) {
       const sub = await getCurrentSubscription();
-      if (!hasFeature(sub, 'collaborators')) {
+      const trial = await currentUserTrialGrant().catch(() => undefined);
+      if (!hasFeature(sub, 'collaborators', trial)) {
         throw new Error('Inviting collaborators requires the Pro plan. Upgrade from /billing.');
       }
     }

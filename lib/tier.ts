@@ -1,7 +1,32 @@
 import { TIER_FEATURES, type Subscription, type Tier, type TierFeatures } from './types';
 import type { EffectiveTrialState } from './storage';
-import { resolvePriceEntitlement } from './entitlements';
 import { personalTierForSlug, COMP_ULTRA_PRICE_ID, type PersonalTier } from './personal-tiers';
+import {
+  applyTrialToUnpaid,
+  paidFromSubscription,
+  resolveAccountEntitlement,
+  type TrialGrant,
+} from './trial-entitlement';
+
+/**
+ * An HQ-granted trial, which every gate below now takes as an OPTIONAL second
+ * input. Omitting it is exactly the behaviour these functions had before the
+ * trial existed, which is what makes threading it through one call site at a
+ * time safe.
+ *
+ * A trial can only ever LIFT an account that is not paying.
+ * lib/trial-entitlement.ts holds that rule structurally, and nothing in this
+ * file re-decides it: a payer's answer below is still read from their own
+ * subscription row and never from a trial.
+ */
+const NO_TRIAL: TrialGrant = { trialTierSlug: null, trialEndsAt: null };
+
+/** The billing artifact the resolver reads, from this file's Subscription. */
+function paidState(sub: Subscription | null | undefined) {
+  return paidFromSubscription(
+    sub ? { status: sub.status, priceId: sub.priceId ?? null } : null,
+  );
+}
 
 /**
  * The active personal-ladder rung for a subscription, or null when the sub is
@@ -10,10 +35,16 @@ import { personalTierForSlug, COMP_ULTRA_PRICE_ID, type PersonalTier } from './p
  * caseLimit()/hasFeature() consult this per-rung config first. Legacy
  * (basic/standard) and firm slugs return null and fall back to TIER_FEATURES.
  */
-function activePersonalTier(sub: Subscription | null | undefined): PersonalTier | null {
-  if (!sub || (sub.status !== 'active' && sub.status !== 'trialing')) return null;
-  const slug = resolvePriceEntitlement(sub.priceId).tierSlug;
-  return personalTierForSlug(slug);
+function activePersonalTier(
+  sub: Subscription | null | undefined,
+  trial: TrialGrant = NO_TRIAL,
+): PersonalTier | null {
+  // With no trial this is exactly what it was: live subscription, price
+  // resolved through lib/entitlements.ts, rung looked up from the slug. The
+  // resolver returns that same slug for a payer, and returns the trial's slug
+  // only for an account that is not paying.
+  const resolved = resolveAccountEntitlement(paidState(sub), trial, new Date());
+  return personalTierForSlug(resolved.tierSlug);
 }
 
 /**
@@ -21,17 +52,27 @@ function activePersonalTier(sub: Subscription | null | undefined): PersonalTier 
  * subscription. We treat 'active' and 'trialing' as live; anything else is
  * effectively no access.
  */
-export function activeTier(sub: Subscription | null | undefined): Tier | null {
-  if (!sub) return null;
-  if (sub.status !== 'active' && sub.status !== 'trialing') return null;
-  return sub.tier ?? null;
+export function activeTier(
+  sub: Subscription | null | undefined,
+  trial: TrialGrant = NO_TRIAL,
+): Tier | null {
+  const paid = paidState(sub);
+  // A PAYER'S COARSE TIER IS STILL READ FROM THEIR OWN ROW, not re-derived
+  // from the price. subscriptions.tier is what the webhook wrote, and
+  // switching this to the price-derived tier would be a silent change to
+  // every existing account's entitlement rather than a trial feature.
+  if (paid.kind === 'paid') return sub?.tier ?? null;
+  // Not paying, so the trial is allowed to speak. `paid` is narrowed to the
+  // unpaid member here, which is the only thing applyTrialToUnpaid accepts.
+  return applyTrialToUnpaid(paid, trial, new Date()).tier;
 }
 
 /** Convenience: feature record for a subscription, or null if locked. */
 export function activeFeatures(
   sub: Subscription | null | undefined,
+  trial: TrialGrant = NO_TRIAL,
 ): TierFeatures | null {
-  const t = activeTier(sub);
+  const t = activeTier(sub, trial);
   return t ? TIER_FEATURES[t] : null;
 }
 
@@ -39,10 +80,11 @@ export function activeFeatures(
 export function hasFeature(
   sub: Subscription | null | undefined,
   feature: keyof Omit<TierFeatures, 'caseLimit' | 'monthlyPriceUsd'>,
+  trial: TrialGrant = NO_TRIAL,
 ): boolean {
   // Personal ladder gates by rung (e.g. Bella only from Plus up), overriding
   // the coarse Tier which would over-grant (Plus maps to coarse 'pro').
-  const pt = activePersonalTier(sub);
+  const pt = activePersonalTier(sub, trial);
   if (pt) {
     switch (feature) {
       case 'bella': return pt.bella;
@@ -54,18 +96,21 @@ export function hasFeature(
       case 'publicDefenderDirectory': return true;
     }
   }
-  const f = activeFeatures(sub);
+  const f = activeFeatures(sub, trial);
   return Boolean(f?.[feature]);
 }
 
 /** null = unlimited. */
-export function caseLimit(sub: Subscription | null | undefined): number | null {
+export function caseLimit(
+  sub: Subscription | null | undefined,
+  trial: TrialGrant = NO_TRIAL,
+): number | null {
   // Lifetime comp (founder/owner/QA): Ultra features but uncapped cases.
   if (sub?.priceId === COMP_ULTRA_PRICE_ID) return null;
-  const pt = activePersonalTier(sub);
+  const pt = activePersonalTier(sub, trial);
   if (pt) return pt.caseLimit;
-  const f = activeFeatures(sub);
-  return f ? f.caseLimit : 0; // no sub means 0 cases allowed
+  const f = activeFeatures(sub, trial);
+  return f ? f.caseLimit : 0; // no sub and no trial means 0 cases allowed
 }
 
 /**

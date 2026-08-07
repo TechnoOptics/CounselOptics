@@ -1,5 +1,6 @@
 import 'server-only';
 import { createAdminSupabase, isServiceRoleConfigured } from './supabase/admin';
+import { getCurrentUser } from './supabase/server';
 import {
   paidFromSubscription,
   resolveAccountEntitlement,
@@ -180,6 +181,26 @@ export async function userTrialGrant(userId: string): Promise<TrialGrant> {
     trialTierSlug: (row.trial_tier as string | null) ?? null,
     trialEndsAt: (row.trial_ends_at as string | null) ?? null,
   };
+}
+
+/**
+ * The signed-in caller's trial, for the consumer feature gates.
+ *
+ * A separate export rather than an argument to userTrialGrant because the four
+ * gates that need it already have a session and do not all have a user id to
+ * hand, and threading one through four modules to save one lookup is the kind
+ * of plumbing that gets a site skipped.
+ *
+ * It resolves the EFFECTIVE user rather than the real one, unlike the audit
+ * path. HQ's "act as" overlay exists to see what that account sees, so the
+ * entitlement question here is about the account being viewed. The audit
+ * question, which is who moved a lever, is the opposite and uses
+ * getRealCurrentUser.
+ */
+export async function currentUserTrialGrant(): Promise<TrialGrant> {
+  const user = await getCurrentUser();
+  if (!user) return { trialTierSlug: null, trialEndsAt: null };
+  return userTrialGrant(user.id);
 }
 
 /** See UserTrialSnapshot: this reads its own row and fails closed. */
