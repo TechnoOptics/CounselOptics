@@ -43,6 +43,15 @@ export type TrialFirmRow = {
   trialTier: string | null;
   memberCount: number;
   state: FirmAccessState;
+  /**
+   * The email of whoever last moved this trial, and when. An operator
+   * deciding whether to extend needs to see who set what they are extending,
+   * and the email is the half of the actor record that survives that admin's
+   * account being deleted.
+   */
+  lastActorEmail: string | null;
+  lastActionAt: string | null;
+  lastAction: string | null;
 };
 
 /**
@@ -269,20 +278,42 @@ export async function listTrialFirms(): Promise<TrialFirmList> {
   const rows = (data ?? []) as Array<Record<string, unknown>>;
   if (rows.length === 0) return { ok: true, rows: [] };
 
+  const ids = rows.map((r) => r.id as string);
+
   // Same shape as adminListFirms in lib/hq-storage.ts: one select, counted in
   // memory. Display only. Nothing that enforces a seat limit should count
   // members this way.
-  const { data: memberRows } = await admin
-    .from('firm_members')
-    .select('firm_id')
-    .in(
-      'firm_id',
-      rows.map((r) => r.id as string),
-    );
+  const [memberResp, eventsResp] = await Promise.all([
+    admin.from('firm_members').select('firm_id').in('firm_id', ids),
+    admin
+      .from('firm_trial_events')
+      .select('firm_id, action, actor_email, created_at')
+      .in('firm_id', ids)
+      .order('created_at', { ascending: false }),
+  ]);
 
   const counts = new Map<string, number>();
-  for (const m of (memberRows ?? []) as Array<{ firm_id: string }>) {
+  for (const m of (memberResp.data ?? []) as Array<{ firm_id: string }>) {
     counts.set(m.firm_id, (counts.get(m.firm_id) ?? 0) + 1);
+  }
+
+  // Newest first, so the first row seen for an organization is the latest.
+  const latest = new Map<
+    string,
+    { action: string; actorEmail: string | null; createdAt: string }
+  >();
+  for (const e of (eventsResp.data ?? []) as Array<{
+    firm_id: string;
+    action: string;
+    actor_email: string | null;
+    created_at: string;
+  }>) {
+    if (latest.has(e.firm_id)) continue;
+    latest.set(e.firm_id, {
+      action: e.action,
+      actorEmail: e.actor_email,
+      createdAt: e.created_at,
+    });
   }
 
   // One clock for one render of one list. This is not a cached state: the
@@ -290,7 +321,9 @@ export async function listTrialFirms(): Promise<TrialFirmList> {
   const now = new Date();
   return {
     ok: true,
-    rows: rows.map((r) => ({
+    rows: rows.map((r) => {
+      const last = latest.get(r.id as string) ?? null;
+      return {
       id: r.id as string,
       name: r.name as string,
       slug: r.slug as string,
@@ -300,7 +333,11 @@ export async function listTrialFirms(): Promise<TrialFirmList> {
       trialTier: (r.trial_tier as string | null) ?? null,
       memberCount: counts.get(r.id as string) ?? 0,
       state: firmAccessState(toFirmAccessInput(r), now),
-    })),
+      lastActorEmail: last?.actorEmail ?? null,
+      lastActionAt: last?.createdAt ?? null,
+      lastAction: last?.action ?? null,
+      };
+    }),
   };
 }
 

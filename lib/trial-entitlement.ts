@@ -206,6 +206,20 @@ export function resolveAccountEntitlement(
 }
 
 /**
+ * A plan level as an operator should read it.
+ *
+ * DERIVED from the slug rather than looked up in a table of pretty names, so
+ * there is still exactly one list of plan levels. A label table would go stale
+ * the first time a rung was added to the price table and not to it, and a
+ * missing label would render as an empty cell on a commercial control.
+ */
+export function tierSlugLabel(slug: string): string {
+  const words = slug.replace(/_/g, ' ').trim();
+  if (!words) return slug;
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/**
  * Whole days from `now` until the trial ends, negative once it has passed,
  * and null when there is no readable end date.
  *

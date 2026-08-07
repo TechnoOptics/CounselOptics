@@ -7,11 +7,11 @@ import { SubdomainToggle } from './subdomain-toggle';
 import { BrandingEditor } from './branding-editor';
 import { ImpersonateOwnerButton } from './impersonate-owner-button';
 import { TrialConsole, type TrialFirmView } from './trial-controls';
+import { ENTITLEMENT_TIER_SLUGS, isEntitlementTierSlug } from '@/lib/entitlements';
+import { tierSlugLabel, trialDaysRemaining } from '@/lib/trial-entitlement';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: { absolute: 'Active firms · Advottic HQ' } };
-
-const DAY_MS = 86_400_000;
 
 export default async function HqFirmsPage() {
   const [firms, trialList] = await Promise.all([
@@ -36,24 +36,33 @@ export default async function HqFirmsPage() {
   // than in the browser so both renders agree on what day it is. A client-side
   // count would differ from the server's whenever the two straddle midnight,
   // which is a hydration mismatch on the one figure the view is scanned for.
-  const now = Date.now();
-  const trialRows: TrialFirmView[] = trialFirms.map((f) => {
-    const endMs = f.trialEndsAt ? new Date(f.trialEndsAt).getTime() : null;
-    return {
-      id: f.id,
-      name: f.name,
-      slug: f.slug,
-      trialEndsAt: f.trialEndsAt,
-      suspendedAt: f.suspendedAt,
-      seatLimit: f.seatLimit,
-      memberCount: f.memberCount,
-      state: f.state,
-      daysRemaining:
-        endMs === null || Number.isNaN(endMs)
-          ? null
-          : Math.ceil((endMs - now) / DAY_MS),
-    };
-  });
+  const now = new Date();
+  const trialRows: TrialFirmView[] = trialFirms.map((f) => ({
+    id: f.id,
+    name: f.name,
+    slug: f.slug,
+    trialEndsAt: f.trialEndsAt,
+    suspendedAt: f.suspendedAt,
+    seatLimit: f.seatLimit,
+    memberCount: f.memberCount,
+    state: f.state,
+    trialTier: f.trialTier,
+    // Resolved here rather than in the browser for the same reason the day
+    // count is: the vocabulary lives in lib/entitlements.ts, which is a
+    // server module, and a level the price table no longer defines has to be
+    // shown AS one rather than quietly labelled.
+    trialTierKnown: isEntitlementTierSlug(f.trialTier),
+    lastActorEmail: f.lastActorEmail,
+    lastActionAt: f.lastActionAt,
+    daysRemaining: trialDaysRemaining(f.trialEndsAt, now),
+  }));
+
+  // The plan levels a trial may run at, derived from the price table. Sent
+  // down so the control cannot offer a level the action would refuse.
+  const tierOptions = ENTITLEMENT_TIER_SLUGS.map((slug) => ({
+    slug,
+    label: tierSlugLabel(slug),
+  }));
 
   // Everything the trials list does not already hold. An organization with no
   // trial and no suspension has nothing to show in that table, so this is
@@ -118,6 +127,7 @@ export default async function HqFirmsPage() {
         <TrialConsole
           rows={trialRows}
           startable={startable}
+          tierOptions={tierOptions}
           unavailable={trialsUnavailable}
         />
       </section>
