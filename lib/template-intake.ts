@@ -58,14 +58,27 @@ const SYSTEM = [
   '5. Set "party" to "employee" for a blank the person sending the document',
   '   fills in, and "counterparty" for one the outside party fills in when they',
   '   receive it. If you are unsure, leave "party" out.',
-  '6. Do NOT create a placeholder or a field for a signature, a signature line',
-  '   or initials. Leave the signature wording of the document as plain text.',
-  '   The signing page adds the signature line itself.',
-  '7. Never invent a clause, a party or an obligation that is not in the text',
+  '6. THE PLATFORM ADDS THE EXECUTION BLOCK ITSELF. When a document goes out',
+  '   for signature it is given a signature line and a date line for EVERY',
+  '   party, automatically. So the proposal must not carry its own. Do not',
+  '   create a placeholder or a field for a signature, for initials, or for the',
+  '   date a party signs. Remove the ruled lines the source uses for signing,',
+  '   such as "By: ______" and "Signature: ______", leaving the words and',
+  '   taking out the rule. Anything you leave behind becomes a second place to',
+  '   sign, or a second date, on a document that already has one of each.',
+  '7. When you find signing furniture of any kind, that is how you report that',
+  '   the document needs signing: say so plainly in "notes".',
+  '8. {{firm_name}} and {{company_name}} are reserved. They fill themselves in',
+  '   with OUR OWN firm name. Never use either for the other party, however the',
+  '   source labels them. Name the other side {{counterparty_name}} or',
+  '   something equally clear.',
+  '9. Never invent a clause, a party or an obligation that is not in the text',
   '   you were given.',
-  '8. Use "notes" for short, plain sentences about anything a reviewer should',
-  '   look at: a blank you were unsure about, a passage that seemed to be',
-  '   missing, or a value you left as fixed text on purpose.',
+  '10. Page numbers and repeated running headers left behind by the PDF reader',
+  '    are not part of the document\'s wording. Leave them out of "body".',
+  '11. Use "notes" for short, plain sentences about anything a reviewer should',
+  '    look at: a blank you were unsure about, a passage that seemed to be',
+  '    missing, or a value you left as fixed text on purpose.',
 ].join('\n');
 
 /**
@@ -108,5 +121,10 @@ export async function proposeTemplateFromText(text: string): Promise<TemplatePro
   // is generous. A reply cut off mid-body is unparseable JSON, which
   // parseTemplateProposal reports as null.
   const raw = await bellaGenerate({ system: SYSTEM, prompt, maxTokens: 8000 });
-  return parseTemplateProposal(raw);
+  // The source goes in alongside the reply. Rule 6 above is advice and a model
+  // can decline it silently: on a real mutual NDA it dropped no execution page
+  // but reported no signature either. The source is the unedited account of
+  // what the document contains, so signature detection reads it as well as the
+  // reply rather than trusting what the model chose to emit.
+  return parseTemplateProposal(raw, body);
 }

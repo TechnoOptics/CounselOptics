@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { parseTemplateProposal } from '../lib/template-proposal';
+import {
+  NDA_MODEL_REPLY,
+  NDA_SOURCE_EXCERPT,
+  NDA_SOURCE_EXECUTION_PAGE,
+} from './fixtures/zinpro-nda';
 
 /**
  * lib/template-proposal.ts is the trust boundary over what the model says
@@ -313,21 +318,104 @@ describe('parseTemplateProposal: signatures', () => {
     expect(missing[0]).not.toContain('employee_signature');
   });
 
-  it('leaves a date field whose name merely mentions signing alone', () => {
-    // Mutation: widen the signature-placeholder rule to any key containing
-    // "sign". {{signature_date}} disappears from the body and the document
-    // loses the date it is signed on.
+  it('leaves an ordinary date and the signatory name alone', () => {
+    // Mutation: widen the execution-furniture rule to any key containing
+    // "sign" or ending "_date". The commencement date and the name of the
+    // person signing both vanish from a document that genuinely asks for them.
     const res = parseTemplateProposal(
       reply({
-        body: 'Dated {{signature_date}} by {{signatory_name}}.',
+        body: 'Dated {{effective_date}} by {{signatory_name}}, starting {{start_date}}.',
         fields: [
-          { key: 'signature_date', label: 'Date signed', type: 'date' },
+          { key: 'effective_date', label: 'Effective date', type: 'date' },
           { key: 'signatory_name', label: 'Signatory' },
+          { key: 'start_date', label: 'Start date', type: 'date' },
         ],
       }),
     );
-    expect(res?.fields.map((f) => f.key)).toEqual(['signature_date', 'signatory_name']);
-    expect(res?.body).toContain('{{signature_date}}');
+    expect(res?.fields.map((f) => f.key)).toEqual([
+      'effective_date',
+      'signatory_name',
+      'start_date',
+    ]);
+    expect(res?.body).toContain('{{effective_date}}');
+  });
+
+  it('takes a per-party signature date out too, because the platform dates the block', () => {
+    // Mutation: delete SIGNATURE_DATE_KEY. mergeTemplateDocument appends its
+    // own Date: line per party, so the executed instrument then carries two
+    // dates for each signer with no rule saying which one governs.
+    const res = parseTemplateProposal(
+      reply({
+        body: 'Name: {{company_signatory_name}} Date: {{company_signature_date}}',
+        fields: [
+          { key: 'company_signatory_name', label: 'Signatory' },
+          { key: 'company_signature_date', label: 'Date signed', type: 'date' },
+        ],
+      }),
+    );
+    expect(res?.fields.map((f) => f.key)).toEqual(['company_signatory_name']);
+    expect(res?.body).not.toContain('company_signature_date');
+    expect(res?.deliveryMode).toBe('signature');
+  });
+
+  it('reads a ruled blank as a signature line', () => {
+    // Mutation: delete the ruled-blank branch of describeSignatureEvidence. A
+    // "By: ____" execution block, which is what most agreements actually
+    // carry, stops being recognised at all.
+    const res = parseTemplateProposal(
+      reply({ body: 'The parties have executed this deed. By: _______________________ Name: {{a_key}}' }),
+    );
+    expect(res?.deliveryMode).toBe('signature');
+  });
+
+  it('strips a ruled blank out of the proposed body', () => {
+    // Mutation: stop replacing runs of six or more underscores. The source's
+    // own rule survives next to the block mergeTemplateDocument appends, so
+    // every signer gets a second place to sign that is neither stamped nor
+    // recorded, which is the defect lib/signature-geometry.ts exists to stop.
+    const res = parseTemplateProposal(
+      reply({ body: 'By: _______________________________ Name: {{a_key}}' }),
+    );
+    expect(res?.body).not.toMatch(/_{6,}/);
+    expect(res?.body).toContain('Name: {{a_key}}');
+    expect(res?.notes.some((n) => /Removed \d+ ruled blank/.test(n))).toBe(true);
+  });
+
+  it('reads a signature line out of the SOURCE when the model returned none', () => {
+    // Mutation: ignore the `source` argument. Detection falls back to what the
+    // model chose to emit, which is the thing this module exists not to trust:
+    // a model that quietly drops the execution page takes signature mode with
+    // it, and the document goes out as a read-only link.
+    const clean = reply({
+      body: 'Acknowledgement by {{a_key}}.',
+      fields: [{ key: 'a_key', label: 'A' }],
+    });
+    expect(parseTemplateProposal(clean)?.deliveryMode).toBe('share');
+    expect(
+      parseTemplateProposal(clean, 'The parties have executed this deed. By: __________________')
+        ?.deliveryMode,
+    ).toBe('signature');
+  });
+
+  it('reads a reference to a signature page as evidence', () => {
+    // Mutation: delete the signature-page branch. "[Signature Page Follows]" is
+    // left in the body as an extraction artifact on purpose, and dropping this
+    // branch throws away the one useful thing it tells us.
+    const res = parseTemplateProposal(
+      reply({ body: 'This Agreement may be executed in counterparts. [Signature Page Follows] {{a_key}}' }),
+    );
+    expect(res?.deliveryMode).toBe('signature');
+  });
+
+  it('finds a signature line in text that has no line breaks at all', () => {
+    // Mutation: keep only the line-anchored SIGNATURE_LINE scan. unpdf returns
+    // a PDF as ONE line, so an anchored scan matches nothing on any real
+    // uploaded agreement, which is exactly how a mutual NDA carrying two
+    // signature blocks was classified as a read-only share.
+    const oneLine =
+      'MUTUAL NONDISCLOSURE AGREEMENT ... 20. Counterparts. ' +
+      'The parties have executed this Agreement. Signature: Name: Title: Date: {{a_key}}';
+    expect(parseTemplateProposal(reply({ body: oneLine }))?.deliveryMode).toBe('signature');
   });
 
   it('stays on share for a document with no signature anywhere', () => {
@@ -343,6 +431,108 @@ describe('parseTemplateProposal: signatures', () => {
       }),
     );
     expect(res?.deliveryMode).toBe('share');
+  });
+});
+
+describe('parseTemplateProposal: the real Zinpro mutual NDA', () => {
+  const proposal = parseTemplateProposal(NDA_MODEL_REPLY, NDA_SOURCE_EXCERPT);
+
+  it('produces a proposal at all', () => {
+    // Mutation: any change that makes the fenced reply unparseable. This is
+    // the guard rail for the eight assertions below.
+    expect(proposal).not.toBeNull();
+  });
+
+  it('sends a mutual NDA out for signature, not as a read-only share', () => {
+    // Mutation: return a fixed 'share', or drop the ruled-blank branch. This
+    // is the defect the live run found: a document whose whole purpose is that
+    // the other company signs it was classified as a read-only link, and a
+    // share-mode document renders the counterparty markers on the page the
+    // recipient reads.
+    expect(proposal!.deliveryMode).toBe('signature');
+  });
+
+  it('leaves no ruled blank in the body for a second, unrecorded signature', () => {
+    // Mutation: stop stripping runs of six or more underscores. The source
+    // carries "By: ___..." before BOTH name blocks and mergeTemplateDocument
+    // appends one execution block per party, so each signer would get two
+    // places to sign and only one of them is stamped and recorded.
+    expect(NDA_SOURCE_EXECUTION_PAGE).toMatch(/_{6,}/);
+    expect(proposal!.body).not.toMatch(/_{6,}/);
+  });
+
+  it('keeps the proposed fields minus the two per-party signature dates', () => {
+    // Mutation: delete SIGNATURE_DATE_KEY. Both date blanks come back and the
+    // executed instrument carries two dates per party.
+    expect(proposal!.fields.map((f) => f.key)).toEqual([
+      'company_address',
+      'company_signatory_name',
+      'company_signatory_title',
+      'company_email',
+      'zinpro_signatory_name',
+      'zinpro_signatory_title',
+    ]);
+  });
+
+  it('warns that the model used a reserved key for the OTHER party', () => {
+    // The model proposed {{company_name}} for the counterparty, and
+    // company_name is a RESERVED_FIRM_KEY: mergeTemplateDocument substitutes it
+    // with the firm's OWN name wherever it appears. Left alone, this NDA would
+    // name Zinpro as the Company, which is the exact failure the
+    // RESERVED_FIRM_KEYS comment records having already shipped once.
+    //
+    // Mutation: soften the reserved note back to "it was left out of the field
+    // list". The field is still dropped, so nothing looks wrong, and the
+    // placeholder quietly stays in the body doing the wrong substitution.
+    expect(proposal!.fields.map((f) => f.key)).not.toContain('company_name');
+    const warning = proposal!.notes.find((n) => n.includes('{{company_name}}'));
+    expect(warning).toBeDefined();
+    expect(warning).toMatch(/rename/i);
+    expect(warning).toMatch(/other side|other party/i);
+  });
+
+  it('keeps the field split the model got right', () => {
+    // Mutation: coerce party, or drop it. The live run got every party correct
+    // and that judgement is the substance of the feature; nothing added for
+    // the defects above may quietly throw it away.
+    const party = Object.fromEntries(proposal!.fields.map((f) => [f.key, f.party]));
+    expect(party.company_address).toBe('counterparty');
+    expect(party.company_signatory_name).toBe('counterparty');
+    expect(party.zinpro_signatory_name).toBe('employee');
+    expect(party.zinpro_signatory_title).toBe('employee');
+  });
+
+  it('keeps the wording of the instrument intact', () => {
+    // Mutation: strip whole lines rather than only the ruled blanks. Removing
+    // a signature line by the line would take the clause text with it.
+    expect(proposal!.body).toContain('20. Counterparts.');
+    expect(proposal!.body).toContain('The parties have executed this Mutual Nondisclosure Agreement');
+    expect(proposal!.body).toContain('ZINPRO CORPORATION');
+    expect(proposal!.body).toContain('7500 Flying Cloud Dr., Suite 800, Eden Prairie, MN 55344');
+  });
+
+  it('tells the reviewer what it removed and why', () => {
+    // Mutation: delete the removal notes. The body quietly differs from the
+    // document the reviewer uploaded, with nothing on the page saying so.
+    expect(proposal!.notes.some((n) => /Removed 2 ruled blanks/.test(n))).toBe(true);
+    expect(proposal!.notes.some((n) => n.includes('company_signature_date'))).toBe(true);
+    expect(proposal!.notes.some((n) => /signature/i.test(n))).toBe(true);
+  });
+
+  it('leaves the PDF extraction artifacts in the body, deliberately', () => {
+    // NOT a defect being fixed here, and this assertion is the record of that
+    // decision. "[Signature Page Follows]", the truncated running header and
+    // the inline page numbers are artifacts of reading a PDF, so they belong
+    // to extraction (lib/doc-review.ts), which still knows where the page
+    // boundaries were. By the time text reaches this module those boundaries
+    // are gone and any rule here would be guessing which bracketed phrase is
+    // furniture and which is the instrument's own wording. Guessing wrong
+    // deletes a clause. The reviewer sees these and removes them.
+    //
+    // Mutation: start stripping bracketed phrases here. This test goes red and
+    // whoever wrote it has to say why deleting text on a guess is now safe.
+    expect(proposal!.body).toContain('[Signature Page Follows]');
+    expect(proposal!.body).toContain('[Signature page to Mutual Nondisclosure');
   });
 });
 
