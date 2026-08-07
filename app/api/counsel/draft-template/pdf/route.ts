@@ -88,8 +88,15 @@ export async function POST(req: NextRequest) {
     return new Response(rendered.error, { status: rendered.status });
   }
 
-  const bytes = await buildBrandedDocumentPdf(rendered.input);
-  if (!bytes) return new Response('Nothing to export.', { status: 400 });
+  // The recorded counterparty blanks are deliberately dropped here. This
+  // route is the legal team's own preview of a draft, not the instrument that
+  // goes out: the bytes it returns are never stored, never hashed into the
+  // audit chain, and never served to a signer, so there is nothing for a
+  // recorded geometry to belong to. lib/submission-document.ts is the render
+  // whose boxes are kept.
+  const rendering = await buildBrandedDocumentPdf(rendered.input);
+  if (!rendering) return new Response('Nothing to export.', { status: 400 });
+  const bytes = rendering.bytes;
 
   const safe =
     rendered.input.title.replace(/[^a-z0-9]+/gi, '-').replace(/(^-|-$)/g, '') || 'document';

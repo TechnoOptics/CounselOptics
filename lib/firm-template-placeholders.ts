@@ -4,6 +4,8 @@
  * firm's to fill in and which are the employee's, so they read the same file.
  */
 
+import { counterpartyMarker } from './template-field-boxes';
+
 /**
  * Placeholders every template gets for free, resolved from the firm record at
  * render time rather than typed into the body.
@@ -38,7 +40,17 @@ export function isSelfNameField(key: string): boolean {
   );
 }
 
-export type MergeableField = { key: string; label: string };
+/**
+ * `party` is optional and absent means the employee, which is what every
+ * existing caller passes and what every template that exists today declares.
+ * A counterparty field is not filled here at all: it is rendered as a ruled
+ * blank the renderer can measure, and the other side types into it later.
+ */
+export type MergeableField = {
+  key: string;
+  label: string;
+  party?: 'employee' | 'counterparty';
+};
 
 /**
  * The name the counterparty block carries, or null when there is no block.
@@ -105,6 +117,17 @@ export function mergeTemplateDocument(input: {
     text = text.split(`{{${key}}}`).join(input.firmName);
   }
   for (const f of input.fields) {
+    // A counterparty field is never merged from `values`, whatever `values`
+    // happens to contain. The employee does not answer for the other side,
+    // and a value that reached this map for a counterparty key would be
+    // either a stale draft or a caller pushing one in. It renders as a ruled
+    // blank carrying a stable marker, which lib/branded-document-pdf.ts
+    // measures as it draws so the other side's typed value has one recorded
+    // place to land. See lib/template-field-boxes.ts.
+    if (f.party === 'counterparty') {
+      text = text.split(`{{${f.key}}}`).join(counterpartyMarker(f.key));
+      continue;
+    }
     const val = (input.values[f.key] ?? '').trim() || `[${f.label}]`;
     text = text.split(`{{${f.key}}}`).join(val);
   }

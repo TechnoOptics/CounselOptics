@@ -26,7 +26,11 @@ const sendEmail = vi.hoisted(() =>
   vi.fn(async (): Promise<EmailResult> => ({ ok: true })),
 );
 const storeShare = vi.hoisted(() => vi.fn(async () => true));
-const buildPdf = vi.hoisted(() => vi.fn(async () => new Uint8Array([1, 2, 3])));
+// The renderer returns the bytes together with the counterparty blanks it
+// recorded. The share path drops the blanks, so this mock carries none.
+const buildPdf = vi.hoisted(() =>
+  vi.fn(async () => ({ bytes: new Uint8Array([1, 2, 3]), fieldBoxes: [] })),
+);
 
 vi.mock('../lib/email', () => ({
   sendEmail,
@@ -134,7 +138,10 @@ beforeEach(() => {
   store.onRead = null;
   store.failWrites = false;
   store.readError = false;
-  buildPdf.mockImplementation(async () => new Uint8Array([1, 2, 3]));
+  buildPdf.mockImplementation(async () => ({
+    bytes: new Uint8Array([1, 2, 3]),
+    fieldBoxes: [],
+  }));
   storeShare.mockImplementation(async () => true);
   sendEmail.mockImplementation(async () => ({ ok: true }));
   sendEmail.mockClear();

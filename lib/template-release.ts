@@ -151,7 +151,12 @@ export async function releaseApprovedSubmission(
     // which is a valid signature; it sits inside this try either way so a
     // storage throw goes through unclaim like everything else here.
     const markBytes = await loadSubmissionMark(admin, row.signature_image_path);
-    const bytes = await buildBrandedDocumentPdf({
+    // The share path drops the recorded blanks on purpose. A read-only
+    // encrypted share has no signer and no ceremony, so nobody ever types
+    // into a blank on this copy; a template carrying counterparty fields is
+    // dispatched for signature instead (lib/submission-dispatch.ts), which
+    // is the path that keeps them.
+    const rendering = await buildBrandedDocumentPdf({
       document: row.document_text,
       title: row.template_name,
       brandName: firm?.name ?? undefined,
@@ -160,9 +165,10 @@ export async function releaseApprovedSubmission(
       logoUrl: firm?.logoUrl ?? undefined,
       signatureImage: markBytes ? { png: markBytes } : undefined,
     });
-    if (!bytes) {
+    if (!rendering) {
       return await unclaim('The document could not be prepared for sending.', false);
     }
+    const bytes = rendering.bytes;
 
     const { blob, key } = encryptDocument(Buffer.from(bytes));
     const expiresAt = new Date(Date.now() + SHARE_TTL_DAYS * 24 * 3600 * 1000);

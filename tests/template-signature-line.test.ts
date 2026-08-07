@@ -49,6 +49,19 @@ const MERGED_BODY = BODY.replace('{{start_date}}', 'March 3, 2026').replace(
   'Anderson Foundation',
 );
 
+/**
+ * The renderer now returns the bytes together with the counterparty blanks it
+ * recorded (lib/template-field-boxes.ts). These tests are about the bytes, so
+ * they unwrap here rather than at every call site, and a null render still
+ * reads as null.
+ */
+async function renderBytes(
+  input: Parameters<typeof buildBrandedDocumentPdf>[0],
+): Promise<Uint8Array | null> {
+  const out = await buildBrandedDocumentPdf(input);
+  return out ? out.bytes : null;
+}
+
 describe('mergeTemplateDocument without a counterparty', () => {
   /**
    * The whole returned string, not a substring match. Every existing caller
@@ -193,7 +206,7 @@ describe('counterpartyLabel', () => {
  */
 describe('the rendered PDF, as the anchor detector sees it', () => {
   it('finds no text anchor when no counterparty is named', async () => {
-    const bytes = await buildBrandedDocumentPdf({
+    const bytes = await renderBytes({
       document: mergeTemplateDocument(base),
       title: 'Mutual Agreement',
     });
@@ -205,7 +218,7 @@ describe('the rendered PDF, as the anchor detector sees it', () => {
     const document = mergeTemplateDocument({ ...base, counterpartyName: 'Wren Supply Co.' });
     // The label is unambiguously there in the text handed to the renderer.
     expect(document).toMatch(/^Signature:$/m);
-    const bytes = await buildBrandedDocumentPdf({ document, title: 'Mutual Agreement' });
+    const bytes = await renderBytes({ document, title: 'Mutual Agreement' });
     expect(bytes).not.toBeNull();
     // And absent from the saved bytes as a readable literal, which is reason 2
     // and reason 3 above in one assertion.
@@ -221,7 +234,7 @@ describe('the rendered PDF, as the anchor detector sees it', () => {
   it('falls back to an appended box, with or without the counterparty block', async () => {
     const { placeSignaturesIfMissing } = await import('../lib/signature-anchors');
     for (const counterpartyName of [null, 'Wren Supply Co.']) {
-      const bytes = await buildBrandedDocumentPdf({
+      const bytes = await renderBytes({
         document: mergeTemplateDocument({ ...base, counterpartyName }),
         title: 'Mutual Agreement',
       });

@@ -5,6 +5,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { getFirmByIdAdmin } from './firm-storage';
 import { buildBrandedDocumentPdf } from './branded-document-pdf';
 import { sha256 } from './esign-audit';
+import { isUnknownColumnError } from './signer-view';
+import { serializeFieldBoxes } from './template-field-boxes';
 import type { SubmissionRow } from './template-submission-types';
 
 /**
@@ -52,6 +54,21 @@ export type MaterializedDocument =
 /** What a filed submission document is tagged with, so it can be found again. */
 export const SUBMISSION_DOCUMENT_TAG = 'template-submission';
 
+/**
+ * What an approver is told when the template asks the other side to fill
+ * something in and the column that records where those blanks are has not
+ * been added yet.
+ *
+ * The same shape as SIGNER_DOWNLOAD_RESTRICTION_UNSAVED_ERROR and for the
+ * same reason: the safe direction is to send nothing. It names the fix and
+ * names who can make it, because the approver cannot.
+ */
+export const FIELD_BOXES_UNSAVED_ERROR =
+  'This document was not sent. It asks the recipient to fill parts of it in, ' +
+  'and where those go cannot be recorded yet, so they would have no way to ' +
+  'complete it. Ask your administrator to apply the pending database update, ' +
+  'or use a template that does not ask the recipient for anything.';
+
 type Row = SubmissionRow & { document_id?: string | null };
 
 export async function materializeSubmissionDocument(
@@ -84,7 +101,7 @@ export async function materializeSubmissionDocument(
 
   const firm = await getFirmByIdAdmin(row.firm_id);
   // Rendered once, here, and never again.
-  const bytes = await buildBrandedDocumentPdf({
+  const rendering = await buildBrandedDocumentPdf({
     document: row.document_text,
     title: row.template_name,
     brandName: firm?.name ?? undefined,
@@ -94,7 +111,11 @@ export async function materializeSubmissionDocument(
   });
   // Null is a refusal, not a throw: the renderer returns it for a document
   // with nothing worth rendering in it.
-  if (!bytes) return { ok: false, error: 'The document could not be prepared for signing.' };
+  if (!rendering) {
+    return { ok: false, error: 'The document could not be prepared for signing.' };
+  }
+  const bytes = rendering.bytes;
+  const fieldBoxes = rendering.fieldBoxes;
 
   const id = crypto.randomUUID();
   const safeName =
@@ -136,13 +157,37 @@ export async function materializeSubmissionDocument(
   // and exactly one hash for this submission.
   const { data: claimed, error: claimError } = await admin
     .from('firm_template_submissions')
-    .update({ document_id: id, updated_at: new Date().toISOString() })
+    .update({
+      document_id: id,
+      // In the SAME write as the document id, deliberately. The boxes describe
+      // these bytes and no others, so a row that names this document must
+      // carry this document's geometry or the overlay and the stamp would be
+      // reading a previous render's positions.
+      //
+      // Omitted entirely when the template declared no counterparty fields,
+      // which is every template that exists today. That is what makes an
+      // unapplied migration invisible: the column is never named, so
+      // PostgREST never refuses the statement, and the firm sees exactly the
+      // behaviour it had last week.
+      ...(fieldBoxes.length > 0
+        ? { field_boxes: serializeFieldBoxes(fieldBoxes) }
+        : {}),
+      updated_at: new Date().toISOString(),
+    })
     .eq('id', submissionId)
     .is('document_id', null)
     .select('id')
     .maybeSingle();
   if (claimError) {
     await discard(admin, id, filePath);
+    // A document with blanks in it and nowhere to record where they are is
+    // not sendable. The counterparty would be shown a page of markers with
+    // no way to fill them and the executed copy would carry the markers into
+    // the instrument, so this refuses rather than sending something worse
+    // than nothing. The row stays approved and retryable.
+    if (isUnknownColumnError(claimError, 'field_boxes')) {
+      return { ok: false, error: FIELD_BOXES_UNSAVED_ERROR };
+    }
     return { ok: false, error: 'The document could not be filed. Try again shortly.' };
   }
   if (!claimed) {

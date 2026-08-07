@@ -18,7 +18,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  */
 
 const renderer = vi.hoisted(() =>
-  vi.fn(async () => new Uint8Array([0x25, 0x50, 0x44, 0x46, 1, 2, 3])),
+  vi.fn(async () => ({
+    bytes: new Uint8Array([0x25, 0x50, 0x44, 0x46, 1, 2, 3]),
+    fieldBoxes: [],
+  })),
 );
 vi.mock('../lib/branded-document-pdf', () => ({ buildBrandedDocumentPdf: renderer }));
 vi.mock('../lib/firm-storage', () => ({
