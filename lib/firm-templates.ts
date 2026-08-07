@@ -282,11 +282,18 @@ const MAX_TEMPLATE_UPLOAD_BYTES = 10 * 1024 * 1024;
  *
  * requireAuthor runs FIRST, before the file is even taken out of the form.
  * Every export of this module is a public HTTP endpoint callable by any
- * signed-in user with a firmId of their choosing, and this one spends the
- * firm's AI budget, so an ungated version would let a stranger bill a firm for
- * reading documents that are not theirs. It is the same gate the neighbouring
- * template actions use; a second membership query would be a third
- * authorization axis in a codebase that deliberately has one.
+ * signed-in user with a firmId of their choosing, and this one spends real
+ * money: per lib/ai-errors.ts the model call is paid for by the app's own
+ * ANTHROPIC_API_KEY, not out of a firm's token pool, so an ungated version
+ * bills US for a stranger reading documents that are not theirs. It is the
+ * same gate the neighbouring template actions use; a second membership query
+ * would be a third authorization axis in a codebase that deliberately has one.
+ *
+ * NOT gated on subscription. The comparable endpoint checks
+ * isFirmSubscriptionActive and requireActiveFirm covers the access-ended state,
+ * so a lapsed or export-only firm can still spend here. Left open on purpose
+ * and recorded rather than added unattended: a false denial locks a paying firm
+ * out of a feature with nobody watching.
  */
 export async function importTemplateDocumentAction(
   firmId: string,
@@ -299,6 +306,9 @@ export async function importTemplateDocumentAction(
     windowSeconds: 3600,
   });
   if (!allowed) {
+    // Authorization stops a stranger. This stops one author looping the
+    // endpoint, which matters because each call is a long generation billed to
+    // the app's own key.
     return { ok: false, error: 'That is a lot of imports this hour. Try again later.' };
   }
 

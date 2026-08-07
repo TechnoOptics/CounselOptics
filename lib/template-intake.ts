@@ -7,20 +7,27 @@ import { parseTemplateProposal, type TemplateProposal } from './template-proposa
  * Ask Bella to read a document the legal team already has and propose the
  * template it would become.
  *
- * Server-only, because it spends the firm's AI budget. The judgement about
- * what the answer is allowed to say lives next door in lib/template-proposal.ts,
- * which is pure and tested; this file only asks the question and hands the
- * reply over to be checked. Nothing here saves a template, and nothing here
- * returns raw model output to a caller.
+ * Server-only, because it spends real money: per lib/ai-errors.ts the call is
+ * paid for by the app's own ANTHROPIC_API_KEY, not by a firm's token pool, so
+ * an ungated caller spends OURS. The judgement about what the answer is allowed
+ * to say lives next door in lib/template-proposal.ts, which is pure and tested;
+ * this file only asks the question and hands the reply over to be checked.
+ * Nothing here saves a template, and nothing here returns raw model output to a
+ * caller.
  */
 
 /**
  * How much of the document is sent.
  *
- * Past this the text is cut and the model is told, in the prompt, that it was
- * cut. That is the honest failure: the proposal then covers the opening of the
- * document and the reviewer sees the rest is missing, which is recoverable.
- * Silently truncating would produce a template that looks complete and is not.
+ * Past this the text is cut, the model is told in the prompt that it was cut,
+ * and the reviewer is told in a note. That is the honest failure: the proposal
+ * covers the opening of the document and everyone can see the rest is missing,
+ * which is recoverable. Silently truncating would produce a template that looks
+ * complete and is not.
+ *
+ * The cap applies to what the MODEL is sent. Signature detection still reads
+ * the whole text, because the execution block is on the last page and a length
+ * cap removes exactly that.
  *
  * 60k characters is roughly 25 pages of an agreement, which covers every firm
  * template in the product today, and sits inside the model's context alongside
@@ -121,10 +128,28 @@ export async function proposeTemplateFromText(text: string): Promise<TemplatePro
   // is generous. A reply cut off mid-body is unparseable JSON, which
   // parseTemplateProposal reports as null.
   const raw = await bellaGenerate({ system: SYSTEM, prompt, maxTokens: 8000 });
-  // The source goes in alongside the reply. Rule 6 above is advice and a model
-  // can decline it silently: on a real mutual NDA it dropped no execution page
-  // but reported no signature either. The source is the unedited account of
-  // what the document contains, so signature detection reads it as well as the
-  // reply rather than trusting what the model chose to emit.
-  return parseTemplateProposal(raw, body);
+  // The source goes in alongside the reply, and it is the WHOLE source, not the
+  // slice the model was given. Two reasons, and the second was a live defect.
+  //
+  // Rule 6 above is advice and a model can decline it silently: on a real
+  // mutual NDA it dropped no execution page but reported no signature either.
+  // The source is the unedited account of what the document contains.
+  //
+  // And a length cap takes the LAST page, which is exactly where the execution
+  // block is. Reading only the truncated slice for evidence meant a long
+  // agreement came back as a read-only share with a note asserting it had no
+  // signature line. Scanning the full text costs one regex over a string
+  // already in memory.
+  const proposal = parseTemplateProposal(raw, source);
+  if (proposal && truncated) {
+    // Said first, and said as truncation rather than as absence. The reviewer
+    // has to know the body stops part way through whatever else is on the list.
+    proposal.notes.unshift(
+      'This document was too long to read in one pass, so the body below stops ' +
+        'part way through it. Paste the rest in, or split the document, before ' +
+        'you save.',
+    );
+    proposal.notes = proposal.notes.slice(0, 12);
+  }
+  return proposal;
 }
