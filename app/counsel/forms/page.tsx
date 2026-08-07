@@ -7,6 +7,14 @@ import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * The document import on this page is a one-shot generation that restates a
+ * whole agreement, which runs in minutes rather than seconds. Without this the
+ * platform's default cuts the request off and the editor is left with no
+ * proposal and no explanation.
+ */
+export const maxDuration = 300;
+
 export const metadata = { title: 'Form templates · Counsel' };
 
 /**

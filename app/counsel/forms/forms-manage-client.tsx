@@ -11,7 +11,7 @@ import {
 import { isReservedFirmKey } from '@/lib/firm-template-placeholders';
 import type { DeliveryMode } from '@/lib/submission-dispatch';
 import { EmptyState } from '@/components/counsel/ui';
-import { T } from '@/components/i18n/LocaleProvider';
+import { T, useT } from '@/components/i18n/LocaleProvider';
 import { StatusPill, PILL_COLORS } from '@/components/counsel/StatusPill';
 
 /**
@@ -217,6 +217,7 @@ function TemplateEditor({
   // banner: it stays up until the editor is closed, because the reviewer is
   // being asked to check work that is not theirs and the reminder should not
   // scroll away with the first edit.
+  const t = useT();
   const fileRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
@@ -230,12 +231,27 @@ function TemplateEditor({
   const runImport = async (file: File) => {
     setImporting(true);
     setImportError(null);
-    const data = new FormData();
-    data.set('file', file);
-    const res = await importTemplateDocumentAction(firmId, data);
-    setImporting(false);
+    let res: Awaited<ReturnType<typeof importTemplateDocumentAction>>;
+    try {
+      const data = new FormData();
+      data.set('file', file);
+      res = await importTemplateDocumentAction(firmId, data);
+    } catch {
+      // A server action can reject outright: the request times out, the
+      // deployment is mid-swap, the network drops. Without this the button
+      // stays disabled reading "Reading the document" for as long as the page
+      // is open, with nothing said, and this call is a whole-document
+      // generation measured in minutes rather than seconds.
+      setImporting(false);
+      setImportError(
+        t('The document could not be read just now. Please try again in a moment.'),
+      );
+      return;
+    } finally {
+      setImporting(false);
+    }
     if (!res.ok || !res.proposal) {
-      setImportError(res.error ?? 'Could not read that document.');
+      setImportError(res.error ?? t('Could not read that document.'));
       return;
     }
     const p = res.proposal;
@@ -337,7 +353,7 @@ function TemplateEditor({
           onClick={() => fileRef.current?.click()}
           className="btn-secondary mt-2 text-sm disabled:opacity-50"
         >
-          {importing ? 'Reading the document…' : 'Choose a file'}
+          {importing ? <T>Reading the document…</T> : <T>Choose a file</T>}
         </button>
         <span className="ml-2 text-[12px] text-ink-500 dark:text-cream-100/55">
           <T>PDF, Word (.docx) or plain text.</T>
