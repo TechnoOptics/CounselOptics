@@ -2,6 +2,7 @@ import 'server-only';
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { FirmTemplate, TemplateField } from './firm-templates';
+import { parseDeliveryMode } from './submission-dispatch';
 
 /**
  * Reading a published firm template on the server, for the two places that
@@ -19,6 +20,10 @@ import type { FirmTemplate, TemplateField } from './firm-templates';
  * absent value reads as gated. That is the safe direction: an unmigrated
  * database refuses to hand out finished documents rather than handing them out
  * ungated.
+ *
+ * `delivery_mode` is absent until 20260807_flow_join.sql runs and reads as
+ * 'share', which is the same direction and is exactly what every template did
+ * before that column existed.
  */
 export async function loadPublishedTemplate(
   admin: SupabaseClient,
@@ -45,6 +50,7 @@ export async function loadPublishedTemplate(
     fields: Array.isArray(r.fields) ? (r.fields as TemplateField[]) : [],
     status: r.status as FirmTemplate['status'],
     requiresApproval: r.requires_approval !== false,
+    deliveryMode: parseDeliveryMode(r.delivery_mode),
     createdAt: String(r.created_at),
     updatedAt: (r.updated_at as string | null) ?? null,
   };

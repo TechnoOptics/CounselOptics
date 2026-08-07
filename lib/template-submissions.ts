@@ -11,6 +11,7 @@ import { hydratePeople } from './intake-notify';
 import { createNotification } from './notifications';
 import { checkRateLimit } from './rate-limit';
 import {
+  counterpartyLabel,
   formatSignedOn,
   mergeTemplateDocument,
 } from './firm-template-placeholders';
@@ -26,6 +27,9 @@ import {
 } from './template-approval';
 import { loadPublishedTemplate, sanitizeTemplateValues } from './template-fill';
 import { releaseApprovedSubmission } from './template-release';
+import { checkDispatchable } from './submission-dispatch';
+import { materializeSubmissionDocument } from './submission-document';
+import { createSigningRequestAction } from './firm-actions';
 import {
   CLEARED_SIGNATURE_COLUMNS,
   decodeSignaturePng,
@@ -61,6 +65,17 @@ import {
 
 type Admin = NonNullable<ReturnType<typeof createAdminSupabase>>;
 
+/**
+ * The stored row plus the two pointers 20260807_flow_join.sql adds. Both are
+ * optional on the type as well as nullable in the database, because until the
+ * owner applies that migration the columns are simply not there and every read
+ * of them is undefined.
+ */
+type DispatchRow = SubmissionRow & {
+  document_id?: string | null;
+  signing_request_id?: string | null;
+};
+
 const SUBMISSION_COLS = '*';
 
 function trimTo(value: unknown, max: number): string {
@@ -78,6 +93,7 @@ async function buildDocument(
   values: Record<string, string>,
   signatureName: string,
   signerEmail: string,
+  recipient: { name?: string | null; email?: string | null },
 ): Promise<string> {
   const firm = await getFirmByIdAdmin(template.firmId);
   return mergeTemplateDocument({
@@ -88,6 +104,15 @@ async function buildDocument(
     signatureName,
     signerEmail,
     signedOn: formatSignedOn(new Date()),
+    // A template that goes out for signature carries a block for the other
+    // side. The employee's preview passes this same rule through the same
+    // helper, so what they read on the page and what the reviewer reads are
+    // still one function's output.
+    counterpartyName: counterpartyLabel({
+      deliveryMode: template.deliveryMode,
+      recipientName: recipient.name,
+      recipientEmail: recipient.email,
+    }),
   });
 }
 
@@ -292,7 +317,11 @@ export async function submitTemplateForApprovalAction(
 
   const people = await hydratePeople(admin, [user.id]);
   const submitterName = people.get(user.id)?.name ?? user.email ?? null;
-  const documentText = await buildDocument(template, values, signatureName, user.email ?? '');
+  const recipientName = trimTo(input.recipientName, 160) || null;
+  const documentText = await buildDocument(template, values, signatureName, user.email ?? '', {
+    name: recipientName,
+    email: recipientEmail,
+  });
 
   const { data, error } = await admin
     .from('firm_template_submissions')
@@ -303,7 +332,7 @@ export async function submitTemplateForApprovalAction(
       submitted_by: user.id,
       submitter_name: submitterName,
       submitter_email: user.email ?? null,
-      recipient_name: trimTo(input.recipientName, 160) || null,
+      recipient_name: recipientName,
       recipient_email: recipientEmail,
       recipient_note: trimTo(input.recipientNote, 500) || null,
       field_values: values,
@@ -403,18 +432,20 @@ export async function resubmitTemplateSubmissionAction(
     return { ok: false, error: `Fill these in first: ${missing.join(', ')}.` };
   }
 
+  const recipientName = trimTo(input.recipientName, 160) || null;
   const documentText = await buildDocument(
     template,
     values,
     signatureName,
     row.submitter_email ?? user.email ?? '',
+    { name: recipientName, email: recipientEmail },
   );
 
   const { data: updated } = await admin
     .from('firm_template_submissions')
     .update({
       recipient_email: recipientEmail,
-      recipient_name: trimTo(input.recipientName, 160) || null,
+      recipient_name: recipientName,
       recipient_note: trimTo(input.recipientNote, 500) || null,
       field_values: values,
       signature_name: signatureName,
@@ -861,36 +892,229 @@ export async function retryTemplateReleaseAction(
 }
 
 /**
- * Deliver an approved submission and record the outcome.
+ * Deliver an approved submission by whichever of the two routes its template
+ * asks for, and record the outcome.
  *
- * The release helper owns the whole delivery: it re-reads the row, refuses
- * anything that is not approved, claims the release so a second caller cannot
- * repeat it, and gives the claim back if any part of the send fails. So a
- * failure here always leaves the record approved, unclaimed, and retryable,
- * and only a genuinely complete delivery reaches the status write below.
+ * Both routes end at the same status write, and both leave a failure as an
+ * approved row with release_error set, which is the state
+ * retryTemplateReleaseAction already expects. It needs no change: it calls
+ * this, and this now knows about both modes.
+ *
+ * The share route is unchanged. The release helper still owns the whole of it:
+ * it re-reads the row, refuses anything that is not approved, claims the
+ * release so a second caller cannot repeat it, and gives the claim back if any
+ * part of the send fails.
  */
 async function sendApproved(
   admin: Admin,
   submissionId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const released = await releaseApprovedSubmission(admin, submissionId);
-  if (!released.ok) {
-    await admin
-      .from('firm_template_submissions')
-      .update({ release_error: released.error, updated_at: new Date().toISOString() })
-      .eq('id', submissionId);
-    return { ok: false, error: released.error };
+  const { data, error: readError } = await admin
+    .from('firm_template_submissions')
+    .select(SUBMISSION_COLS)
+    .eq('id', submissionId)
+    .maybeSingle();
+  // A failed read and a missing row both arrive as null data, and reporting a
+  // database that did not answer as a submission that is not there writes a
+  // false statement onto the record.
+  if (readError) {
+    return { ok: false, error: 'This submission could not be read just now. Try again shortly.' };
   }
+  const row = (data as DispatchRow | null) ?? null;
+  if (!row) return { ok: false, error: 'That submission could not be found.' };
+
+  // The mode is the template's, read at dispatch time.
+  //
+  // A template that has since been archived or unpublished cannot be read, and
+  // the mode then falls back to 'share', which is today's behaviour and the
+  // behaviour of every template before this column existed. The alternative,
+  // refusing, would strand approved submissions whose template was tidied away
+  // while they sat in the queue, which is a worse failure than delivering the
+  // way the product delivered last week.
+  const template = row.template_id
+    ? await loadPublishedTemplate(admin, row.firm_id, row.template_id)
+    : null;
+
+  const gate = checkDispatchable({
+    status: row.status,
+    decidedBy: row.decided_by,
+    decidedAt: row.decided_at,
+    recipientEmail: row.recipient_email,
+    documentText: row.document_text,
+    releasedAt: row.released_at,
+    deliveryMode: template?.deliveryMode,
+    documentId: row.document_id ?? null,
+    signingRequestId: row.signing_request_id ?? null,
+  });
+  if (!gate.ok) return recordDeliveryFailure(admin, submissionId, gate.reason);
+
+  if (gate.mode === 'share') {
+    const released = await releaseApprovedSubmission(admin, submissionId);
+    if (!released.ok) return recordDeliveryFailure(admin, submissionId, released.error);
+  } else {
+    const dispatched = await dispatchForSignature(admin, row);
+    if (!dispatched.ok) {
+      // The instrument may already be out even though the delivery is not
+      // complete, and when it is, the row has to say 'sent' or the completion
+      // path in a later slice never fires for it.
+      if (dispatched.markSent) await markSubmissionSent(admin, submissionId);
+      return recordDeliveryFailure(admin, submissionId, dispatched.error);
+    }
+  }
+
+  const sent = await markSubmissionSent(admin, submissionId);
+  if (!sent.ok) return sent;
+  await admin
+    .from('firm_template_submissions')
+    .update({ release_error: null, updated_at: new Date().toISOString() })
+    .eq('id', submissionId);
+  return { ok: true };
+}
+
+/** The status write both modes end at. */
+async function markSubmissionSent(
+  admin: Admin,
+  submissionId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
   const move = applySubmissionAction('approved', 'mark_sent');
   if (!move.ok) return { ok: false, error: move.error };
   await admin
     .from('firm_template_submissions')
-    .update({
-      status: move.status,
-      release_error: null,
-      updated_at: new Date().toISOString(),
-    })
+    .update({ status: move.status, updated_at: new Date().toISOString() })
     .eq('id', submissionId)
     .eq('status', 'approved');
   return { ok: true };
+}
+
+/** Put the reason on the record, then hand it back to the caller unchanged. */
+async function recordDeliveryFailure(
+  admin: Admin,
+  submissionId: string,
+  error: string,
+): Promise<{ ok: false; error: string }> {
+  await admin
+    .from('firm_template_submissions')
+    .update({ release_error: error, updated_at: new Date().toISOString() })
+    .eq('id', submissionId);
+  return { ok: false, error };
+}
+
+/**
+ * Send an approved submission for signature instead of as a read-only share.
+ *
+ * The claim is the same compare-and-swap the share path uses
+ * (lib/template-release.ts), on the same column, for the same reason: the read
+ * above and the send below are two separate moments, and between them a second
+ * approver, or the same one in a second tab, can pass the very same gate. Both
+ * would then dispatch, which for a signature means two executed PDFs and two
+ * audit chains for one instrument. The database decides who got there first,
+ * and the caller who did not win sends nothing.
+ *
+ * ONE REAL HAZARD, NAMED. createSigningRequestAction is a `'use server'` export
+ * and calls requireUser(). Reached from here the caller is the approving
+ * reviewer, which is correct and is exactly whose authority should send it. Do
+ * NOT refactor it to take a user id: that would turn an authenticated action
+ * into an impersonation primitive.
+ */
+async function dispatchForSignature(
+  admin: Admin,
+  row: DispatchRow,
+): Promise<{ ok: true } | { ok: false; error: string; markSent?: boolean }> {
+  const nowIso = () => new Date().toISOString();
+
+  const { data: claimed, error: claimError } = await admin
+    .from('firm_template_submissions')
+    .update({ released_at: nowIso(), updated_at: nowIso() })
+    .eq('id', row.id)
+    .eq('status', 'approved')
+    .is('released_at', null)
+    .select('id')
+    .maybeSingle();
+  // A claim that failed to write and a claim that lost the race both come back
+  // without a row. Only the second one means the document is on its way.
+  if (claimError) {
+    return { ok: false, error: 'This document could not be sent just now. Try again shortly.' };
+  }
+  if (!claimed) return { ok: false, error: 'This document has already been sent.' };
+
+  /**
+   * Give the claim back so an approver can try again. Everything after the
+   * claim and before the signature request exists can fail on infrastructure
+   * the firm does not control, and a half-finished dispatch must never look
+   * finished: the record goes back to approved and unclaimed, which is the
+   * state the retry path expects. Nothing is unclaimed once the request
+   * exists, because at that point the counterparty may already hold the link.
+   */
+  const unclaim = async (error: string): Promise<{ ok: false; error: string }> => {
+    const { error: writeError } = await admin
+      .from('firm_template_submissions')
+      .update({ released_at: null, release_error: error, updated_at: nowIso() })
+      .eq('id', row.id);
+    if (writeError) {
+      return {
+        ok: false,
+        error:
+          'The send failed and the document could not be returned to a sendable state. This record needs attention before it can go out.',
+      };
+    }
+    return { ok: false, error };
+  };
+
+  try {
+    // Rendered once and filed as a real document. Idempotent, so a retry after
+    // a failure below reuses the same bytes and therefore the same hash.
+    const filed = await materializeSubmissionDocument(admin, row.id);
+    if (!filed.ok) return await unclaim(filed.error);
+
+    const created = await createSigningRequestAction(
+      row.firm_id,
+      filed.documentId,
+      [{ email: row.recipient_email, name: row.recipient_name ?? undefined }],
+      row.recipient_note,
+      // The counterparty keeps a copy of what they signed. 15 USC 7001(d) is
+      // about the signer being able to retain the record, and this is a
+      // document they are a party to rather than one the firm is withholding.
+      { signerCanDownload: true },
+    );
+    if (!created.ok || !created.requestId) {
+      return await unclaim(
+        created.error ?? 'The signature request could not be created. Nothing has gone out.',
+      );
+    }
+
+    const { error: pointerError } = await admin
+      .from('firm_template_submissions')
+      .update({ signing_request_id: created.requestId, updated_at: nowIso() })
+      .eq('id', row.id);
+    if (pointerError) {
+      // The request exists and the recipient may already hold the link, so
+      // this does not unclaim and does not retry: doing either would send a
+      // second copy of the same agreement. The pointer is what a later slice
+      // reads to close the loop, so say plainly that it is missing.
+      return {
+        ok: false,
+        markSent: true,
+        error:
+          'This document was sent for signature, but the link between it and this record was not saved. It can be followed under Signing.',
+      };
+    }
+
+    if ((created.emailFailures ?? []).length > 0) {
+      // The request and its tokens are valid and a resend is cheap, so the
+      // record keeps it. But nobody was told, and reporting this as delivered
+      // would be the one thing the approver must not be told.
+      return {
+        ok: false,
+        markSent: true,
+        error:
+          'This document was sent for signature but the email did not reach the recipient. Open it under Signing and send the link again.',
+      };
+    }
+
+    return { ok: true };
+  } catch {
+    return await unclaim(
+      'Something went wrong while preparing this document to send. It has not gone out, and it can be sent again.',
+    );
+  }
 }

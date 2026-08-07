@@ -41,6 +41,38 @@ export function isSelfNameField(key: string): boolean {
 export type MergeableField = { key: string; label: string };
 
 /**
+ * The name the counterparty block carries, or null when there is no block.
+ *
+ * The employee's live preview and the copy stored for legal review are both
+ * mergeTemplateDocument's output, and they agree only if both call sites pass
+ * the same counterparty. So the rule lives here, next to the function it feeds,
+ * rather than being written out twice and drifting the first time one of them
+ * is edited.
+ *
+ * The block appears only for a template the legal team set to go out for
+ * signature. It is labelled with the recipient's name when the employee gave
+ * one and with their address when they did not, because an agreement has to
+ * say who the other side is and the address is the one thing always present.
+ */
+export function counterpartyLabel(input: {
+  /** The template's delivery mode. Anything but 'signature' means no block. */
+  deliveryMode: string | null | undefined;
+  recipientName?: string | null;
+  recipientEmail?: string | null;
+}): string | null {
+  if (input.deliveryMode !== 'signature') return null;
+  // The address is lower-cased here rather than at either call site, because
+  // the server stores it lower-cased and the employee types it however they
+  // like. Normalising in one place is what stops the preview and the stored
+  // document differing by a capital letter.
+  return (
+    (input.recipientName ?? '').trim() ||
+    (input.recipientEmail ?? '').trim().toLowerCase() ||
+    null
+  );
+}
+
+/**
  * Substitute a template body into the finished document, then append the
  * signature block.
  *
@@ -58,6 +90,13 @@ export function mergeTemplateDocument(input: {
   signatureName: string;
   signerEmail: string;
   signedOn: string;
+  /**
+   * The outside party who will sign this, when the template is sent for
+   * signature rather than as a read-only share. Absent or blank means no
+   * counterparty block, which is every template that exists today, so their
+   * output is unchanged to the byte.
+   */
+  counterpartyName?: string | null;
 }): string {
   let text = input.body;
   const declared = new Set(input.fields.map((f) => f.key));
@@ -70,7 +109,51 @@ export function mergeTemplateDocument(input: {
     text = text.split(`{{${f.key}}}`).join(val);
   }
   const signature = input.signatureName.trim() || '____________________';
-  return `${text}\n\n\nSigned: ${signature}\nDate: ${input.signedOn}\nEmail: ${input.signerEmail}`;
+  return (
+    `${text}\n\n\nSigned: ${signature}\nDate: ${input.signedOn}\nEmail: ${input.signerEmail}` +
+    buildCounterpartyBlock(input.counterpartyName)
+  );
+}
+
+/**
+ * The block the outside party signs.
+ *
+ * A document sent for signature has to name the other side and offer them a
+ * place on the page, or the counterparty is asked to sign an instrument whose
+ * text mentions only the employee. That is the whole of why this exists.
+ *
+ * It is NOT here to be found by the anchor scanner, and the plan this was
+ * built from expected it to be. findTextSignatureAnchors
+ * (lib/signature-anchors.ts) looks for the literal "Signature:" in a page
+ * content stream, and it cannot find one in anything pdf-lib writes, for three
+ * independent reasons, each verified by running it:
+ *
+ *   1. PDFPageLeaf.normalize() turns Contents into a PDFArray before
+ *      normalizedEntries() returns it. `Array.isArray` is false for a
+ *      PDFArray, so the scan wraps it in a one-element list and asks it for
+ *      getContents(), which a PDFArray does not have. It reads zero bytes from
+ *      every PDF, not only ours.
+ *   2. pdf-lib Flate-compresses the content stream, so the bytes are binary
+ *      even when they are read.
+ *   3. pdf-lib writes drawn text as a PDF hex string (<5369676E...> Tj), so
+ *      the literal is not present after inflating either.
+ *
+ * The consequence is pre-existing and is not made worse by this block:
+ * placeSignaturesIfMissing appends a fallback signature box, rewrites the PDF
+ * and stores the rewritten copy at signable_file_path, and that copy is what
+ * the signer is served while document_sha256 still describes file_path.
+ * tests/template-signature-line.test.ts pins that today, so whoever repairs
+ * the scanner sees exactly which assertion changes and why.
+ *
+ * Nothing here is drawn as a ruled blank. The mark is stamped by
+ * lib/signature-render.ts at the recorded geometry, and a second place that
+ * decides where a signature belongs is exactly what lib/signature-geometry.ts
+ * exists to prevent.
+ */
+function buildCounterpartyBlock(counterpartyName: string | null | undefined): string {
+  const name = (counterpartyName ?? '').trim();
+  if (!name) return '';
+  return `\n\n\nFor ${name}:\nSignature:\nDate:`;
 }
 
 /**
