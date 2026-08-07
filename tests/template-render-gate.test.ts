@@ -107,6 +107,8 @@ describe('the employee fill page', () => {
 let currentUser: { id: string; email: string } | null = null;
 let currentRole: FirmRole | null = null;
 let requiresApproval = true;
+/** The template's own delivery mode, which the route has to pass on. */
+let templateDeliveryMode = 'share';
 let activeFirm: { firmId: string } | null = null;
 
 const TEMPLATE_BODY = 'The parties agree to keep this confidential.';
@@ -144,15 +146,22 @@ vi.mock('../lib/template-fill', () => ({
     fields: [],
     status: 'published',
     requiresApproval,
+    deliveryMode: templateDeliveryMode,
   }),
   sanitizeTemplateValues: () => ({}),
 }));
+/** Every input the route handed the merge, so the last one can be inspected. */
+const mergeTemplateDocument = vi.fn((input: Record<string, unknown>) => {
+  void input;
+  return TEMPLATE_BODY;
+});
+
 vi.mock('../lib/firm-template-placeholders', () => ({
   formatSignedOn: () => '1 January 2026',
   // The real merge is tested elsewhere. Here it stands in for "the firm's own
   // template", so an assertion on what reached the renderer can tell that
   // apart from anything the request sent.
-  mergeTemplateDocument: () => TEMPLATE_BODY,
+  mergeTemplateDocument,
 }));
 
 const { POST } = await import('../app/api/counsel/draft-template/pdf/route');
@@ -174,6 +183,8 @@ describe('POST /api/counsel/draft-template/pdf, driven', () => {
     requiresApproval = true;
     activeFirm = null;
     buildBrandedDocumentPdf.mockClear();
+    mergeTemplateDocument.mockClear();
+    templateDeliveryMode = 'share';
   });
 
   it('refuses a gated template to an employee, and renders nothing', async () => {
@@ -257,4 +268,45 @@ describe('POST /api/counsel/draft-template/pdf, free text, driven', () => {
     expect(res.headers.get('Content-Type')).toBe('application/pdf');
     expect(buildBrandedDocumentPdf).toHaveBeenCalledTimes(1);
   });
+});
+
+/**
+ * The third caller of mergeTemplateDocument, which is why deliveryMode is a
+ * required input rather than an inference.
+ *
+ * The counterparty branch used to key off counterpartyName, defended with
+ * "counterpartyName is the mode". That holds for the two callers that compute
+ * the name through counterpartyLabel. It is false here: this route renders a
+ * template for a firm member with NOBODY addressed, so the name is null
+ * whatever the mode, and every template exported through it lost its
+ * recipient's blank. An invariant satisfied at two of three call sites is not
+ * enforced.
+ *
+ * Asserted on what the route PASSED rather than on the presence of a call. A
+ * required argument makes the omission a compile error; only this makes
+ * passing the wrong one a failing test.
+ */
+describe('the route states the template mode it is rendering', () => {
+  const RENDERABLE = {
+    templateId: 'tpl-1',
+    firmId: 'firm-1',
+    values: {},
+    signatureName: 'A Colleague',
+  };
+
+  beforeEach(() => {
+    mergeTemplateDocument.mockClear();
+    currentUser = { id: 'attorney-1', email: 'legal@example.test' };
+    currentRole = 'attorney';
+    requiresApproval = false;
+  });
+
+  for (const mode of ['share', 'signature']) {
+    it(`passes ${mode} through from the template`, async () => {
+      templateDeliveryMode = mode;
+      await post(RENDERABLE);
+      expect(mergeTemplateDocument).toHaveBeenCalledTimes(1);
+      expect(mergeTemplateDocument.mock.calls[0][0]).toMatchObject({ deliveryMode: mode });
+    });
+  }
 });

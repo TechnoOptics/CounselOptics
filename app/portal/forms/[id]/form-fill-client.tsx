@@ -118,6 +118,7 @@ export function FormFillClient({
         signatureName: signature,
         signerEmail: employeeEmail,
         signedOn: formatSignedOn(new Date()),
+        deliveryMode: template.deliveryMode,
         counterpartyName: counterpartyLabel({
           deliveryMode: template.deliveryMode,
           recipientName,

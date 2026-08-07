@@ -153,17 +153,27 @@ export function mergeTemplateDocument(input: {
   signerEmail: string;
   signedOn: string;
   /**
-   * The outside party who will sign this, when the template is sent for
-   * signature rather than as a read-only share. Absent or blank means no
-   * counterparty block, which is every template that exists today, so their
-   * output is unchanged to the byte.
+   * How this template's output is delivered. REQUIRED, and required is the
+   * point: it is what decides whether a counterparty field is a blank at all,
+   * and a caller that could leave it out is a caller that silently renders
+   * every template as a share. See the counterparty branch below.
+   */
+  deliveryMode: string;
+  /**
+   * The outside party who will sign this, once one has been named. Absent or
+   * blank means no counterparty signature block, which is every template that
+   * exists today and also a signature-mode template rendered before anyone has
+   * been addressed, so their output is unchanged to the byte.
    */
   counterpartyName?: string | null;
 }): string {
   let text = input.body;
-  // Whether this document has an other side at all. See the counterparty
-  // branch below, and buildCounterpartyBlock, which reads the same answer.
-  const hasCounterparty = Boolean((input.counterpartyName ?? '').trim());
+  // WHETHER THERE IS A BLANK, which is not the same question as who signs
+  // under it. The mode decides the first and the name decides the second, and
+  // conflating them is how a template rendered before a recipient was named
+  // lost the recipient's blank. See the counterparty branch below and
+  // buildCounterpartyBlock, which reads the name.
+  const forSignature = input.deliveryMode === 'signature';
   const declared = new Set(input.fields.map((f) => f.key));
   for (const key of RESERVED_FIRM_KEYS) {
     if (declared.has(key)) continue;
@@ -175,29 +185,39 @@ export function mergeTemplateDocument(input: {
     // and a value that reached this map for a counterparty key would be
     // either a stale draft or a caller pushing one in.
     //
-    // WHO THE BLANK IS FOR DECIDES WHETHER THERE IS ONE. A blank belongs to
-    // somebody: the marker is what lib/branded-document-pdf.ts measures as it
-    // draws, so the other side's typed value has one recorded place to land
+    // THE DELIVERY DECIDES WHETHER THERE IS A BLANK. The marker is what
+    // lib/branded-document-pdf.ts measures as it draws, so the other side's
+    // typed value has one recorded place to land
     // (lib/template-field-boxes.ts). On a read-only encrypted share there is
     // no other side. No signer, no ceremony, and nobody who will ever type
     // into it, so a marker there would be a blank left open on a document
     // that is already final, and lib/template-release.ts drops the recorded
     // geometry on that path for exactly that reason.
     //
-    // counterpartyName is the mode: counterpartyLabel returns null for every
-    // delivery mode but 'signature'. So this is where the premise that path
-    // relied on is actually made true, rather than asserted in a comment. A
-    // field with nobody to fill it falls through to the ordinary branch and
-    // renders as its bracketed label, which is what every unanswered field on
-    // this product renders as: visible to the employee on their preview and to
-    // the reviewer before they approve it, and recoverable by either of them.
-    // It renders the label DIRECTLY rather than falling through to the branch
-    // below, because that branch consults `values`, and there is no share on
-    // which the employee gets to answer for the other side either.
+    // This is where that premise is made true, rather than asserted in a
+    // comment. It reads the MODE and not counterpartyName, which is a
+    // correction: the first version of this branch keyed off the name, on the
+    // grounds that counterpartyLabel returns null for every mode but
+    // 'signature'. That is true of the name, and it was the wrong fact.
+    // counterpartyLabel also returns null when the mode IS 'signature' and
+    // nobody has been named yet, which is exactly what
+    // app/api/counsel/draft-template/pdf/route.ts renders: a real
+    // signature-mode template, exported for a firm member, addressed to no
+    // one. Every template rendered there lost its recipient's blank. Two call
+    // sites satisfying an invariant is not the same as enforcing it, and a
+    // required argument is the difference.
+    //
+    // A field with nobody to fill it renders as its bracketed label, which is
+    // what every unanswered field on this product renders as: visible to the
+    // employee on their preview and to the reviewer before they approve it,
+    // and recoverable by either of them. It renders the label DIRECTLY rather
+    // than falling through to the branch below, because that branch consults
+    // `values`, and there is no share on which the employee gets to answer for
+    // the other side either.
     if (f.party === 'counterparty') {
       text = text
         .split(`{{${f.key}}}`)
-        .join(hasCounterparty ? counterpartyMarker(f.key) : `[${f.label}]`);
+        .join(forSignature ? counterpartyMarker(f.key) : `[${f.label}]`);
       continue;
     }
     const val = (input.values[f.key] ?? '').trim() || `[${f.label}]`;

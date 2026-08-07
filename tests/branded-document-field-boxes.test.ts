@@ -296,6 +296,9 @@ describe('the blank the renderer draws', () => {
 describe('mergeTemplateDocument to recorded box', () => {
   const base = {
     body: `${FILLER}\n\nCompany: {{company}}\nOther side: {{entity_name}}`,
+    // Every template that exists today is a read-only share; the cases that
+    // are not say so.
+    deliveryMode: 'share',
     values: { company: 'Acme Corporation' },
     firmName: 'Anderson Foundation',
     signatureName: 'Jane Doe',
@@ -306,6 +309,7 @@ describe('mergeTemplateDocument to recorded box', () => {
   it('carries a counterparty field through to a recorded box', async () => {
     const document = mergeTemplateDocument({
       ...base,
+      deliveryMode: 'signature',
       counterpartyName: 'Wren Supply Co.',
       fields: [
         { key: 'company', label: 'Company' },
@@ -341,6 +345,7 @@ describe('mergeTemplateDocument to recorded box', () => {
     // and either way it is not the counterparty's statement.
     const document = mergeTemplateDocument({
       ...base,
+      deliveryMode: 'signature',
       counterpartyName: 'Wren Supply Co.',
       values: { company: 'Acme Corporation', entity_name: 'Not Their Name LLC' },
       fields: [
@@ -371,6 +376,39 @@ describe('mergeTemplateDocument to recorded box', () => {
    * label every other unanswered field renders as, which the employee sees on
    * their preview and the reviewer sees before approving.
    */
+  /**
+   * The mode says whether a blank exists. The NAME says who signs under it,
+   * and the two are not the same fact.
+   *
+   * They were conflated: the counterparty branch keyed off counterpartyName,
+   * defended with "counterpartyName is the mode". That held for the two
+   * callers that compute it through counterpartyLabel and was false for the
+   * third, app/api/counsel/draft-template/pdf/route.ts, which renders a
+   * template for a firm member with no recipient named and passed no name at
+   * all. Every template rendered there read as a share whatever its mode, so
+   * the invariant was satisfied at two call sites rather than enforced.
+   *
+   * deliveryMode is now a required input and says the first thing directly.
+   * A caller cannot leave it out, which is what makes this enforcement and
+   * not an assumption about how callers behave.
+   */
+  it('opens the blank on a signature template even before a recipient is named', () => {
+    // The counsel-side preview: a real signature-mode template, no recipient.
+    // The document it exports must carry the blank the recipient will fill.
+    const document = mergeTemplateDocument({
+      ...base,
+      deliveryMode: 'signature',
+      counterpartyName: null,
+      fields: [
+        { key: 'company', label: 'Company' },
+        { key: 'entity_name', label: 'Entity name', party: 'counterparty' as const },
+      ],
+    });
+    expect(document).toContain(counterpartyMarker('entity_name'));
+    // And no block for a party nobody has named yet.
+    expect(document).not.toMatch(/^For /m);
+  });
+
   it('renders a counterparty field as an unfilled label when nobody will sign', () => {
     const document = mergeTemplateDocument({
       ...base,

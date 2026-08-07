@@ -32,6 +32,10 @@ const BODY =
 
 const base = {
   body: BODY,
+  // The block below is driven by the NAME, not by the mode, so every case
+  // here holds the mode still and varies the name. mergeTemplateDocument
+  // takes both because they answer different questions.
+  deliveryMode: 'signature',
   fields: [{ key: 'start_date', label: 'Start date' }],
   values: { start_date: 'March 3, 2026' },
   firmName: 'Anderson Foundation',

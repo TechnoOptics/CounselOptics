@@ -157,6 +157,11 @@ async function renderTemplate(
   const document = mergeTemplateDocument({
     body: template.body,
     fields: template.fields,
+    // The mode this template is set to. Required, and this route is why: it
+    // renders for a firm member with nobody addressed, so a signature-mode
+    // template has no counterparty NAME here and must still carry the
+    // recipient's blank.
+    deliveryMode: template.deliveryMode,
     values: sanitizeTemplateValues(template.fields, body.values),
     firmName: firm?.name ?? 'the company',
     signatureName: String(body.signatureName ?? '').trim().slice(0, 120),

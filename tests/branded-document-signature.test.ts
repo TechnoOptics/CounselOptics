@@ -182,6 +182,7 @@ describe('the counterparty execution block', () => {
   for (let n = 28; n <= 43; n += 1) {
     it(`stays on one page (${n} clauses)`, async () => {
       const document = mergeTemplateDocument({
+        deliveryMode: 'signature',
         body: lines(n),
         fields: [],
         values: {},

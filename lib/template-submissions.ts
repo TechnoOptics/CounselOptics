@@ -153,6 +153,7 @@ async function buildDocument(
     signatureName,
     signerEmail,
     signedOn: formatSignedOn(new Date()),
+    deliveryMode: template.deliveryMode,
     // A template that goes out for signature carries a block for the other
     // side. The employee's preview passes this same rule through the same
     // helper, so what they read on the page and what the reviewer reads are

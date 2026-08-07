@@ -17,6 +17,7 @@ import { cleanLegalText } from '../lib/legal-templates';
  */
 
 const MERGED = mergeTemplateDocument({
+  deliveryMode: 'signature',
   body: 'This agreement is between {{firm_name}} and {{counterparty}}.',
   fields: [{ key: 'counterparty', label: 'Counterparty' }],
   values: { counterparty: 'Beta LLC' },
@@ -99,6 +100,7 @@ describe('mergeTemplateDocument keeps the block the locator looks for', () => {
 
   it('falls back to a signature rule when no name was typed', () => {
     const text = mergeTemplateDocument({
+      deliveryMode: 'signature',
       body: 'Body.',
       fields: [],
       values: {},
@@ -128,6 +130,7 @@ describe('the preview and the PDF resolve to the same line', () => {
    * hopeful approximation.
    */
   const messy = mergeTemplateDocument({
+    deliveryMode: 'signature',
     body: [
       '# MUTUAL NON-DISCLOSURE AGREEMENT',
       '',
