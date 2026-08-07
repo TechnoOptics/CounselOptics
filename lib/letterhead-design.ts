@@ -72,6 +72,16 @@ export const LETTERHEAD_NAME_SIZE = 16;
 export const LETTERHEAD_BODY_SIZE = 9.5;
 export const LETTERHEAD_FINE_SIZE = 8.5;
 
+/**
+ * The space under each line of the block, in points.
+ *
+ * Exported because three surfaces advance a cursor by it: the PDF renderer,
+ * the on-screen preview, and the Word export. A `+ 4` written out three times
+ * is the same drift lib/signature-geometry.ts exists because of, so it is
+ * written once.
+ */
+export const LETTERHEAD_LINE_GAP_PT = 4;
+
 /** What sits between phone, email and website on the contact line. */
 const CONTACT_SEPARATOR = '  -  ';
 
@@ -165,6 +175,45 @@ export function letterheadDesignLines(design: LetterheadDesign): LetterheadLine[
   }
 
   return lines;
+}
+
+/** One line of the block, in the units Word measures in. */
+export type LetterheadWordLine = {
+  text: string;
+  bold: boolean;
+  /** Word sizes type in half-points. */
+  sizeHalfPoints: number;
+  /** Word measures paragraph spacing in twentieths of a point. */
+  spacingAfterTwips: number;
+  /** The hairline rule hangs off the bottom of the last line, if asked for. */
+  rule: boolean;
+};
+
+/**
+ * The same block, for the Word export.
+ *
+ * It does not re-decide anything: the order, the text and the emphasis all
+ * come out of letterheadDesignLines above, and this only converts the units,
+ * because Word measures type in half-points and spacing in twentieths of a
+ * point while a PDF measures both in points. Word cannot hang a border off
+ * nothing, so the rule is carried on the last line rather than being a line of
+ * its own.
+ *
+ * A second layout written by hand here is exactly the defect this feature was
+ * asked to remove, one product surface disagreeing with another about what a
+ * firm's stationery says.
+ */
+export function letterheadDesignWordLines(
+  design: LetterheadDesign,
+): LetterheadWordLine[] {
+  const lines = letterheadDesignLines(design);
+  return lines.map((line, i) => ({
+    text: line.text,
+    bold: line.bold,
+    sizeHalfPoints: line.size * 2,
+    spacingAfterTwips: LETTERHEAD_LINE_GAP_PT * 20,
+    rule: design.showRule && i === lines.length - 1,
+  }));
 }
 
 /**

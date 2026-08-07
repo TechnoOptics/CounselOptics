@@ -5,6 +5,7 @@ import { cleanLegalText } from './legal-templates';
 import { findSignatureBlockLine } from './firm-template-placeholders';
 import { isWinAnsiEncodable } from './counterparty-fields';
 import {
+  LETTERHEAD_LINE_GAP_PT,
   letterheadDesignLines,
   type LetterheadDesign,
 } from './letterhead-design';
@@ -308,7 +309,7 @@ export async function buildBrandedDocumentPdf(
           color: line.bold ? accentColor : rgb(0.35, 0.35, 0.35),
         });
         lastY = lineY;
-        lineY -= line.size + 4;
+        lineY -= line.size + LETTERHEAD_LINE_GAP_PT;
       }
       if (designRule) {
         page.drawLine({

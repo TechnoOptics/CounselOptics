@@ -6,6 +6,7 @@ import { getActiveFirmContext } from './firm-storage';
 import { requireActiveFirm } from './firm-authz';
 import { createServerSupabase } from './supabase/server';
 import { generateLetterDocx } from './docx-export';
+import { firmLetterheadDesign } from './letterhead-design';
 import {
   buildClosingLines,
   sanitizeLetterOptions,
@@ -62,6 +63,10 @@ export async function saveLetterToCaseAction(
   try {
     buffer = await generateLetterDocx({
       firmName: ctx.firm.name,
+      // The firm's own designed letterhead, so the Word export and the PDF
+      // describe the same stationery. Read off the active firm, never the
+      // request body.
+      letterheadDesign: firmLetterheadDesign(ctx.firm.metadata),
       contactLine,
       accentHex: ctx.firm.accentColor,
       title,

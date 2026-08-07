@@ -8,6 +8,7 @@ import {
   saveFirmLetterheadDesignAction,
 } from '@/lib/firm-actions';
 import {
+  LETTERHEAD_LINE_GAP_PT,
   LETTERHEAD_MAX_ADDRESS_LINES,
   letterheadDesignLines,
   normalizeLetterheadDesign,
@@ -334,7 +335,7 @@ export function LetterheadDesigner({
                     data-no-translate
                     style={{
                       fontSize: `${line.size * PT_TO_PX}px`,
-                      lineHeight: `${(line.size + 4) * PT_TO_PX}px`,
+                      lineHeight: `${(line.size + LETTERHEAD_LINE_GAP_PT) * PT_TO_PX}px`,
                       fontWeight: line.bold ? 600 : 400,
                     }}
                     className={

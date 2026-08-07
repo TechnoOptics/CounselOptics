@@ -17,6 +17,10 @@ import {
 } from 'docx';
 import type { CommunityExportData } from './community-types';
 import type { ClosingLine } from './letter-compose';
+import {
+  letterheadDesignWordLines,
+  type LetterheadDesign,
+} from './letterhead-design';
 
 /**
  * Word export of a Community Case's submissions, mirroring the structure
@@ -281,6 +285,11 @@ function formatBytes(bytes: number): string {
 
 export type LetterDocxInput = {
   firmName: string;
+  /**
+   * The letterhead the firm designed under /counsel/settings. When present it
+   * IS the letterhead, and firmName + contactLine below are not drawn.
+   */
+  letterheadDesign?: LetterheadDesign | null;
   /** Optional sub-line under the firm name: address, jurisdictions, etc. */
   contactLine?: string | null;
   /** Firm accent, hex with or without leading '#'. */
@@ -295,11 +304,36 @@ export type LetterDocxInput = {
 
 /**
  * Word (.docx) export of a generated letter (#13). Word letters use a
- * typographic letterhead (firm name in the accent color + a contact
- * sub-line + a rule) rather than an embedded raster - it's editable,
- * deterministic, and avoids image-dimension math. The PDF export
- * renders the uploaded letterhead image instead, so a firm gets both:
- * an editable Word original and a pixel-branded PDF.
+ * typographic letterhead rather than an embedded raster - it's editable,
+ * deterministic, and avoids image-dimension math.
+ *
+ * WHERE THE LETTERHEAD COMES FROM. If the firm designed one under
+ * /counsel/settings, the block is built from letterheadDesignWordLines, which
+ * is the SAME layout the PDF renderer draws, converted into Word's units.
+ * Nothing about the order or the emphasis is decided here. A firm that typed
+ * its address once should not find that its Word export and its PDF describe
+ * different stationery, which is the whole point of the feature. Failing a
+ * design, the old block (firm name in the accent color plus a contact
+ * sub-line) is the fallback, and it plays the same role the PDF's text-only
+ * banner does.
+ *
+ * WHAT DOES NOT SURVIVE THE CROSSING, stated rather than approximated:
+ *
+ *   - The accent bar the PDF paints across the very top of the page. Word has
+ *     no page-edge rectangle short of a floating shape, and a floating shape
+ *     in a document a lawyer is about to edit is worse than its absence.
+ *   - Repetition. The PDF paints the letterhead on EVERY page; this block sits
+ *     once at the top of the document body. Moving it into a Word Header would
+ *     repeat it, but it would also relayout every letter this product has
+ *     already exported, so it stays in the body.
+ *   - The uploaded letterhead IMAGE, which this export has never drawn and
+ *     still does not. So a firm holding both an image and a design gets the
+ *     image on the PDF and the design in Word. That is a narrower gap than the
+ *     one that existed before, not a new one.
+ *
+ * Type size, the line gap and the rule weight DO cross intact: Word measures
+ * type in half-points and spacing in twentieths of a point, and both are exact
+ * multiples of the points the PDF uses.
  */
 export async function generateLetterDocx(
   input: LetterDocxInput,
@@ -307,16 +341,45 @@ export async function generateLetterDocx(
   const accent = (input.accentHex || '#0f2d24').replace(/^#/, '').slice(0, 6);
   const children: Array<Paragraph | Table> = [];
 
-  // Typographic letterhead.
-  children.push(
-    new Paragraph({
-      spacing: { after: 40 },
-      children: [
-        new TextRun({ text: input.firmName, bold: true, size: 30, color: accent }),
-      ],
-    }),
-  );
-  if (input.contactLine && input.contactLine.trim()) {
+  const design = input.letterheadDesign ?? null;
+  if (design) {
+    const alignment =
+      design.alignment === 'center' ? AlignmentType.CENTER : AlignmentType.LEFT;
+    for (const line of letterheadDesignWordLines(design)) {
+      children.push(
+        new Paragraph({
+          alignment,
+          // The gap under the last line is widened, because that is where the
+          // body starts rather than where the next letterhead line does.
+          spacing: { after: line.rule ? 120 : line.spacingAfterTwips },
+          border: line.rule
+            ? {
+                // size is in eighths of a point, so 4 is the 0.5pt hairline
+                // the PDF renderer draws.
+                bottom: { style: BorderStyle.SINGLE, size: 4, color: accent, space: 6 },
+              }
+            : undefined,
+          children: [
+            new TextRun({
+              text: line.text,
+              bold: line.bold,
+              size: line.sizeHalfPoints,
+              color: line.bold ? accent : '52525B',
+            }),
+          ],
+        }),
+      );
+    }
+  } else {
+    // No design: the old typographic block, unchanged.
+    children.push(
+      new Paragraph({
+        spacing: { after: 40 },
+        children: [
+          new TextRun({ text: input.firmName, bold: true, size: 30, color: accent }),
+        ],
+      }),
+    );
     children.push(
       new Paragraph({
         spacing: { after: 120 },
@@ -324,18 +387,12 @@ export async function generateLetterDocx(
           bottom: { style: BorderStyle.SINGLE, size: 6, color: accent, space: 6 },
         },
         children: [
-          new TextRun({ text: input.contactLine.trim(), size: 18, color: '52525B' }),
+          new TextRun({
+            text: input.contactLine?.trim() ?? '',
+            size: input.contactLine?.trim() ? 18 : 2,
+            color: '52525B',
+          }),
         ],
-      }),
-    );
-  } else {
-    children.push(
-      new Paragraph({
-        spacing: { after: 120 },
-        border: {
-          bottom: { style: BorderStyle.SINGLE, size: 6, color: accent, space: 6 },
-        },
-        children: [new TextRun({ text: '', size: 2 })],
       }),
     );
   }

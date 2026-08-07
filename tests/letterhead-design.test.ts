@@ -2,7 +2,9 @@ import { describe, it, expect } from 'vitest';
 import {
   LETTERHEAD_DESIGN_METADATA_KEY,
   LETTERHEAD_MAX_ADDRESS_LINES,
+  LETTERHEAD_LINE_GAP_PT,
   letterheadDesignLines,
+  letterheadDesignWordLines,
   firmLetterheadDesign,
   normalizeLetterheadDesign,
   parseLetterheadDesignReply,
@@ -264,5 +266,56 @@ describe('firmLetterheadDesign: reading the design out of the metadata bag', () 
     expect(firmLetterheadDesign(null)).toBeNull();
     expect(firmLetterheadDesign(undefined)).toBeNull();
     expect(firmLetterheadDesign({ [LETTERHEAD_DESIGN_METADATA_KEY]: 'yes' })).toBeNull();
+  });
+});
+
+describe('letterheadDesignWordLines: the same block, in the units Word measures in', () => {
+  it('is the PDF list, in the same order and with the same emphasis', () => {
+    const pdf = letterheadDesignLines(design());
+    const word = letterheadDesignWordLines(design());
+    expect(word.map((l) => l.text)).toEqual(pdf.map((l) => l.text));
+    expect(word.map((l) => l.bold)).toEqual(pdf.map((l) => l.bold));
+  });
+
+  it('converts points to half-points, which is how Word sizes type', () => {
+    const pdf = letterheadDesignLines(design());
+    const word = letterheadDesignWordLines(design());
+    for (let i = 0; i < pdf.length; i += 1) {
+      expect(word[i].sizeHalfPoints).toBe(pdf[i].size * 2);
+    }
+  });
+
+  it('spaces lines by the one gap the PDF and the preview also use', () => {
+    for (const line of letterheadDesignWordLines(design())) {
+      expect(line.spacingAfterTwips).toBe(LETTERHEAD_LINE_GAP_PT * 20);
+    }
+  });
+
+  it('hangs the rule on the last line only, and only when the firm asked for one', () => {
+    const withRule = letterheadDesignWordLines(design({ showRule: true }));
+    expect(withRule.map((l) => l.rule)).toEqual([
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+    ]);
+    const withoutRule = letterheadDesignWordLines(design({ showRule: false }));
+    expect(withoutRule.some((l) => l.rule)).toBe(false);
+  });
+
+  it('hangs the rule on the firm name when that is the only line', () => {
+    const only = letterheadDesignWordLines(
+      design({
+        addressLines: [],
+        phone: '',
+        email: '',
+        website: '',
+        admissionsLine: '',
+      }),
+    );
+    expect(only).toHaveLength(1);
+    expect(only[0].rule).toBe(true);
   });
 });

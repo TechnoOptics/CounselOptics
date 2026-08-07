@@ -2,6 +2,7 @@ import { type NextRequest } from 'next/server';
 import { getCurrentUser, isSupabaseConfigured } from '@/lib/supabase/server';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { generateLetterDocx } from '@/lib/docx-export';
+import { firmLetterheadDesign } from '@/lib/letterhead-design';
 import {
   buildClosingLines,
   sanitizeLetterOptions,
@@ -52,6 +53,10 @@ export async function POST(req: NextRequest) {
   try {
     buffer = await generateLetterDocx({
       firmName: ctx.firm.name,
+      // The firm's own designed letterhead, so the Word export and the PDF
+      // describe the same stationery. Read off the active firm, never the
+      // request body.
+      letterheadDesign: firmLetterheadDesign(ctx.firm.metadata),
       contactLine,
       accentHex: ctx.firm.accentColor,
       title,
