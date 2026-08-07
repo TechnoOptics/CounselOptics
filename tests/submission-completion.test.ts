@@ -45,8 +45,12 @@ vi.mock('../lib/firm-authz', () => ({
 }));
 vi.mock('../lib/intake-notify', () => ({ siteUrl: () => 'https://advottic.test' }));
 
-const { notifySubmissionCompletion, submissionPortalPath, loadSubmissionSigning } =
-  await import('../lib/submission-completion');
+const {
+  notifySubmissionCompletion,
+  submissionPortalPath,
+  loadSubmissionSigning,
+  submissionCategoriesForRequests,
+} = await import('../lib/submission-completion');
 
 // ── A narrow fake of the admin client ────────────────────────────────────
 
@@ -65,6 +69,7 @@ const db = {
 
 class Query implements PromiseLike<{ data: unknown; error: unknown }> {
   private conds: Array<[string, unknown]> = [];
+  private ins: Array<[string, readonly unknown[]]> = [];
   private selected = '';
   constructor(private rows: Row[], private table: string) {}
   select(cols = '') {
@@ -75,6 +80,10 @@ class Query implements PromiseLike<{ data: unknown; error: unknown }> {
     this.conds.push([col, value]);
     return this;
   }
+  in(col: string, values: readonly unknown[]) {
+    this.ins.push([col, values]);
+    return this;
+  }
   limit() {
     return this;
   }
@@ -82,11 +91,19 @@ class Query implements PromiseLike<{ data: unknown; error: unknown }> {
     // PostgREST refuses the whole statement when a filter or a projection
     // names a column the table does not have. That is what a firm running
     // without the migration gets, and it must not break the signing path.
-    const named = [this.selected, ...this.conds.map(([c]) => c)].join(',');
+    const named = [
+      this.selected,
+      ...this.conds.map(([c]) => c),
+      ...this.ins.map(([c]) => c),
+    ].join(',');
     if (db.missingColumn && named.includes(db.missingColumn)) {
       return { data: null, error: { code: '42703', message: 'column does not exist' } };
     }
-    const hits = this.rows.filter((r) => this.conds.every(([c, v]) => r[c] === v));
+    const hits = this.rows.filter(
+      (r) =>
+        this.conds.every(([c, v]) => r[c] === v) &&
+        this.ins.every(([c, vs]) => vs.includes(r[c])),
+    );
     return { data: hits, error: null };
   }
   maybeSingle() {
@@ -410,5 +427,58 @@ describe('loadSubmissionSigning', () => {
 
   it('reports nothing for a signing request that is not there', async () => {
     expect(await loadSubmissionSigning(admin, 'no-such-request', true)).toBeNull();
+  });
+});
+
+/**
+ * The legal team's side of the same fact: what each executed request was
+ * filed under, so the queue can group by it.
+ */
+describe('submissionCategoriesForRequests', () => {
+  it('reads the category off the submission that produced each request', async () => {
+    const map = await submissionCategoriesForRequests(admin, 'firm-1', [REQUEST_ID]);
+    expect(map.get(REQUEST_ID)).toBe('NDA');
+  });
+
+  /**
+   * A request with no submission behind it is simply absent, and the caller
+   * groups it as unfiled. It is a plainly uploaded document and there is
+   * nothing on the record that says what kind it is.
+   */
+  it('omits a request no submission produced', async () => {
+    const map = await submissionCategoriesForRequests(admin, 'firm-1', ['req-other']);
+    expect(map.size).toBe(0);
+  });
+
+  /**
+   * The service-role client bypasses RLS, so scoping the read to the firm the
+   * page has already established the caller belongs to is the whole of the
+   * containment. A firm id that does not match reads nothing.
+   */
+  it('reads nothing outside the firm it was asked about', async () => {
+    const map = await submissionCategoriesForRequests(admin, 'firm-other', [REQUEST_ID]);
+    expect(map.size).toBe(0);
+  });
+
+  it('labels a submission with no category of its own as unfiled', async () => {
+    db.submissions[0].category = null;
+    const map = await submissionCategoriesForRequests(admin, 'firm-1', [REQUEST_ID]);
+    expect(map.get(REQUEST_ID)).toBe('Unfiled');
+  });
+
+  /**
+   * With the migration unapplied the whole statement is refused. The queue
+   * must render, so this comes back empty and every request groups as
+   * unfiled rather than the page failing.
+   */
+  it('comes back empty rather than throwing when the migration is unapplied', async () => {
+    db.missingColumn = 'signing_request_id';
+    const map = await submissionCategoriesForRequests(admin, 'firm-1', [REQUEST_ID]);
+    expect(map.size).toBe(0);
+  });
+
+  it('asks nothing at all for an empty list', async () => {
+    const map = await submissionCategoriesForRequests(admin, 'firm-1', []);
+    expect(map.size).toBe(0);
   });
 });

@@ -217,6 +217,50 @@ export async function loadSubmissionSigning(
   };
 }
 
+/**
+ * What each of a firm's signing requests was filed under, for the queue that
+ * groups the executed ones.
+ *
+ * The category comes from the SUBMISSION, which is where slice 2 copied it
+ * from the template at filing time. It is deliberately not read back off the
+ * template and deliberately not a column on firm_documents: a column there
+ * would need a way for a firm to set it on a plainly uploaded file, which is
+ * a separate decision from this one.
+ *
+ * Requests with no submission behind them are simply absent from the map, and
+ * the caller groups them as unfiled. So is every request when
+ * 20260807_flow_join.sql has not been applied, because PostgREST refuses the
+ * whole statement and this returns an empty map rather than throwing into a
+ * queue render.
+ *
+ * The firm id is a filter and not a formality. This reads through the
+ * service-role client, which bypasses RLS, so scoping the read to the firm
+ * the caller has already been shown to belong to is the whole of the
+ * containment.
+ */
+export async function submissionCategoriesForRequests(
+  admin: Admin,
+  firmId: string,
+  signingRequestIds: readonly string[],
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  if (signingRequestIds.length === 0) return out;
+  const { data, error } = await admin
+    .from('firm_template_submissions')
+    .select('signing_request_id, category')
+    .eq('firm_id', firmId)
+    .in('signing_request_id', [...signingRequestIds]);
+  if (error) return out;
+  for (const row of (data ?? []) as unknown as {
+    signing_request_id: string | null;
+    category: string | null;
+  }[]) {
+    if (!row.signing_request_id) continue;
+    out.set(row.signing_request_id, normalizeCategory(row.category));
+  }
+  return out;
+}
+
 /** The reference the record carries, or the derived one if it has none. */
 function refOf(row: CompletionRow): string {
   return displayTicket({ ticketNumber: row.ticket_number, id: row.id });
