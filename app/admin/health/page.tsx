@@ -292,23 +292,38 @@ function SecurityTile({
   security: {
     openEvents: number;
     last24hCount: number;
+    last24hMedium: number;
     last24hHigh: number;
     last24hCritical: number;
   };
 }) {
-  const danger = security.last24hCritical > 0 || security.last24hHigh > 0;
-  const tone = danger
-    ? 'text-rose-300'
-    : security.last24hCount > 0
-      ? 'text-amber-300'
-      : 'text-emerald-300';
+  // Tone keys off severity, never off volume. It used to read amber
+  // whenever the count was non-zero, so nine routine successful sign-ins
+  // painted this tile amber: `login` is written at severity low and
+  // pre-acknowledged precisely because it is an audit record and not an
+  // alert (see lib/security-audit.ts). Medium is privileged access,
+  // admin_case_view and admin_impersonation, which is worth an operator's
+  // eye. Low is the audit trail doing its job and is not coloured at all.
+  const tone =
+    security.last24hCritical > 0 || security.last24hHigh > 0
+      ? 'text-rose-300'
+      : security.last24hMedium > 0
+        ? 'text-amber-300'
+        : 'text-cream-100/75';
   return (
     <Tile
       label="Security events (24h)"
+      // The zero state used to read "No suspicious activity detected" in
+      // emerald. That is the same sentence removed from the Failed-logins
+      // tile and it is wrong for the same reason: nothing behind this feed
+      // detects suspicious activity. login_failed is never written, and
+      // `suspicious` is not a member of SecurityEventKind. Zero here means
+      // nothing was logged, which is not evidence of safety.
+      titleHint="Counts every security_events row in the last 24h, most of which are routine audit records (sign-ins are severity low and written pre-acknowledged). Nothing behind this feed detects intrusion, so a low number is not an all-clear."
       sub={
         security.last24hCount === 0
-          ? 'No suspicious activity detected'
-          : `${security.last24hHigh} high · ${security.last24hCritical} critical · ${security.openEvents} open`
+          ? 'Nothing logged in the last 24h. This feed records activity, it does not detect it.'
+          : `${security.last24hMedium} privileged · ${security.last24hHigh} high · ${security.last24hCritical} critical · ${security.openEvents} open`
       }
     >
       <p className={`font-display text-4xl font-medium tabular-nums ${tone}`}>

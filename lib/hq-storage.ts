@@ -503,6 +503,8 @@ export type HqHealthExtras = {
   security: {
     openEvents: number;
     last24hCount: number;
+    /** Privileged-access entries (admin_case_view, admin_impersonation). */
+    last24hMedium: number;
     last24hHigh: number;
     last24hCritical: number;
   };
@@ -524,7 +526,13 @@ export async function adminGetHqHealthExtras(): Promise<HqHealthExtras> {
   if (!admin) {
     return {
       gdpr: { consented: 0, total: 0, rate: 0 },
-      security: { openEvents: 0, last24hCount: 0, last24hHigh: 0, last24hCritical: 0 },
+      security: {
+        openEvents: 0,
+        last24hCount: 0,
+        last24hMedium: 0,
+        last24hHigh: 0,
+        last24hCritical: 0,
+      },
       uptime: { passedProbes: 0, totalProbes: 0, ratio: null, passedRuns: 0, totalRuns: 0 },
       activity: { totalAccounts: 0, onlineNow: 0, activeToday: 0, activeWeek: 0 },
     };
@@ -563,6 +571,7 @@ export async function adminGetHqHealthExtras(): Promise<HqHealthExtras> {
   const total = profiles.length;
 
   const recent = (securityRecentResp.data ?? []) as { severity: string }[];
+  const last24hMedium = recent.filter((r) => r.severity === 'medium').length;
   const last24hHigh = recent.filter((r) => r.severity === 'high').length;
   const last24hCritical = recent.filter((r) => r.severity === 'critical').length;
 
@@ -599,6 +608,7 @@ export async function adminGetHqHealthExtras(): Promise<HqHealthExtras> {
     security: {
       openEvents: securityOpenResp.count ?? 0,
       last24hCount: recent.length,
+      last24hMedium,
       last24hHigh,
       last24hCritical,
     },
