@@ -248,7 +248,11 @@ export function parseTemplateProposal(raw: string): TemplateProposal | null {
       continue;
     }
     if (!declared.has(key)) {
-      unusable.push(key);
+      // A signature placeholder was taken out of the body a few lines above,
+      // and the note about that already explains where it went. Reporting it a
+      // second time as a placeholder the body lacks would send the reviewer
+      // looking for a blank that was never missing.
+      if (!signatureKeys.includes(key)) unusable.push(key);
       continue;
     }
     const label = String(field.label ?? '').trim().slice(0, MAX_LABEL_CHARS) || key;

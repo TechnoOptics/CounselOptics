@@ -293,6 +293,26 @@ describe('parseTemplateProposal: signatures', () => {
     expect(res?.notes.some((n) => n.includes('employee_signature'))).toBe(true);
   });
 
+  it('does not also report a removed signature field as a missing placeholder', () => {
+    // Mutation: let a signature key fall through into `unusable`. The reviewer
+    // is then told the same field both was removed on purpose and had no
+    // placeholder, and goes looking for a blank that was never missing.
+    const res = parseTemplateProposal(
+      reply({
+        body: 'Employee: {{employee_name}}\nSigned: {{employee_signature}}',
+        fields: [
+          { key: 'employee_name', label: 'Employee name' },
+          { key: 'employee_signature', label: 'Signature' },
+          { key: 'governing_law', label: 'Governing law' },
+        ],
+      }),
+    );
+    const missing = res!.notes.filter((n) => n.includes('no matching placeholder'));
+    expect(missing).toHaveLength(1);
+    expect(missing[0]).toContain('governing_law');
+    expect(missing[0]).not.toContain('employee_signature');
+  });
+
   it('leaves a date field whose name merely mentions signing alone', () => {
     // Mutation: widen the signature-placeholder rule to any key containing
     // "sign". {{signature_date}} disappears from the body and the document
