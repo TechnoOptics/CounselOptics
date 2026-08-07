@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   checkDispatchable,
+  counterSignatureParty,
   parseDeliveryMode,
   resolveDeliveryModeColumnFallback,
   DELIVERY_MODE_UNSAVED_ERROR,
@@ -216,5 +217,83 @@ describe('resolveDeliveryModeColumnFallback', () => {
   it('says what the abort means without naming a table or a column', () => {
     expect(DELIVERY_MODE_UNSAVED_ERROR).toMatch(/administrator/i);
     expect(DELIVERY_MODE_UNSAVED_ERROR).not.toMatch(/delivery_mode|PGRST/);
+  });
+});
+
+/**
+ * Who signs, and in what order.
+ *
+ * The client's sentence ends "the employee is then prompted to sign and date
+ * their own part, completing the process". This is that sentence as a rule.
+ * It is pure and it is tested because the alternative shape, a second signing
+ * request for the employee, would give one agreement two executed PDFs and two
+ * audit chains, and the thing standing between the product and that is this
+ * function returning two signers rather than one caller remembering to.
+ */
+describe('counterSignatureParty', () => {
+  const BOTH = {
+    recipient_email: 'ops@acme.test',
+    recipient_name: 'Acme Ops',
+    submitter_email: 'dana@firm.test',
+    submitter_name: 'Dana Reyes',
+  };
+
+  it('puts the counterparty first and the employee second', () => {
+    expect(counterSignatureParty(BOTH)).toEqual([
+      { email: 'ops@acme.test', name: 'Acme Ops', order: 1 },
+      { email: 'dana@firm.test', name: 'Dana Reyes', order: 2 },
+    ]);
+  });
+
+  it('numbers them, because an unnumbered pair is invited all at once', () => {
+    // Null order is "no order" everywhere in lib/signer-order.ts, so an
+    // omitted number here would email the employee their link at the same
+    // moment as the counterparty and let them sign an unfinished instrument.
+    const [first, second] = counterSignatureParty(BOTH);
+    expect(first.order).toBe(1);
+    expect(second.order).toBe(2);
+    expect(second.order).toBeGreaterThan(first.order);
+  });
+
+  it('sends one signer when the record has no submitter address', () => {
+    // Submissions filed before the column was populated have none, and there
+    // is then nobody to counter-sign. That is today's behaviour, not an error
+    // worth refusing an approved document over.
+    expect(
+      counterSignatureParty({ ...BOTH, submitter_email: null }),
+    ).toEqual([{ email: 'ops@acme.test', name: 'Acme Ops', order: 1 }]);
+    expect(
+      counterSignatureParty({ ...BOTH, submitter_email: '   ' }),
+    ).toHaveLength(1);
+  });
+
+  it('sends one signer when the employee IS the recipient', () => {
+    // Two signature rows for one address would mean two links and two turns
+    // for one person, and the second would sit waiting on the first forever.
+    expect(
+      counterSignatureParty({ ...BOTH, submitter_email: 'ops@acme.test' }),
+    ).toHaveLength(1);
+    expect(
+      counterSignatureParty({ ...BOTH, submitter_email: '  OPS@Acme.TEST ' }),
+    ).toHaveLength(1);
+  });
+
+  it('normalises the employee address it passes on', () => {
+    const [, employee] = counterSignatureParty({
+      ...BOTH,
+      submitter_email: '  Dana@Firm.TEST ',
+    });
+    expect(employee.email).toBe('dana@firm.test');
+  });
+
+  it('omits a name rather than sending an empty one', () => {
+    const signers = counterSignatureParty({
+      recipient_email: 'ops@acme.test',
+      recipient_name: null,
+      submitter_email: 'dana@firm.test',
+      submitter_name: null,
+    });
+    expect(signers[0].name).toBeUndefined();
+    expect(signers[1].name).toBeUndefined();
   });
 });

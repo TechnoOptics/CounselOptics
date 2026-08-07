@@ -3,10 +3,21 @@ import crypto from 'node:crypto';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { appendSignatureEvent } from '@/lib/esign-audit';
 import {
+  INTERNAL_SIGNER_GATE_COPY,
+  isUnknownColumnError,
+  maskSignerEmail,
   projectSignerConsentMetadata,
+  resolveInternalSignerGate,
   type SignerConsentPayload,
 } from '@/lib/signer-view';
 import { SIGNER_ALREADY_SIGNED_SENTENCE } from '@/lib/signer-retention';
+import {
+  SIGNER_NOT_YET_YOUR_TURN,
+  nextInviteIndex,
+  resolveSignerTurn,
+  type SignerOrderRecord,
+} from '@/lib/signer-order';
+import { getRealCurrentUser } from '@/lib/supabase/server';
 
 /**
  * The one function that records a signature.
@@ -31,6 +42,78 @@ import { SIGNER_ALREADY_SIGNED_SENTENCE } from '@/lib/signer-retention';
  */
 
 export type SignatureSource = 'web' | 'mobile_handoff';
+
+/** Every signer on one request, with enough of them to decide a turn. */
+type SignerOrderRow = SignerOrderRecord & { id: string; signerEmail: string };
+
+type SignerOrderLoad =
+  /** signer_order exists, and the rows carry what it says. */
+  | { kind: 'ordered'; rows: SignerOrderRow[] }
+  /** The column is not there yet. Every signer reads as unordered,
+   *  which is exactly the product's behaviour before this shipped. */
+  | { kind: 'unordered'; rows: SignerOrderRow[] }
+  /** The read failed for some other reason. */
+  | { kind: 'unreadable' };
+
+/**
+ * Read the signers on a request, with their order when there is one.
+ *
+ * The two-step is not defensive noise. 20260807_flow_join.sql is written
+ * and unapplied, and PostgREST refuses an entire statement that names a
+ * column the table does not have, so selecting signer_order on an
+ * unmigrated database would fail the read and, with it, every signature
+ * on every request. The fallback is a second select without the column,
+ * and its result is labelled 'unordered' rather than quietly filled with
+ * nulls, because the caller has to know not to put signer_order into the
+ * claim filter either.
+ *
+ * Narrowly scoped to a missing column, on purpose. A permission failure
+ * or a dropped connection must NOT read as "this firm has no ordering":
+ * that would turn an infrastructure problem into a signature taken out
+ * of turn, which is the one outcome this whole slice exists to prevent.
+ * Anything that is not a missing column comes back 'unreadable' and the
+ * caller fails closed.
+ *
+ * Exported so /sign/[token] can ask the same question of the same rows
+ * through the same reader. The page is not the gate (this file is), but
+ * a signer who is going to be refused should read a sentence rather than
+ * draw their name and then be told.
+ */
+export async function loadSignerOrder(
+  admin: NonNullable<ReturnType<typeof createAdminSupabase>>,
+  signingRequestId: string,
+): Promise<SignerOrderLoad> {
+  const { data, error } = await admin
+    .from('firm_signatures')
+    .select('id, signer_email, signed_at, signer_order')
+    .eq('signing_request_id', signingRequestId)
+    .order('signer_order', { ascending: true, nullsFirst: true });
+  if (!error) {
+    return { kind: 'ordered', rows: toOrderRows(data) };
+  }
+  if (!isUnknownColumnError(error, 'signer_order')) return { kind: 'unreadable' };
+  const { data: plain, error: plainErr } = await admin
+    .from('firm_signatures')
+    .select('id, signer_email, signed_at')
+    .eq('signing_request_id', signingRequestId);
+  if (plainErr) return { kind: 'unreadable' };
+  return { kind: 'unordered', rows: toOrderRows(plain) };
+}
+
+function toOrderRows(data: unknown): SignerOrderRow[] {
+  const rows = (data ?? []) as Array<{
+    id: string;
+    signer_email: string | null;
+    signed_at: string | null;
+    signer_order?: number | null;
+  }>;
+  return rows.map((r) => ({
+    id: r.id,
+    signerEmail: r.signer_email ?? '',
+    signedAt: r.signed_at ?? null,
+    order: typeof r.signer_order === 'number' ? r.signer_order : null,
+  }));
+}
 
 /**
  * How the signature row is found.
@@ -200,6 +283,77 @@ export async function recordSignature(
     return { ok: false, status: 410, error: SIGNER_ALREADY_SIGNED_SENTENCE };
   }
 
+  // Is this really the person the row names?
+  //
+  // For an EXTERNAL signer the answer was already given: they hold a
+  // one-time access code, checked a few lines up, and this gate returns
+  // 'allow' for them. For an INTERNAL signer there was no answer at all.
+  // createSigningRequestAction issues firm members and employees no
+  // code, on purpose, so before this the durable /sign/[token] URL alone
+  // was sufficient to produce a signature in an employee's name on an
+  // executed agreement. That URL is emailed, forwarded, copied out of a
+  // notification and kept alive for the whole retention window.
+  //
+  // So an internal signer must be signed in, as themselves. The session
+  // is read here rather than in the routes because BOTH routes call this
+  // function and a gate written in one of them is not a gate: every
+  // 'use server' export and every route handler is a public HTTP
+  // endpoint, and /api/firm/sign takes the token straight out of a
+  // request body.
+  //
+  // getRealCurrentUser, not getCurrentUser: the HQ "act as" overlay
+  // resolves to the target user, and an operator viewing as an employee
+  // must not thereby be able to sign as them. Impersonation is exactly
+  // what this gate exists to refuse.
+  //
+  // Consequence, stated rather than discovered: an internal signer who
+  // hands their laptop's ceremony to their phone with the QR code must
+  // be signed in on the phone too, because the phone is the device that
+  // submits. That is the same requirement, on the device that makes the
+  // mark, and the pad tells them so.
+  const sessionEmail = await getRealCurrentUser()
+    .then((u) => u?.email ?? null)
+    .catch(() => null);
+  const gate = resolveInternalSignerGate({
+    accessCodeRequired: Boolean(sig.access_code_hash),
+    signerEmail: sig.signer_email,
+    sessionEmail,
+  });
+  if (gate !== 'allow') {
+    return {
+      ok: false,
+      status: 403,
+      error:
+        gate === 'sign-in-required'
+          ? INTERNAL_SIGNER_GATE_COPY['sign-in-required']
+          : INTERNAL_SIGNER_GATE_COPY['wrong-account'](
+              maskSignerEmail(sig.signer_email),
+            ),
+    };
+  }
+
+  // Whose turn it is.
+  //
+  // Read once, here, and carried into the claim below rather than acted
+  // on separately. A signer whose turn has not come is refused by this
+  // write and not merely hidden by the page, because the page is not
+  // what a leaked link posts to.
+  const order = await loadSignerOrder(admin, request.id);
+  if (order.kind === 'unreadable') {
+    // Fail closed, and retryably. Not knowing whose turn it is, is not
+    // the same as it being this signer's turn, and nothing has been
+    // written at this point so a retry costs the signer one click.
+    return {
+      ok: false,
+      status: 503,
+      error: 'This signature could not be recorded just now. Please try again shortly.',
+    };
+  }
+  const selfIndex = order.rows.findIndex((r) => r.id === sig.id);
+  if (resolveSignerTurn(order.rows, selfIndex) === 'waiting') {
+    return { ok: false, status: 409, error: SIGNER_NOT_YET_YOUR_TURN };
+  }
+
   // Decode the PNG. The upload happens AFTER the claim below, not
   // before it, and the order is the point: the storage path is keyed on
   // the signature id and the upload is upsert, so a request that is
@@ -251,7 +405,23 @@ export async function recordSignature(
   // previous unchecked await would have swallowed a failed write and
   // gone on to append a 'signed' event for a signature that was never
   // recorded.
-  const { data: claimed, error: claimErr } = await admin
+  //
+  // The ordering decision rides on this same claim rather than standing
+  // in front of it as a second write. The turn was resolved from one
+  // read a few lines up, and what goes into the filter here is the fact
+  // that decision rests on: this row's own signer_order, as it was when
+  // the turn was worked out. A firm that reorders its signers between
+  // the read and the write loses this claim instead of taking a
+  // signature the new order forbids, and there is still exactly one
+  // update that sets signed_at.
+  //
+  // The filter is added only when the column is actually there.
+  // 20260807_flow_join.sql is unapplied, and PostgREST refuses a whole
+  // statement that names a column the table does not have, so filtering
+  // on signer_order unconditionally would stop every firm without the
+  // migration from signing anything at all. loadSignerOrder is what
+  // establishes the difference.
+  const claim = admin
     .from('firm_signatures')
     .update({
       signed_at: new Date().toISOString(),
@@ -262,8 +432,13 @@ export async function recordSignature(
       signer_name: input.typedName?.trim() || undefined,
     })
     .eq('id', sig.id)
-    .is('signed_at', null)
-    .select('id');
+    .is('signed_at', null);
+  if (order.kind === 'ordered') {
+    const self = order.rows[selfIndex];
+    if (self && self.order !== null) claim.eq('signer_order', self.order);
+    else claim.is('signer_order', null);
+  }
+  const { data: claimed, error: claimErr } = await claim.select('id');
   if (claimErr) {
     return { ok: false, status: 500, error: claimErr.message };
   }
@@ -351,6 +526,53 @@ export async function recordSignature(
   const updates: Record<string, unknown> = { status: nextStatus };
   if (nextStatus === 'completed') updates.completed_at = new Date().toISOString();
   await admin.from('firm_signing_requests').update(updates).eq('id', request.id);
+
+  // Invite whoever this signature just unlocked.
+  //
+  // The token they need already exists; it was created with the request
+  // and simply was not mailed to them, because their turn had not come.
+  // So this is one message and nothing else: no new row, no new token,
+  // no new access code.
+  //
+  // "Just unlocked" is the whole condition, and it is why the before
+  // state is asked as well as the after. A signer who is ready now may
+  // have been ready when the request was created and been emailed then,
+  // which is every signer on an unordered request. Only somebody who was
+  // WAITING before this signature landed has anything new to be told.
+  //
+  // Best effort, and inside its own catch: a signature that has been
+  // recorded must never be undone because a mail provider was
+  // unreachable. The firm can resend from the signing surface.
+  if (nextStatus !== 'completed' && order.kind === 'ordered' && selfIndex >= 0) {
+    try {
+      const after: SignerOrderRecord[] = order.rows.map((r, i) =>
+        i === selfIndex ? { ...r, signedAt: new Date().toISOString() } : r,
+      );
+      const next = nextInviteIndex(after);
+      if (next !== null && resolveSignerTurn(order.rows, next) === 'waiting') {
+        const { sendNextSignerInvite } = await import('@/lib/signer-invite');
+        const invited = await sendNextSignerInvite(admin, order.rows[next].id);
+        // Recorded only when the provider actually took it, the same
+        // discipline access_code_sent already follows in
+        // createSigningRequestAction. The chain is evidence; it must not
+        // assert a delivery that never happened. A send that failed
+        // leaves the signer visibly uninvited on the counsel signing
+        // surface, where a resend is one click.
+        if (invited.ok) {
+          await appendSignatureEvent(admin, {
+            signingRequestId: request.id,
+            signatureId: order.rows[next].id,
+            eventType: 'reminder_sent',
+            signerEmail: order.rows[next].signerEmail,
+            documentSha256: request.document_sha256,
+            metadata: { reason: 'signer_turn_reached' },
+          }).catch(() => {});
+        }
+      }
+    } catch {
+      /* the next invitation is best effort and never fails a signature */
+    }
+  }
 
   // If everyone has signed, emit the closing 'completed' event so
   // the audit trail terminates cleanly, render the executed PDF

@@ -38,9 +38,15 @@ import { logSecurityEvent } from './security-audit';
 import { checkRateLimit } from './rate-limit';
 import {
   SIGNER_DOWNLOAD_RESTRICTION_UNSAVED_ERROR,
+  isUnknownColumnError,
   resolveDownloadColumnFallback,
 } from './signer-view';
-import { SIGNER_COPY_RETENTION_DAYS } from './signer-retention';
+import { resolveSignerTurn } from './signer-order';
+// The link email lives in a server-only module now, because a signer
+// numbered second is invited from lib/signature-write.ts rather than
+// from here, and a resend, a first send and a late invitation have to be
+// the same message. See lib/signer-invite.ts.
+import { sendSigningLinkEmail } from './signer-invite';
 import {
   readPortalRoles,
   sanitizeFeatures,
@@ -2343,7 +2349,22 @@ async function markSigningRequestSent(
 export async function createSigningRequestAction(
   firmId: string,
   documentId: string,
-  signers: Array<{ email: string; name?: string; positionPage?: number; positionX?: number; positionY?: number }>,
+  signers: Array<{
+    email: string;
+    name?: string;
+    positionPage?: number;
+    positionX?: number;
+    positionY?: number;
+    /**
+     * Where this signer sits in the sequence, or omitted for "no order",
+     * which is what every caller but the template dispatch passes and
+     * what every request did before this existed: everyone at once.
+     * A numbered signer is emailed only once every lower number has
+     * signed, and lib/signature-write.ts refuses their signature until
+     * then, so the sequence is enforced and not merely presented.
+     */
+    order?: number | null;
+  }>,
   message: string | null,
   options?: {
     /**
@@ -2747,28 +2768,80 @@ export async function createSigningRequestAction(
     const accessCode = isExternal ? newAccessCode() : null;
 
     const token = newToken(32);
-    const { data: sigRow } = await admin
+    const signatureInsert = {
+      signing_request_id: requestId,
+      signer_email: normalizedEmail,
+      signer_name: signer.name?.trim() || null,
+      token,
+      // Placement comes from signature-anchors.ts. When the caller
+      // provided explicit coordinates these are echoed back; when
+      // they didn't, the values either map to a detected anchor
+      // (AcroForm field / text-pattern match) or to the appended
+      // fallback box at the bottom of the page.
+      position_page: signer.placement.positionPage,
+      position_x: signer.placement.positionX,
+      position_y: signer.placement.positionY,
+      access_code_hash: accessCode ? sha256(accessCode) : null,
+    };
+    const wantsOrder = typeof signer.order === 'number';
+    let { data: sigRow, error: sigErr } = await admin
       .from('firm_signatures')
-      .insert({
-        signing_request_id: requestId,
-        signer_email: normalizedEmail,
-        signer_name: signer.name?.trim() || null,
-        token,
-        // Placement comes from signature-anchors.ts. When the caller
-        // provided explicit coordinates these are echoed back; when
-        // they didn't, the values either map to a detected anchor
-        // (AcroForm field / text-pattern match) or to the appended
-        // fallback box at the bottom of the page.
-        position_page: signer.placement.positionPage,
-        position_x: signer.placement.positionX,
-        position_y: signer.placement.positionY,
-        access_code_hash: accessCode ? sha256(accessCode) : null,
-      })
+      .insert(
+        wantsOrder
+          ? { ...signatureInsert, signer_order: signer.order }
+          : signatureInsert,
+      )
       .select('id')
       .single();
+    // signer_order arrives with a migration the owner applies, and there
+    // is a further window after it runs while PostgREST still holds a
+    // stale schema cache. Retrying without the column is the right
+    // recovery here, and in the opposite direction to the download
+    // permission above: dropping THAT column would have inverted a
+    // confidentiality decision, whereas dropping this one lands on
+    // "everyone at once", which is precisely the behaviour this product
+    // had last week and still has for every unordered request. So the
+    // fallback is a downgrade to today, not a leak.
+    //
+    // orderPersisted is then carried into the mail decision below. A
+    // signer whose order was NOT recorded must be emailed now, because
+    // nothing later will know they were meant to wait, and a signer who
+    // is never told is worse than one told early.
+    let orderPersisted = wantsOrder;
+    if (sigErr && wantsOrder && isUnknownColumnError(sigErr, 'signer_order')) {
+      orderPersisted = false;
+      ({ data: sigRow, error: sigErr } = await admin
+        .from('firm_signatures')
+        .insert(signatureInsert)
+        .select('id')
+        .single());
+    }
     const signatureId = (sigRow as { id?: string } | null)?.id ?? null;
 
     const url = `${baseUrl}/sign/${token}`;
+
+    // Whose turn it is, at the moment the request is created.
+    //
+    // Nobody has signed yet, so this is decided entirely by the numbers
+    // the caller passed: the unordered signers and the lowest number are
+    // ready, and everybody else waits. lib/signer-order.ts is the same
+    // rule the write and the page run, so what the email loop believes
+    // and what the write enforces cannot drift apart.
+    //
+    // A waiting signer is skipped ENTIRELY here: no link email, no
+    // in-app notification, and no entry in emailFailures, because
+    // nothing failed. Their row, their token and their access code hash
+    // all exist, and lib/signature-write.ts mails them the link the
+    // moment the person ahead of them signs.
+    const turn = orderPersisted
+      ? resolveSignerTurn(
+          placedSigners.map((s) => ({
+            order: typeof s.order === 'number' ? s.order : null,
+            signedAt: null,
+          })),
+          placedSigners.indexOf(signer),
+        )
+      : 'ready';
 
     // The per-recipient budget (see withinRecipientMailBudget). Checked
     // after the signature row exists, so an address that is over it
@@ -2787,7 +2860,7 @@ export async function createSigningRequestAction(
       continue;
     }
 
-    if (signerUserId) {
+    if (signerUserId && turn === 'ready') {
       try {
         await createNotification({
           userId: signerUserId,
@@ -2801,29 +2874,42 @@ export async function createSigningRequestAction(
       }
     }
 
-    // Email 1: the branded sign link.
-    const linkResult = await sendSigningLinkEmail({
-      to: signer.email,
-      firmName,
-      firmLogo,
-      senderName,
-      docName,
-      message,
-      url,
-      isExternal,
-    });
-    if (linkResult.ok) {
-      anySignerReached = true;
-    } else {
-      emailFailures.push({
-        email: normalizedEmail,
-        kind: 'link',
-        error: linkResult.error,
-        source: 'provider',
+    // Email 1: the branded sign link. Held back for a signer whose turn
+    // has not come; lib/signature-write.ts sends exactly this message,
+    // from exactly this function, when the person ahead of them signs.
+    if (turn === 'ready') {
+      const linkResult = await sendSigningLinkEmail({
+        to: signer.email,
+        firmName,
+        firmLogo,
+        senderName,
+        docName,
+        message,
+        url,
+        isExternal,
       });
+      if (linkResult.ok) {
+        anySignerReached = true;
+      } else {
+        emailFailures.push({
+          email: normalizedEmail,
+          kind: 'link',
+          error: linkResult.error,
+          source: 'provider',
+        });
+      }
     }
 
     // Email 2 (external only): the one-time access code.
+    //
+    // Sent now even for a signer whose turn has not come, and that is a
+    // decision rather than an oversight. The code opens nothing on its
+    // own: it is checked against a link the holder does not have yet.
+    // Minting a fresh one when their turn arrives would invalidate the
+    // one already in their inbox, and re-sending the same one is
+    // impossible because only its hash is stored. So the code goes once,
+    // here, and the access_code_sent event records the moment it
+    // actually happened, which is the only moment it may record.
     if (isExternal && accessCode) {
       const codeResult = await sendSigningCodeEmail({
         to: signer.email,
@@ -2876,52 +2962,6 @@ export async function createSigningRequestAction(
     requestId,
     ...(emailFailures.length > 0 ? { emailFailures } : {}),
   };
-}
-
-/**
- * The branded sign-link email. Shared by createSigningRequestAction and
- * resendSigningEmailsAction so a resend is byte-for-byte the message the
- * signer was originally promised.
- */
-async function sendSigningLinkEmail(input: {
-  to: string;
-  firmName: string;
-  firmLogo: string | null;
-  senderName: string;
-  docName: string;
-  message: string | null;
-  url: string;
-  isExternal: boolean;
-}): Promise<{ ok: true } | { ok: false; error: string }> {
-  const res = await sendEmail({
-    to: input.to,
-    fromName: input.firmName,
-    subject: `${input.firmName}: signature requested for ${input.docName}`,
-    html: buildSigningRequestEmailHtml({
-      firmName: input.firmName,
-      logoUrl: input.firmLogo,
-      senderName: input.senderName,
-      documentName: input.docName,
-      message: input.message,
-      link: input.url,
-      codeSeparately: input.isExternal,
-    }),
-    text:
-      `${input.senderName} at ${input.firmName} requested your signature on "${input.docName}".\n\n` +
-      `Review and sign (the document stays inside Advottic):\n${input.url}\n\n` +
-      (input.isExternal
-        ? 'For your security, a one-time access code was sent to this address in a separate email. Enter it to open the document.\n'
-        : // The plain-text twin of the sentence in
-          // buildSigningRequestEmailHtml. "Single-use" described the
-          // URL and the URL is not consumed: it keeps resolving after
-          // signing, because it is the signer's route back to the
-          // record that binds them. What is used once is the act.
-          `You can use this link to sign once. Afterwards it stays available to you for ${SIGNER_COPY_RETENTION_DAYS} days so you can download your copy.\n`),
-  }).catch((err: unknown) => ({
-    ok: false as const,
-    error: err instanceof Error ? err.message : 'unknown email error',
-  }));
-  return res.ok ? { ok: true } : { ok: false, error: res.error };
 }
 
 /** The separate one-time access code email for an external signer. */

@@ -66,3 +66,17 @@ alter table public.firm_templates
 -- per-firm configuration that is not branding.
 alter table public.firm_settings
   add column if not exists ticket_prefix text;
+
+alter table public.firm_signatures
+  -- Signing order within one request. Null means "no order", which is what
+  -- every existing row means and what every existing request continues to
+  -- do: all signers are invited at once. A numbered signer is invited only
+  -- once every lower number has signed, and the write in
+  -- lib/signature-write.ts refuses a signature out of turn, so the order is
+  -- enforced rather than merely displayed.
+  --
+  -- Nullable with no default and no backfill, on purpose. Every row that
+  -- exists reads as null, so every request already out for signature keeps
+  -- behaving exactly as it did, and a firm that has not applied this file
+  -- sees today's product. lib/signer-order.ts is the whole rule.
+  add column if not exists signer_order int;

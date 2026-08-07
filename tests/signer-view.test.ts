@@ -39,6 +39,9 @@ import {
   signatureRelocationNote,
   signaturePreviewGeometryNote,
   signerWatermarkStamp,
+  INTERNAL_SIGNER_GATE_COPY,
+  maskSignerEmail,
+  resolveInternalSignerGate,
   type SignatureLinePlacement,
 } from '../lib/signer-view';
 import { computeSignatureBoxRect } from '../lib/signature-geometry';
@@ -2047,5 +2050,197 @@ describe('call sites', () => {
     expect(src).toMatch(
       /Thanks, <span data-no-translate>\{signerName \|\| signerEmail\}<\/span>/,
     );
+  });
+});
+
+/**
+ * The internal signer's session gate.
+ *
+ * The one genuinely new control in this slice, and the reason it is a
+ * control rather than a nicety: an internal signer gets no access code
+ * (createSigningRequestAction classifies firm members and employees as
+ * internal and issues them none), so before this the durable
+ * /sign/[token] URL was on its own sufficient to produce a signature in
+ * that employee's name on an executed agreement. A link in an inbox is
+ * not a credential.
+ */
+describe('resolveInternalSignerGate', () => {
+  const EXTERNAL = { accessCodeRequired: true, signerEmail: 'other@acme.test' };
+  const INTERNAL = { accessCodeRequired: false, signerEmail: 'dana@firm.test' };
+
+  it('always allows an external signer, whose code is their proof', () => {
+    // Requiring a counterparty to hold an Advottic account before they
+    // can sign would break the whole flow this branch exists to build,
+    // and their code is already checked in three places.
+    expect(
+      resolveInternalSignerGate({ ...EXTERNAL, sessionEmail: null }),
+    ).toBe('allow');
+    expect(
+      resolveInternalSignerGate({ ...EXTERNAL, sessionEmail: 'someone@else.test' }),
+    ).toBe('allow');
+  });
+
+  it('refuses an internal signer with no session', () => {
+    expect(
+      resolveInternalSignerGate({ ...INTERNAL, sessionEmail: null }),
+    ).toBe('sign-in-required');
+    expect(
+      resolveInternalSignerGate({ ...INTERNAL, sessionEmail: '' }),
+    ).toBe('sign-in-required');
+    expect(
+      resolveInternalSignerGate({ ...INTERNAL, sessionEmail: '   ' }),
+    ).toBe('sign-in-required');
+  });
+
+  it('refuses an internal signer signed in as somebody else', () => {
+    expect(
+      resolveInternalSignerGate({ ...INTERNAL, sessionEmail: 'sam@firm.test' }),
+    ).toBe('wrong-account');
+  });
+
+  it('allows the internal signer whose session matches', () => {
+    expect(
+      resolveInternalSignerGate({ ...INTERNAL, sessionEmail: 'dana@firm.test' }),
+    ).toBe('allow');
+  });
+
+  it('normalises case and whitespace on both sides', () => {
+    // An identity provider that capitalises a name must not send the
+    // right employee to support over a signature they are entitled to
+    // make. signer_email is stored lowercased, but the session address
+    // comes from the auth provider and is not ours to assume.
+    expect(
+      resolveInternalSignerGate({
+        accessCodeRequired: false,
+        signerEmail: '  Dana@Firm.TEST ',
+        sessionEmail: 'DANA@firm.test  ',
+      }),
+    ).toBe('allow');
+  });
+
+  it('refuses rather than allows when the row names nobody', () => {
+    // A gate that opens when its input is missing is not a gate.
+    expect(
+      resolveInternalSignerGate({
+        accessCodeRequired: false,
+        signerEmail: null,
+        sessionEmail: 'dana@firm.test',
+      }),
+    ).toBe('wrong-account');
+    expect(
+      resolveInternalSignerGate({
+        accessCodeRequired: false,
+        signerEmail: '',
+        sessionEmail: 'dana@firm.test',
+      }),
+    ).toBe('wrong-account');
+  });
+});
+
+describe('maskSignerEmail', () => {
+  it('keeps the first character and the domain, and hides the rest', () => {
+    // Enough for the right person to recognise their own address,
+    // not enough for a stranger holding the link to learn it.
+    expect(maskSignerEmail('dana@firm.test')).toBe('d•••@firm.test');
+  });
+
+  it('masks a one-character local part without exposing its length as zero', () => {
+    expect(maskSignerEmail('d@firm.test')).toBe('d•@firm.test');
+  });
+
+  it('returns nothing at all for a value that is not an address', () => {
+    // A malformed stored value must not be reflected back onto a public
+    // page verbatim.
+    expect(maskSignerEmail('not-an-address')).toBe('');
+    expect(maskSignerEmail('@firm.test')).toBe('');
+    expect(maskSignerEmail('dana@')).toBe('');
+    expect(maskSignerEmail(null)).toBe('');
+    expect(maskSignerEmail(undefined)).toBe('');
+  });
+});
+
+describe('what the internal-signer refusals say', () => {
+  it('sends a signed-out employee somewhere they can actually go', () => {
+    expect(INTERNAL_SIGNER_GATE_COPY['sign-in-required']).toBe(
+      'Sign in to Advottic to sign this document. It is waiting for you in your Hub.',
+    );
+  });
+
+  it('names the expected account, masked, on the wrong-account screen', () => {
+    const sentence = INTERNAL_SIGNER_GATE_COPY['wrong-account'](
+      maskSignerEmail('dana@firm.test'),
+    );
+    expect(sentence).toBe(
+      'This document is waiting for a different account. Sign in as d•••@firm.test to continue.',
+    );
+    // The unmasked address never appears in it.
+    expect(sentence).not.toContain('dana@');
+  });
+
+  it('carries no em dash and no emoji, in either sentence', () => {
+    const sentences = [
+      INTERNAL_SIGNER_GATE_COPY['sign-in-required'],
+      INTERNAL_SIGNER_GATE_COPY['wrong-account']('d\u2022\u2022\u2022@firm.test'),
+    ];
+    for (const s of sentences) {
+      expect(s).not.toMatch(/[\u2013\u2014]/);
+      expect(s).not.toMatch(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u);
+    }
+  });
+});
+
+/**
+ * The gate has to be RUN, not merely written.
+ *
+ * Two agents on this repo have now found controls that existed and had
+ * nothing exercising them. These read the source, which proves the call
+ * is written rather than that it fires, and they are here because the
+ * failure mode is silent: a gate enforced on the page alone is not a
+ * gate, since the write is a public HTTP endpoint reachable with the
+ * token and nothing else.
+ */
+describe('where the internal-signer gate and the signing order are enforced', () => {
+  const read = (rel: string) => readFileSync(join(__dirname, '..', rel), 'utf8');
+
+  it('runs the session gate inside the one signature write', () => {
+    // lib/signature-write.ts is what BOTH the desktop route and the
+    // phone route call, so a check here covers both without either
+    // route holding a copy of it.
+    const src = read('lib/signature-write.ts');
+    expect(src).toMatch(/resolveInternalSignerGate\(/);
+    expect(src).toMatch(/INTERNAL_SIGNER_GATE_COPY/);
+  });
+
+  it('runs the session gate on the page as well, so the employee is told before they draw', () => {
+    const src = read('app/sign/[token]/page.tsx');
+    expect(src).toMatch(/resolveInternalSignerGate\(/);
+  });
+
+  it('keeps the two routes free of a copy of it', () => {
+    // A second implementation of this decision in a route is how the
+    // desktop and the phone start disagreeing about who may sign.
+    expect(read('app/api/firm/sign/route.ts')).not.toMatch(
+      /resolveInternalSignerGate|access_code_hash/,
+    );
+    expect(read('app/api/firm/sign/mobile/route.ts')).not.toMatch(
+      /resolveInternalSignerGate|access_code_hash/,
+    );
+  });
+
+  it('refuses an out-of-turn signature in the write, not only in the page', () => {
+    const src = read('lib/signature-write.ts');
+    expect(src).toMatch(/resolveSignerTurn\(/);
+    expect(src).toMatch(/SIGNER_NOT_YET_YOUR_TURN/);
+    const page = read('app/sign/[token]/page.tsx');
+    expect(page).toMatch(/resolveSignerTurn\(/);
+  });
+
+  it('still stamps signed_at in exactly one place', () => {
+    // The claim in lib/signature-write.ts is the only writer, and the
+    // ordering check was added to that same conditional update rather
+    // than beside a second one.
+    const src = read('lib/signature-write.ts');
+    const writes = src.match(/signed_at: new Date\(\)\.toISOString\(\)/g) ?? [];
+    expect(writes).toHaveLength(1);
   });
 });

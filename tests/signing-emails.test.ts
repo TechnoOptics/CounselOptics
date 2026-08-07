@@ -34,6 +34,12 @@ const db = vi.hoisted(() => ({
   failUpdate: new Set<string>(),
   /** Tables whose INSERT should come back as a store error. */
   failInsert: new Set<string>(),
+  /**
+   * Columns this database does not have, so an INSERT naming one comes
+   * back the way PostgREST answers it: PGRST204, whole statement refused.
+   * Models a firm that has not applied 20260807_flow_join.sql.
+   */
+  unknownColumns: new Set<string>(),
   seq: 0,
   reset() {
     this.tables = {
@@ -45,6 +51,7 @@ const db = vi.hoisted(() => ({
     };
     this.failUpdate = new Set<string>();
     this.failInsert = new Set<string>();
+    this.unknownColumns = new Set<string>();
     this.seq = 0;
   },
 }));
@@ -133,6 +140,19 @@ class Query {
         this.result = { data: null, error: { message: 'the store refused the insert' } };
         return this.result;
       }
+      const missing = Object.keys(this.pendingInsert ?? {}).find((c) =>
+        db.unknownColumns.has(c),
+      );
+      if (missing) {
+        this.result = {
+          data: null,
+          error: {
+            code: 'PGRST204',
+            message: `Could not find the '${missing}' column of '${this.table}' in the schema cache`,
+          } as { message: string },
+        };
+        return this.result;
+      }
       const row: Row = { id: `${this.table}-${++db.seq}`, ...this.pendingInsert };
       (db.tables[this.table] ??= []).push(row);
       // Withheld unless asked for, exactly as on the UPDATE below and
@@ -208,6 +228,11 @@ const mail = vi.hoisted(() => ({
   onSent: null as null | ((kind: 'link' | 'code') => void),
 }));
 const audit = vi.hoisted(() => ({ events: [] as Array<Record<string, unknown>> }));
+/** The in-app producer, so a held-back signer can be checked for silence
+ *  on the bell as well as in the inbox: it carries the same sign link. */
+const notifications = vi.hoisted(() => ({
+  onCreate: null as null | ((n: Record<string, unknown>) => void),
+}));
 const limiter = vi.hoisted(() => ({
   allow: true,
   /** Deny only the buckets whose key starts with this. */
@@ -231,7 +256,10 @@ vi.mock('../lib/rate-limit', () => ({
   },
 }));
 vi.mock('../lib/notifications', () => ({
-  createNotification: async () => ({ ok: true }),
+  createNotification: async (n: Record<string, unknown>) => {
+    notifications.onCreate?.(n);
+    return { ok: true };
+  },
 }));
 vi.mock('../lib/email', () => ({
   sendEmail: async (input: { to: string; subject: string }) => {
@@ -348,6 +376,7 @@ beforeEach(async () => {
   limiter.allow = true;
   limiter.denyPrefix = null;
   limiter.keys = [];
+  notifications.onCreate = null;
   session.userId = 'user-1';
   vi.resetModules();
   mod = await import('../lib/firm-actions');
@@ -681,5 +710,134 @@ describe('a request stops being a draft when the link reaches a signer', () => {
     expect(res.error).toBe('the store refused the insert');
     expect(res.errorSource).toBe('provider');
     expect(mail.sent).toHaveLength(0);
+  });
+});
+
+/**
+ * Sequential signers, on the send side.
+ *
+ * The employee counter-signs the agreement the counterparty actually
+ * agreed to, which only works if they are not handed a link on day one.
+ * This is the half of that which lives in the composer: a signer whose
+ * turn has not come gets a row, a token and (if they are external) their
+ * code, and no link. lib/signature-write.ts sends the link when their
+ * turn arrives, and refuses the signature until then.
+ */
+describe('a request with an order on it', () => {
+  beforeEach(() => {
+    seedFirm();
+  });
+
+  /**
+   * Link emails only. An external signer whose turn has not come STILL
+   * gets their one-time access code, deliberately: the code opens
+   * nothing without the link, only its hash is stored so it cannot be
+   * re-sent later, and minting a fresh one when their turn arrives would
+   * invalidate the one already in their inbox.
+   */
+  const linksTo = () =>
+    mail.sent.filter((m) => !m.subject.includes('access code')).map((m) => m.to);
+
+  it('emails the first signer and holds the second one back', async () => {
+    const res = await mod.createSigningRequestAction(
+      FIRM_A,
+      DOC_ID,
+      [
+        { email: 'buyer@acme.test', name: 'Acme', order: 1 },
+        { email: 'employee@firm-a.test', name: 'An Employee', order: 2 },
+      ],
+      null,
+    );
+    expect(res.ok).toBe(true);
+    expect(linksTo()).toEqual(['buyer@acme.test']);
+    // ...and the held-back signer's access code did go out.
+    expect(mail.sent.map((m) => m.to)).toContain('employee@firm-a.test');
+    // Nothing failed. A held-back signer is not a delivery problem, and
+    // reporting one would make the approval path tell the reviewer the
+    // send did not reach the recipient.
+    expect(res.emailFailures).toBeUndefined();
+  });
+
+  it('still creates the second signer\'s row, token and order', async () => {
+    await mod.createSigningRequestAction(
+      FIRM_A,
+      DOC_ID,
+      [
+        { email: 'buyer@acme.test', order: 1 },
+        { email: 'employee@firm-a.test', order: 2 },
+      ],
+      null,
+    );
+    const second = db.tables.firm_signatures.find(
+      (r) => r.signer_email === 'employee@firm-a.test',
+    ) as Row;
+    expect(second).toBeTruthy();
+    expect(second.token).toBeTruthy();
+    expect(second.signer_order).toBe(2);
+  });
+
+  it('does not notify the held-back signer in the app either', async () => {
+    // The in-app notification carries the same /sign/[token] link, so
+    // sending it would be the held-back email by another route.
+    //
+    // Both signers are given profile rows on purpose. Without them the
+    // producer is never reached for anybody and this test would pass
+    // while proving nothing, which is how a guard ends up with nothing
+    // exercising it. The first signer's notice is asserted for the same
+    // reason: it is what shows the path is live.
+    (db.tables.profiles ??= []).push(
+      { id: 'user-buyer', email: 'buyer@acme.test' },
+      { id: 'user-employee', email: 'employee@firm-a.test' },
+    );
+    const seen: string[] = [];
+    notifications.onCreate = (n) => seen.push(String(n.userId ?? ''));
+    await mod.createSigningRequestAction(
+      FIRM_A,
+      DOC_ID,
+      [
+        { email: 'buyer@acme.test', order: 1 },
+        { email: 'employee@firm-a.test', order: 2 },
+      ],
+      null,
+    );
+    notifications.onCreate = null;
+    expect(seen).toEqual(['user-buyer']);
+  });
+
+  it('emails everyone at once when no order is given, as it always has', async () => {
+    await mod.createSigningRequestAction(
+      FIRM_A,
+      DOC_ID,
+      [{ email: 'a@example.test' }, { email: 'b@example.test' }],
+      null,
+    );
+    expect(linksTo().sort()).toEqual(['a@example.test', 'b@example.test']);
+    // And nothing writes the column for a caller that did not ask for an
+    // order, so an unmigrated database never meets it on this path.
+    for (const r of db.tables.firm_signatures) {
+      expect(r).not.toHaveProperty('signer_order');
+    }
+  });
+
+  it('falls back to everyone at once when the column is not there yet', async () => {
+    // 20260807_flow_join.sql is written and unapplied. PostgREST refuses
+    // the whole insert, so the retry drops the column, and the ONLY safe
+    // thing to do then is email the second signer now: nothing later will
+    // know they were meant to wait, and a signer who is never told is
+    // worse than one told early. That is also exactly the behaviour this
+    // product had last week.
+    db.unknownColumns.add('signer_order');
+    const res = await mod.createSigningRequestAction(
+      FIRM_A,
+      DOC_ID,
+      [
+        { email: 'buyer@acme.test', order: 1 },
+        { email: 'employee@firm-a.test', order: 2 },
+      ],
+      null,
+    );
+    expect(res.ok).toBe(true);
+    expect(linksTo().sort()).toEqual(['buyer@acme.test', 'employee@firm-a.test']);
+    expect(db.tables.firm_signatures).toHaveLength(2);
   });
 });

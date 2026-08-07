@@ -166,6 +166,22 @@ export type SubmissionSigning = {
   status: 'draft' | 'sent' | 'partial' | 'completed' | 'canceled';
   signers: SubmissionSigner[];
   executedUrl: string | null;
+  /**
+   * The viewer's OWN signing link, when this reader is one of the signers and
+   * has not signed yet.
+   *
+   * The employee counter-signs at /sign/[token] like anybody else, and they
+   * reach it from this record rather than from an email, so the page has to be
+   * able to link them there. The token is minted for exactly one signature row
+   * and is only ever put in this field when the reader's own address matches
+   * that row, which is why the viewer's email is a parameter of the loader and
+   * not something the caller filters afterwards.
+   *
+   * It is not a permission. Turn and identity are decided by the sign page and
+   * by lib/signature-write.ts, so a token handed over early, or to somebody
+   * whose session does not match, buys nothing.
+   */
+  yourSignToken: string | null;
 };
 
 /**

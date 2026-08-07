@@ -39,8 +39,12 @@
  *      (classifyDocumentRequestPurpose / resolveSignerDocumentDelivery),
  *      and how this page attributes itself to the person reading it
  *      (signerWatermarkStamp).
+ *   7. Whether an internal signer, who gets no access code, is actually
+ *      the person the signature row names (resolveInternalSignerGate).
+ *      Until this existed the durable link alone was enough to sign as
+ *      an employee.
  *
- * A seventh used to live here: which URL a mounted document frame shows.
+ * Another used to live here: which URL a mounted document frame shows.
  * It is gone with the frame. The page no longer mints a signed storage
  * URL for the browser at all, so there is no freshly minted URL for a
  * re-render to write into an iframe src, and nothing to retain.
@@ -1223,6 +1227,135 @@ export function rotateSignatureRectForDisplay(
   }
   return { leftFrac: l, topFrac: t, widthFrac: w, heightFrac: h };
 }
+
+// ---------------------------------------------------------------------
+// 7. Whether an internal signer is actually the internal signer
+// ---------------------------------------------------------------------
+
+export type InternalSignerGate =
+  /** Sign away. Either they proved themselves with a code, or their
+   *  session is the one this row names. */
+  | 'allow'
+  /** An internal signer with no session at all. */
+  | 'sign-in-required'
+  /** An internal signer signed in as somebody else. */
+  | 'wrong-account';
+
+/**
+ * The credential an internal signer has, which until now was none.
+ *
+ * Two kinds of person reach /sign/[token]. An EXTERNAL signer is a
+ * stranger to this app: they get a one-time access code in a second
+ * email, and entering it is what proves they are the person the firm
+ * addressed. An INTERNAL signer is a member or an employee of the firm,
+ * and createSigningRequestAction deliberately issues them no code
+ * (lib/firm-actions.ts, the classification block), because they already
+ * have an account and a second email would be ceremony for its own sake.
+ *
+ * The consequence was not deliberate. With no code, the durable
+ * /sign/[token] URL is the ONLY thing standing between a caller and a
+ * signature made in that employee's name. That URL is emailed, it sits
+ * in an inbox, it is forwarded, it is copied out of a notification, and
+ * it stays live for the whole retention window on purpose. Anyone who
+ * came into possession of it could sign as them, and the executed
+ * instrument would carry their name, their timestamp and an audit chain
+ * that says nothing was wrong.
+ *
+ * That gap was survivable while internal signers were incidental. This
+ * slice makes the employee's counter-signature the ordinary end of the
+ * whole flow, so it is not survivable any more, and this is the
+ * compensating control: an internal signer must be signed in, as
+ * themselves, for the signature to be taken.
+ *
+ * WHAT IT REFUSES AND WHAT IT CANNOT
+ * ----------------------------------
+ * It refuses a caller with no session and a caller whose session is a
+ * different account, on the page and in the write alike. It does not
+ * refuse the employee themselves, on any device where they are signed
+ * in, which is where they already read their notifications.
+ *
+ * It is NOT a claim that the account cannot be misused. Somebody holding
+ * the employee's own signed-in browser is out of reach of anything on
+ * this surface. The claim is narrower and is the one that matters here:
+ * possession of the link is no longer sufficient.
+ *
+ * External signers are always 'allow'. The code is their proof, it is
+ * checked in three places already, and requiring a counterparty to hold
+ * an Advottic account before they can sign an agreement would break the
+ * flow this whole branch exists to build.
+ *
+ * A signature row with no signer_email is treated as internal and
+ * refused, because there is then nothing for a session to match and
+ * 'allow' would be a gate that opens when its input is missing.
+ */
+export function resolveInternalSignerGate(input: {
+  /** True when this row carries an access_code_hash. */
+  accessCodeRequired: boolean;
+  /** firm_signatures.signer_email. */
+  signerEmail: string | null | undefined;
+  /** The signed-in session's email, or null when there is no session. */
+  sessionEmail: string | null | undefined;
+}): InternalSignerGate {
+  if (input.accessCodeRequired) return 'allow';
+  const signer = normalizeEmail(input.signerEmail);
+  const session = normalizeEmail(input.sessionEmail);
+  if (!session) return 'sign-in-required';
+  if (!signer) return 'wrong-account';
+  return signer === session ? 'allow' : 'wrong-account';
+}
+
+/**
+ * Both sides of the comparison are normalised, and both for the same
+ * reason: an address that differs only in case or in surrounding
+ * whitespace is the same address, and refusing the right employee
+ * because their identity provider capitalised their name would send them
+ * to support over a signature they are entitled to make.
+ *
+ * The local part of an address is case sensitive by RFC 5321 and is
+ * treated as insensitive by every mail system anybody uses, which is
+ * also the assumption the rest of this repo makes: signer_email is
+ * stored lowercased by createSigningRequestAction, and the profile
+ * lookups there match on a lowercased address too.
+ */
+function normalizeEmail(value: unknown): string {
+  return typeof value === 'string' ? value.trim().toLowerCase() : '';
+}
+
+/**
+ * Show enough of an address for the right person to recognise it, and
+ * not enough for a stranger to learn it.
+ *
+ * The 'wrong-account' screen has to name the account that is expected,
+ * or the reader has three work addresses and no way to tell which one to
+ * use. It is also reachable by anyone holding the link, so the address
+ * is masked: the first character of the local part, then the domain,
+ * which an employee recognises at a glance and a stranger cannot
+ * complete.
+ *
+ * Anything that is not an address at all masks to an empty string rather
+ * than being echoed back, so a malformed stored value cannot be
+ * reflected onto the page.
+ */
+export function maskSignerEmail(value: string | null | undefined): string {
+  const email = normalizeEmail(value);
+  const at = email.lastIndexOf('@');
+  if (at < 1 || at === email.length - 1) return '';
+  const local = email.slice(0, at);
+  const domain = email.slice(at);
+  return `${local.slice(0, 1)}${'•'.repeat(Math.max(1, local.length - 1))}${domain}`;
+}
+
+/**
+ * What each refusal says. Calm, and it tells the reader the one thing
+ * they can do about it. The masked address is interpolated by the
+ * caller, because a record is not a sentence.
+ */
+export const INTERNAL_SIGNER_GATE_COPY = {
+  'sign-in-required':
+    'Sign in to Advottic to sign this document. It is waiting for you in your Hub.',
+  'wrong-account': (masked: string) =>
+    `This document is waiting for a different account. Sign in as ${masked} to continue.`,
+} as const;
 
 /**
  * Whether this browser is missing Promise.withResolvers.
