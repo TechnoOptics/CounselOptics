@@ -484,6 +484,29 @@ describe('reading a submission', () => {
     expect(res.submission?.documentVisible).toBe(true);
     expect(res.submission?.documentText).toBe(V1);
   });
+
+  /**
+   * The reviewer is told which of the two deliveries approving will perform,
+   * and it has to be the one that will actually happen. Approving is the
+   * moment they take responsibility for the document, so a page that named
+   * the wrong mechanism there would be wrong at the only moment it matters.
+   *
+   * Resolved by the rule dispatch itself uses (resolveDispatchMode), not by a
+   * second reading of the template, so the sentence and the send cannot
+   * disagree.
+   */
+  it('says which delivery approving will perform', async () => {
+    store.row.delivery_mode = 'signature';
+    const res = await getTemplateSubmissionAction('sub-1');
+    expect(res.deliveryMode).toBe('signature');
+  });
+
+  it('says a share for a row that records no mode of its own', async () => {
+    // loadPublishedTemplate is null in this harness, which is the archived
+    // template case, and 'share' is what that has always meant.
+    const res = await getTemplateSubmissionAction('sub-1');
+    expect(res.deliveryMode).toBe('share');
+  });
 });
 
 /**

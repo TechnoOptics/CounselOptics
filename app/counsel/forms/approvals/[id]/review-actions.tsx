@@ -8,6 +8,7 @@ import {
   retryTemplateReleaseAction,
 } from '@/lib/template-submissions';
 import type { ReviewAction, SubmissionStatus } from '@/lib/template-approval';
+import type { DeliveryMode } from '@/lib/submission-dispatch';
 import { T } from '@/components/i18n/LocaleProvider';
 
 /**
@@ -44,6 +45,7 @@ export function ReviewActions({
   releaseError,
   documentText,
   revision,
+  deliveryMode,
 }: {
   submissionId: string;
   status: SubmissionStatus;
@@ -52,6 +54,14 @@ export function ReviewActions({
   releaseError: string | null;
   documentText: string;
   revision: number;
+  /**
+   * Which of the two deliveries approving performs. Required rather than
+   * optional on purpose: the page that renders this panel is the only thing
+   * that knows, it did not pass it, and an approver was told about a delivery
+   * that was not going to happen. A required prop makes that omission a
+   * compile error instead of a wrong sentence.
+   */
+  deliveryMode: DeliveryMode;
 }) {
   const router = useRouter();
   const [note, setNote] = useState('');
@@ -164,12 +174,23 @@ export function ReviewActions({
       <p className="text-[13px] font-semibold text-forest-900 dark:text-cream-100">
         <T>Your decision</T>
       </p>
+      {/* The mechanism, in the words the employee's own fill page uses for the
+          same two deliveries. A reviewer approving a signature-mode document
+          was told about the encrypted share, which is not what happens to it. */}
       <p className="text-[12.5px] text-ink-600 dark:text-cream-100/70">
-        <T>
-          Approving sends the document to the recipient as an encrypted link, with the key
-          in a separate email. You can change the wording first, send it back for your
-          colleague to fix, or decide it is not going out.
-        </T>
+        {deliveryMode === 'signature' ? (
+          <T>
+            Approving emails the recipient a link and a separate access code, and asks
+            them to sign the document. You can change the wording first, send it back
+            for your colleague to fix, or decide it is not going out.
+          </T>
+        ) : (
+          <T>
+            Approving sends the document to the recipient as an encrypted link, with the key
+            in a separate email. You can change the wording first, send it back for your
+            colleague to fix, or decide it is not going out.
+          </T>
+        )}
       </p>
 
       {editing ? (

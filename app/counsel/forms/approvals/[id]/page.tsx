@@ -177,6 +177,9 @@ export default async function CounselApprovalDetailPage({ params }: { params: { 
         releaseError={s.releaseError}
         documentText={s.documentText}
         revision={s.revision}
+        // What approving will actually do, resolved by the dispatcher's own
+        // rule rather than by this page reading the template a second time.
+        deliveryMode={res.deliveryMode ?? 'share'}
       />
     </div>
   );

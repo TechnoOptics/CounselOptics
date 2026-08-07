@@ -712,6 +712,15 @@ export async function getTemplateSubmissionAction(submissionId: string): Promise
   signing?: SubmissionSigning | null;
   viewer?: 'legal' | 'submitter';
   canApprove?: boolean;
+  /**
+   * Which of the two deliveries approving this would perform.
+   *
+   * Resolved by the rule the dispatcher itself uses, over the same two
+   * inputs, so the sentence the reviewer reads at the moment they take
+   * responsibility for the document cannot describe a delivery that is not
+   * going to happen.
+   */
+  deliveryMode?: DeliveryMode;
 }> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: 'Sign in first.' };
@@ -736,10 +745,22 @@ export async function getTemplateSubmissionAction(submissionId: string): Promise
   // rather than null on an unmigrated database and the page renders exactly
   // as it does today.
   const signingRequestId = (row as DispatchRow).signing_request_id ?? null;
+  // Read for the mode alone, and only for the fallback the row cannot answer.
+  // An archived template reads as null here and the mode is then 'share',
+  // which is both today's behaviour and what the dispatcher would do.
+  const template = row.delivery_mode
+    ? null
+    : row.template_id
+      ? await loadPublishedTemplate(admin, row.firm_id, row.template_id)
+      : null;
   return {
     ok: true,
     viewer: role ? 'legal' : 'submitter',
     canApprove: canApproveSubmissions(role),
+    deliveryMode: resolveDispatchMode({
+      submissionMode: row.delivery_mode,
+      templateMode: template?.deliveryMode,
+    }),
     signing: await loadSubmissionSigning(
       admin,
       signingRequestId,
