@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { SIGNING_INTENT_PREFIX, signingIntentSuffix } from '@/lib/signing-intent';
 import { BrowserFrame } from './PortalMocks';
 
 /**
@@ -26,11 +27,42 @@ import { BrowserFrame } from './PortalMocks';
  *   scene 3  app/counsel/signing plus lib/esign-audit.ts, in a `counsel`
  *            frame again
  *
- * The status words ("With legal", "Sent to recipient") come from
- * components/portal/SubmissionStatusPill.tsx. The audit event names come from
- * SignatureEventType in lib/esign-audit.ts. The reference shape comes from
- * lib/ticket-numbers.ts: a per-firm prefix and seven digits. Nothing here
- * invents product vocabulary.
+ * The status words come from the product, and from the two lifecycles a
+ * document actually passes through: "With legal" and "Sent to recipient" are
+ * components/portal/SubmissionStatusPill.tsx, which labels the approval
+ * lifecycle; "Completed" is FIRM_SIGNING_STATUS_LABEL in lib/firm-types.ts,
+ * which labels the signing one and is what /counsel/signing prints on a
+ * finished request. There is no "Executed" status anywhere in the product:
+ * "Fully executed" is a SECTION on that page, not a state a row can be in, so
+ * it heads the list here and never sits in a pill. The audit event names come
+ * from SignatureEventType in lib/esign-audit.ts. The reference shape comes
+ * from lib/ticket-numbers.ts: a per-firm prefix and seven digits. The intent
+ * sentence is imported from lib/signing-intent.ts rather than written here;
+ * see the note at the checkbox. Nothing here invents product vocabulary.
+ *
+ * MIGRATION GATE. DO NOT DEPLOY THIS SECTION BEFORE
+ * supabase/migrations/20260807_flow_join.sql IS APPLIED. Two things drawn
+ * below are true of this code and not yet true of production, because that
+ * migration adds the `category` and `ticket_number` columns on
+ * firm_template_submissions and it is written but not applied:
+ *
+ *   1. The category headings over the queue in scene 1 and over the executed
+ *      list in scene 3. Until the column exists no submission carries a
+ *      category, so app/counsel/forms/approvals/page.tsx and
+ *      app/counsel/signing/page.tsx both suppress the headings (see
+ *      `showCategoryHeadings`) and render one flat list.
+ *   2. The seven-digit form of the reference, REQ-0000412, and the bullet
+ *      that calls it "allocated once and never reused". A reference does
+ *      render today, but it is displayTicket's fallback shape in
+ *      lib/ticket-numbers.ts: REQ- plus six hex characters of the row id.
+ *      The allocated per-firm series needs the column.
+ *
+ * The claims were kept rather than softened, on the coordinator's decision to
+ * record this as a deploy gate: the reference is the through-line the whole
+ * section is built on, and a marketing page that describes the shipped
+ * behaviour a week early is a sequencing problem, not a truth problem. It
+ * becomes a truth problem the moment the page is live and the migration is
+ * not. If that migration is ever abandoned, this section changes with it.
  *
  * COLOUR. No hex sets a colour for text anywhere in this file. The accent used
  * as words is `text-accent-text`, which is derived per shell at a pinned OKLCH
@@ -49,6 +81,16 @@ const REFERENCE = 'REQ-0000412';
 const CATEGORY = 'NDA';
 const DOCUMENT = 'Mutual nondisclosure agreement';
 
+/**
+ * The person signing in scene 2, in one place.
+ *
+ * Named once because two things next to each other quote it: the caption
+ * under the signature line, and the operative clause in the intent checkbox,
+ * which is composed around the signer's name. A mock that puts two names
+ * inside one ceremony is the mistake the section is arguing against.
+ */
+const SIGNER = 'Dana Whitfield';
+
 export function ApprovalToExecuted() {
   return (
     <section aria-labelledby="approval-to-executed-heading">
@@ -65,8 +107,8 @@ export function ApprovalToExecuted() {
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-[15px] leading-relaxed text-ink-600 dark:text-cream-100/75">
             An employee fills one of your templates and names who it goes to. It waits. A lawyer reads
-            the finished wording and decides. Only then is anything sent, and the same reference follows
-            the document all the way to the audit chain.
+            the finished wording and decides. Only then is anything sent, and the same reference stays
+            on the document from the queue to the executed copy.
           </p>
         </header>
 
@@ -98,9 +140,20 @@ export function ApprovalToExecuted() {
           <Scene
             state="Sent to recipient"
             title="The recipient reads the document they are about to sign."
-            body="The link opens the document itself, rasterised on the page. The mark lands on the real signature line, and the delivered PDF shows the same position, because the preview and the renderer read one geometry module rather than two that agree until they do not."
+            // Not "the delivered PDF shows the same position". The shared
+            // module is real (lib/signature-geometry.ts), but
+            // lib/signature-render.ts emits a `signature_relocated` event
+            // precisely because the renderer CAN move the box when the
+            // recorded anchor will not fit the page, and lib/signer-view.ts
+            // tells the signer so. What the shared module actually buys is
+            // that the preview and the renderer compute one placement, so
+            // what the signer sees is where it lands. That is the claim.
+            body="The link opens the document itself, rasterised on the page. The mark lands on the real signature line, in the position the signed copy will use, because the preview and the renderer read one geometry module rather than two that agree until they do not."
             bullets={[
-              'A one-time code, sent separately from the link, opens the document',
+              // "Where a request requires a code": access-code-gate.tsx
+              // describes the gate as a condition on an external signer's
+              // request, not something every signer meets.
+              'Where a request requires a code, it arrives separately from the link',
               'Consent to sign electronically is captured before the pad opens',
               'Trackpad, mouse, or scan the code and finish on a phone',
             ]}
@@ -112,7 +165,11 @@ export function ApprovalToExecuted() {
           />
 
           <Scene
-            state="Executed"
+            // "Completed", not "Executed". The strip carries a status word the
+            // product prints, and by scene 3 the document has moved from the
+            // approval lifecycle to the signing one, where the word for a
+            // finished request is FIRM_SIGNING_STATUS_LABEL.completed.
+            state="Completed"
             title="The executed copy files itself, and the chain says what happened."
             body="The signed document is filed under the category it was submitted as, carrying your firm's own reference, and it appears on both sides of the workspace at once: the legal team's shelf and the employee's. Every step on the way is appended to a hash chain."
             bullets={[
@@ -460,7 +517,7 @@ function SigningScreen() {
                 className="font-mono text-[9px] text-ink-600 dark:text-cream-100/70"
                 data-no-translate
               >
-                Dana Whitfield - 2026-08-06
+                {SIGNER} - 2026-08-06
               </p>
             </div>
           </div>
@@ -517,6 +574,25 @@ function SigningScreen() {
             </div>
           </div>
 
+          {/* The operative clause, imported, not retyped.
+           *
+           * This checkbox previously carried a paraphrase of the intent
+           * sentence. lib/signing-intent.ts exists for exactly one reason:
+           * two surfaces asserting intent in two forms of words is the
+           * discrepancy that gets a signature challenged, and its header says
+           * not to reword it in one place only. A marketing page that shows
+           * the operative clause in words the instrument does not use is the
+           * same class of defect one step further out, because it is the
+           * version a buyer reads before they ever see the product. So the
+           * page renders the constants, and a reword reaches this page and
+           * the two pads together or not at all.
+           *
+           * Rendered in the same three pieces the pads use, for the same
+           * reason: the signer's name sits in its own protected element so
+           * the runtime translation layer does not machine-translate a
+           * person's name inside the operative clause of a legal instrument.
+           * The name is the one on the signature line above, so the mock
+           * says one thing about who is signing. */}
           <label className="mt-3 flex items-start gap-2 text-[10.5px] leading-relaxed text-ink-700 dark:text-cream-100/80">
             <span
               className="mt-[1px] grid h-3.5 w-3.5 shrink-0 place-items-center rounded-[3px] bg-gold-metal text-forest-950"
@@ -533,8 +609,9 @@ function SigningScreen() {
               </svg>
             </span>
             <span>
-              I intend to sign electronically, and this mark is my signature on{' '}
-              <strong data-no-translate>{DOCUMENT}</strong>.
+              {SIGNING_INTENT_PREFIX}
+              <strong data-no-translate>{SIGNER}</strong>
+              {signingIntentSuffix(DOCUMENT)}
             </span>
           </label>
 
@@ -644,7 +721,7 @@ function ExecutedScreen() {
               reference={REFERENCE}
               who="D. Whitfield"
               to="counsel@northwind.example"
-              status="Executed"
+              status="Completed"
               highlight
             />
             <QueueRow
@@ -652,7 +729,7 @@ function ExecutedScreen() {
               reference="REQ-0000404"
               who="A. Osei"
               to="legal@fairhaven.example"
-              status="Executed"
+              status="Completed"
             />
           </QueueGroup>
           <QueueGroup category="Employment">
@@ -661,7 +738,7 @@ function ExecutedScreen() {
               reference="REQ-0000398"
               who="R. Iyer"
               to="p.marchetti@example.com"
-              status="Executed"
+              status="Completed"
             />
           </QueueGroup>
         </div>
@@ -702,9 +779,14 @@ function ExecutedScreen() {
             </li>
           ))}
         </ul>
+        {/* "Records", not "every entry carries". `ipAddress` and `userAgent`
+            are optional on EventInput in lib/esign-audit.ts, so a step
+            appended without them writes null and the guarantee the schema
+            makes is that the chain stores them, not that every row has
+            them. */}
         <p className="mt-2 text-[10.5px] leading-relaxed text-cream-100/55">
-          Each entry hashes the one before it, and every entry carries the address and the browser it
-          came from.
+          Each entry hashes the one before it, and the chain records the address and the browser a
+          step came from.
         </p>
       </div>
     </div>
