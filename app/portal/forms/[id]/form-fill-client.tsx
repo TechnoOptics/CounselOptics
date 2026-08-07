@@ -11,6 +11,7 @@ import {
 } from '@/lib/template-submissions';
 import { PdfPreviewDialog } from '@/components/PdfPreviewDialog';
 import {
+  counterpartyLabel,
   formatSignedOn,
   isSelfNameField,
   mergeTemplateDocument,
@@ -68,6 +69,7 @@ export function FormFillClient({
   const [previewOpen, setPreviewOpen] = useState(false);
 
   const needsApproval = template.requiresApproval;
+  const forSignature = template.deliveryMode === 'signature';
   const missing = template.fields.filter((f) => f.required && !(values[f.key] ?? '').trim());
   const recipientOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail.trim());
   const ready = !busy && missing.length === 0 && signature.trim().length > 0;
@@ -78,6 +80,11 @@ export function FormFillClient({
       // render, so a template that writes {{firm_name}} follows the firm
       // through a rename. The same function builds the copy the legal team
       // reviews, so the preview and the reviewed document cannot drift.
+      //
+      // The counterparty block follows the same discipline: the rule that
+      // decides whether it appears and what it is labelled with lives in
+      // counterpartyLabel, and the server calls it too, so the block the
+      // employee reads here is the block the reviewer reads.
       mergeTemplateDocument({
         body: template.body,
         fields: template.fields,
@@ -86,8 +93,13 @@ export function FormFillClient({
         signatureName: signature,
         signerEmail: employeeEmail,
         signedOn: formatSignedOn(new Date()),
+        counterpartyName: counterpartyLabel({
+          deliveryMode: template.deliveryMode,
+          recipientName,
+          recipientEmail,
+        }),
       }),
-    [template, values, signature, employeeEmail, firmName],
+    [template, values, signature, employeeEmail, firmName, recipientName, recipientEmail],
   );
 
   // The server renders from the firm's own stored template and the values
@@ -247,11 +259,19 @@ export function FormFillClient({
             <section className="space-y-3 rounded-xl border border-ink-200 bg-white p-4 dark:border-forest-700/50 dark:bg-forest-900/40">
               <SectionTitle>Who receives it</SectionTitle>
               <p className="text-[12.5px] text-ink-600 dark:text-cream-100/70">
-                <T>
-                  This document goes to your legal team first. Once someone there approves it,
-                  Advottic sends it to the address below as an encrypted link. The full text you
-                  are sending is shown on the right.
-                </T>
+                {forSignature ? (
+                  <T>
+                    This document goes to your legal team first. Once legal approves this, we
+                    will email this person a link and a separate access code, and ask them to
+                    sign it. The full text you are sending is shown on the right.
+                  </T>
+                ) : (
+                  <T>
+                    This document goes to your legal team first. Once someone there approves it,
+                    Advottic sends it to the address below as an encrypted link. The full text you
+                    are sending is shown on the right.
+                  </T>
+                )}
               </p>
               <label className="block">
                 <span className="mb-1 block text-[13px] font-medium text-forest-900 dark:text-cream-100">

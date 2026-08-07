@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { formatSignedOn, mergeTemplateDocument } from '../lib/firm-template-placeholders';
+import {
+  counterpartyLabel,
+  formatSignedOn,
+  mergeTemplateDocument,
+} from '../lib/firm-template-placeholders';
 import { buildBrandedDocumentPdf } from '../lib/branded-document-pdf';
 import { detectSignatureAnchors } from '../lib/signature-anchors';
 
@@ -94,6 +98,64 @@ describe('mergeTemplateDocument with a counterparty', () => {
     expect(
       mergeTemplateDocument({ ...base, counterpartyName: '  Wren Supply Co.  ' }),
     ).toBe(named);
+  });
+});
+
+/**
+ * The rule that keeps the two ends together.
+ *
+ * The employee's live preview and the copy stored for legal review are the
+ * same function's output only if both call sites pass the same counterparty.
+ * One is a client component and the other a server action, so nothing but a
+ * shared rule can hold them together, and this is that rule.
+ */
+describe('counterpartyLabel', () => {
+  it('emits nothing for a template that goes out as a read-only share', () => {
+    expect(
+      counterpartyLabel({
+        deliveryMode: 'share',
+        recipientName: 'Wren Supply Co.',
+        recipientEmail: 'buyer@wren.test',
+      }),
+    ).toBeNull();
+    // Absent is 'share', which is what an unmigrated database reads as.
+    expect(
+      counterpartyLabel({ deliveryMode: undefined, recipientName: 'Wren Supply Co.' }),
+    ).toBeNull();
+    expect(counterpartyLabel({ deliveryMode: null, recipientName: 'Wren Supply Co.' })).toBeNull();
+  });
+
+  it('prefers the name the employee typed', () => {
+    expect(
+      counterpartyLabel({
+        deliveryMode: 'signature',
+        recipientName: '  Wren Supply Co. ',
+        recipientEmail: 'buyer@wren.test',
+      }),
+    ).toBe('Wren Supply Co.');
+  });
+
+  /**
+   * The name is optional and the address is not, so the address is what an
+   * agreement falls back to. It is lower-cased here because the server stores
+   * it lower-cased and the employee types it however they like: without this,
+   * the preview and the stored document would differ by a capital letter.
+   */
+  it('falls back to the address, normalised the way the server stores it', () => {
+    expect(
+      counterpartyLabel({
+        deliveryMode: 'signature',
+        recipientName: '   ',
+        recipientEmail: '  Buyer@Wren.Test ',
+      }),
+    ).toBe('buyer@wren.test');
+  });
+
+  it('emits nothing when there is nobody to name yet', () => {
+    expect(counterpartyLabel({ deliveryMode: 'signature' })).toBeNull();
+    expect(
+      counterpartyLabel({ deliveryMode: 'signature', recipientName: '', recipientEmail: '' }),
+    ).toBeNull();
   });
 });
 

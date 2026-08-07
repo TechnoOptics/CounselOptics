@@ -8,6 +8,7 @@ import {
   type TemplateField,
 } from '@/lib/firm-templates';
 import { isReservedFirmKey } from '@/lib/firm-template-placeholders';
+import type { DeliveryMode } from '@/lib/submission-dispatch';
 import { EmptyState } from '@/components/counsel/ui';
 import { T } from '@/components/i18n/LocaleProvider';
 import { StatusPill, PILL_COLORS } from '@/components/counsel/StatusPill';
@@ -38,6 +39,7 @@ export function FormsManageClient({
     fields: TemplateField[];
     status: 'draft' | 'published';
     requiresApproval: boolean;
+    deliveryMode: DeliveryMode;
   }) => {
     setBusy(true);
     setError(null);
@@ -187,6 +189,7 @@ function TemplateEditor({
     fields: TemplateField[];
     status: 'draft' | 'published';
     requiresApproval: boolean;
+    deliveryMode: DeliveryMode;
   }) => void;
 }) {
   const [name, setName] = useState(initial?.name ?? '');
@@ -197,6 +200,9 @@ function TemplateEditor({
       'NON-DISCLOSURE AGREEMENT\n\nThis Agreement is made on {{date}} between {{company}} and {{recipient_name}} ("Recipient").\n\n1. ...',
   );
   const [requiresApproval, setRequiresApproval] = useState(initial?.requiresApproval ?? true);
+  const [deliveryMode, setDeliveryMode] = useState<DeliveryMode>(
+    initial?.deliveryMode ?? 'share',
+  );
   const [fieldMeta, setFieldMeta] = useState<Record<string, TemplateField>>(() => {
     const m: Record<string, TemplateField> = {};
     for (const f of initial?.fields ?? []) m[f.key] = f;
@@ -236,6 +242,25 @@ function TemplateEditor({
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Standard mutual NDA for pilots and vendor talks"
           />
+        </label>
+        <label className="sm:col-span-1">
+          <span className="mb-1 block text-[13px] font-medium text-forest-900 dark:text-cream-100">
+            <T>How this goes out</T>
+          </span>
+          <select
+            className={inputCls}
+            value={deliveryMode}
+            onChange={(e) => setDeliveryMode(e.target.value === 'signature' ? 'signature' : 'share')}
+          >
+            <option value="share">Secure link, read only</option>
+            <option value="signature">For signature</option>
+          </select>
+          <span className="mt-1 block text-[12px] text-ink-500 dark:text-cream-100/55">
+            <T>
+              For signature sends the recipient a link and a code, and asks them to sign.
+              A secure link only lets them read it.
+            </T>
+          </span>
         </label>
       </div>
 
@@ -325,6 +350,7 @@ function TemplateEditor({
               fields,
               status: 'published',
               requiresApproval,
+              deliveryMode,
             })
           }
           className="btn-primary disabled:opacity-50"
@@ -344,6 +370,7 @@ function TemplateEditor({
               fields,
               status: 'draft',
               requiresApproval,
+              deliveryMode,
             })
           }
           className="btn-secondary text-sm disabled:opacity-50"
