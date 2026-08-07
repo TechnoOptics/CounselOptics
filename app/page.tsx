@@ -12,6 +12,7 @@ import { AudienceSplit } from '@/components/AudienceSplit';
 import { FeatureGallery } from '@/components/FeatureGallery';
 import { BrowserFrame, PersonalCaseRoomMock } from '@/components/marketing/PortalMocks';
 import { ProductShowcaseBand } from '@/components/marketing/ProductShowcaseBand';
+import { ApprovalToExecuted } from '@/components/marketing/ApprovalToExecuted';
 import { TechTrustStrip } from '@/components/TechTrustStrip';
 import { AppJsonLd, FaqJsonLd } from '@/components/seo/JsonLd';
 
@@ -130,6 +131,13 @@ export default async function HomePage() {
       </div>
       <div className="cv-auto">
         <ProductShowcaseBand />
+      </div>
+      {/* The self-service loop, shown rather than listed: the approval gate,
+          the signing ceremony, and the executed record. Sits directly under
+          the two-product band because that band answers "what is this" and
+          this one answers "what does it actually do on a Tuesday". */}
+      <div className="cv-auto">
+        <ApprovalToExecuted />
       </div>
       <div className="cv-auto">
         <BellaShowcase />

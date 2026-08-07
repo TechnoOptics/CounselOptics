@@ -36,9 +36,55 @@ export function BrowserFrame({
 }: {
   children: ReactNode;
   url: string;
-  tone?: 'personal' | 'firm';
+  /**
+   * `personal` and `firm` are the original two tones and are unchanged.
+   *
+   * `counsel` is a third, and it works differently on purpose. The `firm`
+   * tone paints itself from the hand-kept `F` table above, which is a second
+   * copy of the counsel palette and, more to the point, sets colours for
+   * TEXT. `counsel` instead mounts the product's own shell classes, exactly
+   * as app/counsel/layout.tsx does, and lets its children carry the same
+   * Tailwind classes the real pages carry:
+   *
+   *   .counsel-shell  remaps --forest-* to the neutral black ramp and
+   *                   derives --accent-text at the dark lightness, so
+   *                   `text-accent-text` clears its contrast floor here
+   *   .dark           makes every `dark:` variant inside fire, so a firm
+   *                   screen reads the same whichever theme the marketing
+   *                   page around it is in - which is correct, because a
+   *                   screenshot of a dark product does not become a light
+   *                   product when you flip the page
+   *
+   * So a `counsel` mock is a copy of the real page's markup rather than a
+   * drawing of it, and there is no second palette to drift.
+   */
+  tone?: 'personal' | 'firm' | 'counsel';
   className?: string;
 }) {
+  if (tone === 'counsel') {
+    return (
+      <div
+        className={`counsel-shell dark overflow-hidden rounded-2xl border border-forest-700/70 shadow-2xl ${className}`}
+      >
+        <div className="flex items-center gap-3 border-b border-forest-700/70 bg-forest-900 px-4 py-2.5">
+          <div className="flex gap-1.5" aria-hidden>
+            <span className="h-2.5 w-2.5 rounded-full bg-gold-500/70" />
+            <span className="h-2.5 w-2.5 rounded-full bg-gold-500/45" />
+            <span className="h-2.5 w-2.5 rounded-full bg-gold-500/25" />
+          </div>
+          <div
+            className="min-w-0 flex-1 truncate rounded-md border border-forest-700/70 bg-forest-800 px-3 py-1 text-center text-[11px] font-medium text-cream-100/60"
+            data-no-translate
+          >
+            {url}
+          </div>
+          <div className="w-10" aria-hidden />
+        </div>
+        {children}
+      </div>
+    );
+  }
+
   const firm = tone === 'firm';
   return (
     <div

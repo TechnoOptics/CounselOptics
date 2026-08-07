@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { FeatureSheet } from '@/components/marketing/FeatureSheet';
+import { ApprovalToExecuted } from '@/components/marketing/ApprovalToExecuted';
 
 export const metadata: Metadata = {
   title: 'Features',
@@ -64,6 +65,15 @@ export default function FeaturesPage() {
       {/* The sheet */}
       <div className="mt-16 sm:mt-20">
         <FeatureSheet />
+      </div>
+
+      {/* The sheet lists capabilities; this shows one of them running end to
+          end. It goes after, not before, because a visitor who has already
+          decided from the matrix should not have to scroll past a long scene
+          to reach the call to action, and one who has not is exactly the
+          person a worked example is for. */}
+      <div className="mt-20 sm:mt-28">
+        <ApprovalToExecuted />
       </div>
     </div>
   );
