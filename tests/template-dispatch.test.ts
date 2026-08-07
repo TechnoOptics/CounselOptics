@@ -196,6 +196,56 @@ describe('the share mode', () => {
   });
 });
 
+/**
+ * The mode the document text was MERGED under is the mode it is delivered
+ * under, whatever the template says by the time an approver gets to it.
+ *
+ * document_text is frozen at submit time, and the counterparty signature block
+ * inside it is put there by counterpartyLabel, which returns null for any mode
+ * but 'signature'. A template flipped while the submission sat in the queue
+ * therefore desynchronises the mode from the words: dispatching for signature
+ * over share-merged text sends a counterparty an instrument with no block for
+ * them to sign, and dispatching a signature-merged text as a share puts our
+ * own field markers on an outside recipient's document.
+ *
+ * The submission carries its own mode for exactly that reason, and it wins.
+ * Re-merging at dispatch is not the alternative: that would change the
+ * document after the reviewer approved it.
+ */
+describe('a template whose mode changed while the submission waited', () => {
+  it('dispatches for signature when the row was merged for signature', async () => {
+    db.row = approvedRow({ delivery_mode: 'signature' });
+    loadPublishedTemplate.mockResolvedValue({ deliveryMode: 'share' });
+    const out = await retryTemplateReleaseAction(SUBMISSION_ID);
+    expect(out.ok).toBe(true);
+    expect(createSigningRequestAction).toHaveBeenCalledTimes(1);
+    expect(releaseApprovedSubmission).not.toHaveBeenCalled();
+  });
+
+  it('releases as a share when the row was merged as a share', async () => {
+    db.row = approvedRow({ delivery_mode: 'share' });
+    loadPublishedTemplate.mockResolvedValue({ deliveryMode: 'signature' });
+    const out = await retryTemplateReleaseAction(SUBMISSION_ID);
+    expect(out.ok).toBe(true);
+    expect(releaseApprovedSubmission).toHaveBeenCalledTimes(1);
+    expect(createSigningRequestAction).not.toHaveBeenCalled();
+  });
+
+  /**
+   * A row filed before the column existed, and every row on a database that
+   * has not had 20260807_flow_join.sql applied, carries no mode of its own.
+   * The template's mode is then still the only answer there is, which is
+   * exactly today's behaviour.
+   */
+  it('falls back to the template when the row carries no mode', async () => {
+    db.row = approvedRow();
+    loadPublishedTemplate.mockResolvedValue({ deliveryMode: 'signature' });
+    const out = await retryTemplateReleaseAction(SUBMISSION_ID);
+    expect(out.ok).toBe(true);
+    expect(createSigningRequestAction).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('the signature mode', () => {
   beforeEach(() => {
     loadPublishedTemplate.mockResolvedValue({ deliveryMode: 'signature' });

@@ -28,7 +28,13 @@ import {
 import { loadPublishedTemplate, sanitizeTemplateValues } from './template-fill';
 import { employeeFieldsOf } from './counterparty-fields';
 import { releaseApprovedSubmission } from './template-release';
-import { checkDispatchable, counterSignatureParty } from './submission-dispatch';
+import {
+  checkDispatchable,
+  counterSignatureParty,
+  resolveDispatchMode,
+  type DeliveryMode,
+} from './submission-dispatch';
+import { isUnknownColumnError } from './signer-view';
 import { materializeSubmissionDocument } from './submission-document';
 import { loadSubmissionSigning } from './submission-completion';
 import { categoryForRecord } from './document-category';
@@ -81,6 +87,33 @@ type DispatchRow = SubmissionRow & {
   document_id?: string | null;
   signing_request_id?: string | null;
 };
+
+/**
+ * Write the mode this document_text was merged under alongside it, and fall
+ * back to writing neither when the column is not there yet.
+ *
+ * The two always move together: the text is merged from the template's mode at
+ * the same moment, so a row that records one without the other is the
+ * desynchronisation resolveDispatchMode exists to prevent.
+ *
+ * Retrying without the column is right in this direction and only this one. An
+ * absent mode reads as "ask the template", which is exactly what dispatch did
+ * before this column existed, so a firm that has not applied
+ * 20260807_flow_join.sql keeps today's behaviour rather than losing the
+ * ability to file a document at all. That is the opposite of the template
+ * write's answer (resolveDeliveryModeColumnFallback), and for a good reason:
+ * there, dropping the mode silently changed what the legal team had chosen.
+ */
+type WriteError = { code?: string | null; message?: string | null } | null;
+
+async function writeWithDeliveryMode<T>(
+  write: (extra: Record<string, unknown>) => PromiseLike<{ data: T | null; error: WriteError }>,
+  deliveryMode: DeliveryMode,
+): Promise<{ data: T | null; error: WriteError }> {
+  const first = await write({ delivery_mode: deliveryMode });
+  if (!isUnknownColumnError(first.error, 'delivery_mode')) return first;
+  return await write({});
+}
 
 const SUBMISSION_COLS = '*';
 
@@ -397,25 +430,30 @@ export async function submitTemplateForApprovalAction(
     email: recipientEmail,
   });
 
-  const { data, error } = await admin
-    .from('firm_template_submissions')
-    .insert({
-      firm_id: firmId,
-      template_id: template.id,
-      template_name: template.name,
-      submitted_by: user.id,
-      submitter_name: submitterName,
-      submitter_email: user.email ?? null,
-      recipient_name: recipientName,
-      recipient_email: recipientEmail,
-      recipient_note: trimTo(input.recipientNote, 500) || null,
-      field_values: values,
-      signature_name: signatureName,
-      document_text: documentText,
-      status: 'pending',
-    })
-    .select(SUBMISSION_COLS)
-    .single();
+  const { data, error } = await writeWithDeliveryMode<SubmissionRow>(
+    (extra) =>
+      admin
+        .from('firm_template_submissions')
+        .insert({
+          firm_id: firmId,
+          template_id: template.id,
+          template_name: template.name,
+          submitted_by: user.id,
+          submitter_name: submitterName,
+          submitter_email: user.email ?? null,
+          recipient_name: recipientName,
+          recipient_email: recipientEmail,
+          recipient_note: trimTo(input.recipientNote, 500) || null,
+          field_values: values,
+          signature_name: signatureName,
+          document_text: documentText,
+          status: 'pending',
+          ...extra,
+        })
+        .select(SUBMISSION_COLS)
+        .single(),
+    template.deliveryMode,
+  );
   if (error || !data) {
     return { ok: false, error: 'Could not send that for review. Try again.' };
   }
@@ -522,35 +560,42 @@ export async function resubmitTemplateSubmissionAction(
     { name: recipientName, email: recipientEmail },
   );
 
-  const { data: updated } = await admin
-    .from('firm_template_submissions')
-    .update({
-      recipient_email: recipientEmail,
-      recipient_name: recipientName,
-      recipient_note: trimTo(input.recipientNote, 500) || null,
-      field_values: values,
-      signature_name: signatureName,
-      document_text: documentText,
-      status: move.status,
-      revision: row.revision + 1,
-      // A new revision carries no approval. Clearing these keeps the release
-      // gate from ever seeing an approver against a document that changed.
-      decided_by: null,
-      decided_at: null,
-      // Nor any reviewer edit. The employee has just rewritten the document,
-      // so a previous reviewer's wording is gone and the copy of "what the
-      // employee submitted" would otherwise point at the wrong revision.
-      original_document_text: null,
-      edited_by: null,
-      edited_at: null,
-      edit_note: null,
-      submitted_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', submissionId)
-    .eq('status', row.status)
-    .select(SUBMISSION_COLS)
-    .maybeSingle();
+  const { data: updated } = await writeWithDeliveryMode<SubmissionRow>(
+    (extra) =>
+      admin
+        .from('firm_template_submissions')
+        .update({
+          recipient_email: recipientEmail,
+          recipient_name: recipientName,
+          recipient_note: trimTo(input.recipientNote, 500) || null,
+          field_values: values,
+          signature_name: signatureName,
+          document_text: documentText,
+          status: move.status,
+          revision: row.revision + 1,
+          // A new revision carries no approval. Clearing these keeps the
+          // release gate from ever seeing an approver against a document that
+          // changed.
+          decided_by: null,
+          decided_at: null,
+          // Nor any reviewer edit. The employee has just rewritten the
+          // document, so a previous reviewer's wording is gone and the copy of
+          // "what the employee submitted" would otherwise point at the wrong
+          // revision.
+          original_document_text: null,
+          edited_by: null,
+          edited_at: null,
+          edit_note: null,
+          submitted_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          ...extra,
+        })
+        .eq('id', submissionId)
+        .eq('status', row.status)
+        .select(SUBMISSION_COLS)
+        .maybeSingle(),
+    template.deliveryMode,
+  );
   if (!updated) return { ok: false, error: 'Could not resend that for review.' };
 
   // The new revision is a new document, so it gets a new mark and a new hash
@@ -1026,14 +1071,17 @@ async function sendApproved(
   const row = (data as DispatchRow | null) ?? null;
   if (!row) return { ok: false, error: 'That submission could not be found.' };
 
-  // The mode is the template's, read at dispatch time.
+  // The mode is the submission's own, falling back to the template's.
   //
-  // A template that has since been archived or unpublished cannot be read, and
-  // the mode then falls back to 'share', which is today's behaviour and the
-  // behaviour of every template before this column existed. The alternative,
-  // refusing, would strand approved submissions whose template was tidied away
-  // while they sat in the queue, which is a worse failure than delivering the
-  // way the product delivered last week.
+  // The row records what its document_text was merged under, and that is what
+  // has to be delivered: see resolveDispatchMode. The template is read for the
+  // rows that carry no mode of their own, and a template that has since been
+  // archived or unpublished cannot be read, so the mode then falls back to
+  // 'share', which is today's behaviour and the behaviour of every template
+  // before this column existed. The alternative, refusing, would strand
+  // approved submissions whose template was tidied away while they sat in the
+  // queue, which is a worse failure than delivering the way the product
+  // delivered last week.
   const template = row.template_id
     ? await loadPublishedTemplate(admin, row.firm_id, row.template_id)
     : null;
@@ -1045,7 +1093,10 @@ async function sendApproved(
     recipientEmail: row.recipient_email,
     documentText: row.document_text,
     releasedAt: row.released_at,
-    deliveryMode: template?.deliveryMode,
+    deliveryMode: resolveDispatchMode({
+      submissionMode: row.delivery_mode,
+      templateMode: template?.deliveryMode,
+    }),
     documentId: row.document_id ?? null,
     signingRequestId: row.signing_request_id ?? null,
   });

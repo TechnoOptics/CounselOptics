@@ -69,6 +69,22 @@ export type SubmissionRow = {
    */
   category?: string | null;
   ticket_number?: string | null;
+  /**
+   * The delivery mode document_text was MERGED under, recorded in the same
+   * write as the text itself.
+   *
+   * Not a copy of the template's current mode for convenience: the text either
+   * carries a signature block for the other side or it does not, and a
+   * template flipped while this row waited in the queue would otherwise send
+   * the words down the wrong path. resolveDispatchMode
+   * (lib/submission-dispatch.ts) is the whole rule, and an absent value there
+   * means "ask the template", which is what dispatch did before this column
+   * existed.
+   *
+   * Optional for the same reason the two above are: until the owner applies
+   * 20260807_flow_join.sql, PostgREST returns these rows without the key.
+   */
+  delivery_mode?: string | null;
 };
 
 /** What the UIs render. */

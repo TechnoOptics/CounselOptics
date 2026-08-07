@@ -37,7 +37,21 @@ alter table public.firm_template_submissions
   -- before this shipped keep the cosmetic REQ- reference they were emailed
   -- under, and assigning them numbers in an arbitrary order now would put
   -- a false sequence on the record.
-  add column if not exists ticket_number text;
+  add column if not exists ticket_number text,
+  -- The delivery mode document_text was MERGED under, written in the same
+  -- statement as the text itself.
+  --
+  -- Copied rather than joined, and for the reason the category above is
+  -- copied. document_text is frozen at submit time and the counterparty
+  -- signature block inside it comes from the mode as it was then, so a
+  -- template flipped while this row waited in the approval queue would
+  -- otherwise deliver the words down a path they were not written for.
+  --
+  -- Nullable and never backfilled. Null reads as "ask the template", which
+  -- is exactly what dispatch did before this column existed, so every row
+  -- filed before it keeps today's behaviour.
+  add column if not exists delivery_mode text
+    check (delivery_mode in ('share', 'signature'));
 
 create index if not exists firm_template_submissions_signing_request_idx
   on public.firm_template_submissions (signing_request_id)

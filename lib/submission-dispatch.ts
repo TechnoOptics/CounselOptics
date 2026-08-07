@@ -43,6 +43,44 @@ export function parseDeliveryMode(value: unknown): DeliveryMode {
   return value === 'signature' ? 'signature' : 'share';
 }
 
+/**
+ * The mode a submission is actually delivered under.
+ *
+ * THE MODE AND THE WORDS HAVE TO AGREE. document_text is merged once, at
+ * submit time, and the counterparty signature block inside it is put there by
+ * counterpartyLabel (lib/firm-template-placeholders.ts), which returns null
+ * for any mode but 'signature'. So the text is not mode-neutral: it either
+ * carries a block for the other side or it does not.
+ *
+ * The template's own mode is not that answer. A template can be flipped while
+ * an approved submission sits in the queue, and reading the mode at dispatch
+ * then delivers share-merged words down the signature path, where a
+ * counterparty is asked to sign an instrument that names only the employee, or
+ * signature-merged words down the share path, which is the marker leak
+ * lib/template-release.ts describes.
+ *
+ * Re-merging at dispatch is NOT the alternative. It would change the document
+ * after the reviewer approved it, and materializeSubmissionDocument renders
+ * the stored text rather than re-merging for exactly that reason. So the
+ * submission records the mode it was merged under and that recording wins.
+ *
+ * The template is the fallback and stays the fallback. A row filed before the
+ * column existed carries nothing, as does every row on a database that has not
+ * had 20260807_flow_join.sql applied, and the template's mode is then the only
+ * answer there is, which is precisely today's behaviour.
+ */
+export function resolveDispatchMode(input: {
+  /** firm_template_submissions.delivery_mode, straight off the row. */
+  submissionMode: unknown;
+  /** The template's own delivery_mode, read at dispatch. */
+  templateMode: unknown;
+}): DeliveryMode {
+  if (input.submissionMode === 'share' || input.submissionMode === 'signature') {
+    return parseDeliveryMode(input.submissionMode);
+  }
+  return parseDeliveryMode(input.templateMode);
+}
+
 /** Everything the release gate reads, plus what the mode decision needs. */
 export type DispatchCandidate = ReleaseCandidate & {
   /** The template's delivery_mode, straight off the row. */

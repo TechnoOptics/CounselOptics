@@ -35,6 +35,8 @@ let currentUser: { id: string; email: string } | null = null;
 let currentRole: string | null = null;
 let mergedDocument = 'The supplier shall deliver on time.';
 let templateCategory: string | null = 'NDA';
+/** The template's delivery mode at the moment the employee files it. */
+let templateDeliveryMode = 'share';
 
 /**
  * Runs once, immediately after the next read or insert, then clears itself.
@@ -210,6 +212,7 @@ vi.mock('../lib/template-fill', () => ({
     body: 'body',
     fields: [],
     category: templateCategory,
+    deliveryMode: templateDeliveryMode,
   }),
   sanitizeTemplateValues: (_fields: unknown, values: Record<string, string>) => values,
 }));
@@ -304,6 +307,7 @@ beforeEach(() => {
   currentRole = 'attorney';
   mergedDocument = 'The supplier shall deliver on time.';
   templateCategory = 'NDA';
+  templateDeliveryMode = 'share';
   store.missingColumns = new Set();
   mutateAfterNextRead = null;
   uploadFails = false;
@@ -343,6 +347,21 @@ describe('submitting a filled template', () => {
       documentSignatureHash('The supplier shall deliver on time.'),
     );
     expect(store.row.signed_document_sha256).not.toBe(documentSignatureHash(''));
+  });
+
+  /**
+   * The mode the words were merged under goes onto the row beside them.
+   *
+   * document_text is frozen here and the counterparty signature block inside
+   * it comes from the template's mode as it is at this moment. Dispatch reads
+   * this rather than the template, because a template flipped while the
+   * submission waits in the approval queue would otherwise deliver these words
+   * down a path they were not written for. See resolveDispatchMode.
+   */
+  it('records the delivery mode the document was merged under', async () => {
+    templateDeliveryMode = 'signature';
+    await submitTemplateForApprovalAction('firm-1', 'tpl-1', input());
+    expect(store.row.delivery_mode).toBe('signature');
   });
 
   it('timestamps the intent from its own clock, so it cannot be backdated', async () => {
