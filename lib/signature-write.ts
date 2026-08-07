@@ -412,6 +412,30 @@ export async function recordSignature(
 
     try {
       const { createNotification } = await import('@/lib/notifications');
+
+      // The employee who filed this, and the legal team, are told by the
+      // module that owns the join. It answers whether a template submission
+      // produced this request, and it is the only thing that knows where an
+      // employee's copy of this document lives.
+      //
+      // In its OWN try, inside this one, on purpose. Everything below is a
+      // notice to a different set of people about the same fact, and one
+      // party failing to be told must never silence the other. The outcome
+      // describes the RECORD, not the delivery: it stays 'backed' even if
+      // nobody could be reached, because the question it answers for the
+      // loop below is "where does this employee's link point", and that does
+      // not change because an insert failed.
+      const { notifySubmissionCompletion, signerNoticeRecipients } = await import(
+        '@/lib/submission-completion'
+      );
+      let submissionBacked: { submittedBy: string } | null = null;
+      try {
+        const outcome = await notifySubmissionCompletion(admin, request.id);
+        if (outcome.backed) submissionBacked = { submittedBy: outcome.submittedBy };
+      } catch {
+        /* the submission notice is best effort and does not take the rest with it */
+      }
+
       // Pull the document name + the firm member who created the
       // request so we can populate the notification body cleanly.
       const { data: docRow } = await admin
@@ -477,8 +501,12 @@ export async function recordSignature(
         }
         // Fan the completion notices out concurrently rather than one
         // sequential DB round-trip per signer. (Audit 2026-07-03, perf.)
+        //
+        // The colleague who filed this, if anybody did, is not in this list:
+        // the link below is the consumer inbox and they have already been
+        // told on their own surface. See signerNoticeRecipients.
         await Promise.all(
-          Array.from(matchedIds).map((userId) =>
+          signerNoticeRecipients(Array.from(matchedIds), submissionBacked).map((userId) =>
             createNotification({
               userId,
               type: 'signing_request_completed',

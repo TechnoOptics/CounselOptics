@@ -29,6 +29,7 @@ import { loadPublishedTemplate, sanitizeTemplateValues } from './template-fill';
 import { releaseApprovedSubmission } from './template-release';
 import { checkDispatchable } from './submission-dispatch';
 import { materializeSubmissionDocument } from './submission-document';
+import { loadSubmissionSigning } from './submission-completion';
 import { categoryForRecord } from './document-category';
 import { allocateSubmissionTicket } from './ticket-allocator';
 import { displayTicket } from './ticket-numbers';
@@ -43,6 +44,7 @@ import {
   rowToSubmission,
   type SubmissionInput,
   type SubmissionRow,
+  type SubmissionSigning,
   type TemplateSubmission,
 } from './template-submission-types';
 
@@ -636,11 +638,22 @@ export async function listFirmTemplateSubmissionsAction(
   };
 }
 
-/** One submission, for the reviewer or for the employee who filed it. */
+/**
+ * One submission, for the reviewer or for the employee who filed it.
+ *
+ * `signing` is present only for a submission that went out for signature, and
+ * it is what closes the loop for the employee: until this, nothing on any
+ * portal surface read a signing request at all, so the colleague who filed a
+ * document was never shown the signed version of it.
+ *
+ * The executed copy is gated on the same predicate as the wording, and the
+ * link is minted server-side and short-lived. See loadSubmissionSigning.
+ */
 export async function getTemplateSubmissionAction(submissionId: string): Promise<{
   ok: boolean;
   error?: string;
   submission?: TemplateSubmission;
+  signing?: SubmissionSigning | null;
   viewer?: 'legal' | 'submitter';
   canApprove?: boolean;
 }> {
@@ -662,15 +675,17 @@ export async function getTemplateSubmissionAction(submissionId: string): Promise
   if (!role && !isSubmitter) return { ok: false, error: 'You do not have access to this document.' };
 
   const people = await hydratePeople(admin, namedIn([row]));
+  const canReadDocument = canReadSubmissionDocument({ role, isSubmitter, status: row.status });
+  // Absent until 20260807_flow_join.sql is applied, so this is undefined
+  // rather than null on an unmigrated database and the page renders exactly
+  // as it does today.
+  const signingRequestId = (row as DispatchRow).signing_request_id ?? null;
   return {
     ok: true,
     viewer: role ? 'legal' : 'submitter',
     canApprove: canApproveSubmissions(role),
-    submission: rowToSubmission(
-      row,
-      (id) => people.get(id)?.name ?? null,
-      canReadSubmissionDocument({ role, isSubmitter, status: row.status }),
-    ),
+    signing: await loadSubmissionSigning(admin, signingRequestId, canReadDocument),
+    submission: rowToSubmission(row, (id) => people.get(id)?.name ?? null, canReadDocument),
   };
 }
 

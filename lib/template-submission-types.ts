@@ -138,6 +138,103 @@ export type TemplateSubmission = {
   ticketNumber: string | null;
 };
 
+/**
+ * One signer on the signing request an approved submission dispatched.
+ *
+ * The IP and the user agent of a signature are audit facts and stay on the
+ * signature row; what a page needs is who and when.
+ */
+export type SubmissionSigner = {
+  name: string | null;
+  email: string;
+  signedAt: string | null;
+};
+
+/**
+ * The signature side of a submission, for the surfaces that have to say where
+ * the document has got to.
+ *
+ * Absent (null) for every submission that was released as a read-only share,
+ * for every submission filed before the join shipped, and for every firm whose
+ * database has not had 20260807_flow_join.sql applied: there is then no
+ * signing_request_id to follow, and the pages render exactly as they do today.
+ *
+ * `executedUrl` is a short-lived signed URL minted on the server. The stored
+ * path is never carried to a client.
+ */
+export type SubmissionSigning = {
+  status: 'draft' | 'sent' | 'partial' | 'completed' | 'canceled';
+  signers: SubmissionSigner[];
+  executedUrl: string | null;
+};
+
+/**
+ * Where the document has got to, as one sentence's worth of fact.
+ *
+ * The employee is the one person in this flow who has never been told
+ * anything after they pressed send, so this is the whole of what they know.
+ * It is decided here, once, rather than in each page, because the same three
+ * states are wanted on the portal page and in a notification body and two
+ * functions answering "whose turn is it" is two answers as soon as one of
+ * them is edited.
+ */
+export type SubmissionSigningState =
+  /**
+   * `waitingOn` is null when the state is genuinely waiting but nobody is
+   * outstanding to name: every signature row is in and the rollup that writes
+   * 'completed' has not landed yet. Naming the person who already signed
+   * there would be false, and calling it complete would put "fully signed"
+   * beside nothing to download.
+   */
+  | { kind: 'waiting'; waitingOn: string | null }
+  | { kind: 'your_turn'; signedBy: string }
+  | { kind: 'complete' }
+  | { kind: 'halted' };
+
+function signerLabel(signer: SubmissionSigner): string {
+  return signer.name?.trim() || signer.email;
+}
+
+function sameAddress(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
+export function resolveSubmissionSigningState(
+  signing: SubmissionSigning | null | undefined,
+  viewerEmail: string | null | undefined,
+): SubmissionSigningState | null {
+  if (!signing) return null;
+  // Neither of these is out for signature: a canceled request has been
+  // stopped, and a draft was never sent. There is nobody to be waiting on in
+  // either case.
+  if (signing.status === 'canceled' || signing.status === 'draft') return { kind: 'halted' };
+  // The parent status is the authority, not the signature rows. The executed
+  // copy is produced by the rollup that writes 'completed', so a page that
+  // called it finished on the strength of the rows alone would say "fully
+  // signed" beside nothing to download.
+  if (signing.status === 'completed') return { kind: 'complete' };
+  // No signers at all is not "waiting for nobody". Nothing was dispatched
+  // that anyone can act on, so the page says so rather than naming a person
+  // who is not there.
+  if (signing.signers.length === 0) return { kind: 'halted' };
+
+  const outstanding = signing.signers.filter((s) => !s.signedAt);
+  if (outstanding.length === 0) return { kind: 'waiting', waitingOn: null };
+
+  const viewer = viewerEmail ?? '';
+  const others = outstanding.filter((s) => !sameAddress(s.email, viewer));
+  if (others.length === 0) {
+    // Every other signer is in and the viewer is the one who is not. Name who
+    // signed, because that is the fact that changed since they last looked.
+    const signed = signing.signers
+      .filter((s) => s.signedAt && !sameAddress(s.email, viewer))
+      .sort((a, b) => String(a.signedAt).localeCompare(String(b.signedAt)));
+    const last = signed[signed.length - 1];
+    return { kind: 'your_turn', signedBy: last ? signerLabel(last) : signerLabel(outstanding[0]) };
+  }
+  return { kind: 'waiting', waitingOn: signerLabel(others[0]) };
+}
+
 export type SubmissionInput = {
   recipientEmail: string;
   recipientName?: string;
