@@ -1,8 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
+  LETTERHEAD_DESIGN_METADATA_KEY,
   LETTERHEAD_MAX_ADDRESS_LINES,
   letterheadDesignLines,
+  firmLetterheadDesign,
   normalizeLetterheadDesign,
+  parseLetterheadDesignReply,
   type LetterheadDesign,
 } from '../lib/letterhead-design';
 
@@ -203,5 +206,63 @@ describe('letterheadDesignLines: the order, and which line carries the emphasis'
       'Hartley and Vance LLP',
       'filings@hartleyvance.com  -  hartleyvance.com',
     ]);
+  });
+});
+
+describe('parseLetterheadDesignReply: the model reply is untrusted text', () => {
+  it('reads a bare JSON object', () => {
+    const out = parseLetterheadDesignReply(
+      '{"firmName":"Hartley and Vance LLP","phone":"(215) 555 0148"}',
+    );
+    expect(out?.firmName).toBe('Hartley and Vance LLP');
+    expect(out?.phone).toBe('(215) 555 0148');
+  });
+
+  it('reads a JSON object the model wrapped in a fenced block and prose', () => {
+    const out = parseLetterheadDesignReply(
+      'Here is what I found:\n```json\n{"firmName":"Hartley and Vance LLP","addressLines":["400 Market Street"]}\n```\nLet me know.',
+    );
+    expect(out?.firmName).toBe('Hartley and Vance LLP');
+    expect(out?.addressLines).toEqual(['400 Market Street']);
+  });
+
+  it('returns null for a reply with no JSON in it, rather than leaking the prose', () => {
+    expect(
+      parseLetterheadDesignReply('I could not find a letterhead in that document.'),
+    ).toBeNull();
+  });
+
+  it('returns null for malformed JSON and for a JSON value that is not a design', () => {
+    expect(parseLetterheadDesignReply('{"firmName": "Hartley and Vance LLP"')).toBeNull();
+    expect(parseLetterheadDesignReply('{"firmName": ""}')).toBeNull();
+    expect(parseLetterheadDesignReply('["Hartley and Vance LLP"]')).toBeNull();
+  });
+
+  it('returns null for anything that is not a string', () => {
+    expect(parseLetterheadDesignReply(null)).toBeNull();
+    expect(parseLetterheadDesignReply({ firmName: 'Hartley and Vance LLP' })).toBeNull();
+  });
+});
+
+describe('the metadata key', () => {
+  it('is the one both the actions and the renderer read', () => {
+    expect(LETTERHEAD_DESIGN_METADATA_KEY).toBe('letterhead_design');
+  });
+});
+
+describe('firmLetterheadDesign: reading the design out of the metadata bag', () => {
+  it('finds a design stored under the metadata key', () => {
+    const out = firmLetterheadDesign({
+      hideAdvotticLogo: true,
+      [LETTERHEAD_DESIGN_METADATA_KEY]: { firmName: 'Hartley and Vance LLP' },
+    });
+    expect(out?.firmName).toBe('Hartley and Vance LLP');
+  });
+
+  it('returns null for a firm that has no design, an absent bag, or junk in the key', () => {
+    expect(firmLetterheadDesign({ hideAdvotticLogo: true })).toBeNull();
+    expect(firmLetterheadDesign(null)).toBeNull();
+    expect(firmLetterheadDesign(undefined)).toBeNull();
+    expect(firmLetterheadDesign({ [LETTERHEAD_DESIGN_METADATA_KEY]: 'yes' })).toBeNull();
   });
 });

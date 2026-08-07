@@ -54,6 +54,12 @@ export type LetterheadLine = { text: string; size: number; bold: boolean };
 /** A firm gets four address lines. A fifth is a paragraph, not a letterhead. */
 export const LETTERHEAD_MAX_ADDRESS_LINES = 4;
 
+/**
+ * The key inside firms.metadata. Named once so the server actions that write
+ * it and the PDF renderer that reads it cannot drift onto two spellings.
+ */
+export const LETTERHEAD_DESIGN_METADATA_KEY = 'letterhead_design';
+
 const MAX_FIRM_NAME = 120;
 const MAX_ADDRESS_LINE = 120;
 const MAX_PHONE = 60;
@@ -120,6 +126,19 @@ export function normalizeLetterheadDesign(input: unknown): LetterheadDesign | nu
 }
 
 /**
+ * The design a firm has stored, read out of its `firms.metadata` bag.
+ *
+ * Every surface that draws a designed letterhead reaches it through here, so
+ * the key is spelled once and the untyped bag is narrowed once.
+ */
+export function firmLetterheadDesign(metadata: unknown): LetterheadDesign | null {
+  if (typeof metadata !== 'object' || metadata === null) return null;
+  return normalizeLetterheadDesign(
+    (metadata as Record<string, unknown>)[LETTERHEAD_DESIGN_METADATA_KEY],
+  );
+}
+
+/**
  * The layout. This is the single place the visual order is decided, so the
  * on-screen preview and the PDF cannot disagree about it.
  *
@@ -146,4 +165,33 @@ export function letterheadDesignLines(design: LetterheadDesign): LetterheadLine[
   }
 
   return lines;
+}
+
+/**
+ * A model's reply, turned into a design or into nothing.
+ *
+ * The import flow asks Bella to read the header of an existing letterhead and
+ * answer with a JSON object. What actually comes back is a string, and a
+ * string is not a promise: it can be prose, a fenced block, a fenced block
+ * with prose either side, or valid JSON describing something that is not a
+ * letterhead at all.
+ *
+ * So nothing here trusts the reply. It is narrowed to the outermost braces,
+ * parsed inside a try, and then handed to the same normalizer that guards
+ * every other read. Null is the only other outcome, which is what lets the
+ * caller answer with its own calm sentence: raw model output must never reach
+ * a person, because a refusal in the model's voice is not the product's voice.
+ */
+export function parseLetterheadDesignReply(reply: unknown): LetterheadDesign | null {
+  if (typeof reply !== 'string') return null;
+  const start = reply.indexOf('{');
+  const end = reply.lastIndexOf('}');
+  if (start === -1 || end <= start) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(reply.slice(start, end + 1));
+  } catch {
+    return null;
+  }
+  return normalizeLetterheadDesign(parsed);
 }

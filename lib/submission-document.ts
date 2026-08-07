@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getFirmByIdAdmin } from './firm-storage';
 import { buildBrandedDocumentPdf } from './branded-document-pdf';
+import { firmLetterheadDesign } from './letterhead-design';
 import { sha256 } from './esign-audit';
 import { isUnknownColumnError } from './signer-view';
 import { serializeFieldBoxes } from './template-field-boxes';
@@ -107,6 +108,7 @@ export async function materializeSubmissionDocument(
     brandName: firm?.name ?? undefined,
     accent: firm?.accentColor ?? undefined,
     letterheadUrl: firm?.letterheadUrl ?? undefined,
+    letterheadDesign: firmLetterheadDesign(firm?.metadata),
     logoUrl: firm?.logoUrl ?? undefined,
   });
   // Null is a refusal, not a throw: the renderer returns it for a document

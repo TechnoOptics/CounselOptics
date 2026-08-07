@@ -3,6 +3,11 @@ import 'server-only';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { cleanLegalText } from './legal-templates';
 import { findSignatureBlockLine } from './firm-template-placeholders';
+import { isWinAnsiEncodable } from './counterparty-fields';
+import {
+  letterheadDesignLines,
+  type LetterheadDesign,
+} from './letterhead-design';
 import {
   RENDERED_PAGE_HEIGHT_PT,
   RENDERED_PAGE_WIDTH_PT,
@@ -53,6 +58,20 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } {
   };
 }
 
+/**
+ * Drop every character pdf-lib's standard fonts cannot draw.
+ *
+ * Dropped rather than substituted: a firm's own address is not a place to
+ * guess at a replacement, and a missing glyph is a visible defect the legal
+ * team can correct in the designer, whereas a wrong one is not.
+ */
+function winAnsiSafe(value: string): string {
+  return Array.from(value)
+    .filter((ch) => isWinAnsiEncodable(ch))
+    .join('')
+    .trim();
+}
+
 export type BrandedDocumentInput = {
   /** The document body. Cleaned before rendering. */
   document: string;
@@ -61,6 +80,15 @@ export type BrandedDocumentInput = {
   accent?: string;
   /** Public URL of the firm's letterhead image (PNG/JPG). */
   letterheadUrl?: string;
+  /**
+   * The letterhead the firm DESIGNED in the app, drawn as real vector text.
+   *
+   * Used only when there is no uploaded image: a firm that has both has told
+   * us twice what its stationery looks like, and the scan of the real thing is
+   * the more authoritative of the two answers. Callers read this out of
+   * `firms.metadata` through firmLetterheadDesign().
+   */
+  letterheadDesign?: LetterheadDesign | null;
   /** Public URL of the firm's logo, used when there is no letterhead. */
   logoUrl?: string;
   /**
@@ -163,11 +191,34 @@ export async function buildBrandedDocumentPdf(
     }
   }
 
+  // No uploaded letterhead? Draw the one the firm designed, if it has one.
+  //
+  // Sanitized first, and this is not decoration: pdf-lib's standard fonts
+  // encode WinAnsi only, and a character outside it is not dropped quietly but
+  // THROWN mid-render, which would take the whole document down over a curly
+  // apostrophe pasted out of Word. The predicate is the shared one from
+  // lib/counterparty-fields.ts so "encodable" means one thing in this codebase.
+  // Latin-1 survives intact, so this is not a rule against accented names.
+  const designLines = (
+    !letterhead && input.letterheadDesign
+      ? letterheadDesignLines(input.letterheadDesign)
+      : []
+  )
+    .map((line) => ({ ...line, text: winAnsiSafe(line.text) }))
+    .filter((line) => line.text.length > 0);
+  const designAlignment = input.letterheadDesign?.alignment ?? 'left';
+  const designRule = input.letterheadDesign?.showRule ?? true;
+
   // No uploaded letterhead? Synthesize one from the firm's logo (#13).
   // The logo is drawn small at the top-left with the brand name beside
   // it, over the accent rule - a clean "generated letterhead".
   let logo: Embedded | null = null;
-  if (!letterhead && input.logoUrl && /^https?:\/\//i.test(input.logoUrl)) {
+  if (
+    !letterhead &&
+    designLines.length === 0 &&
+    input.logoUrl &&
+    /^https?:\/\//i.test(input.logoUrl)
+  ) {
     try {
       const r = await fetch(input.logoUrl);
       if (r.ok) {
@@ -238,6 +289,36 @@ export async function buildBrandedDocumentPdf(
         color: rgb(0.8, 0.8, 0.8),
       });
       y = yTop - 38;
+    } else if (designLines.length > 0) {
+      // The designed letterhead, drawn as real text. It stays crisp at any
+      // zoom and needs no image asset at all. The order and the weights come
+      // from letterheadDesignLines, which the on-screen preview also reads, so
+      // the two cannot describe different stationery.
+      page.drawRectangle({ x: 0, y: H - 8, width: W, height: 8, color: accentColor });
+      let lineY = H - 34;
+      let lastY = lineY;
+      for (const line of designLines) {
+        const lineFont = line.bold ? bold : font;
+        const width = lineFont.widthOfTextAtSize(line.text, line.size);
+        page.drawText(line.text, {
+          x: designAlignment === 'center' ? Math.max(M, (W - width) / 2) : M,
+          y: lineY,
+          size: line.size,
+          font: lineFont,
+          color: line.bold ? accentColor : rgb(0.35, 0.35, 0.35),
+        });
+        lastY = lineY;
+        lineY -= line.size + 4;
+      }
+      if (designRule) {
+        page.drawLine({
+          start: { x: M, y: lastY - 12 },
+          end: { x: W - M, y: lastY - 12 },
+          thickness: 0.5,
+          color: rgb(0.8, 0.8, 0.8),
+        });
+      }
+      y = lastY - 36;
     } else if (logo) {
       // Synthesized letterhead from the firm's logo (#13). Accent bar,
       // logo at top-left, brand name to its right, then the rule.

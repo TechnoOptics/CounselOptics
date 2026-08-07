@@ -5,6 +5,7 @@ import { getActiveFirmContext, getFirmByIdAdmin } from '@/lib/firm-storage';
 import { callerFirmRole } from '@/lib/firm-authz';
 import { authorizeFirmActor } from '@/lib/portal-entitlements';
 import { buildBrandedDocumentPdf } from '@/lib/branded-document-pdf';
+import { firmLetterheadDesign } from '@/lib/letterhead-design';
 import { canRenderFilledTemplate } from '@/lib/template-approval';
 import { loadPublishedTemplate, sanitizeTemplateValues } from '@/lib/template-fill';
 import {
@@ -170,6 +171,7 @@ async function renderTemplate(
       brandName: firm?.name ?? undefined,
       accent: firm?.accentColor ?? undefined,
       letterheadUrl: firm?.letterheadUrl ?? undefined,
+      letterheadDesign: firmLetterheadDesign(firm?.metadata),
       logoUrl: firm?.logoUrl ?? undefined,
       signatureImage: decoded.ok ? { png: decoded.bytes } : undefined,
     },
@@ -195,6 +197,10 @@ async function renderFreeText(body: {
       brandName: body.brandName ?? body.firmName,
       accent: body.accent,
       letterheadUrl: body.letterheadUrl,
+      // Read off the caller's own active firm, never off the request body.
+      // The body is the studio's draft; the letterhead is the firm's identity,
+      // and a caller does not get to describe someone else's stationery.
+      letterheadDesign: firmLetterheadDesign(ctx.firm?.metadata),
       logoUrl: body.logoUrl,
     },
   };

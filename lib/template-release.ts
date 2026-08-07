@@ -3,6 +3,7 @@ import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getFirmByIdAdmin } from './firm-storage';
 import { buildBrandedDocumentPdf } from './branded-document-pdf';
+import { firmLetterheadDesign } from './letterhead-design';
 import { sendEmail, buildShareLinkEmailHtml, buildShareKeyEmailHtml } from './email';
 import { siteUrl } from './intake-notify';
 import {
@@ -162,6 +163,7 @@ export async function releaseApprovedSubmission(
       brandName: firm?.name ?? undefined,
       accent: firm?.accentColor ?? undefined,
       letterheadUrl: firm?.letterheadUrl ?? undefined,
+      letterheadDesign: firmLetterheadDesign(firm?.metadata),
       logoUrl: firm?.logoUrl ?? undefined,
       signatureImage: markBytes ? { png: markBytes } : undefined,
     });

@@ -20,6 +20,12 @@ import {
   buildSigningCodeEmailHtml,
 } from './email';
 import { seatCheck } from './firm-access';
+import {
+  LETTERHEAD_DESIGN_METADATA_KEY,
+  normalizeLetterheadDesign,
+  parseLetterheadDesignReply,
+  type LetterheadDesign,
+} from './letterhead-design';
 import type { FirmRole, FirmSigningStatus, FirmType } from './firm-types';
 import { FIRM_ROLES, FIRM_TYPES } from './firm-types';
 import { CASE_TYPES, type CaseType, type Posture } from './types';
@@ -526,6 +532,207 @@ export async function removeFirmLetterheadAction(
   revalidatePath('/counsel', 'layout');
   revalidatePath('/counsel/settings');
   return { ok: true };
+}
+
+// =====================================================================
+// The DESIGNED letterhead
+// =====================================================================
+//
+// The three actions below are the second and third routes to a letterhead:
+// design one in the app, or import one out of a document the firm already
+// has. The uploaded image above is the first, and it still wins wherever both
+// exist (see lib/branded-document-pdf.ts).
+//
+// STORAGE, AND WHY THERE IS NO MIGRATION. The design is written to
+// firms.metadata.letterhead_design. firms.metadata is an existing jsonb column
+// and this feature adds no column of its own. Two consequences are load
+// bearing here:
+//
+//   1. Every write is a read-modify-write of the metadata OBJECT, never a
+//      whole-column overwrite. Other features (hideAdvotticLogo, the ticket
+//      prefix, the surface toggles) keep their own keys in that same bag, and
+//      an update that posted only this key would delete theirs.
+//   2. Every read goes back through normalizeLetterheadDesign, which is the
+//      trust boundary for a column this code does not own.
+//
+// The gate is the same one the uploader above uses: callerIsFirmAdmin, from
+// lib/firm-authz.ts, as the first statement. Every export of this module is a
+// public HTTP endpoint callable with arguments of the caller's choosing, so
+// the hidden UI is not the gate and never was.
+
+/** The firm's own words, so this is generous but still bounded. */
+const LETTERHEAD_IMPORT_MAX_BYTES = 15 * 1024 * 1024;
+/**
+ * How much of the extracted document the reader is shown. A letterhead is at
+ * the top of the first page by definition, so more text is not more signal:
+ * it is the body of a contract competing with the header for attention.
+ */
+const LETTERHEAD_IMPORT_CHARS = 2000;
+
+const LETTERHEAD_DESIGN_DENIED =
+  'Only an owner or admin can change the letterhead.';
+
+/**
+ * Read the firm's metadata bag so a write can merge into it.
+ *
+ * Deliberately not readFirmMetadata further down this file, which collapses a
+ * failed read into `{}`. That is the right answer where the caller is only
+ * LOOKING something up, and the wrong one here: a merge that starts from `{}`
+ * because the select blipped writes back a bag missing every other feature's
+ * keys, silently clearing the firm's white-label toggle and ticket prefix.
+ * This one reports the failure so the write is abandoned instead.
+ */
+async function readFirmMetadataForMerge(
+  admin: NonNullable<ReturnType<typeof createAdminSupabase>>,
+  firmId: string,
+): Promise<{ ok: true; metadata: Record<string, unknown> } | { ok: false; error: string }> {
+  const { data, error } = await admin
+    .from('firms')
+    .select('metadata')
+    .eq('id', firmId)
+    .maybeSingle();
+  if (error) return { ok: false, error: error.message };
+  const metadata =
+    ((data as { metadata?: Record<string, unknown> } | null)?.metadata) ?? {};
+  return { ok: true, metadata };
+}
+
+export async function saveFirmLetterheadDesignAction(
+  firmId: string,
+  design: unknown,
+): Promise<{ ok: boolean; error?: string }> {
+  await requireUser();
+  if (!(await callerIsFirmAdmin(firmId))) {
+    return { ok: false, error: LETTERHEAD_DESIGN_DENIED };
+  }
+  // Normalized before it is stored as well as after it is read. The client is
+  // not the author of what lands in the column.
+  const normalized = normalizeLetterheadDesign(design);
+  if (!normalized) {
+    return { ok: false, error: 'Add your firm name before saving the letterhead.' };
+  }
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server not configured.' };
+  const current = await readFirmMetadataForMerge(admin, firmId);
+  if (!current.ok) return { ok: false, error: current.error };
+  const { error } = await admin
+    .from('firms')
+    .update({
+      metadata: {
+        ...current.metadata,
+        [LETTERHEAD_DESIGN_METADATA_KEY]: normalized,
+      },
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', firmId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath('/counsel', 'layout');
+  revalidatePath('/counsel/settings');
+  return { ok: true };
+}
+
+export async function removeFirmLetterheadDesignAction(
+  firmId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  await requireUser();
+  if (!(await callerIsFirmAdmin(firmId))) {
+    return { ok: false, error: LETTERHEAD_DESIGN_DENIED };
+  }
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server not configured.' };
+  const current = await readFirmMetadataForMerge(admin, firmId);
+  if (!current.ok) return { ok: false, error: current.error };
+  const next = { ...current.metadata };
+  delete next[LETTERHEAD_DESIGN_METADATA_KEY];
+  const { error } = await admin
+    .from('firms')
+    .update({ metadata: next, updated_at: new Date().toISOString() })
+    .eq('id', firmId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath('/counsel', 'layout');
+  revalidatePath('/counsel/settings');
+  return { ok: true };
+}
+
+/**
+ * Read an existing letterhead out of a document the firm already has, and
+ * PROPOSE it. This never writes.
+ *
+ * The separation is the point. What comes back is a reading of a document, and
+ * a reading can be wrong in ways only the legal team can see: a former address
+ * still printed on an old template, a partner who has left, a bar admission
+ * that has lapsed. So the proposal goes into the designer's fields for someone
+ * to correct, and saving stays a deliberate act through
+ * saveFirmLetterheadDesignAction above.
+ */
+export async function importFirmLetterheadAction(
+  firmId: string,
+  formData: FormData,
+): Promise<{ ok: boolean; error?: string; design?: LetterheadDesign }> {
+  await requireUser();
+  if (!(await callerIsFirmAdmin(firmId))) {
+    return { ok: false, error: LETTERHEAD_DESIGN_DENIED };
+  }
+  const file = formData.get('letterheadDocument');
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false, error: 'Choose a PDF or Word document.' };
+  }
+  if (file.size > LETTERHEAD_IMPORT_MAX_BYTES) {
+    return { ok: false, error: 'The document must be under 15 MB.' };
+  }
+  if (!/\.(pdf|docx)$/i.test(file.name)) {
+    return { ok: false, error: 'Use a PDF or a Word (.docx) document.' };
+  }
+
+  // Imported here rather than at the top of the file so the PDF and Word
+  // parsers, and the Anthropic client, stay out of the module graph of every
+  // other action in this file.
+  const { extractFileText } = await import('./doc-review');
+  const extracted = await extractFileText(file).catch(() => null);
+  const head = (extracted?.text ?? '').slice(0, LETTERHEAD_IMPORT_CHARS).trim();
+  if (!head) {
+    return {
+      ok: false,
+      error:
+        'We could not read any text from that document. If it is a scan or an image, fill the fields in below instead.',
+    };
+  }
+
+  const { bellaGenerate } = await import('./bella');
+  let reply: string;
+  try {
+    reply = await bellaGenerate({
+      system:
+        'You read the letterhead out of the top of a legal document. Reply with a single JSON object and nothing else. ' +
+        'Use exactly these keys: firmName (string), addressLines (array of up to 4 strings), phone (string), ' +
+        'email (string), website (string), admissionsLine (string, any bar admissions or registered office line). ' +
+        'Use an empty string or an empty array for anything the document does not state. Copy the values verbatim ' +
+        'from the document and invent nothing. If the text carries no letterhead, reply with {}.',
+      prompt: `Here is the top of the document:\n\n${head}`,
+      maxTokens: 700,
+    });
+  } catch (err) {
+    // bellaGenerate throws AiUnavailableError with copy already written for a
+    // person. Anything else gets this module's own calm sentence, because a
+    // raw provider message is not something to show a legal team.
+    const message = err instanceof Error ? err.message : '';
+    return {
+      ok: false,
+      error:
+        message ||
+        'The letterhead reader is unavailable right now. Fill the fields in below instead.',
+    };
+  }
+
+  const design = parseLetterheadDesignReply(reply);
+  if (!design) {
+    return {
+      ok: false,
+      error:
+        'We could not find a letterhead in that document. Fill the fields in below instead.',
+    };
+  }
+  return { ok: true, design };
 }
 
 export async function setActiveFirmAction(
