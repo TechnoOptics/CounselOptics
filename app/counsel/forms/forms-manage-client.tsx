@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   createFirmTemplateAction,
+  importTemplateDocumentAction,
   updateFirmTemplateAction,
   type FirmTemplate,
   type TemplateField,
@@ -80,6 +81,7 @@ export function FormsManageClient({
 
       {editing ? (
         <TemplateEditor
+          firmId={firmId}
           initial={editing === 'new' ? null : editing}
           busy={busy}
           onCancel={() => setEditing(null)}
@@ -172,11 +174,13 @@ function extractKeys(body: string): string[] {
 }
 
 function TemplateEditor({
+  firmId,
   initial,
   busy,
   onCancel,
   onSave,
 }: {
+  firmId: string;
   initial: FirmTemplate | null;
   busy: boolean;
   onCancel: () => void;
@@ -208,6 +212,45 @@ function TemplateEditor({
     for (const f of initial?.fields ?? []) m[f.key] = f;
     return m;
   });
+
+  // What came back from an import, if one has run. `imported` drives the
+  // banner: it stays up until the editor is closed, because the reviewer is
+  // being asked to check work that is not theirs and the reminder should not
+  // scroll away with the first edit.
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [imported, setImported] = useState<{ notes: string[] } | null>(null);
+
+  /**
+   * Fill the editor from an uploaded document. NOTHING is saved: the proposal
+   * lands in the same state the author types into, and the existing Save
+   * button is still the only thing that writes.
+   */
+  const runImport = async (file: File) => {
+    setImporting(true);
+    setImportError(null);
+    const data = new FormData();
+    data.set('file', file);
+    const res = await importTemplateDocumentAction(firmId, data);
+    setImporting(false);
+    if (!res.ok || !res.proposal) {
+      setImportError(res.error ?? 'Could not read that document.');
+      return;
+    }
+    const p = res.proposal;
+    setBody(p.body);
+    setDeliveryMode(p.deliveryMode);
+    // Replaced rather than merged. The keys belong to the document that was
+    // just imported, and settings left over from a different body would be
+    // attached to whichever keys happened to share a name.
+    setFieldMeta(() => {
+      const m: Record<string, TemplateField> = {};
+      for (const f of p.fields) m[f.key] = f;
+      return m;
+    });
+    setImported({ notes: p.notes });
+  };
 
   const keys = extractKeys(body);
   const fields: TemplateField[] = keys.map(
@@ -263,6 +306,72 @@ function TemplateEditor({
           </span>
         </label>
       </div>
+
+      <div className="rounded-lg border border-ink-200 bg-cream-50/60 p-3 dark:border-forest-700/50 dark:bg-forest-900/60">
+        <p className="text-[13px] font-medium text-forest-900 dark:text-cream-100">
+          <T>Import a document</T>
+        </p>
+        <p className="mt-0.5 text-[12px] text-ink-500 dark:text-cream-100/55">
+          <T>
+            Upload a document your team already uses. Bella reads it and suggests
+            the body, the blanks to fill in and their types, and whether it needs
+            to be signed. You review everything here first, and nothing is saved
+            until you press Save.
+          </T>
+        </p>
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) void runImport(file);
+            // Cleared so choosing the same file again still fires a change.
+            e.target.value = '';
+          }}
+        />
+        <button
+          type="button"
+          disabled={busy || importing}
+          onClick={() => fileRef.current?.click()}
+          className="btn-secondary mt-2 text-sm disabled:opacity-50"
+        >
+          {importing ? 'Reading the document…' : 'Choose a file'}
+        </button>
+        <span className="ml-2 text-[12px] text-ink-500 dark:text-cream-100/55">
+          <T>PDF, Word (.docx) or plain text.</T>
+        </span>
+        {importError && (
+          <p className="mt-2 text-[12.5px] text-rose-800 dark:text-rose-200">{importError}</p>
+        )}
+      </div>
+
+      {imported && (
+        <div className="rounded-lg border border-gold-500/30 bg-gold-500/5 p-3">
+          <p className="text-[13px] font-semibold text-forest-900 dark:text-cream-100">
+            <T>Check these suggestions before you publish</T>
+          </p>
+          <p className="mt-0.5 text-[12.5px] text-ink-600 dark:text-cream-100/70">
+            <T>
+              Bella filled the body, the fields and the delivery setting in from
+              the file you uploaded. Read every field and every signature line
+              against your own document and correct anything that is wrong.
+              Nothing is saved until you press Save.
+            </T>
+          </p>
+          {imported.notes.length > 0 && (
+            <ul
+              className="mt-2 list-disc space-y-1 pl-5 text-[12.5px] text-ink-600 dark:text-cream-100/70"
+              data-no-translate
+            >
+              {imported.notes.map((note, i) => (
+                <li key={i}>{note}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       <label className="block">
         <span className="mb-1 block text-[13px] font-medium text-forest-900 dark:text-cream-100">
