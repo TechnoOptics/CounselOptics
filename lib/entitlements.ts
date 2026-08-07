@@ -98,6 +98,82 @@ export function resolvePriceEntitlement(
 }
 
 // ---------------------------------------------------------------------------
+// The tier VOCABULARY, derived from the table above rather than written twice.
+//
+// HQ can put an account on a trial that runs at a plan level. That level has
+// to mean the same thing as a paid plan of that name, or the product has two
+// answers to "what does Growing Firm include" and one of them is wrong. So
+// the set of levels a trial may run at, and the coarse Tier each one grants,
+// are READ OFF PRICE_TABLE. There is deliberately no second list: a hand
+// written one would be a second place to get an entitlement wrong, and it
+// would drift the first time a rung is added here and not there.
+//
+// Three properties fall out of deriving it, and all three are wanted:
+//
+//   Legacy STRIPE_PRICE_PRO contributes NOTHING, because its slug is null.
+//   That is the money-critical irregularity documented above, and a trial can
+//   therefore never be run at the grandfathered 1.5M grant. Good: that grant
+//   belongs to people who bought it.
+//
+//   'free' is absent, because no price grants it. A trial at 'free' is not a
+//   trial, it is the absence of one, and offering it would be a lever that
+//   silently does nothing.
+//
+//   Monthly and annual rows collapse, because they carry the same slug and
+//   the same tier. A trial has no billing period to pick.
+// ---------------------------------------------------------------------------
+
+function buildSlugTiers(): ReadonlyMap<TierSlug, Tier | null> {
+  const map = new Map<TierSlug, Tier | null>();
+  for (const row of PRICE_TABLE) {
+    if (row.tierSlug === null) continue;
+    const existing = map.get(row.tierSlug);
+    // A slug that two rows disagree about has no single answer, and picking
+    // either one silently is how an entitlement goes wrong quietly. The table
+    // is static and env-independent, so this throws during module evaluation
+    // in dev, in test and in `next build` rather than in front of a customer.
+    if (existing !== undefined && existing !== row.tier) {
+      throw new Error(
+        `entitlements: the tier slug ${row.tierSlug} maps to both ${String(existing)} and ${String(row.tier)}. One slug grants one coarse tier.`,
+      );
+    }
+    map.set(row.tierSlug, row.tier);
+  }
+  return map;
+}
+
+const SLUG_TIERS = buildSlugTiers();
+
+/**
+ * Every plan level the price table can grant, in table order. This is the
+ * only list a trial level may come from.
+ */
+export const ENTITLEMENT_TIER_SLUGS: readonly TierSlug[] = Object.freeze([
+  ...SLUG_TIERS.keys(),
+]);
+
+/**
+ * Whether an arbitrary stored value names a plan level this product sells.
+ *
+ * Takes `unknown` on purpose. The value it guards arrives from a text column,
+ * so it is a string at best and anything at worst, and narrowing it here is
+ * what lets the trial resolver refuse rather than coerce.
+ */
+export function isEntitlementTierSlug(value: unknown): value is TierSlug {
+  return typeof value === 'string' && SLUG_TIERS.has(value as TierSlug);
+}
+
+/**
+ * What a plan level grants, in the same shape resolvePriceEntitlement returns
+ * for a price id. Same table, same answer, reached without a Stripe price.
+ */
+export function entitlementForTierSlug(slug: TierSlug): BillingEntitlement {
+  const tier = SLUG_TIERS.get(slug);
+  if (tier === undefined) return { tier: null, tierSlug: null };
+  return { tier, tierSlug: slug };
+}
+
+// ---------------------------------------------------------------------------
 // Apple In-App Purchase product ids. IAP only sells the two consumer tiers
 // (standard flat-rate, pro metered); there is no firm ladder on iOS, so this
 // is a coarse Tier map with no TierSlug dimension. Mirror of IOS_PRODUCT_BY_TIER

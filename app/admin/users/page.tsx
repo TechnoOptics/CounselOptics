@@ -1,15 +1,107 @@
 import { adminListUsers } from '@/lib/storage';
 import { getCurrentUser } from '@/lib/supabase/server';
 import { TIER_LABEL, REPRESENTATION_LABEL } from '@/lib/types';
+import { freeTrialWindowEnds, listTrialUsers } from '@/lib/user-trials';
+import { ENTITLEMENT_TIER_SLUGS, isEntitlementTierSlug } from '@/lib/entitlements';
+import { levelAppliesFrom, tierSlugLabel } from '@/lib/trial-entitlement';
 import { UserToggles } from './user-toggles';
+import {
+  UserTrialConsole,
+  type StartableUser,
+  type UserTrialView,
+} from './trial-controls';
 import { LocaleTime } from '@/components/LocaleTime';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export default async function AdminUsersPage() {
-  const [users, me] = await Promise.all([adminListUsers(), getCurrentUser()]);
+  const [users, me, trialList] = await Promise.all([
+    adminListUsers(),
+    getCurrentUser(),
+    listTrialUsers(),
+  ]);
   const adminCount = users.filter((u) => u.isAdmin).length;
+
+  // An unreadable list is NOT an empty one, and the difference matters here:
+  // "nobody is on a clock" plus a Start a trial control offering everybody is
+  // how somebody already on a trial gets given a second one.
+  const trialsUnavailable = !trialList.ok;
+  const trialUsers = trialList.ok ? trialList.rows : [];
+
+  // The email lives on auth.users rather than on profiles, so lib/user-trials
+  // does not carry it and the join happens here, against the list this page
+  // already holds.
+  const byId = new Map(users.map((u) => [u.id, u]));
+
+  // When each of these people's AUTOMATIC signup trial ends. While that window
+  // is open, isFullAccessTrial unlocks every feature regardless of the plan
+  // level set here, so a row that showed the level without saying so would be
+  // asserting a restriction the product does not apply. There are two trials
+  // in this product and only one of them is granted by an operator.
+  const freeWindows = await freeTrialWindowEnds(
+    trialUsers.map((t) => {
+      const u = byId.get(t.id) ?? null;
+      return {
+        userId: t.id,
+        email: u?.email ?? null,
+        createdAt: u?.createdAt ?? null,
+      };
+    }),
+  );
+  // One clock for one render of one list.
+  const now = new Date();
+
+  const trialRows: UserTrialView[] = trialUsers.map((t) => {
+    const u = byId.get(t.id) ?? null;
+    return {
+      id: t.id,
+      email: u?.email ?? null,
+      displayName: t.displayName ?? u?.displayName ?? null,
+      trialEndsAt: t.trialEndsAt,
+      daysRemaining: t.daysRemaining,
+      trialTier: t.trialTier,
+      // Resolved on the server because the vocabulary is derived from the
+      // price table, which is a server module. A level the table no longer
+      // defines has to be shown AS one rather than quietly labelled.
+      trialTierKnown: isEntitlementTierSlug(t.trialTier),
+      resolvedSource: t.resolved.source,
+      resolvedTier: t.resolved.tierSlug,
+      // Null unless the level is genuinely not applying yet. The rule lives
+      // in lib/trial-entitlement.ts so a test can reach it: vitest runs under
+      // node with no jsdom, and a decision left in this file is a decision
+      // nothing can exercise.
+      freeTrialEndsAt: levelAppliesFrom(
+        {
+          source: t.resolved.source,
+          freeTrialEndsAt: freeWindows.get(t.id) ?? null,
+        },
+        now,
+      ),
+      lastActorEmail: t.lastActorEmail,
+      lastActionAt: t.lastActionAt,
+    };
+  });
+
+  // Everybody the trials list does not already hold. The billing flag rides
+  // along rather than filtering the list: a trial on a paying account is inert
+  // rather than forbidden, so the control says which ones those are instead of
+  // quietly hiding them.
+  const onTheClock = new Set(trialRows.map((r) => r.id));
+  const startableUsers: StartableUser[] = users
+    .filter((u) => !onTheClock.has(u.id))
+    .map((u) => ({
+      id: u.id,
+      email: u.email || null,
+      displayName: u.displayName,
+      billingActive:
+        u.subscriptionStatus === 'active' || u.subscriptionStatus === 'trialing',
+    }));
+
+  const tierOptions = ENTITLEMENT_TIER_SLUGS.map((slug) => ({
+    slug,
+    label: tierSlugLabel(slug),
+  }));
 
   return (
     <div className="space-y-4">
@@ -25,6 +117,27 @@ export default async function AdminUsersPage() {
           </p>
         )}
       </div>
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <h2 className="text-[13px] font-semibold uppercase tracking-wider text-ink-600 dark:text-cream-100/70">
+            Trials and plan levels
+          </h2>
+          <p className="text-[12px] text-ink-500 dark:text-cream-100/55">
+            {trialsUnavailable ? 'Not loaded' : `${trialRows.length} on a clock`}
+          </p>
+        </div>
+        <UserTrialConsole
+          rows={trialRows}
+          startable={startableUsers}
+          tierOptions={tierOptions}
+          unavailable={trialsUnavailable}
+        />
+      </section>
+
+      <h2 className="text-[13px] font-semibold uppercase tracking-wider text-ink-600 dark:text-cream-100/70">
+        All users
+      </h2>
+
       <p className="md:hidden text-[11px] text-ink-500 dark:text-cream-100/55 -mt-2">
         Swipe horizontally to see all columns →
       </p>

@@ -33,8 +33,25 @@ export type TrialFirmRow = {
   trialEndsAt: string | null;
   seatLimit: number | null;
   suspendedAt: string | null;
+  /**
+   * The plan level the trial runs at, as stored. Raw text and not narrowed
+   * here, because narrowing it is the resolver's job in
+   * lib/trial-entitlement.ts and this row is also what the HQ view shows an
+   * operator. A level that no longer names a plan must be visible AS a level
+   * that grants nothing, not silently rendered as no level at all.
+   */
+  trialTier: string | null;
   memberCount: number;
   state: FirmAccessState;
+  /**
+   * The email of whoever last moved this trial, and when. An operator
+   * deciding whether to extend needs to see who set what they are extending,
+   * and the email is the half of the actor record that survives that admin's
+   * account being deleted.
+   */
+  lastActorEmail: string | null;
+  lastActionAt: string | null;
+  lastAction: string | null;
 };
 
 /**
@@ -85,7 +102,8 @@ export type TrialAction =
   | { kind: 'reset'; days: number }
   | { kind: 'suspended' }
   | { kind: 'restored' }
-  | { kind: 'seats_changed'; seatLimit: number | null };
+  | { kind: 'seats_changed'; seatLimit: number | null }
+  | { kind: 'tier_changed'; tierSlug: string | null };
 
 /**
  * `actorEmail` is required rather than optional, and typed `| null` rather
@@ -248,7 +266,7 @@ export async function listTrialFirms(): Promise<TrialFirmList> {
   // drops either index the results stay correct and the read becomes a scan.
   const { data, error } = await admin
     .from('firms')
-    .select(`id, name, slug, seat_limit, ${FIRM_ACCESS_COLUMNS}`)
+    .select(`id, name, slug, seat_limit, trial_tier, ${FIRM_ACCESS_COLUMNS}`)
     .or('trial_ends_at.not.is.null,suspended_at.not.is.null')
     .order('trial_ends_at', { ascending: true, nullsFirst: false });
 
@@ -260,20 +278,42 @@ export async function listTrialFirms(): Promise<TrialFirmList> {
   const rows = (data ?? []) as Array<Record<string, unknown>>;
   if (rows.length === 0) return { ok: true, rows: [] };
 
+  const ids = rows.map((r) => r.id as string);
+
   // Same shape as adminListFirms in lib/hq-storage.ts: one select, counted in
   // memory. Display only. Nothing that enforces a seat limit should count
   // members this way.
-  const { data: memberRows } = await admin
-    .from('firm_members')
-    .select('firm_id')
-    .in(
-      'firm_id',
-      rows.map((r) => r.id as string),
-    );
+  const [memberResp, eventsResp] = await Promise.all([
+    admin.from('firm_members').select('firm_id').in('firm_id', ids),
+    admin
+      .from('firm_trial_events')
+      .select('firm_id, action, actor_email, created_at')
+      .in('firm_id', ids)
+      .order('created_at', { ascending: false }),
+  ]);
 
   const counts = new Map<string, number>();
-  for (const m of (memberRows ?? []) as Array<{ firm_id: string }>) {
+  for (const m of (memberResp.data ?? []) as Array<{ firm_id: string }>) {
     counts.set(m.firm_id, (counts.get(m.firm_id) ?? 0) + 1);
+  }
+
+  // Newest first, so the first row seen for an organization is the latest.
+  const latest = new Map<
+    string,
+    { action: string; actorEmail: string | null; createdAt: string }
+  >();
+  for (const e of (eventsResp.data ?? []) as Array<{
+    firm_id: string;
+    action: string;
+    actor_email: string | null;
+    created_at: string;
+  }>) {
+    if (latest.has(e.firm_id)) continue;
+    latest.set(e.firm_id, {
+      action: e.action,
+      actorEmail: e.actor_email,
+      createdAt: e.created_at,
+    });
   }
 
   // One clock for one render of one list. This is not a cached state: the
@@ -281,16 +321,23 @@ export async function listTrialFirms(): Promise<TrialFirmList> {
   const now = new Date();
   return {
     ok: true,
-    rows: rows.map((r) => ({
+    rows: rows.map((r) => {
+      const last = latest.get(r.id as string) ?? null;
+      return {
       id: r.id as string,
       name: r.name as string,
       slug: r.slug as string,
       trialEndsAt: (r.trial_ends_at as string | null) ?? null,
       seatLimit: (r.seat_limit as number | null) ?? null,
       suspendedAt: (r.suspended_at as string | null) ?? null,
+      trialTier: (r.trial_tier as string | null) ?? null,
       memberCount: counts.get(r.id as string) ?? 0,
       state: firmAccessState(toFirmAccessInput(r), now),
-    })),
+      lastActorEmail: last?.actorEmail ?? null,
+      lastActionAt: last?.createdAt ?? null,
+      lastAction: last?.action ?? null,
+      };
+    }),
   };
 }
 
@@ -479,7 +526,7 @@ export async function applyTrialAction(
 
   const { data: before, error: beforeErr } = await admin
     .from('firms')
-    .select(`seat_limit, ${FIRM_ACCESS_COLUMNS}`)
+    .select(`seat_limit, trial_tier, ${FIRM_ACCESS_COLUMNS}`)
     .eq('id', input.firmId)
     .maybeSingle();
 
@@ -522,12 +569,14 @@ export async function applyTrialAction(
     'trial_ends_at',
     'suspended_at',
     'seat_limit',
+    'trial_tier',
   ]);
 
   const prev = before as {
     trial_ends_at: string | null;
     seat_limit: number | null;
     suspended_at: string | null;
+    trial_tier: string | null;
   };
 
   let patch: Record<string, unknown> = {};
@@ -586,6 +635,16 @@ export async function applyTrialAction(
       previousValue = prev.seat_limit == null ? null : String(prev.seat_limit);
       newValue =
         input.action.seatLimit == null ? null : String(input.action.seatLimit);
+      break;
+    }
+    case 'tier_changed': {
+      // Stored as given, having already been validated against
+      // ENTITLEMENT_TIER_SLUGS by the action layer. This function does not
+      // re-derive the vocabulary: one list, one validator, and a level that
+      // somehow lands here anyway grants nothing when it is read back.
+      patch = { trial_tier: input.action.tierSlug };
+      previousValue = prev.trial_tier;
+      newValue = input.action.tierSlug;
       break;
     }
   }

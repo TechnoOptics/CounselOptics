@@ -14,6 +14,7 @@ import { STATUS_LABEL, SUBJECT_TYPE_LABEL, type CaseStatus, type SubjectProfile,
 import { UploadForm } from './upload-form';
 import { ReviewPanel } from './review-panel';
 import { hasFeature, isFullAccessTrial } from '@/lib/tier';
+import { currentUserTrialGrant } from '@/lib/user-trials';
 import { getEffectiveTrialState, getCurrentSubscription } from '@/lib/storage';
 import { redactReviewForTeaser } from '@/lib/review-teaser';
 import { CollaboratorsPanel } from './collaborators-panel';
@@ -72,7 +73,8 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
   const c = await getCase(params.id);
   if (!c) notFound();
 
-  const [exhibits, review, collaborators, currentUser, activity, trialState, sub] = await Promise.all([
+  const [exhibits, review, collaborators, currentUser, activity, trialState, sub, hqTrial] =
+    await Promise.all([
     listExhibits(c.id),
     getLatestReview(c.id),
     usingSupabase() ? listCollaborators(c.id) : Promise.resolve([]),
@@ -80,6 +82,7 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
     usingSupabase() ? listCaseAuditEvents(c.id, 50) : Promise.resolve([]),
     getEffectiveTrialState().catch(() => null),
     getCurrentSubscription().catch(() => null),
+    currentUserTrialGrant().catch(() => undefined),
   ]);
 
   // Freemium Advottic Review: anyone can GENERATE a review, but the full
@@ -88,7 +91,8 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
   // per section, the rest reported only as counts - so the locked content
   // never reaches the browser. Mirrors the export route's gate.
   const reviewEntitled =
-    (trialState ? isFullAccessTrial(trialState) : false) || hasFeature(sub, 'aiReview');
+    (trialState ? isFullAccessTrial(trialState) : false) ||
+    hasFeature(sub, 'aiReview', hqTrial);
   const reviewTeaser = review && !reviewEntitled ? redactReviewForTeaser(review) : null;
 
   // Profile of the current viewer for the presence chip avatar/initials.

@@ -202,6 +202,28 @@ describe('applyTrialAction refuses a firms row that lost a column', () => {
     expect(h.ref.updates).toHaveLength(0);
     expect(h.ref.audits).toHaveLength(0);
   });
+
+  it('throws when trial_tier is absent, so a plan level cannot be invented', async () => {
+    // The plan level joined the same guard when trials gained one. Without it
+    // in the list, previous_value for a tier change would be undefined,
+    // supabase-js drops undefined from an insert payload, and the audit row
+    // would land claiming the organization had been on no plan level before.
+    h.ref.firmRow = { trial_ends_at: null, suspended_at: null, seat_limit: null };
+    const { applyTrialAction } = await freshModule();
+
+    await expect(
+      applyTrialAction({
+        firmId: 'firm-1',
+        actorUserId: 'admin-1',
+        actorEmail: 'admin@example.com',
+        action: { kind: 'tier_changed', tierSlug: 'growing_firm' },
+        note: null,
+      }),
+    ).rejects.toThrow(/trial_tier/);
+
+    expect(h.ref.updates).toHaveLength(0);
+    expect(h.ref.audits).toHaveLength(0);
+  });
 });
 
 describe('extending a trial reads the stored end date, not a truthy one', () => {
@@ -210,7 +232,12 @@ describe('extending a trial reads the stored end date, not a truthy one', () => 
     // `prev.trial_ends_at ? ... : Date.now()`. An empty string is present and
     // therefore not "no trial", but it is falsy, so truthiness silently grants
     // today plus 30.
-    h.ref.firmRow = { trial_ends_at: '', suspended_at: null, seat_limit: null };
+    h.ref.firmRow = {
+      trial_ends_at: '',
+      suspended_at: null,
+      seat_limit: null,
+      trial_tier: null,
+    };
     const { applyTrialAction } = await freshModule();
 
     const result = await applyTrialAction(extend(30));
@@ -226,6 +253,7 @@ describe('extending a trial reads the stored end date, not a truthy one', () => 
       trial_ends_at: lapsed,
       suspended_at: null,
       seat_limit: null,
+      trial_tier: null,
     };
     const { applyTrialAction } = await freshModule();
 
@@ -245,6 +273,7 @@ describe('extending a trial reads the stored end date, not a truthy one', () => 
       trial_ends_at: null,
       suspended_at: null,
       seat_limit: null,
+      trial_tier: null,
     };
     const { applyTrialAction } = await freshModule();
 

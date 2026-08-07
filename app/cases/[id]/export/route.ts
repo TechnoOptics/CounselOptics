@@ -10,6 +10,7 @@ import {
 import { getCurrentUser } from '@/lib/supabase/server';
 import { generateCasePdf } from '@/lib/pdf';
 import { hasFeature, isFullAccessTrial } from '@/lib/tier';
+import { currentUserTrialGrant } from '@/lib/user-trials';
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const caseRecord = await getCase(params.id);
@@ -42,7 +43,8 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   // the Review section entirely from the export so a Basic / expired
   // -trial user does not get a packet that includes a review they
   // can no longer access in-app.
-  const reviewEntitled = isTrial || hasFeature(sub, 'aiReview');
+  const hqTrial = await currentUserTrialGrant().catch(() => undefined);
+  const reviewEntitled = isTrial || hasFeature(sub, 'aiReview', hqTrial);
 
   const pdf = await generateCasePdf({
     caseRecord,

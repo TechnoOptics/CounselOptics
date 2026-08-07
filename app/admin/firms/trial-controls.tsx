@@ -9,8 +9,10 @@ import {
   resetTrialAction,
   setSeatLimitAction,
   setSuspendedAction,
+  setTrialTierAction,
   type TrialActionResult,
 } from '@/lib/firm-trial-actions';
+import { tierSlugLabel } from '@/lib/trial-entitlement';
 
 /**
  * The HQ trials view: every organization that is on a trial clock or closed,
@@ -66,6 +68,19 @@ export type TrialFirmView = {
   memberCount: number;
   state: 'active' | 'export_only';
   /**
+   * The plan level the trial runs at, as stored, or null for none.
+   *
+   * Raw rather than pre-labelled, and `known` says whether it is still one of
+   * the levels this build sells. A level that has fallen out of the price
+   * table grants nothing, and the operator has to SEE that rather than read a
+   * tidy label for a plan that is doing nothing.
+   */
+  trialTier: string | null;
+  trialTierKnown: boolean;
+  /** Who last moved this trial, and when. */
+  lastActorEmail: string | null;
+  lastActionAt: string | null;
+  /**
    * Whole days from now until the end date, negative once it has passed, and
    * null when there is no end date.
    *
@@ -75,6 +90,13 @@ export type TrialFirmView = {
    */
   daysRemaining: number | null;
 };
+
+/**
+ * The plan levels a trial may run at, handed down from the server because the
+ * list is derived from the price table in lib/entitlements.ts. Hard-coding it
+ * in the browser would be a second copy of the entitlement vocabulary.
+ */
+export type TierOption = { slug: string; label: string };
 
 export type StartableFirm = {
   id: string;
@@ -123,10 +145,12 @@ function useTrialAction() {
 export function TrialConsole({
   rows,
   startable,
+  tierOptions,
   unavailable,
 }: {
   rows: TrialFirmView[];
   startable: StartableFirm[];
+  tierOptions: TierOption[];
   /**
    * The trials list could not be read. This is NOT the same as an empty list,
    * and the difference is destructive: "no organization is on a clock" plus a
@@ -171,6 +195,7 @@ export function TrialConsole({
                 <Th>Organization</Th>
                 <Th>Trial ends</Th>
                 <Th>Remaining</Th>
+                <Th>Plan level (recorded)</Th>
                 <Th>Seats</Th>
                 <Th>State</Th>
                 <Th>Controls</Th>
@@ -178,7 +203,7 @@ export function TrialConsole({
             </thead>
             <tbody className="divide-y divide-forest-700/40">
               {rows.map((row) => (
-                <TrialRow key={row.id} row={row} />
+                <TrialRow key={row.id} row={row} tierOptions={tierOptions} />
               ))}
             </tbody>
           </table>
@@ -189,14 +214,28 @@ export function TrialConsole({
 
       <p className="text-[11px] text-cream-100/50 leading-relaxed max-w-3xl">
         Export only means the organization keeps everything it has put into the
-        product and can still export it at any time. Closing an organization
-        does not remove its data.
+        product and can still export it at any time. Access ends on the date
+        shown, and nothing here removes an organization's data.
+      </p>
+      <p className="text-[11px] text-cream-100/50 leading-relaxed max-w-3xl">
+        A plan level on an organization is RECORDED, not yet enforced. It is
+        stored, it appears in the audit trail with your name on it, and no firm
+        feature reads it today, so setting one does not change what this
+        organization can do. An organization's plan currently comes from its
+        owner's subscription. The individual-user plan level on the Users page
+        is enforced; this one is not.
       </p>
     </div>
   );
 }
 
-function TrialRow({ row }: { row: TrialFirmView }) {
+function TrialRow({
+  row,
+  tierOptions,
+}: {
+  row: TrialFirmView;
+  tierOptions: TierOption[];
+}) {
   const [open, setOpen] = useState(false);
   const suspended = row.suspendedAt !== null;
   const endsInFuture = row.daysRemaining !== null && row.daysRemaining > 0;
@@ -231,6 +270,15 @@ function TrialRow({ row }: { row: TrialFirmView }) {
 
         <Td>
           <Remaining days={row.daysRemaining} muted={suspended} />
+        </Td>
+
+        <Td>
+          <TierCell
+            tier={row.trialTier}
+            known={row.trialTierKnown}
+            actorEmail={row.lastActorEmail}
+            actionAt={row.lastActionAt}
+          />
         </Td>
 
         <Td>
@@ -281,8 +329,8 @@ function TrialRow({ row }: { row: TrialFirmView }) {
 
       {open && (
         <tr id={panelId} className="bg-forest-900/40">
-          <td colSpan={6} className="px-4 py-4">
-            <TrialPanel row={row} />
+          <td colSpan={7} className="px-4 py-4">
+            <TrialPanel row={row} tierOptions={tierOptions} />
           </td>
         </tr>
       )}
@@ -294,7 +342,13 @@ function TrialRow({ row }: { row: TrialFirmView }) {
  * The four levers for one organization, plus the note that goes on the record
  * with whichever one is used.
  */
-function TrialPanel({ row }: { row: TrialFirmView }) {
+function TrialPanel({
+  row,
+  tierOptions,
+}: {
+  row: TrialFirmView;
+  tierOptions: TierOption[];
+}) {
   const [note, setNote] = useState('');
   const trimmedNote = note.trim() ? note.trim() : null;
 
@@ -325,6 +379,7 @@ function TrialPanel({ row }: { row: TrialFirmView }) {
       <div className="grid gap-3 lg:grid-cols-2">
         <ExtendBlock row={row} note={trimmedNote} />
         <RestartBlock row={row} note={trimmedNote} />
+        <TierBlock row={row} note={trimmedNote} options={tierOptions} />
         <SeatsBlock row={row} note={trimmedNote} />
         <AccessBlock row={row} note={trimmedNote} />
       </div>
@@ -522,6 +577,140 @@ function RemainingPhrase({ days }: { days: number | null }) {
   if (days === 0) return <>, ending today</>;
   const ago = Math.abs(days);
   return <>, ended {ago} day{ago === 1 ? '' : 's'} ago</>;
+}
+
+/**
+ * The plan level, and who set it, in the row an operator scans.
+ *
+ * A level that is no longer one this build sells is shown AS a problem rather
+ * than tidied away, because the resolver grants nothing for it. Rendering it
+ * as a plain label would leave an organization looking provisioned while it
+ * had no entitlement at all.
+ */
+function TierCell({
+  tier,
+  known,
+  actorEmail,
+  actionAt,
+}: {
+  tier: string | null;
+  known: boolean;
+  actorEmail: string | null;
+  actionAt: string | null;
+}) {
+  return (
+    <div className="max-w-[200px]">
+      {tier === null ? (
+        <span className="text-[13px] text-cream-100/40">No level set</span>
+      ) : known ? (
+        <span className="badge text-[10px] tracking-wider bg-gold-500/15 text-gold-200 border border-gold-500/30">
+          {tierSlugLabel(tier)}
+        </span>
+      ) : (
+        <div>
+          <span className="badge text-[10px] tracking-wider bg-amber-950/40 text-amber-100 border border-amber-400/30">
+            {tier}
+          </span>
+          <div className="mt-0.5 text-[11px] text-amber-200/75 leading-snug">
+            Not a plan this build sells. Set a level from the list.
+          </div>
+        </div>
+      )}
+      {actorEmail && (
+        <div className="mt-1 text-[11px] text-cream-100/50 leading-snug break-words">
+          Set by {actorEmail}
+          {actionAt && (
+            <>
+              {' '}
+              <LocaleTime iso={actionAt} mode="date" />
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The plan level lever.
+ *
+ * The options come down from the server because the list is derived from the
+ * price table. The select therefore cannot offer a level the action would
+ * refuse, and it cannot go stale against it either.
+ *
+ * The block states out loud that this cannot touch a paying organization. That
+ * is not reassurance copy, it is the operating model: lib/trial-entitlement.ts
+ * resolves a live subscription ahead of any trial, so the level an operator
+ * sets here does nothing at all until the subscription lapses.
+ */
+function TierBlock({
+  row,
+  note,
+  options,
+}: {
+  row: TrialFirmView;
+  note: string | null;
+  options: TierOption[];
+}) {
+  const [tier, setTier] = useState(row.trialTier ?? '');
+  const { pending, error, run } = useTrialAction();
+
+  return (
+    <Block title="Plan level" accent="neutral">
+      <p className="text-[12px] text-cream-100/55 leading-relaxed">
+        Recorded, not yet enforced. Saving a level stores it and puts it in the
+        audit trail with your name on it. No firm feature reads it today, so
+        this does not change what the organization can do.
+      </p>
+      {!row.trialEndsAt && (
+        <p className="text-[12px] text-cream-100/55 leading-relaxed">
+          There is no end date on file, so a level would have no window to
+          apply in. Restart the trial first.
+        </p>
+      )}
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="flex flex-col gap-1 min-w-[180px]">
+          <label
+            htmlFor={`tier-${row.id}`}
+            className="text-[11px] uppercase tracking-wider text-cream-100/50"
+          >
+            Level
+          </label>
+          <select
+            id={`tier-${row.id}`}
+            value={tier}
+            disabled={pending}
+            onChange={(e) => setTier(e.target.value)}
+            className="input py-1.5"
+          >
+            <option value="">No level</option>
+            {options.map((o) => (
+              <option key={o.slug} value={o.slug}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <button
+          type="button"
+          onClick={() =>
+            run(() =>
+              setTrialTierAction({
+                firmId: row.id,
+                tierSlug: tier === '' ? null : tier,
+                note,
+              }),
+            )
+          }
+          disabled={pending}
+          className="btn-secondary text-[13px] py-1.5"
+        >
+          {pending ? 'Saving' : 'Save level'}
+        </button>
+      </div>
+      <FieldError message={error} />
+    </Block>
+  );
 }
 
 function SeatsBlock({

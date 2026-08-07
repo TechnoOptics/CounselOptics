@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { getRealCurrentUser, isCurrentUserAdmin } from './supabase/server';
 import { logSecurityEvent } from './security-audit';
 import { applyTrialAction, readTrialSnapshot } from './firm-trials';
+import { ENTITLEMENT_TIER_SLUGS, isEntitlementTierSlug } from './entitlements';
 
 /**
  * The five HQ trial levers, and the only place the browser can reach
@@ -151,6 +152,30 @@ function readNote(note: unknown): string | null {
 }
 
 const DAYS_ERROR = `Enter a whole number of days between ${MIN_TRIAL_DAYS} and ${MAX_TRIAL_DAYS}.`;
+
+/**
+ * A trial's plan level, or null to run it at no particular level.
+ *
+ * The vocabulary is ENTITLEMENT_TIER_SLUGS, derived in lib/entitlements.ts
+ * from the same price table every paid entitlement is read from. It is not
+ * re-listed here, because a second list of what a tier means is a second
+ * place to get entitlement wrong.
+ *
+ * The refusal is a REFUSAL and not a fallback. Silently storing null for an
+ * unrecognised level would tell the operator the change landed while the
+ * account ran at no level at all.
+ */
+function readTierSlug(
+  value: unknown,
+): { ok: true; slug: string | null } | { ok: false } {
+  if (value === null || value === undefined || value === '') {
+    return { ok: true, slug: null };
+  }
+  if (!isEntitlementTierSlug(value)) return { ok: false };
+  return { ok: true, slug: value };
+}
+
+const TIER_ERROR = `Choose one of the plan levels this product sells: ${ENTITLEMENT_TIER_SLUGS.join(', ')}.`;
 
 /**
  * Starts a trial on an organization that has none. Sets the end date to today
@@ -307,6 +332,61 @@ export async function setSeatLimitAction(input: {
     actorUserId: actor.userId,
     actorEmail: actor.email,
     action: { kind: 'seats_changed', seatLimit },
+    note: readNote(input.note),
+  });
+  if (result.ok) revalidatePath('/admin/firms');
+  return result;
+}
+
+/**
+ * Sets the plan level the trial runs at, or clears it with null.
+ *
+ * This is the lever that decides what a trial organization can actually DO.
+ * Before it, a trial was a date and nothing else, so an organization on trial
+ * got whatever tier it would have had anyway and a Growing Firm pilot could
+ * not be run differently from a Solo one.
+ *
+ * IT CANNOT TOUCH A PAYING CUSTOMER'S ENTITLEMENT. That is not enforced here,
+ * and deliberately not: lib/trial-entitlement.ts resolves a paid subscription
+ * ahead of any trial, structurally, so a level set on an organization that
+ * pays is inert until the payment stops. Putting a second copy of that rule in
+ * this action would be a second place for it to be wrong.
+ *
+ * There has to BE a trial to set a level on, checked here for the same reason
+ * extend checks it. A level with no end date has no window, so the resolver
+ * grants nothing for it, and an action that quietly stored one would report
+ * success for a change with no effect. Clearing is exempt, because clearing a
+ * level off an organization with no trial is already what the operator asked
+ * for.
+ */
+export async function setTrialTierAction(input: {
+  firmId: string;
+  tierSlug: string | null;
+  note?: string | null;
+}): Promise<TrialActionResult> {
+  const actor = await hqActor('plan level');
+  if (!actor.ok) return actor;
+
+  const tier = readTierSlug(input.tierSlug);
+  if (!tier.ok) return { ok: false, error: TIER_ERROR };
+
+  if (tier.slug !== null) {
+    const snapshot = await readTrialSnapshot(input.firmId);
+    if (!snapshot.ok) return snapshot;
+    if (snapshot.trialEndsAt === null) {
+      return {
+        ok: false,
+        error:
+          'This organization is not on a trial clock, so a plan level would have no window to apply in. Use Restart the trial first.',
+      };
+    }
+  }
+
+  const result = await applyTrialAction({
+    firmId: input.firmId,
+    actorUserId: actor.userId,
+    actorEmail: actor.email,
+    action: { kind: 'tier_changed', tierSlug: tier.slug },
     note: readNote(input.note),
   });
   if (result.ok) revalidatePath('/admin/firms');
