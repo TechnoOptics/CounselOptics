@@ -159,9 +159,11 @@ describe('parseTemplateProposal: which fields survive', () => {
     expect(res?.body).toContain('{{firm_name}}');
   });
 
-  it('caps the field list at forty, as the template writer does', () => {
-    // Mutation: remove the slice. sanitizeFields would silently discard the
-    // tail on save, so the reviewer would configure rows that never persist.
+  it('caps the field list at forty, as the template writer does, and says so', () => {
+    // Mutation: remove the cap. sanitizeFields would silently discard the tail
+    // on save, so the reviewer would configure rows that never persist.
+    // Second mutation: remove the note. Five fields vanish with nothing on the
+    // page saying any did.
     const keys = Array.from({ length: 45 }, (_, i) => `field_${i}`);
     const res = parseTemplateProposal(
       reply({
@@ -170,6 +172,246 @@ describe('parseTemplateProposal: which fields survive', () => {
       }),
     );
     expect(res?.fields).toHaveLength(40);
+    expect(res?.notes.some((n) => /only the first 40/i.test(n))).toBe(true);
+  });
+
+  it('filters before it caps, so junk cannot crowd out real fields', () => {
+    // Mutation: cap the RAW list before filtering, which is what this module
+    // did. Forty entries with no placeholder behind them consume every slot,
+    // the two real fields are never reached, and nothing is reported. The
+    // editor then re-derives both keys from the body with default settings,
+    // which silently turns a counterparty blank into one the employee is asked
+    // to fill.
+    const junk = Array.from({ length: 40 }, (_, i) => ({ key: `ghost_${i}`, label: 'Ghost' }));
+    const res = parseTemplateProposal(
+      reply({
+        body: 'Real: {{their_address}} and {{our_contact}}',
+        fields: [
+          ...junk,
+          { key: 'their_address', label: 'Their address', party: 'counterparty' },
+          { key: 'our_contact', label: 'Our contact', party: 'employee' },
+        ],
+      }),
+    );
+    expect(res?.fields.map((f) => f.key)).toEqual(['their_address', 'our_contact']);
+    expect(res?.fields[0].party).toBe('counterparty');
+  });
+});
+
+/**
+ * The only placeholder form mergeTemplateDocument can substitute. It runs
+ * `text.split('{{' + key + '}}')`, which is exact, case sensitive and
+ * whitespace intolerant, and sanitizeFields stores keys narrowed to
+ * [a-z0-9_] and 40 characters. Anything else prints on the finished
+ * instrument exactly as written.
+ */
+const MERGEABLE = /^\{\{[a-z0-9_]{1,40}\}\}$/;
+const ANY_PLACEHOLDER = /\{\{[^}]*\}\}/g;
+
+describe('parseTemplateProposal: placeholders the merger can actually honour', () => {
+  it('normalizes a placeholder written with inner spaces', () => {
+    // Mutation: match placeholders loosely and never rewrite the body. The
+    // body keeps "{{ counterparty_name }}", which mergeTemplateDocument cannot
+    // match, so the braces print verbatim on the merged instrument.
+    const res = parseTemplateProposal(
+      reply({
+        body: 'This agreement is with {{ counterparty_name }}.',
+        fields: [{ key: 'counterparty_name', label: 'Other side' }],
+      }),
+    );
+    expect(res?.body).toContain('{{counterparty_name}}');
+    expect(res?.body).not.toContain('{{ counterparty_name }}');
+    expect(res?.fields.map((f) => f.key)).toEqual(['counterparty_name']);
+  });
+
+  it('normalizes a capitalised placeholder', () => {
+    // Mutation: lowercase the field key but leave the body alone. The merge
+    // misses, the placeholder prints verbatim, and the answer the employee
+    // typed is discarded.
+    const res = parseTemplateProposal(
+      reply({
+        body: 'Employee: {{Employee_Name}}',
+        fields: [{ key: 'Employee_Name', label: 'Employee name' }],
+      }),
+    );
+    expect(res?.body).toContain('{{employee_name}}');
+    expect(res?.body).not.toContain('{{Employee_Name}}');
+    expect(res?.fields.map((f) => f.key)).toEqual(['employee_name']);
+  });
+
+  it('truncates an over-long placeholder in the body as well as in the field', () => {
+    // Mutation: narrow only the field key. The 44-character placeholder stays
+    // in the body, extractKeys re-derives it, sanitizeFields stores the
+    // 40-character truncation, and the merge misses. For a counterparty field
+    // that means no marker, so no field box is recorded, so the other side is
+    // never given a blank to type into on a document sent for signature.
+    const long = 'counterparty_registered_office_address_line'; // 43
+    const key = `${long}x`; // 44
+    const res = parseTemplateProposal(
+      reply({
+        body: `Address: {{${key}}}`,
+        fields: [{ key, label: 'Address', party: 'counterparty' }],
+      }),
+    );
+    expect(res?.body).not.toContain(key);
+    expect(res?.fields[0].key).toHaveLength(40);
+    expect(res?.body).toContain(`{{${res!.fields[0].key}}}`);
+  });
+
+  it('leaves a brace pair with no usable key in it alone, and does not swallow text', () => {
+    // The rewrite pattern is deliberately loose so it can repair "{{Company
+    // Name}}". Mutation: let it span braces or newlines, or rewrite a pair
+    // with nothing usable in it. Either way it eats the document's own text
+    // between two placeholders, which is the one thing this module must never
+    // do.
+    const res = parseTemplateProposal(
+      reply({
+        body: 'Start {{a_key}} middle text {{b_key}} end {{***}} done.',
+        fields: [
+          { key: 'a_key', label: 'A' },
+          { key: 'b_key', label: 'B' },
+        ],
+      }),
+    );
+    expect(res?.body).toBe('Start {{a_key}} middle text {{b_key}} end {{***}} done.');
+    expect(res?.fields.map((f) => f.key)).toEqual(['a_key', 'b_key']);
+  });
+
+  it('leaves every placeholder in the body in a form the merger can substitute', () => {
+    // Mutation: any loosening of the normalization. This is the invariant the
+    // three tests above are instances of, and it is the direction the module
+    // was missing: fields were checked against the body, and the body was
+    // never checked against what the merger can read.
+    const res = parseTemplateProposal(
+      reply({
+        body: 'A {{ spaced_key }} B {{MixedCase}} C {{good_key}} D {{Another Key}}',
+        fields: [{ key: 'good_key', label: 'Good' }],
+      }),
+    );
+    for (const found of res!.body.match(ANY_PLACEHOLDER) ?? []) {
+      expect(found).toMatch(MERGEABLE);
+    }
+  });
+});
+
+describe('parseTemplateProposal: a reserved key aimed at the other side', () => {
+  it('renames it in the body and keeps the field', () => {
+    // Mutation: drop the field and leave the placeholder, which is what this
+    // module did before. mergeTemplateDocument substitutes a reserved key that
+    // no field declares with the firm's OWN name, so the instrument reads
+    // "between Zinpro Corporation and Zinpro Corporation". That is the failure
+    // the RESERVED_FIRM_KEYS comment records having already reached a client.
+    const res = parseTemplateProposal(
+      reply({
+        body: 'Between the firm and {{company_name}} of {{company_address}}.',
+        fields: [
+          { key: 'company_name', label: 'Company legal name', party: 'counterparty' },
+          { key: 'company_address', label: 'Company address', party: 'counterparty' },
+        ],
+      }),
+    );
+    expect(res?.body).not.toContain('{{company_name}}');
+    expect(res?.body).toContain('{{counterparty_company_name}}');
+    const renamed = res!.fields.find((f) => f.key === 'counterparty_company_name');
+    expect(renamed).toBeDefined();
+    expect(renamed!.party).toBe('counterparty');
+    expect(renamed!.label).toBe('Company legal name');
+    expect(res?.notes.some((n) => n.includes('{{counterparty_company_name}}'))).toBe(true);
+  });
+
+  it('does not collide the rename into a key the body already uses', () => {
+    // Mutation: return the prefixed name without checking what the body
+    // already contains. Two different blanks, the Company's legal name and its
+    // trading name, become one placeholder, so one answer overwrites the other
+    // everywhere on the instrument.
+    const res = parseTemplateProposal(
+      reply({
+        body: 'Between {{company_name}} trading as {{counterparty_company_name}}.',
+        fields: [
+          { key: 'company_name', label: 'Legal name', party: 'counterparty' },
+          { key: 'counterparty_company_name', label: 'Trading name', party: 'counterparty' },
+        ],
+      }),
+    );
+    const keys = res!.fields.map((f) => f.key);
+    expect(new Set(keys).size).toBe(keys.length);
+    expect(keys).toHaveLength(2);
+    for (const key of keys) expect(res!.body).toContain(`{{${key}}}`);
+  });
+
+  it('does not rename one the model did not aim at the other side', () => {
+    // Mutation: rename every reserved key a field mentions. {{firm_name}} is
+    // the firm's own name filling itself in, which is the whole reason the
+    // reserved list exists, and renaming it turns a self-filling placeholder
+    // into an empty required input.
+    const res = parseTemplateProposal(
+      reply({
+        body: '{{firm_name}} agrees with {{other_key}}.',
+        fields: [
+          { key: 'firm_name', label: 'Firm name', party: 'employee' },
+          { key: 'other_key', label: 'Other' },
+        ],
+      }),
+    );
+    expect(res?.body).toContain('{{firm_name}}');
+    expect(res?.fields.map((f) => f.key)).toEqual(['other_key']);
+    expect(res?.notes.some((n) => /rename/i.test(n))).toBe(true);
+  });
+});
+
+describe('parseTemplateProposal: blanks that are not signature lines', () => {
+  it('keeps an operative blank and says it kept it', () => {
+    // Mutation: strip every run of underscores unconditionally. "The Term of
+    // this Agreement is ______ months" silently loses its term, and the note
+    // calls it a signature rule, so the reviewer never goes looking.
+    const res = parseTemplateProposal(
+      reply({
+        body: 'The Term of this Agreement is __________ months and the fee is $__________ per month.',
+      }),
+    );
+    expect(res?.body).toContain('The Term of this Agreement is __________ months');
+    expect(res?.body).toContain('$__________ per month');
+    expect(res?.notes.some((n) => /Left 2 blank/.test(n))).toBe(true);
+  });
+
+  it('still strips the blank a party signs on', () => {
+    // Mutation: keep every blank. The source's own rule survives beside the
+    // block mergeTemplateDocument appends and each signer gets two places to
+    // sign, only one of which is stamped and recorded.
+    const res = parseTemplateProposal(
+      reply({ body: 'The parties have executed this deed. By: _______________________ Name: {{a_key}}' }),
+    );
+    expect(res?.body).not.toMatch(/_{6,}/);
+    expect(res?.notes.some((n) => /Removed 1 ruled blank/.test(n))).toBe(true);
+  });
+
+  it('judges a blank by what comes immediately before it', () => {
+    // The other two tests can both be decided by what FOLLOWS the blank
+    // ("Name:"), so neither exercises the preceding window. Here nothing
+    // follows the rule but ordinary prose, and only "By:" in front of it says
+    // this is where somebody signs.
+    //
+    // Mutation: widen the window to the whole body. The anchored test then
+    // reads the end of the document instead of the run's own surroundings, and
+    // a signature rule survives into a document that already has one.
+    const res = parseTemplateProposal(
+      reply({ body: 'Executed by the parties. By: ______________ and dated accordingly. {{a_key}}' }),
+    );
+    expect(res?.body).not.toMatch(/_{6,}/);
+    expect(res?.notes.some((n) => /Removed 1 ruled blank/.test(n))).toBe(true);
+  });
+
+  it('tells the two apart in one document', () => {
+    // Mutation: decide by the whole body rather than by each blank's
+    // surroundings. Either the term blank goes or the signature rule stays,
+    // and both are defects this module is meant to prevent.
+    const res = parseTemplateProposal(
+      reply({ body: 'Term: __________ months. Signed, By: ____________ Name: {{a_key}}' }),
+    );
+    expect(res?.body).toContain('Term: __________ months');
+    expect(res?.body).not.toContain('By: ____________');
+    expect(res?.notes.some((n) => /Removed 1 ruled blank/.test(n))).toBe(true);
+    expect(res?.notes.some((n) => /Left 1 blank/.test(n))).toBe(true);
   });
 });
 
@@ -465,6 +707,7 @@ describe('parseTemplateProposal: the real Zinpro mutual NDA', () => {
     // Mutation: delete SIGNATURE_DATE_KEY. Both date blanks come back and the
     // executed instrument carries two dates per party.
     expect(proposal!.fields.map((f) => f.key)).toEqual([
+      'counterparty_company_name',
       'company_address',
       'company_signatory_name',
       'company_signatory_title',
@@ -517,6 +760,29 @@ describe('parseTemplateProposal: the real Zinpro mutual NDA', () => {
     expect(proposal!.notes.some((n) => /Removed 2 ruled blanks/.test(n))).toBe(true);
     expect(proposal!.notes.some((n) => n.includes('company_signature_date'))).toBe(true);
     expect(proposal!.notes.some((n) => /signature/i.test(n))).toBe(true);
+  });
+
+  it('leaves every placeholder in a form mergeTemplateDocument can substitute', () => {
+    // Mutation: loosen the normalization. This is the real document, so it is
+    // the one that matters: a placeholder the merger cannot match prints its
+    // own braces on an executed instrument, and for a counterparty field it
+    // also means no marker, no recorded box, and no blank for the other side
+    // to type into.
+    for (const found of proposal!.body.match(ANY_PLACEHOLDER) ?? []) {
+      expect(found).toMatch(MERGEABLE);
+    }
+    for (const field of proposal!.fields) {
+      expect(proposal!.body).toContain(`{{${field.key}}}`);
+    }
+  });
+
+  it('renames the reserved key the model aimed at the Company', () => {
+    // Mutation: go back to dropping the field and leaving the placeholder.
+    // Verified merger output was "between Zinpro Corporation and Anderson
+    // Foundation", the firm named as its own counterparty.
+    expect(proposal!.body).not.toContain('{{company_name}}');
+    expect(proposal!.body).toContain('{{counterparty_company_name}}');
+    expect(proposal!.fields.map((f) => f.key)).toContain('counterparty_company_name');
   });
 
   it('leaves the PDF extraction artifacts in the body, deliberately', () => {

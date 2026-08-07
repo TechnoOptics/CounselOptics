@@ -74,8 +74,11 @@ export type TemplateProposal = {
 };
 
 /** Matches lib/firm-templates.ts, so a proposal never offers more rows than a
- *  save would keep. */
+ *  save would keep. Applied to what SURVIVES the checks, not to the raw list. */
 const MAX_FIELDS = 40;
+/** A sanity bound on the raw list, far above any real document, so a
+ *  pathological reply cannot make this loop expensive. */
+const MAX_FIELD_ENTRIES = 400;
 /** Matches the body cap in createFirmTemplateAction. */
 const MAX_BODY_CHARS = 100000;
 const MAX_LABEL_CHARS = 80;
@@ -85,14 +88,53 @@ const MAX_NOTE_CHARS = 300;
 /**
  * The placeholder form the editor recognises.
  *
- * Deliberately the same shape as `extractKeys` in
- * app/counsel/forms/forms-manage-client.tsx, because that function is what
- * actually decides which fields the reviewer is shown. A field this module
- * kept but that function cannot see would be silently absent from the editor,
- * and a field this module dropped but that function can see would come back
- * with no settings on it.
+ * Anything brace-wrapped the model may have MEANT as a placeholder, which is
+ * looser than either `extractKeys` in
+ * app/counsel/forms/forms-manage-client.tsx or the merger, on purpose: this is
+ * the pattern for finding them in order to REWRITE them into the strict form
+ * below. `{{ name }}`, `{{Name}}` and `{{Company Name}}` are all things the
+ * merger cannot substitute and would print verbatim on the instrument, and
+ * narrowKey turns each of them into a key it can.
+ *
+ * Inner text is capped and newlines excluded so a stray brace pair in the
+ * document cannot swallow a paragraph.
  */
-const PLACEHOLDER = /\{\{\s*([A-Za-z0-9_]+)\s*\}\}/g;
+const LOOSE_PLACEHOLDER = /\{\{([^{}\n]{1,80})\}\}/g;
+
+/**
+ * The ONLY placeholder form that actually works.
+ *
+ * mergeTemplateDocument substitutes with `text.split('{{' + f.key + '}}')`,
+ * which is exact, case sensitive and whitespace intolerant, and sanitizeFields
+ * stores keys narrowed to `[a-z0-9_]` and 40 characters. So `{{ name }}`,
+ * `{{Name}}` and a 44-character key are all placeholders the merger cannot
+ * match: they print their own braces on the finished instrument, and for a
+ * counterparty field they are worse than cosmetic, because no marker is
+ * written, so no field box is recorded, so the other side is never given a
+ * blank to type into on a document sent for signature.
+ *
+ * The body is therefore REWRITTEN into this form rather than merely being
+ * searched with a looser pattern. Checking fields against the body and never
+ * the body against the fields is what let those three through.
+ */
+const STRICT_PLACEHOLDER = /\{\{([a-z0-9_]{1,40})\}\}/g;
+
+/**
+ * Every key the merger will see in this text.
+ *
+ * Honest note for whoever mutation-tests this: swapping STRICT for LOOSE here
+ * fails no test, because step 2 of parseTemplateProposal has already rewritten
+ * every rewritable placeholder into the strict form, so on any body this module
+ * can produce the two patterns agree. It is kept strict because it states the
+ * contract at the point of use, and because the furniture strip below relies on
+ * the captured key already being canonical rather than lowercasing it again.
+ * It is a redundant safety net, not an untested guard.
+ */
+function placeholderKeys(text: string): Set<string> {
+  const keys = new Set<string>();
+  for (const match of text.matchAll(STRICT_PLACEHOLDER)) keys.add(match[1]);
+  return keys;
+}
 
 /**
  * EXECUTION FURNITURE: the parts of a document the platform supplies itself.
@@ -128,6 +170,65 @@ function isExecutionFurnitureKey(key: string): boolean {
  */
 const RULED_BLANK = /_{6,}/;
 const RULED_BLANK_ALL = /_{6,}/g;
+
+/**
+ * What makes a ruled blank a place to SIGN rather than a term to fill in.
+ *
+ * A run of underscores is not by itself execution furniture. "The Term of this
+ * Agreement is ______ months" and "the fee is $______ per month" are operative
+ * blanks, and deleting them loses a term of the agreement while the note calls
+ * it a signature rule, so the reviewer never goes looking. Each blank is judged
+ * by its own surroundings, not by the document as a whole.
+ *
+ * The window is characters rather than lines on purpose: extractFileText
+ * returns a PDF as ONE line, so a line-based context would be the whole
+ * document on exactly the uploads that matter.
+ */
+const EXECUTION_BEFORE =
+  /(?:^|[\s>*\-(])(?:by|signature|signed|sign|witness|name|title|per|its|for|printed)\s*:?\s*$/i;
+const EXECUTION_AFTER = /^\s*(?:name|title|date|printed?|print name|address|e-?mail|its|witness)\s*:/i;
+const CONTEXT_BEFORE_CHARS = 60;
+const CONTEXT_AFTER_CHARS = 40;
+
+/**
+ * Remove the ruled blanks a party signs on, and only those.
+ *
+ * Only the rule is ever removed, never the line it sits on: "By: ______"
+ * becomes "By:", which a reviewer can see and delete. Taking the line would
+ * take the clause text with it.
+ */
+function stripExecutionRules(text: string): { text: string; removed: number; kept: string[] } {
+  const kept: string[] = [];
+  let removed = 0;
+  const out = text.replace(RULED_BLANK_ALL, (run: string, offset: number) => {
+    const before = text.slice(Math.max(0, offset - CONTEXT_BEFORE_CHARS), offset);
+    const after = text.slice(offset + run.length, offset + run.length + CONTEXT_AFTER_CHARS);
+    if (EXECUTION_BEFORE.test(before) || EXECUTION_AFTER.test(after)) {
+      removed += 1;
+      return '';
+    }
+    kept.push(`${before.slice(-32).trimStart()}${run.slice(0, 8)}${after.slice(0, 16).trimEnd()}`);
+    return run;
+  });
+  return { text: out, removed, kept };
+}
+
+/**
+ * A non-reserved key for a placeholder the model aimed at the other side.
+ *
+ * Prefixed rather than invented, so the reviewer can see which placeholder it
+ * came from, and checked against everything already in the body so a rename
+ * cannot collide two different blanks into one.
+ */
+function safeCounterpartyKey(key: string, taken: ReadonlySet<string>): string {
+  const base = `counterparty_${key}`.slice(0, 40);
+  if (!taken.has(base) && !isReservedFirmKey(base)) return base;
+  for (let n = 2; n < 100; n += 1) {
+    const candidate = `${base.slice(0, 37)}_${n}`.slice(0, 40);
+    if (!taken.has(candidate) && !isReservedFirmKey(candidate)) return candidate;
+  }
+  return base;
+}
 
 /**
  * A line of the document that IS a signature line.
@@ -285,50 +386,97 @@ export function parseTemplateProposal(
   const rawBody = String(parsed.body ?? '');
   const evidence = describeSignatureEvidence(rawBody) ?? describeSignatureEvidence(String(source ?? ''));
 
-  // 2. The body, with the execution furniture taken back out. See the header:
-  //    mergeTemplateDocument appends the signature and date lines, and the
-  //    editor derives its fields FROM the body, so a placeholder left here
-  //    comes back as an input somebody types a signature into.
+  // 2. Rewrite every placeholder into the one form the merger can substitute.
+  //    See STRICT_PLACEHOLDER: this is the direction the module was missing.
+  let rewritten = 0;
+  let bodyText = rawBody.replace(LOOSE_PLACEHOLDER, (whole: string, token: string) => {
+    const key = narrowKey(token);
+    // Nothing legal left in it, so it is not a placeholder and not ours to
+    // rewrite. It stays as the text the model wrote.
+    if (!key) return whole;
+    const canonical = `{{${key}}}`;
+    if (canonical !== whole) rewritten += 1;
+    return canonical;
+  });
+
+  const rawFields = (Array.isArray(parsed.fields) ? parsed.fields : []).slice(0, MAX_FIELD_ENTRIES);
+  const asObject = (entry: unknown): Record<string, unknown> =>
+    (entry && typeof entry === 'object' ? entry : {}) as Record<string, unknown>;
+
+  // 3. A reserved key the model aimed at the OTHER side is renamed, in the
+  //    body and in the field list.
+  //
+  //    Dropping the field was not enough, which is how this was found:
+  //    mergeTemplateDocument substitutes a reserved key that no field declares
+  //    with the firm's OWN name, wherever it sits, so the real NDA merged to
+  //    "between Zinpro Corporation and Anderson Foundation". The firm named as
+  //    its own counterparty is the failure RESERVED_FIRM_KEYS records having
+  //    already reached a client.
+  //
+  //    Only when the model said `party: 'counterparty'`. That declaration is
+  //    what makes the repair safe: a reserved key with any other party may
+  //    genuinely be the firm, and there the self-filling substitution is the
+  //    designed behaviour and renaming it would break it.
+  const renames = new Map<string, string>();
+  const takenKeys = new Set(placeholderKeys(bodyText));
+  for (const entry of rawFields) {
+    const field = asObject(entry);
+    const key = narrowKey(field.key);
+    if (!key || renames.has(key)) continue;
+    if (!isReservedFirmKey(key) || !takenKeys.has(key)) continue;
+    if (narrowParty(field.party) !== 'counterparty') continue;
+    const safe = safeCounterpartyKey(key, takenKeys);
+    takenKeys.add(safe);
+    renames.set(key, safe);
+  }
+  for (const [from, to] of renames) {
+    bodyText = bodyText.split(`{{${from}}}`).join(`{{${to}}}`);
+  }
+
+  // 4. The execution furniture out. See the header: mergeTemplateDocument
+  //    appends the signature and date lines, and the editor derives its fields
+  //    FROM the body, so a placeholder left here comes back as an input
+  //    somebody types a signature into.
   const furnitureKeys: string[] = [];
-  let bodyText = rawBody.replace(PLACEHOLDER, (whole, key: string) => {
-    const narrowed = key.toLowerCase();
-    if (!isExecutionFurnitureKey(narrowed)) return whole;
-    if (!furnitureKeys.includes(narrowed)) furnitureKeys.push(narrowed);
+  bodyText = bodyText.replace(STRICT_PLACEHOLDER, (whole: string, key: string) => {
+    if (!isExecutionFurnitureKey(key)) return whole;
+    if (!furnitureKeys.includes(key)) furnitureKeys.push(key);
     return '';
   });
-  const ruledBlanks = (bodyText.match(RULED_BLANK_ALL) ?? []).length;
-  // Only the rule is removed, never the line it sits on. "By: ______" becomes
-  // "By:", which the reviewer can see and delete. Taking the whole line would
-  // take the clause text with it, and this module does not delete a legal
-  // instrument's wording on a guess.
-  bodyText = bodyText.replace(RULED_BLANK_ALL, '');
+  const rules = stripExecutionRules(bodyText);
+  bodyText = rules.text;
+
   const body = bodyText.trim().slice(0, MAX_BODY_CHARS);
   if (!body) return null;
 
-  // 3. Which placeholders the editor will actually find in that body. A field
+  // 5. Which placeholders the merger will actually find in that body. A field
   //    outside this set has no input behind it, whatever the model claimed.
-  const declared = new Set<string>();
-  for (const match of body.matchAll(PLACEHOLDER)) declared.add(match[1].toLowerCase());
+  const declared = placeholderKeys(body);
 
-  // 4. The fields.
-  const fields: TemplateProposalField[] = [];
+  // 6. The fields. FILTERED first and capped afterwards, because capping the
+  //    raw list let junk consume every slot: forty entries with no placeholder
+  //    behind them crowded out two real fields and nothing was reported, and
+  //    the editor then re-derived both from the body with default settings,
+  //    silently turning a counterparty blank into one the employee is asked to
+  //    fill.
+  const kept: TemplateProposalField[] = [];
   const seen = new Set<string>();
   const unusable: string[] = [];
   const reserved: string[] = [];
-  const rawFields = Array.isArray(parsed.fields) ? parsed.fields.slice(0, MAX_FIELDS) : [];
   for (const entry of rawFields) {
-    const field = (entry && typeof entry === 'object' ? entry : {}) as Record<string, unknown>;
-    const key = narrowKey(field.key);
-    if (!key) {
+    const field = asObject(entry);
+    const narrowed = narrowKey(field.key);
+    if (!narrowed) {
       const shown = String(field.key ?? '').trim().slice(0, 40);
       if (shown) unusable.push(shown);
       continue;
     }
+    const key = renames.get(narrowed) ?? narrowed;
     if (seen.has(key)) continue;
     seen.add(key);
     // Reserved keys resolve from the firm record at render time. Made editable
     // they become an empty required input AND they disable the substitution
-    // the placeholder exists for.
+    // the placeholder exists for. Anything renamed above is no longer one.
     if (isReservedFirmKey(key)) {
       reserved.push(key);
       continue;
@@ -342,7 +490,7 @@ export function parseTemplateProposal(
       continue;
     }
     const label = String(field.label ?? '').trim().slice(0, MAX_LABEL_CHARS) || key;
-    fields.push({
+    kept.push({
       key,
       label,
       type: narrowType(field.type),
@@ -350,6 +498,8 @@ export function parseTemplateProposal(
       party: narrowParty(field.party),
     });
   }
+  const overflow = Math.max(0, kept.length - MAX_FIELDS);
+  const fields = kept.slice(0, MAX_FIELDS);
 
   // 5. How it goes out. Derived from the document, never read from the reply:
   //    a model that says "signature" is making a claim, and this is the one
@@ -369,12 +519,46 @@ export function parseTemplateProposal(
         '. Change it above if that is wrong.',
     );
   }
-  if (ruledBlanks > 0) {
+  if (rules.removed > 0) {
     notes.push(
-      `Removed ${ruledBlanks} ruled blank${ruledBlanks === 1 ? '' : 's'} from the body, ` +
-        'the runs of underscores a printed copy is signed on. The signature ' +
+      `Removed ${rules.removed} ruled blank${rules.removed === 1 ? '' : 's'} that sat where ` +
+        'the document is signed, such as the rule after "By:". The signature ' +
         'and date lines are added for you when the document goes out, and a ' +
-        'second rule on the page would be a place to sign that is not recorded.',
+        'second rule on the page would be a place to sign that nothing records.',
+    );
+  }
+  if (rules.kept.length > 0) {
+    // Named, and left in place. A blank that is not a signature line is a term
+    // of the agreement, and a reviewer told it was a signature rule would never
+    // go looking for it.
+    notes.push(
+      `Left ${rules.kept.length} blank${rules.kept.length === 1 ? '' : 's'} in the body that ` +
+        `do not look like signature lines: ${rules.kept.slice(0, 3).map((k) => `"${k.trim()}"`).join(', ')}. ` +
+        'If somebody should fill those in, give each one a {{placeholder}} and it ' +
+        'becomes a field.',
+    );
+  }
+  if (rewritten > 0) {
+    notes.push(
+      `Rewrote ${rewritten} placeholder${rewritten === 1 ? '' : 's'} into the form the ` +
+        'document merge understands, all lowercase with no spaces inside the ' +
+        'braces. A placeholder in any other form prints on the finished ' +
+        'document exactly as it is written.',
+    );
+  }
+  if (renames.size > 0) {
+    notes.push(
+      `${[...renames].map(([from, to]) => `{{${from}}} was renamed to {{${to}}}`).join(', ')}. ` +
+        'The old name fills itself in with your own firm name everywhere it ' +
+        'appears, and Bella marked this one as the other side, so leaving it ' +
+        'would have named your firm as its own counterparty.',
+    );
+  }
+  if (overflow > 0) {
+    notes.push(
+      `This document produced more fields than a template can hold, so only the ` +
+        `first 40 were kept and ${overflow} more were left out. Check the end of ` +
+        'the body for blanks that now have no field.',
     );
   }
   if (furnitureKeys.length > 0) {
