@@ -319,3 +319,72 @@ describe('letterheadDesignWordLines: the same block, in the units Word measures 
     expect(only[0].rule).toBe(true);
   });
 });
+
+describe('normalizeLetterheadDesign: interior control and bidi characters', () => {
+  /**
+   * saveFirmLetterheadDesignAction is a `'use server'` export and therefore a
+   * public HTTP endpoint, so what reaches the column is whatever a direct
+   * caller sent, not whatever the designer's inputs allow. Trimming the ends
+   * left the interior alone, and the interior is where the four surfaces stop
+   * agreeing: the PDF draws each line with one drawText and a newline simply
+   * vanishes, so "Hartley\nand Vance LLP" printed as "Hartleyand Vance LLP"
+   * while both HTML previews showed "Hartley and Vance LLP".
+   */
+  it('collapses an interior newline to a space, so the PDF cannot fuse the words', () => {
+    const out = normalizeLetterheadDesign({ firmName: 'Hartley\nand Vance LLP' })!;
+    expect(out.firmName).toBe('Hartley and Vance LLP');
+  });
+
+  it('collapses tabs, carriage returns and runs of whitespace to one space', () => {
+    const out = normalizeLetterheadDesign({
+      firmName: 'Hartley\tand\r\nVance     LLP',
+    })!;
+    expect(out.firmName).toBe('Hartley and Vance LLP');
+  });
+
+  it('removes zero-width characters rather than turning them into spaces', () => {
+    // A zero-width joiner between two letters is not a word break, so
+    // replacing it with a space would invent one.
+    const out = normalizeLetterheadDesign({
+      firmName: 'Hart​ley and Vance﻿ LLP',
+    })!;
+    expect(out.firmName).toBe('Hartley and Vance LLP');
+  });
+
+  it('removes bidi overrides, which can reorder what a reader sees', () => {
+    // U+202E flips the visual order of everything after it, so a stored name
+    // can be made to read as something other than the characters it contains.
+    const out = normalizeLetterheadDesign({
+      firmName: 'Hartley ‮and Vance LLP‬',
+    })!;
+    expect(out.firmName).toBe('Hartley and Vance LLP');
+    expect(out.firmName).not.toMatch(/[‪-‮⁦-⁩‎‏]/);
+  });
+
+  it('cleans every field, not only the firm name', () => {
+    const out = normalizeLetterheadDesign({
+      firmName: 'Hartley and Vance LLP',
+      addressLines: ['400\nMarket Street'],
+      phone: '(215)​555​0148',
+      email: 'filings@‮hartleyvance.com',
+      website: 'hartley\tvance.com',
+      admissionsLine: 'Admitted in\nPennsylvania',
+    })!;
+    expect(out.addressLines).toEqual(['400 Market Street']);
+    expect(out.phone).toBe('(215)5550148');
+    expect(out.email).toBe('filings@hartleyvance.com');
+    expect(out.website).toBe('hartley vance.com');
+    expect(out.admissionsLine).toBe('Admitted in Pennsylvania');
+  });
+
+  it('rejects a firm name that was nothing but control characters', () => {
+    expect(normalizeLetterheadDesign({ firmName: '\n\t​‮' })).toBeNull();
+  });
+
+  it('caps length after cleaning, so padding cannot push real text out', () => {
+    const out = normalizeLetterheadDesign({
+      firmName: `${' \n'.repeat(200)}Hartley and Vance LLP`,
+    })!;
+    expect(out.firmName).toBe('Hartley and Vance LLP');
+  });
+});
