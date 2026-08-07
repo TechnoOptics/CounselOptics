@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation';
 import { getWorkspacePersona } from '@/lib/persona';
 import { listPortalTemplatesAction } from '@/lib/firm-templates';
 import { listMyTemplateSubmissionsAction } from '@/lib/template-submissions';
+import { groupByCategory } from '@/lib/document-category';
+import { displayTicket } from '@/lib/ticket-numbers';
 import { PageHeader, EmptyState, SectionTitle } from '@/components/counsel/ui';
 import { SubmissionStatusPill } from '@/components/portal/SubmissionStatusPill';
 import { T } from '@/components/i18n/LocaleProvider';
@@ -83,30 +85,53 @@ export default async function PortalFormsPage() {
       {submissions.length > 0 && (
         <section className="space-y-2">
           <SectionTitle>Documents you sent for review</SectionTitle>
-          <ul className="divide-y divide-ink-100 overflow-hidden rounded-xl border border-ink-200 dark:divide-forest-800/50 dark:border-forest-700/50">
-            {submissions.map((s) => (
-              <li key={s.id} className="bg-white dark:bg-forest-900/40">
-                <Link
-                  href={`/portal/forms/submissions/${s.id}`}
-                  className="flex flex-wrap items-center gap-3 px-4 py-3 hover:bg-cream-50 dark:hover:bg-forest-800/40"
-                >
-                  <span className="min-w-0 flex-1">
-                    <span
-                      className="block truncate text-[14px] font-medium text-forest-900 dark:text-cream-100"
-                      data-no-translate
+          {/*
+            The same grouping the legal team's queue uses, from the same
+            function, so the two sides describe a document the same way. Until
+            20260807_flow_join.sql is applied nothing carries a category, this
+            resolves to one section, and the list reads as it does today.
+          */}
+          {groupByCategory(submissions, (s) => s.category).map((group) => (
+            <div key={group.category} className="space-y-1.5 pt-1">
+              <p
+                className="text-[10.5px] font-semibold uppercase tracking-wider text-ink-500 dark:text-cream-100/55"
+                data-no-translate
+              >
+                {group.category}
+              </p>
+              <ul className="divide-y divide-ink-100 overflow-hidden rounded-xl border border-ink-200 dark:divide-forest-800/50 dark:border-forest-700/50">
+                {group.rows.map((s) => (
+                  <li key={s.id} className="bg-white dark:bg-forest-900/40">
+                    <Link
+                      href={`/portal/forms/submissions/${s.id}`}
+                      className="flex flex-wrap items-center gap-3 px-4 py-3 hover:bg-cream-50 dark:hover:bg-forest-800/40"
                     >
-                      {s.templateName}
-                    </span>
-                    <span className="block truncate text-[12px] text-ink-500 dark:text-cream-100/55">
-                      <T>To</T>{' '}
-                      <span data-no-translate>{s.recipientEmail}</span>
-                    </span>
-                  </span>
-                  <SubmissionStatusPill status={s.status} />
-                </Link>
-              </li>
-            ))}
-          </ul>
+                      <span className="min-w-0 flex-1">
+                        <span
+                          className="block truncate text-[14px] font-medium text-forest-900 dark:text-cream-100"
+                          data-no-translate
+                        >
+                          {s.templateName}
+                        </span>
+                        <span className="block truncate text-[12px] text-ink-500 dark:text-cream-100/55">
+                          <span
+                            className="font-mono text-[11.5px] text-gold-700 dark:text-gold-300"
+                            data-no-translate
+                          >
+                            {displayTicket(s)}
+                          </span>
+                          {' · '}
+                          <T>To</T>{' '}
+                          <span data-no-translate>{s.recipientEmail}</span>
+                        </span>
+                      </span>
+                      <SubmissionStatusPill status={s.status} />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </section>
       )}
     </div>

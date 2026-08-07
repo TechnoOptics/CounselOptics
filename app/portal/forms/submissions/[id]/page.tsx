@@ -4,6 +4,7 @@ import { getWorkspacePersona } from '@/lib/persona';
 import { getPortalTemplateAction } from '@/lib/firm-templates';
 import { getTemplateSubmissionAction } from '@/lib/template-submissions';
 import { isEditableBySubmitter } from '@/lib/template-approval';
+import { displayTicket } from '@/lib/ticket-numbers';
 import { PageHeader, SectionTitle } from '@/components/counsel/ui';
 import { SubmissionStatusPill } from '@/components/portal/SubmissionStatusPill';
 import { T } from '@/components/i18n/LocaleProvider';
@@ -86,6 +87,18 @@ export default async function PortalSubmissionPage({ params }: { params: { id: s
       />
 
       <div className="flex flex-wrap items-center gap-3">
+        {/* The reference for this document. It is the thing to quote when
+            asking the legal team about it, so it sits with the status rather
+            than at the bottom of the page. */}
+        <span className="text-[12.5px] text-ink-500 dark:text-cream-100/55">
+          <T>Reference</T>
+        </span>
+        <span
+          className="font-mono text-[13px] text-gold-700 dark:text-gold-300"
+          data-no-translate
+        >
+          {displayTicket(submission)}
+        </span>
         <SubmissionStatusPill status={submission.status} />
         <span className="text-[12.5px] text-ink-500 dark:text-cream-100/55">
           <T>Recipient</T>

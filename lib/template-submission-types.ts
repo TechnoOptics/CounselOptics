@@ -55,6 +55,20 @@ export type SubmissionRow = {
   signature_ip?: string | null;
   signature_user_agent?: string | null;
   signed_document_sha256?: string | null;
+  /**
+   * The kind of document this is, copied from the template when it was filed,
+   * and the firm's reference for it. Both arrive with
+   * 20260807_flow_join.sql, and both are optional for the same reason the
+   * signature columns above are: until the owner applies it, PostgREST
+   * returns these rows without the keys at all.
+   *
+   * Neither is ever backfilled. A submission filed before the allocator
+   * existed keeps no number and shows the derived reference instead, because
+   * numbering old rows in whatever order they happen to be read would put a
+   * sequence on the record that never happened.
+   */
+  category?: string | null;
+  ticket_number?: string | null;
 };
 
 /** What the UIs render. */
@@ -109,6 +123,19 @@ export type TemplateSubmission = {
   signatureCapturedAt: string | null;
   signatureIntentAt: string | null;
   signedDocumentSha256: string | null;
+  /**
+   * What the record was filed under and what it is called. Null for a
+   * category the firm never set and for a record with no number of its own;
+   * the reader supplies the label and the fallback reference (see
+   * lib/document-category.ts and displayTicket in lib/ticket-numbers.ts) so
+   * neither is guessed twice in two places.
+   *
+   * Both are carried whatever the reader is allowed to see of the wording.
+   * Neither is the document: a queue has to be able to say what a thing is
+   * and what to call it to a colleague who may not read it.
+   */
+  category: string | null;
+  ticketNumber: string | null;
 };
 
 export type SubmissionInput = {
@@ -188,5 +215,10 @@ export function rowToSubmission(
     signatureCapturedAt: row.signature_captured_at ?? null,
     signatureIntentAt: row.signature_intent_at ?? null,
     signedDocumentSha256: row.signed_document_sha256 ?? null,
+    // Coalesced for the same reason the mark above is: these columns do not
+    // exist until 20260807_flow_join.sql is applied, and a row read before
+    // then simply has no category and no number.
+    category: row.category ?? null,
+    ticketNumber: row.ticket_number ?? null,
   };
 }

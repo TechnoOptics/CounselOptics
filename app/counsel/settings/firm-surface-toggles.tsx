@@ -2,7 +2,10 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { updateFirmSurfaceSettingsAction } from '@/lib/firm-settings-actions';
+import {
+  updateFirmSurfaceSettingsAction,
+  updateFirmTicketPrefixAction,
+} from '@/lib/firm-settings-actions';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 
 /**
@@ -15,7 +18,7 @@ export function FirmSurfaceToggles({
   initial,
 }: {
   firmId: string;
-  initial: { hideSearch: boolean; hideTimeBilling: boolean };
+  initial: { hideSearch: boolean; hideTimeBilling: boolean; ticketPrefix: string };
 }) {
   const t = useT();
   const router = useRouter();
@@ -75,6 +78,7 @@ export function FirmSurfaceToggles({
           </T>
         }
       />
+      <TicketPrefixField firmId={firmId} initial={initial.ticketPrefix} />
       {error && (
         <p className="rounded-lg border border-rose-200 dark:border-rose-700/40 bg-rose-50 dark:bg-rose-950/30 px-3 py-2 text-sm text-rose-800 dark:text-rose-200">
           {error}
@@ -82,6 +86,89 @@ export function FirmSurfaceToggles({
       )}
       {ok && !error && (
         <p className="text-[12.5px] text-emerald-700 dark:text-emerald-300">
+          <T>Saved.</T>
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The letters in front of every ticket number the firm issues.
+ *
+ * Saved on blur rather than on every keystroke, because this is a value the
+ * firm types rather than a switch they flip, and a save per character would
+ * store half-typed prefixes. The server normalises what it stores and hands
+ * the stored form back, so the field then shows what will actually appear on
+ * documents rather than what was typed.
+ */
+function TicketPrefixField({ firmId, initial }: { firmId: string; initial: string }) {
+  const t = useT();
+  const router = useRouter();
+  const [value, setValue] = useState(initial);
+  const [saved, setSaved] = useState<string>(initial);
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const [ok, setOk] = useState(false);
+
+  function commit() {
+    const next = value.trim();
+    if (next === saved) return;
+    setError(null);
+    setOk(false);
+    startTransition(async () => {
+      const res = await updateFirmTicketPrefixAction(firmId, next);
+      if (res.ok) {
+        setValue(res.prefix ?? next);
+        setSaved(res.prefix ?? next);
+        setOk(true);
+        router.refresh();
+      } else {
+        setValue(saved);
+        setError(res.error ?? t('Could not save.'));
+      }
+    });
+  }
+
+  return (
+    <div className="rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/50 p-3.5">
+      <label
+        htmlFor="ticket-prefix"
+        className="block text-sm font-medium text-forest-900 dark:text-cream-100"
+      >
+        <T>Ticket number prefix</T>
+      </label>
+      <p className="mt-0.5 text-[12px] text-ink-500 dark:text-cream-100/55 leading-relaxed">
+        <T>
+          The letters in front of every ticket number. Changing it does not
+          renumber anything already filed.
+        </T>
+      </p>
+      <div className="mt-2 flex flex-wrap items-center gap-3">
+        <input
+          id="ticket-prefix"
+          type="text"
+          value={value}
+          disabled={pending}
+          maxLength={8}
+          spellCheck={false}
+          autoComplete="off"
+          onChange={(e) => setValue(e.target.value.toUpperCase())}
+          onBlur={commit}
+          className="w-32 rounded-lg border border-ink-200 bg-white px-3 py-1.5 text-sm font-mono uppercase text-forest-900 dark:border-forest-700/50 dark:bg-forest-900/40 dark:text-cream-100"
+        />
+        <span className="text-[12px] text-ink-500 dark:text-cream-100/55">
+          <T>Documents will be numbered</T>{' '}
+          <span className="font-mono" data-no-translate>
+            {`${(value.trim() || saved).toUpperCase()}-0000001`}
+          </span>
+        </span>
+      </div>
+      {error && (
+        <p className="mt-2 text-[12.5px] text-rose-700 dark:text-rose-300">{error}</p>
+      )}
+      {ok && !error && (
+        <p className="mt-2 text-[12.5px] text-emerald-700 dark:text-emerald-300">
           <T>Saved.</T>
         </p>
       )}

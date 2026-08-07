@@ -29,6 +29,9 @@ import { loadPublishedTemplate, sanitizeTemplateValues } from './template-fill';
 import { releaseApprovedSubmission } from './template-release';
 import { checkDispatchable } from './submission-dispatch';
 import { materializeSubmissionDocument } from './submission-document';
+import { categoryForRecord } from './document-category';
+import { allocateSubmissionTicket } from './ticket-allocator';
+import { displayTicket } from './ticket-numbers';
 import { createSigningRequestAction } from './firm-actions';
 import {
   CLEARED_SIGNATURE_COLUMNS,
@@ -246,6 +249,64 @@ async function recordSignature(
   }
 }
 
+/**
+ * Put the two filing facts onto a record that has just been created: what
+ * kind of document it is, and the firm's reference for it.
+ *
+ * BOTH ARE WRITTEN AFTER THE INSERT, NOT IN IT, AND THAT IS THE WHOLE DESIGN
+ * OF THIS FUNCTION. Their columns arrive with 20260807_flow_join.sql, which
+ * the owner has not applied. PostgREST refuses an insert that names a column
+ * the table does not have, so putting either of these in the insert above
+ * would stop every employee in every firm from filing anything at all until
+ * the migration ran. Written separately, an unmigrated database fails these
+ * two writes, keeps the submission, and both queues look exactly as they look
+ * today.
+ *
+ * Neither failure is fatal for the same reason. The employee's document
+ * reaches the legal team either way; a record with no number shows the
+ * derived reference instead (displayTicket), and a record with no category is
+ * grouped under Unfiled. A colleague's work must not be lost because a
+ * counter would not move.
+ *
+ * The row is patched in memory rather than re-read. The values are the ones
+ * just written and a third round trip would tell us nothing new.
+ */
+async function stampFiling(
+  admin: Admin,
+  row: SubmissionRow,
+  category: string | null,
+): Promise<SubmissionRow> {
+  const stamped: SubmissionRow = { ...row };
+
+  if (category) {
+    const { error } = await admin
+      .from('firm_template_submissions')
+      .update({ category })
+      .eq('id', row.id);
+    if (error) console.warn('[submitTemplate] category not stored', error.message);
+    else stamped.category = category;
+  }
+
+  const allocated = await allocateSubmissionTicket(admin, {
+    firmId: row.firm_id,
+    submissionId: row.id,
+  });
+  if (allocated.ok) stamped.ticket_number = allocated.ticketNumber;
+  else console.warn('[submitTemplate] ticket number not allocated', allocated.error);
+
+  return stamped;
+}
+
+/**
+ * The reference this record is quoted by, everywhere it is mentioned.
+ *
+ * One helper, called from one place per message, so a document is never
+ * referred to two different ways in two different notifications about it.
+ */
+function refOf(row: SubmissionRow): string {
+  return displayTicket({ ticketNumber: row.ticket_number, id: row.id });
+}
+
 /** Tell the people who can act on it that a document is waiting. */
 async function notifyApprovers(
   admin: Admin,
@@ -265,7 +326,7 @@ async function notifyApprovers(
         userId: m.user_id,
         type: 'system',
         title: 'A document is waiting for approval',
-        body: `${row.submitter_name ?? 'A colleague'} filled ${row.template_name} for ${row.recipient_email}.`,
+        body: `${refOf(row)} \u00b7 ${row.submitter_name ?? 'A colleague'} filled ${row.template_name} for ${row.recipient_email}.`,
         link: `/counsel/forms/approvals/${row.id}`,
         actorUserId,
       }),
@@ -346,7 +407,14 @@ export async function submitTemplateForApprovalAction(
     return { ok: false, error: 'Could not send that for review. Try again.' };
   }
 
-  const row = await recordSignature(admin, data as SubmissionRow, input, documentText);
+  const signed = await recordSignature(admin, data as SubmissionRow, input, documentText);
+  // The category is COPIED from the template, not joined from it at read
+  // time. A template can be recategorised or archived months later, and the
+  // submission has to keep the category it was actually filed under, because
+  // that is what the record is asserting. The number goes on before anyone is
+  // told about the document, so the first notification a reviewer sees
+  // already quotes the reference they will use for it.
+  const row = await stampFiling(admin, signed, categoryForRecord(template.category));
   await notifyApprovers(admin, row, user.id);
   refresh();
   // Back to the colleague who just filled it in, so their own words go back to
@@ -706,7 +774,7 @@ export async function decideTemplateSubmissionAction(
       userId: fresh.submitted_by,
       type: 'system',
       title: `${fresh.template_name} needs a change before it goes out`,
-      body: trimTo(note, 300) || 'Open it to see what to adjust.',
+      body: `${refOf(fresh)} \u00b7 ${trimTo(note, 300) || 'Open it to see what to adjust.'}`,
       link: `/portal/forms/submissions/${fresh.id}`,
       actorUserId: user.id,
     });
@@ -722,7 +790,7 @@ export async function decideTemplateSubmissionAction(
       userId: fresh.submitted_by,
       type: 'system',
       title: `${fresh.template_name} is not going out`,
-      body: trimTo(note, 300) || 'Open it to see what the legal team said.',
+      body: `${refOf(fresh)} \u00b7 ${trimTo(note, 300) || 'Open it to see what the legal team said.'}`,
       link: `/portal/forms/submissions/${fresh.id}`,
       actorUserId: user.id,
     });
@@ -737,9 +805,11 @@ export async function decideTemplateSubmissionAction(
     title: released.ok
       ? `${actorName} approved ${fresh.template_name}`
       : `${actorName} approved ${fresh.template_name}, delivery is pending`,
-    body: released.ok
-      ? `It has been sent to ${fresh.recipient_email}.`
-      : 'Legal has approved it. The delivery did not go through yet and can be retried.',
+    body: `${refOf(fresh)} \u00b7 ${
+      released.ok
+        ? `It has been sent to ${fresh.recipient_email}.`
+        : 'Legal has approved it. The delivery did not go through yet and can be retried.'
+    }`,
     link: `/portal/forms/submissions/${fresh.id}`,
     actorUserId: user.id,
   });
@@ -855,7 +925,7 @@ export async function editTemplateSubmissionAction(
     userId: row.submitted_by,
     type: 'system',
     title: `${actorName} adjusted the wording of ${row.template_name}`,
-    body: trimTo(note, 300) || 'You can read the current wording and the version you sent.',
+    body: `${refOf(row)} \u00b7 ${trimTo(note, 300) || 'You can read the current wording and the version you sent.'}`,
     link: `/portal/forms/submissions/${row.id}`,
     actorUserId: user.id,
   });

@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { listFirmWebhooksAction } from '@/lib/firm-actions';
 import { readMenuConfig } from '@/lib/menu-config';
-import { getFirmSurfaceSettings } from '@/lib/firm-settings';
+import { getFirmSurfaceSettings, getFirmTicketPrefix } from '@/lib/firm-settings';
 import { readPartnerConfig } from '@/lib/partner-config-core';
 import { SettingsForm } from './settings-form';
 import { WebhookManager } from './webhook-manager';
@@ -25,6 +25,10 @@ export default async function CounselSettingsPage() {
   // and the operator never sees the empty-list flicker.
   const webhooksResult = await listFirmWebhooksAction(ctx.firm.id);
   const surface = await getFirmSurfaceSettings(ctx.firm.id);
+  // Read separately from the surface toggles above. See getFirmTicketPrefix:
+  // ticket_prefix arrives with a migration that is not applied, and naming it
+  // in that read's column list would take the toggles down with it.
+  const ticketPrefix = await getFirmTicketPrefix(ctx.firm.id);
   const partnerConfig = readPartnerConfig(ctx.firm.metadata);
   return (
     <div className="space-y-10 animate-fade-up">
@@ -72,7 +76,7 @@ export default async function CounselSettingsPage() {
             These are off by default, so nothing changes until you turn one on.</T>
           </p>
         </header>
-        <FirmSurfaceToggles firmId={ctx.firm.id} initial={surface} />
+        <FirmSurfaceToggles firmId={ctx.firm.id} initial={{ ...surface, ticketPrefix }} />
       </section>
       <section className="space-y-3 pt-2 border-t border-ink-200 dark:border-forest-700/40">
         <header>

@@ -58,6 +58,7 @@ function makeAdmin() {
       let patch: Row | null = null;
       let inserting = false;
       const preds: [string, unknown][] = [];
+      const notNull: string[] = [];
       const run = (asList: boolean) => {
         if (inserting && patch) {
           store.row = { id: 'sub-1', revision: 1, ...patch };
@@ -69,7 +70,11 @@ function makeAdmin() {
           }
           return { data: asList ? [inserted] : inserted, error: null };
         }
-        const matches = preds.every(([col, val]) => store.row[col] === val);
+        const matches =
+          preds.every(([col, val]) => store.row[col] === val) &&
+          // `.not(col, 'is', null)` is "this column has a value", which the
+          // ticket allocator uses to skip the rows that have no number.
+          notNull.every((col) => store.row[col] != null);
         if (!matches) return { data: asList ? [] : null, error: null };
         if (patch) {
           store.row = { ...store.row, ...patch };
@@ -100,6 +105,10 @@ function makeAdmin() {
         },
         is: (col: string, val: unknown) => {
           preds.push([col, val]);
+          return api;
+        },
+        not: (col: string, operator: string, val: unknown) => {
+          if (operator === 'is' && val === null) notNull.push(col);
           return api;
         },
         order: () => api,

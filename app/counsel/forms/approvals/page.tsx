@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { listFirmTemplateSubmissionsAction } from '@/lib/template-submissions';
 import { isAwaitingReview } from '@/lib/template-approval';
+import { groupByCategory } from '@/lib/document-category';
+import { displayTicket } from '@/lib/ticket-numbers';
 import { PageHeader, EmptyState, SectionTitle } from '@/components/counsel/ui';
 import { SubmissionStatusPill } from '@/components/portal/SubmissionStatusPill';
 import { T } from '@/components/i18n/LocaleProvider';
@@ -59,7 +61,27 @@ export default async function CounselFormApprovalsPage() {
         {waiting.length === 0 ? (
           <EmptyState title="Nothing waiting" sub="Filled forms addressed to an outside party will land here." />
         ) : (
-          <SubmissionList items={waiting} />
+          /**
+           * Grouped by the kind of document, so a reviewer can take all the
+           * NDAs in one sitting instead of context-switching down a mixed
+           * list. The category is the one the submission was FILED under, not
+           * the one its template carries now.
+           *
+           * Until 20260807_flow_join.sql is applied no submission has a
+           * category at all, groupByCategory returns one section, and this
+           * queue reads exactly as it reads today.
+           */
+          groupByCategory(waiting, (s) => s.category).map((group) => (
+            <div key={group.category} className="space-y-1.5 pt-1">
+              <p
+                className="text-[10.5px] font-semibold uppercase tracking-wider text-ink-500 dark:text-cream-100/55"
+                data-no-translate
+              >
+                {group.category}
+              </p>
+              <SubmissionList items={group.rows} />
+            </div>
+          ))
         )}
       </section>
 
@@ -94,6 +116,13 @@ function SubmissionList({
                 {s.templateName}
               </span>
               <span className="block truncate text-[12px] text-ink-500 dark:text-cream-100/55">
+                {/* The reference the legal team and the employee quote at each
+                    other. One helper decides it, so a document filed before
+                    numbering existed still has something to be called. */}
+                <span className="font-mono text-[11.5px] text-gold-700 dark:text-gold-300" data-no-translate>
+                  {displayTicket(s)}
+                </span>
+                {' · '}
                 <span data-no-translate>{s.submitterName ?? s.submitterEmail ?? 'A colleague'}</span>
                 {' · '}
                 <T>to</T> <span data-no-translate>{s.recipientEmail}</span>

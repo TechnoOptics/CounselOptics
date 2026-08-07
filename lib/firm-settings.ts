@@ -1,5 +1,6 @@
 import 'server-only';
 import { createServerSupabase } from './supabase/server';
+import { readTicketPrefix } from './ticket-allocator';
 
 /**
  * Per-firm surface toggles (firm_settings.hide_search /
@@ -46,4 +47,22 @@ export async function getFirmSurfaceSettings(
     // Never let a settings-read hiccup break the whole Counsel shell.
     return DEFAULT_FIRM_SURFACE_SETTINGS;
   }
+}
+
+/**
+ * The letters in front of this firm's ticket numbers, for the settings page
+ * to show.
+ *
+ * DELIBERATELY NOT ADDED TO THE SELECT ABOVE. `ticket_prefix` arrives with
+ * 20260807_flow_join.sql, which is not applied, and naming an absent column
+ * in that column list would fail the request. Its catch would then hand back
+ * DEFAULT_FIRM_SURFACE_SETTINGS, and a firm that had hidden Time and Billing
+ * would watch it reappear across the whole workspace. A second query costs
+ * one round trip on one page.
+ *
+ * The allocator owns the read so the settings page and the write path cannot
+ * disagree about what an unset, unusable or not-yet-migrated prefix means.
+ */
+export async function getFirmTicketPrefix(firmId: string): Promise<string> {
+  return readTicketPrefix(createServerSupabase(), firmId);
 }

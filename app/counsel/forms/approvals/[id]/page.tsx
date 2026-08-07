@@ -4,6 +4,8 @@ import { getActiveFirmContext } from '@/lib/firm-storage';
 import { getTemplateSubmissionAction } from '@/lib/template-submissions';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { signedMarkUrl } from '@/lib/template-signature';
+import { normalizeCategory } from '@/lib/document-category';
+import { displayTicket } from '@/lib/ticket-numbers';
 import { DocumentWithMark } from '@/components/DocumentWithMark';
 import { PageHeader, SectionTitle } from '@/components/counsel/ui';
 import { SubmissionStatusPill } from '@/components/portal/SubmissionStatusPill';
@@ -57,6 +59,18 @@ export default async function CounselApprovalDetailPage({ params }: { params: { 
       />
 
       <div className="grid gap-3 rounded-xl border border-ink-200 bg-white p-4 text-[13px] sm:grid-cols-2 dark:border-forest-700/50 dark:bg-forest-900/40">
+        {/* The reference and the kind of document, first, because they are
+            what a colleague quotes on the phone about this record. Both come
+            from one helper each, so this page and the queue never disagree
+            about what a document is called or what it is filed under. */}
+        <Detail label="Reference">
+          <span className="font-mono text-[12.5px]" data-no-translate>
+            {displayTicket(s)}
+          </span>
+        </Detail>
+        <Detail label="Category">
+          <span data-no-translate>{normalizeCategory(s.category)}</span>
+        </Detail>
         <Detail label="Status">
           <SubmissionStatusPill status={s.status} />
         </Detail>

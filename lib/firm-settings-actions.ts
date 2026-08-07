@@ -3,6 +3,8 @@
 import { revalidatePath } from 'next/cache';
 import { createServerSupabase, getCurrentUser, requireUser } from './supabase/server';
 import { createAdminSupabase } from './supabase/admin';
+import { isUnknownColumnError } from './signer-view';
+import { normalizeTicketPrefix } from './ticket-numbers';
 
 /**
  * Owner/admin writes for the per-firm surface toggles
@@ -58,4 +60,54 @@ export async function updateFirmSurfaceSettingsAction(
   revalidatePath('/counsel', 'layout');
   revalidatePath('/counsel/settings');
   return { ok: true };
+}
+
+/**
+ * The letters in front of every ticket number this firm issues.
+ *
+ * Its own action, and its own upsert naming only this column, for the same
+ * reason getFirmTicketPrefix is its own read: `ticket_prefix` arrives with
+ * 20260807_flow_join.sql and is not applied yet. Folding it into the surface
+ * toggles above would make saving a toggle fail on an unmigrated database,
+ * and a firm would lose the ability to change settings that work today
+ * because of a setting that does not exist yet.
+ *
+ * Changing the prefix renumbers nothing. Every number already on a filed
+ * document keeps the prefix it was filed under, and the series carries on
+ * from where it was rather than restarting onto numbers that are already out.
+ */
+export async function updateFirmTicketPrefixAction(
+  firmId: string,
+  prefix: string,
+): Promise<{ ok: boolean; error?: string; prefix?: string }> {
+  await requireUser();
+  if (!(await callerIsFirmAdmin(firmId))) {
+    return { ok: false, error: 'Only an owner or admin can change firm settings.' };
+  }
+  const admin = createAdminSupabase();
+  if (!admin) return { ok: false, error: 'Server not configured.' };
+
+  // Normalised before it is stored, not only when it is read, so what the
+  // firm sees on the settings page afterwards is what will actually appear on
+  // their documents.
+  const stored = normalizeTicketPrefix(prefix);
+  const { error } = await admin
+    .from('firm_settings')
+    .upsert(
+      { firm_id: firmId, ticket_prefix: stored, updated_at: new Date().toISOString() },
+      { onConflict: 'firm_id' },
+    );
+  if (error) {
+    if (isUnknownColumnError(error, 'ticket_prefix')) {
+      return {
+        ok: false,
+        error:
+          'Ticket numbers are not switched on yet. Ask your administrator to apply the pending database update.',
+      };
+    }
+    return { ok: false, error: error.message };
+  }
+
+  revalidatePath('/counsel/settings');
+  return { ok: true, prefix: stored };
 }
