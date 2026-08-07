@@ -38,16 +38,56 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
+/**
+ * Comments and string content removed, approximately.
+ *
+ * Approximate is enough and the imprecision is in the safe direction: a
+ * stripper that removed too little would flag a file that only mentions the
+ * column, which is a false alarm somebody investigates, while the pattern
+ * below matching a sentence in a doc comment is how a guard passes for a
+ * reason nobody meant.
+ */
+function withoutComments(src: string): string {
+  return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+}
+
+/**
+ * Whether a file assigns firm_signatures.signed_at, as opposed to declaring
+ * its type.
+ *
+ * The discriminator is the VALUE. A type member reads `signed_at: string |
+ * null`, and there are twenty of those in the tree; a write assigns anything
+ * else. This used to look for `signed_at: (new Date|now)`, which named two
+ * spellings of one writer and let every other spelling of a second writer
+ * through: `signed_at: stamp` slipped past it, and the guard would have
+ * reported one writer while there were two.
+ */
+const SIGNED_AT_TYPE = /^(string|number|boolean|Date|unknown|any)\b/;
+
+function stampsSignedAt(src: string): boolean {
+  for (const m of withoutComments(src).matchAll(/signed_at:\s*([^\n]*)/g)) {
+    if (!SIGNED_AT_TYPE.test(m[1].trim())) return true;
+  }
+  return false;
+}
+
 describe('one write path', () => {
-  it('has exactly one place in the tree that stamps signed_at', () => {
+  it('has exactly one place in the tree that stamps a signature', () => {
     // The whole point of extracting lib/signature-write.ts. If a second
     // file ever sets signed_at, the desktop and the phone can disagree
     // about what a signed row contains, and "what does this signature
     // record mean" stops having one answer.
+    //
+    // lib/contracts-actions.ts is the one exception and it is named rather
+    // than pattern-matched away: it writes contracts.signed_at, a different
+    // table with its own lifecycle, and nothing about a signature row passes
+    // through it. A third entry appearing here is a question for a human,
+    // which is what an allowlist of two is for.
     const writers = [...walk(join(root, 'app')), ...walk(join(root, 'lib'))]
-      .filter((f) => /signed_at:\s*(new Date|now)/.test(readFileSync(f, 'utf8')))
-      .map((f) => f.slice(root.length + 1));
-    expect(writers).toEqual(['lib/signature-write.ts']);
+      .filter((f) => stampsSignedAt(readFileSync(f, 'utf8')))
+      .map((f) => f.slice(root.length + 1))
+      .sort();
+    expect(writers).toEqual(['lib/contracts-actions.ts', 'lib/signature-write.ts']);
   });
 
   it('has both signing routes go through that one function', () => {
