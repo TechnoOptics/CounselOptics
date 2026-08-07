@@ -93,7 +93,7 @@ export async function GET(request: NextRequest) {
   if (process.env.RESEND_API_KEY?.trim()) {
     await probe('email', async () => {
       // Resend exposes /domains as a cheap "is the API key valid + service up"
-      // check. We do NOT send a real email every hour.
+      // check. We do NOT send a real email on every run.
       const res = await fetch('https://api.resend.com/domains', {
         headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY!.trim()}` },
         cache: 'no-store',

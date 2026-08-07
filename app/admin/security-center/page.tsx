@@ -786,7 +786,7 @@ function ResiliencePanel({
           </p>
           {probeEntries.length === 0 ? (
             <p className="text-[12px] text-cream-100/55">
-              No probe snapshot yet. The hourly health cron populates this.
+              No probe snapshot yet. The daily 07:00 UTC health cron populates this.
             </p>
           ) : (
             <ul className="space-y-1">

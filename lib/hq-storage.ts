@@ -367,7 +367,7 @@ export async function adminGetHqDashboardCounts(): Promise<HqDashboardCounts> {
 
 // =====================================================================
 // Live health probe - runs on demand at request time so the HQ
-// dashboard never lies when the hourly cron breaks
+// dashboard never lies when the daily cron breaks
 // =====================================================================
 
 export type LiveProbe = {
@@ -394,7 +394,7 @@ const CRON_STALE_THRESHOLD_MS = 36 * 60 * 60 * 1000;
  * Hits Supabase right now to verify it's reachable. Used by the HQ
  * landing's status pill and the System health page's "Live" row, so
  * the founder always sees the actual current state regardless of
- * whether the hourly cron is healthy.
+ * whether the daily cron is healthy.
  */
 export async function adminGetLiveHealth(): Promise<LiveHealth> {
   const startedAt = Date.now();
@@ -463,8 +463,9 @@ export async function adminGetLiveHealth(): Promise<LiveHealth> {
     }
   }
 
-  // Snapshot age - if the cron has not written in 2h, the static
-  // "Hourly probes" tiles are stale and the UI must say so.
+  // Snapshot age - once the cron has not written for longer than
+  // CRON_STALE_THRESHOLD_MS the static "Daily probes" tiles are stale and
+  // the UI must say so.
   let cronSnapshotAgeMs: number | null = null;
   try {
     const { data: latest } = await admin

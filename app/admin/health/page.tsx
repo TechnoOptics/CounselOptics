@@ -60,8 +60,13 @@ export default async function HqHealthPage() {
         </header>
         {!latest ? (
           <p className="text-sm text-cream-100/70">
-            No health checks recorded yet. The cron runs every hour; trigger one manually
-            with <code className="font-mono">/api/cron/health</code>.
+            No health checks recorded yet. The cron runs once a day at 07:00 UTC
+            (<code className="font-mono">vercel.json</code>), so the first row
+            appears after the next scheduled run. There is no manual trigger in
+            HQ: <code className="font-mono">/api/cron/health</code> answers 403
+            without the <code className="font-mono">CRON_SECRET</code> bearer
+            token, so opening it in a browser does nothing. The Live banner above
+            probes Supabase on every page load and needs no cron.
           </p>
         ) : (
           <>
@@ -376,11 +381,14 @@ function LiveStatusBanner({ live }: { live: Awaited<ReturnType<typeof adminGetLi
       )}
       {live.cronSnapshotStale && (
         <p className="mt-3 text-[12px] text-amber-200 bg-amber-950/40 ring-1 ring-amber-700/40 rounded-md px-3 py-2">
-          <strong>Hourly probe snapshot is stale</strong>
-          {ageHours !== null && ` (last cron run ${ageHours}h ago)`}. The
-          Vercel Cron at <code className="font-mono">/api/cron/health</code> may
-          not be firing - check <code className="font-mono">CRON_SECRET</code> and
-          your Vercel plan's cron quota. The live probe above is unaffected.
+          <strong>Daily probe snapshot is stale</strong>
+          {ageHours !== null && ` (last cron run ${ageHours}h ago)`}. The daily
+          Vercel Cron at <code className="font-mono">/api/cron/health</code> runs
+          at 07:00 UTC and this snapshot is now more than 36 hours old, so it has
+          missed a run - check <code className="font-mono">CRON_SECRET</code> and
+          your Vercel plan's cron quota. A result up to 36 hours old is normal on
+          a daily cadence and does not raise this warning. The live probe above
+          is unaffected.
         </p>
       )}
     </section>

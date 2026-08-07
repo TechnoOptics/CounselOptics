@@ -50,7 +50,7 @@ export default async function HqLandingPage() {
         )}
         {live.cronSnapshotStale && (
           <span className="text-[12px] text-amber-300/85 px-3 py-1.5 rounded-md bg-amber-950/40 ring-1 ring-amber-700/40">
-            Hourly cron is not firing - investigate
+            Daily cron has missed a run - investigate
           </span>
         )}
       </section>
@@ -101,7 +101,7 @@ export default async function HqLandingPage() {
       <p className="text-[11px] text-cream-100/45 italic">
         Numbers refresh on every page load. The Supabase pill at the top runs a
         live database + auth probe at request time, so it never lies even when
-        the hourly cron is broken.
+        the daily cron is broken.
       </p>
     </div>
   );

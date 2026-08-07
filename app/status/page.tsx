@@ -60,7 +60,7 @@ export default async function StatusPage() {
         </div>
         <p className="text-sm text-ink-600 dark:text-cream-100/70 leading-relaxed">
           Live readout. Each component is probed when this page loads, with
-          an additional hourly synthetic check. Incidents are posted on the
+          an additional daily synthetic check. Incidents are posted on the
           banner above and on{' '}
           <ExternalLink
             href="https://twitter.com/advottic"
