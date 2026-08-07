@@ -33,6 +33,14 @@ export type TrialFirmRow = {
   trialEndsAt: string | null;
   seatLimit: number | null;
   suspendedAt: string | null;
+  /**
+   * The plan level the trial runs at, as stored. Raw text and not narrowed
+   * here, because narrowing it is the resolver's job in
+   * lib/trial-entitlement.ts and this row is also what the HQ view shows an
+   * operator. A level that no longer names a plan must be visible AS a level
+   * that grants nothing, not silently rendered as no level at all.
+   */
+  trialTier: string | null;
   memberCount: number;
   state: FirmAccessState;
 };
@@ -85,7 +93,8 @@ export type TrialAction =
   | { kind: 'reset'; days: number }
   | { kind: 'suspended' }
   | { kind: 'restored' }
-  | { kind: 'seats_changed'; seatLimit: number | null };
+  | { kind: 'seats_changed'; seatLimit: number | null }
+  | { kind: 'tier_changed'; tierSlug: string | null };
 
 /**
  * `actorEmail` is required rather than optional, and typed `| null` rather
@@ -248,7 +257,7 @@ export async function listTrialFirms(): Promise<TrialFirmList> {
   // drops either index the results stay correct and the read becomes a scan.
   const { data, error } = await admin
     .from('firms')
-    .select(`id, name, slug, seat_limit, ${FIRM_ACCESS_COLUMNS}`)
+    .select(`id, name, slug, seat_limit, trial_tier, ${FIRM_ACCESS_COLUMNS}`)
     .or('trial_ends_at.not.is.null,suspended_at.not.is.null')
     .order('trial_ends_at', { ascending: true, nullsFirst: false });
 
@@ -288,6 +297,7 @@ export async function listTrialFirms(): Promise<TrialFirmList> {
       trialEndsAt: (r.trial_ends_at as string | null) ?? null,
       seatLimit: (r.seat_limit as number | null) ?? null,
       suspendedAt: (r.suspended_at as string | null) ?? null,
+      trialTier: (r.trial_tier as string | null) ?? null,
       memberCount: counts.get(r.id as string) ?? 0,
       state: firmAccessState(toFirmAccessInput(r), now),
     })),
@@ -479,7 +489,7 @@ export async function applyTrialAction(
 
   const { data: before, error: beforeErr } = await admin
     .from('firms')
-    .select(`seat_limit, ${FIRM_ACCESS_COLUMNS}`)
+    .select(`seat_limit, trial_tier, ${FIRM_ACCESS_COLUMNS}`)
     .eq('id', input.firmId)
     .maybeSingle();
 
@@ -522,12 +532,14 @@ export async function applyTrialAction(
     'trial_ends_at',
     'suspended_at',
     'seat_limit',
+    'trial_tier',
   ]);
 
   const prev = before as {
     trial_ends_at: string | null;
     seat_limit: number | null;
     suspended_at: string | null;
+    trial_tier: string | null;
   };
 
   let patch: Record<string, unknown> = {};
@@ -586,6 +598,16 @@ export async function applyTrialAction(
       previousValue = prev.seat_limit == null ? null : String(prev.seat_limit);
       newValue =
         input.action.seatLimit == null ? null : String(input.action.seatLimit);
+      break;
+    }
+    case 'tier_changed': {
+      // Stored as given, having already been validated against
+      // ENTITLEMENT_TIER_SLUGS by the action layer. This function does not
+      // re-derive the vocabulary: one list, one validator, and a level that
+      // somehow lands here anyway grants nothing when it is read back.
+      patch = { trial_tier: input.action.tierSlug };
+      previousValue = prev.trial_tier;
+      newValue = input.action.tierSlug;
       break;
     }
   }

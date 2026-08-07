@@ -113,6 +113,7 @@ import {
   resetTrialAction,
   setSeatLimitAction,
   setSuspendedAction,
+  setTrialTierAction,
 } from '../lib/firm-trial-actions';
 
 beforeEach(() => {
@@ -141,6 +142,10 @@ const LEVERS: Array<[string, () => Promise<{ ok: boolean }>]> = [
   ['resetTrialAction', () => resetTrialAction({ firmId: FIRM, days: 14 })],
   ['setSeatLimitAction', () => setSeatLimitAction({ firmId: FIRM, seatLimit: 5 })],
   ['setSuspendedAction', () => setSuspendedAction({ firmId: FIRM, suspended: true })],
+  [
+    'setTrialTierAction',
+    () => setTrialTierAction({ firmId: FIRM, tierSlug: 'growing_firm' }),
+  ],
 ];
 
 describe('the admin gate on every HQ trial lever', () => {
