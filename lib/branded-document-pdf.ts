@@ -73,6 +73,28 @@ function winAnsiSafe(value: string): string {
     .trim();
 }
 
+/**
+ * The design with every field reduced to what the standard fonts can draw.
+ *
+ * Per FIELD, before letterheadDesignLines composes anything, so a field that
+ * disappears entirely is simply an absent field and the layout omits it the
+ * way it omits one the firm never filled in. An address line that empties out
+ * is dropped rather than left as a blank line.
+ */
+function winAnsiSafeDesign(design: LetterheadDesign): LetterheadDesign {
+  return {
+    ...design,
+    firmName: winAnsiSafe(design.firmName),
+    addressLines: design.addressLines
+      .map(winAnsiSafe)
+      .filter((line) => line.length > 0),
+    phone: winAnsiSafe(design.phone),
+    email: winAnsiSafe(design.email),
+    website: winAnsiSafe(design.website),
+    admissionsLine: winAnsiSafe(design.admissionsLine),
+  };
+}
+
 export type BrandedDocumentInput = {
   /** The document body. Cleaned before rendering. */
   document: string;
@@ -200,15 +222,30 @@ export async function buildBrandedDocumentPdf(
   // apostrophe pasted out of Word. The predicate is the shared one from
   // lib/counterparty-fields.ts so "encodable" means one thing in this codebase.
   // Latin-1 survives intact, so this is not a rule against accented names.
-  const designLines = (
+  //
+  // THE FIELDS ARE CLEANED, NOT THE COMPOSED LINES, and the difference is two
+  // defects. Cleaning the finished lines left a firm whose website was outside
+  // Latin-1 with "phone  -  email  -", a separator pointing at nothing;
+  // letterheadDesignLines already omits an empty field, so composing from
+  // cleaned fields never produces the dangling form in the first place.
+  //
+  // And it left something worse. A firm whose NAME is outside Latin-1 but
+  // whose address is not lost only the name line, the list was still not
+  // empty, so this branch was still taken and the document went out carrying a
+  // return address with no idea whose it was. A letterhead with no firm name
+  // on it is not a degraded letterhead, it is a wrong document, so the design
+  // is refused entirely and the logo and banner fallbacks below get their
+  // turn. The designer warns about the dropped characters at the moment they
+  // are typed, which is the other half of this fix.
+  const safeDesign =
     !letterhead && input.letterheadDesign
-      ? letterheadDesignLines(input.letterheadDesign)
-      : []
-  )
-    .map((line) => ({ ...line, text: winAnsiSafe(line.text) }))
-    .filter((line) => line.text.length > 0);
-  const designAlignment = input.letterheadDesign?.alignment ?? 'left';
-  const designRule = input.letterheadDesign?.showRule ?? true;
+      ? winAnsiSafeDesign(input.letterheadDesign)
+      : null;
+  const designLines = safeDesign?.firmName
+    ? letterheadDesignLines(safeDesign)
+    : [];
+  const designAlignment = safeDesign?.alignment ?? 'left';
+  const designRule = safeDesign?.showRule ?? true;
 
   // No uploaded letterhead? Synthesize one from the firm's logo (#13).
   // The logo is drawn small at the top-left with the brand name beside

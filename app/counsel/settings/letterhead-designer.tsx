@@ -15,6 +15,10 @@ import {
   normalizeLetterheadDesign,
   type LetterheadDesign,
 } from '@/lib/letterhead-design';
+import {
+  isWinAnsiEncodable,
+  unencodableCharacters,
+} from '@/lib/counterparty-fields';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 
 /**
@@ -131,6 +135,39 @@ export function LetterheadDesigner({
 
   const normalized = normalizeLetterheadDesign(draft);
   const lines = normalized ? letterheadDesignLines(normalized) : [];
+
+  // Characters the PDF cannot draw, named here rather than discovered by a
+  // recipient. The standard PDF fonts encode WinAnsi only, which covers the
+  // accented letters of western Europe but not Chinese, Greek, Hebrew,
+  // Cyrillic or emoji, and the renderer drops what it cannot draw. Losing part
+  // of an address is a blemish; losing the whole firm name means the renderer
+  // refuses the design and falls back to a plain banner, which is a different
+  // and much worse outcome, so it is said separately and more plainly.
+  const droppedFromName = normalized
+    ? unencodableCharacters(normalized.firmName)
+    : [];
+  const droppedElsewhere = normalized
+    ? unencodableCharacters(
+        [
+          ...normalized.addressLines,
+          normalized.phone,
+          normalized.email,
+          normalized.website,
+          normalized.admissionsLine,
+        ].join(' '),
+      )
+    : [];
+  // Filter, join, TRIM, exactly as the renderer's winAnsiSafe does. A name of
+  // unencodable characters separated by spaces leaves whitespace behind, and
+  // whitespace is a character this predicate accepts, so `some(encodable)`
+  // would call that name survivable when the renderer will refuse it.
+  const nameSurvives = normalized
+    ? Array.from(normalized.firmName)
+        .filter((ch) => isWinAnsiEncodable(ch))
+        .join('')
+        .trim().length > 0
+    : false;
+  const droppedAll = Array.from(new Set([...droppedFromName, ...droppedElsewhere]));
   const addressValues = Array.from(
     { length: LETTERHEAD_MAX_ADDRESS_LINES },
     (_, i) => draft.addressLines[i] ?? '',
@@ -358,6 +395,36 @@ export function LetterheadDesigner({
           </div>
         </div>
       </div>
+
+      {normalized && droppedAll.length > 0 && (
+        <div className="rounded-lg border border-amber-200 dark:border-amber-700/40 bg-amber-50 dark:bg-amber-950/30 px-3 py-2.5 space-y-1">
+          {!nameSurvives ? (
+            <p className="text-[12.5px] text-amber-900 dark:text-amber-100 leading-relaxed">
+              <T>
+                Your firm name uses characters that PDFs we generate cannot
+                print, so those documents will fall back to a plain banner
+                rather than this letterhead. Everywhere else in Advottic shows
+                the name as you typed it. A Latin-script version of the name
+                here will let the letterhead print.
+              </T>
+            </p>
+          ) : (
+            <p className="text-[12.5px] text-amber-900 dark:text-amber-100 leading-relaxed">
+              <T>
+                Some characters cannot be printed in the PDFs we generate and
+                will be left out of the letterhead there. Everywhere else in
+                Advottic shows them as you typed them.
+              </T>
+            </p>
+          )}
+          <p
+            className="text-[12.5px] text-amber-900 dark:text-amber-100"
+            data-no-translate
+          >
+            {droppedAll.join(' ')}
+          </p>
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-3">
         <button

@@ -9,6 +9,7 @@ import {
   missingCounterpartyFields,
   resolveCounterpartySubmission,
   sanitizeCounterpartyValues,
+  unencodableCharacters,
 } from '../lib/counterparty-fields';
 import type { TemplateField } from '../lib/firm-templates';
 import type { FieldBox } from '../lib/template-field-boxes';
@@ -367,5 +368,30 @@ describe('resolveCounterpartySubmission', () => {
     });
     expect(out.ok).toBe(false);
     expect(out.ok === false && out.reason).toBe('incomplete');
+  });
+});
+
+describe('unencodableCharacters', () => {
+  it('names nothing for text the standard fonts can draw, accents included', () => {
+    expect(unencodableCharacters('Hartley and Vance LLP')).toEqual([]);
+    expect(unencodableCharacters('Étude Lefèvre & Associés')).toEqual([]);
+  });
+
+  it('names the characters that would be dropped, once each, in order', () => {
+    expect(unencodableCharacters('Hartley 律師 and Vance 律 LLP')).toEqual(['律', '師']);
+  });
+
+  it('names emoji and other astral characters as the single characters they are', () => {
+    // Iterated by code point, not by UTF-16 unit, so a surrogate pair is one
+    // entry a person can recognise rather than two halves they cannot.
+    expect(unencodableCharacters('Firm \u{1F3DB}')).toEqual(['\u{1F3DB}']);
+  });
+
+  it('agrees with isWinAnsiEncodable, which is the predicate the renderer uses', () => {
+    for (const sample of ['plain', 'Étude', 'Hartley 律師', 'Firm \u{1F3DB}', '']) {
+      expect(unencodableCharacters(sample).length === 0).toBe(
+        isWinAnsiEncodable(sample),
+      );
+    }
   });
 });
