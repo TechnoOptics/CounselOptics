@@ -2404,7 +2404,11 @@ export async function recordHealthCheck(input: {
 }): Promise<string | null> {
   const admin = createAdminSupabase();
   if (!admin) return null;
-  const { data } = await admin
+  // postgrest-js resolves with `{ error }` instead of throwing, so this
+  // result has to be inspected. An unchecked insert here loses the run
+  // silently and leaves the caller unable to tell "not recorded" from
+  // "recorded with no id".
+  const { data, error } = await admin
     .from('system_health')
     .insert({
       source: input.source,
@@ -2414,6 +2418,10 @@ export async function recordHealthCheck(input: {
     })
     .select('id')
     .single();
+  if (error) {
+    console.error(`[health] failed to record health check: ${error.message}`);
+    return null;
+  }
   return (data as { id?: string } | null)?.id ?? null;
 }
 
@@ -2436,16 +2444,26 @@ export async function lastHealthEmailSentAt(): Promise<string | null> {
 }
 
 /**
- * Marks a health-check row as having had its digest email sent.
- * Anchors the next 24-hour throttle window.
+ * Marks a health-check row as having had its digest email sent. Anchors
+ * the next throttle window (HEALTH_DIGEST_MIN_GAP_MS in lib/hq-metrics).
+ *
+ * A dropped update here does not lose an alert, it duplicates one: the
+ * next run reads an older anchor and mails again. It still says so,
+ * because a `{ error }` nobody reads is how this table stopped being
+ * trustworthy in the first place.
  */
 export async function markHealthEmailSent(rowId: string): Promise<void> {
   const admin = createAdminSupabase();
   if (!admin) return;
-  await admin
+  const { error } = await admin
     .from('system_health')
     .update({ email_sent_at: new Date().toISOString() })
     .eq('id', rowId);
+  if (error) {
+    console.error(
+      `[health] digest sent but row ${rowId} not marked: ${error.message}`,
+    );
+  }
 }
 
 export async function adminListHealthChecks(limit = 48): Promise<SystemHealthRow[]> {
