@@ -172,6 +172,31 @@ export default async function PortalSubmissionPage({ params }: { params: { id: s
             </ul>
           )}
 
+          {/* The employee's own turn.
+              This is the end of the client's sentence: after the counterparty
+              signs, the employee is prompted to sign and date their own part.
+              They reach the ceremony from here rather than from an email,
+              which is also why the sign page requires them to be signed in:
+              an internal signer is issued no access code, so the session is
+              what proves it is them. The link carries their own signing
+              token and nobody else's (see loadSubmissionSigning). */}
+          {signingState.kind === 'your_turn' && signing?.yourSignToken && (
+            <div className="mt-4">
+              <Link
+                href={`/sign/${signing.yourSignToken}`}
+                className="btn-primary inline-flex text-[12px]"
+              >
+                <T>Sign your part</T>
+              </Link>
+              <p className="mt-2 text-[12.5px] text-ink-500 dark:text-cream-100/55">
+                <T>
+                  You will see the document with their signature on it before you
+                  sign. Nothing is sent until you do.
+                </T>
+              </p>
+            </div>
+          )}
+
           {signing?.executedUrl ? (
             <ExternalLink
               href={signing.executedUrl}

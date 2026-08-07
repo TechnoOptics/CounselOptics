@@ -122,3 +122,77 @@ export function resolveDeliveryModeColumnFallback(input: {
   if (!isUnknownColumnError(input.error, 'delivery_mode')) return 'surface-error';
   return input.deliveryMode === 'signature' ? 'abort-mode-unsaved' : 'retry-without-column';
 }
+
+/**
+ * One signer on the signature request an approved submission dispatches.
+ * Structural, so this module keeps its promise of importing nothing that
+ * touches a database.
+ */
+export type DispatchSigner = {
+  email: string;
+  name?: string;
+  /** Position in the sequence. See lib/signer-order.ts. */
+  order: number;
+};
+
+/**
+ * Who signs the document this submission produced, and in what order.
+ *
+ * The counterparty signs first, the employee counter-signs second, and both
+ * are signers on ONE signature request. Not two requests: a second request for
+ * the same instrument would produce two executed PDFs, two document_sha256
+ * values and two audit chains, which is the forked-chain failure this repo
+ * already knows about from lib/esign-audit.ts. One instrument, one request,
+ * one chain.
+ *
+ * WHY THE EMPLOYEE GOES SECOND
+ * ----------------------------
+ * They are affirming what the other side actually agreed to. An employee whose
+ * signature can land first has signed an instrument that was not finished, and
+ * on a document where the counterparty supplies anything at all they would
+ * have signed around a blank.
+ *
+ * WHEN THERE IS ONLY ONE SIGNER
+ * -----------------------------
+ * Two cases, and both fall back to exactly today's behaviour rather than to an
+ * error, because neither is the employee's fault and neither is worth refusing
+ * to send an approved document over.
+ *
+ *   - No submitter address on the record. Submissions filed before the column
+ *     was populated have none, and there is then nobody to counter-sign.
+ *   - The employee IS the recipient. Two signature rows for one address on one
+ *     request would mean two links, two tokens and two turns for one person,
+ *     and the second would sit waiting for the first forever.
+ *
+ * The comparison is case and whitespace insensitive on both sides, the same
+ * normalisation the signer gate and createSigningRequestAction use, because
+ * "Dana@firm.test" and "dana@firm.test " are one person.
+ */
+export function counterSignatureParty(record: {
+  recipient_email: string;
+  recipient_name?: string | null;
+  submitter_email?: string | null;
+  submitter_name?: string | null;
+}): DispatchSigner[] {
+  const counterparty: DispatchSigner = {
+    email: record.recipient_email,
+    ...(record.recipient_name ? { name: record.recipient_name } : {}),
+    order: 1,
+  };
+  const employee = address(record.submitter_email);
+  if (!employee || employee === address(record.recipient_email)) {
+    return [counterparty];
+  }
+  return [
+    counterparty,
+    {
+      email: employee,
+      ...(record.submitter_name ? { name: record.submitter_name } : {}),
+      order: 2,
+    },
+  ];
+}
+
+function address(value: unknown): string {
+  return typeof value === 'string' ? value.trim().toLowerCase() : '';
+}

@@ -127,6 +127,8 @@ function approvedRow(extra: Record<string, unknown> = {}) {
     template_id: 'tpl-1',
     template_name: 'Mutual NDA',
     submitted_by: 'employee-1',
+    submitter_name: 'Priya Raman',
+    submitter_email: 'priya@firm.test',
     recipient_name: 'Wren Supply Co.',
     recipient_email: 'buyer@wren.test',
     recipient_note: 'For your review.',
@@ -211,12 +213,38 @@ describe('the signature mode', () => {
     expect(createSigningRequestAction).toHaveBeenCalledWith(
       'firm-1',
       'doc-1',
-      [{ email: 'buyer@wren.test', name: 'Wren Supply Co.' }],
+      // Two signers on ONE request, numbered. The counterparty signs what the
+      // firm approved and the employee counter-signs what the counterparty
+      // agreed to, which is why the employee is second and not merely also
+      // present. A second REQUEST for the employee would give one agreement
+      // two executed PDFs and two audit chains.
+      [
+        { email: 'buyer@wren.test', name: 'Wren Supply Co.', order: 1 },
+        { email: 'priya@firm.test', name: 'Priya Raman', order: 2 },
+      ],
       'For your review.',
       { signerCanDownload: true },
     );
     expect(db.row.signing_request_id).toBe('req-1');
     expect(db.row.status).toBe('sent');
+  });
+
+  it('sends a single signer when the record names no employee address', () => {
+    // Submissions filed before submitter_email was populated have nobody to
+    // counter-sign, and that is today's behaviour rather than a reason to
+    // refuse an approved document. Asserted through the dispatch path and not
+    // only over the pure rule, because the wiring is what would go missing.
+    db.row = approvedRow({ submitter_email: null });
+    return retryTemplateReleaseAction(SUBMISSION_ID).then((out) => {
+      expect(out.ok).toBe(true);
+      expect(createSigningRequestAction).toHaveBeenCalledWith(
+        'firm-1',
+        'doc-1',
+        [{ email: 'buyer@wren.test', name: 'Wren Supply Co.', order: 1 }],
+        'For your review.',
+        { signerCanDownload: true },
+      );
+    });
   });
 
   /**

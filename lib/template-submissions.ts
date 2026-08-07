@@ -27,7 +27,7 @@ import {
 } from './template-approval';
 import { loadPublishedTemplate, sanitizeTemplateValues } from './template-fill';
 import { releaseApprovedSubmission } from './template-release';
-import { checkDispatchable } from './submission-dispatch';
+import { checkDispatchable, counterSignatureParty } from './submission-dispatch';
 import { materializeSubmissionDocument } from './submission-document';
 import { loadSubmissionSigning } from './submission-completion';
 import { categoryForRecord } from './document-category';
@@ -684,7 +684,14 @@ export async function getTemplateSubmissionAction(submissionId: string): Promise
     ok: true,
     viewer: role ? 'legal' : 'submitter',
     canApprove: canApproveSubmissions(role),
-    signing: await loadSubmissionSigning(admin, signingRequestId, canReadDocument),
+    signing: await loadSubmissionSigning(
+      admin,
+      signingRequestId,
+      canReadDocument,
+      // The caller's own address, so the employee can be linked to their own
+      // counter-signature and nobody is ever handed somebody else's.
+      user.email ?? null,
+    ),
     submission: rowToSubmission(row, (id) => people.get(id)?.name ?? null, canReadDocument),
   };
 }
@@ -1151,10 +1158,17 @@ async function dispatchForSignature(
     const filed = await materializeSubmissionDocument(admin, row.id);
     if (!filed.ok) return await unclaim(filed.error);
 
+    // Two signers on ONE request: the counterparty at order 1, the
+    // employee counter-signing at order 2. counterSignatureParty is the whole
+    // rule, including when there is only one of them. The employee is
+    // classified internal by the lookup inside createSigningRequestAction and
+    // correctly gets no access code; what stands in for it is the session
+    // check in lib/signature-write.ts, which refuses a signature made in their
+    // name by anyone holding the link.
     const created = await createSigningRequestAction(
       row.firm_id,
       filed.documentId,
-      [{ email: row.recipient_email, name: row.recipient_name ?? undefined }],
+      counterSignatureParty(row),
       row.recipient_note,
       // The counterparty keeps a copy of what they signed. 15 USC 7001(d) is
       // about the signer being able to retain the record, and this is a

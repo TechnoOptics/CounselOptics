@@ -25,6 +25,10 @@ function signing(over: Partial<SubmissionSigning> = {}): SubmissionSigning {
     status: 'sent',
     signers: [],
     executedUrl: null,
+    // The viewer's own signing link. Not part of any rule below: whose turn
+    // it is, is decided from the signature rows, and a token is a route to
+    // the ceremony rather than a fact about it.
+    yourSignToken: null,
     ...over,
   };
 }

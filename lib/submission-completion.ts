@@ -189,6 +189,12 @@ export async function loadSubmissionSigning(
   admin: Admin,
   signingRequestId: string | null | undefined,
   canReadDocument: boolean,
+  /**
+   * The reader's own address, so their own signing link can be returned to
+   * them and nobody else's ever is. Omitted means "no link", which is the
+   * right answer for any caller that has not established who is reading.
+   */
+  viewerEmail?: string | null,
 ): Promise<SubmissionSigning | null> {
   if (!signingRequestId) return null;
 
@@ -202,17 +208,35 @@ export async function loadSubmissionSigning(
 
   const { data: sigData } = await admin
     .from('firm_signatures')
-    .select('signer_name, signer_email, signed_at')
+    .select('signer_name, signer_email, signed_at, token')
     .eq('signing_request_id', signingRequestId);
-  const signers = ((sigData ?? []) as unknown as {
+  const rows = (sigData ?? []) as unknown as {
     signer_name: string | null;
     signer_email: string;
     signed_at: string | null;
-  }[]).map((s) => ({
+    token: string | null;
+  }[];
+  const signers = rows.map((s) => ({
     name: s.signer_name,
     email: s.signer_email,
     signedAt: s.signed_at,
   }));
+
+  // The reader's own link, and nobody else's.
+  //
+  // firm_signatures.token is the durable signer credential, so this is
+  // deliberately the narrowest possible answer: one row, matched on the
+  // address of the person asking, and only while that row is unsigned. A
+  // caller that did not say who is reading gets null, which is the same
+  // outcome as before this existed.
+  const viewer = (viewerEmail ?? '').trim().toLowerCase();
+  const own = viewer
+    ? rows.find(
+        (s) =>
+          !s.signed_at && (s.signer_email ?? '').trim().toLowerCase() === viewer,
+      )
+    : undefined;
+  const yourSignToken = own?.token ?? null;
 
   const artifact = canReadDocument
     ? selectSigningArtifact({
@@ -238,6 +262,7 @@ export async function loadSubmissionSigning(
     status: (request.status ?? 'sent') as SubmissionSigning['status'],
     signers,
     executedUrl,
+    yourSignToken,
   };
 }
 

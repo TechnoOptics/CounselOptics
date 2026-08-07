@@ -5,10 +5,16 @@ import { getSignatureByToken } from '@/lib/firm-storage';
 import { createAdminSupabase } from '@/lib/supabase/admin';
 import { appendSignatureEvent } from '@/lib/esign-audit';
 import {
+  INTERNAL_SIGNER_GATE_COPY,
   SIGNER_COPY_REFUSAL_COPY,
+  maskSignerEmail,
+  resolveInternalSignerGate,
   resolveSignerCopyAccess,
   signerWatermarkStamp,
 } from '@/lib/signer-view';
+import { SIGNER_NOT_YET_YOUR_TURN, resolveSignerTurn } from '@/lib/signer-order';
+import { loadSignerOrder } from '@/lib/signature-write';
+import { getRealCurrentUser } from '@/lib/supabase/server';
 import {
   SIGNER_ALREADY_SIGNED_SENTENCE,
   SIGNER_COPY_RETENTION_DAYS,
@@ -238,6 +244,84 @@ export default async function SignPage({ params }: { params: { token: string } }
         documentName={document.name}
       />
     );
+  }
+
+  // The other half of "is this really them", for the signer who has no
+  // access code to enter.
+  //
+  // An internal signer (a firm member or an employee) is issued no code
+  // on purpose, so until this the durable link alone was enough to sign
+  // as them. It is not any more: they have to be signed in, as
+  // themselves. lib/signature-write.ts enforces the same decision on the
+  // write, which is where it actually holds, because this page is not
+  // what a leaked link posts to. This is here so the person who needs to
+  // sign in reads a sentence instead of drawing their name and being
+  // refused afterwards.
+  //
+  // The real session and not the "act as" overlay: an operator viewing
+  // as an employee must not be able to sign as them.
+  const sessionEmail = (await getRealCurrentUser())?.email ?? null;
+  const internalGate = resolveInternalSignerGate({
+    accessCodeRequired: signature.accessCodeRequired,
+    signerEmail: signature.signerEmail,
+    sessionEmail,
+  });
+  if (internalGate !== 'allow') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-cream-50 dark:bg-forest-950 px-4">
+        <div className="max-w-lg w-full card p-8 text-center">
+          <p className="eyebrow mb-2 justify-center">Sign in to continue</p>
+          <h1 className="font-display text-2xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
+            {document.name}
+          </h1>
+          <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 leading-relaxed">
+            {internalGate === 'sign-in-required'
+              ? INTERNAL_SIGNER_GATE_COPY['sign-in-required']
+              : INTERNAL_SIGNER_GATE_COPY['wrong-account'](
+                  maskSignerEmail(signature.signerEmail),
+                )}
+          </p>
+          <p className="mt-5">
+            <Link href="/sign-in" className="btn-primary inline-flex">
+              Sign in
+            </Link>
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Whose turn it is.
+  //
+  // Read through the same loader the write uses, over the same rows, so
+  // the page and the write cannot disagree about whether this signer may
+  // act. An unreadable answer does NOT stop the page: the write is the
+  // gate and it fails closed on its own, and refusing to render a
+  // document because one query hiccuped would be the worse failure here.
+  const admin = createAdminSupabase();
+  if (admin) {
+    const order = await loadSignerOrder(admin, request.id);
+    if (order.kind !== 'unreadable') {
+      const index = order.rows.findIndex((r) => r.id === signature.id);
+      if (index >= 0 && resolveSignerTurn(order.rows, index) === 'waiting') {
+        return (
+          <div className="min-h-screen flex items-center justify-center bg-cream-50 dark:bg-forest-950 px-4">
+            <div className="max-w-lg w-full card p-8 text-center">
+              <p className="eyebrow mb-2 justify-center">Not yet</p>
+              <h1 className="font-display text-2xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
+                {document.name}
+              </h1>
+              <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 leading-relaxed">
+                {SIGNER_NOT_YET_YOUR_TURN}
+              </p>
+              <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 leading-relaxed">
+                Keep this link. It is the one you will use when your turn comes.
+              </p>
+            </div>
+          </div>
+        );
+      }
+    }
   }
 
   // The document the signer is about to sign is fetched by the client
