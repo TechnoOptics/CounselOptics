@@ -7,7 +7,11 @@ import {
   type FirmTemplate,
   type TemplateField,
 } from '@/lib/firm-templates';
-import { isReservedFirmKey } from '@/lib/firm-template-placeholders';
+import {
+  counterpartyFieldsGoUnfilled,
+  deliveryModeFlipped,
+  isReservedFirmKey,
+} from '@/lib/firm-template-placeholders';
 import type { DeliveryMode } from '@/lib/submission-dispatch';
 import { EmptyState } from '@/components/counsel/ui';
 import { T } from '@/components/i18n/LocaleProvider';
@@ -261,6 +265,20 @@ function TemplateEditor({
               A secure link only lets them read it.
             </T>
           </span>
+          {/* Stated at the flip, because the change does not reach work
+              already in flight and nothing else on this page would say so.
+              Deliberately not a count: reading one would put a query on the
+              editor's render path, and the sentence is true whether the
+              queue holds one document or none. */}
+          {deliveryModeFlipped(initial?.deliveryMode, deliveryMode) && (
+            <span className="mt-1 block text-[12px] text-amber-700 dark:text-amber-300">
+              <T>
+                Documents already waiting for approval under this template keep the way
+                they were set up when they were filed. This change applies to the ones
+                your colleagues fill in from now on.
+              </T>
+            </span>
+          )}
         </label>
       </div>
 
@@ -289,6 +307,21 @@ function TemplateEditor({
               templates that go out for signature.
             </T>
           </p>
+          {/* Said here rather than left to be discovered by the person who
+              receives the document. Nothing below is disabled: a firm may be
+              drafting a template it means to switch over later, so the
+              consequence is stated and the choice is left alone. */}
+          {counterpartyFieldsGoUnfilled({ deliveryMode, fields }) && (
+            <p className="mb-2 text-[12px] text-amber-700 dark:text-amber-300">
+              <T>
+                This template goes out as a secure link, so nobody will fill in the
+                fields marked for the recipient: there is no signing page for them to
+                type on, and the document prints those fields as their labels. Set them
+                to Your colleague fills in, or change How this goes out to For
+                signature.
+              </T>
+            </p>
+          )}
           <div className="space-y-2">
             {fields.map((f) => (
               <div key={f.key} className="flex flex-wrap items-center gap-2">

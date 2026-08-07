@@ -85,6 +85,56 @@ export function counterpartyLabel(input: {
 }
 
 /**
+ * Whether this template declares a blank nobody will ever fill.
+ *
+ * A field marked as the recipient's only means anything on a template that
+ * goes out for signature, because a read-only encrypted share has no signer
+ * and no ceremony. mergeTemplateDocument renders such a field as its bracketed
+ * label rather than as a blank, which is honest and visible, but it is also
+ * permanent: the recipient reads `[Company address]` on the face of the
+ * document and there was never anywhere for anyone to type.
+ *
+ * The author is TOLD, not stopped. A firm may be drafting a template it means
+ * to switch to signature later, and this codebase prefers a visible
+ * consequence to a refusal. Beside counterpartyLabel because it reads the same
+ * rule that function does: any mode but 'signature' means there is no other
+ * side.
+ *
+ * An absent party is the employee's, the same fail-safe direction
+ * sanitizeFields takes, so this stays quiet for every template that exists
+ * today.
+ */
+export function counterpartyFieldsGoUnfilled(input: {
+  deliveryMode: string | null | undefined;
+  fields: readonly MergeableField[];
+}): boolean {
+  if (input.deliveryMode === 'signature') return false;
+  return input.fields.some((f) => f.party === 'counterparty');
+}
+
+/**
+ * Whether the author has changed the delivery mode of a template that already
+ * exists.
+ *
+ * Which matters because the change does not reach work already in flight.
+ * document_text is merged at submit time and carries, or does not carry, a
+ * signature block for the other side; a submission sitting in the approval
+ * queue keeps the mode it was filed under, because re-merging it at dispatch
+ * would change words a reviewer already approved (resolveDispatchMode).
+ *
+ * A template being CREATED returns false. Nothing has been filed under it, so
+ * no queued submission can be keeping an old mode, and a warning about a thing
+ * that cannot happen is how a reader learns to skip the next one.
+ */
+export function deliveryModeFlipped(
+  saved: string | null | undefined,
+  draft: string,
+): boolean {
+  if (!saved) return false;
+  return saved !== draft;
+}
+
+/**
  * Substitute a template body into the finished document, then append the
  * signature block.
  *
