@@ -45,9 +45,8 @@ vi.mock('../lib/firm-authz', () => ({
 }));
 vi.mock('../lib/intake-notify', () => ({ siteUrl: () => 'https://advottic.test' }));
 
-const { notifySubmissionCompletion, submissionPortalPath } = await import(
-  '../lib/submission-completion'
-);
+const { notifySubmissionCompletion, submissionPortalPath, loadSubmissionSigning } =
+  await import('../lib/submission-completion');
 
 // ── A narrow fake of the admin client ────────────────────────────────────
 
@@ -56,9 +55,12 @@ type Row = Record<string, unknown>;
 const db = {
   requests: [] as Row[],
   submissions: [] as Row[],
+  signatures: [] as Row[],
   members: [] as Row[],
   /** Tables whose columns 20260807_flow_join.sql has not added yet. */
   missingColumn: null as string | null,
+  /** Paths the storage fake will mint a link for. */
+  signable: [] as string[],
 };
 
 class Query implements PromiseLike<{ data: unknown; error: unknown }> {
@@ -104,8 +106,21 @@ const admin = {
   from(table: string) {
     if (table === 'firm_signing_requests') return new Query(db.requests, table);
     if (table === 'firm_template_submissions') return new Query(db.submissions, table);
+    if (table === 'firm_signatures') return new Query(db.signatures, table);
     if (table === 'firm_members') return new Query(db.members, table);
     throw new Error(`unexpected table ${table}`);
+  },
+  storage: {
+    from() {
+      return {
+        async createSignedUrl(path: string) {
+          if (!db.signable.includes(path)) {
+            return { data: null, error: { message: 'not found' } };
+          }
+          return { data: { signedUrl: `https://storage.test/${path}?token=x` }, error: null };
+        },
+      };
+    },
   },
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 } as any;
@@ -141,6 +156,15 @@ beforeEach(() => {
       category: 'NDA',
     },
   ];
+  db.signatures = [
+    {
+      signing_request_id: REQUEST_ID,
+      signer_name: 'Dana Whitfield',
+      signer_email: 'dana@northwind.test',
+      signed_at: '2026-08-07T15:03:00.000Z',
+    },
+  ];
+  db.signable = ['firm-1/req-1/Mutual NDA.signed.pdf'];
   db.members = [
     { firm_id: 'firm-1', user_id: 'owner-1', role: 'owner' },
     { firm_id: 'firm-1', user_id: 'attorney-1', role: 'attorney' },
@@ -303,5 +327,88 @@ describe('notifySubmissionCompletion', () => {
     await notifySubmissionCompletion(admin, REQUEST_ID);
     expect(sendEmail).not.toHaveBeenCalled();
     expect(notifiedUsers()).toContain('employee-1');
+  });
+});
+
+/**
+ * The employee's own view of the signature side.
+ *
+ * Before this, nothing on any portal surface read a signing request or a
+ * signed_file_path, so the colleague who filed the document was told it had
+ * gone out and then never heard about it again on their own pages.
+ */
+describe('loadSubmissionSigning', () => {
+  const EXECUTED = 'firm-1/req-1/Mutual NDA.signed.pdf';
+
+  beforeEach(() => {
+    db.requests[0].signed_file_path = EXECUTED;
+  });
+
+  it('mints a short-lived link to the executed copy for a completed request', async () => {
+    const signing = await loadSubmissionSigning(admin, REQUEST_ID, true);
+    expect(signing?.status).toBe('completed');
+    expect(signing?.executedUrl).toBe(`https://storage.test/${EXECUTED}?token=x`);
+    expect(signing?.signers).toEqual([
+      {
+        name: 'Dana Whitfield',
+        email: 'dana@northwind.test',
+        signedAt: '2026-08-07T15:03:00.000Z',
+      },
+    ]);
+  });
+
+  /** The stored path itself never leaves the server. */
+  it('carries a signed URL and never the storage path', async () => {
+    const signing = await loadSubmissionSigning(admin, REQUEST_ID, true);
+    expect(signing?.executedUrl).toContain('token=');
+    expect(JSON.stringify(signing)).not.toContain(`"${EXECUTED}"`);
+  });
+
+  /**
+   * A signed_file_path on a request that is not completed belongs to some
+   * earlier state of it, and offering it would assert an execution the
+   * request's own status denies. That rule is selectSigningArtifact's, reused
+   * rather than restated, and this is what holds the reuse in place.
+   */
+  it('refuses an executed copy the request status does not claim', async () => {
+    db.requests[0].status = 'partial';
+    const signing = await loadSubmissionSigning(admin, REQUEST_ID, true);
+    expect(signing?.status).toBe('partial');
+    expect(signing?.executedUrl).toBeNull();
+  });
+
+  /**
+   * The executed copy IS the document, in the form that is easiest to keep
+   * and forward, so it cannot be more available than the wording. A reader
+   * refused the text still learns where the signature has got to, because
+   * that is a status and not a document.
+   */
+  it('withholds the file from a reader who may not read the wording', async () => {
+    const signing = await loadSubmissionSigning(admin, REQUEST_ID, false);
+    expect(signing?.executedUrl).toBeNull();
+    expect(signing?.signers).toHaveLength(1);
+  });
+
+  /** A link that will not mint is a missing link, not a missing signature. */
+  it('still reports the signatures when the link cannot be minted', async () => {
+    db.signable = [];
+    const signing = await loadSubmissionSigning(admin, REQUEST_ID, true);
+    expect(signing?.status).toBe('completed');
+    expect(signing?.executedUrl).toBeNull();
+    expect(signing?.signers).toHaveLength(1);
+  });
+
+  /**
+   * With 20260807_flow_join.sql unapplied there is no signing_request_id on
+   * the submission at all, so the page is handed nothing and renders exactly
+   * as it does today.
+   */
+  it('has nothing to report without a signing request to follow', async () => {
+    expect(await loadSubmissionSigning(admin, null, true)).toBeNull();
+    expect(await loadSubmissionSigning(admin, undefined, true)).toBeNull();
+  });
+
+  it('reports nothing for a signing request that is not there', async () => {
+    expect(await loadSubmissionSigning(admin, 'no-such-request', true)).toBeNull();
   });
 });

@@ -7,6 +7,8 @@ import { sendEmail, buildSubmissionSignedEmailHtml } from './email';
 import { siteUrl } from './intake-notify';
 import { displayTicket } from './ticket-numbers';
 import { normalizeCategory } from './document-category';
+import { selectSigningArtifact } from './signing-artifact';
+import type { SubmissionSigning } from './template-submission-types';
 
 /**
  * The end of the chain: a signing request has completed, and the two people
@@ -128,6 +130,91 @@ export async function notifySubmissionCompletion(
   ]);
 
   return { backed: true, submissionId: row.id, submittedBy: row.submitted_by };
+}
+
+/** How long a minted link to an executed copy stays good for. */
+const EXECUTED_URL_TTL_SECONDS = 60 * 30;
+
+/**
+ * The signature side of one submission, for the surfaces that show it.
+ *
+ * The stored path is never returned. What comes back is a short-lived signed
+ * URL minted here on the server, so a page can offer the file without ever
+ * holding a storage path a reader could keep.
+ *
+ * `canReadDocument` is the SAME predicate that decides whether the wording of
+ * this submission is shown (canReadSubmissionDocument). The executed copy is
+ * the document, in the form that is easiest to keep and forward, so it cannot
+ * be more available than the words it contains. A reader who is refused the
+ * text still learns where the signature has got to, which is a status and not
+ * a document.
+ *
+ * When the executed copy is honoured is not decided here either. It is
+ * selectSigningArtifact's rule, reused rather than restated: a
+ * signed_file_path on a request that is not completed belongs to some earlier
+ * state of it, and offering it would assert an execution the request's own
+ * status denies. Passing no original is what makes this return the executed
+ * copy or nothing, which is what the employee's page wants: they already have
+ * the wording on the page above it.
+ *
+ * Returns null for anything it cannot answer, including a database with
+ * 20260807_flow_join.sql unapplied, in which case there is no
+ * signing_request_id to pass in at all and the page renders as it does today.
+ */
+export async function loadSubmissionSigning(
+  admin: Admin,
+  signingRequestId: string | null | undefined,
+  canReadDocument: boolean,
+): Promise<SubmissionSigning | null> {
+  if (!signingRequestId) return null;
+
+  const { data, error } = await admin
+    .from('firm_signing_requests')
+    .select('id, status, signed_file_path')
+    .eq('id', signingRequestId)
+    .maybeSingle();
+  if (error || !data) return null;
+  const request = data as { status: string | null; signed_file_path?: string | null };
+
+  const { data: sigData } = await admin
+    .from('firm_signatures')
+    .select('signer_name, signer_email, signed_at')
+    .eq('signing_request_id', signingRequestId);
+  const signers = ((sigData ?? []) as unknown as {
+    signer_name: string | null;
+    signer_email: string;
+    signed_at: string | null;
+  }[]).map((s) => ({
+    name: s.signer_name,
+    email: s.signer_email,
+    signedAt: s.signed_at,
+  }));
+
+  const artifact = canReadDocument
+    ? selectSigningArtifact({
+        status: request.status,
+        signedFilePath: request.signed_file_path ?? null,
+        originalFilePath: null,
+      })
+    : null;
+  let executedUrl: string | null = null;
+  if (artifact?.kind === 'executed') {
+    try {
+      const { data: signed } = await admin.storage
+        .from('firm-documents')
+        .createSignedUrl(artifact.path, EXECUTED_URL_TTL_SECONDS);
+      executedUrl = signed?.signedUrl ?? null;
+    } catch {
+      // A link that cannot be minted is a missing link, not a missing
+      // signature. The panel still says the document is fully signed.
+    }
+  }
+
+  return {
+    status: (request.status ?? 'sent') as SubmissionSigning['status'],
+    signers,
+    executedUrl,
+  };
 }
 
 /** The reference the record carries, or the derived one if it has none. */

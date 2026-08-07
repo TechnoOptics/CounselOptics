@@ -187,7 +187,11 @@ export default async function PortalLayout({
   }
   const workspace: NavItem[] = externalView
     ? [
-        { href: '/portal/documents', label: 'Documents', hint: 'Sign, comment & archive' },
+        // What the page actually offers: read it, download it. It has never
+        // let anyone sign, comment or archive from here, and a nav hint that
+        // promises three things a page does not do is a promise the product
+        // keeps breaking every time somebody follows it.
+        { href: '/portal/documents', label: 'Documents', hint: 'View & download' },
         { href: '/portal/profile', label: 'Profile', hint: 'Reminders + notifications' },
         { href: '/portal/help', label: 'Help', hint: 'Contact us' },
       ]

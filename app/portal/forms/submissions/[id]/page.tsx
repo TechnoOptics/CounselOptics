@@ -5,6 +5,8 @@ import { getPortalTemplateAction } from '@/lib/firm-templates';
 import { getTemplateSubmissionAction } from '@/lib/template-submissions';
 import { isEditableBySubmitter } from '@/lib/template-approval';
 import { displayTicket } from '@/lib/ticket-numbers';
+import { resolveSubmissionSigningState } from '@/lib/template-submission-types';
+import { ExternalLink } from '@/components/ExternalLink';
 import { PageHeader, SectionTitle } from '@/components/counsel/ui';
 import { SubmissionStatusPill } from '@/components/portal/SubmissionStatusPill';
 import { T } from '@/components/i18n/LocaleProvider';
@@ -28,6 +30,14 @@ export default async function PortalSubmissionPage({ params }: { params: { id: s
   const res = await getTemplateSubmissionAction(params.id);
   if (!res.ok || !res.submission) notFound();
   const submission = res.submission;
+  // Null for every submission released as a read-only share, and for every
+  // firm whose database has not had 20260807_flow_join.sql applied. The panel
+  // below simply does not render in either case.
+  const signing = res.signing ?? null;
+  const signingState = resolveSubmissionSigningState(
+    signing,
+    persona.employee.email ?? '',
+  );
 
   const editable = isEditableBySubmitter(submission.status);
   const template = editable && submission.templateId
@@ -110,6 +120,82 @@ export default async function PortalSubmissionPage({ params }: { params: { id: s
         </span>
         {submission.status === 'pending' && <WithdrawButton submissionId={submission.id} />}
       </div>
+
+      {/* The end of the process, on the employee's own page.
+          Until this, nothing on any portal surface read a signing request, so
+          the colleague who filed the document was told it had gone out and
+          then heard nothing again. Names and dates sit OUTSIDE <T> and carry
+          data-no-translate: <T> resolves through machine translation and a
+          person's name is not a phrase to translate. */}
+      {signingState && (
+        <section className="rounded-xl border border-ink-200 bg-white p-5 dark:border-forest-700/50 dark:bg-forest-900/40">
+          <SectionTitle className="mb-2">Signed document</SectionTitle>
+          <p className="text-[13px] text-ink-700 dark:text-cream-100/80">
+            {signingState.kind === 'complete' ? (
+              <T>Everyone has signed this. The signed copy is below.</T>
+            ) : signingState.kind === 'your_turn' ? (
+              <>
+                <T>Signed by</T>{' '}
+                <span data-no-translate>{signingState.signedBy}</span>
+                <T>. Your signature is next.</T>
+              </>
+            ) : signingState.kind === 'halted' ? (
+              <T>This document is not out for signature at the moment.</T>
+            ) : signingState.waitingOn ? (
+              <>
+                <T>Waiting for</T> <span data-no-translate>{signingState.waitingOn}</span>{' '}
+                <T>to sign.</T>
+              </>
+            ) : (
+              <T>Every signature is in. The signed copy is being prepared.</T>
+            )}
+          </p>
+
+          {signing && signing.signers.length > 0 && (
+            <ul className="mt-3 space-y-1">
+              {signing.signers.map((s) => (
+                <li
+                  key={s.email}
+                  className="text-[12.5px] text-ink-600 dark:text-cream-100/70"
+                >
+                  <span data-no-translate>{s.name?.trim() || s.email}</span>
+                  {' · '}
+                  {s.signedAt ? (
+                    <span data-no-translate>
+                      {new Date(s.signedAt).toLocaleDateString()}
+                    </span>
+                  ) : (
+                    <T>not signed yet</T>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {signing?.executedUrl ? (
+            <ExternalLink
+              href={signing.executedUrl}
+              className="mt-4 inline-block btn text-[12px] ring-1 ring-gold-500/40 text-gold-700 hover:bg-gold-500/10 dark:text-gold-200"
+              download={`${submission.templateName}.pdf`}
+            >
+              <T>Download the signed document</T>
+            </ExternalLink>
+          ) : (
+            signingState.kind === 'complete' && (
+              // Said plainly rather than shown as an empty space, the same way
+              // the counsel surfaces state a missing executed copy. A page that
+              // says "fully signed" with nothing under it reads as a bug the
+              // employee has to guess at.
+              <p className="mt-3 text-[12.5px] text-ink-500 dark:text-cream-100/55">
+                <T>
+                  The signed copy could not be opened just now. Reload the page,
+                  and if it stays this way your legal team can send it to you.
+                </T>
+              </p>
+            )
+          )}
+        </section>
+      )}
 
       {submission.decisionNote && submission.status !== 'pending' && (
         <div className="rounded-xl border border-ink-200 bg-white px-4 py-3 dark:border-forest-700/50 dark:bg-forest-900/40">

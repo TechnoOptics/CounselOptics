@@ -5,12 +5,37 @@ import { createAdminSupabase } from '@/lib/supabase/admin';
 import { getWorkspacePersona } from '@/lib/persona';
 import { ExternalLink } from '@/components/ExternalLink';
 import { visibleIntakeIds } from '@/lib/portal-scope';
+import { groupByCategory } from '@/lib/document-category';
+import { selectSigningArtifact } from '@/lib/signing-artifact';
+import { displayTicket } from '@/lib/ticket-numbers';
 import { PageHeader, EmptyState } from '@/components/counsel/ui';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Documents · Hub' };
 
 type Att = { name: string; path: string; size?: number; type?: string };
+
+/**
+ * One row on this page, from either of its two sources.
+ *
+ * The second source is the point of this change. This page read only intake
+ * attachments, so a document the employee filed, legal approved and the other
+ * side signed appeared here nowhere at all: the employee dropped out of their
+ * own process at the exact moment it completed.
+ *
+ * `category` is what the record says the document was filed under, read off
+ * the row rather than derived a second time. An attachment has none and
+ * groups under Unfiled.
+ */
+type Doc = {
+  name: string;
+  url: string | null;
+  /** Where this document came from, and the label for the link to it. */
+  href: string;
+  context: string;
+  category: string | null;
+  size?: number;
+};
 
 export default async function HubDocumentsPage({
   searchParams,
@@ -23,13 +48,7 @@ export default async function HubDocumentsPage({
   if (persona.kind !== 'employee') redirect('/portal');
 
   const admin = createAdminSupabase();
-  const docs: Array<{
-    name: string;
-    url: string | null;
-    requestId: string;
-    requestName: string;
-    size?: number;
-  }> = [];
+  const docs: Doc[] = [];
   if (admin) {
     // Yours and the ones you were invited onto - see lib/portal-scope.ts.
     const visible = await visibleIntakeIds(admin, user.id, persona.firm.id);
@@ -61,15 +80,89 @@ export default async function HubDocumentsPage({
       }
     }
 
+    // The second source: documents this employee filed that have been signed.
+    //
+    // Every column named below arrives with 20260807_flow_join.sql, which the
+    // owner has not applied. PostgREST refuses the whole statement when a
+    // projection names a column the table does not have, so an error is
+    // exactly what a firm without the migration gets, and it has to leave
+    // this page looking the way it looks today rather than emptying it.
+    const executed: Array<{
+      path: string;
+      name: string;
+      category: string | null;
+      href: string;
+      context: string;
+    }> = [];
+    const { data: subs, error: subsError } = await admin
+      .from('firm_template_submissions')
+      .select('id, template_name, category, ticket_number, signing_request_id')
+      .eq('firm_id', persona.firm.id)
+      .eq('submitted_by', user.id)
+      .order('submitted_at', { ascending: false })
+      .limit(200);
+    const filed = subsError
+      ? []
+      : ((subs ?? []) as Array<{
+          id: string;
+          template_name: string;
+          category: string | null;
+          ticket_number: string | null;
+          signing_request_id: string | null;
+        }>).filter((r) => Boolean(r.signing_request_id));
+    if (filed.length > 0) {
+      const { data: reqs } = await admin
+        .from('firm_signing_requests')
+        .select('id, status, signed_file_path')
+        .in(
+          'id',
+          filed.map((r) => String(r.signing_request_id)),
+        );
+      const byRequest = new Map(
+        ((reqs ?? []) as Array<{
+          id: string;
+          status: string | null;
+          signed_file_path: string | null;
+        }>).map((r) => [r.id, r]),
+      );
+      for (const row of filed) {
+        const request = byRequest.get(String(row.signing_request_id));
+        if (!request) continue;
+        // The same rule the counsel surfaces use, reused rather than
+        // restated: an executed copy is honoured only on a completed
+        // request, because a signed_file_path on a request that is not
+        // completed belongs to an earlier state of it and offering it would
+        // assert an execution its own status denies. Passing no original is
+        // what makes this the executed copy or nothing, which is what this
+        // page wants: it lists finished documents.
+        const artifact = selectSigningArtifact({
+          status: request.status,
+          signedFilePath: request.signed_file_path,
+          originalFilePath: null,
+        });
+        if (artifact?.kind !== 'executed') continue;
+        executed.push({
+          path: artifact.path,
+          name: row.template_name,
+          category: row.category,
+          href: `/portal/forms/submissions/${row.id}`,
+          context: displayTicket({ ticketNumber: row.ticket_number, id: row.id }),
+        });
+      }
+    }
+
+    // One signed-URL batch across both sources. Both live in the same bucket,
+    // and a round trip per file is the N+1 this page already removed once.
     const urlByPath = new Map<string, string>();
-    if (entries.length > 0) {
+    const paths = [
+      ...entries.map((e) => e.att.path),
+      ...executed.map((e) => e.path),
+    ];
+    if (paths.length > 0) {
       try {
         const { data: signed } = await admin.storage
           .from('firm-documents')
-          .createSignedUrls(
-            entries.map((e) => e.att.path),
-            60 * 30,
-          );
+          .createSignedUrls(paths, 60 * 30);
         for (const s of signed ?? []) {
           if (s.path && s.signedUrl) urlByPath.set(s.path, s.signedUrl);
         }
@@ -78,24 +171,39 @@ export default async function HubDocumentsPage({
       }
     }
 
+    for (const e of executed) {
+      docs.push({
+        name: e.name,
+        url: urlByPath.get(e.path) ?? null,
+        href: e.href,
+        context: e.context,
+        category: e.category,
+      });
+    }
     for (const e of entries) {
       docs.push({
         name: e.att.name || 'Document',
         url: urlByPath.get(e.att.path) ?? null,
-        requestId: e.requestId,
-        requestName: e.requestName,
+        href: `/portal/${e.requestId}`,
+        context: e.requestName,
+        category: null,
         size: e.att.size,
       });
     }
   }
 
-  // Search across name + the request ("folder") it belongs to. Server-rendered
-  // via ?q= so filtered views are shareable; each document row already names
-  // its request folder and links into it.
+  // Search across the name and whatever the document belongs to, which is a
+  // request for an attachment and the filed document's own reference for a
+  // signed copy. Server-rendered via ?q= so filtered views are shareable;
+  // each row already names its source and links into it.
   const query = (searchParams?.q ?? '').trim().toLowerCase();
   const shown = query
-    ? docs.filter((d) => `${d.name} ${d.requestName}`.toLowerCase().includes(query))
+    ? docs.filter((d) => `${d.name} ${d.context}`.toLowerCase().includes(query))
     : docs;
+  // Grouped under what each document was filed as, Unfiled last. The same
+  // helper the legal team's queues use, so the two sides of the product never
+  // disagree about what counts as one category.
+  const groups = groupByCategory(shown, (d) => d.category);
 
   return (
     <div className="space-y-7 animate-fade-up">
@@ -104,8 +212,9 @@ export default async function HubDocumentsPage({
         title="Documents"
         subtitle={
           <>
-            Everything you&rsquo;ve attached to a request. To add a document,
-            attach it when you file or message legal on a request.
+            Documents you&rsquo;ve attached to a request, and the ones you filed
+            that have been signed. To add a document, attach it when you file or
+            message legal on a request.
           </>
         }
       />
@@ -147,43 +256,54 @@ export default async function HubDocumentsPage({
           }
         />
       ) : (
-        <ul className="space-y-2">
-          {shown.map((d, i) => (
-            <li
-              key={i}
-              className="popup-panel p-4 flex items-center justify-between gap-3"
-            >
-              <div className="min-w-0">
-                <p className="font-semibold text-cream-100 truncate">
-                  {d.name}
-                </p>
-                <p className="text-[12px] text-cream-100/55 mt-0.5 truncate">
-                  on{' '}
-                  <Link
-                    href={`/portal/${d.requestId}`}
-                    className="underline hover:text-cream-100"
+        <div className="space-y-7">
+          {groups.map((group) => (
+            <section key={group.category} className="space-y-2">
+              {/* The firm's own words for what this is, so it is marked as
+                  data the translator leaves alone. */}
+              <p className="eyebrow" data-no-translate>
+                {group.category}
+              </p>
+              <ul className="space-y-2">
+                {group.rows.map((d, i) => (
+                  <li
+                    key={i}
+                    className="popup-panel p-4 flex items-center justify-between gap-3"
                   >
-                    {d.requestName}
-                  </Link>
-                  {typeof d.size === 'number' &&
-                    ` · ${(d.size / 1024).toFixed(0)} KB`}
-                </p>
-              </div>
-              {d.url ? (
-                <ExternalLink
-                  href={d.url}
-                  className="shrink-0 btn text-[12px] ring-1 ring-gold-500/40 text-gold-200 hover:bg-gold-500/10"
-                >
-                  Download
-                </ExternalLink>
-              ) : (
-                <span className="shrink-0 text-[11px] text-cream-100/60">
-                  unavailable
-                </span>
-              )}
-            </li>
+                    <div className="min-w-0">
+                      <p className="font-semibold text-cream-100 truncate">
+                        {d.name}
+                      </p>
+                      <p className="text-[12px] text-cream-100/55 mt-0.5 truncate">
+                        on{' '}
+                        <Link
+                          href={d.href}
+                          className="underline hover:text-cream-100"
+                        >
+                          {d.context}
+                        </Link>
+                        {typeof d.size === 'number' &&
+                          ` · ${(d.size / 1024).toFixed(0)} KB`}
+                      </p>
+                    </div>
+                    {d.url ? (
+                      <ExternalLink
+                        href={d.url}
+                        className="shrink-0 btn text-[12px] ring-1 ring-gold-500/40 text-gold-200 hover:bg-gold-500/10"
+                      >
+                        Download
+                      </ExternalLink>
+                    ) : (
+                      <span className="shrink-0 text-[11px] text-cream-100/60">
+                        unavailable
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </section>
           ))}
-        </ul>
+        </div>
       )}
     </div>
   );
