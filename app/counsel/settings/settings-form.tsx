@@ -5,13 +5,18 @@ import { useRouter } from 'next/navigation';
 import { updateFirmAction } from '@/lib/firm-actions';
 import { LogoUploader } from './logo-uploader';
 import { LetterheadUploader } from './letterhead-uploader';
+import { LetterheadDesigner } from './letterhead-designer';
+import type { LetterheadDesign } from '@/lib/letterhead-design';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 
 export function SettingsForm({
   firmId,
+  letterheadDesign,
   defaultValues,
 }: {
   firmId: string;
+  /** The designed letterhead, already normalized on the server. */
+  letterheadDesign: LetterheadDesign | null;
   defaultValues: {
     name: string;
     accentColor: string;
@@ -54,6 +59,17 @@ export function SettingsForm({
         firmId={firmId}
         currentUrl={defaultValues.letterheadUrl}
       />
+
+      <div className="pt-2 border-t border-ink-200 dark:border-forest-700/40 space-y-4">
+        <p className="text-[12.5px] text-ink-600 dark:text-cream-100/70 leading-relaxed max-w-2xl">
+          <T>
+            You can upload a letterhead image above, design one below, or do
+            both. If you have both, the uploaded image is the one Advottic
+            prints.
+          </T>
+        </p>
+        <LetterheadDesigner firmId={firmId} initial={letterheadDesign} />
+      </div>
 
       <form action={submit} className="space-y-5">
         <div>

@@ -5,6 +5,7 @@ import { getActiveFirmContext, getFirmByIdAdmin } from '@/lib/firm-storage';
 import { callerFirmRole } from '@/lib/firm-authz';
 import { authorizeFirmActor } from '@/lib/portal-entitlements';
 import { buildBrandedDocumentPdf } from '@/lib/branded-document-pdf';
+import { firmLetterheadDesign } from '@/lib/letterhead-design';
 import { canRenderFilledTemplate } from '@/lib/template-approval';
 import { loadPublishedTemplate, sanitizeTemplateValues } from '@/lib/template-fill';
 import {
@@ -175,6 +176,7 @@ async function renderTemplate(
       brandName: firm?.name ?? undefined,
       accent: firm?.accentColor ?? undefined,
       letterheadUrl: firm?.letterheadUrl ?? undefined,
+      letterheadDesign: firmLetterheadDesign(firm?.metadata),
       logoUrl: firm?.logoUrl ?? undefined,
       signatureImage: decoded.ok ? { png: decoded.bytes } : undefined,
     },
@@ -199,7 +201,20 @@ async function renderFreeText(body: {
       title: String(body.title ?? 'Document').slice(0, 120),
       brandName: body.brandName ?? body.firmName,
       accent: body.accent,
+      // PRE-EXISTING AND NOT CLOSED: this URL, and logoUrl below, come from
+      // the request body. They predate the design and are left alone here, but
+      // do not read the next comment as covering them. The image OUTRANKS the
+      // design in the renderer, so a caller who posts any letterheadUrl
+      // suppresses their firm's designed letterhead for that render, and a
+      // caller who posts a reachable image renders this firm's document under
+      // someone else's banner. It is a preview route whose bytes are never
+      // stored, hashed or served to a signer, which is why it has survived,
+      // not a reason it is fine.
       letterheadUrl: body.letterheadUrl,
+      // The DESIGN is read off the caller's own active firm rather than the
+      // body, so this one field cannot be dictated by the request. That is the
+      // whole of what this line claims; see above for what still can be.
+      letterheadDesign: firmLetterheadDesign(ctx.firm.metadata),
       logoUrl: body.logoUrl,
     },
   };

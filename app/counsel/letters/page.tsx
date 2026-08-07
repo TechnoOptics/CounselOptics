@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { getActiveFirmContext, listFirmCases } from '@/lib/firm-storage';
 import { LettersStudio } from './letters-studio';
 import { PageHeader } from '@/components/counsel/ui';
+import { firmLetterheadDesign } from '@/lib/letterhead-design';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -14,6 +15,13 @@ export default async function CounselLettersPage({
 }) {
   const ctx = await getActiveFirmContext();
   if (!ctx) redirect('/counsel');
+
+  // A firm has a letterhead if it uploaded an image OR designed one. Asking
+  // only about the image told a firm that had just typed its whole address in
+  // that it had no letterhead and that we were composing one from its logo,
+  // neither of which was true any more.
+  const hasLetterhead =
+    Boolean(ctx.firm.letterheadUrl) || firmLetterheadDesign(ctx.firm.metadata) !== null;
 
   const cases = await listFirmCases(ctx.firm.id);
   const caseOptions = cases.map((c) => ({ id: c.id, title: c.title }));
@@ -33,7 +41,7 @@ export default async function CounselLettersPage({
             {ctx.firm.name}<T>&rsquo;s letterhead. Choose what the signature block
             includes, edit the draft, then export it as Word or PDF or attach it
             to a case.</T>
-            {!ctx.firm.letterheadUrl && (
+            {!hasLetterhead && (
               <>
                 {' '}
                 <T>No letterhead yet? Add one in</T>{' '}
@@ -51,6 +59,7 @@ export default async function CounselLettersPage({
           firmName: ctx.firm.name,
           logoUrl: ctx.firm.logoUrl ?? null,
           letterheadUrl: ctx.firm.letterheadUrl ?? null,
+          letterheadDesign: firmLetterheadDesign(ctx.firm.metadata),
           accent: ctx.firm.accentColor,
         }}
         cases={caseOptions}

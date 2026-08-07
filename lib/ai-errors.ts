@@ -147,3 +147,37 @@ export class AiUnavailableError extends Error {
     }
   }
 }
+
+/**
+ * The message a person may be shown after an AI call threw.
+ *
+ * The default is the CALLER'S sentence, and an error passes its own message
+ * through only by being the type that promises one. That direction is the
+ * whole point, and the inverse reads almost identically:
+ *
+ *   const message = err instanceof Error ? err.message : '';
+ *   return message || fallback;                 // WRONG
+ *
+ * which forwards every Error verbatim and reaches the fallback only when a
+ * message is empty, which it never is. That is not a hypothetical. AI helpers
+ * in this codebase wrap the PROVIDER call in a try and throw
+ * AiUnavailableError from it, but the work either side of that try is
+ * unwrapped: resolving the API key, constructing the client, mapping the
+ * response. bellaGenerate's missing-key throw is the sharpest of them, because
+ * it fires before any request is made, so on a deploy where the key is unset
+ * or mid-rotation the inverted form shows a firm admin
+ * `The server is missing an ANTHROPIC_API_KEY.` in a red box. A legal team
+ * reading that learns nothing they can act on and something they should not
+ * have been told.
+ *
+ * Matched on `name` rather than with instanceof, for the same reason
+ * FirmAccessEndedError carries a code: identity has to survive a module being
+ * loaded twice, which a dynamic import inside a server action makes possible.
+ */
+export function calmAiMessage(err: unknown, fallback: string): string {
+  if (err instanceof Error && err.name === 'AiUnavailableError') {
+    const message = err.message.trim();
+    if (message) return message;
+  }
+  return fallback;
+}

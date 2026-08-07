@@ -74,6 +74,28 @@ const WINANSI_EXTRAS = new Set([
   0x2013, 0x2014, 0x02dc, 0x2122, 0x0161, 0x203a, 0x0153, 0x017e, 0x0178,
 ]);
 
+/**
+ * The characters in `value` the standard fonts cannot draw, distinct, in the
+ * order they first appear.
+ *
+ * isWinAnsiEncodable answers whether a string is safe, which is what a GATE
+ * needs. This answers which parts of it are not, which is what a person needs:
+ * a firm typing its own name into the letterhead designer is told exactly
+ * which characters will not reach the page, at the moment they type them,
+ * rather than finding out from a document a recipient is holding.
+ *
+ * Iterated by code point, so an emoji or any other astral character is one
+ * entry someone can recognise instead of two halves of a surrogate pair.
+ */
+export function unencodableCharacters(value: string): string[] {
+  const out: string[] = [];
+  for (const ch of String(value ?? '')) {
+    if (isWinAnsiEncodable(ch) || out.includes(ch)) continue;
+    out.push(ch);
+  }
+  return out;
+}
+
 export function isWinAnsiEncodable(value: string): boolean {
   for (const ch of String(value ?? '')) {
     const code = ch.codePointAt(0) ?? 0;

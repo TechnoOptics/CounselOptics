@@ -13,11 +13,19 @@ import { saveLetterToCaseAction } from '@/lib/letters-actions';
 import { T, useT } from '@/components/i18n/LocaleProvider';
 import { PdfPreviewDialog } from '@/components/PdfPreviewDialog';
 import { runGatedAction } from '@/lib/gated-action';
+import {
+  LETTERHEAD_LINE_GAP_PT,
+  LETTERHEAD_PT_TO_PX,
+  letterheadDesignLines,
+  type LetterheadDesign,
+} from '@/lib/letterhead-design';
 
 type Brand = {
   firmName: string;
   logoUrl: string | null;
   letterheadUrl: string | null;
+  /** The letterhead the firm designed under /counsel/settings, if any. */
+  letterheadDesign: LetterheadDesign | null;
   accent: string;
 };
 
@@ -390,6 +398,13 @@ export function LettersStudio({
                     alt={brand.firmName}
                     className="h-12 w-auto max-w-[280px] object-contain"
                   />
+                ) : brand.letterheadDesign ? (
+                  <div className="flex-1 min-w-0">
+                    <LetterheadDesignBlock
+                      design={brand.letterheadDesign}
+                      accent={brand.accent}
+                    />
+                  </div>
                 ) : (
                   <>
                     {brand.logoUrl ? (
@@ -436,6 +451,70 @@ export function LettersStudio({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * The designed letterhead, on the studio's page preview.
+ *
+ * It reads letterheadDesignLines, the same list lib/branded-document-pdf.ts
+ * draws and lib/docx-export.ts converts, so the order, the wording and the
+ * emphasis are not decided here. The precedence around it is the renderer's
+ * precedence unchanged: an uploaded image still wins, and a firm with neither
+ * an image nor a design still sees the logo-plus-name block it sees today.
+ *
+ * The type sizes are the PDF's points converted at the one shared factor, and
+ * the ink follows the PDF too: the accent on the firm name, a neutral grey
+ * under it.
+ *
+ * WHAT DOES NOT SURVIVE, stated rather than approximated:
+ *
+ *   - Position on the page. This block sits in the studio's tinted header
+ *     strip at the top of a web-width article, not inside a Letter page with
+ *     the renderer's 64pt margins, so its distance from the body is the
+ *     studio's and not the document's.
+ *   - Wrapping. The renderer draws each line with a single drawText and never
+ *     wraps it, so an over-long address line runs toward the page edge there
+ *     and wraps to a second line here. The lines are short enough in practice
+ *     that this is a difference at the extremes, not in the ordinary case.
+ *   - Repetition. The renderer repaints the block on every page. This is one
+ *     page.
+ *
+ * The accent bar the renderer paints along the top edge is not missing: the
+ * strip this sits in already carries the studio's own 6px accent border, which
+ * predates the design and stands in for it.
+ */
+function LetterheadDesignBlock({
+  design,
+  accent,
+}: {
+  design: LetterheadDesign;
+  accent: string;
+}) {
+  const lines = letterheadDesignLines(design);
+  return (
+    <div style={{ textAlign: design.alignment === 'center' ? 'center' : 'left' }}>
+      {lines.map((line, i) => (
+        <p
+          key={i}
+          data-no-translate
+          style={{
+            fontSize: `${line.size * LETTERHEAD_PT_TO_PX}px`,
+            lineHeight: `${(line.size + LETTERHEAD_LINE_GAP_PT) * LETTERHEAD_PT_TO_PX}px`,
+            fontWeight: line.bold ? 700 : 400,
+            color: line.bold ? accent : '#595959',
+          }}
+        >
+          {line.text}
+        </p>
+      ))}
+      {design.showRule && (
+        <span
+          className="block mt-2"
+          style={{ borderTop: '0.5pt solid #cccccc' }}
+        />
+      )}
     </div>
   );
 }

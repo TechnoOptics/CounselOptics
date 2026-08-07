@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { listFirmWebhooksAction } from '@/lib/firm-actions';
 import { readMenuConfig } from '@/lib/menu-config';
+import { firmLetterheadDesign } from '@/lib/letterhead-design';
 import { getFirmSurfaceSettings, getFirmTicketPrefix } from '@/lib/firm-settings';
 import { readPartnerConfig } from '@/lib/partner-config-core';
 import { SettingsForm } from './settings-form';
@@ -41,6 +42,7 @@ export default async function CounselSettingsPage() {
       />
       <SettingsForm
         firmId={ctx.firm.id}
+        letterheadDesign={firmLetterheadDesign(ctx.firm.metadata)}
         defaultValues={{
           name: ctx.firm.name,
           accentColor: ctx.firm.accentColor,
