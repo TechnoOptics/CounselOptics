@@ -7,7 +7,10 @@ import {
   type SignerDocumentRenderStatus,
 } from '@/lib/signer-view';
 import type { TemplateField } from '@/lib/firm-templates';
-import type { CounterpartyValues } from '@/lib/counterparty-fields';
+import {
+  counterpartyFieldsSettled,
+  type CounterpartyValues,
+} from '@/lib/counterparty-fields';
 import type { FieldBox } from '@/lib/template-field-boxes';
 import { SignerDocumentView } from './document-view';
 import { SignatureCapture } from './signature-capture';
@@ -79,12 +82,12 @@ export function SignerSurface({
   const [fieldValues, setFieldValues] =
     useState<CounterpartyValues>(initialFieldValues);
   // A signer returning to a half-filled link starts at the form; one whose
-  // values are already recorded starts past it and can go back.
-  const [fieldsDone, setFieldsDone] = useState(
-    counterpartyFields.length === 0 ||
-      counterpartyFields.every(
-        (f) => !f.required || Boolean(initialFieldValues[f.key]),
-      ),
+  // values are already recorded starts past it and can go back. The rule is
+  // counterpartyFieldsSettled and it is NOT written out here: it decides
+  // whether the pad exists at all, and an expression inside a client
+  // component is one no test in this repo can reach.
+  const [fieldsDone, setFieldsDone] = useState(() =>
+    counterpartyFieldsSettled(counterpartyFields, initialFieldValues),
   );
   const [renderStatus, setRenderStatus] =
     useState<SignerDocumentRenderStatus>('pending');

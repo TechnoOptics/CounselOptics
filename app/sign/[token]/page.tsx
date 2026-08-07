@@ -25,6 +25,7 @@ import {
   loadCounterpartyIntake,
   loadStoredCounterpartyValues,
 } from '@/lib/counterparty-intake';
+import { isCounterpartySigner } from '@/lib/counterparty-fields';
 import { TraceWatermark } from '@/components/TraceWatermark';
 import { SignerSurface } from './signer-surface';
 import { SignerResponse } from './signer-response';
@@ -373,9 +374,21 @@ export default async function SignPage({ params }: { params: { token: string } }
   // answers a missing column with null rather than an error, so a firm that
   // has not migrated never has a signature blocked by it.
   const intakeAdmin = createAdminSupabase();
-  const intake = intakeAdmin
+  const requestIntake = intakeAdmin
     ? await loadCounterpartyIntake(intakeAdmin, request.id)
     : null;
+  // Scoped to the OTHER SIDE, and this is the seam two slices met at. The
+  // blanks belong to the request, so both signers on a counter-signed
+  // agreement were handed them; the values already typed are read from the
+  // signer's own row below and were therefore empty for the employee at order
+  // 2. The pad renders only once the blanks are settled, so the employee
+  // opened their link, was shown the counterparty's blank form, and had no way
+  // past it. Null here means this signer is asked for nothing, the blanks are
+  // vacuously settled, and the pad is the first thing they see.
+  const intake =
+    requestIntake && isCounterpartySigner(signature.signerEmail, requestIntake.recipientEmail)
+      ? requestIntake
+      : null;
   // Re-sanitized on the way out of jsonb rather than trusted, through the
   // same rules the write path applies, so a value that would no longer be
   // accepted is not shown back as though it had been.

@@ -95,6 +95,58 @@ export function isCounterpartyField(field: {
 }
 
 /**
+ * Whether this signer is the other side of the agreement.
+ *
+ * WHY A SIGNING TOKEN DOES NOT ANSWER THIS. Two people sign one request: the
+ * counterparty at order 1 and the employee who counter-signs at order 2
+ * (counterSignatureParty, lib/submission-dispatch.ts). Both hold an equally
+ * valid token for it, and the access-code gate deliberately lets an internal
+ * signer through without a code, so "holds a credential for this request"
+ * identified nobody in particular. The submission names its recipient, and
+ * that person is the counterparty; everyone else on the request is not.
+ *
+ * Normalised on both sides, the same normalisation counterSignatureParty and
+ * createSigningRequestAction use, because "Dana@firm.test" and
+ * "dana@firm.test " are one person.
+ *
+ * A record naming no recipient matches NOBODY. That is the fail-closed
+ * direction: the alternative would let any signer on a request with a missing
+ * recipient write the other side's answers.
+ */
+export function isCounterpartySigner(
+  signerEmail: unknown,
+  recipientEmail: unknown,
+): boolean {
+  const recipient = address(recipientEmail);
+  if (!recipient) return false;
+  return address(signerEmail) === recipient;
+}
+
+function address(value: unknown): string {
+  return typeof value === 'string' ? value.trim().toLowerCase() : '';
+}
+
+/**
+ * Whether the blanks in front of this signer are settled, which is what
+ * decides whether the signature pad exists.
+ *
+ * Here rather than inline in the signing surface because it decides whether a
+ * signer can sign at all, and an expression inside a client component is one
+ * no test in this repo can reach: forcing it false left the pad rendering for
+ * nobody and the whole suite stayed green.
+ *
+ * An empty list is settled, which is the answer for every document with no
+ * counterparty fields and for every signer who is not the counterparty on one
+ * that has them.
+ */
+export function counterpartyFieldsSettled(
+  fields: readonly TemplateField[],
+  values: CounterpartyValues,
+): boolean {
+  return fields.every((f) => !f.required || Boolean(values[f.key]));
+}
+
+/**
  * The fields the employee is asked for: everything that is not the other
  * side's.
  *
@@ -284,6 +336,8 @@ export function formatCounterpartyValue(
 // ---------------------------------------------------------------------
 
 export type CounterpartySubmissionRefusal =
+  /** A signer on this request who is not the other side of the agreement. */
+  | 'not-your-details'
   /** The document has been signed. Its contents are settled. */
   | 'already-signed'
   /** The firm recalled the request. */
@@ -316,6 +370,13 @@ export type CounterpartySubmissionDecision =
  * reorder these.
  */
 export function resolveCounterpartySubmission(input: {
+  /**
+   * Whether the caller is the other side of the agreement, as decided by
+   * isCounterpartySigner over the submission's recipient. Not derivable from
+   * anything else here: every field below is equally true of the employee who
+   * counter-signs.
+   */
+  isCounterparty: boolean;
   accessCodeRequired: boolean;
   accessVerifiedAt: string | null;
   requestStatus: string;
@@ -329,6 +390,13 @@ export function resolveCounterpartySubmission(input: {
   if (input.accessCodeRequired && !input.accessVerifiedAt) {
     return { ok: false, reason: 'code-required' };
   }
+  // Before anything is read out of the values, so a caller who is not the
+  // counterparty learns nothing about what this document asks the
+  // counterparty for. The employee who counter-signs reaches this endpoint
+  // with a valid token and, being internal, without a code, so the two checks
+  // above pass for them; nothing else here would have told them apart, and
+  // their submission landed on their OWN signature row.
+  if (!input.isCounterparty) return { ok: false, reason: 'not-your-details' };
   if (input.requestStatus === 'canceled') return { ok: false, reason: 'canceled' };
   if (input.signedAt) return { ok: false, reason: 'already-signed' };
   if (
@@ -357,6 +425,11 @@ export function resolveCounterpartySubmission(input: {
 /** Calm, plain wording for each refusal, kept beside the decision so the page
  *  and the action cannot describe the same refusal differently. */
 export const COUNTERPARTY_REFUSAL_COPY: Record<CounterpartySubmissionRefusal, string> = {
+  // Says whose step it is without naming them. This surface is public and who
+  // else is on an agreement is not something it should volunteer.
+  'not-your-details':
+    'These details are for the other party to fill in. There is nothing for ' +
+    'you to complete here.',
   'already-signed':
     'This document has been signed, so its details can no longer be changed.',
   canceled:

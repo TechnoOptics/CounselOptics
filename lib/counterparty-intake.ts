@@ -44,6 +44,16 @@ import { parseFieldBoxes, type FieldBox } from './template-field-boxes';
 
 export type CounterpartyIntake = {
   submissionId: string;
+  /**
+   * The address the submission is addressed to, which is the whole of what
+   * identifies the counterparty among the signers on this request.
+   *
+   * Carried on the intake rather than looked up again by each caller, because
+   * all three of them, the page that asks the questions, the action that
+   * stores the answers, and the stamp that draws them, have to agree about
+   * who the other side is. Three lookups is three chances to disagree.
+   */
+  recipientEmail: string;
   /** Where every blank is. Read by the live overlay and by the stamp. */
   boxes: FieldBox[];
   /** The counterparty fields this document actually carries blanks for.
@@ -70,7 +80,7 @@ export async function loadCounterpartyStamp(
   if (!signingRequestId) return null;
   const { data, error } = await admin
     .from('firm_template_submissions')
-    .select('id, firm_id, template_id, field_boxes')
+    .select('id, firm_id, template_id, field_boxes, recipient_email')
     .eq('signing_request_id', signingRequestId)
     .maybeSingle();
   if (error || !data) return null;
@@ -79,6 +89,7 @@ export async function loadCounterpartyStamp(
     firm_id: string;
     template_id: string | null;
     field_boxes?: unknown;
+    recipient_email?: string | null;
   };
 
   const boxes = parseFieldBoxes(row.field_boxes);
@@ -108,7 +119,12 @@ export async function loadCounterpartyStamp(
       );
     }
   }
-  return { submissionId: row.id, boxes, fields };
+  return {
+    submissionId: row.id,
+    recipientEmail: row.recipient_email ?? '',
+    boxes,
+    fields,
+  };
 }
 
 /**

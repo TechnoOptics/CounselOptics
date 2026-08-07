@@ -96,6 +96,12 @@ type Fixture = {
   values: unknown;
   /** Force the read of the typed values to fail, as an unapplied column would. */
   breakValuesRead?: boolean;
+  /**
+   * A second signature row ahead of the counterparty's in the list PostgREST
+   * returns. The employee who counter-signs is a signer on the same request,
+   * and this is what they would have written onto their own row.
+   */
+  employeeValues?: unknown;
 };
 
 async function buildSource(marker: string) {
@@ -209,6 +215,10 @@ function fakeAdmin(input: {
         firm_id: 'firm-1',
         template_id: 'tpl-1',
         field_boxes: fieldBoxes,
+        // The submission names its recipient, and that person is the
+        // counterparty. Nothing else on the request distinguishes them from
+        // the employee who counter-signs.
+        recipient_email: 'buyer@wren.test',
       };
     }
     if (table === 'firm_templates') return { fields: fixture.fields };
@@ -219,7 +229,25 @@ function fakeAdmin(input: {
     if (table === 'firm_signature_events') return [];
     if (table === 'firm_signatures') {
       if (errorFor(table, cols)) return null;
-      return [
+      const rows: Array<Record<string, unknown>> = [];
+      if (fixture.employeeValues !== undefined) {
+        // FIRST in the list, on purpose. The select carries no .order(), so
+        // PostgREST row order is unspecified, and stamping signed_at is a
+        // non-HOT update that relocates a tuple in the heap. A merge that
+        // takes the first row carrying a key would take this one.
+        rows.push({
+          id: 'sig-2',
+          signer_email: 'priya@firm.test',
+          signer_name: 'Priya Raman',
+          position_page: 1,
+          position_x: 0.5,
+          position_y: 0.5,
+          signature_image_path: null,
+          signed_at: null,
+          counterparty_values: fixture.employeeValues,
+        });
+      }
+      rows.push(
         {
           id: 'sig-1',
           signer_email: 'buyer@wren.test',
@@ -231,7 +259,8 @@ function fakeAdmin(input: {
           signed_at: '2026-08-06T12:00:00.000Z',
           counterparty_values: fixture.values,
         },
-      ];
+      );
+      return rows;
     }
     throw new Error(`unexpected list read on ${table} (${cols})`);
   }
@@ -380,6 +409,46 @@ describe('renderFinalSignedPdf with counterparty fields', () => {
     expect(meta.fields_intended).toBe(1);
     expect(meta.fields_drawn).toBe(0);
     expect(String((meta.field_failures as string[])[0])).toContain('entity_name');
+  });
+
+  /**
+   * The words on the executed copy are the COUNTERPARTY'S.
+   *
+   * Two signers sit on one request: the counterparty at order 1 and the
+   * employee who counter-signs at order 2. Both hold a valid token, and until
+   * this was scoped both were shown the same form. The merge then took "the
+   * first row carrying a key", over a select with no `.order()` on it, so
+   * which side's answer reached the instrument was decided by whatever order
+   * PostgREST happened to return two rows in. The employee's row is returned
+   * first here for exactly that reason.
+   *
+   * An executed NDA carrying the employee's guess at the other side's entity
+   * name is not a clerical error. It is the wrong party named on the
+   * instrument.
+   */
+  it("stamps the counterparty's answer, not a later signer's", async () => {
+    const { result, uploaded } = await run({
+      fields: TEXT_FIELD,
+      values: { entity_name: 'Wren Supply Co.' },
+      employeeValues: { entity_name: 'Whatever The Employee Guessed' },
+    });
+    expect(result.ok).toBe(true);
+    const text = await drawnText(uploaded.bytes as Uint8Array);
+    expect(text).toContain('Wren Supply Co.');
+    expect(text).not.toContain('Whatever The Employee Guessed');
+  });
+
+  it('leaves a blank blank when only a later signer answered it', async () => {
+    // The counterparty typed nothing, so nothing on this instrument is their
+    // statement. A ruled blank is the truth; the employee's answer is not.
+    const { result, uploaded } = await run({
+      fields: [{ ...TEXT_FIELD[0], required: false }],
+      values: {},
+      employeeValues: { entity_name: 'Whatever The Employee Guessed' },
+    });
+    expect(result.ok).toBe(true);
+    const text = await drawnText(uploaded.bytes as Uint8Array);
+    expect(text).not.toContain('Whatever The Employee Guessed');
   });
 
   it('refuses when the typed values cannot be read at all', async () => {

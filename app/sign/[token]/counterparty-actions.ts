@@ -6,6 +6,7 @@ import { appendSignatureEvent, sha256 } from '@/lib/esign-audit';
 import { loadCounterpartyIntake } from '@/lib/counterparty-intake';
 import {
   COUNTERPARTY_REFUSAL_COPY,
+  isCounterpartySigner,
   resolveCounterpartySubmission,
   type CounterpartyValues,
 } from '@/lib/counterparty-fields';
@@ -91,6 +92,13 @@ export async function submitCounterpartyFieldsAction(
   // step to complete, so a call claiming to complete one is not a call this
   // product made.
   const decision = resolveCounterpartySubmission({
+    // The one thing the token cannot say. The employee who counter-signs holds
+    // a valid token for this same request and, being internal, passes the code
+    // gate without a code, so until this was asked their submission wrote the
+    // other side's answers onto their own signature row. The UI no longer
+    // showing them the form is not a gate: this is a `'use server'` export and
+    // therefore a public HTTP endpoint.
+    isCounterparty: isCounterpartySigner(signature.signer_email, intake?.recipientEmail),
     accessCodeRequired: Boolean(signature.access_code_hash),
     accessVerifiedAt: signature.access_code_verified_at,
     requestStatus: request.status,

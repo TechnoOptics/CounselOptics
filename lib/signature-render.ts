@@ -40,6 +40,7 @@ import {
 } from './template-field-boxes';
 import {
   formatCounterpartyValue,
+  isCounterpartySigner,
   isWinAnsiEncodable,
   sanitizeCounterpartyValues,
 } from './counterparty-fields';
@@ -197,9 +198,20 @@ async function stampCounterpartyFields(
     };
   }
 
-  // Merged across signature rows. In practice only the counterparty has any,
-  // and a later signer answering the same key would be answering for them,
-  // so the first row carrying a key wins and the fact is recorded once.
+  // THE COUNTERPARTY'S ROW, AND ONLY THEIRS.
+  //
+  // This used to merge across every signature row and take "the first row
+  // carrying a key". Two signers sit on one request (counterSignatureParty),
+  // the select above carries no `.order()`, and stamping signed_at is a
+  // non-HOT update that relocates a tuple in the heap, so which side's answer
+  // reached the executed instrument was decided by whatever order PostgREST
+  // happened to return two rows in. An NDA carrying the employee's guess at
+  // the other side's entity name is the wrong party named on the instrument,
+  // not a clerical error.
+  //
+  // Rows are filtered rather than sorted, so nothing here depends on row
+  // order at all. Anything the counterparty did not type stays empty and is
+  // drawn as the ruled blank it is.
   const values: Record<string, string> = {};
   const owner: Record<string, { id: string; email: string }> = {};
   for (const row of (data ?? []) as Array<{
@@ -207,6 +219,7 @@ async function stampCounterpartyFields(
     signer_email: string;
     counterparty_values?: unknown;
   }>) {
+    if (!isCounterpartySigner(row.signer_email, intake.recipientEmail)) continue;
     const clean = sanitizeCounterpartyValues(intake.fields, row.counterparty_values);
     for (const [key, value] of Object.entries(clean)) {
       if (values[key] !== undefined) continue;

@@ -6,6 +6,8 @@ import {
   formatCounterpartyDate,
   formatCounterpartyValue,
   isWinAnsiEncodable,
+  counterpartyFieldsSettled,
+  isCounterpartySigner,
   missingCounterpartyFields,
   resolveCounterpartySubmission,
   sanitizeCounterpartyValues,
@@ -243,8 +245,70 @@ describe('formatCounterpartyValue', () => {
   });
 });
 
+/**
+ * Whether the blanks on this document are settled for the signer in front of
+ * them, which is what decides whether the signature pad exists.
+ *
+ * Pure and here rather than inline in the client component, because "forcing
+ * it false" was a mutation the whole suite survived: the pad simply never
+ * rendered and nothing noticed. A signer who cannot reach a pad cannot sign,
+ * which on the flagship flow is the whole product.
+ */
+/**
+ * Which signer on a request is the other side.
+ *
+ * The submission names its recipient, and that person is the counterparty.
+ * The employee who counter-signs is a signer on the SAME request holding an
+ * equally valid token, so "holds a token for this request" never identified
+ * anybody. Normalised on both sides, the same way counterSignatureParty and
+ * the signer gate normalise, because "Dana@firm.test" and "dana@firm.test "
+ * are one person.
+ */
+describe('isCounterpartySigner', () => {
+  it('recognises the recipient however either address was typed', () => {
+    expect(isCounterpartySigner(' Buyer@Wren.test ', 'buyer@wren.test')).toBe(true);
+  });
+
+  it('does not recognise the employee who counter-signs', () => {
+    expect(isCounterpartySigner('priya@firm.test', 'buyer@wren.test')).toBe(false);
+  });
+
+  it('recognises nobody when the record names no recipient', () => {
+    // Fail closed. A request with no recipient has no counterparty, and
+    // guessing one would let any signer write the other side's answers.
+    expect(isCounterpartySigner('buyer@wren.test', '')).toBe(false);
+    expect(isCounterpartySigner('buyer@wren.test', null)).toBe(false);
+    expect(isCounterpartySigner('', '')).toBe(false);
+  });
+});
+
+describe('counterpartyFieldsSettled', () => {
+  const required = { key: 'entity_name', label: 'Entity', type: 'text', required: true } as const;
+  const optional = { key: 'note', label: 'Note', type: 'text', required: false } as const;
+
+  it('is settled when the document asks this signer for nothing', () => {
+    // Every document this product has produced so far, and every signer who
+    // is not the counterparty on one that does ask.
+    expect(counterpartyFieldsSettled([], {})).toBe(true);
+  });
+
+  it('is not settled while a required blank is empty', () => {
+    expect(counterpartyFieldsSettled([required], {})).toBe(false);
+    expect(counterpartyFieldsSettled([required], { entity_name: '' })).toBe(false);
+  });
+
+  it('is settled once every required blank has a value', () => {
+    expect(counterpartyFieldsSettled([required], { entity_name: 'Wren Supply Co.' })).toBe(true);
+  });
+
+  it('does not wait on an optional blank', () => {
+    expect(counterpartyFieldsSettled([optional], {})).toBe(true);
+  });
+});
+
 describe('resolveCounterpartySubmission', () => {
   const open = {
+    isCounterparty: true,
     accessCodeRequired: true,
     accessVerifiedAt: '2026-08-06T10:00:00Z',
     requestStatus: 'sent',
@@ -280,6 +344,34 @@ describe('resolveCounterpartySubmission', () => {
         values: good,
       }).ok,
     ).toBe(true);
+  });
+
+  /**
+   * The employee who counter-signs holds a valid token on the same request,
+   * and the code gate deliberately lets an internal signer through without
+   * one. Nothing else here distinguished them from the counterparty, so a
+   * later signer posting to this endpoint wrote the other side's answers onto
+   * their OWN row, and the executed copy could then carry the employee's
+   * guess at the other side's entity name.
+   *
+   * This is a `'use server'` export and therefore a public HTTP endpoint. The
+   * page no longer showing them the form is not a gate.
+   */
+  it('refuses a signer who is not the counterparty', () => {
+    expect(
+      resolveCounterpartySubmission({ ...open, isCounterparty: false, values: good }),
+    ).toEqual({ ok: false, reason: 'not-your-details' });
+  });
+
+  it('refuses them before it says whether the answers were any good', () => {
+    // A refusal that varied with the values would tell a caller who is not
+    // the counterparty what this document asks the counterparty for.
+    expect(
+      resolveCounterpartySubmission({ ...open, isCounterparty: false, values: {} }).ok,
+    ).toBe(false);
+    expect(
+      resolveCounterpartySubmission({ ...open, isCounterparty: false, values: {} }),
+    ).toEqual({ ok: false, reason: 'not-your-details' });
   });
 
   it('refuses a recalled request', () => {
