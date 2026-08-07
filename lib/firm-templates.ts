@@ -10,6 +10,10 @@ import {
   type DeliveryMode,
 } from './submission-dispatch';
 import { parseTemplateFieldParty } from './counterparty-fields';
+import { extractFileText } from './doc-review';
+import { checkRateLimit } from './rate-limit';
+import { AiUnavailableError } from './ai-errors';
+import type { TemplateProposal } from './template-proposal';
 
 /**
  * Firm-owned form templates ("Forms"): the legal team configures reusable
@@ -262,6 +266,105 @@ export async function updateFirmTemplateAction(
   }
   if (error || !data) return { ok: false, error: error?.message ?? 'Could not update the template.' };
   return { ok: true, template: toTemplate(data as Row) };
+}
+
+/** Uploads past this are refused before anything is read. Matches the policy
+ *  checker's limit, which is the other place a firm uploads a document. */
+const MAX_TEMPLATE_UPLOAD_BYTES = 10 * 1024 * 1024;
+
+/**
+ * Read an uploaded document and propose the template it would become.
+ *
+ * PROPOSES. It does not create or update anything. The legal team reviews
+ * every field and every signature line in the editor and presses Save
+ * themselves, because what comes back is a model's reading of their document
+ * and it is going onto an instrument somebody signs.
+ *
+ * requireAuthor runs FIRST, before the file is even taken out of the form.
+ * Every export of this module is a public HTTP endpoint callable by any
+ * signed-in user with a firmId of their choosing, and this one spends real
+ * money: per lib/ai-errors.ts the model call is paid for by the app's own
+ * ANTHROPIC_API_KEY, not out of a firm's token pool, so an ungated version
+ * bills US for a stranger reading documents that are not theirs. It is the
+ * same gate the neighbouring template actions use; a second membership query
+ * would be a third authorization axis in a codebase that deliberately has one.
+ *
+ * NOT gated on subscription. The comparable endpoint checks
+ * isFirmSubscriptionActive and requireActiveFirm covers the access-ended state,
+ * so a lapsed or export-only firm can still spend here. Left open on purpose
+ * and recorded rather than added unattended: a false denial locks a paying firm
+ * out of a feature with nobody watching.
+ */
+export async function importTemplateDocumentAction(
+  firmId: string,
+  formData: FormData,
+): Promise<{ ok: boolean; error?: string; proposal?: TemplateProposal }> {
+  const gate = await requireAuthor(firmId);
+  if ('error' in gate) return { ok: false, error: gate.error };
+  const allowed = await checkRateLimit(`template-import:${gate.user.id}`, {
+    limit: 20,
+    windowSeconds: 3600,
+  });
+  if (!allowed) {
+    // Authorization stops a stranger. This stops one author looping the
+    // endpoint, which matters because each call is a long generation billed to
+    // the app's own key.
+    return { ok: false, error: 'That is a lot of imports this hour. Try again later.' };
+  }
+
+  const file = formData.get('file');
+  if (!(file instanceof File)) return { ok: false, error: 'Choose a document first.' };
+  if (file.size > MAX_TEMPLATE_UPLOAD_BYTES) {
+    return {
+      ok: false,
+      error: 'That file is over 10 MB. Try a smaller file, or paste the text into the body.',
+    };
+  }
+
+  const extracted = await extractFileText(file);
+  // extractFileText already writes calm, specific copy for the cases it knows
+  // about, the legacy .doc branch above all. Surface it rather than replacing
+  // it with something vaguer.
+  if (extracted.error) return { ok: false, error: extracted.error };
+  const text = extracted.text.trim();
+  if (text.length < 40) {
+    return {
+      ok: false,
+      error:
+        'No readable text was found in that file. A scanned page has no text ' +
+        'in it to read. Try a PDF or Word file with selectable text, or paste ' +
+        'the text into the body below.',
+    };
+  }
+
+  try {
+    // Loaded here rather than at the top of the file so the Anthropic client
+    // stays out of the module graph of the employee portal pages, which import
+    // this file only to list published templates. Same reasoning as the
+    // dynamic import in requireActiveFirm.
+    const { proposeTemplateFromText } = await import('./template-intake');
+    const proposal = await proposeTemplateFromText(text);
+    if (!proposal) {
+      return {
+        ok: false,
+        error:
+          'Could not read a template out of that document. You can still write ' +
+          'the body below and add the placeholders yourself.',
+      };
+    }
+    return { ok: true, proposal };
+  } catch (e) {
+    // AiUnavailableError carries the calm, branded wording for a model that is
+    // out of budget or unreachable. Anything else is described plainly. Raw
+    // model output and raw Anthropic JSON never reach the browser.
+    return {
+      ok: false,
+      error:
+        e instanceof AiUnavailableError
+          ? e.userMessage
+          : 'Could not read that document. Try again shortly, or write the body below.',
+    };
+  }
 }
 
 /** Legal-side list (all statuses). */
