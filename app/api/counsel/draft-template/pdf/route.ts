@@ -200,7 +200,7 @@ async function renderFreeText(body: {
       // Read off the caller's own active firm, never off the request body.
       // The body is the studio's draft; the letterhead is the firm's identity,
       // and a caller does not get to describe someone else's stationery.
-      letterheadDesign: firmLetterheadDesign(ctx.firm?.metadata),
+      letterheadDesign: firmLetterheadDesign(ctx.firm.metadata),
       logoUrl: body.logoUrl,
     },
   };

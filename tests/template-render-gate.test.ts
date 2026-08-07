@@ -2,7 +2,9 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { NextRequest } from 'next/server';
-import type { FirmRole } from '../lib/firm-types';
+import type { FirmContext, FirmRole } from '../lib/firm-types';
+import type { BrandedDocumentInput } from '../lib/branded-document-pdf';
+import type { FieldBox } from '../lib/template-field-boxes';
 
 /**
  * The PDF renderer, as the second way out of the building.
@@ -107,13 +109,61 @@ describe('the employee fill page', () => {
 let currentUser: { id: string; email: string } | null = null;
 let currentRole: FirmRole | null = null;
 let requiresApproval = true;
-let activeFirm: { firmId: string } | null = null;
+/**
+ * The caller's active firm, in the shape getActiveFirmContext actually
+ * returns.
+ *
+ * This used to be `{ firmId: 'firm-1' }`, which is not a FirmContext and has
+ * no `firm` on it at all. Nothing caught that, because a stub is only ever
+ * checked against what the code under test happened to read at the time, and
+ * the route only read the context for truthiness. It stopped being harmless
+ * the moment the route reached into `ctx.firm`: the honest line failed against
+ * the fake, and the fix that presents itself at that point is to weaken the
+ * route to `ctx.firm?.metadata`, which puts a type hole in production code so
+ * a test double can keep lying. Typed as FirmContext instead, so the compiler
+ * is the thing that keeps this fake honest.
+ */
+let activeFirm: FirmContext | null = null;
+
+function firmContext(metadata: Record<string, unknown> = {}): FirmContext {
+  return {
+    firm: {
+      id: 'firm-1',
+      slug: 'a-firm',
+      name: 'A Firm',
+      firmType: 'firm',
+      metadata,
+      logoUrl: null,
+      letterheadUrl: null,
+      accentColor: '#0f2d24',
+      jurisdictions: [],
+      practiceAreas: [],
+      subdomainEnabled: false,
+      createdBy: 'someone-1',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    },
+    membership: {
+      id: 'member-1',
+      firmId: 'firm-1',
+      userId: 'someone-1',
+      role: 'attorney',
+      displayName: null,
+      email: 'someone@example.test',
+      joinedAt: '2026-01-01T00:00:00.000Z',
+    },
+  };
+}
 
 const TEMPLATE_BODY = 'The parties agree to keep this confidential.';
 
-const buildBrandedDocumentPdf = vi.fn(async () => ({
+// Declared with the renderer's real parameter type, for the same reason the
+// context above is a real FirmContext: a double that takes `()` records its
+// calls as an empty tuple, so nothing can ever assert on WHAT the route sent
+// it, only that it sent something.
+const buildBrandedDocumentPdf = vi.fn(async (_input: BrandedDocumentInput) => ({
   bytes: new Uint8Array([1, 2, 3]),
-  fieldBoxes: [],
+  fieldBoxes: [] as FieldBox[],
 }));
 
 vi.mock('../lib/supabase/server', () => ({
@@ -251,10 +301,29 @@ describe('POST /api/counsel/draft-template/pdf, free text, driven', () => {
   });
 
   it('renders for a member of a firm', async () => {
-    activeFirm = { firmId: 'firm-1' };
+    activeFirm = firmContext();
     const res = await post(draft);
     expect(res.status).toBe(200);
     expect(res.headers.get('Content-Type')).toBe('application/pdf');
     expect(buildBrandedDocumentPdf).toHaveBeenCalledTimes(1);
+  });
+
+  it('takes the designed letterhead from the active firm, never from the body', async () => {
+    // The body is the studio's draft text, which is theirs to write. The
+    // letterhead is the firm's identity, and reading it from the request would
+    // let any member of any firm render a document on someone else's
+    // stationery. Now that the stub is a real FirmContext, that distinction is
+    // something a test can actually see.
+    activeFirm = firmContext({
+      letterhead_design: { firmName: 'Hartley and Vance LLP' },
+    });
+    await post({
+      ...draft,
+      letterheadDesign: { firmName: 'Somebody Else LLP' },
+    });
+    expect(buildBrandedDocumentPdf).toHaveBeenCalledTimes(1);
+    expect(buildBrandedDocumentPdf.mock.calls[0][0].letterheadDesign).toMatchObject({
+      firmName: 'Hartley and Vance LLP',
+    });
   });
 });
