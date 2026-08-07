@@ -20,6 +20,7 @@ import {
   buildSigningCodeEmailHtml,
 } from './email';
 import { seatCheck } from './firm-access';
+import { calmAiMessage } from './ai-errors';
 import {
   LETTERHEAD_DESIGN_METADATA_KEY,
   normalizeLetterheadDesign,
@@ -698,9 +699,13 @@ export async function importFirmLetterheadAction(
     };
   }
 
-  const { bellaGenerate } = await import('./bella');
   let reply: string;
   try {
+    // Inside the try, not above it. A dynamic import can fail on its own (a
+    // chunk that did not ship, a module that throws while initializing), and
+    // an import that throws out of a server action is an unhandled server
+    // error rather than the calm string every other path here returns.
+    const { bellaGenerate } = await import('./bella');
     reply = await bellaGenerate({
       system:
         'You read the letterhead out of the top of a legal document. Reply with a single JSON object and nothing else. ' +
@@ -712,15 +717,16 @@ export async function importFirmLetterheadAction(
       maxTokens: 700,
     });
   } catch (err) {
-    // bellaGenerate throws AiUnavailableError with copy already written for a
-    // person. Anything else gets this module's own calm sentence, because a
-    // raw provider message is not something to show a legal team.
-    const message = err instanceof Error ? err.message : '';
+    // The sentence below is the DEFAULT. Only AiUnavailableError, whose copy
+    // was written for a person, gets to speak for itself; see calmAiMessage
+    // for why the obvious inverse of this leaks the configuration error
+    // bellaGenerate throws before it ever calls out.
     return {
       ok: false,
-      error:
-        message ||
+      error: calmAiMessage(
+        err,
         'The letterhead reader is unavailable right now. Fill the fields in below instead.',
+      ),
     };
   }
 
