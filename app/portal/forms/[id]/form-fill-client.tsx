@@ -25,6 +25,7 @@ import {
 import { DocumentWithMark } from '@/components/DocumentWithMark';
 import { PageHeader, SectionTitle } from '@/components/counsel/ui';
 import { T } from '@/components/i18n/LocaleProvider';
+import { employeeFieldsOf } from '@/lib/counterparty-fields';
 
 /**
  * Employee fill-and-sign for a firm template. Fields render as inputs, the
@@ -61,7 +62,7 @@ export function FormFillClient({
   const [values, setValues] = useState<Record<string, string>>(() => {
     if (submission) return { ...submission.fieldValues };
     const v: Record<string, string> = {};
-    for (const f of template.fields) {
+    for (const f of employeeFieldsOf(template.fields)) {
       if (isSelfNameField(f.key) && employeeName) v[f.key] = employeeName;
       if (f.type === 'date') v[f.key] = new Date().toISOString().slice(0, 10);
     }
@@ -84,7 +85,12 @@ export function FormFillClient({
 
   const needsApproval = template.requiresApproval;
   const forSignature = template.deliveryMode === 'signature';
-  const missing = template.fields.filter((f) => f.required && !(values[f.key] ?? '').trim());
+  // The other side's fields are not this employee's to answer, so they are
+  // neither asked for below nor required here. They are collected on the
+  // signing page, from the person whose facts they are.
+  const ownFields = employeeFieldsOf(template.fields);
+  const recipientFields = template.fields.filter((f) => f.party === 'counterparty');
+  const missing = ownFields.filter((f) => f.required && !(values[f.key] ?? '').trim());
   const recipientOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail.trim());
   const ready =
     !busy &&
@@ -246,7 +252,7 @@ export function FormFillClient({
         <div className="space-y-4">
           <section className="space-y-3 rounded-xl border border-ink-200 bg-white p-4 dark:border-forest-700/50 dark:bg-forest-900/40">
             <SectionTitle>Your details</SectionTitle>
-            {template.fields.map((f) => (
+            {ownFields.map((f) => (
               <label key={f.key} className="block">
                 <span className="mb-1 block text-[13px] font-medium text-forest-900 dark:text-cream-100">
                   {f.label}
@@ -269,6 +275,19 @@ export function FormFillClient({
                 )}
               </label>
             ))}
+            {recipientFields.length > 0 && (
+              <p className="border-t border-ink-100 pt-3 text-[12.5px] leading-relaxed text-ink-600 dark:border-forest-800/50 dark:text-cream-100/70">
+                <T>
+                  The legal team has left some parts of this document for the
+                  recipient to complete: they type them on the signing page and
+                  see them in place before they sign. You do not need to fill
+                  them in.
+                </T>{' '}
+                <span data-no-translate>
+                  {recipientFields.map((f) => f.label).join(', ')}
+                </span>
+              </p>
+            )}
             <label className="block border-t border-ink-100 pt-3 dark:border-forest-800/50">
               <span className="mb-1 block text-[13px] font-medium text-forest-900 dark:text-cream-100">
                 <T>Your full legal name</T>

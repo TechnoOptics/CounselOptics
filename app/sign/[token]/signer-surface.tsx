@@ -6,8 +6,12 @@ import {
   type SignatureLinePlacement,
   type SignerDocumentRenderStatus,
 } from '@/lib/signer-view';
+import type { TemplateField } from '@/lib/firm-templates';
+import type { CounterpartyValues } from '@/lib/counterparty-fields';
+import type { FieldBox } from '@/lib/template-field-boxes';
 import { SignerDocumentView } from './document-view';
 import { SignatureCapture } from './signature-capture';
+import { CounterpartyFields, CounterpartyFieldsSummary } from './counterparty-fields';
 
 /**
  * The document and the ceremony, joined.
@@ -45,6 +49,9 @@ export function SignerSurface({
   positionY,
   copyPermitted,
   copyHref,
+  counterpartyFields,
+  fieldBoxes,
+  initialFieldValues,
 }: {
   token: string;
   documentName: string;
@@ -56,8 +63,29 @@ export function SignerSurface({
   positionY: number | null;
   copyPermitted: boolean;
   copyHref: string;
+  /** The parts of the document this signer supplies. Empty for every
+   *  document with no counterparty fields, which is every document this
+   *  product has produced so far, and for every firm whose database has not
+   *  had 20260807_flow_join.sql applied. */
+  counterpartyFields: TemplateField[];
+  /** Where those blanks are, recorded by the renderer when it drew them. */
+  fieldBoxes: FieldBox[];
+  /** What this signer typed already, if they are coming back to the link. */
+  initialFieldValues: CounterpartyValues;
 }) {
   const [markDataUrl, setMarkDataUrl] = useState<string | null>(null);
+  // Held here rather than in the form, because two children need them: the
+  // form that collects them and the rendered page that draws them.
+  const [fieldValues, setFieldValues] =
+    useState<CounterpartyValues>(initialFieldValues);
+  // A signer returning to a half-filled link starts at the form; one whose
+  // values are already recorded starts past it and can go back.
+  const [fieldsDone, setFieldsDone] = useState(
+    counterpartyFields.length === 0 ||
+      counterpartyFields.every(
+        (f) => !f.required || Boolean(initialFieldValues[f.key]),
+      ),
+  );
   const [renderStatus, setRenderStatus] =
     useState<SignerDocumentRenderStatus>('pending');
   const [placement, setPlacement] = useState<SignatureLinePlacement>({
@@ -101,21 +129,53 @@ export function SignerSurface({
         focusSignature={step === 'capture'}
         onStatusChange={handleStatus}
         onPlacementChange={handlePlacement}
+        counterpartyFields={counterpartyFields}
+        fieldBoxes={fieldBoxes}
+        fieldValues={fieldValues}
       />
 
-      <SignatureCapture
-        token={token}
-        signerEmail={signerEmail}
-        signerName={signerName}
-        documentName={documentName}
-        firmName={firmName}
-        documentPresented={isDocumentPresented(renderStatus)}
-        placement={placement}
-        copyPermitted={copyPermitted}
-        copyHref={copyHref}
-        onMarkChange={handleMark}
-        onStepChange={handleStep}
-      />
+      {/* The details come before the ceremony, and the ceremony does not
+          exist until they are in. The disclosure asks the signer to affirm
+          they have reviewed the document, and a document still missing their
+          own entity name is not the document they are being asked to be
+          bound by. Hiding the pad rather than disabling a button is the
+          version of that which cannot be clicked past. */}
+      {counterpartyFields.length > 0 && !fieldsDone && (
+        <CounterpartyFields
+          token={token}
+          fields={counterpartyFields}
+          initialValues={fieldValues}
+          onSubmitted={(next) => {
+            setFieldValues(next);
+            setFieldsDone(true);
+          }}
+        />
+      )}
+
+      {counterpartyFields.length > 0 && fieldsDone && (
+        <CounterpartyFieldsSummary
+          fields={counterpartyFields}
+          values={fieldValues}
+          onEdit={() => setFieldsDone(false)}
+          locked={step !== 'disclosure'}
+        />
+      )}
+
+      {fieldsDone && (
+        <SignatureCapture
+          token={token}
+          signerEmail={signerEmail}
+          signerName={signerName}
+          documentName={documentName}
+          firmName={firmName}
+          documentPresented={isDocumentPresented(renderStatus)}
+          placement={placement}
+          copyPermitted={copyPermitted}
+          copyHref={copyHref}
+          onMarkChange={handleMark}
+          onStepChange={handleStep}
+        />
+      )}
     </>
   );
 }

@@ -3,6 +3,7 @@ import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { FirmTemplate, TemplateField } from './firm-templates';
 import { parseDeliveryMode } from './submission-dispatch';
+import { employeeFieldsOf } from './counterparty-fields';
 
 /**
  * Reading a published firm template on the server, for the two places that
@@ -66,7 +67,12 @@ export function sanitizeTemplateValues(
   values: Record<string, string> | undefined,
 ): Record<string, string> {
   const out: Record<string, string> = {};
-  for (const f of fields) {
+  // Counterparty fields are dropped here, not merely ignored downstream.
+  // mergeTemplateDocument never merges one whatever this map holds, so a
+  // value under a counterparty key could only sit in field_values looking
+  // like an answer the employee gave for the other side. The other side's
+  // answers live on their own signature row and arrive later.
+  for (const f of employeeFieldsOf(fields)) {
     const v = String((values ?? {})[f.key] ?? '').trim().slice(0, 5000);
     if (v) out[f.key] = v;
   }

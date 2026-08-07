@@ -9,6 +9,7 @@ import {
   DELIVERY_MODE_UNSAVED_ERROR,
   type DeliveryMode,
 } from './submission-dispatch';
+import { parseTemplateFieldParty } from './counterparty-fields';
 
 /**
  * Firm-owned form templates ("Forms"): the legal team configures reusable
@@ -148,7 +149,11 @@ function sanitizeFields(fields: unknown): TemplateField[] {
       // question the employee gets asked, which is visible and recoverable.
       // The other way round is a blank nobody is asked to fill, in a
       // document that has already been approved and sent.
-      party: o.party === 'counterparty' ? 'counterparty' : 'employee',
+      //
+      // Shared with the read side (parseTemplateFields), because a value
+      // stored by one coercion and read back by another is how a field ends
+      // up owned by one party going in and the other coming out.
+      party: parseTemplateFieldParty(o.party),
     });
   }
   return out;

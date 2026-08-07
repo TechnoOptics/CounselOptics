@@ -13,6 +13,17 @@ import {
   type SignerDocumentRenderStatus,
 } from '@/lib/signer-view';
 import { ExternalLink } from '@/components/ExternalLink';
+import type { TemplateField } from '@/lib/firm-templates';
+import {
+  formatCounterpartyValue,
+  type CounterpartyValues,
+} from '@/lib/counterparty-fields';
+import {
+  boxesForKey,
+  fieldRectToDisplayFractions,
+  resolveFieldBoxRect,
+  type FieldBox,
+} from '@/lib/template-field-boxes';
 import { openSignerPdf, renderPageToCanvas, type RenderedPage } from './pdf-runtime';
 
 /**
@@ -55,6 +66,9 @@ export function SignerDocumentView({
   focusSignature,
   onStatusChange,
   onPlacementChange,
+  counterpartyFields,
+  fieldBoxes,
+  fieldValues,
 }: {
   token: string;
   documentName: string;
@@ -75,6 +89,14 @@ export function SignerDocumentView({
   focusSignature: boolean;
   onStatusChange: (status: SignerDocumentRenderStatus) => void;
   onPlacementChange: (placement: SignatureLinePlacement) => void;
+  /** The parts of the document this signer supplies, and where the renderer
+   *  drew the blanks for them. Both empty for every document that asks the
+   *  signer for nothing, which is every document produced before this
+   *  shipped. */
+  counterpartyFields: TemplateField[];
+  fieldBoxes: FieldBox[];
+  /** What the server accepted from this signer so far. */
+  fieldValues: CounterpartyValues;
 }) {
   const [status, setStatus] = useState<SignerDocumentRenderStatus>('pending');
   const [pageCount, setPageCount] = useState<number | null>(null);
@@ -344,6 +366,51 @@ export function SignerDocumentView({
 
   const total = pageCount ?? 1;
 
+  /**
+   * The signer's own words, drawn into the blanks the renderer recorded when
+   * it drew the document.
+   *
+   * THIS IS ONE HALF OF THE PREVIEW-EQUALS-DELIVERED INVARIANT. The other
+   * half is lib/signature-render.ts, and neither computes a rectangle: both
+   * call resolveFieldBoxRect on the same stored box, and the only thing this
+   * end adds is the conversion into the coordinates a browser positions in,
+   * plus the page's own /Rotate, exactly as the signature box above already
+   * does. tests/template-field-boxes.test.ts converts the result back into
+   * points and asserts it reproduces the stamp's rectangle.
+   *
+   * What is NOT identical, stated plainly rather than implied: the GLYPHS.
+   * pdf-lib draws Times through an embedded standard font and a browser
+   * draws whatever serif it has, so the letters are an approximation of the
+   * ones on the executed copy. The position, the extent and the wording are
+   * the same by construction; the typeface is a likeness.
+   */
+  const drawnFields =
+    rendered === null
+      ? []
+      : counterpartyFields.flatMap((field) => {
+          const stored = fieldValues[field.key];
+          if (!stored) return [];
+          // Formatted through the same function the stamp uses, so a date
+          // cannot read one way here and another on the signed copy.
+          const text = formatCounterpartyValue(field, stored);
+          if (!text) return [];
+          const page = {
+            pageWidthPt: rendered.widthPt,
+            pageHeightPt: rendered.heightPt,
+          };
+          return boxesForKey(fieldBoxes, field.key)
+            .filter((box) => box.page === rendered.pageNumber)
+            .map((box, index) => {
+              const boxRect = resolveFieldBoxRect(box, page);
+              const fractions = rotateSignatureRectForDisplay(
+                fieldRectToDisplayFractions(boxRect, page),
+                rendered.rotationDeg,
+              );
+              return { id: `${field.key}-${index}`, text, ...fractions };
+            })
+            .filter((f) => f.widthFrac > 0 && f.heightFrac > 0);
+        });
+
   return (
     <section
       className={`card overflow-hidden ${focusSignature ? 'sticky top-16 z-20' : ''}`}
@@ -373,6 +440,37 @@ export function SignerDocumentView({
       >
         <div className="relative w-max mx-auto">
           <canvas ref={canvasRef} className="block" />
+          {/* Painted opaque over the ruled blank underneath, because that is
+              what the executed copy does: the marker is still in the stored
+              bytes and covering it is how the value replaces it rather than
+              printing on top of it. The line under the text is the blank
+              itself, kept so the page still reads as a filled-in form. */}
+          {drawnFields.map((f) => (
+            <div
+              key={f.id}
+              className="absolute pointer-events-none overflow-hidden flex items-end bg-white border-b border-forest-900/40"
+              style={{
+                left: `${f.leftFrac * 100}%`,
+                top: `${f.topFrac * 100}%`,
+                width: `${f.widthFrac * 100}%`,
+                height: `${f.heightFrac * 100}%`,
+                // The renderer draws the body at 11 points inside a 16 point
+                // line, so the preview keeps that ratio against the height
+                // the page was actually laid out at.
+                fontSize: `${Math.max(
+                  6,
+                  f.heightFrac * (rendered?.cssHeightPx ?? 0) * (11 / 16),
+                )}px`,
+                fontFamily: '"Times New Roman", Times, serif',
+                color: '#1a1a1a',
+                lineHeight: 1.1,
+                whiteSpace: 'nowrap',
+              }}
+              data-no-translate
+            >
+              {f.text}
+            </div>
+          ))}
           {rect && (
             <div
               ref={boxRef}
