@@ -1,7 +1,7 @@
 import { adminListHealthChecks } from '@/lib/storage';
 import { LocaleTime } from '@/components/LocaleTime';
 import { adminGetHqHealthExtras, adminGetLiveHealth } from '@/lib/hq-storage';
-import type { ProbeUptime } from '@/lib/hq-metrics';
+import { consecutiveFailures, type ProbeUptime } from '@/lib/hq-metrics';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: { absolute: 'System health · Advottic HQ' } };
@@ -75,14 +75,24 @@ export default async function HqHealthPage() {
               {typeof latest.durationMs === 'number' && ` (${latest.durationMs} ms)`}
             </p>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-              {probeNames.map((p) => (
-                <ProbeTile
-                  key={p}
-                  name={PROBE_LABEL[p] ?? p}
-                  status={latest.probes[p as keyof typeof latest.probes] as string}
-                  history={last24.map((c) => c.probes[p as keyof typeof c.probes] as string)}
-                />
-              ))}
+              {probeNames.map((p) => {
+                // The streak is counted over every run we fetched, not
+                // just the 24 drawn as bars, so a month-long outage is
+                // not truncated to the width of the sparkline.
+                const streak = consecutiveFailures(
+                  checks.map((c) => c.probes[p as keyof typeof c.probes] as string),
+                );
+                return (
+                  <ProbeTile
+                    key={p}
+                    name={PROBE_LABEL[p] ?? p}
+                    status={latest.probes[p as keyof typeof latest.probes] as string}
+                    history={last24.map((c) => c.probes[p as keyof typeof c.probes] as string)}
+                    failingStreak={streak}
+                    streakAtWindowEdge={streak > 0 && streak === checks.length}
+                  />
+                );
+              })}
             </div>
             {latest.failures.length > 0 && (
               <div className="card p-4 ring-1 ring-rose-700/40">
@@ -399,10 +409,17 @@ function ProbeTile({
   name,
   status,
   history,
+  failingStreak,
+  streakAtWindowEdge,
 }: {
   name: string;
   status: string;
   history: string[];
+  /** Consecutive failed runs counting back from the latest. */
+  failingStreak: number;
+  /** True when the streak runs to the end of the fetched window, so the
+   *  real figure is "at least this many" rather than exactly this many. */
+  streakAtWindowEdge: boolean;
 }) {
   const tone =
     status === 'pass'
@@ -428,6 +445,14 @@ function ProbeTile({
       <p className="text-[11px] uppercase tracking-[0.2em] font-semibold text-cream-100/55 mt-1">
         {status}
       </p>
+      {/* A one-off failure and a month-long outage both render one rose
+          tile. The streak is what tells them apart at a glance. */}
+      {failingStreak > 1 && (
+        <p className="text-[11px] text-rose-300 mt-1 font-medium">
+          Failing {streakAtWindowEdge ? `${failingStreak}+` : failingStreak} runs
+          in a row
+        </p>
+      )}
       <div className="mt-3 flex gap-0.5 h-3 items-end" aria-label="Last 24 runs">
         {history
           .slice()

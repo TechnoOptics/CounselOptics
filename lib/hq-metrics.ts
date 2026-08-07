@@ -100,6 +100,29 @@ export function summarizeProbeUptime(
 }
 
 /**
+ * How many runs a probe has failed in a row, counting back from the
+ * newest. `history` is newest first.
+ *
+ * The health page showed the latest run and a 24-hour pass rate. On a
+ * once-a-day cron those two readouts cannot tell a probe that blipped
+ * once from a probe that has been down for a month: both paint one rose
+ * tile. The bella probe failed 25 of the 30 daily runs to 2026-08-06 on
+ * the same unpaid-credit error and nothing on the page said so.
+ *
+ * `skipped` is not a measurement. An unconfigured probe neither adds to
+ * the streak nor clears it, the same way summarizeProbeUptime leaves
+ * skipped out of the denominator instead of scoring it as down.
+ */
+export function consecutiveFailures(history: ReadonlyArray<string>): number {
+  let streak = 0;
+  for (const status of history) {
+    if (status === 'fail') streak += 1;
+    else if (status !== 'skipped') break;
+  }
+  return streak;
+}
+
+/**
  * Minimum gap between two health digest emails.
  *
  * This has to stay shorter than the cron period, and that is the whole
