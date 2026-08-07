@@ -441,6 +441,31 @@ describe('when it cannot allocate', () => {
   });
 });
 
+/**
+ * The end of the series can also be reached by the retry rather than by the
+ * read, and that path needs its own stop. A caller that starts three short of
+ * the last number and loses three races in a row would otherwise bump past it
+ * and write an eighth digit, which sorts below every seven-digit number and
+ * makes the next read hand out numbers that are already on filed documents.
+ */
+describe('when the retry walks off the end of the series', () => {
+  it('stops rather than writing an eighth digit', async () => {
+    const db = newDb({ rows: [row('a', 'REQ-9999996'), row('s')] });
+    db.beforeWrite = (wanted) => {
+      db.rows.push({ id: `rival-${wanted}`, firm_id: FIRM, ticket_number: wanted });
+    };
+    const res = await allocateSubmissionTicket(fakeAdmin(db), {
+      firmId: FIRM,
+      submissionId: 's',
+    });
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error).toContain(String(TICKET_MAX));
+    expect(db.attempted).toEqual(['REQ-9999997', 'REQ-9999998', 'REQ-9999999']);
+    expect(db.attempted.every((n) => n.length === 'REQ-0000000'.length)).toBe(true);
+    expect(db.rows.find((r) => r.id === 's')?.ticket_number).toBeNull();
+  });
+});
+
 describe('readTicketPrefix', () => {
   it('defaults when the firm has no settings row at all', async () => {
     expect(await readTicketPrefix(fakeAdmin(newDb()), FIRM)).toBe('REQ');
