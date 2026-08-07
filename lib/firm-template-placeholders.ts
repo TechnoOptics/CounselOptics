@@ -201,6 +201,43 @@ function buildCounterpartyBlock(counterpartyName: string | null | undefined): st
   return `\n\n\nFor ${name}:\nSignature:\nDate:`;
 }
 
+/** How many lines buildCounterpartyBlock emits, before any wrapping. */
+export const COUNTERPARTY_BLOCK_LINES = 3;
+
+/**
+ * The line the other side's execution block starts on, or null when there is
+ * none.
+ *
+ * The counterpart of findSignatureBlockLine, and it exists for the same
+ * reason: the renderer has to keep a block together across a page break, and
+ * only the function that wrote the block knows what it looks like. The
+ * employee's own block has been reserved as a unit since the mark shipped;
+ * this one had nothing, and a real render put "For Northwind Materials LLC: /
+ * Signature:" at the foot of one page and "Date:" alone at the head of the
+ * next, on an agreement a company was being asked to execute.
+ *
+ * Matched on all three lines rather than on the "For" alone, because a body
+ * may legitimately begin a sentence with "For". Scanned from the end for the
+ * same reason findSignatureBlockLine is: a body may quote an earlier
+ * agreement's execution block, and the last one is this document's own.
+ *
+ * Returning null is a supported outcome. A reviewer may rewrite the block
+ * while editing the wording, and the renderer then lays it out as ordinary
+ * text, which is what it did for every document before this.
+ */
+export function findCounterpartyBlockLine(documentText: string): number | null {
+  if (typeof documentText !== 'string' || documentText === '') return null;
+  const lines = documentText.split('\n');
+  for (let i = lines.length - COUNTERPARTY_BLOCK_LINES; i >= 0; i -= 1) {
+    const head = lines[i].trimStart();
+    if (!head.startsWith('For ') || !head.endsWith(':')) continue;
+    if (lines[i + 1].trim() !== 'Signature:') continue;
+    if (lines[i + 2].trim() !== 'Date:') continue;
+    return i;
+  }
+  return null;
+}
+
 /**
  * Where the signature mark belongs: the index of the line the mark is drawn
  * directly above, or null when there is no such line.

@@ -1,6 +1,29 @@
+import zlib from 'node:zlib';
 import { describe, expect, it } from 'vitest';
-import { PDFDict, PDFDocument, PDFName } from 'pdf-lib';
+import { PDFArray, PDFDict, PDFDocument, PDFName, PDFRawStream, PDFRef } from 'pdf-lib';
 import { buildBrandedDocumentPdf } from '../lib/branded-document-pdf';
+import { mergeTemplateDocument } from '../lib/firm-template-placeholders';
+
+/** Every string drawn on one page, in order. */
+function pageText(doc: PDFDocument, index: number): string[] {
+  const contents = doc.getPages()[index].node.Contents();
+  const parts: unknown[] = contents instanceof PDFArray ? contents.asArray() : [contents];
+  let out = '';
+  for (const part of parts) {
+    const stream = part instanceof PDFRef ? doc.context.lookup(part) : part;
+    if (!(stream instanceof PDFRawStream)) continue;
+    let raw: Uint8Array = stream.asUint8Array();
+    try {
+      raw = zlib.inflateSync(Buffer.from(raw));
+    } catch {
+      /* not deflated: use it as it stands */
+    }
+    out += Buffer.from(raw).toString('latin1');
+  }
+  return [...out.matchAll(/<([0-9A-Fa-f]+)>\s*Tj/g)].map((m) =>
+    Buffer.from(m[1], 'hex').toString('latin1'),
+  );
+}
 
 /**
  * The renderer draws the signer's mark above the signature block.
@@ -132,6 +155,55 @@ describe('buildBrandedDocumentPdf with a signature mark', () => {
       const perPage = drawnImages(doc);
       expect(perPage[perPage.length - 1]).toBe(1);
       expect(perPage.slice(0, -1).every((n) => n === 0)).toBe(true);
+    });
+  }
+});
+
+/**
+ * The other side's execution block does not straddle a page break either.
+ *
+ * The employee's own block has been reserved since the mark was added
+ * (SIG_BLOCK_LINES), and the counterparty's had nothing. Observed on a real
+ * render: "For Northwind Materials LLC: / Signature:" at the foot of one page
+ * and a bare "Date:" alone at the head of the next, on an agreement a company
+ * is being asked to execute.
+ *
+ * Sixteen lengths, because the split only happens when the block lands within
+ * a line or two of the break, and a single fixture would stop exercising it
+ * the first time anything upstream changed the layout by a line.
+ */
+describe('the counterparty execution block', () => {
+  const lines = (n: number) =>
+    Array.from(
+      { length: n },
+      (_, i) => `Clause ${i + 1}. The parties agree to the terms set out in this paragraph.`,
+    ).join('\n');
+
+  for (let n = 28; n <= 43; n += 1) {
+    it(`stays on one page (${n} clauses)`, async () => {
+      const document = mergeTemplateDocument({
+        body: lines(n),
+        fields: [],
+        values: {},
+        firmName: 'Anderson',
+        signatureName: 'Jane Doe',
+        signerEmail: 'jane@acme.test',
+        signedOn: 'August 6, 2026',
+        counterpartyName: 'Northwind Materials LLC',
+      });
+      const bytes = await renderBytes({ document, title: 'NDA' });
+      const doc = await PDFDocument.load(bytes as Uint8Array);
+      const texts = Array.from({ length: doc.getPageCount() }, (_, i) => pageText(doc, i));
+      const pageOf = (match: (line: string) => boolean) =>
+        texts.findIndex((page) => page.some(match));
+      const forLine = pageOf((l) => l.startsWith('For Northwind'));
+      const signatureLine = pageOf((l) => l.trim() === 'Signature:');
+      // The employee's own block carries "Date: August 6, 2026"; the bare one
+      // is the counterparty's.
+      const dateLine = pageOf((l) => l.trim() === 'Date:');
+      expect(forLine).toBeGreaterThanOrEqual(0);
+      expect(signatureLine).toBe(forLine);
+      expect(dateLine).toBe(forLine);
     });
   }
 });

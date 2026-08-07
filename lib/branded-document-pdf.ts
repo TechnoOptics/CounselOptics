@@ -2,7 +2,11 @@ import 'server-only';
 
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { cleanLegalText } from './legal-templates';
-import { findSignatureBlockLine } from './firm-template-placeholders';
+import {
+  COUNTERPARTY_BLOCK_LINES,
+  findCounterpartyBlockLine,
+  findSignatureBlockLine,
+} from './firm-template-placeholders';
 import {
   FIELD_RULE,
   RENDERED_PAGE_HEIGHT_PT,
@@ -342,6 +346,12 @@ export async function buildBrandedDocumentPdf(
   // render, so all of them put the mark immediately above the signature block
   // even where cleaning has shifted the line numbers.
   const markLine = mark ? findSignatureBlockLine(text) : null;
+  // The other side's execution block, located against the same cleaned text
+  // for the same reason, and kept together for the same reason the mark and
+  // its own block are: a "Signature:" at the foot of one page with the "Date:"
+  // it belongs to at the head of the next reads as a broken document to a
+  // company being asked to execute it.
+  const counterpartyLine = findCounterpartyBlockLine(text);
 
   /** Draw the mark at the current cursor and drop the cursor below it. */
   function drawMark(img: NonNullable<typeof mark>) {
@@ -462,6 +472,14 @@ export async function buildBrandedDocumentPdf(
     const para = paragraphs[p];
     if (mark && p === markLine) drawMark(mark);
     const lines = wrap(para);
+    // Reserved as one unit. The head may wrap for a long entity name, so what
+    // is reserved is the head as laid out plus the two fixed lines under it.
+    if (
+      p === counterpartyLine &&
+      y - LEAD * (lines.length + COUNTERPARTY_BLOCK_LINES - 1) < 60
+    ) {
+      newPage();
+    }
     for (const ln of lines) {
       if (y < 60) newPage();
       // Lightly bold lines that look like section headings.
