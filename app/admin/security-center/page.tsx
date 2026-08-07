@@ -109,10 +109,19 @@ async function gatherThreatMonitor(
         .limit(60),
       // The "/24h" tiles. These have to be their own query: the 24-hour
       // boundary used to be applied in JS to the 60 rows above, so past 60
-      // events in a day the tiles undercounted, and they undercounted most
-      // during exactly the incident they exist to surface. Filtered in
-      // Postgres with no row cap, matching adminGetHqHealthExtras in
-      // lib/hq-storage.ts so the two HQ pages cannot disagree.
+      // events in a day the tiles undercounted. Filtering in Postgres
+      // matches adminGetHqHealthExtras in lib/hq-storage.ts, so the two HQ
+      // pages cannot disagree.
+      //
+      // It raises the ceiling rather than removing it. PostgREST still
+      // applies its own db-max-rows (1000 on Supabase's default config)
+      // and the connection carries an 8s statement timeout from the
+      // authenticator role, so above roughly a thousand events in a day
+      // these tiles undercount again, and they would do it during exactly
+      // the incident they exist to surface. Counting this server-side
+      // (head:true with count:'exact', or a grouped count) is the fix that
+      // has no ceiling; it is not done here because the tiles need a
+      // per-severity breakdown and the row volume is nowhere near the cap.
       admin.from('security_events').select('severity').gte('occurred_at', since),
       admin
         .from('admin_impersonations')

@@ -10,12 +10,20 @@ import { createAdminSupabase } from './supabase/admin';
  *
  * Design note: routine audit entries (login, export) are recorded with
  * `severity: 'low'` and auto-acknowledged so they DON'T land in the
- * dashboard's "open events need triage" queue. Security-relevant events
- * (login_failed, suspicious) are logged with a higher severity and left
- * unacknowledged so they surface for review. Privileged access sits in
- * between: `admin_case_view` and `admin_impersonation` are 'medium', so an
- * operator reaching into a customer's data always asks someone for review
- * (HIPAA 164.308(a)(1)(ii)(D), information system activity review).
+ * dashboard's "open events need triage" queue. Privileged access is
+ * 'medium': `admin_case_view` and `admin_impersonation` stay unacknowledged
+ * so an operator reaching into a customer's data always asks someone for
+ * review (HIPAA 164.308(a)(1)(ii)(D), information system activity review).
+ *
+ * This note used to add that "security-relevant events (login_failed,
+ * suspicious) are logged with a higher severity and left unacknowledged".
+ * Neither is true and this file is the proof: `login_failed` is declared
+ * in the union below and no call site anywhere writes one, and
+ * `suspicious` is not a member of SecurityEventKind at all. Two HQ
+ * surfaces read `login_failed` and reported all-clear on a count that
+ * could not move; both now say the signal is not instrumented. Anything
+ * that intends to detect an attack has to be written first, and this
+ * header is not evidence that it was.
  * Logging is best-effort and
  * never throws into the caller: an audit-write failure must not break the
  * user action it is recording. It is never silent either, see

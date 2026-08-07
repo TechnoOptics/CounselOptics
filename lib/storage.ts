@@ -2427,8 +2427,19 @@ export async function recordHealthCheck(input: {
 
 /**
  * Returns the ISO timestamp of the most recent health-check row that
- * triggered a digest email. Used by the cron to throttle alerts to
- * once per 24 hours regardless of how long a failure persists.
+ * triggered a digest email. The cron compares it against
+ * HEALTH_DIGEST_MIN_GAP_MS (lib/hq-metrics.ts) to throttle alerts while a
+ * failure persists.
+ *
+ * Do not reintroduce "once per 24 hours" here. That was the number, and
+ * it is what broke the alerting: the window was a full cron period, so a
+ * daily run cleared it only when it happened to land later in the minute
+ * than the previous send. Replayed over all 237 rows the old rule was a
+ * necessary condition for every digest ever sent, and every suppressed
+ * run sat in a 98-second band immediately under the bar (86301.9s to
+ * 86399.8s, against a smallest passing gap of 86400.055s). The window
+ * has to stay meaningfully shorter than the cron period, which is what
+ * the test in tests/health-digest-throttle.test.ts pins.
  */
 export async function lastHealthEmailSentAt(): Promise<string | null> {
   const admin = createAdminSupabase();
