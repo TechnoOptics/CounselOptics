@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { parseTemplateProposal } from '../lib/template-proposal';
+import { mergeTemplateDocument } from '../lib/firm-template-placeholders';
+import { counterpartyMarker } from '../lib/template-field-boxes';
 import {
   NDA_MODEL_REPLY,
   NDA_SOURCE_EXCERPT,
@@ -799,6 +801,70 @@ describe('parseTemplateProposal: the real Zinpro mutual NDA', () => {
     // whoever wrote it has to say why deleting text on a guess is now safe.
     expect(proposal!.body).toContain('[Signature Page Follows]');
     expect(proposal!.body).toContain('[Signature page to Mutual Nondisclosure');
+  });
+});
+
+/**
+ * The end of the road for a proposal: the real merger, on the real document.
+ *
+ * Every defect in this file's history was a mismatch between what this module
+ * certifies and what mergeTemplateDocument can do with it, and none of them was
+ * visible from the proposal alone. So the proposal is put through the actual
+ * merger here rather than through a description of it.
+ */
+describe('the Zinpro proposal, merged by the real mergeTemplateDocument', () => {
+  const proposal = parseTemplateProposal(NDA_MODEL_REPLY, NDA_SOURCE_EXCERPT)!;
+  const FIRM = 'Anderson Foundation';
+  const merged = mergeTemplateDocument({
+    body: proposal.body,
+    fields: proposal.fields,
+    values: {},
+    firmName: FIRM,
+    signatureName: 'A Partner',
+    signerEmail: 'partner@example.com',
+    signedOn: 'August 6, 2026',
+    counterpartyName: 'Widgets Ltd',
+  });
+
+  it('leaves no placeholder braces on the executed instrument', () => {
+    // Mutation: loosen the placeholder normalization. A form the merger cannot
+    // substitute survives its split() untouched and prints its own braces on
+    // the document the parties sign.
+    expect(merged).not.toContain('{{');
+    expect(merged).not.toContain('}}');
+  });
+
+  it('does not name the firm as its own counterparty', () => {
+    // Mutation: go back to dropping the reserved FIELD and leaving the
+    // PLACEHOLDER. mergeTemplateDocument substitutes a reserved key no field
+    // declares with firmName, and the instrument reads "between Zinpro
+    // Corporation and Anderson Foundation".
+    const beforeExecution = merged.split('The parties have executed')[0];
+    expect(beforeExecution).not.toContain(FIRM);
+  });
+
+  it('gives the other side a recorded blank for every field that is theirs', () => {
+    // Mutation: any of the placeholder defects. A counterparty key the merger
+    // cannot match writes no marker, so lib/branded-document-pdf.ts records no
+    // field box, so the signer is shown a document with nowhere to type.
+    const theirs = proposal.fields.filter((f) => f.party === 'counterparty');
+    expect(theirs.length).toBeGreaterThan(0);
+    for (const field of theirs) {
+      expect(merged).toContain(counterpartyMarker(field.key));
+    }
+  });
+
+  it('carries exactly one place for each party to sign', () => {
+    // Mutation: stop stripping the source's ruled blanks. The document then
+    // holds its own "By: ______" rules as well as the block appended here, and
+    // only the appended one is stamped and recorded.
+    //
+    // The counterparty markers are five underscores either side by design
+    // (lib/template-field-boxes.ts), which is why the ruled-blank threshold is
+    // six: this assertion is what would notice if either number moved.
+    expect(merged).not.toMatch(/_{6,}/);
+    expect(merged.match(/\nSigned: /g) ?? []).toHaveLength(1);
+    expect(merged.match(/\nSignature:/g) ?? []).toHaveLength(1);
   });
 });
 
