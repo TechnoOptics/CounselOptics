@@ -21,10 +21,20 @@ import { documentSignatureHash } from '../lib/template-signature';
 
 type Row = Record<string, unknown>;
 
-const store: { row: Row } = { row: {} };
+/**
+ * `missingColumns` stands in for a migration the owner has not applied. Any
+ * request that so much as names one of these fails the way PostgREST fails
+ * it, with 42703, which is the whole reason the submit path writes the
+ * category and the ticket number AFTER the insert rather than in it.
+ */
+const store: { row: Row; missingColumns: Set<string> } = {
+  row: {},
+  missingColumns: new Set(),
+};
 let currentUser: { id: string; email: string } | null = null;
 let currentRole: string | null = null;
 let mergedDocument = 'The supplier shall deliver on time.';
+let templateCategory: string | null = 'NDA';
 
 /**
  * Runs once, immediately after the next read or insert, then clears itself.
@@ -59,7 +69,24 @@ function makeAdmin() {
       let inserting = false;
       const preds: [string, unknown][] = [];
       const notNull: string[] = [];
+      const isNull: string[] = [];
       const run = (asList: boolean) => {
+        const named = [
+          ...Object.keys(patch ?? {}),
+          ...preds.map(([col]) => col),
+          ...notNull,
+          ...isNull,
+        ];
+        const absent = named.find((col) => store.missingColumns.has(col));
+        if (absent) {
+          return {
+            data: null,
+            error: {
+              code: '42703',
+              message: `column firm_template_submissions.${absent} does not exist`,
+            },
+          };
+        }
         if (inserting && patch) {
           store.row = { id: 'sub-1', revision: 1, ...patch };
           const inserted = { ...store.row };
@@ -74,7 +101,8 @@ function makeAdmin() {
           preds.every(([col, val]) => store.row[col] === val) &&
           // `.not(col, 'is', null)` is "this column has a value", which the
           // ticket allocator uses to skip the rows that have no number.
-          notNull.every((col) => store.row[col] != null);
+          notNull.every((col) => store.row[col] != null) &&
+          isNull.every((col) => store.row[col] == null);
         if (!matches) return { data: asList ? [] : null, error: null };
         if (patch) {
           store.row = { ...store.row, ...patch };
@@ -104,7 +132,12 @@ function makeAdmin() {
           return api;
         },
         is: (col: string, val: unknown) => {
-          preds.push([col, val]);
+          // A column no write has ever named is NULL in the database, not
+          // undefined, so `is(col, null)` has to match an absent key too.
+          // Strict equality here made an unwritten column look non-null and
+          // every compare-and-swap against one silently miss.
+          if (val === null) isNull.push(col);
+          else preds.push([col, val]);
           return api;
         },
         not: (col: string, operator: string, val: unknown) => {
@@ -176,6 +209,7 @@ vi.mock('../lib/template-fill', () => ({
     name: 'Mutual NDA',
     body: 'body',
     fields: [],
+    category: templateCategory,
   }),
   sanitizeTemplateValues: (_fields: unknown, values: Record<string, string>) => values,
 }));
@@ -269,6 +303,8 @@ beforeEach(() => {
   currentUser = { id: 'employee-1', email: 'employee@example.test' };
   currentRole = 'attorney';
   mergedDocument = 'The supplier shall deliver on time.';
+  templateCategory = 'NDA';
+  store.missingColumns = new Set();
   mutateAfterNextRead = null;
   uploadFails = false;
   uploads.length = 0;
@@ -407,6 +443,63 @@ describe('submitting a filled template', () => {
     // Lost rather than misattached, which is the right way round.
     expect(store.row.signature_image_path ?? null).toBeNull();
     expect(store.row.signed_document_sha256 ?? null).toBeNull();
+  });
+});
+
+describe('the ticket number and the category', () => {
+  /**
+   * The reference and the kind of document land on the record as it is
+   * filed, before anyone is told about it, so the first notification a
+   * reviewer sees already quotes the reference they will use for it.
+   */
+  it('are on the record by the time it reaches the queue', async () => {
+    const res = await submitTemplateForApprovalAction('firm-1', 'tpl-1', input());
+
+    expect(res.ok).toBe(true);
+    expect(store.row.ticket_number).toBe('REQ-0000001');
+    expect(store.row.category).toBe('NDA');
+  });
+
+  /** A template with no category leaves the column alone rather than
+   *  writing a word the firm never typed onto their record. */
+  it('leave the category unset when the template has none', async () => {
+    templateCategory = null;
+
+    const res = await submitTemplateForApprovalAction('firm-1', 'tpl-1', input());
+
+    expect(res.ok).toBe(true);
+    expect(store.row.category ?? null).toBeNull();
+    expect(store.row.ticket_number).toBe('REQ-0000001');
+  });
+
+  /**
+   * THE ONE THAT DECIDES WHETHER THIS IS SAFE TO SHIP AHEAD OF THE OWNER.
+   *
+   * 20260807_flow_join.sql is written and not applied, so on production today
+   * neither column exists. Both values are therefore written AFTER the insert
+   * rather than in it: PostgREST refuses a request naming a column the table
+   * does not have, so an insert carrying either one would stop every employee
+   * in every firm from filing anything at all until the migration ran.
+   *
+   * If this test ever goes red because someone folded `category` or
+   * `ticket_number` into the insert, that is not a test to update. It is the
+   * product refusing to file a colleague's document.
+   */
+  it('do not stop anyone filing while the migration is unapplied', async () => {
+    store.missingColumns = new Set(['category', 'ticket_number']);
+
+    const res = await submitTemplateForApprovalAction('firm-1', 'tpl-1', input());
+
+    expect(res.ok).toBe(true);
+    // The submission is filed, complete, and with its signature on it.
+    expect(store.row.status).toBe('pending');
+    expect(store.row.document_text).toBe('The supplier shall deliver on time.');
+    expect(store.row.signature_image_path).toBe('templates/firm-1/sub-1/1.png');
+    // Neither column was touched, and nothing else about the record moved.
+    expect(store.row.category).toBeUndefined();
+    expect(store.row.ticket_number).toBeUndefined();
+    expect(res.submission?.ticketNumber ?? null).toBeNull();
+    expect(res.submission?.category ?? null).toBeNull();
   });
 });
 
