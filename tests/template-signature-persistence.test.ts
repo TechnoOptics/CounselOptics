@@ -153,6 +153,12 @@ vi.mock('../lib/rate-limit', () => ({ checkRateLimit: async () => true }));
 vi.mock('../lib/firm-template-placeholders', () => ({
   formatSignedOn: () => '1 January 2026',
   mergeTemplateDocument: () => mergedDocument,
+  // Added by the flow-join work, which the submit path now calls when a
+  // template is set to go out for signature. Neither branch could see this
+  // alone: the caller arrived on one and the callee on the other, so the
+  // mock was complete on both sides and incomplete once they met. Keep this
+  // list in step with every export the submit path actually reaches.
+  counterpartyLabel: () => 'Counterparty',
 }));
 vi.mock('../lib/template-fill', () => ({
   loadPublishedTemplate: async () => ({
