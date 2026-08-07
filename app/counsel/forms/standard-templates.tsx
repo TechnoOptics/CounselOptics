@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { installSeedTemplateAction } from '@/lib/seed-template-actions';
 import type { SeedTemplate } from '@/lib/seed-templates';
 import { T, useT } from '@/components/i18n/LocaleProvider';
@@ -23,6 +24,7 @@ export function StandardTemplates({
   installedNames: string[];
 }) {
   const t = useT();
+  const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [done, setDone] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -39,6 +41,12 @@ export function StandardTemplates({
       return;
     }
     setDone((list) => [...list, slug]);
+    // The list below this panel is seeded from a server prop into useState, so
+    // it does not know about a template that was created after it mounted.
+    // Without this the firm is told "Added to your templates" while their
+    // templates visibly do not contain it until they reload, which reads as
+    // the install having failed.
+    router.refresh();
   };
 
   if (templates.length === 0) return null;

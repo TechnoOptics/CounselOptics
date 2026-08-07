@@ -49,11 +49,16 @@ describe('standard templates: the placeholder contract', () => {
         expect(new Set(keys).size).toBe(keys.length);
       });
 
-      it('survives cleanLegalText without losing text', () => {
+      it('survives cleanLegalText byte for byte', () => {
         // The renderer runs this over the merged document. A clause the
         // cleaner eats is a clause the signed copy does not contain.
+        //
+        // Equality, not a tolerance. This started as `> length * 0.98`, which
+        // on a body this size permitted 395 characters of silent loss, an
+        // entire clause, while the real delta is zero. A tolerance on a legal
+        // instrument is a licence to lose a term.
         const cleaned = cleanLegalText(tpl.body);
-        expect(cleaned.length).toBeGreaterThan(tpl.body.length * 0.98);
+        expect(cleaned).toBe(tpl.body);
       });
     });
   }

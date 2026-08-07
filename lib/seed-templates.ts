@@ -72,6 +72,39 @@ export type SeedTemplate = {
  * Zinpro Corporation's mutual NDA, transcribed from the executed form the
  * legal team supplied.
  *
+ * THREE DEPARTURES FROM THE SUPPLIED TEXT, recorded because the sentence
+ * above says "transcribed" and a reader is entitled to know where this is not
+ * literal. None changes an obligation.
+ *
+ *   - "entered into on as of the date" reads "entered into as of the date".
+ *   - "a Minnesota business corporation, with having a place of business"
+ *     reads "..., having a place of business".
+ *   - "MN 55344- 7256" reads "MN 55344-7256". This one is a PDF line-break
+ *     artifact rather than anything in the executed document.
+ *
+ * The first two tidy the source's own grammar. Neither is a term. Anyone who
+ * wants byte fidelity to the executed PDF should restore them here, and
+ * tests/fixtures/zinpro-nda.ts on the template-intake branch holds the
+ * verbatim extraction to diff against.
+ *
+ * THE ENTITY LINE, which the source does not have
+ * ----------------------------------------------
+ * The preamble defines the Company as "the entity named in the signature
+ * block executing this Agreement as the Company". The supplied signature page
+ * carries By, Name, Title, Address, Email and Date, and NO entity name, so
+ * the source's own definition points at something the source does not
+ * contain. The line below is the fix for that, and it is labelled "Entity
+ * name of the Company" rather than "Entity" so it answers the preamble in the
+ * preamble's own words.
+ *
+ * It is a counterparty field on purpose: the Company names itself. The
+ * platform separately appends a "For <name>:" execution block whose name
+ * comes from the employee's typed recipient, and that line is addressing
+ * furniture, not the definition. If the two ever read differently, the line
+ * below governs, because it is the one the preamble points at and the one the
+ * signing party typed themselves. A lawyer should confirm that reading before
+ * a firm signs under this.
+ *
  * TWO DECISIONS WORTH KNOWING BEFORE EDITING
  * ------------------------------------------
  * 1. "Zinpro Corporation" and the Eden Prairie address are written literally,
@@ -215,7 +248,7 @@ The parties have executed this Mutual Nondisclosure Agreement as of the date fir
 
 THE COMPANY
 
-Entity: {{company_legal_name}}
+Entity name of the Company: {{company_legal_name}}
 Name: {{company_signatory_name}}
 Title: {{company_signatory_title}}
 Address: {{company_address}}
