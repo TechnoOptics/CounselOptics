@@ -72,6 +72,30 @@ export function submissionPortalPath(submissionId: string): string {
   return `/portal/forms/submissions/${submissionId}`;
 }
 
+/**
+ * Who still gets the GENERIC completion notice, the one that points at
+ * /inbox/documents.
+ *
+ * That destination is the consumer documents inbox, and it is the right one
+ * for an outside signer who happens to hold an Advottic account of their own.
+ * It is the wrong one for the colleague who filed the document, because the
+ * inbox refuses anyone without a Pro plan: they would be told their document
+ * was ready and shown an upsell for a plan their employer's workspace has
+ * nothing to do with. They have already been told on their own surface, with
+ * a link to the portal record they can actually open.
+ *
+ * So the colleague is removed here rather than the destination being changed
+ * for everybody. Pure, and separate from the fan-out, because a rule about
+ * who is told what is worth being able to state and test on its own.
+ */
+export function signerNoticeRecipients(
+  matchedUserIds: readonly string[],
+  submissionBacked: { submittedBy: string } | null,
+): string[] {
+  if (!submissionBacked) return [...matchedUserIds];
+  return matchedUserIds.filter((id) => id !== submissionBacked.submittedBy);
+}
+
 /** The columns this module reads. Named, so a new one is a deliberate act. */
 const SUBMISSION_COLS =
   'id, firm_id, submitted_by, submitter_name, submitter_email, template_name, ' +

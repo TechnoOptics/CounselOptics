@@ -343,9 +343,11 @@ export async function recordSignature(
       // nobody could be reached, because the question it answers for the
       // loop below is "where does this employee's link point", and that does
       // not change because an insert failed.
+      const { notifySubmissionCompletion, signerNoticeRecipients } = await import(
+        '@/lib/submission-completion'
+      );
       let submissionBacked: { submittedBy: string } | null = null;
       try {
-        const { notifySubmissionCompletion } = await import('@/lib/submission-completion');
         const outcome = await notifySubmissionCompletion(admin, request.id);
         if (outcome.backed) submissionBacked = { submittedBy: outcome.submittedBy };
       } catch {
@@ -415,21 +417,14 @@ export async function recordSignature(
             if (row.id) matchedIds.add(row.id);
           }
         }
-        // The employee who filed this has already been told, on their own
-        // surface, with a link to the portal record they can open. This
-        // link goes to /inbox/documents, which is the CONSUMER documents
-        // inbox and refuses anyone without a Pro plan, so sending it to an
-        // employee tells them their document is ready and shows them an
-        // upsell. It is the right destination for an outside signer with an
-        // Advottic account of their own and the wrong one for a colleague,
-        // so the colleague is taken out here rather than the destination
-        // being changed for everybody.
-        if (submissionBacked) matchedIds.delete(submissionBacked.submittedBy);
-
         // Fan the completion notices out concurrently rather than one
         // sequential DB round-trip per signer. (Audit 2026-07-03, perf.)
+        //
+        // The colleague who filed this, if anybody did, is not in this list:
+        // the link below is the consumer inbox and they have already been
+        // told on their own surface. See signerNoticeRecipients.
         await Promise.all(
-          Array.from(matchedIds).map((userId) =>
+          signerNoticeRecipients(Array.from(matchedIds), submissionBacked).map((userId) =>
             createNotification({
               userId,
               type: 'signing_request_completed',

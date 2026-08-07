@@ -50,6 +50,7 @@ const {
   submissionPortalPath,
   loadSubmissionSigning,
   submissionCategoriesForRequests,
+  signerNoticeRecipients,
 } = await import('../lib/submission-completion');
 
 // ── A narrow fake of the admin client ────────────────────────────────────
@@ -480,5 +481,47 @@ describe('submissionCategoriesForRequests', () => {
   it('asks nothing at all for an empty list', async () => {
     const map = await submissionCategoriesForRequests(admin, 'firm-1', []);
     expect(map.size).toBe(0);
+  });
+});
+
+/**
+ * Who is left holding the generic /inbox/documents notice.
+ *
+ * The rule is separated from the fan-out in lib/signature-write.ts on
+ * purpose: it decides which person is sent to which surface, and a rule about
+ * that is worth being able to state and exercise on its own rather than only
+ * through a completion path with a database behind it.
+ */
+describe('signerNoticeRecipients', () => {
+  /** Today's behaviour, pinned first: a plainly uploaded document. */
+  it('leaves every signer on the notice when no submission is behind it', () => {
+    expect(signerNoticeRecipients(['a', 'b'], null)).toEqual(['a', 'b']);
+  });
+
+  /**
+   * THE DEFECT. /inbox/documents refuses anyone without a Pro plan, so the
+   * colleague who filed the document must not be sent there. They have their
+   * own notice with a link to a portal record they can open.
+   */
+  it('takes the colleague who filed it off the consumer-inbox notice', () => {
+    expect(signerNoticeRecipients(['a', 'employee-1', 'b'], { submittedBy: 'employee-1' })).toEqual(
+      ['a', 'b'],
+    );
+  });
+
+  /**
+   * The outside signer keeps it. The consumer inbox IS their surface, and
+   * removing them would leave them told nothing at all.
+   */
+  it('keeps every other signer, including the counterparty', () => {
+    expect(signerNoticeRecipients(['counterparty-1'], { submittedBy: 'employee-1' })).toEqual([
+      'counterparty-1',
+    ]);
+  });
+
+  it('does not mutate the list it was given', () => {
+    const matched = ['a', 'employee-1'];
+    signerNoticeRecipients(matched, { submittedBy: 'employee-1' });
+    expect(matched).toEqual(['a', 'employee-1']);
   });
 });
