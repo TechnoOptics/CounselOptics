@@ -24,7 +24,15 @@ export default async function AdminUsersPage({
   const [allUsers, me] = await Promise.all([adminListUsers(), getCurrentUser()]);
   const gdprPending = searchParams?.filter === 'gdpr-pending';
   const users = gdprPending ? allUsers.filter((u) => !u.consentedAt) : allUsers;
-  const adminCount = users.filter((u) => u.isAdmin).length;
+  // Over allUsers, never over the filtered view. This feeds the "at least
+  // 2 admins" guard below, which is a statement about the platform and not
+  // about whichever subset happens to be on screen. Computed over the
+  // filter it read "0 admins" the moment anyone followed the gdpr-pending
+  // link, because production has 2 admins and neither is pending consent,
+  // and it raised the amber warning on a page that carries demotion
+  // toggles. The server action enforces the real rule either way, so
+  // nothing unsafe could happen; a false safety banner is its own defect.
+  const adminCount = allUsers.filter((u) => u.isAdmin).length;
 
   return (
     <div className="space-y-4">
@@ -33,6 +41,7 @@ export default async function AdminUsersPage({
           {users.length} user{users.length === 1 ? '' : 's'}
           {gdprPending && ` of ${allUsers.length} without GDPR consent`} ·{' '}
           {adminCount} admin{adminCount === 1 ? '' : 's'}
+          {gdprPending && ' platform-wide'}
         </p>
         {gdprPending && (
           <a
@@ -72,13 +81,14 @@ export default async function AdminUsersPage({
           <tbody className="divide-y divide-ink-100 dark:divide-white/5">
             {users.length === 0 && (
               <tr>
-                <Td>
-                  <span className="text-ink-500 dark:text-cream-100/55">
-                    {gdprPending
-                      ? 'Every account has accepted the GDPR terms.'
-                      : 'No users.'}
-                  </span>
-                </Td>
+                {/* colSpan matches the 8 headers above. Without it the
+                    message sat in the User column and the row rendered
+                    seven empty cells beside it. */}
+                <td className="px-3 py-4 text-sm text-ink-500 dark:text-cream-100/55" colSpan={8}>
+                  {gdprPending
+                    ? 'Every account has accepted the GDPR terms.'
+                    : 'No users.'}
+                </td>
               </tr>
             )}
             {users.map((u) => (

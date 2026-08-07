@@ -243,7 +243,7 @@ export default async function SecurityCenterPage() {
         Last full sweep <LocaleTime iso={pulse.ranAt} mode="datetime" /> ·{' '}
         {pulse.totalDurationMs} ms · live data ·{' '}
         <Link href="/admin/security" className="underline hover:text-cream-100/70">
-          open the live pulse for per-control autofixes
+          open the live pulse for per-control detail
         </Link>
       </p>
     </div>

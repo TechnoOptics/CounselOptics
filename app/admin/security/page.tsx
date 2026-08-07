@@ -19,9 +19,10 @@ export default async function HqSecurityPage() {
           Live readout of every security implementation. Every 30 seconds the
           dashboard re-runs the full battery: encryption envelope, OAuth
           credentials, RLS posture, e-signature chain integrity, document
-          hash spot checks, login spike detection, and subdomain reachability.
-          Where a remedy is safe to apply, an &ldquo;Apply fix&rdquo; button
-          surfaces the playbook entry.
+          hash spot checks, failed-login volume, and subdomain reachability.
+          Failed-login volume reports as unknown rather than healthy, because
+          nothing writes the event it counts. No check currently offers a
+          one-click remedy, so no &ldquo;Apply fix&rdquo; button will appear.
         </p>
       </header>
       <SecurityPulseShell initial={initial} />
