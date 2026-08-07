@@ -7,17 +7,41 @@ import { LocaleTime } from '@/components/LocaleTime';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-export default async function AdminUsersPage() {
-  const [users, me] = await Promise.all([adminListUsers(), getCurrentUser()]);
+/**
+ * The System health page has linked "Review N pending →" at
+ * /admin/users?filter=gdpr-pending since the GDPR tile was built, and
+ * this page accepted no searchParams at all, so the query string was
+ * inert and the link landed on the unfiltered list. The filter is honoured
+ * here rather than the link removed, because consentedAt is already on
+ * every row adminListUsers returns and the tile it comes from is the only
+ * actionable control on that page.
+ */
+export default async function AdminUsersPage({
+  searchParams,
+}: {
+  searchParams?: { filter?: string };
+}) {
+  const [allUsers, me] = await Promise.all([adminListUsers(), getCurrentUser()]);
+  const gdprPending = searchParams?.filter === 'gdpr-pending';
+  const users = gdprPending ? allUsers.filter((u) => !u.consentedAt) : allUsers;
   const adminCount = users.filter((u) => u.isAdmin).length;
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <p className="text-sm text-ink-500 dark:text-cream-100/55">
-          {users.length} user{users.length === 1 ? '' : 's'} · {adminCount} admin
-          {adminCount === 1 ? '' : 's'}
+          {users.length} user{users.length === 1 ? '' : 's'}
+          {gdprPending && ` of ${allUsers.length} without GDPR consent`} ·{' '}
+          {adminCount} admin{adminCount === 1 ? '' : 's'}
         </p>
+        {gdprPending && (
+          <a
+            href="/admin/users"
+            className="text-xs underline underline-offset-2 text-ink-500 dark:text-cream-100/70"
+          >
+            Clear filter
+          </a>
+        )}
         {adminCount < 2 && (
           <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 dark:text-amber-200 dark:bg-amber-950/40 dark:border-amber-700/40 rounded-md px-3 py-1.5">
             At least 2 admins are required. Promote another user before
@@ -46,6 +70,17 @@ export default async function AdminUsersPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-ink-100 dark:divide-white/5">
+            {users.length === 0 && (
+              <tr>
+                <Td>
+                  <span className="text-ink-500 dark:text-cream-100/55">
+                    {gdprPending
+                      ? 'Every account has accepted the GDPR terms.'
+                      : 'No users.'}
+                  </span>
+                </Td>
+              </tr>
+            )}
             {users.map((u) => (
               <tr key={u.id} className="hover:bg-ink-50/40 dark:hover:bg-white/5">
                 <Td>

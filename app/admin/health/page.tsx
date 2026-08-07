@@ -179,7 +179,13 @@ function ActivityTile({
     <Tile
       label="User activity"
       sub={`${activity.activeToday.toLocaleString()} signed in today · ${activity.activeWeek.toLocaleString()} this 7d · 5-minute online window`}
-      titleHint="'Online now' = sessions with auth activity in the last 5 minutes. Excludes service-role + cron requests. Refreshes when this page reloads."
+      // The hint used to say "sessions with auth activity in the last 5
+      // minutes". The figure is auth.users.last_sign_in_at, which is the
+      // sign-in moment and not activity: someone who signed in this
+      // morning and has been working since counts as offline. It also
+      // claimed to exclude service-role and cron requests, which is
+      // vacuous because neither is an auth.users row.
+      titleHint="'Online now' = accounts whose last sign-in was within the last 5 minutes. It is a sign-in timestamp, not a live session: a user still working hours after signing in is not counted. Capped at the first 1000 accounts. Refreshes when this page reloads."
     >
       <div className="flex items-center gap-3 mt-1">
         <div
@@ -255,7 +261,7 @@ function GdprTile({
           ? `${gdpr.consented.toLocaleString()} of ${gdpr.total.toLocaleString()} accepted · ${pending.toLocaleString()} pending`
           : `${gdpr.consented.toLocaleString()} of ${gdpr.total.toLocaleString()} accepted`
       }
-      titleHint="Computed from profiles.consented_at. Old test accounts may inflate the denominator; archive them in /admin/users to clean up."
+      titleHint="Computed from profiles.consented_at. Old test accounts may inflate the denominator. There is no archive action in /admin/users, so removing them is a database operation."
     >
       <p className={`font-display text-4xl font-medium tabular-nums ${tone}`}>
         {gdpr.total === 0 ? 'No data' : `${pct}%`}

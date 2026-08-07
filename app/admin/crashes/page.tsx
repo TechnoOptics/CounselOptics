@@ -37,10 +37,18 @@ async function ackCrashGroupAction(formData: FormData) {
  * crash family with count + first/last seen + affected paths +
  * affected releases + bulk-acknowledge.
  *
- * Signature deliberately uses only `message` and the first stack
- * frame so minor differences in line numbers between builds collapse
- * into the same family. If the first stack frame is missing we fall
- * back to the message alone.
+ * Signature is `message` plus the first stack line. If the stack is
+ * missing we fall back to the message alone.
+ *
+ * That collapses builds only because of how V8 formats a stack: the
+ * first line is the "TypeError: <message>" header, which carries no
+ * file or line number, so Chrome reports of one bug share a signature
+ * across releases. WebKit and Gecko omit the header and start at a code
+ * frame, so those first lines do carry the build-hashed chunk name and
+ * a line:column and DO split per build. Production on 2026-08-06: 782
+ * reports, 75 distinct messages, 80 distinct signatures. The five extra
+ * families are that split. Normalising the frame would close it and is
+ * not done here.
  */
 type CrashRow = Awaited<ReturnType<typeof adminListCrashReports>>[number];
 
@@ -162,8 +170,13 @@ export default async function HqCrashesPage({
   // Security Center said 710. N is now the real backlog; when the page is
   // only showing part of it, it says so rather than pretending otherwise.
   const openCount = showNoise ? openSummary.total : openSummary.open;
+  // Gated on what this page actually rendered, not on openSummary.truncated.
+  // That flag means "the backlog exceeds the 500-row sample the summary
+  // took", but the flat view only fetches 200, so a backlog of 201 to 500
+  // rendered 200 rows, reported truncated:false and printed no notice at
+  // all - the exact shape of the bug the comment above says was fixed.
   const showingOf =
-    openSummary.truncated && !includeAcknowledged
+    !includeAcknowledged && crashes.length < openCount
       ? `showing the newest ${crashes.length.toLocaleString()} of ${openCount.toLocaleString()}`
       : null;
 
@@ -178,8 +191,10 @@ export default async function HqCrashesPage({
           <p className="text-[13px] text-cream-100/65 mt-1 max-w-2xl">
             Browser-side errors land here automatically through the
             CrashReporter component. Grouped view collapses identical
-            stacks across builds so 21 copies of the same React #419
-            read as one row, not twenty-one.
+            stacks so 21 copies of the same React #419 read as one row,
+            not twenty-one. Chrome reports group across release builds;
+            Safari and Firefox reports carry a build-hashed frame and
+            can split.
           </p>
         </div>
         <div className="flex items-center gap-3 text-[12px]">
@@ -209,7 +224,7 @@ export default async function HqCrashesPage({
           <span className="text-cream-100/30">·</span>
           <nav className="flex items-center gap-1">
             <a
-              href={`/admin/crashes${isGrouped ? '?view=grouped' : '?view=list'}${showNoise ? (isGrouped ? '&noise=show' : '&noise=show') : ''}`}
+              href={`/admin/crashes${isGrouped ? '?view=grouped' : '?view=list'}${showNoise ? '&noise=show' : ''}`}
               className={`px-2.5 py-1 rounded-md transition-colors ${
                 !includeAcknowledged
                   ? 'bg-white/10 text-cream-100 font-semibold'
@@ -254,10 +269,15 @@ export default async function HqCrashesPage({
                     ? 'bg-amber-100/10 text-amber-200 font-semibold'
                     : 'text-cream-100/55 hover:bg-white/5'
                 }`}
+                // These two were the wrong way round: with the bucket on
+                // screen the tooltip read "Hiding the noise bucket", and
+                // with it suppressed it read "Showing N hidden noise
+                // events". The visible label was right, so the control
+                // contradicted itself on hover.
                 title={
                   showNoise
-                    ? 'Hiding the noise bucket. Click to hide cross-origin Script-error + browser-extension noise.'
-                    : `Showing ${noiseCount} hidden noise event${noiseCount === 1 ? '' : 's'}.`
+                    ? 'Showing the noise bucket. Click to hide cross-origin Script-error + browser-extension noise.'
+                    : `Hiding ${noiseCount} noise event${noiseCount === 1 ? '' : 's'}. Click to show them.`
                 }
               >
                 {showNoise

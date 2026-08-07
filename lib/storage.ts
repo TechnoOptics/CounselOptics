@@ -2569,6 +2569,15 @@ export async function adminSummarizeOpenCrashes(): Promise<OpenCrashSummary> {
       .is('acknowledged_at', null),
   ]);
   if (sampleResp.error || countResp.error) {
+    // Zero here reads on every HQ surface as "no open crashes", which is
+    // the opposite of what a failed read means. Nothing downstream can
+    // tell the difference from the return value, so say it on the error
+    // channel at least.
+    console.error(
+      `[crashes] open-crash summary read failed: ${
+        (sampleResp.error ?? countResp.error)?.message
+      }`,
+    );
     return { open: 0, noise: 0, total: 0, truncated: false };
   }
   return summarizeOpenCrashes(
@@ -2581,13 +2590,21 @@ export async function adminAcknowledgeCrash(crashId: string): Promise<void> {
   const admin = createAdminSupabase();
   if (!admin) return;
   const user = await getCurrentUser();
-  await admin
+  // postgrest-js resolves with `{ error }` rather than throwing. Unchecked,
+  // a rejected acknowledge is indistinguishable from a successful one: the
+  // action revalidates either way and the row simply reappears.
+  const { error } = await admin
     .from('crash_reports')
     .update({
       acknowledged_at: new Date().toISOString(),
       acknowledged_by: user?.id ?? null,
     })
     .eq('id', crashId);
+  if (error) {
+    console.error(
+      `[crashes] failed to acknowledge ${crashId}: ${error.message}`,
+    );
+  }
 }
 
 /**
