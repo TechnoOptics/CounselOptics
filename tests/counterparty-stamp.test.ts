@@ -102,6 +102,8 @@ type Fixture = {
    * and this is what they would have written onto their own row.
    */
   employeeValues?: unknown;
+  /** The recipient the submission names. Blank models a record with none. */
+  recipientEmail?: string;
 };
 
 async function buildSource(marker: string) {
@@ -218,7 +220,7 @@ function fakeAdmin(input: {
         // The submission names its recipient, and that person is the
         // counterparty. Nothing else on the request distinguishes them from
         // the employee who counter-signs.
-        recipient_email: 'buyer@wren.test',
+        recipient_email: fixture.recipientEmail ?? 'buyer@wren.test',
       };
     }
     if (table === 'firm_templates') return { fields: fixture.fields };
@@ -438,17 +440,58 @@ describe('renderFinalSignedPdf with counterparty fields', () => {
     expect(text).not.toContain('Whatever The Employee Guessed');
   });
 
-  it('leaves a blank blank when only a later signer answered it', async () => {
-    // The counterparty typed nothing, so nothing on this instrument is their
-    // statement. A ruled blank is the truth; the employee's answer is not.
-    const { result, uploaded } = await run({
+  /**
+   * A value that was written and then dropped stops the render.
+   *
+   * The employee's answer is not the counterparty's statement and must never
+   * reach the instrument. But filing a clean ruled blank over it would be a
+   * silent loss on an executed document: drawn would equal intended, nothing
+   * would be recorded as dropped, and the audit chain would say a value that
+   * existed in the database was never there. Unreachable in normal operation,
+   * because submitCounterpartyFieldsAction refuses a non-counterparty caller,
+   * so reaching it means a hand-edited row or a writer older than that gate,
+   * and the answer to both is to refuse rather than to file quietly.
+   */
+  it('refuses to file when a stored value was filtered out', async () => {
+    const { result, uploaded, events } = await run({
       fields: [{ ...TEXT_FIELD[0], required: false }],
       values: {},
       employeeValues: { entity_name: 'Whatever The Employee Guessed' },
     });
+    expect(result.ok).toBe(false);
+    expect(uploaded.bytes).toBeNull();
+    const failed = events.find((e) => e.event_type === 'final_pdf_render_failed');
+    const meta = failed?.metadata as Record<string, unknown>;
+    expect(String((meta.field_failures as string[])[0])).toContain('entity_name');
+    // And it never drew the value it refused over.
+    expect(JSON.stringify(events)).not.toContain('Whatever The Employee Guessed');
+  });
+
+  it('still files a blank nobody ever answered', async () => {
+    // The distinction that matters: an optional blank with no stored value
+    // anywhere is a blank, and a blank is a legitimate thing for a signed
+    // document to carry.
+    const { result, uploaded } = await run({
+      fields: [{ ...TEXT_FIELD[0], required: false }],
+      values: {},
+    });
     expect(result.ok).toBe(true);
-    const text = await drawnText(uploaded.bytes as Uint8Array);
-    expect(text).not.toContain('Whatever The Employee Guessed');
+    expect(uploaded.bytes).not.toBeNull();
+  });
+
+  it('refuses to file when the record names no counterparty at all', async () => {
+    // recipient_email is NOT NULL and validated, so this should be
+    // unreachable. If it is ever reached, every row is filtered out and every
+    // blank comes out empty, and filing that silently is the failure worth
+    // guarding: the instrument would go out with holes and the chain would
+    // say nothing was dropped.
+    const { result, uploaded } = await run({
+      fields: TEXT_FIELD,
+      values: { entity_name: 'Wren Supply Co.' },
+      recipientEmail: '',
+    });
+    expect(result.ok).toBe(false);
+    expect(uploaded.bytes).toBeNull();
   });
 
   it('refuses when the typed values cannot be read at all', async () => {

@@ -214,13 +214,21 @@ async function stampCounterpartyFields(
   // drawn as the ruled blank it is.
   const values: Record<string, string> = {};
   const owner: Record<string, { id: string; email: string }> = {};
+  // Keys some OTHER row carried. Kept because dropping a stored value and
+  // filing a clean blank over it would be a silent loss on an executed
+  // document: drawn would equal intended, nothing would be recorded, and the
+  // chain would say a value that existed was never there. See the check below.
+  const dropped = new Set<string>();
   for (const row of (data ?? []) as Array<{
     id: string;
     signer_email: string;
     counterparty_values?: unknown;
   }>) {
-    if (!isCounterpartySigner(row.signer_email, intake.recipientEmail)) continue;
     const clean = sanitizeCounterpartyValues(intake.fields, row.counterparty_values);
+    if (!isCounterpartySigner(row.signer_email, intake.recipientEmail)) {
+      for (const key of Object.keys(clean)) dropped.add(key);
+      continue;
+    }
     for (const [key, value] of Object.entries(clean)) {
       if (values[key] !== undefined) continue;
       values[key] = value;
@@ -244,6 +252,19 @@ async function stampCounterpartyFields(
   for (const key of new Set(intake.boxes.map((b) => b.key))) {
     const field = byKey.get(key);
     const stored = values[key] ?? '';
+    // A blank whose key was answered on a row this render refused to read.
+    // Not the same as a blank nobody ever answered, which is a legitimate
+    // thing for a signed document to carry and is drawn as a rule below.
+    // Reachable only through a hand-edited row or a writer older than the
+    // gate in submitCounterpartyFieldsAction, and the answer to both is to
+    // refuse rather than to file quietly.
+    if (!stored && dropped.has(key)) {
+      out.intended += 1;
+      out.failures.push(
+        `${key}: a stored value was not the counterparty's and was not drawn`,
+      );
+      continue;
+    }
     // Formatted through the function the live overlay called, so a date
     // cannot read one way in the preview and another on the executed copy.
     const text = field ? formatCounterpartyValue(field, stored) : stored;
