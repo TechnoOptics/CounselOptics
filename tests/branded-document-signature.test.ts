@@ -56,15 +56,28 @@ async function imageCount(bytes: Uint8Array): Promise<number> {
   return drawnImages(doc).reduce((a, b) => a + b, 0);
 }
 
+/**
+ * The renderer now returns the bytes together with the counterparty blanks it
+ * recorded (lib/template-field-boxes.ts). These tests are about the bytes, so
+ * they unwrap here rather than at every call site, and a null render still
+ * reads as null.
+ */
+async function renderBytes(
+  input: Parameters<typeof buildBrandedDocumentPdf>[0],
+): Promise<Uint8Array | null> {
+  const out = await buildBrandedDocumentPdf(input);
+  return out ? out.bytes : null;
+}
+
 describe('buildBrandedDocumentPdf with a signature mark', () => {
   it('embeds no image when no mark is supplied', async () => {
-    const bytes = await buildBrandedDocumentPdf({ document: signed(BODY), title: 'NDA' });
+    const bytes = await renderBytes({ document: signed(BODY), title: 'NDA' });
     expect(bytes).not.toBeNull();
     expect(await imageCount(bytes as Uint8Array)).toBe(0);
   });
 
   it('embeds the mark when one is supplied', async () => {
-    const bytes = await buildBrandedDocumentPdf({
+    const bytes = await renderBytes({
       document: signed(BODY),
       title: 'NDA',
       signatureImage: { png: samplePng() },
@@ -75,7 +88,7 @@ describe('buildBrandedDocumentPdf with a signature mark', () => {
 
   it('still carries the mark when a reviewer rewrote the signature block', async () => {
     const rewritten = `${BODY}\n\n\nSignature of the undersigned: Jane Doe\nDated: August 6, 2026`;
-    const bytes = await buildBrandedDocumentPdf({
+    const bytes = await renderBytes({
       document: rewritten,
       title: 'NDA',
       signatureImage: { png: samplePng() },
@@ -85,7 +98,7 @@ describe('buildBrandedDocumentPdf with a signature mark', () => {
   });
 
   it('renders the document anyway when the mark is not a usable PNG', async () => {
-    const bytes = await buildBrandedDocumentPdf({
+    const bytes = await renderBytes({
       document: signed(BODY),
       title: 'NDA',
       signatureImage: { png: new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]) },
@@ -106,7 +119,7 @@ describe('buildBrandedDocumentPdf with a signature mark', () => {
         { length: sections },
         (_, i) => `Section ${i + 1}. ${'Filler text. '.repeat(6)}`,
       ).join('\n\n');
-      const bytes = await buildBrandedDocumentPdf({
+      const bytes = await renderBytes({
         document: signed(long),
         title: 'NDA',
         signatureImage: { png: samplePng() },

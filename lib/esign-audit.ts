@@ -53,7 +53,22 @@ export type SignatureEventType =
   // overflow, but it leaves the executed instrument disagreeing with
   // the firm_signatures row, so the chain records the move: requested
   // vs drawn coordinates, the delta, and the page size that forced it.
-  | 'signature_relocated';
+  | 'signature_relocated'
+  // The counterparty typed the parts of the document that are theirs to
+  // supply (app/sign/[token]/counterparty-actions.ts). These values arrive
+  // AFTER the firm approved the wording and after document_sha256 was taken,
+  // so they are not smuggled into that hash: they get their own event
+  // carrying a SHA-256 of the canonicalised values, and the claim the record
+  // then supports is stronger than one hash could be. Legal approved these
+  // words with these blanks, this person supplied these values at this time
+  // from this address, and the executed instrument is the sum of the two.
+  | 'counterparty_fields_submitted'
+  // A recorded blank did not fit on its page, or the value typed into it
+  // could not be drawn at a legible size, so the stamp moved or shrank it.
+  // Same reasoning as signature_relocated: the executed instrument then
+  // disagrees with the recorded geometry, and the chain is sold as evidence
+  // about that instrument.
+  | 'counterparty_field_relocated';
 
 // A note that applies to both of the values above, which were added
 // without a migration. There is no DDL for firm_signature_events in

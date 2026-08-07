@@ -80,3 +80,40 @@ alter table public.firm_signatures
   -- behaving exactly as it did, and a firm that has not applied this file
   -- sees today's product. lib/signer-order.ts is the whole rule.
   add column if not exists signer_order int;
+
+-- ---------------------------------------------------------------------
+-- The counterparty's own part of the document.
+-- ---------------------------------------------------------------------
+
+alter table public.firm_template_submissions
+  -- Where the renderer drew each counterparty blank, recorded at the one
+  -- moment the document was rendered. Both the live overlay the signer
+  -- confirms and the stamp on the executed PDF read this, so the preview
+  -- and the delivered document cannot disagree about position. This is the
+  -- same discipline lib/signature-geometry.ts enforces for the signature
+  -- box after that geometry drifted twice across three hand-written copies.
+  --
+  -- It is written in the same statement that claims document_id, because it
+  -- describes those bytes and no others. A row naming a document but
+  -- carrying a previous render's geometry would put typed values in the
+  -- wrong places on an executed instrument.
+  --
+  -- Null, and the column never named in a write, for every template with no
+  -- counterparty fields. That is what makes this migration invisible until
+  -- a firm actually uses one.
+  add column if not exists field_boxes jsonb;
+
+alter table public.firm_signatures
+  -- What the counterparty typed into their blanks, keyed by field key.
+  --
+  -- Kept here rather than merged into the approved document text, and that
+  -- separation is the point. firm_signing_requests.document_sha256 is the
+  -- hash of the bytes the firm approved and the counterparty was shown; it
+  -- must not move because the counterparty typed. These values are new
+  -- facts that arrived afterwards, so they get their own record and their
+  -- own audit event (counterparty_fields_submitted) carrying a SHA-256 of
+  -- the canonicalised values. The claim that record supports is stronger
+  -- than one hash could be: legal approved these words with these blanks,
+  -- this person supplied these values at this time from this address, and
+  -- the executed instrument is the sum of the two.
+  add column if not exists counterparty_values jsonb;

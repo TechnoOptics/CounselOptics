@@ -281,6 +281,14 @@ function TemplateEditor({
           <p className="mb-2 text-[13px] font-semibold uppercase tracking-wider text-ink-500 dark:text-cream-100/55">
             Fields (from the body)
           </p>
+          <p className="mb-2 text-[12px] text-ink-500 dark:text-cream-100/55">
+            <T>
+              A field the recipient fills in is left as a blank on the document
+              your colleague sends. The recipient types it on the signing page
+              and sees it in place before they sign. This only applies to
+              templates that go out for signature.
+            </T>
+          </p>
           <div className="space-y-2">
             {fields.map((f) => (
               <div key={f.key} className="flex flex-wrap items-center gap-2">
@@ -302,6 +310,29 @@ function TemplateEditor({
                   <option value="text">Text</option>
                   <option value="date">Date</option>
                   <option value="textarea">Paragraph</option>
+                </select>
+                {/* Who fills this in. Only the legal team decides this, which
+                    is why the control is here and nowhere else: the employee
+                    filling a form must not be able to invent obligations for
+                    the other side, and the counterparty must not be able to
+                    invent fields for themselves. */}
+                <select
+                  className={`${inputCls} !w-44`}
+                  value={f.party ?? 'employee'}
+                  onChange={(e) =>
+                    setFieldMeta((m) => ({
+                      ...m,
+                      [f.key]: {
+                        ...f,
+                        party:
+                          e.target.value === 'counterparty' ? 'counterparty' : 'employee',
+                      },
+                    }))
+                  }
+                  aria-label={`Who fills in ${f.label}`}
+                >
+                  <option value="employee">Your colleague fills in</option>
+                  <option value="counterparty">The recipient fills in</option>
                 </select>
                 <label className="flex items-center gap-1.5 text-[12.5px] text-ink-600 dark:text-cream-100/70">
                   <input

@@ -3,6 +3,13 @@ import 'server-only';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { cleanLegalText } from './legal-templates';
 import { findSignatureBlockLine } from './firm-template-placeholders';
+import {
+  RENDERED_PAGE_HEIGHT_PT,
+  RENDERED_PAGE_WIDTH_PT,
+  findLineMarkers,
+  resolveMarkerBoxWidth,
+  type FieldBox,
+} from './template-field-boxes';
 
 /**
  * The firm-branded document PDF: letterhead (or a letterhead synthesized from
@@ -12,6 +19,27 @@ import { findSignatureBlockLine } from './firm-template-placeholders';
  * now calls it, so the SERVER can render the very same document when an
  * approved template submission is released to its recipient. One renderer, so
  * what the legal team approved and what the recipient receives cannot drift.
+ *
+ * IT ALSO RECORDS WHERE IT PUT THE COUNTERPARTY'S BLANKS
+ * -----------------------------------------------------
+ * The other side of an agreement has parts of it to supply, and those values
+ * arrive after the firm has approved the wording and after the bytes have
+ * been hashed into the audit chain. They therefore cannot reach the page by
+ * re-rendering it: this renderer is not deterministic (see the footer, and
+ * PDFDocument.create stamping a fresh CreationDate), so a second render is
+ * different bytes and a different SHA-256, and the chain would attest to a
+ * document nobody saw.
+ *
+ * So the values are drawn into boxes recorded HERE, at the one moment this
+ * loop drew them, and read back by both the live overlay on the signing page
+ * and the stamp on the executed PDF. The arithmetic is available because the
+ * layout is ours: a fixed page, one margin, one size, one lead, and a
+ * line-by-line drawText walk. lib/template-field-boxes.ts owns the shape of
+ * the record and every rectangle derived from it.
+ *
+ * A THIRD CALLER WOULD NEED A GATE OF ITS OWN. The two that exist
+ * (app/api/counsel/draft-template/pdf and lib/submission-document.ts) each
+ * decide who may render before they get here. Nothing in this module asks.
  */
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } {
@@ -55,10 +83,23 @@ const MARK_GAP = 12;
  */
 const SIG_BLOCK_LINES = 3;
 
-/** Returns the PDF bytes, or null when there is nothing worth rendering. */
+export type BrandedDocumentOutput = {
+  bytes: Uint8Array;
+  /**
+   * Where every counterparty blank landed, in the order they were drawn.
+   * Empty for every document with no counterparty fields on its template,
+   * which is every document this product has produced so far.
+   */
+  fieldBoxes: FieldBox[];
+};
+
+/**
+ * Returns the PDF bytes and the recorded blanks, or null when there is
+ * nothing worth rendering.
+ */
 export async function buildBrandedDocumentPdf(
   input: BrandedDocumentInput,
-): Promise<Uint8Array | null> {
+): Promise<BrandedDocumentOutput | null> {
   const text = cleanLegalText(String(input.document ?? ''));
   if (text.length < 100) return null;
   const title = String(input.title ?? 'Document').slice(0, 120);
@@ -70,8 +111,11 @@ export async function buildBrandedDocumentPdf(
   const font = await pdf.embedFont(StandardFonts.TimesRoman);
   const bold = await pdf.embedFont(StandardFonts.TimesRomanBold);
 
-  const W = 612;
-  const H = 792;
+  // Imported rather than declared, because lib/template-field-boxes.ts has to
+  // bound a stored coordinate against the page it was recorded on and two
+  // copies of the page size is the drift that module exists to prevent.
+  const W = RENDERED_PAGE_WIDTH_PT;
+  const H = RENDERED_PAGE_HEIGHT_PT;
   const M = 64; // margin
   const SIZE = 11;
   const LEAD = 16;
@@ -318,6 +362,55 @@ export async function buildBrandedDocumentPdf(
     }
   }
 
+  /**
+   * Where each counterparty blank landed, recorded as it is drawn.
+   *
+   * This is arithmetic over values the loop already holds, and that is the
+   * whole reason the boxes are recorded here rather than derived later: the
+   * font, the size, the page and the cursor are only simultaneously true at
+   * the instant drawText is called. Anything computed afterwards would be a
+   * reconstruction, and a reconstruction of a position is exactly what
+   * lib/signature-geometry.ts exists because of.
+   */
+  const fieldBoxes: FieldBox[] = [];
+
+  /**
+   * Distance from the text baseline down to the bottom of the blank's box.
+   *
+   * The underscores in the marker sit just below the baseline, and the
+   * executed copy paints an opaque rectangle over this box before drawing
+   * the value into it. A box that starts at the baseline would leave the
+   * bottom of the rule showing under the typed value.
+   */
+  const FIELD_BOX_DESCENT = 4;
+
+  function recordMarkers(
+    line: string,
+    lineFont: typeof font,
+    baselineY: number,
+  ): void {
+    for (const m of findLineMarkers(line)) {
+      const prefix = line.slice(0, m.index);
+      const rest = line.slice(m.index + m.text.length);
+      const trailing = /^ */.exec(rest)?.[0] ?? '';
+      const xFromMargin = lineFont.widthOfTextAtSize(prefix, SIZE);
+      fieldBoxes.push({
+        key: m.key,
+        page: pageNo,
+        x: M + xFromMargin,
+        y: baselineY - FIELD_BOX_DESCENT,
+        widthPt: resolveMarkerBoxWidth({
+          markerWidthPt: lineFont.widthOfTextAtSize(m.text, SIZE),
+          trailingSpaceWidthPt: lineFont.widthOfTextAtSize(trailing, SIZE),
+          xFromMarginPt: xFromMargin,
+          contentWidthPt: maxW,
+          endsLine: rest.trim() === '',
+        }),
+        heightPt: LEAD,
+      });
+    }
+  }
+
   const paragraphs = text.split('\n');
   for (let p = 0; p < paragraphs.length; p += 1) {
     const para = paragraphs[p];
@@ -332,13 +425,18 @@ export async function buildBrandedDocumentPdf(
         (ln.trim().length > 0 &&
           ln.trim() === ln.trim().toUpperCase() &&
           ln.trim().length < 60);
+      const lineFont = isHead ? bold : font;
       page.drawText(ln, {
         x: M,
         y,
         size: SIZE,
-        font: isHead ? bold : font,
+        font: lineFont,
         color: ink,
       });
+      // Measured with the font that actually drew the line, and after the
+      // page break above has run, so the recorded page number is the page
+      // the text is on and not the page it was queued from.
+      recordMarkers(ln, lineFont, y);
       y -= LEAD;
     }
   }
@@ -361,5 +459,5 @@ export async function buildBrandedDocumentPdf(
   }
   footer();
 
-  return pdf.save();
+  return { bytes: await pdf.save(), fieldBoxes };
 }

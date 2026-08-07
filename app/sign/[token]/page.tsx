@@ -21,6 +21,10 @@ import {
   resolveSignerCopyRetention,
   signerRetentionSentence,
 } from '@/lib/signer-retention';
+import {
+  loadCounterpartyIntake,
+  loadStoredCounterpartyValues,
+} from '@/lib/counterparty-intake';
 import { TraceWatermark } from '@/components/TraceWatermark';
 import { SignerSurface } from './signer-surface';
 import { SignerResponse } from './signer-response';
@@ -359,6 +363,27 @@ export default async function SignPage({ params }: { params: { token: string } }
     at: new Date(),
   });
 
+  // The parts of this document that are the signer's to supply, and what they
+  // have typed so far.
+  //
+  // Null for a signing request that came from a plainly uploaded file, for a
+  // template whose fields are all the employee's, and for a firm whose
+  // database has not had 20260807_flow_join.sql applied. All three render
+  // this page exactly as it renders today, which is the point: the loader
+  // answers a missing column with null rather than an error, so a firm that
+  // has not migrated never has a signature blocked by it.
+  const intakeAdmin = createAdminSupabase();
+  const intake = intakeAdmin
+    ? await loadCounterpartyIntake(intakeAdmin, request.id)
+    : null;
+  // Re-sanitized on the way out of jsonb rather than trusted, through the
+  // same rules the write path applies, so a value that would no longer be
+  // accepted is not shown back as though it had been.
+  const storedFieldValues =
+    intake && intakeAdmin
+      ? await loadStoredCounterpartyValues(intakeAdmin, signature.id, intake.fields)
+      : {};
+
   // Render in a custom shell so signers do NOT see the consumer-side
   // header / footer chrome. The page should feel like a focused
   // signing portal.
@@ -458,6 +483,9 @@ export default async function SignPage({ params }: { params: { token: string } }
           positionY={signature.positionY}
           copyPermitted={request.signerCanDownload}
           copyHref={`/api/firm/sign/copy/${signature.token}`}
+          counterpartyFields={intake?.fields ?? []}
+          fieldBoxes={intake?.boxes ?? []}
+          initialFieldValues={storedFieldValues}
         />
 
         <SignerResponse token={signature.token} firmName={firm.name} />

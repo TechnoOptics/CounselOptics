@@ -26,6 +26,7 @@ import {
   type ReviewAction,
 } from './template-approval';
 import { loadPublishedTemplate, sanitizeTemplateValues } from './template-fill';
+import { employeeFieldsOf } from './counterparty-fields';
 import { releaseApprovedSubmission } from './template-release';
 import { checkDispatchable, counterSignatureParty } from './submission-dispatch';
 import { materializeSubmissionDocument } from './submission-document';
@@ -89,8 +90,18 @@ function trimTo(value: unknown, max: number): string {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/**
+ * Which of the EMPLOYEE'S required answers are still blank.
+ *
+ * The other side's fields are not the employee's to answer and are not asked
+ * of them, so requiring one here would refuse a submission for a blank that
+ * has no input on the page. Those are checked on the signing surface instead
+ * (missingCounterpartyFields), against the same required flag.
+ */
 function missingRequired(fields: TemplateField[], values: Record<string, string>): string[] {
-  return fields.filter((f) => f.required && !(values[f.key] ?? '').trim()).map((f) => f.label);
+  return employeeFieldsOf(fields)
+    .filter((f) => f.required && !(values[f.key] ?? '').trim())
+    .map((f) => f.label);
 }
 
 async function buildDocument(

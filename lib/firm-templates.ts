@@ -9,6 +9,7 @@ import {
   DELIVERY_MODE_UNSAVED_ERROR,
   type DeliveryMode,
 } from './submission-dispatch';
+import { parseTemplateFieldParty } from './counterparty-fields';
 
 /**
  * Firm-owned form templates ("Forms"): the legal team configures reusable
@@ -21,11 +22,27 @@ import {
  * authorizeFirmActor (employee entitlement) for reading published templates.
  */
 
+/**
+ * Who fills this in.
+ *
+ * Absent means 'employee', which is what every field on every template that
+ * exists today is, so nothing in the `fields` jsonb needs migrating and no
+ * existing document changes by a character.
+ *
+ * Only the legal team sets this, in the template editor. Deliberately only
+ * them: the employee filling a form must not be able to invent obligations
+ * for the other side, and the counterparty must not be able to invent fields
+ * for themselves. It is a property of the instrument, decided when the
+ * instrument is drafted.
+ */
+export type TemplateFieldParty = 'employee' | 'counterparty';
+
 export type TemplateField = {
   key: string;
   label: string;
   type: 'text' | 'date' | 'textarea';
   required: boolean;
+  party?: TemplateFieldParty;
 };
 
 export type FirmTemplate = {
@@ -126,6 +143,17 @@ function sanitizeFields(fields: unknown): TemplateField[] {
       label: String(o.label ?? key).slice(0, 80),
       type: o.type === 'date' || o.type === 'textarea' ? o.type : 'text',
       required: Boolean(o.required),
+      // Anything unrecognised coerces to 'employee', the same fail-safe
+      // direction the type above uses. The safe direction here is the
+      // employee: a field that should have been the counterparty's is a
+      // question the employee gets asked, which is visible and recoverable.
+      // The other way round is a blank nobody is asked to fill, in a
+      // document that has already been approved and sent.
+      //
+      // Shared with the read side (parseTemplateFields), because a value
+      // stored by one coercion and read back by another is how a field ends
+      // up owned by one party going in and the other coming out.
+      party: parseTemplateFieldParty(o.party),
     });
   }
   return out;

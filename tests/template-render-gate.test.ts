@@ -111,7 +111,10 @@ let activeFirm: { firmId: string } | null = null;
 
 const TEMPLATE_BODY = 'The parties agree to keep this confidential.';
 
-const buildBrandedDocumentPdf = vi.fn(async () => new Uint8Array([1, 2, 3]));
+const buildBrandedDocumentPdf = vi.fn(async () => ({
+  bytes: new Uint8Array([1, 2, 3]),
+  fieldBoxes: [],
+}));
 
 vi.mock('../lib/supabase/server', () => ({
   getCurrentUser: async () => currentUser,
