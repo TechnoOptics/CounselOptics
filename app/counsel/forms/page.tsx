@@ -2,6 +2,8 @@ import { redirect } from 'next/navigation';
 import { getActiveFirmContext } from '@/lib/firm-storage';
 import { listFirmTemplatesAction } from '@/lib/firm-templates';
 import { FormsManageClient } from './forms-manage-client';
+import { StandardTemplates } from './standard-templates';
+import { SEED_TEMPLATES } from '@/lib/seed-templates';
 import { PageHeader } from '@/components/counsel/ui';
 import { T } from '@/components/i18n/LocaleProvider';
 
@@ -31,6 +33,22 @@ export default async function CounselFormsPage() {
             placeholders in the body; each becomes an input on the employee&apos;s form.
           </>
         }
+      />
+      <StandardTemplates
+        firmId={ctx.firm.id}
+        // Only what the list needs. The body is the largest field on a seed
+        // template and would otherwise be serialized into the page for every
+        // template on every load.
+        templates={SEED_TEMPLATES.map((t) => ({
+          slug: t.slug,
+          name: t.name,
+          description: t.description,
+          category: t.category,
+          notes: t.notes,
+        }))}
+        installedNames={(res.templates ?? [])
+          .filter((t) => t.status !== 'archived')
+          .map((t) => t.name)}
       />
       <FormsManageClient firmId={ctx.firm.id} initialTemplates={res.templates ?? []} />
     </div>
