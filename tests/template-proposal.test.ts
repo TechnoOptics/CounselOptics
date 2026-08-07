@@ -819,6 +819,12 @@ describe('the Zinpro proposal, merged by the real mergeTemplateDocument', () => 
     body: proposal.body,
     fields: proposal.fields,
     values: {},
+    // Required since the flow-join work made the mode an explicit input rather
+    // than something inferred from whether a counterparty was named. Taken
+    // from the proposal, because the proposal deciding 'signature' and the
+    // merger being told 'share' is exactly the disagreement this block exists
+    // to catch.
+    deliveryMode: proposal.deliveryMode,
     firmName: FIRM,
     signatureName: 'A Partner',
     signerEmail: 'partner@example.com',
