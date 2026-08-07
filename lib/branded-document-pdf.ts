@@ -4,6 +4,7 @@ import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { cleanLegalText } from './legal-templates';
 import { findSignatureBlockLine } from './firm-template-placeholders';
 import {
+  FIELD_RULE,
   RENDERED_PAGE_HEIGHT_PT,
   RENDERED_PAGE_WIDTH_PT,
   findLineMarkers,
@@ -384,17 +385,54 @@ export async function buildBrandedDocumentPdf(
    */
   const FIELD_BOX_DESCENT = 4;
 
-  function recordMarkers(
-    line: string,
-    lineFont: typeof font,
-    baselineY: number,
-  ): void {
-    for (const m of findLineMarkers(line)) {
+  /**
+   * Draw one body line, and record and rule every blank on it.
+   *
+   * THE MARKER IS NEVER DRAWN. It is internal plumbing: it exists so this loop
+   * can find, measure and record a blank at the one moment the font, the size,
+   * the page and the cursor are simultaneously true. Drawing it put
+   * `_____<<company_legal_name>>_____` on the face of an agreement an outside
+   * party was being asked to execute. What goes on the page instead is the
+   * rule the executed copy already draws over the same box
+   * (lib/signature-render.ts), from the same numbers, so the blank the
+   * counterparty is shown and the blank on the instrument they sign are one
+   * blank in two states.
+   *
+   * The line is drawn in segments AROUND the blanks, each at the x it would
+   * have occupied in a single full-line draw, measured on the original line.
+   * Nothing is closed up: the wrap above and every recorded box are computed
+   * from the marker's own width, so shortening the drawn run would move the
+   * following words off the geometry recorded for them and the executed copy
+   * would paint its opaque cover over the wrong text.
+   */
+  function drawBodyLine(line: string, lineFont: typeof font, baselineY: number): void {
+    const markers = findLineMarkers(line);
+    if (markers.length === 0) {
+      page.drawText(line, { x: M, y: baselineY, size: SIZE, font: lineFont, color: ink });
+      return;
+    }
+    /** Draw one run of ordinary text at its own place on the line. */
+    const drawSegment = (from: number, to: number) => {
+      const segment = line.slice(from, to);
+      if (segment === '') return;
+      page.drawText(segment, {
+        x: M + lineFont.widthOfTextAtSize(line.slice(0, from), SIZE),
+        y: baselineY,
+        size: SIZE,
+        font: lineFont,
+        color: ink,
+      });
+    };
+
+    let cursor = 0;
+    for (const m of markers) {
+      drawSegment(cursor, m.index);
+      cursor = m.index + m.text.length;
       const prefix = line.slice(0, m.index);
-      const rest = line.slice(m.index + m.text.length);
+      const rest = line.slice(cursor);
       const trailing = /^ */.exec(rest)?.[0] ?? '';
       const xFromMargin = lineFont.widthOfTextAtSize(prefix, SIZE);
-      fieldBoxes.push({
+      const box: FieldBox = {
         key: m.key,
         page: pageNo,
         x: M + xFromMargin,
@@ -407,8 +445,16 @@ export async function buildBrandedDocumentPdf(
           endsLine: rest.trim() === '',
         }),
         heightPt: LEAD,
+      };
+      fieldBoxes.push(box);
+      page.drawLine({
+        start: { x: box.x, y: box.y + FIELD_RULE.offsetYPt },
+        end: { x: box.x + box.widthPt, y: box.y + FIELD_RULE.offsetYPt },
+        thickness: FIELD_RULE.thicknessPt,
+        color: rgb(FIELD_RULE.gray, FIELD_RULE.gray, FIELD_RULE.gray),
       });
     }
+    drawSegment(cursor, line.length);
   }
 
   const paragraphs = text.split('\n');
@@ -426,17 +472,10 @@ export async function buildBrandedDocumentPdf(
           ln.trim() === ln.trim().toUpperCase() &&
           ln.trim().length < 60);
       const lineFont = isHead ? bold : font;
-      page.drawText(ln, {
-        x: M,
-        y,
-        size: SIZE,
-        font: lineFont,
-        color: ink,
-      });
-      // Measured with the font that actually drew the line, and after the
-      // page break above has run, so the recorded page number is the page
-      // the text is on and not the page it was queued from.
-      recordMarkers(ln, lineFont, y);
+      // Drawn and measured with one font, and after the page break above has
+      // run, so the recorded page number is the page the text is on and not
+      // the page it was queued from.
+      drawBodyLine(ln, lineFont, y);
       y -= LEAD;
     }
   }

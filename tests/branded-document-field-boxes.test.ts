@@ -1,7 +1,9 @@
+import zlib from 'node:zlib';
 import { describe, expect, it } from 'vitest';
+import { PDFDocument, PDFRawStream } from 'pdf-lib';
 import { buildBrandedDocumentPdf } from '../lib/branded-document-pdf';
 import { mergeTemplateDocument } from '../lib/firm-template-placeholders';
-import { counterpartyMarker } from '../lib/template-field-boxes';
+import { counterpartyMarker, FIELD_RULE } from '../lib/template-field-boxes';
 
 /**
  * The renderer records where it drew the counterparty's blanks.
@@ -27,6 +29,57 @@ async function render(document: string) {
   expect(out).not.toBeNull();
   return out!;
 }
+
+/**
+ * What the file actually draws, read back out of the saved content streams.
+ *
+ * The streams are Flate-compressed and pdf-lib writes drawn text as a PDF hex
+ * string, so a naive scan of the bytes finds nothing. Both are undone here so
+ * the assertions below are about what a reader of the document will see rather
+ * than about which functions were called.
+ */
+async function contentStreams(bytes: Uint8Array): Promise<string> {
+  const doc = await PDFDocument.load(bytes);
+  let out = '';
+  for (const [, obj] of doc.context.enumerateIndirectObjects()) {
+    if (!(obj instanceof PDFRawStream)) continue;
+    let raw: Uint8Array = obj.asUint8Array();
+    try {
+      raw = zlib.inflateSync(Buffer.from(raw));
+    } catch {
+      /* not deflated: use it as it stands */
+    }
+    out += Buffer.from(raw).toString('latin1');
+  }
+  return out;
+}
+
+async function drawnText(bytes: Uint8Array): Promise<string[]> {
+  const streams = await contentStreams(bytes);
+  return [...streams.matchAll(/<([0-9A-Fa-f]+)>\s*Tj/g)].map((m) =>
+    Buffer.from(m[1], 'hex').toString('latin1'),
+  );
+}
+
+/** Every text run's position, from pdf-lib's `1 0 0 1 X Y Tm`. */
+function textPlacements(streams: string): Array<[number, number]> {
+  return [...streams.matchAll(/1 0 0 1 (-?[\d.]+) (-?[\d.]+) Tm/g)].map((m) => [
+    Number(m[1]),
+    Number(m[2]),
+  ]);
+}
+
+/** Every stroked segment, from pdf-lib's `X1 Y1 m ... X2 Y2 l`. */
+function strokes(streams: string): Array<[number, number, number, number]> {
+  return [...streams.matchAll(/(-?[\d.]+) (-?[\d.]+) m\s+(-?[\d.]+) (-?[\d.]+) l/g)].map((m) => [
+    Number(m[1]),
+    Number(m[2]),
+    Number(m[3]),
+    Number(m[4]),
+  ]);
+}
+
+const near = (a: number, b: number) => Math.abs(a - b) < 0.05;
 
 describe('buildBrandedDocumentPdf field boxes', () => {
   it('records nothing for a document with no counterparty blanks', async () => {
@@ -151,6 +204,91 @@ describe('buildBrandedDocumentPdf field boxes', () => {
 });
 
 /**
+ * A blank is drawn as a blank, not as the sentinel that located it.
+ *
+ * The marker literal is internal plumbing: it exists so the layout loop can
+ * find, measure and record a blank at the one moment it draws (see the header
+ * of lib/template-field-boxes.ts). It was also DRAWN, so the recipient of a
+ * signature-mode document opened an agreement they were being asked to execute
+ * and read `_____<<company_legal_name>>_____` on the face of it, both before
+ * they typed and, around a short value, afterwards. Observed on a real render,
+ * not deduced.
+ *
+ * The executed copy already draws the answer: an opaque cover, a rule across
+ * the recorded box, and the value sat on the rule (lib/signature-render.ts).
+ * The served document now draws the same rule from the same numbers, so what
+ * the counterparty is shown and what the executed instrument carries are one
+ * blank in two states rather than two drawings.
+ */
+describe('the blank the renderer draws', () => {
+  const LINE = `Entity: ${counterpartyMarker('entity_name')}`;
+  const doc = (line = LINE) => [FILLER, '', line, '', 'Signed: Jane Doe'].join('\n');
+
+  it('never draws the marker literal', async () => {
+    const out = await render(doc());
+    const text = (await drawnText(out.bytes)).join('\n');
+    expect(text).not.toContain('<<');
+    expect(text).not.toContain('entity_name');
+    expect(text).not.toContain('_____');
+  });
+
+  it('draws the words around the blank, at the margin', async () => {
+    const out = await render(doc());
+    const streams = await contentStreams(out.bytes);
+    expect(await drawnText(out.bytes)).toContain('Entity: ');
+    expect(textPlacements(streams).some(([x]) => near(x, MARGIN_PT))).toBe(true);
+  });
+
+  it('rules the blank across the box it recorded', async () => {
+    const out = await render(doc());
+    const box = out.fieldBoxes[0];
+    const found = strokes(await contentStreams(out.bytes)).some(
+      ([x1, y1, x2, y2]) =>
+        near(x1, box.x) &&
+        near(x2, box.x + box.widthPt) &&
+        near(y1, box.y + FIELD_RULE.offsetYPt) &&
+        near(y2, box.y + FIELD_RULE.offsetYPt),
+    );
+    expect(found).toBe(true);
+  });
+
+  it('leaves the words after a mid-line blank exactly where they were', async () => {
+    // The blank is dropped from the drawn run, not closed up. A layout that
+    // shifted the following words would move every later blank on the line
+    // away from the geometry recorded for it, and the executed copy would
+    // paint its opaque cover over the wrong words.
+    const line = `Entity ${counterpartyMarker('entity_name')} of Delaware agrees.`;
+    const out = await render(doc(line));
+    const streams = await contentStreams(out.bytes);
+    const box = out.fieldBoxes[0];
+    const tail = (await drawnText(out.bytes)).find((t) => t.includes('of Delaware'));
+    expect(tail).toBeDefined();
+    // Its left edge is where the marker ended, which is the box's own left
+    // edge plus the marker's width. The box may be wider than the marker
+    // (trailing space), so this is asserted against the text that follows.
+    const at = textPlacements(streams).filter(([, y]) => near(y, box.y + 4));
+    expect(at.length).toBeGreaterThanOrEqual(2);
+    expect(at.some(([x]) => x > box.x)).toBe(true);
+  });
+
+  it('adds one rule per blank and none to a document without them', async () => {
+    // Counted as a difference rather than absolutely, because the page chrome
+    // strokes rules of its own and this is an assertion about the blanks.
+    // Every document this product has produced so far has none.
+    const plain = await render([FILLER, '', 'Signed: Jane Doe'].join('\n'));
+    const one = await render(doc());
+    const two = await render(
+      doc(`Entity: ${counterpartyMarker('entity_name')}\nState: ${counterpartyMarker('state')}`),
+    );
+    expect(plain.fieldBoxes).toEqual([]);
+    const count = async (b: Uint8Array) => strokes(await contentStreams(b)).length;
+    const base = await count(plain.bytes);
+    expect(await count(one.bytes)).toBe(base + 1);
+    expect(await count(two.bytes)).toBe(base + 2);
+  });
+});
+
+/**
  * The join between the two halves: a template field marked as the
  * counterparty's produces a blank the renderer can find, and an employee
  * field does not.
@@ -168,6 +306,7 @@ describe('mergeTemplateDocument to recorded box', () => {
   it('carries a counterparty field through to a recorded box', async () => {
     const document = mergeTemplateDocument({
       ...base,
+      counterpartyName: 'Wren Supply Co.',
       fields: [
         { key: 'company', label: 'Company' },
         { key: 'entity_name', label: 'Entity name', party: 'counterparty' as const },
@@ -202,6 +341,7 @@ describe('mergeTemplateDocument to recorded box', () => {
     // and either way it is not the counterparty's statement.
     const document = mergeTemplateDocument({
       ...base,
+      counterpartyName: 'Wren Supply Co.',
       values: { company: 'Acme Corporation', entity_name: 'Not Their Name LLC' },
       fields: [
         { key: 'company', label: 'Company' },
@@ -210,5 +350,67 @@ describe('mergeTemplateDocument to recorded box', () => {
     });
     expect(document).not.toContain('Not Their Name LLC');
     expect(document).toContain(counterpartyMarker('entity_name'));
+  });
+
+  /**
+   * A blank belongs to somebody. On a read-only encrypted share there is no
+   * other side: no signer, no ceremony, and nobody who will ever type into it.
+   * lib/template-release.ts defended dropping the recorded blanks on that path
+   * with the premise that "a template carrying counterparty fields is
+   * dispatched for signature instead", and nothing enforced it. The party
+   * picker is shown for every template, checkReleasable never looks at the
+   * fields, and the share path renders document_text as it stands, so an
+   * outside recipient could open the share and read our own field key on the
+   * face of the document.
+   *
+   * The premise is made true here, at the one function both the employee's
+   * preview and the stored copy pass through, because the mode is already an
+   * argument to it: counterpartyName is null for every mode but 'signature'
+   * (counterpartyLabel), so "there is no other side" is a fact this function
+   * already holds. A field with nobody to fill it falls back to the unfilled
+   * label every other unanswered field renders as, which the employee sees on
+   * their preview and the reviewer sees before approving.
+   */
+  it('renders a counterparty field as an unfilled label when nobody will sign', () => {
+    const document = mergeTemplateDocument({
+      ...base,
+      counterpartyName: null,
+      fields: [
+        { key: 'company', label: 'Company' },
+        { key: 'entity_name', label: 'Entity name', party: 'counterparty' as const },
+      ],
+    });
+    expect(document).not.toContain('<<');
+    expect(document).not.toContain(counterpartyMarker('entity_name'));
+    expect(document).toContain('[Entity name]');
+  });
+
+  it('still refuses the employee an answer for the other side on a share', () => {
+    // Falling back to the label must not fall back to merging their value.
+    const document = mergeTemplateDocument({
+      ...base,
+      counterpartyName: null,
+      values: { company: 'Acme Corporation', entity_name: 'Not Their Name LLC' },
+      fields: [
+        { key: 'company', label: 'Company' },
+        { key: 'entity_name', label: 'Entity name', party: 'counterparty' as const },
+      ],
+    });
+    expect(document).not.toContain('Not Their Name LLC');
+    expect(document).toContain('[Entity name]');
+  });
+
+  it('records no blank on a share, so nothing is left waiting to be filled', async () => {
+    const out = await render(
+      mergeTemplateDocument({
+        ...base,
+        counterpartyName: null,
+        fields: [
+          { key: 'company', label: 'Company' },
+          { key: 'entity_name', label: 'Entity name', party: 'counterparty' as const },
+        ],
+      }),
+    );
+    expect(out.fieldBoxes).toEqual([]);
   });
 });

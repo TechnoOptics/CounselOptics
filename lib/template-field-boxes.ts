@@ -125,6 +125,26 @@ export function isCounterpartyMarker(value: unknown): boolean {
   return re.test(value);
 }
 
+/**
+ * How a blank is ruled, on both of the two occasions it is drawn.
+ *
+ * The renderer draws it when it lays the document out, and the executed copy
+ * draws it again over the opaque cover it paints before stamping the typed
+ * value. If either end held its own numbers, the blank the counterparty was
+ * shown and the blank on the instrument they signed would be two different
+ * lines, which is the drift lib/signature-geometry.ts exists because of. Both
+ * read this.
+ *
+ * The offset lifts the rule off the box floor by a point so a value sat at
+ * `y + 4` sits ON the rule rather than through it.
+ */
+export const FIELD_RULE = {
+  offsetYPt: 1,
+  thicknessPt: 0.5,
+  /** Mid grey: legibly a blank, quieter than the body text above it. */
+  gray: 0.45,
+} as const;
+
 export type FieldBox = {
   key: string;
   /** 1-indexed page the blank was drawn on. */

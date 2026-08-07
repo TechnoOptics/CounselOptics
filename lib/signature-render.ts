@@ -32,6 +32,7 @@ import {
   resolveSignaturePageIndex,
 } from './signature-geometry';
 import {
+  FIELD_RULE,
   boxesForKey,
   resolveFieldBoxRect,
   resolveFieldTextSize,
@@ -278,12 +279,15 @@ async function stampCounterpartyFields(
         });
         // The rule the blank was, kept so a filled document still reads as a
         // filled form and an unanswered optional blank still reads as a
-        // blank rather than as a gap in the page.
+        // blank rather than as a gap in the page. Drawn from FIELD_RULE, the
+        // same numbers the renderer ruled the served document with, so the
+        // blank the counterparty was shown and the blank on the instrument
+        // they signed are one line rather than two that happen to agree.
         page.drawLine({
-          start: { x: rect.x, y: rect.y + 1 },
-          end: { x: rect.x + rect.width, y: rect.y + 1 },
-          thickness: 0.5,
-          color: rgb(0.45, 0.45, 0.45),
+          start: { x: rect.x, y: rect.y + FIELD_RULE.offsetYPt },
+          end: { x: rect.x + rect.width, y: rect.y + FIELD_RULE.offsetYPt },
+          thickness: FIELD_RULE.thicknessPt,
+          color: rgb(FIELD_RULE.gray, FIELD_RULE.gray, FIELD_RULE.gray),
         });
         if (text) {
           page.drawText(text, {

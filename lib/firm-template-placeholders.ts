@@ -111,6 +111,9 @@ export function mergeTemplateDocument(input: {
   counterpartyName?: string | null;
 }): string {
   let text = input.body;
+  // Whether this document has an other side at all. See the counterparty
+  // branch below, and buildCounterpartyBlock, which reads the same answer.
+  const hasCounterparty = Boolean((input.counterpartyName ?? '').trim());
   const declared = new Set(input.fields.map((f) => f.key));
   for (const key of RESERVED_FIRM_KEYS) {
     if (declared.has(key)) continue;
@@ -120,12 +123,31 @@ export function mergeTemplateDocument(input: {
     // A counterparty field is never merged from `values`, whatever `values`
     // happens to contain. The employee does not answer for the other side,
     // and a value that reached this map for a counterparty key would be
-    // either a stale draft or a caller pushing one in. It renders as a ruled
-    // blank carrying a stable marker, which lib/branded-document-pdf.ts
-    // measures as it draws so the other side's typed value has one recorded
-    // place to land. See lib/template-field-boxes.ts.
+    // either a stale draft or a caller pushing one in.
+    //
+    // WHO THE BLANK IS FOR DECIDES WHETHER THERE IS ONE. A blank belongs to
+    // somebody: the marker is what lib/branded-document-pdf.ts measures as it
+    // draws, so the other side's typed value has one recorded place to land
+    // (lib/template-field-boxes.ts). On a read-only encrypted share there is
+    // no other side. No signer, no ceremony, and nobody who will ever type
+    // into it, so a marker there would be a blank left open on a document
+    // that is already final, and lib/template-release.ts drops the recorded
+    // geometry on that path for exactly that reason.
+    //
+    // counterpartyName is the mode: counterpartyLabel returns null for every
+    // delivery mode but 'signature'. So this is where the premise that path
+    // relied on is actually made true, rather than asserted in a comment. A
+    // field with nobody to fill it falls through to the ordinary branch and
+    // renders as its bracketed label, which is what every unanswered field on
+    // this product renders as: visible to the employee on their preview and to
+    // the reviewer before they approve it, and recoverable by either of them.
+    // It renders the label DIRECTLY rather than falling through to the branch
+    // below, because that branch consults `values`, and there is no share on
+    // which the employee gets to answer for the other side either.
     if (f.party === 'counterparty') {
-      text = text.split(`{{${f.key}}}`).join(counterpartyMarker(f.key));
+      text = text
+        .split(`{{${f.key}}}`)
+        .join(hasCounterparty ? counterpartyMarker(f.key) : `[${f.label}]`);
       continue;
     }
     const val = (input.values[f.key] ?? '').trim() || `[${f.label}]`;

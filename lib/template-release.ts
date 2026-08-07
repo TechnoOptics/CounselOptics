@@ -151,11 +151,26 @@ export async function releaseApprovedSubmission(
     // which is a valid signature; it sits inside this try either way so a
     // storage throw goes through unclaim like everything else here.
     const markBytes = await loadSubmissionMark(admin, row.signature_image_path);
-    // The share path drops the recorded blanks on purpose. A read-only
-    // encrypted share has no signer and no ceremony, so nobody ever types
-    // into a blank on this copy; a template carrying counterparty fields is
-    // dispatched for signature instead (lib/submission-dispatch.ts), which
-    // is the path that keeps them.
+    // The share path drops the recorded blanks on purpose, and this document
+    // has none to drop. A read-only encrypted share has no signer and no
+    // ceremony, so nobody would ever type into a blank on this copy, and
+    // mergeTemplateDocument therefore does not put one here: it renders a
+    // counterparty field as its bracketed label whenever there is no
+    // counterparty, which is every mode but 'signature'
+    // (counterpartyLabel, lib/firm-template-placeholders.ts).
+    //
+    // That is enforcement rather than an assumption about what the legal team
+    // will do with the party picker. This comment used to say instead that a
+    // template carrying counterparty fields "is dispatched for signature",
+    // and nothing made that true: the picker is offered on every template,
+    // checkReleasable never looks at the fields, and the text below is
+    // rendered as it stands. An outside recipient could open the share and
+    // read our own field key on the face of the document.
+    //
+    // resolveDispatchMode is the other half. It settles which mode this row
+    // is delivered under from the mode its text was MERGED under, so a
+    // template flipped to 'share' after the fact cannot bring a
+    // signature-merged document down this path.
     const rendering = await buildBrandedDocumentPdf({
       document: row.document_text,
       title: row.template_name,
