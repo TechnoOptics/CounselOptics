@@ -1,6 +1,7 @@
 import 'server-only';
 import { createAdminSupabase, isServiceRoleConfigured } from './supabase/admin';
 import { getCurrentUser } from './supabase/server';
+import { freeTrialWindowEnd } from './storage';
 import {
   paidFromSubscription,
   resolveAccountEntitlement,
@@ -201,6 +202,93 @@ export async function currentUserTrialGrant(): Promise<TrialGrant> {
   const user = await getCurrentUser();
   if (!user) return { trialTierSlug: null, trialEndsAt: null };
   return userTrialGrant(user.id);
+}
+
+/**
+ * When each of these people's AUTOMATIC signup trial ends, keyed by user id,
+ * or null when they have no anchor to count from.
+ *
+ * This exists so the HQ user surface can stop asserting something the product
+ * does not do. There are two trials in this codebase and only one of them is
+ * granted by an operator. The automatic one is the email-and-device-anchored
+ * window read by getEffectiveTrialState, and while it is open,
+ * isFullAccessTrial unlocks EVERY feature regardless of any plan level, so an
+ * HQ level set on somebody in their first week does nothing until the window
+ * closes. A screen that shows the level without saying that is a label
+ * claiming behaviour nothing implements.
+ *
+ * The arithmetic is not repeated here. freeTrialWindowEnd in lib/storage.ts is
+ * the single definition, and this batches the two reads it needs.
+ *
+ * A read failure yields nulls rather than throwing. The surface then says it
+ * could not determine the window, which is honest; taking the HQ page down
+ * because one auxiliary table was unreadable is not an improvement.
+ */
+export async function freeTrialWindowEnds(
+  people: ReadonlyArray<{ userId: string; email: string | null; createdAt: string | null }>,
+): Promise<Map<string, string | null>> {
+  const out = new Map<string, string | null>();
+  if (people.length === 0) return out;
+
+  const admin = createAdminSupabase();
+  if (!admin) {
+    for (const p of people) out.set(p.userId, null);
+    return out;
+  }
+
+  const emails = people
+    .map((p) => p.email?.trim().toLowerCase())
+    .filter((e): e is string => Boolean(e));
+  const ids = people.map((p) => p.userId);
+
+  const [signupResp, deviceResp] = await Promise.all([
+    emails.length
+      ? admin.from('signup_history').select('email, first_signup_at').in('email', emails)
+      : Promise.resolve({ data: [], error: null }),
+    admin
+      .from('device_trial_history')
+      .select('latest_user_id, first_seen_at')
+      .in('latest_user_id', ids)
+      .order('first_seen_at', { ascending: true }),
+  ]);
+
+  if (signupResp.error) {
+    console.error('freeTrialWindowEnds: could not read signup_history', signupResp.error.message);
+  }
+  if (deviceResp.error) {
+    console.error(
+      'freeTrialWindowEnds: could not read device_trial_history',
+      deviceResp.error.message,
+    );
+  }
+
+  const byEmail = new Map<string, string | null>();
+  for (const r of (signupResp.data ?? []) as Array<{
+    email: string;
+    first_signup_at: string | null;
+  }>) {
+    byEmail.set(r.email, r.first_signup_at);
+  }
+
+  // Ordered oldest first, so the first row seen for a user is their earliest
+  // device. Same anchor getEffectiveTrialState takes.
+  const byDevice = new Map<string, string | null>();
+  for (const r of (deviceResp.data ?? []) as Array<{
+    latest_user_id: string;
+    first_seen_at: string | null;
+  }>) {
+    if (byDevice.has(r.latest_user_id)) continue;
+    byDevice.set(r.latest_user_id, r.first_seen_at);
+  }
+
+  for (const p of people) {
+    const email = p.email?.trim().toLowerCase() ?? null;
+    // Same fallback getEffectiveTrialState uses: no signup_history row means
+    // the account's own creation time is the anchor.
+    const emailFirst = (email ? byEmail.get(email) : null) ?? p.createdAt ?? null;
+    out.set(p.userId, freeTrialWindowEnd(emailFirst, byDevice.get(p.userId) ?? null));
+  }
+  return out;
 }
 
 /** See UserTrialSnapshot: this reads its own row and fails closed. */

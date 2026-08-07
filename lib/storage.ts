@@ -1909,6 +1909,40 @@ export async function upsertSubscriptionFromStripe(input: {
 export const FREE_TRIAL_DAYS = 7;
 
 /**
+ * When the automatic signup trial ends for one person, or null when there is
+ * no anchor to count from.
+ *
+ * EXTRACTED so there is exactly one definition of this window. HQ has to tell
+ * an operator when a user's automatic trial ends, because while it is open
+ * isFullAccessTrial unlocks every feature regardless of any plan level HQ has
+ * set, and a screen that shows a level without saying that is a screen making
+ * a claim the product does not honour. A second copy of this arithmetic in the
+ * HQ module would drift from this one, so the HQ reader calls this.
+ *
+ * The anchor is the EARLIER of the email anchor and the device anchor, which
+ * is what defeats the delete-and-resign-up reset. Behaviour is unchanged from
+ * the inline version this replaces, with one deliberate exception: an
+ * unparseable anchor now returns null rather than throwing a RangeError out of
+ * toISOString. Null resolves to no free trial, which is the same net access
+ * answer the throw produced once its caller's catch had run, and it does not
+ * take a page down.
+ */
+export function freeTrialWindowEnd(
+  emailFirst: string | null | undefined,
+  deviceFirst: string | null | undefined,
+): string | null {
+  const anchor =
+    emailFirst && deviceFirst
+      ? Date.parse(emailFirst) <= Date.parse(deviceFirst)
+        ? emailFirst
+        : deviceFirst
+      : emailFirst || deviceFirst;
+  if (!anchor) return null;
+  const ends = new Date(Date.parse(anchor) + FREE_TRIAL_DAYS * 86_400_000);
+  return Number.isNaN(ends.getTime()) ? null : ends.toISOString();
+}
+
+/**
  * Idempotent upsert into signup_history for the current user. The
  * first time a given email is ever seen, we INSERT with first_signup_at
  * = now. Subsequent calls (same email, even after a delete + new
@@ -2041,20 +2075,12 @@ export async function getEffectiveTrialState(): Promise<EffectiveTrialState> {
     null;
   const deviceFirst =
     (deviceRowsResult.data as { first_seen_at?: string } | null)?.first_seen_at ?? null;
-  // Pick the earlier of the two anchors. If only one is available,
-  // use it. If both are missing, no trial.
-  const firstSignupAt =
-    emailFirst && deviceFirst
-      ? Date.parse(emailFirst) <= Date.parse(deviceFirst)
-        ? emailFirst
-        : deviceFirst
-      : (emailFirst || deviceFirst);
-  if (!firstSignupAt) {
+  // The earlier of the two anchors, plus the window. One definition, shared
+  // with the HQ reader that has to tell an operator when this window closes.
+  const ends = freeTrialWindowEnd(emailFirst, deviceFirst);
+  if (!ends) {
     return { mode: 'none', trialEndsAt: null, daysRemaining: 0, tier: null };
   }
-  const ends = new Date(
-    Date.parse(firstSignupAt) + FREE_TRIAL_DAYS * 86_400_000,
-  ).toISOString();
   const days = Math.max(0, Math.ceil((Date.parse(ends) - Date.now()) / 86_400_000));
   if (days <= 0) {
     return { mode: 'expired', trialEndsAt: ends, daysRemaining: 0, tier: null };

@@ -206,6 +206,41 @@ export function resolveAccountEntitlement(
 }
 
 /**
+ * When an HQ-set plan level STARTS APPLYING, for somebody who is still inside
+ * the automatic signup trial, or null when it applies already.
+ *
+ * There are two trials in this product and this is the seam between them. The
+ * HQ trial carries a plan level. The automatic one, anchored on first signup,
+ * is checked first at every consumer gate and unlocks EVERY feature for its
+ * window regardless of any level. So for that window the level is stored and
+ * not applied, and an operator screen that showed the level without saying so
+ * would be asserting a restriction the product is not making.
+ *
+ * Pure and here rather than inline in a page, because vitest runs under node
+ * with no jsdom, so a decision left in a component is a decision no test can
+ * reach.
+ *
+ * A PAYER GETS NULL. Their subscription already answers, the surface already
+ * says the trial is inert, and adding a second reason would be two
+ * explanations for one fact.
+ *
+ * The end date is validated rather than coerced, the same way every other date
+ * in this module is, and an unreadable one reads as "applies already". That is
+ * the direction that does not invent a delay nobody can see the reason for.
+ */
+export function levelAppliesFrom(
+  input: { source: EntitlementSource; freeTrialEndsAt: TrialTimestamp | null },
+  now: TrialTimestamp,
+): string | null {
+  if (input.source === 'paid') return null;
+  const endsAt = instantOrNull(input.freeTrialEndsAt);
+  if (!endsAt) return null;
+  const at = requireInstant(now);
+  if (at.getTime() >= endsAt.getTime()) return null;
+  return endsAt.toISOString();
+}
+
+/**
  * A plan level as an operator should read it.
  *
  * DERIVED from the slug rather than looked up in a table of pretty names, so

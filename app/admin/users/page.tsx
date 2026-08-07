@@ -1,9 +1,9 @@
 import { adminListUsers } from '@/lib/storage';
 import { getCurrentUser } from '@/lib/supabase/server';
 import { TIER_LABEL, REPRESENTATION_LABEL } from '@/lib/types';
-import { listTrialUsers } from '@/lib/user-trials';
+import { freeTrialWindowEnds, listTrialUsers } from '@/lib/user-trials';
 import { ENTITLEMENT_TIER_SLUGS, isEntitlementTierSlug } from '@/lib/entitlements';
-import { tierSlugLabel } from '@/lib/trial-entitlement';
+import { levelAppliesFrom, tierSlugLabel } from '@/lib/trial-entitlement';
 import { UserToggles } from './user-toggles';
 import {
   UserTrialConsole,
@@ -33,6 +33,25 @@ export default async function AdminUsersPage() {
   // does not carry it and the join happens here, against the list this page
   // already holds.
   const byId = new Map(users.map((u) => [u.id, u]));
+
+  // When each of these people's AUTOMATIC signup trial ends. While that window
+  // is open, isFullAccessTrial unlocks every feature regardless of the plan
+  // level set here, so a row that showed the level without saying so would be
+  // asserting a restriction the product does not apply. There are two trials
+  // in this product and only one of them is granted by an operator.
+  const freeWindows = await freeTrialWindowEnds(
+    trialUsers.map((t) => {
+      const u = byId.get(t.id) ?? null;
+      return {
+        userId: t.id,
+        email: u?.email ?? null,
+        createdAt: u?.createdAt ?? null,
+      };
+    }),
+  );
+  // One clock for one render of one list.
+  const now = new Date();
+
   const trialRows: UserTrialView[] = trialUsers.map((t) => {
     const u = byId.get(t.id) ?? null;
     return {
@@ -48,6 +67,17 @@ export default async function AdminUsersPage() {
       trialTierKnown: isEntitlementTierSlug(t.trialTier),
       resolvedSource: t.resolved.source,
       resolvedTier: t.resolved.tierSlug,
+      // Null unless the level is genuinely not applying yet. The rule lives
+      // in lib/trial-entitlement.ts so a test can reach it: vitest runs under
+      // node with no jsdom, and a decision left in this file is a decision
+      // nothing can exercise.
+      freeTrialEndsAt: levelAppliesFrom(
+        {
+          source: t.resolved.source,
+          freeTrialEndsAt: freeWindows.get(t.id) ?? null,
+        },
+        now,
+      ),
       lastActorEmail: t.lastActorEmail,
       lastActionAt: t.lastActionAt,
     };

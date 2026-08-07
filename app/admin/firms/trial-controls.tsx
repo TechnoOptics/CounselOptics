@@ -195,7 +195,7 @@ export function TrialConsole({
                 <Th>Organization</Th>
                 <Th>Trial ends</Th>
                 <Th>Remaining</Th>
-                <Th>Plan level</Th>
+                <Th>Plan level (recorded)</Th>
                 <Th>Seats</Th>
                 <Th>State</Th>
                 <Th>Controls</Th>
@@ -218,9 +218,12 @@ export function TrialConsole({
         shown, and nothing here removes an organization's data.
       </p>
       <p className="text-[11px] text-cream-100/50 leading-relaxed max-w-3xl">
-        A plan level decides what a trial organization can do. It never changes
-        what a paying organization gets: a live subscription always wins, so a
-        level set on a paying account sits idle until the subscription lapses.
+        A plan level on an organization is RECORDED, not yet enforced. It is
+        stored, it appears in the audit trail with your name on it, and no firm
+        feature reads it today, so setting one does not change what this
+        organization can do. An organization's plan currently comes from its
+        owner's subscription. The individual-user plan level on the Users page
+        is enforced; this one is not.
       </p>
     </div>
   );
@@ -609,8 +612,7 @@ function TierCell({
             {tier}
           </span>
           <div className="mt-0.5 text-[11px] text-amber-200/75 leading-snug">
-            Not a plan this build sells, so it grants nothing. Set a level from
-            the list.
+            Not a plan this build sells. Set a level from the list.
           </div>
         </div>
       )}
@@ -656,8 +658,9 @@ function TierBlock({
   return (
     <Block title="Plan level" accent="neutral">
       <p className="text-[12px] text-cream-100/55 leading-relaxed">
-        What this trial can do. A live subscription always wins, so setting a
-        level never changes what a paying organization gets.
+        Recorded, not yet enforced. Saving a level stores it and puts it in the
+        audit trail with your name on it. No firm feature reads it today, so
+        this does not change what the organization can do.
       </p>
       {!row.trialEndsAt && (
         <p className="text-[12px] text-cream-100/55 leading-relaxed">

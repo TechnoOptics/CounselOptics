@@ -73,6 +73,17 @@ export type UserTrialView = {
   /** Who last moved this trial, and when. */
   lastActorEmail: string | null;
   lastActionAt: string | null;
+  /**
+   * When this person's AUTOMATIC signup trial ends, or null when they are not
+   * inside one.
+   *
+   * There are two trials in this product. The one this console grants carries
+   * a plan level; the automatic one, anchored on first signup, unlocks every
+   * feature for its first week regardless of any level. While it is open the
+   * level set here does nothing, and the row says so rather than leaving an
+   * operator to infer a restriction that is not being applied.
+   */
+  freeTrialEndsAt: string | null;
 };
 
 export type StartableUser = {
@@ -194,9 +205,16 @@ export function UserTrialConsole({
         before and after that date.
       </p>
       <p className="text-[11px] text-ink-500 dark:text-cream-100/50 leading-relaxed max-w-3xl">
-        A plan level decides what a trial account can do. It never changes what
-        a paying customer gets: a live subscription always wins, so a level set
-        on a paying account sits idle until the subscription lapses.
+        A plan level decides what a trial account can do: case cap,
+        collaborators and Advottic Review read it. It never changes what a
+        paying customer gets, because a live subscription always wins, so a
+        level set on a paying account sits idle until the subscription lapses.
+      </p>
+      <p className="text-[11px] text-ink-500 dark:text-cream-100/50 leading-relaxed max-w-3xl">
+        Every account also gets an automatic trial for its first week from
+        signup, which unlocks every feature whatever level is set here. A
+        person inside that week is marked Signup week above, with the date it
+        ends.
       </p>
     </div>
   );
@@ -254,7 +272,11 @@ function UserTrialRow({
         </Td>
 
         <Td>
-          <EffectBadge source={row.resolvedSource} tier={row.resolvedTier} />
+          <EffectBadge
+            source={row.resolvedSource}
+            tier={row.resolvedTier}
+            freeTrialEndsAt={row.freeTrialEndsAt}
+          />
         </Td>
 
         <Td>
@@ -511,6 +533,14 @@ function TierBlock({
         <p className="text-[12px] text-ink-600 dark:text-cream-100/55 leading-relaxed">
           There is no end date on file, so a level would have no window to
           apply in. Restart the trial first.
+        </p>
+      )}
+      {row.freeTrialEndsAt && (
+        <p className="text-[12px] text-ink-600 dark:text-cream-100/55 leading-relaxed">
+          This person is inside their automatic signup trial, which unlocks
+          every feature until{' '}
+          <LocaleTime iso={row.freeTrialEndsAt} mode="date" />. Saving a level
+          records it now and it starts applying on that date.
         </p>
       )}
       <div className="flex flex-wrap items-end gap-2">
@@ -841,10 +871,29 @@ function TierCell({
 function EffectBadge({
   source,
   tier,
+  freeTrialEndsAt,
 }: {
   source: UserTrialView['resolvedSource'];
   tier: string | null;
+  freeTrialEndsAt: string | null;
 }) {
+  // The automatic signup trial outranks everything on this screen while it is
+  // open, so it is said first and said plainly. Anything below would be
+  // describing a level that is not being applied yet.
+  if (freeTrialEndsAt) {
+    return (
+      <div className="max-w-[220px]">
+        <span className="badge text-[10px] tracking-wider bg-sky-50 text-sky-800 border border-sky-200 dark:bg-sky-950/40 dark:text-sky-100 dark:border-sky-400/30">
+          Signup week
+        </span>
+        <div className="mt-1 text-[11px] text-ink-600 dark:text-cream-100/60 leading-snug">
+          Their automatic signup trial unlocks every feature until{' '}
+          <LocaleTime iso={freeTrialEndsAt} mode="date" />. The plan level set
+          here starts applying then.
+        </div>
+      </div>
+    );
+  }
   if (source === 'paid') {
     return (
       <div className="max-w-[200px]">
