@@ -23,7 +23,7 @@ import type { CSSProperties, ReactNode } from 'react';
 // The palette itself is plain data and lives in lib/pill-colors.ts, so a
 // module that only needs a colour name does not have to import a React
 // component to get one. Re-exported here for every existing caller.
-import { PILL_COLORS, PILL_DEFAULT } from '@/lib/pill-colors';
+import { PILL_COLORS, PILL_DEFAULT, pillInk } from '@/lib/pill-colors';
 
 export { PILL_COLORS, PILL_DEFAULT };
 
@@ -34,11 +34,18 @@ const SIZES: Record<PillSize, string> = {
   md: 'px-2 py-1 text-[11px]',
 };
 
+/*
+ * Every layer goes through pillInk, which is what makes the chip follow
+ * the shell it is painted in. A status hex that reads on near-black
+ * cannot also read on near-white, so the palette carries a light twin
+ * for each state and pillInk emits the pair. See lib/pill-colors.ts for
+ * the arithmetic and for why one hex could not have done it.
+ */
 export function pillStyle(color: string = PILL_DEFAULT): CSSProperties {
   return {
-    color,
-    background: `${color}1a`,
-    border: `1px solid ${color}40`,
+    color: pillInk(color),
+    background: pillInk(color, '1a'),
+    border: `1px solid ${pillInk(color, '40')}`,
   };
 }
 
@@ -58,8 +65,8 @@ export function pillStyle(color: string = PILL_DEFAULT): CSSProperties {
  */
 export function pillSurface(color: string = PILL_DEFAULT): CSSProperties {
   return {
-    background: `${color}1a`,
-    boxShadow: `0 0 0 1px ${color}40`,
+    background: pillInk(color, '1a'),
+    boxShadow: `0 0 0 1px ${pillInk(color, '40')}`,
   };
 }
 
@@ -87,7 +94,7 @@ export function StatusPill({
         <span
           aria-hidden
           className="h-1.5 w-1.5 flex-none rounded-full"
-          style={{ background: color }}
+          style={{ background: pillInk(color) }}
         />
       )}
       {children}

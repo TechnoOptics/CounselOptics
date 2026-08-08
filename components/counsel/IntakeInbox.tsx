@@ -78,17 +78,28 @@ const PRIORITY_RANK: Record<string, number> = {
   Low: 3,
 };
 const PRIORITY_TONE: Record<string, string> = {
-  Urgent: 'bg-rose-500 text-white',
+  // rose-500 under white was 3.67:1, the same failure as the grade
+  // badge below and for the same reason. rose-600 is the nearest step
+  // that carries white, and it is what the D grade now uses too.
+  Urgent: 'bg-rose-600 text-white',
   High: 'bg-amber-500 text-forest-950',
   Normal:
     'bg-ink-200 dark:bg-forest-700 text-foreground',
   Low: 'bg-surface-2 text-muted',
 };
+/*
+ * Bright fills take the near-black foreground, deep fills keep white.
+ * White on `bg-emerald-500` was 2.54:1 and on `bg-emerald-600` 3.77:1,
+ * on both themes: a solid badge never depended on the theme. Kept
+ * byte-identical to the same map in components/ReviewScorecard.tsx and
+ * app/counsel/intake/create-intake-form.tsx, which is where the
+ * reasoning is written out; tests/accent-text.test.ts measures all three.
+ */
 const GRADE_TONE: Record<string, string> = {
-  A: 'bg-emerald-500 text-white',
-  B: 'bg-emerald-600 text-white',
+  A: 'bg-emerald-400 text-forest-950',
+  B: 'bg-emerald-500 text-forest-950',
   C: 'bg-amber-500 text-forest-950',
-  D: 'bg-rose-500 text-white',
+  D: 'bg-rose-600 text-white',
   F: 'bg-rose-700 text-white',
 };
 function ageLabel(iso: string): string {
@@ -239,8 +250,11 @@ export function IntakeInbox({
                           {i._grade && (
                             <Tt
                               className={`inline-flex h-5 min-w-[20px] items-center justify-center rounded px-1 text-[11px] font-bold ${
+                                // ink-500, not ink-400: white on ink-400
+                                // is 2.56:1, and the other two copies of
+                                // this badge already fall back to ink-500.
                                 GRADE_TONE[i._grade] ??
-                                'bg-ink-400 text-white'
+                                'bg-ink-500 text-white'
                               }`}
                               title="Advottic Review grade"
                             >
