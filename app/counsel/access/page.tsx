@@ -6,6 +6,7 @@ import { LocaleTime } from '@/components/LocaleTime';
 import { ReviewButtons } from './review-buttons';
 import { PageHeader } from '@/components/counsel/ui';
 import { StatusPill, PILL_COLORS } from '@/components/counsel/StatusPill';
+import { PanelCard, MonoRef } from '@/components/counsel/patterns';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -34,7 +35,7 @@ export default async function CounselAccessPage() {
   }
 
   return (
-    <div className="space-y-8 animate-fade-up">
+    <div className="space-y-6 animate-fade-up">
       <PageHeader
         eyebrow={<T>People</T>}
         title={<T>Access requests</T>}
@@ -47,17 +48,22 @@ export default async function CounselAccessPage() {
         }
       />
 
-      <section className="space-y-3">
-        <div className="flex items-center gap-2">
-          <h2 className="text-lg text-foreground">
-            <T>Pending</T>
-          </h2>
-          <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-semibold bg-gold-400 text-forest-950">
+      {/* Two cards rather than a view strip. Pending and reviewed are
+          real subsets, but they are not interchangeable views of one
+          list: only the pending set carries the approve/decline
+          controls, and putting it behind a tab would let a queue that
+          needs an answer sit unseen. The counts sit in the card headers
+          instead. */}
+      <PanelCard
+        title={<T>Pending</T>}
+        action={
+          <p className="text-[12px] tabular-nums text-muted">
             {pending.length}
-          </span>
-        </div>
+          </p>
+        }
+      >
         {pending.length === 0 ? (
-          <p className="card p-6 text-[13px] text-muted italic">
+          <p className="text-[13px] italic text-muted">
             <T>No requests waiting. New external sign-ups will appear here.</T>
           </p>
         ) : (
@@ -65,14 +71,17 @@ export default async function CounselAccessPage() {
             {pending.map((r) => (
               <li
                 key={r.id}
-                className="card p-4 flex flex-wrap items-center justify-between gap-4"
+                className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-edge bg-surface-2 p-3"
               >
                 <div className="min-w-0">
-                  <p className="font-semibold text-foreground">
+                  <p
+                    className="text-[13.5px] font-semibold text-foreground"
+                    data-no-translate
+                  >
                     {r.full_name || r.email}
                   </p>
-                  <p className="text-[12px] text-muted mt-0.5">
-                    <span className="font-mono">{r.email}</span> ·{' '}
+                  <p className="mt-0.5 text-[12px] text-muted">
+                    <MonoRef>{r.email}</MonoRef> ·{' '}
                     <T>external · requested</T>{' '}
                     <LocaleTime iso={r.requested_at} mode="datetime" />
                   </p>
@@ -82,27 +91,30 @@ export default async function CounselAccessPage() {
             ))}
           </ul>
         )}
-      </section>
+      </PanelCard>
 
       {reviewed.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-lg text-foreground">
-            <T>Recently reviewed</T>
-          </h2>
+        <PanelCard
+          title={<T>Recently reviewed</T>}
+          action={
+            <p className="text-[12px] tabular-nums text-muted">
+              {reviewed.length}
+            </p>
+          }
+        >
           <ul className="space-y-1.5">
             {reviewed.map((r) => (
               <li
                 key={r.id}
-                className="flex items-center justify-between gap-3 text-[12.5px] px-1"
+                className="flex items-center justify-between gap-3 text-[12.5px]"
               >
-                <span className="text-foreground truncate">
+                <span className="truncate text-foreground" data-no-translate>
                   {r.full_name || r.email}{' '}
-                  <span className="text-muted font-mono">
-                    {r.email}
-                  </span>
+                  <MonoRef>{r.email}</MonoRef>
                 </span>
                 <StatusPill
                   size="sm"
+                  dot
                   color={
                     r.status === 'approved'
                       ? PILL_COLORS.good
@@ -114,7 +126,7 @@ export default async function CounselAccessPage() {
               </li>
             ))}
           </ul>
-        </section>
+        </PanelCard>
       )}
     </div>
   );

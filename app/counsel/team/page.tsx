@@ -12,6 +12,7 @@ import { TeamMemberRow } from './member-row';
 import { EmployeesPanel } from './employees-panel';
 import { RolesManager } from './roles-manager';
 import { PageHeader } from '@/components/counsel/ui';
+import { PanelCard, relativeTime } from '@/components/counsel/patterns';
 import { T } from '@/components/i18n/LocaleProvider';
 
 export const dynamic = 'force-dynamic';
@@ -37,44 +38,54 @@ export default async function CounselTeamPage() {
         eyebrow={<T>Team</T>}
         title={<T>Members & roles</T>}
         subtitle={
-          <T>
-            Roles control what each person can do across cases, documents,
-            signing, and chat.
-          </T>
+          <>
+            {members.length}{' '}
+            {members.length === 1 ? (
+              <T>person on the legal team.</T>
+            ) : (
+              <T>people on the legal team.</T>
+            )}{' '}
+            <T>
+              Roles control what each person can do across cases, documents,
+              signing, and chat.
+            </T>
+          </>
         }
       />
 
       {canManage && <InviteMemberForm firmId={ctx.firm.id} />}
 
-      <section className="card overflow-x-auto">
-        <table className="w-full min-w-[560px] text-sm">
-          <thead className="bg-surface-2 text-foreground text-left">
-            <tr>
-              <th className="font-semibold px-4 py-2.5"><T>Name</T></th>
-              <th className="font-semibold px-4 py-2.5"><T>Email</T></th>
-              <th className="font-semibold px-4 py-2.5"><T>Role</T></th>
-              <th className="font-semibold px-4 py-2.5"><T>Joined</T></th>
-              <th className="font-semibold px-4 py-2.5"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-edge">
-            {members.map((m) => (
-              <TeamMemberRow
-                key={m.id}
-                member={m}
-                firmId={ctx.firm.id}
-                canManage={canManage}
-                isMe={m.userId === ctx.membership.userId}
-                isLastOwner={
-                  m.role === 'owner' &&
-                  members.filter((x) => x.role === 'owner').length === 1
-                }
-                otherMembers={members.filter((x) => x.userId !== m.userId)}
-              />
-            ))}
-          </tbody>
-        </table>
-      </section>
+      <PanelCard title={<T>Members</T>} bodyClassName="">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[36rem] border-collapse text-left">
+            <thead className="border-b border-edge">
+              <tr className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-muted">
+                <th scope="col" className="px-3 py-2"><T>Name</T></th>
+                <th scope="col" className="px-3 py-2"><T>Email</T></th>
+                <th scope="col" className="px-3 py-2"><T>Role</T></th>
+                <th scope="col" className="px-3 py-2"><T>Joined</T></th>
+                <th scope="col" className="px-3 py-2"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {members.map((m) => (
+                <TeamMemberRow
+                  key={m.id}
+                  member={m}
+                  firmId={ctx.firm.id}
+                  canManage={canManage}
+                  isMe={m.userId === ctx.membership.userId}
+                  isLastOwner={
+                    m.role === 'owner' &&
+                    members.filter((x) => x.role === 'owner').length === 1
+                  }
+                  otherMembers={members.filter((x) => x.userId !== m.userId)}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </PanelCard>
 
       {canManage && (
         <RolesManager firmId={ctx.firm.id} initial={portalRoles} />
@@ -89,24 +100,35 @@ export default async function CounselTeamPage() {
       )}
 
       {invitations.length > 0 && (
-        <section className="card p-5 sm:p-6">
-          <p className="eyebrow mb-2"><T>Pending invitations</T></p>
+        <PanelCard
+          title={<T>Pending invitations</T>}
+          action={
+            <p className="text-[12px] tabular-nums text-muted">
+              {invitations.length}
+            </p>
+          }
+        >
           <ul className="space-y-1.5">
             {invitations.map((inv) => (
               <li
                 key={inv.id}
-                className="flex items-center justify-between gap-3 text-sm py-1.5"
+                className="flex flex-wrap items-center justify-between gap-3 py-1.5 text-sm"
               >
-                <span className="text-foreground">{inv.email}</span>
+                <span className="font-mono text-[12px] text-foreground" data-no-translate>
+                  {inv.email}
+                </span>
                 <span className="text-[12px] text-muted">
                   <T>Invited as</T> {FIRM_ROLE_LABEL[inv.role].toLowerCase()}{' '}
                   &middot; <T>expires</T>{' '}
-                  {new Date(inv.expiresAt).toLocaleDateString()}
+                  <span suppressHydrationWarning>
+                    {relativeTime(inv.expiresAt) ??
+                      new Date(inv.expiresAt).toLocaleDateString()}
+                  </span>
                 </span>
               </li>
             ))}
           </ul>
-        </section>
+        </PanelCard>
       )}
 
       <details className="text-[12px] text-muted">
