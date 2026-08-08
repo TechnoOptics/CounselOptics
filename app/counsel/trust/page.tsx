@@ -134,7 +134,7 @@ export default async function CounselTrustPage({
             accounts the firm has. The underlying policy gap is reported to
             the humans rather than patched here; RLS is not ours to change.
           */
-          <p className="card p-5 text-[13px] text-ink-600 dark:text-cream-100/70 leading-relaxed">
+          <p className="card p-5 text-[13px] text-muted leading-relaxed">
             <T>
               Trust accounts are managed by a firm owner, administrator, or
               attorney. Ask one of them if you need access to this ledger.
@@ -189,7 +189,7 @@ export default async function CounselTrustPage({
                     className={`inline-flex items-center min-h-[36px] px-3 rounded-lg text-[12px] font-medium ring-1 transition-colors ${
                       active
                         ? 'bg-forest-900 text-cream-100 ring-forest-900 dark:bg-cream-100 dark:text-forest-950 dark:ring-cream-100'
-                        : 'text-ink-600 dark:text-cream-100/70 ring-ink-200 dark:ring-forest-700/40 hover:bg-cream-50 dark:hover:bg-forest-800/30'
+                        : 'text-muted ring-edge hover:bg-surface-2'
                     }`}
                   >
                     {a.name}
@@ -244,14 +244,14 @@ export default async function CounselTrustPage({
                   key={c.clientLabel}
                   className="flex items-center justify-between"
                 >
-                  <span className="text-forest-900 dark:text-cream-100">
+                  <span className="text-foreground">
                     {c.clientLabel}
                   </span>
                   <span
                     className={`font-mono tabular-nums font-semibold ${
                       c.balanceCents < 0
                         ? 'text-rose-700 dark:text-rose-300'
-                        : 'text-forest-900 dark:text-cream-100'
+                        : 'text-foreground'
                     }`}
                   >
                     {fmtCents(c.balanceCents)}
@@ -259,7 +259,7 @@ export default async function CounselTrustPage({
                 </li>
               ))}
           </ul>
-          <p className="text-[11px] text-ink-500 dark:text-cream-100/55 leading-relaxed">
+          <p className="text-[11px] text-muted leading-relaxed">
             <T>
               Negative balances mean the firm has disbursed more than was on
               deposit for that client. This must NEVER happen on an IOLTA
@@ -283,12 +283,12 @@ export default async function CounselTrustPage({
 
       {pastReconciliations.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-lg font-medium text-forest-900 dark:text-cream-100">
+          <h2 className="text-lg font-medium text-foreground">
             <T>Reconciliation history</T>
           </h2>
           <div className="card overflow-x-auto">
             <table className="w-full min-w-[520px] text-[13px]">
-              <thead className="bg-cream-50 dark:bg-forest-900/60 text-ink-700 dark:text-cream-100/85 text-left">
+              <thead className="bg-surface-2 text-foreground text-left">
                 <tr>
                   <th className="font-semibold px-4 py-2.5"><T>Statement date</T></th>
                   <th className="font-semibold px-4 py-2.5 text-right"><T>Bank</T></th>
@@ -297,10 +297,10 @@ export default async function CounselTrustPage({
                   <th className="font-semibold px-4 py-2.5"><T>Status</T></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-ink-100 dark:divide-forest-700/40">
+              <tbody className="divide-y divide-edge">
                 {pastReconciliations.map((r) => (
                   <tr key={r.id}>
-                    <td className="px-4 py-2.5 text-forest-900 dark:text-cream-100">
+                    <td className="px-4 py-2.5 text-foreground">
                       {new Date(r.statementDate).toLocaleDateString()}
                     </td>
                     <td className="px-4 py-2.5 text-right font-mono tabular-nums">
@@ -312,7 +312,7 @@ export default async function CounselTrustPage({
                     <td
                       className={`px-4 py-2.5 text-right font-mono tabular-nums ${
                         r.differenceCents === 0
-                          ? 'text-ink-500 dark:text-cream-100/55'
+                          ? 'text-muted'
                           : 'text-amber-700 dark:text-amber-300'
                       }`}
                     >
@@ -340,11 +340,11 @@ export default async function CounselTrustPage({
 
       {/* Transactions ledger */}
       <section className="space-y-3">
-        <h2 className="text-lg font-medium text-forest-900 dark:text-cream-100">
+        <h2 className="text-lg font-medium text-foreground">
           <T>Ledger</T>
         </h2>
         {transactions.length === 0 ? (
-          <p className="card p-5 text-[13px] text-ink-500 dark:text-cream-100/55 italic">
+          <p className="card p-5 text-[13px] text-muted italic">
             <T>No transactions yet.</T>
           </p>
         ) : (
@@ -358,7 +358,7 @@ export default async function CounselTrustPage({
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-semibold text-forest-900 dark:text-cream-100 truncate">
+                      <p className="font-semibold text-foreground truncate">
                         {t.clientLabel}
                       </p>
                       <StatusPill
@@ -369,11 +369,11 @@ export default async function CounselTrustPage({
                       </StatusPill>
                     </div>
                     {t.description && (
-                      <p className="text-[12.5px] text-ink-600 dark:text-cream-100/70 mt-0.5 truncate">
+                      <p className="text-[12.5px] text-muted mt-0.5 truncate">
                         {t.description}
                       </p>
                     )}
-                    <p className="text-[10.5px] text-ink-500 dark:text-cream-100/70 mt-0.5 font-mono tabular-nums">
+                    <p className="text-[10.5px] text-muted mt-0.5 font-mono tabular-nums">
                       {new Date(t.createdAt).toLocaleString()}
                       {t.reference && ` · ref ${t.reference}`}
                     </p>
@@ -416,7 +416,7 @@ function Stat({
         ? 'text-emerald-700 dark:text-emerald-300'
         : tone === 'rose'
           ? 'text-rose-700 dark:text-rose-300'
-          : 'text-forest-900 dark:text-cream-100';
+          : 'text-foreground';
   return (
     <div className="card p-5">
       <p className="eyebrow text-[10.5px] mb-2"><T>{label}</T></p>
@@ -424,7 +424,7 @@ function Stat({
         {value}
       </p>
       {sub && (
-        <p className="text-[11px] text-ink-500 dark:text-cream-100/55 mt-1.5">
+        <p className="text-[11px] text-muted mt-1.5">
           {sub}
         </p>
       )}

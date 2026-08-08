@@ -210,15 +210,15 @@ function Kpi({
           : tone === 'rose'
             ? 'text-rose-700 dark:text-rose-300'
             : tone === 'ink'
-              ? 'text-ink-700 dark:text-cream-100/80'
-              : 'text-forest-800 dark:text-gold-300';
+              ? 'text-foreground'
+              : 'text-accent-text';
   const body = (
     <div className="card p-4 h-full">
-      <p className="text-[10.5px] uppercase tracking-[0.14em] text-ink-500 dark:text-cream-100/55">
+      <p className="text-[10.5px] uppercase tracking-[0.14em] text-muted">
         <T>{l}</T>
       </p>
       <p className={`mt-1 text-2xl sm:text-[28px] leading-none ${accent}`}>{value}</p>
-      <p className="mt-1.5 text-[11.5px] text-ink-500 dark:text-cream-100/55">{sub}</p>
+      <p className="mt-1.5 text-[11.5px] text-muted">{sub}</p>
     </div>
   );
   return href ? (
@@ -233,7 +233,7 @@ function Kpi({
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="card p-4 sm:p-5">
-      <h2 className="text-[11px] uppercase tracking-[0.16em] font-semibold text-ink-500 dark:text-cream-100/55 mb-4">
+      <h2 className="text-[11px] uppercase tracking-[0.16em] font-semibold text-muted mb-4">
         <T>{title}</T>
       </h2>
       {children}
@@ -243,7 +243,7 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
 
 function EmptyNote() {
   return (
-    <p className="text-[12.5px] text-ink-400 dark:text-cream-100/40 italic py-6">
+    <p className="text-[12.5px] text-muted italic py-6">
       <T>Nothing yet. This fills in as you use Advottic.</T>
     </p>
   );
@@ -255,7 +255,7 @@ function MonthlyBars({ points }: { points: MonthPoint[] }) {
     <div className="flex items-end gap-2 h-40">
       {points.map((p, i) => (
         <div key={i} className="flex-1 flex flex-col items-center gap-1.5 min-w-0">
-          <span className="text-[11px] font-mono tabular-nums text-ink-600 dark:text-cream-100/70">
+          <span className="text-[11px] font-mono tabular-nums text-muted">
             {p.count}
           </span>
           <div className="w-full flex items-end h-28">
@@ -264,7 +264,7 @@ function MonthlyBars({ points }: { points: MonthPoint[] }) {
               style={{ height: `${Math.max(4, (p.count / max) * 100)}%` }}
             />
           </div>
-          <span className="text-[10.5px] text-ink-500 dark:text-cream-100/55">{p.label}</span>
+          <span className="text-[10.5px] text-muted">{p.label}</span>
         </div>
       ))}
     </div>
@@ -280,8 +280,8 @@ function StatusBars({ data, total }: { data: StatusCount[]; total: number }) {
         return (
           <li key={d.status}>
             <div className="flex items-center justify-between text-[12.5px] mb-1">
-              <span className="text-forest-900 dark:text-cream-100">{label(d.status)}</span>
-              <span className="text-ink-500 dark:text-cream-100/55 font-mono tabular-nums">
+              <span className="text-foreground">{label(d.status)}</span>
+              <span className="text-muted font-mono tabular-nums">
                 {d.count} · {pct}%
               </span>
             </div>
@@ -302,8 +302,8 @@ function BucketBars({ data, total }: { data: Bucket[]; total: number }) {
         return (
           <li key={d.key}>
             <div className="flex items-center justify-between text-[12.5px] mb-1">
-              <span className="text-forest-900 dark:text-cream-100" data-no-translate>{d.label}</span>
-              <span className="text-ink-500 dark:text-cream-100/55 font-mono tabular-nums">
+              <span className="text-foreground" data-no-translate>{d.label}</span>
+              <span className="text-muted font-mono tabular-nums">
                 {d.count} · {pct}%
               </span>
             </div>
@@ -317,7 +317,7 @@ function BucketBars({ data, total }: { data: Bucket[]; total: number }) {
 
 function Track({ pct, tone }: { pct: number; tone: string }) {
   return (
-    <div className="h-2 rounded-full bg-ink-100 dark:bg-forest-800/60 overflow-hidden">
+    <div className="h-2 rounded-full bg-surface-2 overflow-hidden">
       <div
         className={`h-full rounded-full ${tone}`}
         style={{ width: `${Math.max(3, pct)}%` }}
@@ -330,13 +330,13 @@ function RelevanceSplit({ ev }: { ev: FirmImpact['evidence'] }) {
   if (ev.scored === 0) {
     return (
       <div className="space-y-3">
-        <p className="text-[12.5px] text-ink-600 dark:text-cream-100/70">
+        <p className="text-[12.5px] text-muted">
           <T>Evidence items logged</T>:{' '}
-          <span className="font-mono tabular-nums text-forest-900 dark:text-cream-100">
+          <span className="font-mono tabular-nums text-foreground">
             {ev.total}
           </span>
         </p>
-        <p className="text-[12px] text-ink-400 dark:text-cream-100/40 italic">
+        <p className="text-[12px] text-muted italic">
           <T>
             None scored for relevance yet. Run Advottic Review on a matter
             to see how its evidence maps to the case.
@@ -353,21 +353,21 @@ function RelevanceSplit({ ev }: { ev: FirmImpact['evidence'] }) {
   return (
     <div className="space-y-4">
       <div className="flex items-end justify-between">
-        <p className="text-[12.5px] text-ink-600 dark:text-cream-100/70">
-          <span className="font-mono tabular-nums text-forest-900 dark:text-cream-100 text-lg">
+        <p className="text-[12.5px] text-muted">
+          <span className="font-mono tabular-nums text-foreground text-lg">
             {ev.scored}
           </span>{' '}
           <T>of</T> {ev.total} <T>items scored</T>
         </p>
         {ev.avgScore !== null && (
-          <p className="text-[12px] text-ink-500 dark:text-cream-100/55">
+          <p className="text-[12px] text-muted">
             <T>Avg</T>{' '}
             <span className="font-mono tabular-nums">{ev.avgScore.toFixed(0)}</span>/100
           </p>
         )}
       </div>
       {/* Segmented bar */}
-      <div className="flex h-3 rounded-full overflow-hidden bg-ink-100 dark:bg-forest-800/60">
+      <div className="flex h-3 rounded-full overflow-hidden bg-surface-2">
         {segs.map((s) =>
           s.count > 0 ? (
             <div
@@ -382,11 +382,11 @@ function RelevanceSplit({ ev }: { ev: FirmImpact['evidence'] }) {
       <ul className="space-y-1.5">
         {segs.map((s) => (
           <li key={s.key} className="flex items-center justify-between text-[12.5px]">
-            <span className="flex items-center gap-2 text-forest-900 dark:text-cream-100">
+            <span className="flex items-center gap-2 text-foreground">
               <span className={`h-2.5 w-2.5 rounded-sm ${s.tone}`} aria-hidden />
               <SegLabel k={s.key} />
             </span>
-            <span className="text-ink-500 dark:text-cream-100/55 font-mono tabular-nums">
+            <span className="text-muted font-mono tabular-nums">
               {s.count}
             </span>
           </li>
@@ -431,19 +431,19 @@ function SchedulePanel({
             <li key={h.caseId}>
               <Link
                 href={`/counsel/cases/${h.caseId}`}
-                className="flex items-center justify-between gap-3 rounded-lg px-2.5 py-2 hover:bg-cream-50 dark:hover:bg-forest-800/50 transition-colors"
+                className="flex items-center justify-between gap-3 rounded-lg px-2.5 py-2 hover:bg-surface-2 transition-colors"
               >
                 <span className="min-w-0">
-                  <span className="block text-[13px] text-forest-900 dark:text-cream-100 truncate" data-no-translate>
+                  <span className="block text-[13px] text-foreground truncate" data-no-translate>
                     {h.title}
                   </span>
                   {h.location && (
-                    <span className="block text-[11px] text-ink-500 dark:text-cream-100/55 truncate" data-no-translate>
+                    <span className="block text-[11px] text-muted truncate" data-no-translate>
                       {h.location}
                     </span>
                   )}
                 </span>
-                <span className="text-[11.5px] text-ink-600 dark:text-cream-100/70 whitespace-nowrap" data-no-translate>
+                <span className="text-[11.5px] text-muted whitespace-nowrap" data-no-translate>
                   {new Date(h.at).toLocaleDateString('en-US', {
                     month: 'short',
                     day: 'numeric',
@@ -454,7 +454,7 @@ function SchedulePanel({
           ))}
         </ul>
       ) : (
-        <p className="text-[12.5px] text-ink-400 dark:text-cream-100/40 italic pt-1">
+        <p className="text-[12.5px] text-muted italic pt-1">
           <T>No hearings on the calendar. Add a hearing date to a matter to track it here.</T>
         </p>
       )}
@@ -475,12 +475,12 @@ function MiniStat({
     tone === 'rose'
       ? 'text-rose-700 dark:text-rose-300'
       : tone === 'ink'
-        ? 'text-ink-500 dark:text-cream-100/55'
-        : 'text-forest-800 dark:text-gold-300';
+        ? 'text-muted'
+        : 'text-accent-text';
   return (
     <div className="rounded-lg ring-1 ring-ink-100 dark:ring-forest-700/40 py-2.5">
       <p className={`text-2xl leading-none ${accent}`}>{value}</p>
-      <p className="text-[10px] uppercase tracking-[0.1em] text-ink-500 dark:text-cream-100/55 mt-1 px-1">
+      <p className="text-[10px] uppercase tracking-[0.1em] text-muted mt-1 px-1">
         <T>{l}</T>
       </p>
     </div>
@@ -490,12 +490,12 @@ function MiniStat({
 function MoneyStat({ label: l, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
     <div className="card p-4">
-      <p className="text-[10.5px] uppercase tracking-[0.14em] text-ink-500 dark:text-cream-100/55">
+      <p className="text-[10.5px] uppercase tracking-[0.14em] text-muted">
         <T>{l}</T>
       </p>
       <p
         className={`mt-1 font-mono tabular-nums text-xl font-semibold ${
-          accent ? 'text-amber-700 dark:text-amber-300' : 'text-forest-900 dark:text-cream-100'
+          accent ? 'text-amber-700 dark:text-amber-300' : 'text-foreground'
         }`}
       >
         {value}

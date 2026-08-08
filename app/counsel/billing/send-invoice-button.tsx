@@ -66,7 +66,7 @@ export function SendInvoiceButton({
             setNotice(null);
             router.refresh();
           }}
-          className="text-[11px] font-semibold underline text-ink-700 dark:text-cream-100/85"
+          className="text-[11px] font-semibold underline text-foreground"
         >
           <T>Dismiss</T>
         </button>
@@ -82,7 +82,7 @@ export function SendInvoiceButton({
           setError(null);
           setConfirming(true);
         }}
-        className="inline-flex items-center min-h-[40px] px-3 rounded-md text-[11px] font-semibold text-forest-900 dark:text-cream-100 ring-1 ring-ink-200 dark:ring-forest-700/40 hover:bg-ink-50 dark:hover:bg-forest-800/40"
+        className="inline-flex items-center min-h-[40px] px-3 rounded-md text-[11px] font-semibold text-foreground ring-1 ring-edge hover:bg-surface-2"
         title={t('Email this invoice to the client and mark it sent')}
       >
         <T>Send invoice</T>
@@ -93,7 +93,7 @@ export function SendInvoiceButton({
   return (
     <div className="flex flex-col items-end gap-1">
       <div className="flex items-center gap-1.5">
-        <span className="text-[11px] text-ink-600 dark:text-cream-100/70">
+        <span className="text-[11px] text-muted">
           <T>Email this invoice to</T>{' '}
           <span className="font-semibold">{clientEmail}</span>
         </span>
@@ -112,7 +112,7 @@ export function SendInvoiceButton({
             setError(null);
           }}
           disabled={pending}
-          className="inline-flex items-center min-h-[36px] px-2.5 rounded-md text-[11px] font-semibold text-ink-700 dark:text-cream-100/85 ring-1 ring-ink-200 dark:ring-forest-700/40 disabled:opacity-50"
+          className="inline-flex items-center min-h-[36px] px-2.5 rounded-md text-[11px] font-semibold text-foreground ring-1 ring-edge disabled:opacity-50"
         >
           <T>Cancel</T>
         </button>

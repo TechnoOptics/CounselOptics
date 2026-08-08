@@ -127,7 +127,7 @@ export function ReconcileForm({
     <section className="card p-5 space-y-4">
       <div>
         <p className="eyebrow"><T>Reconcile against your bank statement</T></p>
-        <p className="text-[13px] text-ink-600 dark:text-cream-100/70 mt-1 leading-relaxed max-w-2xl">
+        <p className="text-[13px] text-muted mt-1 leading-relaxed max-w-2xl">
           <T>Enter the statement&rsquo;s ending balance and check off the
           transactions that have cleared the bank. It reconciles when the
           cleared total equals the bank balance. Anything left unchecked is
@@ -137,7 +137,7 @@ export function ReconcileForm({
 
       <div className="grid sm:grid-cols-2 gap-3">
         <label className="block">
-          <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+          <span className="block text-sm font-medium text-foreground mb-1.5">
             <T>Bank statement ending balance</T>
           </span>
           <input
@@ -149,7 +149,7 @@ export function ReconcileForm({
           />
         </label>
         <label className="block">
-          <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+          <span className="block text-sm font-medium text-foreground mb-1.5">
             <T>Statement date</T>
           </span>
           <input
@@ -162,7 +162,7 @@ export function ReconcileForm({
       </div>
 
       {/* Live summary */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-px rounded-lg overflow-hidden ring-1 ring-ink-200 dark:ring-forest-700/40 bg-ink-200 dark:bg-forest-700/40">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-px rounded-lg overflow-hidden ring-1 ring-edge bg-ink-200 dark:bg-forest-700/40">
         <SummaryCell
           label={t('Bank balance')}
           value={
@@ -198,34 +198,34 @@ export function ReconcileForm({
 
       {/* Transaction checklist */}
       {unreconciled.length === 0 ? (
-        <p className="text-[13px] text-ink-500 dark:text-cream-100/55 italic">
+        <p className="text-[13px] text-muted italic">
           <T>Every recorded transaction is already reconciled. Enter the bank
           balance to confirm it still matches.</T>
         </p>
       ) : (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <p className="text-[11px] uppercase tracking-[0.16em] text-ink-500 dark:text-cream-100/55 font-semibold">
+            <p className="text-[11px] uppercase tracking-[0.16em] text-muted font-semibold">
               <T>Not yet cleared</T> ({unreconciled.length})
             </p>
             <div className="flex items-center gap-1.5 text-[12px]">
               <button
                 type="button"
                 onClick={selectAll}
-                className="inline-flex items-center min-h-[32px] px-2.5 rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 hover:bg-cream-50 dark:hover:bg-forest-800/30"
+                className="inline-flex items-center min-h-[32px] px-2.5 rounded-md ring-1 ring-edge hover:bg-surface-2"
               >
                 <T>Select all</T>
               </button>
               <button
                 type="button"
                 onClick={clearAll}
-                className="inline-flex items-center min-h-[32px] px-2.5 rounded-md ring-1 ring-ink-200 dark:ring-forest-700/40 hover:bg-cream-50 dark:hover:bg-forest-800/30"
+                className="inline-flex items-center min-h-[32px] px-2.5 rounded-md ring-1 ring-edge hover:bg-surface-2"
               >
                 <T>Clear</T>
               </button>
             </div>
           </div>
-          <ul className="divide-y divide-ink-100 dark:divide-forest-700/40 rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 overflow-hidden">
+          <ul className="divide-y divide-edge rounded-lg ring-1 ring-edge overflow-hidden">
             {unreconciled.map((e) => {
               const on = checked.has(e.id);
               return (
@@ -244,10 +244,10 @@ export function ReconcileForm({
                       className="h-4 w-4 flex-none accent-emerald-600"
                     />
                     <span className="min-w-0 flex-1">
-                      <span className="block text-[13px] text-forest-900 dark:text-cream-100 truncate">
+                      <span className="block text-[13px] text-foreground truncate">
                         {e.clientLabel}
                       </span>
-                      <span className="block text-[11px] text-ink-500 dark:text-cream-100/55">
+                      <span className="block text-[11px] text-muted">
                         {KIND_LABEL[e.kind] ?? e.kind}
                         {e.description ? ` · ${e.description}` : ''} ·{' '}
                         {new Date(e.createdAt).toLocaleDateString()}
@@ -257,7 +257,7 @@ export function ReconcileForm({
                       className={`shrink-0 font-mono tabular-nums text-[13px] ${
                         e.signedCents < 0
                           ? 'text-rose-700 dark:text-rose-300'
-                          : 'text-forest-900 dark:text-cream-100'
+                          : 'text-foreground'
                       }`}
                     >
                       {fmtCents(e.signedCents)}
@@ -271,7 +271,7 @@ export function ReconcileForm({
       )}
 
       <label className="block">
-        <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+        <span className="block text-sm font-medium text-foreground mb-1.5">
           <T>Note (optional)</T>
         </span>
         <input
@@ -289,7 +289,7 @@ export function ReconcileForm({
       )}
 
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[11.5px] text-ink-500 dark:text-cream-100/55">
+        <p className="text-[11.5px] text-muted">
           <T>Saving records this reconciliation and marks the checked items
           cleared. Cleared items can&rsquo;t be unmarked.</T>
         </p>
@@ -323,11 +323,11 @@ function SummaryCell({
       : tone === 'bad'
         ? 'text-amber-700 dark:text-amber-300'
         : muted
-          ? 'text-ink-600 dark:text-cream-100/60'
-          : 'text-forest-900 dark:text-cream-100';
+          ? 'text-muted'
+          : 'text-foreground';
   return (
     <div className="bg-cream-50/60 dark:bg-forest-900/50 px-3 py-2.5">
-      <p className="text-[10px] uppercase tracking-[0.14em] text-ink-500 dark:text-cream-100/55">
+      <p className="text-[10px] uppercase tracking-[0.14em] text-muted">
         {label}
       </p>
       <p className={`mt-0.5 font-mono tabular-nums text-[14px] font-semibold ${valueClass}`}>

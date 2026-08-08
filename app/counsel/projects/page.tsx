@@ -50,8 +50,8 @@ export default async function CounselProjectsPage({
   return (
     <div className="space-y-6 animate-fade-up">
       {caseId && (
-        <div className="card p-3 flex flex-wrap items-center justify-between gap-2 ring-1 ring-forest-900/10 dark:ring-cream-100/10 bg-cream-50/40 dark:bg-forest-800/30">
-          <p className="text-[13px] text-ink-700 dark:text-cream-100/85">
+        <div className="card p-3 flex flex-wrap items-center justify-between gap-2 ring-1 ring-forest-900/10 dark:ring-cream-100/10 bg-surface-2">
+          <p className="text-[13px] text-foreground">
             <T>Showing projects for</T>{' '}
             <strong>{caseTitle ?? 'this matter'}</strong>.{' '}
             <T>New projects here attach to it.</T>
@@ -95,15 +95,15 @@ export default async function CounselProjectsPage({
                     href={`/counsel/projects/${p.id}`}
                     className="block card p-4 h-full hover:shadow-card-hover transition-all"
                   >
-                    <p className="font-semibold text-forest-900 dark:text-cream-100 truncate">
+                    <p className="font-semibold text-foreground truncate">
                       {p.name}
                     </p>
                     {p.description && (
-                      <p className="text-[12.5px] text-ink-600 dark:text-cream-100/70 mt-1 line-clamp-2">
+                      <p className="text-[12.5px] text-muted mt-1 line-clamp-2">
                         {p.description}
                       </p>
                     )}
-                    <p className="text-[11px] text-ink-400 dark:text-cream-100/40 mt-2 font-mono">
+                    <p className="text-[11px] text-muted mt-2 font-mono">
                       <T>Updated</T> {new Date(p.updatedAt).toLocaleDateString()}
                     </p>
                   </Link>
@@ -114,7 +114,7 @@ export default async function CounselProjectsPage({
 
           {archived.length > 0 && (
             <section className="space-y-2">
-              <h2 className="text-[11px] uppercase tracking-[0.16em] font-semibold text-ink-500 dark:text-cream-100/55">
+              <h2 className="text-[11px] uppercase tracking-[0.16em] font-semibold text-muted">
                 <T>Archived</T> ({archived.length})
               </h2>
               <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -124,10 +124,10 @@ export default async function CounselProjectsPage({
                       href={`/counsel/projects/${p.id}`}
                       className="block card p-4 h-full opacity-70 hover:opacity-100 transition-opacity"
                     >
-                      <p className="font-semibold text-forest-900 dark:text-cream-100 truncate">
+                      <p className="font-semibold text-foreground truncate">
                         {p.name}
                       </p>
-                      <p className="text-[11px] text-ink-400 dark:text-cream-100/40 mt-2 font-mono">
+                      <p className="text-[11px] text-muted mt-2 font-mono">
                         <T>Archived</T>
                       </p>
                     </Link>

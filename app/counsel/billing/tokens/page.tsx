@@ -87,7 +87,7 @@ export default async function FirmTokenPoolPage() {
       <p className="text-sm">
         <Link
           href="/counsel/billing"
-          className="text-ink-500 hover:text-forest-900 dark:hover:text-cream-100"
+          className="text-muted hover:text-foreground"
         >
           <T>&larr; Billing</T>
         </Link>
@@ -132,7 +132,7 @@ export default async function FirmTokenPoolPage() {
 
       {memberRanking.some((m) => m.usage > 0) && (
         <section className="space-y-3">
-          <h2 className="text-lg font-medium text-forest-900 dark:text-cream-100">
+          <h2 className="text-lg font-medium text-foreground">
             <T>Top consumers (this period)</T>
           </h2>
           <ul className="space-y-1.5">
@@ -148,17 +148,17 @@ export default async function FirmTokenPoolPage() {
                   className="card p-3 flex items-center justify-between gap-3 text-[13px]"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-forest-900 dark:text-cream-100 truncate">
+                    <p className="font-semibold text-foreground truncate">
                       {m.display_name ?? m.user_id.slice(0, 8)}
                     </p>
-                    <div className="mt-1 h-1 rounded-full bg-ink-100 dark:bg-forest-800/60 overflow-hidden">
+                    <div className="mt-1 h-1 rounded-full bg-surface-2 overflow-hidden">
                       <span
                         className="block h-full bg-emerald-500"
                         style={{ width: `${pct}%` }}
                       />
                     </div>
                   </div>
-                  <span className="shrink-0 font-mono tabular-nums text-forest-900 dark:text-cream-100 font-semibold">
+                  <span className="shrink-0 font-mono tabular-nums text-foreground font-semibold">
                     {formatTokens(m.usage)}
                   </span>
                 </li>
@@ -169,11 +169,11 @@ export default async function FirmTokenPoolPage() {
       )}
 
       <section className="space-y-3">
-        <h2 className="text-lg font-medium text-forest-900 dark:text-cream-100">
+        <h2 className="text-lg font-medium text-foreground">
           <T>Recent ledger</T>
         </h2>
         {ledger.length === 0 ? (
-          <p className="card p-4 text-[13px] text-ink-500 dark:text-cream-100/55 italic">
+          <p className="card p-4 text-[13px] text-muted italic">
             <T>No firm-pool activity yet. Tokens consumed by users in firm
             context will land here.</T>
           </p>
@@ -185,10 +185,10 @@ export default async function FirmTokenPoolPage() {
                 className="card p-3 flex items-center justify-between gap-3 text-[13px]"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="font-mono text-[10.5px] uppercase tracking-wider text-ink-500 dark:text-cream-100/55">
+                  <p className="font-mono text-[10.5px] uppercase tracking-wider text-muted">
                     {r.reason.replace(/_/g, ' ')}
                   </p>
-                  <p className="text-ink-700 dark:text-cream-100/85 font-mono tabular-nums">
+                  <p className="text-foreground font-mono tabular-nums">
                     {new Date(r.occurred_at).toLocaleString()}
                   </p>
                 </div>
@@ -229,7 +229,7 @@ function Stat({
         ? 'text-emerald-700 dark:text-emerald-300'
         : tone === 'rose'
           ? 'text-rose-700 dark:text-rose-300'
-          : 'text-forest-900 dark:text-cream-100';
+          : 'text-foreground';
   return (
     <div className="card p-5">
       <p className="eyebrow text-[10.5px] mb-2"><T>{label}</T></p>
@@ -237,7 +237,7 @@ function Stat({
         {value}
       </p>
       {sub && (
-        <p className="text-[11px] text-ink-500 dark:text-cream-100/55 mt-1.5">
+        <p className="text-[11px] text-muted mt-1.5">
           {sub}
         </p>
       )}

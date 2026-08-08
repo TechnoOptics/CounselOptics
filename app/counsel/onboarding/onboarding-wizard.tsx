@@ -235,7 +235,7 @@ export function OnboardingWizard({
       {step === 1 && (
         <div className="space-y-4">
           <p className="eyebrow"><T>What kind of legal team are you?</T></p>
-          <p className="text-sm text-ink-600 dark:text-cream-100/70 leading-relaxed">
+          <p className="text-sm text-muted leading-relaxed">
             <T>Pick the option that fits best. The next steps adapt to it - we won&rsquo;t ask
             a corporate counsel team about firm size, or a public defender about industry.</T>
           </p>
@@ -251,10 +251,10 @@ export function OnboardingWizard({
                       : 'hover:border-gold-500/40'
                   }`}
                 >
-                  <p className="font-semibold text-forest-900 dark:text-cream-100 text-sm">
+                  <p className="font-semibold text-foreground text-sm">
                     {FIRM_TYPE_LABEL[ft]}
                   </p>
-                  <p className="text-[12px] text-ink-600 dark:text-cream-100/70 mt-1.5 leading-relaxed">
+                  <p className="text-[12px] text-muted mt-1.5 leading-relaxed">
                     {FIRM_TYPE_DESCRIPTION[ft]}
                   </p>
                 </button>
@@ -307,7 +307,7 @@ export function OnboardingWizard({
           <div>
             <label className="label" htmlFor="firm-slug">
               <T>URL slug</T>{' '}
-              <span className="text-ink-500 dark:text-cream-100/70 font-normal">
+              <span className="text-muted font-normal">
                 <T>(optional - we&rsquo;ll generate one from the name if blank)</T>
               </span>
             </label>
@@ -321,7 +321,7 @@ export function OnboardingWizard({
             />
           </div>
           {defaultEmail && (
-            <p className="text-[11px] text-ink-500 dark:text-cream-100/55">
+            <p className="text-[11px] text-muted">
               <T>You&rsquo;ll be added as the</T> <strong><T>owner</T></strong> <T>using</T> {defaultEmail}.
             </p>
           )}
@@ -349,9 +349,9 @@ export function OnboardingWizard({
             <>
               <div className="grid sm:grid-cols-2 gap-3">
                 <label className="block">
-                  <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+                  <span className="block text-sm font-medium text-foreground mb-1.5">
                     <T>Bar number</T>{' '}
-                    <span className="text-ink-500 dark:text-cream-100/70 font-normal">
+                    <span className="text-muted font-normal">
                       <T>(optional)</T>
                     </span>
                   </span>
@@ -364,9 +364,9 @@ export function OnboardingWizard({
                   />
                 </label>
                 <label className="block">
-                  <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+                  <span className="block text-sm font-medium text-foreground mb-1.5">
                     <T>Year admitted to practice</T>{' '}
-                    <span className="text-ink-500 dark:text-cream-100/70 font-normal">
+                    <span className="text-muted font-normal">
                       <T>(optional)</T>
                     </span>
                   </span>
@@ -387,7 +387,7 @@ export function OnboardingWizard({
           {firmType === 'firm' && (
             <>
               <div>
-                <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+                <span className="block text-sm font-medium text-foreground mb-1.5">
                   <T>Firm size</T>
                 </span>
                 <div className="grid grid-cols-4 gap-2">
@@ -398,8 +398,8 @@ export function OnboardingWizard({
                       onClick={() => setFirmSize(b)}
                       className={`rounded-lg p-2.5 text-sm font-medium border-2 transition-all ${
                         firmSize === b
-                          ? 'border-forest-900 dark:border-gold-500 ring-2 ring-forest-900/15 dark:ring-gold-500/30 bg-cream-50 dark:bg-forest-800/40'
-                          : 'border-ink-200 dark:border-forest-700/50 hover:border-forest-700 dark:hover:border-gold-500/50'
+                          ? 'border-forest-900 dark:border-gold-500 ring-2 ring-forest-900/15 dark:ring-gold-500/30 bg-surface-2'
+                          : 'border-edge hover:border-forest-700 dark:hover:border-gold-500/50'
                       }`}
                     >
                       {b}
@@ -408,9 +408,9 @@ export function OnboardingWizard({
                 </div>
               </div>
               <label className="block">
-                <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+                <span className="block text-sm font-medium text-foreground mb-1.5">
                   <T>Founded year</T>{' '}
-                  <span className="text-ink-500 dark:text-cream-100/70 font-normal">
+                  <span className="text-muted font-normal">
                     <T>(optional)</T>
                   </span>
                 </span>
@@ -430,7 +430,7 @@ export function OnboardingWizard({
           {firmType === 'corporate' && (
             <>
               <label className="block">
-                <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+                <span className="block text-sm font-medium text-foreground mb-1.5">
                   <T>Parent company</T>
                 </span>
                 <input
@@ -442,7 +442,7 @@ export function OnboardingWizard({
                 />
               </label>
               <label className="block">
-                <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+                <span className="block text-sm font-medium text-foreground mb-1.5">
                   <T>Industry</T>
                 </span>
                 <select
@@ -458,7 +458,7 @@ export function OnboardingWizard({
                   ))}
                 </select>
               </label>
-              <label className="flex items-start gap-3 text-sm text-ink-700 dark:text-cream-100/80">
+              <label className="flex items-start gap-3 text-sm text-foreground">
                 <input
                   type="checkbox"
                   checked={isGeneralCounsel}
@@ -476,7 +476,7 @@ export function OnboardingWizard({
                 setInput={setPracticeInput}
                 suggestions={CORPORATE_BUSINESS_AREAS}
               />
-              <p className="text-[11px] text-ink-500 dark:text-cream-100/55">
+              <p className="text-[11px] text-muted">
                 <T>In-house teams typically organize around business areas rather than
                 practice areas - we&rsquo;ll show those in the dashboard.</T>
               </p>
@@ -486,7 +486,7 @@ export function OnboardingWizard({
           {firmType === 'government' && (
             <>
               <label className="block">
-                <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+                <span className="block text-sm font-medium text-foreground mb-1.5">
                   <T>Agency type</T>
                 </span>
                 <select
@@ -503,7 +503,7 @@ export function OnboardingWizard({
                 </select>
               </label>
               <div>
-                <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+                <span className="block text-sm font-medium text-foreground mb-1.5">
                   <T>Government level</T>
                 </span>
                 <div className="grid grid-cols-4 gap-2">
@@ -514,8 +514,8 @@ export function OnboardingWizard({
                       onClick={() => setGovernmentLevel(lvl)}
                       className={`rounded-lg p-2.5 text-sm font-medium capitalize border-2 transition-all ${
                         governmentLevel === lvl
-                          ? 'border-forest-900 dark:border-gold-500 ring-2 ring-forest-900/15 dark:ring-gold-500/30 bg-cream-50 dark:bg-forest-800/40'
-                          : 'border-ink-200 dark:border-forest-700/50 hover:border-forest-700 dark:hover:border-gold-500/50'
+                          ? 'border-forest-900 dark:border-gold-500 ring-2 ring-forest-900/15 dark:ring-gold-500/30 bg-surface-2'
+                          : 'border-edge hover:border-forest-700 dark:hover:border-gold-500/50'
                       }`}
                     >
                       {lvl}
@@ -529,9 +529,9 @@ export function OnboardingWizard({
           {firmType === 'legal_aid' && (
             <>
               <label className="block">
-                <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+                <span className="block text-sm font-medium text-foreground mb-1.5">
                   <T>Population served</T>{' '}
-                  <span className="text-ink-500 dark:text-cream-100/70 font-normal">
+                  <span className="text-muted font-normal">
                     <T>(optional)</T>
                   </span>
                 </span>
@@ -544,9 +544,9 @@ export function OnboardingWizard({
                 />
               </label>
               <label className="block">
-                <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+                <span className="block text-sm font-medium text-foreground mb-1.5">
                   <T>Funding source</T>{' '}
-                  <span className="text-ink-500 dark:text-cream-100/70 font-normal">
+                  <span className="text-muted font-normal">
                     <T>(optional)</T>
                   </span>
                 </span>
@@ -563,7 +563,7 @@ export function OnboardingWizard({
 
           {firmType === 'other' && (
             <label className="block">
-              <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+              <span className="block text-sm font-medium text-foreground mb-1.5">
                 <T>Tell us about your organization</T>
               </span>
               <textarea
@@ -593,7 +593,7 @@ export function OnboardingWizard({
           <p className="eyebrow"><T>Brand</T></p>
           <div>
             <label className="label"><T>Accent color</T></label>
-            <p className="text-[11px] text-ink-500 dark:text-cream-100/55 mb-3">
+            <p className="text-[11px] text-muted mb-3">
               <T>Highlights buttons, sidebar icons, and the firm logo placeholder.</T>
             </p>
             <div className="grid grid-cols-4 gap-2">
@@ -605,19 +605,19 @@ export function OnboardingWizard({
                   className={`rounded-lg p-2 text-center text-xs font-medium border-2 transition-all ${
                     accent === c.hex
                       ? 'border-forest-900 dark:border-gold-500 ring-2 ring-forest-900/20 dark:ring-gold-500/30'
-                      : 'border-ink-200 dark:border-forest-700/50 hover:border-forest-700 dark:hover:border-gold-500/50'
+                      : 'border-edge hover:border-forest-700 dark:hover:border-gold-500/50'
                   }`}
                 >
                   <span
                     className="block h-8 w-full rounded mb-1.5 shadow-sm"
                     style={{ backgroundColor: c.hex }}
                   />
-                  <span className="text-ink-700 dark:text-cream-100/85"><T>{c.name}</T></span>
+                  <span className="text-foreground"><T>{c.name}</T></span>
                 </button>
               ))}
             </div>
             <div className="mt-3 flex items-center gap-2">
-              <label htmlFor="custom-accent" className="text-xs text-ink-600 dark:text-cream-100/70">
+              <label htmlFor="custom-accent" className="text-xs text-muted">
                 <T>Custom hex:</T>
               </label>
               <input
@@ -629,7 +629,7 @@ export function OnboardingWizard({
                 maxLength={7}
               />
               <span
-                className="h-8 w-8 rounded ring-1 ring-ink-200 dark:ring-forest-700/60 flex-none"
+                className="h-8 w-8 rounded ring-1 ring-edge flex-none"
                 style={{ backgroundColor: /^#[0-9a-fA-F]{6}$/.test(accent) ? accent : '#cccccc' }}
                 aria-hidden
               />
@@ -638,7 +638,7 @@ export function OnboardingWizard({
           <div>
             <label className="label" htmlFor="logo-url">
               <T>Logo URL</T>{' '}
-              <span className="text-ink-500 dark:text-cream-100/70 font-normal">
+              <span className="text-muted font-normal">
                 <T>(optional - upload comes in firm settings)</T>
               </span>
             </label>
@@ -928,13 +928,13 @@ function Chips({
         {value.map((chip) => (
           <span
             key={chip}
-            className="inline-flex items-center gap-1.5 rounded-full bg-cream-50 dark:bg-forest-800/60 ring-1 ring-ink-200 dark:ring-forest-700/60 px-3 py-1 text-sm text-ink-800 dark:text-cream-100/85"
+            className="inline-flex items-center gap-1.5 rounded-full bg-surface-2 ring-1 ring-edge px-3 py-1 text-sm text-foreground"
           >
             {chip}
             <button
               type="button"
               onClick={() => onChange(value.filter((v) => v !== chip))}
-              className="text-ink-400 dark:text-cream-100/55 hover:text-rose-700 dark:hover:text-rose-300"
+              className="text-muted hover:text-rose-700 dark:hover:text-rose-300"
               aria-label={`Remove ${chip}`}
             >
               ×
@@ -969,7 +969,7 @@ function Chips({
               key={s}
               type="button"
               onClick={() => add(s)}
-              className="text-[11px] px-2 py-0.5 rounded-full bg-ink-100 dark:bg-forest-800/50 text-ink-600 dark:text-cream-100/70 hover:bg-cream-50 dark:hover:bg-forest-700/60 hover:text-forest-900 dark:hover:text-cream-100 transition-colors"
+              className="text-[11px] px-2 py-0.5 rounded-full bg-surface-2 text-muted hover:text-foreground transition-colors"
             >
               + <T>{s}</T>
             </button>

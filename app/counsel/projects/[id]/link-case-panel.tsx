@@ -84,11 +84,11 @@ export function LinkCasePanel({
   return (
     <section className="card p-4 space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="text-lg font-medium text-forest-900 dark:text-cream-100">
+        <h2 className="text-lg font-medium text-foreground">
           <T>Link to a case</T>
         </h2>
         {linkedCase && (
-          <span className="text-[11px] uppercase tracking-[0.1em] text-ink-400 dark:text-cream-100/40">
+          <span className="text-[11px] uppercase tracking-[0.1em] text-muted">
             <T>Linked</T>
           </span>
         )}
@@ -100,25 +100,25 @@ export function LinkCasePanel({
         </p>
       )}
       {notice && (
-        <p className="rounded-lg border border-forest-200 dark:border-forest-700/40 bg-forest-50 dark:bg-forest-900/30 px-3 py-2 text-[13px] text-forest-800 dark:text-cream-100/80">
+        <p className="rounded-lg border border-edge-bright bg-surface-2 px-3 py-2 text-[13px] text-foreground">
           {notice}
         </p>
       )}
 
       {linkedCase ? (
         <div className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg ring-1 ring-ink-200 dark:ring-forest-700/40 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg ring-1 ring-edge p-3">
             <div className="min-w-0">
-              <p className="text-[12px] text-ink-500 dark:text-cream-100/55">
+              <p className="text-[12px] text-muted">
                 <T>This project belongs to</T>
               </p>
               <Link
                 href={`/counsel/cases/${linkedCase.id}`}
-                className="text-[14px] font-medium text-forest-800 dark:text-cream-100 hover:underline break-words"
+                className="text-[14px] font-medium text-foreground hover:underline break-words"
               >
                 {linkedCase.title}
               </Link>
-              <span className="ml-2 text-[11px] text-ink-400 dark:text-cream-100/40">
+              <span className="ml-2 text-[11px] text-muted">
                 {linkedCase.status}
               </span>
             </div>
@@ -126,7 +126,7 @@ export function LinkCasePanel({
               type="button"
               disabled={pending}
               onClick={() => run(() => unlinkProjectFromCaseAction(firmId, projectId))}
-              className="inline-flex items-center min-h-[36px] px-3 rounded-md text-[12px] text-ink-600 dark:text-cream-100/70 ring-1 ring-ink-200 dark:ring-forest-700/40 hover:bg-cream-50 dark:hover:bg-forest-800/30 disabled:opacity-50"
+              className="inline-flex items-center min-h-[36px] px-3 rounded-md text-[12px] text-muted ring-1 ring-edge hover:bg-surface-2 disabled:opacity-50"
             >
               <T>Unlink</T>
             </button>
@@ -144,14 +144,14 @@ export function LinkCasePanel({
                 ? t('Pulling in…')
                 : t('Pull {n} file(s) into case').replace('{n}', String(docCount))}
             </button>
-            <p className="text-[12px] text-ink-500 dark:text-cream-100/55">
+            <p className="text-[12px] text-muted">
               <T>Copies the project's documents into the case evidence timeline for analysis.</T>
             </p>
           </div>
         </div>
       ) : (
         <div className="space-y-4">
-          <p className="text-[13px] text-ink-600 dark:text-cream-100/70">
+          <p className="text-[13px] text-muted">
             <T>
               Attach this binder to the matter it is for, then pull its documents into the case
               evidence timeline.
@@ -160,7 +160,7 @@ export function LinkCasePanel({
 
           <div className="flex flex-wrap items-end gap-2">
             <label className="flex-1 min-w-[200px]">
-              <span className="block text-[12px] text-ink-500 dark:text-cream-100/55 mb-1">
+              <span className="block text-[12px] text-muted mb-1">
                 <T>Attach an existing matter</T>
               </span>
               <select
@@ -182,7 +182,7 @@ export function LinkCasePanel({
               onClick={() =>
                 run(() => associateProjectWithCaseAction(firmId, projectId, pickCaseId))
               }
-              className="inline-flex items-center min-h-[40px] px-3 rounded-md text-[13px] ring-1 ring-ink-200 dark:ring-forest-700/40 hover:bg-cream-50 dark:hover:bg-forest-800/30 disabled:opacity-50"
+              className="inline-flex items-center min-h-[40px] px-3 rounded-md text-[13px] ring-1 ring-edge hover:bg-surface-2 disabled:opacity-50"
             >
               <T>Link</T>
             </button>
@@ -190,7 +190,7 @@ export function LinkCasePanel({
 
           <div className="flex items-center gap-3">
             <span className="h-px flex-1 bg-ink-200 dark:bg-forest-700/40" />
-            <span className="text-[11px] uppercase tracking-[0.1em] text-ink-400 dark:text-cream-100/40">
+            <span className="text-[11px] uppercase tracking-[0.1em] text-muted">
               <T>or</T>
             </span>
             <span className="h-px flex-1 bg-ink-200 dark:bg-forest-700/40" />

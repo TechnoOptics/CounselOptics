@@ -53,7 +53,7 @@ export function CreateAccountForm({ firmId }: { firmId: string }) {
       <p className="eyebrow"><T>Add your first trust account</T></p>
       <div className="grid sm:grid-cols-2 gap-3">
         <label className="block">
-          <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+          <span className="block text-sm font-medium text-foreground mb-1.5">
             <T>Account label</T>
           </span>
           <input
@@ -64,13 +64,13 @@ export function CreateAccountForm({ firmId }: { firmId: string }) {
           />
         </label>
         <label className="block">
-          <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+          <span className="block text-sm font-medium text-foreground mb-1.5">
             <T>Bank</T>
           </span>
           <input name="bank" placeholder={t('Bank name')} className="input" />
         </label>
         <label className="block">
-          <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+          <span className="block text-sm font-medium text-foreground mb-1.5">
             <T>Last 4 of account number</T>
           </span>
           <input
@@ -83,7 +83,7 @@ export function CreateAccountForm({ firmId }: { firmId: string }) {
           />
         </label>
         <label className="block">
-          <span className="block text-sm font-medium text-forest-900 dark:text-cream-100 mb-1.5">
+          <span className="block text-sm font-medium text-foreground mb-1.5">
             <T>State</T>
           </span>
           <select name="state" className="input" required defaultValue="">
