@@ -226,6 +226,34 @@ export function SignatureCapture({
     }
   }
 
+  /**
+   * A fourth way to make the mark, and the only one a signer can start
+   * on the first screen.
+   *
+   * One element, built once and placed on both steps, rather than a
+   * pre-consent copy beside a live one. Two call sites of the same
+   * component with the same props cannot show the signer two different
+   * things, and cannot drift into doing so later.
+   *
+   * The consent below is the same capture the desktop submit sends, so
+   * a signature finished on the phone carries the same evidence as one
+   * finished on this page. On the disclosure step it is still empty,
+   * which is what keeps the card an offer there and not a code: the
+   * component and the server both refuse to mint without it.
+   */
+  const mobileHandoff = (
+    <MobileHandoff
+      signerToken={token}
+      consent={{
+        electronicRecordsConsentedAt: erdConsentedAt,
+        hardwareSoftwareConfirmedAt: erdConsentedAt,
+        documentPresented: docPresentedAtReview,
+        documentReviewedAt: docReviewedAt,
+      }}
+      onSigned={() => setStep('done')}
+    />
+  );
+
   if (step === 'done') {
     return (
       <section ref={cardRef} className="card p-8 text-center scroll-mt-20">
@@ -370,6 +398,13 @@ export function SignatureCapture({
           </p>
         )}
 
+        {/* Offered here so the signer knows the phone route exists
+            before they commit to the laptop, and disabled here for the
+            same reason the notice above stops the ceremony: when the
+            document never opened there is nothing to sign on any
+            device. */}
+        {documentPresented && mobileHandoff}
+
         {error && (
           <p className="rounded-lg border border-rose-200 dark:border-rose-700/40 bg-rose-50 dark:bg-rose-950/30 px-3 py-2 text-sm text-rose-800 dark:text-rose-200">
             {error}
@@ -411,23 +446,9 @@ export function SignatureCapture({
         onError={setError}
       />
 
-      {/* A fourth way to make the mark, offered only here. The
-          disclosure step must not show it: a code minted there would
-          hand a phone a session the signer had not yet consented to,
-          which is the whole difference between a handoff and a second
-          front door. The consent below is the same capture the desktop
-          submit sends, so a signature finished on the phone carries the
-          same evidence as one finished on this page. */}
-      <MobileHandoff
-        signerToken={token}
-        consent={{
-          electronicRecordsConsentedAt: erdConsentedAt,
-          hardwareSoftwareConfirmedAt: erdConsentedAt,
-          documentPresented: docPresentedAtReview,
-          documentReviewedAt: docReviewedAt,
-        }}
-        onSigned={() => setStep('done')}
-      />
+      {/* The same element the disclosure step showed, now holding a
+          consent and therefore able to mint. */}
+      {mobileHandoff}
 
       <label className="flex items-start gap-3 text-[13px] text-ink-700 dark:text-cream-100/80">
         <input

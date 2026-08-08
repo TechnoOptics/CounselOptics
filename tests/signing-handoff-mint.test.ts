@@ -417,14 +417,20 @@ describe('the laptop wiring', () => {
     expect(src).not.toMatch(/signatureId: string/);
   });
 
-  it('offers the code at the capture step and not at the disclosure', () => {
+  it('offers the option on both steps from a single mount', () => {
+    // This used to assert the opposite: that the card appeared only at
+    // capture. It was changed because the option was then looked for
+    // twice on the first screen and not found, and an option nobody can
+    // find is an option nobody has. What did NOT change is where the
+    // MINT is allowed to happen, which tests/signing-handoff-preconsent
+    // holds by executing the mint against the disclosure step's own
+    // empty consent.
     const src = read(CAPTURE);
-    // The single mount sits after the pad, inside the block that
-    // returns the capture card. The disclosure step returns earlier,
-    // so a mount in it would have to appear before that return.
     const mount = src.indexOf('<MobileHandoff');
     const disclosureReturn = src.indexOf("if (step === 'disclosure')");
-    expect(mount).toBeGreaterThan(disclosureReturn);
+    // Built above both step returns, so one element serves both rather
+    // than a pre-consent copy drifting from a live one.
+    expect(mount).toBeLessThan(disclosureReturn);
     expect(src.split('<MobileHandoff')).toHaveLength(2);
   });
 

@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { handoffCodeAvailable } from '@/lib/signing-handoff-consent';
 import {
   mintSigningHandoffAction,
   signingCompletedAction,
@@ -10,18 +11,25 @@ import {
  * Sign on your phone, from the laptop that started the ceremony.
  *
  * An additional option beside draw, type and upload, never a
- * replacement for them. The pad is a few pixels above this on the same
- * card, so a signer whose camera will not focus, whose phone is in
- * another room, or whose code expires has somewhere to go without
+ * replacement for them. The pad is a few pixels above this on the
+ * capture card, so a signer whose camera will not focus, whose phone is
+ * in another room, or whose code expires has somewhere to go without
  * asking anyone for anything.
  *
- * This only ever renders at the capture step. By then the signer has
- * cleared the access-code gate and consented to the electronic-records
- * disclosure on this laptop, which is what makes the code a handoff of
- * an already verified session rather than a second front door into one.
- * The server enforces that ordering again in
- * lib/signing-handoff-mint.ts rather than trusting this component's
- * placement, because the action behind it is a public endpoint.
+ * This renders on both steps, and mints on neither until there is a
+ * consent to carry. The disclosure step gets the same card with the
+ * button disabled, because an option nobody can find is an option
+ * nobody has: this was looked for twice on the first screen and not
+ * found there. What must not move earlier is the MINT. A code minted
+ * before the disclosure is affirmed would hand a phone a session the
+ * signer had not consented to, which is the whole difference between a
+ * handoff and a second front door.
+ *
+ * Both the disabled state and the guard inside showCode ask
+ * handoffCodeAvailable, which is the mint's own consent check rather
+ * than a second rule that reads like it. lib/signing-handoff-mint.ts
+ * asks it again on the server, because the action behind this button is
+ * a public endpoint and this component's state proves nothing to it.
  *
  * The QR itself is minted on our server and arrives as inline SVG. The
  * durable /sign/[token] credential is never in it: an internal signer
@@ -47,7 +55,8 @@ export function MobileHandoff({
   signerToken: string;
   /** The disclosure affirmed on this laptop, carried onto the handoff
    *  so a signature finished on the phone is recorded as completely as
-   *  one finished here. */
+   *  one finished here. Empty on the disclosure step, which is exactly
+   *  what holds the code back there: there is nothing yet to carry. */
   consent: {
     electronicRecordsConsentedAt: string | null;
     hardwareSoftwareConfirmedAt: string | null;
@@ -68,6 +77,11 @@ export function MobileHandoff({
   onSignedRef.current = onSigned;
 
   const showCode = useCallback(async () => {
+    // Nothing is minted, and no server action is called, until there is
+    // a disclosure to carry. The disabled button below says so; this
+    // says it again, so the property survives someone re-enabling the
+    // button for a reason that seemed good at the time.
+    if (!handoffCodeAvailable(consentRef.current)) return;
     setPhase({ kind: 'minting' });
     try {
       const result = await mintSigningHandoffAction(
@@ -97,6 +111,11 @@ export function MobileHandoff({
   }, [signerToken]);
 
   const showing = phase.kind === 'showing';
+  // Whether pressing the button would reach the mint at all. The
+  // disclosure step holds an empty consent, so this is false there and
+  // true from the moment the signer continues.
+  const available = handoffCodeAvailable(consent);
+  const messageId = useId();
 
   // While a code is on screen, watch for the phone finishing. Polled
   // rather than pushed: see signingCompletedAction for why a realtime
@@ -158,20 +177,31 @@ export function MobileHandoff({
         </div>
       ) : (
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-[13px] text-ink-700 dark:text-cream-100/80 leading-relaxed">
+          <div className="flex items-start gap-2.5 min-w-0 flex-1">
+            <QrMark />
+            <p
+              id={messageId}
+              className="text-[13px] text-ink-700 dark:text-cream-100/80 leading-relaxed"
+            >
               {phase.kind === 'expired'
                 ? 'That code has expired. You can show a new one, or sign on this page.'
                 : phase.kind === 'unavailable'
                   ? phase.message
-                  : 'Prefer to sign with your finger? Use your phone.'}
+                  : available
+                    ? 'Prefer to sign with your finger? Use your phone.'
+                    : // True before consent and after it. It offers the
+                      // ask rather than the outcome, because the mint
+                      // can still refuse on the next step and the
+                      // signer should not have been promised otherwise.
+                      'You can finish this on your phone. Agree to the disclosure above and continue, then ask for a code to scan on step 2.'}
             </p>
           </div>
           <button
             type="button"
             onClick={showCode}
-            disabled={phase.kind === 'minting'}
-            className="btn-ghost text-sm ring-1 ring-ink-200 dark:ring-forest-700/60"
+            disabled={phase.kind === 'minting' || !available}
+            aria-describedby={messageId}
+            className="btn-ghost text-sm ring-1 ring-ink-200 dark:ring-forest-700/60 disabled:opacity-55 disabled:cursor-not-allowed"
           >
             {phase.kind === 'minting'
               ? 'Preparing a code...'
@@ -182,5 +212,35 @@ export function MobileHandoff({
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * The option, drawn as the thing it is.
+ *
+ * A sentence and a ghost button read as a footnote on a card that
+ * already has a pad on it, which is how this option got looked past
+ * twice. Decorative, so it is hidden from the reading order: the
+ * sentence beside it already says everything.
+ */
+function QrMark() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      focusable="false"
+      className="w-5 h-5 shrink-0 mt-0.5 text-ink-400 dark:text-cream-100/45"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="3" y="3" width="7" height="7" rx="1.5" />
+      <rect x="14" y="3" width="7" height="7" rx="1.5" />
+      <rect x="3" y="14" width="7" height="7" rx="1.5" />
+      <path d="M14 14h3.5v3.5H14z" />
+      <path d="M21 14v3.5M17.5 21H21" />
+    </svg>
   );
 }
