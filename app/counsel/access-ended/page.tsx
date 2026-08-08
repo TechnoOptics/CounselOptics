@@ -121,7 +121,7 @@ export default async function CounselAccessEndedPage() {
               {active.firm.name}
             </p>
           ) : null}
-          <h1 className="font-display text-2xl font-medium text-cream-100">
+          <h1 className="text-2xl font-medium text-cream-100">
             <T>Your organization&rsquo;s access has ended</T>
           </h1>
           <p className="text-sm text-cream-100/75 leading-relaxed">

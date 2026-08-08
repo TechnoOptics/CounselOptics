@@ -22,7 +22,7 @@ export default async function GuestHomePage() {
 
   return (
     <div className="max-w-lg mx-auto mt-10 text-center">
-      <h1 className="font-display text-2xl text-cream-100">
+      <h1 className="text-2xl text-cream-100">
         <T>You&rsquo;re signed in</T>
       </h1>
       <p className="text-sm text-cream-100/70 mt-3">

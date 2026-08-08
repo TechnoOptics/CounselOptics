@@ -142,7 +142,7 @@ export function MatterInviteForm({
     <section className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="font-display text-lg font-medium text-forest-900 dark:text-cream-100">
+          <h2 className="text-lg font-medium text-forest-900 dark:text-cream-100">
             People on this matter
           </h2>
           <p className="text-[12px] text-ink-500 dark:text-cream-100/55 mt-0.5">

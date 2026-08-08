@@ -47,7 +47,7 @@ export default async function GuestProfilePage() {
   return (
     <div className="max-w-md mx-auto mt-6 space-y-6">
       <header>
-        <h1 className="font-display text-2xl text-cream-100">
+        <h1 className="text-2xl text-cream-100">
           <T>Profile settings</T>
         </h1>
         <p className="text-sm text-cream-100/70 mt-2">

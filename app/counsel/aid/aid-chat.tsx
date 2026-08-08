@@ -107,7 +107,7 @@ export function AidChat() {
               <SparkIcon />
             </span>
             <div>
-              <p className="font-display text-2xl text-forest-900 dark:text-cream-100">
+              <p className="text-2xl text-forest-900 dark:text-cream-100">
                 <T>Ask Advottic Aid</T>
               </p>
               <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1.5 max-w-md leading-relaxed">

@@ -23,7 +23,7 @@ export default function CounselRequestPage() {
           <p className="text-[10px] uppercase tracking-[0.32em] font-semibold text-gold-300">
             <T>Advottic Counsel</T>
           </p>
-          <h1 className="font-display text-3xl sm:text-5xl font-medium tracking-[-0.02em] leading-[1.05]">
+          <h1 className="text-3xl sm:text-5xl font-medium tracking-[-0.02em] leading-[1.05]">
             <T>Counsel is</T>{' '}
             <span className="bg-gold-shine bg-clip-text text-transparent gold-pan italic">
               <T>invitation only.</T>

@@ -130,7 +130,7 @@ export default async function ReferralDetailPage({
               <p className="eyebrow text-[10px] mb-2">
                 <T>Referring firm received</T>
               </p>
-              <p className="font-display text-2xl font-medium text-forest-900 dark:text-cream-100 tabular-nums">
+              <p className="text-2xl font-medium text-forest-900 dark:text-cream-100 tabular-nums">
                 {fmtCents(r.referring_paid_cents)}
               </p>
               {isReferring && (
@@ -144,7 +144,7 @@ export default async function ReferralDetailPage({
             </div>
             <div className="card p-5">
               <p className="eyebrow text-[10px] mb-2"><T>Referred firm received</T></p>
-              <p className="font-display text-2xl font-medium text-forest-900 dark:text-cream-100 tabular-nums">
+              <p className="text-2xl font-medium text-forest-900 dark:text-cream-100 tabular-nums">
                 {fmtCents(r.referred_paid_cents)}
               </p>
               {isReferred && (

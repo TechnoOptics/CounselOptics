@@ -26,7 +26,7 @@ export default async function MigratePage() {
         >
           <T>← Back to import</T>
         </Link>
-        <h1 className="font-display text-2xl sm:text-3xl text-forest-900 dark:text-cream-100 mt-2">
+        <h1 className="text-2xl sm:text-3xl text-forest-900 dark:text-cream-100 mt-2">
           <T>Migrate from another platform</T>
         </h1>
         <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 leading-relaxed max-w-2xl">

@@ -139,7 +139,7 @@ export function CalendarBoard({
           >
             ›
           </button>
-          <p className="font-display text-lg font-medium text-forest-900 dark:text-cream-100 ml-1 min-w-[9ch]">
+          <p className="text-lg font-medium text-forest-900 dark:text-cream-100 ml-1 min-w-[9ch]">
             {monthLabel}
           </p>
           <button

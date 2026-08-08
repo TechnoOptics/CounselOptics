@@ -62,7 +62,7 @@ export default async function ScimSettingsPage() {
         <section className="space-y-3">
           <div>
             <p className="eyebrow mb-1"><T>SAML single sign-on</T></p>
-            <h2 className="font-display text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
+            <h2 className="text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
               <T>Connect your identity provider</T>
             </h2>
             <p className="mt-1 max-w-2xl text-sm leading-relaxed text-ink-600 dark:text-cream-100/70">
@@ -84,7 +84,7 @@ export default async function ScimSettingsPage() {
       <section className="space-y-3 pt-2 border-t border-ink-200 dark:border-forest-700/40">
         <div>
           <p className="eyebrow mb-1"><T>SCIM provisioning</T></p>
-          <h2 className="font-display text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
+          <h2 className="text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
             <T>Automatic user provisioning</T>
           </h2>
         </div>

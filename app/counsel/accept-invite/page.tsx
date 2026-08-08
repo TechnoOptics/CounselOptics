@@ -27,7 +27,7 @@ export default async function CounselAcceptInvitePage({
   return (
     <div className="max-w-lg mx-auto card p-6 sm:p-8 space-y-4 animate-fade-up">
       <p className="eyebrow"><T>Counsel invitation</T></p>
-      <h1 className="font-display text-2xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
+      <h1 className="text-2xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
         <T>Accept your invitation</T>
       </h1>
       <p className="text-sm text-ink-600 dark:text-cream-100/70 leading-relaxed">

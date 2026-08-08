@@ -132,7 +132,7 @@ export default async function FirmTokenPoolPage() {
 
       {memberRanking.some((m) => m.usage > 0) && (
         <section className="space-y-3">
-          <h2 className="font-display text-lg font-medium text-forest-900 dark:text-cream-100">
+          <h2 className="text-lg font-medium text-forest-900 dark:text-cream-100">
             <T>Top consumers (this period)</T>
           </h2>
           <ul className="space-y-1.5">
@@ -169,7 +169,7 @@ export default async function FirmTokenPoolPage() {
       )}
 
       <section className="space-y-3">
-        <h2 className="font-display text-lg font-medium text-forest-900 dark:text-cream-100">
+        <h2 className="text-lg font-medium text-forest-900 dark:text-cream-100">
           <T>Recent ledger</T>
         </h2>
         {ledger.length === 0 ? (
@@ -233,7 +233,7 @@ function Stat({
   return (
     <div className="card p-5">
       <p className="eyebrow text-[10.5px] mb-2"><T>{label}</T></p>
-      <p className={`font-display text-3xl font-medium tabular-nums ${cls}`}>
+      <p className={`text-3xl font-medium tabular-nums ${cls}`}>
         {value}
       </p>
       {sub && (

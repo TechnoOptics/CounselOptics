@@ -57,7 +57,7 @@ export function CaseActivityStream({ events }: { events: CaseActivityEvent[] }) 
     <section className="rounded-xl border border-cream-50/10 bg-forest-900/30 p-5">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="font-display text-lg font-medium text-cream-100">Activity</h2>
+          <h2 className="text-lg font-medium text-cream-100">Activity</h2>
           <p className="mt-0.5 text-[12.5px] text-cream-100/55">
             Who’s been on this matter, visible only to your firm.
           </p>

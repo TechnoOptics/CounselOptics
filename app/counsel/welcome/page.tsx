@@ -121,7 +121,7 @@ function Status({
         <p className="text-[10px] uppercase tracking-[0.32em] font-semibold text-gold-300">
           <T>Counsel onboarding</T>
         </p>
-        <h1 className="font-display text-2xl font-medium tracking-[-0.01em]"><T>{title}</T></h1>
+        <h1 className="text-2xl font-medium tracking-[-0.01em]"><T>{title}</T></h1>
         <p className="text-sm text-cream-100/80 leading-relaxed">{body}</p>
         <div className="flex items-center justify-center gap-2 pt-1">
           <Link href="/counsel/request" className="btn-secondary text-sm">

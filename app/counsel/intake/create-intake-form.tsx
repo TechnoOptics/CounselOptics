@@ -649,7 +649,7 @@ function Scorecard({ s }: { s: DocScorecard }) {
     >
       <div className="flex items-center gap-3">
         <span
-          className={`inline-flex h-11 w-11 items-center justify-center rounded-xl font-display text-2xl font-bold ${
+          className={`inline-flex h-11 w-11 items-center justify-center rounded-xl text-2xl font-bold ${
             GRADE_STYLE[s.grade] ?? 'bg-ink-500 text-white'
           }`}
         >

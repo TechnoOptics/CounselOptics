@@ -52,7 +52,7 @@ export default async function FirmLeadsPage() {
 
       {leads.length === 0 ? (
         <div className="card p-8 text-center">
-          <p className="font-display text-2xl text-forest-900 dark:text-cream-100">
+          <p className="text-2xl text-forest-900 dark:text-cream-100">
             <T>No leads yet.</T>
           </p>
           <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-2 max-w-md mx-auto leading-relaxed">
@@ -96,7 +96,7 @@ function Section({
 }) {
   return (
     <section className="space-y-3">
-      <h2 className="font-display text-lg font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
+      <h2 className="text-lg font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
         <T>{title}</T>
       </h2>
       {children}

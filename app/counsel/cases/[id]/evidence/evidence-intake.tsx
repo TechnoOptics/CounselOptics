@@ -2963,7 +2963,7 @@ function AddToFolderDialog({
   return (
     <Dialog onClose={onClose} ariaLabel={t('Add to folder')} size="sm" elevated>
       <div className="p-4">
-        <h3 className="font-display text-lg font-medium text-forest-900 dark:text-cream-100">
+        <h3 className="text-lg font-medium text-forest-900 dark:text-cream-100">
           <T>Add to folder</T>
         </h3>
         <p className="mt-1 text-[12.5px] text-ink-500 dark:text-cream-100/55" data-no-translate>

@@ -100,7 +100,7 @@ export function DashboardCustomizer({
           <div className="p-4">
           <div className="flex items-start justify-between gap-3 pb-3 border-b border-forest-700/40">
             <div>
-              <p className="font-display text-base font-medium text-cream-100">
+              <p className="text-base font-medium text-cream-100">
                 Customize your dashboard
               </p>
               <p className="text-[12px] text-cream-100/60 mt-0.5 leading-relaxed">

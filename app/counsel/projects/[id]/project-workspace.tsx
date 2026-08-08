@@ -367,7 +367,7 @@ function FolderTitle({
   const [confirming, setConfirming] = useState(false);
   if (!section.folder) {
     return (
-      <p className="font-display text-lg font-medium text-forest-900 dark:text-cream-100">
+      <p className="text-lg font-medium text-forest-900 dark:text-cream-100">
         {section.label}
       </p>
     );
@@ -395,7 +395,7 @@ function FolderTitle({
   }
   return (
     <div className="flex items-center gap-2 min-w-0">
-      <p className="font-display text-lg font-medium text-forest-900 dark:text-cream-100 truncate">
+      <p className="text-lg font-medium text-forest-900 dark:text-cream-100 truncate">
         {section.label}
       </p>
       <button type="button" onClick={() => setEditing(true)} className="text-[11px] text-ink-500 dark:text-cream-100/55 hover:underline">

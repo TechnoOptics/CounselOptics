@@ -218,7 +218,7 @@ function TileFrame({
           <span className="text-[11px] text-cream-100/60"><T>View</T></span>
         ) : null}
       </div>
-      <p className="font-display text-lg font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
+      <p className="text-lg font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
         {title}
       </p>
       {children}
@@ -260,7 +260,7 @@ function SimpleCountTile({
       >
         <T>{eyebrow}</T>
       </p>
-      <p className="font-display text-2xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100 mt-1">
+      <p className="text-2xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100 mt-1">
         {headline}
       </p>
       <p className="text-[11px] text-ink-500 dark:text-cream-100/55 mt-0.5 font-mono uppercase tracking-wider">
@@ -643,7 +643,7 @@ function IntakePipelineTile({ data }: { data: DashboardTileData }) {
             key={l.label}
             className="rounded-md ring-1 ring-forest-700/40 bg-forest-900/40 px-2 py-2 text-center"
           >
-            <p className="font-display text-xl text-cream-100">
+            <p className="text-xl text-cream-100">
               {l.count}
             </p>
             <p className="text-[10px] uppercase tracking-wider text-cream-100/55 mt-0.5">

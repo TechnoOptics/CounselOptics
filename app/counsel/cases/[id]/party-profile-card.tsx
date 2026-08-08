@@ -201,7 +201,7 @@ export function PartyProfileCard({
               <T>{isBusiness ? 'Opposing party (business)' : 'Opposing party'}</T>
             </p>
             <p
-              className="mt-0.5 font-display text-[22px] font-semibold leading-tight text-forest-900 dark:text-cream-100"
+              className="mt-0.5 text-[22px] font-semibold leading-tight text-forest-900 dark:text-cream-100"
               data-no-translate
             >
               {subjectName}

@@ -77,7 +77,7 @@ export async function MeetingConnectors({
     <section className="space-y-3">
       <div>
         <p className="eyebrow mb-1">Connections</p>
-        <h2 className="font-display text-xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
+        <h2 className="text-xl font-medium tracking-[-0.01em] text-forest-900 dark:text-cream-100">
           Calendar &amp; meeting providers
         </h2>
         <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">

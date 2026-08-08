@@ -118,7 +118,7 @@ export function ApproachBuilder({
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gold-metal/70">
               <T>Case theories</T>
             </p>
-            <h2 className="mt-1.5 font-display text-2xl font-medium tracking-tight text-cream-50">
+            <h2 className="mt-1.5 text-2xl font-medium tracking-tight text-cream-50">
               <T>Approaches</T>
             </h2>
             <p className="mt-1.5 max-w-xl text-[13px] leading-relaxed text-cream-100/55">

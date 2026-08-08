@@ -147,7 +147,7 @@ export function MenuCustomizer({
     <section className="card p-6 space-y-4">
       <div>
         <p className="eyebrow mb-1"><T>Menu &amp; navigation</T></p>
-        <h2 className="font-display text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
+        <h2 className="text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
           <T>Tailor the sidebar to your team</T>
         </h2>
         <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">

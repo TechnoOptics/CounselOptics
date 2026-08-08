@@ -70,7 +70,7 @@ export default async function CounselSettingsPage() {
       <section className="space-y-3 pt-2 border-t border-ink-200 dark:border-forest-700/40">
         <header>
           <p className="eyebrow mb-1"><T>Workspace surfaces</T></p>
-          <h2 className="font-display text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
+          <h2 className="text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
             <T>Turn off what you don&rsquo;t use</T>
           </h2>
           <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
@@ -83,7 +83,7 @@ export default async function CounselSettingsPage() {
       <section className="space-y-3 pt-2 border-t border-ink-200 dark:border-forest-700/40">
         <header>
           <p className="eyebrow mb-1"><T>Outbound webhooks</T></p>
-          <h2 className="font-display text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
+          <h2 className="text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
             <T>Slack, Microsoft Teams, and custom JSON endpoints</T>
           </h2>
           <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
@@ -103,7 +103,7 @@ export default async function CounselSettingsPage() {
       <section className="space-y-3 pt-2 border-t border-ink-200 dark:border-forest-700/40">
         <header>
           <p className="eyebrow mb-1"><T>Partner app integration</T></p>
-          <h2 className="font-display text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
+          <h2 className="text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
             <T>Legal requests filed from your company app</T>
           </h2>
           <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
@@ -119,7 +119,7 @@ export default async function CounselSettingsPage() {
       <section className="space-y-3 pt-2 border-t border-ink-200 dark:border-forest-700/40">
         <header>
           <p className="eyebrow mb-1"><T>Enterprise</T></p>
-          <h2 className="font-display text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
+          <h2 className="text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
             <T>Single sign-on and automatic provisioning</T>
           </h2>
           <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
@@ -139,7 +139,7 @@ export default async function CounselSettingsPage() {
       <section className="space-y-3 pt-2 border-t border-ink-200 dark:border-forest-700/40">
         <header>
           <p className="eyebrow mb-1"><T>Data export &amp; backup</T></p>
-          <h2 className="font-display text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
+          <h2 className="text-xl font-medium tracking-[-0.005em] text-forest-900 dark:text-cream-100">
             <T>Keep your own copy</T>
           </h2>
           <p className="text-sm text-ink-600 dark:text-cream-100/70 mt-1 max-w-2xl leading-relaxed">
