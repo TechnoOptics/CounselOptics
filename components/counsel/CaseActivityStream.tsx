@@ -62,7 +62,7 @@ export function CaseActivityStream({ events }: { events: CaseActivityEvent[] }) 
             Who’s been on this matter, visible only to your firm.
           </p>
         </div>
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-gold-metal/12 text-gold-metal ring-1 ring-gold-metal/25">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-gold-metal/[0.12] text-gold-metal ring-1 ring-gold-metal/25">
           <PulseIcon />
         </span>
       </div>
@@ -112,7 +112,7 @@ export function CaseActivityStream({ events }: { events: CaseActivityEvent[] }) 
             <button
               type="button"
               onClick={() => setShowAll((v) => !v)}
-              className="mt-3 text-[12.5px] font-semibold text-gold-metal/85 hover:text-gold-300"
+              className="mt-3 text-[12.5px] font-semibold text-gold-metal hover:text-gold-300"
             >
               {showAll ? 'Show less' : `Show all ${events.length}`}
             </button>
@@ -126,7 +126,7 @@ export function CaseActivityStream({ events }: { events: CaseActivityEvent[] }) 
 function toneRing(tone: 'view' | 'act' | 'comment' | 'download'): string {
   switch (tone) {
     case 'download':
-      return 'bg-gold-metal/12 text-gold-metal ring-gold-metal/25';
+      return 'bg-gold-metal/[0.12] text-gold-metal ring-gold-metal/25';
     case 'comment':
       return 'bg-sky-500/12 text-sky-300 ring-sky-400/25';
     case 'act':

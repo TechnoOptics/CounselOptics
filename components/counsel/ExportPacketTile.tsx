@@ -64,11 +64,11 @@ export function ExportPacketTile({
         className="group block w-full rounded-xl border border-cream-50/10 bg-forest-900/30 p-4 text-left transition-all hover:border-gold-metal/30 hover:bg-forest-900/55 disabled:opacity-70"
       >
         <div className="flex items-start justify-between gap-2">
-          <span className="grid h-10 w-10 place-items-center rounded-lg bg-gold-metal/12 text-gold-metal ring-1 ring-gold-metal/25">
+          <span className="grid h-10 w-10 place-items-center rounded-lg bg-gold-metal/[0.12] text-gold-metal ring-1 ring-gold-metal/25">
             {icon}
           </span>
           {loading ? (
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden className="animate-spin text-gold-metal/80">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden className="animate-spin text-gold-metal">
               <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" strokeOpacity="0.25" />
               <path d="M21 12a9 9 0 00-9-9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
             </svg>
